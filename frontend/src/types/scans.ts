@@ -183,7 +183,7 @@ export interface ScanConfig {
   created_at: string
   updated_at: string
   /**
-   * Server-derived `interval IS NOT NULL` (MO-23): whether the scheduler
+   * Server-derived `interval IS NOT NULL`: whether the scheduler
    * collects metrics for this scan. Read-only, never sent back. The views keep
    * `scanModeOf`, which also needs a time column: an interval without one is
    * `misconfigured`, a state this flag alone would report as monitoring.
@@ -356,7 +356,7 @@ export interface ScanActivityItem {
   // Mixes two units; the split pair below sums to it.
   rows_read_24h: number
   // Warehouse rows metrics runs read, and the GROUP BY ALL combinations catalog
-  // runs read back, over the same window (#247 DA-4). Always sent; optional so
+  // runs read back, over the same window (#247). Always sent; optional so
   // fixtures written before the split still type.
   warehouse_rows_24h?: number
   catalog_combinations_24h?: number
@@ -514,6 +514,6 @@ export interface ScanDryRunJob {
 /**
  * Canonical status for the scan run-status pill. A frontend type, not an API
  * one: it lives here rather than in the scans page module so lib/statusLexicon
- * can name it without importing a page (DS-41).
+ * can name it without importing a page.
  */
 export type RunPillStatus = 'succeeded' | 'failed' | 'running' | 'pending' | 'cancelled' | 'never'

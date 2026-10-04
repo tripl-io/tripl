@@ -163,7 +163,7 @@ async def apply_template(
     session.add(branch)
     await session.flush()
     # The revision is written before the branch exists, so its link back is
-    # stamped once the branch has an id (PL-21), as create_branch does.
+    # stamped once the branch has an id, as create_branch does.
     base_revision.branch_id = branch.id
 
     type_ids, field_ids = await _add_event_types(session, project_id, branch.id, template)

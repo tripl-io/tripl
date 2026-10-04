@@ -142,7 +142,7 @@ export function buildCoreUpdatePayload(
  * `connectionCoreMissing` catches it).
  *
  * A partial paste used to be accepted at create time and only fail later, at
- * connect or test time, in the backend's `json.loads` (DATA-29).
+ * connect or test time, in the backend's `json.loads`.
  */
 export function serviceAccountKeyError(value: string): string | null {
   const trimmed = value.trim()
@@ -168,7 +168,7 @@ export type CoreMissing = Partial<Record<'host' | 'port' | 'databaseName' | 'sec
 
 /**
  * Which required core fields are empty, each mapped to the inline message
- * under it (AU-4 / DA-37). The dialogs validate on submit with `noValidate`
+ * under it. The dialogs validate on submit with `noValidate`
  * instead of the browser's bubble, which flagged the first empty field only,
  * and Test connection used to send the empty draft and come back with the
  * backend's "host: String should have at least 1 character".
@@ -213,7 +213,7 @@ export interface ServerCoreErrors {
 }
 
 /**
- * Map a 422 from create or test onto the core controls (DA-38). The client
+ * Map a 422 from create or test onto the core controls. The client
  * catches empty required fields itself (`connectionCoreMissing`); this covers
  * whatever it misses, so a refusal lands under the control it is about
  * ("Required" under Database) instead of as "database_name: String should have
@@ -258,7 +258,7 @@ export function connectionCoreSecretError(dbType: DbType, form: ConnectionCoreFo
 
 /**
  * Whether saving `form` over `ds` changes how tripl connects, so a fresh
- * connection test is worth running afterwards (DATA-30). A rename or a timeout
+ * connection test is worth running afterwards. A rename or a timeout
  * change is not a connection change.
  */
 export function coreConnectionChanged(ds: DataSource, form: ConnectionCoreForm): boolean {

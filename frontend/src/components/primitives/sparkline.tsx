@@ -26,7 +26,7 @@ type SparklineProps = {
  * `Math.max(1, max - min)`, which clamped every span below one unit to one: a
  * conversion rate stored as a fraction moving from 0.05 to 0.09 got 0.04 of
  * the height, under a pixel, and every percent or ratio metric drew a flat
- * line that read as "no change" (DS-4).
+ * line that read as "no change".
  */
 function sparklineRange(min: number, max: number): number {
   return max - min || Math.abs(max) || 1
@@ -34,7 +34,7 @@ function sparklineRange(min: number, max: number): number {
 
 function SparklineInner({
   data,
-  // The fixed single-series hue, not the user's accent (DS-27): a volume line
+  // The fixed single-series hue, not the user's accent: a volume line
   // read lime on Overview under one accent and teal under another, while the
   // same series drew blue in the charts.
   color = SERIES_COLORS[0],
@@ -62,7 +62,7 @@ function SparklineInner({
 
   if (variant === "bar") {
     // Bars stand on zero, not on the smallest value: measured from `min`, the
-    // lowest bar was 1px however large it was (DS-4). A series that dips below
+    // lowest bar was 1px however large it was. A series that dips below
     // zero keeps its minimum as the floor.
     const floor = Math.min(0, min)
     const barRange = sparklineRange(floor, max)
@@ -140,8 +140,8 @@ export const Sparkline = memo(SparklineInner)
 
 /**
  * A sparkline whose series has not arrived: a pulsing block of the same size,
- * so a row does not claim "—" (no data) for the seconds before it fills in
- * (EV-20). Reserve "—" for a series that loaded empty.
+ * so a row does not claim "—" (no data) for the seconds before it fills in.
+ * Reserve "—" for a series that loaded empty.
  */
 export function SparklineSkeleton({
   width = 80,

@@ -15,7 +15,7 @@ function SelectTrigger({
   return (
     <SelectPrimitive.Trigger
       data-slot="select-trigger"
-      // Same 32px / 12.5px box as Input and a default Button (DS-14).
+      // Same 32px / 12.5px box as Input and a default Button.
       className={cn(
         "border-input data-[placeholder]:text-fg-tertiary [&_svg:not([class*='text-'])]:text-fg-tertiary focus-visible:border-ring focus-visible:ring-ring/50 aria-invalid:ring-destructive/20 aria-invalid:border-destructive flex h-8 w-full items-center justify-between gap-2 rounded-control border bg-transparent px-2.5 py-1.5 text-body-sm shadow-xs outline-none transition-colors focus-visible:ring-[3px] disabled:cursor-not-allowed disabled:border-dashed disabled:border-[var(--border-strong)] disabled:bg-transparent disabled:text-[var(--fg-subtle)] *:data-[slot=select-value]:line-clamp-1 *:data-[slot=select-value]:flex *:data-[slot=select-value]:items-center *:data-[slot=select-value]:gap-2",
         className

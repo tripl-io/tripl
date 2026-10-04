@@ -23,7 +23,7 @@ class ShadowEventCandidateResponse(BaseModel):
     accepted_event_id: uuid.UUID | None
     # Up to five column -> value dicts from the rows the latest collection saw
     # for this identity, so a reviewer sees what the event looks like before
-    # accepting it (DA-32). Empty until a collection observes the candidate.
+    # accepting it. Empty until a collection observes the candidate.
     sample_properties: list[dict[str, str]] = Field(default_factory=list)
 
 
@@ -64,7 +64,7 @@ class ShadowEventBatchItem(BaseModel):
 
 
 class ShadowEventBatchRequest(BaseModel):
-    """Accept or dismiss many inbox rows in one request (DATA-39)."""
+    """Accept or dismiss many inbox rows in one request."""
 
     action: Literal["accept", "dismiss"]
     items: list[ShadowEventBatchItem] = Field(min_length=1, max_length=MAX_SHADOW_BATCH)

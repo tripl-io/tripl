@@ -22,7 +22,7 @@ export interface AlertingTabCounts {
 }
 
 /**
- * The unfiltered counts the Alerting tab strip carries (AL-46): "Inbox 3" and
+ * The unfiltered counts the Alerting tab strip carries: "Inbox 3" and
  * "Delivery log 2", so the strip itself is a triage signal.
  *
  * Neither can come from the section queries: those carry the reader's filters

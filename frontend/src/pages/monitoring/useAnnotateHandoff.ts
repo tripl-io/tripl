@@ -12,9 +12,9 @@ function focusAnnotationForm() {
 /**
  * Starting an annotation on a flagged bucket, from this page or from elsewhere.
  *
- * The signal banner's "Annotate" (JR-5) calls `startAnnotation`: the Volume
+ * The signal banner's "Annotate" calls `startAnnotation`: the Volume
  * tab, the form prefilled with the bucket, and focus in its label field. The
- * Anomalies row menu's "Annotate" (MO-4) arrives with the bucket in the
+ * Anomalies row menu's "Annotate" arrives with the bucket in the
  * navigation state instead: the same annotation starts once, then the state is
  * dropped so Back or a reload does not start it again.
  *

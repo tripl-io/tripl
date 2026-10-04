@@ -323,7 +323,7 @@ class AiSettingsResponse(BaseModel):
 
 
 class AiPromptDefaultsResponse(BaseModel):
-    """The built-in system prompts, whatever is stored over them (ST-30).
+    """The built-in system prompts, whatever is stored over them.
 
     A "Restore default" link fills the editor from these; saving ``null`` for
     the field clears the override and has the same effect server-side.

@@ -22,7 +22,7 @@ function bucketEnd(start: string, granularity: MetricsGranularity): number {
 }
 
 /**
- * Which rolled-up buckets the raw series does not fully cover (MO-5).
+ * Which rolled-up buckets the raw series does not fully cover.
  *
  * At 30 days in days, or 90 days in weeks, the first display bucket starts
  * before the data does and the last one is still in progress, so their sums

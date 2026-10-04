@@ -7,7 +7,7 @@ import { Checkbox } from './checkbox'
 const SHOW_MINUS = 'group-data-[state=indeterminate]/checkbox:block'
 const SHOW_CHECK = 'group-data-[state=checked]/checkbox:block'
 
-describe('Checkbox indeterminate state (EV-26)', () => {
+describe('Checkbox indeterminate state', () => {
   it('announces "mixed" and draws a minus on the filled box', () => {
     render(<Checkbox aria-label="Select all rows" checked="indeterminate" />)
 

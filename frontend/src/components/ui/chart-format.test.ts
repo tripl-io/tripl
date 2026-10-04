@@ -21,7 +21,7 @@ import {
  * "Week of Jun 7" (Sunday) west of Greenwich and a day bucket prints under the
  * wrong date — the axis would then disagree with the bucket the server
  * computed. Sub-day buckets are instants and render in local
- * time, like every other timestamp in the app (DS-24 / MON-5). Node re-reads
+ * time, like every other timestamp in the app. Node re-reads
  * `process.env.TZ` on every Date operation, so stubbing it swings the host zone
  * under the formatter.
  */
@@ -216,7 +216,7 @@ describe('summarizeForecastRange', () => {
   })
 })
 
-// LIVE-27: a 7-day hourly axis used to tick every ~21 hours at odd times.
+// a 7-day hourly axis used to tick every ~21 hours at odd times.
 describe('dayBoundaryTicks', () => {
   afterEach(() => {
     vi.unstubAllEnvs()
@@ -283,7 +283,7 @@ describe('dayBoundaryTicks', () => {
   })
 })
 
-// DS-26: "1 events" in a single-event bucket, and two locales in one tooltip.
+// "1 events" in a single-event bucket, and two locales in one tooltip.
 describe('formatSeriesValue', () => {
   it('agrees the default noun with the count', () => {
     expect(formatSeriesValue(1, EVENTS_NOUN)).toBe('1 event')

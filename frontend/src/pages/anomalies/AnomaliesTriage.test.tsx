@@ -125,7 +125,7 @@ const VERDICT: SignalVerdict = {
   source: 'signal',
 }
 
-describe('AnomaliesPage — triage (MO-4 / JR-5)', () => {
+describe('AnomaliesPage — triage', () => {
   it('offers acknowledge, mark as expected and the three mute lengths on an unrouted signal', async () => {
     vi.mocked(eventMetricsApi.getActiveSignals).mockResolvedValue([makeSignal({})])
     renderAnomalies()
@@ -309,7 +309,7 @@ describe('AnomaliesPage — triage (MO-4 / JR-5)', () => {
   })
 })
 
-describe('AnomaliesPage — hidden signals (MO-4 / JR-5)', () => {
+describe('AnomaliesPage — hidden signals', () => {
   const signals = [
     makeSignal({ scope_ref: 'et-1', scope_name: 'Signup' }),
     makeSignal({ scope_ref: 'et-2', event_type_id: 'et-2', scope_name: 'Checkout', muted: true, hidden: true }),

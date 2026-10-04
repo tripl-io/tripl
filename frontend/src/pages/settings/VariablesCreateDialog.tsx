@@ -27,7 +27,7 @@ import { invalidValuesFor, valueRuleFor } from './variableValueValidation'
 
 /**
  * The New variable dialog. It owns its form state, so typing in it re-renders
- * the dialog and not the whole variables page behind it (PLAN-31). Mounted only
+ * the dialog and not the whole variables page behind it. Mounted only
  * while open, which also resets the form each time it opens.
  */
 export function VariablesCreateDialog({
@@ -65,7 +65,7 @@ export function VariablesCreateDialog({
 
   const valueRule = valueRuleFor(varType)
   // Values typed before the type changed are not re-checked by the chip input,
-  // so the form says which of them the new type would refuse (PLAN-24).
+  // so the form says which of them the new type would refuse.
   const invalidValues = invalidValuesFor(varType, allowedValues)
 
   const createMut = useMutation({
@@ -80,7 +80,7 @@ export function VariablesCreateDialog({
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: variablesKey(slug, branchId) })
       // The sidebar's Variables count reads the project summary, which the
-      // variables list does not refresh: it kept the old number (AU-32).
+      // variables list does not refresh: it kept the old number.
       qc.invalidateQueries({ queryKey: projectKey(slug) })
       onClose()
     },
@@ -90,8 +90,8 @@ export function VariablesCreateDialog({
     <Dialog open onOpenChange={(open) => { if (!open) onClose() }}>
       <DialogContent>
         {/* noValidate: the name rule is said inline, not as the browser's
-            "Please match the requested format." (AU-4). Only the body scrolls,
-            so the title and Create stay in view (AL-4). */}
+            "Please match the requested format.". Only the body scrolls,
+            so the title and Create stay in view. */}
         <form
           ref={formRef}
           noValidate
@@ -124,7 +124,7 @@ export function VariablesCreateDialog({
               <FieldError inputId={nameId} message={shownNameError} />
             </div>
             {/* One column on phones: two side by side left each ~150px in a
-                343px dialog (PLAN-53). */}
+                343px dialog. */}
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
               <div className="grid gap-2">
                 <Label htmlFor={typeId}>Type</Label>

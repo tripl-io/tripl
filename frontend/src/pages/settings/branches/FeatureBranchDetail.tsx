@@ -101,7 +101,7 @@ interface BranchDetailProps {
   slug: string
   branch: PlanBranchSummary | null
   /** The route named a branch the list does not have — deleted, or never
-   * existed. Said out loud rather than silently showing main (PLAN-9). */
+   * existed. Said out loud rather than silently showing main. */
   notFound: boolean
   diff: PlanBranchDiffSummary | undefined
   diffLoad: DiffLoad
@@ -124,7 +124,7 @@ export function BranchDetail({
   onNewBranch,
 }: BranchDetailProps) {
   if (notFound) {
-    // The shared not-found state (#237 SH-33): no red, no retry, one way back.
+    // The shared not-found state (#237): no red, no retry, one way back.
     return (
       <EntityNotFound
         title="Branch not found"
@@ -176,23 +176,23 @@ function FeatureBranchDetail({ slug, branch, diff, diffLoad, confirm }: FeatureB
   const canWrite = useCanWriteProject()
   const { user } = useAuth()
   const usersById = useUsersById()
-  // The top bar's last crumb: "Plan › Plan branches › <name>" (PL-17).
+  // The top bar's last crumb: "Plan › Plan branches › <name>".
   usePageTitle(branch.name)
   const branchLink = useBranchLinkProps()
   const branchCtx = useBranchContext()
   // A branch that is merged, closed or gone can no longer be worked in, so the
-  // shell must not keep sending every request to it (SHELL-18).
+  // shell must not keep sending every request to it.
   const leaveEndedBranch = () => {
     if (branchCtx.branchId === branch.id) branchCtx.setBranchId(null)
   }
   // When this session merged the branch — the ticket panel waits for the
-  // tracker ticket the merge worker writes a moment later (PLAN-10).
+  // tracker ticket the merge worker writes a moment later.
   const [mergedAt, setMergedAt] = useState<number | null>(null)
   // The reviewer picker in the review summary. Lifted here so "Submit for
   // review" on a branch with nobody assigned opens it instead of sending the
-  // branch to no one (JR-14).
+  // branch to no one.
   const [reviewerPicker, setReviewerPicker] = useState<ReviewerPickerIntent>(null)
-  // "Update from main" (PL-8): opened from the behind note and, when the merge
+  // "Update from main": opened from the behind note and, when the merge
   // would refuse, from the merge button.
   const [updateOpen, setUpdateOpen] = useState(false)
   // The ticket a branch is named after, linked through the meta field that
@@ -225,8 +225,7 @@ function FeatureBranchDetail({ slug, branch, diff, diffLoad, confirm }: FeatureB
     queryFn: () => branchSettingsApi.get(slug),
   })
   // The Conflicts panel's own query (same key, so no second request): the
-  // "main has moved on" note says whether that actually touches this branch
-  // (PL-8).
+  // "main has moved on" note says whether that actually touches this branch.
   const branchOpen = branch.status !== 'merged' && branch.status !== 'closed'
   const { data: conflicts } = useQuery({
     queryKey: planBranchConflictsKey(slug, branch.id),
@@ -249,7 +248,7 @@ function FeatureBranchDetail({ slug, branch, diff, diffLoad, confirm }: FeatureB
       // An approval counts as review feedback, exactly like a posted comment.
       if (action === 'approve') notifyStepCompleted('branches/comment')
       // Submitting used to change only a chip; say who it went to, or that
-      // nobody will know to look yet (JR-14).
+      // nobody will know to look yet.
       if (action === 'submit') {
         const names = (detail?.reviewers ?? []).map((r) => displayUser(usersById, r.user_id))
         toast.success(
@@ -271,7 +270,7 @@ function FeatureBranchDetail({ slug, branch, diff, diffLoad, confirm }: FeatureB
     },
     onError: (error) => {
       // "Resolve the field conflicts below" has to find them below: the panel
-      // may be holding an empty answer from before main moved (PLAN-4).
+      // may be holding an empty answer from before main moved.
       if (isConflictRefusal(error)) {
         void qc.invalidateQueries({ queryKey: planBranchConflictsKey(slug, branch.id) })
       }
@@ -279,7 +278,7 @@ function FeatureBranchDetail({ slug, branch, diff, diffLoad, confirm }: FeatureB
   })
 
   const deleteMut = useMutation({
-    // Rendered in the panel below the actions (PLAN-9).
+    // Rendered in the panel below the actions.
     meta: SILENT_ERROR_META,
     mutationFn: () => planBranchesApi.delete(slug, branch.id),
     onSuccess: () => {
@@ -308,7 +307,7 @@ function FeatureBranchDetail({ slug, branch, diff, diffLoad, confirm }: FeatureB
       }),
     onSuccess: (nextDiff) => {
       // The endpoint answers with the resulting diff; refetching it instead
-      // cost a second multi-second request after every revert (PLAN-16).
+      // cost a second multi-second request after every revert.
       qc.setQueryData(planBranchDiffKey(slug, branch.id), nextDiff)
       void qc.invalidateQueries({ queryKey: planBranchesKey(slug) })
       void qc.invalidateQueries({ queryKey: planBranchDetailKey(slug, branch.id) })
@@ -323,8 +322,7 @@ function FeatureBranchDetail({ slug, branch, diff, diffLoad, confirm }: FeatureB
     view
   const entries = useMemo(() => diff?.entries ?? [], [diff])
   // Removals the revert endpoint would refuse as ambiguous renames: the row
-  // says so and offers no revert, instead of a dialog offering "Try anyway"
-  // (PLAN-18).
+  // says so and offers no revert, instead of a dialog offering "Try anyway".
   const revertBlockedBy = useMemo(() => {
     const blocked = new Map<string, PlanDiffEntry[]>()
     for (const entry of visibleEntries) {
@@ -372,7 +370,7 @@ function FeatureBranchDetail({ slug, branch, diff, diffLoad, confirm }: FeatureB
   // ahead badge counts, so the strip cannot contradict the rows under it.
   const counts = pairedDiffCounts(diff)
 
-  // Every merge asks first, with what is about to land (PLAN-8).
+  // Every merge asks first, with what is about to land.
   const handleMerge = async () => {
     const ok = await confirm(
       mergePrompt(
@@ -429,7 +427,7 @@ function FeatureBranchDetail({ slug, branch, diff, diffLoad, confirm }: FeatureB
   const staleApprovals = new Set(countedApprovals.filter((a) => a.stale).map((a) => a.user_id)).size
   const requiredApprovals = policy?.min_approvals ?? 0
   // The author's own Approve is refused by the backend under this policy, so
-  // it is not offered as a live button (PLAN-12).
+  // it is not offered as a live button.
   const selfApprovalBlocked =
     policy?.block_self_approval === true && !!user && user.id === branch.created_by
   const actionError = actionMut.isError ? describeBranchActionError(actionMut.error) : null
@@ -451,8 +449,8 @@ function FeatureBranchDetail({ slug, branch, diff, diffLoad, confirm }: FeatureB
       ? 'Approved against the branch as it stands now.'
       : null
   const landed = branch.status === 'merged' || branch.status === 'closed'
-  // What main's newer changes mean for this branch, from the conflicts answer
-  // (PL-8): nothing, safe, overlapping, or a merge that would refuse.
+  // What main's newer changes mean for this branch, from the conflicts answer:
+  // nothing, safe, overlapping, or a merge that would refuse.
   const note = landed ? ({ kind: 'none' } as const) : behindNote(conflicts, behind)
   const neutralNote = note.kind === 'safe' || note.kind === 'moved'
   // Not for a base older than complete merge baselines: the update always
@@ -460,22 +458,22 @@ function FeatureBranchDetail({ slug, branch, diff, diffLoad, confirm }: FeatureB
   const canUpdateFromMain =
     canWrite && !landed && conflicts?.behind === true && conflicts.updatable !== false
   // The merge refuses non-field conflicts outright; updating from main is
-  // what clears them, so the merge button leads there instead (PL-8).
+  // what clears them, so the merge button leads there instead.
   const mergeNeedsUpdate =
     canUpdateFromMain &&
     (conflicts?.merge_blocked === true ||
       (conflicts?.entities ?? []).some((entity) => entity.entity_type !== 'event_type'))
   const onThisBranch = branchCtx.branchId === branch.id
   // Your own approval that the branch has since moved past: "Approve" again
-  // refreshes it (PL-7).
+  // refreshes it.
   const myApproval = user ? (detail?.approvals ?? []).find((a) => a.user_id === user.id) : undefined
-  // A review of nothing wastes a reviewer's time (PL-28). Only from a settled
+  // A review of nothing wastes a reviewer's time. Only from a settled
   // diff: an unloaded one is not "empty".
   const emptyBranch = diffLoad.status === 'success' && counts.total === 0
   const reasons: Partial<Record<PlanBranchTransitionAction, string>> = {}
   if (selfApprovalBlocked) reasons.approve = "Authors can't approve their own branch (merge policy)."
   if (emptyBranch) reasons.submit = 'Make at least one change on this branch first.'
-  // One primary per state, and it is the next step (PL-7 / JR-14): Submit on a
+  // One primary per state, and it is the next step: Submit on a
   // draft, Approve while in review, Merge once approved. Once your own approval
   // stands, approving is not your next step, so nothing is primary until the
   // quota fills; a stale one still makes "Approve again" the primary.
@@ -492,7 +490,7 @@ function FeatureBranchDetail({ slug, branch, diff, diffLoad, confirm }: FeatureB
           : null
   const actionLabel = (action: PlanBranchTransitionAction): string => {
     // "Reopen" on an approved branch read as "open it again"; it moves it back
-    // to draft (PL-6).
+    // to draft.
     if (action === 'reopen' && branch.status !== 'closed') return 'Move back to draft'
     if (action === 'approve' && myApproval?.stale) return 'Approve again'
     return ACTION_LABEL[action]
@@ -508,7 +506,7 @@ function FeatureBranchDetail({ slug, branch, diff, diffLoad, confirm }: FeatureB
     <div className="flex min-w-0 flex-col gap-3">
       <Panel
         // The branch is what this page is about, so its name reads as the
-        // page's heading in mono, not as a 12.5px card title (PL-17).
+        // page's heading in mono, not as a 12.5px card title.
         title={<span className="mono text-heading">{branch.name}</span>}
         subtitle={`Opened by ${branchAuthor(branch, usersById)} · updated ${formatRelativeTime(branch.updated_at)}`}
         right={
@@ -555,7 +553,7 @@ function FeatureBranchDetail({ slug, branch, diff, diffLoad, confirm }: FeatureB
       >
         {/* The header keeps identity only (name, approvals, status); the
             lifecycle and the next step lead the body, so "how do I get this
-            live" has an answer on the page (PL-6). */}
+            live" has an answer on the page. */}
         <ReviewProgress
           status={branch.status}
           next={nextStepText({
@@ -568,11 +566,11 @@ function FeatureBranchDetail({ slug, branch, diff, diffLoad, confirm }: FeatureB
           })}
         />
         {/* Authoring on the branch you are reviewing, as one explicit action
-            that says it switches you onto the branch (PL-11); the sidebar
+            that says it switches you onto the branch; the sidebar
             switcher is a different surface. Hidden once the branch is merged or
             closed, for the same reason its rows lose their Edit action. On a
             phone the actions get their own full-width row instead of wrapping
-            around the header chips (PL-17). */}
+            around the header chips. */}
         {!landed || (canWrite && branch.status !== 'merged') ? (
           <div
             className="flex flex-wrap items-center gap-2 border-t px-4 py-2.5 border-border-subtle"
@@ -605,7 +603,7 @@ function FeatureBranchDetail({ slug, branch, diff, diffLoad, confirm }: FeatureB
             ) : null}
             {/* Not on a merged branch: deleting it throws away the review
                 history, the comments and the ticket link of work that is on
-                main now (PLAN-9). */}
+                main now. */}
             {canWrite && branch.status !== 'merged' && (
               <IconButton
                 variant="ghost"
@@ -631,8 +629,8 @@ function FeatureBranchDetail({ slug, branch, diff, diffLoad, confirm }: FeatureB
           ) : (
             <>
               {/* Non-zero kinds first; a zero stays in its place but quiet, so
-                  "+0" and "−0" no longer pull the eye like the real change
-                  (PL-19). */}
+                  "+0" and "−0" no longer pull the eye like the real change.
+                  */}
               {(
                 [
                   { tone: 'warning', sym: '~', n: counts.changed, label: 'modified' },
@@ -661,10 +659,10 @@ function FeatureBranchDetail({ slug, branch, diff, diffLoad, confirm }: FeatureB
           )}
         </div>
         {/* `behind_base` is a yes/no, not a distance: it used to print "↓ 1
-            behind main" as if main were one change ahead (PLAN-14). Amber only
+            behind main" as if main were one change ahead. Amber only
             when main's newer changes overlap this branch's or the merge would
             refuse; otherwise neutral — and in every case with the action that
-            brings main in, rather than advice to recreate the branch (PL-8). */}
+            brings main in, rather than advice to recreate the branch. */}
         {(diffLoad.status === 'success' || conflicts?.behind !== undefined) && note.kind !== 'none' ? (
           <div
             role="note"
@@ -723,9 +721,9 @@ function FeatureBranchDetail({ slug, branch, diff, diffLoad, confirm }: FeatureB
           onSubmitForReview={() => actionMut.mutate('submit')}
         />
         {/* Every status change, Merge included, in one row with exactly one
-            primary: the next step (PL-7). The reason a button is disabled is
+            primary: the next step. The reason a button is disabled is
             written under the row, where a `title` on a disabled button was
-            never shown (#237 DA-9). */}
+            never shown (#237). */}
         {canWrite && (transitions.length > 0 || branch.status === 'approved') && (
           <div
             className="flex flex-col gap-2 border-t px-4 py-3 border-border-subtle"
@@ -829,7 +827,7 @@ function FeatureBranchDetail({ slug, branch, diff, diffLoad, confirm }: FeatureB
       <ImplementationTicketsPanel slug={slug} branch={branch} mergedAt={mergedAt} />
 
       {/* Straight under the summary, where the "main has moved on" note that
-          links here sits, rather than below every change row (PL-20). */}
+          links here sits, rather than below every change row. */}
       <div id="branch-conflicts" className="scroll-mt-4">
         <ConflictsPanel slug={slug} branch={branch} />
       </div>
@@ -858,7 +856,7 @@ function FeatureBranchDetail({ slug, branch, diff, diffLoad, confirm }: FeatureB
           // request is in flight the card says so instead.
           diffLoad.status === 'pending' ? (
             // Bars, not a second "Loading changes…": the strip above carries
-            // the words and the live region (PL-30).
+            // the words and the live region.
             <div aria-hidden="true" className="space-y-2.5 px-4 py-4">
               <Skeleton className="h-4 w-3/5" />
               <Skeleton className="h-4 w-4/5" />
@@ -870,7 +868,7 @@ function FeatureBranchDetail({ slug, branch, diff, diffLoad, confirm }: FeatureB
         ) : visibleEntries.length === 0 ? (
           <div className="px-4 py-7 text-center text-body-sm text-fg-tertiary">
             <p>No changes in this branch.</p>
-            {/* The way forward from an empty branch (PL-4 / PL-28). */}
+            {/* The way forward from an empty branch. */}
             {!landed && canWrite ? (
               <p className="mt-1 text-caption">
                 Work on this branch and edit events: each change appears here for review.
@@ -889,8 +887,8 @@ function FeatureBranchDetail({ slug, branch, diff, diffLoad, confirm }: FeatureB
                   entry={entry}
                   renamedTo={renamedTo.get(key)}
                   renamedEntityId={renamedEntityId.get(key)}
-                  // A viewer's Edit only led to a form that refuses to save
-                  // (PL-14); "Open event" stays.
+                  // A viewer's Edit only led to a form that refuses to save;
+                  // "Open event" stays.
                   editable={!landed && canWrite}
                   onRevert={canWrite ? handleRevert : undefined}
                   revertBlockedBy={revertBlockedBy.get(entryRowKey(entry))}
@@ -961,7 +959,7 @@ const CURRENT_STEP: Partial<Record<PlanBranchStatus, string>> = {
 }
 
 /** The sentence under the lifecycle: what happens next, from the status and
- * the merge policy (PL-6). Exported through the component only. */
+ * the merge policy. Exported through the component only. */
 function nextStepText({
   status,
   required,
@@ -1048,7 +1046,7 @@ function ReviewProgress({ status, next }: { status: PlanBranchStatus; next: stri
 
 /** Main's pane. With no working branch it teaches the flow and offers the
  * first one; otherwise it says what merged last and what waits for review,
- * and links the plan history (PL-16). */
+ * and links the plan history. */
 function MainBranchPane({
   slug,
   main,

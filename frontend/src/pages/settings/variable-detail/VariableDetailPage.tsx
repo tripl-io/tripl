@@ -42,7 +42,7 @@ import {
 } from './variableDetailPath'
 
 /**
- * One variable's own page, `/p/:slug/variables/:id` (AU-26).
+ * One variable's own page, `/p/:slug/variables/:id`.
  *
  * Everything about a variable used to live in one `max-w-4xl` edit dialog: the
  * definition form, value-drift triage, per-event overrides with their own
@@ -87,8 +87,8 @@ export function VariableDetailPage({ slug, variableId }: { slug: string; variabl
 
   // A branch deep-copies variables under new ids, so the id in the URL belongs
   // to ONE branch. Switching branch here follows the variable by name, the
-  // identity that survives the copy — the same rule as the event-type page
-  // (PLAN-44). Remembered during render, like any value followed from a prop.
+  // identity that survives the copy — the same rule as the event-type page.
+  // Remembered during render, like any value followed from a prop.
   const [lastSeenName, setLastSeenName] = useState<string | null>(null)
   if (variable && variable.name !== lastSeenName) setLastSeenName(variable.name)
   const sameNameOnThisBranch =

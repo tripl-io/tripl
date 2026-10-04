@@ -18,7 +18,7 @@ function scrollParentOf(el: HTMLElement): HTMLElement | null {
  * The events table used to size its scroller with magic offsets
  * (`calc(100vh - 455px)` / `285px`), which assumed one header, one toolbar row
  * and the chart: with the demo banner and a wrapped toolbar it came out ~300px
- * tall, about nine rows at 1440×900 (EV-4). Measuring where the scroller
+ * tall, about nine rows at 1440×900. Measuring where the scroller
  * actually starts fills the rest of the screen whatever sits above it.
  *
  * Re-measured on resize and whenever `observe`'s element changes size (the

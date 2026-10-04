@@ -81,7 +81,7 @@ const FIELD_TYPES = ['string', 'number', 'boolean', 'json', 'enum', 'url']
 
 /**
  * The field's contract rules in words, one per rule: the Contract cell shows
- * their count and lists them on hover, where a bare "1" said nothing (AU-12).
+ * their count and lists them on hover, where a bare "1" said nothing.
  */
 function fieldContractRules(field: FieldDefinition): string[] {
   const rules: string[] = []
@@ -110,7 +110,7 @@ function displayNameFrom(name: string): string {
     .join(' ')
 }
 
-// Which contract inputs a field type can use (AU-16): bounds only mean
+// Which contract inputs a field type can use: bounds only mean
 // something for numbers, a pattern only for text. An input with a saved value
 // stays on screen whatever the type, so no rule is ever kept out of sight.
 const RANGE_FIELD_TYPES = new Set(['number'])
@@ -147,7 +147,7 @@ export function EventTypesTab({ slug }: { slug: string }) {
   // The editor for owners is likewise main-only.
   //
   // One request for the whole project, grouped here: the list used to fire one
-  // /owners request per type on every visit (PLAN-42). The key is a prefix of
+  // /owners request per type on every visit. The key is a prefix of
   // each type's own owners key, so an owner change invalidates both.
   const onMain = branchId === null
   const ownersQuery = useQuery({
@@ -185,7 +185,7 @@ export function EventTypesTab({ slug }: { slug: string }) {
   const showOwner = sorted.some((et) => (ownersByType.get(et.id) ?? []).length > 0)
   // Owners live on main, so a branch cannot know whether a type is gated. The
   // column used to say "ungated" for every row there — wrong for exactly the
-  // types whose owners will block this branch's merge (PLAN-40).
+  // types whose owners will block this branch's merge.
   const showStatus = onMain
   // Every main type is answered, scored or not: show the column only when at
   // least one has a score.
@@ -194,7 +194,7 @@ export function EventTypesTab({ slug }: { slug: string }) {
 
   return (
     <PageContainer>
-      {/* The shared page header (DS-1): a real h1 under the Plan eyebrow, in
+      {/* The shared page header: a real h1 under the Plan eyebrow, in
           place of an 18px h2 with a 14px description. */}
       <PageHeader
         eyebrow="Plan"
@@ -217,14 +217,14 @@ export function EventTypesTab({ slug }: { slug: string }) {
       >
         {typesQuery.isError && typesQuery.data !== undefined && (
           // A failed REFRESH keeps the rows on screen: replacing them with an
-          // error would unmount whatever is being edited (review 204).
+          // error would unmount whatever is being edited.
           <p role="alert" className="px-4 py-2 text-body-sm text-destructive">
             Couldn't refresh event types: {getErrorMessage(typesQuery.error)}
           </p>
         )}
         {typesQuery.isPending ? (
           // A pending list is not an empty one: "No event types yet" used to
-          // flash on every cold load and stay up on a 500 (PLAN-41).
+          // flash on every cold load and stay up on a 500.
           <div className="space-y-2 px-4 py-4" aria-busy="true" aria-label="Loading event types">
             {Array.from({ length: 3 }, (_, index) => (
               <Skeleton key={index} className="h-10 w-full" />
@@ -242,7 +242,7 @@ export function EventTypesTab({ slug }: { slug: string }) {
           </div>
         ) : sorted.length === 0 ? (
           // The first thing a new project creates, so the empty state teaches
-          // what a type is for and offers the step (AU-34).
+          // what a type is for and offers the step.
           <div className="px-4 py-8">
             <EmptyState
               icon={Shapes}
@@ -271,7 +271,7 @@ export function EventTypesTab({ slug }: { slug: string }) {
                 {showSensitive && <Th wideOnly>Sensitive</Th>}
                 {showOwner && <Th wideOnly>Owner</Th>}
                 {/* About who must approve a merge, not the type's state: the
-                    column read "Status: gated" (AU-12). */}
+                    column read "Status: gated". */}
                 {showStatus && <Th>Merge approval</Th>}
                 <Th style={{ width: 40 }}><span className="sr-only">Details</span></Th>
               </TableRow>
@@ -289,7 +289,7 @@ export function EventTypesTab({ slug }: { slug: string }) {
                       <div className="min-w-0">
                         {/* A real link, not a `role="button"` row: the row keeps
                             its cell semantics, so a screen reader still reads the
-                            column headers (PLAN-39). */}
+                            column headers. */}
                         <Link
                           to={projectPath(currentOrgSlug(), slug, `/event-types/${et.id}`)}
                           className="text-body font-semibold hover:underline text-fg"
@@ -302,7 +302,7 @@ export function EventTypesTab({ slug }: { slug: string }) {
                       </div>
                     </div>
                   </Td>
-                  {/* Counts are figures: sans + tabular digits (DS-17). */}
+                  {/* Counts are figures: sans + tabular digits. */}
                   <Td>
                     <span className="tnum">{et.field_definitions.length}</span>
                   </Td>
@@ -379,7 +379,7 @@ export function EventTypesTab({ slug }: { slug: string }) {
                             size="xs"
                             title="No owners — anyone can merge changes to this type"
                           >
-                            {/* The detail header's words for the same state (AU-12). */}
+                            {/* The detail header's words for the same state. */}
                             Open to merge
                           </Chip>
                         )
@@ -432,10 +432,10 @@ function CreateEventTypeView({ slug, branchId, onDone }: CreateEventTypeViewProp
       ),
     onSuccess: (created) => {
       qc.invalidateQueries({ queryKey: projectEventTypesKey(slug) })
-      // The sidebar's event-type count reads the project summary (AU-32).
+      // The sidebar's event-type count reads the project summary.
       qc.invalidateQueries({ queryKey: projectKey(slug) })
       // A type is useful once it has fields, so it opens where they are
-      // added rather than back on the list (AU-36).
+      // added rather than back on the list.
       if (created?.id) navigate(projectPath(currentOrgSlug(), slug, `/event-types/${created.id}?tab=settings`))
       else onDone()
     },
@@ -448,7 +448,7 @@ function CreateEventTypeView({ slug, branchId, onDone }: CreateEventTypeViewProp
         eyebrow="Plan · Event type"
         title="New event type"
       />
-      {/* noValidate + an inline "Required" (AU-4): one validation pattern. */}
+      {/* noValidate + an inline "Required": one validation pattern. */}
       <form
         noValidate
         onSubmit={(e) => {
@@ -490,7 +490,7 @@ function CreateEventTypeView({ slug, branchId, onDone }: CreateEventTypeViewProp
             <FieldError inputId={nameId} message={nameError} />
           </SField>
           {/* Left empty, the type is shown under a name made from Name, and the
-              placeholder says which (AU-36). */}
+              placeholder says which. */}
           <SField label="Display name">
             <SInput
               value={displayName}
@@ -589,7 +589,7 @@ function draftFromField(f: FieldDefinition): FieldDraft {
 
 // Only ever called on a draft FieldEditPage has validated (validateContract):
 // an input that does not parse is an error on the form, never a dropped or
-// tightened rule (PLAN-38).
+// tightened rule.
 function draftContract(draft: FieldDraft) {
   return parseContract(draft)
 }
@@ -605,7 +605,7 @@ export function FieldsEditor({
   branchId: string | null
   /**
    * Told when the field page opens and closes, so the page around it can put
-   * its other cards away: one title and one Save in view (AU-15).
+   * its other cards away: one title and one Save in view.
    */
   onEditingChange?: (editing: boolean) => void
 }) {
@@ -675,7 +675,7 @@ export function FieldsEditor({
   })
 
   // Applied to the cached list at once, so the row moves with the click instead
-  // of after a full refetch (PLAN-37); a refusal puts the server's order back.
+  // of after a full refetch; a refusal puts the server's order back.
   const reorderMut = useMutation({
     // Its error is rendered above the table.
     meta: SILENT_ERROR_META,
@@ -700,7 +700,7 @@ export function FieldsEditor({
     },
     onSettled: invalidate,
   })
-  // Said aloud after a move, because the row jumping is only visible (PLAN-37).
+  // Said aloud after a move, because the row jumping is only visible.
   const [moveAnnouncement, setMoveAnnouncement] = useState('')
   // After a move to the top or bottom the pressed button turns disabled and
   // focus would fall to <body>; this names the button that takes it instead.
@@ -927,7 +927,7 @@ function FieldRow({
   const upRef = useRef<HTMLButtonElement>(null)
   const downRef = useRef<HTMLButtonElement>(null)
   // The move just put this row at an edge, so the button that was pressed is
-  // now disabled; hand focus to the one that still works (PLAN-37).
+  // now disabled; hand focus to the one that still works.
   useEffect(() => {
     if (!focusButton) return
     const target = focusButton === 'up' ? upRef.current : downRef.current
@@ -950,7 +950,7 @@ function FieldRow({
       </Td>
       <Td>
         {/* The way into the editor is this button, not a `role="button"` row
-            wrapped around the move, edit and delete buttons (PLAN-39). */}
+            wrapped around the move, edit and delete buttons. */}
         {canWrite ? (
           <button
             type="button"
@@ -1039,7 +1039,7 @@ function FieldEditPage({ field, pending, error, onCancel, onSubmit }: FieldEditP
   const [draft, setDraft] = useState<FieldDraft>(initialDraft)
   const [enumInput, setEnumInput] = useState('')
   // Shown once a create was attempted with no name: Save used to do nothing at
-  // all, with no word as to why (PLAN-46).
+  // all, with no word as to why.
   const [nameMissing, setNameMissing] = useState(false)
   // Cancel and "← Fields" threw a half-filled contract away without asking.
   // The page guard also covers leaving through the app (the sidebar, Back) and
@@ -1061,7 +1061,7 @@ function FieldEditPage({ field, pending, error, onCancel, onSubmit }: FieldEditP
   }
 
   // Contract errors show as soon as something invalid is typed, and a required
-  // one left blank shows once Save was tried (PLAN-38).
+  // one left blank shows once Save was tried.
   const [submitAttempted, setSubmitAttempted] = useState(false)
   const contractErrors = validateContract(draft)
   const contractError = (key: keyof ContractErrors): string | undefined =>
@@ -1071,8 +1071,8 @@ function FieldEditPage({ field, pending, error, onCancel, onSubmit }: FieldEditP
   const errorIdBase = useId()
   const errorId = (key: keyof ContractErrors) => `${errorIdBase}-${key}`
 
-  // Only the contract inputs this type can use, plus any holding a value
-  // (AU-16); see RANGE_FIELD_TYPES.
+  // Only the contract inputs this type can use, plus any holding a value;
+  // see RANGE_FIELD_TYPES.
   const showRegex = PATTERN_FIELD_TYPES.has(draft.field_type) || draft.contract_regex.trim() !== ''
   const showRange =
     RANGE_FIELD_TYPES.has(draft.field_type)
@@ -1085,7 +1085,7 @@ function FieldEditPage({ field, pending, error, onCancel, onSubmit }: FieldEditP
     const nameProblem = !isEdit && !draft.name.trim()
     if (nameProblem) setNameMissing(true)
     if (nameProblem || Object.keys(contractErrors).length > 0) {
-      // After the render that marks them (AU-4).
+      // After the render that marks them.
       requestAnimationFrame(() => {
         if (formRef.current) focusFirstInvalid(formRef.current)
       })
@@ -1093,7 +1093,7 @@ function FieldEditPage({ field, pending, error, onCancel, onSubmit }: FieldEditP
     }
     onSubmit(draft)
   }
-  // What blocks Save, in red next to it (AU-6 / AU-5); the sticky bar keeps it
+  // What blocks Save, in red next to it; the sticky bar keeps it
   // on screen from anywhere in the form.
   const blockingCount = submitAttempted
     ? Object.keys(contractErrors).length + (nameMissing ? 1 : 0)
@@ -1109,7 +1109,7 @@ function FieldEditPage({ field, pending, error, onCancel, onSubmit }: FieldEditP
         <SInput
           value={draft[key]}
           onChange={(v) => set(key, v)}
-          // Mono only for the pattern: the rates and bounds are numbers (DS-17).
+          // Mono only for the pattern: the rates and bounds are numbers.
           mono={!props.decimal}
           placeholder={props.placeholder}
           inputMode={props.decimal ? 'decimal' : undefined}
@@ -1135,7 +1135,7 @@ function FieldEditPage({ field, pending, error, onCancel, onSubmit }: FieldEditP
       {unsaved.dialog}
       <BackLink label="Fields" onClick={cancel} />
       {/* A section of the event type page, under its h1: a heading-size h2,
-          not a second 19px page title (DS-1). */}
+          not a second 19px page title. */}
       <h2 className="mb-[18px] text-heading font-semibold">
         {isEdit ? `Edit field · ${field.name}` : 'New field'}
       </h2>
@@ -1300,7 +1300,7 @@ function FieldEditPage({ field, pending, error, onCancel, onSubmit }: FieldEditP
       </Panel>
 
       {/* Sticky, so Save and what blocks it stay in reach from the top of
-          the form (AU-6). */}
+          the form. */}
       <SaveBar
         status={attentionSummary(blockingCount)}
         statusTone="danger"
@@ -1348,7 +1348,7 @@ export function OwnersEditor({ slug, eventType }: { slug: string; eventType: Eve
   const defaultProjectRole = useOrgDefaultProjectRole()
 
   // Both errors render in the card: an editor hitting the owner-only endpoint
-  // used to get nothing at all (PLAN-42).
+  // used to get nothing at all.
   const addMut = useMutation({
     meta: SILENT_ERROR_META,
     mutationFn: (userId: string) => eventTypeOwnersApi.add(slug, eventType.id, userId),
@@ -1367,7 +1367,7 @@ export function OwnersEditor({ slug, eventType }: { slug: string; eventType: Eve
   })
 
   // Removing an owner changes who has to approve a merge, and the X sits 12px
-  // from the email it belongs to — one mis-hit was enough (PLAN-42).
+  // from the email it belongs to — one mis-hit was enough.
   const handleRemove = async (owner: EventTypeOwner) => {
     addMut.reset()
     removeMut.reset()
@@ -1478,7 +1478,7 @@ export function OwnersEditor({ slug, eventType }: { slug: string; eventType: Eve
 // ─────────────────── Shared page-style UI primitives ───────────────────
 // Composed from design tokens; exported for EventTypeDetailView to reuse so the
 // settings surface stays visually consistent without a separate shared module.
-// Section cards are the kit `Panel` (DS-4): the local `SCard` copy is gone.
+// Section cards are the kit `Panel`: the local `SCard` copy is gone.
 
 /**
  * The Cancel / submit pair of a short event-type form, for a `Panel`'s
@@ -1521,8 +1521,8 @@ export function SaveFooter({
  *
  * The caption is a real `<label>` pointing at the row's control, and the hint
  * describes it. Both used to be plain text beside it, so every input here was
- * announced as an unlabeled "edit text" and clicking a label focused nothing
- * (PLAN-36). The id travels the way the settings kit's `Field` sends it: the
+ * announced as an unlabeled "edit text" and clicking a label focused nothing.
+ * The id travels the way the settings kit's `Field` sends it: the
  * S* controls below (and ColorPicker) claim it through `useFieldControlId`, and
  * a row holding any other control passes `htmlFor` naming that control's id,
  * or `false` for a row with no single control, which is then named as a group.
@@ -1544,7 +1544,7 @@ export function SField({
   children: ReactNode
 }) {
   const hintId = useId()
-  // The kit Field row (DS-17): one implementation of the caption, the label
+  // The kit Field row: one implementation of the caption, the label
   // association, the phone stacking and the required / error wiring. This only
   // keeps the event-type forms' narrower caption column, and hands the hint's
   // id to the S* controls so they are described by it.
@@ -1590,7 +1590,7 @@ export function SInput({
   const controlId = useFieldControlId(id)
   const hintId = useSFieldHintId()
   return (
-    // The event form's control (AU-35): its edge, focus accent, faint
+    // The event form's control: its edge, focus accent, faint
     // placeholder and 16px-on-phones text, so a type's settings and an
     // event's fields read as one form.
     <input
@@ -1644,7 +1644,7 @@ export function SSelect({
   ariaLabel?: string
 }) {
   const hintId = useSFieldHintId()
-  // The kit's select (DS-9), capped at the text inputs' 420px so the column
+  // The kit's select, capped at the text inputs' 420px so the column
   // keeps one right edge.
   return (
     <div className="max-w-[420px]">
@@ -1731,7 +1731,7 @@ function Td({
 // A plain row. It used to be `<tr role="button">` wrapped around its own move,
 // edit and delete buttons, which stripped the row and cell semantics (no column
 // headers read out) and nested interactive content; the way in is now a link or
-// button in the name cell (PLAN-39).
+// button in the name cell.
 function ListRow({ children }: { children: ReactNode }) {
   return (
     <TableRow
@@ -1742,7 +1742,7 @@ function ListRow({ children }: { children: ReactNode }) {
   )
 }
 
-// The row actions' look on the shared IconButton (DS-12): small and quiet,
+// The row actions' look on the shared IconButton: small and quiet,
 // darkening on hover AND keyboard focus — the old local button swapped its
 // colour in JS `onMouseEnter`, so focus got nothing.
 const ROW_ICON_CLASS =

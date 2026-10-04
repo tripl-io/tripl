@@ -38,7 +38,7 @@ export function useEventsSignals({ slug }: { slug: string | undefined }) {
   return {
     projectTotalSignal,
     eventTypeSignals,
-    // "0 · none" before the query settles is a false all-clear (EV-19).
+    // "0 · none" before the query settles is a false all-clear.
     signalsPending: tabSignalsQuery.isPending,
   }
 }
@@ -55,7 +55,7 @@ export function useEventsSignals({ slug }: { slug: string | undefined }) {
  *
  * And only the buckets on screen get a query, as in useEventRowMetrics: each
  * one polls, so after scrolling 2,400 rows 24 signal queries kept refreshing
- * every minute for rows long out of view (EVT-19).
+ * every minute for rows long out of view.
  */
 export function useEventRowSignals({
   slug,

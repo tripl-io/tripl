@@ -1,7 +1,7 @@
 import { formatDateTime, formatRelativeTime } from '@/lib/datetime'
 import type { MetricsGranularity } from '@/lib/metrics'
 
-// The collection cadence in words, for the chart caption (MO-39).
+// The collection cadence in words, for the chart caption.
 const CADENCE_LABEL: Record<MetricsGranularity, string> = {
   '15min': 'Every 15 minutes',
   hour: 'Hourly',

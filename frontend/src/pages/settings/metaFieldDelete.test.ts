@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 
 import { metaFieldDeleteMessage } from './metaFieldDelete'
 
-describe('metaFieldDeleteMessage (AU-37)', () => {
+describe('metaFieldDeleteMessage', () => {
   it('counts values and events when the usage is known', () => {
     expect(metaFieldDeleteMessage('Jira link', { value_count: 1, event_count: 1 })).toBe(
       "Removes 1 Jira link value from 1 event. This can't be undone.",

@@ -31,7 +31,7 @@ vi.mock('@/api/eventTypes', () => ({
 vi.mock('@/api/dataSources', () => ({
   dataSourcesApi: { list: vi.fn() },
 }))
-// The Owner picker lists the workspace roster (MT-25).
+// The Owner picker lists the workspace roster.
 vi.mock('@/api/users', () => ({
   usersApi: {
     list: vi.fn(async () => [
@@ -47,7 +47,7 @@ vi.mock('@/api/factTables', () => ({
   },
 }))
 
-// The fact / event series dry run (MT-9).
+// The fact / event series dry run.
 vi.mock('./catalogRequests', () => ({
   previewMetricSeries: vi.fn(),
 }))
@@ -73,7 +73,7 @@ vi.mock('@uiw/react-codemirror', () => ({
   }) => (
     <textarea
       // SqlEditor puts its id and ARIA on CodeMirror's contenteditable through
-      // the editor view (DS-6); the textarea stands in for that element.
+      // the editor view; the textarea stands in for that element.
       ref={el => {
         if (el) onCreateEditor?.({ contentDOM: el, dom: el })
       }}
@@ -210,7 +210,7 @@ function formWrapper({ children }: { children: ReactNode }) {
 }
 
 /**
- * Render the form. A new metric starts on "From tracked events" (MT-3); most
+ * Render the form. A new metric starts on "From tracked events"; most
  * of these cases exercise the SQL kind, so a create form switches to Custom
  * SQL first unless `pickSql` is false (which keeps the form pristine).
  */
@@ -265,7 +265,7 @@ async function openAddFilterMenu() {
   return screen.findByRole('menu')
 }
 
-/** Open the collapsed "Breakdowns and dimensions" section (MT-5). */
+/** Open the collapsed "Breakdowns and dimensions" section. */
 function showDimensions() {
   const trigger = screen.getByRole('button', { name: /Breakdowns and dimensions/ })
   if (trigger.getAttribute('aria-expanded') !== 'true') fireEvent.click(trigger)
@@ -275,7 +275,7 @@ function submit() {
   fireEvent.click(screen.getByRole('button', { name: /Create and start collecting|Save metric/ }))
 }
 
-/** Confirm the "hasn't previewed" ask a new SQL metric gets on create (MT-15). */
+/** Confirm the "hasn't previewed" ask a new SQL metric gets on create. */
 async function createAnyway() {
   const dialog = await screen.findByRole('alertdialog')
   fireEvent.click(within(dialog).getByRole('button', { name: 'Create anyway' }))
@@ -377,7 +377,7 @@ describe('MetricForm validation', () => {
     fireEvent.change(document.getElementById('metric-sql-time')!, { target: { value: 'bucket' } })
 
     submit()
-    // Never previewed, so the create asks first (MT-15).
+    // Never previewed, so the create asks first.
     await createAnyway()
 
     await waitFor(() => expect(metricsCatalogApi.create).toHaveBeenCalledTimes(1))
@@ -1005,7 +1005,7 @@ describe('MetricForm validation', () => {
     renderForm()
 
     fireEvent.change(document.getElementById('metric-sql-data-source')!, { target: { value: 'ds-1' } })
-    // Suggestions come from the tables the query names (MET-17).
+    // Suggestions come from the tables the query names.
     fireEvent.change(screen.getByLabelText('Metric SQL'), {
       target: { value: 'SELECT bucket, count(*) AS value FROM events GROUP BY 1' },
     })
@@ -1039,7 +1039,7 @@ describe('MetricForm validation', () => {
     expect(screen.getByRole('checkbox', { name: 'Break down by country' })).toBeChecked()
 
     submit()
-    // Never previewed, so the create asks first (MT-15).
+    // Never previewed, so the create asks first.
     await createAnyway()
 
     await waitFor(() => expect(metricsCatalogApi.create).toHaveBeenCalledTimes(1))
@@ -1074,7 +1074,7 @@ describe('MetricForm validation', () => {
     expect(platform).not.toBeChecked()
 
     submit()
-    // Never previewed, so the create asks first (MT-15).
+    // Never previewed, so the create asks first.
     await createAnyway()
 
     await waitFor(() => expect(metricsCatalogApi.create).toHaveBeenCalledTimes(1))
@@ -1171,7 +1171,7 @@ describe('MetricForm templates', () => {
 
     expect(screen.queryByText('Start from a template')).toBeNull()
     expect(screen.queryByRole('button', { name: 'Start from scratch' })).toBeNull()
-    // The form is present and pristine: the no-SQL kind, empty display name (MT-3).
+    // The form is present and pristine: the no-SQL kind, empty display name.
     expect(
       (screen.getByLabelText('Display name', { exact: false }) as HTMLInputElement).value,
     ).toBe('')
@@ -1182,7 +1182,7 @@ describe('MetricForm templates', () => {
     expect(screen.getByRole('radio', { name: /Custom SQL/ })).toHaveAttribute('aria-checked', 'false')
   })
 
-  it('brings the gallery back after "Start from scratch" (MT-32)', () => {
+  it('brings the gallery back after "Start from scratch"', () => {
     renderForm(null, DATA_SOURCES, { pickSql: false })
     fireEvent.click(screen.getByRole('button', { name: 'Start from scratch' }))
 
@@ -1192,7 +1192,7 @@ describe('MetricForm templates', () => {
     expect(screen.getByRole('button', { name: /Conversion A→B/ })).toBeInTheDocument()
   })
 
-  it('lists the kinds most approachable first and says which the project cannot use yet (MT-3)', async () => {
+  it('lists the kinds most approachable first and says which the project cannot use yet', async () => {
     vi.mocked(factTablesApi.list).mockResolvedValue(
       { total: 0, items: [] } as unknown as Awaited<ReturnType<typeof factTablesApi.list>>,
     )
@@ -1384,7 +1384,7 @@ function reloadIsGuarded(): boolean {
   return event.defaultPrevented
 }
 
-describe('MetricForm unsaved-changes guard (MET-5)', () => {
+describe('MetricForm unsaved-changes guard', () => {
   it('arms the reload prompt only once something was typed', () => {
     renderForm(null, DATA_SOURCES, { pickSql: false })
     expect(reloadIsGuarded()).toBe(false)
@@ -1440,7 +1440,7 @@ const EVENT_METRIC = {
   config: {},
 } as unknown as MetricDefinitionDetailResponse
 
-describe('MetricForm history-loss confirm (MET-1)', () => {
+describe('MetricForm history-loss confirm', () => {
   it('asks before saving any change of meaning and names the history loss', async () => {
     renderForm(EDIT_METRIC)
 
@@ -1521,7 +1521,7 @@ describe('MetricForm history-loss confirm (MET-1)', () => {
   })
 })
 
-describe('MetricForm event picker (MET-2, MET-14)', () => {
+describe('MetricForm event picker', () => {
   const bigCatalog = Array.from({ length: 250 }, (_, i) => ({
     id: `ev-${i}`,
     name: `event_${String(i).padStart(3, '0')}`,
@@ -1576,7 +1576,7 @@ describe('MetricForm event picker (MET-2, MET-14)', () => {
   })
 })
 
-describe('MetricForm filter validation (MET-3)', () => {
+describe('MetricForm filter validation', () => {
   it('blocks save on an incomplete filter instead of dropping it', async () => {
     renderForm()
     fireEvent.click(screen.getByRole('radio', { name: /From a fact table/ }))
@@ -1599,12 +1599,12 @@ describe('MetricForm filter validation (MET-3)', () => {
     expect(metricsCatalogApi.create).not.toHaveBeenCalled()
     expect(screen.getByLabelText('Filter 1 condition column')).toHaveAttribute('aria-invalid', 'true')
 
-    // Fixing it clears the message without another submit (MET-18).
+    // Fixing it clears the message without another submit.
     fireEvent.change(screen.getByLabelText('Filter 1 condition value'), { target: { value: 'u1' } })
     expect(screen.queryByText(valueError)).toBeNull()
   })
 
-  it('keeps Check filters disabled until the operand is complete (MET-33)', async () => {
+  it('keeps Check filters disabled until the operand is complete', async () => {
     renderForm()
     fireEvent.click(screen.getByRole('radio', { name: /From a fact table/ }))
     await pickOption('metric-fact-table', 'ft-1')
@@ -1618,7 +1618,7 @@ describe('MetricForm filter validation (MET-3)', () => {
   })
 })
 
-describe('MetricForm SQL preview (MET-4, MET-44)', () => {
+describe('MetricForm SQL preview', () => {
   it('never paints a result for SQL that was edited while it ran', async () => {
     let resolve!: (value: Awaited<ReturnType<typeof metricsCatalogApi.preview>>) => void
     vi.mocked(metricsCatalogApi.preview).mockReturnValue(
@@ -1659,7 +1659,7 @@ describe('MetricForm SQL preview (MET-4, MET-44)', () => {
     expect(screen.queryByText(/returned no rows/)).toBeNull()
   })
 
-  it('offers the columns the preview returned as breakdowns (MET-17)', async () => {
+  it('offers the columns the preview returned as breakdowns', async () => {
     vi.mocked(metricsCatalogApi.preview).mockResolvedValue({
       columns: ['bucket', 'value', 'region'],
       points: [{ bucket: '2026-07-01T00:00:00Z', value: 5 }],
@@ -1690,7 +1690,7 @@ describe('MetricForm SQL preview (MET-4, MET-44)', () => {
   })
 })
 
-describe('MetricForm replay chunk (MET-10)', () => {
+describe('MetricForm replay chunk', () => {
   it('drops a stored replay chunk finer than a new interval, and says so', async () => {
     renderForm({ ...EDIT_METRIC, replay_chunk_interval: '1d' } as MetricDefinitionDetailResponse)
     expect(screen.getByText(/Backfills replay in daily chunks/)).toBeInTheDocument()
@@ -1730,7 +1730,7 @@ describe('MetricForm replay chunk restored', () => {
   })
 })
 
-describe('MetricForm validation accessibility (MET-15, MET-18)', () => {
+describe('MetricForm validation accessibility', () => {
   it('links each invalid field to its message and focuses fields from the summary', async () => {
     renderForm()
     submit()
@@ -1739,7 +1739,7 @@ describe('MetricForm validation accessibility (MET-15, MET-18)', () => {
     await waitFor(() => expect(display).toHaveAttribute('aria-invalid', 'true'))
     expect(display).toHaveAccessibleDescription('Display name is required.')
     // Focus lands on the first invalid field: the definition comes before the
-    // name card now (MT-2), so that is the data source.
+    // name card now, so that is the data source.
     expect(document.getElementById('metric-sql-data-source')).toHaveFocus()
 
     const summary = screen.getByRole('alert')
@@ -1773,7 +1773,7 @@ describe('MetricForm validation accessibility (MET-15, MET-18)', () => {
   })
 })
 
-describe('MetricForm kind switch (MET-19)', () => {
+describe('MetricForm kind switch', () => {
   it('does not carry dimension columns across kinds', async () => {
     renderForm({
       ...EDIT_METRIC,
@@ -1810,7 +1810,7 @@ describe('MetricForm kind switch (MET-19)', () => {
   })
 })
 
-describe('MetricForm internal name (MET-34)', () => {
+describe('MetricForm internal name', () => {
   it('derives a Latin identifier from a Cyrillic display name', () => {
     renderForm()
     fireEvent.change(screen.getByLabelText('Display name', { exact: false }), {
@@ -1820,7 +1820,7 @@ describe('MetricForm internal name (MET-34)', () => {
   })
 })
 
-describe('MetricForm after a save (MET-27, MET-29)', () => {
+describe('MetricForm after a save', () => {
   it('refreshes the drilldown caches of a redefined metric and reports the save', async () => {
     const onSaved = vi.fn()
     render(
@@ -1846,7 +1846,7 @@ describe('MetricForm after a save (MET-27, MET-29)', () => {
   })
 })
 
-describe('MetricEditPage (MET-28, MET-29)', () => {
+describe('MetricEditPage', () => {
   function BackButton() {
     const navigate = useNavigate()
     return createElement('button', { type: 'button', onClick: () => navigate(-1) }, 'Go back')
@@ -1880,7 +1880,7 @@ describe('MetricEditPage (MET-28, MET-29)', () => {
     )
   }
 
-  it('sends a viewer to the metric’s read view instead of a disabled form (#237 MT-28)', async () => {
+  it('sends a viewer to the metric’s read view instead of a disabled form (#237)', async () => {
     vi.mocked(dataSourcesApi.list).mockResolvedValue(DATA_SOURCES)
     vi.mocked(metricsCatalogApi.get).mockResolvedValue(EDIT_METRIC)
     renderPage('/p/demo/metrics/metric-1/edit', [], personaAuth('viewer'))
@@ -1895,7 +1895,7 @@ describe('MetricEditPage (MET-28, MET-29)', () => {
     expect(await screen.findByText('catalog')).toBeInTheDocument()
   })
 
-  it('says a missing metric is not found, with the way back and no retry (#237 SH-33)', async () => {
+  it('says a missing metric is not found, with the way back and no retry (#237)', async () => {
     vi.mocked(dataSourcesApi.list).mockResolvedValue(DATA_SOURCES)
     vi.mocked(metricsCatalogApi.get).mockRejectedValue(new ApiError('Not found', 404))
     renderPage('/p/demo/metrics/gone/edit')
@@ -1947,7 +1947,7 @@ describe('MetricEditPage (MET-28, MET-29)', () => {
   })
 })
 
-describe('MetricEditPage header link (MT-31)', () => {
+describe('MetricEditPage header link', () => {
   it('names the catalog it leads to, even when opened from the drilldown', async () => {
     vi.mocked(dataSourcesApi.list).mockResolvedValue(DATA_SOURCES)
     vi.mocked(metricsCatalogApi.get).mockResolvedValue(EDIT_METRIC)
@@ -1979,7 +1979,7 @@ describe('MetricEditPage header link (MT-31)', () => {
   })
 })
 
-describe('MetricForm owner (MT-25)', () => {
+describe('MetricForm owner', () => {
   it('sends the picked owner with a new metric', async () => {
     renderForm(null, DATA_SOURCES, { pickSql: false })
     fireEvent.change(screen.getByLabelText('Display name', { exact: false }), {
@@ -2008,7 +2008,7 @@ describe('MetricForm owner (MT-25)', () => {
   })
 })
 
-describe('MetricForm create status (MT-1)', () => {
+describe('MetricForm create status', () => {
   async function fillEventMetric() {
     fireEvent.click(screen.getByRole('radio', { name: /From tracked events/ }))
     fireEvent.change(screen.getByLabelText('Display name', { exact: false }), {
@@ -2054,7 +2054,7 @@ describe('MetricForm create status (MT-1)', () => {
   })
 })
 
-describe('MetricForm unit, colour and template (MT-17, MT-35, MT-32)', () => {
+describe('MetricForm unit, colour and template', () => {
   it('fills in % when an event metric becomes a ratio with no unit', () => {
     renderForm()
     fireEvent.click(screen.getByRole('radio', { name: /From tracked events/ }))
@@ -2075,7 +2075,7 @@ describe('MetricForm unit, colour and template (MT-17, MT-35, MT-32)', () => {
 
   it('picks a colour from the swatches', () => {
     renderForm()
-    // Colour sits in the "More options" fold (MT-2).
+    // Colour sits in the "More options" fold.
     fireEvent.click(screen.getByRole('button', { name: /More options/ }))
     const sky = screen.getByRole('button', { name: 'Sky' })
     expect(sky).toHaveAttribute('aria-pressed', 'false')
@@ -2094,7 +2094,7 @@ describe('MetricForm unit, colour and template (MT-17, MT-35, MT-32)', () => {
   })
 })
 
-describe('MetricForm SQL preview guard (MT-15)', () => {
+describe('MetricForm SQL preview guard', () => {
   it('says what Preview still needs', () => {
     renderForm()
     const preview = screen.getByRole('button', { name: 'Preview' })
@@ -2170,8 +2170,8 @@ describe('MetricForm SQL preview guard (MT-15)', () => {
   })
 })
 
-describe('MetricForm follow-ups (MT-2, MT-3, MT-9)', () => {
-  it('folds the internal name, description and colour behind More options (MT-2)', async () => {
+describe('MetricForm follow-ups', () => {
+  it('folds the internal name, description and colour behind More options', async () => {
     renderForm(null, DATA_SOURCES, { pickSql: false })
     const more = screen.getByRole('button', { name: /More options/ })
     expect(more).toHaveAttribute('aria-expanded', 'false')
@@ -2195,7 +2195,7 @@ describe('MetricForm follow-ups (MT-2, MT-3, MT-9)', () => {
     expect(screen.getByRole('group', { name: 'Internal name' })).toBeInTheDocument()
   })
 
-  it('starts on a fact table when the project tracks no events (MT-3)', async () => {
+  it('starts on a fact table when the project tracks no events', async () => {
     EVENT_CATALOG = []
     renderForm(null, DATA_SOURCES, { pickSql: false })
 
@@ -2208,7 +2208,7 @@ describe('MetricForm follow-ups (MT-2, MT-3, MT-9)', () => {
     expect(screen.getByRole('link', { name: 'Add events' })).toHaveAttribute('href', '/p/demo/events')
   })
 
-  it('starts on SQL, and links to a new fact table, when there are neither (MT-3)', async () => {
+  it('starts on SQL, and links to a new fact table, when there are neither', async () => {
     EVENT_CATALOG = []
     vi.mocked(factTablesApi.list).mockResolvedValue(
       { total: 0, items: [] } as unknown as Awaited<ReturnType<typeof factTablesApi.list>>,
@@ -2231,7 +2231,7 @@ describe('MetricForm follow-ups (MT-2, MT-3, MT-9)', () => {
     expect(screen.getByRole('radio', { name: /Custom SQL/ })).toHaveAttribute('aria-checked', 'true')
   })
 
-  it('previews an event metric\'s series from the definition a save would send (MT-9)', async () => {
+  it('previews an event metric\'s series from the definition a save would send', async () => {
     vi.mocked(previewMetricSeries).mockResolvedValue({
       columns: [],
       points: [

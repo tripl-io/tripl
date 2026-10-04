@@ -125,7 +125,7 @@ afterEach(() => {
   window.localStorage.clear()
 })
 
-/** The one stop Reset and Delete sit behind (#238 JR-21). */
+/** The one stop Reset and Delete sit behind (#238). */
 function manageTrigger(): HTMLElement {
   return screen.getByRole('button', { name: /^manage demo/i, hidden: true })
 }
@@ -151,7 +151,7 @@ describe('DemoBanner', () => {
     expect(screen.getByText('recipe v3')).toBeInTheDocument()
   })
 
-  // One row, not a banner with the scenario strip stacked under it (LIVE-9).
+  // One row, not a banner with the scenario strip stacked under it.
   it('carries the scenario inside its own row, between who it is and what it offers', () => {
     renderBanner({
       scenario: (
@@ -177,7 +177,7 @@ describe('DemoBanner', () => {
     })
   })
 
-  it('folds into a pill on a phone that opens the whole bar (LIVE-9)', () => {
+  it('folds into a pill on a phone that opens the whole bar', () => {
     renderBanner()
 
     const pill = screen.getByRole('button', { name: /demo workspace tools/i })
@@ -194,7 +194,7 @@ describe('DemoBanner', () => {
     expect(pill).toHaveAttribute('aria-expanded', 'false')
   })
 
-  it('wraps the phone panel instead of pushing its actions off-screen (#251 SH-1)', () => {
+  it('wraps the phone panel instead of pushing its actions off-screen (#251)', () => {
     renderBanner()
 
     // Both inner groups were `shrink-0` on one line: at 390 the panel content
@@ -209,7 +209,7 @@ describe('DemoBanner', () => {
     expect(info).not.toHaveClass('shrink-0')
   })
 
-  it('keeps Reset and Delete behind one menu, out of the tab order (#238 JR-21)', async () => {
+  it('keeps Reset and Delete behind one menu, out of the tab order (#238)', async () => {
     renderBanner()
 
     // A keyboard user tabbed through two destructive buttons on every demo
@@ -316,7 +316,7 @@ describe('DemoBanner', () => {
 })
 
 describe('DemoBanner — the way back into the guided onboarding', () => {
-  it('opens the tour without restoring a panel the user put away (DEMO-26)', async () => {
+  it('opens the tour without restoring a panel the user put away', async () => {
     // Dismissing the welcome panel used to remove the tour and the chapter
     // picker for good; then this button restored the panel on every click,
     // bundling two intents. It opens the tour, which offers the panel back.
@@ -361,7 +361,7 @@ describe('DemoBanner — the way back into the guided onboarding', () => {
   })
 })
 
-describe('DemoBanner — reset and delete failures (DEMO-4, DEMO-23)', () => {
+describe('DemoBanner — reset and delete failures', () => {
   it('reports a failed reset, lets the user try again, and does not leave the page', async () => {
     const resetSpy = vi
       .spyOn(projectsApi, 'resetDemo')
@@ -410,7 +410,7 @@ describe('DemoBanner — reset and delete failures (DEMO-4, DEMO-23)', () => {
     expect(manageTrigger()).toHaveAccessibleName('Manage demo (Resetting…)')
   })
 
-  it('clears the error on the next thing the user does (DEMO-23)', async () => {
+  it('clears the error on the next thing the user does', async () => {
     vi.spyOn(projectsApi, 'resetDemo').mockRejectedValue(new ApiError('Demo reset failed', 500))
 
     renderBanner()
@@ -440,7 +440,7 @@ describe('DemoBanner — reset and delete failures (DEMO-4, DEMO-23)', () => {
   })
 })
 
-describe('DemoBanner — a reset that never answers (DEMO-4)', () => {
+describe('DemoBanner — a reset that never answers', () => {
   function stallReset() {
     let signal: AbortSignal | undefined
     vi.spyOn(projectsApi, 'resetDemo').mockImplementation(
@@ -566,7 +566,7 @@ describe('DemoBanner — a reset that never answers (DEMO-4)', () => {
   })
 })
 
-describe('DemoBanner — deleting leaves nothing behind in storage (DEMO-17)', () => {
+describe('DemoBanner — deleting leaves nothing behind in storage', () => {
   it('forgets the tour, scenario, welcome and hint state of the deleted demo', async () => {
     vi.spyOn(projectsApi, 'deleteDemo').mockResolvedValue(undefined as never)
     window.localStorage.setItem('tripl-tour:demo-1', '3')
@@ -589,7 +589,7 @@ describe('DemoBanner — deleting leaves nothing behind in storage (DEMO-17)', (
   })
 })
 
-describe('DemoBanner — what a reset drops from the cache (DEMO-3)', () => {
+describe('DemoBanner — what a reset drops from the cache', () => {
   it('drops the seeded data but keeps the session and the project the shell resolves', async () => {
     vi.spyOn(projectsApi, 'resetDemo').mockResolvedValue(makeProject())
     vi.spyOn(projectsApi, 'list').mockResolvedValue([makeProject()])

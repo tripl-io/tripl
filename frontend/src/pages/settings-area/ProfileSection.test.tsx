@@ -47,7 +47,7 @@ vi.mock('@/components/auth-context', () => ({
 }))
 
 describe('Account · Profile', () => {
-  it('says once that nothing here is editable (#237 ST-17)', () => {
+  it('says once that nothing here is editable (#237)', () => {
     render(<ProfileSection />)
 
     expect(screen.getByRole('note')).toHaveTextContent(/can't be changed here yet/)
@@ -58,9 +58,9 @@ describe('Account · Profile', () => {
 
     expect(screen.getByText('Ada Lovelace')).toBeInTheDocument()
     expect(screen.getByText('ada@example.com')).toBeInTheDocument()
-    // The shared role chip, the one Members shows too (ST-16).
+    // The shared role chip, the one Members shows too.
     expect(screen.getByText('Owner')).toHaveAttribute('data-slot', 'chip')
-    // Plain text, not a form of read-only fields (ST-23).
+    // Plain text, not a form of read-only fields.
     const details = screen.getByRole('region', { name: 'Your details' })
     expect(within(details).queryAllByRole('group')).toHaveLength(0)
   })
@@ -78,7 +78,7 @@ describe('Account · Profile', () => {
   })
 
   /**
-   * WS-37: the unbuilt preferences were first live controls that persisted
+   * the unbuilt preferences were first live controls that persisted
    * nowhere, then the same controls disabled. Now they are one
    * "Coming later" card with nothing to click.
    */

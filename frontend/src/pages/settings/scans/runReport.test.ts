@@ -30,7 +30,7 @@ describe('buildRunReport — "Rows read" covers two populations', () => {
     const metricsRows = lineById(buildRunReport(job({ query_rows_scanned: 900 }), 'monitoring'), 'rows-read')!
 
     // The catalog analyzer groups in the warehouse, so its figure is distinct
-    // column combinations, not warehouse rows (#247 DA-4).
+    // column combinations, not warehouse rows (#247).
     expect(catalogRows.text).toBe('Read 900 distinct column combinations (grouped in the warehouse).')
     expect(metricsRows.text).toBe('Read 900 warehouse rows.')
 

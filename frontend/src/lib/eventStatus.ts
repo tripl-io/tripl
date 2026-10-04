@@ -40,7 +40,7 @@ export const EVENT_STATUS_TONE: Record<EventStatus, ChipTone> = {
   implemented: 'success',
   live: 'success',
   // Neutral, not warning: In Review is already amber, and a deprecated event
-  // needs no action, so the two no longer share one colour (DS-45).
+  // needs no action, so the two no longer share one colour.
   deprecated: 'neutral',
   archived: 'neutral',
 }

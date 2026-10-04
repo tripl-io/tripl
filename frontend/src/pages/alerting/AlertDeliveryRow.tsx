@@ -36,7 +36,7 @@ import {
  * the "what was sent" table inside an incident card. The card's copy used to
  * hand-roll its own header, still titled "Error / Preview" long after the log
  * renamed that column "What fired", and without the `table-fixed` widths this
- * row's truncating cells rely on (ALR-32).
+ * row's truncating cells rely on.
  *
  * `table-fixed` plus explicit widths: without it the multi-kilobyte summary
  * cell's max-width never bound, every short column collapsed to min-content and
@@ -44,7 +44,7 @@ import {
  * The min-width is what the eight columns actually need; the
  * Table's own container scrolls, so the page body never does.
  *
- * Below `md` each row is a card instead (AL-20): time · status, then the
+ * Below `md` each row is a card instead: time · status, then the
  * destination, the rule and what fired, stacked. At 390px the table used to
  * scroll sideways with only Time, Status and Destination in view. The cards are
  * the same rows restyled by CSS rather than a second rendering, so there is one
@@ -59,7 +59,7 @@ export function DeliveryTable({ children }: { children: ReactNode }) {
           <TableHead className="w-[84px]">Status</TableHead>
           {/* Destination and rule are the two columns a reader scans for,
               and they were cut to nine characters while "What fired" took
-              ~40% of the row (AL-20). The Channel column is gone: the icon
+              ~40% of the row. The Channel column is gone: the icon
               in front of the destination says the same thing. */}
           <TableHead className="w-[176px]">Destination</TableHead>
           <TableHead className="w-[168px]">Rule</TableHead>
@@ -78,7 +78,7 @@ export function DeliveryTable({ children }: { children: ReactNode }) {
 }
 
 /**
- * A channel as a person names it — "Slack", not "SLACK" (ALR-48). `demo_sink`
+ * A channel as a person names it — "Slack", not "SLACK". `demo_sink`
  * is the demo workspace's local recorder and has no entry in the catalogue of
  * channels a user can add, so it gets its own words.
  */
@@ -94,7 +94,7 @@ function channelLabel(channel: string): string {
  * names. Matched on the route rather than on the full URL because the stored
  * value carries whatever `app_base_url` was set to when the alert was sent.
  * Both addresses count: `/p/:slug/alerting` now, and the `/settings/alerting`
- * one every alert stored before the page moved still carries (#238 JR-25).
+ * one every alert stored before the page moved still carries (#238).
  */
 function isAlertingPagePath(path: string): boolean {
   return /\/p\/[^/]+\/(?:settings\/)?alerting(?:[/?#]|$)/.test(path)
@@ -300,7 +300,7 @@ export function AlertDeliveryRow({
     queryKey: alertDeliveryKey(slug, delivery.id),
     queryFn: () => alertingApi.getDelivery(slug, delivery.id),
     enabled: open,
-    // Its failure renders inside the expanded row (ALR-34), so the global toast
+    // Its failure renders inside the expanded row, so the global toast
     // would only say it twice.
     meta: SILENT_ERROR_META,
   })
@@ -329,10 +329,10 @@ export function AlertDeliveryRow({
       invalidateAlertingConfig(qc, slug)
       // Said out loud, because the badge flipping to `pending` was the only
       // feedback — and the refetch above can move the row off a Status=Failed
-      // page entirely, so the reader may never see even that (ALR-35).
+      // page entirely, so the reader may never see even that.
       // "Queued", not "re-sent": the server re-queues and the worker sends.
       toast.success(`Retry queued — ${delivery.destination_name} will send this alert again.`)
-      // …and, once the worker has tried it, whether it went through (ALR-35).
+      // …and, once the worker has tried it, whether it went through.
       watchRetriedDelivery(qc, slug, delivery.id, delivery.destination_name, retryWatch)
     },
   })
@@ -410,7 +410,7 @@ export function AlertDeliveryRow({
       {dialog}
       <TableRow
         ref={focusRef}
-        // The phone card (AL-20, see DeliveryTable): a grid of time | status |
+        // The phone card (see DeliveryTable): a grid of time | status |
         // actions, with destination, rule and what fired on full-width lines
         // below. Scan and count drop out there; the expanded row has both.
         className={cn(
@@ -431,10 +431,10 @@ export function AlertDeliveryRow({
           ) : '—'}
         </TableCell>
         <TableCell className="max-md:col-start-2 max-md:row-start-1">
-          {/* Status pill (DS-6): "sent" was a solid brand block, the one
+          {/* Status pill: "sent" was a solid brand block, the one
               loud shape in a column of quiet ones, for the normal outcome.
               Alone in its cell: the local/simulated flag stacked under it
-              pushed this row's baseline off its neighbours' (AL-20). */}
+              pushed this row's baseline off its neighbours'. */}
           <Chip tone={status === 'failed' ? 'danger' : status === 'sent' ? 'success' : 'neutral'}>{status}</Chip>
         </TableCell>
         <TableCell className="text-body-sm max-md:col-span-3 max-md:row-start-2">
@@ -469,7 +469,7 @@ export function AlertDeliveryRow({
         <TableCell className="text-body-sm text-fg-tertiary max-md:col-span-3 max-md:row-start-4">
           {/* Truncated here; the whole message is the first thing in the
               expanded row, where touch and screen-reader users can reach it
-              too — a `title` alone reaches neither (ALR-33). */}
+              too — a `title` alone reaches neither. */}
           {errorMessage ? (
             <span className="block truncate text-destructive" title={errorMessage}>
               {errorMessage}
@@ -538,8 +538,8 @@ export function AlertDeliveryRow({
           <TableCell colSpan={8} className="bg-muted/20 max-md:block">
             <div className="space-y-3 p-3">
               {/* The full failure, first: it is why the reader opened a failed
-                  row, and the cell above can only show its first line
-                  (ALR-33). From the list row rather than the detail, so it is
+                  row, and the cell above can only show its first line.
+                  From the list row rather than the detail, so it is
                   on screen before the detail request answers. */}
               {errorMessage && (
                 <div role="alert" className="rounded-lg border border-destructive/40 p-3 text-body-sm text-destructive">
@@ -549,7 +549,7 @@ export function AlertDeliveryRow({
               )}
               {/* A chevron that rotates over nothing read as "there is nothing
                   to see" while the request was in flight, and forever when it
-                  failed (ALR-34). */}
+                  failed. */}
               {!detail && !detailFailed && (
                 <p role="status" className="text-body-sm text-fg-tertiary">
                   Loading delivery details…

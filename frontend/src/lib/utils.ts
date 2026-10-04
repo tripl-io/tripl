@@ -1,7 +1,7 @@
 import { type ClassValue, clsx } from "clsx"
 import { extendTailwindMerge } from "tailwind-merge"
 
-// The app's own type and radius scale (index.css @theme, DS-20). Without this
+// The app's own type and radius scale (index.css @theme). Without this
 // tailwind-merge reads `text-body-sm` as a text COLOUR and drops it when a
 // colour class follows (`cn("text-body-sm", "text-fg-subtle")`), and it would
 // never let a later size override it.

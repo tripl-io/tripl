@@ -113,7 +113,7 @@ export function ReplayDialog({
   const [from, setFrom] = useState(seed.from)
   const [to, setTo] = useState(seed.to)
   // Inline "Required" after a submit with a cleared end, not a browser
-  // bubble (AU-4).
+  // bubble.
   const [submitted, setSubmitted] = useState(false)
   const fromError = submitted && !from ? REQUIRED_MESSAGE : null
   const toError = submitted && !to ? REQUIRED_MESSAGE : null
@@ -142,7 +142,7 @@ export function ReplayDialog({
   if (!open) return null
   // A real dialog now: it used to render inline in the Danger zone, beside a
   // trigger that turned solid while open, though replay deletes nothing
-  // (#247 DA-8).
+  // (#247).
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-lg">

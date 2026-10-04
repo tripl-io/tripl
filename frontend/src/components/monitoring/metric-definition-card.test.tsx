@@ -352,7 +352,7 @@ describe('MetricDefinitionCard filters', () => {
     )
     expect(screen.getByText('Not collected while draft')).toBeInTheDocument()
 
-    // An active metric with no interval leads to the editor (#246 JR-16).
+    // An active metric with no interval leads to the editor (#246).
     rerender(
       <QueryClientProvider client={new QueryClient()}>
         <MemoryRouter>
@@ -382,7 +382,7 @@ describe('MetricDefinitionCard event composition', () => {
     ] as unknown as Awaited<ReturnType<typeof eventTypesApi.list>>)
   })
 
-  it('names an event by id, wherever it sits in the catalog (MET-2)', async () => {
+  it('names an event by id, wherever it sits in the catalog', async () => {
     renderCard(
       factDefinition({
         kind: 'event_composition',
@@ -396,7 +396,7 @@ describe('MetricDefinitionCard event composition', () => {
     expect(eventsApi.get).toHaveBeenCalledWith('demo', 'ev-late')
   })
 
-  it('names an event-type side instead of painting a dash (MET-13)', async () => {
+  it('names an event-type side instead of painting a dash', async () => {
     renderCard(
       factDefinition({
         kind: 'event_composition',
@@ -412,7 +412,7 @@ describe('MetricDefinitionCard event composition', () => {
     expect(screen.queryByText('—')).toBeNull()
   })
 
-  // MO-33: a SQL metric has no value column; it showed an empty "–" token.
+  // a SQL metric has no value column; it showed an empty "–" token.
   it('leaves out a column the SQL metric does not use', () => {
     renderCard(factDefinition({
       kind: 'sql',
@@ -424,7 +424,7 @@ describe('MetricDefinitionCard event composition', () => {
     expect(screen.queryByText('—')).toBeNull()
   })
 
-  it('labels the collection interval the way the rest of the UI does (MET-41)', () => {
+  it('labels the collection interval the way the rest of the UI does', () => {
     renderCard(factDefinition({ interval: '1h' }))
     expect(screen.getByText('Hourly')).toBeInTheDocument()
     expect(screen.queryByText('every 1h')).toBeNull()

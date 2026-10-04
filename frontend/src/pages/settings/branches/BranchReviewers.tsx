@@ -17,7 +17,7 @@ import { planBranchDetailKey, projectMembersQueryOptions, usersKey } from '@/lib
 /**
  * Why the reviewer picker is open: `add` is the "+ Reviewer" button; `submit`
  * is "Submit for review" clicked with nobody assigned, where the picker asks
- * who should review before the branch is sent (JR-14).
+ * who should review before the branch is sent.
  */
 export type ReviewerPickerIntent = 'add' | 'submit' | null
 
@@ -36,7 +36,7 @@ interface BranchReviewSummaryProps {
 }
 
 /**
- * What the branch is for and who is reviewing it (PLAN-17).
+ * What the branch is for and who is reviewing it.
  *
  * The create dialog asks for a description and the detail response carries the
  * reviewers and every approval, yet the pane showed none of them: only an
@@ -178,7 +178,7 @@ export function BranchReviewSummary({
             </ul>
           )}
           {/* Inline after the chips, as an outlined control: the ghost button
-              floated far right read as a heading (PL-27). */}
+              floated far right read as a heading. */}
           {showPicker && !picking ? (
             <Button
               type="button"

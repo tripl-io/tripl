@@ -36,7 +36,7 @@ interface TopMoversPanelProps {
 }
 
 // The app locale, not the browser's: the chart beside this list already
-// prints its numbers in it (DS-30).
+// prints its numbers in it.
 function formatCount(value: number): string {
   return formatNumber(Math.round(value))
 }
@@ -72,7 +72,7 @@ export function TopMoversPanel({
 }: TopMoversPanelProps) {
   const [expandedKey, setExpandedKey] = useState<string | null>(null)
   const { data, isLoading, isError, isPlaceholderData, error, refetch } = useQuery({
-    // Rendered inline below (MON-30).
+    // Rendered inline below.
     meta: SILENT_ERROR_META,
     queryKey: topMoversKey(slug, scanConfigId, scopeType, scopeRef, bucket, limit),
     queryFn: () =>
@@ -90,7 +90,7 @@ export function TopMoversPanel({
   }
 
   // A failed request used to return null, so an outage looked exactly like an
-  // anomaly with no breakdown behind it (MON-30). Only when there is nothing
+  // anomaly with no breakdown behind it. Only when there is nothing
   // of this query's own on screen, as in the seasonality heatmap: a failed
   // background refetch behind loaded rows (possibly with a drilldown open)
   // keeps them and says so inline below.
@@ -113,7 +113,7 @@ export function TopMoversPanel({
   }
 
   return (
-    // The shared section-card geometry (DS-4 / MO-10): a header bar with the
+    // The shared section-card geometry: a header bar with the
     // 12.5px h2 and its subtitle, then the rows.
     <Card>
       <CardHeader>
@@ -208,9 +208,9 @@ function TopMoverRow({
       </div>
       <div className="flex items-center gap-2 whitespace-nowrap text-right text-body-sm">
         {/* The shared direction colours: a spike was painted green here, the
-            opposite of every other signal surface (MON-19). */}
+            opposite of every other signal surface. */}
         {/* The z-score is a hover detail, not a column: the row already says
-            the move as a count and a % (MO-2 / JR-31). */}
+            the move as a count and a %. */}
         <Chip
           tone={tone}
           size="xs"
@@ -239,7 +239,7 @@ function TopMoverRow({
 /**
  * The breakdown timeline as chart points, with the bucket this panel is about
  * flagged: the timeline endpoint carries counts only, and without the flag the
- * drilldown could not show where the anomaly falls (MON-20). The expected value
+ * drilldown could not show where the anomaly falls. The expected value
  * rides along on that point so the tooltip can say what was expected; no stddev,
  * so no band is drawn around a single point.
  */
@@ -289,7 +289,7 @@ function BreakdownDrilldown({
   const { data, isLoading, isError, error, refetch } = useQuery({
     meta: SILENT_ERROR_META,
     // The range length, not the live bounds: those step every five minutes,
-    // and a key that moved with them refetched the timeline each time (MON-3).
+    // and a key that moved with them refetched the timeline each time.
     queryKey: breakdownTimelineKey(
       slug,
       scanConfigId,
@@ -349,7 +349,7 @@ function BreakdownDrilldown({
     )
   }
 
-  // Said inline: a failed request used to read "No timeline data" (MON-20).
+  // Said inline: a failed request used to read "No timeline data".
   if (isError && !data) {
     return (
       <div className="px-2 pb-3 pt-1" data-testid="breakdown-drilldown">
@@ -375,8 +375,8 @@ function BreakdownDrilldown({
   }
 
   // The shared chart, not a bare area: it brings axes, a tooltip, local
-  // sub-day ticks, the anomaly dot and a size-gated container (MON-20). The
-  // noun is a pair so a one-event bucket reads "1 event (…)" (DS-26).
+  // sub-day ticks, the anomaly dot and a size-gated container. The
+  // noun is a pair so a one-event bucket reads "1 event (…)".
   return (
     <div className="px-2 pb-3 pt-1" data-testid="breakdown-drilldown">
       <MetricsChart
@@ -385,8 +385,8 @@ function BreakdownDrilldown({
         height={140}
         granularity={granularityForInterval(data?.interval) ?? 'hour'}
         seriesLabel={{ singular: `event (${valueLabel})`, plural: `events (${valueLabel})` }}
-        // No `color`: a volume series takes the chart's single-series default
-        // (DS-27), as on the Volume tab.
+        // No `color`: a volume series takes the chart's single-series default,
+        // as on the Volume tab.
       />
     </div>
   )

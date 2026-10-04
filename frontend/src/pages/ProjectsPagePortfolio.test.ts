@@ -37,7 +37,7 @@ function project(
   } as Project
 }
 
-describe('summarizePortfolio (WS-44)', () => {
+describe('summarizePortfolio', () => {
   it('sorts newest first without touching the input', () => {
     const input = [
       project('old', '2026-01-01T00:00:00Z'),

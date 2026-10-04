@@ -8,7 +8,7 @@ import { currentOrgSlug, projectPath } from '@/lib/navigation'
  * A small info icon beside a term a PM may not know ("Coverage",
  * "Reconciliation", "Fact table"): hover or focus shows the glossary's
  * one-line definition, and a click opens the term's row on the Concepts page
- * (#238 JR-31). Meant for a PageHeader `titleAddon`.
+ * (#238). Meant for a PageHeader `titleAddon`.
  *
  * `term` must be the glossary's own spelling, since the anchor is derived from
  * it; `definition` is the line to show, kept short. It carries its own

@@ -62,7 +62,7 @@ export function useEventRowActions({
       // Only the rows whose position changed. The server hands the existing
       // order slots of the ids it is sent back out in the order sent, so the
       // span between the first and last moved row is a complete answer — and
-      // one drag no longer posts every loaded id (EVT-3).
+      // one drag no longer posts every loaded id.
       const slice = changedSlice(ctx.visibleEventIds, next)
       if (slice.length > 1) ctx.mutations.reorderEventsMut.mutate(slice)
     },

@@ -24,7 +24,7 @@ interface DeliveryScheduleFieldProps {
    * Whether what is ON SCREEN can be saved. The field only publishes a valid
    * cadence through `onChange`, so while the draft is invalid the form still
    * holds the last good expression — and saving then stored a schedule other
-   * than the one shown, under a visible error (ALR-3). The dialog listens here
+   * than the one shown, under a visible error. The dialog listens here
    * and refuses the submit until the draft validates again.
    */
   onValidityChange?: (valid: boolean) => void
@@ -144,7 +144,7 @@ export function DeliveryScheduleField({
               </SelectContent>
             </Select>
           )}
-          {/* The native time picker, not free text (ALR-51): a phone gets a
+          {/* The native time picker, not free text: a phone gets a
               time wheel instead of a full keyboard, and "9:30am" or "09.30"
               cannot be typed in the first place. It always yields "HH:MM",
               the shape `validateCadence` reads. The multi-time box below

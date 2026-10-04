@@ -36,7 +36,7 @@ import { currentOrgSlug, projectPath } from '@/lib/navigation'
  * Plan branches: the list, the selected branch's review, and the merge policy.
  *
  * The pieces live in ./branches/ — list, detail, change rows, conflicts,
- * dialogs, and the pure diff model with its own unit tests (PLAN-22). This file
+ * dialogs, and the pure diff model with its own unit tests. This file
  * owns what they share: the selection (from the URL), the branch list and the
  * selected branch's diff.
  *
@@ -45,13 +45,13 @@ import { currentOrgSlug, projectPath } from '@/lib/navigation'
  */
 export function BranchesTab({ slug, branchId }: { slug: string; branchId?: string }) {
   const qc = useQueryClient()
-  // Every branch write is EditorUserDep (PLAN-11); a viewer follows the review.
+  // Every branch write is EditorUserDep; a viewer follows the review.
   const canWrite = useCanWriteProject()
   const navigate = useNavigate()
   const { confirm, dialog } = useConfirm()
   const { branchId: activeBranchId, setBranchId } = useBranchContext()
   // `?new=1` opens the create dialog on arrival: the branch switcher's "New
-  // branch from main" lands here (PL-13 / JR-11). Followed on change too, for
+  // branch from main" lands here. Followed on change too, for
   // a switcher click made while this page is already open.
   const [searchParams, setSearchParams] = useSearchParams()
   const wantsNew = searchParams.get('new') === '1'
@@ -70,7 +70,7 @@ export function BranchesTab({ slug, branchId }: { slug: string; branchId?: strin
     }
   }
   // On by default: the next thing after creating a branch is working on it,
-  // and it used to leave you on main with no hint how to start (PL-4 / JR-12).
+  // and it used to leave you on main with no hint how to start.
   const [switchAfterCreate, setSwitchAfterCreate] = useState(true)
   const detailRef = useRef<HTMLDivElement>(null)
   const [policyOpen, setPolicyOpen] = useState(false)
@@ -86,7 +86,7 @@ export function BranchesTab({ slug, branchId }: { slug: string; branchId?: strin
   })
   // ...and the counted one for the badges, which costs one plan snapshot per
   // open branch and so arrives later. It replaced one 2-3.5 s diff request per
-  // row (PLAN-3). No badge beats an error toast when it fails.
+  // row. No badge beats an error toast when it fails.
   const countsQuery = useQuery({
     queryKey: planBranchCountsKey(slug),
     queryFn: () => planBranchesApi.list(slug, { include_diff_counts: true }),
@@ -97,7 +97,7 @@ export function BranchesTab({ slug, branchId }: { slug: string; branchId?: strin
   const selectBranch = (branch: PlanBranchSummary) => {
     navigate(projectPath(currentOrgSlug(), slug, `/branches/${branch.id}`))
     // Below `lg` the list stacks above the review, so a tap changed content
-    // off-screen (PL-30): bring the review into view.
+    // off-screen: bring the review into view.
     if (typeof window.matchMedia === 'function' && window.matchMedia('(max-width: 1023px)').matches) {
       requestAnimationFrame(() => detailRef.current?.scrollIntoView?.({ block: 'start', behavior: 'smooth' }))
     }
@@ -134,7 +134,7 @@ export function BranchesTab({ slug, branchId }: { slug: string; branchId?: strin
   const mainBranch = items.find((b) => b.kind === 'main')
   // An unknown id in the URL (a deleted or mistyped branch) is said out loud
   // rather than silently swapped for main, which changed the pane under the
-  // user with no word why (PLAN-9).
+  // user with no word why.
   const selected = branchId
     ? (items.find((b) => b.id === branchId) ?? null)
     : (mainBranch ?? items[0] ?? null)
@@ -171,10 +171,10 @@ export function BranchesTab({ slug, branchId }: { slug: string; branchId?: strin
     <>
       {dialog}
       <PageContainer className="space-y-[18px]">
-        {/* The shared page header (DS-1 / PL-25), the same as Plan history's.
+        {/* The shared page header, the same as Plan history's.
             Its actions wrap on a phone: the three buttons are ~400px of
             content, and a non-wrapping header pushed "New branch" off-screen
-            at 375px (PLAN-13). */}
+            at 375px. */}
         <PageHeader
           eyebrow="Plan"
           title="Plan branches"
@@ -182,7 +182,7 @@ export function BranchesTab({ slug, branchId }: { slug: string; branchId?: strin
           actions={
           <>
             {/* The two settings buttons fold into one menu below `sm`, leaving
-                New branch — the page's primary action — on the row (PLAN-13). */}
+                New branch — the page's primary action — on the row. */}
             <Button
               size="sm"
               variant="outline"

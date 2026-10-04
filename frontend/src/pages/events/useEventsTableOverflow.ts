@@ -40,7 +40,7 @@ const PIN_SHADOW = '8px 0 10px -8px color-mix(in srgb, var(--fg) 30%, transparen
 /**
  * Widest the pinned EVENT column's content may grow. Narrow viewports get a
  * share of the screen rather than a fixed width, so the pinned cluster never
- * covers the columns it is meant to label (EVT-7).
+ * covers the columns it is meant to label.
  */
 export const PINNED_EVENT_CONTENT_MAX_WIDTH = 'min(360px, 45vw)'
 
@@ -136,7 +136,7 @@ export function measureOverflow(table: HTMLTableElement): number {
  *
  * The scroller is the `.tripl-table-wrap` around the `<table>`: one box
  * scrolls both axes, so the sticky header and pinned columns resolve against
- * it (EV-3).
+ * it.
  */
 export function useEventsTableOverflow(): {
   tableRef: RefCallback<HTMLTableElement>

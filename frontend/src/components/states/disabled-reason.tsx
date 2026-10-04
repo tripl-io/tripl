@@ -4,7 +4,7 @@ import { cn } from '@/lib/utils'
 import { disabledReasonId } from './disabled-reason-aria'
 
 /**
- * Why a button is disabled, as visible text next to it (#237 DA-9).
+ * Why a button is disabled, as visible text next to it (#237).
  *
  * A disabled `<button>` gets `pointer-events: none` from the Button primitive,
  * so a `title` on it never shows, and keyboard and touch users cannot reach it

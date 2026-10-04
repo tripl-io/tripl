@@ -274,7 +274,7 @@ describe('EventBulkForm', () => {
     expect(screen.queryByLabelText('Events to create')).not.toBeInTheDocument()
   })
 
-  it('offers the two ways out of a type it cannot fill, and no dead Create (AU-19)', async () => {
+  it('offers the two ways out of a type it cannot fill, and no dead Create', async () => {
     vi.mocked(eventTypesApi.list).mockResolvedValue([
       {
         ...SE_TYPE,
@@ -299,7 +299,7 @@ describe('EventBulkForm', () => {
     expect(screen.queryByRole('button', { name: /^Create/ })).toBeNull()
   })
 
-  it('hands the created events to the list, which scrolls to and marks them (AU-20)', async () => {
+  it('hands the created events to the list, which scrolls to and marks them', async () => {
     vi.mocked(eventsApi.bulkCreate).mockResolvedValue([{ id: 'ev-new-1' }, { id: 'ev-new-2' }] as never)
     render(createElement(EventBulkForm), { wrapper })
     await chooseType()
@@ -312,7 +312,7 @@ describe('EventBulkForm', () => {
     await waitFor(() => expect(readCreatedEvents('demo')).toEqual(['ev-new-1', 'ev-new-2']))
   })
 
-  it('sets the owner on every event of the batch when one is picked (AU-20)', async () => {
+  it('sets the owner on every event of the batch when one is picked', async () => {
     render(createElement(EventBulkForm), { wrapper })
     await chooseType()
     await screen.findByRole('option', { name: 'Ann Analyst' })
@@ -368,7 +368,7 @@ function reloadIsGuarded(): boolean {
   return event.defaultPrevented
 }
 
-describe('EventBulkForm unsaved-changes guard (EVT-8)', () => {
+describe('EventBulkForm unsaved-changes guard', () => {
   it('arms the reload prompt while a pasted list is on the page', async () => {
     render(createElement(EventBulkForm), { wrapper })
     await chooseType()
@@ -381,7 +381,7 @@ describe('EventBulkForm unsaved-changes guard (EVT-8)', () => {
   })
 })
 
-describe('EventBulkForm duplicate check (EVT-37)', () => {
+describe('EventBulkForm duplicate check', () => {
   it('asks the catalog about the pasted names only, in one exact-name lookup', async () => {
     vi.mocked(eventsApi.list).mockClear()
     vi.mocked(eventsApi.byNames).mockClear()
@@ -430,7 +430,7 @@ describe('EventBulkForm duplicate check (EVT-37)', () => {
     expect(screen.getByRole('button', { name: 'Create 1 event' })).not.toBeDisabled()
   })
 
-  it('says on the action bar why Create is held (AU-6)', async () => {
+  it('says on the action bar why Create is held', async () => {
     render(createElement(EventBulkForm), { wrapper })
     await waitFor(() => expect(saveBarStatus()).toHaveTextContent('Pick an event type'))
     await chooseType()
@@ -464,7 +464,7 @@ function ListLocation() {
   return createElement('div', { 'data-testid': 'list-location' }, `${location.pathname}${location.search}`)
 }
 
-describe('EventBulkForm exits (EVT-38)', () => {
+describe('EventBulkForm exits', () => {
   it("returns to the list with the list's filters and branch", async () => {
     render(createElement(EventBulkForm), {
       wrapper: ({ children }: { children: ReactNode }) =>

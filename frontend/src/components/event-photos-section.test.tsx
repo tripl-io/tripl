@@ -65,7 +65,7 @@ beforeEach(() => {
   vi.mocked(eventPhotosApi.upload).mockReset()
 })
 
-describe('EventPhotosSection uploads (EVT-28)', () => {
+describe('EventPhotosSection uploads', () => {
   it('uploads every file, and shows what landed even when one fails', async () => {
     vi.mocked(eventPhotosApi.upload).mockImplementation(async (_slug, _event, file) => {
       if (file.name === 'b.png') throw new Error('413 Request Entity Too Large')
@@ -136,7 +136,7 @@ describe('EventPhotosSection uploads (EVT-28)', () => {
 
   it("refuses a file over the instance's own size limit, read from the server", async () => {
     // An instance that raised the limit to 25 MB takes a 15 MB file; the fixed
-    // 10 MB gate this replaced warned about it (EVT-28).
+    // 10 MB gate this replaced warned about it.
     vi.mocked(eventPhotosApi.limits).mockResolvedValue({
       photo_max_size_mb: 25,
       photo_allowed_mime: ['image/png'],
@@ -188,7 +188,7 @@ describe('EventPhotosSection uploads (EVT-28)', () => {
   })
 })
 
-describe('EventPhotosSection viewer (EVT-51)', () => {
+describe('EventPhotosSection viewer', () => {
   it('names a tile whose image has no filename, and the viewer has one close button', async () => {
     vi.mocked(eventPhotosApi.list).mockResolvedValue([PHOTO])
     renderSection()
@@ -205,7 +205,7 @@ describe('EventPhotosSection viewer (EVT-51)', () => {
   })
 })
 
-describe('EventPhotosSection empty state (EV-33)', () => {
+describe('EventPhotosSection empty state', () => {
   it('stays one line and opens the Figma field only on request', async () => {
     renderSection()
 

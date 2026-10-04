@@ -95,7 +95,7 @@ function FactOperandEditor({
 
   // The backend validates the whole operand before it compiles a filter, so an
   // incomplete one came back as a raw 422 about a missing measure column. Say
-  // what to fix instead, and only offer the check once it can run (MET-33).
+  // what to fix instead, and only offer the check once it can run.
   const blockers = Object.values(operandErrors(operand, idPrefix, label))
   const checkBlockedReason = blockers.length > 0
     ? `Complete the operand before checking its filters — ${blockers[0]}`
@@ -262,7 +262,7 @@ export function FactDefinitionFields({
   clearedReplayChunk,
 }: FactDefinitionFieldsProps) {
   // With no fact table to point at, Calculate and Interval are dead ends:
-  // the card says what to do instead, with the way there (MT-11).
+  // the card says what to do instead, with the way there.
   if (facts.noFactTables) {
     return (
       <SCard title="Fact table">
@@ -285,7 +285,7 @@ export function FactDefinitionFields({
     <>
       <SCard title="Fact" description="Aggregate a reusable fact table into one value per bucket.">
         {/* "Calculate", not "Composition": the kind already says where the
-            value comes from, this says how (MT-18). */}
+            value comes from, this says how. */}
         <Field
           label="Calculate"
           htmlFor="metric-fact-composition"

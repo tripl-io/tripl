@@ -21,7 +21,7 @@ function mount() {
   return { ...utils, seen, confirm: () => seen[seen.length - 1]! }
 }
 
-describe('useConfirm (DS-29)', () => {
+describe('useConfirm', () => {
   it('resolves true on Confirm and false on Cancel', async () => {
     const { confirm } = mount()
 
@@ -85,7 +85,7 @@ describe('useConfirm (DS-29)', () => {
   })
 })
 
-describe('ConfirmDialog (DS-29)', () => {
+describe('ConfirmDialog', () => {
   it('calls only onConfirm when Confirm is clicked', async () => {
     const onConfirm = vi.fn()
     const onCancel = vi.fn()

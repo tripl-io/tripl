@@ -278,12 +278,12 @@ describe('MonitoringTab — settling allowance vs open signal window', () => {
     expect(
       await screen.findByText(/must stay below the open signal window/i),
     ).toBeInTheDocument()
-    // And the refused number does not stay on screen as if it had been kept
-    // (PLAN-55): the saved value comes back.
+    // And the refused number does not stay on screen as if it had been kept:
+    // the saved value comes back.
     await waitFor(() => expect(settling).toHaveValue(120))
   })
 
-  it('refuses a value outside the bounds before sending it, and keeps it in view (PLAN-55, AL-44)', async () => {
+  it('refuses a value outside the bounds before sending it, and keeps it in view', async () => {
     const { patches } = mockSettingsFetch({ recent_signal_window_hours: 24 })
     renderTab()
 
@@ -293,7 +293,7 @@ describe('MonitoringTab — settling allowance vs open signal window', () => {
 
     expect(await screen.findByText('5000 is out of range: use 0 to 1439. Not saved.')).toBeInTheDocument()
     // The refused number stays in the box beside the message, rather than a
-    // valid-looking saved value sitting under a red "must be" (AL-44).
+    // valid-looking saved value sitting under a red "must be".
     expect(settling).toHaveValue(5000)
     expect(settling).toHaveAttribute('aria-invalid', 'true')
     expect(patches).toEqual([])
@@ -316,7 +316,7 @@ describe('MonitoringTab — settling allowance vs open signal window', () => {
     expect(sigma).toHaveValue(0)
   })
 
-  it('says a committed value was saved (PLAN-55)', async () => {
+  it('says a committed value was saved', async () => {
     const { patches } = mockSettingsFetch()
     renderTab()
 
@@ -378,7 +378,7 @@ describe('MonitoringTab — false-positive scope overrides', () => {
     renderTab()
 
     fireEvent.click(await screen.findByLabelText('Remove override for checkout_started'))
-    // One click used to do it; the confirm names what is lost (PLAN-55).
+    // One click used to do it; the confirm names what is lost.
     const confirm = await screen.findByRole('alertdialog', { name: 'Remove scope override' })
     expect(deletes).toEqual([])
     fireEvent.click(within(confirm).getByRole('button', { name: 'Remove' }))
@@ -417,7 +417,7 @@ describe('MonitoringTab — a viewer reads the settings without changing them', 
   })
 })
 
-describe('MonitoringTab — a failed settings load (PLAN-41)', () => {
+describe('MonitoringTab — a failed settings load', () => {
   it('shows an error with a retry instead of loading forever', async () => {
     vi.spyOn(globalThis, 'fetch').mockImplementation(async (input) => {
       const url = String(input)
@@ -441,7 +441,7 @@ describe('MonitoringTab — a failed settings load (PLAN-41)', () => {
   })
 })
 
-describe('MonitoringTab — a failed refresh after an autosave (review 204)', () => {
+describe('MonitoringTab — a failed refresh after an autosave', () => {
   it('keeps the settings on screen and says the refresh failed', async () => {
     let getCount = 0
     vi.spyOn(globalThis, 'fetch').mockImplementation(async (input, init) => {
@@ -474,7 +474,7 @@ describe('MonitoringTab — a failed refresh after an autosave (review 204)', ()
   })
 })
 
-describe('MonitoringTab — help text is one line, the rest on demand (AL-43)', () => {
+describe('MonitoringTab — help text is one line, the rest on demand', () => {
   it('titles the two sections as sections and groups the fields', async () => {
     mockSettingsFetch()
     renderTab()
@@ -494,7 +494,7 @@ describe('MonitoringTab — help text is one line, the rest on demand (AL-43)', 
   })
 })
 
-describe('MonitoringTab — turning detection off (AL-45)', () => {
+describe('MonitoringTab — turning detection off', () => {
   it('asks first, and does nothing when the reader backs out', async () => {
     const { patches } = mockSettingsFetch()
     renderTab()

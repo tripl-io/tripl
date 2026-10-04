@@ -38,7 +38,7 @@ from tripl.tests.test_alerting import (
     _seed_inbox_groups,
 )
 
-# ── ALR-27: cursors ─────────────────────────────────────────────────────────
+# ── cursors ─────────────────────────────────────────────────────────
 
 
 def test_inbox_cursor_round_trips() -> None:
@@ -252,7 +252,7 @@ def test_signal_reports_when_the_anomaly_was_detected() -> None:
     assert _signal_from_anomaly(anomaly, state="latest").detected_at == detected
 
 
-# ── DEMO-28: cancel state ───────────────────────────────────────────────────
+# ── cancel state ───────────────────────────────────────────────────
 
 
 @pytest.mark.asyncio
@@ -297,7 +297,7 @@ async def test_cancel_with_only_an_old_demo_reports_none(client: AsyncClient) ->
     assert resp.json() == {"cancelled": False, "slug": None, "state": "none"}
 
 
-# ── LIVE-16: demo template tokens ───────────────────────────────────────────
+# ── demo template tokens ───────────────────────────────────────────
 
 _TOKEN = re.compile(r"\$\{([^}]+)\}")
 

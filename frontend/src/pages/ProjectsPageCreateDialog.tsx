@@ -35,13 +35,13 @@ function isSlugConflict(error: unknown): error is ApiError {
 
 /**
  * The workspace page's "New project" dialog, titled like the button that
- * opens it (DS-29).
+ * opens it.
  *
  * The page mounts it only while it is open, so closing it (Cancel, Esc, the
  * overlay) throws the whole draft away: the fields, the "slug edited by hand"
  * flag and the last failed attempt. Reopening used to bring back the old name
  * and the old "Could not create project" error, with auto-slug switched off
- * for good (WS-18).
+ * for good.
  */
 export function CreateProjectDialog({
   onClose,
@@ -57,7 +57,7 @@ export function CreateProjectDialog({
   const [slug, setSlug] = useState('')
   const [slugTouched, setSlugTouched] = useState(false)
   // The URL field stays folded until asked for, or until it has a problem the
-  // reader has to fix by hand (SH-29).
+  // reader has to fix by hand.
   const [customizing, setCustomizing] = useState(false)
   const [description, setDescription] = useState('')
   // Null is a blank project (F21, #274).
@@ -97,7 +97,7 @@ export function CreateProjectDialog({
       if (!isSlugConflict(error)) return
       // The only conflict on create is the slug. Open the field that fixes it
       // and put the message under it, instead of a generic box above a URL
-      // the reader cannot edit without first finding "Customize URL" (SH-29).
+      // the reader cannot edit without first finding "Customize URL".
       // The API says "slug"; this form calls the field Project URL.
       setSlugServerError(SLUG_TAKEN_MESSAGE)
       focusSlugField()
@@ -145,8 +145,8 @@ export function CreateProjectDialog({
         <form
           ref={formRef}
           // No native `pattern` or `required`: the browser bubble named one
-          // field at a time and never said what the format was (WS-17,
-          // AU-4). Every problem is shown under its field instead, and the
+          // field at a time and never said what the format was.
+          // Every problem is shown under its field instead, and the
           // first one takes focus.
           noValidate
           className="flex min-h-0 flex-col gap-4"
@@ -180,7 +180,7 @@ export function CreateProjectDialog({
                     setSlugServerError(null)
                   }
                 }}
-                // An example, not a value-looking default (MT-7).
+                // An example, not a value-looking default.
                 placeholder={examplePlaceholder('iOS app')}
                 aria-required
                 {...invalidAria('project-name', nameError)}
@@ -189,7 +189,7 @@ export function CreateProjectDialog({
             </div>
             {/* The address, not "Slug (url-friendly)": derived from the name
                 and shown as the URL it becomes, with the field itself one
-                click away for anyone who wants a different one (SH-29). */}
+                click away for anyone who wants a different one. */}
             {slugOpen ? (
               <div className="grid gap-2">
                 <Label htmlFor="project-slug">Project URL</Label>
@@ -247,7 +247,7 @@ export function CreateProjectDialog({
                 Description
               </Label>
               {/* One line to start: it is optional, so it should not look as
-                  weighty as the name (SH-29). */}
+                  weighty as the name. */}
               <Textarea
                 id="project-desc"
                 value={description}

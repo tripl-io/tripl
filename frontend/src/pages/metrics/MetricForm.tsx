@@ -99,9 +99,9 @@ import { useFactTableDetails } from './useFactTableDetails'
 import { currentOrgSlug, projectPath } from '@/lib/navigation'
 
 // What each kind measures and what it needs, in the words of the person
-// choosing, most approachable first (MT-3). The stored kind names stay in the
+// choosing, most approachable first. The stored kind names stay in the
 // catalog's chips and filters. A kind the project cannot complete yet says so
-// on its card, before it is picked (MT-3, MT-11).
+// on its card, before it is picked.
 function kindOptions({
   noEvents,
   noFactTables,
@@ -137,10 +137,10 @@ function kindOptions({
   ]
 }
 
-/** Units offered as one-click chips beside the Unit input (MT-17). */
+/** Units offered as one-click chips beside the Unit input. */
 const UNIT_SUGGESTIONS = ['%', 'ms', '$', 'users'] as const
 
-/** Why a draft or archived metric shows no data: said under Status (MT-1). */
+/** Why a draft or archived metric shows no data: said under Status. */
 const STATUS_HINT =
   'Only active metrics are collected on schedule and monitored. Draft and archived metrics are not.'
 
@@ -190,7 +190,7 @@ interface MetricFormProps {
   /**
    * The header's "Metrics" link; defaults to {@link onClose}. The route sends
    * it to the catalog it names, while Cancel returns to wherever the editor
-   * was opened from (MT-31).
+   * was opened from.
    */
   onBack?: () => void
   /** After a successful save; defaults to {@link onClose}. */
@@ -218,11 +218,11 @@ export function MetricForm({
   onSaved,
 }: MetricFormProps) {
   const qc = useQueryClient()
-  // Create, update and preview are all EditorUserDep (MET-6).
+  // Create, update and preview are all EditorUserDep.
   const canWrite = useCanWriteProject()
   const isNew = !metric
 
-  // A new metric takes the first colour no cached catalog metric uses (MT-35).
+  // A new metric takes the first colour no cached catalog metric uses.
   const [draft, setDraft] = useState<MetricDraft>(() =>
     draftFromMetric(
       metric,
@@ -245,7 +245,7 @@ export function MetricForm({
   const [previewColumns, setPreviewColumns] = useState<string[] | null>(null)
   // Errors are shown only once a submit was attempted, then re-derived from the
   // draft on every render: fixing a field clears its message, and a field that
-  // stops rendering takes its message with it (MET-18).
+  // stops rendering takes its message with it.
   const [submitAttempted, setSubmitAttempted] = useState(false)
   const { confirm, dialog: confirmDialog } = useConfirm()
 
@@ -253,30 +253,30 @@ export function MetricForm({
   // template or "Start from scratch" dismisses it. Never shown when editing.
   const [showTemplates, setShowTemplates] = useState(isNew)
   // The template that seeded the form, named in a slim banner that reopens the
-  // gallery, so the choice is neither invisible nor final (MT-32).
+  // gallery, so the choice is neither invisible nor final.
   const [pickedTemplate, setPickedTemplate] = useState<MetricTemplate | null>(null)
   // Set when the Unit was filled in for the author because the metric became
-  // a ratio, so the row can say why it changed (MT-17).
+  // a ratio, so the row can say why it changed.
   const [unitAutoSet, setUnitAutoSet] = useState(false)
   // The last SQL preview failed and nothing it ran against has changed since:
-  // creating from here asks first (MT-15).
+  // creating from here asks first.
   const [sqlPreviewFailed, setSqlPreviewFailed] = useState(false)
 
   const facts = useFactTableDetails(slug, draft, dataSources, { loadList: isNew })
   // The unfiltered first page of the event picker, shared with it by key: a
-  // new metric's kind step says when the project has no events (MT-3).
+  // new metric's kind step says when the project has no events.
   const eventRoster = useQuery({ ...eventRosterQuery(slug, ''), enabled: isNew })
   const noEvents = eventRoster.isSuccess && eventRoster.data.total === 0
 
   const [kindChosen, setKindChosen] = useState(!isNew)
 
   // Description, colour and — on create — the internal name sit behind "More
-  // options" (MT-2): the display name derives the internal name, which stays
+  // options": the display name derives the internal name, which stays
   // visible as a line under it. An edit whose metric has a description opens
   // with it shown.
   const [moreOpen, setMoreOpen] = useState(!!metric?.description)
   // The top bar names the edited metric after "Metrics", as the heading
-  // does (MT-31).
+  // does.
   usePageTitle(metric ? editPageTitle(metric.display_name) : null)
   // Who can own the metric: the workspace roster, readable by any member.
   const usersQuery = useQuery({
@@ -317,7 +317,7 @@ export function MetricForm({
     if (previewColumns) return previewColumns
     return columnsOfReferencedTables(sqlSchemaData?.tables ?? [], draft.metricSql)
   }, [previewColumns, sqlSchemaData, draft.metricSql])
-  // The metric's own time column is never a breakdown (MT-16).
+  // The metric's own time column is never a breakdown.
   const timeColumn =
     draft.kind === 'fact'
       ? facts.numerator.detail.timestampColumn ?? ''
@@ -347,20 +347,20 @@ export function MetricForm({
   }
 
   // The definition this form would send, against the one stored: the backend
-  // deletes the metric's history when they differ (MET-1). Compared with the
+  // deletes the metric's history when they differ. Compared with the
   // real payload rather than a draft hydrated from the same metric, so a stored
   // shape the form cannot reproduce warns instead of wiping silently.
   const definitionPayload = buildDefinitionPayload(draft, operandColumns)
   const definitionChanged = metric !== null && definitionDiffersFromStored(metric, definitionPayload)
-  // What the series preview dry-runs: the same definition a save sends (MT-9).
+  // What the series preview dry-runs: the same definition a save sends.
   const seriesRequest = definitionPayload.kind === 'sql' ? null : definitionPayload
 
   // Every input the author can change, as one comparable string; the first
-  // render's value is the baseline (MET-5).
+  // render's value is the baseline.
   const draftSnapshot = JSON.stringify(draft)
   const [initialSnapshot, setInitialSnapshot] = useState(draftSnapshot)
 
-  // The events kind is the default only where it can be completed (MT-3): a
+  // The events kind is the default only where it can be completed: a
   // project with no events starts on a fact table if it has one, else on SQL.
   // Only an untouched form moves, and it stays untouched: the switch is the
   // form's starting point, not an edit the leave guard should ask about. Once
@@ -386,8 +386,8 @@ export function MetricForm({
     // Rendered inline at the foot of the form ("Could not save …").
     meta: SILENT_ERROR_META,
     // A create says its status through the button pressed: "Create and start
-    // collecting" (active) or "Save as draft" (MT-1).
-    // The owner rides along with the presentation fields (MT-25).
+    // collecting" (active) or "Save as draft".
+    // The owner rides along with the presentation fields.
     mutationFn: (createStatus?: MetricStatus) =>
       metric
         ? metricsCatalogApi.update(slug, metric.id, {
@@ -405,7 +405,7 @@ export function MetricForm({
       if (metric) {
         void qc.invalidateQueries({ queryKey: metricDefinitionKey(slug) })
         // A redefinition deleted the series, breakdowns and anomalies server-
-        // side; the drilldown must not keep painting the old ones (MET-27).
+        // side; the drilldown must not keep painting the old ones.
         for (const key of metricDrilldownKeys(slug, metric.id)) {
           void qc.invalidateQueries({ queryKey: key })
         }
@@ -450,8 +450,8 @@ export function MetricForm({
   const storedReplayChunk = (kind: MetricKind): MetricScanInterval | null =>
     metric?.kind === kind ? metric.replay_chunk_interval ?? null : null
   // What the save re-sends for `kind` at `interval`: the stored chunk, unless
-  // it is finer than the interval — a 422 on a field this form does not show
-  // (MET-10). Derived afresh on every change, so moving the interval past the
+  // it is finer than the interval — a 422 on a field this form does not show.
+  // Derived afresh on every change, so moving the interval past the
   // chunk and back restores it rather than losing it for good.
   const savedReplayChunk = (kind: MetricKind, interval: MetricScanInterval) => {
     const chunk = storedReplayChunk(kind)
@@ -473,7 +473,7 @@ export function MetricForm({
 
   // Switching kind swaps which config fields render. Dimension columns belong
   // to one kind's source (a data-source schema, or a fact table), so they are
-  // not carried across (MET-19): the new kind gets back what it had earlier in
+  // not carried across: the new kind gets back what it had earlier in
   // this session, else what was saved for it.
   const applyKind = (next: MetricKind) => {
     setSubmitAttempted(false)
@@ -494,14 +494,14 @@ export function MetricForm({
     }))
   }
   // The history-loss confirm moved to submit, where it covers every change of
-  // meaning, not only this one (MET-1).
+  // meaning, not only this one.
   const changeKind = (next: MetricKind) => {
     setKindChosen(true)
     if (next !== draft.kind) applyKind(next)
   }
 
   // A ratio reads as a fraction (0.08) until it has a unit: becoming one with
-  // the Unit empty fills in `%` and says so (MT-17).
+  // the Unit empty fills in `%` and says so.
   const ratioUnit = (becomesRatio: boolean): Partial<MetricDraft> => {
     if (!becomesRatio || draft.unit.trim()) return {}
     setUnitAutoSet(true)
@@ -550,7 +550,7 @@ export function MetricForm({
     }
     // `previewColumns` is set only by a clean preview of the current inputs;
     // any edit or data-source change clears it. So a query never previewed is
-    // asked about too, not only one whose preview failed (MT-15).
+    // asked about too, not only one whose preview failed.
     if (isNew && draft.kind === 'sql' && (sqlPreviewFailed || previewColumns === null)) {
       const ok = await confirm({
         title: sqlPreviewFailed
@@ -575,7 +575,7 @@ export function MetricForm({
     setKindChosen(true)
     applyKind(seed.kind)
     // A template's generic name ("Conversion") may already be taken: suffix it
-    // the way Duplicate does, so the seeded internal name does not 409 (MT-32).
+    // the way Duplicate does, so the seeded internal name does not 409.
     const takenNames = new Set(cachedCatalogItems(qc, slug).map(item => item.display_name.toLowerCase()))
     let seededName = seed.displayName
     for (let n = 2; takenNames.has(seededName.toLowerCase()); n += 1) {
@@ -610,10 +610,10 @@ export function MetricForm({
 
   return (
     <div className="h-full overflow-y-auto">
-      {/* The shell pads the page; the form adds none of its own (DS-3). */}
+      {/* The shell pads the page; the form adds none of its own. */}
       <PageContainer width="narrow">
       {/* `noValidate`: every rule is checked by `validateDraft` and named inline
-          and in the list above Save, never by a browser bubble (AU-4). */}
+          and in the list above Save, never by a browser bubble. */}
       <form
         noValidate
         onSubmit={e => {
@@ -630,12 +630,12 @@ export function MetricForm({
               className="inline-flex items-center gap-1 text-caption transition-colors hover:text-[var(--fg)]"
               style={{ color: 'var(--fg-muted)' }}
             >
-              {/* Names where it leads, like the fact-table editor's (MT-31). */}
+              {/* Names where it leads, like the fact-table editor's. */}
               <ChevronLeft size={14} /> Metrics
             </button>
           }
           eyebrow="Observe · Metric"
-          // The edited metric is named, so two open editors are told apart (MT-31).
+          // The edited metric is named, so two open editors are told apart.
           title={metric ? `${canWrite ? 'Edit' : 'Metric'} · ${metric.display_name}` : 'New metric'}
         />
         {!canWrite && <ReadOnlyNotice className="mb-[18px]" />}
@@ -648,7 +648,7 @@ export function MetricForm({
             <TemplateGallery onPick={applyTemplate} onSkip={() => setShowTemplates(false)} />
           )}
           {/* The gallery stays one click away once dismissed, whether a
-              template was picked or the author started from scratch (MT-32). */}
+              template was picked or the author started from scratch. */}
           {isNew && !showTemplates && (
             <div
               className="mb-[18px] flex flex-wrap items-center gap-x-2 gap-y-1 rounded-card border px-4 py-2 text-body-sm border-border bg-bg-sunken text-fg-secondary"
@@ -670,7 +670,7 @@ export function MetricForm({
           )}
 
           {/* What the metric measures comes first: the kind decides every
-              field below it, the unit included (MT-2). One column, full
+              field below it, the unit included. One column, full
               width — kit Field spends a fixed 232px on its label gutter from
               `sm` up, so nothing narrower than the page leaves a usable
               control. */}
@@ -683,7 +683,7 @@ export function MetricForm({
                 options={kindOptions({ noEvents, noFactTables: facts.noFactTables })}
               />
               {/* The way to the missing prerequisite, under the cards that
-                  need it: a link cannot sit inside a radio card (MT-3). */}
+                  need it: a link cannot sit inside a radio card. */}
               {isNew && (noEvents || facts.noFactTables) && (
                 <p className="mt-[8px] text-caption text-fg-tertiary">
                   {noEvents && (
@@ -754,7 +754,7 @@ export function MetricForm({
             />
           )}
           {/* The chart SQL metrics get from their Query card, for the two
-              kinds with no query of their own (MT-9). */}
+              kinds with no query of their own. */}
           {seriesRequest && (
             <SeriesPreviewCard
               slug={slug}
@@ -781,7 +781,7 @@ export function MetricForm({
                 {...errorAria(fieldErrors, 'metric-display-name')}
               />
               {/* The derived internal name stays in sight while its input
-                  sits in the fold (MT-2). */}
+                  sits in the fold. */}
               {isNew && (
                 <p className="mt-[6px] flex flex-wrap items-center gap-x-1.5 text-caption text-fg-tertiary">
                   <span>Internal name</span>
@@ -842,8 +842,8 @@ export function MetricForm({
                 ))}
               </div>
             </Field>
-            {/* Who answers for the numbers, shown as an avatar in the catalog
-                (MT-25). */}
+            {/* Who answers for the numbers, shown as an avatar in the catalog.
+                */}
             <Field label="Owner" htmlFor="metric-owner" last={isNew}>
               <NativeSelect
                 id="metric-owner"
@@ -852,7 +852,7 @@ export function MetricForm({
                 options={ownerOptions}
               />
             </Field>
-            {/* On create the Save buttons choose the status (MT-1); an edit
+            {/* On create the Save buttons choose the status; an edit
                 keeps the select, with what each status means. */}
             {!isNew && (
               <Field label="Status" htmlFor="metric-status" hint={STATUS_HINT} last>
@@ -864,7 +864,7 @@ export function MetricForm({
                 />
               </Field>
             )}
-            {/* Less-used fields, folded (MT-2). The content stays mounted,
+            {/* Less-used fields, folded. The content stays mounted,
                 only hidden: the fields keep their values and labels, and the
                 fold opens itself for a field with a problem. */}
             <button
@@ -951,7 +951,7 @@ export function MetricForm({
             }}
           >
             {/* Each message is a link to its field: a keyboard or screen-reader
-                user lands on the control instead of hunting for it (MET-15). */}
+                user lands on the control instead of hunting for it. */}
             <ul className="list-disc space-y-1 pl-4">
               {errorEntries.map(([key, error]) => (
                 <li key={key}>
@@ -975,9 +975,9 @@ export function MetricForm({
         )}
 
         {/* Sticky, so Save and the reason it is blocked stay on screen on a
-            2,500-3,600px form (MT-4). The status jumps to the first field.
+            2,500-3,600px form. The status jumps to the first field.
             A new metric is created collecting, or parked as a draft: the old
-            Draft default was never collected and nothing said so (MT-1). */}
+            Draft default was never collected and nothing said so. */}
         <SaveBar
           status={
             attentionSummary(errorEntries.length)
@@ -1030,7 +1030,7 @@ const EMPTY_DATA_SOURCES: DataSource[] = []
  * Only the metric itself blocks the editor. Events are searched by the picker
  * that needs them, and a failed data-source list is shown in the SQL Source
  * card: a fact or event metric does not need it, so it must not lock the whole
- * editor out (MET-28).
+ * editor out.
  */
 export default function MetricEditPage() {
   const { slug, metricId } = useParams<{ slug: string; metricId?: string }>()
@@ -1040,7 +1040,7 @@ export default function MetricEditPage() {
   const isNew = !metricId
 
   // Back to wherever the editor was opened from — the catalog, or the metric's
-  // own drilldown — and to the catalog when it was opened directly (MET-29).
+  // own drilldown — and to the catalog when it was opened directly.
   const goBack = () => {
     if (location.key !== 'default') navigate(-1)
     else navigate(projectPath(currentOrgSlug(), slug, '/metrics'))
@@ -1066,7 +1066,7 @@ export default function MetricEditPage() {
 
   // A viewer reads a metric on its drilldown, whose Definition card is the
   // read view; the editor showed them a disabled form with live borders,
-  // required stars and author hints instead (#237 MT-28). "New metric" has
+  // required stars and author hints instead (#237). "New metric" has
   // nothing to read, so it goes back to the catalog.
   if (!canWrite && slug) {
     return (
@@ -1078,7 +1078,7 @@ export default function MetricEditPage() {
   }
 
   // A deleted or unknown metric is "not found" with the way back, not a red
-  // card offering a retry that can never succeed (#237 SH-33).
+  // card offering a retry that can never succeed (#237).
   if (metricQuery.error) {
     return (
       <PageContainer width="narrow">
@@ -1097,7 +1097,7 @@ export default function MetricEditPage() {
 
   // Data sources still block while LOADING: a SQL metric opened before its
   // source's option exists would paint the select blank. The form's shape
-  // while it does, not a centred "Loading…" (#237 SH-23).
+  // while it does, not a centred "Loading…" (#237).
   const isLoading = dataSourcesQuery.isLoading || (!isNew && metricQuery.isLoading)
   if (isLoading || !slug) {
     return (

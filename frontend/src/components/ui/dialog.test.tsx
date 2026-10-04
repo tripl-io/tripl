@@ -11,7 +11,7 @@ import {
 } from './dialog'
 import { focusFirstInvalid } from '@/components/forms/validation'
 
-describe('Dialog layout (AL-4, DS-10)', () => {
+describe('Dialog layout', () => {
   it('lets only the body scroll, with the header and footer pinned', () => {
     render(
       <Dialog open>
@@ -38,7 +38,7 @@ describe('Dialog layout (AL-4, DS-10)', () => {
 })
 
 // The helper every dialog form calls (forms/validation), not a copy of it.
-describe('focusFirstInvalid (AL-4)', () => {
+describe('focusFirstInvalid', () => {
   it('focuses the first invalid field and reports whether it found one', () => {
     render(
       <>

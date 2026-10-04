@@ -26,7 +26,7 @@ describe('FormRow', () => {
     )
   })
 
-  it('stacks on its own width, not the viewport (ST-1)', () => {
+  it('stacks on its own width, not the viewport', () => {
     const { container } = render(
       <FormRow caption={<span>Name</span>} className="px-4" role="group" aria-label="Name row">
         <input aria-label="Name" />
@@ -43,7 +43,7 @@ describe('FormRow', () => {
   })
 })
 
-describe('forms that used a fixed-width caption now stack on phones (EVT-6 / DATA-8 / PLAN-35 / MON-32)', () => {
+describe('forms that used a fixed-width caption now stack on phones', () => {
   const cases: [string, ReactNode][] = [
     ['event form row', <EvField label="Name" htmlFor="c"><input id="c" /></EvField>],
     ['event-type form row', <SField label="Name"><input aria-label="Name" /></SField>],
@@ -63,7 +63,7 @@ describe('forms that used a fixed-width caption now stack on phones (EVT-6 / DAT
   })
 })
 
-describe('panel bodies scroll sideways instead of clipping a wide table (DS-5 / DATA-9)', () => {
+describe('panel bodies scroll sideways instead of clipping a wide table', () => {
   const table = (
     <table aria-label="Wide">
       <tbody>
@@ -75,7 +75,7 @@ describe('panel bodies scroll sideways instead of clipping a wide table (DS-5 / 
   )
 
   it.each([
-    // The one Panel: the scan and event-type SurfPanel copies are gone (DS-15).
+    // The one Panel: the scan and event-type SurfPanel copies are gone.
     ['settings kit Panel', <Panel title="P">{table}</Panel>],
     ['settings kit Panel with no header', <Panel>{table}</Panel>],
   ])('the %s wraps its body in the scrolling panel body', (_name, element) => {

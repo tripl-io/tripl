@@ -1,10 +1,10 @@
 /**
- * Splitting a colon-namespaced event name for display (UX-9).
+ * Splitting a colon-namespaced event name for display.
  *
  * Lives in lib/ so the shared `EventName` component does not import a page
  * module: components/event-name.tsx used to reach into pages/events/utils.ts,
  * which pulled page code into every chunk that only needed the primitive and
- * invited circular imports (DS-41).
+ * invited circular imports.
  */
 
 export const NAME_SEGMENT_SEPARATOR = ':'

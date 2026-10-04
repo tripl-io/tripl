@@ -119,7 +119,7 @@ describe('DemoScenarioStrip — the active chapter', () => {
     expect(cta(/Open Scans/)).toHaveAttribute('href', `/p/${SLUG}/scans`)
   })
 
-  it('marks itself for the banner row it sits in, and keeps its controls named (LIVE-9)', () => {
+  it('marks itself for the banner row it sits in, and keeps its controls named', () => {
     renderStrip(liveLoopState('live-loop/run-scan'))
 
     // The banner gives up its own labels only while this slot is filled.
@@ -307,7 +307,7 @@ describe('DemoScenarioStrip — when the coached control is nowhere on screen', 
       vi.advanceTimersByTime(1)
     })
     expect(missingLine()).not.toBeNull()
-    // Already on Scans: no "Open Scans" that goes nowhere (#251 SH-6).
+    // Already on Scans: no "Open Scans" that goes nowhere (#251).
     expect(screen.queryByRole('link', { name: /Open Scans/ })).toBeNull()
   })
 
@@ -336,7 +336,7 @@ describe('DemoScenarioStrip — when the coached control is nowhere on screen', 
     )
   }
 
-  it('offers the reset only to whoever can reset the demo (#251 JR-17)', () => {
+  it('offers the reset only to whoever can reset the demo (#251)', () => {
     renderStripAs('owner')
     act(() => {
       vi.advanceTimersByTime(1000)
@@ -346,7 +346,7 @@ describe('DemoScenarioStrip — when the coached control is nowhere on screen', 
     ).toBeInTheDocument()
   })
 
-  it('tells a viewer the step needs edit access instead of pointing at a hidden control (#251 JR-17)', () => {
+  it('tells a viewer the step needs edit access instead of pointing at a hidden control (#251)', () => {
     renderStripAs('viewer')
     act(() => {
       vi.advanceTimersByTime(1000)
@@ -466,7 +466,7 @@ describe('DemoScenarioStrip — projects with no scenario', () => {
   })
 })
 
-describe('DemoScenarioStrip — hints and the welcome panel (DEMO-12, LIVE-9)', () => {
+describe('DemoScenarioStrip — hints and the welcome panel', () => {
   /** The strip under a real `/p/:slug/*` route, as it is in the app shell. */
   function renderRoutedStrip(state: ScenarioState, route: string, withMark = false) {
     writeScenarioState(SLUG, state)

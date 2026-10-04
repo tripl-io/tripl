@@ -14,7 +14,7 @@ describe('EmptyState', () => {
   })
 })
 
-describe('EmptyState options (DS-16, DS-38)', () => {
+describe('EmptyState options', () => {
   it('takes a lower heading level inside a card that already has one', () => {
     render(<EmptyState title="No scans yet" size="sm" headingLevel={3} />)
 
@@ -37,7 +37,7 @@ describe('EmptyState options (DS-16, DS-38)', () => {
   })
 })
 
-describe('EmptyState typography (DS-21)', () => {
+describe('EmptyState typography', () => {
   it('sits on the type scale in both sizes', () => {
     render(
       <>

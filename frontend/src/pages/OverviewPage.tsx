@@ -110,7 +110,7 @@ export default function OverviewPage() {
   const refetchInterval = useAdaptiveRefetchInterval({ activeMs: 60_000 })
 
   // On a working branch the plan KPIs (active, implemented, in review) count
-  // that branch's events, like the lists beside them (SH-11).
+  // that branch's events, like the lists beside them.
   const branchId = useActiveBranchId()
   const projectQuery = useQuery({
     ...projectQueryOptions(slug, branchId),
@@ -150,7 +150,7 @@ export default function OverviewPage() {
   // the Anomalies page.
   const signalsQuery = useExpandedSignals(slug, { enabled: projectQuery.isSuccess })
   // With the rail open inline beside the page, the page's own "Recent activity"
-  // panel listed the same items a second time, side by side (LIVE-10). The
+  // panel listed the same items a second time, side by side. The
   // panel steps aside while the rail is there and comes back when it closes.
   const railShowsActivity = useActivityRailInline()
   const activityQuery = useQuery({
@@ -224,8 +224,7 @@ export default function OverviewPage() {
   const isSignalsPending = signalsQuery.isPending && !projectQuery.isError
   const isTopEventsPending = topEventsQuery.isPending && !projectQuery.isError
   // The card's headline: the last 24 hours against the 24 before, not the
-  // newest (partial) bucket, and a caption in dates rather than "167 buckets"
-  // (MO-16).
+  // newest (partial) bucket, and a caption in dates rather than "167 buckets".
   const volumeSummary = summarizeVolume(volumePoints)
   const volumeInterval = volumeQuery.data?.interval
   const volumeCadence =
@@ -237,10 +236,10 @@ export default function OverviewPage() {
     : null
   // Nothing to show below the checklist yet: no active event and no source.
   // Five empty panels of chrome competed with the checklist that does teach,
-  // so the page shows one empty state instead (MO-24).
+  // so the page shows one empty state instead.
   const isBlankProject =
     !!summary && summary.active_event_count === 0 && sourcesQuery.isSuccess && sources.length === 0
-  // Colour only the exception (MO-17): coverage under the good bar reads as a
+  // Colour only the exception: coverage under the good bar reads as a
   // warning, never an alarm red, and a good or not-yet-measured one is neutral.
   const coverageKpiTone: MiniStatTone =
     summary && summary.active_event_count > 0 && coverageTone(coveragePct) !== 'success'
@@ -259,10 +258,10 @@ export default function OverviewPage() {
   return (
     <PageContainer>
       {/* Header. The eyebrow is the nav group, never the project name: the
-          top bar's breadcrumb already carries that (DS-2 / MO-40). The title
+          top bar's breadcrumb already carries that. The title
           is "Overview", what the nav and the URL call the project home; "Live
-          activity" named it after one of its cards (SH-8 / JR-35). The one-line
-          status under it answers "is everything OK?" before any panel (MO-15). */}
+          activity" named it after one of its cards. The one-line
+          status under it answers "is everything OK?" before any panel. */}
       <PageHeader
         eyebrow="Observe"
         title="Overview"
@@ -284,9 +283,9 @@ export default function OverviewPage() {
           launch the tour before anything else below the title. */}
       {projectQuery.data?.is_demo && <DemoWelcomePanel project={projectQuery.data} />}
 
-      {/* Guided first-run checklist (UX-24) — a "start here": connect a
+      {/* Guided first-run checklist — a "start here": connect a
           source, run a scan, review what it imported, define a metric, set up
-          alerting (#250 JR-2). Self-derives done-state from REAL project data,
+          alerting (#250). Self-derives done-state from REAL project data,
           is dismissible, and auto-hides once complete. Synthetic demo sources
           are excluded from the "connect a source" step. The metric step reads
           `summary.metric_count` and stays out until the backend sends it. */}
@@ -317,7 +316,7 @@ export default function OverviewPage() {
         />
       ) : (
       <>
-      {/* KPI strip. The exception tiles link where the work is (MO-15). */}
+      {/* KPI strip. The exception tiles link where the work is. */}
       {projectQuery.isError ? (
         <ErrorState
           title="Overview unavailable"
@@ -330,8 +329,8 @@ export default function OverviewPage() {
         />
       ) : (
         <MiniStatStrip boxed>
-          {/* Neutral figures by default; only the exceptions carry a colour
-              (MO-17). A pending value is a skeleton, never a "0" (DS-25). */}
+          {/* Neutral figures by default; only the exceptions carry a colour.
+              A pending value is a skeleton, never a "0". */}
           <MiniStat
             label="Active events"
             value={summary ? formatNumber(summary.active_event_count) : <StatValueSkeleton />}
@@ -340,8 +339,8 @@ export default function OverviewPage() {
             label="Implemented"
             value={summary ? formatNumber(summary.implemented_event_count) : <StatValueSkeleton />}
           />
-          {/* "In review", the one name for the status count everywhere
-              (JR-27): the tile, the Events tab and the glossary. */}
+          {/* "In review", the one name for the status count everywhere:
+              the tile, the Events tab and the glossary. */}
           <KpiLink to={slug ? projectPath(currentOrgSlug(), slug, '/events/review') : undefined}>
             <MiniStat
               label="In review"
@@ -353,7 +352,7 @@ export default function OverviewPage() {
               label="Open signals"
               value={signalsQuery.data ? formatNumber(signalCount) : <StatValueSkeleton />}
               tone={signalsQuery.data && signalCount > 0 ? 'danger' : 'neutral'}
-              // The one pulse on the page: the rows below are static (MO-18).
+              // The one pulse on the page: the rows below are static.
               pulse={signalCount > 0}
               delta={signalCount > 0 ? 'active' : undefined}
             />
@@ -367,7 +366,7 @@ export default function OverviewPage() {
                 ) : summary.active_event_count > 0 ? (
                   formatPlanCoverage(summary.implemented_event_count, summary.active_event_count)
                 ) : (
-                  // Nothing planned yet: no score, rather than a red 0% (MO-17).
+                  // Nothing planned yet: no score, rather than a red 0%.
                   '—'
                 )
               }
@@ -411,9 +410,9 @@ export default function OverviewPage() {
       )}
 
       {/* Active signals, straight under the KPIs: the widget that answers "is
-          anything wrong?" sat fourth, below the fold at 1440 (MO-15). Capped at
+          anything wrong?" sat fourth, below the fold at 1440. Capped at
           SIGNAL_LIMIT rows while the headline can count dozens, so the full
-          list is one click away (MON-15). */}
+          list is one click away. */}
       <Panel
         title="Active signals"
         right={
@@ -452,7 +451,7 @@ export default function OverviewPage() {
             {signals.slice(0, SIGNAL_LIMIT).map((signal) => (
               <SignalRow
                 // Signals are per scan config: two scans watching one event
-                // each open their own, and a scope-only key collided (MON-16).
+                // each open their own, and a scope-only key collided.
                 key={`${signal.scan_config_id ?? 'metric'}:${signal.scope_type}:${signal.scope_ref}:${signal.bucket}`}
                 slug={slug}
                 signal={signal}
@@ -476,7 +475,7 @@ export default function OverviewPage() {
         // Held through the pending state as well, so the header keeps its second
         // line instead of growing one when the series lands.
         subtitle={volumeScanName || isVolumePending ? VOLUME_SUBTITLE : undefined}
-        // The card leads to the chart it summarises (MO-15).
+        // The card leads to the chart it summarises.
         right={
           projectTotalPath && volumePoints.length > 0 ? (
             <Link
@@ -525,7 +524,7 @@ export default function OverviewPage() {
         {volumePoints.length > 0 && (
           // The chart takes the rest of the row and scales to it. A fixed 320px
           // SVG beside the figure ran off the card on a phone, cutting off the
-          // newest buckets, and left half of a wide card empty (MON-33, LIVE-29).
+          // newest buckets, and left half of a wide card empty.
           <div className="flex flex-wrap items-end gap-x-4 gap-y-2">
             <div
               role="group"
@@ -533,8 +532,8 @@ export default function OverviewPage() {
               className="flex shrink-0 flex-col gap-px"
             >
               {/* The hero figure: the last 24 hours, not the newest bucket —
-                  a partial hour is not a meaningful total (MO-16). Sans with
-                  tabular digits (DS-17) on the display step (DS-13). */}
+                  a partial hour is not a meaningful total. Sans with
+                  tabular digits on the display step. */}
               <span className="flex items-baseline gap-2">
                 <span className="tnum text-display font-semibold">
                   {formatNumber(volumeSummary.last24h)}
@@ -568,7 +567,7 @@ export default function OverviewPage() {
                 anomalyIdx={volumeSummary.lastAnomalyIdx}
               />
               {/* A time axis in words: where the line starts and its cadence,
-                  in place of "167 buckets" (MO-16). */}
+                  in place of "167 buckets". */}
               <div
                 aria-hidden="true"
                 className="mt-1 flex justify-between text-micro text-fg-tertiary"
@@ -612,8 +611,8 @@ export default function OverviewPage() {
         {topEvents.length > 0 && (
           <div role="list" aria-label="Top events by volume, last 48 hours" className="space-y-1">
             {topEvents.map((e) => {
-              // The event's share of the project's volume over the same window
-              // (MO-25). Left out when the total is unknown or zero rather than
+              // The event's share of the project's volume over the same window.
+              // Left out when the total is unknown or zero rather than
               // printed as 0%.
               const share = e.window_total_count > 0 ? e.total_count / e.window_total_count : null
               const shareLabel =
@@ -627,8 +626,8 @@ export default function OverviewPage() {
                       the ranking became unreadable. Capped
                       narrower so the bar starts near the names rather than mid
                       card, and on a phone the name sits above its bar instead
-                      of being squeezed beside it (MO-25). Sans: a display name
-                      is not code (DS-17). */}
+                      of being squeezed beside it. Sans: a display name
+                      is not code. */}
                   <span
                     className="w-full truncate text-body-sm sm:w-[min(40%,16rem)] sm:shrink-0"
                     title={e.name}
@@ -649,7 +648,7 @@ export default function OverviewPage() {
                       />
                     </span>
                     {/* The counts are the data: body ink, not the faintest
-                        text on the card (MO-25). */}
+                        text on the card. */}
                     <span className="tnum w-20 shrink-0 text-right text-caption text-fg">
                       {formatNumber(e.total_count)}
                     </span>
@@ -671,7 +670,7 @@ export default function OverviewPage() {
                   role="listitem"
                   aria-label={`${e.name}: ${formatNumber(e.total_count)} events${shareLabel ? `, ${shareLabel} of the total` : ''}`}
                 >
-                  {/* Each row opens the event's own monitoring page (MO-15). */}
+                  {/* Each row opens the event's own monitoring page. */}
                   {slug ? (
                     <Link
                       to={getMonitoringPath(slug, { scope_type: 'event', scope_ref: e.event_id })}
@@ -814,7 +813,7 @@ function VolumeSkeleton() {
 
 /**
  * A panel body's rows while its query is in flight: the loaded shape instead of
- * a "Loading…" word, so the cards hold their height (batch 5, JR-36). One
+ * a "Loading…" word, so the cards hold their height (batch 5). One
  * `role="status"` with the label; the bars are aria-hidden.
  */
 function RowsSkeleton({ rows, label }: { rows: number; label: string }) {
@@ -833,7 +832,7 @@ function RowsSkeleton({ rows, label }: { rows: number; label: string }) {
 }
 
 /**
- * A KPI that opens where its number is worked on (MO-15). The whole stat is
+ * A KPI that opens where its number is worked on. The whole stat is
  * the link, so its name reads "In review 8".
  */
 function KpiLink({ to, children }: { to?: string; children: ReactNode }) {
@@ -853,7 +852,7 @@ function plural(count: number, one: string, many: string): string {
 }
 
 /**
- * The one-line answer to "is everything OK?" under the title (MO-15): open
+ * The one-line answer to "is everything OK?" under the title: open
  * anomalies, incidents still owed an answer, failing scans, alert destinations
  * whose deliveries fail and source health,
  * each linking where it is dealt with. A clause whose data has not arrived is
@@ -905,7 +904,7 @@ function OverviewStatus({
     )
   }
   // A broken channel means incidents fire and nobody hears them, so it sits
-  // next to the failing scans rather than only on the Alerting page (MO-15).
+  // next to the failing scans rather than only on the Alerting page.
   if (failingDestinations > 0) {
     parts.push(
       <Link to={getAlertingPath(slug)} style={linkStyle}>
@@ -946,7 +945,7 @@ interface VolumeSummary {
 const DAY_MS = 24 * 60 * 60 * 1000
 
 /**
- * The volume card's headline (MO-16). The card read "6,556 · latest bucket":
+ * The volume card's headline. The card read "6,556 · latest bucket":
  * one partial hour, not a meaningful total. This sums the last 24 hours and
  * compares them with the 24 before — the newest bucket is still filling, so a
  * small dip in the change is expected late in an hour.
@@ -1041,7 +1040,7 @@ function SignalRow({
       className="flex min-h-(--row-h) items-center gap-2 py-1 no-underline transition-colors hover:bg-[var(--surface-hover)] text-inherit"
     >
       {/* Static: only the Open signals KPI pulses, so motion still means
-          "live" rather than shimmering down every row (MO-18). */}
+          "live" rather than shimmering down every row. */}
       <Dot tone={signalDirectionTone(signal.direction)} size={7} />
       <span className="flex-1 truncate text-body-sm font-medium" title={signalTitle}>
         {signalSummary}
@@ -1050,7 +1049,7 @@ function SignalRow({
         {formatSignalValues(signal)}
       </span>
       {/* "+203%", not z=40.7: the change in the reader's terms, with the
-          magnitude word and z-score on hover (MO-2, JR-31). */}
+          magnitude word and z-score on hover. */}
       <span
         className="tnum w-24 shrink-0 text-right text-caption font-semibold"
         style={{ color: signalDirectionColor(signal.direction) }}
@@ -1146,13 +1145,12 @@ function SourceRow({
   // Wraps on a phone. The fixed columns and chips used to take the whole row,
   // leaving the source name ~40px and slicing "checked 1h" off the edge; now
   // the name keeps an 8rem basis, the uppercase type (the badge already says
-  // "synthetic") drops below `sm`, and the check time moves to a second line
-  // (MON-33, LIVE-20).
+  // "synthetic") drops below `sm`, and the check time moves to a second line.
   //
   // The engine shows only when it adds something: a synthetic source's badge
   // already says "Synthetic", and printing `synthetic` beside it said it twice.
   // The status is a toned chip, the one status idiom, rather than grey text
-  // next to a coloured dot; the row opens the source (MO-26).
+  // next to a coloured dot; the row opens the source.
   const showEngine = !(source.is_synthetic && source.db_type === 'synthetic')
   return (
     <Link

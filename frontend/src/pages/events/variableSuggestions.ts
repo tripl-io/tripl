@@ -10,7 +10,7 @@ export interface VariableSuggestion {
 
 /**
  * How many suggestions a `$` opens at once. A project with 200 variables used to
- * render a 200-row list running far past the viewport and over Save (EVT-24);
+ * render a 200-row list running far past the viewport and over Save;
  * typing narrows it, so the tail is one keystroke away.
  */
 export const MAX_VARIABLE_SUGGESTIONS = 50

@@ -14,7 +14,7 @@ export const HEALTH_COL_KEY = 'health'
 /**
  * Columns hidden by default for a first-time user (no persisted preference).
  *
- * UX-14: a fresh user should meet a lean, scannable table that leads with the
+ * a fresh user should meet a lean, scannable table that leads with the
  * monitoring signal — Event, Type, Status, Monitor, Δ, Last seen, 48h (Event,
  * Type, 48h and Actions are pinned and always shown) — instead of an
  * intimidating column spreadsheet. Only the least-essential workflow-metadata
@@ -85,7 +85,7 @@ export function useColumnVisibility() {
 
 /**
  * The stored opt-in for a column that starts hidden on its tab: a type-specific
- * field column on the All / queue tabs (EV-11). Kept in the same persisted set
+ * field column on the All / queue tabs. Kept in the same persisted set
  * as the hidden keys, so one localStorage entry still holds every choice.
  */
 export function shownColumnKey(key: string): string {
@@ -96,7 +96,7 @@ export function shownColumnKey(key: string): string {
  * The `f:<id>` keys of the field columns that not every event type defines.
  * On the All tab the table lists the union of every type's fields, so each of
  * these is a column of dashes for every other type: about 70% of those cells
- * were "—", and they pushed Last seen and Owner off-screen at 1024 (EV-11).
+ * were "—", and they pushed Last seen and Owner off-screen at 1024.
  */
 export function typeSpecificFieldKeys(
   eventTypes: readonly EventType[],

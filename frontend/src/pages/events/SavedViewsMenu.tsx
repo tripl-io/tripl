@@ -51,7 +51,7 @@ export function SavedViewsMenu({
             }}
             placeholder="Name this view…"
           />
-          {/* A labelled button, not a lone floppy-disk icon (EV-29). */}
+          {/* A labelled button, not a lone floppy-disk icon. */}
           <Button
             type="button"
             variant="outline"
@@ -66,7 +66,7 @@ export function SavedViewsMenu({
 
         {views.length === 0 ? (
           // Says what a view keeps and who sees it: views live in this
-          // browser's storage (savedViews.ts), so they are personal (EV-29).
+          // browser's storage (savedViews.ts), so they are personal.
           <p className="px-1 py-1 text-caption text-fg-tertiary">
             Save the current search, filters and sort to come back to them. Views are kept in this
             browser and only you see them.

@@ -7,8 +7,8 @@ import { cn } from '@/lib/utils'
  *
  * Inline `absolute z-50` lists were cut off by any card with rounded-corner
  * clipping and fought other layers for z-order; ColumnSuggest moved to a Radix
- * Popover for that (DS-3) and the variable, JSON and template editors share the
- * same behaviour through this (DS-35). The field keeps focus throughout: the
+ * Popover for that and the variable, JSON and template editors share the
+ * same behaviour through this. The field keeps focus throughout: the
  * popover neither takes focus on open nor hands it back on close, and a press
  * on the anchor itself is not an outside press. The caller owns the options,
  * `aria-activedescendant` and keyboard handling on its field.

@@ -5,7 +5,7 @@ export type ChipVariant = "soft" | "outline" | "solid"
 export type ChipSize = "xs" | "sm" | "md"
 
 /*
- * The one badge/pill primitive (DS-6). `Badge` (ui/badge.tsx) is a thin alias
+ * The one badge/pill primitive. `Badge` (ui/badge.tsx) is a thin alias
  * over these classes, so a status reads the same pill everywhere:
  *   - status / lifecycle ("Live", "Failed")  → <Chip tone>            soft pill
  *   - kind / category tag ("SQL", "core")    → <Chip variant="outline">
@@ -53,7 +53,7 @@ export const chipVariants = cva(
       { variant: "outline", tone: "danger", className: "border-danger bg-danger-soft text-danger" },
       { variant: "outline", tone: "info", className: "border-info bg-info-soft text-info" },
       // Solid is for counts and the rare "this demands attention now" flag,
-      // never for a plain state (DS-37).
+      // never for a plain state.
       { variant: "solid", tone: "neutral", className: "bg-surface-active text-fg" },
       { variant: "solid", tone: "accent", className: "bg-accent-solid text-accent-solid-fg" },
       { variant: "solid", tone: "danger", className: "bg-destructive text-destructive-foreground" },

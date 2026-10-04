@@ -78,7 +78,7 @@ export function useEventsPageData({
     variables: variablesQuery.data ?? EMPTY_VARIABLES,
     allTags: allTagsQuery.data ?? EMPTY_TAGS,
     inReviewCount: inReviewCountQuery.data?.total ?? 0,
-    // The header shows a skeleton, not a 0, until the count has arrived (EV-19).
+    // The header shows a skeleton, not a 0, until the count has arrived.
     inReviewCountPending: inReviewCountQuery.isPending,
     dataError:
       eventTypesQuery.error ??

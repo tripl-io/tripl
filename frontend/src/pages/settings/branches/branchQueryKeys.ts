@@ -3,7 +3,7 @@
  *
  * Every key used to be a string literal retyped at each reader and each
  * invalidation, which is how a merge came to refresh the branch list but not
- * the conflicts panel, nor any of main's plan caches (PLAN-2, PLAN-4). The key
+ * the conflicts panel, nor any of main's plan caches. The key
  * builders themselves live in lib/queryKeys.ts with every other key.
  */
 
@@ -48,7 +48,7 @@ export function invalidateBranchCounts(qc: QueryClient, slug: string) {
  * After a tracked merge the worker writes the ticket a moment after the merge
  * response (`create_implementation_ticket.delay`), so the panel polls while the
  * list is still empty — for a bounded window, because a tracker that failed
- * must not be polled forever (PLAN-10).
+ * must not be polled forever.
  */
 export const TICKET_POLL_MS = 2000
 export const TICKET_POLL_WINDOW_MS = 30_000
@@ -59,7 +59,7 @@ export function invalidateBranchReview(qc: QueryClient, slug: string, branchId: 
   void qc.invalidateQueries({ queryKey: planBranchDiffKey(slug, branchId) })
   void qc.invalidateQueries({ queryKey: planBranchDetailKey(slug, branchId) })
   // Main may have gained a conflicting edit since the panel loaded; a merge
-  // refused for "field conflicts below" must find them below (PLAN-4).
+  // refused for "field conflicts below" must find them below.
   void qc.invalidateQueries({ queryKey: planBranchConflictsKey(slug, branchId) })
   void qc.invalidateQueries({ queryKey: planBranchTicketsKey(slug, branchId) })
   // The Impact panel is computed from the diff (#257).
@@ -70,7 +70,7 @@ export function invalidateBranchReview(qc: QueryClient, slug: string, branchId: 
  * Every plan cache main feeds, across all branches: after a merge the events,
  * variables, event types, meta fields, relations and history of main are all
  * different, and a reviewer who clicks through to Events must not see main as
- * it was before the merge for the minute of `staleTime` (PLAN-2).
+ * it was before the merge for the minute of `staleTime`.
  */
 export function invalidateMainPlan(qc: QueryClient, slug: string) {
   for (const queryKey of [
@@ -93,7 +93,7 @@ export function invalidateMainPlan(qc: QueryClient, slug: string) {
 }
 
 /** The branch's own plan caches: a revert rewrites the branch, so its editors
- * must not keep showing the reverted state (PLAN-16). */
+ * must not keep showing the reverted state. */
 export function invalidateBranchPlan(qc: QueryClient, slug: string, branchId: string) {
   for (const queryKey of [
     eventTypesKey(slug, branchId),
@@ -115,7 +115,7 @@ export function invalidateBranchPlan(qc: QueryClient, slug: string, branchId: st
 /**
  * After "Update from main": the branch has a new base and main's changes on
  * it, so its diff, detail, conflicts, row counts, the preview and its own plan
- * caches are all stale (PL-8). Main itself is untouched.
+ * caches are all stale. Main itself is untouched.
  */
 export function invalidateBranchUpdated(qc: QueryClient, slug: string, branchId: string) {
   invalidateBranchReview(qc, slug, branchId)

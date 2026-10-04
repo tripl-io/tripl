@@ -11,7 +11,7 @@ const ref = (id: string, project: string): DataSourceScanRef => ({
   project_name: project.toUpperCase(),
 })
 
-describe('dataSourceUsedBy (DA-40)', () => {
+describe('dataSourceUsedBy', () => {
   it('says nothing when the server sent no count', () => {
     expect(dataSourceUsedBy(SOURCE)).toBeNull()
   })

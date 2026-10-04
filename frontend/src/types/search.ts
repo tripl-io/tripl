@@ -43,7 +43,7 @@ export interface SearchEventVariableValue extends EventFieldVariableValue {
 }
 
 /**
- * One folded member of a {@link SearchVariantGroup} (#238 JR-20). Slim on
+ * One folded member of a {@link SearchVariantGroup} (#238). Slim on
  * purpose: enough to name and open the event.
  */
 export interface SearchVariant {
@@ -59,7 +59,7 @@ export interface SearchVariant {
 }
 
 /**
- * Event hits folded under their best-ranked member (#238 JR-20): events of one
+ * Event hits folded under their best-ranked member (#238): events of one
  * event type whose names differ only in the value of ONE naming-rule
  * placeholder. Only present when the search asked for `group_variants`.
  */
@@ -136,7 +136,7 @@ export interface SearchResponse {
    * `offset` and cannot be paged. Read `truncated`, not `total`, to learn
    * whether anything was dropped. With `group_variants` it and
    * `limit` count ROWS: a folded group is one, so its members never eat into
-   * the page (#238 JR-20).
+   * the page (#238).
    */
   total: number
   /** Ranked hits exist that this response does not carry; raise `limit`. */

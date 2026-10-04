@@ -123,7 +123,7 @@ describe('ScanListRow run action', () => {
     expect(screen.getByRole('button', { name: 'Run Orders scan now' })).toBeDisabled()
   })
 
-  it('turns Run now off and says Running… while the latest run is active (#247 DA-6)', () => {
+  it('turns Run now off and says Running… while the latest run is active (#247)', () => {
     renderRow({
       onRun: vi.fn(),
       runInfo: { status: 'running', lastRunLabel: 'running', lastJob: null } as unknown as ScanRunInfo,

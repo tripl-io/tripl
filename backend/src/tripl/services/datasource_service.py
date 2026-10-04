@@ -121,7 +121,7 @@ async def _with_usage(
     *,
     visible_project_ids: set[uuid.UUID] | None,
 ) -> list[DataSourceResponse]:
-    """Merge each source's scan and scan-run counts, and its scans, in (DA-40).
+    """Merge each source's scan and scan-run counts, and its scans, in.
 
     Every path that hands a source back goes through here, not only list and
     get: the page writes the create / update / test responses straight into its
@@ -662,7 +662,7 @@ async def test_data_source_connection(
 async def test_unsaved_connection(
     data: DataSourceConnectionTest,
 ) -> DataSourceConnectionTestResponse:
-    """Probe a config that has not been saved, and store nothing (DATA-30).
+    """Probe a config that has not been saved, and store nothing.
 
     The same adapter probe and the same safe wording as a saved source's test.
     The source is a TRANSIENT row built from the request alone — never added to

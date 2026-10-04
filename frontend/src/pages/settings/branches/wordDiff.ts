@@ -1,5 +1,5 @@
 /**
- * Word-level diff for the before → after of a long string field (PLAN-19).
+ * Word-level diff for the before → after of a long string field.
  *
  * A description edit arrives as two whole paragraphs, and finding the one word
  * that changed meant comparing them by eye. This marks the words each side
@@ -13,7 +13,7 @@ export interface WordSegment {
   changed: boolean
 }
 
-/** One run of the merged, single-paragraph form of the same diff (PL-10):
+/** One run of the merged, single-paragraph form of the same diff:
  * shared text once, removed and added words in reading order. */
 export interface InlineSegment {
   text: string

@@ -251,7 +251,7 @@ async def _diff_counts_for_branches(
 
     Two callers ask for these: ``tripl plan branches`` and the Branches tab,
     whose row badges read them instead of firing one ``/branches/{id}/diff``
-    per row (PLAN-3). ``ahead`` is the reviewable total of ``diff_branch``'s
+    per row. ``ahead`` is the reviewable total of ``diff_branch``'s
     ``summary`` PAIRED the way the Changes list pairs it: each rename the merge
     will apply (``snapshot_rename_pairs``, the list ``diff_branch`` returns as
     ``renames``) is ONE change, not its removal plus its addition. Without that,
@@ -1063,7 +1063,7 @@ async def _copy_main_into_new_branch(
     session.add(branch)
     await session.flush()
     # The revision is written before the branch exists, so its link back is
-    # stamped here, after the branch row has an id (PL-21).
+    # stamped here, after the branch row has an id.
     base_revision.branch_id = branch.id
 
     await deep_copy_plan_to_branch(

@@ -53,7 +53,7 @@ function Controlled({ onPick }: { onPick: (value: string) => void }) {
   )
 }
 
-describe('ColumnSuggestInput suggestion list (DS-3)', () => {
+describe('ColumnSuggestInput suggestion list', () => {
   it('renders the listbox outside the clipping card, keeping focus in the input', () => {
     render(<Controlled onPick={() => {}} />)
     const input = screen.getByRole('combobox', { name: 'Value column' })

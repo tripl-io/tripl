@@ -2,7 +2,7 @@ import { SCard } from '@/components/settings/kit'
 
 /**
  * One card that says what a section will offer once it is built, with no
- * control that could be mistaken for a setting (WS-37). Account sections used
+ * control that could be mistaken for a setting. Account sections used
  * to render each unbuilt feature as its own card of disabled inputs, switches
  * and buttons — honest, but most of the page was controls that do nothing.
  */

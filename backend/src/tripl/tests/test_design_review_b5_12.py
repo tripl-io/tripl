@@ -152,7 +152,7 @@ def _item(
 
 
 # --------------------------------------------------------------------------- #
-# JR-15: ``metric`` filter field
+# ``metric`` filter field
 # --------------------------------------------------------------------------- #
 
 
@@ -244,7 +244,7 @@ async def test_metric_filter_value_must_be_a_uuid(client: AsyncClient) -> None:
 
 
 # --------------------------------------------------------------------------- #
-# AU-9: the demo Jira link template substitutes its value
+# the demo Jira link template substitutes its value
 # --------------------------------------------------------------------------- #
 
 
@@ -257,7 +257,7 @@ def test_demo_link_templates_use_the_real_placeholder() -> None:
 
 
 # --------------------------------------------------------------------------- #
-# MO-23: monitoring_enabled on ScanConfig
+# monitoring_enabled on ScanConfig
 # --------------------------------------------------------------------------- #
 
 
@@ -280,7 +280,7 @@ async def test_scan_config_reports_monitoring_enabled_from_its_interval(
 
 
 # --------------------------------------------------------------------------- #
-# MO-15: failing alert destinations on the project summary
+# failing alert destinations on the project summary
 # --------------------------------------------------------------------------- #
 
 
@@ -348,7 +348,7 @@ async def test_summary_counts_enabled_destinations_whose_latest_delivery_failed(
 
 
 # --------------------------------------------------------------------------- #
-# SH-11: branch-scoped plan counters
+# branch-scoped plan counters
 # --------------------------------------------------------------------------- #
 
 
@@ -390,7 +390,7 @@ async def test_summary_refuses_another_projects_branch(client: AsyncClient) -> N
 
 
 # --------------------------------------------------------------------------- #
-# PL-21: plan revisions carry kind and branch_id
+# plan revisions carry kind and branch_id
 # --------------------------------------------------------------------------- #
 
 
@@ -419,7 +419,7 @@ async def test_revisions_report_their_kind_and_branch(client: AsyncClient) -> No
 
 
 # --------------------------------------------------------------------------- #
-# JR-6: expanded signals name their incident
+# expanded signals name their incident
 # --------------------------------------------------------------------------- #
 
 
@@ -545,7 +545,7 @@ async def test_unrouted_signal_has_no_incident(client: AsyncClient) -> None:
 
 
 # --------------------------------------------------------------------------- #
-# MO-36: monitor detail lists the scopes firing now
+# monitor detail lists the scopes firing now
 # --------------------------------------------------------------------------- #
 
 
@@ -622,7 +622,7 @@ async def test_healthy_monitor_has_no_firing_scopes(client: AsyncClient) -> None
 
 
 # --------------------------------------------------------------------------- #
-# MO-25: project volume beside the top events
+# project volume beside the top events
 # --------------------------------------------------------------------------- #
 
 

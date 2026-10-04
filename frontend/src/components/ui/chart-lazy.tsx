@@ -24,7 +24,7 @@ type MiniMetricsChartProps = ComponentProps<typeof ChartLib.MiniMetricsChart>
 type MetricsMultiSeriesChartProps = ComponentProps<typeof ChartLib.MetricsMultiSeriesChart>
 
 // A chart-shaped skeleton at the chart's own height, not a "Loading…" word in
-// a blank box (DS-26).
+// a blank box.
 function ChartFallback({
   className,
   height,

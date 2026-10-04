@@ -15,7 +15,7 @@ import {
 
 const CERT = '-----BEGIN CERTIFICATE-----\nMIIB\n-----END CERTIFICATE-----'
 
-describe('serviceAccountKeyError (DATA-29)', () => {
+describe('serviceAccountKeyError', () => {
   it('accepts an empty field and a service-account key', () => {
     expect(serviceAccountKeyError('')).toBeNull()
     expect(serviceAccountKeyError('  {"type":"service_account","private_key":"k"} ')).toBeNull()
@@ -28,7 +28,7 @@ describe('serviceAccountKeyError (DATA-29)', () => {
   })
 })
 
-describe('pemError (DATA-29)', () => {
+describe('pemError', () => {
   it('accepts empty fields and complete PEM blocks, RSA and EC keys included', () => {
     expect(pemError('', 'certificate')).toBeNull()
     expect(pemError(CERT, 'certificate')).toBeNull()
@@ -92,7 +92,7 @@ describe('pemError (DATA-29)', () => {
   })
 })
 
-describe('coreConnectionChanged (DATA-30)', () => {
+describe('coreConnectionChanged', () => {
   const source = {
     db_type: 'clickhouse',
     host: 'ch.example.com',
@@ -120,7 +120,7 @@ describe('coreConnectionChanged (DATA-30)', () => {
   })
 })
 
-describe('serverCoreErrors (DA-38)', () => {
+describe('serverCoreErrors', () => {
   function apiError(fields: { loc: (string | number)[]; msg: string; type: string }[]) {
     return Object.assign(new Error('raw'), { fields })
   }

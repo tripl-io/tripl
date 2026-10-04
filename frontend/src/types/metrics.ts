@@ -116,7 +116,7 @@ export interface TopEvent {
   event_type_id: string
   total_count: number
   // The project's volume over the same window, identical on every row, so a
-  // row can show its event's share without a second request (MO-25). Counted
+  // row can show its event's share without a second request. Counted
   // the project-total way, so the shares need not add up to 100%.
   window_total_count: number
 }
@@ -166,18 +166,18 @@ export interface MonitoringSignal {
   // sets it; collapsed callers drop children so it is always false there.
   incident_child: boolean
   // Display unit of a `metric`-scope signal's catalog metric ("%", "ms"…);
-  // null for every other scope and for a unitless metric (MON-34), and on a
+  // null for every other scope and for a unitless metric, and on a
   // locally-synthesised signal.
   unit: string | null
   // When the detector wrote the anomaly — distinct from `bucket`, when the
-  // anomalous period STARTED (MON-40). Null on a payload that predates it.
+  // anomalous period STARTED. Null on a payload that predates it.
   detected_at: string | null
   // The Alerting Inbox incident this signal was routed into and its status
-  // there, so an Anomalies row can link to the incident (JR-6). Null when no
+  // there, so an Anomalies row can link to the incident. Null when no
   // rule delivered it; filled on the expanded list only.
   incident_id?: string | null
   incident_status?: AlertInboxStatus | null
-  // Triage of a signal NO rule routed to an incident (MO-4 / JR-5); a signal
+  // Triage of a signal NO rule routed to an incident; a signal
   // with `incident_id` is triaged in the inbox and never carries these. Read
   // `muted_until` together with `muted`: null means both "not muted" and
   // "muted until someone unmutes". `hidden` (muted or expected) is what every
@@ -278,7 +278,7 @@ export interface AnomalyAttributionResponse {
   attribution_status: SignalAttributionStatus
 }
 
-/** The scope a triage verdict is about, keyed like the signal (MO-4 / JR-5). */
+/** The scope a triage verdict is about, keyed like the signal. */
 export interface SignalTriageScope {
   // Null for a catalog `metric` scope; required for every other one.
   scan_config_id: string | null
@@ -470,14 +470,14 @@ export interface EventMetricsResponse {
   last_collected_at?: string | null
   next_collection_at?: string | null
   // The Events tab's series only: volume over the 7 days ending at the request's
-  // upper bound and the 7 before, whatever the chart's range (EV-21).
+  // upper bound and the 7 before, whatever the chart's range.
   week_total?: number | null
   prior_week_total?: number | null
   data: EventMetricPoint[]
   forecast: ForecastPoint[]
 }
 
-/** One signal a row sparkline asks `POST /anomalies/signals/series` for (MO-19). */
+/** One signal a row sparkline asks `POST /anomalies/signals/series` for. */
 export interface SignalSeriesScope {
   scan_config_id: string
   scope_type: 'project_total' | 'event_type' | 'event'

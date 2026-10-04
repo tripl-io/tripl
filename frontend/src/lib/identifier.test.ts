@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { toIdentifier } from './identifier'
 
-describe('toIdentifier (MET-34)', () => {
+describe('toIdentifier', () => {
   it('derives snake_case, transliterating Cyrillic and stripping accents', () => {
     expect(toIdentifier('Checkout Conversion!', 'fb')).toBe('checkout_conversion')
     expect(toIdentifier('Конверсия оплаты', 'fb')).toBe('konversiya_oplaty')

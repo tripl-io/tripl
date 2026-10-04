@@ -133,12 +133,12 @@ export const eventMetricsApi = {
 
   /**
    * `POST /anomalies/signals/series` — row sparklines for many open signals in
-   * one request (MO-19): the buckets around each flagged one.
+   * one request: the buckets around each flagged one.
    */
   getSignalSeries: (slug: string, scopes: SignalSeriesScope[]) =>
     api.post<SignalSeries[]>(`/projects/${slug}/anomalies/signals/series`, { scopes }),
 
-  // --- Signal triage (MO-4 / JR-5) --------------------------------------------
+  // --- Signal triage --------------------------------------------
   // Only for signals no rule routed to an incident (the server answers 409
   // otherwise). Each POST returns the signal's new triage fields; each DELETE
   // is the Undo and is idempotent.

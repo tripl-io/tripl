@@ -49,7 +49,7 @@ describe('statusLexicon — colour meaning key', () => {
     // or without a monitor, so borrowing "Firing"/"Warning" from MONITOR_STATUS
     // put a monitor verdict on rows of a project that had no monitors at all.
     expect(SIGNAL_LEVEL.firing.label).toBe('Open')
-    // "Live" belongs to the lifecycle status (EV-5/DS-7).
+    // "Live" belongs to the lifecycle status.
     expect(SIGNAL_LEVEL.firing.label).not.toBe(eventStatusLexeme('live').label)
     expect(SIGNAL_LEVEL.warning.label).toBe('Recent')
     expect(SIGNAL_LEVEL.firing.label).not.toBe(MONITOR_STATUS.firing.label)
@@ -125,7 +125,7 @@ describe('toneVar — tone to CSS property', () => {
   })
 })
 
-describe('signal direction (MON-19)', () => {
+describe('signal direction', () => {
   it('paints a spike as danger and a drop as warning, on every surface', () => {
     expect(signalDirectionTone('spike')).toBe('danger')
     expect(signalDirectionTone('drop')).toBe('warning')

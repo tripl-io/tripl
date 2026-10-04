@@ -58,7 +58,7 @@ describe('refreshEventsLists', () => {
     expect(queryClient.getQueryState(KEY)?.isInvalidated).toBe(true)
   })
 
-  it('cuts a shown list when its viewport is inside the first page (EVT-12)', async () => {
+  it('cuts a shown list when its viewport is inside the first page', async () => {
     const queryFn = observe(true)
 
     await refreshEventsLists(queryClient, ['events', 'demo'])

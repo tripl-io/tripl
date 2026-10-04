@@ -3,7 +3,7 @@ import { describe, expect, it, vi } from 'vitest'
 
 import { downloadCsv } from './eventsCsv'
 
-describe('downloadCsv (EVT-41)', () => {
+describe('downloadCsv', () => {
   it('revokes the object URL only after the download has had time to start', () => {
     const { createObjectURL, revokeObjectURL } = URL
     vi.useFakeTimers()

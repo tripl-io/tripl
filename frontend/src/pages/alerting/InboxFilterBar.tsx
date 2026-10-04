@@ -17,7 +17,7 @@ import {
   type InboxFilterState,
 } from './inboxFilters'
 
-// The app's one filter-bar idiom (DS-15): search, then "{Label}: {value}"
+// The app's one filter-bar idiom: search, then "{Label}: {value}"
 // chips that apply instantly, then "Clear filters". It replaces a labelled
 // form grid plus a row of status toggle chips — a segmented look for what is a
 // filter, not a view.
@@ -41,7 +41,7 @@ export interface InboxFilterBarProps {
   /** The status facet, owned by the page beside `value` (both live in the URL). */
   status: InboxStatusFilter
   onStatusChange: (next: InboxStatusFilter) => void
-  /** Incidents per status off the list response, shown on each option (AL-14). */
+  /** Incidents per status off the list response, shown on each option. */
   statusCounts?: AlertInboxStatusCounts | null
   /**
    * "Clear filters" as ONE write, status included — the same reason as
@@ -50,7 +50,7 @@ export interface InboxFilterBarProps {
    */
   onClearAll: () => void
   /**
-   * The status the page opens on (AL-14). Standing on it is not a filter, so
+   * The status the page opens on. Standing on it is not a filter, so
    * "Clear filters" does not show on first load. '' (All) when absent.
    */
   defaultStatus?: InboxStatusFilter
@@ -111,7 +111,7 @@ export function InboxFilterBar({
     <FilterBar
       active={active}
       onClear={() => {
-        // The draft too, not only the committed value (ALR-50). A scope
+        // The draft too, not only the committed value. A scope
         // typed inside the debounce window has not reached `value.scope`
         // yet, so the resync above sees '' → '' and keeps the draft — and
         // the debounce then re-applied the very filter this just cleared.
@@ -147,7 +147,7 @@ export function InboxFilterBar({
         }
         options={DIRECTION_OPTIONS}
       />
-      {/* One chip for the range, its caveat inside with it (AL-15): two
+      {/* One chip for the range, its caveat inside with it: two
           labelled inputs and a two-line note used to sit in the bar
           itself, which at 390px stood taller than the first incident.
 

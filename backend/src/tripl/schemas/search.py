@@ -42,7 +42,7 @@ class SearchEventVariableValue(BaseModel):
 
 
 class SearchVariant(BaseModel):
-    """One folded member of a :class:`SearchVariantGroup` (JR-20).
+    """One folded member of a :class:`SearchVariantGroup`.
 
     Deliberately slim — enough to render and open the event, not a second full
     :class:`SearchResult`: a group of 40 scan variants would otherwise carry 40
@@ -62,7 +62,7 @@ class SearchVariant(BaseModel):
 
 
 class SearchVariantGroup(BaseModel):
-    """Event hits folded under their best-ranked member (JR-20).
+    """Event hits folded under their best-ranked member.
 
     Events of ONE event type whose names differ only in the value substituted
     for ONE naming-rule placeholder — the scan's ``event_name_format``, or the
@@ -203,7 +203,7 @@ class SearchResponse(BaseModel):
     # every embedded document as a "match". To see more hits, raise ``limit``.
     #
     # With ``group_variants=true`` it counts ROWS — a folded group is one — and
-    # ``limit`` pages rows too, so folded members never eat into the page (JR-20).
+    # ``limit`` pages rows too, so folded members never eat into the page.
     total: int
     # True when ranked hits exist that this response does not carry.
     #

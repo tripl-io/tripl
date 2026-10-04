@@ -18,7 +18,7 @@ function isViewParam(key: string): boolean {
  * The part of a query string a saved view keeps: the filter, search and sort
  * keys, sorted so two orders of the same filters compare equal. Everything else
  * stays out, `?branch=` above all: a view saved on a branch reopened that
- * branch after it had merged (EVT-36).
+ * branch after it had merged.
  */
 export function viewParamsOf(params: URLSearchParams | string): string {
   const source = typeof params === 'string' ? new URLSearchParams(params) : params

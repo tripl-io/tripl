@@ -7,7 +7,7 @@ const Tooltip = TooltipPrimitive.Root
 const TooltipTrigger = TooltipPrimitive.Trigger
 
 /**
- * An inverse neutral chip (DS-18): `--fg` fill under `--bg` ink, AA by
+ * An inverse neutral chip: `--fg` fill under `--bg` ink, AA by
  * construction in both themes. It used to be painted in the brand colour,
  * which turned a helper hint into a warning or danger signal under some
  * accents, and set at an off-scale 12px.

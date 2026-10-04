@@ -138,7 +138,7 @@ describe('earliestReachableDay', () => {
   })
 })
 
-describe('inboxStatusOptions (AL-14)', () => {
+describe('inboxStatusOptions', () => {
   it('shows the bare status names until the server sends counts', () => {
     expect(inboxStatusOptions().map(option => option.label)).not.toContainEqual(
       expect.stringContaining('·'),

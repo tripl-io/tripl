@@ -46,7 +46,7 @@ export function MergePolicyDialog({ slug, open, onOpenChange }: MergePolicyDialo
     queryFn: () => branchSettingsApi.get(slug),
     enabled: open,
     // Rendered in the dialog, with a retry, instead of "Loading policy…"
-    // forever (PLAN-21).
+    // forever.
     meta: SILENT_ERROR_META,
   })
   const settings = settingsQuery.data
@@ -122,7 +122,7 @@ function MergePolicyForm({ slug, settings, onClose }: MergePolicyFormProps) {
   })
 
   // Everyone but an owner reads the policy as values, not as a form of
-  // disabled controls (#237 MT-28 / ST-17).
+  // disabled controls (#237).
   if (!canEdit) {
     return (
       <div className="grid gap-4 py-4">
@@ -224,9 +224,9 @@ interface CreateBranchDialogProps {
   description: string
   pending: boolean
   error: string | null
-  /** Names already taken, checked before submit (PL-5). */
+  /** Names already taken, checked before submit. */
   existingNames: readonly string[]
-  /** "Switch to this branch now" (PL-4). */
+  /** "Switch to this branch now". */
   switchAfterCreate: boolean
   onSwitchAfterCreate: (value: boolean) => void
   onName: (value: string) => void
@@ -254,8 +254,8 @@ export function CreateBranchDialog({
   const descriptionId = useId()
   const switchId = useId()
   // "Required" under an empty name once Create was pressed, instead of the
-  // browser's bubble (AU-4). A malformed or taken name is said while typing:
-  // "Bad name with spaces!!" used to be accepted (PL-5).
+  // browser's bubble. A malformed or taken name is said while typing:
+  // "Bad name with spaces!!" used to be accepted.
   const [submitted, setSubmitted] = useState(false)
   const nameProblem = branchNameProblem(name, existingNames)
   const nameError = nameProblem ?? (submitted && !name.trim() ? REQUIRED_MESSAGE : null)
@@ -287,7 +287,7 @@ export function CreateBranchDialog({
         >
           <DialogHeader>
             <DialogTitle>New branch</DialogTitle>
-            {/* What is about to happen, before anyone commits to it (PL-4). */}
+            {/* What is about to happen, before anyone commits to it. */}
             <DialogDescription>
               A branch is a private copy of the plan as it is now. Edit events on it, ask for a
               review, then merge to make the changes live.

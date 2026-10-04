@@ -55,8 +55,8 @@ export function demoGenerationWarning(owned: number): DemoGenerationWarning | nu
 }
 
 /**
- * Why "Generate demo project" should be disabled, or null while it may run
- * (DEMO-27). At the cap the button used to stay enabled and open a confirm
+ * Why "Generate demo project" should be disabled, or null while it may run.
+ * At the cap the button used to stay enabled and open a confirm
  * whose two buttons both did nothing — the only way to learn about the limit
  * was to click. The caller disables the button and shows this next to it.
  */

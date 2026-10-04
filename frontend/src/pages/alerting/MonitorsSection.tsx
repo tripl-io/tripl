@@ -77,7 +77,7 @@ export interface RuleWithDestination extends AlertRule {
   destination_name: string
 }
 
-// One DOM for every width (AL-7). The rule table used to be a fixed 840px grid
+// One DOM for every width. The rule table used to be a fixed 840px grid
 // inside a horizontal scroller, so at 768px the delete and replay icons were
 // cut mid-glyph and at 390px the firing state, the switch and every action
 // sat off-screen with nothing saying the table scrolled. Now:
@@ -91,7 +91,7 @@ export interface RuleWithDestination extends AlertRule {
 // fixed or `minmax(0, …)`, and why the action track carries a floor — the
 // switch, Edit and the menu (36 + 32 + 32px and two 6px gutters) — rather
 // than `auto`, which is measured per grid. Mute's durations no longer open
-// inline (AL-9): they live in the menu, so no row can grow wider than its
+// inline: they live in the menu, so no row can grow wider than its
 // neighbours.
 //
 // Every column string is written out in full: Tailwind scans source for literal
@@ -107,10 +107,10 @@ function ruleGridClass(canWrite: boolean): string {
   return `${RULE_GRID_BASE} ${canWrite ? RULE_GRID_COLS : RULE_GRID_COLS_READ_ONLY}`
 }
 
-/** How long a just-created rule stays highlighted in the list (AL-10). */
+/** How long a just-created rule stays highlighted in the list. */
 const NEW_RULE_HIGHLIGHT_MS = 1500
 
-/** The stat tiles that filter the rules table, by the state each one counts (AL-47). */
+/** The stat tiles that filter the rules table, by the state each one counts. */
 const STATE_FILTER_LABEL: Record<MonitorStatus, string> = {
   firing: 'Firing',
   warning: 'Warning',
@@ -126,7 +126,7 @@ interface MonitorsSectionProps {
   /**
    * Whether `scans` has answered. Until it has, a scan-bound rule's scan is
    * UNKNOWN rather than missing, and must not read "unknown scan" — the words
-   * for a scan that was deleted (ALR-47). Optional: absent means loaded.
+   * for a scan that was deleted. Optional: absent means loaded.
    */
   scansLoaded?: boolean
   /** The scan list failed to load: a bound scan's name is unavailable, not pending. */
@@ -140,7 +140,7 @@ interface MonitorsSectionProps {
   autoOpenRuleForDestinationId: string | null
   /**
    * That destination's name, from the create response: the list may not have
-   * refetched it yet when the form opens, and the form is named after it (AL-34).
+   * refetched it yet when the form opens, and the form is named after it.
    */
   autoOpenRuleDestinationName?: string | null
   onAutoOpenRuleConsumed: () => void
@@ -188,7 +188,7 @@ export function MonitorsSection({
   const [editingRule, setEditingRule] = useState<RuleWithDestination | null>(null)
   const [replayingRule, setReplayingRule] = useState<RuleWithDestination | null>(null)
   // The editor's unsaved edits when the replay was opened from its "Replay
-  // with these edits" (ALR-12); null replays the saved rule.
+  // with these edits"; null replays the saved rule.
   const [replayDraft, setReplayDraft] = useState<AlertRuleUpdatePayload | null>(null)
   const [ruleForm, setRuleForm] = useState<RuleFormState>(defaultRuleForm())
   const [formDestinationId, setFormDestinationId] = useState('')
@@ -198,14 +198,14 @@ export function MonitorsSection({
   // which of them was firing.
   const [expandedRuleId, setExpandedRuleId] = useState<string | null>(null)
   // The rule just created, lit briefly so the reader can find the row that
-  // appeared "somewhere in the table" (AL-10).
+  // appeared "somewhere in the table".
   const [highlightRuleId, setHighlightRuleId] = useState<string | null>(null)
   useEffect(() => {
     if (!highlightRuleId) return
     const timer = window.setTimeout(() => setHighlightRuleId(null), NEW_RULE_HIGHLIGHT_MS)
     return () => window.clearTimeout(timer)
   }, [highlightRuleId])
-  // Guided setup's hand-off: the header says "Step 3 of 3" (AL-34).
+  // Guided setup's hand-off: the header says "Step 3 of 3".
   const [guidedRule, setGuidedRule] = useState(false)
 
   const summaryQuery = useQuery({
@@ -217,7 +217,7 @@ export function MonitorsSection({
   })
   const summary = summaryQuery.data
   // Project-wide detection, read so a switched-off detector is said above the
-  // rules it silences (AL-45). Same key as Detection settings, so a change
+  // rules it silences. Same key as Detection settings, so a change
   // there shows here without a reload. Its failure says nothing: the banner is
   // a warning, not a claim this section has to back.
   const detectionQuery = useQuery({
@@ -230,7 +230,7 @@ export function MonitorsSection({
   const stateByRule = new Map<string, MonitorSummaryItem>(
     (summary?.monitors ?? []).map(monitor => [monitor.rule_id, monitor]),
   )
-  // The stat tiles are toggles over the table below (AL-47): "Firing 1" is
+  // The stat tiles are toggles over the table below: "Firing 1" is
   // exactly the filter a reader wants, and the strip used to be a row of
   // numbers nothing could be done with. Pressing the lit tile again clears it.
   const [stateFilter, setStateFilter] = useState<MonitorStatus | null>(null)
@@ -249,7 +249,7 @@ export function MonitorsSection({
     setAutoOpenConsumed(true)
     setEditingRule(null)
     // Named after where it sends, so the last step does not open on an empty
-    // required field (AL-34). The reader can rename it.
+    // required field. The reader can rename it.
     const targetName = autoOpenRuleDestinationName
       ?? destinations.find(destination => destination.id === autoOpenRuleForDestinationId)?.name
     setRuleForm({ ...defaultRuleForm(), name: targetName ? `Alerts to ${targetName}` : '' })
@@ -275,7 +275,7 @@ export function MonitorsSection({
     mutationFn: () => alertingApi.createRule(slug, formDestinationId, ruleFormToPayload(ruleForm)),
     onSuccess: created => {
       invalidateAlertingConfig(qc, slug)
-      // Said, like a created destination is (AL-10); the two halves of this
+      // Said, like a created destination is; the two halves of this
       // page used to behave differently.
       toast.success(`Rule "${created.name}" created`)
       setHighlightRuleId(created.id)
@@ -307,8 +307,8 @@ export function MonitorsSection({
   })
 
   // The row-level writes below have no dialog to report in, and each used to
-  // fail with nothing on screen: the switch snapped back, the bin did nothing
-  // (ALR-6). They say why in a toast that keeps the global backstop's 401
+  // fail with nothing on screen: the switch snapped back, the bin did nothing.
+  // They say why in a toast that keeps the global backstop's 401
   // silence, request reference and dedupe (`surfaceError`).
   const reportRowWriteError = (error: unknown) => surfaceError(error, stripValueErrorPrefix)
 
@@ -349,7 +349,7 @@ export function MonitorsSection({
   })
 
   // The dialog's error is the previous attempt's; a fresh opening must not
-  // show it (ALR-7). Reset on every close and every open, since the
+  // show it. Reset on every close and every open, since the
   // guided-setup auto-open above cannot reset during render.
   const resetRuleMutations = () => {
     createRuleMut.reset()
@@ -363,7 +363,7 @@ export function MonitorsSection({
 
   // Picking another destination keeps the message format only when that
   // channel supports it. `slack_mrkdwn` carried over to a Telegram destination
-  // was a 422 on Create, over a format Select that rendered blank (ALR-4).
+  // was a 422 on Create, over a format Select that rendered blank.
   const changeFormDestination = (destinationId: string) => {
     setFormDestinationId(destinationId)
     const type = destinations.find(destination => destination.id === destinationId)?.type
@@ -382,7 +382,7 @@ export function MonitorsSection({
   }
 
   // `metricId` scopes the new rule to one catalog metric: metrics on, the
-  // other scopes off, and a metric filter naming it (#246 JR-16).
+  // other scopes off, and a metric filter naming it (#246).
   function openBlankRuleForm(metricId: string | null) {
     setEditingRule(null)
     setRuleForm(
@@ -398,7 +398,7 @@ export function MonitorsSection({
         : defaultRuleForm(),
     )
     // Prefill only when there is no choice to make: exactly one ENABLED
-    // destination (AL-3) — a disabled one next to it is not a real choice.
+    // destination — a disabled one next to it is not a real choice.
     // With several, the picker starts empty and Create names it on submit,
     // rather than silently routing to whichever sorted first.
     const enabled = destinations.filter(destination => destination.enabled)
@@ -411,7 +411,7 @@ export function MonitorsSection({
   }
 
   // `?new=rule` opens the create form on arrival — the inbox's "Create a rule"
-  // (AL-18) and a metric page's "Create alert…" (`&metric=<id>`, JR-16) link
+  // and a metric page's "Create alert…" (`&metric=<id>`) link
   // here. Latched during render like the guided-setup hand-off above, then the
   // params are dropped so Back or a refresh does not reopen it.
   const newRuleRequested = searchParams.get('new') === 'rule'
@@ -462,7 +462,7 @@ export function MonitorsSection({
   // Through the shared count helper, like the sibling audit panel. This was
   // `${rules.length} routing` — a count with its noun missing, which reads as an
   // unfinished template sitting directly on top of a table of numbers.
-  // "Alert rule", the one name for this object (JR-28): the tab, the button,
+  // "Alert rule", the one name for this object: the tab, the button,
   // the dialog and this count used to say Monitors, rule, alert rule and
   // routing rule.
   const rulesSubtitle = rules.length === 0
@@ -498,11 +498,11 @@ export function MonitorsSection({
       {rules.length > 0 && (
         <MiniStatStrip boxed>
           {/* A skeleton, not "—" or a green "Healthy", until the summary
-              answers: a count the query has not returned is not a count
-              (DS-25), and a green tone on it is a false all-clear. */}
+              answers: a count the query has not returned is not a count,
+              and a green tone on it is a false all-clear. */}
           {/* Each state tile is a toggle once the summary has answered: a
               filter over counts nobody has seen yet would hide rows on a
-              guess (AL-47). */}
+              guess. */}
           <MiniStat
             label="Firing"
             value={summary ? formatNumber(summary.firing_count) : <StatValueSkeleton />}
@@ -522,7 +522,7 @@ export function MonitorsSection({
             title="Show only rules in warning"
           />
           {/* Neutral: a green figure beside two grey zeros made the one
-              count that needs nothing the loudest tile on the strip (AL-47).
+              count that needs nothing the loudest tile on the strip.
               Colour is for Firing and Warning, and only when non-zero. */}
           <MiniStat
             label="Healthy"
@@ -664,7 +664,7 @@ export function MonitorsSection({
         scans={scans}
         scansLoaded={scansLoaded}
         scansFailed={scansFailed}
-        // Both replays from inside the editor (ALR-12): the rule on file, and
+        // Both replays from inside the editor: the rule on file, and
         // the rule with this form's edits laid over it server-side, unsaved.
         onReplaySaved={editingRule ? () => { setReplayDraft(null); setReplayingRule(editingRule) } : undefined}
         onReplayDraft={
@@ -703,7 +703,7 @@ interface RuleRowProps {
   rule: RuleWithDestination
   /** The destination the rule hangs off; its type names the channel. */
   destination: AlertDestination | undefined
-  /** Just created: lit briefly and scrolled into view (AL-10). */
+  /** Just created: lit briefly and scrolled into view. */
   highlighted: boolean
   state: MonitorSummaryItem | undefined
   scans: ScanConfig[]
@@ -747,8 +747,8 @@ function RuleRow({
   const settingsId = `rule-settings-${rule.id}`
   // Built from the rule itself, not from the summary: the condition is
   // configuration, so it renders correctly while the state request is still in
-  // flight. Sans and in words (AL-11), with what it watches underneath, so a
-  // metrics-only rule no longer reads like every other rule (JR-15). The
+  // flight. Sans and in words, with what it watches underneath, so a
+  // metrics-only rule no longer reads like every other rule. The
   // shared cooldown formatter keeps one rule one duration on every screen.
   const { condition, watches } = ruleConditionSummary(rule)
   const destinationType = destination?.type ?? state?.destination_type
@@ -775,7 +775,7 @@ function RuleRow({
           row a line; an ellipsis costs the fact. */}
       <span role="cell" className="flex min-w-0 basis-full flex-col gap-1 md:basis-auto">
         {/* One line: the chevron, the dot and the name never wrap apart, so
-            the dot cannot sit alone on a line above its rule (AL-7). */}
+            the dot cannot sit alone on a line above its rule. */}
         <span className="flex min-w-0 flex-nowrap items-center gap-1.5">
           {/* Expands the settings this list does not have room for. `Settings`
               names what opens, not the widget — a bare chevron says nothing
@@ -785,7 +785,7 @@ function RuleRow({
             onClick={onToggleExpanded}
             aria-expanded={expanded}
             // Only while the row it names is in the document: an
-            // aria-controls pointing at nothing is a broken reference (ALR-46).
+            // aria-controls pointing at nothing is a broken reference.
             aria-controls={expanded ? settingsId : undefined}
             aria-label={`${expanded ? 'Hide' : 'Show'} settings for ${rule.name}`}
             className="shrink-0 rounded-sm p-0.5 transition-colors hover:bg-[var(--surface-hover)] text-fg-tertiary"
@@ -794,7 +794,7 @@ function RuleRow({
               ? <ChevronDown aria-hidden="true" className="h-3.5 w-3.5" />
               : <ChevronRight aria-hidden="true" className="h-3.5 w-3.5" />}
           </button>
-          {/* Static in a list (MO-18): the Firing count above pulses once;
+          {/* Static in a list: the Firing count above pulses once;
               every row pulsing with it made the table shimmer. */}
           <Dot tone={tone} size={7} className="shrink-0" />
           {/* The detail page is the rule's fired history — the one thing
@@ -808,7 +808,7 @@ function RuleRow({
           {!rule.enabled && <Chip tone="neutral" size="xs" className="shrink-0">off</Chip>}
         </span>
         {/* A rule's mute is a STATE, shown as one — BellOff on every unmuted
-            row read as "muted" (AL-8). The only mute ACTION is in the menu.
+            row read as "muted". The only mute ACTION is in the menu.
 
             The MIRROR IMAGE of the incident card's muted line in
             AlertingInbox.tsx: an INCIDENT has three mute states, an ALERT RULE
@@ -853,7 +853,7 @@ function RuleRow({
       </span>
       <span role="cell" className="hidden min-w-0 items-center gap-1.5 lg:flex">
         {/* The channel's icon rather than a raw `demo_sink` chip, and the
-            name on one line (AL-11). */}
+            name on one line. */}
         {destinationType && (
           <ChannelGlyph
             type={destinationType}
@@ -871,7 +871,7 @@ function RuleRow({
         </span>
       </span>
       {/* On a phone, state, last fired and the actions share the card's
-          last line (AL-7). */}
+          last line. */}
       <span role="cell" className="pl-6 md:pl-0">
         {state ? (
           <Chip tone={tone} size="xs">{STATUS_LABEL[state.status]}</Chip>
@@ -958,7 +958,7 @@ function RuleRow({
             rather than `role="cell"` ON the <dl>: that role replaced the list's
             own, which left every <dt>/<dd> without the parent they require,
             and a one-cell row in a six-column table was announced as sitting
-            under "Rule" alone (ALR-46). */}
+            under "Rule" alone. */}
         <div role="cell" aria-colspan={6}>
         <dl className="grid grid-cols-2 gap-x-4 gap-y-2 sm:grid-cols-3 lg:grid-cols-4">
           <RuleSetting
@@ -999,7 +999,7 @@ function RuleRow({
  *
  * Three states, not two: while the scan list is still loading the name is not
  * known YET, and printing "unknown scan" then was indistinguishable from the
- * scan having been deleted (ALR-47).
+ * scan having been deleted.
  */
 function scanSettingLabel(
   scanConfigId: string | null,
@@ -1026,11 +1026,11 @@ function RuleSetting({ label, value }: { label: string; value: string }) {
 }
 
 /**
- * Replay, Mute and Delete, labelled, behind one "…" (AL-8).
+ * Replay, Mute and Delete, labelled, behind one "…".
  *
  * The row used to show five unlabelled icons, and Mute was a bell-with-slash
  * on every unmuted rule — which reads as "this is muted". Its durations opened
- * inline and pushed the whole row's columns sideways (AL-9); in a menu they
+ * inline and pushed the whole row's columns sideways; in a menu they
  * take no room at all.
  *
  * The mute choices keep the Inbox's labels, "Mute <target> for <duration>",
@@ -1052,7 +1052,7 @@ function RuleActionsMenu({
   muted: boolean
   isMutePending: boolean
   isDeletePending: boolean
-  /** The shared cascade sentence, so the menu and its confirm count alike (ALR-45). */
+  /** The shared cascade sentence, so the menu and its confirm count alike. */
   deleteImpact: string
   onMute: (mutedUntil: string | null) => void
   onReplay: () => void

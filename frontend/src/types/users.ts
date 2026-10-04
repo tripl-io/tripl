@@ -8,7 +8,7 @@
  */
 export type Role = 'owner' | 'admin' | 'member'
 
-// A role's pill tone lives in components/settings/role-chip.tsx (ST-16); this
+// A role's pill tone lives in components/settings/role-chip.tsx; this
 // list is the order and the words.
 export const ROLE_OPTIONS: { value: Role; label: string }[] = [
   { value: 'owner', label: 'Owner' },

@@ -95,7 +95,7 @@ function renderDetails(
       ...Array.from({ length: openNow }, () => signal('scan-1')),
       // Another scan's open signal must not be counted into this scan's total.
       signal('scan-2'),
-      // Nor may this scan's muted or expected ones (MO-4 / JR-5).
+      // Nor may this scan's muted or expected ones.
       ...Array.from({ length: hiddenNow }, () => ({ ...signal('scan-1'), hidden: true })),
     ])
   }
@@ -216,7 +216,7 @@ describe('JobDetails', () => {
   })
 })
 
-describe('JobDetails — the raw error behind "Scan failed." (DATA-19)', () => {
+describe('JobDetails — the raw error behind "Scan failed."', () => {
   const RAW = 'HTTPSConnectionPool(host=ch.internal, port=8443): Read timed out'
 
   function renderFailed(role: Persona) {

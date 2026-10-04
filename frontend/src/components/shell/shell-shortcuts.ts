@@ -4,7 +4,7 @@ import { MAIN_CONTENT_ID } from '@/components/landmarks'
 import { currentOrgSlug, projectPath } from '@/lib/navigation'
 
 /**
- * Keyboard shortcuts for the shell (JR-21): `?` opens the shortcut sheet, `c`
+ * Keyboard shortcuts for the shell: `?` opens the shortcut sheet, `c`
  * presses the current page's create button, and `g` then a letter goes to a
  * project page. Ctrl/⌘ K (the palette) and `/` (a list's search box) live with
  * their own components.

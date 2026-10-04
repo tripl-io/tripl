@@ -1,5 +1,5 @@
 /**
- * Where a coach anchor can actually be seen (DEMO-11).
+ * Where a coach anchor can actually be seen.
  *
  * The ring and the scroll-into-view both used the WINDOW as the only frame. An
  * anchor inside a scroll container — a row action in an `overflow-x-auto`

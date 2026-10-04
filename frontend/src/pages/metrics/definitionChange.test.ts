@@ -62,7 +62,7 @@ function loadAndSave(metric: MetricDefinitionDetailResponse, edit: Partial<Metri
   return { definition, changed: definitionDiffersFromStored(metric, definition) }
 }
 
-describe('definitionDiffersFromStored (MET-1)', () => {
+describe('definitionDiffersFromStored', () => {
   it('ignores presentation edits and catches every change of meaning', () => {
     expect(loadAndSave(SQL_METRIC).changed).toBe(false)
     expect(loadAndSave(SQL_METRIC, { displayName: 'Renamed', unit: 'ms' }).changed).toBe(false)
@@ -98,7 +98,7 @@ describe('definitionDiffersFromStored (MET-1)', () => {
 
 // Loading a metric and saving it untouched must send what is stored, for every
 // stored shape; the backend deletes collected history on any difference.
-describe('fact definition load→save round trip (MET-1)', () => {
+describe('fact definition load→save round trip', () => {
   const stored: [string, Record<string, unknown>][] = [
     ['a lowercase and', { filter_sql: '(a = 1) and (b = 2)' }],
     ['a multi-line AND', { filter_sql: '(a = 1)\nAND (b = 2)' }],

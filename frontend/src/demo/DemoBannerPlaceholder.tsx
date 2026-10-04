@@ -1,5 +1,5 @@
 /**
- * The demo banner's box, held while its lazy chunk loads (#251 SH-2).
+ * The demo banner's box, held while its lazy chunk loads (#251).
  *
  * The banner is its own chunk, so on a hard load the page rendered first and
  * the bar arrived ~1s later, pushing everything down 62px just as the user
@@ -12,7 +12,7 @@
  * 44px against the banner's 46.
  *
  * It carries `data-demo-banner` like the real one, so a docked coach card that
- * mounts before the banner's chunk already starts below it (#251 SH-5).
+ * mounts before the banner's chunk already starts below it (#251).
  *
  * Deliberately tiny and dependency-free: the shell imports it statically,
  * into the entry chunk.

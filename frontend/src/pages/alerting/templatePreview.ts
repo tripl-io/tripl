@@ -1,5 +1,5 @@
 /**
- * Example values for the preview (AL-37): what a Telegram or Slack message
+ * Example values for the preview: what a Telegram or Slack message
  * built from this template roughly looks like, without a round-trip. Unknown
  * variables stay as typed, so a typo is visible in the preview too.
  */

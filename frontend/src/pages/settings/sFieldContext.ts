@@ -6,7 +6,7 @@ import { createContext, useContext } from 'react'
  *
  * The event-type forms' label and hint were plain text beside their control, so
  * Name, Regex, Min and the rest were announced as an unlabeled "edit text" and
- * their hints were never read at all (PLAN-36). `SField` now renders a real
+ * their hints were never read at all. `SField` now renders a real
  * `<label>` through the settings kit's control-id slot (field-control-id.ts);
  * this carries the other half, the hint, to `aria-describedby`.
  *

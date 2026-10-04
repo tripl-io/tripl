@@ -12,7 +12,7 @@
  * stored on the metric, both reduced the way the backend reduces them. It used
  * to compare two drafts hydrated from the same metric, which cannot see a
  * lossy load/save round trip: a stored `filter_sql` or condition that loading
- * rewrote was a history wipe with no warning (MET-1).
+ * rewrote was a history wipe with no warning.
  *
  * Where the backend would reject the stored row outright (an unknown condition
  * operator, a key its model forbids) it compares raw columns instead, which

@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { branchNameProblem, suggestBranchName } from './branchMeta'
 
-describe('branchNameProblem (PL-5)', () => {
+describe('branchNameProblem', () => {
   it('accepts ref-like names, ticket keys included', () => {
     expect(branchNameProblem('checkout/paywall-copy', [])).toBeNull()
     expect(branchNameProblem('PROJ-4770', [])).toBeNull()

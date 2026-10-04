@@ -5,7 +5,7 @@ type Schemas = components['schemas']
 type DriftResponse = Schemas['VariableValueDriftResponse']
 type ActionRequest = Schemas['VariableValueDriftActionRequest']
 
-// Taken from the generated OpenAPI schema rather than restated (MON-45): a
+// Taken from the generated OpenAPI schema rather than restated: a
 // backend change to `SchemaDriftStatus` or the action enum now fails to compile
 // here instead of drifting silently.
 export type VariableValueDriftStatus = Schemas['SchemaDriftStatus']

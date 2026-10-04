@@ -43,7 +43,7 @@ const ThemeProviderContext = createContext<ThemeProviderState>(initialState)
 
 const ACCENTS: Accent[] = ["teal", "violet", "lime", "indigo", "magenta"]
 /**
- * Accents that were retired because they read as a status (DS-8): amber was
+ * Accents that were retired because they read as a status: amber was
  * the warning colour and rose sat beside danger. A stored choice moves to its
  * replacement instead of silently falling back to teal.
  */
@@ -56,7 +56,7 @@ const CHART_STYLES: ChartStyle[] = ["line", "line-only", "bar"]
 
 const DARK_QUERY = "(prefers-color-scheme: dark)"
 
-/** Whether the OS asks for dark, kept current while it changes (SHELL-33). */
+/** Whether the OS asks for dark, kept current while it changes. */
 function useSystemPrefersDark(): boolean {
   const subscribe = useCallback((onChange: () => void) => {
     const query = typeof window.matchMedia === "function" ? window.matchMedia(DARK_QUERY) : null
@@ -118,7 +118,7 @@ export function ThemeProvider({
 
   // "System" follows the OS for as long as it is chosen, not just at load:
   // switching the OS to dark at sunset used to leave the app light until a
-  // reload, beside a Toaster that did follow (SHELL-33).
+  // reload, beside a Toaster that did follow.
   const systemDark = useSystemPrefersDark()
   const resolvedTheme: "dark" | "light" =
     theme === "system" ? (systemDark ? "dark" : "light") : theme
@@ -130,7 +130,7 @@ export function ThemeProvider({
     // The UA paints scrollbars, date pickers, autofill and number spinners from
     // `color-scheme`, which otherwise follows the OS rather than this choice:
     // Light in-app on a dark OS got dark native controls on a light page, and
-    // the reverse (DS-14).
+    // the reverse.
     root.style.colorScheme = resolvedTheme
   }, [resolvedTheme])
 

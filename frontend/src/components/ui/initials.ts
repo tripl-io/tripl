@@ -1,5 +1,5 @@
 /**
- * The initials a user avatar shows, derived ONE way everywhere (DS-32).
+ * The initials a user avatar shows, derived ONE way everywhere.
  *
  * Four copies used to disagree: some took the first letter of the first two
  * words, one took two letters of the first word whatever the name, and one

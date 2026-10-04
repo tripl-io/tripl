@@ -15,7 +15,7 @@ export const CREATED_FIND_WINDOW_MS = 5_000
 const NONE: ReadonlySet<string> = new Set()
 
 /**
- * The rows a form has just created (AU-20, AU-21, JR-13): read once from the
+ * The rows a form has just created: read once from the
  * handoff the form left, scrolled to once, and marked for a few seconds.
  *
  * "Create event" used to step back to a 170-row list with nothing to find the

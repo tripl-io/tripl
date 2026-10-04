@@ -143,7 +143,7 @@ async def list_shadow_events(
         .where(ShadowEventCandidate.project_id == project_id, not_archived)
         # ``id`` breaks ties so that pages are stable: many candidates share
         # an observed count, and an unordered tie could show one row on two
-        # pages and another on none (DATA-39).
+        # pages and another on none.
         .order_by(ShadowEventCandidate.observed_count.desc(), ShadowEventCandidate.id)
         .offset(offset)
         .limit(limit)
@@ -444,7 +444,7 @@ async def batch_shadow_events(
     on_accepted: Callable[[ShadowEventAcceptResult], Awaitable[None]],
     on_dismissed: Callable[[ShadowEventDismissResult], Awaitable[None]],
 ) -> list[ShadowEventBatchItemResult]:
-    """Accept or dismiss many inbox rows, each on its own (DATA-39).
+    """Accept or dismiss many inbox rows, each on its own.
 
     Every row runs through the single route's service call and commits on its
     own, so one refused row (already resolved, no event type, an identity that

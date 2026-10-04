@@ -57,11 +57,11 @@ export interface VersionsTabProps {
 /**
  * The "By version" tab: the entity's series split by app version, the scan's
  * version adoption and its release regressions. Each card owns its query and
- * its error, so one failing endpoint no longer replaces the whole page (MON-8).
+ * its error, so one failing endpoint no longer replaces the whole page.
  *
  * Keyed on the range length, not on the live window's bounds: the bound moves
  * every five minutes, and a key that moved with it dropped the tab back to
- * "Loading…" each time (MON-3). The query functions read the live window, so a
+ * "Loading…" each time. The query functions read the live window, so a
  * refetch still asks for the current one.
  */
 export function VersionsTab({
@@ -170,7 +170,7 @@ export function VersionsTab({
 
   // The tab is offered because the scan names a version column, but that
   // column can still be empty. Two chart cards with controls around one grey
-  // line each said nothing about why (MO-28): one empty state says it once.
+  // line each said nothing about why: one empty state says it once.
   const seriesSettled = !seriesQuery.isLoading && !seriesQuery.isError
   const adoptionSettled = scope === 'metric' || (!adoptionQuery.isLoading && !adoptionQuery.isError)
   const noVersionData = seriesSettled && adoptionSettled
@@ -205,7 +205,7 @@ export function VersionsTab({
 
   return (
     <>
-      {/* The shared section-card geometry (DS-4 / MO-10): a header bar with a
+      {/* The shared section-card geometry: a header bar with a
           12.5px h2 and the controls, then the chart in the card body. */}
       <Card>
         <ChartCardHeader
@@ -215,7 +215,7 @@ export function VersionsTab({
               <CardTitle as="h2">By version</CardTitle>
               {latestVersion && (
                 latestIsPreRelease ? (
-                  // A warning flag, the one pill idiom (DS-6).
+                  // A warning flag, the one pill idiom.
                   <Chip
                     tone="warning"
                     icon={<AlertTriangle aria-hidden="true" />}
@@ -238,7 +238,7 @@ export function VersionsTab({
             </>
           )}
         >
-          {/* Two views of one chart: the shared segmented control (DS-16),
+          {/* Two views of one chart: the shared segmented control,
               the same height as the range control beside it. */}
           <SegmentedControl
             aria-label="Versions shown"
@@ -324,7 +324,7 @@ export function VersionsTab({
             </>
           )}
         >
-          {/* A column name: a code token, not a pill (DS-6). */}
+          {/* A column name: a code token, not a pill. */}
           {adoptionQuery.data?.app_version_column && (
             <CodeToken>{adoptionQuery.data.app_version_column}</CodeToken>
           )}

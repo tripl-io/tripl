@@ -175,7 +175,7 @@ describe('EventSpecCard', () => {
   })
 })
 
-describe('EventSpecCard spec fields table (DS-5)', () => {
+describe('EventSpecCard spec fields table', () => {
   it('is the design-system table, which scrolls sideways with the edge fade', () => {
     renderCard()
 
@@ -187,7 +187,7 @@ describe('EventSpecCard spec fields table (DS-5)', () => {
     ).toEqual(['Field', 'Type', 'Value', 'Documented values'])
   })
 
-  it('folds unset optional fields and lists only the properties a value names (EV-32)', () => {
+  it('folds unset optional fields and lists only the properties a value names', () => {
     const eventType = {
       ...EVENT_TYPE,
       field_definitions: [

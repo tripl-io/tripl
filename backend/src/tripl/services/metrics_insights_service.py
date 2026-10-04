@@ -874,7 +874,7 @@ async def _with_live_state(
 ) -> list[MetricSignalResponse]:
     """The per-fetch state layered over the (cacheable) signal list.
 
-    Incident refs (one lookup for the list), then triage (MO-4 / JR-5) and
+    Incident refs (one lookup for the list), then triage and
     verdicts (F01, #254) on both lists: the collapsed list drops muted /
     expected signals outright, because the top bar, Overview and Events count
     what it returns; the expanded list keeps them flagged ``hidden`` so the
@@ -914,7 +914,7 @@ def _with_incident_refs(
     signals: list[MetricSignalResponse],
     refs: Mapping[SignalKey, alerting_service.SignalIncidentRef],
 ) -> list[MetricSignalResponse]:
-    """Copies of ``signals`` naming the inbox incident each was routed into (JR-6).
+    """Copies of ``signals`` naming the inbox incident each was routed into.
 
     Applied after the cache read and after the cache write, never before: an
     incident's status moves with triage, which invalidates nothing here, so a
@@ -1215,7 +1215,7 @@ async def get_breakdown_timeline(
     )
 
 
-# The sparkline window around a signal's flagged bucket (MO-19): the run-up,
+# The sparkline window around a signal's flagged bucket: the run-up,
 # the flagged bucket, and a few after it to show whether the move held.
 SIGNAL_SERIES_BUCKETS_BEFORE = 19
 SIGNAL_SERIES_BUCKETS_AFTER = 4

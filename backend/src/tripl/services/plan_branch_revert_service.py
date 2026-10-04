@@ -1570,7 +1570,7 @@ async def _event_id_by_dotted_key(
     return matches[0] if matches else None
 
 
-# --- snapshot writers shared with "Update from main" (PL-8) -------------------
+# --- snapshot writers shared with "Update from main" -------------------
 #
 # The revert writes ONE snapshot item's state onto a branch row: the base's.
 # "Update from main" writes main's items onto branch rows, and every rule the

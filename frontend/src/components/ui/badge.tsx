@@ -8,7 +8,7 @@ import {
 } from "@/components/primitives/chip-variants"
 
 /*
- * Badge is a thin alias over the Chip classes (DS-6): one pill geometry for
+ * Badge is a thin alias over the Chip classes: one pill geometry for
  * every status. The old names keep working, mapped onto the taxonomy:
  *   - no variant / `default` / `secondary` / `neutral` → neutral soft pill.
  *     `default` used to be a solid brand block, so a Badge that simply forgot
@@ -16,7 +16,7 @@ import {
  *   - `outline` → neutral outlined tag (kind / category)
  *   - `success` / `warning` / `info` / `danger` / `accent` → soft tone
  *   - `destructive` → solid red, reserved for counts that demand attention; a
- *     red STATE ("Failed") is the soft `danger` (DS-37)
+ *     red STATE ("Failed") is the soft `danger`
  *   - `solid` → solid brand fill, only when a brand block is really meant
  * New code should use <Chip tone variant> directly.
  */

@@ -56,7 +56,7 @@ const requiredFieldCount = (et: EventType): number =>
 
 type DetailTab = 'events' | 'summary' | 'settings'
 
-// In the order they open: Summary is the default, so it comes first (AU-17).
+// In the order they open: Summary is the default, so it comes first.
 const TABS: { id: DetailTab; label: string }[] = [
   { id: 'summary', label: 'Summary' },
   { id: 'events', label: 'Events' },
@@ -71,7 +71,7 @@ export function EventTypeDetail({ slug, eventTypeId }: { slug: string; eventType
   const navigate = useNavigate()
   const branchId = useActiveBranchId()
   // The tab lives in `?tab=`, so a link can point at an event type's settings
-  // and Back from "View events" returns to the tab it left (PLAN-45). Replaced
+  // and Back from "View events" returns to the tab it left. Replaced
   // rather than pushed: switching tabs is not a navigation worth a Back step.
   const [searchParams, setSearchParams] = useSearchParams()
   const tabParam = searchParams.get('tab')
@@ -102,11 +102,11 @@ export function EventTypeDetail({ slug, eventTypeId }: { slug: string; eventType
   const eventTypes = data ?? []
 
   const et = eventTypes.find((e) => e.id === eventTypeId)
-  // The top bar ends on the type, not on "Event types" (AU-18).
+  // The top bar ends on the type, not on "Event types".
   usePageTitle(et?.display_name)
   // Branches deep-copy event types under new ids, so the id in the URL belongs
   // to ONE branch. Switching branch on this page used to end at "Event type not
-  // found." (PLAN-44); the type is followed by name instead, the identity that
+  // found."; the type is followed by name instead, the identity that
   // survives the copy. Remembered during render, like any value followed from
   // a prop, so the switch can still read the name the page was showing.
   const [lastSeenName, setLastSeenName] = useState<string | null>(null)
@@ -128,7 +128,7 @@ export function EventTypeDetail({ slug, eventTypeId }: { slug: string; eventType
   // Only a load that never answered replaces the page. A failed refetch keeps
   // the cached type on screen with a line saying so: every save on the Settings
   // tab refetches this list, and unmounting the page on a failed refetch threw
-  // away a field draft without asking (review 204).
+  // away a field draft without asking.
   if (isError && data === undefined) {
     return (
       <div className="space-y-4">
@@ -144,7 +144,7 @@ export function EventTypeDetail({ slug, eventTypeId }: { slug: string; eventType
     )
   }
 
-  // The not-found state with the way back, not a grey sentence (#237 SH-33).
+  // The not-found state with the way back, not a grey sentence (#237).
   if (isSuccess && !et && !sameNameOnThisBranch) {
     return (
       <EntityNotFound
@@ -159,14 +159,14 @@ export function EventTypeDetail({ slug, eventTypeId }: { slug: string; eventType
     )
   }
 
-  // First load: the page's shape, not a blank column (#237 SH-23).
+  // First load: the page's shape, not a blank column (#237).
   if (!et) return redirectTo ? null : <PageSkeleton variant="detail" label="Loading event type…" />
 
   return (
     <PageContainer className="space-y-3.5">
-      {/* The shared page header (DS-1): the type's name is the page's h1, the
+      {/* The shared page header: the type's name is the page's h1, the
           eyebrow names the parent collection. Its actions wrap under the title
-          on a phone (PLAN-45). */}
+          on a phone. */}
       <PageHeader
         back={<BackLink label="Event types" onClick={goBack} />}
         eyebrow="Plan · Event type"
@@ -190,7 +190,7 @@ export function EventTypeDetail({ slug, eventTypeId }: { slug: string; eventType
         }
         description={et.description || undefined}
         // No "Settings" button: it did exactly what the Settings tab beside
-        // it does (AU-17).
+        // it does.
         actions={
           <>
             {/* Watched on main only: an event type's branch copy is a draft
@@ -211,7 +211,7 @@ export function EventTypeDetail({ slug, eventTypeId }: { slug: string; eventType
         </p>
       )}
 
-      {/* The shared Radix tabs (DS-16 / AL-46), URL-controlled; a switch goes
+      {/* The shared Radix tabs, URL-controlled; a switch goes
           through the page guard. Manual activation: with selection on focus,
           the focus the guard's dialog hands back on "Keep editing" would
           select the tab again and re-open the dialog. */}
@@ -292,7 +292,7 @@ function SummaryTab({ et }: { et: EventType }) {
 
   return (
     <div className="flex flex-col gap-4">
-      {/* The one KPI strip (DS-5), counts in sans + tabular digits (DS-17). */}
+      {/* The one KPI strip, counts in sans + tabular digits. */}
       <MiniStatStrip boxed>
         {stats.map((s) => (
           <MiniStat
@@ -310,7 +310,7 @@ function SummaryTab({ et }: { et: EventType }) {
             <KeyValue label="Name" value={<span className="mono">{et.name}</span>} />
             <KeyValue label="Description" value={et.description || '—'} />
             {/* The field list itself, not the counts again: the strip above
-                already has them (AU-17). */}
+                already has them. */}
             <KeyValue
               label="Fields"
               value={
@@ -381,7 +381,7 @@ function SettingsTab({ slug, eventType, branchId, onDeleted }: SettingsTabProps)
   const canWrite = useCanWriteProject()
   // While a field is being added or edited, the other cards step aside, so the
   // page holds one form with one Save instead of the field page wedged between
-  // General's and the Danger zone (AU-15). `hidden`, not unmounted: a General
+  // General's and the Danger zone. `hidden`, not unmounted: a General
   // draft typed before "Add field" is still there on the way back.
   const [editingField, setEditingField] = useState(false)
   const onEditingChange = useCallback((editing: boolean) => setEditingField(editing), [])
@@ -424,7 +424,7 @@ function GeneralCard({
   const [description, setDescription] = useState(eventType.description)
   const [color, setColor] = useState(savedColor)
   // Save was always enabled and a save left no trace, so there was no telling
-  // a saved card from an edited one (PLAN-45).
+  // a saved card from an edited one.
   const dirty =
     displayName !== eventType.display_name
     || description !== eventType.description
@@ -489,7 +489,7 @@ function GeneralCard({
             pending={updateMut.isPending}
             disabled={!dirty}
             // Says why Save is off, so the disabled button is not read
-            // as a stray text link (AU-35).
+            // as a stray text link.
             status={!dirty ? (updateMut.isSuccess ? 'Saved' : 'No changes') : undefined}
           />
         }
@@ -537,7 +537,7 @@ function DangerZoneCard({
     mutationFn: () => eventTypesApi.del(slug, eventType.id, branchId),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: projectEventTypesKey(slug) })
-      // The sidebar's event-type count reads the project summary (AU-32).
+      // The sidebar's event-type count reads the project summary.
       qc.invalidateQueries({ queryKey: projectKey(slug) })
       onDeleted()
     },
@@ -560,7 +560,7 @@ function DangerZoneCard({
   // Delete waits for the count. The text used to read `total ?? 0` while the
   // count was pending or had failed, so a quick delete — or any delete after a
   // failed count — was confirmed with "nothing else is affected" over a cascade
-  // taking every event of the type (PLAN-43).
+  // taking every event of the type.
   const impact = impactQuery.isSuccess
     ? describeEventTypeDeletionImpact(
         impactQuery.data.total,
@@ -604,7 +604,7 @@ function DangerZoneCard({
             {impact}
           </div>
         </div>
-        {/* Bare red in a row; the solid red is the confirm dialog's (DS-20). */}
+        {/* Bare red in a row; the solid red is the confirm dialog's. */}
         <Button
           variant="danger"
           size="sm"
@@ -642,7 +642,7 @@ function MergeGateChip({ slug, eventType }: { slug: string; eventType: EventType
           : 'No owners — anyone can merge changes to this type'
       }
     >
-      {/* Who must approve a merge, in words (AU-12). */}
+      {/* Who must approve a merge, in words. */}
       {gated ? 'Owner approval' : 'Open to merge'}
     </Chip>
   )

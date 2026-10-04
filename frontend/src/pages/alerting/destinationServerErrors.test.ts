@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 
 import { attachDestinationServerErrors, describeDestinationServerError } from './destinationServerErrors'
 
-describe('describeDestinationServerError (AL-29)', () => {
+describe('describeDestinationServerError', () => {
   it('names the input and says the rule in words', () => {
     expect(describeDestinationServerError('Webhook target_url must be a valid https URL')).toEqual({
       field: 'target_url',

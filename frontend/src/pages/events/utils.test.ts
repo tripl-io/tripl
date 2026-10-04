@@ -514,7 +514,7 @@ describe('applyEventNameFormat', () => {
   })
 })
 
-describe('changedSlice (EVT-3)', () => {
+describe('changedSlice', () => {
   it('returns only the span a drag changed', () => {
     const prev = ['a', 'b', 'c', 'd', 'e', 'f']
     expect(changedSlice(prev, ['a', 'c', 'd', 'b', 'e', 'f'])).toEqual(['c', 'd', 'b'])

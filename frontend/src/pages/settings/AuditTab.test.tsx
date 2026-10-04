@@ -33,7 +33,7 @@ vi.mock('@/api/users', () => ({
 import { AuditTab, WorkspaceAuditLog } from './AuditTab'
 import { at } from '@/test/at'
 
-// What GET /audit/actions answers. The vocabulary is the backend's now (PLAN-49):
+// What GET /audit/actions answers. The vocabulary is the backend's now:
 // which actions carry a project is decided where they are recorded, so these
 // tests pin how the page USES the two halves, not what is in them.
 const CATALOG: AuditActionCatalog = {
@@ -53,7 +53,7 @@ beforeEach(() => {
 })
 
 // `/audit` is owner-only, and the tab now says so to anyone else instead of
-// asking (PLAN-47), so every render is an owner's unless a test says otherwise.
+// asking, so every render is an owner's unless a test says otherwise.
 function renderTab(auth: AuthContextValue | null = authAs('owner')) {
   const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
   return render(
@@ -394,7 +394,7 @@ describe('AuditTab — branch chip', () => {
   })
 })
 
-describe('AuditTab — who may read it, and a failed read (PLAN-47)', () => {
+describe('AuditTab — who may read it, and a failed read', () => {
   it('tells an editor the log is owner-only instead of claiming it is empty', () => {
     renderTab(authAs('member'))
 
@@ -421,7 +421,7 @@ describe('AuditTab — who may read it, and a failed read (PLAN-47)', () => {
   })
 })
 
-describe('AuditTab — rows and filters (PLAN-48 / PLAN-49)', () => {
+describe('AuditTab — rows and filters', () => {
   it('says whether a row is expanded', async () => {
     listMock.mockResolvedValue(auditPage(1, 1))
     getMock.mockResolvedValue(auditDetail(0, { a: 1 }))
@@ -465,7 +465,7 @@ describe('AuditTab — rows and filters (PLAN-48 / PLAN-49)', () => {
   })
 })
 
-describe('AuditTab — the action vocabulary comes from the backend (PLAN-49)', () => {
+describe('AuditTab — the action vocabulary comes from the backend', () => {
   it('offers the project half, grouped, in a project', async () => {
     renderTab()
 
@@ -504,7 +504,7 @@ describe('AuditTab — the action vocabulary comes from the backend (PLAN-49)', 
     expect(Array.from(select.querySelectorAll('option')).map((o) => o.textContent)).toEqual(['Action: any'])
   })
 
-  it('labels each action as the row chip reads, with the code only where two read alike (ST-34)', async () => {
+  it('labels each action as the row chip reads, with the code only where two read alike', async () => {
     actionsMock.mockResolvedValue({
       project: [{ label: 'Events', actions: ['event.create', 'event.delete', 'event.bulk_delete'] }],
       workspace: [],
@@ -522,7 +522,7 @@ describe('AuditTab — the action vocabulary comes from the backend (PLAN-49)', 
   })
 })
 
-describe('AuditTab — rows read as sentences (PL-23 / PL-24)', () => {
+describe('AuditTab — rows read as sentences', () => {
   it('says what happened in words, names the person, and groups rows by day', async () => {
     listMock.mockResolvedValue({
       items: [

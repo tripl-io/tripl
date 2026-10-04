@@ -1,5 +1,5 @@
 /**
- * Number formatting shared by every surface, with ONE locale policy (DS-30).
+ * Number formatting shared by every surface, with ONE locale policy.
  *
  * The UI copy is English, so numbers and dates are painted in the app locale
  * rather than the browser's: a chart tooltip used to print "1 234 events" (the

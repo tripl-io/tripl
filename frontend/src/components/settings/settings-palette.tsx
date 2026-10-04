@@ -37,7 +37,7 @@ interface PaletteGroup {
  * Substring, not a score: nothing here is ranked, a row shows or it does not.
  * Every word of the query has to appear somewhere in the row (label, hint or
  * keywords), so "api key" and "dark mode" find their section instead of
- * failing on the space (#238 JR-19).
+ * failing on the space (#238).
  */
 function matchesQuery(query: string, row: PaletteRow): boolean {
   const tokens = query.trim().toLowerCase().split(/\s+/).filter(Boolean)
@@ -79,7 +79,7 @@ export function SettingsCommandPalette({
   /** Where "Back to project" returns to; '/workspace' when nothing is bound. */
   backHref: string
   /** The rail's words for the same link ("Back to Acme iOS"), so both name
-   *  where it really goes (ST-4). */
+   *  where it really goes. */
   backLabel?: string
   /** An owner or admin of the organization. */
   isOwner: boolean
@@ -92,7 +92,7 @@ export function SettingsCommandPalette({
    *  classify it. */
   onLeave: (href: string) => void
   /** Rebind the Project sections to this project without leaving settings
-   *  (ST-6). Omitted, the palette offers no such rows. */
+   *  . Omitted, the palette offers no such rows. */
   onSwitchProject?: (slug: string) => void
   onSignOut: () => void
 }) {
@@ -208,12 +208,12 @@ export function SettingsCommandPalette({
     label: project.name,
     hint: project.slug,
     icon: Folder,
-    // The project's front door, as "Back to project" uses (#250 JR-1).
+    // The project's front door, as "Back to project" uses (#250).
     onSelect: () => run(() => onLeave(projectHomePath(project.slug))),
   }))
 
   // The same projects as places to point the Project settings at, staying in
-  // the area: the rows above leave it for the project's app (ST-6).
+  // the area: the rows above leave it for the project's app.
   const projectSettingsRows: PaletteRow[] = onSwitchProject
     ? projects.map(project => ({
         value: `project-settings:${project.slug}`,

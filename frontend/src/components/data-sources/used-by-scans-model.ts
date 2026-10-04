@@ -19,7 +19,7 @@ export interface UsedBy {
 }
 
 /**
- * What the card says about the scans reading a source (DA-40). Null when the
+ * What the card says about the scans reading a source. Null when the
  * server sent no count at all. The project is named only when the scans sit in
  * more than one: on a one-project workspace it would repeat on every link.
  */

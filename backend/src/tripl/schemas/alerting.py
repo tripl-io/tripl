@@ -570,7 +570,7 @@ class AlertDestinationCreate(BaseModel):
         # Blank is "not given", like the secret fields above: a form that holds
         # every channel's inputs sends ``chat_id: ""`` for a Slack or webhook
         # destination, and refusing that as a missing Telegram chat id failed a
-        # create that never involved Telegram (ALR-1). The telegram arm of
+        # create that never involved Telegram. The telegram arm of
         # ``validate_channel_config`` still requires one.
         if value is None or not value.strip():
             return None
@@ -917,7 +917,7 @@ DestinationTestErrorKind = Literal[
 
 
 class AlertDestinationDraftTestRequest(BaseModel):
-    """A destination's settings as the dialog holds them, to test before saving (AL-30).
+    """A destination's settings as the dialog holds them, to test before saving.
 
     Setting up Slack used to take Create, close, find the card, then Test — and
     a wrong webhook was a stored destination by the time anyone learned it.
@@ -1030,7 +1030,7 @@ class AlertDestinationTestResponse(BaseModel):
     # both values explicitly, including the ``None`` half of each pair.
     error: str | None
     sent_at: datetime | None
-    # What kind of failure ``error`` describes (AL-30), so the dialog can pick its
+    # What kind of failure ``error`` describes, so the dialog can pick its
     # advice without pattern-matching exception text; ``http_status`` carries the
     # code when the kind is ``http_status``. Null on success. Defaulted, unlike
     # the two above, because older clients and fixtures predate them.
@@ -1134,7 +1134,7 @@ class AlertDeliveryListResponse(BaseModel):
     # Opaque keyset cursor for the page after this one, `None` on the last
     # page. Passing it back as `?cursor=` continues strictly after the last row
     # served, so a list that changes between requests cannot skip a row the
-    # way an offset can (ALR-27). Always sent, no default, for the reason
+    # way an offset can. Always sent, no default, for the reason
     # `window_truncated_at` below gives.
     next_cursor: str | None
 
@@ -1270,7 +1270,7 @@ class AlertInboxGroupResponse(BaseModel):
 
 
 class AlertInboxStatusCounts(BaseModel):
-    """Incidents per effective status over the whole window (AL-14).
+    """Incidents per effective status over the whole window.
 
     Counted after the non-status filters and before the status one, so a chip
     reads what choosing it would list, without loading every page.
@@ -1310,7 +1310,7 @@ class AlertInboxListResponse(BaseModel):
     # field the server never omits.
     window_truncated_at: datetime | None
     # Opaque keyset cursor for "Load more", `None` on the last page; see
-    # AlertDeliveryListResponse.next_cursor (ALR-27).
+    # AlertDeliveryListResponse.next_cursor.
     next_cursor: str | None
 
 
@@ -1814,7 +1814,7 @@ class MonitorsSummaryResponse(BaseModel):
 
 
 class MonitorFiringScope(BaseModel):
-    """One scope of a monitor that is firing now (MO-36).
+    """One scope of a monitor that is firing now.
 
     Chosen by the same horizon test as ``firing_scope_count``, so the list and
     the count cannot disagree. ``scope_name``, ``event_id`` and ``direction``

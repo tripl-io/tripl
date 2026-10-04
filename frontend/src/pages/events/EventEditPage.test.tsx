@@ -185,7 +185,7 @@ describe('EventEditPage — a question raised while the event is being authored'
 })
 
 describe('EventEditPage layout and exits', () => {
-  it('says the event was created, with a way to open it (AU-21)', async () => {
+  it('says the event was created, with a way to open it', async () => {
     renderAtNew()
     await screen.findByLabelText(/posted as the first comment/i)
     fireEvent.change(screen.getByLabelText(/^Name/), { target: { value: 'checkout:completed' } })
@@ -199,7 +199,7 @@ describe('EventEditPage layout and exits', () => {
     )
   })
 
-  it('hands the new event to the list, which scrolls to and marks it (AU-21)', async () => {
+  it('hands the new event to the list, which scrolls to and marks it', async () => {
     renderAtNew()
     await screen.findByLabelText(/posted as the first comment/i)
     fireEvent.change(screen.getByLabelText(/^Name/), { target: { value: 'checkout:completed' } })
@@ -208,7 +208,7 @@ describe('EventEditPage layout and exits', () => {
     await waitFor(() => expect(readCreatedEvents('demo')).toEqual([CREATED.id]))
   })
 
-  it('shows the form taking shape while it loads, not a sentence (AU-43)', async () => {
+  it('shows the form taking shape while it loads, not a sentence', async () => {
     const { eventTypesApi } = await import('@/api/eventTypes')
     vi.mocked(eventTypesApi.list).mockImplementation(() => new Promise(() => {}))
     renderAtNew()
@@ -216,7 +216,7 @@ describe('EventEditPage layout and exits', () => {
     expect(await screen.findByRole('status')).toHaveTextContent('Loading the event form…')
   })
 
-  it('says a missing event is not found, with the way back, and no retry (SH-33)', async () => {
+  it('says a missing event is not found, with the way back, and no retry', async () => {
     vi.mocked(eventsApi.get).mockRejectedValue(new ApiError('Event not found', 404))
     render(
       <QueryClientProvider client={queryClient}>
@@ -234,7 +234,7 @@ describe('EventEditPage layout and exits', () => {
     expect(screen.queryByRole('alert')).toBeNull()
   })
 
-  it('puts the draft discussion note above the Create button (EVT-44)', async () => {
+  it('puts the draft discussion note above the Create button', async () => {
     renderAtNew()
 
     const composer = await screen.findByLabelText(/posted as the first comment/i)
@@ -244,7 +244,7 @@ describe('EventEditPage layout and exits', () => {
     expect(composer.compareDocumentPosition(create) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
   })
 
-  it("keeps the list's query string when a cold-opened editor closes (EVT-38)", async () => {
+  it("keeps the list's query string when a cold-opened editor closes", async () => {
     function ListLocation() {
       const location = useLocation()
       return <div data-testid="list-location">{`${location.pathname}${location.search}`}</div>
@@ -267,7 +267,7 @@ describe('EventEditPage layout and exits', () => {
   })
 })
 
-describe('EventEditPage branch banner (EVT-42)', () => {
+describe('EventEditPage branch banner', () => {
   const BRANCHES = {
     total: 2,
     items: [
@@ -318,7 +318,7 @@ describe('EventEditPage branch banner (EVT-42)', () => {
   })
 })
 
-describe('EventEditPage on the wrong branch (AU-1 / PL-2)', () => {
+describe('EventEditPage on the wrong branch', () => {
   it('shows a main event opened on a branch read-only, with the switch in place of Save', async () => {
     vi.mocked(planBranchesApi.list).mockResolvedValue({
       total: 2,
@@ -387,7 +387,7 @@ describe('EventEditPage on the wrong branch (AU-1 / PL-2)', () => {
   })
 })
 
-describe('EventEditPage for a viewer (#237 AU-33 / JR-18)', () => {
+describe('EventEditPage for a viewer (#237)', () => {
   const VIEWER: AuthContextValue = personaAuth('viewer')
 
   function renderAsViewer(entry: string) {

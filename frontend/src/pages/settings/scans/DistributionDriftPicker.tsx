@@ -9,7 +9,7 @@ const RESERVED_TITLE = 'Used by this scan as its event type, time, app version o
 /**
  * The drift column checkboxes. The caption and its explanation belong to the
  * enclosing `Field` row, which also names this group, so the section shares the
- * form's one label column (#247 DA-12).
+ * form's one label column (#247).
  */
 export function DistributionDriftPicker({
   columns,

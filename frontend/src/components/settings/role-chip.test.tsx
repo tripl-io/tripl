@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest'
 import { RoleChip, type ChipRole } from './role-chip'
 
 describe('RoleChip', () => {
-  // One tone per role, app-wide (DS-7): Members and Profile must not drift.
+  // One tone per role, app-wide: Members and Profile must not drift.
   // Both vocabularies: the organization's (owner | admin | member) and a
   // project membership's (editor | viewer | none).
   it.each<[ChipRole, string, string]>([

@@ -56,7 +56,7 @@ const COUNT_UNITS = [
 
 // Format a row/count number compactly (e.g. 1.8M) to mirror the mockup's fmtS.
 // The unit is chosen AFTER rounding: 999,950 rounds to 1000.0 thousands, which
-// used to print as "1000K" instead of moving up to "1M" (DATA-38).
+// used to print as "1000K" instead of moving up to "1M".
 export function formatCount(value: number | null | undefined): string {
   if (value == null) return '—'
   if (value < 1e3) return String(value)

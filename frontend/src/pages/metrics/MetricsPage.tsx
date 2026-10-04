@@ -37,7 +37,7 @@ export default function MetricsPage({ tab = 'catalog' }: { tab?: MetricsTab }) {
         <Link to={projectPath(currentOrgSlug(), slug, '/metrics/fact-tables/new')} className="no-underline">
           <Plus className="h-3.5 w-3.5" />
           {/* "New table" on a phone, so the button stays beside the title
-              as "New metric" does instead of wrapping under it (MT-37). */}
+              as "New metric" does instead of wrapping under it. */}
           New <span className="max-sm:hidden">fact </span>table
         </Link>
       </Button>
@@ -54,7 +54,7 @@ export default function MetricsPage({ tab = 'catalog' }: { tab?: MetricsTab }) {
     <PageContainer>
       <div className="space-y-4">
         {/* Fact tables are a panel, not the page's title, so the hint rides the
-            Metrics header while their tab is open (#238 JR-31). */}
+            Metrics header while their tab is open (#238). */}
         <PageHeader
           eyebrow="Observe"
           title="Metrics"
@@ -73,8 +73,7 @@ export default function MetricsPage({ tab = 'catalog' }: { tab?: MetricsTab }) {
 
 // Route links, so a `<nav>` of links with `aria-current="page"` rather than a
 // tablist: the tab roles promised arrow-key roving and tabpanels that links
-// never had, and screen readers announced a widget that did not behave like one
-// (DS-35 / MET-38).
+// never had, and screen readers announced a widget that did not behave like one.
 function MetricsTabs({ slug, tab }: { slug?: string; tab: MetricsTab }) {
   return (
     <nav

@@ -988,7 +988,7 @@ async def update_destination(
         # The header is a pair, and its name is what says it exists: a null name
         # (the "Remove secret header" body sends both halves as null) removes the
         # secret with it. Clearing the name alone used to stop the header going
-        # out but left the secret's ciphertext in the row for good (ALR-24). A
+        # out but left the secret's ciphertext in the row for good. A
         # null or blank VALUE next to a kept name still means "keep the stored
         # secret", which is how an edit that only renames the header works.
         if destination.webhook_header_name is None:
@@ -1161,7 +1161,7 @@ async def _validated_rule_changes(
 
     Returns the column changes and the replacement filters (None when the body
     leaves them alone). Shared by ``update_rule``, which writes them, and
-    ``draft_rule``, which replays them without writing (ALR-12), so a draft the
+    ``draft_rule``, which replays them without writing, so a draft the
     replay accepted is one Save would accept too.
     """
     update_dict = data.model_dump(exclude_unset=True)
@@ -1240,7 +1240,7 @@ async def draft_rule(
     The draft is the editor's unsaved PATCH body, checked exactly as Save checks
     it. The result is a TRANSIENT copy: it is not added to the session and is
     linked to nothing persistent, so no flush can write it, and the stored rule
-    is untouched — the replay of unsaved edits must not become the edit (ALR-12).
+    is untouched — the replay of unsaved edits must not become the edit.
     """
     update_dict, filters_payload = await _validated_rule_changes(
         session, project=project, destination=destination, rule=rule, data=data

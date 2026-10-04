@@ -35,7 +35,7 @@ import { currentOrgSlug, projectPath } from '@/lib/navigation'
 const FACT_TABLE_GRID =
   'grid grid-cols-[1.7fr_1fr_1fr_96px_84px_24px] items-center gap-3 px-4'
   // Below md a row is a two-line card, the catalog's pattern, instead of a
-  // 680px strip a phone scrolls sideways (MT-30): name and updated on top, the
+  // 680px strip a phone scrolls sideways: name and updated on top, the
   // data source under the name; the timestamp column is what a phone drops.
   + ' max-md:grid-cols-[minmax(0,1fr)_auto] max-md:gap-y-1'
 /** Where each cell sits in the phone card; no effect from md up. */
@@ -105,7 +105,7 @@ export function FactTablesList({ slug }: { slug?: string }) {
   const dataSourcesQuery = useQuery({
     queryKey: dataSourcesKey(),
     queryFn: () => dataSourcesApi.list(),
-    // Said inline above the table, with a retry (MET-37).
+    // Said inline above the table, with a retry.
     meta: SILENT_ERROR_META,
   })
   const dataSourceNamesState: DataSourceNamesState = dataSourcesQuery.isError
@@ -162,7 +162,7 @@ export function FactTablesList({ slug }: { slug?: string }) {
           />
           {/* Counts the sources fact tables read, not every connected one: the
               label says so, so an empty project's 0 beside two connected
-              warehouses is not a contradiction (MT-30). */}
+              warehouses is not a contradiction. */}
           <MiniStat
             label="Sources in use"
             value={
@@ -173,7 +173,7 @@ export function FactTablesList({ slug }: { slug?: string }) {
               )
             }
           />
-          {/* Tables at least one metric reads (MT-30). Not a sum of
+          {/* Tables at least one metric reads. Not a sum of
               `metric_count`: that counts ratio operands too, so a cross-table
               ratio would be counted once per table it reads. */}
           <MiniStat
@@ -230,7 +230,7 @@ export function FactTablesList({ slug }: { slug?: string }) {
             subtitle={data ? `${formatNumber(data.total ?? factTables.length)} total` : undefined}
           >
             {factTablesQuery.isLoading ? (
-              // Rows in the table's shape, not one grey word (#237 MT-33).
+              // Rows in the table's shape, not one grey word (#237).
               <SectionSkeleton variant="rows" label="Loading fact tables…" />
             ) : (
               <div className="overflow-x-auto">
@@ -316,7 +316,7 @@ interface FactTableRowProps {
 /**
  * The Data source cell. It used to print "—" for four different things — no
  * source, names still loading, names failed to load, and a source that was
- * deleted — so a broken fact table looked like a slow fetch (MET-37).
+ * deleted — so a broken fact table looked like a slow fetch.
  */
 function DataSourceCell({
   hasSource,
@@ -369,13 +369,13 @@ function FactTableRow({
   const href = slug ? projectPath(currentOrgSlug(), slug, `/metrics/fact-tables/${table.id}/edit`) : undefined
   const usedByTitle = `${countOf(table.column_count ?? 0, 'column', 'columns')}, ${countOf(table.identifier_count ?? 0, 'identifier', 'identifiers')}`
 
-  // The whole row opens the table, as a catalog row does (MT-30); the name
+  // The whole row opens the table, as a catalog row does; the name
   // Link stays the keyboard route, so the row adds no Tab stop of its own.
   return (
     // eslint-disable-next-line jsx-a11y/click-events-have-key-events -- pointer-only convenience; the name Link is the keyboard route
     <div
       role="row"
-      // `--row-h` floor: the Appearance density reaches this list too (DS-9).
+      // `--row-h` floor: the Appearance density reaches this list too.
       className={`${FACT_TABLE_GRID} min-h-(--row-h) border-b py-1.5 last:border-0 ${
         href ? 'cursor-pointer transition-colors hover:bg-[var(--surface-hover)]' : ''
       } border-border-subtle`}
@@ -412,7 +412,7 @@ function FactTableRow({
         {table.timestamp_column || <span className="text-fg-tertiary">—</span>}
       </span>
       {/* The column count rides in the title: a sixth column would push the
-          row past a laptop's width (MT-30). A count opens the catalog
+          row past a laptop's width. A count opens the catalog
           narrowed to the metrics that read this table (F7). */}
       <span role="cell" className={`tnum truncate text-body-sm ${PHONE_CELL.usedBy}`}>
         {table.metric_count && slug ? (

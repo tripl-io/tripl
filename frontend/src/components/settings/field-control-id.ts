@@ -15,7 +15,7 @@ export type FieldControlIdSlot = {
   /**
    * The row's validation state, for the same one control the label names:
    * the error message's id, whether it is showing, and whether the row is
-   * required (DS-17). Kit controls apply them unless given their own.
+   * required. Kit controls apply them unless given their own.
    */
   aria?: FieldControlAria
   /**
@@ -75,7 +75,7 @@ const NO_ARIA: FieldControlAria = {}
 /**
  * {@link useFieldControlId}, plus the enclosing `Field`'s validation state for
  * the control that owns its label: `aria-describedby` for the error, and
- * `aria-invalid` / `aria-required` (DS-17). A control that passes its own `id`
+ * `aria-invalid` / `aria-required`. A control that passes its own `id`
  * owns the row's state only when that id is the one the label points at.
  */
 export function useFieldControl(explicitId?: string): { id: string | undefined; aria: FieldControlAria } {

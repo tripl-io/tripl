@@ -680,7 +680,7 @@ def test_service_agrees_with_the_shared_case_table(case: dict[str, Any]) -> None
     assert _definition_values_changed(metric, new_values) is case["expect_history_reset"]
 
 
-# ── Leftovers: batched event-type owners (PLAN-42) ─────────────────────────
+# ── Leftovers: batched event-type owners ─────────────────────────
 
 
 async def test_project_owners_come_back_in_one_request(client: AsyncClient) -> None:

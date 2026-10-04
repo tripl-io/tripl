@@ -17,7 +17,7 @@ describe('disambiguate', () => {
     ])
   })
 
-  it('tells two namesakes of one type apart by status and the day they were added (AU-24)', () => {
+  it('tells two namesakes of one type apart by status and the day they were added', () => {
     expect(disambiguate(
       [
         { id: 'a', name: 'checkout', status: 'deprecated', created_at: '2025-11-02T10:00:00Z' },

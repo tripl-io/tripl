@@ -126,7 +126,7 @@ describe('TabMetricsCard', () => {
     },
   )
 
-  it('titles the card in sentence case by what it draws (DS-29)', async () => {
+  it('titles the card in sentence case by what it draws', async () => {
     installFetch()
     renderCard(null, { isOpen: false })
 
@@ -134,7 +134,7 @@ describe('TabMetricsCard', () => {
     expect(screen.queryByText(/Dynamics/)).not.toBeInTheDocument()
   })
 
-  it('neither fetches nor polls while the chart is collapsed (EVT-20)', async () => {
+  it('neither fetches nor polls while the chart is collapsed', async () => {
     const fetchSpy = installFetch()
     renderCard(null, { isOpen: false })
 
@@ -142,7 +142,7 @@ describe('TabMetricsCard', () => {
     expect(fetchSpy).not.toHaveBeenCalled()
   })
 
-  it('sums the last 7 days against the week before in the subtitle (EV-21)', async () => {
+  it('sums the last 7 days against the week before in the subtitle', async () => {
     installFetch({ week_total: 612_000, prior_week_total: 588_000 })
     renderCard(null)
 
@@ -157,7 +157,7 @@ describe('TabMetricsCard', () => {
     expect(screen.queryByText(/in 7d/)).not.toBeInTheDocument()
   })
 
-  it('shows no range or bucket controls while collapsed (EV-22)', async () => {
+  it('shows no range or bucket controls while collapsed', async () => {
     installFetch()
     renderCard(null, { isOpen: false })
 
@@ -166,7 +166,7 @@ describe('TabMetricsCard', () => {
     expect(screen.queryByRole('combobox', { name: 'Time granularity' })).not.toBeInTheDocument()
   })
 
-  it('picks its range with the shared segmented control (LIVE-26)', async () => {
+  it('picks its range with the shared segmented control', async () => {
     const fetchSpy = installFetch()
     renderCard(null)
 
@@ -178,13 +178,13 @@ describe('TabMetricsCard', () => {
 
     expect(within(group).getByRole('button', { name: '30d' })).toHaveAttribute('aria-pressed', 'true')
     expect(within(group).getByRole('button', { name: '7d' })).toHaveAttribute('aria-pressed', 'false')
-    // A month of hourly buckets is a sawtooth: the wider range buckets by day (EV-21).
+    // A month of hourly buckets is a sawtooth: the wider range buckets by day.
     expect(await screen.findByText(/Last 30 days, grouped by day/)).toBeInTheDocument()
     // The wider window is a new query.
     await waitFor(() => expect(fetchSpy).toHaveBeenCalledTimes(2))
   })
 
-  it('names the table filters its series does not apply (EVT-20)', async () => {
+  it('names the table filters its series does not apply', async () => {
     installFetch()
     renderCard(null, { unappliedFilters: ['activity', 'column filters'] })
 

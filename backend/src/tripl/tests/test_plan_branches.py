@@ -227,7 +227,7 @@ def test_branch_name_rule_accepts_ref_like_names(name: str) -> None:
     ],
 )
 def test_branch_name_rule_refuses_what_the_dialog_refuses(name: str, message: str) -> None:
-    """The API enforces the rule the create dialog explains (PL-5).
+    """The API enforces the rule the create dialog explains.
 
     It used to live only in branchMeta.ts, so a direct POST still created
     "Bad name with spaces!!".

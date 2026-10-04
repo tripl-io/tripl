@@ -1,4 +1,4 @@
-"""Search hits folded into variant groups (JR-20).
+"""Search hits folded into variant groups.
 
 Events of one event type whose names differ only in the value substituted for
 one naming-rule placeholder are one group: the best-ranked member stays in the

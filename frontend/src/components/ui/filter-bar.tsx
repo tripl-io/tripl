@@ -22,7 +22,7 @@ import {
 } from "@/components/ui/sheet"
 
 /*
- * The one filter-bar idiom for list pages (DS-15): a search box, then filter
+ * The one filter-bar idiom for list pages: a search box, then filter
  * chips, a "Clear filters" link while anything is set, and the result count
  * on the right. Filters always apply instantly — no Apply button. Segmented
  * controls are for 2-4 exclusive VIEWS, never for filters.
@@ -35,7 +35,7 @@ import {
  *
  * Below 640px the chips fold into one "Filters (n)" button that opens a
  * bottom sheet holding them, n being how many are set; the search box stays in
- * the row (DS-15). Every FilterSelect folds on its own; wrap any other filter
+ * the row. Every FilterSelect folds on its own; wrap any other filter
  * control in <FilterBarItem active={…}> to fold it too.
  */
 

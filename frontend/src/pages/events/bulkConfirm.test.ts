@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { BULK_CONFIRM_THRESHOLD, bulkUpdateConfirmation } from './bulkConfirm'
 
-describe('bulkUpdateConfirmation (EVT-10)', () => {
+describe('bulkUpdateConfirmation', () => {
   it('applies a small change to rows on screen without asking', () => {
     expect(
       bulkUpdateConfirmation({ selectedCount: 3, selectedVisibleCount: 3, actionLabel: 'Mark reviewed' }),

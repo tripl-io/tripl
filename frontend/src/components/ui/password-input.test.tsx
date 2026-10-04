@@ -2,7 +2,7 @@ import { fireEvent, render, screen } from '@testing-library/react'
 import { describe, expect, it } from 'vitest'
 import { PasswordInput } from './password-input'
 
-// SH-31: shared by the sign-in, invitation and session-expired password fields.
+// shared by the sign-in, invitation and session-expired password fields.
 describe('PasswordInput', () => {
   it('masks the value until the toggle is pressed, keeping one fixed name', () => {
     render(

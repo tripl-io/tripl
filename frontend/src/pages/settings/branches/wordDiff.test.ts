@@ -20,7 +20,7 @@ describe('wordDiff', () => {
     )
   })
 
-  it('merges both sides into one paragraph in reading order (PL-10)', () => {
+  it('merges both sides into one paragraph in reading order', () => {
     const result = wordDiff(
       'Fired when the user completes a purchase on the web checkout',
       'Fired when the user completes a purchase on the mobile checkout page',

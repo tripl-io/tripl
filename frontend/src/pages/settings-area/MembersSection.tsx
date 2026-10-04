@@ -19,7 +19,7 @@ export default function MembersSection() {
         description="People in this organization. Joining it does not open any project: add each person to the projects they need from Project settings › Access. Owners and admins see every project. Invite people from Invitations."
       />
       <Suspense
-        // The roster's shape under the header, not a 14px "Loading…" (#237 ST-35).
+        // The roster's shape under the header, not a 14px "Loading…" (#237).
         fallback={<SectionSkeleton variant="list" label="Loading members…" />}
       >
         <UsersPage />

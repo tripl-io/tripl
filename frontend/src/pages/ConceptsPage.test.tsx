@@ -67,7 +67,7 @@ describe('ConceptsPage', () => {
     expect(container.textContent).not.toContain('`')
   })
 
-  it('does not claim an alert rule raises signals (#238 JR-28)', () => {
+  it('does not claim an alert rule raises signals (#238)', () => {
     renderConcepts()
 
     // The product raises signals from detection on every scan — a project with
@@ -80,7 +80,7 @@ describe('ConceptsPage', () => {
     expect(screen.queryByText(/name the same object/i)).toBeNull()
   })
 
-  it('defines the nav terms it used to miss, each with an anchor (#238 DA-35 / JR-32)', () => {
+  it('defines the nav terms it used to miss, each with an anchor (#238)', () => {
     const { container } = renderConcepts()
     for (const term of [
       'Overview',
@@ -104,7 +104,7 @@ describe('ConceptsPage', () => {
     )
   })
 
-  it('makes each concept-map chip a jump to its glossary row (#238 DA-36)', () => {
+  it('makes each concept-map chip a jump to its glossary row (#238)', () => {
     const { container } = renderConcepts()
     const chip = container.querySelector('a[href="#term-shadow-events"]')
     expect(chip).toHaveTextContent('Shadow events')
@@ -146,11 +146,11 @@ describe('ConceptsPage', () => {
     )
   })
 
-  it('starts every link name with the text the link shows (WS-45)', () => {
+  it('starts every link name with the text the link shows', () => {
     renderConcepts()
 
     // A term that only surfaces somewhere is labelled with that place, as
-    // "Open <page>" like every other row (#238 DA-36). Its name used to be
+    // "Open <page>" like every other row (#238). Its name used to be
     // "Open Signals in the app" on a link reading "Anomalies", so "click
     // Anomalies" never reached it.
     const signals = screen.getByRole('link', { name: 'Open Anomalies, for Signals' })
@@ -161,7 +161,7 @@ describe('ConceptsPage', () => {
     }
   })
 
-  it('names the three areas the way the welcome screen does (WS-46)', () => {
+  it('names the three areas the way the welcome screen does', () => {
     renderConcepts()
 
     for (const pillar of Object.values(PRODUCT_PILLARS)) {

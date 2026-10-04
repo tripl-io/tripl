@@ -73,7 +73,7 @@ export function CommandPaletteProvider({ children }: { children: ReactNode }) {
   /**
    * Move focus out of the dismissed dialog: opener → top-bar trigger → main
    * content. After the palette navigated, straight to the content: that is
-   * where Layout puts focus on a navigation (SHELL-25), and restoring the
+   * where Layout puts focus on a navigation, and restoring the
    * opener would undo it and leave the reader in the sidebar again.
    */
   const restoreFocus = useCallback(() => {

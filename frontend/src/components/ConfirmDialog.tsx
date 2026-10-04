@@ -18,13 +18,13 @@ const ConfirmDialogGuardedContent = lazyWithReload(() => import('./ConfirmDialog
 interface Props {
   open: boolean
   title: string
-  /** Plain text, or rich content (emphasis, a list) for the body (DS-29). */
+  /** Plain text, or rich content (emphasis, a list) for the body. */
   message: ReactNode
   confirmLabel?: string
   /**
    * The safe answer's label. Defaults to "Cancel"; a leave-without-saving
    * confirm names it "Keep editing", so the form's own Cancel does not meet a
-   * second Cancel that means the opposite (AU-42).
+   * second Cancel that means the opposite.
    */
   cancelLabel?: string
   variant?: 'danger' | 'primary'
@@ -32,12 +32,12 @@ interface Props {
   onCancel: () => void
   /**
    * Typed confirmation: Confirm arms only once exactly this text is typed —
-   * for the actions that cannot be undone (WS-10).
+   * for the actions that cannot be undone.
    */
   requireText?: string
   /**
    * Confirm does not close the dialog: the caller runs the action and closes
-   * it on success, meanwhile `pending` and `error` render in place (WS-9).
+   * it on success, meanwhile `pending` and `error` render in place.
    */
   stayOpen?: boolean
   pending?: boolean
@@ -68,7 +68,7 @@ export default function ConfirmDialog({
   // Set by Confirm for the close its own click triggers. AlertDialogAction
   // closes the dialog, and that close reaches `onOpenChange(false)` right
   // AFTER `onConfirm` — which used to run `onCancel` as well, so any caller with
-  // a side effect on cancel had both run for one confirm (DS-29).
+  // a side effect on cancel had both run for one confirm.
   const confirming = useRef(false)
   if (requireText !== undefined || stayOpen) {
     return (

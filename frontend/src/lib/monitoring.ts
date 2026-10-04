@@ -270,7 +270,7 @@ export interface SignalEffectInput extends SignalSeverityInput {
 
 /**
  * A signal's size as a signed % change from expected: "+203%", "−64%", or
- * "dropped to zero" / "up from zero" where a percentage says nothing (MO-2).
+ * "dropped to zero" / "up from zero" where a percentage says nothing.
  *
  * The primary severity on every signal row. A z-score means nothing to most
  * readers and "3,846 vs 1,268" makes them do the arithmetic; the event hero
@@ -303,7 +303,7 @@ export function formatSignalEffect(signal: SignalEffectInput): string {
 
 /**
  * The secondary line for {@link formatSignalEffect}: the word bucket and the
- * z-score, for a tooltip or a screen reader — "Major · z=40.7" (JR-31).
+ * z-score, for a tooltip or a screen reader — "Major · z=40.7".
  */
 export function formatSignalEffectDetail(signal: SignalEffectInput): string {
   return `${signalMagnitudeWord(signal)} · z=${signal.z_score.toFixed(1)}`

@@ -112,7 +112,7 @@ afterEach(() => {
 })
 
 describe('DemoWelcomePanel — how much of the Overview it occupies', () => {
-  it('is one row: no second chapter list, no expander (#251 SH-3 / SH-4)', () => {
+  it('is one row: no second chapter list, no expander (#251)', () => {
     renderWithScenario(<DemoWelcomePanel project={demoProject()} />, demoProject())
 
     // Expanded, this panel pushed the Overview's own heading ~500-770px down
@@ -163,7 +163,7 @@ describe('DemoWelcomePanel — how much of the Overview it occupies', () => {
   })
 })
 
-describe('DemoWelcomePanel — dismissing it (DEMO-25, DEMO-24, LIVE-9)', () => {
+describe('DemoWelcomePanel — dismissing it', () => {
   it('offers Undo and names the way back', () => {
     renderWithScenario(<DemoWelcomePanel project={demoProject()} />, demoProject())
 
@@ -183,7 +183,7 @@ describe('DemoWelcomePanel — dismissing it (DEMO-25, DEMO-24, LIVE-9)', () => 
     expect(screen.getByRole('heading', { name: /Welcome to your demo workspace/ })).toBeInTheDocument()
   })
 
-  it('follows a dismissal made in another tab (DEMO-16)', () => {
+  it('follows a dismissal made in another tab', () => {
     renderWithScenario(<DemoWelcomePanel project={demoProject()} />, demoProject())
 
     act(() => {
@@ -203,7 +203,7 @@ describe('DemoWelcomePanel — dismissing it (DEMO-25, DEMO-24, LIVE-9)', () => 
   })
 })
 
-describe('DemoWelcomePanel — the one way in (#251 SH-3 / JR-23)', () => {
+describe('DemoWelcomePanel — the one way in (#251)', () => {
   it('starts the first chapter and lands the user on its first surface', () => {
     renderWithScenario(<DemoWelcomePanel project={demoProject()} />, demoProject())
 
@@ -267,7 +267,7 @@ describe('ChapterPicker — status', () => {
     expect(rows[rows.length - 1]).toHaveTextContent(CHAPTER_TITLES.explore)
   })
 
-  it('marks what is done and leaves a chapter not started plain (#251 SH-3)', () => {
+  it('marks what is done and leaves a chapter not started plain (#251)', () => {
     writeScenarioState(SLUG, liveLoopState('live-loop/see-chart', { status: 'completed' }))
     renderWithScenario(<ProductTour slug={SLUG} open onOpenChange={() => {}} />, demoProject())
 

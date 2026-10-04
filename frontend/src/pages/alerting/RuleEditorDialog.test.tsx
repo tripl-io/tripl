@@ -101,7 +101,7 @@ function renderDialog(props: Parameters<typeof Harness>[0]) {
   )
 }
 
-describe('RuleEditorDialog — numbers can be cleared and are checked (ALR-16)', () => {
+describe('RuleEditorDialog — numbers can be cleared and are checked', () => {
   it('lets the cooldown be emptied instead of snapping it to 0, and refuses to save it', () => {
     const onSubmit = vi.fn()
     renderDialog({ onSubmit })
@@ -126,12 +126,12 @@ describe('RuleEditorDialog — numbers can be cleared and are checked (ALR-16)',
 
     expect(onSubmit).toHaveBeenCalledTimes(1)
     // The default cooldown is a day, shown as "1 days"; 30 of that unit is
-    // 30 days in minutes (AL-6).
+    // 30 days in minutes.
     expect(onSubmit.mock.calls[0]![0]).toMatchObject({ cooldown_minutes: String(30 * 1440) })
   })
 })
 
-describe('RuleEditorDialog — cooldown in human units (AL-6)', () => {
+describe('RuleEditorDialog — cooldown in human units', () => {
   it('shows 1440 minutes as 1 day, not as a number to divide', () => {
     renderDialog({ onSubmit: vi.fn() })
 
@@ -147,7 +147,7 @@ describe('RuleEditorDialog — cooldown in human units (AL-6)', () => {
   })
 })
 
-describe('RuleEditorDialog — thresholds say what they mean (AL-2)', () => {
+describe('RuleEditorDialog — thresholds say what they mean', () => {
   it('starts a new rule at 30%, so a partial drop can alert', () => {
     renderDialog({ onSubmit: vi.fn() })
 
@@ -167,7 +167,7 @@ describe('RuleEditorDialog — thresholds say what they mean (AL-2)', () => {
   })
 })
 
-describe('RuleEditorDialog — destination (AL-3)', () => {
+describe('RuleEditorDialog — destination', () => {
   it('keeps Create enabled without a destination and names the missing field on submit', async () => {
     const onSubmit = vi.fn()
     renderDialog({ onSubmit, destinationId: '' })
@@ -182,7 +182,7 @@ describe('RuleEditorDialog — destination (AL-3)', () => {
   })
 })
 
-describe('RuleEditorDialog — one validation timing (AL-5)', () => {
+describe('RuleEditorDialog — one validation timing', () => {
   it('names an emptied name once the field is left, before any submit', () => {
     renderDialog({ onSubmit: vi.fn(), initial: defaultRuleForm() })
 
@@ -205,7 +205,7 @@ describe('RuleEditorDialog — one validation timing (AL-5)', () => {
   })
 })
 
-describe('RuleEditorDialog — what / when / where (AL-1)', () => {
+describe('RuleEditorDialog — what / when / where', () => {
   it('orders the steps so filters sit with the signals, and hides the templates', () => {
     renderDialog({ onSubmit: vi.fn() })
 
@@ -227,7 +227,7 @@ describe('RuleEditorDialog — what / when / where (AL-1)', () => {
       .toBeInTheDocument()
   })
 
-  it('does not ask for a scan on a rule that only watches metrics (JR-15)', () => {
+  it('does not ask for a scan on a rule that only watches metrics', () => {
     renderDialog({
       onSubmit: vi.fn(),
       initial: {
@@ -244,14 +244,14 @@ describe('RuleEditorDialog — what / when / where (AL-1)', () => {
     expect(screen.getByText(/not tied to a scan/)).toBeInTheDocument()
   })
 
-  it('says it is the last guided step when opened from guided setup (AL-34)', () => {
+  it('says it is the last guided step when opened from guided setup', () => {
     renderDialog({ onSubmit: vi.fn(), guidedStep: true })
 
     expect(screen.getByText('Step 3 of 3')).toBeInTheDocument()
   })
 })
 
-describe('RuleEditorDialog — inline validation instead of browser bubbles (AL-28)', () => {
+describe('RuleEditorDialog — inline validation instead of browser bubbles', () => {
   it('names an empty rule name under its field and does not submit', async () => {
     const onSubmit = vi.fn()
     renderDialog({ onSubmit, initial: defaultRuleForm() })
@@ -275,7 +275,7 @@ describe('RuleEditorDialog — inline validation instead of browser bubbles (AL-
   })
 })
 
-describe('RuleEditorDialog — direction (ALR-14)', () => {
+describe('RuleEditorDialog — direction', () => {
   it('names the two boxes for what they are, under one legend', () => {
     renderDialog({ onSubmit: vi.fn() })
 
@@ -299,7 +299,7 @@ describe('RuleEditorDialog — direction (ALR-14)', () => {
   })
 })
 
-describe('RuleEditorDialog — scopes (ALR-15)', () => {
+describe('RuleEditorDialog — scopes', () => {
   it('refuses a rule that watches no signal at all', () => {
     const onSubmit = vi.fn()
     renderDialog({
@@ -314,7 +314,7 @@ describe('RuleEditorDialog — scopes (ALR-15)', () => {
     })
 
     expect(screen.getByRole('group', { name: 'Signals' })).toHaveAccessibleDescription(/signal kind/)
-    // Two groups, in words a PM knows (AL-38).
+    // Two groups, in words a PM knows.
     expect(screen.getByText('Volume changes in')).toBeInTheDocument()
     expect(screen.getByText('Also alert on')).toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: 'Create' }))
@@ -322,7 +322,7 @@ describe('RuleEditorDialog — scopes (ALR-15)', () => {
   })
 })
 
-describe('RuleEditorDialog — an empty filter row is not dropped (ALR-5)', () => {
+describe('RuleEditorDialog — an empty filter row is not dropped', () => {
   it('names the row and refuses to save, instead of saving a broader rule', () => {
     const onSubmit = vi.fn()
     renderDialog({ onSubmit })
@@ -335,7 +335,7 @@ describe('RuleEditorDialog — an empty filter row is not dropped (ALR-5)', () =
   })
 })
 
-describe('RuleEditorDialog — server errors sit beside their fields (ALR-8)', () => {
+describe('RuleEditorDialog — server errors sit beside their fields', () => {
   it('attaches a field error to its input, without Pydantic\'s prefix', () => {
     const error = new ApiError('cooldown_minutes: Value error, too short', 422)
     error.fields = [{ loc: ['body', 'cooldown_minutes'], msg: 'Value error, too short', type: 'value_error' }]

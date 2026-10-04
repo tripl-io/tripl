@@ -6,7 +6,7 @@ import { formatNumber } from '@/lib/format'
 
 // While searching, every matching table is force-expanded, so one keystroke on
 // a warehouse with hundreds of tables used to mount thousands of column
-// buttons (DS-42). The filter runs on a debounced query and lists at most this
+// buttons. The filter runs on a debounced query and lists at most this
 // many tables, then says how many more matched.
 const SEARCH_TABLE_LIMIT = 50
 // A table that matches by name is expanded with ALL its columns, so the table

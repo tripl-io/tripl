@@ -2,7 +2,7 @@ import { buildNavGroups } from '@/lib/navigation'
 
 /**
  * One top-bar crumb. With `to` it is a link to that surface ("Observe ›
- * Alerting › Rules" where Alerting and Rules open their lists, MO-13); a nav
+ * Alerting › Rules" where Alerting and Rules open their lists); a nav
  * group ("Plan", "Observe") is not a page and stays plain text.
  */
 export type Crumb = { label: string; to?: string }

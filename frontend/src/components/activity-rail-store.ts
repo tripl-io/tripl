@@ -3,7 +3,7 @@ import { useEffect, useSyncExternalStore } from 'react'
 // ───────── Is the rail beside the page right now? ─────────
 //
 // Overview's own "Recent activity" panel repeated the rail item for item when
-// the rail sat inline next to it (LIVE-10). The page cannot see the shell's
+// the rail sat inline next to it. The page cannot see the shell's
 // state, so each open INLINE panel counts itself here. Layout says which one
 // is inline (`inline`), so the width threshold lives in Layout alone: below it
 // the panel is a modal drawer that covers the page, and hiding the page's panel

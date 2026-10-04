@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { invalidValuesFor, splitValueList, valueRuleFor } from './variableValueValidation'
 
-describe('variableValueValidation (PLAN-24)', () => {
+describe('variableValueValidation', () => {
   it('checks each typed value against its type', () => {
     expect(invalidValuesFor('number', ['1', '2.5', 'abc', ''])).toEqual(['abc', ''])
     expect(invalidValuesFor('boolean', ['true', 'false', 'yes'])).toEqual(['yes'])

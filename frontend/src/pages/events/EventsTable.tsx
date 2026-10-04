@@ -157,16 +157,16 @@ export type EventsTableProps = {
   selectMany: (ids: string[]) => void
   /** Clears the search and every filter: the way out of a filtered-empty table. */
   onClearFilters?: () => void
-  /** The 48h column header toggles "Busiest first" (EV-14). */
+  /** The 48h column header toggles "Busiest first". */
   sortOrder?: EventsSortOrder
   onSortOrderChange?: (value: EventsSortOrder) => void
   /**
    * Ids whose 48h metrics have answered. Every other row's metric cells show a
-   * placeholder instead of the "—" that means "no data" (EV-20). Omitted =
+   * placeholder instead of the "—" that means "no data". Omitted =
    * every row settled.
    */
   rowMetricsSettled?: Set<string>
-  /** Rows the reader has just created, marked so they can be found (AU-20 / AU-21). */
+  /** Rows the reader has just created, marked so they can be found. */
   createdIds?: ReadonlySet<string>
 }
 
@@ -280,7 +280,7 @@ export function EventsTable({
       : `${firstVisible.toLocaleString()}–${lastVisible.toLocaleString()}`
   // What the footer says. Under a column filter the server total is not the
   // number of matches, so it reports the matches among the rows checked so far
-  // instead of "Showing 1–40 of 5,000" (EVT-16).
+  // instead of "Showing 1–40 of 5,000".
   const footerLabel = isClientFiltered
     ? `${events.length.toLocaleString()} matching · ${loadedCount.toLocaleString()} of ${total.toLocaleString()} checked`
     : `Showing ${rangeLabel} of ${total.toLocaleString()} events`
@@ -340,10 +340,10 @@ export function EventsTable({
     )
   }
 
-  // The scroller fills the rest of the viewport, wherever it starts (EV-4). It
+  // The scroller fills the rest of the viewport, wherever it starts. It
   // is the ONE scroll container for both axes, so the sticky header and the
   // pinned columns resolve against it and the horizontal scrollbar sits at the
-  // bottom of the visible area, not under the full table height (EV-3).
+  // bottom of the visible area, not under the full table height.
   const fillHeight = useFillViewportHeight(tableScrollRef, {
     reserve: TABLE_SCROLLER_RESERVE_PX,
     min: TABLE_SCROLLER_MIN_PX,
@@ -362,8 +362,8 @@ export function EventsTable({
 
   return (
     // Tooltips here take the app-wide provider's 300ms delay (main.tsx): at 0
-    // every 48h cell the pointer crossed mounted its lazy chart on the way past
-    // (EVT-46). The local provider this used to mount is no longer needed.
+    // every 48h cell the pointer crossed mounted its lazy chart on the way past.
+    // The local provider this used to mount is no longer needed.
     <DndContext sensors={dndSensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
         <SortableContext
           items={visibleEventIds}
@@ -399,7 +399,7 @@ export function EventsTable({
                   {nameClusters.slice(0, MAX_VISIBLE_CLUSTERS).map((group) => (
                     <li key={group.prefix} className="flex items-center gap-2 px-5 py-1">
                       {/* Sans like the names in the rows below it: a name
-                          prefix is display text, not code (DS-17). */}
+                          prefix is display text, not code. */}
                       <span
                         className="truncate text-fg-secondary"
                         title={group.prefix}
@@ -450,9 +450,9 @@ export function EventsTable({
               aria-label={activeEt ? `${activeEt.display_name} events` : 'Events'}
             >
               <TableHeader>
-                {/* A header over no rows is a stray "EVENT" box on a phone
-                    (EV-17). On a phone the bar is only the select-all
-                    checkbox, so a viewer, who has none, gets no bar (EV-28). */}
+                {/* A header over no rows is a stray "EVENT" box on a phone.
+                    On a phone the bar is only the select-all
+                    checkbox, so a viewer, who has none, gets no bar. */}
                 <TableRow className={`${PHONE_HEADER_ROW} ${isEmpty || !canWrite ? 'max-md:hidden' : ''}`}>
                   {/* The spacer over the drag handles; a card with no handle
                       hides its empty cell, so the spacer goes with it. */}
@@ -467,7 +467,7 @@ export function EventsTable({
                         checked={allVisibleSelected ? true : someVisibleSelected ? 'indeterminate' : false}
                         // From the mixed state a click CLEARS the selection:
                         // the minus reads "some selected", and Radix would
-                        // otherwise turn it into "select all" (EV-26).
+                        // otherwise turn it into "select all".
                         onCheckedChange={() =>
                           toggleAllVisibleSelected(!allVisibleSelected && !someVisibleSelected)
                         }
@@ -497,7 +497,7 @@ export function EventsTable({
                   {/* Volume and trend first after the name, then state, then
                       the type (already in the sparkline colour and the
                       sidebar): at 1024 the 48h count used to be off-screen
-                      behind Type and Status (EV-12). EventRow renders its
+                      behind Type and Status. EventRow renders its
                       cells in this same order. */}
                   {/* "Signal", not "Monitor": these cells report the anomaly
                       tripl detected on the row, which needs no monitor to
@@ -536,7 +536,7 @@ export function EventsTable({
                     </TableHead>
                   )}
                   {/* The busiest-first toggle lives on the column it sorts by:
-                      readers clicked "48h" expecting it to sort (EV-14). */}
+                      readers clicked "48h" expecting it to sort. */}
                   <TableHead
                     className="w-32 text-right"
                     aria-sort={sortable ? (busiestFirst ? 'descending' : 'none') : undefined}
@@ -693,7 +693,7 @@ export function EventsTable({
                       {isFirstLoad && isLoading ? (
                         // Row-shaped placeholders, not the empty state: during
                         // the cold load it flashed "No events yet — create your
-                        // first event" on every visit (EVT-14).
+                        // first event" on every visit.
                         <div role="status" className="space-y-3 py-3">
                           <span className="sr-only">Loading events…</span>
                           {Array.from({ length: 8 }, (_, i) => (
@@ -706,7 +706,7 @@ export function EventsTable({
                         </div>
                       ) : isFirstLoad ? (
                         // A column filter with no match on the first page is
-                        // still searching the rest (EVT-4).
+                        // still searching the rest.
                         <div
                           role="status"
                           className="flex items-center justify-center gap-2 py-16 text-body text-fg-tertiary"
@@ -726,7 +726,7 @@ export function EventsTable({
                                 New event
                               </Button>
                             ) : filteredEmpty && onClearFilters ? (
-                              // The description says to clear them; this does it (EV-16).
+                              // The description says to clear them; this does it.
                               <Button size="sm" variant="outline" onClick={onClearFilters}>
                                 <X aria-hidden="true" />
                                 Clear search and filters

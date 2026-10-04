@@ -2,7 +2,7 @@
  * Below md the events table stops being a 17-column strip a phone scrolls
  * sideways through behind a pinned name: every row becomes a card — handle,
  * checkbox and event name on the first line, type / status / signal / 48h
- * volume / tags wrapping under it (DS-5, LIVE-15).
+ * volume / tags wrapping under it.
  *
  * All of it is `max-md:` classes, so nothing changes from md up and the row
  * keeps one DOM (and one measured height for the virtualizer, which sizes rows
@@ -26,7 +26,7 @@ export const PHONE_HEADER_ROW =
   + 'max-md:[&>th]:static! max-md:[&>th]:p-0! '
   + 'max-md:[&>th:not(.tripl-pin-l):not(:first-child)]:hidden '
   // No bordered "EVENT" box and orphan rule over the cards: the bar is the
-  // select-all checkbox alone (EV-28).
+  // select-all checkbox alone.
   + 'max-md:[&>th]:border-0! max-md:[&>th[data-pinned=true]]:hidden'
 
 /**
@@ -59,7 +59,7 @@ export const PHONE_ROW =
   // gap, and push the name right of the checkbox above it.
   + 'max-md:[&>td:empty]:hidden '
   // The pinned cells keep their opaque sticky fill on desktop; inside a card
-  // it painted darker boxes behind the checkbox and name (EV-28).
+  // it painted darker boxes behind the checkbox and name.
   + 'max-md:[&>td.tripl-pin-l]:bg-transparent! '
   // index.css skips painting off-screen rows at the desktop `--row-h`; a card
   // skipped that way measures a desktop row tall until it is painted.
@@ -85,14 +85,14 @@ export const PHONE_NAME_CONTENT = 'max-md:max-w-none!'
 /**
  * Columns a card does without: they read only under a column header (reviewed,
  * last seen, owner, custom field and meta values). Δ 24h stays, beside the
- * count (EV-28).
+ * count.
  */
 export const PHONE_DROPPED_CELL = 'max-md:hidden'
 
 /**
  * A full-width row that is not an event (loading, empty state). `h-auto!`: the
  * block row kept the desktop `--row-h` from index.css, and the card's
- * `overflow-hidden` clipped "No events yet" to a 28px strip (EV-17).
+ * `overflow-hidden` clipped "No events yet" to a 28px strip.
  */
 export const PHONE_FULL_ROW = 'max-md:block max-md:h-auto! max-md:[&>td]:block'
 

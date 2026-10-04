@@ -17,7 +17,7 @@ import { getErrorMessage } from '@/lib/utils'
 import type { AuthUser } from '@/types'
 
 /**
- * Sign back in over the page the session expired on (SHELL-15).
+ * Sign back in over the page the session expired on.
  *
  * A 401 used to drop the user and redirect to /auth, which unmounted whatever
  * form was open: a metric's SQL or an alert rule typed out over ten minutes was
@@ -60,7 +60,7 @@ export function SessionExpiredDialog({
         </DialogHeader>
         <form
           className="space-y-3"
-          // No browser bubble (AU-4): Sign in stays disabled until there is a
+          // No browser bubble: Sign in stays disabled until there is a
           // password, so there is nothing for native validation to add.
           noValidate
           onSubmit={(event) => {
@@ -72,7 +72,7 @@ export function SessionExpiredDialog({
             <div className="flex items-baseline justify-between gap-2">
               <Label htmlFor="session-expired-password">Password</Label>
               {/* A new tab, so the draft this dialog protects stays on this
-                  page while the reset mail goes out (#237 SH-35). Signing out
+                  page while the reset mail goes out (#237). Signing out
                   was the only other way past a forgotten password. */}
               <a
                 href="/auth?mode=forgot"
@@ -83,7 +83,7 @@ export function SessionExpiredDialog({
                 Forgot password?
               </a>
             </div>
-            {/* The same show/hide toggle as the sign-in page (#250 SH-31). */}
+            {/* The same show/hide toggle as the sign-in page (#250). */}
             <PasswordInput
               id="session-expired-password"
               autoComplete="current-password"
@@ -105,7 +105,7 @@ export function SessionExpiredDialog({
             </Button>
             {/* Stays visibly the primary action while it waits for a password:
                 the default disabled look is the pale ghost that read as "no
-                action here" (SH-35). */}
+                action here". */}
             <Button
               type="submit"
               disabled={loginMutation.isPending || !password}

@@ -142,7 +142,7 @@ describe('App', () => {
     // while the footer still renders the signed-in user and sign-out action.
     expect(await screen.findByText('Keep your product analytics honest')).toBeInTheDocument()
     expect(screen.getAllByText('Owner').length).toBeGreaterThan(0)
-    // Sign out lives in the account menu the user row opens (#238 SH-39).
+    // Sign out lives in the account menu the user row opens (#238).
     fireEvent.keyDown(screen.getByRole('button', { name: /^Account menu/ }), { key: 'Enter' })
     expect(await screen.findByRole('menuitem', { name: 'Sign out' })).toBeInTheDocument()
   })
@@ -278,7 +278,7 @@ describe('App', () => {
     ['/p/demo/settings/branches/br-1', '/p/demo/branches/br-1', ''],
     ['/p/demo/settings/history', '/p/demo/history', ''],
     ['/p/demo/settings/audit', '/p/demo/audit', ''],
-  ])('redirects the old %s address to its top-level route (JR-25)', async (from, pathname, search) => {
+  ])('redirects the old %s address to its top-level route', async (from, pathname, search) => {
     vi.spyOn(globalThis, 'fetch').mockImplementation((input: RequestInfo | URL) => {
       const url = urlOf(input)
       if (url.endsWith('/api/v1/auth/me')) return Promise.resolve(jsonResponse(OWNER))
@@ -297,8 +297,8 @@ describe('App', () => {
   })
 
   it('serves /p/:slug/variables/:id as the property page, not a redirect', async () => {
-    // #245 JR-10 kept this address alive as a redirect into /settings; it is
-    // the canonical variable page now (JR-25).
+    // #245 kept this address alive as a redirect into /settings; it is
+    // the canonical variable page now.
     vi.spyOn(globalThis, 'fetch').mockImplementation((input: RequestInfo | URL) => {
       const url = urlOf(input)
       if (url.endsWith('/api/v1/auth/me')) return Promise.resolve(jsonResponse(OWNER))
@@ -317,7 +317,7 @@ describe('App', () => {
   })
 
   it('sends the bare /p/:slug to the project home', async () => {
-    // #250 JR-1: the bare project URL used to render Events, not the Overview
+    // #250: the bare project URL used to render Events, not the Overview
     // every in-app project entry opens.
     vi.spyOn(globalThis, 'fetch').mockImplementation((input: RequestInfo | URL) => {
       const url = urlOf(input)
@@ -477,7 +477,7 @@ describe('App auth links', () => {
     updated_at: '2026-04-18T10:00:00Z',
   }
 
-  it('returns to the full deep link, query and fragment included, after signing in (SHELL-14)', async () => {
+  it('returns to the full deep link, query and fragment included, after signing in', async () => {
     let signedIn = false
     vi.spyOn(globalThis, 'fetch').mockImplementation((input: RequestInfo | URL) => {
       const url = urlOf(input)
@@ -512,7 +512,7 @@ describe('App auth links', () => {
     )
   })
 
-  it('tells a signed-in visitor on an invitation link who they are, and keeps the link (SHELL-16)', async () => {
+  it('tells a signed-in visitor on an invitation link who they are, and keeps the link', async () => {
     let signedIn = true
     vi.spyOn(globalThis, 'fetch').mockImplementation((input: RequestInfo | URL) => {
       const url = urlOf(input)

@@ -8,7 +8,7 @@ import { usersKey } from '@/lib/queryKeys'
  *
  * Still a `Map`, so every existing caller that reads `.get()` or passes it on
  * keeps working; `status` rides along for `displayUser`, which must not call a
- * person "unknown" merely because `/users` is still loading or failed (WS-47).
+ * person "unknown" merely because `/users` is still loading or failed.
  */
 export type UsersById = Map<string, string> & {
   readonly status?: 'pending' | 'error' | 'success'
@@ -52,7 +52,7 @@ export const USER_UNAVAILABLE_LABEL = 'name unavailable'
  * account, whose FK is SET NULL precisely so the row it wrote survives it. It
  * used to be printed for everyone while `/users` loaded, and for good if it
  * failed, so audit-style surfaces misattributed every action to a deleted
- * account (WS-47).
+ * account.
  */
 export function displayUser(usersById: UsersById, userId: string | null | undefined): string {
   if (!userId) return 'unknown'

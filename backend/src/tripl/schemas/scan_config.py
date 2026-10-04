@@ -468,7 +468,7 @@ class ScanConfigResponse(BaseModel):
     @computed_field  # type: ignore[prop-decorator]
     @property
     def monitoring_enabled(self) -> bool:
-        """Whether the scheduler collects metrics for this scan (MO-23).
+        """Whether the scheduler collects metrics for this scan.
 
         Derived, never stored: the beat schedule and every monitoring read path
         select on ``interval IS NOT NULL``, so this is that test said out loud
@@ -478,7 +478,7 @@ class ScanConfigResponse(BaseModel):
 
 
 class ScanConfigDetailResponse(ScanConfigResponse):
-    """One scan config with its metrics schedule (DA-5).
+    """One scan config with its metrics schedule.
 
     Only ``GET /scans/{id}`` computes these, so they are not on the list rows.
     ``last_metrics_run_at`` is when the newest scheduled metrics collection

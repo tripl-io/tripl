@@ -3,7 +3,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { MemoryRouter, useLocation } from 'react-router-dom'
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
-/** The toaster, stubbed: a failed row write says why in one (ALR-6). */
+/** The toaster, stubbed: a failed row write says why in one. */
 const { toastError, toastSuccess } = vi.hoisted(() => ({ toastError: vi.fn(), toastSuccess: vi.fn() }))
 vi.mock('sonner', () => ({
   toast: { success: toastSuccess, error: toastError },
@@ -143,7 +143,7 @@ interface RenderOptions {
   autoOpenRuleForDestinationId?: string | null
   onAutoOpenRuleConsumed?: () => void
   onGoToDestinations?: () => void
-  /** The URL the section mounts under, for `?new=rule` (AL-18 / JR-16). */
+  /** The URL the section mounts under, for `?new=rule`. */
   entry?: string
 }
 
@@ -196,7 +196,7 @@ afterEach(() => {
   toastSuccess.mockClear()
 })
 
-/** Replay, Mute and Delete live behind the row's "…" menu (AL-8). */
+/** Replay, Mute and Delete live behind the row's "…" menu. */
 async function openRowMenu(ruleName = 'Prod drops') {
   const trigger = await screen.findByRole('button', { name: `More actions for ${ruleName}` })
   fireEvent.keyDown(trigger, { key: 'Enter' })
@@ -223,11 +223,11 @@ describe('MonitorsSection live state', () => {
     )
   })
 
-  it('leaves the Healthy count neutral; only Firing and Warning take colour (AL-47)', async () => {
+  it('leaves the Healthy count neutral; only Firing and Warning take colour', async () => {
     vi.spyOn(alertingApi, 'getMonitorsSummary').mockResolvedValue(makeSummary({ healthy_count: 3 }))
     const { container } = renderSection()
 
-    // A toggle once the summary has answered (AL-47), so the figure is read
+    // A toggle once the summary has answered, so the figure is read
     // off the button rather than a definition list.
     const healthy = await screen.findByRole('button', { name: /^Healthy 3/ })
     const figure = healthy.querySelector('[data-slot="mini-stat-value"]')
@@ -314,7 +314,7 @@ describe('MonitorsSection mute', () => {
     await openRowMenu()
     // The duration is on the control, so no mute is silent — the same labels
     // the Inbox uses, in a menu rather than an inline reveal that pushed the
-    // row's columns sideways (AL-9).
+    // row's columns sideways.
     fireEvent.click(screen.getByRole('menuitem', { name: 'Mute Prod drops for 24h' }))
 
     await waitFor(() => expect(mute).toHaveBeenCalled())
@@ -485,7 +485,7 @@ describe('MonitorsSection guided-setup handoff', () => {
     renderSection({ autoOpenRuleForDestinationId: 'dest-1' })
 
     expect(await screen.findByText('New alert rule')).toBeInTheDocument()
-    // Named after its destination and marked as the last step (AL-34).
+    // Named after its destination and marked as the last step.
     expect(screen.getByLabelText('Name')).toHaveValue('Alerts to TG')
     expect(screen.getByText('Step 3 of 3')).toBeInTheDocument()
   })
@@ -513,7 +513,7 @@ describe('MonitorsSection guided-setup handoff', () => {
   })
 })
 
-describe('MonitorsSection ?new=rule (AL-18, JR-16)', () => {
+describe('MonitorsSection ?new=rule', () => {
   it('opens a blank rule form on arrival', async () => {
     vi.spyOn(alertingApi, 'getMonitorsSummary').mockResolvedValue(makeSummary())
     renderSection({ entry: '/p/acme-ios/alerting?section=monitors&new=rule' })
@@ -593,13 +593,13 @@ describe('MonitorsSection rule editor', () => {
     expect(screen.getByLabelText('Destination')).toBeInTheDocument()
     // Nothing routes anywhere until one is named — the API addresses the rule
     // through its destination. Create says so on submit instead of sitting
-    // disabled with no reason (AL-3).
+    // disabled with no reason.
     fireEvent.change(screen.getByLabelText('Name'), { target: { value: 'New rule' } })
     fireEvent.click(screen.getByRole('button', { name: 'Create' }))
     expect(screen.getByText('Pick a destination.')).toBeInTheDocument()
   })
 
-  it('preselects the only enabled destination (AL-3)', async () => {
+  it('preselects the only enabled destination', async () => {
     vi.spyOn(alertingApi, 'getMonitorsSummary').mockResolvedValue(makeSummary())
     renderSection({
       destinations: [
@@ -613,7 +613,7 @@ describe('MonitorsSection rule editor', () => {
     expect(screen.getByRole('combobox', { name: 'Destination' })).toHaveTextContent('TG')
   })
 
-  it('says a rule was created, like a destination does (AL-10)', async () => {
+  it('says a rule was created, like a destination does', async () => {
     vi.spyOn(alertingApi, 'getMonitorsSummary').mockResolvedValue(makeSummary())
     vi.spyOn(alertingApi, 'createRule').mockResolvedValue(
       makeRule({ id: 'rule-9', name: 'Checkout drops' }) as AlertRule,
@@ -672,7 +672,7 @@ describe('MonitorsSection empty states', () => {
 })
 
 describe('MonitorsSection viewer gating', () => {
-  // Mute and Delete sit behind "More actions" (AL-8); the menu itself is the
+  // Mute and Delete sit behind "More actions"; the menu itself is the
   // write control a viewer must not get.
   const WRITE_CONTROLS = ['More actions for Prod drops', 'Edit rule Prod drops']
 
@@ -821,7 +821,7 @@ describe('MonitorsSection inert scope notice', () => {
   })
 })
 
-describe('MonitorsSection row writes that fail say why (ALR-6)', () => {
+describe('MonitorsSection row writes that fail say why', () => {
   it('toasts a refused enable switch, prefix stripped', async () => {
     vi.spyOn(alertingApi, 'getMonitorsSummary').mockResolvedValue(makeSummary())
     vi.spyOn(alertingApi, 'updateRule').mockRejectedValue(new Error('Value error, Editor role required'))
@@ -900,18 +900,18 @@ describe('MonitorsSection row writes that fail say why (ALR-6)', () => {
 })
 
 describe('MonitorsSection rule row details', () => {
-  it('describes the delete cascade with the shared, pluralised sentence (ALR-45)', async () => {
+  it('describes the delete cascade with the shared, pluralised sentence', async () => {
     vi.spyOn(alertingApi, 'getMonitorsSummary').mockResolvedValue(makeSummary())
     renderSection({ rules: [makeRule({ total_deliveries: 1, incident_count: 1 })] })
 
     // Written on the menu item itself, under its label — visible to keyboard
-    // and touch alike, where a tooltip or `title` was not (AL-8).
+    // and touch alike, where a tooltip or `title` was not.
     await openRowMenu()
     expect(screen.getByRole('menuitem', { name: 'Delete rule Prod drops' }))
       .toHaveTextContent('1 delivery and 1 incident')
   })
 
-  it('links the settings toggle to the row it opens, which spans the table (ALR-46)', async () => {
+  it('links the settings toggle to the row it opens, which spans the table', async () => {
     vi.spyOn(alertingApi, 'getMonitorsSummary').mockResolvedValue(makeSummary())
     renderSection()
 
@@ -927,7 +927,7 @@ describe('MonitorsSection rule row details', () => {
     expect(within(row!).getByRole('cell')).toHaveAttribute('aria-colspan', '6')
   })
 
-  it('says the scan is loading, not unknown, until the scan list answers (ALR-47)', async () => {
+  it('says the scan is loading, not unknown, until the scan list answers', async () => {
     vi.spyOn(alertingApi, 'getMonitorsSummary').mockResolvedValue(makeSummary())
     const { unmount } = renderSection({
       rules: [makeRule({ scan_config_id: 'scan-1' })],
@@ -943,7 +943,7 @@ describe('MonitorsSection rule row details', () => {
     expect(screen.getByText('unknown scan')).toBeInTheDocument()
   })
 
-  it('says the scan is unavailable, not loading, when the scan list failed (ALR-47)', async () => {
+  it('says the scan is unavailable, not loading, when the scan list failed', async () => {
     vi.spyOn(alertingApi, 'getMonitorsSummary').mockResolvedValue(makeSummary())
     renderSection({
       rules: [makeRule({ scan_config_id: 'scan-1' })],
@@ -968,7 +968,7 @@ describe('MonitorsSection rule form — what is saved is what is shown', () => {
     }
   })
 
-  it('drops a format the new destination does not support when the destination changes (ALR-4)', async () => {
+  it('drops a format the new destination does not support when the destination changes', async () => {
     vi.spyOn(alertingApi, 'getMonitorsSummary').mockResolvedValue(makeSummary())
     const create = vi.spyOn(alertingApi, 'createRule').mockResolvedValue(makeRule() as AlertRule)
     renderSection({
@@ -981,7 +981,7 @@ describe('MonitorsSection rule form — what is saved is what is shown', () => {
 
     fireEvent.click(screen.getByRole('combobox', { name: 'Destination' }))
     fireEvent.click(await screen.findByRole('option', { name: 'Slack · Slack' }))
-    // The templates are collapsed by default (AL-1).
+    // The templates are collapsed by default.
     fireEvent.click(screen.getByRole('button', { name: /Customize message/ }))
     fireEvent.click(screen.getByRole('combobox', { name: 'Message format' }))
     fireEvent.click(await screen.findByRole('option', { name: 'Slack mrkdwn' }))
@@ -999,7 +999,7 @@ describe('MonitorsSection rule form — what is saved is what is shown', () => {
     expect(create.mock.calls[0]![2]).toMatchObject({ message_format: 'plain', message_template: null })
   })
 
-  it('reopens without the previous attempt\'s error (ALR-7)', async () => {
+  it('reopens without the previous attempt\'s error', async () => {
     vi.spyOn(alertingApi, 'getMonitorsSummary').mockResolvedValue(makeSummary())
     vi.spyOn(alertingApi, 'updateRule').mockRejectedValue(new Error('Rule limit reached'))
     renderSection()
@@ -1015,11 +1015,11 @@ describe('MonitorsSection rule form — what is saved is what is shown', () => {
     expect(screen.queryByText('Rule limit reached')).toBeNull()
   })
 
-  it('offers a replay of the saved rule from inside its editor (ALR-12)', async () => {
+  it('offers a replay of the saved rule from inside its editor', async () => {
     vi.spyOn(alertingApi, 'getMonitorsSummary').mockResolvedValue(makeSummary())
     renderSection()
 
-    // The replay runs on open (AL-35); held in flight, it is not what this asserts.
+    // The replay runs on open; held in flight, it is not what this asserts.
     vi.spyOn(alertingApi, 'simulateRule').mockReturnValue(new Promise(() => {}))
     fireEvent.click(await screen.findByRole('button', { name: 'Edit rule Prod drops' }))
     fireEvent.click(screen.getByRole('button', { name: 'Replay saved rule' }))
@@ -1027,7 +1027,7 @@ describe('MonitorsSection rule form — what is saved is what is shown', () => {
     expect(await screen.findByText(/Replay rule “Prod drops”/)).toBeInTheDocument()
   })
 
-  it('replays the edits on the form, unsaved, once there are any (ALR-12)', async () => {
+  it('replays the edits on the form, unsaved, once there are any', async () => {
     vi.spyOn(alertingApi, 'getMonitorsSummary').mockResolvedValue(makeSummary())
     const update = vi.spyOn(alertingApi, 'updateRule')
     const simulate = vi.spyOn(alertingApi, 'simulateRule').mockResolvedValue({
@@ -1056,21 +1056,21 @@ describe('MonitorsSection rule form — what is saved is what is shown', () => {
     // No edits yet: only the saved rule can be replayed.
     expect(screen.queryByRole('button', { name: 'Replay with these edits' })).toBeNull()
 
-    // The saved 360 minutes shows as 6 hours (AL-6); 45 of them is 2700 minutes.
+    // The saved 360 minutes shows as 6 hours; 45 of them is 2700 minutes.
     fireEvent.change(screen.getByLabelText(/re-alert the same scope for/), { target: { value: '45' } })
     fireEvent.click(screen.getByRole('button', { name: 'Replay with these edits' }))
 
     expect(
       await screen.findByRole('heading', { name: /Replay rule “Prod drops” with your unsaved edits/ }),
     ).toBeInTheDocument()
-    // It runs on open (AL-35); no second click needed.
+    // It runs on open; no second click needed.
     await waitFor(() => expect(simulate).toHaveBeenCalled())
     expect(simulate.mock.calls[0]?.[5]).toMatchObject({ cooldown_minutes: 45 * 60 })
     expect(update).not.toHaveBeenCalled()
   })
 })
 
-describe('MonitorsSection — detection switched off (AL-45)', () => {
+describe('MonitorsSection — detection switched off', () => {
   it('says above the rules that none of them can fire, and links to the switch', async () => {
     vi.spyOn(alertingApi, 'getMonitorsSummary').mockResolvedValue(makeSummary())
     mockDetection(false)
@@ -1093,7 +1093,7 @@ describe('MonitorsSection — detection switched off (AL-45)', () => {
   })
 })
 
-describe('MonitorsSection — rows read as sentences (AL-11, JR-15)', () => {
+describe('MonitorsSection — rows read as sentences', () => {
   it('writes the condition in words and names what a metrics-only rule watches', async () => {
     vi.spyOn(alertingApi, 'getMonitorsSummary').mockResolvedValue(makeSummary())
     renderSection({
@@ -1107,7 +1107,7 @@ describe('MonitorsSection — rows read as sentences (AL-11, JR-15)', () => {
     expect(within(table).queryByText('telegram')).toBeNull()
   })
 
-  it('keeps the row actions to a switch, Edit and one labelled menu (AL-8)', async () => {
+  it('keeps the row actions to a switch, Edit and one labelled menu', async () => {
     vi.spyOn(alertingApi, 'getMonitorsSummary').mockResolvedValue(makeSummary())
     renderSection()
 
@@ -1120,8 +1120,8 @@ describe('MonitorsSection — rows read as sentences (AL-11, JR-15)', () => {
 })
 
 // "Firing 1" is exactly the filter a reader wants, and the strip used to be a
-// row of numbers nothing could be done with (AL-47).
-describe('MonitorsSection state tiles filter the rules (AL-47)', () => {
+// row of numbers nothing could be done with.
+describe('MonitorsSection state tiles filter the rules', () => {
   function twoRuleSummary() {
     const firing = makeSummary().monitors[0]!
     return makeSummary({

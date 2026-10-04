@@ -1,4 +1,4 @@
-"""What stops an "Update from main" plan outright, whatever is chosen (PL-8).
+"""What stops an "Update from main" plan outright, whatever is chosen.
 
 Two things do. A change of main's to a row the branch's pairing cannot place
 (``ambiguous_main_changes``): namesakes on a branch opened before origin ids.

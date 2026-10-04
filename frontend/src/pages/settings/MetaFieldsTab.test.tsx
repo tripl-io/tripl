@@ -161,7 +161,7 @@ describe('MetaFieldsTab — read-only visitors', () => {
   })
 })
 
-describe('MetaFieldsTab — load and delete states (PLAN-41 / PLAN-54)', () => {
+describe('MetaFieldsTab — load and delete states', () => {
   const FIELD = metaField({ id: 'mf-1', name: 'jira_link', display_name: 'Jira link' })
 
   it('shows a skeleton, not "No meta fields", while the list loads', async () => {
@@ -188,14 +188,14 @@ describe('MetaFieldsTab — load and delete states (PLAN-41 / PLAN-54)', () => {
     renderTab([FIELD], { auth: authAs('member') })
 
     fireEvent.click(await screen.findByRole('button', { name: 'Delete Jira link' }))
-    // The confirm names what goes, and its button names what it deletes (AU-37).
+    // The confirm names what goes, and its button names what it deletes.
     expect(await screen.findByText(/Removes every Jira link value from the events that carry one/)).toBeInTheDocument()
     fireEvent.click(await screen.findByRole('button', { name: 'Delete meta field' }))
 
     expect(await screen.findByRole('alert')).toHaveTextContent('Field is referenced')
   })
 
-  it('counts the values and events a delete removes when the usage answers (AU-37)', async () => {
+  it('counts the values and events a delete removes when the usage answers', async () => {
     vi.mocked(metaFieldsApi.usage).mockResolvedValue({ value_count: 3, event_count: 2 })
     renderTab([FIELD], { auth: authAs('member') })
 
@@ -221,7 +221,7 @@ describe('MetaFieldsTab — load and delete states (PLAN-41 / PLAN-54)', () => {
   })
 })
 
-describe('MetaFieldsTab — inline validation (AU-4)', () => {
+describe('MetaFieldsTab — inline validation', () => {
   it('flags every empty required field inline instead of a browser bubble', async () => {
     renderTab()
 
@@ -254,7 +254,7 @@ describe('MetaFieldsTab — inline validation (AU-4)', () => {
   })
 })
 
-describe('MetaFieldsTab — naming (#238 AU-10)', () => {
+describe('MetaFieldsTab — naming (#238)', () => {
   it('is titled "Meta fields" and points per-type fields at Event types', async () => {
     renderTab()
 
@@ -266,7 +266,7 @@ describe('MetaFieldsTab — naming (#238 AU-10)', () => {
   })
 })
 
-describe('MetaFieldsTab — link template (#244 AU-9)', () => {
+describe('MetaFieldsTab — link template (#244)', () => {
   function openCreateWithLink(template: string) {
     fireEvent.click(screen.getByRole('button', { name: /New meta field/i }))
     fireEvent.change(screen.getByLabelText('Name'), { target: { value: 'jira' } })

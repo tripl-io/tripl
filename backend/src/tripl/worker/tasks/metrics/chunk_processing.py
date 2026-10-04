@@ -136,7 +136,7 @@ def _shadow_sample(
     event_type_column: str | None,
     time_column: str | None,
 ) -> dict[str, str]:
-    """The row's properties as the shadow inbox shows them (DA-32).
+    """The row's properties as the shadow inbox shows them.
 
     Read through ``raw_values_from_row`` — the same column -> value view group
     rules match on — minus empty values and JSON nulls, which say nothing about
@@ -180,7 +180,7 @@ def _build_shadow_candidate_rows(
     """Fold the per-(event type, identity) totals onto the grain of the table.
 
     ``shadow_agg`` entries are ``[count, first_bucket, last_bucket]`` with an
-    optional fourth item, the row samples (DA-32); folded identities pool their
+    optional fourth item, the row samples; folded identities pool their
     samples up to ``SHADOW_SAMPLE_LIMIT``.
 
     ``shadow_agg`` is keyed per event type because the collector has to know

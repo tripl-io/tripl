@@ -5,7 +5,7 @@ import { describe, expect, it } from 'vitest'
 import { createNoteDraftStore, useNoteDraft, type NoteDraftStore } from './noteDraftStore'
 
 /**
- * ALR-29: typing a note re-rendered the whole alerting page and every incident
+ * typing a note re-rendered the whole alerting page and every incident
  * card on it. The drafts now live in a store each card subscribes to by id, so
  * what has to hold is that a keystroke in one card's draft reaches that card
  * and no other.

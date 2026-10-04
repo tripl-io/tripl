@@ -124,7 +124,7 @@ export function useDemoScenarioRuntime(
   )
   // "Hide hints" lasts for the browser session, per project, as the coach
   // mark promises — it used to be plain state, lost on a reload or a trip to
-  // another project and back (DEMO-15).
+  // another project and back.
   const [hintsMuted, setHintsMutedState] = useState(() => readHintsMuted(slug))
   const setHintsMuted = useCallback(
     (muted: boolean) => {
@@ -149,7 +149,7 @@ export function useDemoScenarioRuntime(
   }
 
   // The updater stays pure: a render React throws away must not leave a
-  // persisted advance behind (DEMO-14). The state is written once it is
+  // persisted advance behind. The state is written once it is
   // committed — and only when it differs from what storage already holds: the
   // copy a project switch loaded, or one read from another tab. The switch
   // itself is not skipped wholesale: arriving on the new project's current
@@ -167,7 +167,7 @@ export function useDemoScenarioRuntime(
 
   // Another tab on the same demo writes the same key. Without listening, each
   // tab overwrote the other's progress with its own on every step, last writer
-  // wins (DEMO-16). Adopting the other tab's copy is marked as persisted, so it
+  // wins. Adopting the other tab's copy is marked as persisted, so it
   // is not written straight back.
   useEffect(() => {
     if (!slug) return
@@ -293,7 +293,7 @@ export function useDemoScenarioRuntime(
   // Checked at render rather than on a route change: the collection can settle
   // while the user is *already standing on* the chart, and no navigation would
   // follow to notice. This is React's "adjust state while rendering" pattern
-  // and is safe as such since the updater stopped writing storage (DEMO-14):
+  // and is safe as such since the updater stopped writing storage:
   // a render React throws away now leaves nothing behind, because the write
   // happens in the persist effect above, after a commit.
   const seeChartMetric =

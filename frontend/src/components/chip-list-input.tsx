@@ -34,7 +34,7 @@ export function ChipListInput({
 }: ChipListInputProps) {
   const [draft, setDraft] = useState('')
   // The message on screen, or null. One slot for both reasons a draft is not
-  // added, so a screen reader hears exactly the one that applies (DS-18).
+  // added, so a screen reader hears exactly the one that applies.
   const [problem, setProblem] = useState<string | null>(null)
   const errorId = `${useId()}-error`
   const rootRef = useRef<HTMLDivElement>(null)
@@ -72,10 +72,10 @@ export function ChipListInput({
         className="flex min-h-8 flex-wrap items-center gap-1 rounded-control border border-input bg-transparent px-2.5 py-1 focus-within:border-ring focus-within:ring-[3px] focus-within:ring-ring/50"
       >
         {values.map(value => (
-          // A code value, so the CodeToken look (sunken, square, mono; DS-6),
+          // A code value, so the CodeToken look (sunken, square, mono),
           // with room for its remove button. On phones the chip is 32px and
           // the remove button a 28px square: an 11px icon in a 22px chip was
-          // nearly impossible to hit (AU-39).
+          // nearly impossible to hit.
           <span
             key={value}
             className="flex items-center gap-1 rounded-sm border border-border-subtle bg-bg-sunken py-0.5 pl-1.5 pr-0.5 font-mono text-caption max-sm:h-8"

@@ -132,7 +132,7 @@ async def test_alert_destination_draft(
     data: AlertDestinationDraftTestRequest,
     current_user: EditorUserDep,
 ) -> AlertDestinationTestResponse:
-    """Send the test message through settings that are not saved yet (AL-30).
+    """Send the test message through settings that are not saved yet.
 
     The destination dialog's "Send test": an unsaved destination, or an edit
     in progress, where ``destination_id`` lends the stored secrets the form
@@ -307,7 +307,7 @@ async def simulate_alert_rule(
     sigma_threshold_override: float | None = Query(None, gt=0, le=RATCHET_SIGMA_CAP),
     # The editor's unsaved edits, as the PATCH body Save would send. Omitted,
     # the replay is of the saved rule; given, of the saved rule with these laid
-    # over it, validated as Save validates them and never written (ALR-12).
+    # over it, validated as Save validates them and never written.
     draft: Annotated[AlertRuleUpdate | None, Body()] = None,
 ) -> AlertRuleSimulateResponse:
     return await alerting_service.simulate_rule(
@@ -353,7 +353,7 @@ async def list_alert_deliveries(
     date_to: datetime | None = None,
     offset: int = Query(0, ge=0),
     limit: int = Query(50, ge=1, le=200),
-    # Keyset continuation from a previous page's `next_cursor` (ALR-27).
+    # Keyset continuation from a previous page's `next_cursor`.
     cursor: Annotated[str | None, Query(max_length=512)] = None,
 ) -> AlertDeliveryListResponse:
     _reject_cursor_with_offset(cursor, offset)
@@ -496,7 +496,7 @@ async def list_alert_inbox(
     scope: Annotated[FreeTextFilter | None, Query(max_length=200)] = None,
     offset: int = Query(0, ge=0),
     limit: int = Query(50, ge=1, le=200),
-    # Keyset continuation from a previous page's `next_cursor` (ALR-27).
+    # Keyset continuation from a previous page's `next_cursor`.
     cursor: Annotated[str | None, Query(max_length=512)] = None,
 ) -> AlertInboxListResponse:
     _reject_cursor_with_offset(cursor, offset)

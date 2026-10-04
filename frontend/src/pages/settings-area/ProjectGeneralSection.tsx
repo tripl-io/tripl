@@ -118,7 +118,7 @@ function summarizeAnomalyCounts(counts: AnomalyResetCounts): string {
   return `Cleared ${counts.metric_anomalies} anomalies and ${counts.metric_breakdown_anomalies} breakdown anomalies.`
 }
 
-// What a reset would delete, from its dry run (ST-39). Null — the preview
+// What a reset would delete, from its dry run. Null — the preview
 // failed — falls back to naming the loss without counting it.
 function anomalyResetScope(counts: AnomalyResetCounts | null): string {
   if (!counts) return 'Permanently delete anomaly detections'
@@ -161,7 +161,7 @@ function summarizeRetirement(counts: VariableRetirementCounts, committed: boolea
  * surfaces) so the two project-config halves stay reachable, and the danger zone
  * holds the owner-only resets and Delete. Archive and Transfer ownership rows
  * used to sit there as permanently disabled buttons with no backend behind them
- * and no word on why, which read as a permissions problem (WS-11); they return
+ * and no word on why, which read as a permissions problem; they return
  * when the features do.
  */
 const UNSAVED_PROJECT_MESSAGE =
@@ -175,7 +175,7 @@ export default function ProjectGeneralSection({
   /**
    * Called with the new slug after a save renames the project, so whoever
    * chose `slug` rebinds to it. Without it the section kept requesting the old
-   * address and fell over with "Failed to load project" (WS-8).
+   * address and fell over with "Failed to load project".
    */
   onSlugChanged?: (slug: string) => void
 }) {
@@ -220,7 +220,7 @@ function ProjectGeneralBody({
     setHydratedFor(projectQuery.data.id)
   }
 
-  // One draft, one save (ST-3): the details and the version policy used to
+  // One draft, one save: the details and the version policy used to
   // have a Save button each, with no Discard and no rail dot, beside the
   // instance pages' single sticky bar. The PATCH carries only the part that
   // changed, so a version-policy edit does not resend the details.
@@ -253,13 +253,13 @@ function ProjectGeneralBody({
     mutationFn: () => searchApi.reindex(slug),
     onSuccess: () => qc.invalidateQueries({ queryKey: commandPaletteSearchRootKey() }),
   })
-  // The delete dialog renders a failure in place (WS-9), so no toast as well.
+  // The delete dialog renders a failure in place, so no toast as well.
   const deleteMut = useMutation({
     meta: SILENT_ERROR_META,
     mutationFn: () => projectsApi.del(slug),
     onSuccess: () => {
       // A demo's tour, scenario and welcome state is keyed by slug and would
-      // otherwise outlive it (DEMO-17); harmless for any other project.
+      // otherwise outlive it; harmless for any other project.
       forgetDemoLocalState(slug)
       qc.invalidateQueries({ queryKey: projectsKey() })
       // The project is gone, and any draft of its details with it: nothing for
@@ -321,8 +321,8 @@ function ProjectGeneralBody({
   }
 
   // Each reset counts first (a dry run over the SAME window the delete then
-  // uses), so the confirm says what goes rather than only that something does
-  // (ST-39). A failed count does not block the reset, but the dialog says so.
+  // uses), so the confirm says what goes rather than only that something does.
+  // A failed count does not block the reset, but the dialog says so.
   const handleResetAnomalies = async () => {
     const period = resetPeriodPayload(anomaliesPeriod)
     const preview = await projectsApi
@@ -394,10 +394,10 @@ function ProjectGeneralBody({
     appVersionKeepReleasesNumber === projectQuery.data?.app_version_keep_releases
 
   // Either card's unsaved edits arm the settings shell's leave guard: the rail,
-  // "View project", Back and reload all used to drop them silently (WS-13).
+  // "View project", Back and reload all used to drop them silently.
   // A read-only form is never dirty. No settings path keeps this draft: the
   // section is the only one that renders it. `dirtyPaths` puts the rail's
-  // unsaved dot on General, as the instance pages have it (ST-3).
+  // unsaved dot on General, as the instance pages have it.
   const { registerUnsaved } = useUnsavedChanges()
   const dirty = canEdit && !!projectQuery.data && (!isPristine || !versionPolicyPristine)
   useEffect(() => {
@@ -442,7 +442,7 @@ function ProjectGeneralBody({
               onClick={() => navigate(projectPath(currentOrgSlug(), slug, '/event-types'))}
             >
               {/* Named for what it opens: event types, meta fields, alerting…
-                  "Project operations" described none of them (#238 ST-5). */}
+                  "Project operations" described none of them (#238). */}
               Tracking plan &amp; alerting
             </Button>
             <Button variant="outline" size="sm" onClick={() => navigate(projectPath(currentOrgSlug(), slug, '/events'))}>
@@ -454,7 +454,7 @@ function ProjectGeneralBody({
 
       {/* The two cards' shape while the project loads, and a retry (or the
           way back, for a project that no longer exists) when it fails
-          (#237 ST-35 / SH-33). */}
+          (#237). */}
       {projectQuery.isLoading && <SectionSkeleton variant="form" rows={5} label="Loading project…" />}
       {projectQuery.isError && (
         <QueryErrorState
@@ -476,12 +476,12 @@ function ProjectGeneralBody({
             </ReadOnlyNotice>
           )}
           {canEdit && (
-            // The one save model for a settings page (ST-3), the bar the
+            // The one save model for a settings page, the bar the
             // instance pages use: Discard and Save changes for both cards.
             // A failed save is red and announced; a 403 or a 409 for a taken
-            // slug used to render in hint grey, where it read like advice
-            // (WS-15). An edited form says so in amber, so the lit Save is
-            // not the only difference from a pristine one (ST-2).
+            // slug used to render in hint grey, where it read like advice.
+            // An edited form says so in amber, so the lit Save is
+            // not the only difference from a pristine one.
             <SettingsSaveBar
               className="mb-4"
               note={
@@ -508,7 +508,7 @@ function ProjectGeneralBody({
                   <TextInput id="proj-name" value={name} onChange={setName} />
                 </Field>
                 {/* A bad slug is an error, red and tied to the input, not the
-                    hint turning into a rule in the same grey (ST-2). Shown once
+                    hint turning into a rule in the same grey. Shown once
                     there is something typed: an emptied box is not yet wrong. */}
                 <Field
                   label="Slug"
@@ -525,7 +525,7 @@ function ProjectGeneralBody({
                   />
                 </Field>
                 {/* Stacked, and growing with its text: two fixed rows cut a
-                    seeded description mid-line on a phone (ST-37). */}
+                    seeded description mid-line on a phone. */}
                 <Field label="Description" htmlFor="proj-desc" stacked>
                   <TextArea id="proj-desc" value={description} onChange={setDescription} rows={3} autoGrow />
                 </Field>
@@ -571,7 +571,7 @@ function ProjectGeneralBody({
             </>
           ) : (
             // Read-only: the values as text, not a form of dashed dead inputs
-            // under a notice that already says nothing here can change (ST-18).
+            // under a notice that already says nothing here can change.
             <>
               <SCard title="Project details">
                 <InfoRow label="Name" value={projectQuery.data.name} mono={false} />
@@ -594,9 +594,9 @@ function ProjectGeneralBody({
           )}
 
           {/* Routine upkeep, apart from the one irreversible act below: three
-              resets beside "Delete project" diluted the danger signal (ST-38).
-              Rows the reader cannot run are left out, not shown disabled
-              (ST-18); with none left the card goes too. */}
+              resets beside "Delete project" diluted the danger signal.
+              Rows the reader cannot run are left out, not shown disabled;
+              with none left the card goes too. */}
           {(canReindex || canDelete) && (
             <SCard
               title="Maintenance"
@@ -733,7 +733,7 @@ function ProjectGeneralBody({
                 hint="Permanently remove the plan, history and all ingested events. Cannot be undone."
                 last
                 action={
-                  // Bare red in a row; the solid red is the confirm's (DS-20).
+                  // Bare red in a row; the solid red is the confirm's.
                   <Button
                     variant="danger"
                     size="sm"

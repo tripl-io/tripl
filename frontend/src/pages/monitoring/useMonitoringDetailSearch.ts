@@ -12,7 +12,7 @@ export const MONITORING_DETAIL_TABS = [
 ] as const
 export type MonitoringDetailTab = (typeof MONITORING_DETAIL_TABS)[number]
 
-/** Every scope opens on the same week (MON-43); the Overview says "7d" too. */
+/** Every scope opens on the same week; the Overview says "7d" too. */
 export const DEFAULT_RANGE_DAYS = 7
 
 export interface MonitoringDetailSearch {
@@ -79,7 +79,7 @@ export function breakdownValueSearch(current: URLSearchParams | string, column: 
  * The drilldown's view state — tab, range, granularity, version filter,
  * distribution field, breakdown column and values — lives in the URL, so a link
  * or a refresh reopens the same view and Back from a drilldown does not reset
- * it (MON-24). `?tab=` and `?column=` were already read once at mount (the
+ * it. `?tab=` and `?column=` were already read once at mount (the
  * event form deep-links a field to its split); now they are written back too.
  * Same idiom as AnomaliesPage: defaults stay out of the URL, and every write
  * uses `replace`, because flipping a filter is not a stop for the Back button.

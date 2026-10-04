@@ -1,12 +1,12 @@
 """Backend halves of the round-2 frontend review leftovers (B1-B9).
 
 Each block names the finding it closes. They share one module because each is a
-small contract the frontend now leans on: who may delete a comment (EVT-29),
-what an update does to a webhook's stored secret (ALR-24), a blank chat id on a
-non-Telegram destination (ALR-1), the photo limit a browser can read (EVT-28),
-a branch event's main twin (EVT-42), replaying unsaved rule edits (ALR-12),
-testing a connection before saving it (DATA-30), shadow-event paging and batch
-triage (DATA-39), and the exact-name identity lookup (EVT-37).
+small contract the frontend now leans on: who may delete a comment,
+what an update does to a webhook's stored secret, a blank chat id on a
+non-Telegram destination, the photo limit a browser can read,
+a branch event's main twin, replaying unsaved rule edits,
+testing a connection before saving it, shadow-event paging and batch
+triage, and the exact-name identity lookup.
 """
 
 import uuid
@@ -192,7 +192,7 @@ async def _webhook_destination(client: AsyncClient, slug: str) -> str:
             "webhook_header_name": "Authorization",
             "webhook_header_value": "Bearer secret",
             # A form holding every channel's inputs sends this for a webhook;
-            # it is "not given", not a missing Telegram chat id (ALR-1).
+            # it is "not given", not a missing Telegram chat id.
             "chat_id": "",
         },
     )

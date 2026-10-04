@@ -2,7 +2,7 @@
  * Pure series builders for the monitoring drilldown's multi-series charts (the
  * By version and Breakdowns tabs). Kept out of the components so the contracts
  * they encode (pre-release vs latest, legend value kind, the render cap and the
- * palette) are table-tested directly (MON-44).
+ * palette) are table-tested directly.
  */
 import {
   aggregateMetricPoints,
@@ -12,7 +12,7 @@ import {
 import type { AppVersionMetricSeries, EventMetricBreakdownSeries, EventMetricPoint } from '@/types'
 import { SERIES_COLORS } from '@/components/ui/chart-format'
 
-// The chart's own categorical palette (DS-23 / MON-36): this used to be a
+// The chart's own categorical palette: this used to be a
 // second copy of the list, hard-coded hexes included.
 
 /** One slot of the series palette: a colour plus, past the eighth, a dash. */
@@ -24,7 +24,7 @@ export interface SeriesSlot {
 /**
  * The palette slot for the `index`-th series. Eight hues, then the hues repeat
  * dashed and then dotted: value #9 used to get #1's colour and draw an
- * identical line (MON-29).
+ * identical line.
  */
 export function seriesSlot(index: number): SeriesSlot {
   const color = SERIES_COLORS[index % SERIES_COLORS.length] ?? SERIES_COLORS[0]
@@ -143,7 +143,7 @@ export function buildBreakdownEntries(
  * The series the chart draws: the picked values (or every value), filtered
  * BEFORE the render cap so a value outside the top eight becomes visible once
  * picked. `hiddenCount` is how many matching values the cap left out, which the
- * tab says out loud instead of dropping them silently (MON-29).
+ * tab says out loud instead of dropping them silently.
  */
 export function selectBreakdownChartSeries(
   entries: BreakdownSeriesEntry[],

@@ -41,7 +41,7 @@ async def _project_with_destination(client: AsyncClient, slug: str) -> tuple[str
 
 
 # --------------------------------------------------------------------------- #
-# AL-2: a rule created without the field starts at 30, not 100
+# a rule created without the field starts at 30, not 100
 # --------------------------------------------------------------------------- #
 
 

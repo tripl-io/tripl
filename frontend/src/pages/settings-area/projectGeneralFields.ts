@@ -23,7 +23,7 @@ export function isKnownTimeZone(zone: string): boolean {
 /**
  * The zones the Timezone select offers: UTC first, then every IANA zone the
  * browser knows. The field used to be free text, so `Europe/Moskow` could reach
- * the server — and the zone drives alert digest schedules (WS-16). A stored
+ * the server — and the zone drives alert digest schedules. A stored
  * value the list lacks (an alias the browser does not enumerate) stays
  * selectable, so opening the page never silently changes it.
  */
@@ -49,7 +49,7 @@ export const SAVED_FEEDBACK_MS = 2500
 
 /**
  * True for a moment after `mark()` — the "Saved" confirmation a Save button
- * otherwise lacked: it only went disabled again (WS-15).
+ * otherwise lacked: it only went disabled again.
  */
 export function useTransientFlag(durationMs: number): [boolean, () => void, () => void] {
   const [shownAt, setShownAt] = useState<number | null>(null)

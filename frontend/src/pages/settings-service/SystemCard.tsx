@@ -21,7 +21,7 @@ type SystemRow = {
   /**
    * What is wrong, as a short clause for the "needs attention" summary. Set on
    * every warning or danger row: "<label> is <value>" said "Schema revision is
-   * 0042_abcd." for a mismatch, which does not name the problem (ST-33).
+   * 0042_abcd." for a mismatch, which does not name the problem.
    */
   problem?: string
 }
@@ -200,12 +200,12 @@ function systemRows(system: SystemSettings): SystemRow[] {
 
 export function SystemCard({ system }: { system: SystemSettings }) {
   // The rows to act on first, so the owner does not scan all of them to find
-  // the two that matter (ST-33). The sort is stable: the rest keep their order.
+  // the two that matter. The sort is stable: the rest keep their order.
   const rows = [...systemRows(system)].sort((a, b) => Number(needsAttention(b)) - Number(needsAttention(a)))
   const problems = rows.filter(needsAttention)
 
   return (
-    // No card title: it repeated the page's own "System" h1 (ST-33).
+    // No card title: it repeated the page's own "System" h1.
     <SCard description="Read from this instance's environment when the API started. None of it can be changed from the app — set the variable where the process gets its environment, then restart. The schema revision is the exception: it is read from the database each time this page loads.">
       <div className="space-y-3 p-4">
         {problems.length > 0 && (
@@ -216,7 +216,7 @@ export function SystemCard({ system }: { system: SystemSettings }) {
           </p>
         )}
         {/* Equal rows, so a two-line note does not make its row taller than
-            the next (ST-33). */}
+            the next. */}
         <div className="grid auto-rows-fr gap-2.5 sm:grid-cols-3">
           {rows.map(row => (
             <div
@@ -240,7 +240,7 @@ export function SystemCard({ system }: { system: SystemSettings }) {
                   pulse={row.tone === 'warning' || row.tone === 'danger'}
                   size={7}
                 />
-                {/* Sentence case, not an uppercase eyebrow (ST-33). */}
+                {/* Sentence case, not an uppercase eyebrow. */}
                 <span className="text-caption font-medium text-fg-secondary">
                   {row.label}
                 </span>

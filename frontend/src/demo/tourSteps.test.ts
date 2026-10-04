@@ -41,7 +41,7 @@ describe('buildTourSteps', () => {
     expect(byId.get('alerting')).toBe('/p/acme/alerting')
   })
 
-  it('tags every step with the group its sidebar item is in (#251 JR-22)', () => {
+  it('tags every step with the group its sidebar item is in (#251)', () => {
     // ProductTour prints `step.area` as the step's chip. The scans step said
     // 'Connect', a group buildNavGroups has never produced, and Branches and
     // Alerting said Govern while the sidebar filed them under Plan and
@@ -60,7 +60,7 @@ describe('buildTourSteps', () => {
     expect(byId.get('search')?.area).toBeNull()
   })
 
-  it('titles each page step with its sidebar label (#251 JR-22, SH-7)', () => {
+  it('titles each page step with its sidebar label (#251)', () => {
     const labels = buildNavGroups('acme', undefined).flatMap((group) =>
       group.items.map((item) => item.label),
     )
@@ -86,7 +86,7 @@ describe('buildTourSteps', () => {
     expect(byId.get('monitors')).toBe('Alert rules')
   })
 
-  it('describes Coverage as plan implementation (#251 JR-22)', () => {
+  it('describes Coverage as plan implementation (#251)', () => {
     const coverage = steps.find((step) => step.id === 'coverage')
     expect(coverage?.blurb).toMatch(/implemented/)
     expect(coverage?.blurb).not.toMatch(/platforms/)

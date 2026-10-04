@@ -200,7 +200,7 @@ describe('groupEventNames', () => {
   })
 })
 
-describe('isDeepPrefix (EVT-40)', () => {
+describe('isDeepPrefix', () => {
   it('accepts prefixes of two or more segments only', () => {
     expect(isDeepPrefix('checkout')).toBe(false)
     expect(isDeepPrefix('checkout_step')).toBe(true)

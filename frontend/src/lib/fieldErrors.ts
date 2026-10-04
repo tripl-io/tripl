@@ -4,7 +4,7 @@
  * is keyed by the DOM id of its control; the inline message under it (rendered
  * by the kit `Field`, `error` prop) gets `${id}-error`, and the control points at it. Before this
  * the messages were plain paragraphs no control referenced, so a screen reader
- * heard neither that a field was invalid nor why (MET-15, MET-35).
+ * heard neither that a field was invalid nor why.
  */
 
 export type FieldErrors = Readonly<Record<string, string>>

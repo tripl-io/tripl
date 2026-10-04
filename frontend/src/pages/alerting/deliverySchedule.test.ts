@@ -79,7 +79,7 @@ describe('describeCron', () => {
     expect(describeCron('0 9,18 * * *')).toBe('Every day at 09:00, 18:00')
     expect(describeCron('15 7 * * 1')).toBe('Every Monday at 07:15')
     expect(describeCron('*/5 9-17 * * 1-5')).toContain('Custom')
-    // The weekday preset is named on every surface, not only the card (AL-24).
+    // The weekday preset is named on every surface, not only the card.
     expect(describeCron('0 9 * * 1-5')).toBe('Weekdays at 09:00')
   })
 })

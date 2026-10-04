@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { render, screen } from '@testing-library/react'
 import { DemoBannerPlaceholder } from './DemoBannerPlaceholder'
 
-describe('DemoBannerPlaceholder (#251 SH-2)', () => {
+describe('DemoBannerPlaceholder (#251)', () => {
   it('holds the banner footprint without anything to read or reach', () => {
     render(<DemoBannerPlaceholder />)
 
@@ -17,7 +17,7 @@ describe('DemoBannerPlaceholder (#251 SH-2)', () => {
     expect(bar).toHaveClass('border')
     expect(bar).not.toHaveClass('h-11')
     expect(bar?.firstElementChild).toHaveClass('h-11')
-    // Marked like the real banner, so a docked coach card clears it (#251 SH-5).
+    // Marked like the real banner, so a docked coach card clears it (#251).
     expect(box).toHaveAttribute('data-demo-banner')
     expect(screen.queryByRole('button')).toBeNull()
   })

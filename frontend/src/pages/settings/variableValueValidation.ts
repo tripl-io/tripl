@@ -7,7 +7,7 @@ import type { VariableType } from '@/types'
  * The type was chosen and then ignored: every value list took any string, so a
  * `number` variable accepted "abc", a `boolean` "yes" and a `date` "tomorrow",
  * and drift then compared observed values against a list that could never match
- * them (PLAN-24). An array type's values are its ELEMENTS, one per chip, so a
+ * them. An array type's values are its ELEMENTS, one per chip, so a
  * `number_array` value is checked as a number.
  *
  * `string`, `string_array` and anything unknown accept every value.

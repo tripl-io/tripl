@@ -16,7 +16,7 @@ import type { AlertInboxStatus, AlertInboxStatusCounts, MetricScopeType } from '
 export const INBOX_LOOKBACK_DAYS = 30
 
 /**
- * The status the inbox opens on when the URL names none (AL-14): the triage
+ * The status the inbox opens on when the URL names none: the triage
  * queue, not every incident in the window.
  */
 export const INBOX_DEFAULT_STATUS: AlertInboxStatus = 'open'
@@ -223,7 +223,7 @@ export function earliestReachableDay(now: Date): string {
 /**
  * The status filter's options, each carrying its incident count once the
  * server has sent one ("Open · 3"), so the reader sees what a status holds
- * before picking it (AL-14). Without counts the labels are the bare names.
+ * before picking it. Without counts the labels are the bare names.
  */
 export function inboxStatusOptions(
   counts?: AlertInboxStatusCounts | null,

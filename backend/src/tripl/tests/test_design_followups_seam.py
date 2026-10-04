@@ -1,8 +1,8 @@
 """Seam follow-ups after the design & UX review lanes.
 
-The draft destination test reached through ``alerting_service`` (AL-30), a
+The draft destination test reached through ``alerting_service``, a
 catalog run's warehouse rows counted as warehouse rows in the 24h scan
-activity (DA-4 / B15), and the demo's shadow candidate carrying samples (DA-32).
+activity (B15), and the demo's shadow candidate carrying samples.
 """
 
 from __future__ import annotations

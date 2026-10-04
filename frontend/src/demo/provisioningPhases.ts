@@ -30,7 +30,7 @@ export function nextPhaseIndex(current: number): number {
 }
 
 /**
- * The ONE measured duration of a demo create or reset (DEMO-21): end to end it
+ * The ONE measured duration of a demo create or reset: end to end it
  * is ~9-11 s locally, so 10 s. Every other number the UI states or times
  * against derives from this one, so the copy, the phase tick and the API
  * comment can no longer disagree with each other (they said 10-15, 9-11 and
@@ -47,7 +47,7 @@ export const PHASE_TICK_MS = DEMO_PROVISION_EXPECTED_MS / PROVISIONING_PHASES.le
 
 /**
  * Past this the wait is no longer normal, and the phase list says so instead
- * of leaving the pointer parked on "Finalizing" with no signal (DEMO-21).
+ * of leaving the pointer parked on "Finalizing" with no signal.
  */
 export const DEMO_PROVISION_SLOW_MS = DEMO_PROVISION_EXPECTED_MS * 2
 
@@ -55,7 +55,7 @@ export const DEMO_PROVISION_SLOW_MS = DEMO_PROVISION_EXPECTED_MS * 2
  * Seeding is heavy but bounded — it is a fixed recipe, not user-sized data — so
  * a create or reset still running after this long is a stall, not slow
  * progress. Without a bound, a dead connection leaves the dialog spinning
- * forever and a page reload is the only way out (DEMO-4).
+ * forever and a page reload is the only way out.
  */
 export const DEMO_PROVISION_TIMEOUT_MS = 90_000
 

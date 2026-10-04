@@ -2,7 +2,7 @@ import { render, screen } from '@testing-library/react'
 import { describe, expect, it } from 'vitest'
 import { Badge } from './badge'
 
-describe('Badge danger tone (DS-37)', () => {
+describe('Badge danger tone', () => {
   it('draws a red state on the soft danger fill, not the solid count fill', () => {
     render(
       <>
@@ -18,7 +18,7 @@ describe('Badge danger tone (DS-37)', () => {
   })
 })
 
-describe('Badge as a Chip alias (DS-6)', () => {
+describe('Badge as a Chip alias', () => {
   it('renders a neutral pill, not a solid brand block, when no variant is given', () => {
     render(<Badge>v1.2.0</Badge>)
 

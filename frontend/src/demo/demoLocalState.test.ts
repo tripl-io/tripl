@@ -7,7 +7,7 @@ afterEach(() => {
   window.sessionStorage.clear()
 })
 
-describe('demo local state (DEMO-17)', () => {
+describe('demo local state', () => {
   it('forgets one project', () => {
     window.localStorage.setItem('tripl-tour:demo-a', '1')
     window.localStorage.setItem('tripl-tour:demo-b', '1')

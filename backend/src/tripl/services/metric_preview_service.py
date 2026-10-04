@@ -23,7 +23,7 @@ warehouse.
   the worker's OWN ``_resolve_fact_operand_query`` (fed the very config dict a
   save would persist) and executes the result, bounded to one row.
 * ``preview_metric_series`` is the series dry run for the two kinds that have
-  no SELECT of their own (MT-9): a ``fact`` draft runs the collector's own
+  no SELECT of their own: a ``fact`` draft runs the collector's own
   ``_aggregate_fact_window`` per operand over the last closed buckets
   (``fact_series_preview_window``), and an ``event_composition`` draft
   composes the already-collected event counts of one scan grid with the
@@ -935,7 +935,7 @@ async def _preview_event_composition_series(
 async def preview_metric_series(
     session: AsyncSession, slug: str, data: MetricSeriesPreviewRequest
 ) -> MetricPreviewResponse:
-    """Dry-run a draft ``fact`` or ``event_composition`` metric's series (MT-9).
+    """Dry-run a draft ``fact`` or ``event_composition`` metric's series.
 
     The body is the definition a save would send, and the values come from the
     collector's own functions, so what the editor draws is what the first

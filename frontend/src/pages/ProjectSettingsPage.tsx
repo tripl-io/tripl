@@ -7,7 +7,7 @@ import { currentOrgSlug, legacySettingsRedirectPath, projectPath, settingsPath, 
 // Each surface is its own chunk. They are separate sidebar destinations and
 // only one renders at a time, but importing them statically put all nine —
 // the branch diff UI, the audit table, the events table under the event-type
-// detail — into one chunk that every one of them downloaded (#194 SHELL-5).
+// detail — into one chunk that every one of them downloaded (#194).
 const AuditTab = lazyWithReload(() =>
   import('./settings/AuditTab').then((m) => ({ default: m.AuditTab })),
 )
@@ -44,7 +44,7 @@ const ProjectAlertingTab = lazyWithReload(() => import('@/pages/ProjectAlertingT
 
 /**
  * A surface's chunk loading: the shape of the page it is about to become, not
- * a "Loading…" line in an empty column (#237 SH-23 / ST-35). Each surface
+ * a "Loading…" line in an empty column (#237). Each surface
  * renders its own header, so the skeleton draws one too.
  */
 const TAB_SKELETON: Record<FunctionalTab, PageSkeletonVariant> = {
@@ -68,7 +68,7 @@ function TabFallback({ tab, detail }: { tab: FunctionalTab; detail: boolean }) {
  * branches, history, alerting, audit) plus the detection settings.
  *
  * The Plan, Observe and Govern surfaces are first-class sidebar pages routed at
- * `/p/:slug/<surface>[/:itemId]` (#238 JR-25 / AL-42 / ST-5); App.tsx mounts
+ * `/p/:slug/<surface>[/:itemId]` (#238); App.tsx mounts
  * this page for each with `surface` set. `/p/:slug/settings/<tab>` keeps only
  * project settings: `monitoring` (detection) renders here, `general` and
  * `plan-rules` go to the full-takeover Settings area, and every surface that
@@ -113,7 +113,7 @@ export default function ProjectSettingsPage({
   const focusIncidentId = searchParams.get('incident') ?? undefined
   // `?focus=<id>` marks one row of the variables list: where the variable
   // page's back link returns to. `/p/:slug/variables/:id` is that variable's
-  // own page now (AU-26), so a branch diff's links — focus and Edit alike
+  // own page now, so a branch diff's links — focus and Edit alike
   // — land on it, Definition tab first.
   const focusListId = searchParams.get('focus') ?? undefined
 
@@ -141,7 +141,7 @@ export default function ProjectSettingsPage({
   }
 
   return (
-    // No "Project operations" signpost above the header any more (#238 JR-25 /
+    // No "Project operations" signpost above the header any more (#238 /
     // AL-42): these are Plan, Observe and Govern pages in the sidebar, and a
     // strip framing them as "settings" was the first thing above "Alerting".
     <div className="min-w-0">

@@ -164,7 +164,7 @@ export function CommentThread({
   // A thread with resolution state (the event discussion — the one caller that
   // passes `onAction`) feeds the catalog's "?N" badge and its "Open questions"
   // filter. A post opens a question and a delete can close one, so both have to
-  // reach the list the way resolve always did (EVT-29).
+  // reach the list the way resolve always did.
   const refreshCatalog = () => {
     if (onAction) void queryClient.invalidateQueries({ queryKey: eventsRootKey() })
   }
@@ -223,7 +223,7 @@ export function CommentThread({
   }
 
   // Delete used to fire on one click, on anybody's comment, and a parent took
-  // its replies with it (EVT-29). An editor deletes their own words; the owner
+  // its replies with it. An editor deletes their own words; the owner
   // moderates. A row whose shape carries no author (`user_id` absent, not null)
   // cannot be attributed, so it keeps the editor's control it always had.
   const canDelete = (comment: ThreadComment) =>
@@ -381,7 +381,7 @@ function CommentItem({
             {formatDateTime(comment.created_at)}
           </span>
           <div className="flex items-center gap-2">
-            {/* A thread's state is a status: the shared pill (DS-6). */}
+            {/* A thread's state is a status: the shared pill. */}
             {stateLabel && <Chip size="xs">{stateLabel}</Chip>}
             {onAction && (unanswered ? (
               <>

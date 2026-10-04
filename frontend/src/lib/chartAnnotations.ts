@@ -4,7 +4,7 @@
  * Red belongs to anomalies. The backend's column default is `#ef4444`, the same
  * hue as the anomaly dots, so every marker created without a colour — which was
  * every marker, the form never sent one — drew as a red dashed line beside the
- * red anomaly points it was meant to explain (MON-25).
+ * red anomaly points it was meant to explain.
  */
 
 import type { ChartAnnotation, ChartAnnotationSource } from '@/types'
@@ -89,8 +89,7 @@ export function toDatetimeLocalValue(date: Date): string {
 /**
  * The browser's UTC offset at `date`, e.g. "UTC+3", "UTC−5:30", "UTC". The
  * annotation input takes local time while the charts bucket in UTC, so the form
- * names the offset instead of printing a format the native picker does not use
- * (MON-27).
+ * names the offset instead of printing a format the native picker does not use.
  */
 export function formatUtcOffset(date: Date): string {
   const minutes = -date.getTimezoneOffset()

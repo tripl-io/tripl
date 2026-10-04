@@ -75,7 +75,7 @@ export function signalSparkline(
 }
 
 /**
- * Row sparklines for the Anomalies list, one batched request (MO-19).
+ * Row sparklines for the Anomalies list, one batched request.
  *
  * Deliberately not part of the signals payload: that list is cached for 30 s
  * and shared with the bell, Overview and the Events page, none of which draws

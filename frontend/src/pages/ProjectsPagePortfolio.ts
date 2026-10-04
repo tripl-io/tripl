@@ -1,7 +1,7 @@
 import type { Project } from '@/types'
 
 /**
- * Pure roll-ups behind the workspace page (WS-44). They lived inline in the
+ * Pure roll-ups behind the workspace page. They lived inline in the
  * page body and re-ran on every render; the page now memoises one call.
  */
 

@@ -34,7 +34,7 @@ describe('PageHeader', () => {
     expect(container.querySelector('p, button, a')).toBeNull()
   })
 
-  // DS-1: one h1 per page, whatever the slots; DS-5: the stat row sits under
+  // one h1 per page, whatever the slots; DS-5: the stat row sits under
   // the title block, not in the actions slot.
   it('renders exactly one h1 and puts the stats row after the title block', () => {
     const { container } = render(

@@ -182,10 +182,10 @@ export function ScanListRow({
   // The list is the surface the demo coach's step-1 CTA opens, so the Run
   // control must live here — not only on the detail page. Reuses the detail
   // page's Play icon; stopPropagation keeps the row's own navigate from firing.
-  // The shared Button at the dense row-action size (DS-14), not a hand-rolled
+  // The shared Button at the dense row-action size, not a hand-rolled
   // 11px bordered button.
   // A run already in flight disables Run now and says so: a second click only
-  // earned the backend's 409 (#247 DA-6). Stop lives on the scan's page.
+  // earned the backend's 409 (#247). Stop lives on the scan's page.
   const runActive = runInfo.status === 'running'
   const runButton = onRun ? (
     <Button
@@ -209,9 +209,9 @@ export function ScanListRow({
     // shortcut layered over the name link, not the way in.
     // Below `sm` the row is a stacked card: the name cell takes the first line
     // and the last run and the actions share the second, instead of a table
-    // whose status and Run now sat off-screen to the right (LIVE-15). Same
+    // whose status and Run now sat off-screen to the right. Same
     // cells, only their display changes, so nothing is rendered twice.
-    // `sm:h-(--row-h)`: the Density setting reaches this list too (DS-9).
+    // `sm:h-(--row-h)`: the Density setting reaches this list too.
     <tr
       className="flex cursor-pointer flex-wrap items-center border-t transition-colors hover:bg-[var(--surface-hover)] sm:table-row sm:h-(--row-h) border-border-subtle"
       onClick={onNavigate}
@@ -263,7 +263,7 @@ export function ScanListRow({
           <span className="inline-flex items-center gap-1.5">
             <RunStatusPill status={pillStatus} title={failedMessage ?? undefined} />
             {runInfo.status !== 'idle' && runInfo.status !== 'running' && (
-              // A relative time, not code: sans with tabular digits (DS-17).
+              // A relative time, not code: sans with tabular digits.
               <span className="tnum text-caption text-fg-tertiary">
                 {runInfo.lastRunLabel}
               </span>

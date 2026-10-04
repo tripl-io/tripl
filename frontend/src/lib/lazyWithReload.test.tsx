@@ -93,7 +93,7 @@ describe('lazyWithReload', () => {
     expect(sessionStorage.getItem(CHUNK_RELOAD_KEY)).toBeNull()
   })
 
-  // SHELL-7: with site data blocked every sessionStorage call throws. That used
+  // with site data blocked every sessionStorage call throws. That used
   // to turn a module that DID load into a rejection, so no lazy page rendered.
   it('renders a loaded page when sessionStorage throws', async () => {
     withThrowingStorage()

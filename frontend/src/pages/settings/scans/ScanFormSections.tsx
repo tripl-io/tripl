@@ -169,8 +169,8 @@ function CollapsibleSection({
 }
 
 /**
- * Why the numeric input above cannot be saved: the shared inline message
- * (AU-4). The input points at it with `aria-describedby` via `invalidAria`, so
+ * Why the numeric input above cannot be saved: the shared inline message.
+ * The input points at it with `aria-describedby` via `invalidAria`, so
  * it is read with the field rather than only seen.
  */
 
@@ -187,7 +187,7 @@ function textFreeColumns(preview: ScanConfigPreview, parsed: readonly string[]) 
 /**
  * Open "Event names and grouping" and put the reader on the control the dry
  * run's flood warning named: the fix sat in a collapsed section below, and
- * nothing pointed at it (#247 DA-1).
+ * nothing pointed at it (#247).
  */
 function openNamingControl(target: NamingFixTarget) {
   const toggle = document.getElementById(NAMING_TOGGLE_ID)
@@ -270,7 +270,7 @@ export function ScanEssentialsSection({
   return (
     // A real title: the card used to open with an empty one, and the mode
     // legend sat in the fieldset's border slot, flush with the card's top edge.
-    // Floated, the legend lays out inside the padding like any label (#247 DA-12).
+    // Floated, the legend lays out inside the padding like any label (#247).
     <SCard title="Source and schedule">
       <fieldset
         data-testid="scan-mode"
@@ -318,7 +318,7 @@ export function ScanEssentialsSection({
       </fieldset>
 
       {/* Next sibling of the mode radio: only what its description lacks,
-          so Catalog only has none (#247 DA-13). */}
+          so Catalog only has none (#247). */}
       {monitoring && (
         <div className="border-b px-4 pb-4 border-border-subtle">
           <ScanCausalNote variant="form" mode={state.mode} />
@@ -472,7 +472,7 @@ export function ScanEssentialsSection({
               disabled and the user is being flagged for not doing something the
               form has not let them do yet. The disabled Create button carries
               the gate in the meantime. */}
-          {/* Red: it blocks Create (AU-5). */}
+          {/* Red: it blocks Create. */}
           <FieldError
             inputId="scan-event-type-column"
             announce
@@ -605,7 +605,7 @@ export function ScanEssentialsSection({
               preview={preview}
               unmappedColumns={dryRun.unmapped_columns}
               branchId={branchId}
-              // Re-ask so the list names only what is still unmapped (DATA-27).
+              // Re-ask so the list names only what is still unmapped.
               onCreated={runDryRun}
             />
           )}
@@ -747,7 +747,7 @@ export function MetricsDriftSection({ form, readOnly }: SectionProps) {
     >
       {/* Field rows like the essentials card and App version, so the section
           reads down the same label column instead of opening two bordered
-          cards with their own stacked headings (#247 DA-12). The pickers hold
+          cards with their own stacked headings (#247). The pickers hold
           no single labelable control, so their rows name them as groups. */}
       {preview ? (
         <>
@@ -792,7 +792,7 @@ export function MetricsDriftSection({ form, readOnly }: SectionProps) {
             )}
           </Field>
           {/* Plain words first; "PSI" and "scalar" explained nothing to the
-              reader choosing columns (#247 DA-16). */}
+              reader choosing columns (#247). */}
           <Field
             label="Distribution drift"
             htmlFor={false}

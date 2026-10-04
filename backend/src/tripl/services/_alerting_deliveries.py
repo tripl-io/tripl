@@ -239,7 +239,7 @@ async def list_deliveries(
     total = (
         await session.execute(select(func.count(AlertDelivery.id)).where(*filters))
     ).scalar_one()
-    # Keyset continuation (ALR-27): strictly after the last row the reader holds
+    # Keyset continuation: strictly after the last row the reader holds
     # in (created_at DESC, id DESC) order. Applied to the page query only —
     # `total` stays the whole filtered set, which is what "of N" means.
     page_filters = list(filters)
@@ -1063,8 +1063,8 @@ async def list_alert_inbox(
     #
     # Rescued for EVERY status even when one is asked for: the per-status budget
     # makes each status's slice of the selection exactly what a filtered request
-    # would pick, and the status chips need the other statuses' counts too
-    # (AL-14). Their delivery rows are loaded as well, not just counted off the
+    # would pick, and the status chips need the other statuses' counts too.
+    # Their delivery rows are loaded as well, not just counted off the
     # states: a chip counts what the OTHER filters leave, and `filters.matches`
     # reads a card's rows. That costs one extra query's worth of rows, bounded by
     # INBOX_MAX_SILENCED_RESCUES per status and INBOX_MAX_SOURCE_ITEMS per group.
@@ -1113,7 +1113,7 @@ async def list_alert_inbox(
             if filters.matches(group, rows=groups[group.correlation_group_id])
         ]
     # Counted after every other filter and before the status one, so each chip
-    # says what picking it would list (AL-14).
+    # says what picking it would list.
     status_counts = AlertInboxStatusCounts.model_validate(
         Counter(str(group.status) for group in responses)
     )
@@ -1121,7 +1121,7 @@ async def list_alert_inbox(
         responses = [group for group in responses if group.status == status]
     responses.sort(key=_inbox_sort_key, reverse=True)
     total = len(responses)
-    # Keyset continuation (ALR-27). The list is sorted DESCENDING on the key, so
+    # Keyset continuation. The list is sorted DESCENDING on the key, so
     # "after the cursor" is every group whose key is strictly smaller. A group
     # that sorted down past the seam since the previous page is therefore still
     # served; one that sorted UP is already above the reader and reaches them on
@@ -2020,7 +2020,7 @@ async def incident_refs_for_signals(
     project_id: uuid.UUID,
     keys: Iterable[SignalKey],
 ) -> dict[SignalKey, SignalIncidentRef]:
-    """The inbox incident each signal was routed into, if any (JR-6).
+    """The inbox incident each signal was routed into, if any.
 
     A signal becomes an incident only when a rule matched it and a delivery item
     was written for the same scope and bucket, so the lookup reads those items

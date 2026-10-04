@@ -1,6 +1,6 @@
 import type { EventType } from '@/types'
 
-/** The catalog's views (EV-23): the queues had routes, but nothing on the page led to them. */
+/** The catalog's views: the queues had routes, but nothing on the page led to them. */
 export const EVENT_VIEWS = [
   { tab: 'all', label: 'All' },
   { tab: 'review', label: 'Review queue' },

@@ -65,7 +65,7 @@ export function typeOption(type: Pick<EventType, 'id' | 'display_name' | 'color'
 /**
  * The event-type group for `needle`, matched on display name and slug. A type
  * that is no longer in the project still gets a row while it is the value, so
- * the field never paints a stored reference as unset (MET-14).
+ * the field never paints a stored reference as unset.
  */
 export function typeOptions(
   eventTypes: readonly EventType[],
@@ -94,7 +94,7 @@ export function typeOptions(
 
 /**
  * The field's text while the list is closed: the event's name with its type,
- * so two same-named events in different types read apart (MT-10).
+ * so two same-named events in different types read apart.
  */
 export function refText(option: EventRefOption | null): string {
   if (!option) return ''

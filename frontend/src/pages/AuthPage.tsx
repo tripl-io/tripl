@@ -96,7 +96,7 @@ function describedBy(...ids: Array<string | false | null | undefined>): string |
 
 /**
  * A refused submit: the errors render on this pass, so focus the first
- * invalid control on the next frame (AU-4).
+ * invalid control on the next frame.
  */
 function focusFirstInvalidSoon(form: HTMLFormElement) {
   requestAnimationFrame(() => focusFirstInvalid(form))
@@ -115,7 +115,7 @@ export default function AuthPage() {
   // code travels, never the identity provider's own words.
   const ssoError = searchParams.get('sso_error')
   // The session-expiry dialog links to /auth?mode=forgot, so that link opens
-  // the reset-request form rather than sign-in (SH-35).
+  // the reset-request form rather than sign-in.
   const [chosenMode, setChosenMode] = useState<AuthMode>(() =>
     searchParams.get('mode') === 'forgot' ? 'forgot' : 'login',
   )
@@ -129,7 +129,7 @@ export default function AuthPage() {
   const [editedOrgSlug, setEditedOrgSlug] = useState<string | null>(null)
   const orgSlug = editedOrgSlug ?? foldSlug(orgName)
   // The form whose Submit was pressed: its missing or malformed fields are
-  // marked from then on, not while the reader is still typing (AU-4).
+  // marked from then on, not while the reader is still typing.
   const [submittedMode, setSubmittedMode] = useState<AuthMode | null>(null)
 
   const destination = postLoginDestination(location.state)
@@ -149,7 +149,7 @@ export default function AuthPage() {
   const registrationClosed =
     statusQuery.data?.registration_enabled === false || statusQuery.data?.public_demo === true
   const googleSignIn = statusQuery.data?.google_sign_in === true
-  // Same rule: only a definite `false` says so before the request (ST-24). The
+  // Same rule: only a definite `false` says so before the request. The
   // form stays usable — the server's answer is the same neutral one either way.
   const emailOff = statusQuery.data?.email_configured === false
   // Hosted mode (F20): sign-up creates an organization, and the new account
@@ -243,7 +243,7 @@ export default function AuthPage() {
   return (
     // Theme tokens throughout: the page used to be hard-coded slate and teal,
     // so a light-theme user with a violet accent landed on a dark teal splash,
-    // outside the contrast checks every other screen passes (DS-46).
+    // outside the contrast checks every other screen passes.
     <div
       className="min-h-screen text-fg"
       style={{
@@ -253,10 +253,10 @@ export default function AuthPage() {
     >
       {/* Top-aligned, not centred: centring re-placed the card every time a
           mode changed its height, so the tabs just clicked moved out from
-          under the pointer (SH-30). */}
+          under the pointer. */}
       <div className="mx-auto grid min-h-screen max-w-6xl content-start items-start gap-8 px-6 py-10 lg:grid-cols-[1.15fr_0.85fr] lg:pt-[12vh]">
         {/* The product's mark, as the sidebar draws it: above the card on a
-            phone, top-left of the page from lg (SH-31). */}
+            phone, top-left of the page from lg. */}
         <div className="order-first flex items-center gap-2 lg:col-span-2 lg:order-none">
           <TrifoldMark size={24} />
           {/* A logo, not UI text: drawn at the sidebar wordmark's fixed 18px. */}
@@ -268,7 +268,7 @@ export default function AuthPage() {
           </span>
         </div>
         {/* Below lg the form comes first: the pitch stacked above it put the
-            sign-in card about a screen and a half down on a phone (SHELL-43). */}
+            sign-in card about a screen and a half down on a phone. */}
         <section className="order-last space-y-8 lg:order-none">
           <div className="inline-flex items-center gap-2 rounded-full border border-border bg-surface px-3 py-1 text-body-sm uppercase tracking-[0.28em] text-accent">
             <Radar className="h-3.5 w-3.5" aria-hidden="true" />
@@ -385,7 +385,7 @@ export default function AuthPage() {
               <form
                 className="space-y-4"
                 // Validated here, not by the browser's one-field-at-a-time
-                // bubbles (AU-4).
+                // bubbles.
                 noValidate
                 onSubmit={(event) => {
                   event.preventDefault()

@@ -110,7 +110,7 @@ describe('ProjectGeneralSection', () => {
     const input = await screen.findByLabelText('Releases to keep')
     expect(input).toHaveValue(3)
     fireEvent.change(input, { target: { value: '4' } })
-    // One Save for the page (ST-3); it sends only the part that changed.
+    // One Save for the page; it sends only the part that changed.
     fireEvent.click(screen.getByRole('button', { name: /Save changes/ }))
 
     await waitFor(() => {
@@ -118,7 +118,7 @@ describe('ProjectGeneralSection', () => {
     })
   })
 
-  it('has one save bar with Discard for both cards (ST-3)', async () => {
+  it('has one save bar with Discard for both cards', async () => {
     vi.spyOn(globalThis, 'fetch').mockImplementation(async (input) => {
       const url = String(input)
       if (url.endsWith('/api/v1/projects/demo')) return jsonResponse(PROJECT)
@@ -144,7 +144,7 @@ describe('ProjectGeneralSection', () => {
     expect(save).toBeDisabled()
   })
 
-  it('marks a bad slug and a bad release count as errors, and says the form is edited (ST-2)', async () => {
+  it('marks a bad slug and a bad release count as errors, and says the form is edited', async () => {
     vi.spyOn(globalThis, 'fetch').mockImplementation(async (input) => {
       const url = String(input)
       if (url.endsWith('/api/v1/projects/demo')) return jsonResponse(PROJECT)
@@ -229,7 +229,7 @@ describe('ProjectGeneralSection', () => {
       .forEach((select) => expect(select).not.toBeDisabled())
   })
 
-  it('cross-links to the in-app tracking plan and alerting (#238 ST-5)', async () => {
+  it('cross-links to the in-app tracking plan and alerting (#238)', async () => {
     vi.spyOn(globalThis, 'fetch').mockImplementation(async (input) => {
       const url = String(input)
       if (url.endsWith('/api/v1/projects/demo')) return jsonResponse(PROJECT)
@@ -279,7 +279,7 @@ describe('ProjectGeneralSection', () => {
 
     // Wait for the project to load, then confirm the whole owner-only danger
     // zone is absent rather than a card of buttons the editor can never press.
-    // A non-editor reads the details as text, not as disabled inputs (#252 ST-18).
+    // A non-editor reads the details as text, not as disabled inputs (#252).
     expect(await screen.findByText('Demo')).toBeInTheDocument()
     expect(screen.queryByLabelText('Name')).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Reset anomalies' })).not.toBeInTheDocument()
@@ -314,7 +314,7 @@ describe('ProjectGeneralSection', () => {
     })
     renderSection(authValue('member'))
 
-    // Values as text, not dashed dead inputs (ST-18).
+    // Values as text, not dashed dead inputs.
     expect(await screen.findByText('Demo')).toBeInTheDocument()
     expect(screen.queryByLabelText('Name')).toBeNull()
     expect(screen.queryByLabelText('Releases to keep')).toBeNull()
@@ -324,7 +324,7 @@ describe('ProjectGeneralSection', () => {
     expect(screen.getByRole('button', { name: 'Rebuild index' })).toBeEnabled()
   })
 
-  it('leaves Rebuild index out when the project says this user may not mutate it (ST-18)', async () => {
+  it('leaves Rebuild index out when the project says this user may not mutate it', async () => {
     vi.spyOn(globalThis, 'fetch').mockImplementation(async (input) => {
       const url = String(input)
       if (url.endsWith('/api/v1/projects/demo')) {
@@ -352,7 +352,7 @@ describe('ProjectGeneralSection', () => {
 
     expect(await screen.findByText('Demo')).toBeInTheDocument()
     expect(screen.getByRole('note')).toHaveTextContent(/viewer role/)
-    // No dead controls under a notice that says nothing can change (ST-18).
+    // No dead controls under a notice that says nothing can change.
     expect(screen.queryByRole('textbox')).toBeNull()
     expect(screen.queryByRole('button', { name: 'Rebuild index' })).toBeNull()
     expect(screen.queryByRole('button', { name: /Save changes/ })).toBeNull()
@@ -370,7 +370,7 @@ describe('ProjectGeneralSection', () => {
         init?.method === 'POST'
       ) {
         const body = JSON.parse(String(init?.body))
-        // The dry run that feeds the confirm is not the reset (ST-39).
+        // The dry run that feeds the confirm is not the reset.
         if (body.dry_run) return jsonResponse({ metric_anomalies: 5, metric_breakdown_anomalies: 2 })
         resetBody = body
         return jsonResponse({ metric_anomalies: 5, metric_breakdown_anomalies: 2 })
@@ -386,7 +386,7 @@ describe('ProjectGeneralSection', () => {
     })
     fireEvent.click(screen.getByRole('button', { name: 'Reset anomalies' }))
 
-    // Confirm in the irreversible-action dialog, which counts what goes (ST-39).
+    // Confirm in the irreversible-action dialog, which counts what goes.
     const dialog = await screen.findByRole('alertdialog')
     expect(dialog).toHaveTextContent('Permanently delete 5 anomalies and 2 breakdown anomalies (older than 7 days)')
     fireEvent.click(within(dialog).getByRole('button', { name: 'Reset anomalies' }))
@@ -471,7 +471,7 @@ describe('ProjectGeneralSection — retire unused properties', () => {
   })
 })
 
-describe('ProjectGeneralSection unsaved-changes guard (WS-13)', () => {
+describe('ProjectGeneralSection unsaved-changes guard', () => {
   function renderWithShell(auth: AuthContextValue) {
     const registered: (UnsavedWork | null)[] = []
     const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
@@ -515,7 +515,7 @@ describe('ProjectGeneralSection unsaved-changes guard (WS-13)', () => {
 
     fireEvent.change(screen.getByLabelText('Releases to keep'), { target: { value: '5' } })
     await waitFor(() => expect(lastRegistered()).not.toBeNull())
-    // The rail marks General as holding unsaved edits (ST-3).
+    // The rail marks General as holding unsaved edits.
     expect(lastRegistered()!.dirtyPaths).toEqual(['project/general'])
   })
 })
@@ -547,7 +547,7 @@ describe('ProjectGeneralSection — #207', () => {
     })
   }
 
-  it('no longer shows dead Archive and Transfer ownership rows (WS-11)', async () => {
+  it('no longer shows dead Archive and Transfer ownership rows', async () => {
     mockDemo()
     renderSection()
 
@@ -558,7 +558,7 @@ describe('ProjectGeneralSection — #207', () => {
     expect(screen.queryByRole('button', { name: 'Transfer' })).not.toBeInTheDocument()
   })
 
-  it('asks for the slug before deleting and shows a refusal in place (WS-9, WS-10)', async () => {
+  it('asks for the slug before deleting and shows a refusal in place', async () => {
     const calls = mockDemo((method) =>
       method === 'DELETE' ? errorResponse(403, 'Only owners may delete projects') : undefined,
     )
@@ -580,7 +580,7 @@ describe('ProjectGeneralSection — #207', () => {
     expect(calls.filter((call) => call.method === 'DELETE')).toHaveLength(1)
   })
 
-  it('announces a failed save as an error, not a hint (WS-15)', async () => {
+  it('announces a failed save as an error, not a hint', async () => {
     mockDemo((method) =>
       method === 'PATCH' ? errorResponse(409, 'A project with this slug already exists') : undefined,
     )
@@ -594,7 +594,7 @@ describe('ProjectGeneralSection — #207', () => {
     expect(await screen.findByRole('alert')).toHaveTextContent(/already exists/)
   })
 
-  it('confirms a successful save (WS-15)', async () => {
+  it('confirms a successful save', async () => {
     // The server keeps what it saved: the refetch after the save must answer
     // with the new name, or the form reads as edited again and "Saved" hides.
     let saved = PROJECT
@@ -615,7 +615,7 @@ describe('ProjectGeneralSection — #207', () => {
     expect(await screen.findByText('Saved')).toBeInTheDocument()
   })
 
-  it('offers IANA zones instead of free text, and saves the chosen one (WS-16)', async () => {
+  it('offers IANA zones instead of free text, and saves the chosen one', async () => {
     const calls = mockDemo((method, init) =>
       method === 'PATCH'
         ? jsonResponse({ ...PROJECT, ...(JSON.parse(String(init?.body)) as object) })
@@ -668,7 +668,7 @@ describe('ProjectGeneralSection — #207', () => {
     })
   })
 
-  it('reports a renamed slug upward so the page stays bound (WS-8)', async () => {
+  it('reports a renamed slug upward so the page stays bound', async () => {
     const renamed = { ...PROJECT, slug: 'demo-renamed' }
     const requested: string[] = []
     vi.spyOn(globalThis, 'fetch').mockImplementation(async (input, init) => {

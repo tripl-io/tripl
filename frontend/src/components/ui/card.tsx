@@ -1,7 +1,7 @@
 import * as React from "react"
 import { cn } from "@/lib/utils"
 
-// One section-card geometry (DS-4 / MO-10), shared with the settings kit's
+// One section-card geometry, shared with the settings kit's
 // `Panel` and `SCard`: `rounded-card` (10px), a 1px border, the `--surface`
 // fill and no shadow; a header bar at `px-4 py-3` over a `--border-subtle`
 // rule, a 12.5px semibold title, and a 16px body. The shadcn defaults
@@ -13,7 +13,7 @@ function Card({ className, ...props }: React.ComponentProps<"div">) {
       data-slot="card"
       // --scroll-x-bg: a ui/Table inside the card paints its sideways-scroll
       // fades in the card's colour rather than --bg, which in dark mode drew a
-      // darker band across the card (DS-34; see .tripl-scroll-x in index.css).
+      // darker band across the card (see .tripl-scroll-x in index.css).
       className={cn(
         "flex flex-col rounded-card border border-border bg-surface text-fg [--scroll-x-bg:var(--surface)]",
         className,

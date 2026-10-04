@@ -4,7 +4,7 @@ import { Check, Circle } from "lucide-react"
 import { cn } from "@/lib/utils"
 
 // No sub-menus: nothing used them, and the SubContent had no Portal, so it
-// would have been clipped by the Content's own `overflow-y-auto` (DS-36).
+// would have been clipped by the Content's own `overflow-y-auto`.
 const DropdownMenu = DropdownMenuPrimitive.Root
 const DropdownMenuTrigger = DropdownMenuPrimitive.Trigger
 const DropdownMenuGroup = DropdownMenuPrimitive.Group

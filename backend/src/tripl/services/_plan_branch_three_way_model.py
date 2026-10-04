@@ -1,4 +1,4 @@
-"""The vocabulary of "Update from main" (PL-8): sides, slots, ops, row names.
+"""The vocabulary of "Update from main": sides, slots, ops, row names.
 
 What ``_plan_branch_three_way`` plans in: the entity types in the order they
 are visited, the fields each one compares, the ``Slot`` that lines one entity

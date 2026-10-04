@@ -1093,7 +1093,7 @@ async def _attach_first_seen(session: AsyncSession, *, project_id: uuid.UUID, ev
     if first_seen != event.first_seen_at:
         set_committed_value(event, "first_seen_at", first_seen)
     # The same twin, named: a branch page's "View main plan" opens this event on
-    # main instead of main's event list (EVT-42). None on main and for an event
+    # main instead of main's event list. None on main and for an event
     # created on the branch that main has no counterpart of.
     event.main_event_id = row.id if row.id != event.id else None  # type: ignore[attr-defined]
 
@@ -1281,7 +1281,7 @@ async def identity_holders(
     names: Sequence[str],
     branch_id: uuid.UUID | None,
 ) -> EventIdentityHoldersResponse:
-    """Which of ``names`` an event of this type already holds, exactly (EVT-37).
+    """Which of ``names`` an event of this type already holds, exactly.
 
     The same predicate create uses (``_identities_already_held``), so an
     authoring form can say "already in the catalog" for exactly the names an

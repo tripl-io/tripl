@@ -120,7 +120,7 @@ class _TestTarget:
     from the wrong thread, so the snapshot is taken on the event loop first.
     """
 
-    # None for a draft that was never saved (AL-30).
+    # None for a draft that was never saved.
     destination_id: uuid.UUID | None
     destination_type: str
     destination_name: str
@@ -486,7 +486,7 @@ def _exception_chain(exc: BaseException) -> list[BaseException]:
 
 
 def classify_test_send_error(exc: BaseException) -> tuple[DestinationTestErrorKind, int | None]:
-    """A test send's failure as a kind (+ HTTP status), for the dialog (AL-30).
+    """A test send's failure as a kind (+ HTTP status), for the dialog.
 
     Most specific first: an HTTP answer beats the socket it came over, a TLS or
     DNS failure beats the generic OSError both subclass. A bare ``ValueError``
@@ -549,7 +549,7 @@ async def send_draft_destination_test(
     slug: str,
     draft: AlertDestinationDraftTestRequest,
 ) -> DestinationTestOutcome:
-    """Test the settings a destination dialog holds, before they are saved (AL-30).
+    """Test the settings a destination dialog holds, before they are saved.
 
     The same send, the same checks and the same answer as a saved destination's
     Test: the demo zero-egress predicate, the channel validators and, for the

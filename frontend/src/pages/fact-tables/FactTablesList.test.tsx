@@ -140,7 +140,7 @@ describe('FactTablesList', () => {
   })
 })
 
-describe('FactTablesList data source column (MET-37)', () => {
+describe('FactTablesList data source column', () => {
   it('shows a placeholder, not a dash, while source names load', async () => {
     vi.mocked(dataSourcesApi.list).mockImplementation(() => new Promise(() => {}))
     mockList({ items: [makeItem({ id: 'ft-1', display_name: 'Orders' })], total: 1 })
@@ -197,7 +197,7 @@ describe('FactTablesList data source column (MET-37)', () => {
   })
 })
 
-describe('FactTablesList rows (MT-30)', () => {
+describe('FactTablesList rows', () => {
   it('says how many metrics use each table, and counts the tables in use', async () => {
     mockList({
       items: [

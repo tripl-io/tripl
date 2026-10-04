@@ -252,7 +252,7 @@ describe('InboxBulkActionBar — the note the batch shares', () => {
 
 // The bar is fixed to the viewport and wraps to several rows on a phone, so it
 // covered the last cards' actions and "Load more" with nothing reserving room
-// to scroll them out from under it (ALR-31).
+// to scroll them out from under it.
 describe('InboxBulkActionBar — room for the end of the list', () => {
   it('reserves its own height, plus its offset from the edge, in the flow', () => {
     vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockReturnValue({
@@ -286,7 +286,7 @@ describe('InboxBulkActionBar — room for the end of the list', () => {
 })
 
 // Below `sm` the bar is one row: the count, Acknowledge, Resolve and a "More"
-// menu holding Note, Mute and Reopen (AL-16). The menu items must do what the
+// menu holding Note, Mute and Reopen. The menu items must do what the
 // buttons they stand in for do.
 describe('InboxBulkActionBar — the phone "More" menu', () => {
   it('reopens the selection from the menu', async () => {

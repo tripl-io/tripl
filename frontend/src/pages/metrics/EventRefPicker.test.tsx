@@ -69,7 +69,7 @@ function renderPicker(initial: EventRef = { eventId: '', eventTypeId: '' }, onCh
 
 afterEach(() => vi.clearAllMocks())
 
-describe('EventRefPicker combobox (MT-10)', () => {
+describe('EventRefPicker combobox', () => {
   it('is one labelled combobox, not a search box over a select', async () => {
     serve(events(3))
     const { input } = renderPicker()

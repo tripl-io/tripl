@@ -130,8 +130,8 @@ export function VariableDefinitionFields({
     )
   }
 
-  // Overrides are values too, and a type change strands them the same way
-  // (review 204): distinct, in the order the overrides list them.
+  // Overrides are values too, and a type change strands them the same way:
+  // distinct, in the order the overrides list them.
   // The server names the schema node it refused ("json_schema.properties.x:
   // ..."), so that refusal is shown under the schema editor, not at the foot.
   const saveError = draft.updateMut.isError ? getErrorMessage(draft.updateMut.error) : null

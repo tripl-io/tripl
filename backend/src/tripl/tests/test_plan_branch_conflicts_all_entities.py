@@ -1,4 +1,4 @@
-"""The three-way overlap check across every entity type (PL-8).
+"""The three-way overlap check across every entity type.
 
 Pure: payloads are hand-built snapshots, so each rule of
 ``_plan_branch_three_way`` is pinned without a database. The endpoint side is

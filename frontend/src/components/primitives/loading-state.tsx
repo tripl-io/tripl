@@ -14,7 +14,7 @@ type LoadingStateProps = {
 }
 
 /**
- * The one loading state (DS-38): announced as a status, in the subtle caption
+ * The one loading state: announced as a status, in the subtle caption
  * colour. Loading used to be plain "Loading…" text with no live region on most
  * surfaces, a spinner on some and skeletons on others. Panels use the text
  * form; tables pass `rows` for skeleton rows.

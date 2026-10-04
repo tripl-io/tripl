@@ -19,7 +19,7 @@ const NO_TYPES: readonly EventType[] = []
  * "Replaced by" on a deprecated event: a server-side search and the pick.
  *
  * Mounted only while the field is on screen — an event that is not being
- * retired asks nothing of the catalog. Split out of `EventForm` (EVT-30).
+ * retired asks nothing of the catalog. Split out of `EventForm`.
  */
 export function SuccessorPicker({
   slug,
@@ -35,7 +35,7 @@ export function SuccessorPicker({
   eventId: string
   value: string
   onChange: (value: string) => void
-  /** The project's types, to name each option's type (AU-24). */
+  /** The project's types, to name each option's type. */
   eventTypes?: readonly EventType[]
 }) {
   const [search, setSearch] = useState('')
@@ -63,7 +63,7 @@ export function SuccessorPicker({
   })
   const options = useMemo(() => {
     // "name · type": options showed the name alone, so two events of one name
-    // under different types could not be told apart (AU-24). Two namesakes of
+    // under different types could not be told apart. Two namesakes of
     // one type — the duplicate AU-2 describes — share that label too, so those
     // alone also carry their status and the day they were added, and the id's
     // head when even that matches.

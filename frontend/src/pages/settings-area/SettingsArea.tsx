@@ -62,7 +62,7 @@ const LAST_SLUG_STORAGE_KEY = 'tripl-last-project-slug'
  * URL — a route param, or the `?project=` every in-app link to these sections
  * carries — otherwise the last project visited. The last-visited key is shared
  * by every tab, so it is only the fallback for a bare address: reading it first
- * opened the OTHER tab's project, danger zone included (SHELL-20).
+ * opened the OTHER tab's project, danger zone included.
  * The sidebar's usePersistLastSlug writes the last-visited slug to this same
  * localStorage key on every project route; we only read it here.
  *
@@ -94,7 +94,7 @@ function useSettingsSlug(pickedSlug: string | null): string | undefined {
 /**
  * A section's chunk loading. Every section draws its own `SHeader`, which is
  * lazy with the rest of it, so on a cold load the page had no title at all,
- * only "Loading…" at the top left (#237 ST-35). The fallback names the page
+ * only "Loading…" at the top left (#237). The fallback names the page
  * from the rail's label and draws the cards' shape under it.
  */
 function SectionFallback({ section }: { section: string }) {
@@ -107,7 +107,7 @@ function SectionFallback({ section }: { section: string }) {
   )
 }
 
-/** The page title above a state that is not the section itself (ST-36). */
+/** The page title above a state that is not the section itself. */
 function StateHeader({ section }: { section: string }) {
   const title = sectionLabel(section)
   return title ? <SHeader title={title} /> : null
@@ -148,7 +148,7 @@ export default function SettingsArea({ section }: { section: string }) {
   // slug came from has to follow, or the section goes on requesting the old
   // one: a picked slug outranked the localStorage key General had already
   // updated, so the page fell over with "Failed to load project" and any later
-  // Save or Delete targeted a project that no longer existed (WS-8). The
+  // Save or Delete targeted a project that no longer existed. The
   // address is rewritten in place; the draft is saved, so the leave guard has
   // nothing to ask about.
   const followRename = (renamed: string) => {
@@ -172,7 +172,7 @@ export default function SettingsArea({ section }: { section: string }) {
 
   // The project's front door, Overview, where the Get-started checklist lives:
   // a newcomer sent to Data sources by step 2 came back to an empty Events
-  // table instead (#250 JR-1 / JR-3).
+  // table instead (#250).
   const backHref = slug ? projectHomePath(slug) : workspacePath()
 
   return (
@@ -189,7 +189,7 @@ export default function SettingsArea({ section }: { section: string }) {
           card below already says it. */}
       {/* A Get-started step (Connect a data source) lands here; the bar is
           its way back to the checklist, and renders nothing otherwise
-          (#250 JR-3). */}
+          (#250). */}
       <OnboardingReturnBar className="mb-4" />
       {projectsQuery.isError && !(slug === undefined && isProjectScopedSection(section)) && (
         <ErrorState
@@ -496,7 +496,7 @@ function OrgOwnerOnly({ section, reason }: { section: string; reason: string }) 
  * An owner-only section opened by a non-owner (a shared link, a bookmark). The
  * rail hides the Instance group from them, so the page has to say where they
  * are itself: the section's title, the one read-only notice, and a way out
- * (#237 ST-17 / ST-36).
+ * (#237).
  */
 function OwnerOnly({ section }: { section: string }) {
   return (

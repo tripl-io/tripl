@@ -42,7 +42,7 @@ describe('resolveMetaFieldHref', () => {
   })
 })
 
-describe('resolveMetaFieldHref encoding and schemes (EVT-43)', () => {
+describe('resolveMetaFieldHref encoding and schemes', () => {
   it('URL-encodes the key it puts into a template', () => {
     expect(resolveMetaFieldHref(
       { field_type: 'string', link_template: 'https://x.example/search?q=${value}' },

@@ -110,7 +110,7 @@ class AuthStatusResponse(BaseModel):
     registration_enabled: bool = True
     # Whether the instance can send mail (SMTP host AND From: address), so the
     # forgot-password form can say up front that no email will come instead of
-    # after the request (ST-24). Instance-wide, and already returned by the
+    # after the request. Instance-wide, and already returned by the
     # unauthenticated reset request, so exposing it here leaks nothing new.
     email_configured: bool = False
     # ``self_hosted`` or ``hosted`` (DEPLOYMENT_MODE). On a hosted instance the

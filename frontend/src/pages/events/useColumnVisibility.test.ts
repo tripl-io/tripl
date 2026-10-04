@@ -61,7 +61,7 @@ describe('useColumnVisibility lean default', () => {
   })
 })
 
-describe('type-specific field columns on the All tab (EV-11)', () => {
+describe('type-specific field columns on the All tab', () => {
   const field = (id: string, name: string) => ({ id, name }) as unknown as FieldDefinition
   const type = (names: string[]) =>
     ({ field_definitions: names.map((name, i) => field(`${name}-${i}`, name)) }) as unknown as EventType

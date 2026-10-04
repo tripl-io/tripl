@@ -103,7 +103,7 @@ function inheritedAfterSave(values: TrackerFormValues, saved: ProjectTrackerConf
 }
 
 /**
- * What the form would save wrong, per field (PLAN-21).
+ * What the form would save wrong, per field.
  *
  * The backend validates every field it is SENT and rejects an empty one ("Jira
  * base_url is required"), but it does not require any of them to exist: a
@@ -254,7 +254,7 @@ export function TrackerConfigDialog({ slug, open, onOpenChange }: TrackerConfigD
     queryFn: () => trackerConfigApi.get(slug),
     enabled: open,
     // Rendered in the dialog with a retry, instead of "Loading tracker…"
-    // forever (PLAN-21).
+    // forever.
     meta: SILENT_ERROR_META,
   })
   const config = configQuery.data
@@ -276,7 +276,7 @@ export function TrackerConfigDialog({ slug, open, onOpenChange }: TrackerConfigD
             onRetry={() => void configQuery.refetch()}
           />
         ) : (
-          // The form's shape while it loads, not a sentence (#237 AU-43).
+          // The form's shape while it loads, not a sentence (#237).
           <div role="status" className="space-y-4 py-4">
             <span className="sr-only">Loading tracker…</span>
             {[0, 1, 2].map(index => (
@@ -370,14 +370,14 @@ function TrackerConfigForm({ slug, config, onClose }: TrackerConfigFormProps) {
       // Clear the just-saved secret so the raw value never lingers in the DOM.
       setApiToken('')
       // Done means closed: left open under a green line with Cancel still on
-      // offer, nobody could tell whether Cancel would undo the save (AU-38).
+      // offer, nobody could tell whether Cancel would undo the save.
       toast.success(enabled ? `${label} tracker connected` : 'Tracker configuration saved')
       onClose()
     },
   })
 
   // The first control takes focus once the form is in, rather than the close
-  // button, which is all the dialog holds while the config loads (AU-38).
+  // button, which is all the dialog holds while the config loads.
   useEffect(() => {
     if (canEdit) document.getElementById(enabledId)?.focus()
   }, [canEdit, enabledId])
@@ -445,7 +445,7 @@ function TrackerConfigForm({ slug, config, onClose }: TrackerConfigFormProps) {
 
         {/* The connection belongs to the switch above: dimmed while the
             tracker is off, still editable so a connection can be parked
-            half-filled (AU-38). */}
+            half-filled. */}
         <fieldset
           className={enabled ? 'grid gap-4' : 'grid gap-4 opacity-60 transition-opacity focus-within:opacity-100'}
         >

@@ -218,7 +218,7 @@ export function useMetricCollectionWatcher<TContext = void>(
  * The hook above lives and dies with the component that called it. That is
  * right for a detail page whose spinner is the watch, and wrong for a list row:
  * the catalog unmounts a row on every search keystroke, filter change or page
- * leave, which silently dropped the "you will be notified" promise (MET-8).
+ * leave, which silently dropped the "you will be notified" promise.
  * A detached watch is owned by this module instead, so it outlives any
  * component; components only read whether one is running.
  */

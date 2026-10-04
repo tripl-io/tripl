@@ -67,7 +67,7 @@ describe('shouldFetchNextPage', () => {
     lastVisibleIndex: undefined,
   }
 
-  it('keeps paging under a column filter whose first page matched nothing (EVT-4)', () => {
+  it('keeps paging under a column filter whose first page matched nothing', () => {
     // Stopping at an empty page showed "No events match" over a catalog whose
     // later pages held matches.
     expect(shouldFetchNextPage({ ...base, isClientFiltered: true, loadedCount: 0 })).toBe(true)

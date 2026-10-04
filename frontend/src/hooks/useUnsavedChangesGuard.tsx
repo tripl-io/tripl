@@ -77,7 +77,7 @@ function useConfirmDiscard(isDirty: boolean, message: string) {
   const confirmDiscard = useCallback(async (): Promise<boolean> => {
     if (!dirtyRef.current) return true
     return confirm({
-      // "Leave without saving?" / Keep editing / Discard changes (AU-42).
+      // "Leave without saving?" / Keep editing / Discard changes.
       ...UNSAVED_CONFIRM_COPY,
       message,
       variant: 'danger',

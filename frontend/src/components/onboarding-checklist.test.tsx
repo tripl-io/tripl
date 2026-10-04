@@ -132,7 +132,7 @@ afterEach(() => {
   vi.clearAllMocks()
 })
 
-describe('OnboardingChecklist collapse and recovery (SHELL-51 / WS-35)', () => {
+describe('OnboardingChecklist collapse and recovery', () => {
   it('collapses back to the slim bar after "Show steps", with a real aria-expanded', () => {
     renderChecklist(nearlyDoneProps())
 
@@ -174,7 +174,7 @@ describe('OnboardingChecklist collapse and recovery (SHELL-51 / WS-35)', () => {
 })
 
 describe('OnboardingChecklist', () => {
-  it('orders the five steps along the fastest path, with tagged deep links (JR-2 / JR-3)', () => {
+  it('orders the five steps along the fastest path, with tagged deep links', () => {
     renderChecklist({ summary: makeSummary() })
 
     expect(screen.getByText('Get started')).toBeInTheDocument()
@@ -196,7 +196,7 @@ describe('OnboardingChecklist', () => {
     expect(titles[4]).toMatch(/Set up alerting/)
   })
 
-  it('offers adding events by hand on the review step, for a project with no warehouse (JR-2)', () => {
+  it('offers adding events by hand on the review step, for a project with no warehouse', () => {
     renderChecklist({ summary: makeSummary() })
 
     expect(
@@ -222,14 +222,14 @@ describe('OnboardingChecklist', () => {
     expect(screen.getByText('1 of 5')).toBeInTheDocument()
   })
 
-  it('names the step count in plain words, not Plan → Observe → Govern (SH-37)', () => {
+  it('names the step count in plain words, not Plan → Observe → Govern', () => {
     renderChecklist({ summary: makeSummary() })
 
     expect(screen.getByText(/5 steps to your first monitored event/)).toBeInTheDocument()
     expect(document.body.textContent).not.toMatch(/Plan → Observe → Govern/)
   })
 
-  it('keeps upcoming steps at full opacity with their number (SH-37)', () => {
+  it('keeps upcoming steps at full opacity with their number', () => {
     renderChecklist({ summary: makeSummary() })
 
     const upcoming = screen.getByRole('link', { name: /Set up alerting/ })
@@ -241,7 +241,7 @@ describe('OnboardingChecklist', () => {
     )
   })
 
-  it('links "What is this?" under the title to the project glossary (JR-32)', () => {
+  it('links "What is this?" under the title to the project glossary', () => {
     renderChecklist({ summary: makeSummary() })
 
     expect(screen.getByRole('link', { name: 'What is this?' })).toHaveAttribute(

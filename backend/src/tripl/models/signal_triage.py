@@ -12,7 +12,7 @@ from tripl.models.enum_types import db_enum
 
 
 class SignalTriage(UUIDMixin, TimestampMixin, Base):
-    """A user's triage of an open signal (MO-4 / JR-5, F01 #254).
+    """A user's triage of an open signal (F01 #254).
 
     ``acknowledged`` / ``muted`` apply only to signals NOT routed to an
     incident. The verdicts (``expected``, ``tracking_bug``, ``false_positive``,

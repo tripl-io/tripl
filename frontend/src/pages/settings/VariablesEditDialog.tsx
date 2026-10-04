@@ -18,18 +18,18 @@ import { variableDetailPath } from './variable-detail/variableDetailPath'
  * with drift review, per-event overrides and observed values under it.
  *
  * The same sections make up the variable's own page
- * (`/p/:slug/variables/:id`, AU-26), which the header links to: the
+ * (`/p/:slug/variables/:id`), which the header links to: the
  * page gives each section room and a shareable address; this dialog is for a
  * quick fix without leaving the list.
  *
  * Its own component so its form state, queries and sub-panels re-render on a
- * keystroke without the whole variables page behind it (PLAN-31). The page
+ * keystroke without the whole variables page behind it. The page
  * mounts it keyed by the variable id, so every variable opens on a fresh form.
  *
  * `variable` is the LIVE row from the page's list, not a copy taken when the
  * dialog opened: after "Clear observed values" or a drift action the list
  * refetches, and a snapshot kept offering to clear "12 contexts" of a variable
- * that had none left (PLAN-29). Only the form drafts are seeded once.
+ * that had none left. Only the form drafts are seeded once.
  */
 export function VariablesEditDialog({
   slug,
@@ -57,10 +57,10 @@ export function VariablesEditDialog({
         <DialogHeader className="pr-8">
           <DialogTitle className="break-all leading-tight">{canWrite ? 'Edit' : 'Property'}: {variable.name}</DialogTitle>
         </DialogHeader>
-        {/* Only the body scrolls: the title and Save stay in view (AL-4).
+        {/* Only the body scrolls: the title and Save stay in view.
             min-w-0 all the way down: the observed-values table's min-content
             width used to widen the body past a 390px dialog and clip every
-            control at the right edge (AU-3). */}
+            control at the right edge. */}
         <DialogBody className="grid min-w-0 grid-cols-[minmax(0,1fr)] gap-4">
           {/* The form holds the definition only. The sections below act at
               once, and outside it an Enter in one of their inputs cannot

@@ -44,7 +44,7 @@ const TEXT_SURFACES = [
   '--surface-hover',
 ] as const
 
-// The three text steps (DS-12). The four old names are `var()` aliases of
+// The three text steps. The four old names are `var()` aliases of
 // these and are checked as such below, so measuring the steps covers them.
 const BODY_TEXT_TOKENS = ['--fg', '--fg-secondary', '--fg-tertiary'] as const
 
@@ -369,11 +369,11 @@ describe.each(ACCENT_BLOCKS)('accent: $name', ({ light, dark }) => {
 })
 
 /**
- * Secondary text on a tinted panel (DEMO-24): the demo welcome panel and the
+ * Secondary text on a tinted panel: the demo welcome panel and the
  * provisioning dialog set captions on `--accent-soft` and `--warning-soft`,
  * and the tint is what eats the ratio. Both secondary steps must clear AA
  * there. `--fg-faint` used to fail on a tint and was banned from them; it is
- * `--fg-tertiary` now (DS-12), which is held to the tint too, so the ban is
+ * `--fg-tertiary` now, which is held to the tint too, so the ban is
  * gone and this keeps it gone.
  */
 describe('secondary text on tinted fills', () => {
@@ -393,7 +393,7 @@ describe('secondary text on tinted fills', () => {
 })
 
 /**
- * The old four-step names are aliases of the three steps (DS-12). They are
+ * The old four-step names are aliases of the three steps. They are
  * declared once, in :root, and resolve on <html> where the theme class sits,
  * so the dark block must not redeclare them with a literal of its own: that
  * would reopen a fourth, unmeasured grey.
@@ -410,7 +410,7 @@ describe('text token aliases', () => {
 })
 
 /**
- * Dark elevation (DS-10): a floating layer is lighter than the card under it,
+ * Dark elevation: a floating layer is lighter than the card under it,
  * and a card lighter than the page.
  */
 describe('dark elevation ladder', () => {
@@ -426,7 +426,7 @@ describe('dark elevation ladder', () => {
 })
 
 /**
- * No accent may pass for a status (DS-8). With amber the brand colour WAS
+ * No accent may pass for a status. With amber the brand colour WAS
  * --warning, and rose sat 7° from --danger, so every primary button, focus
  * ring and selected pill read as a warning or a destructive action. Every
  * accent hue stays 35° or more from every status hue, in both themes.
@@ -450,7 +450,7 @@ describe('accent hues stay out of the status bands', () => {
 })
 
 /**
- * The solid accent fill (SH-40). Light aliases it to --accent, which the
+ * The solid accent fill. Light aliases it to --accent, which the
  * accent cases above already measure under --accent-fg; dark gives every
  * variant a deeper fill under white, measured here.
  */
@@ -491,7 +491,7 @@ describe('switch tracks', () => {
 })
 
 /**
- * The chart series palette (DS-23 / MON-36). Lines and dots are non-text
+ * The chart series palette. Lines and dots are non-text
  * graphics, so each slot answers to 3:1 against the surfaces a chart sits on,
  * in both themes. Slots must also stay out of the danger hue — anomaly dots
  * are `--danger` — and be told apart from one another.

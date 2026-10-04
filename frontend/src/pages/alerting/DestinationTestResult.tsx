@@ -17,7 +17,7 @@ interface DestinationTestResultProps {
 }
 
 /**
- * The dialog's "Send test" outcome as one inline row (AL-30): an icon, one
+ * The dialog's "Send test" outcome as one inline row: an icon, one
  * plain sentence, the transport's own words behind "Details", and Dismiss.
  * Same wording as the destination card's result, so a test reads the same
  * before and after saving.

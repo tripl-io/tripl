@@ -67,7 +67,7 @@ async def _get_project_summaries(
 
     ``branch_id`` scopes the PLAN counters (event types, events, variables) to
     one working branch instead of main, so a sidebar badge read while a branch
-    is open agrees with the list on the page beside it (SH-11). It is only ever
+    is open agrees with the list on the page beside it. It is only ever
     passed for a single project whose ownership the ``?branch=`` dependency
     already checked; every non-plan counter ignores it.
     """
@@ -224,7 +224,7 @@ async def _populate_failing_alert_destinations(
 ) -> None:
     """Count, per project, the ENABLED destinations whose latest delivery failed.
 
-    The per-destination twin of ``_populate_failing_scan_configs`` (MO-15): a
+    The per-destination twin of ``_populate_failing_scan_configs``: a
     channel that fails every send stays counted even when another destination
     delivered more recently, and one whose newest delivery went through (a
     retry included — it updates the same row) drops out. Disabled destinations
@@ -502,7 +502,7 @@ async def _populate_monitoring_signals(
     # early-return so a project with only metric-scope anomalies is still counted.
     #
     # Both halves drop signals a triage verdict hides (muted scope or marked
-    # expected, MO-4 / JR-5), the same predicate the expanded list flags
+    # expected), the same predicate the expanded list flags
     # ``hidden``, and every signal that has a verdict — its own, or its
     # incident's status (F01, #254) — the Anomalies page's default
     # "Needs verdict" view, so the badge keeps counting what the page shows.
@@ -737,7 +737,7 @@ _DEMO_ACCESS_TOUCH_SECONDS = 60
 async def get_project(
     session: AsyncSession, slug: str, *, branch_id: uuid.UUID | None = None
 ) -> ProjectResponse:
-    """The project with its summary; ``branch_id`` scopes the plan counters (SH-11)."""
+    """The project with its summary; ``branch_id`` scopes the plan counters."""
     project = await resolve_project(session, slug)
     # Decide WHILE attributes are fresh, serialize, then commit the touch last: the
     # commit expires the ORM object, but the response is already a detached model,

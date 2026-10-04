@@ -41,7 +41,7 @@ class PhotoLimitsResponse(BaseModel):
     """What the upload endpoint will take, for the browser to say so up front.
 
     ``photo_max_size_mb`` is an owner setting; every signed-in user may read it,
-    because an editor's upload is what it refuses (EVT-28). Both values are the
+    because an editor's upload is what it refuses. Both values are the
     organization's (F20 PR11): its own cap, never above the operator's, and its
     allow-list, never wider than the operator's.
     """

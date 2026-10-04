@@ -1,4 +1,4 @@
-"""Base, main and one branch lined up entity by entity, for "Update from main" (PL-8).
+"""Base, main and one branch lined up entity by entity, for "Update from main".
 
 The merge reads the three sides in one direction: what the BRANCH changed since
 the base goes onto main. "Update from main" reads them in the other: what MAIN

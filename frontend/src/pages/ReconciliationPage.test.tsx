@@ -151,7 +151,7 @@ function renderPage(
   )
 }
 
-/** Confirms the archive dialog that now sits in front of every archive (DATA-40). */
+/** Confirms the archive dialog that now sits in front of every archive. */
 async function confirmArchive(): Promise<void> {
   const confirmDialog = await screen.findByRole('alertdialog')
   // The page awaits the confirm promise and then updates state, one microtask
@@ -166,7 +166,7 @@ afterEach(() => {
 })
 
 describe('ReconciliationPage', () => {
-  it('offers a viewer no accept, dismiss, archive or selection (DATA-7)', async () => {
+  it('offers a viewer no accept, dismiss, archive or selection', async () => {
     mockFetch()
     renderPage(personaAuth('viewer'))
 
@@ -306,7 +306,7 @@ describe('ReconciliationPage', () => {
     expect(screen.getByRole('button', { name: 'Dismiss' })).toBeInTheDocument()
   })
 
-  it('expands a shadow row to the sample properties the collector kept (DA-32)', async () => {
+  it('expands a shadow row to the sample properties the collector kept', async () => {
     const withSamples = {
       ...shadowNew,
       items: [{
@@ -357,7 +357,7 @@ describe('ReconciliationPage', () => {
 
     expect(await screen.findByText('legacy_banner_shown')).toBeInTheDocument()
     expect(screen.getByText('promo_code_invalid')).toBeInTheDocument()
-    // The explanation says when archiving is right (DA-34).
+    // The explanation says when archiving is right.
     expect(
       screen.getByText(
         'Seasonal or rarely fired events can show up here; archive only what you have retired.',
@@ -600,7 +600,7 @@ describe('ReconciliationPage', () => {
     expect(screen.getByRole('checkbox', { name: 'Select promo_code_invalid' })).toBeChecked()
   })
 
-  it('shows a mixed select-all while only some dead rows are picked, and clears from there (EV-26)', async () => {
+  it('shows a mixed select-all while only some dead rows are picked, and clears from there', async () => {
     mockFetch()
     renderPage()
 
@@ -690,7 +690,7 @@ describe('ReconciliationPage', () => {
     expect(screen.getByRole('button', { name: 'Archive 1 selected' })).toBeInTheDocument()
   })
 
-  // DATA-40: select-all plus one click used to archive the whole list with no
+  // select-all plus one click used to archive the whole list with no
   // confirmation and no word afterwards.
   it('asks before archiving, sends nothing on cancel, and reports what it archived', async () => {
     const archiveCalls: string[][] = []
@@ -729,7 +729,7 @@ describe('ReconciliationPage', () => {
     expect(await screen.findByRole('status')).toHaveTextContent('2 events archived.')
   })
 
-  // DATA-41: accept and archive change the plan, so Coverage's project summary,
+  // accept and archive change the plan, so Coverage's project summary,
   // the event types and the data match must refetch too — not only the list
   // the action came from.
   it('refreshes Coverage, event types and the data match after an archive', async () => {
@@ -766,7 +766,7 @@ describe('ReconciliationPage', () => {
     })
   })
 
-  // DATA-42: dead events are resolved on main, and archive writes to main. On a
+  // dead events are resolved on main, and archive writes to main. On a
   // feature branch the panel says so and does not offer the write.
   it('labels dead events as main-branch and withholds archive on a feature branch', async () => {
     mockFetch()
@@ -792,7 +792,7 @@ describe('ReconciliationPage', () => {
     ).toBe(false)
   })
 
-  // DATA-47: a selected id that a refetch dropped must not ride along into the
+  // a selected id that a refetch dropped must not ride along into the
   // atomic archive request, which would 404 the whole batch.
   it('drops selected dead events that disappear on refetch', async () => {
     let deadPayload: DeadEventsResponse = dead
@@ -821,7 +821,7 @@ describe('ReconciliationPage', () => {
     expect(screen.getByRole('button', { name: 'Archive 1 selected' })).toBeInTheDocument()
   })
 
-  // DATA-43: the histogram had no accessible name, per-day values only in
+  // the histogram had no accessible name, per-day values only in
   // `title`, and a day without data drew as a 2%-high danger-red bar.
   it('summarises the data-match histogram and marks empty days as no data', async () => {
     const withGap: CoverageResponse = {
@@ -840,7 +840,7 @@ describe('ReconciliationPage', () => {
 
     const chart = await screen.findByRole('img', { name: /Data match per day/ })
     expect(chart).toHaveAccessibleName(
-      // The window comes from `days`, not the bucket count (DA-3).
+      // The window comes from `days`, not the bucket count.
       'Data match per day over the last 14 days; lowest 50%; highest 95%; latest 50% on 2026-06-03; 1 day without data',
     )
     expect(screen.getByTitle('2026-06-04: no data')).toBeInTheDocument()
@@ -850,7 +850,7 @@ describe('ReconciliationPage', () => {
     expect(within(table).getByRole('row', { name: '2026-06-01 95%' })).toBeInTheDocument()
   })
 
-  // DATA-39: the inbox stopped at 100 rows without saying so, and triage was one
+  // the inbox stopped at 100 rows without saying so, and triage was one
   // request per click.
   it('says how much of the inbox is shown and loads more on request', async () => {
     const shadowUrls: string[] = []
@@ -1066,7 +1066,7 @@ describe('ReconciliationPage design review (#248)', () => {
     expect(screen.queryByText('0%')).not.toBeInTheDocument()
   })
 
-  // JR-4: a project whose scans ran but read nothing lately keeps its panels,
+  // a project whose scans ran but read nothing lately keeps its panels,
   // so the Accepted / Dismissed history stays one click away.
   it('keeps the panels and the status switch once a scan has run, even with nothing read lately', async () => {
     const accepted: ShadowEventsResponse = {
@@ -1102,7 +1102,7 @@ describe('ReconciliationPage design review (#248)', () => {
     expect(screen.queryByText('0%')).not.toBeInTheDocument()
   })
 
-  // DA-3: 335 hourly buckets read as "the last 335 days" in a 14-day panel.
+  // 335 hourly buckets read as "the last 335 days" in a 14-day panel.
   it('names the window in days and the bucket as an hour for hourly data', async () => {
     const hourly: CoverageResponse = {
       days: 14,

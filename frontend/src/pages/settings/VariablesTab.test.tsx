@@ -81,10 +81,10 @@ function makeVariable(overrides: Partial<Variable> & { id: string; name: string 
   }
 }
 
-/** The header checkbox names how many matches it selects (PLAN-33). */
+/** The header checkbox names how many matches it selects. */
 const SELECT_ALL = /^Select all \d+ matching properties$/
 
-/** A bulk verb opens a popover holding its field and Apply (AU-31). */
+/** A bulk verb opens a popover holding its field and Apply. */
 function openBulk(label: 'Set type…' | 'Set description…' | 'Add values…') {
   fireEvent.click(screen.getByRole('button', { name: label }))
 }
@@ -223,7 +223,7 @@ describe('VariablesTab', () => {
     expect(await screen.findByText('No properties yet')).toBeInTheDocument()
     expect(screen.queryByLabelText('Loading properties')).not.toBeInTheDocument()
     // Nothing to filter yet: no search or usage scope over zero rows, and the
-    // empty state carries the next step (AU-34).
+    // empty state carries the next step.
     expect(screen.queryByLabelText('Filter properties')).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Unused' })).not.toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Create your first property' })).toBeInTheDocument()
@@ -368,8 +368,7 @@ describe('VariablesTab', () => {
     expect(within(dialog).getByText('Observed values')).toBeInTheDocument()
     expect(within(dialog).getByRole('columnheader', { name: 'Event' })).toBeInTheDocument()
     expect(within(dialog).getByRole('columnheader', { name: 'Possible values' })).toBeInTheDocument()
-    // The three columns that only repeated the form above on every row are gone
-    // (PLAN-30).
+    // The three columns that only repeated the form above on every row are gone.
     expect(within(dialog).queryByRole('columnheader', { name: 'Property' })).not.toBeInTheDocument()
     expect(within(dialog).queryByRole('columnheader', { name: 'Type' })).not.toBeInTheDocument()
     expect(within(dialog).queryByRole('columnheader', { name: 'Description' })).not.toBeInTheDocument()
@@ -465,7 +464,7 @@ describe('VariablesTab', () => {
     expect(await screen.findByText(/invalid path/i)).toBeInTheDocument()
   })
 
-  // AU-4: the name rule is said inline, not by the browser's
+  // the name rule is said inline, not by the browser's
   // "Please match the requested format." bubble.
   it('says the property name rule inline instead of a browser bubble', async () => {
     mockList([])
@@ -626,7 +625,7 @@ describe('VariablesTab', () => {
     const nameInput = within(dialog).getByLabelText('Name') as HTMLInputElement
     const save = within(dialog).getByRole('button', { name: 'Save' })
     // Unchanged legacy dotted name → valid; the rule is said inline, never a
-    // native `pattern` bubble (AU-4).
+    // native `pattern` bubble.
     expect(nameInput.value).toBe('page_data.extra.variant')
     expect(nameInput).not.toHaveAttribute('pattern')
     expect(nameInput).not.toHaveAttribute('aria-invalid')
@@ -974,7 +973,7 @@ describe('VariablesTab', () => {
     fireEvent.click(await screen.findByRole('button', { name: 'Edit property variant' }))
 
     // Nothing is fetched for the picker until someone reaches for it: opening a
-    // variable to fix its description used to pull 100 full event rows (PLAN-30).
+    // variable to fix its description used to pull 100 full event rows.
     await screen.findByLabelText('Search events')
     expect(eventsApi.list).not.toHaveBeenCalled()
     act(() => screen.getByLabelText('Search events').focus())
@@ -1491,8 +1490,8 @@ describe('VariablesTab clear observed values', () => {
 })
 
 /**
- * `?focus=<id>` only marks a row: the variable's editor is its own page now
- * (AU-26), so a link into the list never opens a dialog on its own.
+ * `?focus=<id>` only marks a row: the variable's editor is its own page now,
+ * so a link into the list never opens a dialog on its own.
  */
 describe('VariablesTab — focusing one property from a link', () => {
   it('marks and scrolls to the linked row', async () => {
@@ -1609,7 +1608,7 @@ describe('VariablesTab — a viewer reads without write controls', () => {
 })
 
 describe('VariablesTab — review batch 15 (PLAN-23 … PLAN-33)', () => {
-  it('keeps the filters on screen when a usage filter matches nothing, with a way back (PLAN-23)', async () => {
+  it('keeps the filters on screen when a usage filter matches nothing, with a way back', async () => {
     vi.mocked(variablesApi.listPage).mockImplementation(async (_slug, _branch, params) =>
       params?.usage === 'unused'
         ? { items: [], total: 0 }
@@ -1638,7 +1637,7 @@ describe('VariablesTab — review batch 15 (PLAN-23 … PLAN-33)', () => {
     expect(screen.queryByText('No properties yet')).not.toBeInTheDocument()
   })
 
-  it('refuses a documented value the chosen type cannot hold (PLAN-24)', async () => {
+  it('refuses a documented value the chosen type cannot hold', async () => {
     mockList([])
     renderVariablesTab()
     fireEvent.click(await screen.findByRole('button', { name: /New property/ }))
@@ -1656,7 +1655,7 @@ describe('VariablesTab — review batch 15 (PLAN-23 … PLAN-33)', () => {
     expect(screen.getByRole('button', { name: 'Remove 42' })).toBeInTheDocument()
   })
 
-  it('names the values a type change would make invalid, and holds Save (PLAN-24)', async () => {
+  it('names the values a type change would make invalid, and holds Save', async () => {
     mockList([makeVariable({ id: 'var-1', name: 'variant', allowed_values: ['a', 'b'] })])
     vi.mocked(variablesApi.values).mockResolvedValue([])
     renderVariablesTab()
@@ -1669,7 +1668,7 @@ describe('VariablesTab — review batch 15 (PLAN-23 … PLAN-33)', () => {
     expect(within(dialog).getByRole('button', { name: 'Save' })).toBeDisabled()
   })
 
-  it('stages a bulk type change and asks first, naming conflicting values (PLAN-25)', async () => {
+  it('stages a bulk type change and asks first, naming conflicting values', async () => {
     mockList([
       makeVariable({ id: 'var-1', name: 'one', allowed_values: ['x'] }),
       makeVariable({ id: 'var-2', name: 'two' }),
@@ -1692,7 +1691,7 @@ describe('VariablesTab — review batch 15 (PLAN-23 … PLAN-33)', () => {
     expect(variablesApi.bulkUpdate).not.toHaveBeenCalled()
   })
 
-  it('keeps a failed bulk edit\'s draft and says why (PLAN-26)', async () => {
+  it('keeps a failed bulk edit\'s draft and says why', async () => {
     mockList([makeVariable({ id: 'var-1', name: 'one' })])
     vi.mocked(variablesApi.bulkUpdate).mockRejectedValue(new Error('Property not found'))
     renderVariablesTab()
@@ -1706,7 +1705,7 @@ describe('VariablesTab — review batch 15 (PLAN-23 … PLAN-33)', () => {
     expect(screen.getByLabelText('Bulk add values')).toHaveValue('a, b')
   })
 
-  it('says a failed delete failed (PLAN-26)', async () => {
+  it('says a failed delete failed', async () => {
     mockList([makeVariable({ id: 'var-1', name: 'one' })])
     vi.mocked(variablesApi.del).mockRejectedValue(new Error('Forbidden'))
     renderVariablesTab()
@@ -1717,7 +1716,7 @@ describe('VariablesTab — review batch 15 (PLAN-23 … PLAN-33)', () => {
     expect(await screen.findByText('Could not delete the property: Forbidden')).toBeInTheDocument()
   })
 
-  it('asks before deleting a per-event override (PLAN-28)', async () => {
+  it('asks before deleting a per-event override', async () => {
     mockList([makeVariable({ id: 'var-1', name: 'variant' })])
     vi.mocked(variablesApi.values).mockResolvedValue([])
     vi.mocked(variableOverridesApi.list).mockResolvedValue([
@@ -1759,7 +1758,7 @@ describe('VariablesTab — review batch 15 (PLAN-23 … PLAN-33)', () => {
     expect(variableOverridesApi.del).not.toHaveBeenCalled()
   })
 
-  it('reads the edited property from the list, so a cleared one offers nothing more to clear (PLAN-29)', async () => {
+  it('reads the edited property from the list, so a cleared one offers nothing more to clear', async () => {
     let listed = [makeVariable({ id: 'var-1', name: 'variant', context_count: 2 })]
     vi.mocked(variablesApi.listPage).mockImplementation(async () => ({ items: listed, total: 1 }))
     vi.mocked(variablesApi.clearValues).mockImplementation(async () => {
@@ -1779,7 +1778,7 @@ describe('VariablesTab — review batch 15 (PLAN-23 … PLAN-33)', () => {
     )
   })
 
-  it('refreshes the events caches after a rename (PLAN-32)', async () => {
+  it('refreshes the events caches after a rename', async () => {
     mockList([makeVariable({ id: 'var-1', name: 'variant' })])
     vi.mocked(variablesApi.values).mockResolvedValue([])
     vi.mocked(variablesApi.update).mockResolvedValue({} as never)
@@ -1796,7 +1795,7 @@ describe('VariablesTab — review batch 15 (PLAN-23 … PLAN-33)', () => {
     )
   })
 
-  it('shows a partial selection as mixed on the select-all box (PLAN-33)', async () => {
+  it('shows a partial selection as mixed on the select-all box', async () => {
     mockList([
       makeVariable({ id: 'var-1', name: 'one' }),
       makeVariable({ id: 'var-2', name: 'two' }),

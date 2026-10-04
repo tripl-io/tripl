@@ -60,7 +60,7 @@ describe('DemoProvisioningDialog', () => {
     expect(onRetry).toHaveBeenCalledTimes(1)
   })
 
-  it('says a 409 is the demo limit, claims no rollback and offers no retry (DEMO-5)', () => {
+  it('says a 409 is the demo limit, claims no rollback and offers no retry', () => {
     const detail =
       'You already have 3 demo workspaces (the limit is 3). Reset or delete one before generating another.'
     renderDialog({ status: 'error', error: new ApiError(detail, 409) })
@@ -73,7 +73,7 @@ describe('DemoProvisioningDialog', () => {
     expect(screen.getAllByRole('button', { name: /^close$/i }).length).toBeGreaterThan(0)
   })
 
-  it('says a 403 is a refusal, not a failed seed, and lets the server say why (DEMO-5)', () => {
+  it('says a 403 is a refusal, not a failed seed, and lets the server say why', () => {
     // The 403 an editor meets is this one: the button is offered to editors
     // only, so "you need editor access" would be false.
     renderDialog({ status: 'error', error: new ApiError('Demo provisioning is disabled', 403) })
@@ -162,7 +162,7 @@ describe('DemoProvisioningDialog', () => {
   })
 })
 
-describe('DemoProvisioningDialog — copy that matches the failure (DEMO-5, DEMO-21, DEMO-28)', () => {
+describe('DemoProvisioningDialog — copy that matches the failure', () => {
   it('does not claim a rollback when the server could not be reached', () => {
     // The client maps a network failure to 503: the server may have accepted
     // the create and finished it.

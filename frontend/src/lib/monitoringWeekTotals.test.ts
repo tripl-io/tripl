@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 
 import { formatWeekSummary } from './monitoringWeekTotals'
 
-describe('formatWeekSummary (EV-21)', () => {
+describe('formatWeekSummary', () => {
   it('reads the week and its change against the week before', () => {
     expect(formatWeekSummary({ week_total: 612_000, prior_week_total: 588_000 })).toBe(
       '612k in 7d · +4% vs prior week',

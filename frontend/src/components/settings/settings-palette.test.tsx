@@ -122,7 +122,7 @@ describe('Settings command palette destinations', () => {
   })
 })
 
-describe('Settings command palette search (#238 JR-19)', () => {
+describe('Settings command palette search (#238)', () => {
   it('finds a section by a keyword it does not show, one word at a time', async () => {
     renderPalette()
 

@@ -191,7 +191,7 @@ describe('Instance System card', () => {
   })
 })
 
-describe('Instance System card layout (ST-33)', () => {
+describe('Instance System card layout', () => {
   it('names the problems first instead of leaving them to be found among the tiles', () => {
     renderCard({ debug: true, encryption_key_configured: false })
 

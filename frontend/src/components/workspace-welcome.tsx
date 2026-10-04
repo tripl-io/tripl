@@ -47,7 +47,7 @@ export function WorkspaceWelcome({
       {canCreateProject ? (
         <div className="mx-auto flex max-w-2xl flex-col justify-center gap-x-8 gap-y-4 sm:flex-row sm:items-start">
           <div className="flex flex-col gap-1.5 sm:items-center sm:text-center">
-            {/* Empty-state CTAs take the large control size (DS-14). */}
+            {/* Empty-state CTAs take the large control size. */}
             <Button size="lg" onClick={onGenerateDemo} disabled={isProvisioningDemo}>
               <Sparkles className="size-3.5" aria-hidden="true" />
               {isProvisioningDemo ? 'Generating…' : 'Generate demo project'}
@@ -116,7 +116,7 @@ export function WorkspaceWelcome({
           rel="noreferrer"
           className="inline-flex items-center gap-1 font-medium hover:underline text-accent"
           // It leaves the app, so it says so — visibly with the icon, and to a
-          // screen reader in a name that starts with the visible label (WS-46).
+          // screen reader in a name that starts with the visible label.
           aria-label="Read the concepts (opens in a new tab)"
         >
           Read the concepts

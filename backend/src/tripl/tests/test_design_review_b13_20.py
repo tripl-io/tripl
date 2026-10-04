@@ -43,7 +43,7 @@ from tripl.tests.test_projects import (
 )
 
 # --------------------------------------------------------------------------- #
-# JR-2: metric_count on the project summary
+# metric_count on the project summary
 # --------------------------------------------------------------------------- #
 
 
@@ -64,7 +64,7 @@ async def test_project_summary_counts_metrics(client: AsyncClient) -> None:
 
 
 # --------------------------------------------------------------------------- #
-# MT-25: reviewed / owner_id filters on the metrics list
+# reviewed / owner_id filters on the metrics list
 # --------------------------------------------------------------------------- #
 
 
@@ -104,7 +104,7 @@ async def test_metric_list_filters_by_reviewed_and_owner(client: AsyncClient) ->
 
 
 # --------------------------------------------------------------------------- #
-# MT-30: fact-table list rollups
+# fact-table list rollups
 # --------------------------------------------------------------------------- #
 
 
@@ -179,7 +179,7 @@ async def test_fact_table_list_reports_metric_column_and_identifier_counts(
 
 
 # --------------------------------------------------------------------------- #
-# AL-14: status_counts on the inbox
+# status_counts on the inbox
 # --------------------------------------------------------------------------- #
 
 
@@ -275,7 +275,7 @@ async def test_alert_inbox_status_counts_follow_the_other_filters(client: AsyncC
 
 
 # --------------------------------------------------------------------------- #
-# ST-39: dry-run danger-zone resets
+# dry-run danger-zone resets
 # --------------------------------------------------------------------------- #
 
 
@@ -375,7 +375,7 @@ async def test_row_limit_defaults_are_readable(client: AsyncClient) -> None:
 
 
 # --------------------------------------------------------------------------- #
-# DA-40: data-source usage
+# data-source usage
 # --------------------------------------------------------------------------- #
 
 
@@ -432,7 +432,7 @@ async def test_tested_and_edited_sources_keep_their_usage_counts(
 
 
 # --------------------------------------------------------------------------- #
-# AU-37: meta-field usage
+# meta-field usage
 # --------------------------------------------------------------------------- #
 
 
@@ -492,7 +492,7 @@ async def test_ai_prompt_defaults_are_the_built_in_prompts(client: AsyncClient) 
 
 
 # --------------------------------------------------------------------------- #
-# AU-29: variable event refs
+# variable event refs
 # --------------------------------------------------------------------------- #
 
 
@@ -535,7 +535,7 @@ async def test_variable_list_carries_event_refs(client: AsyncClient) -> None:
 
 
 # --------------------------------------------------------------------------- #
-# AU-13: edit a relation
+# edit a relation
 # --------------------------------------------------------------------------- #
 
 
@@ -610,7 +610,7 @@ async def test_relation_can_be_edited_and_ends_are_rechecked(client: AsyncClient
 
 
 # --------------------------------------------------------------------------- #
-# AL-30: classify a failed test send
+# classify a failed test send
 # --------------------------------------------------------------------------- #
 
 

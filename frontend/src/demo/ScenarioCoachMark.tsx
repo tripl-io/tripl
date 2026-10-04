@@ -15,7 +15,7 @@
  * browser session (per project, in sessionStorage) while leaving the scenario
  * running and the strip coaching. The strip offers the same toggle, so a
  * keyboard user does not have to Tab through the whole page to the portalled
- * card to reach it (DEMO-12).
+ * card to reach it.
  *
  * One gate controls everything this file does: the card, the
  * pulsing ring around the anchor, the one-shot scroll to an off-screen anchor,
@@ -85,7 +85,7 @@ function placementOf(anchor: HTMLElement | null): Placement {
   // space that is not table: every side the card can open on lands on the
   // rows it is explaining, and Radix only flips to avoid the VIEWPORT edge,
   // not the content underneath. Such marks dock the card.
-  // So does every mark on a phone (#251 DA-45): at 390px a 16rem card beside
+  // So does every mark on a phone (#251): at 390px a 16rem card beside
   // a row's Run button covered the page title and its tabs, which could not
   // be used until the hints were hidden. Docked, it is a full-width bottom
   // sheet there, and it collapses.
@@ -97,7 +97,7 @@ const TOP_BAR_CLEARANCE_PX = 56
 const BELOW_BANNER_GAP_PX = 8
 
 /**
- * Where a card docked at the top starts (#251 SH-5). `top-14` cleared only
+ * Where a card docked at the top starts (#251). `top-14` cleared only
  * the top bar, so at 1440 the card landed exactly on the demo banner's own
  * controls — hide hints, dismiss, the tour, Reset, Delete — hiding the very
  * buttons that would put it away. While the banner is on screen the card
@@ -122,7 +122,7 @@ function anchorHalf(anchor: HTMLElement): 'upper' | 'lower' {
 
 /**
  * Which side of the viewport the anchor's own control sits on, so the docked
- * card lines up with it instead of always hugging the right edge (LIVE-13): a
+ * card lines up with it instead of always hugging the right edge: a
  * "Run now" at the left of a scans table got its card on the far side of the
  * screen. For a whole-row anchor that is the row's first focusable control,
  * which is what the step asks the reader to use.
@@ -186,7 +186,7 @@ export function ScenarioCoachMark({
 
   // An anchor that is mounted but not rendered — inside a hidden tab panel or a
   // collapsed section (display:none) — has no box, and Radix pinned the card to
-  // the page's top-left corner, pointing at nothing (DEMO-10). Such a mark
+  // the page's top-left corner, pointing at nothing. Such a mark
   // stands down like any other invisible one, so the strip's "not on screen"
   // notice speaks instead. `checkVisibility` is absent in older engines (and
   // jsdom); there the anchor is taken as shown, which is the old behaviour.
@@ -197,7 +197,7 @@ export function ScenarioCoachMark({
   // layout effect re-measures after every commit, before paint, so neither
   // shows; the observer catches a box that appears or vanishes with no render.
   //
-  // Docking is decided by the same measurement (DEMO-2). It used to be read
+  // Docking is decided by the same measurement. It used to be read
   // from the anchor during render — null on the first one — so the card
   // painted undocked for a frame and the switch swapped the element tree
   // around the anchor, remounting the very control being coached (and
@@ -229,8 +229,8 @@ export function ScenarioCoachMark({
     return () => report(step, false)
   }, [visible, step, report])
 
-  // The description reaches the control a screen reader user actually tabs to
-  // (DEMO-12). The clone below describes the anchor; a non-focusable wrapper
+  // The description reaches the control a screen reader user actually tabs to.
+  // The clone below describes the anchor; a non-focusable wrapper
   // anchor passes it on to its first focusable descendant here, after the
   // commit, and takes it back when the mark goes quiet. Re-run on `children`
   // so a descendant that re-mounts gets it again.
@@ -249,7 +249,7 @@ export function ScenarioCoachMark({
   // Bring an anchor into view once per step when it is not fully visible:
   // coaching towards a control below the fold is coaching towards nothing.
   // "Visible" means inside every scroll container around it, not just inside
-  // the window (DEMO-11) — a row action scrolled out of a table wrapper, or
+  // the window — a row action scrolled out of a table wrapper, or
   // half under the scrolling pane's edge, is not on screen either. One-shot,
   // so the user keeps control of their own scrolling afterwards.
   const scrolledStepRef = useRef<ScenarioStepId | null>(null)
@@ -299,7 +299,7 @@ export function ScenarioCoachMark({
   const boundary: Element | Element[] = anchorEl?.closest(`#${MAIN_CONTENT_ID}`) ?? []
 
   // A single element child keeps the same tree around it whether or not the
-  // mark is coaching, and in every placement (DEMO-2): only the anchor's props
+  // mark is coaching, and in every placement: only the anchor's props
   // and the portalled siblings change. Measuring, docking, hiding — and the
   // step completing, often from a click on the anchor itself, or "Hide hints"
   // — never remount the control, so a keyboard user keeps focus on it. The
@@ -326,7 +326,7 @@ export function ScenarioCoachMark({
     />
   )
 
-  // The instruction describes the control it points at (DEMO-12), so a screen
+  // The instruction describes the control it points at, so a screen
   // reader user who tabs to it hears the step — the card itself sits at the
   // end of <body>, far from the control in reading order.
   const ownDescribedBy = isValidElement(children)
@@ -397,12 +397,12 @@ export function ScenarioCoachMark({
 /**
  * The card for a table anchor, fixed clear of the grid.
  *
- * Portalled to <body> (DEMO-1): declared beside a <tr> anchor it used to land
+ * Portalled to <body>: declared beside a <tr> anchor it used to land
  * as a <div> directly inside <tbody>. And it must not become the thing it
- * hides (DEMO-13 / LIVE-13):
+ * hides:
  * - it takes the half of the viewport the anchor is NOT in, so a row action
  *   near the bottom gets its card at the top instead of under it — except on
- *   a phone, where it is always a bottom sheet (#251 DA-45);
+ *   a phone, where it is always a bottom sheet (#251);
  * - below `sm` it spans the width with a gutter rather than covering ~70% of
  *   a phone screen from the right edge;
  * - it collapses to a one-line tab, so it never has to block taps for good —
@@ -443,7 +443,7 @@ function DockedCoachCard({ anchor, children }: { anchor: HTMLElement; children: 
   }, [anchor])
 
   // The banner's bottom edge moves with no resize or scroll to hear it by
-  // (#251 SH-5): the phone pill opens, the scenario strip's chunk lands in the
+  // (#251): the phone pill opens, the scenario strip's chunk lands in the
   // row, a failure line appears under it — and on a hard load the banner is a
   // placeholder first, then a different element. So the banner is watched for
   // its size, and the document for the banner being swapped in or out.
@@ -474,7 +474,7 @@ function DockedCoachCard({ anchor, children }: { anchor: HTMLElement; children: 
     }
   }, [])
 
-  // On a phone the card is always a bottom sheet (#251 DA-45): docked at the
+  // On a phone the card is always a bottom sheet (#251): docked at the
   // top it sat on the page title and its tabs whenever the anchor was low on
   // the screen. A wider screen still takes the half the anchor is not in.
   const atTop = half === 'lower' && !phone

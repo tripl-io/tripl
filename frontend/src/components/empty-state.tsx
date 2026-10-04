@@ -9,7 +9,7 @@ export type EmptyStateSize = 'default' | 'sm'
  *
  * `size="sm"` is the in-panel form: a compact block that fits inside a card or
  * a table body, where the page-level `py-16` block was too tall, so pages kept
- * writing one-off "No … yet" lines that looked different everywhere (DS-38).
+ * writing one-off "No … yet" lines that looked different everywhere.
  * Convention: tables load with skeleton rows (`LoadingState`), panels show a
  * compact EmptyState.
  */
@@ -30,7 +30,7 @@ export function EmptyState({
   /**
    * 2 by default: a page-level empty state sits directly under the page's h1,
    * so h3 opened a 1→3 gap in the outline. 3 (or 4) inside a
-   * card or panel that already has its own heading (DS-16).
+   * card or panel that already has its own heading.
    */
   headingLevel?: 2 | 3 | 4
   className?: string
@@ -49,7 +49,7 @@ export function EmptyState({
       {Icon &&
         (compact ? (
           // A sunken well in the panel form too, so an empty panel reads as
-          // intentional rather than as a stray icon (DS-21).
+          // intentional rather than as a stray icon.
           <div className="mb-2.5 flex size-10 items-center justify-center rounded-full bg-bg-sunken">
             <Icon className="size-5 text-fg-tertiary" aria-hidden="true" />
           </div>
@@ -58,7 +58,7 @@ export function EmptyState({
             <Icon className="size-5 text-fg-tertiary" aria-hidden="true" />
           </div>
         ))}
-      {/* On the type scale (DS-21): the page form titles at 15px over 13px
+      {/* On the type scale: the page form titles at 15px over 13px
           body; the panel form sits under a 12.5px panel title, so it titles
           at that size over caption body instead of out-sizing it. */}
       <Heading

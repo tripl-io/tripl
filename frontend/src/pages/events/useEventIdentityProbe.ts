@@ -22,14 +22,14 @@ export interface CreatedIdentity extends IdentityHolder {
  * Advisory duplicate check. The SERVER is what refuses a taken scan identity
  * (409 from create_event); this only spares the user filling a whole form to
  * find out on submit. It asks the exact-name lookup (`GET /events/by-names`),
- * which answers with the same rule create refuses on (EVT-37). The substring
+ * which answers with the same rule create refuses on. The substring
  * `search` it used before could miss the row when a broad match pushed it past
  * the page limit.
  *
  * `createdHere` is what this form has itself created. "Save and add another"
  * keeps the values, so they regenerate the name just taken, and the probe's
  * cached "not taken" answer outlived the save — Save stayed enabled and the
- * second press met the server's 409 instead of this warning (EVT-25). The form
+ * second press met the server's 409 instead of this warning. The form
  * also invalidates the probes on a create; this closes the window until the
  * refetch lands.
  */

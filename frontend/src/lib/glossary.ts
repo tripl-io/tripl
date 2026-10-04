@@ -1,6 +1,6 @@
 /**
  * The anchor of a term's glossary row on the Concepts page, `term-<id>`, so
- * other pages can deep-link `concepts#term-metric-points` (#238 DA-35 /
+ * other pages can deep-link `concepts#term-metric-points` (#238 /
  * JR-32). Here rather than in ConceptsPage so a page linking to a term does not
  * pull the whole glossary page into its chunk.
  */

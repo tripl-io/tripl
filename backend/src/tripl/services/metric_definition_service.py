@@ -745,8 +745,8 @@ async def list_metric_definitions(
         query = query.where(search_clause)
         count_query = count_query.where(search_clause)
     # Review status and owner narrow the list the same way status/kind do, so a
-    # "Needs review" chip pages server-side instead of filtering a loaded slice
-    # (MT-25). ``None`` means "any", never "unowned"/"unreviewed".
+    # "Needs review" chip pages server-side instead of filtering a loaded slice.
+    # ``None`` means "any", never "unowned"/"unreviewed".
     if reviewed is not None:
         query = query.where(MetricDefinition.reviewed.is_(reviewed))
         count_query = count_query.where(MetricDefinition.reviewed.is_(reviewed))

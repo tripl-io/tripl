@@ -17,7 +17,7 @@ interface AlertingGuidedSetupProps {
   channels: ChannelMeta[]
   /**
    * Whether the project has a scan. Without one nothing is ever detected, so
-   * nothing can alert, and the checklist says so first (AL-33).
+   * nothing can alert, and the checklist says so first.
    */
   hasScans: boolean
   onPickChannel: (channel: DestinationChannel) => void
@@ -86,7 +86,7 @@ function Step({
  * The three numbered cards used to restate the flow as decoration, with the
  * real action — the channel buttons — below them under a small grey label; and
  * on a project with no scan they promised "three steps and you are live" when
- * nothing could ever fire (AL-33). Now the channel picker IS step 1 (or 2),
+ * nothing could ever fire. Now the channel picker IS step 1 (or 2),
  * each step says whether it is done, and a missing scan is step 0.
  */
 export function AlertingGuidedSetup({ slug, channels, hasScans, onPickChannel }: AlertingGuidedSetupProps) {

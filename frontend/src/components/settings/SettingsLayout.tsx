@@ -94,7 +94,7 @@ export function SettingsLayout({
   projectName?: string
   /** The project the Project sections are bound to. Their links carry it as
    *  `?project=`, so moving between them never falls back to whichever
-   *  project another tab visited last (SHELL-20). */
+   *  project another tab visited last. */
   projectSlug?: string
   /** Workspace projects, offered as palette destinations. Already fetched by
    *  SettingsArea, so the palette never issues a query of its own. */
@@ -117,7 +117,7 @@ export function SettingsLayout({
   // Personalize group sub-labels with live identity, matching the mockup
   // (Project → project name, Account → "You · <name>"). Workspace stays
   // generic until a workspace entity exists. A sub-label that only repeats its
-  // group ("Project Project", "Workspace Workspace") is dropped (ST-7).
+  // group ("Project Project", "Workspace Workspace") is dropped.
   const userName = auth.user?.name?.split(/\s+/)[0] ?? auth.user?.email ?? ''
   const subFor = (group: { label: string; sub: string }): string => {
     if (group.label === 'Project' && projectName) return projectName
@@ -135,8 +135,8 @@ export function SettingsLayout({
   const [railOpen, setRailOpen] = useState(false)
   const closeRail = useCallback(() => setRailOpen(false), [])
   const railPinned = useRailPinned()
-  // The drawer behaves like the modal it looks like, as the app shell's does
-  // (DS-11): below `md` a closed rail is `inert`, so its ~20 links and Sign out
+  // The drawer behaves like the modal it looks like, as the app shell's does:
+  // below `md` a closed rail is `inert`, so its ~20 links and Sign out
   // leave the Tab order and the accessibility tree instead of being walked
   // through off-screen on every settings page; an open one takes focus, closes
   // on Escape, and while it is open the content behind it is inert, which is
@@ -225,7 +225,7 @@ export function SettingsLayout({
       const work = draftAtRisk(settingsPath)
       if (!work) return true
       return confirm({
-        // The one unsaved-changes wording (AU-42): "Keep editing" / "Discard
+        // The one unsaved-changes wording: "Keep editing" / "Discard
         // changes", the same dialog a form's own Cancel asks.
         ...UNSAVED_CONFIRM_COPY,
         message: work.message,
@@ -252,8 +252,8 @@ export function SettingsLayout({
   }
 
   /**
-   * Rebind the Project sections to another project without leaving settings
-   * (ST-6). The address keeps the section when it is a project one and opens
+   * Rebind the Project sections to another project without leaving settings.
+   * The address keeps the section when it is a project one and opens
    * General otherwise; `?project=` outranks every other source of the slug.
    *
    * The blocker would wave this through — the destination is the same section,
@@ -394,7 +394,7 @@ export function SettingsLayout({
         {/* Header: back to app */}
         <div className="relative px-4 pb-2.5 pt-3.5">
           {/* The drawer's own way out below md, beside the backdrop tap and
-              Escape it already closed on (ST-13), as the app sidebar's drawer
+              Escape it already closed on, as the app sidebar's drawer
               has one. Pinned, there is nothing to close. */}
           {!railPinned && (
             <button
@@ -410,7 +410,7 @@ export function SettingsLayout({
             to={backHref}
             onClick={guardLeave}
             // Hover and keyboard focus through classes, not JS style swaps that
-            // focus never triggered (DS-21).
+            // focus never triggered.
             className="-ml-1 inline-flex items-center gap-[7px] rounded-md px-2 py-1 pr-2 text-body-sm text-fg-muted no-underline transition-colors hover:text-fg focus-visible:text-fg"
           >
             <ChevronLeft className="size-4" />
@@ -421,7 +421,7 @@ export function SettingsLayout({
               opened with a level-2 skip. It names the nav
               landmark instead. */}
           {/* No subtitle: "Workspace & account configuration" left out the
-              Project and Instance groups, which describe themselves (ST-10). */}
+              Project and Instance groups, which describe themselves. */}
           <div id={RAIL_TITLE_ID} className="mx-1 mt-2.5 text-heading font-semibold tracking-[-0.01em]">
             Settings
           </div>
@@ -429,14 +429,14 @@ export function SettingsLayout({
 
         {/* Grouped nav — every settings group in one rail, no context toggle */}
         {/* The bottom fade says the list goes on under the footer: in the
-            phone drawer the last items sat cut off with no hint (ST-13). */}
+            phone drawer the last items sat cut off with no hint. */}
         <nav
           aria-labelledby={RAIL_TITLE_ID}
           className="flex-1 overflow-y-auto px-3 pb-6 pt-1 [mask-image:linear-gradient(to_bottom,black_calc(100%_-_24px),transparent)]"
         >
           {visibleGroupsAll(isOwner, isPlatformAdmin).map((group) => {
             // Sentence case, not an uppercase eyebrow: these are names ("Demo
-            // project 2", "You · Ada"), and caps shouted them (ST-7).
+            // project 2", "You · Ada"), and caps shouted them.
             const sub = subFor(group)
             return (
             <div key={group.label} className="mb-4">
@@ -461,7 +461,7 @@ export function SettingsLayout({
                   )}
                 </div>
                 {/* Phones get the labels alone: three lines of chrome per group
-                    pushed the last items under the drawer's footer (ST-13). */}
+                    pushed the last items under the drawer's footer. */}
                 <p className="mt-0.5 hidden text-micro leading-snug md:block text-fg-tertiary">
                   {group.desc}
                 </p>
@@ -489,13 +489,13 @@ export function SettingsLayout({
                       // the sidebar's active tint and an accent bar on its left
                       // edge. The old --surface-hover on the sunken rail was a
                       // 1-2% change in light theme, so the selection read from
-                      // the icon alone (ST-8). Hover is a class, not a JS style
+                      // the icon alone. Hover is a class, not a JS style
                       // swap: the swap left a stale fill when the active item
                       // changed under the pointer and never answered keyboard
-                      // focus (DS-21).
+                      // focus.
                       className={
                         // 40px rows in the phone drawer, the dense 31px rail
-                        // from md up (ST-12).
+                        // from md up.
                         'relative flex items-center gap-2 rounded-md px-[9px] py-2.5 md:py-[7px] text-left text-body-sm no-underline transition-colors hover:bg-sidebar-hover focus-visible:bg-sidebar-hover ' +
                         (active ? RAIL_ACTIVE_CLASS : 'font-medium text-fg-muted')
                       }
@@ -526,7 +526,7 @@ export function SettingsLayout({
                   // The project's tracking plan and alerting live in the app,
                   // not in this rail; say so here instead of leaving a
                   // "Project operations" button on General as the only way
-                  // there (#238 ST-5). The arrow marks it as leaving the area.
+                  // there (#238). The arrow marks it as leaving the area.
                   <Link
                     to={projectPath(currentOrgSlug(), encodeURIComponent(projectSlug), '/event-types')}
                     onClick={guardLeave}
@@ -606,7 +606,7 @@ export function SettingsLayout({
             <Menu className="h-4 w-4" />
           </button>
           {/* Where you are once the h1 has scrolled away, and a one-tap way
-              back to the app without opening the drawer (ST-11). */}
+              back to the app without opening the drawer. */}
           <span className="flex min-w-0 flex-1 items-baseline gap-1.5 text-body">
             <span className="shrink-0 font-semibold">Settings</span>
             {sectionTitle && (
@@ -629,8 +629,8 @@ export function SettingsLayout({
             <X className="size-4" aria-hidden="true" />
           </Link>
         </div>
-        {/* The narrow content width every form and settings page shares
-            (DS-3), left-aligned against the rail instead of floating centred.
+        {/* The narrow content width every form and settings page shares,
+            left-aligned against the rail instead of floating centred.
             A table section takes the wide column instead, so a wide screen
             shows its columns rather than a horizontal scroll. */}
         <div
@@ -647,12 +647,12 @@ export function SettingsLayout({
   )
 }
 
-/** The current rail item: the app sidebar's active tint and accent bar (ST-8). */
+/** The current rail item: the app sidebar's active tint and accent bar. */
 const RAIL_ACTIVE_CLASS =
   "bg-sidebar-active hover:bg-sidebar-active focus-visible:bg-sidebar-active font-semibold text-fg before:absolute before:inset-y-1.5 before:left-0 before:w-[2px] before:rounded-full before:bg-[var(--accent)] before:content-['']"
 
 /**
- * The Project group's sub-label as a switcher (ST-6): the bound project, or
+ * The Project group's sub-label as a switcher: the bound project, or
  * "Pick a project", opening the workspace's projects. Picking one rebinds the
  * Project sections in place instead of sending the user out to the app and
  * back.

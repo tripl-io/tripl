@@ -40,7 +40,7 @@ export function formatIsoDate(value: string): string {
 /**
  * Date+time of an instant, in the viewer's LOCAL zone and the app locale.
  *
- * Time-zone policy (DS-24 / MON-5): every instant the app prints — "first
+ * Time-zone policy: every instant the app prints — "first
  * seen", delivery times, signal buckets, and the 15-minute / hour / 6-hour
  * ticks and tooltips of the charts (components/ui/chart-format.ts) — reads in
  * the viewer's local zone, so a spike, its signal card and its annotation all
@@ -49,7 +49,7 @@ export function formatIsoDate(value: string): string {
  * seasonality heatmap), which are labelled in UTC and say so.
  *
  * Same output as `formatTimestamp` without seconds: the two used to be
- * near-identical copies (DS-30). Returns '' for an empty or unparseable input
+ * near-identical copies. Returns '' for an empty or unparseable input
  * (never the literal "Invalid Date").
  */
 export function formatDateTime(value: string) {

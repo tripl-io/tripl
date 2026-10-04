@@ -17,7 +17,7 @@ function renderBar({ status = 'any', onClear = vi.fn() } = {}) {
   return { onClear }
 }
 
-describe('FilterBar (DS-15)', () => {
+describe('FilterBar', () => {
   it('names the search box after its things and focuses it on "/"', () => {
     renderBar()
     const search = screen.getByRole('searchbox', { name: 'Search events' })
@@ -67,7 +67,7 @@ describe('FilterBar (DS-15)', () => {
   })
 })
 
-describe('FilterBar below 640px (DS-15)', () => {
+describe('FilterBar below 640px', () => {
   const realMatchMedia = window.matchMedia
 
   function installNarrow() {

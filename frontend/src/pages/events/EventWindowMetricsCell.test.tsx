@@ -26,7 +26,7 @@ function sparkLine(container: HTMLElement) {
   return container.querySelector('path[stroke]')
 }
 
-describe('EventWindowMetricsCell (DS-27)', () => {
+describe('EventWindowMetricsCell', () => {
   it('draws the line in the fixed single-series hue, not the accent', () => {
     const { container } = renderCell()
     expect(sparkLine(container)).toHaveAttribute('stroke', SERIES_COLORS[0])
@@ -46,7 +46,7 @@ describe('EventWindowMetricsCell (DS-27)', () => {
     })
   })
 
-  it('shows a loading placeholder, not the no-data dash, while pending (EV-20)', () => {
+  it('shows a loading placeholder, not the no-data dash, while pending', () => {
     const { container } = renderCell({ pending: true, totalCount: undefined, data: [] as never })
     expect(screen.getByRole('img', { name: 'spot:open metrics: loading' })).toBeInTheDocument()
     expect(container).not.toHaveTextContent('—')

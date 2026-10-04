@@ -172,14 +172,14 @@ function makeTrackerConfig(overrides: Partial<ProjectTrackerConfig> = {}): Proje
 
 /** Merge to main stays disabled until the selected branch's diff has loaded
  * (the confirm reads it), and the diff is no longer prefetched by a per-row
- * fan-out (PLAN-3) — so wait for the button to come live before clicking. */
+ * fan-out — so wait for the button to come live before clicking. */
 async function clickMerge() {
   const button = await screen.findByRole('button', { name: /Merge to main/i })
   await waitFor(() => expect(button).toBeEnabled())
   fireEvent.click(button)
 }
 
-/** Every merge now asks first (PLAN-8): the plain case's confirm is "Merge". */
+/** Every merge now asks first: the plain case's confirm is "Merge". */
 async function confirmMerge() {
   fireEvent.click(await screen.findByRole('button', { name: 'Merge' }))
 }
@@ -329,7 +329,7 @@ describe('BranchesTab', () => {
     renderTab()
 
     // Active by default: the in-flight branch is listed, the merged one is not.
-    // Scoped to the list: main's pane names the last merged branch (PL-15).
+    // Scoped to the list: main's pane names the last merged branch.
     expect(await screen.findByText('checkout-v2')).toBeInTheDocument()
     const list = screen.getByRole('region', { name: 'Branches' })
     expect(within(list).queryByText('checkout-v3')).not.toBeInTheDocument()
@@ -337,8 +337,8 @@ describe('BranchesTab', () => {
     // or the base branch disappears from the list a status-only filter produces.
     expect(screen.getAllByText('main').length).toBeGreaterThan(0)
 
-    // Counts are on the tabs themselves: main is listed but is not open work
-    // (PL-15), so one open branch and one closed.
+    // Counts are on the tabs themselves: main is listed but is not open work,
+    // so one open branch and one closed.
     expect(screen.getByRole('button', { name: 'Open 1' })).toBeInTheDocument()
 
     fireEvent.click(screen.getByRole('button', { name: 'Closed 1' }))
@@ -474,8 +474,8 @@ describe('BranchesTab', () => {
     expect(await screen.findByText('+2')).toBeInTheDocument()
     expect(screen.getByText('~1')).toBeInTheDocument()
     expect(screen.getByText('−1')).toBeInTheDocument()
-    // A yes/no, not "↓ 1 behind" (PLAN-14). This conflicts answer carries no
-    // overlap count, so the note never calls the merge safe (PL-8).
+    // A yes/no, not "↓ 1 behind". This conflicts answer carries no
+    // overlap count, so the note never calls the merge safe.
     expect(screen.getByText(/Main has newer changes since this branch was created/)).toBeInTheDocument()
     expect(screen.queryByText(/safe to merge/)).not.toBeInTheDocument()
 
@@ -778,8 +778,7 @@ describe('BranchesTab', () => {
       'href',
       '/p/demo/events/all/new?branch=feat-1',
     )
-    // One explicit "work on this branch" action, which carries the branch
-    // (PL-11).
+    // One explicit "work on this branch" action, which carries the branch.
     expect(screen.getByRole('link', { name: 'Work on this branch' })).toHaveAttribute(
       'href',
       '/p/demo/events?branch=feat-1',
@@ -904,7 +903,7 @@ describe('BranchesTab', () => {
     const edit = await screen.findByRole('link', { name: 'Edit checkout_started' })
     expect(edit).toHaveAttribute('href', '/p/demo/events/all/ev-9/edit?branch=feat-1')
 
-    // A variable's Edit opens its own page (AU-26), Definition tab first.
+    // A variable's Edit opens its own page, Definition tab first.
     // Before this it had no Edit at all and a reviewer had to
     // expand the row and find the small link after Revert.
     const editVariable = await screen.findByRole('link', { name: 'Edit variant' })
@@ -1059,7 +1058,7 @@ describe('BranchesTab', () => {
 
     expect(row).toHaveAttribute('aria-expanded', 'true')
     // The field-level diff surfaces once expanded; for a modification the full
-    // state is one more click, so it no longer dominates the row (PL-12).
+    // state is one more click, so it no longer dominates the row.
     expect(await screen.findByText('Field changes')).toBeInTheDocument()
     expect(screen.queryByText('Full state')).not.toBeInTheDocument()
     const fullToggle = screen.getByRole('button', { name: 'Show full property (2 properties)' })
@@ -1074,7 +1073,7 @@ describe('BranchesTab', () => {
     // The before value of the changed field renders (the 'string' → 'enum' move).
     expect(screen.getByText('string')).toBeInTheDocument()
     expect(screen.getAllByText('variable_type').length).toBeGreaterThan(0)
-    // The collapsed summary names the field in words, not its key (PL-12).
+    // The collapsed summary names the field in words, not its key.
     expect(screen.getByText('Property type string → enum')).toBeInTheDocument()
 
     fireEvent.click(fullToggle)
@@ -1105,14 +1104,14 @@ describe('BranchesTab', () => {
     expect(screen.getByText('0 changes')).toBeInTheDocument()
     const mergeBtn = await screen.findByRole('button', { name: /Merge to main/i })
     fireEvent.click(mergeBtn)
-    // Never one click: the confirm names what lands on main (PLAN-8).
+    // Never one click: the confirm names what lands on main.
     expect(await screen.findByText(/Merge 0 changes into main\?/)).toBeInTheDocument()
     expect(planBranchesApi.merge).not.toHaveBeenCalled()
     await confirmMerge()
     await waitFor(() => expect(planBranchesApi.merge).toHaveBeenCalledWith('demo', 'feat-1'))
   })
 
-  it('switches the shell back to main when the active branch is merged (SHELL-18)', async () => {
+  it('switches the shell back to main when the active branch is merged', async () => {
     vi.mocked(planBranchesApi.list).mockResolvedValue({ items: [MAIN, FEATURE], total: 2 })
     vi.mocked(planBranchesApi.getConflicts).mockResolvedValue({ entities: [], unresolved_count: 0 })
     vi.mocked(planBranchesApi.listComments).mockResolvedValue([])
@@ -1174,7 +1173,7 @@ describe('BranchesTab', () => {
     fireEvent.click(await screen.findByText('gdpr-audit'))
     const submitBtn = await screen.findByRole('button', { name: 'Submit for review' })
     // The roster has loaded (the author's name resolves), so Submit on an
-    // unstaffed branch asks who should review it first (JR-14).
+    // unstaffed branch asks who should review it first.
     await screen.findByText(/Opened by Priya S\./)
     fireEvent.click(submitBtn)
     expect(await screen.findByLabelText('Who should review this?')).toBeInTheDocument()
@@ -1186,7 +1185,7 @@ describe('BranchesTab', () => {
     expect(screen.queryByRole('button', { name: /Merge to main/i })).not.toBeInTheDocument()
   })
 
-  it('adds the reviewer picked on Submit, then submits (JR-14)', async () => {
+  it('adds the reviewer picked on Submit, then submits', async () => {
     const draftFeature = makeBranch({
       id: 'feat-2',
       name: 'gdpr-audit',
@@ -1230,7 +1229,7 @@ describe('BranchesTab', () => {
     expect(planBranchesApi.addReviewer).toHaveBeenCalledWith('demo', 'feat-2', 'u-maya')
   })
 
-  it('submits at once when the branch already has a reviewer (JR-14)', async () => {
+  it('submits at once when the branch already has a reviewer', async () => {
     const draftFeature = makeBranch({
       id: 'feat-2',
       name: 'gdpr-audit',
@@ -1270,7 +1269,7 @@ describe('BranchesTab', () => {
     const dialog = await screen.findByRole('dialog')
     expect(within(dialog).getByText('New branch')).toBeInTheDocument()
     expect(within(dialog).getByPlaceholderText(/checkout\/paywall-copy/i)).toBeInTheDocument()
-    // What a branch is, before anyone creates one (PL-4).
+    // What a branch is, before anyone creates one.
     expect(within(dialog).getByText(/private copy of the plan/)).toBeInTheDocument()
     expect(within(dialog).getByLabelText('Switch to this branch now')).toBeChecked()
   })
@@ -1309,14 +1308,14 @@ describe('BranchesTab', () => {
 
     fireEvent.click(await screen.findByRole('button', { name: /Merge policy/i }))
     const dialog = await screen.findByRole('dialog')
-    // Values to read, not a form of disabled controls (#237 MT-28).
+    // Values to read, not a form of disabled controls (#237).
     expect(await within(dialog).findByText('Only an owner can change the merge policy.')).toBeInTheDocument()
     expect(within(dialog).getByText('Required approvals')).toBeInTheDocument()
     expect(within(dialog).queryByRole('spinbutton')).not.toBeInTheDocument()
     expect(within(dialog).queryByRole('button', { name: 'Save' })).not.toBeInTheDocument()
   })
 
-  it('offers a viewer no branch actions (PLAN-11)', async () => {
+  it('offers a viewer no branch actions', async () => {
     vi.mocked(planBranchesApi.list).mockResolvedValue({ items: [MAIN, FEATURE], total: 2 })
     renderTab(FEATURE.id, 'viewer')
 
@@ -1325,7 +1324,7 @@ describe('BranchesTab', () => {
     expect(screen.queryByRole('button', { name: /New branch/ })).not.toBeInTheDocument()
     expect(screen.queryByRole('link', { name: 'New event on this branch' })).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Delete branch' })).not.toBeInTheDocument()
-    // Anchored: a list row's name carries its "Approved" status chip (PL-15).
+    // Anchored: a list row's name carries its "Approved" status chip.
     expect(
       screen.queryByRole('button', { name: /^(Approve|Request changes|Merge to main)\b/ }),
     ).not.toBeInTheDocument()
@@ -1881,7 +1880,7 @@ describe('BranchesTab', () => {
     fireEvent.click(await screen.findByText('promo_applied'))
 
     // No revert to click, and so no dialog offering "Try anyway" for a request
-    // it has just said will be refused (PLAN-18): the row says why, and names
+    // it has just said will be refused: the row says why, and names
     // the rows to fix by hand.
     const note = await screen.findByRole('note')
     expect(note).toHaveTextContent(/Can’t revert: 2 rows on this branch carry promo_applied’s scan identity/)
@@ -2043,7 +2042,7 @@ describe('BranchesTab housekeeping rows', () => {
       name: /2 unused scan properties retired · 1 removal already made on main/,
     })
     expect(fold).toHaveAttribute('aria-expanded', 'false')
-    // No idref to a list that is not rendered (PLAN-20).
+    // No idref to a list that is not rendered.
     expect(fold).not.toHaveAttribute('aria-controls')
     expect(screen.queryByText('property.adana')).not.toBeInTheDocument()
 
@@ -2131,7 +2130,7 @@ describe('BranchesTab review flows (frontend review batch 14)', () => {
     unresolved_count: 1,
   }
 
-  it('reads the row badges from one counted list, not one diff per branch (PLAN-3)', async () => {
+  it('reads the row badges from one counted list, not one diff per branch', async () => {
     const other = {
       ...makeBranch({ id: 'feat-o', name: 'other-work', kind: 'working', status: 'draft' }),
       ahead: 4,
@@ -2150,7 +2149,7 @@ describe('BranchesTab review flows (frontend review batch 14)', () => {
     expect(planBranchesApi.diff).not.toHaveBeenCalledWith('demo', 'feat-o')
   })
 
-  it('marks the selected branch row as the current one (PLAN-20)', async () => {
+  it('marks the selected branch row as the current one', async () => {
     vi.mocked(planBranchesApi.list).mockResolvedValue({ items: [MAIN, FEATURE], total: 2 })
 
     renderTab('feat-1')
@@ -2160,7 +2159,7 @@ describe('BranchesTab review flows (frontend review batch 14)', () => {
     expect(screen.getByRole('button', { name: /^main/ })).not.toHaveAttribute('aria-current')
   })
 
-  it("refreshes main's plan caches and the conflicts after a merge (PLAN-2, PLAN-4)", async () => {
+  it("refreshes main's plan caches and the conflicts after a merge", async () => {
     vi.mocked(planBranchesApi.list).mockResolvedValue({ items: [MAIN, FEATURE], total: 2 })
     vi.mocked(planBranchesApi.merge).mockResolvedValue({} as never)
     const invalidate = vi.spyOn(QueryClient.prototype, 'invalidateQueries')
@@ -2190,7 +2189,7 @@ describe('BranchesTab review flows (frontend review batch 14)', () => {
     })
   })
 
-  it('does not merge when the reviewer cancels the confirm (PLAN-8)', async () => {
+  it('does not merge when the reviewer cancels the confirm', async () => {
     vi.mocked(planBranchesApi.list).mockResolvedValue({ items: [MAIN, FEATURE], total: 2 })
 
     renderTab('feat-1')
@@ -2201,7 +2200,7 @@ describe('BranchesTab review flows (frontend review batch 14)', () => {
     expect(planBranchesApi.merge).not.toHaveBeenCalled()
   })
 
-  it('asks before closing a branch (PLAN-8)', async () => {
+  it('asks before closing a branch', async () => {
     const draft = makeBranch({ id: 'feat-d', name: 'draft-work', kind: 'working', status: 'draft' })
     mockBranchDetailQueries([MAIN, draft])
     vi.mocked(planBranchesApi.transition).mockResolvedValue({} as never)
@@ -2216,7 +2215,7 @@ describe('BranchesTab review flows (frontend review batch 14)', () => {
     )
   })
 
-  it('refetches the conflicts a merge was refused over, so "below" has them (PLAN-4)', async () => {
+  it('refetches the conflicts a merge was refused over, so "below" has them', async () => {
     vi.mocked(planBranchesApi.list).mockResolvedValue({ items: [MAIN, FEATURE], total: 2 })
     // Empty when the panel first loaded; main has since gained a conflicting edit.
     vi.mocked(planBranchesApi.getConflicts)
@@ -2241,7 +2240,7 @@ describe('BranchesTab review flows (frontend review batch 14)', () => {
     expect(screen.getByText('1 unresolved')).toBeInTheDocument()
   })
 
-  it('names the sides of a conflict and says which one is chosen (PLAN-6, PLAN-7)', async () => {
+  it('names the sides of a conflict and says which one is chosen', async () => {
     vi.mocked(planBranchesApi.list).mockResolvedValue({ items: [MAIN, FEATURE], total: 2 })
     vi.mocked(planBranchesApi.getConflicts).mockResolvedValue({
       ...CONFLICTED,
@@ -2282,7 +2281,7 @@ describe('BranchesTab review flows (frontend review batch 14)', () => {
     expect(await screen.findByText('Could not save the choice for checkout: Forbidden')).toBeInTheDocument()
   })
 
-  it('does not compute conflicts for a landed branch (PLAN-5)', async () => {
+  it('does not compute conflicts for a landed branch', async () => {
     mockBranchDetailQueries([MAIN, MERGED])
 
     renderTab('feat-merged')
@@ -2291,7 +2290,7 @@ describe('BranchesTab review flows (frontend review batch 14)', () => {
     expect(planBranchesApi.getConflicts).not.toHaveBeenCalled()
   })
 
-  it('holds the delete button while it runs and shows a failed delete (PLAN-9)', async () => {
+  it('holds the delete button while it runs and shows a failed delete', async () => {
     vi.mocked(planBranchesApi.list).mockResolvedValue({ items: [MAIN, FEATURE], total: 2 })
     let rejectDelete: (error: unknown) => void = () => {}
     vi.mocked(planBranchesApi.delete).mockImplementation(
@@ -2316,7 +2315,7 @@ describe('BranchesTab review flows (frontend review batch 14)', () => {
     expect(planBranchesApi.delete).toHaveBeenCalledTimes(1)
   })
 
-  it('leaves a deleted branch for main, and says so (PLAN-9)', async () => {
+  it('leaves a deleted branch for main, and says so', async () => {
     vi.mocked(planBranchesApi.list).mockResolvedValue({ items: [MAIN, FEATURE], total: 2 })
     vi.mocked(planBranchesApi.delete).mockResolvedValue(undefined as never)
     const success = vi.spyOn(toast, 'success')
@@ -2330,7 +2329,7 @@ describe('BranchesTab review flows (frontend review batch 14)', () => {
     expect(success).toHaveBeenCalledWith(expect.stringContaining('checkout-v2'))
   })
 
-  it('offers no delete on a merged branch (PLAN-9)', async () => {
+  it('offers no delete on a merged branch', async () => {
     mockBranchDetailQueries([MAIN, MERGED])
 
     renderTab('feat-merged')
@@ -2341,7 +2340,7 @@ describe('BranchesTab review flows (frontend review batch 14)', () => {
     expect(screen.queryByRole('button', { name: 'Delete branch' })).not.toBeInTheDocument()
   })
 
-  it('says a branch in the URL is gone instead of showing main (PLAN-9)', async () => {
+  it('says a branch in the URL is gone instead of showing main', async () => {
     vi.mocked(planBranchesApi.list).mockResolvedValue({ items: [MAIN, FEATURE], total: 2 })
 
     renderTab('feat-gone')
@@ -2354,7 +2353,7 @@ describe('BranchesTab review flows (frontend review batch 14)', () => {
     expect(screen.queryByText(/every change merges here/i)).not.toBeInTheDocument()
   })
 
-  it('waits for the tracker ticket the merge worker is still creating (PLAN-10)', async () => {
+  it('waits for the tracker ticket the merge worker is still creating', async () => {
     vi.mocked(planBranchesApi.list).mockResolvedValue({ items: [MAIN, FEATURE], total: 2 })
     vi.mocked(planBranchesApi.merge).mockResolvedValue({} as never)
     vi.mocked(trackerConfigApi.get).mockResolvedValue(makeTrackerConfig({ enabled: true }))
@@ -2375,7 +2374,7 @@ describe('BranchesTab review flows (frontend review batch 14)', () => {
     expect(link).toHaveAttribute('href', 'https://example.atlassian.net/browse/ENG-42')
   })
 
-  it('does not offer the author a live Approve when self-approval is blocked (PLAN-12)', async () => {
+  it('does not offer the author a live Approve when self-approval is blocked', async () => {
     const own = makeBranch({
       id: 'feat-own',
       name: 'my-work',
@@ -2391,13 +2390,13 @@ describe('BranchesTab review flows (frontend review batch 14)', () => {
     expect(await screen.findByText('No changes in this branch.')).toBeInTheDocument()
     const approve = await screen.findByRole('button', { name: 'Approve' })
     // The reason is written next to the button, where a `title` on a disabled
-    // button never showed (#237 DA-9), and the button points at it.
+    // button never showed (#237), and the button points at it.
     const reason = await screen.findByText("Authors can't approve their own branch (merge policy).")
     await waitFor(() => expect(approve).toBeDisabled())
     expect(approve.getAttribute('aria-describedby')).toBe(reason.parentElement?.id)
   })
 
-  it('keeps expanded rows open when a row above them is reverted (PLAN-15, PLAN-16)', async () => {
+  it('keeps expanded rows open when a row above them is reverted', async () => {
     vi.mocked(planBranchesApi.list).mockResolvedValue({ items: [MAIN, FEATURE], total: 2 })
     const beta = {
       entity_type: 'event' as const,
@@ -2446,7 +2445,7 @@ describe('BranchesTab review flows (frontend review batch 14)', () => {
     expect(planBranchesApi.diff).toHaveBeenCalledTimes(1)
   })
 
-  it('labels the before and after of a field change for assistive tech (PLAN-19)', async () => {
+  it('labels the before and after of a field change for assistive tech', async () => {
     vi.mocked(planBranchesApi.list).mockResolvedValue({ items: [MAIN, FEATURE], total: 2 })
     vi.mocked(planBranchesApi.diff).mockResolvedValue({
       behind_base: false,
@@ -2472,7 +2471,7 @@ describe('BranchesTab review flows (frontend review batch 14)', () => {
     expect(screen.getByText('EUR')).toBeInTheDocument()
   })
 
-  it('shows what the branch is for, who approved it and who reviews it (PLAN-17)', async () => {
+  it('shows what the branch is for, who approved it and who reviews it', async () => {
     const described = { ...FEATURE, description: 'Adds the checkout v2 events.' }
     vi.mocked(planBranchesApi.list).mockResolvedValue({ items: [MAIN, described], total: 2 })
     vi.mocked(planBranchesApi.get).mockResolvedValue({
@@ -2552,7 +2551,7 @@ describe('BranchesTab review flows (frontend review batch 14)', () => {
     expect(within(picker).queryByRole('option', { name: 'Priya S.' })).toBeNull()
   })
 
-  it('shows a failed policy load with a retry, not "Loading policy…" forever (PLAN-21)', async () => {
+  it('shows a failed policy load with a retry, not "Loading policy…" forever', async () => {
     vi.mocked(planBranchesApi.list).mockResolvedValue({ items: [MAIN], total: 1 })
     vi.mocked(branchSettingsApi.get)
       .mockRejectedValueOnce(new Error('Network down'))
@@ -2569,7 +2568,7 @@ describe('BranchesTab review flows (frontend review batch 14)', () => {
     expect(await within(dialog).findByLabelText('Required approvals')).toBeInTheDocument()
   })
 
-  it('refuses a required-approvals value outside 0-100 (PLAN-21)', async () => {
+  it('refuses a required-approvals value outside 0-100', async () => {
     vi.mocked(planBranchesApi.list).mockResolvedValue({ items: [MAIN], total: 1 })
 
     renderTab()
@@ -2589,7 +2588,7 @@ describe('BranchesTab review flows (frontend review batch 14)', () => {
     expect(branchSettingsApi.update).not.toHaveBeenCalled()
   })
 
-  it("refreshes the branch's own editor caches after a revert (PLAN-16)", async () => {
+  it("refreshes the branch's own editor caches after a revert", async () => {
     vi.mocked(planBranchesApi.list).mockResolvedValue({ items: [MAIN, FEATURE], total: 2 })
     vi.mocked(planBranchesApi.diff).mockResolvedValue({
       behind_base: false,
@@ -2635,7 +2634,7 @@ describe('BranchesTab review flows (frontend review batch 14)', () => {
     })
   })
 
-  it('does not rebuild the counted list for a status change (review 203)', async () => {
+  it('does not rebuild the counted list for a status change', async () => {
     const ready = makeBranch({
       id: 'feat-r',
       name: 'ready-one',
@@ -2669,7 +2668,7 @@ describe('BranchesTab review flows (frontend review batch 14)', () => {
     expect(countedCalls()).toBe(1)
   })
 
-  it('stops making Approve the primary once your own approval stands (PL-7)', async () => {
+  it('stops making Approve the primary once your own approval stands', async () => {
     const ready = makeBranch({
       id: 'feat-r',
       name: 'ready-one',
@@ -2694,7 +2693,7 @@ describe('BranchesTab review flows (frontend review batch 14)', () => {
     expect(approve).not.toHaveClass('bg-accent-solid')
   })
 
-  it('switches the shell back to main when the active branch is deleted (PLAN-58)', async () => {
+  it('switches the shell back to main when the active branch is deleted', async () => {
     vi.mocked(planBranchesApi.list).mockResolvedValue({ items: [MAIN, FEATURE], total: 2 })
     vi.mocked(planBranchesApi.delete).mockResolvedValue(undefined as never)
     localStorage.setItem('tripl-branch:demo', FEATURE.id)
@@ -2728,7 +2727,7 @@ describe('BranchesTab review flows (frontend review batch 14)', () => {
     expect(localStorage.getItem('tripl-branch:demo')).toBeNull()
   })
 
-  it('reaches the settings dialogs through the narrow-screen menu (PLAN-13)', async () => {
+  it('reaches the settings dialogs through the narrow-screen menu', async () => {
     vi.mocked(planBranchesApi.list).mockResolvedValue({ items: [MAIN], total: 1 })
 
     renderTab()
@@ -2742,7 +2741,7 @@ describe('BranchesTab review flows (frontend review batch 14)', () => {
     expect(within(dialog).getByText('Merge policy')).toBeInTheDocument()
   })
 
-  it('marks the words a long text change touched, on each side (PLAN-19)', async () => {
+  it('marks the words a long text change touched, on each side', async () => {
     vi.mocked(planBranchesApi.list).mockResolvedValue({ items: [MAIN, FEATURE], total: 2 })
     vi.mocked(planBranchesApi.diff).mockResolvedValue({
       behind_base: false,
@@ -2778,7 +2777,7 @@ describe('BranchesTab review flows (frontend review batch 14)', () => {
   })
 })
 
-describe('BranchesTab — creating a branch and starting work on it (PL-4, PL-5, PL-13)', () => {
+describe('BranchesTab — creating a branch and starting work on it', () => {
   function ActiveBranch() {
     return <output aria-label="active branch">{useActiveBranchId() ?? 'main'}</output>
   }
@@ -2852,7 +2851,7 @@ describe('BranchesTab — creating a branch and starting work on it (PL-4, PL-5,
   })
 })
 
-describe('BranchesTab "Update from main" header (PL-8)', () => {
+describe('BranchesTab "Update from main" header', () => {
   function behindDiff() {
     vi.mocked(planBranchesApi.diff).mockResolvedValue({
       behind_base: true,

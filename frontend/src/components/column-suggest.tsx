@@ -58,7 +58,7 @@ export function ColumnSuggestInput({
   const activeIdx = Math.min(highlight, filtered.length - 1)
 
   // Keep the highlighted option visible: the list scrolls at ~8 rows, and
-  // ArrowDown past that used to highlight options nobody could see (DS-35).
+  // ArrowDown past that used to highlight options nobody could see.
   // Optional call — jsdom has no scrollIntoView.
   useEffect(() => {
     if (!expanded) return
@@ -107,7 +107,7 @@ export function ColumnSuggestInput({
   // The list is portalled (Radix Popover anchored to the input) rather than
   // positioned inside the field: in the last Field of an SCard it was cut off
   // by the card's rounded-corner clip almost entirely, while the combobox still
-  // reported itself expanded (DS-3). Focus never leaves the input — the popover
+  // reported itself expanded. Focus never leaves the input — the popover
   // neither takes it on open nor hands it back on close.
   return (
     <Popover open={expanded} onOpenChange={next => { if (!next) setOpen(false) }}>
@@ -127,7 +127,7 @@ export function ColumnSuggestInput({
           aria-describedby={ariaDescribedBy}
           aria-required={ariaRequired}
           autoComplete="off"
-          // The shared invalid edge + halo and the faint placeholder (MT-7):
+          // The shared invalid edge + halo and the faint placeholder:
           // aria-invalid alone drew nothing on this hand-rolled control.
           className={`${INPUT_CLASS} mono`}
           // The disabled cue comes from the shared primitive, not from a local

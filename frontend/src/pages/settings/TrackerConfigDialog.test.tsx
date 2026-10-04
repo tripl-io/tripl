@@ -118,7 +118,7 @@ describe('TrackerConfigDialog', () => {
     const [, payload] = at(vi.mocked(trackerConfigApi.update).mock.calls, 0)
     expect(payload).not.toHaveProperty('api_token')
     // A save closes the dialog and says so in a toast, instead of a green line
-    // over a still-offered Cancel (AU-38).
+    // over a still-offered Cancel.
     await waitFor(() => expect(onOpenChange).toHaveBeenCalledWith(false))
     expect(toastSuccess).toHaveBeenCalledWith('Jira tracker connected')
     toastSuccess.mockRestore()
@@ -169,7 +169,7 @@ describe('TrackerConfigDialog', () => {
     ).toBeInTheDocument()
   })
 
-  it('shows a failed load with a retry, not "Loading tracker…" forever (PLAN-21)', async () => {
+  it('shows a failed load with a retry, not "Loading tracker…" forever', async () => {
     vi.mocked(trackerConfigApi.get)
       .mockRejectedValueOnce(new Error('Network down'))
       .mockResolvedValue(makeConfig())
@@ -184,7 +184,7 @@ describe('TrackerConfigDialog', () => {
     expect(await screen.findByLabelText('Project key')).toHaveValue('ENG')
   })
 
-  it('refuses what the backend would refuse, beside the field (PLAN-21)', async () => {
+  it('refuses what the backend would refuse, beside the field', async () => {
     vi.mocked(trackerConfigApi.get).mockResolvedValue(makeConfig())
 
     renderDialog('owner')
@@ -208,7 +208,7 @@ describe('TrackerConfigDialog', () => {
     expect(trackerConfigApi.update).not.toHaveBeenCalled()
   })
 
-  it('requires the connection fields before a tracker can be enabled (PLAN-21)', async () => {
+  it('requires the connection fields before a tracker can be enabled', async () => {
     vi.mocked(trackerConfigApi.get).mockResolvedValue(
       makeConfig({ enabled: false, base_url: '', project_key: '', auth_email: '' }),
     )

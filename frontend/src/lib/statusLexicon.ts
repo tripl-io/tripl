@@ -91,7 +91,7 @@ export const SCAN_RUN_STATUS: Record<RunPillStatus, StatusLexeme> = {
 // ---------------------------------------------------------------------------
 // Signal state — an open anomaly on an event row. A signal from the latest scan
 // is Open (danger); an older still-open one is Recent (warning). "Live" is
-// reserved for the event lifecycle status (green, EV-5/DS-7), so a red "Live"
+// reserved for the event lifecycle status (green), so a red "Live"
 // one column over from a green one no longer means two different things.
 //
 // These deliberately do NOT reuse the MONITOR_STATUS words. Signals are raised
@@ -117,7 +117,7 @@ export function rowSignalLevel(state: string): (typeof SIGNAL_LEVEL)['firing' | 
 // Review status — has a human verified this event yet? Shown as "Verified",
 // not "Reviewed": the In review STATUS and this flag are independent, and
 // "Mark reviewed" read as emptying the review queue, which it never did
-// (#238 JR-27). The field stays `reviewed` on the wire.
+// (#238). The field stays `reviewed` on the wire.
 // ---------------------------------------------------------------------------
 export const REVIEW_STATUS = {
   reviewed: { label: 'Verified', tone: 'success' },
@@ -133,7 +133,7 @@ export const REVIEW_STATUS = {
 // ---------------------------------------------------------------------------
 //
 // Title Case like every other lexeme here: these four were the only lower-case
-// labels, so a status word changed case between screens (DS-45).
+// labels, so a status word changed case between screens.
 export const DATA_SOURCE_HEALTH = {
   healthy: { label: 'Healthy', tone: 'success' },
   stale: { label: 'Stale', tone: 'warning' },
@@ -212,7 +212,7 @@ export type SignalDirectionTone = 'danger' | 'warning'
  * spike → danger, drop → warning: the colour convention every signal surface
  * shares (Anomalies, Overview, the event hero and banner, the chart marks). Top
  * movers kept their own and painted a spike green, so the breakdown rows behind
- * a red "Volume spike detected" banner looked healthy (MON-19).
+ * a red "Volume spike detected" banner looked healthy.
  */
 export const SIGNAL_DIRECTION: Record<SignalDirection, StatusLexeme> = {
   spike: { label: 'Spike', tone: 'danger' },

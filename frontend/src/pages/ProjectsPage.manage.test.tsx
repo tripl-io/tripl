@@ -120,7 +120,7 @@ afterEach(() => {
   vi.restoreAllMocks()
 })
 
-describe('ProjectsPage — deleting a project (WS-9, WS-10)', () => {
+describe('ProjectsPage — deleting a project', () => {
   it('arms Delete only once the slug is typed, and says what goes', async () => {
     const calls = mockApi()
     renderPage()
@@ -198,7 +198,7 @@ describe('ProjectsPage — deleting a project (WS-9, WS-10)', () => {
     expect(screen.getByRole('button', { name: /project actions for gamma/i })).toBeDisabled()
   })
 
-  it('forgets what a demo remembered about a deleted project (DEMO-17)', async () => {
+  it('forgets what a demo remembered about a deleted project', async () => {
     mockApi()
     window.localStorage.setItem('tripl-tour:beta', '2')
     window.localStorage.setItem('tripl-demo-scenario:beta', '{}')
@@ -232,14 +232,14 @@ describe('ProjectsPage — deleting a project (WS-9, WS-10)', () => {
   })
 })
 
-describe('ProjectsPage — creating a project (WS-17, WS-18)', () => {
+describe('ProjectsPage — creating a project', () => {
   it('starts a reopened dialog empty, with auto-slug working again', async () => {
     mockApi()
     renderPage()
 
     fireEvent.click(await screen.findByRole('button', { name: /new project/i }))
     fireEvent.change(screen.getByLabelText(/project name/i), { target: { value: 'Old' } })
-    // The URL field is folded under "Customize URL" (SH-29).
+    // The URL field is folded under "Customize URL".
     fireEvent.click(screen.getByRole('button', { name: 'Customize URL' }))
     fireEvent.change(screen.getByLabelText(/project url/i), { target: { value: 'hand-typed' } })
     fireEvent.click(screen.getByRole('button', { name: 'Cancel' }))
@@ -286,7 +286,7 @@ describe('ProjectsPage — creating a project (WS-17, WS-18)', () => {
   })
 })
 
-describe('ProjectsPage — card semantics (WS-42, WS-43)', () => {
+describe('ProjectsPage — card semantics', () => {
   it('opens each attention stat with its term, not its value', async () => {
     mockApi()
     renderPage()
@@ -307,7 +307,7 @@ describe('ProjectsPage — card semantics (WS-42, WS-43)', () => {
   })
 })
 
-describe('ProjectsPage — the demo cap (DEMO-27)', () => {
+describe('ProjectsPage — the demo cap', () => {
   it('disables Generate demo project at the cap and says why', async () => {
     const demos = [1, 2, 3].map((n) => ({
       ...BETA,

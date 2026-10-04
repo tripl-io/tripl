@@ -4,8 +4,7 @@
  *
  * Only the pathname used to survive, and the query is what anchors the links
  * people actually follow while signed out: an alert message's
- * `?item=…&incident=…`, a branch diff's `?branch=…`, `?section=monitors`
- * (SHELL-14).
+ * `?item=…&incident=…`, a branch diff's `?branch=…`, `?section=monitors`.
  */
 export function postLoginDestination(state: unknown): string {
   const from = (state as { from?: { pathname?: string; search?: string; hash?: string } } | null)

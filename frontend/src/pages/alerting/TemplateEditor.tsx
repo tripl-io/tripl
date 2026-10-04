@@ -28,7 +28,7 @@ export function TemplateEditor({
    * The channel the rule routes to, or null before one is picked. The format
    * choices are per channel, so none are offered until there is one: falling
    * back to the first destination showed formats for a channel the reader had
-   * never chosen (ALR-4).
+   * never chosen.
    */
   destinationType: AlertDestinationType | null
   messageFormat: AlertMessageFormat
@@ -48,11 +48,11 @@ export function TemplateEditor({
   const [activeToken, setActiveToken] = useState<{ start: number; end: number; query: string } | null>(null)
   // Which suggestion the arrow keys are on. The textarea declared
   // role="combobox" and handled none of the keys that role promises, so a
-  // keyboard user could see the suggestions and not reach them (ALR-19).
+  // keyboard user could see the suggestions and not reach them.
   const [activeIndex, setActiveIndex] = useState(0)
   // One id per instance. The rule dialog renders two of these, and a fixed
   // `id="msg-format-label"` gave the document two elements with one id, so
-  // `aria-labelledby` resolved to the first for both (ALR-18).
+  // `aria-labelledby` resolved to the first for both.
   const instanceId = useId()
   const formatLabelId = `${instanceId}-format-label`
   // Per instance too, for the same reason as the label: the title is not unique.
@@ -74,7 +74,7 @@ export function TemplateEditor({
 
   // Checked against the same list the suggestions come from, so a typo such
   // as `${scope_nme}` — or an item variable in the message template — is named
-  // under this editor while typing, not as a 422 after submit (ALR-21). A
+  // under this editor while typing, not as a 422 after submit. A
   // warning rather than a block: the backend owns the final word, and a list
   // that fell behind it must not lock a valid template out.
   const unknownVariables = useMemo(
@@ -153,7 +153,7 @@ export function TemplateEditor({
       {/* One header row: the title, the format beside it, and the two tools.
           The format used to own a 220px side column that — before a
           destination was picked, and always on the item template — held only
-          a grey note stretched to the textarea's height (AL-37). */}
+          a grey note stretched to the textarea's height. */}
       <div className="flex flex-wrap items-center gap-2">
         <Label htmlFor={textareaId} className="mr-auto">{title}</Label>
         {formatSelector && destinationType && (
@@ -191,7 +191,7 @@ export function TemplateEditor({
           </PopoverTrigger>
           {/* Capped at the viewport: 28rem is 448px, wider than a 375px
               phone, and Radix clamps the position but not the width, so
-              the list ran off screen with its descriptions cut (ALR-20). */}
+              the list ran off screen with its descriptions cut. */}
           <PopoverContent align="end" className="w-[min(28rem,calc(100vw-2rem))] space-y-2">
             <div className="text-body font-medium">Available variables</div>
             <div className="max-h-72 overflow-y-auto space-y-1">
@@ -256,7 +256,7 @@ export function TemplateEditor({
             }}
             onBlur={() => setActiveToken(null)}
           />
-          {/* Portalled and anchored to the field (DS-35): inline, the list
+          {/* Portalled and anchored to the field: inline, the list
               sat under the dialog's scroll clip and z-order. */}
           <AnchoredListbox
             id={listboxId}

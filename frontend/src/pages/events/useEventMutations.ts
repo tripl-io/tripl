@@ -131,7 +131,7 @@ export function useEventMutations({
   /**
    * Run on SUCCESS, not in `onMutate`: clearing the selection optimistically
    * lost it on a 4xx/5xx, so a "select all 2,400" sweep had to be redone before
-   * it could be retried (EVT-11).
+   * it could be retried.
    */
   onBulkDeleteSuccess?: () => void
   onBulkUpdateSuccess?: () => void
@@ -167,7 +167,7 @@ export function useEventMutations({
   }, [qc])
 
   // Reconcile with the server after a mutation, without re-requesting every
-  // loaded page when nobody would see the difference (EVT-12).
+  // loaded page when nobody would see the difference.
   // A bulk status, archive, owner or delete change on main also moves health
   // scores, which live under their own key rather than the list's.
   const refreshEventsCaches = useCallback(() => {

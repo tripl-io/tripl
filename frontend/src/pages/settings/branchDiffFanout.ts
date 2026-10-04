@@ -10,7 +10,7 @@ import { isLandedBranch } from './branches/branchMeta'
  * server-side plan comparison measured at 2-3.5 s on a real project — capped at
  * eight rows. `GET /branches?include_diff_counts=true` returns
  * `ahead` / `behind_base` for every open branch off one shared main snapshot, so
- * the list now reads those and fires no diff at all (PLAN-3). Merged and closed
+ * the list now reads those and fires no diff at all. Merged and closed
  * branches come back without counts, and get no badge: a landed branch is not
  * ahead of anything.
  *

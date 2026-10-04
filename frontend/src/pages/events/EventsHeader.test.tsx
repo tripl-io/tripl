@@ -62,7 +62,7 @@ describe('EventsHeader', () => {
     ).toBeInTheDocument()
   })
 
-  it('prints the total once, with a thousands separator (EVT-16)', () => {
+  it('prints the total once, with a thousands separator', () => {
     render(
       <EventsHeader
         total={5000}
@@ -76,7 +76,7 @@ describe('EventsHeader', () => {
     expect(screen.queryByText('5000')).not.toBeInTheDocument()
   })
 
-  it('shows schema drift once per event type, named, not once per row (EVT-33)', () => {
+  it('shows schema drift once per event type, named, not once per row', () => {
     render(
       <QueryClientProvider client={new QueryClient()}>
         <MemoryRouter>
@@ -103,7 +103,7 @@ describe('EventsHeader', () => {
     ).toBeInTheDocument()
   })
 
-  it('says "none"/"open" for chart signals, never "live" (EV-5 / DS-7)', () => {
+  it('says "none"/"open" for chart signals, never "live"', () => {
     // "Live" is the lifecycle status in green one column over; an open anomaly
     // must not borrow the word.
     const { rerender } = render(
@@ -130,7 +130,7 @@ describe('EventsHeader', () => {
     expect(stat()).not.toHaveTextContent(/live/)
   })
 
-  it('puts the nav group in the eyebrow and the stats in the boxed strip under the title (DS-2 / DS-5)', () => {
+  it('puts the nav group in the eyebrow and the stats in the boxed strip under the title', () => {
     const { container } = render(
       <EventsHeader
         total={3}
@@ -162,7 +162,7 @@ describe('EventsHeader', () => {
     expect(screen.queryByText('Total')).not.toBeInTheDocument()
   })
 
-  it('shows a skeleton, not "0 · none", while the counts are pending (DS-25 / EV-19)', () => {
+  it('shows a skeleton, not "0 · none", while the counts are pending', () => {
     render(
       <EventsHeader
         total={0}
@@ -180,7 +180,7 @@ describe('EventsHeader', () => {
     expect(screen.getByText('In review').closest('dl')).not.toHaveTextContent(/0|project-wide/)
   })
 
-  it('titles the queues after themselves and links the views (EV-23)', () => {
+  it('titles the queues after themselves and links the views', () => {
     expect(eventsPageTitle('review', null)).toBe('Review queue')
     expect(eventsPageTitle('archived', null)).toBe('Archived events')
     expect(eventsPageTitle('all', null)).toBe('Events')
@@ -209,7 +209,7 @@ describe('EventsHeader', () => {
     expect(screen.getByRole('link', { name: '6' })).toHaveAttribute('href', '/p/demo/events/review')
   })
 
-  it('drops the stat strip for a project with no events (EV-18)', () => {
+  it('drops the stat strip for a project with no events', () => {
     const { container } = render(
       <EventsHeader
         total={0}

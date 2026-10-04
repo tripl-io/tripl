@@ -72,7 +72,7 @@ export function isProjectEventType(value: string): value is ProjectEventType {
  * The alert inbox: the incident queue, one incident's deliveries, and the
  * "has this project ever delivered" probe. The inbox does not poll while the
  * stream is live, so without these a new incident never appeared in an open
- * Inbox until a reload (#194 SHELL-29).
+ * Inbox until a reload (#194).
  */
 function alertInboxKeys(slug: string): QueryKey[] {
   return [alertInboxKey(slug), alertInboxGroupKey(slug), alertDeliveriesAnyKey(slug)]
@@ -114,7 +114,7 @@ export function invalidationKeysFor(type: ProjectEventType, slug: string): Query
         projectEventWindowMetricsKey(slug),
         // The By version series sits right above the adoption chart; refreshing
         // only the adoption made the two cards disagree after a collection,
-        // since neither polls while the stream is live (MON-4).
+        // since neither polls while the stream is live.
         projectAppVersionSeriesKey(slug),
         projectAppVersionAdoptionKey(slug),
         projectChartAnnotationsKey(slug),
@@ -134,7 +134,7 @@ export function invalidationKeysFor(type: ProjectEventType, slug: string): Query
         // register itself here.
         activeSignalsKey(slug),
         topbarNotificationsKey(slug),
-        // This project's volume chart and top events only (MON-39). Not the
+        // This project's volume chart and top events only. Not the
         // Overview root: it matches every project's Overview, and the KPI
         // series counts event CREATIONS, which a metric collection does not
         // change — scan_job.updated and project_summary.updated refresh it.
@@ -152,7 +152,7 @@ export function invalidationKeysFor(type: ProjectEventType, slug: string): Query
         projectMonitoringSeriesKey(slug),
         projectAppVersionSeriesKey(slug),
         topbarNotificationsKey(slug),
-        // No Overview root here (MON-39): the signals Overview reads are the
+        // No Overview root here: the signals Overview reads are the
         // shared active-signals list above, and the root refetched every
         // project's volume, top events and KPI series on each signal change.
         ...activityKeys(slug),

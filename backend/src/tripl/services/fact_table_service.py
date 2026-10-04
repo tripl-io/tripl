@@ -290,7 +290,7 @@ async def list_fact_table_items(
     offset: int = 0,
     limit: int = 200,
 ) -> tuple[list[FactTableListItem], int]:
-    """The catalog page with its per-row rollups (MT-30).
+    """The catalog page with its per-row rollups.
 
     ``metric_count`` counts every fact metric that READS the table, the way
     ``fact_table_dependents.metrics_depending_on`` decides it: the metric's own

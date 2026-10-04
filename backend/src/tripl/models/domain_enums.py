@@ -297,7 +297,7 @@ class AlertRuleFilterField(enum.StrEnum):
     direction = "direction"
     # A catalog metric (MetricDefinition id). Only a ``metric``-scope signal
     # carries one; every other signal passes a metric filter through, the way a
-    # project-total signal passes an ``event`` filter (JR-15).
+    # project-total signal passes an ``event`` filter.
     metric = "metric"
 
 

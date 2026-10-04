@@ -38,7 +38,7 @@ afterEach(() => {
   vi.useRealTimers()
 })
 
-describe('shell shortcuts (JR-21)', () => {
+describe('shell shortcuts', () => {
   it('presses the page\'s "New …" button on c', () => {
     const create = vi.fn()
     renderPage(
@@ -101,7 +101,7 @@ describe('shell shortcuts (JR-21)', () => {
   })
 })
 
-describe('go-to sequences (JR-21)', () => {
+describe('go-to sequences', () => {
   it('goes to a project page on g then its letter', () => {
     renderPage(<p>Page</p>)
     fireEvent.keyDown(document.body, { key: 'g' })

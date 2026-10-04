@@ -2122,7 +2122,7 @@ async def _events_week_totals(
     scan_config_id: uuid.UUID,
     week_end: datetime,
 ) -> tuple[int, int]:
-    """``(last 7 days, the 7 before)`` of the Events tab's series, one query (EV-21).
+    """``(last 7 days, the 7 before)`` of the Events tab's series, one query.
 
     The collapsed Dynamics strip reads "612K in 7d · +4% vs prior week" whatever
     range the chart is set to, so these sum their own fixed windows ending at the
@@ -2232,7 +2232,7 @@ async def get_top_events_by_volume(
     ).all()
     if not rows:
         return []
-    # The share denominator (MO-25): type-level rows only, the project-total
+    # The share denominator: type-level rows only, the project-total
     # definition ``get_data_source_stats`` documents — every collection chunk
     # also writes event-level rows re-counting the same warehouse rows, so a
     # flat sum would count matched volume twice.

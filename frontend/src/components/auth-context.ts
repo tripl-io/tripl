@@ -30,8 +30,8 @@ export interface AuthContextValue {
   refresh: () => void
   /**
    * True while the session-expired dialog is asking for the password over the
-   * app (SHELL-15). ErrorState reads it to show a 401 as "waiting for you to
-   * sign in" only while that dialog is there to sign in with (SH-35).
+   * app. ErrorState reads it to show a 401 as "waiting for you to
+   * sign in" only while that dialog is there to sign in with.
    * Optional so hand-built contexts (tests) read as "not expired".
    */
   sessionExpired?: boolean

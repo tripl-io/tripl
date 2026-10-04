@@ -33,7 +33,7 @@ export function describeKeyCounts(active: number, inactive: number): string {
 /**
  * The line under the reveal-once dialog's title that says which key the token
  * belongs to, e.g. "claude-agent · read-only · All projects · no expiry". The
- * row it came from is hidden behind the overlay (ST-21).
+ * row it came from is hidden behind the overlay.
  */
 export function describeRevealedKey(
   key: Pick<ApiKey, 'name' | 'scope' | 'project_id' | 'expires_at'>,

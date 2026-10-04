@@ -14,7 +14,7 @@ function hour(bucket: string): EventMetricPoint {
   }
 }
 
-describe('partialWindow (MO-5)', () => {
+describe('partialWindow', () => {
   it('flags a day series that starts mid-day and ends before midnight', () => {
     const raw = [hour('2026-09-02T14:00:00Z'), hour('2026-09-03T00:00:00Z'), hour('2026-09-25T18:00:00Z')]
     expect(partialWindow(raw, 'day', 'hour')).toEqual({

@@ -149,7 +149,7 @@ describe('Instance AI — the embeddings endpoint', () => {
   it('never lets it be edited, because repointing it poisons the existing index', () => {
     renderSection(settingsFixture())
 
-    // Reported as text, not a dashed input that cannot move (ST-30).
+    // Reported as text, not a dashed input that cannot move.
     const row = screen.getByRole('group', { name: 'Embeddings base URL' })
     expect(within(row).queryByRole('textbox')).toBeNull()
   })
@@ -159,7 +159,7 @@ describe('Instance AI — the embeddings endpoint', () => {
 
     const row = screen.getByRole('group', { name: 'Embeddings base URL' })
     expect(within(row).getByText('SEARCH_EMBEDDING_BASE_URL')).toBeInTheDocument()
-    // The reasoning sits behind a "Why?" rather than eight lines of hint (ST-30).
+    // The reasoning sits behind a "Why?" rather than eight lines of hint.
     const why = within(row).getByText('Why?').closest('details')
     expect(why).toHaveTextContent(/POSTed here/i)
     expect(why).toHaveTextContent(/re-embed and a deploy, not a setting/i)
@@ -167,8 +167,8 @@ describe('Instance AI — the embeddings endpoint', () => {
 
   it('does not assert an env variable for a value at its built-in default', () => {
     // The prod state the issue documents: the value is bit-identical to the
-    // shipped default and nothing was ever delivered for it. No badge at all
-    // (ST-25); the page legend says what an unmarked row means.
+    // shipped default and nothing was ever delivered for it. No badge at all;
+    // the page legend says what an unmarked row means.
     renderSection(settingsFixture({}, { 'ai.search_embedding_base_url': 'default' }))
 
     expect(within(labelRow('Embeddings base URL')).queryByText('Env')).toBeNull()
@@ -233,7 +233,7 @@ describe('Instance AI — the stored keys', () => {
   })
 })
 
-describe('Instance AI — stored key deletion (WS-27)', () => {
+describe('Instance AI — stored key deletion', () => {
   it('offers no delete for a key that is not stored', () => {
     renderSection(settingsFixture({ ai_api_key_configured: false }))
 
@@ -249,7 +249,7 @@ describe('Instance AI — stored key deletion (WS-27)', () => {
   })
 })
 
-describe('Instance AI — connection test (WS-26)', () => {
+describe('Instance AI — connection test', () => {
   afterEach(() => {
     vi.restoreAllMocks()
   })
@@ -261,7 +261,7 @@ describe('Instance AI — connection test (WS-26)', () => {
     expect(screen.queryByText(/SAVED/)).toBeNull()
   })
 
-  it('holds the test, and says why, while AI is off in the saved settings (ST-26)', () => {
+  it('holds the test, and says why, while AI is off in the saved settings', () => {
     renderSection(settingsFixture({ ai_enabled: false }))
 
     expect(screen.getByRole('button', { name: 'Test AI' })).toBeDisabled()
@@ -271,7 +271,7 @@ describe('Instance AI — connection test (WS-26)', () => {
     expect(screen.getByLabelText('Model')).toBeEnabled()
   })
 
-  it('holds the test while no API key is saved (ST-26)', () => {
+  it('holds the test while no API key is saved', () => {
     renderSection(settingsFixture({ ai_enabled: true, ai_api_key_configured: false }))
 
     expect(screen.getByRole('button', { name: 'Test AI' })).toBeDisabled()
@@ -288,7 +288,7 @@ describe('Instance AI — connection test (WS-26)', () => {
   })
 })
 
-describe('Instance AI — numeric fields (WS-25)', () => {
+describe('Instance AI — numeric fields', () => {
   it('passes the emptied text through instead of writing 0', () => {
     const setField = vi.fn()
     renderSection(settingsFixture(), undefined, setField)
@@ -330,7 +330,7 @@ describe('Instance AI — numeric fields (WS-25)', () => {
   })
 })
 
-describe('Instance AI — restore a default prompt (ST-30)', () => {
+describe('Instance AI — restore a default prompt', () => {
   afterEach(() => {
     vi.restoreAllMocks()
   })

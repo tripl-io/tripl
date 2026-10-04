@@ -49,7 +49,7 @@ function filled(type: DestinationChannel, patch: Partial<DestinationFormState> =
   return { ...defaultDestinationForm(type), name: `My ${type}`, ...patch }
 }
 
-describe('destinationFormToPayload — create (ALR-1)', () => {
+describe('destinationFormToPayload — create', () => {
   // Every channel but Telegram failed with "Telegram chat_id is required",
   // because create spread the whole form and `chat_id: ''` went with it.
   const cases: [DestinationChannel, Partial<DestinationFormState>, Record<string, unknown>][] = [
@@ -130,7 +130,7 @@ describe('destinationFormToPayload — edit', () => {
     expect(body).toMatchObject({ linear_team_id: 'T', linear_state_id: null })
   })
 
-  it('sends a required field as typed rather than dropping an emptied one (ALR-26)', () => {
+  it('sends a required field as typed rather than dropping an emptied one', () => {
     const existing = makeDestination({
       type: 'jira',
       jira_base_url: 'https://acme.atlassian.net',
@@ -142,7 +142,7 @@ describe('destinationFormToPayload — edit', () => {
     expect(body).toMatchObject({ jira_project_key: 'OPS', jira_base_url: 'https://acme.atlassian.net' })
   })
 
-  it('resets an emptied Jira issue type to Task instead of dropping it (ALR-26)', () => {
+  it('resets an emptied Jira issue type to Task instead of dropping it', () => {
     const existing = makeDestination({
       type: 'jira',
       jira_base_url: 'https://acme.atlassian.net',
@@ -155,14 +155,14 @@ describe('destinationFormToPayload — edit', () => {
     expect(JSON.parse(JSON.stringify(body))).toMatchObject({ jira_issue_type: 'Task' })
   })
 
-  it('removes the webhook secret header as a pair of nulls (ALR-24)', () => {
+  it('removes the webhook secret header as a pair of nulls', () => {
     const existing = makeDestination()
     const body = destinationFormToPayload(destinationToForm(existing), existing, { removeWebhookHeader: true })
 
     expect(body).toMatchObject({ webhook_header_name: null, webhook_header_value: null })
   })
 
-  it('sends a local sink its name, switch and schedule only (ALR-2)', () => {
+  it('sends a local sink its name, switch and schedule only', () => {
     const existing = makeDestination({ type: 'demo_sink', is_local: true, webhook_header_name: null })
     const body = destinationFormToPayload(
       { ...destinationToForm(existing), name: 'Renamed', enabled: false },
@@ -177,7 +177,7 @@ describe('destinationFormToPayload — edit', () => {
   })
 })
 
-describe('destinationFormProblems — the webhook header is a pair (ALR-24)', () => {
+describe('destinationFormProblems — the webhook header is a pair', () => {
   it('asks for a name when only a value is typed', () => {
     expect(destinationFormProblems(filled('webhook', { webhook_header_value: 'v' }), null))
       .toHaveProperty('webhook_header_name')
@@ -207,7 +207,7 @@ describe('destinationFormProblems — the webhook header is a pair (ALR-24)', ()
   })
 })
 
-// The dialog's "Send test" (AL-30): the channel fields the save would send,
+// The dialog's "Send test": the channel fields the save would send,
 // plus the channel and the destination whose stored secrets fill the blanks.
 describe('destinationFormToTestBody', () => {
   it('sends an unsaved destination as the create body would, with no id', () => {

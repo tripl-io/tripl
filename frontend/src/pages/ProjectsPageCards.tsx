@@ -40,7 +40,7 @@ import { TONE_VARS, type StatTone } from './ProjectsPagePortfolio'
 /**
  * An action-needed stat. The surface stays neutral in every state: a 3px
  * accent bar on the left carries the tone, so the strip no longer opens on a
- * big amber block beside a big pink one (SH-27). It reads label first, then
+ * big amber block beside a big pink one. It reads label first, then
  * the figure, then where it is — the order a reader scans it in.
  */
 export function AttentionStat({
@@ -74,8 +74,8 @@ export function AttentionStat({
         className="absolute inset-y-0 left-0 w-[3px]"
         style={{ background: needsAttention ? toneColor : 'var(--border)' }}
       />
-      {/* Term first, as a <dl> requires, and now also first on screen (WS-42,
-          SH-27): the label, the figure, then the breakdown. */}
+      {/* Term first, as a <dl> requires, and now also first on screen:
+          the label, the figure, then the breakdown. */}
       <dl className="m-0 min-w-0 flex-1">
         <dt className="flex items-center gap-1.5 text-body-sm font-medium text-fg-secondary">
           <Icon aria-hidden="true" className="h-3.5 w-3.5 shrink-0" style={{ color: toneColor }} />
@@ -143,7 +143,7 @@ export function ProjectCard({
   const hasSignals = summary.monitoring_signal_count > 0
   const needsReview = summary.review_pending_event_count > 0
   // One needs-attention status leads the card in a saturated color; the rest
-  // render calm/muted so the eye lands on what matters (UX-23). Live monitoring
+  // render calm/muted so the eye lands on what matters. Live monitoring
   // signals outrank a pending review queue.
   const attention: 'signals' | 'review' | null = hasSignals
     ? 'signals'
@@ -152,8 +152,7 @@ export function ProjectCard({
       : null
   const statusTone = attention === 'signals' ? 'neutral' : STATUS_TONE[status.label]
   // An empty plan with nothing run has nothing to tabulate: every tile would be
-  // 0 and both panels placeholder paragraphs. It gets one setup line instead
-  // (SH-25 / JR-34).
+  // 0 and both panels placeholder paragraphs. It gets one setup line instead.
   const isEmpty =
     summary.active_event_count === 0 &&
     summary.latest_scan_job === null &&
@@ -161,17 +160,17 @@ export function ProjectCard({
 
   return (
     <Card
-      // The Card primitive is the section card now (DS-4): surface fill, no
+      // The Card primitive is the section card now: surface fill, no
       // outer padding or gap. The card is one compact row by default — name,
       // status, the four facts that matter and Open — with today's detail one
-      // click away, so a portfolio of ten projects is not ten screens (SH-25).
+      // click away, so a portfolio of ten projects is not ten screens.
       className="overflow-hidden"
       aria-busy={isDeleting || undefined}
     >
       <div className="flex flex-wrap items-center gap-x-4 gap-y-2 px-4 py-3">
         <div className="min-w-0 flex-1 basis-[240px]">
           <div className="flex flex-wrap items-center gap-2">
-            {/* The name is the way in, like the Open button (JR-34). */}
+            {/* The name is the way in, like the Open button. */}
             <Link
               to={home}
               className="truncate text-heading font-semibold no-underline hover:underline text-fg"
@@ -199,7 +198,7 @@ export function ProjectCard({
         <div className="flex shrink-0 items-center gap-1.5">
           {/* The project's front door is its home (projectHomePath), which
               hosts the getting-started checklist; Events used to be hard-coded
-              here, so a new project opened on an empty table (JR-1). */}
+              here, so a new project opened on an empty table. */}
           <Button asChild size="sm">
             <Link to={home}>
               Open project
@@ -294,7 +293,7 @@ function SetupLine({
 /**
  * The compact facts row: coverage, the review queue, the last run and open
  * signals. The chip row that used to sit above the tiles repeated all of them,
- * so it went (SH-25).
+ * so it went.
  */
 function ProjectFacts({
   project,
@@ -318,7 +317,7 @@ function ProjectFacts({
         <span className="font-medium text-fg">
           {summary.active_event_count > 0 ? `${coverageDisplay} implemented` : 'No active events'}
         </span>
-        {/* A real progressbar, so the bar's value is not only a width (WS-43). */}
+        {/* A real progressbar, so the bar's value is not only a width. */}
         <div
           role="progressbar"
           aria-label="Implementation progress"
@@ -403,7 +402,7 @@ function ProjectFacts({
         <span>No open signals</span>
       )}
 
-      {/* The same number the sidebar's Alerting badge shows (SH-26). */}
+      {/* The same number the sidebar's Alerting badge shows. */}
       {summary.open_incident_count > 0 && (
         <Chip tone="danger" size="xs">
           {pluralize(
@@ -417,7 +416,7 @@ function ProjectFacts({
   )
 }
 
-/** Today's full card detail, one click away (SH-25). */
+/** Today's full card detail, one click away. */
 function ProjectDetails({ project, isOwner }: { project: Project; isOwner: boolean }) {
   const { summary } = project
   return (
@@ -430,7 +429,7 @@ function ProjectDetails({ project, isOwner }: { project: Project; isOwner: boole
       </summary>
       <div className="space-y-3 px-4 pb-4 pt-1">
         {/* `items-start`: the four small tiles used to stretch to the height of
-            the scan and monitoring panels beside them (LIVE-24). */}
+            the scan and monitoring panels beside them. */}
         <div className="grid items-start gap-3 lg:grid-cols-[minmax(0,auto)_minmax(0,1fr)_minmax(0,1fr)]">
           <div className="grid grid-cols-2 gap-2">
             <Metric label="Event types" value={String(summary.event_type_count)} />
@@ -438,7 +437,7 @@ function ProjectDetails({ project, isOwner }: { project: Project; isOwner: boole
             <Metric label="Properties" value={String(summary.variable_count)} />
             {/* Incidents awaiting triage, as the sidebar's Alerting badge
                 counts them. "Alerts" used to show the destination count, so
-                the sidebar could say 1 while this said 2 (SH-26). */}
+                the sidebar could say 1 while this said 2. */}
             <Metric
               label="Open incidents"
               value={String(summary.open_incident_count)}
@@ -477,7 +476,7 @@ function Metric({ label, value, danger = false }: { label: string; value: string
       >
         {label}
       </dt>
-      {/* A figure, not an identifier: sans with tabular digits (DS-17). */}
+      {/* A figure, not an identifier: sans with tabular digits. */}
       <dd
         className="tnum m-0 mt-0.5 text-heading font-semibold tracking-[-0.01em]"
         style={danger ? { color: 'var(--danger)' } : undefined}
@@ -535,7 +534,7 @@ function LatestScanJobSummary({
   // number AND the same unit here and on its scan page. A catalog run's
   // `scan_rows_processed` counts column combinations its GROUP BY returned, not
   // warehouse rows: printing it as "warehouse rows read" put "153 combos" on the
-  // scan page and "153 warehouse rows read" here for one run (#247 DA-4).
+  // scan page and "153 warehouse rows read" here for one run (#247).
   const scanned = jobScanned(job)
   // Zero deltas are suppressed, all three alike. A green "+0 events" announced
   // in the success colour that nothing happened, while its zero siblings were
@@ -636,7 +635,7 @@ function LatestSignalSummary({
           {signal.state === 'recent' ? 'Recent signal' : 'Latest scan signal'}
         </Chip>
         {/* The count is monitoring_signal_count, which the rest of the card
-            calls open signals; "N recent" named a different population (WS-43). */}
+            calls open signals; "N recent" named a different population. */}
         <Chip size="xs">{signalCount} open</Chip>
       </div>
       <div className="space-y-0.5">
@@ -676,8 +675,8 @@ function LatestSignalSummary({
   )
 }
 
-// Sentence case, like every other label in the shell (SH-28).
-// "In review" is the status name used everywhere else (JR-27).
+// Sentence case, like every other label in the shell.
+// "In review" is the status name used everywhere else.
 type ProjectStatusLabel = 'Set up' | 'In review' | 'Ready' | 'In progress'
 
 function getProjectStatus(summary: ProjectSummary): { label: ProjectStatusLabel } {
@@ -695,7 +694,7 @@ const SCAN_STATUS_LABEL: Readonly<Record<ProjectLatestScanJob['status'], string>
   cancelled: 'Cancelled',
 }
 
-/** A run's lifecycle as a status chip (DS-6): soft tone, outline while queued. */
+/** A run's lifecycle as a status chip: soft tone, outline while queued. */
 function scanJobStatusChip(
   status: ProjectLatestScanJob['status'],
 ): { tone: 'success' | 'danger' | 'neutral'; variant?: 'outline' } {

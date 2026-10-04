@@ -51,7 +51,7 @@ export const NOT_FOUND_TITLE_LABEL = 'Page not found'
 // absent from this map has no route and is titled as not-found.
 //
 // The Plan, Observe and Govern pages that used to sit under `/settings/<x>`
-// are top-level surfaces now (#238 JR-25 / AL-42 / ST-5), named with the
+// are top-level surfaces now (#238), named with the
 // labels the sidebar uses.
 const PROJECT_SURFACE_LABELS: Record<string, string> = {
   events: 'Events',
@@ -196,7 +196,7 @@ export function resolveTitleFromPath(pathname: string): { label: string; slug?: 
   return { label: NOT_FOUND_TITLE_LABEL } // unmatched authed path → the 404 page
 }
 
-// What a detail route shows, for its tab title (JR-33). Keyed by the segment
+// What a detail route shows, for its tab title. Keyed by the segment
 // after `/p/:slug/`, then (for monitoring) by the scope segment.
 const MONITORING_SCOPE_KINDS: Record<string, string> = {
   event: 'Event',
@@ -221,7 +221,7 @@ export function resolveEntityKind(pathname: string): string | null {
 }
 
 /**
- * The page label for a detail page once its entity has loaded (JR-33): the
+ * The page label for a detail page once its entity has loaded: the
  * entity's own name, then what kind of thing it is, so three open monitoring
  * tabs no longer all read "Monitoring · acme · tripl". Pass the result to
  * {@link useDocumentTitle} without a slug:

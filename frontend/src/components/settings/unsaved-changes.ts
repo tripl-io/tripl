@@ -42,7 +42,7 @@ export type UnsavedChangesValue = {
 export const LEAVE_CONFIRMED = { leaveConfirmed: true } as const
 
 /**
- * The wording of every "you have unsaved work" confirm (AU-42). The form's own
+ * The wording of every "you have unsaved work" confirm. The form's own
  * Cancel opened a dialog offering "Cancel" and "Discard", two meanings of
  * Cancel in two seconds; the safe answer is now named for what it does, and
  * is the one the dialog focuses (AlertDialog focuses its cancel button).

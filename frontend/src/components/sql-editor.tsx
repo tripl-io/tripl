@@ -46,7 +46,7 @@ function buildSqlNamespace(tables: readonly TableSchema[]): SQLNamespace {
  *
  * `compact` is for one-line WHERE fragments (fact filters, fact-table row
  * filters): no gutter, no Format button and no table browser — about 130px of
- * chrome per row — while autocomplete still works (MT-14).
+ * chrome per row — while autocomplete still works.
  */
 export function SqlEditor({
   value,
@@ -87,7 +87,7 @@ export function SqlEditor({
   compact?: boolean
   /**
    * A validation message rendered right under the editor, above Format and the
-   * table browser, so it sits against the control it describes (MT-8).
+   * table browser, so it sits against the control it describes.
    */
   error?: ReactNode
 }) {
@@ -95,7 +95,7 @@ export function SqlEditor({
   // CodeMirror defaults to its LIGHT theme, which registers the editor as
   // light: the base theme then painted the autocomplete box #f5f5f5 under text
   // inheriting the dark theme's near-white --fg, and the fallback highlight
-  // style used light-background token colours at ~2:1 on --bg-sunken (DS-1).
+  // style used light-background token colours at ~2:1 on --bg-sunken.
   // index.css keeps the frame and tooltips on tokens either way.
   const { resolvedTheme } = useTheme()
   const editorTheme = resolvedTheme === 'dark' ? 'dark' : 'light'
@@ -148,7 +148,7 @@ export function SqlEditor({
   // `aria-label` is still passed to <CodeMirror> for those mocks, which label
   // their stand-in textarea from it. The real component spreads it onto its
   // outer wrapper div, where it names nothing and duplicates the label, so it
-  // is taken off that div here (DS-6).
+  // is taken off that div here.
   const applyContentAria = useCallback(
     (view: EditorView | null) => {
       if (!view) return
@@ -179,7 +179,7 @@ export function SqlEditor({
   }, [value])
   //
   // A failure keeps the text as it is and SAYS so: a silent catch made Format
-  // on templated or dialect-edge SQL look like a dead button (DS-43).
+  // on templated or dialect-edge SQL look like a dead button.
   const handleFormat = useCallback(() => {
     const source = value
     void import('@/components/sql-format')
@@ -221,8 +221,8 @@ export function SqlEditor({
 
           No border, background or overflow clip of its own: `.cm-editor` is
           the frame, and a second one here doubled the border and clipped the
-          focus ring away (DS-7). `id` lives on the contenteditable, the one
-          element a <label htmlFor> can point at (DS-6). */}
+          focus ring away. `id` lives on the contenteditable, the one
+          element a <label htmlFor> can point at. */}
       <div className="sql-editor">
         <CodeMirror
           value={value}

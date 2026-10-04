@@ -2,7 +2,7 @@ import { fireEvent, render, screen, within } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
 import { RangeSegmentedControl } from './range-segmented-control'
 
-describe('RangeSegmentedControl (MO-31, DS-16)', () => {
+describe('RangeSegmentedControl', () => {
   it('is a labelled group of pressed-state buttons on the shared segmented look', () => {
     const onChange = vi.fn()
     render(<RangeSegmentedControl value={30} onChange={onChange} />)

@@ -1,12 +1,12 @@
 import { cva } from "class-variance-authority"
 
 /*
- * The one segmented-control look (DS-16 / AL-46), shared by <SegmentedControl>
+ * The one segmented-control look, shared by <SegmentedControl>
  * and <TabsList variant="segmented">: a sunken track with the selected option
  * raised on the surface. Not a solid accent fill: on a small 7d/30d/90d picker
  * that was the loudest thing in a chart header, louder than the page's CTA.
- * The md track is 32px tall, sm 28px, matching Button/Input/Select (DS-14);
- * md options grow to 32px on phones for a usable tap target (MO-31).
+ * The md track is 32px tall, sm 28px, matching Button/Input/Select;
+ * md options grow to 32px on phones for a usable tap target.
  */
 export const SEGMENTED_TRACK =
   "inline-flex w-fit max-w-full items-center gap-0.5 overflow-x-auto rounded-control border border-border bg-bg-sunken p-0.5"

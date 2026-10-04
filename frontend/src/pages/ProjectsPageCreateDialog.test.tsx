@@ -68,13 +68,13 @@ afterEach(() => {
 })
 
 describe('CreateProjectDialog', () => {
-  it('is titled like the button that opens it (DS-29)', () => {
+  it('is titled like the button that opens it', () => {
     renderDialog()
     expect(screen.getByRole('dialog', { name: 'New project' })).toBeInTheDocument()
     expect(screen.getByLabelText(/Description/)).toHaveAccessibleName('Description (optional)')
   })
 
-  it('marks a missing name inline, focuses it and sends nothing (AU-4)', async () => {
+  it('marks a missing name inline, focuses it and sends nothing', async () => {
     const fetchSpy = vi.spyOn(globalThis, 'fetch')
     renderDialog()
 
@@ -88,7 +88,7 @@ describe('CreateProjectDialog', () => {
     expect(fetchSpy).not.toHaveBeenCalled()
   })
 
-  it('shows the URL a name becomes and folds the field under "Customize URL" (SH-29)', () => {
+  it('shows the URL a name becomes and folds the field under "Customize URL"', () => {
     renderDialog()
 
     expect(screen.getByLabelText('Project name')).toHaveAttribute('placeholder', 'e.g. iOS app')
@@ -100,7 +100,7 @@ describe('CreateProjectDialog', () => {
     expect(screen.getByLabelText('Project URL')).toHaveValue('shop-web')
   })
 
-  it('opens the URL field and marks it when the server says the slug is taken (SH-29)', async () => {
+  it('opens the URL field and marks it when the server says the slug is taken', async () => {
     // existingSlugs cannot rule this out: the list hides seeding and failed
     // demos, whose slugs are still held.
     vi.spyOn(globalThis, 'fetch').mockResolvedValue(

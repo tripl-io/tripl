@@ -62,15 +62,15 @@ export type SettingsNavItem = {
   /**
    * What people type when they look for this section but do not know its name
    * ("timezone" finds General). Palettes match on these as well as the label
-   * (#238 JR-19). Only words the label and the other keywords do not already
+   * (#238). Only words the label and the other keywords do not already
    * contain: the palettes match substrings of all of them, and this list
    * ships in the entry chunk.
    */
   keywords?: readonly string[]
   /**
    * A short tag after the label for a section that is not built yet ("Soon").
-   * Rail only; the section keeps its plain label everywhere else (#238 ST-5,
-   * #243 PL-26).
+   * Rail only; the section keeps its plain label everywhere else (#238,
+   * #243).
    */
   tag?: string
   /**
@@ -120,7 +120,7 @@ export const PROJECT_GROUPS: SettingsNavGroup[] = [
         icon: Shield,
         path: 'project/plan-rules',
         // Last in the group, tagged: the page only says what is coming and
-        // where approvals live today (ST-5 / PL-26).
+        // where approvals live today.
         tag: 'Soon',
         keywords: ['naming rules', 'conventions', 'policy'],
       },
@@ -296,7 +296,7 @@ export const WORKSPACE_GROUPS: SettingsNavGroup[] = [
       },
       // "Password & sessions", not "Security": the Instance group has its own
       // "Security & access", and two items called Security one group apart
-      // read as the same page (#238 JR-26).
+      // read as the same page (#238).
       {
         id: 'security',
         label: 'Password & sessions',
@@ -428,8 +428,8 @@ export function sectionPathForUrl(pathname: string): string | null {
 /**
  * The rail label of a section path ('project/general' -> 'General'), or
  * `undefined` for a path the rail does not list. Lets the area name the page
- * before its lazy chunk arrives (#237 ST-35) and above the owner-only and
- * pick-a-project states (ST-36).
+ * before its lazy chunk arrives (#237) and above the owner-only and
+ * pick-a-project states.
  */
 export function sectionLabel(path: string): string | undefined {
   for (const groups of Object.values(SETTINGS_NAV)) {
@@ -455,7 +455,7 @@ export function sectionIsWide(path: string): boolean {
 /**
  * The words on the way out of the takeover. The label names where the link
  * really goes: with no project bound `backHref` is the workspace list, and a
- * link promising "project" that lands there was the LIVE-34 mismatch (ST-4).
+ * link promising "project" that lands there was the LIVE-34 mismatch.
  */
 export function backToLabel(backHref: string, projectName?: string): string {
   if (stripOrgPrefix(backHref) === '/workspace') return 'Back to workspace'

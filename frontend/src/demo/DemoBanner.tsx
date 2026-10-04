@@ -10,11 +10,11 @@
  *
  * It also owns the one way back into the guided onboarding: being
  * mounted on every demo surface, its "Tour & chapters" opens the tour, and the
- * tour offers the dismissed welcome panel back (DEMO-26). For the same reason
+ * tour offers the dismissed welcome panel back. For the same reason
  * it hosts the tour's docked card, which follows the reader from surface to
- * surface (#251 JR-22).
+ * surface (#251).
  *
- * One row, not a stack (LIVE-9): the banner and the scenario strip used to be
+ * One row, not a stack: the banner and the scenario strip used to be
  * two blocks above every page title, ~170 px on a desktop and ~250 px on a
  * phone. The strip now arrives as the `scenario` slot and sits in the middle of
  * the banner's own row — about 44 px, on one line from `lg` up, where the
@@ -64,7 +64,7 @@ import { useEstimatedPhase } from './useEstimatedPhase'
 import { setWelcomeDismissed } from './welcomeDismissal'
 import { currentOrgSlug, projectPath, workspacePath } from '@/lib/navigation'
 
-/** How long a reset may run before the page stops waiting for it (DEMO-4). */
+/** How long a reset may run before the page stops waiting for it. */
 const TIMEOUT_SECONDS = Math.round(DEMO_PROVISION_TIMEOUT_MS / 1000)
 
 /** How often a reset the page stopped waiting for is checked on. */
@@ -104,7 +104,7 @@ function DemoResetProgressDialog() {
 }
 
 /**
- * A reset the browser stopped waiting for (DEMO-4). The request had no timeout,
+ * A reset the browser stopped waiting for. The request had no timeout,
  * so a stalled connection left the modal above on screen forever with a page
  * reload as the only way out. Now it is bounded like a create, and what it
  * says afterwards is only what is known: the server may still be re-seeding.
@@ -154,7 +154,7 @@ export function DemoBanner({
 }: {
   project: Project
   /**
-   * The scenario strip, placed inside this row rather than under it (LIVE-9).
+   * The scenario strip, placed inside this row rather than under it.
    * A slot, not an import, so the strip stays its own lazy chunk.
    */
   scenario?: ReactNode
@@ -195,7 +195,7 @@ export function DemoBanner({
     void navigate(projectPath(currentOrgSlug(), project.slug, '/overview'))
     // Every cached row describes a deleted entity now — drop them outright
     // rather than merely marking them stale. Except three that describe no
-    // seeded entity (DEMO-3): the session (dropping it put the signed-in user
+    // seeded entity: the session (dropping it put the signed-in user
     // back to 'loading' and unmounted the app behind the route guard), and
     // the project list and this project, which the shell resolves the route
     // from — dropping those swapped the whole shell for "Loading project…".
@@ -216,7 +216,7 @@ export function DemoBanner({
   }
 
   // A reset the page stopped waiting for is watched until the server shows
-  // its outcome (DEMO-4): the project row itself is replaced by a re-seed, so
+  // its outcome: the project row itself is replaced by a re-seed, so
   // a new id under the same slug means it landed. Holds the id from before.
   const [watchedFromId, setWatchedFromId] = useState<string | null>(null)
 
@@ -224,7 +224,7 @@ export function DemoBanner({
     meta: SILENT_ERROR_META,
     // The id the reset started from, for the watch above.
     onMutate: () => ({ fromId: project.id }),
-    // Bounded like a create (DEMO-4): past the timeout the abort surfaces as
+    // Bounded like a create: past the timeout the abort surfaces as
     // ApiError(408), and the stalled dialog takes over from the progress one.
     mutationFn: async () => {
       const controller = new AbortController()
@@ -304,7 +304,7 @@ export function DemoBanner({
       setBranchId(null, { updateUrl: false })
       // Nor the tour position, chapter progress, welcome dismissal and hint
       // toggle stored under its random slug, which nothing would ever read
-      // again (DEMO-17).
+      // again.
       forgetDemoLocalState(project.slug)
       void queryClient.invalidateQueries({ queryKey: projectsKey() })
       void navigate(workspacePath())
@@ -318,8 +318,8 @@ export function DemoBanner({
   // What the "Manage demo" trigger says while one of its actions runs.
   const busyLabel = reseedRunning ? 'Resetting…' : deleteMut.isPending ? 'Deleting…' : null
 
-  // A failed reset or delete says so until the user does something else here
-  // (DEMO-23): the message used to stay pinned under the banner through every
+  // A failed reset or delete says so until the user does something else here:
+  // the message used to stay pinned under the banner through every
   // later action, and a reset failure went on captioning a delete that worked.
   //
   // Only a SETTLED failure is reset: `reset()` detaches the observer from a
@@ -372,13 +372,13 @@ export function DemoBanner({
     // the strip decides that for itself, and the actions only need to give up
     // their labels when it did.
     // `data-demo-banner`: a docked coach card measures this to sit below the
-    // banner rather than on its controls (#251 SH-5).
+    // banner rather than on its controls (#251).
     <div className="group/demo mb-4" data-demo-banner="">
       {dialog}
       {resetMut.isPending && <DemoResetProgressDialog />}
       {resetStalled && <DemoResetStalledDialog onClose={() => resetMut.reset()} />}
 
-      {/* The phone form (LIVE-9): one pill instead of the bar, so the page
+      {/* The phone form: one pill instead of the bar, so the page
           title is the first thing on the screen. A disclosure button, so a
           screen reader hears what it opens and whether it is open. */}
       <button
@@ -411,7 +411,7 @@ export function DemoBanner({
         className={cn('rounded-lg border lg:mt-0 lg:block', expanded ? 'mt-2' : 'hidden', 'bg-warning-soft border-warning')}
       >
         <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5 px-3 py-1.5 lg:min-h-11 lg:flex-nowrap">
-          {/* Both groups wrap below `lg` (#251 SH-1): held to one line, the
+          {/* Both groups wrap below `lg` (#251): held to one line, the
               phone panel's content came to 462px in a 364px panel — the
               freshness cut, Reset half-shown, the owner's Delete off-screen. */}
           <div className="flex flex-wrap items-center gap-x-3 gap-y-1 lg:shrink-0 lg:flex-nowrap">
@@ -456,7 +456,7 @@ export function DemoBanner({
             </button>
 
             {/* The way back into the guided onboarding. It opens the
-                tour and nothing else (DEMO-26): it used to restore the dismissed
+                tour and nothing else: it used to restore the dismissed
                 welcome panel on every click, so a user who had put the panel
                 away on purpose got it back each time they wanted the tour. The
                 tour offers the panel back as its own choice. Offered to
@@ -475,8 +475,8 @@ export function DemoBanner({
               <BannerLabel>Tour &amp; chapters</BannerLabel>
             </Button>
 
-            {/* Reset and Delete sit behind one "Manage demo" menu (#238 JR-21,
-                #251 SH-6): the banner is ahead of the page in tab order on every
+            {/* Reset and Delete sit behind one "Manage demo" menu (#238,
+                #251): the banner is ahead of the page in tab order on every
                 demo surface, and a keyboard user walked through two
                 destructive buttons before reaching the page. Now it is one
                 stop, and both still open a confirm. Only the demo's creator or
@@ -507,7 +507,7 @@ export function DemoBanner({
                   </DropdownMenuItem>
                   <DropdownMenuSeparator />
                   {/* Red, the hierarchy's destructive-in-a-list look; the solid
-                      red is kept for the confirm it opens (DS-20). */}
+                      red is kept for the confirm it opens. */}
                   <DropdownMenuItem
                     variant="destructive"
                     className="text-body-sm"
@@ -550,7 +550,7 @@ export function DemoBanner({
           here would keep whatever index it captured at first render. */}
       {tourOpen && <ProductTour slug={project.slug} open onOpenChange={setTourOpen} />}
 
-      {/* The tour, docked on the surface its "Open X" led to (#251 JR-22):
+      {/* The tour, docked on the surface its "Open X" led to (#251):
           mounted here because the banner is on every demo surface. Portalled,
           so it takes no room in the row. */}
       <TourDock
@@ -566,7 +566,7 @@ export function DemoBanner({
 
 /**
  * Hidden from `lg` to `2xl` while the scenario strip shares the row: the one
- * width band where a single line cannot hold every label (LIVE-9). Everywhere
+ * width band where a single line cannot hold every label. Everywhere
  * else — the phone panel, which wraps, a wide screen, or a row with no
  * scenario in it — there is room, and it shows. `sr-only`, so a name it
  * carries stays a name.
@@ -579,7 +579,7 @@ const DETAIL_WHEN_ROOMY =
   'lg:group-has-[[data-demo-scenario]]/demo:hidden 2xl:group-has-[[data-demo-scenario]]/demo:inline-flex'
 
 /**
- * A button label that gives way to its icon where the row is shared (LIVE-9),
+ * A button label that gives way to its icon where the row is shared,
  * while the button keeps its accessible name; the `title` beside it names the
  * icon for a pointer.
  */

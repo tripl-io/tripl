@@ -59,7 +59,7 @@ const VERDICT_ITEMS: ReadonlyArray<{ verdict: SignalVerdictKind; label: string; 
 ]
 
 /**
- * The row's action menu (MO-4 / JR-5, #254): open the detail, jump to the
+ * The row's action menu (#254): open the detail, jump to the
  * incident or the alerts, annotate the bucket — and, for a signal no rule
  * routed to an incident, acknowledge it or mute its scope, each with its Undo.
  * Any signal takes a verdict here (expected, tracking bug, false positive, real
@@ -68,7 +68,7 @@ const VERDICT_ITEMS: ReadonlyArray<{ verdict: SignalVerdictKind; label: string; 
  * verdicts are a radio group, so assistive tech hears which one is current. A
  * tracking bug on an event offers the event's discussion, prefilled. Mute durations and
  * verdicts are labelled groups rather than submenus: the menu primitive has
- * none, on purpose (DS-36).
+ * none, on purpose.
  */
 export function SignalActions({
   slug,
@@ -120,7 +120,7 @@ export function SignalActions({
             </Link>
           </DropdownMenuItem>
           {/* The detail page's banner Annotate, from here: its Volume tab with
-              the form prefilled on this bucket (JR-5). */}
+              the form prefilled on this bucket. */}
           {href && canWrite && (
             <DropdownMenuItem
               className="text-body-sm"

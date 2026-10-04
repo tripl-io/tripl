@@ -58,7 +58,7 @@ const SIGMA_MAX = 10
 // The same treatment for the cooldown override, which the route declares as
 // `int, ge=0, le=10080` (a week). `parseOverride` accepted 1.5 or 20000 and the
 // replay came back as "Replay failed: cooldown_minutes_override: Input should be
-// a valid integer…" (ALR-13).
+// a valid integer…".
 const COOLDOWN_OVERRIDE_MAX = 10080
 
 /** Thresholds to try WITHOUT saving them to the rule. */
@@ -93,7 +93,7 @@ function sameRequest(a: ReplayRequest, b: ReplayRequest): boolean {
  *
  * Text that is there but is not a usable value (negative, not finite) comes
  * back as NaN, NOT as blank: reading "-5" as "no override" ran the replay on
- * the saved value while the box still showed -5 (ALR-13). Every caller treats
+ * the saved value while the box still showed -5. Every caller treats
  * NaN as invalid.
  */
 function parseOverride(text: string): number | null {
@@ -111,7 +111,7 @@ function isInvalidOverride(value: number | null): boolean {
 
 /**
  * "Sep 24, 00:00" — short enough to sit in a 7rem column without running into
- * Scope, in sans with tabular figures (AL-36). The year says nothing inside a
+ * Scope, in sans with tabular figures. The year says nothing inside a
  * replay window of at most 30 days.
  */
 function formatReplayWhen(value: string): string {
@@ -126,7 +126,7 @@ function formatReplayWhen(value: string): string {
   })
 }
 
-/** One override input: a real label, and the value it replaces as helper text (AL-35). */
+/** One override input: a real label, and the value it replaces as helper text. */
 function OverrideField({
   id,
   label,
@@ -216,7 +216,7 @@ export function RuleReplayDialog({
   /**
    * The editor's unsaved edits (the PATCH body Save would send). Given, every
    * run replays the saved rule with these laid over it, server-side and
-   * without writing them (ALR-12); the overrides below then vary the EDITED
+   * without writing them; the overrides below then vary the EDITED
    * thresholds.
    */
   draft?: AlertRuleUpdatePayload | null
@@ -306,7 +306,7 @@ export function RuleReplayDialog({
     },
   })
 
-  // Run the rule as it stands the moment the dialog opens (AL-35): the question
+  // Run the rule as it stands the moment the dialog opens: the question
   // it exists for — "what would this have sent last week?" — needed a second
   // click, and the dialog opened on a row of inputs with nothing to look at.
   // Once per opening; the inputs then re-run it on demand.
@@ -339,7 +339,7 @@ export function RuleReplayDialog({
   const displayResult = result?.override ?? result?.saved ?? null
   // A result answers the window and overrides it was run with. Changing either
   // afterwards used to leave "Considered N", the firings and the preview on
-  // screen as if they answered the new inputs (ALR-12). They stay — a
+  // screen as if they answered the new inputs. They stay — a
   // comparison is often the point — but dimmed, and say so.
   const resultIsStale = result !== null && !sameRequest(result.request, currentRequest)
 
@@ -349,7 +349,7 @@ export function RuleReplayDialog({
           scrolls inside its own region and never widens or side-scrolls the
           dialog itself. */}
       <DialogContent className="max-h-[calc(100vh-2rem)] w-[calc(100vw-2rem)] max-w-4xl min-w-0 overflow-hidden">
-        {/* Left-aligned at every width, clear of the close button (AL-36):
+        {/* Left-aligned at every width, clear of the close button:
             the centred two-line title ran into ✕ on a phone. */}
         <DialogHeader className="pr-10 text-left">
           <DialogTitle className="flex items-start gap-2">

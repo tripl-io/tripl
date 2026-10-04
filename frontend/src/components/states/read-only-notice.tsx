@@ -4,7 +4,7 @@ import { VIEWER_READ_ONLY_HINT } from '@/lib/permissions'
 import { cn } from '@/lib/utils'
 
 /**
- * The one read-only notice (#237 ST-17): a lock, one sentence that says who
+ * The one read-only notice (#237): a lock, one sentence that says who
  * can change this, and an optional way out. Members used a loose 14px
  * paragraph, Project General a dashed box and the owner-only sections a bare
  * card; a viewer now meets the same line everywhere.

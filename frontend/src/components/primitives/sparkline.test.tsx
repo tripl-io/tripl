@@ -16,7 +16,7 @@ function barHeights(container: HTMLElement): number[] {
   return Array.from(container.querySelectorAll('rect'), (rect) => Number(rect.getAttribute('height')))
 }
 
-// DS-4: the range was clamped to at least 1 unit, so a percent metric stored as
+// the range was clamped to at least 1 unit, so a percent metric stored as
 // a fraction (0.05 → 0.09) drew under a pixel of travel — a flat line.
 describe('Sparkline scaling', () => {
   it('uses the full height for a fractional series', () => {
@@ -54,7 +54,7 @@ describe('Sparkline scaling', () => {
   })
 })
 
-// DS-27: a single series is drawn in the fixed series hue, not the accent, so
+// a single series is drawn in the fixed series hue, not the accent, so
 // "volume over time" is one colour on every page and under every accent.
 describe('Sparkline colour', () => {
   it('defaults to the first series colour rather than the accent', () => {
@@ -72,7 +72,7 @@ describe('Sparkline colour', () => {
   })
 })
 
-// EV-20: a loading row drew the same "—" as a loaded empty one.
+// a loading row drew the same "—" as a loaded empty one.
 describe('SparklineSkeleton', () => {
   it('holds the sparkline\'s size and stays out of the accessibility tree', () => {
     const { getByTestId } = render(<SparklineSkeleton width={40} height={12} />)

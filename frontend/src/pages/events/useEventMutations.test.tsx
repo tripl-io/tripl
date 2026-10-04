@@ -119,7 +119,7 @@ describe('useEventMutations optimistic apply/rollback', () => {
     await waitFor(() => expect(onSuccess).toHaveBeenCalledTimes(1))
   })
 
-  it('keeps the selection when a bulk mutation fails (EVT-11)', async () => {
+  it('keeps the selection when a bulk mutation fails', async () => {
     // Clearing it optimistically lost a "select all 2,400" sweep on a 4xx/5xx,
     // so the operator had to redo it before they could retry.
     vi.mocked(eventsApi.bulkUpdate).mockRejectedValue(new Error('boom'))
@@ -163,7 +163,7 @@ describe('useEventMutations optimistic apply/rollback', () => {
     expect(flatItems().map(e => e.id)).toEqual(['a', 'b', 'c'])
   })
 
-  it('reconciles a multi-page list with one request, not one per page (EVT-12)', async () => {
+  it('reconciles a multi-page list with one request, not one per page', async () => {
     vi.mocked(eventsApi.bulkUpdate).mockResolvedValue(undefined as never)
     const infinite: InfiniteData<EventListResponse> = {
       pages: [
@@ -184,7 +184,7 @@ describe('useEventMutations optimistic apply/rollback', () => {
     expect(after.pageParams).toEqual([0])
   })
 
-  it('does not re-request the list after a successful drag (EVT-12)', async () => {
+  it('does not re-request the list after a successful drag', async () => {
     vi.mocked(eventsApi.reorder).mockResolvedValue([] as never)
     seedCaches([makeItem('a'), makeItem('b'), makeItem('c')])
     const { result } = renderMutations()
@@ -217,7 +217,7 @@ describe('useEventMutations optimistic apply/rollback', () => {
     expect(after.pages.map(page => page.items.map(e => e.id))).toEqual([['a', 'c'], ['b', 'd']])
   })
 
-  it('undoes every group as one mutation: selection kept, lists refreshed once (EVT-11)', async () => {
+  it('undoes every group as one mutation: selection kept, lists refreshed once', async () => {
     vi.mocked(eventsApi.bulkUpdate).mockResolvedValue(undefined as never)
     seedCaches([makeItem('a', { status: 'archived' }), makeItem('b', { status: 'archived' })])
     const onUpdateSuccess = vi.fn()

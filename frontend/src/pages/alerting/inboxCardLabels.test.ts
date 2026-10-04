@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 
 import { incidentDeltaBadge, incidentHeadline } from './inboxCardLabels'
 
-describe('incidentHeadline (AL-12)', () => {
+describe('incidentHeadline', () => {
   it('leads with the first scope and counts the rest', () => {
     expect(incidentHeadline({ scope_names: ['checkout', 'cart', 'pay'] })).toEqual({
       primary: 'checkout',
@@ -11,7 +11,7 @@ describe('incidentHeadline (AL-12)', () => {
   })
 })
 
-describe('incidentDeltaBadge (AL-12)', () => {
+describe('incidentDeltaBadge', () => {
   it('signs the change by direction', () => {
     expect(incidentDeltaBadge({ direction: 'spike', actual_count: 5767, expected_count: 3174 })).toEqual({
       label: '+82%',

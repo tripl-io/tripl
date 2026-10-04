@@ -1035,7 +1035,7 @@ class MetricPreviewResponse(BaseModel):
     error: str | None = None
 
 
-# The body of ``POST /metrics/series-preview`` (MT-9): the kind + collection
+# The body of ``POST /metrics/series-preview``: the kind + collection
 # definition a save would send for a ``fact`` or ``event_composition`` metric,
 # validated by the very classes the create and update paths use, so a draft that
 # previews is a draft that saves. ``sql`` metrics keep their own ``/preview``.

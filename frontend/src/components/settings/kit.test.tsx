@@ -164,7 +164,7 @@ describe('SCard header', () => {
   })
 })
 
-describe('TextInput — form attributes (WS-20)', () => {
+describe('TextInput — form attributes', () => {
   it('forwards type, required, readOnly, list, autoComplete and ref to the input', () => {
     const ref = createRef<HTMLInputElement>()
     render(
@@ -191,7 +191,7 @@ describe('TextInput — form attributes (WS-20)', () => {
   })
 })
 
-describe('Kit control contrast (DS-8)', () => {
+describe('Kit control contrast', () => {
   // --border measures 1.20-1.31:1 against the surfaces; the form-control edge
   // must be --input, the token theme-contrast.test.ts pins to 3:1.
   // Pinned on the shared style objects: jsdom's CSS parser is not a reliable
@@ -208,7 +208,7 @@ describe('Kit control contrast (DS-8)', () => {
   })
 })
 
-describe('Field required and error (DS-17)', () => {
+describe('Field required and error', () => {
   it('marks the control required without putting the asterisk in its name', () => {
     render(
       <Field label="Name" required>
@@ -256,7 +256,7 @@ describe('Field required and error (DS-17)', () => {
   })
 })
 
-describe('Section headings (DS-16)', () => {
+describe('Section headings', () => {
   it('names a Panel section by a real heading', () => {
     render(
       <Panel title="Data match">
@@ -278,7 +278,7 @@ describe('Section headings (DS-16)', () => {
   })
 })
 
-describe('RadioCards keyboard (DS-35)', () => {
+describe('RadioCards keyboard', () => {
   function Harness() {
     const [value, setValue] = useState('a')
     return (
@@ -313,7 +313,7 @@ describe('RadioCards keyboard (DS-35)', () => {
   })
 })
 
-describe('RadioCards dimmed option (MT-3)', () => {
+describe('RadioCards dimmed option', () => {
   function Harness() {
     const [value, setValue] = useState('a')
     return (
@@ -341,7 +341,7 @@ describe('RadioCards dimmed option (MT-3)', () => {
   })
 })
 
-describe('Panel options (DS-15)', () => {
+describe('Panel options', () => {
   it('drops the header and its heading when there is neither title nor right slot', () => {
     const { container } = render(<Panel>body</Panel>)
 
@@ -363,7 +363,7 @@ describe('Panel options (DS-15)', () => {
   })
 })
 
-describe('Field for forms with an error summary (DS-17)', () => {
+describe('Field for forms with an error summary', () => {
   it('ids the message after its control, so a summary can link to it', () => {
     render(
       <Field label="Name" htmlFor="metric-name" error="Name is required">
@@ -397,7 +397,7 @@ describe('Field for forms with an error summary (DS-17)', () => {
   })
 })
 
-describe('Kit page headers share PageHeader (DS-19)', () => {
+describe('Kit page headers share PageHeader', () => {
   it('renders SHeader and PageHead with the same h1', () => {
     const { unmount } = render(<SHeader title="Members" description="Who can sign in." />)
     const shHeading = screen.getByRole('heading', { level: 1, name: 'Members' })
@@ -441,7 +441,7 @@ describe('Section card geometry', () => {
   })
 })
 
-// ST-3: one save model for a settings page.
+// one save model for a settings page.
 describe('SettingsSaveBar', () => {
   it('disables both actions until the draft is dirty', () => {
     render(<SettingsSaveBar note="Applies on save." dirty={false} onDiscard={() => {}} onSave={() => {}} />)
@@ -485,7 +485,7 @@ describe('SettingsSaveBar', () => {
   })
 })
 
-describe('NativeSelect width (ST-27)', () => {
+describe('NativeSelect width', () => {
   it('caps a compact select at 280px and lets a fill select take the control column', () => {
     const { rerender } = render(
       <NativeSelect aria-label="Mode" value="a" onChange={() => {}} options={['a', 'b']} />,
@@ -533,7 +533,7 @@ describe('NativeSelect options, groups, size and ref', () => {
   })
 })
 
-describe('TextArea autoGrow (ST-37)', () => {
+describe('TextArea autoGrow', () => {
   it('sizes to its content between the given rows and eight lines', () => {
     const { rerender } = render(<TextArea value="text" onChange={() => {}} rows={3} />)
     expect(screen.getByRole('textbox')).not.toHaveClass('field-sizing-content')

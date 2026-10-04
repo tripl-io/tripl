@@ -40,7 +40,7 @@ export function ProvisioningPhaseList({
   /** True once the request has actually resolved — the only proof work is done. */
   complete?: boolean
   /**
-   * Shown once the wait is well past the estimate (DEMO-21), so a pointer
+   * Shown once the wait is well past the estimate, so a pointer
    * parked on "Finalizing" is not the only signal. Each caller names the way
    * out it actually offers.
    */

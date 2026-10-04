@@ -2,7 +2,7 @@ import { render, screen } from '@testing-library/react'
 import { describe, expect, it } from 'vitest'
 import { Dot } from './dot'
 
-describe('Dot (DS-45)', () => {
+describe('Dot', () => {
   it('is pure decoration when nothing names it', () => {
     const { container } = render(<Dot tone="success" />)
 

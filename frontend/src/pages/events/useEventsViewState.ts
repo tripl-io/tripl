@@ -76,7 +76,7 @@ export function useEventsViewState({
     openChartsState.slug === slug ? openChartsState.charts : readOpenCharts(slug)
 
   // The volume chart starts collapsed: open, its 260px pushed the table below
-  // the fold on every visit, for one unannotated line (EV-21; it replaces
+  // the fold on every visit, for one unannotated line (it replaces
   // UX-14's open default). A per-tab toggle is remembered per project, so the
   // reader who opens it keeps it open across reloads.
   const isTabChartOpen = openCharts[activeTab] ?? false
@@ -97,7 +97,7 @@ export function useEventsViewState({
   }, [activeEt, activeTab, eventTypeSignals, projectTotalSignal])
   const activeTabLabel = useMemo(() => {
     if (activeEt) return activeEt.display_name
-    // Sentence case, like every other label (DS-29).
+    // Sentence case, like every other label.
     if (activeTab === 'review') return 'Review queue'
     if (activeTab === 'archived') return 'Archived events'
     return 'All events'
@@ -146,8 +146,8 @@ export function useEventsViewState({
     Object.values(metaFilters).some(v => v !== '')
 
   // Clears the search too, in the same URL write: to the reader a search that
-  // matches nothing is one more filter, and "Clear filters" left it in place
-  // (EV-16). One updater, because two back-to-back setSearchParams calls both
+  // matches nothing is one more filter, and "Clear filters" left it in place.
+  // One updater, because two back-to-back setSearchParams calls both
   // start from the same params and the second undoes the first.
   const clearAllFilters = useCallback(() => {
     setSearchParams(prev => {

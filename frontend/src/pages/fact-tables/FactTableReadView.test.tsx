@@ -26,7 +26,7 @@ const FACT_TABLE = {
 
 const DATA_SOURCES = [{ id: 'ds-1', name: 'Warehouse' }] as unknown as DataSource[]
 
-describe('FactTableReadView (#237 MT-28)', () => {
+describe('FactTableReadView (#237)', () => {
   it('shows a viewer the definition as text, titled after the table, with no form controls', () => {
     const onClose = vi.fn()
     render(<FactTableReadView factTable={FACT_TABLE} dataSources={DATA_SOURCES} onClose={onClose} />)

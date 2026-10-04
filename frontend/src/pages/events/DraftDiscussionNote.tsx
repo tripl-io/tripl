@@ -18,7 +18,7 @@ export interface DraftDiscussionNoteProps {
  * this page travels with the event into the spec the implementer reads, while
  * this is the one box that does not.
  *
- * The form's own card and textarea (AU-8): it used to be a `rounded-md p-3`
+ * The form's own card and textarea: it used to be a `rounded-md p-3`
  * box with a bigger textarea and no header rule, which read as a widget pasted
  * below the form rather than one more section of it.
  */

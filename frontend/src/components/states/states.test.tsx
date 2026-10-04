@@ -42,7 +42,7 @@ describe('SectionSkeleton and ChartSkeleton', () => {
     expect(screen.getByRole('status')).toHaveTextContent('Loading monitors…')
   })
 
-  it('draws card-less rows for a table already inside a panel (MT-33)', () => {
+  it('draws card-less rows for a table already inside a panel', () => {
     const { container } = render(<SectionSkeleton variant="rows" rows={3} label="Loading metrics…" />)
     expect(screen.getByRole('status')).toHaveTextContent('Loading metrics…')
     expect(container.querySelectorAll('.border-b')).toHaveLength(3)
@@ -167,7 +167,7 @@ describe('DisabledReason', () => {
   })
 })
 
-describe('ProjectNotFound (SH-34)', () => {
+describe('ProjectNotFound', () => {
   it('keeps the brand as the way home and lists up to five projects to open', async () => {
     const { ProjectNotFound } = await import('./project-not-found')
     const projects = Array.from({ length: 7 }, (_, i) => ({

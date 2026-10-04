@@ -52,7 +52,7 @@ describe('eventsEmptyCopy', () => {
     expect(copy.title).toBe('No events in checkout')
   })
 
-  it('names the type by its display name, not the internal key (EVT-39)', () => {
+  it('names the type by its display name, not the internal key', () => {
     const copy = eventsEmptyCopy({ ...base, activeTab: 'se', typeLabel: 'Structured Event' })
 
     expect(copy.title).toBe('No events in Structured Event')

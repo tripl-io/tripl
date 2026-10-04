@@ -23,7 +23,7 @@ describe('ErrorState', () => {
     expect(screen.getByRole('heading', { level: 2, name: "Couldn't load events" })).toBeInTheDocument()
   })
 
-  // DS-16: inside a card that already has an h2, two sibling h2s flatten the
+  // inside a card that already has an h2, two sibling h2s flatten the
   // outline.
   it('takes a lower heading level when nested under a card title', () => {
     render(<ErrorState title="Couldn't load events" error={new Error('boom')} headingLevel={3} />)
@@ -38,7 +38,7 @@ describe('ErrorState', () => {
   })
 })
 
-describe('ErrorState during an expired session (SH-35)', () => {
+describe('ErrorState during an expired session', () => {
   it('shows a quiet waiting note, not a red alert, for a 401 while the sign-in dialog is open', async () => {
     const { ApiError } = await import('@/api/client')
     render(

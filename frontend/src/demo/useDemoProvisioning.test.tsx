@@ -142,7 +142,7 @@ describe('useDemoProvisioning — a stalled create is escapable', () => {
     expect(screen.getByTestId('cancel-outcome')).toHaveTextContent('already-finished')
   })
 
-  it('does not promise a demo "will appear" when the server found nothing to stop (DEMO-28)', async () => {
+  it('does not promise a demo "will appear" when the server found nothing to stop', async () => {
     // A quick cancel can land before the create reached the server: nothing
     // exists, and `cancelled: false` alone does not say which case this is.
     stallUntilAborted()
@@ -169,7 +169,7 @@ describe('useDemoProvisioning — a stalled create is escapable', () => {
     await waitFor(() => expect(screen.getByTestId('cancel-outcome')).toHaveTextContent('unknown'))
   })
 
-  it('stays closed when the dialog is closed while the cancel is still answering (DEMO-6)', async () => {
+  it('stays closed when the dialog is closed while the cancel is still answering', async () => {
     stallUntilAborted()
     let answerCancel: (value: { cancelled: boolean; slug: string | null; state: 'stopped' | 'finished' | 'none' }) => void = () => {}
     vi.spyOn(projectsApi, 'cancelDemo').mockReturnValue(
@@ -197,7 +197,7 @@ describe('useDemoProvisioning — a stalled create is escapable', () => {
     expect(screen.queryByTestId('error')).not.toBeInTheDocument()
   })
 
-  it('does not report a closed attempt as failed when its aborted request settles late (DEMO-6)', async () => {
+  it('does not report a closed attempt as failed when its aborted request settles late', async () => {
     stallUntilAborted()
 
     renderHarness()
@@ -342,7 +342,7 @@ describe('useDemoProvisioning', () => {
     expect(onError).not.toHaveBeenCalled()
   })
 
-  it('surfaces a 409 (demo limit) as an error without navigating (DEMO-5)', async () => {
+  it('surfaces a 409 (demo limit) as an error without navigating', async () => {
     vi.spyOn(projectsApi, 'createDemo').mockRejectedValue(
       new ApiError('You already have 3 demo workspaces (the limit is 3).', 409),
     )
@@ -372,7 +372,7 @@ describe('useDemoProvisioning', () => {
     expect(screen.getByTestId('path')).toHaveTextContent('/workspace')
   })
 
-  it('refreshes the projects list after a failure, which may hide a finished create (DEMO-5)', async () => {
+  it('refreshes the projects list after a failure, which may hide a finished create', async () => {
     const queryClient = new QueryClient({
       defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
     })
@@ -392,7 +392,7 @@ describe('useDemoProvisioning', () => {
     expect(invalidate).toHaveBeenCalledWith({ queryKey: projectsKey() })
   })
 
-  it('surfaces a 403 as an error without navigating (DEMO-5)', async () => {
+  it('surfaces a 403 as an error without navigating', async () => {
     vi.spyOn(projectsApi, 'createDemo').mockRejectedValue(new ApiError('Editor role required', 403))
 
     renderHarness()

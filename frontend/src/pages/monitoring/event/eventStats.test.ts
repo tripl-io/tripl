@@ -18,7 +18,7 @@ function hourly(hoursAgo: number, count: number): EventMetricPoint {
   }
 }
 
-describe('computeEventStats (MON-28 / LIVE-17)', () => {
+describe('computeEventStats', () => {
   it('prints the same delta as the Events list for the same series', () => {
     // 48 full hours: 12/h in the last day, 10/h in the one before.
     const points = Array.from({ length: 48 }, (_, index) => hourly(index + 1, index < 23 ? 12 : 10)).reverse()

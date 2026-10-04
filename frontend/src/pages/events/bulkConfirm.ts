@@ -2,7 +2,7 @@
  * When a bulk status / reviewed / owner change must be confirmed first.
  *
  * Bulk delete always asked; these three applied at once to up to 10k ids, with
- * no word about selected rows the table no longer shows (EVT-10). They now ask
+ * no word about selected rows the table no longer shows. They now ask
  * when the change reaches rows off screen, when it is large, and before an
  * archive, which takes events out of the active plan.
  */

@@ -119,7 +119,7 @@ describe('RuleReplayDialog responsive results', () => {
       ],
     })
     renderDialog()
-    // Runs on open (AL-35).
+    // Runs on open.
     expect(await screen.findByText('iOS primary')).toBeInTheDocument()
     expect(screen.getByText('iOS backup')).toBeInTheDocument()
   })
@@ -144,7 +144,7 @@ describe('RuleReplayDialog responsive results', () => {
     expect(table?.parentElement).not.toHaveClass('overflow-x-auto')
     expect(firingRegion).toHaveClass('min-w-0', 'max-w-full', 'overflow-x-auto')
     // Short and in sans with tabular figures, so it no longer runs into
-    // Scope (AL-36).
+    // Scope.
     const when = within(table as HTMLTableElement).getByText(/^Jul 19, \d\d:\d\d$/)
     expect(when).toHaveClass('whitespace-nowrap', 'tnum')
     expect(when).not.toHaveClass('mono')
@@ -289,7 +289,7 @@ describe('RuleReplayDialog threshold overrides', () => {
   })
 })
 
-describe('RuleReplayDialog cooldown override bounds (ALR-13)', () => {
+describe('RuleReplayDialog cooldown override bounds', () => {
   it.each(['1.5', '20000', '-5'])('refuses %s before sending it', async (value) => {
     const simulate = vi.spyOn(alertingApi, 'simulateRule').mockResolvedValue(RESULT)
     renderDialog()
@@ -333,7 +333,7 @@ describe('RuleReplayDialog cooldown override bounds (ALR-13)', () => {
   })
 })
 
-describe('RuleReplayDialog stale results (ALR-12)', () => {
+describe('RuleReplayDialog stale results', () => {
   it('says the result no longer matches once an override changes, until replayed again', async () => {
     vi.spyOn(alertingApi, 'simulateRule').mockResolvedValue(RESULT)
     renderDialog()
@@ -352,7 +352,7 @@ describe('RuleReplayDialog stale results (ALR-12)', () => {
 })
 
 
-describe('RuleReplayDialog with unsaved edits (ALR-12)', () => {
+describe('RuleReplayDialog with unsaved edits', () => {
   it('sends the draft with every run and says it is replaying the edits', async () => {
     const simulate = vi.spyOn(alertingApi, 'simulateRule').mockResolvedValue(RESULT)
     const draft = { cooldown_minutes: 60, min_percent_delta: 50 }
@@ -375,7 +375,7 @@ describe('RuleReplayDialog with unsaved edits (ALR-12)', () => {
 
     expect(screen.getByRole('heading', { name: /with your unsaved edits/ })).toBeInTheDocument()
     // The overrides are compared with the EDITED thresholds, named as helper
-    // text rather than a placeholder that truncated (AL-35).
+    // text rather than a placeholder that truncated.
     expect(screen.getByLabelText('Cooldown (minutes)')).toHaveAccessibleDescription('Edited: 1h')
     expect(screen.getByLabelText('Cooldown (minutes)')).not.toHaveAttribute('placeholder')
 
@@ -394,7 +394,7 @@ describe('RuleReplayDialog with unsaved edits (ALR-12)', () => {
   })
 })
 
-describe('RuleReplayDialog opens on an answer (AL-35)', () => {
+describe('RuleReplayDialog opens on an answer', () => {
   it('replays the saved rule on open and says what replay does', async () => {
     const simulate = vi.spyOn(alertingApi, 'simulateRule').mockResolvedValue(RESULT)
     renderDialog()

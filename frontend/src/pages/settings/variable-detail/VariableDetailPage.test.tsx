@@ -112,7 +112,7 @@ describe('variableDetailPath', () => {
   })
 })
 
-describe('VariableDetailPage (AU-26)', () => {
+describe('VariableDetailPage', () => {
   it('titles the page after the property and opens on its definition', async () => {
     renderPage('/p/demo/variables/var-1')
 

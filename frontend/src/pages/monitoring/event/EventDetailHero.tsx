@@ -54,15 +54,15 @@ export function EventDetailHero({
   /** Omitted for a viewer, who gets no Edit action. */
   onEdit?: () => void
   onMetrics: () => void
-  /** Opens the annotation form at a bucket; omitted for a viewer (JR-5). */
+  /** Opens the annotation form at a bucket; omitted for a viewer. */
   onAnnotate?: (bucket: string) => void
-  /** Comments on the event's discussion; undefined while they load (JR-7). */
+  /** Comments on the event's discussion; undefined while they load. */
   discussionCount?: number
-  /** Scrolls to the discussion below the tabs (JR-7 / JR-5). */
+  /** Scrolls to the discussion below the tabs. */
   onDiscuss?: () => void
-  /** Sets the verified flag on this one event; editors only, and only while unset (JR-8). */
+  /** Sets the verified flag on this one event; editors only, and only while unset. */
   onMarkVerified?: () => void
-  /** The alert inbox, where the signal's incident carries its triage actions (JR-5). */
+  /** The alert inbox, where the signal's incident carries its triage actions. */
   alertsPath?: string
   /** The project, for the Watch button (#259); omitted, there is none. */
   slug?: string
@@ -108,11 +108,11 @@ export function EventDetailHero({
 }
 
 /**
- * The shared page header (DS-1): one h1 in the page title's sans, since the
- * name is a display name and not code (DS-17); the nav group and collection
- * as the eyebrow; the KPI strip in its `stats` slot (DS-5). The in-page
+ * The shared page header: one h1 in the page title's sans, since the
+ * name is a display name and not code; the nav group and collection
+ * as the eyebrow; the KPI strip in its `stats` slot. The in-page
  * "Plan / Events / <name>" breadcrumb that sat above it repeated the top bar's
- * trail 120px apart (DS-3 / JR-33), so the top bar is the one trail now.
+ * trail 120px apart, so the top bar is the one trail now.
  */
 function EventDetailHeader({
   event,
@@ -159,10 +159,10 @@ function EventDetailHeader({
       titleAddon={
         <>
           <Chip tone={statusTone} size="sm">{EVENT_STATUS_LABELS[status] ?? event.status}</Chip>
-          {/* Tags are kind tags: outline, not a status fill (DS-6). */}
+          {/* Tags are kind tags: outline, not a status fill. */}
           {event.tags.map(tag => <Chip key={tag.id} variant="outline" size="xs">{tag.name}</Chip>)}
           {/* The thread sits below the tabs, past the fold: the count says
-              there is one and the chip jumps to it (JR-7). */}
+              there is one and the chip jumps to it. */}
           {onDiscuss && (
             <Button
               variant="ghost"
@@ -196,7 +196,7 @@ function EventDetailHeader({
         </>
       }
       // The Button primitive, so the primary Edit gets the shared hover, focus
-      // ring and disabled look instead of an inline accent fill (AU-7).
+      // ring and disabled look instead of an inline accent fill.
       actions={
         <>
           {/* One watch per event (#259): a branch copy watches its twin on
@@ -232,7 +232,7 @@ async function copyToClipboard(text: string, success: string) {
 /**
  * Overflow ("…") menu with actions that work. It used to hold only disabled
  * "Coming soon" items, the first place a reader looked for more and found
- * nothing (JR-8).
+ * nothing.
  */
 function EventActionOverflow({
   eventName,
@@ -281,11 +281,11 @@ function EventSignalBanner({
 }: {
   signal: MonitoringSignal
   tone: SignalDirectionTone
-  /** "Annotate" records the verdict on the flagged bucket (JR-5); editors only. */
+  /** "Annotate" records the verdict on the flagged bucket; editors only. */
   onAnnotate?: () => void
-  /** "Discuss" jumps to the event's thread, to ask whoever owns it (JR-5). */
+  /** "Discuss" jumps to the event's thread, to ask whoever owns it. */
   onDiscuss?: () => void
-  /** The alert inbox, where the incident's Ack / Mute live (JR-5 / MO-4). */
+  /** The alert inbox, where the incident's Ack / Mute live. */
   alertsPath?: string
 }) {
   // No baseline is a fact about the signal, not a missing value: dropping the
@@ -304,7 +304,7 @@ function EventSignalBanner({
     >
       <Arrow size={16} style={{ color: `var(--${tone})` }} />
       {/* The % change is the sentence; the z-score moved to the tooltip, where
-          it no longer asks a PM to read statistics (MO-2 / JR-31). A drop that
+          it no longer asks a PM to read statistics. A drop that
           bottomed out says so: "−100%" is right but reads as a rounding. */}
       <span
         className="text-body-sm text-fg-secondary"
@@ -321,7 +321,7 @@ function EventSignalBanner({
       <span className="text-caption text-fg-tertiary">
         {formatTimestamp(signal.bucket)}
       </span>
-      {/* A signal is not a dead end (MO-4 / JR-5): record a verdict on the
+      {/* A signal is not a dead end: record a verdict on the
           bucket, ask about it, or go to the incident's triage actions. */}
       {onAnnotate && (
         <Button variant="outline" size="sm" onClick={onAnnotate}>
@@ -378,9 +378,9 @@ function EventSignalMiniChart({
   /** `EventMetricsResponse.sigma_threshold`, threaded from the hero's already-fetched series. */
   sigmaThreshold: number | undefined
   signal: MonitoringSignal
-  /** The event type's colour, the same one the Volume tab draws (MO-14). */
+  /** The event type's colour, the same one the Volume tab draws. */
   color: string | undefined
-  /** The Volume tab's full chart, with its range controls (MO-14). */
+  /** The Volume tab's full chart, with its range controls. */
   onOpenFullChart: () => void
 }) {
   if (data.length === 0) return null
@@ -406,7 +406,7 @@ function EventSignalMiniChart({
             : `${NO_BASELINE_LABEL} at the flagged bucket`}
         </span>
         {/* The same series as the Volume tab: say so and link to it, so the
-            two do not read as different data (MO-14). */}
+            two do not read as different data. */}
         <Button variant="link" size="sm" className="h-auto p-0 text-caption" onClick={onOpenFullChart}>
           Open full chart
         </Button>
@@ -416,7 +416,7 @@ function EventSignalMiniChart({
         height={104}
         // The event type's colour, as on the Volume tab below, so the two
         // read as one series. The anomaly is marked by its danger mark, not by
-        // painting the whole line red (DS-27 / MO-14).
+        // painting the whole line red.
         color={color}
         granularity={granularity}
         seriesLabel="events"
@@ -457,8 +457,8 @@ function EventStat({
 }
 
 /**
- * The page-KPI strip every page uses (DS-5), in place of four bordered tiles
- * with 19px mono figures: sans tabular figures (DS-17), so "2h ago" no longer
+ * The page-KPI strip every page uses, in place of four bordered tiles
+ * with 19px mono figures: sans tabular figures, so "2h ago" no longer
  * reads as code.
  */
 function EventStatStrip({
@@ -468,7 +468,7 @@ function EventStatStrip({
 }: {
   event: TEvent
   stats: EventDetailStats
-  /** The series has not arrived: no "—" / "No events" claim yet (DS-25). */
+  /** The series has not arrived: no "—" / "No events" claim yet. */
   pending: boolean
 }) {
   const deltaTone: MiniStatTone | undefined = stats.delta24h == null
@@ -490,8 +490,8 @@ function EventStatStrip({
       <EventStat
         label="Change vs prior 24h"
         // The Events list's figure, so the two surfaces cannot disagree about
-        // the same event (MON-28). A window short of 24h says so in words
-        // under the figure, not with a "*" explained only on hover (MO-41).
+        // the same event. A window short of 24h says so in words
+        // under the figure, not with a "*" explained only on hover.
         value={pending
           ? <StatValueSkeleton />
           : stats.partial && stats.delta24h != null
@@ -529,7 +529,7 @@ function EventStatStrip({
 /**
  * Hero-shaped placeholder while the event loads. Without it the page painted
  * the generic header ("Event", "Back to events") full width first and then
- * jumped to the hero inside the narrower column (MON-9).
+ * jumped to the hero inside the narrower column.
  */
 export function EventDetailSkeleton() {
   return (

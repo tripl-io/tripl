@@ -9,7 +9,7 @@ function InstanceRoute() {
 }
 
 describe('InstanceSection', () => {
-  // WS-31: an unknown section rendered Runtime under a URL that said otherwise.
+  // an unknown section rendered Runtime under a URL that said otherwise.
   it('redirects an unknown section to Runtime instead of rendering it under the wrong URL', async () => {
     render(
       <MemoryRouter initialEntries={['/settings/instance/typo']}>

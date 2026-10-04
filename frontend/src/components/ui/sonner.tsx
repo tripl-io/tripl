@@ -10,7 +10,7 @@ function Toaster({ ...props }: ToasterProps) {
     <Sonner
       theme={theme as ToasterProps["theme"]}
       className="toaster group"
-      // bg-popover: a toast floats above the cards like any overlay (DS-10).
+      // bg-popover: a toast floats above the cards like any overlay.
       toastOptions={{
         classNames: {
           toast:

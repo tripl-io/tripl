@@ -12,7 +12,7 @@ export type DefinitionItem = {
 
 /**
  * The read view of a definition, for a viewer who cannot edit it
- * (#237 MT-28 / AU-33 / JR-18 / EV-34). A disabled form kept its live borders,
+ * (#237). A disabled form kept its live borders,
  * required stars, placeholders and author hints, and made the reader scroll
  * 2,500px of form chrome; this is a two-column description list instead. Put a
  * `ReadOnlyNotice` above it and title the page after the entity ("Metric

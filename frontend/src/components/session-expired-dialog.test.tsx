@@ -14,7 +14,7 @@ function renderDialog() {
   )
 }
 
-describe('SessionExpiredDialog (SH-35)', () => {
+describe('SessionExpiredDialog', () => {
   it('offers password recovery in a new tab, keeping the draft on this page', () => {
     renderDialog()
     const link = screen.getByRole('link', { name: 'Forgot password?' })

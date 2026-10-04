@@ -51,11 +51,11 @@ import {
 import { currentOrgSlug, projectPath } from '@/lib/navigation'
 
 // One page of revisions. It used to be the ONLY page: the list asked for 50 and
-// ignored `total`, so anything older was unreachable (PLAN-50).
+// ignored `total`, so anything older was unreachable.
 const PAGE_SIZE = 50
 
 /**
- * What wrote a revision comes from its stored `kind` (PL-21): a snapshot
+ * What wrote a revision comes from its stored `kind`: a snapshot
  * someone saved, the merge base captured when a branch opened, or the plan
  * right after a merge. It used to be parsed out of `summary`, which is free
  * text — a snapshot a user titled "Merged branch 'x'" read as a merge.
@@ -85,7 +85,7 @@ export function HistoryTab({ slug }: { slug: string }) {
   const [selectedRevisionId, setSelectedRevisionId] = useState<string | null>(null)
   const [offset, setOffset] = useState(0)
   // null = follow the default: branch bases stay folded away unless the page
-  // has nothing else to show (PL-21).
+  // has nothing else to show.
   const [showBasesPicked, setShowBasesPicked] = useState<boolean | null>(null)
   const usersById = useUsersById()
   // A branch revision links to its branch's review, labelled with its live name.
@@ -106,7 +106,7 @@ export function HistoryTab({ slug }: { slug: string }) {
     queryKey: planRevisionsKey(slug, offset),
     // One row past the page: the base the page's LAST revision diffs against.
     // Without it the 50th row found no `idx + 1` and called itself "the oldest
-    // revision" whenever older ones existed (PLAN-50).
+    // revision" whenever older ones existed.
     queryFn: () => planRevisionsApi.list(slug, { offset, limit: PAGE_SIZE + 1 }),
     enabled: !!slug,
     // Rendered in the list card, with a retry.
@@ -174,11 +174,11 @@ export function HistoryTab({ slug }: { slug: string }) {
 
   return (
     <PageContainer className="space-y-4">
-      {/* The shared page header (DS-1 / PL-25), the same as Plan branches':
+      {/* The shared page header, the same as Plan branches':
           no inline icon, one description size, actions on the right. */}
       {/* "Snapshot now" is secondary: revisions are recorded on their own
           when a branch merges or opens, and a manual checkpoint is the
-          exception, with its reason in the dialog (PL-21). */}
+          exception, with its reason in the dialog. */}
       <PageHeader
         eyebrow="Plan"
         title="Plan history"
@@ -222,7 +222,7 @@ export function HistoryTab({ slug }: { slug: string }) {
         <Card>
           <CardContent className="p-0">
             {listQuery.isError && listQuery.data !== undefined && (
-              // A failed refresh keeps the list on screen (review 204).
+              // A failed refresh keeps the list on screen.
               <p role="alert" className="px-3 py-2 text-body-sm text-destructive">
                 Couldn't refresh plan history: {getErrorMessage(listQuery.error)}
               </p>
@@ -230,7 +230,7 @@ export function HistoryTab({ slug }: { slug: string }) {
             {listQuery.isPending ? (
               <SectionSkeleton variant="list" rows={6} label="Loading plan history…" className="p-3" />
             ) : listQuery.isError && listQuery.data === undefined ? (
-              // A failed load is not "No revisions yet" (PLAN-41).
+              // A failed load is not "No revisions yet".
               <div className="p-3">
                 <ErrorState
                   compact
@@ -406,7 +406,7 @@ function RevisionRow({
         }`}
       >
         {/* A merge, a branch opening and a saved snapshot each have their own
-            icon, so the list is scannable (PL-21). */}
+            icon, so the list is scannable. */}
         <KindIcon
           className="mt-0.5 size-3.5 shrink-0"
           style={{ color: kind === 'merge' ? 'var(--accent)' : 'var(--fg-subtle)' }}
@@ -483,7 +483,7 @@ function DiffPanel({
     )
   }
   // Through ErrorState, so a 401 under the session-expired dialog reads as
-  // paused rather than as red text (SH-35).
+  // paused rather than as red text.
   if (isError || !diff) {
     return <ErrorState compact headingLevel={3} title="Failed to load diff" error={error} />
   }
@@ -497,7 +497,7 @@ function DiffPanel({
   return <HistoryDiff diff={diff} />
 }
 
-/** The branch review's order and words for the kinds (PL-22 / PL-19). */
+/** The branch review's order and words for the kinds. */
 const KIND_ORDER: PlanDiffKind[] = ['changed', 'added', 'removed']
 
 const GROUP_ORDER: PlanDiffEntityType[] = [
@@ -519,14 +519,14 @@ const GROUP_LABEL: Record<PlanDiffEntityType, string> = {
 }
 
 /** Rows start open only when there are few of them; a revision diff can hold
- * hundreds of entries (PL-22). */
+ * hundreds of entries. */
 const OPEN_ALL_BELOW = 6
 
 /**
  * A revision's diff: grouped by entity type under sticky subheaders, one line
  * per entry that opens to its field changes, and the kind counts as toggles
  * that filter the list. It used to be one bordered card per entry, always
- * expanded — 187 of them for one diff (PL-22).
+ * expanded — 187 of them for one diff.
  */
 function HistoryDiff({ diff }: { diff: PlanDiff }) {
   const [kinds, setKinds] = useState<ReadonlySet<PlanDiffKind>>(() => new Set(KIND_ORDER))
@@ -635,7 +635,7 @@ function HistoryEntryRow({ entry, defaultOpen }: { entry: PlanDiffEntry; default
         </span>
         <span className="flex-1" />
         {/* The branch review's words for the same kinds — history used to
-            say "changed" where the review says "Modified" (PLAN-51). */}
+            say "changed" where the review says "Modified". */}
         <Chip tone={meta.tone} size="xs">
           {meta.label}
         </Chip>
@@ -661,7 +661,7 @@ function HistoryEntryRow({ entry, defaultOpen }: { entry: PlanDiffEntry; default
 }
 
 /** The selected revision: what wrote it, who, and the branch it came from
- * as a link to that branch's review (PL-21). */
+ * as a link to that branch's review. */
 function RevisionHeader({
   slug,
   rev,

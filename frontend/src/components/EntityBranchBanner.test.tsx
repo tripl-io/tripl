@@ -43,7 +43,7 @@ describe('EntityBranchBanner', () => {
     const { setBranchId } = renderBanner('proj-4770', 'proj-4770', '/p/demo/events')
     const banner = await screen.findByTestId('entity-branch-banner')
     expect(banner.textContent).toContain('PROJ-4770')
-    // The status in the words every branch surface uses, not the raw enum (PL-3).
+    // The status in the words every branch surface uses, not the raw enum.
     expect(banner.textContent).toContain('Ready for review')
     expect(screen.queryByRole('alert')).toBeNull()
     const link = screen.getByRole('link', { name: 'View main plan' })
@@ -52,7 +52,7 @@ describe('EntityBranchBanner', () => {
     expect(setBranchId).toHaveBeenCalledWith(null, { updateUrl: false })
   })
 
-  it("never points main at the branch row's own address (EVT-42)", async () => {
+  it("never points main at the branch row's own address", async () => {
     // Reads are lenient: main would render the same branch row under a
     // mismatch warning, and its Save would 404. Without somewhere on main to go,
     // the banner names the branch and offers no link.
@@ -70,7 +70,7 @@ describe('EntityBranchBanner', () => {
     // The link carries the branch; the entry being left keeps its own address.
     expect(setBranchId).toHaveBeenCalledWith('proj-4770', { updateUrl: false })
     expect(screen.getByTestId('entity-branch-banner').textContent).toContain('you are viewing main')
-    // A mismatch is announced: the page below it cannot save there (PL-2).
+    // A mismatch is announced: the page below it cannot save there.
     expect(screen.getByRole('alert')).toBe(screen.getByTestId('entity-branch-banner'))
   })
 

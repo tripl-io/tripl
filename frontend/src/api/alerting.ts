@@ -79,7 +79,7 @@ export const MAX_ALERT_RULE_NAME_LENGTH = 255
 
 /**
  * A rule PATCH body. Also what a replay of unsaved edits sends: the simulate
- * route lays it over the saved rule without writing it (ALR-12).
+ * route lays it over the saved rule without writing it.
  */
 export interface AlertRuleUpdatePayload {
   name?: string
@@ -196,7 +196,7 @@ export const alertingApi = {
 
   /**
    * Send the test message through settings the destination dialog has not
-   * saved (AL-30). Same contract as `testDestination`: resolves 200 even when
+   * saved. Same contract as `testDestination`: resolves 200 even when
    * the channel refuses, so read `ok`/`error` rather than catching.
    */
   testDestinationDraft: (slug: string, body: AlertDestinationDraftTestRequest) =>
@@ -263,7 +263,7 @@ export const alertingApi = {
       minExpectedCount?: number
       sigmaThreshold?: number
     },
-    /** Unsaved edits to replay instead of the saved rule; never written (ALR-12). */
+    /** Unsaved edits to replay instead of the saved rule; never written. */
     draft?: AlertRuleUpdatePayload,
   ) => {
     const params = new URLSearchParams({ days: String(days) })
@@ -304,7 +304,7 @@ export const alertingApi = {
       date_from?: string
       date_to?: string
       offset?: number
-      /** A previous page's `next_cursor` (ALR-27); never sent with an offset. */
+      /** A previous page's `next_cursor`; never sent with an offset. */
       cursor?: string
       limit?: number
     },
@@ -321,7 +321,7 @@ export const alertingApi = {
     if (params?.date_to) sp.set('date_to', params.date_to)
     if (params?.offset !== undefined) sp.set('offset', String(params.offset))
     // Keyset continuation from a previous page's `next_cursor`; the API refuses
-    // it together with a non-zero offset (ALR-27).
+    // it together with a non-zero offset.
     if (params?.cursor) sp.set('cursor', params.cursor)
     if (params?.limit !== undefined) sp.set('limit', String(params.limit))
     const qs = sp.toString()
@@ -391,7 +391,7 @@ export const alertingApi = {
       direction?: 'spike' | 'drop'
       scope?: string
       offset?: number
-      /** A previous page's `next_cursor` (ALR-27); never sent with an offset. */
+      /** A previous page's `next_cursor`; never sent with an offset. */
       cursor?: string
       limit?: number
     },

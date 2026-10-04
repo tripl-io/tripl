@@ -81,7 +81,7 @@ export interface Event {
    * and on list responses, which do not compute it. */
   first_seen_at?: string | null
   /** A branch copy's twin on main; null on main, for a branch-only event, and on
-   *  every response but the single-event read (EVT-42). */
+   *  every response but the single-event read. */
   main_event_id?: string | null
   owner_id: string | null
   reviewed: boolean
@@ -293,7 +293,7 @@ export interface Variable {
   /** Distinct event names this variable was observed in, alphabetical and
    * capped server-side; `event_count` carries the untruncated total. */
   event_names?: string[]
-  /** The same events as id + name, so each can link to its event (AU-29).
+  /** The same events as id + name, so each can link to its event.
    * Ordered by name, capped like `event_names`; two events may share a name. */
   event_refs?: { id: string; name: string }[]
 }

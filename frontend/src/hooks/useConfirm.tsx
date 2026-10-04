@@ -7,14 +7,14 @@ export interface ConfirmOptions {
   message: ReactNode
   variant?: 'danger' | 'primary'
   confirmLabel?: string
-  /** The safe answer's label; defaults to "Cancel" (AU-42). */
+  /** The safe answer's label; defaults to "Cancel". */
   cancelLabel?: string
-  /** Confirm arms only once exactly this text is typed (WS-10). */
+  /** Confirm arms only once exactly this text is typed. */
   requireText?: string
   /**
    * Run the confirmed action INSIDE the dialog: it stays open while this runs,
    * a rejection renders in place and keeps it open for another go, and the
-   * returned promise resolves `true` only once it has succeeded (WS-9).
+   * returned promise resolves `true` only once it has succeeded.
    */
   action?: () => Promise<unknown>
   /** Lead-in for an `action` failure, e.g. "Could not delete the project". */
@@ -42,7 +42,7 @@ export function useConfirm() {
     return new Promise<boolean>(resolve => {
       // A second request while one is open replaces it. The first caller is
       // answered "no" rather than left awaiting a promise that would never
-      // settle (DS-29).
+      // settle.
       openResolve.current?.(false)
       const settle = (v: boolean) => {
         if (openResolve.current === settle) openResolve.current = null

@@ -86,7 +86,7 @@ describe('AuthPage', () => {
     ).toBeInTheDocument()
   })
 
-  it('updates the card title and subtitle to registration copy when the register tab is active (UX-22)', () => {
+  it('updates the card title and subtitle to registration copy when the register tab is active', () => {
     renderAuth()
 
     // The register tab is the only "Create account" control while login mode is active.
@@ -172,14 +172,14 @@ describe('AuthPage', () => {
     expect(screen.queryByText(/no account/i)).not.toBeInTheDocument()
   })
 
-  it('opens the reset-request form from ?mode=forgot, the session dialog link (SH-35)', () => {
+  it('opens the reset-request form from ?mode=forgot, the session dialog link', () => {
     mockAuthFetch({ emailConfigured: true })
     renderAuth('/auth?mode=forgot')
 
     expect(screen.getByRole('button', { name: 'Send reset link' })).toBeInTheDocument()
   })
 
-  it('says before the request when the instance cannot send email (ST-24)', async () => {
+  it('says before the request when the instance cannot send email', async () => {
     vi.spyOn(globalThis, 'fetch').mockImplementation((input: RequestInfo | URL) => {
       if (String(input).endsWith('/api/v1/auth/status')) {
         return Promise.resolve(
@@ -288,7 +288,7 @@ describe('AuthPage', () => {
     ).toBeInTheDocument()
     expect(screen.queryByText(/Sign-ups are closed on this instance/)).not.toBeInTheDocument()
   })
-  it('marks missing fields inline instead of a browser bubble, and sends nothing (AU-4)', async () => {
+  it('marks missing fields inline instead of a browser bubble, and sends nothing', async () => {
     renderAuth()
     await waitFor(() => expect(globalThis.fetch).toHaveBeenCalledTimes(1))
 
@@ -350,7 +350,7 @@ describe('AuthPage', () => {
     )
   })
 
-  it('shows the product mark, a plain name placeholder and a password reveal (SH-31)', () => {
+  it('shows the product mark, a plain name placeholder and a password reveal', () => {
     mockStatus(true)
     renderAuth()
 

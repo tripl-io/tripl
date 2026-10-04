@@ -128,7 +128,7 @@ export const planBranchesApi = {
     ),
 
   /** What "Update from main" would bring in, and the overlaps to decide
-   * first. Read-only (PL-8). */
+   * first. Read-only. */
   getUpdatePreview: (slug: string, branchId: string) =>
     api.get<UpdateFromMainPreview>(
       `/projects/${slug}/branches/${branchId}/update-from-main`,

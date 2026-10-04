@@ -38,7 +38,7 @@ export function pluralize(count: number, singular: string, plural: string): stri
  * `1 scan`, `12 scans`, `4,812 rows` — the count and the noun that agrees with
  * it, as one string.
  *
- * The number goes through `formatNumber` (the app locale, DS-30), so a five-figure count reads as
+ * The number goes through `formatNumber` (the app locale), so a five-figure count reads as
  * "10,000 rows" rather than "10000 rows" on every surface at once. Callers that
  * need the compact form instead (`1.8M`) format the number themselves and reach
  * for {@link pluralize} for the noun.

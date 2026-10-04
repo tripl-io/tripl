@@ -4,13 +4,13 @@ import type { ScanConfigPreview } from '@/types'
 import { PropertyFieldPicker } from './PropertyFieldPicker'
 import { isJsonPreviewType } from './scanUtils'
 
-/** Why a column cannot be picked: the scan already uses it (#247 DA-16). */
+/** Why a column cannot be picked: the scan already uses it (#247). */
 const RESERVED_TITLE = 'Used by this scan as its event type, time, app version or platform column.'
 
 /**
  * The breakdown column checkboxes, and nothing else: the caption and its
  * explanation are the enclosing `Field` row's, and the value limit is a row of
- * its own, so every scan-form section shares one label column (#247 DA-12).
+ * its own, so every scan-form section shares one label column (#247).
  * That row names this group (`role="group"` + `aria-labelledby`); each box
  * keeps its own `aria-label`.
  */

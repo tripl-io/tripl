@@ -9,7 +9,7 @@ const DRAFT: ContractDraft = {
   contract_max_value: '',
 }
 
-describe('fieldContract (PLAN-38)', () => {
+describe('fieldContract', () => {
   it('reads a decimal comma as a point, but not a thousands separator', () => {
     expect(parseDecimal('0,5')).toBe(0.5)
     expect(parseDecimal('1,000')).toBeUndefined()
@@ -45,7 +45,7 @@ describe('fieldContract (PLAN-38)', () => {
   })
 })
 
-describe('fieldContract regex (review 204)', () => {
+describe('fieldContract regex', () => {
   it('never blocks a pattern JavaScript cannot compile: Python and RE2 accept these', () => {
     for (const pattern of ['(?i)^checkout_', '(?P<name>a)', '(']) {
       expect(validateContract({ ...DRAFT, contract_regex: pattern })).toEqual({})

@@ -9,7 +9,7 @@ function Label({
   ...props
 }: React.ComponentProps<typeof LabelPrimitive.Root> & {
   /**
-   * Append a muted "(optional)" after the text (AL-28). Rendered here rather
+   * Append a muted "(optional)" after the text. Rendered here rather
    * than typed into the label ("From Address (optional)"), so every optional
    * field reads the same and the label text itself stays the field's name.
    */

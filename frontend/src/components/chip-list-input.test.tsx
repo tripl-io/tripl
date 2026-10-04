@@ -17,7 +17,7 @@ function Harness({ initial = [] as string[] }: { initial?: string[] }) {
   )
 }
 
-describe('ChipListInput (DS-18)', () => {
+describe('ChipListInput', () => {
   it('announces a rejected value and ties it to the input', () => {
     render(<Harness />)
     const input = screen.getByRole('textbox', { name: 'Jira keys' })

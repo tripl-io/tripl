@@ -8,12 +8,12 @@
 :root {
   /* Native controls (scrollbars, date pickers, autofill, spinners, the <select>
      popup) follow the APP theme, not the OS. ThemeProvider also sets it inline
-     on <html>; these are the stylesheet's half of the same answer (DS-14). */
+     on <html>; these are the stylesheet's half of the same answer. */
   color-scheme: light;
 
   /* The control radius as a plain variable, for inline styles that cannot
      use a utility (settings/input-style.ts). Same value as --radius-control in
-     @theme below (DS-24); it was 8px, one pixel off every other control. */
+     @theme below; it was 8px, one pixel off every other control. */
   --radius: 7px;
 
   --font-sans: "Inter", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
@@ -21,8 +21,8 @@
 
   /* Light surface scale (default). White cards on a slightly grey canvas: the
      canvas used to be 0.99 against 1.0 cards (1.03:1), so panels, the stat
-     strip and the page read as one flat sheet held apart by a hairline
-     (DS-22). */
+     strip and the page read as one flat sheet held apart by a hairline.
+     */
   --bg: oklch(0.975 0.003 250);
   --bg-elevated: oklch(1 0 0);
   --bg-sunken: oklch(0.965 0.004 250);
@@ -34,7 +34,7 @@
   --surface-hover: oklch(0.962 0.004 250);
   --surface-active: oklch(0.945 0.006 250);
 
-  /* Text scale: three steps (DS-12). `--fg` for primary text,
+  /* Text scale: three steps. `--fg` for primary text,
      `--fg-secondary` for secondary text and labels, `--fg-tertiary` for
      captions, timestamps, placeholders and disabled text. The four old names
      stay as aliases so unmigrated code keeps working: --fg-muted is secondary,
@@ -62,7 +62,7 @@
   --accent-soft: oklch(0.49 0.083 192 / 0.12);
   --accent-fg: oklch(1 0 0);
   /* The brand colour as a SOLID FILL under a label: primary buttons, checked
-     switches and checkboxes (SH-40). In light it is the accent itself; the
+     switches and checkboxes. In light it is the accent itself; the
      dark theme swaps in a deeper, calmer fill with white text, because the
      bright dark-theme accent under near-black ink was the loudest thing on
      every screen. --accent stays bright for rings, links, ink and chart lines.
@@ -92,7 +92,7 @@
      following the surface scale. */
   --avatar-bg: oklch(0.52 0.118 240);
 
-  /* Density (DS-9). Cozy values here; the `.density-*` class on <html> sets
+  /* Density. Cozy values here; the `.density-*` class on <html> sets
      the active set (see the density section below). */
   --row-h: 36px;
   --cell-px: 10px;
@@ -104,7 +104,7 @@
   --shadow-md: 0 4px 14px rgb(0 0 0 / 0.08);
   --shadow-lg: 0 12px 40px rgb(0 0 0 / 0.12);
 
-  /* Stacking layers (DS-40). Named so a new surface picks a layer instead of
+  /* Stacking layers. Named so a new surface picks a layer instead of
      guessing a number, and so two layers can no longer tie: the bulk-action
      bars and the drawer backdrop were both z-30, so a bulk bar painted above
      the dimmed backdrop and stayed clickable behind an open drawer. Use as
@@ -123,7 +123,7 @@
   --background: var(--bg);
   --foreground: var(--fg);
   /* A card sits IN the page, not above it: same fill as a panel. Floating
-     layers (popover, dialog, toast) take --bg-elevated (DS-10). */
+     layers (popover, dialog, toast) take --bg-elevated. */
   --card: var(--surface);
   --card-foreground: var(--fg);
   --popover: var(--bg-elevated);
@@ -133,7 +133,7 @@
   --secondary: var(--surface-hover);
   --secondary-foreground: var(--fg);
   --muted: var(--surface-hover);
-  /* No `--muted-foreground` (DS-22). shadcn's `muted-foreground` was the
+  /* No `--muted-foreground`. shadcn's `muted-foreground` was the
      TERTIARY step (--fg-subtle, the caption grey), not --fg-muted, and the
      name kept getting read as "secondary". Every call site moved to the
      explicit steps and the alias is gone; tripl/no-muted-foreground stops it
@@ -152,7 +152,7 @@
      src/theme-contrast.test.ts. */
   --input: oklch(0.62 0.008 250);
   --ring: var(--accent);
-  /* The single-series default (DS-27): a fixed hue, the first categorical
+  /* The single-series default: a fixed hue, the first categorical
      slot, so "volume over time" is the same blue on every page and under every
      accent. It used to be the accent, which drew it lime, violet or rose. */
   --chart-1: var(--series-1);
@@ -161,7 +161,7 @@
   --chart-4: var(--warning);
   --chart-5: var(--danger);
 
-  /* Categorical palette for multi-series charts (DS-23 / MON-36), read by
+  /* Categorical palette for multi-series charts, read by
      SERIES_COLORS in components/ui/chart-format.ts. Fixed hues, not theme
      roles: the accent, the status tones and the neutral greys already mean
      something on those charts (latest release, pre-release, "Other", anomaly
@@ -181,7 +181,7 @@
   --sidebar-foreground: var(--fg);
   --sidebar-primary: var(--accent);
   --sidebar-primary-foreground: var(--accent-fg);
-  /* Sidebar row states (DS-11). The light sidebar is --bg-sunken, and
+  /* Sidebar row states. The light sidebar is --bg-sunken, and
      --surface-hover sat 0.005 L away from it (~1.02:1): hover gave no feedback.
      --sidebar-hover is --surface-active here and --surface-hover in dark;
      --sidebar-active is the soft accent, paired with `text-fg font-medium`. */
@@ -207,7 +207,7 @@
   --series-7: oklch(0.66 0.1 170);
   --series-8: oklch(0.8 0.09 280);
 
-  /* Elevation ladder (DS-10): raised layers get LIGHTER. --bg-elevated (menus,
+  /* Elevation ladder: raised layers get LIGHTER. --bg-elevated (menus,
      selects, popovers, dialogs, toasts) used to be 0.17, darker than the 0.185
      cards under it, so anything floating looked recessed. */
   --bg: oklch(0.14 0.01 250);
@@ -219,14 +219,14 @@
 
   /* See the light-theme note above: the two base steps are pinned by the AA
      floor against the dark surface scale, and spread so the three levels stay
-     apart (DS-12). */
+     apart. */
   --fg: oklch(0.96 0.003 250);
   --fg-secondary: oklch(0.74 0.008 250);
   --fg-tertiary: oklch(0.64 0.008 250);
 
   --border: oklch(0.26 0.014 250);
   --border-strong: oklch(0.34 0.015 250);
-  /* Row dividers: 0.21 measured 1.05:1 on --surface (DS-22). */
+  /* Row dividers: 0.21 measured 1.05:1 on --surface. */
   --border-subtle: oklch(0.235 0.013 250);
   /* See the light-theme note: pinned to the 1.4.11 floor, not to --border. */
   --input: oklch(0.53 0.008 250);
@@ -235,7 +235,7 @@
   --accent-hover: oklch(0.76 0.129 192);
   --accent-soft: oklch(0.72 0.122 192 / 0.14);
   --accent-fg: oklch(0.14 0.01 250);
-  /* See :root. White on a deeper fill of the same hue (SH-40). */
+  /* See :root. White on a deeper fill of the same hue. */
   --accent-solid: oklch(0.53 0.085 192);
   --accent-solid-fg: oklch(1 0 0);
 
@@ -268,7 +268,7 @@
 
 /* accent variants (applied to <html>).
    Every hue sits at least 35° from every status tone (22° / 65–75° / 152° /
-   240°), checked by src/theme-contrast.test.ts (DS-8): amber was
+   240°), checked by src/theme-contrast.test.ts: amber was
    byte-identical to --warning and rose 7° from --danger, so a personal colour
    choice made every primary action read as a warning or a destructive one.
    They are replaced by indigo and magenta (stored "amber" / "rose" choices are
@@ -276,7 +276,7 @@
    and violet from 290° to 303° to stay apart from indigo.
    The `.dark .accent-*` half of each dark selector lets an element carry an
    accent of its own: the Appearance swatches preview each accent in the
-   current theme by setting the class on the swatch (DS-19). */
+   current theme by setting the class on the swatch. */
 .accent-teal { --accent: oklch(0.49 0.083 192); --accent-hover: oklch(0.45 0.077 192); --accent-soft: oklch(0.49 0.083 192 / 0.12); --accent-fg: oklch(1 0 0); }
 .dark .accent-teal, .dark.accent-teal { --accent: oklch(0.72 0.122 192); --accent-hover: oklch(0.76 0.129 192); --accent-soft: oklch(0.72 0.122 192 / 0.14); --accent-fg: oklch(0.14 0.01 250); --accent-solid: oklch(0.53 0.085 192); }
 
@@ -292,7 +292,7 @@
 .accent-magenta { --accent: oklch(0.52 0.17 338); --accent-hover: oklch(0.47 0.17 338); --accent-soft: oklch(0.52 0.17 338 / 0.12); --accent-fg: oklch(1 0 0); }
 .dark .accent-magenta, .dark.accent-magenta { --accent: oklch(0.74 0.15 338); --accent-hover: oklch(0.78 0.12 338); --accent-soft: oklch(0.74 0.15 338 / 0.16); --accent-fg: oklch(0.14 0.01 250); --accent-solid: oklch(0.53 0.16 338); }
 
-/* density (DS-9). The Appearance setting is app-wide, so it drives a set of
+/* density. The Appearance setting is app-wide, so it drives a set of
    tokens, not one table: --row-h (list and table row height), --cell-px (cell
    and row horizontal padding), --control-h (a standalone control that should
    track the row height) and --panel-pad (panel / card body padding). Consume
@@ -318,7 +318,7 @@
    cover colour must match what sits behind the scroller; a surface that is not
    `--bg` (a panel card) sets `--scroll-x-bg` for everything inside it. The
    shadow is a faint tint of --fg: at 30% it read as a dark smudge along the
-   right edge in the light theme (LIVE-6). */
+   right edge in the light theme. */
 .tripl-scroll-x {
   background-image:
     linear-gradient(to right, var(--scroll-x-bg, var(--bg)) 40%, transparent),
@@ -336,7 +336,7 @@
 /* The body of a panel card (kit `Panel`, the scans and event-type `SurfPanel`s).
    The card clips to its rounded corners, so a wide table placed straight in it
    lost its right-hand columns, row actions included, on a phone with no way to
-   reach them (DS-5 / DATA-9). The body scrolls sideways instead, with the fade
+   reach them. The body scrolls sideways instead, with the fade
    above in the card's colour; vertically it still clips, as the card did. */
 .tripl-panel-body {
   --scroll-x-bg: var(--surface);
@@ -395,7 +395,7 @@
   /* No `content-visibility: auto` here: size and layout containment do not
      apply to internal table boxes (CSS Containment §3), so on a <tr> it was
      ignored and only suggested a row-virtualisation safeguard that did not
-     exist (DS-44). A long table that needs it gets real virtualisation, as the
+     exist. A long table that needs it gets real virtualisation, as the
      events catalog does. */
 }
 
@@ -480,7 +480,7 @@
      read `bg-accent` as "subtle highlight"; here that painted every focused
      menu row a solid brand bar and left --fg text under 4.5:1 on it. Those
      components highlight with `bg-surface-hover` instead, like the command
-     palettes (DS-10). */
+     palettes. */
   --color-accent: var(--accent);
   --color-accent-foreground: var(--accent-foreground);
   --color-destructive: var(--destructive);
@@ -528,7 +528,7 @@
   --color-danger-soft: var(--danger-soft);
   --color-info: var(--info);
   --color-info-soft: var(--info-soft);
-  /* Radius: three values (DS-24). `rounded-sm` 4px for code chips, tokens
+  /* Radius: three values. `rounded-sm` 4px for code chips, tokens
      and checkboxes; `rounded-control` 7px for buttons, inputs, menus and
      segmented controls; `rounded-card` 10px for cards, dialogs, popovers and
      banners. `rounded-full` is for status pills and avatars only. Tailwind's
@@ -545,7 +545,7 @@
   --radius-xl: var(--radius-card);
   --radius-2xl: var(--radius-card);
 
-  /* Type scale (DS-13): five UI steps and two display steps, each with its
+  /* Type scale: five UI steps and two display steps, each with its
      line height. Use these, never `text-[Npx]`, `text-xs` or `text-sm`.
        text-micro     10.5/14  table headers, stat labels, eyebrows (with
                                `micro-label` for the uppercase label look)
@@ -558,7 +558,7 @@
      `text-2xs` and `text-lead` are deprecated aliases of micro and heading,
      kept until the call sites are migrated.
 
-     Icon scale (DS-23), tied to the type scale; stroke width stays 2:
+     Icon scale, tied to the type scale; stroke width stays 2:
        size-3   12px  inside chips and captions
        size-3.5 14px  sm buttons, table actions, nav rows
        size-4   16px  default buttons, panel header icons
@@ -586,7 +586,7 @@
   --text-lead--line-height: 22px;
 }
 
-/* The micro label (DS-13): uppercase eyebrow for table headers, stat labels
+/* The micro label: uppercase eyebrow for table headers, stat labels
    and section labels. Carries size, weight, case and tracking in one class, so
    call sites stop re-spelling `text-[10px] font-semibold uppercase
    tracking-[0.06em]` with drifting values. Colour stays at the call site
@@ -619,7 +619,7 @@
   }
   /* No `color-scheme` of its own: it used to force `dark` in both themes, so
      in Light every native <select> opened a dark popup and scrollbar beside
-     light fields. It inherits the root's now (DS-14). */
+     light fields. It inherits the root's now. */
   select {
     @apply bg-background text-foreground;
   }
@@ -655,7 +655,7 @@
 
 .mono { font-family: var(--font-mono); font-feature-settings: "tnum"; }
 /* JetBrains Mono ships at 400 and 500 only (main.tsx). Mono is for machine
-   identifiers and code, never bold (DS-17); where a call site still asks for
+   identifiers and code, never bold; where a call site still asks for
    600/700 the browser used to fake-embolden it. Without synthesis it falls
    back to the nearest real face (500). */
 .mono, .font-mono { font-synthesis-weight: none; }
@@ -729,8 +729,8 @@
    `outline-none` + `focus-visible:ring-*` design in the kit whatever the
    specificity, so buttons and inputs showed a ring AND an outline. And no
    `border-radius`: forcing 4px on the focused element reshaped round switches
-   and pill buttons on Tab; an outline follows the element's own radius
-   (DS-2). */
+   and pill buttons on Tab; an outline follows the element's own radius.
+   */
 @layer base {
   :focus-visible {
     outline: 2px solid var(--accent);
@@ -796,17 +796,17 @@
 /* Token-driven frame so the editor follows the app theme and every accent
    variant above. The editor itself is the ONE frame: the wrapper in
    sql-editor.tsx used to draw a second border with its own radius and clip
-   this one's focus ring with `overflow-hidden` (DS-7).
+   this one's focus ring with `overflow-hidden`.
 
    Scoped under `.sql-editor` for specificity, not just namespacing. The editor
-   is handed CodeMirror's light or one-dark theme to match the app (DS-1), and
+   is handed CodeMirror's light or one-dark theme to match the app, and
    those inject class-scoped rules (`.ͼo .cm-gutters`, `.ͼ3 .cm-tooltip`) that a
    bare `.cm-editor …` selector ties with or loses to. The extra class keeps
    the tokens on top; the theme still supplies the syntax colours, which is
    why it is passed at all.
 
    The edge is `--input`, the form-control boundary pinned to 3:1 (WCAG
-   1.4.11); `--border` measures ~1.3:1 and left the box barely visible (DS-8). */
+   1.4.11); `--border` measures ~1.3:1 and left the box barely visible. */
 .sql-editor .cm-editor {
   background: var(--bg-sunken);
   border: 1px solid var(--input);
@@ -831,7 +831,7 @@
   box-shadow: 0 0 0 3px color-mix(in oklab, var(--ring) 50%, transparent);
 }
 
-/* The invalid look every kit control has (INPUT_INVALID_CLASS, MT-7): a
+/* The invalid look every kit control has (INPUT_INVALID_CLASS): a
    --danger edge and a soft danger halo. sql-editor.tsx puts aria-invalid on
    .cm-content, so the frame reads it through :has(); after the focus rule so
    an invalid query stays red while it is being fixed. */
@@ -862,7 +862,7 @@
   background: transparent;
 }
 
-/* Autocomplete and other tooltips (DS-1). Left to CodeMirror, the light base
+/* Autocomplete and other tooltips. Left to CodeMirror, the light base
    theme painted a #f5f5f5 box under text that inherited near-white --fg in
    dark mode, so the completion list could not be read. Popover tokens, like
    every other menu in the app. */

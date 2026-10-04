@@ -166,7 +166,7 @@ interface AlertingInboxProps {
   // absent, the two setters are called in turn.
   onClearAllFilters?: () => void
   // The empty state's "Show all": every status, filters off. Distinct from
-  // Clear when the page opens on a status of its own (AL-14) — clearing back
+  // Clear when the page opens on a status of its own — clearing back
   // to an empty Open queue would show nothing new. Falls back to Clear.
   onShowAll?: () => void
   // The status the page opens on; the filter bar does not count it as a
@@ -178,7 +178,7 @@ interface AlertingInboxProps {
   // Draft notes and expansion both outlive a section switch, so they are owned
   // by the page, not by this conditionally-rendered component. The drafts are
   // a store rather than state, so a keystroke re-renders the one card being
-  // typed in instead of the page and every card on it (ALR-29).
+  // typed in instead of the page and every card on it.
   noteDraftStore: NoteDraftStore
   expandedIncidents: ReadonlySet<string>
   toggleIncident: (correlationGroupId: string) => void
@@ -205,7 +205,7 @@ interface AlertingInboxProps {
   // disabled all ~80 buttons on the page, so triage was strictly serial and the
   // row you touched showed nothing at all. A SET, not one id:
   // with one id, acting on B while A was in flight re-enabled A's buttons and
-  // pinned any failure of A on B (ALR-28).
+  // pinned any failure of A on B.
   pendingGroupIds: ReadonlySet<string>
   // …and each row's own failure. The error used to render once, below every
   // card, ~3,000px from the row it was about. Each failure carries the card
@@ -328,7 +328,7 @@ export function AlertingInbox({
    * `InboxBulkActionBar` refuses "select all N matching" to protect.
    */
   // Stable across renders that do not change the list, so the memoized cards
-  // below are not all re-rendered by one of them changing (ALR-29).
+  // below are not all re-rendered by one of them changing.
   const selectIncident = useCallback((
     correlationGroupId: string,
     selected: boolean,
@@ -353,7 +353,7 @@ export function AlertingInbox({
   // Bumped by "Show all", which clears the filters from OUTSIDE the bar: a
   // scope typed inside the debounce window lives only in the bar's own draft,
   // and remounting is the one reset that also drops the pending debounce —
-  // otherwise it fired afterwards and re-applied what was just cleared (ALR-50).
+  // otherwise it fired afterwards and re-applied what was just cleared.
   const [filterBarGeneration, setFilterBarGeneration] = useState(0)
   // Status and every other filter off, in one write when the page offers one.
   const clearAllFilters = () => {
@@ -409,7 +409,7 @@ export function AlertingInbox({
           read as "no incidents" when the truth is "nothing can produce
           one". Say which, and where to fix it. */}
       {/* "0 incidents", the word the rest of the UI uses — not "0 groups",
-          an internal term (AL-18). The CTA is a button, not an underlined word
+          an internal term. The CTA is a button, not an underlined word
           mid-sentence; viewers get the sentence without it, since a rule is
           an editor write. */}
       {!hasRules && (
@@ -539,7 +539,7 @@ export function AlertingInbox({
                 </>
               ) : (
                 // "Incidents", as the rest of the UI calls them — not
-                // "correlated alert groups" (AL-18).
+                // "correlated alert groups".
                 `No incidents in the ${LOOKBACK_LABEL}. When a rule fires, it shows up here.`
               )}
             </div>
@@ -649,7 +649,7 @@ interface IncidentCardProps {
 }
 
 /**
- * Memoized, with every prop the section passes kept stable (ALR-29): an update
+ * Memoized, with every prop the section passes kept stable: an update
  * that concerns one card — its action going pending, its checkbox — re-renders
  * that card and not the other 49–249.
  */
@@ -808,7 +808,7 @@ const IncidentCard = memo(function IncidentCard({
         />
       )}
       <div className="min-w-0 flex-1">
-        {/* The title row (AL-12): status, then WHAT broke at the card's own
+        {/* The title row: status, then WHAT broke at the card's own
             heading size, then HOW MUCH as a signed badge on the right. It used
             to lead with a row of chips and put the scope on line two as a
             muted, underlined comma list, so nothing on the card supported
@@ -892,11 +892,11 @@ const IncidentCard = memo(function IncidentCard({
           {worstDelta && <> · {worstDelta}</>}
         </div>
         {/* The meta row: what kind of signal, how many items, when, and which
-            rule on which scan — at 12.5px, not the 10px it was (AL-13). */}
+            rule on which scan — at 12.5px, not the 10px it was. */}
         <div className="mt-1 flex flex-wrap items-center gap-x-1.5 gap-y-0.5 text-body-sm text-fg-tertiary">
           {/* Allowed to wrap: a multi-kind incident's reason reads "↑ spike ·
               volume + event-type volume + metric + project volume", which as
-              one nowrap line ran past the card at 375px (LIVE-19). */}
+              one nowrap line ran past the card at 375px. */}
           <span className="break-words">
             {incidentDirectionGlyph(group.direction)} {reason}
           </span>
@@ -1099,7 +1099,7 @@ const IncidentCard = memo(function IncidentCard({
             disabled={isPending || group.status !== 'open'}
             onClick={() => runAction('acknowledge')}
           >
-            {/* The word the bulk bar uses too — one action, one label (AL-17). */}
+            {/* The word the bulk bar uses too — one action, one label. */}
             Acknowledge
           </Button>
           <Button
@@ -1159,7 +1159,7 @@ const IncidentCard = memo(function IncidentCard({
             disabled={isPending || group.status === 'open'}
             // On an open card the slot is KEPT, so False positive stays at the
             // same x on every row, but not drawn: a greyed
-            // "Reopen" on an open incident read as an available action (AL-17).
+            // "Reopen" on an open incident read as an available action.
             className={cn(
               'max-sm:h-9 max-sm:px-3',
               group.status === 'open' && 'invisible',
@@ -1172,8 +1172,8 @@ const IncidentCard = memo(function IncidentCard({
               changes DETECTION, permanently, and it sat 4px from Mute. */}
           {/* On a phone it gets a row of its own: with 36px buttons the row
               wraps anyway, and wrapping False positive in directly after
-              Reopen put a permanent action one mis-tap from a reversible one
-              (ALR-30). From `sm` up it sits inline behind its divider. */}
+              Reopen put a permanent action one mis-tap from a reversible one.
+              From `sm` up it sits inline behind its divider. */}
           <span
             className="mt-1 basis-full border-t pt-2 sm:ml-1 sm:mt-0 sm:basis-auto sm:border-l sm:border-t-0 sm:pl-2 sm:pt-0 border-border-subtle"
           >

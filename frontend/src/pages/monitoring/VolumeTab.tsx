@@ -91,7 +91,7 @@ export function VolumeTab({
     <>
       {latestSignal && (
         // One sentence and its reason, not a 4-up grid of raw figures
-        // the reader had to assemble (MO-2 / MO-4).
+        // the reader had to assemble.
         <SignalSummary
           signal={latestSignal}
           formatActual={value => (isMetricScope
@@ -123,7 +123,7 @@ export function VolumeTab({
         />
       )}
 
-      {/* One section-card geometry (DS-4 / MO-10): the header bar with
+      {/* One section-card geometry: the header bar with
           a 12.5px h2 and the range controls, a 16px body. */}
       <Card>
         <ChartCardHeader title={<CardTitle as="h2">{label}</CardTitle>}>
@@ -154,7 +154,7 @@ export function VolumeTab({
               plannedEvents={plannedEventsQuery.data ?? []}
               height={200}
               // The entity's own colour when it has one; otherwise the
-              // chart's fixed single-series default (DS-27), not an
+              // chart's fixed single-series default, not an
               // arbitrary chart slot.
               color={chartColor}
               granularity={granularity}
@@ -166,20 +166,20 @@ export function VolumeTab({
               // metric scope serves it too (`adaptMetricSeries`).
               sigmaThreshold={metrics?.sigma_threshold}
               // The axis spans the range picked above, not just the
-              // buckets that have data (MON-22).
+              // buckets that have data.
               from={timeRange.from}
               to={timeRange.to}
               // Rolled-up first/last buckets the data only partly
-              // covers draw dashed, not as cliffs (MO-5).
+              // covers draw dashed, not as cliffs.
               partial={partialBuckets}
-              // What the dashes, whiskers and triangles mean (MO-1).
+              // What the dashes, whiskers and triangles mean.
               legend
             />
           )}
           {/* The cadence, the newest bucket and the scan's last and next
               collection (L4), not the raw interval string; nothing under an
               empty chart, and nothing on a metric, whose Definition already
-              names the cadence and the next update (MO-39 / MO-33). */}
+              names the cadence and the next update. */}
           {!chartIsLoading && chartData.length > 0 && !isMetricScope && nativeGranularity && (
             <p className="mt-2 text-caption text-fg-tertiary" data-testid="chart-caption">
               {chartCaption({

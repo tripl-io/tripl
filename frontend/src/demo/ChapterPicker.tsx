@@ -65,7 +65,7 @@ export function ChapterPicker({ chapters, onPick, compact = false }: ChapterPick
             <span className="min-w-0 flex-1">
               <span className="block truncate text-body-sm font-medium">{chapter.title}</span>
               {!compact && (
-                // Whole, not cut to ~25 characters on a phone (#251 SH-7):
+                // Whole, not cut to ~25 characters on a phone (#251):
                 // it wraps from `sm` up, and a phone shows the titles alone.
                 <span
                   className="hidden text-micro sm:block text-fg-tertiary"
@@ -76,7 +76,7 @@ export function ChapterPicker({ chapters, onPick, compact = false }: ChapterPick
             </span>
             {/* A row that has not been started is the default and says
                 nothing: seven "Not started" pills drowned the one that
-                matters (#251 SH-3). */}
+                matters (#251). */}
             {chapter.status !== 'not_started' && (
               <Chip tone={STATUS_TONE[chapter.status]} size="xs">
                 {STATUS_LABEL[chapter.status]}

@@ -11,7 +11,7 @@ import { errorAria, type FieldErrors } from '@/lib/fieldErrors'
 import type { MetricDraft } from './metricDraft'
 import { examplePlaceholder } from '@/components/forms/placeholders'
 
-// What each composition calculates, in words (MT-18); the raw option values
+// What each composition calculates, in words; the raw option values
 // are kept as-is on the wire.
 const COMPOSITION_LABEL: Record<MetricComposition, string> = {
   single: 'Count of an event',
@@ -75,7 +75,7 @@ export function EventCompositionFields({
   const numeratorName = useEventRefName(slug, numerator, eventTypes)
   const denominatorName = useEventRefName(slug, isRatio ? denominator : { eventId: '', eventTypeId: '' }, eventTypes)
   // One line saying what the metric will compute, so a swapped numerator and
-  // denominator is visible before saving (MT-9).
+  // denominator is visible before saving.
   const formula = !numeratorName
     ? null
     : draft.composition === 'ratio'
@@ -89,7 +89,7 @@ export function EventCompositionFields({
   return (
     <SCard title="Events" description="Count tracked events, or divide one by another.">
       {/* "Calculate", not "Composition": the kind already says where the
-          value comes from, this says how (MT-18). */}
+          value comes from, this says how. */}
       <Field label="Calculate" htmlFor="metric-composition" required>
         <NativeSelect
           id="metric-composition"

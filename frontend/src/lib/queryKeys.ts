@@ -15,7 +15,7 @@
  *
  * Importing the key instead of retyping it makes a fourth impossible: a typo is
  * a compile error rather than a silent second cache. Every key lives here now
- * (SHELL-50) — ESLint rejects an array literal as a `queryKey` anywhere else —
+ * — ESLint rejects an array literal as a `queryKey` anywhere else —
  * grouped by domain below.
  *
  * Within a family the narrower keys are BUILT from the wider ones
@@ -60,7 +60,7 @@ export const planBranchDetailKey = (slug: string, branchId: string) =>
   [...orgRoot(), 'planBranchDetail', slug, branchId] as const
 export const planBranchConflictsKey = (slug: string, branchId: string) =>
   [...orgRoot(), 'planBranchConflicts', slug, branchId] as const
-/** The "Update from main" dialog's preview (PL-8). */
+/** The "Update from main" dialog's preview. */
 export const planBranchUpdatePreviewKey = (slug: string, branchId: string) =>
   [...orgRoot(), 'planBranchUpdatePreview', slug, branchId] as const
 export const planBranchCommentsKey = (slug: string, branchId: string) =>
@@ -247,7 +247,7 @@ export const chartAnnotationsRangeKey = (
  * breakdowns and its app-version series (MonitoringDetailPage keys them all
  * `[family, slug, 'metric', metricId, …]`). A save that redefines the metric
  * makes the backend delete what those hold, so they must be refetched rather
- * than served stale for the minute of `staleTime` (MET-27).
+ * than served stale for the minute of `staleTime`.
  */
 export const metricDrilldownKeys = (slug: string | undefined, metricId: string) =>
   [
@@ -341,7 +341,7 @@ export const projectKey = (slug: string | undefined) => [...projectRootKey(), sl
 
 /**
  * The one definition of the single-project query; spread it to add `enabled`.
- * With a working branch the summary's plan counters are that branch's (SH-11),
+ * With a working branch the summary's plan counters are that branch's,
  * so the branch joins the key; main keeps the bare `projectKey`, which every
  * `projectKey(slug)` invalidation still reaches as a prefix.
  */
@@ -530,7 +530,7 @@ export const eventsListKey = (
 
 /**
  * The sample of a type's events the single-event form reads the naming
- * convention off (AU-41). Under the branch's events, so a create refreshes it.
+ * convention off. Under the branch's events, so a create refreshes it.
  */
 export const eventNameSampleKey = (
   slug: string | undefined,
@@ -650,7 +650,7 @@ export const signalVerdictCountsKey = (slug: string | undefined) =>
   [...activeSignalsKey(slug), 'verdictCounts'] as const
 export const eventRowSignalsKey = (slug: string | undefined, bucketIds: readonly string[]) =>
   [...activeSignalsKey(slug), 'rows', bucketIds.join(',')] as const
-/** Anomalies row sparklines (MO-19): a signals invalidation refreshes them too. */
+/** Anomalies row sparklines: a signals invalidation refreshes them too. */
 export const signalSeriesKey = (slug: string | undefined, rowKeys: readonly string[]) =>
   [...activeSignalsKey(slug), 'series', rowKeys.join(',')] as const
 
@@ -882,7 +882,7 @@ export const topMoversKey = (
 export const projectBreakdownTimelineKey = (slug: string | undefined) =>
   [...orgRoot(), 'breakdownTimeline', slug] as const
 /** Keyed on the range LENGTH, not the live bounds: those step every five
- * minutes, and a key that moved with them refetched the timeline each time (MON-3). */
+ * minutes, and a key that moved with them refetched the timeline each time. */
 export const breakdownTimelineKey = (
   slug: string | undefined,
   scanConfigId: string | null | undefined,
@@ -934,7 +934,7 @@ export const holidayCountriesKey = (slug: string | undefined) =>
 
 /** The Overview page. Keyed kind-first, so the root covers every project's. */
 export const overviewRootKey = () => [...orgRoot(), 'overview'] as const
-/** Every window of one project's Overview volume chart (MON-39). */
+/** Every window of one project's Overview volume chart. */
 export const overviewVolumeRootKey = (slug: string | undefined) =>
   [...overviewRootKey(), 'volume', slug] as const
 export const overviewVolumeKey = (slug: string | undefined, windowDays: number) =>
@@ -959,7 +959,7 @@ export const shadowEventsKey = (
   branchId: string | null | undefined,
   status: string,
 ) => [...projectShadowEventsKey(slug), branchId, status] as const
-/** A shadow-events list read a page at a time by offset (DATA-39). */
+/** A shadow-events list read a page at a time by offset. */
 export const shadowEventsPagesKey = (
   slug: string | undefined,
   branchId: string | null | undefined,

@@ -55,7 +55,7 @@ def _analysis(rows: list[tuple[object, ...]]) -> BreakdownAnalysis:
 
 
 # --------------------------------------------------------------------------- #
-# DA-4: warehouse rows behind a catalog run's combinations
+# warehouse rows behind a catalog run's combinations
 # --------------------------------------------------------------------------- #
 
 
@@ -80,7 +80,7 @@ def test_warehouse_rows_of_an_empty_breakdown_are_zero() -> None:
 
 
 # --------------------------------------------------------------------------- #
-# DA-32: sample properties on shadow events
+# sample properties on shadow events
 # --------------------------------------------------------------------------- #
 
 
@@ -241,7 +241,7 @@ async def test_shadow_inbox_serves_the_sample_properties(client: AsyncClient) ->
 
 
 # --------------------------------------------------------------------------- #
-# DA-5: the next metrics run on the scan read
+# the next metrics run on the scan read
 # --------------------------------------------------------------------------- #
 
 
@@ -314,7 +314,7 @@ async def test_a_catalog_only_scan_has_no_next_metrics_run(client: AsyncClient) 
 
 
 # --------------------------------------------------------------------------- #
-# DA-40: the scans that read a data source
+# the scans that read a data source
 # --------------------------------------------------------------------------- #
 
 

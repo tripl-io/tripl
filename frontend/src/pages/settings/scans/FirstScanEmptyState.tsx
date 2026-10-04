@@ -36,7 +36,7 @@ function SetupSteps({ from }: { from: number }) {
  * The Scans page of a project with no scans: ONE empty state, instead of three
  * "0" tiles over "No data sources" over an "All scans · 0 scans" panel. It says
  * what setting up a scan involves and offers the step that comes next
- * (#247 DA-28).
+ * (#247).
  */
 export function FirstScanEmptyState({
   isOwner,

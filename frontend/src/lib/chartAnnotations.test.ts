@@ -12,7 +12,7 @@ import {
   truncateAnnotationLabel,
 } from './chartAnnotations'
 
-describe('annotationDisplayColor (MON-25)', () => {
+describe('annotationDisplayColor', () => {
   it('never draws an uncoloured marker in the anomaly red', () => {
     expect(annotationDisplayColor('#ef4444')).toBe(ANNOTATION_DEFAULT_COLOR)
     expect(annotationDisplayColor('#EF4444')).toBe(ANNOTATION_DEFAULT_COLOR)
@@ -25,7 +25,7 @@ describe('annotationDisplayColor (MON-25)', () => {
   })
 })
 
-describe('truncateAnnotationLabel (MON-27)', () => {
+describe('truncateAnnotationLabel', () => {
   it('shortens long labels for the chart and leaves short ones alone', () => {
     expect(truncateAnnotationLabel('v1.4 deploy')).toBe('v1.4 deploy')
     const long = 'Rolled out the new checkout flow to every region'
@@ -34,7 +34,7 @@ describe('truncateAnnotationLabel (MON-27)', () => {
   })
 })
 
-describe('annotation form helpers (MON-27)', () => {
+describe('annotation form helpers', () => {
   it('formats a date as a datetime-local value in local time', () => {
     expect(toDatetimeLocalValue(new Date(2026, 0, 2, 9, 5))).toBe('2026-01-02T09:05')
   })

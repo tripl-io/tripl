@@ -12,8 +12,8 @@ import { cn } from '@/lib/utils'
  * its chevron. The settings kit's `Field` stacked correctly; this is that
  * layout, shared.
  *
- * The switch is a container query on the row, not a viewport breakpoint
- * (ST-1): from `md` the settings rail is pinned and eats 264px, so at a 768px
+ * The switch is a container query on the row, not a viewport breakpoint:
+ * from `md` the settings rail is pinned and eats 264px, so at a 768px
  * viewport a viewport-`sm` row gave the control ~110px (the AI API key input
  * was a sliver and its button overflowed the card). 560px is the 232px caption
  * + 24px gap + a ~300px control. The caption is also capped at 40% of the row.

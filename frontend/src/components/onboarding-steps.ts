@@ -1,5 +1,5 @@
 /**
- * The getting-started steps, as plain data (#250 JR-2 / JR-3 / JR-34).
+ * The getting-started steps, as plain data (#250).
  *
  * Kept out of `onboarding-checklist.tsx` so that file only exports components
  * (react-refresh/only-export-components), and so the workspace project cards
@@ -32,7 +32,7 @@ export interface OnboardingStep {
 }
 
 /**
- * The fastest path first (JR-2): a newcomer with a warehouse connects it, a
+ * The fastest path first: a newcomer with a warehouse connects it, a
  * scan imports the plan, they review what came in, then define the metric
  * that detection and alerts are built on. Adding events by hand is the
  * alternative on the review step, for someone with no warehouse yet.
@@ -53,7 +53,7 @@ export const ONBOARDING_STEP_TITLES: Readonly<Record<OnboardingStepId, string>> 
   alert: 'Set up alerting',
 }
 
-/** Query keys the step links carry, read by the "Back to checklist" bar (JR-3). */
+/** Query keys the step links carry, read by the "Back to checklist" bar. */
 export const ONBOARDING_STEP_PARAM = 'onboarding'
 export const ONBOARDING_PROJECT_PARAM = 'project'
 const ONBOARDING_POSITION_PARAM = 'step'
@@ -113,7 +113,7 @@ export function parseOnboardingReturn(pathname: string, search: string): Onboard
 
 /**
  * A caller that knows the metric count passes it; otherwise the project
- * summary's `metric_count` answers (JR-2). With neither — a summary built
+ * summary's `metric_count` answers. With neither — a summary built
  * before the field — the metric step is left out rather than shown as a step
  * that can never tick off.
  */
@@ -130,7 +130,7 @@ function knownMetricCount(summary: ProjectSummary, metricCount: number | undefin
  * sign the reader has looked at what came in. Events added by hand never enter
  * the queue, so the by-hand path ticks it too. It used to tick on coverage
  * (`implemented_event_count`), which says data arrives, not that anyone
- * reviewed anything (JR-2).
+ * reviewed anything.
  */
 export function buildOnboardingSteps(
   slug: string,
@@ -203,7 +203,7 @@ export function buildOnboardingSteps(
     done: summary.alert_destination_count > 0 && summary.alert_rule_count > 0,
   })
   // Tag every link with its step and place, so the page it opens can say
-  // "Step 2 of 5" and lead back to the checklist (JR-3).
+  // "Step 2 of 5" and lead back to the checklist.
   return steps.map((step, index) => {
     const position = { number: index + 1, total: steps.length }
     return {

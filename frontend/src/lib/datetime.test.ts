@@ -198,7 +198,7 @@ describe('formatRelativeTime', () => {
   })
 })
 
-// SHELL-52: `new Date('2026-09-24')` is UTC midnight, i.e. Sep 23 anywhere west
+// `new Date('2026-09-24')` is UTC midnight, i.e. Sep 23 anywhere west
 // of UTC. A date-only value names a calendar day and must render as that day.
 describe('date-only strings west of UTC', () => {
   beforeEach(() => {
@@ -220,8 +220,8 @@ describe('date-only strings west of UTC', () => {
   })
 })
 
-// DS-30: formatDateTime and formatTimestamp were near-identical copies.
-describe('formatDateTime and formatTimestamp (DS-30)', () => {
+// formatDateTime and formatTimestamp were near-identical copies.
+describe('formatDateTime and formatTimestamp', () => {
   it('prints the same as formatTimestamp without seconds', () => {
     const value = '2026-06-21T14:05:00Z'
     expect(formatDateTime(value)).toBe(formatTimestamp(value))

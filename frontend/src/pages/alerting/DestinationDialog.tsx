@@ -42,7 +42,7 @@ export type DestinationDialogTarget =
        * Hand the new destination straight on to a rule form — guided setup's
        * step 2 → 3. Decided by whoever OPENED the dialog, not on success: an
        * editor adding a second channel from Destinations is not in a setup
-       * flow and must stay where they are (ALR-9).
+       * flow and must stay where they are.
        */
       handOffToRule: boolean
     }
@@ -60,7 +60,7 @@ interface DestinationDialogProps {
 
 // A password manager treats "a text field, then a password field" as a login
 // form: it offers to autofill the operator's saved tripl password into a webhook
-// or token box, and to "save a password" under the destination's name (ALR-25).
+// or token box, and to "save a password" under the destination's name.
 // `new-password` is the one autocomplete value browsers honour for "not mine",
 // and the two data attributes are 1Password's and LastPass's own opt-outs.
 const SECRET_INPUT_PROPS = {
@@ -74,7 +74,7 @@ const SECRET_INPUT_PROPS = {
  *
  * The webhook Target URL is stored encrypted exactly like a token
  * (`target_url_set`), but it was a plain text box echoing the secret on screen
- * while being typed (ALR-25).
+ * while being typed.
  */
 function SecretInput({ label, ...props }: ComponentProps<typeof Input> & { label: string }) {
   const [shown, setShown] = useState(false)
@@ -107,16 +107,16 @@ const CHANNEL_FIELDS: Record<DestinationFormState['type'], readonly (keyof Desti
 }
 
 /**
- * The destination create/edit form, lifted out of the page (ALR-42).
+ * The destination create/edit form, lifted out of the page.
  *
  * It lived inline in ProjectAlertingTab beside the inbox logic, with create and
  * update building their bodies forty lines apart and disagreeing about which
  * fields went on the wire — which is how create came to send `chat_id: ''` for
- * every channel (ALR-1). Both now go through `destinationFormToPayload`.
+ * every channel. Both now go through `destinationFormToPayload`.
  *
  * Mounted per opening (the page keys it), so a new opening starts with a fresh
  * form AND fresh mutations: a failed create followed by Cancel no longer
- * reopens on the next channel with the old error already showing (ALR-7).
+ * reopens on the next channel with the old error already showing.
  */
 export function DestinationDialog({
   slug,
@@ -160,7 +160,7 @@ export function DestinationDialog({
   })
   const mutation = existing ? updateMut : createMut
 
-  // "Send test" before saving (AL-30): setting up Slack used to take Create,
+  // "Send test" before saving: setting up Slack used to take Create,
   // close, find the card, then Test. The result describes the settings it was
   // sent with, so it is shown only while the form still holds exactly those —
   // `setForm` makes a new object on every edit, so identity is the check.
@@ -187,7 +187,7 @@ export function DestinationDialog({
     && testedWith.form === form
     && testedWith.removeWebhookHeader === removeWebhookHeader
 
-  // Same as the rule dialog (ALR-17): a close that would drop typed-in
+  // Same as the rule dialog: a close that would drop typed-in
   // credentials or templates asks first.
   const guard = useUnsavedDialogGuard(useDirtySinceOpen(true, { form, removeWebhookHeader }))
   const requestClose = () => guard.requestClose(onClose)
@@ -195,20 +195,20 @@ export function DestinationDialog({
   const problems = destinationFormProblems(form, existing, { removeWebhookHeader })
   const serverKnownFields = ['name', 'delivery_schedule_cron', ...CHANNEL_FIELDS[form.type]] as const
   // In the form's words and under the input they are about, including the
-  // plain-string refusals (the SSRF guard) that name a field (AL-29).
+  // plain-string refusals (the SSRF guard) that name a field.
   const server = attachDestinationServerErrors(
     splitApiFieldErrors(mutation.error, serverKnownFields, DESTINATION_FIELD_LABELS),
     serverKnownFields,
   )
   // Secrets are required where nothing is stored yet — except on a demo
   // workspace, whose disabled Slack example has no webhook and must stay
-  // renameable (ALR-2).
+  // renameable.
   const secretRequired = (isSet: boolean | undefined) => !existing || (!isSet && !isDemo)
   // What the form refuses to send empty, per channel. The fields that are
   // pre-filled and not secret stay required in edit mode too: an emptied Base
   // URL used to be sent as "absent", so Save "succeeded" and quietly kept the
-  // old value (ALR-26). Checked here and named inline, not by the browser's
-  // `required` bubble, which flagged the first empty field only (AL-28).
+  // old value. Checked here and named inline, not by the browser's
+  // `required` bubble, which flagged the first empty field only.
   const requiredFields: readonly (keyof DestinationFormState)[] = [
     'name',
     ...({
@@ -241,7 +241,7 @@ export function DestinationDialog({
   const submit = () => {
     setSubmitAttempted(true)
     if (!scheduleValid || missing.length > 0 || Object.keys(problems).length > 0) {
-      // Only the body scrolls (AL-4): take the reader to the first field the
+      // Only the body scrolls: take the reader to the first field the
       // refusal highlighted instead of leaving it below the fold.
       requestAnimationFrame(() => {
         if (formRef.current) focusFirstInvalid(formRef.current)
@@ -323,8 +323,8 @@ export function DestinationDialog({
       <Dialog open onOpenChange={open => { if (!open) requestClose() }}>
         <DialogContent className="max-w-lg">
           {/* `noValidate`: required fields are named inline and in the line
-              above the actions, not by a browser bubble (AL-28). Only the body
-              scrolls; the title and the actions stay on screen (AL-4). */}
+              above the actions, not by a browser bubble. Only the body
+              scrolls; the title and the actions stay on screen. */}
           <form
             ref={formRef}
             noValidate
@@ -333,14 +333,14 @@ export function DestinationDialog({
           >
             <DialogHeader>
               {/* The channel's icon beside the title, so the choice made on the
-                  button that opened this reads as made (AL-32). */}
+                  button that opened this reads as made. */}
               <DialogTitle className="flex items-center gap-2">
                 <ChannelGlyph type={form.type} aria-hidden="true" className="size-4 shrink-0 text-fg-tertiary" />
                 {existing ? 'Edit destination' : `New ${channelLabel(form.type)} destination`}
               </DialogTitle>
             </DialogHeader>
             <DialogBody className="grid gap-4 py-1">
-              {/* No channel select (AL-32). On create the button that opened
+              {/* No channel select. On create the button that opened
                   this already chose the channel and the title says so; a
                   select here only offered to wipe the form. A channel is fixed
                   once saved, so edit shows it as a read-only line. */}
@@ -364,7 +364,7 @@ export function DestinationDialog({
                   {secretField('webhook_url', 'dest-webhook-url', 'Webhook URL', {
                     placeholder: existing?.webhook_set ? 'Leave empty to keep current webhook' : examplePlaceholder('https://hooks.slack.com/...'),
                   })}
-                  {/* Where the URL comes from, which the form never said (AL-31). */}
+                  {/* Where the URL comes from, which the form never said. */}
                   <p className="text-body-sm text-fg-tertiary">
                     Create an Incoming Webhook in Slack (Apps → Incoming Webhooks),
                     pick the channel, and paste its URL here.{' '}
@@ -417,7 +417,7 @@ export function DestinationDialog({
                       </div>
                       {/* The stored value could not be removed at all: an empty
                           box means "keep it", and clearing only the name left
-                          the encrypted value orphaned (ALR-24). */}
+                          the encrypted value orphaned. */}
                       {existing?.webhook_header_name && (
                         <div>
                           <Button type="button" variant="outline" size="sm" onClick={() => setRemoveWebhookHeader(true)}>
@@ -474,7 +474,7 @@ export function DestinationDialog({
                     })}
                     {textField('jira_issue_type', 'dest-jira-issue-type', 'Issue type', { placeholder: examplePlaceholder('Task') })}
                   </div>
-                  {/* What happens, not how the API is called (AL-31). */}
+                  {/* What happens, not how the API is called. */}
                   <p className="text-body-sm text-fg-tertiary">
                     Each alert opens a new issue in this Jira project. Sign in with your Atlassian
                     email and an API token from id.atlassian.com → Security → API tokens.
@@ -500,8 +500,8 @@ export function DestinationDialog({
                     placeholder: `Comma-separated, ${examplePlaceholder('label-1, label-2')}`,
                     optional: true,
                   })}
-                  {/* Where each value lives, not which GraphQL mutation runs
-                      (AL-31). Pickers that fetch teams, states and labels once
+                  {/* Where each value lives, not which GraphQL mutation runs.
+                      Pickers that fetch teams, states and labels once
                       the key is in are the longer-term fix. */}
                   <p className="text-body-sm text-fg-tertiary">
                     Each alert opens a new issue in this Linear team. Create the API key in Linear
@@ -514,7 +514,7 @@ export function DestinationDialog({
               {/* A local sink has no channel settings: it records deliveries on
                   this instance and sends nothing, so name, switch and schedule
                   are the whole form. It used to fall through to the Linear
-                  fields, whose required API key blocked every save (ALR-2). */}
+                  fields, whose required API key blocked every save. */}
               {form.type === 'demo_sink' && (
                 <p className="text-body-sm text-fg-tertiary">
                   A local sink records deliveries on this instance and sends nothing, so it has no channel settings.
@@ -553,7 +553,7 @@ export function DestinationDialog({
             </DialogBody>
             <DialogFooter>
               {/* Left of the pair, and secondary: a check, not the action the
-                  dialog is for (AL-30). It sends one real message, so it
+                  dialog is for. It sends one real message, so it
                   waits for nothing but the channel's own fields. */}
               {form.type !== 'demo_sink' && (
                 <Button

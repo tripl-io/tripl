@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { DEFAULT_RANGE_DAYS, readMonitoringDetailSearch } from './useMonitoringDetailSearch'
 
-describe('readMonitoringDetailSearch (MON-24)', () => {
+describe('readMonitoringDetailSearch', () => {
   it('reads every view param a link can carry', () => {
     const search = readMonitoringDetailSearch(new URLSearchParams(
       'tab=breakdowns&range=90&gran=day&version=latest&field=country&column=platform&value=ios&value=web',

@@ -68,7 +68,7 @@ export function CreateMissingFieldsButton({
 
   // The list is the answer the dry run gave BEFORE the fields existed, and it
   // stays on screen until the re-check lands. Offering the same columns again
-  // is how one click became duplicate fields or a conflict (DATA-27), so what
+  // is how one click became duplicate fields or a conflict, so what
   // was just created is taken off the offer straight away.
   const remaining = unmappedColumns.filter(column => !created.has(column))
 

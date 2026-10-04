@@ -15,12 +15,12 @@ import { EvFieldContext, useEvDescribedBy } from './evFieldContext'
 
 // One control style for every section of the form. Details used this class while
 // Field values and Meta fields rendered the shared `Input` (a different height
-// and border), so one card read as two forms (LIVE-30). `:disabled` also matches
+// and border), so one card read as two forms. `:disabled` also matches
 // a control inside a disabled fieldset, which is how the read-only view and the
 // locked Event type select now look locked rather than live.
 // INPUT_CLASS gives an `aria-invalid` control the danger edge and halo and the
-// placeholder its faint colour (MT-7); 16px text below md keeps iOS Safari from
-// zooming into every field it focuses (MT-27).
+// placeholder its faint colour; 16px text below md keeps iOS Safari from
+// zooming into every field it focuses.
 // eslint-disable-next-line react-refresh/only-export-components -- a class string, not state
 export const EV_INPUT_CLASS = cn(
   'w-full rounded-control border bg-[var(--bg)] px-[11px] text-base md:text-body-sm text-[var(--fg)] outline-none focus:border-[var(--accent)] disabled:cursor-not-allowed disabled:bg-[var(--surface-hover)] disabled:text-[var(--fg-muted)]',
@@ -32,7 +32,7 @@ export const TEXT_INPUT_CLASS = `${EV_INPUT_CLASS} h-8`
 /**
  * The two widths a control takes on this form. Widths used to be picked per
  * field (Title 340px, Owner 230px, a boolean 160px, Description the whole row)
- * for no reason a reader could see (LIVE-30); now free text takes the row and a
+ * for no reason a reader could see; now free text takes the row and a
  * choice from a list takes half of a desktop row.
  */
 export type EvControlWidth = 'full' | 'half'
@@ -50,7 +50,7 @@ export function SurfCard({
   subtitle?: ReactNode
   children: ReactNode
 }) {
-  // The kit Panel's geometry (DS-4): 10px radius, a 16px header gutter that
+  // The kit Panel's geometry: 10px radius, a 16px header gutter that
   // lines up with the kit Field rows under it, a 12.5px h2 title and an
   // 11.5px subtitle — not a 12px-radius card with its own 14px title.
   return (
@@ -85,7 +85,7 @@ export function EvField({
   required?: boolean
   last?: boolean
   /** Notices under the control (a warning, what saving will do). Rendered
-   *  after it and tied to it through `aria-describedby` (EVT-48). */
+   *  after it and tied to it through `aria-describedby`. */
   notes?: ReactNode
   children: ReactNode
 }) {
@@ -93,10 +93,10 @@ export function EvField({
   const hintId = hint ? `${uid}-hint` : undefined
   const notesId = notes ? `${uid}-notes` : undefined
   const describedBy = [hintId, notesId].filter(Boolean).join(' ') || undefined
-  // The kit Field row (DS-17): one implementation of the caption, the phone
+  // The kit Field row: one implementation of the caption, the phone
   // stacking and the decorative required star — the control itself carries
-  // `required` / `aria-required`, which is what a screen reader announces
-  // (EVT-48). This keeps the form's 200px caption column and hands the hint and
+  // `required` / `aria-required`, which is what a screen reader announces.
+  // This keeps the form's 200px caption column and hands the hint and
   // notes ids to the Ev* controls through EvFieldContext. A row naming no
   // control is labelled as a group rather than by a `<label>` pointing nowhere.
   return (

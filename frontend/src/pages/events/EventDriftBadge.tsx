@@ -95,11 +95,11 @@ export function EventDriftBadge({
       }}
     >
       <PopoverTrigger asChild>
-        {/* The drift/warning flag of the badge taxonomy (DS-6): a soft
+        {/* The drift/warning flag of the badge taxonomy: a soft
             warning pill at the xs size, not a 16px uppercase square tag. It
             stays a <button>, so it borrows the Chip's classes. It says what it
             counts: "Purchase 2" beside the title read as a count of Purchase
-            events or a notification (EV-24). */}
+            events or a notification. */}
         <button
           type="button"
           className={cn(chipVariants({ tone: 'warning', size: 'xs' }), 'hover:bg-warning/25')}
@@ -124,7 +124,7 @@ export function EventDriftBadge({
         )}
         {driftsQuery.isLoading && <div className="text-fg-tertiary">Loading…</div>}
         {/* Through ErrorState, so a 401 under the session-expired dialog
-            reads as paused, not as a red auth failure (SH-35). */}
+            reads as paused, not as a red auth failure. */}
         {driftsQuery.isError && (
           <ErrorState compact headingLevel={3} title="Failed to load drifts" error={driftsQuery.error} />
         )}

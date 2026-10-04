@@ -51,7 +51,7 @@ const PROJECT_PREVIEW_LIMIT = 6
  * Significant signals, then the latest deliveries. On a workspace route it
  * lists the projects that need attention, off the project list the shell
  * already holds, instead of "open a project" beside a workspace page that
- * headlines open signals (AL-40 / SH-17).
+ * headlines open signals.
  */
 export default function NotificationsPanel({
   projectSlug,
@@ -159,7 +159,7 @@ function AlertsPanel({
  * Significant signals or open property drifts, worst first ("Demo Project 2 ·
  * 1 open incident · 3 signals · 2 property drifts"). A row opens the project's
  * inbox when something is open there, else its Anomalies list, else its
- * Properties page, which lists the drifts (SH-17, F23).
+ * Properties page, which lists the drifts (F23).
  */
 function WorkspaceNotifications({ projects }: { projects: Project[] | undefined }) {
   if (!projects) {
@@ -301,7 +301,7 @@ function ProjectNotifications({
       ) : (
         <div className="max-h-[420px] overflow-y-auto py-2">
           {/* The incidents first: they are what the badge counts and what
-              somebody still owes an answer on (AL-40 / SH-17). */}
+              somebody still owes an answer on. */}
           <NotificationSection title="Open incidents" count={incidentTotal}>
             {incidentsQuery.isPending ? (
               <EmptySectionText>Loading incidents…</EmptySectionText>
@@ -338,8 +338,8 @@ function ProjectNotifications({
                     signal={signal}
                   />
                 ))}
-                {/* The rest are one click away rather than silently cut
-                    (AL-40 / SH-17). */}
+                {/* The rest are one click away rather than silently cut.
+                    */}
                 {signals.length > previewSignals.length && (
                   <Link
                     to={projectPath(currentOrgSlug(), projectSlug, '/anomalies')}
@@ -387,7 +387,7 @@ function ProjectNotifications({
       <div
         className="border-t px-3.5 py-2 border-border-subtle"
       >
-        {/* The two lists this popover previews, each in full (JR-9). */}
+        {/* The two lists this popover previews, each in full. */}
         <div className="flex items-center justify-between gap-3">
           <Link
             to={projectPath(currentOrgSlug(), projectSlug, '/anomalies')}
@@ -494,7 +494,7 @@ function SignalNotification({
           {verb} on {scopeLabel ?? unnamedScopeLabel(signal)}
         </div>
         {/* The % change, not `z=40.7`; the z-score stays in the tooltip for
-            whoever wants it (MO-2 / JR-31). */}
+            whoever wants it. */}
         <div
           className="tnum mt-0.5 text-micro text-fg-tertiary"
           title={formatSignalEffectDetail(signal)}
@@ -529,7 +529,7 @@ function DeliveryNotification({
     },
   })
   // The delivery row's rule, not a shortcut around it: a retry to Jira or
-  // Linear opens a second ticket, so it asks first (AL-40). Slack, Telegram,
+  // Linear opens a second ticket, so it asks first. Slack, Telegram,
   // email and webhooks repeat a message nobody got, and one click is right.
   const handleRetry = async () => {
     if (TICKET_CHANNELS.has(delivery.channel)) {
@@ -567,7 +567,7 @@ function DeliveryNotification({
               {delivery.rule_name}
             </div>
             {/* Words, not wire values: "Failed · Slack · 3 matched · 2h ago"
-                rather than "failed · slack · 3 matched" (AL-40 / SH-18). */}
+                rather than "failed · slack · 3 matched". */}
             <div className="mt-0.5 text-micro text-fg-tertiary">
               {deliveryStatusWord(delivery.status)} · {channelLabel(delivery.channel)} ·{' '}
               {delivery.matched_count} matched · {formatRelativeTime(delivery.created_at)}

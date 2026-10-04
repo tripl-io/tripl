@@ -58,7 +58,7 @@ describe('TopBar mobile nav', () => {
     expect(onOpen).toHaveBeenCalledTimes(1)
   })
 
-  it('says whether the drawer is open and which element it controls (SHELL-21)', () => {
+  it('says whether the drawer is open and which element it controls', () => {
     const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
     render(
       <QueryClientProvider client={queryClient}>
@@ -75,11 +75,11 @@ describe('TopBar mobile nav', () => {
     const trigger = screen.getByRole('button', { name: 'Open navigation' })
     expect(trigger).toHaveAttribute('aria-expanded', 'true')
     expect(trigger).toHaveAttribute('aria-controls', 'app-sidebar')
-    // The bar is the page's banner landmark (SHELL-47).
+    // The bar is the page's banner landmark.
     expect(screen.getByRole('banner')).toContainElement(trigger)
   })
 
-  it('sizes its controls as touch targets on phones (SH-16 / AL-41)', () => {
+  it('sizes its controls as touch targets on phones', () => {
     const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
     render(
       <QueryClientProvider client={queryClient}>
@@ -241,7 +241,7 @@ function mockNotificationsFetch(
 }
 
 describe('TopBar notifications', () => {
-  it('keeps the bell during a background refresh instead of spinning (SHELL-39)', async () => {
+  it('keeps the bell during a background refresh instead of spinning', async () => {
     mockNotificationsFetch([], [])
     const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
     const { container } = render(
@@ -278,13 +278,13 @@ describe('TopBar notifications', () => {
     expect(screen.getByText('Active signals')).toBeInTheDocument()
     expect(screen.getByText('Recent alert deliveries')).toBeInTheDocument()
     expect(screen.getByText('Spike alerts')).toBeInTheDocument()
-    // Words, not wire values, and the row opens its own delivery (AL-40).
+    // Words, not wire values, and the row opens its own delivery.
     expect(screen.getByText(/^Failed · Slack · 1 matched · /)).toBeInTheDocument()
     expect(screen.getByRole('link', { name: /Spike alerts/ })).toHaveAttribute(
       'href',
       '/p/demo/alerting/delivery-1',
     )
-    // Both full lists, from the footer (JR-9).
+    // Both full lists, from the footer.
     expect(screen.getByRole('link', { name: 'All anomalies →' })).toHaveAttribute('href', '/p/demo/anomalies')
     expect(screen.getByRole('link', { name: 'Alert inbox →' })).toHaveAttribute(
       'href',
@@ -335,7 +335,7 @@ describe('TopBar notifications', () => {
     expect(screen.queryByText(/z=-20/)).toBeNull()
   })
 
-  it('badges open incidents, the count the sidebar Alerting item shows (AL-40 / SH-17)', async () => {
+  it('badges open incidents, the count the sidebar Alerting item shows', async () => {
     // Three signals and one open incident: the bell used to read 3 beside a
     // sidebar reading "Alerting 1" for the same project.
     mockNotificationsFetch(
@@ -482,7 +482,7 @@ describe('TopBar notifications', () => {
     })
   })
 
-  it('asks before retrying a Jira delivery, which would open a second ticket (AL-40)', async () => {
+  it('asks before retrying a Jira delivery, which would open a second ticket', async () => {
     const retryUrl = '/api/v1/projects/demo/alert-deliveries/delivery-1/retry'
     mockNotificationsFetch([], [mockDelivery({ status: 'failed', channel: 'jira' })], {
       extra: (url, init) =>
@@ -512,7 +512,7 @@ describe('TopBar notifications', () => {
   })
 })
 
-describe('TopBar notifications — all projects (i9mt.19 / SH-17)', () => {
+describe('TopBar notifications — all projects (i9mt.19)', () => {
   function project(slug: string, name: string, openIncidents: number, signals: number) {
     return {
       id: `id-${slug}`,
@@ -651,7 +651,7 @@ describe('TopBar notifications — scope names', () => {
   })
 })
 
-describe('TopBar naming and phone context (#238 SH-8 / SH-14 / SH-21)', () => {
+describe('TopBar naming and phone context (#238)', () => {
   function renderPlain(props: Partial<Parameters<typeof TopBar>[0]> = {}) {
     const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
     return render(
@@ -682,7 +682,7 @@ describe('TopBar naming and phone context (#238 SH-8 / SH-14 / SH-21)', () => {
   })
 })
 
-describe('BranchStrip (#243 PL-1)', () => {
+describe('BranchStrip (#243)', () => {
   async function renderStrip(branchId: string | null, setBranchId = vi.fn()) {
     const { BranchStrip } = await import('./top-bar')
     const { BranchContext } = await import('./branch-context-internal')

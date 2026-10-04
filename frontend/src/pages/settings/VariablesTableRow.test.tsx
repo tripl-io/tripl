@@ -102,7 +102,7 @@ describe('VariablesTableRow observed values cell', () => {
   })
 })
 
-describe('VariablesTableRow observed-in events (AU-29)', () => {
+describe('VariablesTableRow observed-in events', () => {
   it('links each event name to its event when ids and a route are given', () => {
     render(
       <MemoryRouter>

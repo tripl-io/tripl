@@ -39,7 +39,7 @@ import { currentOrgSlug, projectPath, settingsPath } from '@/lib/navigation'
 /**
  * Jobs per scan the list asks for. It shows the head of each history (the last
  * run, and a collapsed failing streak), so 50 full jobs per scan, re-polled for
- * every scan while any one is active, was almost all waste (DATA-17). The
+ * every scan while any one is active, was almost all waste. The
  * figures that need the whole history — the streak's length and the 24h rows —
  * come from the activity endpoint instead, so this cap no longer bounds them.
  */
@@ -54,7 +54,7 @@ interface RecentRun {
   scanId: string
   scanName: string
   startedAt: string | null
-  /** Warehouse rows or catalog combinations, unit named (#247 DA-4). */
+  /** Warehouse rows or catalog combinations, unit named (#247). */
   scanned: JobScanned | null
   durationSec: number | null
   status: ScanJob['status']
@@ -64,7 +64,7 @@ interface RecentRun {
   // streak row; 0 on every other row, and until the activity has loaded.
   failingStreak: number
   // The scan's newest settled run. Only there does "Run again" answer the
-  // failure: on an older one a success has already followed (#247 DA-22).
+  // failure: on an older one a success has already followed (#247).
   latestSettled: boolean
   // What the completed job actually changed (+N events / metrics / signals …).
   changes: ScanChange[]
@@ -82,13 +82,13 @@ export function ScansTab({ slug }: { slug: string }) {
   // Null for every non-demo project — no run row is ever the scenario's row.
   const { scanJobId } = useScenarioArtifacts()
   // Authoring a scan (and its SQL) is OwnerUserDep; running one is an editor's
-  // job (DATA-6). Each control below is offered only to a role that can use it.
+  // job. Each control below is offered only to a role that can use it.
   const isOwner = useIsOwner()
   const canRun = useCanWriteProject()
 
-  // Scoped to this project (DATA-15), and only a LOADED empty list means "no
+  // Scoped to this project, and only a LOADED empty list means "no
   // data sources": during a cold load the empty state and the disabled New
-  // scan used to flash for everyone (DATA-16).
+  // scan used to flash for everyone.
   const {
     data: dataSources = [],
     isSuccess: dataSourcesLoaded,
@@ -194,7 +194,7 @@ export function ScansTab({ slug }: { slug: string }) {
     const runs: RecentRun[] = []
     // Two runs a scan keeps one busy scan from filling the panel, but with one
     // or two scans it cut the history to 2-4 rows and read as a short one
-    // (#247 DA-24): take enough per scan to fill the panel.
+    // (#247): take enough per scan to fill the panel.
     const perScan = scanConfigs.length < 3
       ? Math.ceil(RECENT_RUNS_SHOWN / Math.max(scanConfigs.length, 1))
       : 2
@@ -204,8 +204,8 @@ export function ScansTab({ slug }: { slug: string }) {
       // Jobs arrive newest-first. The failing streak is the detail page's own
       // count (`consecutiveFailedRuns`), which looks past a queued or running
       // retry: counting only LEADING failures made a pending retry after five
-      // failures read "failed last 5 runs" on the detail page and nothing here
-      // (DATA-18). The streak collapses into its newest failure, tagged, after
+      // failures read "failed last 5 runs" on the detail page and nothing here.
+      // The streak collapses into its newest failure, tagged, after
       // any active run; with no streak the two most recent jobs show as before.
       // The loaded page decides which rows collapse; the number on the tag is
       // the server's, which counts past the page.
@@ -249,7 +249,7 @@ export function ScansTab({ slug }: { slug: string }) {
   // job in the window rather than the capped page this list loads.
   // Warehouse rows and catalog combinations are summed apart: they are
   // different units, and adding them made the tile a number with no name
-  // (#247 DA-4).
+  // (#247).
   const warehouseRows24h = useMemo<number | null>(
     () =>
       activity
@@ -270,7 +270,7 @@ export function ScansTab({ slug }: { slug: string }) {
   // so the new pending run appears in the feed.
   const queryClient = useQueryClient()
   const runScan = useMutation({
-    // Rendered inline, naming the scan it was for (DATA-5).
+    // Rendered inline, naming the scan it was for.
     meta: SILENT_ERROR_META,
     mutationFn: (scanId: string) => scansApi.run(slug, scanId),
     onSuccess: (job, scanId) => {
@@ -296,19 +296,19 @@ export function ScansTab({ slug }: { slug: string }) {
     (sc: ScanConfig) => scanModeOf(sc) === 'monitoring',
   ).length
   // Scans whose latest settled run failed, by the server's streak: the one
-  // aggregate the strip was missing (#247 DA-11). Null until it answers.
+  // aggregate the strip was missing (#247). Null until it answers.
   const failingCount = activity
     ? activity.items.filter(item => item.failing_streak > 0).length
     : null
 
   // A loaded, empty list is the whole page: one empty state that says what
   // setting up a scan involves, instead of zero tiles over "No data sources"
-  // over an empty "All scans" panel (#247 DA-28).
+  // over an empty "All scans" panel (#247).
   const noScans = !scanConfigsLoading && !scanConfigsError && scanConfigs.length === 0
 
   return (
     <PageContainer>
-      {/* The shared page header (DA-10 / DS-1): a real h1 under the Govern
+      {/* The shared page header: a real h1 under the Govern
           eyebrow, like Reconciliation and Coverage, instead of an h2 text-heading
           with a 14px paragraph. The description says what a scan PRODUCES and
           what consumes it, because a scan's output reaches the user as
@@ -321,7 +321,7 @@ export function ScansTab({ slug }: { slug: string }) {
         actions={
           isOwner && !noScans && (
             // The reason New scan is off is a caption under it, not a `title`
-            // a disabled button never shows (#237 DA-9).
+            // a disabled button never shows (#237).
             <div className="flex flex-col items-end gap-1">
               <Button
                 size="sm"
@@ -336,12 +336,12 @@ export function ScansTab({ slug }: { slug: string }) {
             </div>
           )
         }
-        // The one page-KPI strip (DS-5), in place of three bordered tiles.
-        // Hidden while there is nothing to count (#247 DA-11).
+        // The one page-KPI strip, in place of three bordered tiles.
+        // Hidden while there is nothing to count (#247).
         stats={
           noScans ? undefined : (
             <MiniStatStrip boxed>
-              {/* Not "0" before the list answers (#237 DS-25). */}
+              {/* Not "0" before the list answers (#237). */}
               <MiniStat label="Scans" value={scanConfigsLoading ? <StatValueSkeleton /> : scanConfigs.length} />
               <MiniStat
                 label="Monitoring"
@@ -355,7 +355,7 @@ export function ScansTab({ slug }: { slug: string }) {
               {/* Warehouse rows only: metrics runs, and catalog runs that report
                   the rows behind their breakdown. An older catalog run reports
                   only grouped column combinations, a different unit, so those
-                  are named in the title instead of being added in (#247 DA-4). */}
+                  are named in the title instead of being added in (#247). */}
               <div
                 title={
                   catalogCombinations24h
@@ -509,7 +509,7 @@ export function ScansTab({ slug }: { slug: string }) {
                           happened on the next, a failed run's actions under that —
                           because the fixed 150px name and 52px duration left a
                           375px screen nothing for the rest, and "3h ago" ran into
-                          "4.8K rows" (DATA-10). */}
+                          "4.8K rows". */}
                       <div
                         className="flex min-h-(--row-h) flex-wrap items-center gap-x-3 gap-y-1.5 border-t px-4 py-2.5 first:border-t-0 sm:flex-nowrap border-border-subtle"
                       >
@@ -558,10 +558,10 @@ export function ScansTab({ slug }: { slug: string }) {
                           </div>
                         ) : (
                           <>
-                            {/* Figures in sans + tabular digits, not mono (DS-17). */}
+                            {/* Figures in sans + tabular digits, not mono. */}
                             {/* Full digits and the unit, the same as the scan's
                                 own page ("4,428 rows", "153 combos"), in a fixed
-                                right-aligned column (#247 DA-24, DA-4). */}
+                                right-aligned column (#247). */}
                             <span className="tnum shrink-0 whitespace-nowrap text-right text-caption sm:w-[104px] text-fg-tertiary">
                               {formatJobScanned(run.scanned)}
                             </span>

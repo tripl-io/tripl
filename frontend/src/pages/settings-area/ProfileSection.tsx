@@ -26,7 +26,7 @@ const UNBUILT = [
 
 /**
  * Account · Profile: what the account really holds — name, email, role — and
- * one card for what is not built (WS-37).
+ * one card for what is not built.
  *
  * The preference and notification controls have no backend and nothing reads
  * them. They were first six live controls that persisted nowhere,
@@ -42,12 +42,12 @@ export default function ProfileSection() {
       <SHeader title="Profile" description="Your personal details across every project you belong to." />
       {/* Nothing on this page is editable; say so once, the way every other
           read-only section does, rather than leave a page of values that look
-          like they should be (#237 ST-17). */}
+          like they should be (#237). */}
       <ReadOnlyNotice className="mb-5">
         Your details can't be changed here yet. A workspace owner sets your role.
       </ReadOnlyNotice>
 
-      {/* Read-only values in read-only rows (ST-23): editable-form Field rows
+      {/* Read-only values in read-only rows: editable-form Field rows
           top-aligned each value about 6px off its label and made four facts
           380px tall. The avatar and name head the card; the rest are InfoRows,
           in the body font — mono is for machine identifiers. */}
@@ -57,7 +57,7 @@ export default function ProfileSection() {
         >
           {/* The shared avatar on --avatar-bg, the colour the sidebar shows for
               the same account. A hand-picked lighter blue here fell below AA
-              for the white initials and read as a second identity (WS-38). */}
+              for the white initials and read as a second identity. */}
           <UserAvatar name={user?.name || user?.email} size={40} />
           <div className="min-w-0">
             <div className="truncate text-body font-medium">{user?.name || '—'}</div>

@@ -19,7 +19,7 @@ function Checkbox({
         // the WCAG 2.2 minimum — these are the row-select boxes on every table.
         // Indeterminate ("some rows selected") gets the same filled box as
         // checked, with a minus instead of a tick: an unfilled box with a grey
-        // tick read as "all selected" (EV-26).
+        // tick read as "all selected".
         "group/checkbox hit-target-24 peer border-[var(--fg-faint)] data-[state=checked]:bg-accent-solid data-[state=checked]:text-accent-solid-fg data-[state=checked]:border-accent-solid data-[state=indeterminate]:bg-accent-solid data-[state=indeterminate]:text-accent-solid-fg data-[state=indeterminate]:border-accent-solid focus-visible:border-ring focus-visible:ring-ring/50 aria-invalid:ring-destructive/20 aria-invalid:border-destructive size-4 shrink-0 rounded-sm border shadow-xs outline-none transition-shadow focus-visible:ring-[3px] disabled:cursor-not-allowed disabled:opacity-50 cursor-pointer",
         className
       )}

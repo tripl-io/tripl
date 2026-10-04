@@ -29,7 +29,7 @@ export function AccountMenuContent({
   onOpenTweaks: () => void
 }) {
   // Picking Appearance opens a popover that takes focus; the menu must not
-  // then pull focus back to its own trigger as it closes (SH-24).
+  // then pull focus back to its own trigger as it closes.
   const openingTweaksRef = useRef(false)
   return (
     <DropdownMenuContent

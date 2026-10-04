@@ -3,7 +3,7 @@ import { METRIC_COLOR_SWATCHES } from './metricDraft'
 /**
  * The palette swatches plus a custom picker, shared by the metric and fact
  * table editors: the OS colour dialog was the only way to choose, and every
- * new metric or table got the same indigo (MT-35). No single control for a
+ * new metric or table got the same indigo. No single control for a
  * <label>, so the caller's row names the group; `inputId` is the custom
  * picker's id.
  */

@@ -31,7 +31,7 @@ import { ApiError, api } from '@/api/client'
 import { stopAllMetricCollectionWatches } from '@/hooks/useMetricCollectionWatcher'
 import { MetricsCatalog } from './MetricsCatalog'
 
-/** The catalog's filters are FilterSelect chips (DS-15), not native selects. */
+/** The catalog's filters are FilterSelect chips, not native selects. */
 async function pickFilter(label: string, option: string) {
   fireEvent.click(screen.getByRole('combobox', { name: new RegExp(`^${label} filter`) }))
   fireEvent.click(await screen.findByRole('option', { name: option }))
@@ -51,7 +51,7 @@ vi.mock('@/api/metricsCatalog', () => ({
 vi.mock('sonner', () => ({
   toast: { success: vi.fn(), error: vi.fn(), info: vi.fn() },
 }))
-// Owned rows name their owner from the workspace roster (MT-25).
+// Owned rows name their owner from the workspace roster.
 vi.mock('@/api/users', () => ({
   usersApi: {
     list: vi.fn(async () => [
@@ -189,7 +189,7 @@ beforeEach(() => {
 })
 
 afterEach(() => {
-  // Collect watches outlive the component by design (MET-8); end them so one
+  // Collect watches outlive the component by design; end them so one
   // test's poll never reports into the next. Unmount first: stopping a watch
   // notifies every mounted row, an update outside act().
   cleanup()
@@ -297,7 +297,7 @@ function listCallParams(index: number) {
   return at(vi.mocked(metricsCatalogApi.list).mock.calls, index)[1]
 }
 
-describe('MetricsCatalog — the whole catalog, not its first page (MET-7)', () => {
+describe('MetricsCatalog — the whole catalog, not its first page', () => {
   it('walks every page and offers reorder over the full list', async () => {
     const third = makeItem({ id: 'm-3', name: 'refunds', display_name: 'Refunds' })
     vi.mocked(metricsCatalogApi.list).mockImplementation(async (_slug, params) =>
@@ -332,7 +332,7 @@ describe('MetricsCatalog — the whole catalog, not its first page (MET-7)', () 
   })
 })
 
-describe('MetricsCatalog — filters keep the rows while they load (MET-11)', () => {
+describe('MetricsCatalog — filters keep the rows while they load', () => {
   it('leaves the previous rows up instead of blanking to Loading', async () => {
     renderCatalog(NOT_A_DEMO)
     await screen.findByText('Signups')
@@ -353,7 +353,7 @@ describe('MetricsCatalog — filters keep the rows while they load (MET-11)', ()
   })
 })
 
-describe('MetricsCatalog — first load (#237 MT-33 / DS-25)', () => {
+describe('MetricsCatalog — first load (#237)', () => {
   it('draws skeleton rows and skeleton stat values, never "—" or a toned 0', async () => {
     vi.mocked(metricsCatalogApi.list).mockImplementation(() => new Promise(() => {}))
     renderCatalog(NOT_A_DEMO)
@@ -363,7 +363,7 @@ describe('MetricsCatalog — first load (#237 MT-33 / DS-25)', () => {
   })
 })
 
-describe('MetricsCatalog — filters live in the URL (MET-24)', () => {
+describe('MetricsCatalog — filters live in the URL', () => {
   it('restores search, status and the stat filter from the address', async () => {
     renderCatalog(NOT_A_DEMO, `/p/${SLUG}/metrics?q=sign&status=active&signal=anomalies`)
 
@@ -424,7 +424,7 @@ describe('MetricsCatalog — filters live in the URL (MET-24)', () => {
     await waitFor(() => expect(box).toHaveValue('signups'))
   })
 
-  it('filters by review status from the address (MT-25)', async () => {
+  it('filters by review status from the address', async () => {
     renderCatalog(NOT_A_DEMO, `/p/${SLUG}/metrics?review=unreviewed`)
 
     await waitFor(() =>
@@ -465,7 +465,7 @@ describe('MetricsCatalog — filters live in the URL (MET-24)', () => {
   })
 })
 
-describe('MetricsCatalog — an empty filter result has a way out (MET-25)', () => {
+describe('MetricsCatalog — an empty filter result has a way out', () => {
   it('names the active filters and clears them in one click', async () => {
     vi.mocked(metricsCatalogApi.list).mockImplementation(async (_slug, params) =>
       params?.search ? { items: [], total: 0, active_total: 0 } : TWO_METRICS,
@@ -480,7 +480,7 @@ describe('MetricsCatalog — an empty filter result has a way out (MET-25)', () 
   })
 })
 
-describe('MetricsCatalog — one Tab stop per row destination (MET-39)', () => {
+describe('MetricsCatalog — one Tab stop per row destination', () => {
   it('keeps rows out of the tab order and the name link in it', async () => {
     renderCatalog(NOT_A_DEMO)
     const link = await screen.findByRole('link', { name: 'Signups' })
@@ -491,7 +491,7 @@ describe('MetricsCatalog — one Tab stop per row destination (MET-39)', () => {
   })
 })
 
-describe('MetricsCatalog — collect completion outlives the row (MET-8)', () => {
+describe('MetricsCatalog — collect completion outlives the row', () => {
   it('still reports the finished run after the catalog unmounts', async () => {
     let finishRun: (definition: MetricDefinitionDetailResponse) => void = () => {}
     vi.mocked(metricsCatalogApi.get).mockImplementation(
@@ -516,7 +516,7 @@ describe('MetricsCatalog — collect completion outlives the row (MET-8)', () =>
   })
 })
 
-describe('MetricsCatalog — duplicate as draft (MET-22)', () => {
+describe('MetricsCatalog — duplicate as draft', () => {
   it('appends an unreviewed copy and steps past a name the filtered list hid', async () => {
     vi.mocked(metricsCatalogApi.get).mockResolvedValue({
       id: 'm-2',
@@ -546,7 +546,7 @@ describe('MetricsCatalog — duplicate as draft (MET-22)', () => {
   })
 })
 
-describe('MetricsCatalog — status changes can be undone (MET-23)', () => {
+describe('MetricsCatalog — status changes can be undone', () => {
   it('offers Undo on a bulk archive and restores what each metric was', async () => {
     vi.mocked(metricsCatalogApi.list).mockResolvedValue({
       items: [
@@ -587,10 +587,10 @@ describe('MetricsCatalog — status changes can be undone (MET-23)', () => {
   })
 })
 
-// DS-30: values and dates paint in the app locale, so the stat strip beside
+// values and dates paint in the app locale, so the stat strip beside
 // them must too — a bare toLocaleString() printed "1.234" next to "1,234" for a
 // de-DE reader.
-describe('MetricsCatalog — the stat strip uses the app locale (DS-30)', () => {
+describe('MetricsCatalog — the stat strip uses the app locale', () => {
   it('formats its counts through the app locale, never the browser one', async () => {
     const original = Number.prototype.toLocaleString
     vi.spyOn(Number.prototype, 'toLocaleString').mockImplementation(function (
@@ -608,7 +608,7 @@ describe('MetricsCatalog — the stat strip uses the app locale (DS-30)', () => 
   })
 })
 
-describe('MetricsCatalog — the stat strip summarises the whole catalog (MT-23)', () => {
+describe('MetricsCatalog — the stat strip summarises the whole catalog', () => {
   it('keeps the project counts while a search narrows the table', async () => {
     vi.mocked(metricsCatalogApi.list).mockImplementation(async (_slug, params) =>
       params?.search
@@ -624,7 +624,7 @@ describe('MetricsCatalog — the stat strip summarises the whole catalog (MT-23)
   })
 })
 
-describe('MetricsCatalog — review state and archive toast (MT-25, MT-38)', () => {
+describe('MetricsCatalog — review state and archive toast', () => {
   it('marks a reviewed metric and lets the row menu toggle it', async () => {
     vi.mocked(metricsCatalogApi.list).mockResolvedValue({
       ...TWO_METRICS,

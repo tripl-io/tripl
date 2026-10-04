@@ -39,11 +39,11 @@ function DialogContent({
         data-slot="dialog-content"
         className={cn(
           // Inset 1rem from the screen edge with rounded corners on phones too;
-          // full-bleed square dialogs put content against the glass (DS-39).
+          // full-bleed square dialogs put content against the glass.
           // A flex column, so a <DialogBody> child can take the scroll while
-          // the header and footer stay put (AL-4); without one the whole
+          // the header and footer stay put; without one the whole
           // content still scrolls as before. bg-popover: dialogs sit one step
-          // up the elevation ladder, above the cards under them (DS-10).
+          // up the elevation ladder, above the cards under them.
           "bg-popover text-popover-foreground data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 fixed left-[50%] top-[50%] z-(--z-modal) flex flex-col w-[calc(100%-2rem)] max-w-lg max-h-[90vh] overflow-y-auto translate-x-[-50%] translate-y-[-50%] gap-4 rounded-card border p-6 shadow-lg duration-200",
           className
         )}
@@ -74,7 +74,7 @@ function DialogHeader({ className, ...props }: React.ComponentProps<"div">) {
 }
 
 /**
- * The scrolling middle of a dialog (AL-4). Put everything between
+ * The scrolling middle of a dialog. Put everything between
  * <DialogHeader> and <DialogFooter> in it and only this part scrolls, so the
  * title, the close button and Cancel/Save stay on screen in a long form. It
  * bleeds to the content's edges so the scrollbar sits at the dialog border.

@@ -263,7 +263,7 @@ describe('formatSignalSeverity', () => {
   })
 })
 
-describe('formatSignalEffect (MO-2)', () => {
+describe('formatSignalEffect', () => {
   it('reads a spike as a signed whole-percent change from expected', () => {
     // 3,846 vs 1,268 is +203%: the reader no longer does the arithmetic.
     expect(
@@ -330,7 +330,7 @@ describe('formatSignalEffect (MO-2)', () => {
   })
 })
 
-describe('formatSignalEffectDetail (JR-31)', () => {
+describe('formatSignalEffectDetail', () => {
   it('names the magnitude bucket in words, with the z-score beside it', () => {
     expect(
       formatSignalEffectDetail({ actual_count: 300, expected_count: 100, z_score: 40.72, direction: 'spike' }),

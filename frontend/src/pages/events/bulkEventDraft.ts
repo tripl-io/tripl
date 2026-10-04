@@ -14,7 +14,7 @@ export type BulkRowStatus = 'ready' | 'incomplete' | 'invalid' | 'duplicate' | '
 
 /**
  * A required field the name is not built from, carried as a column of its own
- * after the identity columns (AU-19). Without it a type with one
+ * after the identity columns. Without it a type with one
  * such field could not be pasted at all: every event of it would be refused.
  */
 export interface BulkExtraColumn {

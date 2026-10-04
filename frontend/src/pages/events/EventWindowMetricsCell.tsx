@@ -22,7 +22,7 @@ export const EventWindowMetricsCell = memo(function EventWindowMetricsCell({
   anomalyIdx?: number | null
   signalTone?: 'danger' | 'warning' | null
   /** Metrics not answered yet: a pulsing placeholder, never the "—" that
-   *  means "no data" (EV-20). */
+   *  means "no data". */
   pending?: boolean
 }) {
   if (pending) {
@@ -49,7 +49,7 @@ export const EventWindowMetricsCell = memo(function EventWindowMetricsCell({
   const isEmptyOrZero = noData || totalCount === 0
   const label = noData ? '—' : formatCompactCount(totalCount)
   const counts = data.map((p) => p.count)
-  // The line keeps its series hue whatever the signal (DS-27): an anomaly is
+  // The line keeps its series hue whatever the signal: an anomaly is
   // the red dot at `anomalyIdx`, and the tone only colours the count. An unset
   // colour lets Sparkline and the chart fall back to SINGLE_SERIES_COLOR, not
   // the user's accent.
@@ -62,7 +62,7 @@ export const EventWindowMetricsCell = memo(function EventWindowMetricsCell({
     <Tooltip>
       <TooltipTrigger asChild>
         {/* Not a button: it does nothing when pressed, and as one it was an
-            extra dead tab stop on every row (EVT-46). The count it shows is
+            extra dead tab stop on every row. The count it shows is
             in the label, so a screen reader loses nothing; the chart in the
             tooltip is a pointer-only enlargement of the sparkline. */}
         <span

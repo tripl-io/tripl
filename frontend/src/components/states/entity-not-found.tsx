@@ -15,7 +15,7 @@ export type BackAction = {
 
 /**
  * An entity that does not exist (deleted, moved to another branch, a stale
- * link) inside a page that keeps its shell (#237 SH-33). Not an error: nothing
+ * link) inside a page that keeps its shell (#237). Not an error: nothing
  * can be retried, so there is no red card and no "Try again", only the way back
  * to the list. The whole-route 404 is `NotFoundState` (components/not-found-state).
  */

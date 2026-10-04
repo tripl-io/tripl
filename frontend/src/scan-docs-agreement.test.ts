@@ -56,7 +56,7 @@ describe('the scan docs describe the product this branch ships', () => {
   it('feature-reference names the four figures the Scans page renders', () => {
     const page = readFileSync(join(SRC, 'pages', 'settings', 'ScansTab.tsx'), 'utf8')
     const labels = [...page.matchAll(/<MiniStat\s[\s\S]*?label="([^"]+)"/g)].map((m) => m[1])
-    // Scans · Monitoring · Failing · Warehouse rows 24h (#247 DA-11, DA-4).
+    // Scans · Monitoring · Failing · Warehouse rows 24h (#247).
     expect(labels, 'ScansTab.tsx should still render exactly four KPI figures').toHaveLength(4)
 
     const doc = readDoc('use/feature-reference.md')
@@ -115,7 +115,7 @@ describe('the scan docs describe the product this branch ships', () => {
    * writes no `EventMetric` row — but it is one word away from a second false
    * claim, and quick-start.md shipped it: "only the schedule records metric
    * points". The scan page ships a manual metrics path next to that
-   * sentence. **Replay a period…** in its header (#247 DA-8 moved it out of
+   * sentence. **Replay a period…** in its header (#247 moved it out of
    * the Configuration tab's Danger zone) posts to `/metrics/replay` →
    * `scan_service.trigger_metrics_replay`, which dispatches `collect_metrics`
    * for an explicit window — the same task beat dispatches, and the one that

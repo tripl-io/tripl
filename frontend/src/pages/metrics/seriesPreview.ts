@@ -2,8 +2,8 @@ import type { MetricDraft } from './metricDraft'
 
 /**
  * What a fact or event-composition draft still needs before its series can be
- * previewed, said under the button rather than leaving it silently grey
- * (MT-15). Anything subtler — a measure the aggregation needs, a filter row
+ * previewed, said under the button rather than leaving it silently grey.
+ * Anything subtler — a measure the aggregation needs, a filter row
  * half filled — is the server's to name: the preview validates the definition
  * exactly as a save does.
  */

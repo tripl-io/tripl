@@ -31,13 +31,13 @@ import { SAVED_FEEDBACK_MS, useTransientFlag } from './settings-area/projectGene
 import { focusFirstInvalid } from '@/components/forms/validation'
 
 // The format rule said in words, where `type="email"` + `required` showed the
-// browser's bubble instead (AU-4).
+// browser's bubble instead.
 const INVITE_EMAIL_MESSAGE = 'Enter an email address, like name@example.com.'
 const EMAIL_SHAPE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
 
 const INVITE_FORM_ID = 'invite-member-form'
 
-/** Past this many members the roster gets a search box (ST-40). */
+/** Past this many members the roster gets a search box. */
 const MEMBER_SEARCH_THRESHOLD = 10
 
 
@@ -74,7 +74,7 @@ const COPIED_RESET_MS = 2000
  *
  * Because it is shown once, the panel stays until it is dismissed, and minting
  * another invite over a link nobody copied asks first: it used to be replaced
- * without a word, and the first link was gone for good (WS-21).
+ * without a word, and the first link was gone for good.
  */
 export function InviteMemberCard({ actorIsOrgOwner }: { actorIsOrgOwner: boolean }) {
   const qc = useQueryClient()
@@ -210,8 +210,7 @@ export function InviteMemberCard({ actorIsOrgOwner }: { actorIsOrgOwner: boolean
   const acceptUrl = minted ? `${window.location.origin}${minted.accept_path}` : ''
 
   // Three cards with one job each, in the settings kit, where one hand-built
-  // box explained the feature, held the form and listed the invites at 10-11px
-  // (ST-14).
+  // box explained the feature, held the form and listed the invites at 10-11px.
   return (
     <>
       {dialog}
@@ -226,7 +225,7 @@ export function InviteMemberCard({ actorIsOrgOwner }: { actorIsOrgOwner: boolean
               </p>
             )}
             {/* The page's main action, so the primary button, as "Create key"
-                is on API keys (ST-15). */}
+                is on API keys. */}
             <Button
               type="submit"
               form={INVITE_FORM_ID}
@@ -240,7 +239,7 @@ export function InviteMemberCard({ actorIsOrgOwner }: { actorIsOrgOwner: boolean
       >
         {/* Kit rows and controls, not hand-styled elements: those were 32px
             and 24px tall, bordered differently from every other field, and had
-            no focus ring at all for keyboard users (WS-20). */}
+            no focus ring at all for keyboard users. */}
         <form
           id={INVITE_FORM_ID}
           noValidate
@@ -264,7 +263,7 @@ export function InviteMemberCard({ actorIsOrgOwner }: { actorIsOrgOwner: boolean
             />
           </Field>
           {/* An owner invite forwarded to the wrong person is a full takeover,
-              so the role says what it grants before the link exists (WS-22). */}
+              so the role says what it grants before the link exists. */}
           <Field
             label="Role"
             htmlFor="invite-role"
@@ -359,7 +358,7 @@ export function InviteMemberCard({ actorIsOrgOwner }: { actorIsOrgOwner: boolean
       )}
 
       {/* Rows styled like the API-key rows: the address, the role chip, when
-          it expires, and a destructive Revoke (ST-14). */}
+          it expires, and a destructive Revoke. */}
       {invites.length > 0 && (
         <SCard title="Pending invitations" description={`${invites.length} pending`}>
           {invites.map((inv: Invitation, index) => (
@@ -380,8 +379,8 @@ export function InviteMemberCard({ actorIsOrgOwner }: { actorIsOrgOwner: boolean
               >
                 {inv.is_expired ? 'Expired' : `Expires ${formatDate(inv.expires_at)}`}
               </span>
-              {/* 28px, 40px on phones: a 24px Revoke sat beside other text
-                  (ST-12). */}
+              {/* 28px, 40px on phones: a 24px Revoke sat beside other text.
+                  */}
               <Button
                 type="button"
                 size="sm"
@@ -440,7 +439,7 @@ export default function UsersPage() {
 
   const { confirm, dialog } = useConfirm()
   // A role change applies at once, with no Save step; it now says so on the
-  // row, the way a settings page says "Saved" (ST-3).
+  // row, the way a settings page says "Saved".
   const [roleUpdated, markRoleUpdated, clearRoleUpdated] = useTransientFlag(SAVED_FEEDBACK_MS)
 
   const listQuery = useQuery({
@@ -531,7 +530,7 @@ export default function UsersPage() {
   /**
    * Picking from the Select used to PATCH at once, so a stray arrow key or
    * wheel on a focused select could demote an owner or grant Owner, with no
-   * undo (WS-19). Granting Owner and every demotion now ask first; a
+   * undo. Granting Owner and every demotion now ask first; a
    * promotion short of Owner still applies directly.
    */
   const handleRoleChange = async (member: UserListItem, next: Role) => {
@@ -570,7 +569,7 @@ export default function UsersPage() {
           different scopes. All that is left is the one fact the
           header does not carry, and only for the people it applies to. */}
       {/* The one read-only notice, not a loose paragraph larger than the
-          section description (#237 ST-17). */}
+          section description (#237). */}
       {!isOwner && (
         <ReadOnlyNotice className="mb-5">Only owners and admins can change roles or invite people.</ReadOnlyNotice>
       )}
@@ -589,7 +588,7 @@ export default function UsersPage() {
         </p>
       )}
 
-      {/* A titled card with a count, like every other settings list (ST-40). */}
+      {/* A titled card with a count, like every other settings list. */}
       <SCard
         title="Members"
         description={
@@ -658,7 +657,7 @@ export default function UsersPage() {
                   >
                     {u.email}
                   </div>
-                  {/* On phones the date is a second line, not gone (ST-40). */}
+                  {/* On phones the date is a second line, not gone. */}
                   <div className="text-caption leading-tight sm:hidden text-fg-tertiary">
                     Joined {formatDate(u.created_at)}
                   </div>
@@ -666,14 +665,14 @@ export default function UsersPage() {
                 {/* The bare "2026-08-19" was a date with no question attached —
                     joined? invited? last seen? — in a table that has no column
                     headers to answer it. A date in the body font,
-                    as a person reads it, not mono ISO (ST-40). */}
+                    as a person reads it, not mono ISO. */}
                 <span
                   className="hidden w-36 shrink-0 text-right text-caption sm:block text-fg-tertiary"
                 >
                   Joined {formatDate(u.created_at)}
                 </span>
                 {/* The same box for the chip as for the select, so the column
-                    does not alternate widths and heights row to row (ST-16). */}
+                    does not alternate widths and heights row to row. */}
                 <div className="flex h-8 w-32 shrink-0 items-center justify-end">
                   {isOwner &&
                   u.id !== currentUser?.id &&
@@ -720,7 +719,7 @@ export default function UsersPage() {
               )}
               {/* On the row it belongs to, naming the person: it used to sit
                   under the whole list, where it said nothing about whose role
-                  had failed to change (WS-19). The status region is always
+                  had failed to change. The status region is always
                   mounted and only its text toggles: a live region inserted
                   already holding its text is often not announced. */}
               {(() => {

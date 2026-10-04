@@ -33,7 +33,7 @@ _RELATION_UPDATE_FIELDS = frozenset(
 
 
 class RelationUpdate(BaseModel):
-    """Editing a relation in place (AU-13); every field optional, none nullable.
+    """Editing a relation in place; every field optional, none nullable.
 
     An end is re-checked against the project branch whenever either of its ids
     changes, with the stored id standing in for the one not sent.

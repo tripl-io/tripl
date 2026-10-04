@@ -31,7 +31,7 @@ function seriesPoint(overrides: Partial<MetricSeriesPoint> = {}): MetricSeriesPo
   } as MetricSeriesPoint
 }
 
-describe('metricRollupMode (MON-2 / MET-12)', () => {
+describe('metricRollupMode', () => {
   it('sums only additive metrics', () => {
     expect(metricRollupMode(undefined)).toBe('sum')
     expect(metricRollupMode({ kind: 'event_composition', composition: 'single' })).toBe('sum')
@@ -49,7 +49,7 @@ describe('metricRollupMode (MON-2 / MET-12)', () => {
   })
 })
 
-describe('drilldown granularity defaults (MON-43)', () => {
+describe('drilldown granularity defaults', () => {
   it('maps every backend interval, and nothing else', () => {
     expect(granularityForInterval('15m')).toBe('15min')
     expect(granularityForInterval('6h')).toBe('6h')
@@ -141,7 +141,7 @@ describe('metricSignalToMonitoringSignal', () => {
     attribution_status: 'not_computed',
   }
 
-  it('carries the unit and detection time the server sent (MON-34, MON-40)', () => {
+  it('carries the unit and detection time the server sent', () => {
     const signal = metricSignalToMonitoringSignal({
       ...base,
       unit: '%',

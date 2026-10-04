@@ -29,12 +29,12 @@ const UNBUILT = [
 
 /**
  * Account · Password & sessions (was "Security"; renamed apart from Instance ·
- * Security & access, #238 JR-26).
+ * Security & access, #238).
  *
  * There is no signed-in change-password endpoint, but the email reset flow
  * exists and works, so the password card runs it for the signed-in address in
  * one click instead of telling the reader to sign out and find "Forgot your
- * password?" (WS-37). It used to hold two inputs and an "Update password"
+ * password?". It used to hold two inputs and an "Update password"
  * button that did nothing at all, so people walked away believing their
  * password had rotated, and then the same controls disabled.
  *
@@ -53,7 +53,7 @@ export default function SecuritySection() {
     mutationFn: () => authApi.requestPasswordReset({ email }),
   })
   // Everyone learns that email is off BEFORE pressing a button that cannot
-  // work (ST-24). The unauthenticated instance probe carries the same
+  // work. The unauthenticated instance probe carries the same
   // `email_can_send` answer the reset endpoint uses (host AND From: address),
   // so it is right for owners and non-owners alike. An owner gets the way to
   // fix it; anyone else is told to ask one. Only a definite `false` disables

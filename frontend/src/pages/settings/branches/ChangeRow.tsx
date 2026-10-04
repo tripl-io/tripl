@@ -22,7 +22,7 @@ import {
   stateKeyLabel,
 } from './branchMeta'
 
-// Row actions get a 40px hit area on touch screens (PL-17); the 11px links
+// Row actions get a 40px hit area on touch screens; the 11px links
 // were well under any tap target.
 const ROW_ACTION_TOUCH = 'pointer-coarse:min-h-10 pointer-coarse:px-2'
 
@@ -53,8 +53,8 @@ interface ChangeRowProps {
   onRevert?: (entry: PlanDiffEntry, field?: string) => void
   /** Branch rows that all carry this removal's scan identity. The revert
    * endpoint refuses such a removal with a 409 rather than guess which row it
-   * was renamed into, so the row offers no revert and lists them instead
-   * (PLAN-18). */
+   * was renamed into, so the row offers no revert and lists them instead.
+   */
   revertBlockedBy?: PlanDiffEntry[]
   reverting: boolean
 }
@@ -72,7 +72,7 @@ export function ChangeRow({
 }: ChangeRowProps) {
   const [open, setOpen] = useState(false)
   // For a modification the change is the point; the entity's whole state is
-  // context, one click further (PL-12).
+  // context, one click further.
   const [stateOpen, setStateOpen] = useState(false)
   const stateId = useId()
   const detailId = useId()
@@ -165,7 +165,7 @@ export function ChangeRow({
             and with it the panel and the page. `truncate` keeps the collapsed
             summary to one line; the full before/after is a click away. The
             summary names the fields that changed, so the cut falls after the
-            difference, not inside a long quote (PL-9). Below `sm` only the
+            difference, not inside a long quote. Below `sm` only the
             count of changed fields fits. */}
         <span
           className="hidden min-w-0 flex-1 truncate text-right text-caption sm:inline text-fg-tertiary"
@@ -330,7 +330,7 @@ export function ChangeRow({
 
 /** Why a removal cannot be reverted from here, and the rows to fix by hand.
  * The dialog that stood here used to offer "Try anyway" for a request it had
- * just said would be refused (PLAN-18). */
+ * just said would be refused. */
 function RevertBlockedNote({
   slug,
   branchId,
@@ -396,7 +396,7 @@ function DetailSection({ id, title, children }: { id?: string; title: string; ch
 function StateView({ state }: { state: Record<string, unknown> }) {
   const uid = useId()
   // Empty properties say nothing and used to take most of the rows ("sunset_at
-  // ⌀", "superseded_by ⌀"); they are counted and shown on request (PL-12).
+  // ⌀", "superseded_by ⌀"); they are counted and shown on request.
   const [showEmpty, setShowEmpty] = useState(false)
   const allKeys = Object.keys(state)
   const emptyKeys = allKeys.filter((key) => isEmptyStateValue(state[key]))
@@ -453,7 +453,7 @@ export function HousekeepingFold({ entries }: { entries: PlanDiffEntry[] }) {
         onClick={() => setExpanded((v) => !v)}
         aria-expanded={expanded}
         // Only while the list exists: an idref to a missing element is an
-        // a11y error, which ChangeRow's toggle already avoids (PLAN-20).
+        // a11y error, which ChangeRow's toggle already avoids.
         aria-controls={expanded ? listId : undefined}
         className="flex w-full items-center gap-1.5 px-4 py-2.5 text-left text-caption text-fg-tertiary"
       >

@@ -9,7 +9,7 @@ import { currentOrgSlug, projectPath } from '@/lib/navigation'
 const NEW_SCAN_SEGMENT = 'new'
 
 /**
- * The create page has a route (DATA-13): it used to be view state inside the
+ * The create page has a route: it used to be view state inside the
  * list, so Back left Scans altogether and a reload dropped the whole draft.
  * Authoring a scan is owner-only; anyone else is sent to the list.
  */

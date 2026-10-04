@@ -9,7 +9,7 @@ const STATUS_COLOR = {
 } as const
 
 /**
- * The sticky action row of a long form (AU-6 / MT-4, ST-3): Cancel/Discard and
+ * The sticky action row of a long form: Cancel/Discard and
  * Save, plus one line saying why Save is blocked or what just happened.
  *
  * Forms were 2,500-3,600px tall with Save only at the bottom, so fixing one

@@ -23,8 +23,8 @@ export type DistributionScope =
 
 /**
  * The Distribution tab: population-stability drift of the scan's configured
- * fields for this scope. Owns its query and its error (MON-8), keyed on the
- * range length rather than the moving live bounds (MON-3).
+ * fields for this scope. Owns its query and its error, keyed on the
+ * range length rather than the moving live bounds.
  */
 export function DistributionTab({
   slug,
@@ -71,7 +71,7 @@ export function DistributionTab({
   )
 }
 
-/** A drift band is a status, so it is a toned Chip like every other (DS-6). */
+/** A drift band is a status, so it is a toned Chip like every other. */
 function driftBandTone(band: DistributionDriftBand): ChipTone {
   if (band === 'significant') return 'danger'
   if (band === 'minor') return 'warning'
@@ -80,7 +80,7 @@ function driftBandTone(band: DistributionDriftBand): ChipTone {
 
 /**
  * A drift bucket's label. Daily buckets start at UTC midnight and were printed
- * with a meaningless "12:00 AM"; they print the date alone (MO-27).
+ * with a meaningless "12:00 AM"; they print the date alone.
  */
 function formatDriftBucket(bucket: string, daily: boolean): string {
   if (!daily) return formatTimestamp(bucket)
@@ -95,7 +95,7 @@ function isUtcMidnight(bucket: string): boolean {
     && date.getUTCHours() === 0 && date.getUTCMinutes() === 0 && date.getUTCSeconds() === 0
 }
 
-/** Which bar is which: nothing said the grey one was the baseline (MO-27). */
+/** Which bar is which: nothing said the grey one was the baseline. */
 function ShareBarLegend() {
   return (
     <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-caption text-fg-tertiary" data-testid="distribution-legend">
@@ -158,7 +158,7 @@ function DistributionDriftPanel({
   data: DistributionDriftPoint[]
   fields: string[]
   isLoading: boolean
-  /** The drift request's failure, shown inside the tab (MON-8). */
+  /** The drift request's failure, shown inside the tab. */
   error?: unknown
   onRetry?: () => void
   selectedField: string
@@ -171,7 +171,7 @@ function DistributionDriftPanel({
   const latest = rows.at(-1)
   const tableRows = [...rows].reverse().slice(0, 12)
   const daily = rows.length > 0 && rows.every(row => isUtcMidnight(row.bucket))
-  // The biggest movers first, whichever way they moved (MO-27).
+  // The biggest movers first, whichever way they moved.
   const movers = [...(latest?.top_movers ?? [])]
     .sort((left, right) =>
       Math.abs(right.current_share - right.baseline_share) - Math.abs(left.current_share - left.baseline_share))
@@ -212,7 +212,7 @@ function DistributionDriftPanel({
 
   return (
     <div className="space-y-4">
-      {/* The shared section-card geometry (DS-4 / MO-10): a header bar with
+      {/* The shared section-card geometry: a header bar with
           the 12.5px h2 and the field picker, then the body. */}
       <Card>
         <ChartCardHeader title={<CardTitle as="h2">Distribution</CardTitle>}>
@@ -230,9 +230,9 @@ function DistributionDriftPanel({
           </Select>
         </ChartCardHeader>
         <CardContent className="space-y-4">
-          {/* The one KPI idiom (DS-5); unboxed, as it already sits in a card.
+          {/* The one KPI idiom; unboxed, as it already sits in a card.
               A 2×2 grid on a phone: stacked one per row the four stats took
-              about 200px there (MO-27). */}
+              about 200px there. */}
           {latest && (
             <MiniStatStrip phoneGrid>
               <MiniStat label="Bucket" value={formatDriftBucket(latest.bucket, daily)} />
@@ -249,7 +249,7 @@ function DistributionDriftPanel({
           )}
           {/* What PSI and the band mean, in the same thresholds the detector
               uses (docs: use/anomaly-detection). Visible, not a hover title,
-              so it reaches touch readers too (MO-27). */}
+              so it reaches touch readers too. */}
           <p className="text-caption text-fg-tertiary" data-testid="psi-explainer">
             Drift (PSI, Population Stability Index) compares this field's mix
             of values with the earlier window: below 0.10 is stable, 0.10–0.25
@@ -274,7 +274,7 @@ function DistributionDriftPanel({
 
       <Card>
         {/* Titled like every other section card: it was the one untitled
-            card on the page (MO-10). */}
+            card on the page. */}
         <CardHeader>
           <CardTitle as="h2">Drift history · last 12 buckets</CardTitle>
         </CardHeader>

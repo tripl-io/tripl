@@ -3,7 +3,7 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { cn } from '@/lib/utils'
 
 /**
- * Loading placeholders shaped like what is coming (#237 SH-23 group, DS-26).
+ * Loading placeholders shaped like what is coming (#237 group).
  *
  * A route or section used to load as one grey sentence ("Loading page…") in an
  * empty column, and the page then popped in and pushed everything down. These
@@ -174,7 +174,7 @@ export type SectionSkeletonVariant = 'table' | 'cards' | 'form' | 'chart' | 'lis
  * - `chart`: one chart-shaped block — see also {@link ChartSkeleton}.
  * - `rows`: `rows` table rows (default 4) with NO card of their own, for a
  *   table that already sits inside a Panel — metrics, fact tables, scan runs,
- *   Coverage and Reconciliation (#237 MT-33). The panel keeps its height
+ *   Coverage and Reconciliation (#237). The panel keeps its height
  *   instead of growing from one grey sentence when the rows land.
  */
 export function SectionSkeleton({
@@ -257,7 +257,7 @@ function ChartBlock({ height }: { height: number }) {
 
 /**
  * A chart that is still loading (its lazy chunk or its series). Replaces the
- * centred "Loading…" / "Loading metrics…" word in a blank box (DS-26). Pass the
+ * centred "Loading…" / "Loading metrics…" word in a blank box. Pass the
  * chart's own height so nothing moves when it renders.
  */
 export function ChartSkeleton({
@@ -277,7 +277,7 @@ export function ChartSkeleton({
 }
 
 /**
- * The value slot of a MiniStat whose data has not arrived (DS-25 / EV-19).
+ * The value slot of a MiniStat whose data has not arrived.
  * A KPI strip must never print "0" or "quiet" before it knows: that is a false
  * all-clear on a monitoring product. Pass it as `value` and omit `delta` and
  * `tone` while pending:

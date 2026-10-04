@@ -48,7 +48,7 @@ export function EventGroupRulesEditor({
   onChange: (rules: UiEventGroupRule[]) => void
 }) {
   // Rules are one line each until opened: the demo's 18 full cards ran the
-  // Configuration tab to ~6,000px of identical boxes (#247 DA-7). Saved rules
+  // Configuration tab to ~6,000px of identical boxes (#247). Saved rules
   // start closed; a rule added here opens, since it is about to be filled in.
   const [openUids, setOpenUids] = useState<ReadonlySet<string>>(() => new Set())
   const [filter, setFilter] = useState('')
@@ -128,7 +128,7 @@ export function EventGroupRulesEditor({
             </p>
           )}
         </div>
-        {/* The dry run's flood warning focuses this by id (#247 DA-1). */}
+        {/* The dry run's flood warning focuses this by id (#247). */}
         <Button id="scan-event-groups" type="button" variant="outline" size="sm" onClick={addRule}>
           <Plus className="size-3.5" aria-hidden="true" />Add group rule
         </Button>

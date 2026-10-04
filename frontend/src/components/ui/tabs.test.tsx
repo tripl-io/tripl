@@ -22,7 +22,7 @@ describe('TabsContent focus indicator', () => {
   })
 })
 
-describe('TabsList variant="segmented" (DS-16 / AL-46)', () => {
+describe('TabsList variant="segmented"', () => {
   it('draws the segmented look and keeps tab semantics', () => {
     render(
       <Tabs defaultValue="inbox">

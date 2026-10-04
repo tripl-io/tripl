@@ -363,7 +363,7 @@ describe('DataSourcesPage', () => {
     expect(toastError).not.toHaveBeenCalled()
   })
 
-  it('shows what reads a source, and asks for its name before deleting one in use (DA-40)', async () => {
+  it('shows what reads a source, and asks for its name before deleting one in use', async () => {
     const usedSource: DataSource = { ...DATA_SOURCE, scan_count: 2, scan_run_count: 5 }
     const deleted = vi.fn()
     vi.spyOn(globalThis, 'fetch').mockImplementation((input: RequestInfo | URL, init?: RequestInit) => {
@@ -404,7 +404,7 @@ describe('DataSourcesPage', () => {
     await waitFor(() => expect(deleted).toHaveBeenCalledTimes(1))
   })
 
-  it('links each scan that reads a source to its scan page (DA-40)', async () => {
+  it('links each scan that reads a source to its scan page', async () => {
     const usedSource: DataSource = {
       ...DATA_SOURCE,
       scan_count: 3,
@@ -924,7 +924,7 @@ describe('DataSourcesPage', () => {
     expect(screen.queryByRole('button', { name: 'Edit connection' })).not.toBeInTheDocument()
   })
 
-  it('asks before Escape throws away a typed-in create form, and keeps it on Cancel (DATA-31)', async () => {
+  it('asks before Escape throws away a typed-in create form, and keeps it on Cancel', async () => {
     vi.spyOn(globalThis, 'fetch').mockImplementation(() =>
       Promise.resolve(jsonResponse([DATA_SOURCE])),
     )
@@ -959,7 +959,7 @@ describe('DataSourcesPage', () => {
     expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument()
   })
 
-  // DATA-35: a stale "healthy" check renders amber on its card, so the header
+  // a stale "healthy" check renders amber on its card, so the header
   // must not read "Warnings 0" above it.
   it('counts stale health checks as warnings', async () => {
     const staleSource: DataSource = {
@@ -980,7 +980,7 @@ describe('DataSourcesPage', () => {
     expect(screen.getByRole('button', { name: 'Add connection' })).toBeInTheDocument()
   })
 
-  // LIVE-36: one health indicator and one type marker per card.
+  // one health indicator and one type marker per card.
   it('shows one health marker and one type marker per card', async () => {
     const freshSynthetic: DataSource = {
       ...SYNTHETIC_SOURCE,
@@ -1098,7 +1098,7 @@ describe('DataSourcesPage', () => {
     expect(posted).toBe(false)
   })
 
-  it('tests an unsaved connection before Create, storing nothing (DATA-30)', async () => {
+  it('tests an unsaved connection before Create, storing nothing', async () => {
     const bodies: unknown[] = []
     const posts: string[] = []
     vi.spyOn(globalThis, 'fetch').mockImplementation((input: RequestInfo | URL, init?: RequestInit) => {
@@ -1137,7 +1137,7 @@ describe('DataSourcesPage', () => {
     expect(screen.queryByText(/could not reach the data source/)).toBeNull()
   })
 
-  // DATA-30: a new source is also tested the moment it is saved, so its card
+  // a new source is also tested the moment it is saved, so its card
   // shows health right away instead of sitting "untested".
   it('tests a new connection as soon as it is created', async () => {
     const created: DataSource = { ...DATA_SOURCE, id: 'ds-new', name: 'Prod CH' }
@@ -1220,7 +1220,7 @@ describe('DataSourcesPage', () => {
     await waitFor(() => expect(tested).toEqual(['ds-1']))
   })
 
-  // DATA-32: resetForm/closeEdit never reset the mutations, so a reopened
+  // resetForm/closeEdit never reset the mutations, so a reopened
   // dialog greeted the user with the previous attempt's error.
   it('does not show a stale create error when the dialog is reopened', async () => {
     vi.spyOn(globalThis, 'fetch').mockImplementation((input: RequestInfo | URL, init?: RequestInit) => {
@@ -1252,7 +1252,7 @@ describe('DataSourcesPage', () => {
     expect(screen.queryByText('Host is unreachable')).not.toBeInTheDocument()
   })
 
-  // DATA-33: the edit name had no `required`; clearing it came back as a raw 422.
+  // the edit name had no `required`; clearing it came back as a raw 422.
   it('stops an edit with a blank name inline, without a request', async () => {
     let patched = false
     vi.spyOn(globalThis, 'fetch').mockImplementation(
@@ -1272,7 +1272,7 @@ describe('DataSourcesPage', () => {
     expect(patched).toBe(false)
   })
 
-  // DATA-34: one shared `testingId` re-enabled A's button when B started, and
+  // one shared `testingId` re-enabled A's button when B started, and
   // A's finish re-enabled B's while B was still running.
   it('tracks each running connection test separately', async () => {
     const second: DataSource = { ...DATA_SOURCE, id: 'ds-2', name: 'Replica' }
@@ -1395,7 +1395,7 @@ describe('DataSourcesPage design review (#248)', () => {
     vi.restoreAllMocks()
   })
 
-  // DA-39: BigQuery has no port, so Postgres → BigQuery → ClickHouse used to
+  // BigQuery has no port, so Postgres → BigQuery → ClickHouse used to
   // keep 5432 and the connection failed like a network problem.
   it('resets an untouched port to the new type default across BigQuery', async () => {
     vi.spyOn(globalThis, 'fetch').mockImplementation(listFetchMock([DATA_SOURCE]))
@@ -1415,7 +1415,7 @@ describe('DataSourcesPage design review (#248)', () => {
     expect(screen.getByLabelText('Port')).toHaveValue(9440)
   })
 
-  // DA-38: a 422 used to land as "host: String should …" at the foot of the
+  // a 422 used to land as "host: String should …" at the foot of the
   // dialog with nothing marked; it now sits under the control it names.
   it('pins a server field refusal under its control', async () => {
     vi.spyOn(globalThis, 'fetch').mockImplementation((input: RequestInfo | URL, init?: RequestInit) => {
@@ -1452,7 +1452,7 @@ describe('DataSourcesPage design review (#248)', () => {
     expect(screen.queryByText('Host must not include a scheme')).not.toBeInTheDocument()
   })
 
-  // DA-41: the card's two relative times are labelled, and the demo warehouse
+  // the card's two relative times are labelled, and the demo warehouse
   // shows no fake "synthetic:0/synthetic" address.
   it('labels the card times and hides the synthetic address', async () => {
     const tested: DataSource = {

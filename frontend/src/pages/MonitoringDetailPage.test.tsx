@@ -94,7 +94,7 @@ vi.mock('@/components/sql-editor', () => ({
   }) => <textarea aria-label={ariaLabel} value={value} readOnly={readOnly} onChange={() => {}} />,
 }))
 
-/** The page writes its view state to the URL (MON-24); this reads it back. */
+/** The page writes its view state to the URL; this reads it back. */
 function LocationProbe() {
   const location = useLocation()
   return <output data-testid="location-search">{location.search}</output>
@@ -560,7 +560,7 @@ describe('MonitoringDetailPage volume granularity follows range', () => {
     await waitFor(() => expect(chartForecastCount()).toBe('1'))
   })
 
-  it('refuses a granularity that would draw too many points over the range (MON-23)', async () => {
+  it('refuses a granularity that would draw too many points over the range', async () => {
     installProjectTotalFetch([], '6h')
     renderMonitoringPage()
     await screen.findByTestId('metrics-chart')
@@ -573,7 +573,7 @@ describe('MonitoringDetailPage volume granularity follows range', () => {
     expect(screen.getByRole('option', { name: '6 hours' })).not.toHaveAttribute('aria-disabled')
   })
 
-  it('bumps a sticky fine pick coarser when the range grows (MON-23)', async () => {
+  it('bumps a sticky fine pick coarser when the range grows', async () => {
     installProjectTotalFetch([], '6h')
     renderMonitoringPage('?gran=15min&range=90')
 
@@ -584,7 +584,7 @@ describe('MonitoringDetailPage volume granularity follows range', () => {
     expect(chartPoints()).toBe('3')
   })
 
-  it('bumps a sticky fine pick only as far as the native granularity (MON-23)', async () => {
+  it('bumps a sticky fine pick only as far as the native granularity', async () => {
     installProjectTotalFetch()
     renderMonitoringPage('?gran=15min&range=90')
 
@@ -718,12 +718,12 @@ describe('MonitoringDetailPage back affordance', () => {
     // navigation.ts assigns /monitoring/project-total/ (and /monitoring/
     // event-type/) to Anomalies, under Observe. The eyebrow names the nav group
     // and the scope, as on every Observe page, in place of the separate back
-    // button that sat above the header (DS-2 / MO-40); it must never point the
+    // button that sat above the header; it must never point the
     // reader at Events, where they had not been.
     installProjectTotalOnlyFetch()
     const { container } = renderMonitoringPage()
 
-    // Titled for what it shows (MO-12); the eyebrow still names the scope.
+    // Titled for what it shows; the eyebrow still names the scope.
     await screen.findByRole('heading', { level: 1, name: 'Total volume' })
     expect(container.querySelector('[data-slot="page-eyebrow"]')).toHaveTextContent(
       'Observe · Project total',
@@ -1041,7 +1041,7 @@ describe('MonitoringDetailPage event-detail header and semantics', () => {
     expect(panel.queryByText(/baseline 0 at the flagged bucket/)).toBeNull()
   })
 
-  it('shows the event discussion on the detail page, where viewers now land (EV-34)', async () => {
+  it('shows the event discussion on the detail page, where viewers now land', async () => {
     installEventDetailFetch()
     renderEventDetail()
     await screen.findByRole('heading', { name: 'checkout_completed' })
@@ -1051,7 +1051,7 @@ describe('MonitoringDetailPage event-detail header and semantics', () => {
     ).toBeInTheDocument()
   })
 
-  it('counts the discussion in the hero and jumps to it (JR-7)', async () => {
+  it('counts the discussion in the hero and jumps to it', async () => {
     installEventDetailFetch()
     renderEventDetail()
     await screen.findByRole('heading', { name: 'checkout_completed' })
@@ -1070,7 +1070,7 @@ describe('MonitoringDetailPage event-detail header and semantics', () => {
     }
   })
 
-  it('gives a signal its next steps: annotate, discuss, and the alert inbox (MO-4 / JR-5)', async () => {
+  it('gives a signal its next steps: annotate, discuss, and the alert inbox', async () => {
     installEventDetailFetch({ latestSignal: { ...dropToZeroSignal(), actual_count: 81, z_score: -6.5 } })
     renderEventDetail()
     await screen.findByRole('heading', { name: 'checkout_completed' })
@@ -1084,7 +1084,7 @@ describe('MonitoringDetailPage event-detail header and semantics', () => {
     )
   })
 
-  it('states the flagged bucket as one sentence and says why it was flagged (MO-2)', async () => {
+  it('states the flagged bucket as one sentence and says why it was flagged', async () => {
     installEventDetailFetch({
       latestSignal: {
         ...dropToZeroSignal(),
@@ -1107,7 +1107,7 @@ describe('MonitoringDetailPage event-detail header and semantics', () => {
     expect(screen.queryByText('Deviation')).toBeNull()
   })
 
-  it('marks one event as verified from the overflow menu (JR-8)', async () => {
+  it('marks one event as verified from the overflow menu', async () => {
     const spy = installEventDetailFetch()
     const base = spy.getMockImplementation()!
     spy.mockImplementation(async (input, init) => {
@@ -1173,7 +1173,7 @@ describe('MonitoringDetailPage event-detail header and semantics', () => {
     expect(banner.textContent).not.toMatch(/[+-]?\d+% vs/)
   })
 
-  it('states a partial drop as a % change and keeps the z-score in the tooltip (MO-2)', async () => {
+  it('states a partial drop as a % change and keeps the z-score in the tooltip', async () => {
     installEventDetailFetch({
       latestSignal: {
         ...dropToZeroSignal(),
@@ -1289,7 +1289,7 @@ describe('MonitoringDetailPage event-detail header and semantics', () => {
       expect(screen.getByTestId('multi-chart')).toHaveAttribute('data-labels', 'ios|android|web'))
   })
 
-  it('uses the shared page header, with no second in-page breadcrumb (DS-3 / JR-33)', async () => {
+  it('uses the shared page header, with no second in-page breadcrumb', async () => {
     installEventDetailFetch()
     const { container } = renderEventDetail()
     const heading = await screen.findByRole('heading', { level: 1, name: 'checkout_completed' })
@@ -1299,9 +1299,9 @@ describe('MonitoringDetailPage event-detail header and semantics', () => {
     expect(screen.queryByRole('navigation', { name: 'Breadcrumb' })).not.toBeInTheDocument()
     // The eyebrow names the nav group and the collection instead.
     expect(container.querySelector('[data-slot="page-eyebrow"]')).toHaveTextContent('Plan · Event')
-    // A display name, set in the page title's sans, not mono (DS-17).
+    // A display name, set in the page title's sans, not mono.
     expect(heading).not.toHaveClass('mono')
-    // The KPI strip sits in the header's stats slot (DS-5).
+    // The KPI strip sits in the header's stats slot.
     expect(
       container.querySelector('[data-slot="page-stats"] [data-slot="mini-stat-strip"]'),
     ).not.toBeNull()
@@ -1312,20 +1312,20 @@ describe('MonitoringDetailPage event-detail header and semantics', () => {
     renderEventDetail()
     await screen.findByRole('heading', { name: 'checkout_completed' })
 
-    // The strip waits for the series (DS-25), then explains the empty state.
+    // The strip waits for the series, then explains the empty state.
     await waitFor(() =>
       expect(screen.getByText('Volume · 24h').closest('[title]')).toHaveAttribute(
         'title',
         'No events in the last 24h',
       ))
-    // The Events list's own sentence for the same state (MON-28).
+    // The Events list's own sentence for the same state.
     expect(screen.getByText('Change vs prior 24h').closest('[title]')).toHaveAttribute(
       'title',
       'No metrics collected for this event in the last 48h.',
     )
   })
 
-  it('does not claim "no events" before the series arrives (DS-25)', async () => {
+  it('does not claim "no events" before the series arrives', async () => {
     const fetchSpy = installEventDetailFetch({ metricsData: [] })
     const base = fetchSpy.getMockImplementation()!
     fetchSpy.mockImplementation(async (input, init) => {
@@ -1764,7 +1764,7 @@ describe('MonitoringDetailPage catalog-metric drilldown', () => {
       const url = String(input)
 
       if (url.endsWith('/api/v1/projects/demo/event-types')) return mockJsonResponse([])
-      // The Definition card resolves each referenced event by id (MET-2).
+      // The Definition card resolves each referenced event by id.
       if (url.endsWith('/api/v1/projects/demo/events/event-a')) {
         return mockJsonResponse({ id: 'event-a', name: 'checkout_completed' })
       }
@@ -1918,7 +1918,7 @@ describe('MonitoringDetailPage catalog-metric drilldown', () => {
     return { ...result, queryClient }
   }
 
-  it('offers a viewer no edit, collect, delete or annotation controls (MON-6)', async () => {
+  it('offers a viewer no edit, collect, delete or annotation controls', async () => {
     installMetricDetailFetch('1h')
     renderMetricDetail(personaAuth('viewer'))
 
@@ -1962,7 +1962,7 @@ describe('MonitoringDetailPage catalog-metric drilldown', () => {
     await waitFor(() => expect(label).toHaveFocus())
   })
 
-  it('says a draft is not collected and invites a description (JR-16)', async () => {
+  it('says a draft is not collected and invites a description', async () => {
     installMetricDetailFetch('1h', { status: 'draft' }, { data: [] })
     renderMetricDetail()
 
@@ -1973,7 +1973,7 @@ describe('MonitoringDetailPage catalog-metric drilldown', () => {
     )
   })
 
-  it('tells an active SQL metric with no values to compute now (JR-16)', async () => {
+  it('tells an active SQL metric with no values to compute now', async () => {
     installMetricDetailFetch('1h', {}, { data: [] })
     renderMetricDetail()
 
@@ -1982,7 +1982,7 @@ describe('MonitoringDetailPage catalog-metric drilldown', () => {
     ).toBeInTheDocument()
   })
 
-  it('opens on 7d like every scope and keeps the 1d interval as its granularity (MON-43)', async () => {
+  it('opens on 7d like every scope and keeps the 1d interval as its granularity', async () => {
     const fetchSpy = installMetricDetailFetch('1d')
     renderMetricDetail()
 
@@ -2138,7 +2138,7 @@ describe('MonitoringDetailPage catalog-metric drilldown', () => {
       expect(body.scope_ref).toBe('metric-1')
       expect(body.label).toBe('campaign launch')
     })
-    // Confirmed, not only by a list growing below the fold (MO-8). Today's
+    // Confirmed, not only by a list growing below the fold. Today's
     // 10:00 is past the fixture's collected series, so the toast also says the
     // marker is parked on the newest bucket until the next collection.
     await waitFor(() => expect(toastSuccess).toHaveBeenCalledWith('Annotation added', {
@@ -2431,7 +2431,7 @@ describe('MonitoringDetailPage catalog-metric drilldown', () => {
     expect(screen.queryByText('Show SQL')).not.toBeInTheDocument()
   })
 
-  it('averages a ratio metric rolled up to days instead of summing it (MON-2)', async () => {
+  it('averages a ratio metric rolled up to days instead of summing it', async () => {
     installMetricDetailFetch('1h', { kind: 'fact', composition: 'ratio', unit: '%' })
     renderMetricDetail()
 
@@ -2444,7 +2444,7 @@ describe('MonitoringDetailPage catalog-metric drilldown', () => {
     await waitFor(() => expect(screen.getByTestId('metrics-chart')).toHaveAttribute('data-first-count', '15'))
   })
 
-  it('still sums an additive count metric rolled up to days (MON-2)', async () => {
+  it('still sums an additive count metric rolled up to days', async () => {
     installMetricDetailFetch('1h', { kind: 'fact', aggregation: 'count' })
     renderMetricDetail()
 
@@ -2456,7 +2456,7 @@ describe('MonitoringDetailPage catalog-metric drilldown', () => {
     await waitFor(() => expect(screen.getByTestId('metrics-chart')).toHaveAttribute('data-first-count', '30'))
   })
 
-  it('never fetches event types on a metric page (MON-37)', async () => {
+  it('never fetches event types on a metric page', async () => {
     const fetchSpy = installMetricDetailFetch('1d')
     renderMetricDetail()
 
@@ -2464,7 +2464,7 @@ describe('MonitoringDetailPage catalog-metric drilldown', () => {
     expect(fetchSpy.mock.calls.some(([input]) => String(input).endsWith('/event-types'))).toBe(false)
   })
 
-  // SH-33: a deleted metric is not a failure to retry.
+  // a deleted metric is not a failure to retry.
   it('says a missing metric was not found and links back to Metrics', async () => {
     const fetchSpy = installMetricDetailFetch('1d')
     const base = fetchSpy.getMockImplementation()!
@@ -2480,7 +2480,7 @@ describe('MonitoringDetailPage catalog-metric drilldown', () => {
     expect(screen.queryByRole('alert')).toBeNull()
   })
 
-  it('retries the failed metric definition from the page error (MON-7)', async () => {
+  it('retries the failed metric definition from the page error', async () => {
     const fetchSpy = installMetricDetailFetch('1d')
     const base = fetchSpy.getMockImplementation()!
     let definitionCalls = 0
@@ -2499,7 +2499,7 @@ describe('MonitoringDetailPage catalog-metric drilldown', () => {
     expect(definitionCalls).toBe(2)
   })
 
-  it('keeps the range and granularity in the URL (MON-24)', async () => {
+  it('keeps the range and granularity in the URL', async () => {
     const fetchSpy = installMetricDetailFetch('1h')
     const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
     render(
@@ -2543,12 +2543,12 @@ describe('MonitoringDetailPage catalog-metric drilldown', () => {
     expect(screen.getByRole('combobox', { name: /time granularity/i })).toHaveTextContent('Hours')
   })
 
-  it('sends a neutral colour, names the time zone and caps the label (MON-25, MON-27)', async () => {
+  it('sends a neutral colour, names the time zone and caps the label', async () => {
     const fetchSpy = installMetricDetailFetch('1d')
     renderMetricDetail()
 
     await screen.findByTestId('metrics-chart')
-    // The design-system picker, not a native datetime-local input (LIVE-21),
+    // The design-system picker, not a native datetime-local input,
     // prefilled with now, so "we just deployed" is one field away.
     expect(screen.getByRole('group', { name: 'Date and time' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: /^Date and time, date: / })).not.toHaveTextContent('Pick a date')
@@ -2574,7 +2574,7 @@ describe('MonitoringDetailPage catalog-metric drilldown', () => {
     })
   })
 
-  it('confirms before deleting, and says a project-wide marker goes everywhere (MON-26)', async () => {
+  it('confirms before deleting, and says a project-wide marker goes everywhere', async () => {
     const fetchSpy = installMetricDetailFetch('1d', {}, {}, [
       metricAnnotationFixture({ scope_type: null, scope_ref: null, label: 'Global freeze' }),
     ])
@@ -2595,7 +2595,7 @@ describe('MonitoringDetailPage catalog-metric drilldown', () => {
     await waitFor(() => expect(deletes()).toHaveLength(1))
   })
 
-  it('says how many breakdown values the chart leaves out (MON-29)', async () => {
+  it('says how many breakdown values the chart leaves out', async () => {
     installMetricDetailFetch('1d', {}, {}, [], {
       columns: ['country'],
       selected_column: 'country',
@@ -2709,7 +2709,7 @@ describe('MonitoringDetailPage catalog-metric drilldown', () => {
   })
 })
 
-describe('MonitoringDetailPage failures stay inside their tab (MON-8, MON-9)', () => {
+describe('MonitoringDetailPage failures stay inside their tab', () => {
   it('shows a hero-shaped placeholder, not the generic header, while the event loads', async () => {
     const fetchSpy = installEventDetailFetch()
     const base = fetchSpy.getMockImplementation()!
@@ -2766,7 +2766,7 @@ describe('MonitoringDetailPage failures stay inside their tab (MON-8, MON-9)', (
     expect(screen.queryByText('No recent changes')).not.toBeInTheDocument()
   })
 
-  it('writes the breakdown value filter to the URL (MON-24)', async () => {
+  it('writes the breakdown value filter to the URL', async () => {
     const point = metricPoint('2026-01-02T00:00:00Z', 10)
     installEventDetailFetch({
       breakdowns: {

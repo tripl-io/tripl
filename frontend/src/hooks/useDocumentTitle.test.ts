@@ -100,7 +100,7 @@ describe('resolveTitleFromPath', () => {
     })
   })
 
-  it('titles the Plan, Observe and Govern surfaces at their top-level routes (JR-25)', () => {
+  it('titles the Plan, Observe and Govern surfaces at their top-level routes', () => {
     const cases: Array<[string, string]> = [
       ['/p/acme/event-types', 'Event types'],
       ['/p/acme/event-types/abc123', 'Event types'],
@@ -290,7 +290,7 @@ describe('resolveTitleFromPath', () => {
   })
 })
 
-describe('detail-page tab titles (JR-33)', () => {
+describe('detail-page tab titles', () => {
   it('names the kind of entity a detail route shows', () => {
     expect(resolveEntityKind('/p/acme/monitoring/event-type/et-1')).toBe('Event type volume')
     expect(resolveEntityKind('/p/acme/monitoring/event/ev-1/breakdowns')).toBe('Event')

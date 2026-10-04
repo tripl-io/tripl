@@ -82,13 +82,13 @@ function useStableCallback<Args extends unknown[]>(fn: (...args: Args) => void) 
 }
 
 /** `focusId` (the `?focus=` param) scrolls to and highlights one variable —
- * where the variable sits in the list. Editing it is its own page now
- * (AU-26), so a link that wants the editor goes there rather than here.
+ * where the variable sits in the list. Editing it is its own page now,
+ * so a link that wants the editor goes there rather than here.
  *
  * The create and edit dialogs are their own components, each owning its form
  * state and queries, and the selection lives in `useVariableSelection`: this
  * page used to hold about 25 pieces of state and re-render its whole table and
- * both dialogs on every keystroke (PLAN-31). */
+ * both dialogs on every keystroke. */
 export function VariablesTab({
   slug,
   focusId,
@@ -98,9 +98,9 @@ export function VariablesTab({
 }) {
   const qc = useQueryClient()
   const branchId = useActiveBranchId()
-  // Stable, so the memoized rows do not all re-render for a new function (AU-29).
+  // Stable, so the memoized rows do not all re-render for a new function.
   const eventHref = useCallback((eventId: string) => projectPath(currentOrgSlug(), slug, `/events/all/${eventId}`), [slug])
-  // The `${name}` token opens the variable's own page (AU-26).
+  // The `${name}` token opens the variable's own page.
   const detailHref = useCallback((variableId: string) => variableDetailPath(slug, variableId), [slug])
   const listedEventsHref = useCallback(
     (variableId: string) => variableDetailPath(slug, variableId, 'events'),
@@ -113,7 +113,7 @@ export function VariablesTab({
   const excludedFocusRef = useRef<HTMLLIElement | null>(null)
   const [showForm, setShowForm] = useState(false)
   // The id of the variable being edited, plus the row as it was when opened.
-  // The dialog is handed the LIVE row from the list (PLAN-29); the snapshot is
+  // The dialog is handed the LIVE row from the list; the snapshot is
   // only the fallback for a row that drops out of the list while the dialog is
   // open — a usage filter it no longer matches, or a colleague's delete.
   const [editing, setEditing] = useState<{ id: string; snapshot: Variable } | null>(null)
@@ -184,7 +184,7 @@ export function VariablesTab({
   const { selectedIds, deselect } = selection
 
   const bulkUpdateMut = useMutation({
-    // Its error is rendered in the bulk bar (PLAN-26).
+    // Its error is rendered in the bulk bar.
     meta: SILENT_ERROR_META,
     mutationFn: (patch: { variable_type?: VariableType; description?: string; allowed_values_add?: string[] }) =>
       variablesApi.bulkUpdate(slug, { variable_ids: [...selectedIds], ...patch }, branchId),
@@ -196,7 +196,7 @@ export function VariablesTab({
     mutationFn: () => variablesApi.bulkDelete(slug, [...selectedIds], branchId),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: variablesKey(slug, branchId) })
-      // The sidebar count reads the project summary (AU-32).
+      // The sidebar count reads the project summary.
       qc.invalidateQueries({ queryKey: projectKey(slug) })
       selection.clear()
     },
@@ -225,9 +225,9 @@ export function VariablesTab({
 
   // A type change for the whole selection — which can reach past the page on
   // screen — used to apply the moment the select changed, and arrowing through
-  // a closed <select> fires a change per option (PLAN-25). The bar now stages
+  // a closed <select> fires a change per option. The bar now stages
   // the type; this asks before it applies, and says which documented values the
-  // new type would refuse (PLAN-24). Resolves true once the change has landed,
+  // new type would refuse. Resolves true once the change has landed,
   // so the bar knows to drop its draft.
   const handleBulkSetType = async (variableType: VariableType): Promise<boolean> => {
     bulkUpdateMut.reset()
@@ -250,10 +250,10 @@ export function VariablesTab({
     return true
   }
 
-  // Bulk-added values meet the same per-type check as the dialogs (PLAN-24):
+  // Bulk-added values meet the same per-type check as the dialogs:
   // "abc" added to thirty Number variables used to go straight through. The
   // selection can mix types, so each value is checked against every selected
-  // variable's own type, and a conflict asks before it is written (review 204).
+  // variable's own type, and a conflict asks before it is written.
   const handleBulkAddValues = async (values: string[]): Promise<boolean> => {
     bulkUpdateMut.reset()
     bulkDeleteMut.reset()
@@ -276,7 +276,7 @@ export function VariablesTab({
   }
 
   const deleteMut = useMutation({
-    // Its error is rendered under the table (PLAN-26).
+    // Its error is rendered under the table.
     meta: SILENT_ERROR_META,
     mutationFn: (id: string) => variablesApi.del(slug, id, branchId),
     // The row is gone server-side, so a selection still naming it inflates the
@@ -291,7 +291,7 @@ export function VariablesTab({
   })
 
   const excludeMut = useMutation({
-    // Its error is rendered under the table (PLAN-26).
+    // Its error is rendered under the table.
     meta: SILENT_ERROR_META,
     mutationFn: ({ id, excluded }: { id: string; excluded: boolean }) =>
       variablesApi.update(slug, id, { excluded_from_scans: excluded }, branchId),
@@ -477,7 +477,7 @@ export function VariablesTab({
 
   // Select-all reads the whole match set: ticked when every match is selected,
   // mixed when only some are. With some rows ticked it used to show unchecked,
-  // and a click then selected every match across all pages (PLAN-33).
+  // and a click then selected every match across all pages.
   const selectedMatching = matchingVariables.reduce((count, v) => count + (selectedIds.has(v.id) ? 1 : 0), 0)
   const allMatchingSelected = matchingVariables.length > 0 && selectedMatching === matchingVariables.length
   const someMatchingSelected = selectedMatching > 0 && !allMatchingSelected
@@ -488,7 +488,7 @@ export function VariablesTab({
     [someMatchingSelected],
   )
 
-  // Delete, Exclude and Restore used to fail in silence (PLAN-26).
+  // Delete, Exclude and Restore used to fail in silence.
   const rowActionError = deleteMut.isError
     ? `Could not delete the property: ${getErrorMessage(deleteMut.error)}`
     : excludeMut.isError
@@ -510,16 +510,16 @@ export function VariablesTab({
 
   return (
     // Room under the table while the floating bulk bar is up, so it never sits
-    // over the pagination or the last rows (PLAN-27).
+    // over the pagination or the last rows.
     <PageContainer className={cn('space-y-4', selectionActive && 'pb-40 sm:pb-20')}>
       {dialog}
-      {/* The shared page header (DS-1): the page had no title of its own,
+      {/* The shared page header: the page had no title of its own,
           only the Panel's 12.5px one. "New variable" matches the dialog it
-          opens (DS-29). */}
+          opens. */}
       <PageHeader
         eyebrow="Plan"
         title="Properties"
-        // One sentence of purpose, like its siblings (AU-11).
+        // One sentence of purpose, like its siblings.
         description={<>Placeholders like <CodeToken>{'${platform}'}</CodeToken> that stand in for a value family in event field values. Scans learn which values each one takes.</>}
         actions={
           canWrite && (
@@ -585,14 +585,14 @@ export function VariablesTab({
             {/* The filters stay up whatever they match. They used to render only
                 beside a non-empty table, so "Unused" on a project with nothing
                 to retire replaced the whole panel — All included — with an
-                empty state, and a reload was the only way back (PLAN-23). */}
-            {/* The shared filter bar (DS-15): "Search variables…" and the
+                empty state, and a reload was the only way back. */}
+            {/* The shared filter bar: "Search variables…" and the
                 result count on the right. The usage scope is the one
-                segmented control (DS-16) instead of a row of text buttons. */}
+                segmented control instead of a row of text buttons. */}
             {/* Over a project with no variables at all, the search and the
                 usage scope filter nothing; the empty state below is the
-                answer (AU-34). A non-default scope keeps them up, so the way
-                back to All is always on screen (PLAN-23). */}
+                answer. A non-default scope keeps them up, so the way
+                back to All is always on screen. */}
             {(activeVariables.length > 0 || usageFilter !== 'all') && <FilterBar
               className="px-4 py-2"
               count={
@@ -657,14 +657,14 @@ export function VariablesTab({
                       <TableHead className="w-[24%]">Property</TableHead>
                       {/* The events a scan has SEEN this variable in (its value
                           contexts), not every event whose template names it:
-                          "Events" read as the latter and undercounted (AU-29). */}
+                          "Events" read as the latter and undercounted. */}
                       <TableHead className="w-[13%]" title="Events a scan observed this property in">Observed in</TableHead>
                       <TableHead className="w-[20%]">Description</TableHead>
                       <TableHead>Documented values</TableHead>
                       <TableHead>Observed values</TableHead>
                       {/* Pinned to the right edge, so on a phone the row actions
                           are on screen without discovering the sideways
-                          scroll (AU-27). */}
+                          scroll. */}
                       <TableHead className="sticky right-0 w-24 bg-surface"><span className="sr-only">Actions</span></TableHead>
                     </TableRow>
                   </TableHeader>
@@ -674,7 +674,7 @@ export function VariablesTab({
                         key={variable.id}
                         variable={variable}
                         // The schema's own spelling, lowercase mono, as meta
-                        // fields and event fields show theirs (AU-30).
+                        // fields and event fields show theirs.
                         typeLabel={variable.variable_type}
                         selected={selectedIds.has(variable.id)}
                         focused={variable.id === focusId}

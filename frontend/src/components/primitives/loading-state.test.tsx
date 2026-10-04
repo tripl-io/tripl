@@ -2,7 +2,7 @@ import { render, screen } from '@testing-library/react'
 import { describe, expect, it } from 'vitest'
 import { LoadingState } from './loading-state'
 
-// DS-38: loading text was not announced on most surfaces.
+// loading text was not announced on most surfaces.
 describe('LoadingState', () => {
   it('announces the default label as a status', () => {
     render(<LoadingState />)

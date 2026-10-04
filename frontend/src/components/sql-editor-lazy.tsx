@@ -5,7 +5,7 @@ import { lazyWithReload } from '@/lib/lazyWithReload'
 // CodeMirror and its SQL language are the bulk of the sql-editor chunk. The
 // surfaces below only sometimes show an editor — a collapsed "Show SQL", the
 // scan form's SQL step — so importing it statically made every monitoring
-// drilldown and the Scans list pay for it up front (#194 SHELL-2).
+// drilldown and the Scans list pay for it up front (#194).
 const SqlEditorImpl = lazyWithReload(() =>
   import('./sql-editor').then((module_) => ({ default: module_.SqlEditor })),
 )

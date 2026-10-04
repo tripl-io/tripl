@@ -254,7 +254,7 @@ describe('EventRow Δ · 24h and Signal cells', () => {
     renderRow(makeEvent(), lagging)
 
     // recent = 22 * 2400 = 52,800 vs prior = 24 * 2000 = 48,000 → +10%.
-    // Marked with a dotted underline, not an asterisk on every row (EV-7).
+    // Marked with a dotted underline, not an asterisk on every row.
     const cell = screen.getByText('+10%')
     expect(cell).not.toHaveTextContent('*')
     expect(cell).toHaveAttribute('data-partial', 'true')
@@ -268,13 +268,13 @@ describe('EventRow Δ · 24h and Signal cells', () => {
     expect(screen.queryByTitle(/No prior 24h window/)).not.toBeInTheDocument()
   })
 
-  it('keeps a small move muted (EV-7)', () => {
+  it('keeps a small move muted', () => {
     // prior 240 vs recent 216 → -10%.
     renderRow(makeEvent(), windowSeries(10, 9))
     expect(screen.getByText('-10%')).toHaveStyle({ color: 'var(--fg-muted)' })
   })
 
-  it('tones the delta by its own sign and size, not by the row signal (EV-7)', () => {
+  it('tones the delta by its own sign and size, not by the row signal', () => {
     // A spike signal beside a -10% figure: the figure stays muted instead of
     // turning the signal's colour and contradicting it.
     const { unmount } = renderRow(makeEvent(), windowSeries(10, 9), makeSignal())
@@ -285,12 +285,12 @@ describe('EventRow Δ · 24h and Signal cells', () => {
     expect(screen.getByText('-50%')).toHaveStyle({ color: 'var(--danger)' })
   })
 
-  it('tones a doubling as warning (EV-7)', () => {
+  it('tones a doubling as warning', () => {
     renderRow(makeEvent(), windowSeries(10, 20))
     expect(screen.getByText('+100%')).toHaveStyle({ color: 'var(--warning)' })
   })
 
-  it('keeps a covered but quiet row to a dash, with the coverage in its title (EV-6)', () => {
+  it('keeps a covered but quiet row to a dash, with the coverage in its title', () => {
     renderRow(makeEvent({ monitored: true }), windowSeries(10, 20))
     expect(screen.queryByText('Monitored')).not.toBeInTheDocument()
     expect(
@@ -384,7 +384,7 @@ describe('EventRow name and type cells', () => {
     expect(screen.queryByText('Purchase finished')).not.toBeInTheDocument()
   })
 
-  it('marks a row the reader has just created, in words as well as colour (AU-21)', () => {
+  it('marks a row the reader has just created, in words as well as colour', () => {
     const { unmount } = renderRow(makeEvent(), windowSeries(10, 20), undefined, { justCreated: true })
 
     expect(screen.getByText('New')).toBeInTheDocument()
@@ -414,7 +414,7 @@ describe('EventRow template token rendering', () => {
 
     expect(screen.getByText('${variant}')).not.toHaveClass('text-warning')
     expect(screen.getByText('${missing}')).toHaveClass('text-warning')
-    // A quiet code token, not accent-coloured mono that reads as a link (EV-13).
+    // A quiet code token, not accent-coloured mono that reads as a link.
     expect(screen.getByText('${variant}')).toHaveAttribute('data-slot', 'code-token')
   })
 })
@@ -525,7 +525,7 @@ describe('EventRow single saturated signal indicator', () => {
   // The chip reads "Open", never "Firing": Firing belongs to monitors (alert
   // rules), and 30 rows saying "Firing" contradicted a Monitors page that
   // correctly said "No monitors yet". Nor "Live": that is the
-  // green lifecycle status one column over (EV-5 / DS-7).
+  // green lifecycle status one column over.
   it('renders the Open signal chip as the single indicator and drops the SignalLink arrow', () => {
     renderRow(makeEvent({ monitored: true }), windowSeries(10, 20), makeSignal())
 
@@ -549,7 +549,7 @@ describe('EventRow single saturated signal indicator', () => {
     renderRow(makeEvent({ monitored: true }), withAnomaly)
 
     expect(screen.queryByText('Open')).not.toBeInTheDocument()
-    // Covered but quiet is a dash, not a signal (EV-6).
+    // Covered but quiet is a dash, not a signal.
     expect(screen.queryByText('Monitored')).not.toBeInTheDocument()
   })
 })
@@ -628,7 +628,7 @@ describe('EventRow lifecycle chip (#258)', () => {
   })
 })
 
-describe('EventRow reorder handle (EVT-3)', () => {
+describe('EventRow reorder handle', () => {
   it('offers the drag handle while the rows are in catalog order', () => {
     renderRow(makeEvent(), [])
 
@@ -642,7 +642,7 @@ describe('EventRow reorder handle (EVT-3)', () => {
   })
 })
 
-describe('EventRow schema drift (EVT-33)', () => {
+describe('EventRow schema drift', () => {
   it('leaves the per-type drift count to the header, not every row', () => {
     renderRow({ ...makeEvent(), drift_count: 4 } as EventListItem, [])
 
@@ -650,7 +650,7 @@ describe('EventRow schema drift (EVT-33)', () => {
   })
 })
 
-describe('EventRow name typography (DS-17 / EV-10)', () => {
+describe('EventRow name typography', () => {
   it('sets the display name in the UI sans, not mono', () => {
     renderRow(makeEvent({ name: 'Home Screen View' }), [])
 
@@ -660,14 +660,14 @@ describe('EventRow name typography (DS-17 / EV-10)', () => {
   })
 })
 
-describe('EventRow last seen (EV-8)', () => {
+describe('EventRow last seen', () => {
   it('reads the 48h series when last_seen_at is unset, instead of "never"', () => {
     renderRow(makeEvent({ last_seen_at: null }), windowSeries(10, 20))
     expect(screen.getByTitle(/Latest volume in the collected 48h series/)).toBeInTheDocument()
     expect(screen.queryByTitle('Never observed in collected metrics')).not.toBeInTheDocument()
   })
 
-  it('humanizes the instant in the title instead of printing raw ISO (DS-25)', () => {
+  it('humanizes the instant in the title instead of printing raw ISO', () => {
     const { unmount } = renderRow(makeEvent({ last_seen_at: null }), windowSeries(10, 20))
     const fallback = screen.getByTitle(/Latest volume in the collected 48h series/)
     expect(fallback.getAttribute('title')).not.toMatch(/\d{4}-\d{2}-\d{2}T/)
@@ -678,7 +678,7 @@ describe('EventRow last seen (EV-8)', () => {
   })
 })
 
-describe('EventRow row click (EV-27)', () => {
+describe('EventRow row click', () => {
   it('opens the detail page from anywhere on the row, not only the name', () => {
     renderRow(makeEvent({ name: 'Home Screen View' }), [])
     fireEvent.click(screen.getByRole('link', { name: 'Home Screen View' }).closest('tr')!.querySelector('td:last-child')!)

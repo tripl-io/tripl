@@ -9,7 +9,7 @@ export type UpdateDestinationBody = Parameters<typeof alertingApi.updateDestinat
 /**
  * The widths the API enforces (`AlertDestinationCreate` / `…Update` in backend
  * schemas/alerting.py), mirrored onto the inputs as `maxLength` so an over-long
- * value stops at the keyboard instead of failing late as a raw 422 (ALR-52).
+ * value stops at the keyboard instead of failing late as a raw 422.
  */
 export const DESTINATION_FIELD_MAX_LENGTH = {
   name: 255,
@@ -68,10 +68,10 @@ function orNull(value: string): string | null {
  * The request body a destination dialog submits.
  *
  * ONE function for both requests, so create and update cannot disagree about
- * which fields go on the wire (ALR-42). Create used to spread the whole form —
+ * which fields go on the wire. Create used to spread the whole form —
  * every channel's empty strings, `chat_id: ''` among them — and the API's
  * `normalize_chat_id` is not gated on the type, so every channel but Telegram
- * failed with "Telegram chat_id is required" (ALR-1). Only the selected
+ * failed with "Telegram chat_id is required". Only the selected
  * channel's keys are sent now.
  *
  * The two modes still differ where the API does:
@@ -79,10 +79,10 @@ function orNull(value: string): string | null {
  *  - an optional column emptied on edit is sent as null, which clears it;
  *  - a required non-secret field (Jira base URL, Linear team…) is always sent
  *    as typed — the dialog keeps those `required`, so emptying one is refused
- *    at the form rather than silently keeping the old value (ALR-26).
+ *    at the form rather than silently keeping the old value.
  *
  * `removeWebhookHeader` sends both halves of the webhook's secret header as
- * null (ALR-24).
+ * null.
  */
 export function destinationFormToPayload(
   form: DestinationFormState,
@@ -117,7 +117,7 @@ export function destinationFormToPayload(
 }
 
 /**
- * The body of the dialog's "Send test" (AL-30): what Create or Save would send
+ * The body of the dialog's "Send test": what Create or Save would send
  * for the channel, plus the channel itself and, when editing, the destination
  * whose stored secrets fill the ones the form leaves blank.
  *
@@ -176,7 +176,7 @@ function channelFields(
         jira_project_key: form.jira_project_key,
         // Emptied means "the default the placeholder shows", never "absent":
         // an absent key is skipped by update, so clearing a stored "Bug" and
-        // pressing Save used to close the dialog and keep "Bug" (ALR-26).
+        // pressing Save used to close the dialog and keep "Bug".
         jira_issue_type: form.jira_issue_type || 'Task',
       }
     case 'linear':
@@ -200,7 +200,7 @@ function channelFields(
  * The webhook header is a PAIR — the API refuses a name without a value on
  * create — and nothing on the form said so: a name typed alone failed as a raw
  * 422, and on edit a new name with no value and nothing stored was sent and
- * silently produced a header with no secret (ALR-24).
+ * silently produced a header with no secret.
  */
 export function destinationFormProblems(
   form: DestinationFormState,

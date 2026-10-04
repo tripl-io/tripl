@@ -220,7 +220,7 @@ async def _build_shadow_candidates(session: AsyncSession, ctx: DemoContext) -> N
             event_type_id=click_type_id,
             event_name="app_heartbeat_v1",
             observed_count=1840,
-            # What the collector would have kept (DA-32), so the demo's inbox
+            # What the collector would have kept, so the demo's inbox
             # shows its "Show N samples" rather than an empty toggle.
             sample_properties=_HEARTBEAT_SAMPLES,
             first_seen_at=week_ago,

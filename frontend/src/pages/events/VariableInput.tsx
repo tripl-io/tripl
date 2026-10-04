@@ -39,10 +39,10 @@ export function SuggestionRow({ suggestion }: { suggestion: VariableSuggestion }
 /**
  * The dropdown under a variable-aware input, shared by the single-line input and
  * the JSON editor so the two cannot drift. Height-limited and scrolling, and the
- * highlighted option is kept in view as the arrow keys move it (EVT-24). It is
+ * highlighted option is kept in view as the arrow keys move it. It is
  * portalled and anchored to the field, so a clipping card no longer cuts it
- * off (DS-35); the highlight is the neutral hover surface, not the brand
- * colour (DS-10).
+ * off; the highlight is the neutral hover surface, not the brand
+ * colour.
  */
 export function SuggestionListbox({
   id,
@@ -218,7 +218,7 @@ export function VariableInput({
         type={type}
         inputMode={inputMode}
         // The form's own control style, not the shared Input: the two sat side
-        // by side at different heights and borders (LIVE-30).
+        // by side at different heights and borders.
         className={cn(TEXT_INPUT_CLASS, className)}
         {...(combobox
           ? {

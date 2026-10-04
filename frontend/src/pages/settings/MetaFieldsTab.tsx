@@ -42,7 +42,7 @@ import { currentOrgSlug, projectPath } from '@/lib/navigation'
 /**
  * A link template as it will be saved. `{value}` without the dollar sign is
  * what people type from memory (the seeded Jira template had it), and it
- * silently never resolved; it is taken to mean `${value}` (#244 AU-9).
+ * silently never resolved; it is taken to mean `${value}` (#244).
  */
 function normalizeLinkTemplate(template: string): string {
   return template.trim().replace(/(?<!\$)\{value\}/g, META_FIELD_LINK_PLACEHOLDER)
@@ -112,7 +112,7 @@ export function MetaFieldsTab({ slug }: { slug: string }) {
   const [editLinkTemplate, setEditLinkTemplate] = useState('')
   const [editSensitivity, setEditSensitivity] = useState<Sensitivity>('none')
   const { confirm, dialog } = useConfirm()
-  // Inline validation shown once Create / Save was pressed (AU-4): the forms
+  // Inline validation shown once Create / Save was pressed: the forms
   // are noValidate, so an empty required field is flagged under itself
   // instead of by the browser's bubble on the first one only.
   const [createSubmitted, setCreateSubmitted] = useState(false)
@@ -165,7 +165,7 @@ export function MetaFieldsTab({ slug }: { slug: string }) {
   // The PROJECT prefix, not this branch's key. The branch review reads meta
   // fields under the shorter ['metaFields', slug] for its ticket link, and an
   // invalidation of the three-element key never matches it, so a fixed link
-  // template kept rendering the old one there for up to a minute (PLAN-54).
+  // template kept rendering the old one there for up to a minute.
   // React Query matches by prefix, so this one call refreshes both.
   const invalidateMetaFields = () => qc.invalidateQueries({ queryKey: projectMetaFieldsKey(slug) })
 
@@ -212,7 +212,7 @@ export function MetaFieldsTab({ slug }: { slug: string }) {
   const handleDelete = async (mf: MetaFieldDefinition) => {
     deleteMut.reset()
     // The loss is counted when the usage call answers, and named when it does
-    // not: a failed count must not block the delete (AU-37).
+    // not: a failed count must not block the delete.
     const usage: MetaFieldUsage | null = await metaFieldsApi.usage(slug, mf.id, branchId).then(
       result => result ?? null,
       () => null,
@@ -256,12 +256,12 @@ export function MetaFieldsTab({ slug }: { slug: string }) {
   return (
     <PageContainer className="space-y-4">
       {dialog}
-      {/* The shared page header (DS-1): the page had no title of its own, only
+      {/* The shared page header: the page had no title of its own, only
           the Panel's. "New meta field" names the create action the way the
-          dialog does (DS-29). */}
+          dialog does. */}
       {/* "Meta fields", the name the button, the dialog and the event form
           already use; "Schema & fields" sent people looking for a type's
-          schema here (#238 AU-10 / JR-30). The description says how these
+          schema here (#238). The description says how these
           differ from a type's own fields and links there. */}
       <PageHeader
         eyebrow="Plan"
@@ -406,7 +406,7 @@ export function MetaFieldsTab({ slug }: { slug: string }) {
               if (editingMf) updateMut.mutate(editingMf.id)
             }}
           >
-            {/* Named by what people read in the table, not the raw key (AU-14). */}
+            {/* Named by what people read in the table, not the raw key. */}
             <DialogHeader className="pr-8"><DialogTitle>Edit meta field · {editingMf?.display_name}</DialogTitle></DialogHeader>
             <DialogBody className="grid gap-4">
               <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
@@ -498,14 +498,14 @@ export function MetaFieldsTab({ slug }: { slug: string }) {
       >
         {metaFieldsQuery.isError && metaFieldsQuery.data !== undefined && (
           // A failed REFRESH keeps the rows on screen: replacing them with an
-          // error would unmount whatever is being edited (review 204).
+          // error would unmount whatever is being edited.
           <p role="alert" className="px-4 py-2 text-body-sm text-destructive">
             Couldn't refresh meta fields: {getErrorMessage(metaFieldsQuery.error)}
           </p>
         )}
         {metaFieldsQuery.isPending ? (
           // A pending list is not an empty one: "No meta fields" used to flash
-          // on every cold load and stay up on a 500 (PLAN-41).
+          // on every cold load and stay up on a 500.
           <div className="space-y-2 px-4 py-4" aria-busy="true" aria-label="Loading meta fields">
             {Array.from({ length: 3 }, (_, index) => (
               <Skeleton key={index} className="h-9 w-full" />
@@ -533,7 +533,7 @@ export function MetaFieldsTab({ slug }: { slug: string }) {
                 <TableHead className="w-20">Required</TableHead>
                 <TableHead>Default</TableHead>
                 {/* Pinned right, so the row actions stay on screen on a
-                    phone (AU-27). */}
+                    phone. */}
                 <TableHead className="sticky right-0 w-24 bg-surface"><span className="sr-only">Actions</span></TableHead>
               </TableRow>
             </TableHeader>
@@ -600,7 +600,7 @@ export function MetaFieldsTab({ slug }: { slug: string }) {
 
 /**
  * An enum option with its remove button: the lucide X, not a bare "×" glyph,
- * in a hit area that grows on phones (AU-39).
+ * in a hit area that grows on phones.
  */
 function EnumOptionChip({ option, onRemove }: { option: string; onRemove: () => void }) {
   return (

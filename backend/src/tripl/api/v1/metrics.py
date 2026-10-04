@@ -285,12 +285,12 @@ async def query_signal_series(
     slug: str,
     data: SignalSeriesQuery,
 ) -> list[SignalSeriesResponse]:
-    """Row sparklines for many open signals in one request (MO-19). POST for
+    """Row sparklines for many open signals in one request. POST for
     the same reason as ``/signals/query``: the batch outgrows a query string."""
     return await metrics_insights_service.get_signal_series(session, slug, data.scopes)
 
 
-# --- Signal triage (MO-4 / JR-5) ----------------------------------------------
+# --- Signal triage ----------------------------------------------
 # Verdicts on open signals no rule routed to an incident; a routed signal is
 # triaged in the alert inbox and these refuse it (409). Each POST answers with
 # the signal's triage fields as the lists will show them; each DELETE is the

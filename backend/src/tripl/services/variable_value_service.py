@@ -117,7 +117,7 @@ async def attach_variable_summaries(
         event_names = sorted(event_names_by_variable.get(variable.id, set()))
         variable.event_names = event_names[:SUMMARY_EVENT_LIMIT]  # type: ignore[attr-defined]
         # Two events can share a name (one per event type), so the refs are
-        # keyed by id; sorted on (name, id) so the order is stable (AU-29).
+        # keyed by id; sorted on (name, id) so the order is stable.
         variable.event_refs = [  # type: ignore[attr-defined]
             VariableEventRef(id=event_id, name=name)
             for name, event_id in sorted(

@@ -11,7 +11,7 @@ import { currentOrgSlug, projectPath } from '@/lib/navigation'
  * A single domain term: its plain-language definition and, where the concept has
  * a real home in the app, the route segment (relative to `/p/:slug`) it lives at.
  * `surface` names that page when it is not the term itself (a shadow event
- * appears on Reconciliation); the link always reads "Open <page>" (#238 DA-36).
+ * appears on Reconciliation); the link always reads "Open <page>" (#238).
  * `workspace` marks a path that is not under the project (`/settings/...`).
  */
 type Term = {
@@ -45,8 +45,7 @@ type Area = {
  * then keep the two in sync. The glossary and the at-a-glance map below are both
  * driven from this one list, and each area's name, tagline and icon come from
  * PRODUCT_PILLARS, which the empty-workspace welcome hero reads too — so the
- * two places that introduce the pillars cannot describe them differently
- * (WS-46).
+ * two places that introduce the pillars cannot describe them differently.
  */
 const AREAS: readonly Area[] = [
   {
@@ -76,7 +75,7 @@ const AREAS: readonly Area[] = [
         path: '/event-types',
       },
       {
-        // Named as the sidebar names it (#238 AU-10). Not "Schema & fields":
+        // Named as the sidebar names it (#238). Not "Schema & fields":
         // an event type's own field definitions are its schema.
         term: 'Meta fields',
         definition:
@@ -123,7 +122,7 @@ const AREAS: readonly Area[] = [
     accent: 'var(--info)',
     terms: [
       {
-        // The project's home, named as the sidebar names it (#238 SH-8).
+        // The project's home, named as the sidebar names it (#238).
         term: 'Overview',
         definition:
           "The project's home page: event volume, open signals, top events, source health and the getting-started checklist — the first place to see what your data is doing.",
@@ -171,7 +170,7 @@ const AREAS: readonly Area[] = [
         path: '/settings/monitoring',
       },
       {
-        // One name for the object (#238 JR-28). The glossary used to explain
+        // One name for the object (#238). The glossary used to explain
         // that "monitor" and "alert rule" were two words for it.
         term: 'Alert rules',
         definition:
@@ -285,7 +284,7 @@ function MapCard({ area }: { area: Area }) {
         {area.blurb}
       </p>
       {/* Each chip jumps to its glossary row: chips that looked like links
-          and did nothing were a dead end (#238 DA-36). */}
+          and did nothing were a dead end (#238). */}
       <div className="mt-3 flex flex-wrap gap-1.5">
         {area.terms.map((t) => (
           <a
@@ -311,7 +310,7 @@ function TermRow({ term, slug }: { term: Term; slug: string | undefined }) {
         ? projectPath(currentOrgSlug(), slug, `${term.path}`)
         : undefined
     : undefined
-  // One label shape for every row, "Open <page>" (#238 DA-36): most rows said
+  // One label shape for every row, "Open <page>" (#238): most rows said
   // "Open", some named a page, and the right column was ragged.
   const page = term.surface ?? term.term
   const label = `Open ${page}`
@@ -320,7 +319,7 @@ function TermRow({ term, slug }: { term: Term; slug: string | undefined }) {
       <div className="flex items-baseline justify-between gap-3">
         <h4 className="text-body font-semibold">{term.term}</h4>
         {href && (
-          // The name STARTS with the visible label (WCAG 2.5.3, WS-45), and
+          // The name STARTS with the visible label (WCAG 2.5.3), and
           // says which term sent the reader there when the page is another
           // one's.
           <Link

@@ -149,7 +149,7 @@ describe('useEventsQuery.fetchAllMatchingIds', () => {
   })
 })
 
-describe('useEventsQuery on a type tab (EVT-13)', () => {
+describe('useEventsQuery on a type tab', () => {
   const PAGE_VIEW = { id: 'et-pv', name: 'pv', display_name: 'Page View' } as unknown as EventType
 
   it('sends nothing until the types have loaded, then only the scoped request', async () => {
@@ -185,7 +185,7 @@ describe('useEventsQuery on a type tab (EVT-13)', () => {
   })
 })
 
-describe('useEventsQuery status filter (EVT-35)', () => {
+describe('useEventsQuery status filter', () => {
   it('round-trips several statuses through the URL into the list request', async () => {
     const { result } = renderEventsQuery()
     await waitFor(() => expect(eventsApi.list).toHaveBeenCalled())

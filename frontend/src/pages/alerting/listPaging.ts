@@ -1,6 +1,6 @@
 /**
  * Paging for the two infinite alerting lists — the Inbox and an incident's
- * deliveries (ALR-27).
+ * deliveries.
  *
  * Both endpoints return a keyset `next_cursor`: the next page starts strictly
  * after the last row already held, so a row that sorts down past the seam

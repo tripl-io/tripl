@@ -105,7 +105,7 @@ const AlertAuditPanel = lazyWithReload(() =>
 
 /**
  * Each section's chunk, fetched ahead when the reader points at or focuses its
- * tab (AL-22): switching tabs took 3–8s of "Loading…" in dev, and the pointer
+ * tab: switching tabs took 3–8s of "Loading…" in dev, and the pointer
  * is on the tab well before the click lands. `import()` is cached by the module
  * graph, so a second call costs nothing.
  */
@@ -116,7 +116,7 @@ const SECTION_PREFETCH: Record<AlertingSection, () => Promise<unknown>> = {
   audit: loadAlertAuditPanel,
 }
 
-/** What each section's first load looks like: its own shape, not a sentence (AL-22). */
+/** What each section's first load looks like: its own shape, not a sentence. */
 const SECTION_SKELETON: Record<AlertingSection, { variant: SectionSkeletonVariant; label: string }> = {
   inbox: { variant: 'list', label: 'Loading inbox…' },
   monitors: { variant: 'table', label: 'Loading alert rules…' },
@@ -159,7 +159,7 @@ type AlertingSection = (typeof ALERTING_SECTIONS)[number]
 
 const SECTION_LABELS: Record<AlertingSection, string> = {
   inbox: 'Inbox',
-  // "Rules", not "Monitors" (JR-28): the tab, its "Add rule", the "New alert
+  // "Rules", not "Monitors": the tab, its "Add rule", the "New alert
   // rule" dialog and the list's "N alert rules" named one object three ways.
   // The section KEY stays `monitors` — deep links already carry it.
   monitors: 'Rules',
@@ -210,10 +210,10 @@ export default function ProjectAlertingTab({ slug, focusDeliveryId, focusItemKey
   // own: this dialog, which can outlive the control that opened it.
   const canWrite = useCanWriteProject()
   // What the destination dialog is open for, or null while it is closed. The
-  // form itself lives in DestinationDialog (ALR-42), keyed per opening.
+  // form itself lives in DestinationDialog, keyed per opening.
   const [destinationDialog, setDestinationDialog] = useState<DestinationDialogTarget | null>(null)
   // Bumped on every opening, so reopening the same channel mounts a fresh
-  // form and fresh mutations rather than the previous attempt (ALR-7).
+  // form and fresh mutations rather than the previous attempt.
   const [destinationDialogOpenings, setDestinationDialogOpenings] = useState(0)
   // Which destination card should open its rule form by itself — the guided
   // checklist's step 3, handed to the card that owns the destination just
@@ -258,8 +258,8 @@ export default function ProjectAlertingTab({ slug, focusDeliveryId, focusItemKey
       return params
     })
 
-  // The delivery log's filters and its page, in the URL beside the Inbox's
-  // (ALR-36). They were component state, so opening a scope link from a
+  // The delivery log's filters and its page, in the URL beside the Inbox's.
+  // They were component state, so opening a scope link from a
   // delivery and pressing Back lost both the filter and the page — the Inbox
   // moved its own filters to the URL for exactly that reason.
   // The scan filter is `?scan=` itself, which the route reads
@@ -340,7 +340,7 @@ export default function ProjectAlertingTab({ slug, focusDeliveryId, focusItemKey
   })
   const { data: scans = [], isSuccess: scansLoaded } = scansQuery
   // A failed scan list is not "still loading": without this the Scan setting
-  // read "…" and the editor offered "Loading scans…" forever (ALR-47).
+  // read "…" and the editor offered "Loading scans…" forever.
   const scansFailed = scansQuery.isError && scansQuery.data === undefined
   // A `?scan=` naming a scan this project does not have (deleted since the link
   // was written, or hand-edited) reads as "All" rather than as a permanently
@@ -420,7 +420,7 @@ export default function ProjectAlertingTab({ slug, focusDeliveryId, focusItemKey
   // page, so resetting the filter resets the offset by construction and no state
   // can be left pointing into a set that no longer exists.
   //
-  // With no `?status=` the queue opens on Open (AL-14): "All" mixed resolved,
+  // With no `?status=` the queue opens on Open: "All" mixed resolved,
   // muted and false-positive incidents into the triage list. All is then an
   // explicit `?status=all` (a bare `?status=` reads the same), so the default
   // is the absence of the key and a Clear returns to it.
@@ -504,7 +504,7 @@ export default function ProjectAlertingTab({ slug, focusDeliveryId, focusItemKey
         limit: INBOX_PAGE_SIZE,
       }),
     initialPageParam: 0 as ListPageParam,
-    // Continues by the server's keyset cursor (ALR-27), so a card that sorts
+    // Continues by the server's keyset cursor, so a card that sorts
     // down past the page seam between two requests is still served.
     getNextPageParam: nextListPageParam,
     // Only the Inbox section reads this. Splitting the page is what makes the
@@ -524,7 +524,7 @@ export default function ProjectAlertingTab({ slug, focusDeliveryId, focusItemKey
     // reports the same one and reducing over them could only invent a
     // disagreement.
     //
-    // De-duplicated by id, keeping the first (ALR-27). Pages continue by the
+    // De-duplicated by id, keeping the first. Pages continue by the
     // server's keyset cursor, so a row that sorted DOWN past the seam is still
     // served — but it may then also sit on an earlier page that has not
     // refetched yet: two cards under one React key, and a selection model that
@@ -541,7 +541,7 @@ export default function ProjectAlertingTab({ slug, focusDeliveryId, focusItemKey
     return {
       items,
       total: firstPage.total,
-      // The per-status counts the Status filter shows on each option (AL-14).
+      // The per-status counts the Status filter shows on each option.
       // A fact about the filtered source like `total`, so the first page's.
       status_counts: firstPage.status_counts,
       window_truncated_at: firstPage.window_truncated_at,
@@ -574,7 +574,7 @@ export default function ProjectAlertingTab({ slug, focusDeliveryId, focusItemKey
 
   // Create and update live in DestinationDialog and render their errors there.
   // Delete has no dialog of its own to report in, so it says why in a toast
-  // rather than doing nothing visible (ALR-6).
+  // rather than doing nothing visible.
   const deleteDestinationMut = useMutation({
     meta: SILENT_ERROR_META,
     mutationFn: (destinationId: string) => alertingApi.deleteDestination(slug, destinationId),
@@ -594,7 +594,7 @@ export default function ProjectAlertingTab({ slug, focusDeliveryId, focusItemKey
     setDestinationDialog(null)
     if (!handOffToRule) {
       // Adding one more channel is not a setup flow: stay on the list it was
-      // added to, and say it worked (ALR-9).
+      // added to, and say it worked.
       toast.success(`Destination "${created.name}" created`)
       return
     }
@@ -610,7 +610,7 @@ export default function ProjectAlertingTab({ slug, focusDeliveryId, focusItemKey
     selectSection('monitors')
     setAutoOpenRuleForDestinationId(created.id)
     setAutoOpenRuleDestinationName(created.name)
-    // The hand-off used to happen without a word that step 2 worked (AL-34).
+    // The hand-off used to happen without a word that step 2 worked.
     toast.success(`Destination "${created.name}" created — now choose what should alert`)
   }
 
@@ -638,7 +638,7 @@ export default function ProjectAlertingTab({ slug, focusDeliveryId, focusItemKey
   // unreachable, so an operator had no way to record WHY they acked something.
   // Omitting the key leaves the stored note untouched.
   //
-  // A store, not state (ALR-29): with a `Record` in this component, every
+  // A store, not state: with a `Record` in this component, every
   // keystroke in any card re-rendered this 1,300-line page and every card on
   // it. The page still OWNS the drafts — they outlive a section switch, and the
   // mutation below reads them — but only the card being typed in re-renders.
@@ -707,7 +707,7 @@ export default function ProjectAlertingTab({ slug, focusDeliveryId, focusItemKey
    * page had already decided to forget.
    */
   // The Set the cards read, rebuilt only when the selection changes — a fresh
-  // Set per render was a fresh prop per render for every card (ALR-29). Built
+  // Set per render was a fresh prop per render for every card. Built
   // from the raw list: an id it holds that is off screen has no card to read it.
   const selectedIncidentSet = useMemo(() => new Set(selectedIncidentIds), [selectedIncidentIds])
   const selectedIncidentIdsInView = selectedIncidentIds.filter(id =>
@@ -732,7 +732,7 @@ export default function ProjectAlertingTab({ slug, focusDeliveryId, focusItemKey
     selectedIncidentIdsInViewRef.current = selectedIncidentIdsInView
   })
   // Stable, like every callback the incident cards receive: they are memoized,
-  // and a fresh function per render would re-render all of them anyway (ALR-29).
+  // and a fresh function per render would re-render all of them anyway.
   const toggleIncidentSelected = useCallback((correlationGroupId: string, selected: boolean) =>
     setSelectedIncidentIds(current => {
       if (!selected) return current.filter(id => id !== correlationGroupId)
@@ -765,7 +765,7 @@ export default function ProjectAlertingTab({ slug, focusDeliveryId, focusItemKey
   const clearIncidentSelection = () => setSelectedIncidentIds([])
 
   // Which rows have an action in flight, and which rows' last action failed —
-  // per row, not read off the mutation's latest `variables` (ALR-28). With one
+  // per row, not read off the mutation's latest `variables`. With one
   // id, acting on card B while A was in flight re-enabled A's buttons (a second
   // click could go out) and attributed any failure of A to B, so A's error was
   // never rendered on A. The hook-level callbacks below run for EVERY `mutate`,
@@ -1100,7 +1100,7 @@ export default function ProjectAlertingTab({ slug, focusDeliveryId, focusItemKey
     && !hasDestinations
     && !hasRules
     && !hasDeliveries
-  // "Inbox 3" and "Delivery log 2" on the strip (AL-46). Only while the strip
+  // "Inbox 3" and "Delivery log 2" on the strip. Only while the strip
   // is shown, and on the inbox's own cadence.
   const tabCounts = useAlertingTabCounts(slug, {
     enabled: !showGuidedSetup,
@@ -1117,14 +1117,14 @@ export default function ProjectAlertingTab({ slug, focusDeliveryId, focusItemKey
 
   // Every channel button outside guided setup. Adding a channel hands on to a
   // rule form only while the project has no rule at all — otherwise the
-  // reader is adding one more channel and stays on the list (ALR-9).
+  // reader is adding one more channel and stays on the list.
   const openCreate = (type: DestinationChannel) =>
     openDestinationDialog({ mode: 'create', type, handOffToRule: !hasRules })
 
   // Monitors and Destinations are both drawn FROM the destinations list, so
   // while it is missing they have nothing true to say: a failed load used to
   // render "No alert destinations" and "No rules yet … Add a destination",
-  // inviting a duplicate setup on a transient 500 (ALR-11).
+  // inviting a duplicate setup on a transient 500.
   const destinationsUnavailable = destinationsQuery.isError && !destinationsLoaded ? (
     <ErrorState
       title="Could not load alert destinations"
@@ -1132,7 +1132,7 @@ export default function ProjectAlertingTab({ slug, focusDeliveryId, focusItemKey
       onRetry={() => void destinationsQuery.refetch()}
     />
   ) : destinationsQuery.isPending ? (
-    // The section's own shape while its data is on the way (AL-22).
+    // The section's own shape while its data is on the way.
     <SectionFallback section={section} />
   ) : null
   // A refresh that failed while a list is on screen keeps the list (and any
@@ -1163,7 +1163,7 @@ export default function ProjectAlertingTab({ slug, focusDeliveryId, focusItemKey
           isDemo
             ? 'Route active anomaly signals through rules and destinations. In a demo workspace every destination is a local sink: deliveries are recorded and rendered here, and none of them leave this instance.'
             // All six channels, not the three the page shipped with: the
-            // issue-tracker integrations went unnoticed from here (ALR-44).
+            // issue-tracker integrations went unnoticed from here.
             : 'Route active anomaly signals to Slack, Telegram, email, webhooks, Jira or Linear. Rules are project-level and apply to every scan in the project.'
         }
       />
@@ -1177,7 +1177,7 @@ export default function ProjectAlertingTab({ slug, focusDeliveryId, focusItemKey
         className="gap-6"
       >
       {!showGuidedSetup && (
-        // `ui/Tabs` (AL-46): Radix brings the roving tabIndex, the wrapping
+        // `ui/Tabs`: Radix brings the roving tabIndex, the wrapping
         // arrow keys, Home/End and the tab/tabpanel ids the hand-rolled strip
         // reimplemented. Selection follows focus and still
         // pushes `?section=`, so Back returns to the previous section.
@@ -1205,7 +1205,7 @@ export default function ProjectAlertingTab({ slug, focusDeliveryId, focusItemKey
 
       {showGuidedSetup ? (
         <>
-          {/* No empty "Delivery log" panel under the setup any more (AL-33):
+          {/* No empty "Delivery log" panel under the setup any more:
               guided state requires zero deliveries, so it could only ever say
               "No deliveries yet" — the tab strip brings it back with the first
               destination. */}
@@ -1277,7 +1277,7 @@ export default function ProjectAlertingTab({ slug, focusDeliveryId, focusItemKey
         {/* The Inbox does not need the destinations list to show incidents,
             but its "No rules yet" gate reads it — so while it is missing the
             gate asserts nothing (below) and the failure is said here rather
-            than silently (ALR-10). */}
+            than silently. */}
         {destinationsRefreshFailed}
         {destinationsQuery.isError && !destinationsLoaded && (
           <p role="status" className="flex flex-wrap items-center gap-2 text-body-sm text-fg-tertiary">
@@ -1300,7 +1300,7 @@ export default function ProjectAlertingTab({ slug, focusDeliveryId, focusItemKey
           pinnedGroup={pinnedIncident}
           // "No rules yet" is a claim, and a destinations list that failed or
           // has not answered cannot back it: unknown reads as "has rules",
-          // the state that asserts nothing (ALR-11).
+          // the state that asserts nothing.
           hasRules={hasRules || !destinationsLoaded}
           statusFilter={inboxStatus}
           onStatusFilterChange={setInboxStatus}
@@ -1322,7 +1322,7 @@ export default function ProjectAlertingTab({ slug, focusDeliveryId, focusItemKey
           pendingGroupIds={pendingActionGroupIds}
           actionErrors={actionErrors}
           // "Create a rule" opens the rule form itself, not just the section
-          // that holds it (AL-18): Monitors reads `?new=rule` on arrival.
+          // that holds it: Monitors reads `?new=rule` on arrival.
           onGoToMonitors={() =>
             setSearchParams(current => {
               const params = new URLSearchParams(current)
@@ -1370,7 +1370,7 @@ export default function ProjectAlertingTab({ slug, focusDeliveryId, focusItemKey
           focusDeliveryId={focusDeliveryId}
           focusItemKey={focusItemKey}
           // The filters the request used, so an unknown `?scan=` that was
-          // degraded to "All" does not read as an active filter (ALR-39).
+          // degraded to "All" does not read as an active filter.
           deliveryFilters={activeDeliveryFilters}
           onDeliveryFiltersChange={setDeliveryFilters}
           deliveryOffset={deliveryOffset}

@@ -158,7 +158,7 @@ export function MetricDefinitionCard({ slug, definition }: MetricDefinitionCardP
   })
   // Names resolved BY ID, not looked up in the first page of the events list:
   // that page is the endpoint's default 200, so a metric on a later event
-  // painted an 8-char id instead of its name (MET-2).
+  // painted an 8-char id instead of its name.
   const eventIds = [definition.numerator_event_id, definition.denominator_event_id].filter(
     (id): id is string => kind === 'event_composition' && !!id,
   )
@@ -175,7 +175,7 @@ export function MetricDefinitionCard({ slug, definition }: MetricDefinitionCardP
         ),
       ),
   })
-  // A side may reference a whole event type instead of one event (MET-13).
+  // A side may reference a whole event type instead of one event.
   const referencesEventType =
     kind === 'event_composition'
     && !!(definition.numerator_event_type_id || definition.denominator_event_type_id)
@@ -234,13 +234,13 @@ export function MetricDefinitionCard({ slug, definition }: MetricDefinitionCardP
     : null
 
   return (
-    // The shared section-card geometry (DS-4 / MO-10): a header bar with the
+    // The shared section-card geometry: a header bar with the
     // 12.5px h2, then the body.
     <Card>
       <CardHeader className="flex-row flex-wrap items-center gap-2">
         <BookOpen aria-hidden="true" className="size-4 text-fg-tertiary" />
         <CardTitle as="h2">Definition</CardTitle>
-        {/* The metric's kind is a category tag: an outline chip (DS-6). */}
+        {/* The metric's kind is a category tag: an outline chip. */}
         <Chip variant="outline" size="xs">{METRIC_KIND_LABEL[kind]}</Chip>
       </CardHeader>
       <CardContent className="space-y-3">
@@ -289,9 +289,9 @@ function SqlExpression({ config }: { config: Record<string, unknown> }) {
   return (
     <div className="space-y-2">
       <div className="flex flex-wrap items-center gap-1.5 text-body-sm text-fg-tertiary">
-        {/* Column names are identifiers: code tokens, not pills (DS-6). A
+        {/* Column names are identifiers: code tokens, not pills. A
             column the metric does not use is left out, not shown as an
-            empty "–" token (MO-33). */}
+            empty "–" token. */}
         {timeColumn && (
           <>
             <span>time</span>
@@ -458,7 +458,7 @@ function FactExpression({
 
 function GeneratedBatchSqlDisclosure({ slug, metricId }: { slug: string; metricId: string }) {
   // Shown to viewers too: the generated-SQL endpoint has the metric read's gate,
-  // because the SQL is compiled from config that read already returns (MET-41).
+  // because the SQL is compiled from config that read already returns.
   const [open, setOpen] = useState(false)
   const query = useQuery({
     queryKey: metricGeneratedSqlForMetricKey(slug, metricId),
@@ -526,7 +526,7 @@ function GeneratedBatchSqlDisclosure({ slug, metricId }: { slug: string; metricI
 function MetricSchedule({ slug, definition }: { slug: string; definition: MetricDefinitionDetailResponse }) {
   const canEdit = useCanWriteProject()
   // A draft is not collected whatever its interval; the header's Activate is
-  // the way out, so this only says why nothing runs (#246 JR-16).
+  // the way out, so this only says why nothing runs (#246).
   if (definition.status === 'draft') {
     return <span className="text-body-sm text-fg-tertiary">Not collected while draft</span>
   }

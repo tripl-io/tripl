@@ -65,7 +65,7 @@ describe('invalidationKeysFor', () => {
     expect(hasKey(keys, eventsMetricsKey(SLUG))).toBe(true)
     expect(hasKey(keys, ['eventWindowMetrics', SLUG])).toBe(true)
     expect(hasKey(keys, ['reconciliation'])).toBe(true)
-    // MON-39: this project's volume chart and top events, not the whole
+    // this project's volume chart and top events, not the whole
     // Overview root (every project) and not the KPI series.
     expect(hasKey(keys, ['overview'])).toBe(false)
     expect(hasKey(keys, overviewVolumeRootKey(SLUG))).toBe(true)
@@ -73,7 +73,7 @@ describe('invalidationKeysFor', () => {
     expect(hasKey(keys, overviewKpiSeriesKey(SLUG))).toBe(false)
   })
 
-  it('refreshes the By version series with the adoption chart beside it (MON-4)', () => {
+  it('refreshes the By version series with the adoption chart beside it', () => {
     const collection = invalidationKeysFor('metric_collection.updated', SLUG)
     expect(hasKey(collection, ['appVersionSeries', SLUG])).toBe(true)
     expect(hasKey(collection, ['appVersionAdoption', SLUG])).toBe(true)
@@ -91,7 +91,7 @@ describe('invalidationKeysFor', () => {
     expect(hasKey(keys, ['anomalies', 'signals', SLUG])).toBe(false)
     expect(hasKey(keys, ['monitors-summary', SLUG])).toBe(true)
     expect(hasKey(keys, ['topbarNotifications', SLUG])).toBe(true)
-    // MON-39: the Overview's signal reads are the shared list above.
+    // the Overview's signal reads are the shared list above.
     expect(hasKey(keys, ['overview'])).toBe(false)
   })
 

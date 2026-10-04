@@ -38,7 +38,7 @@ async def list_shadow_events(
     slug: str,
     status: Annotated[ShadowEventStatus | None, Query()] = None,
     limit: Annotated[int, Query(ge=1, le=500)] = 100,
-    # True paging for the inbox (DATA-39); rows are ordered busiest first, ties
+    # True paging for the inbox; rows are ordered busiest first, ties
     # by id, so consecutive pages neither repeat nor skip a row.
     offset: Annotated[int, Query(ge=0)] = 0,
 ) -> ShadowEventListResponse:
@@ -194,7 +194,7 @@ async def batch_shadow_events(
     branch_id: BranchIdDep,
     current_user: EditorUserDep,
 ) -> ShadowEventBatchResponse:
-    """Accept or dismiss many inbox rows in one request (DATA-39).
+    """Accept or dismiss many inbox rows in one request.
 
     Each row is handled and audited exactly as its single route would, and a
     refused row is reported in ``results`` without stopping the rest.

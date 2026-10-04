@@ -22,7 +22,7 @@ interface ReleaseRegressionPanelProps {
 }
 
 // The app locale, not the browser's: the chart beside this list already
-// prints its numbers in it (DS-30).
+// prints its numbers in it.
 function formatCount(value: number): string {
   return formatNumber(Math.round(value))
 }
@@ -67,7 +67,7 @@ function RegressionRow({ slug, item }: { slug: string; item: ReleaseRegressionIt
   const Icon = isMissing ? PackageX : TrendingDown
   const dropPct = Math.max(0, Math.round((1 - item.ratio) * 100))
   // The row names another event (or event type) than the page it sits on, so
-  // it links there instead of being dead text (MON-41). Through the
+  // it links there instead of being dead text. Through the
   // release-regression navigation rule: a place to LOOK at the entity, never
   // offered as evidence for the regression. It reads the event
   // page off `event_id` and the event-type page off `scope_ref`.
@@ -101,7 +101,7 @@ function RegressionRow({ slug, item }: { slug: string; item: ReleaseRegressionIt
         {isMissing
           ? <Chip tone="danger" size="xs">missing</Chip>
           : <Chip variant="outline" size="xs">{`-${dropPct}%`}</Chip>}
-        {/* Counts, so sans with tabular digits (DS-17). */}
+        {/* Counts, so sans with tabular digits. */}
         <span className="tnum text-fg-tertiary">
           {formatCount(item.observed_count)} / {formatCount(item.expected_count)}
         </span>
@@ -117,7 +117,7 @@ function RegressionRow({ slug, item }: { slug: string; item: ReleaseRegressionIt
  *
  * The list covers the WHOLE scan, not the entity whose page it sits on, and
  * says so in its title: on one event's tab it read as that event's
- * regressions (MON-41).
+ * regressions.
  */
 export function ReleaseRegressionPanel({
   slug,
@@ -142,7 +142,7 @@ export function ReleaseRegressionPanel({
   const judged = comparability.length > 0
 
   return (
-    // The shared section-card geometry (DS-4 / MO-10): a header bar with the
+    // The shared section-card geometry: a header bar with the
     // 12.5px h2, then the list.
     <Card>
       <CardHeader className="flex-row flex-wrap items-center justify-between gap-3">
@@ -153,7 +153,7 @@ export function ReleaseRegressionPanel({
           {query.data?.latest_version && (
             <div className="flex items-center gap-1.5">
               <span className="text-caption text-fg-tertiary">latest active release</span>
-              {/* A version is an identifier: a code token, not a pill (DS-6). */}
+              {/* A version is an identifier: a code token, not a pill. */}
               <CodeToken>{query.data.latest_version}</CodeToken>
             </div>
           )}
@@ -174,7 +174,7 @@ export function ReleaseRegressionPanel({
         ) : query.isError ? (
           // A failed request used to fall through to "No release comparison has
           // run for this scan yet" — an outage reading as a quiet release, the
-          // worst possible reading for a regression detector (MON-30).
+          // worst possible reading for a regression detector.
           <ErrorState
             title="Release regressions unavailable"
             error={query.error}

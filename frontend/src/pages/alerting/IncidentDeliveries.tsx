@@ -25,7 +25,7 @@ const INCIDENT_DELIVERY_PAGE_SIZE = 50
  * otherwise fire one request per card on mount.
  *
  * Paged. It used to ask for 50 and ignore `total`, so a long-running incident
- * with 120 deliveries showed 50 under a toggle promising all 120 (ALR-32).
+ * with 120 deliveries showed 50 under a toggle promising all 120.
  */
 export function IncidentDeliveries({
   slug,

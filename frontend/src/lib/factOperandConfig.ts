@@ -4,7 +4,7 @@
  *
  * Three hand-written parsers of the same JSON used to live in the metric form,
  * the catalog's "Duplicate as draft" and the drilldown's definition card, and
- * they disagreed (MET-43): Duplicate cast `aggregation` unchecked and passed
+ * they disagreed: Duplicate cast `aggregation` unchecked and passed
  * `row_filters` through without filtering, so a malformed config went straight
  * into a create payload and came back as a 422, and it never folded the legacy
  * single `row_filter`, so duplicating an old metric silently lost its named
@@ -57,8 +57,8 @@ interface ConditionOperatorMeta {
   /**
    * Column value kinds the operator makes sense for. `contains` on a number,
    * `is_true` on a string or `>` on a bool is rejected by the backend or the
-   * warehouse, and the user used to learn that only from "Check filters"
-   * (MET-32). Timestamps bucket as `string` here, so ordering stays offered.
+   * warehouse, and the user used to learn that only from "Check filters".
+   * Timestamps bucket as `string` here, so ordering stays offered.
    */
   kinds: readonly FactColumnValueKind[]
 }

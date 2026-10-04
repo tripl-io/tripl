@@ -1,7 +1,7 @@
 import { Chip } from '@/components/primitives/chip'
 import { SENSITIVITY_OPTIONS, SENSITIVITY_STYLE, type Sensitivity } from '@/types'
 
-// Drawn with the shared Chip (DS-37) rather than a third hand-rolled pill: the
+// Drawn with the shared Chip rather than a third hand-rolled pill: the
 // sensitivity scale keeps its own colours, the shape and sizing are Chip's.
 export function SensitivityChip({ value }: { value: Sensitivity }) {
   if (!value || value === 'none') {

@@ -32,13 +32,13 @@ import { currentOrgSlug, projectPath } from '@/lib/navigation'
 
 type TopBarProps = {
   title: string
-  /** The trail above the title; a crumb with `to` is a link (MO-13). */
+  /** The trail above the title; a crumb with `to` is a link. */
   crumbs?: Crumb[]
   projectSlug?: string
   /**
    * The project's display name. Below `sm` the crumbs are hidden, so it rides
    * as a muted line under the title: with three look-alike projects a phone
-   * user could not tell which one they were in (#238 SH-14).
+   * user could not tell which one they were in (#238).
    */
   projectName?: string
   activityOpen?: boolean
@@ -65,9 +65,8 @@ export function TopBar({
 }: TopBarProps) {
   const palette = useCommandPalette()
   return (
-    // The page's banner landmark, outside <main> (SHELL-47). 48px on phones so
-    // its controls can be 36-40px touch targets; 44px from sm up
-    // (SH-16 / ST-12 / AU-39 / AL-41).
+    // The page's banner landmark, outside <main>. 48px on phones so
+    // its controls can be 36-40px touch targets; 44px from sm up.
     <header
       className="flex h-12 flex-shrink-0 sm:h-11 items-center gap-3 border-b px-3 sm:px-4 bg-background border-border"
     >
@@ -125,7 +124,7 @@ export function TopBar({
           onClick={() => palette.setOpen(true)}
           onPointerEnter={preloadCommandPalette}
           onFocus={preloadCommandPalette}
-          // One search entry point per viewport (#238 SH-21): from lg the
+          // One search entry point per viewport (#238): from lg the
           // pinned sidebar carries "Search or jump… Ctrl K", and a second
           // trigger with the same shortcut beside it was noise. Below lg the
           // sidebar is a drawer, so the magnifier here is the way in.
@@ -140,7 +139,7 @@ export function TopBar({
             <button
               type="button"
               onClick={onToggleActivity}
-              // One name for the feed everywhere (#238 SH-8): the toggle said
+              // One name for the feed everywhere (#238): the toggle said
               // "Now" and opened a rail titled "Recent activity".
               aria-label="Toggle activity feed"
               aria-pressed={activityOpen}
@@ -162,7 +161,7 @@ export function TopBar({
 }
 
 /**
- * The shell's "you are on a branch" strip (#243 PL-1 / SH-11), under the top
+ * The shell's "you are on a branch" strip (#243), under the top
  * bar whenever the pages read a working branch. The only cue used to be the
  * sidebar pill, which sits in the drawer on phones and is a 6px dot on the
  * collapsed rail, so a PM could edit the plan believing it was main, or the
@@ -268,7 +267,7 @@ function NotificationsMenu({ projectSlug }: { projectSlug?: string }) {
   // The badge counts OPEN INCIDENTS, off the project summaries the sidebar's
   // Alerting badge reads — the shell already holds this list, so it costs no
   // request. Counting signals here put "3" on the bell beside "Alerting 1" in
-  // the sidebar for the same project (AL-40 / SH-17). On a workspace route it
+  // the sidebar for the same project. On a workspace route it
   // is every project's open incidents, which the panel then lists per project.
   const projectsQuery = useQuery(projectsQueryOptions())
   const projects = projectsQuery.data
@@ -278,7 +277,7 @@ function NotificationsMenu({ projectSlug }: { projectSlug?: string }) {
 
   // First load only. `isFetching` swapped the bell for a spinner on every
   // stream invalidation and poll, so with a live stream the most visible
-  // corner of the app flickered constantly (SHELL-39). A background refresh
+  // corner of the app flickered constantly. A background refresh
   // shows as a small dot instead.
   const isLoading = signalsQuery.isPending || deliveriesQuery.isPending
   const isRefreshing = !isLoading && (signalsQuery.isFetching || deliveriesQuery.isFetching)

@@ -116,13 +116,13 @@ describe('MetricsChart', () => {
     )
 
     const marker = screen.getByTestId('chart-annotation')
-    // Humanized like the rest of the summary, never the raw ISO instant (DS-25).
+    // Humanized like the rest of the summary, never the raw ISO instant.
     expect(marker.textContent).toContain(formatTooltipLabel('2026-01-01T10:00:00Z', 'hour'))
     expect(marker.textContent).not.toContain('2026-01-01T10:00:00Z')
     expect(marker.textContent).toContain('v1.4 deploy')
   })
 
-  // MO-8: the annotation form defaults to "now", which is past the newest
+  // the annotation form defaults to "now", which is past the newest
   // bucket's start; it used to be dropped without a trace.
   it('draws an annotation inside the newest bucket on that bucket', () => {
     const bucket = (instant: string, count: number): EventMetricPoint => ({
@@ -207,7 +207,7 @@ describe('MetricsChart', () => {
     expect(marker.textContent).not.toContain(formatTooltipLabel('2026-01-02T00:00:00Z', 'day'))
   })
 
-  // MO-8: with collection lag, "now" is hours past the forecast bucket; it
+  // with collection lag, "now" is hours past the forecast bucket; it
   // still lands on the newest bucket while it is inside the requested window.
   it('clamps an annotation past the data but inside the window onto the newest bucket', () => {
     const bucket = (instant: string, count: number): EventMetricPoint => ({
@@ -255,7 +255,7 @@ describe('MetricsChart', () => {
     expect(at(markers, 0).textContent).toContain('Deploy')
   })
 
-  it('separates annotations in the screen-reader summary (DS-25)', () => {
+  it('separates annotations in the screen-reader summary', () => {
     const annotation = {
       project_id: 'proj',
       scope_type: null,
@@ -624,7 +624,7 @@ describe('CustomTooltip', () => {
 
     expect(screen.getByText('0.08 %')).toBeInTheDocument()
     // 0.08 rounds onto the band's 0.07 edge, so the secondary values keep one
-    // more decimal instead of reading "inside the band" (MO-38).
+    // more decimal instead of reading "inside the band".
     expect(screen.getByText('Expected 0.1 (normal 0–0.1)')).toBeInTheDocument()
   })
 
@@ -641,7 +641,7 @@ describe('CustomTooltip', () => {
     )
 
     expect(screen.getByText('8%')).toBeInTheDocument()
-    // The unit once, after the range; no σ jargon or raw deviation (MO-38).
+    // The unit once, after the range; no σ jargon or raw deviation.
     expect(screen.getByText('Expected 5% (normal 3–7%)')).toBeInTheDocument()
     expect(screen.queryByText(/σ band|Deviation/)).toBeNull()
   })
@@ -679,7 +679,7 @@ describe('CustomTooltip', () => {
     expect(screen.getByText('Spring sale')).toBeInTheDocument()
   })
 
-  it('names the zone of a sub-day bucket and not of a calendar day (MO-38)', () => {
+  it('names the zone of a sub-day bucket and not of a calendar day', () => {
     const { rerender } = render(
       <CustomTooltip
         active
@@ -707,7 +707,7 @@ describe('CustomTooltip', () => {
     expect(screen.getByText(formatTooltipLabel('2026-01-01T00:00:00Z', 'day'))).toBeInTheDocument()
   })
 
-  it('says a partial bucket is partial (MO-5)', () => {
+  it('says a partial bucket is partial', () => {
     render(
       <CustomTooltip
         active
@@ -900,7 +900,7 @@ describe('MetricsChart served sigma threshold', () => {
 
     const rows = renderCharted(
       // Unclamped, so the wiring is visible: at 6σ the lower edge is -2, which
-      // a count chart floors at zero (MON-21, asserted below).
+      // a count chart floors at zero (asserted below).
       <MetricsChart
         granularity="day"
         data={served.data}
@@ -923,7 +923,7 @@ describe('MetricsChart served sigma threshold', () => {
     expect(at(rows, 0).band).toEqual([10 - 4 * 2, 10 + 4 * 2])
   })
 
-  // MON-21: `expected - k·σ` below zero dragged a count chart's axis negative.
+  // `expected - k·σ` below zero dragged a count chart's axis negative.
   it('floors a count series band at zero, but not a formatted (signed) metric', () => {
     const counted = renderCharted(<MetricsChart granularity="day" data={[flagged]} sigmaThreshold={6} />)
     expect(at(counted, 0).band).toEqual([0, 22])
@@ -939,7 +939,7 @@ describe('MetricsChart served sigma threshold', () => {
     expect(at(signed, 0).band).toEqual([-2, 22])
   })
 
-  // MON-22: the axis spans the requested window, not only the buckets with data.
+  // the axis spans the requested window, not only the buckets with data.
   it('pads the rows out to the requested window with empty buckets', () => {
     const rows = renderCharted(
       <MetricsChart
@@ -960,7 +960,7 @@ describe('MetricsChart served sigma threshold', () => {
   })
 })
 
-describe('buildChartData forecast floor (MON-21)', () => {
+describe('buildChartData forecast floor', () => {
   it('clamps the forecast band at zero when asked', () => {
     const last: EventMetricPoint = {
       bucket: '2026-01-02T10:00:00Z',
@@ -983,7 +983,7 @@ describe('buildChartData forecast floor (MON-21)', () => {
     expect(at(built, 1).forecast_error).toEqual([1, 4])
   })
 
-  // MO-7: a dashed line from a spiking last actual down to the forecast read
+  // a dashed line from a spiking last actual down to the forecast read
   // as a crash; the forecast is its own point now.
   it('does not anchor the forecast to the last actual', () => {
     const last: EventMetricPoint = {
@@ -1007,7 +1007,7 @@ describe('buildChartData forecast floor (MON-21)', () => {
   })
 })
 
-describe('buildChartData partial buckets (MO-5)', () => {
+describe('buildChartData partial buckets', () => {
   const day = (bucket: string, count: number): EventMetricPoint => ({
     bucket,
     count,
@@ -1042,7 +1042,7 @@ describe('buildChartData partial buckets (MO-5)', () => {
   })
 })
 
-describe('ChartLegend (MO-1)', () => {
+describe('ChartLegend', () => {
   it('lists only the marks the chart draws', () => {
     render(
       <ChartLegend color="red" expected band={2.5} anomaly partial={false} forecast={false} />,
@@ -1073,7 +1073,7 @@ describe('ChartLegend (MO-1)', () => {
   })
 })
 
-describe('anomaly marks and tooltip lines (MON-17)', () => {
+describe('anomaly marks and tooltip lines', () => {
   it('says which way an anomaly moved and how far, in the tooltip', () => {
     render(
       <CustomTooltip
@@ -1098,7 +1098,7 @@ describe('anomaly marks and tooltip lines (MON-17)', () => {
       />,
     )
 
-    // In words and against the expectation, not a z-score (MO-38).
+    // In words and against the expectation, not a z-score.
     expect(screen.getByText(/Drop to zero$/)).toBeInTheDocument()
     expect(screen.queryByText(/z=/)).toBeNull()
   })
@@ -1284,7 +1284,7 @@ describe('chart surface accessibility', () => {
   })
 })
 
-describe('chart summaries reach assistive tech (DS-25)', () => {
+describe('chart summaries reach assistive tech', () => {
   const point: EventMetricPoint = {
     bucket: '2026-01-01T10:00:00Z',
     count: 10,
@@ -1328,7 +1328,7 @@ describe('chart summaries reach assistive tech (DS-25)', () => {
   })
 })
 
-// DS-27: the mini chart mounted recharts inside zero-size containers.
+// the mini chart mounted recharts inside zero-size containers.
 describe('MiniMetricsChart container gate', () => {
   const point: EventMetricPoint = {
     bucket: '2026-01-01T10:00:00Z',
@@ -1380,7 +1380,7 @@ describe('MiniMetricsChart container gate', () => {
   })
 })
 
-// DS-26: a single-event bucket read "1 events".
+// a single-event bucket read "1 events".
 describe('tooltip nouns agree with the count', () => {
   it('says "1 event" for a one-event bucket', () => {
     render(
@@ -1416,7 +1416,7 @@ describe('tooltip nouns agree with the count', () => {
   })
 })
 
-describe('single-series default colour (DS-27)', () => {
+describe('single-series default colour', () => {
   // Every colour-bearing prop in a rendered element tree.
   function colorsIn(node: unknown, out: Set<string> = new Set()): Set<string> {
     if (Array.isArray(node)) {

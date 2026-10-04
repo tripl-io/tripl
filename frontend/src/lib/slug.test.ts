@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { isValidSlug, slugify } from './slug'
 
-describe('slugify (WS-17)', () => {
+describe('slugify', () => {
   it('lowercases and hyphenates a plain name', () => {
     expect(slugify('My Project')).toBe('my-project')
     expect(slugify('  Web -- App  2 ')).toBe('web-app-2')

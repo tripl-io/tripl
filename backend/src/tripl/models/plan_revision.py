@@ -13,7 +13,7 @@ from tripl.models.enum_types import db_enum
 
 
 class PlanRevisionKind(enum.StrEnum):
-    """What produced a revision (PL-21).
+    """What produced a revision.
 
     ``snapshot`` is a user-taken one (``POST /plan-revisions``); ``branch_base``
     is the merge base captured when a branch opens; ``merge`` is the live plan

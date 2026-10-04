@@ -23,7 +23,7 @@ import {
 } from './sidebar-style'
 import { currentOrgSlug, projectPath, workspacePath } from '@/lib/navigation'
 
-/** An icon-only rail entry with its name in a visible tooltip (SHELL-23). */
+/** An icon-only rail entry with its name in a visible tooltip. */
 function RailTip({ label, children }: { label: string; children: ReactElement }) {
   return (
     <Tooltip>
@@ -44,7 +44,7 @@ function RailLink({
   label: string
   icon: LucideIcon
   active: boolean
-  /** The collapsed twin of an urgent NavCount: a red dot (DS-28). */
+  /** The collapsed twin of an urgent NavCount: a red dot. */
   urgent?: boolean
 }) {
   return (
@@ -72,7 +72,7 @@ function RailLink({
  * The icon rail. It keeps every control the full sidebar has — project and
  * branch switchers, Project settings, Concepts, the account menu — because a
  * persisted collapse used to leave no way to switch project or branch, see
- * which branch the pages read, or sign out without expanding it (SHELL-23).
+ * which branch the pages read, or sign out without expanding it.
  */
 export function CollapsedSidebar({
   onExpand,
@@ -106,7 +106,7 @@ export function CollapsedSidebar({
   userLabel: string
   isLoggingOut: boolean
   onSignOut: () => void
-  /** Opens Appearance hung from `anchor`, the rail's account avatar (SH-24). */
+  /** Opens Appearance hung from `anchor`, the rail's account avatar. */
   onOpenTweaks: (anchor: HTMLElement | null) => void
   onOpenPalette: () => void
 }) {
@@ -152,7 +152,7 @@ export function CollapsedSidebar({
           {navGroups.map((group) => (
             <div key={group.label} className="flex flex-col items-center gap-0.5">
               {/* The group's initial, not a bare hairline: three 20px rules
-                  were all that told Plan from Observe from Govern (#238 SH-13). */}
+                  were all that told Plan from Observe from Govern (#238). */}
               <div
                 aria-hidden="true"
                 title={group.label}

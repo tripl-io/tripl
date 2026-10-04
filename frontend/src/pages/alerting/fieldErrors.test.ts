@@ -10,7 +10,7 @@ function validationError(detail: { loc: (string | number)[]; msg: string }[]) {
   return error
 }
 
-describe('splitApiFieldErrors (ALR-8)', () => {
+describe('splitApiFieldErrors', () => {
   it('puts a message beside the input it names, without Pydantic\'s prefix', () => {
     const split = splitApiFieldErrors(
       validationError([{ loc: ['body', 'chat_id'], msg: 'Value error, Telegram chat_id is required' }]),

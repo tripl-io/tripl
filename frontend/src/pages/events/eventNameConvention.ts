@@ -1,6 +1,6 @@
 /**
  * The naming convention an event type's existing events follow, for the Name
- * placeholder and a non-blocking warning on the single-event form (AU-41).
+ * placeholder and a non-blocking warning on the single-event form.
  *
  * "e.g. checkout:completed" sat next to a catalog whose Screen View events are
  * called "Home Screen View"; nothing told the author which convention this

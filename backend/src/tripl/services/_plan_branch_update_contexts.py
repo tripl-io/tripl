@@ -1,4 +1,4 @@
-"""Observed value contexts for rows "Update from main" creates (PL-8).
+"""Observed value contexts for rows "Update from main" creates.
 
 Split out of ``_plan_branch_update_apply``. A ``VariableValue`` (variable,
 event, field) is what a scan observed; it is not in the snapshot, so a row

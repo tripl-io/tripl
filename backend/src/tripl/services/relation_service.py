@@ -115,7 +115,7 @@ async def update_relation(
     data: RelationUpdate,
     branch_id: uuid.UUID | None = None,
 ) -> EventTypeRelation:
-    """Edit a relation in place (AU-13), re-checking any end that moves.
+    """Edit a relation in place, re-checking any end that moves.
 
     The same ``_check_end`` guard as create, on the merged values: a changed
     field must still belong to its (possibly unchanged) event type, in this

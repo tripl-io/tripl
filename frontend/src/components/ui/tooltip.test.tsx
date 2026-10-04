@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from './tooltip'
 
 describe('TooltipContent', () => {
-  it('is an inverse neutral chip, not a brand-coloured one (DS-18)', () => {
+  it('is an inverse neutral chip, not a brand-coloured one', () => {
     render(
       <TooltipProvider>
         <Tooltip open>
