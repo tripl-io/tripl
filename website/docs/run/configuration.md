@@ -408,6 +408,8 @@ Two independent switches control the generated demo project. Both default to
 | --- | --- | --- | --- |
 | `DEMO_ENABLED` | `true` | No | Master kill switch for demo **provisioning**. When `false`, `POST /projects/demo` **and** demo reset are refused with `403 Demo provisioning is disabled`. |
 | `DEMO_RUNTIME_ENABLED` | `true` | No | Gates the `advance_demos` beat task that keeps an existing demo fresh (new buckets, jobs, and signals). When `false` that task is a no-op and existing demos keep the data they already have; the scheduled scan collection of a demo in use still runs on its 6-hour demo cadence and appends new buckets itself. |
+| `DEMO_POOL_SIZE` | `0` | No | How many demos to keep seeded ahead of time (0–50). Above 0, the `refill-demo-pool` beat task keeps that many ready in a service organization, and **Generate demo project** hands one out at once instead of queueing a seed; with the pool empty it seeds as usual. The pool only refills after a claim, so an idle instance seeds nothing more. `0` turns it off. |
+| `DEMO_POOL_MAX_AGE_HOURS` | `20` | No | A pooled demo older than this (1–23 hours) is discarded and seeded again, so its seeded incident is still open when a visitor gets it. |
 
 :::note A demo's two refresh paths run at different rates
 `advance_demos` runs **hourly**: it appends the newest bucket, re-runs the real

@@ -230,7 +230,8 @@ The demo offers two guides, and they do different jobs.
   The request only reserves the workspace; a background worker seeds it, and
   the dialog waits until the workspace reads ready. That keeps the app
   responsive for everyone while many demos are created at once — they queue on
-  the worker instead. It takes about 10 seconds on an idle server; the creation
+  the worker instead. An instance that keeps a pool of demos seeded ahead of
+  time hands you one of those at once. It takes about 10 seconds on an idle server; the creation
   dialog narrates the *expected* phases (the server reports only the final
   result, not the stage it is on), says so when a create runs well past that,
   and stops waiting after 90 seconds.

@@ -229,6 +229,13 @@ celery_app.conf.beat_schedule = {
         # metrics dispatchers (own task + per-project advisory lock).
         "schedule": crontab(minute="*/5"),
     },
+    "refill-demo-pool": {
+        "task": "tripl.worker.tasks.demo_provision.refill_demo_pool",
+        # Tops the pre-seeded demo pool up to DEMO_POOL_SIZE and re-seeds
+        # entries past DEMO_POOL_MAX_AGE_HOURS. A claim also queues a refill at
+        # once; this is the backstop. A no-op while the pool size is 0.
+        "schedule": crontab(minute="*/5"),
+    },
     "send-instant-notification-emails": {
         "task": "tripl.worker.tasks.notification_email.send_notification_emails",
         # Every minute (#259): the safety net under the per-write enqueue, so a

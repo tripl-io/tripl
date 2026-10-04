@@ -295,6 +295,15 @@ class Settings(BaseSettings):
     # so this only turns demo self-advancement on or off.
     demo_runtime_enabled: bool = True
 
+    # Pre-seeded demo pool. With a size above 0 the ``refill-demo-pool`` beat
+    # task keeps that many demos seeded ahead of time in a service organization,
+    # and generating a demo hands one out at once instead of queueing a seed.
+    # Off (0) by default: an idle instance then seeds nothing it was not asked
+    # for. Entries older than ``demo_pool_max_age_hours`` are re-seeded, so the
+    # demo's seeded incident is still open when a visitor claims it.
+    demo_pool_size: int = Field(default=0, ge=0, le=50)
+    demo_pool_max_age_hours: int = Field(default=20, ge=1, le=23)
+
     # A public demo instance: strangers sign in and explore generated
     # demo projects. Only what such a visitor cannot be trusted with is switched
     # off — connecting a warehouse of their own (the synthetic one the demo
