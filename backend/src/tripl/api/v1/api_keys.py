@@ -11,12 +11,11 @@ from __future__ import annotations
 import uuid
 
 from fastapi import APIRouter, HTTPException, Request, status
-from sqlalchemy.ext.asyncio import AsyncSession
 
+from tripl import extensions
 from tripl.api.deps import (
     CurrentUserDep,
     SessionDep,
-    SsoRequiredError,
     WriteUserDep,
     require_org_member,
 )
@@ -27,7 +26,7 @@ from tripl.schemas.api_key import (
     ApiKeyCreateResponse,
     ApiKeyResponse,
 )
-from tripl.services import api_key_service, audit_service, org_sso_service, project_lookup
+from tripl.services import api_key_service, audit_service, project_lookup
 from tripl.services.project_access import member_role
 from tripl.services.project_lookup import PROJECT_NOT_FOUND
 
@@ -67,8 +66,11 @@ async def create_api_key(
     if project_id is not None and await member_role(session, current_user, project_id) is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=PROJECT_NOT_FOUND)
     sso_org_id = _sso_org_of_session(request)
-    if sso_org_id is None:
-        await _refuse_in_sso_required_org(session)
+    org = current_org()
+    if sso_org_id is None and org is not None and org.step_in_user_id is None:
+        # A key not minted from the organization's own SSO session: an
+        # extension may refuse it (``api_key_mint_gate``).
+        await extensions.api_key_mint_gate(session, org)
     row, raw_token = await api_key_service.create_key(
         session,
         current_user.id,
@@ -127,7 +129,7 @@ def _sso_org_of_session(request: Request) -> uuid.UUID | None:
 
     In an organization that requires SSO, a key minted from any other session
     would be refused at every use, so none is minted
-    (:func:`_refuse_in_sso_required_org`).
+    (``extensions.api_key_mint_gate``).
     """
     org_id = require_org_id()
     if (
@@ -136,21 +138,6 @@ def _sso_org_of_session(request: Request) -> uuid.UUID | None:
     ):
         return org_id
     return None
-
-
-async def _refuse_in_sso_required_org(session: AsyncSession) -> None:
-    """403 ``SsoRequiredError`` when the request's organization requires SSO.
-
-    For a session that did not sign in through it. A non-owner is stopped
-    earlier (``deps.refuse_non_sso_session``); an owner's password session (the
-    break-glass) passes that gate but mints no key there: owners' keys obey
-    "SSO required" like everyone's (F20).
-    """
-    org = current_org()
-    if org is None or org.step_in_user_id is not None:
-        return
-    if await org_sso_service.sso_required(session, org.id):
-        raise SsoRequiredError(org.slug)
 
 
 def _require_session_auth(request: Request) -> None:

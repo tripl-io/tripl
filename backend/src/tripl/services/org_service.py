@@ -20,16 +20,16 @@ from __future__ import annotations
 
 import re
 import uuid
-from dataclasses import dataclass, replace
+from dataclasses import dataclass, field, replace
 from datetime import UTC, datetime
 from typing import cast
 
 from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from tripl import extensions
 from tripl.models.api_key import ApiKey
 from tripl.models.domain_enums import OrganizationRole, OrganizationStatus, ProjectMemberRole
-from tripl.models.org_scim import ScimUserLink
 from tripl.models.organization import DEFAULT_ORG_ID, Organization, OrganizationMember
 from tripl.models.platform_step_in import PlatformStepIn
 from tripl.models.project import Project
@@ -41,9 +41,7 @@ from tripl.services import (
     docs_folders,
     invitation_service,
     org_group_service,
-    org_sso_service,
     project_member_service,
-    scim_token_service,
     user_service,
 )
 from tripl.services.org_resolution import ORG_IS_VISIBLE, active_step_in_id
@@ -82,10 +80,8 @@ class RemovedMember:
     api_keys: int
     invitations: int
     group_memberships: int
-    #: The user's single sign-on identities in the organization (F20).
-    sso_identities: int = 0
-    #: Live SCIM tokens the user created, revoked because they are no longer an owner.
-    scim_tokens: int = 0
+    #: What the installed extensions cleaned up, by name (``extensions.on_member_removed``).
+    extension_counts: dict[str, int] = field(default_factory=dict)
 
 
 @dataclass(frozen=True)
@@ -409,7 +405,6 @@ async def _remove_member_locked(
         await project_member_service.drop_grants_in_projects(session, project_ids, user_id)
 
     revoked = await _revoke_org_keys(session, org_id, user_id)
-    scim_tokens = await scim_token_service.revoke_tokens_created_by(session, org_id, user_id)
     invitations = await invitation_service.drop_pending_invitations(
         session, org_id, invited_by_user_id=user_id, email=target.email
     )
@@ -417,20 +412,11 @@ async def _remove_member_locked(
     # Notes and folders shared with them there (F24): unreachable once they
     # leave, and not waiting for them to come back.
     await docs_folders.drop_user_shares_in_org(session, org_id, user_id)
-    # Their IdP identity no longer signs them in here, and signing in through
-    # the provider again does not re-add them until they accept a new
-    # invitation (an SSO membership block).
-    identities = await org_sso_service.drop_identities(session, org_id, user_id)
-    if actor_role is not None:
-        # A removal by an owner or admin is not the IdP's to undo: SCIM shows the
-        # user inactive and refuses to re-activate them until they are back in
-        # through an invitation (``scim_user_service``).
-        await session.execute(
-            update(ScimUserLink)
-            .where(ScimUserLink.organization_id == org_id, ScimUserLink.user_id == user_id)
-            .values(active=False, removed_outside_scim=True)
-            .execution_options(synchronize_session=False)
-        )
+    # Identity-provider links, provisioning state and the user's provisioning
+    # credentials are the extensions' (SSO and SCIM, F20).
+    extension_counts = await extensions.on_member_removed(
+        session, org_id, user_id, by_admin=actor_role is not None
+    )
     await session.delete(membership)
     await session.flush()
     return RemovedMember(
@@ -440,8 +426,7 @@ async def _remove_member_locked(
         api_keys=revoked,
         invitations=invitations,
         group_memberships=groups,
-        sso_identities=identities,
-        scim_tokens=scim_tokens,
+        extension_counts=extension_counts,
     )
 
 
@@ -487,8 +472,9 @@ async def transfer_ownership(
     await invitation_service.drop_pending_invitations(
         session, org_id, invited_by_user_id=actor_id, above_role=OrganizationRole.admin
     )
-    # The step-down ends the actor's ownership, and with it their SCIM tokens.
-    await scim_token_service.revoke_tokens_created_by(session, org_id, actor_id)
+    # The step-down ends the actor's ownership, and with it any owner-only
+    # credentials an extension issued them (SCIM tokens).
+    await extensions.on_owner_demoted(session, org_id, actor_id)
     await session.flush()
     return target, old_role
 

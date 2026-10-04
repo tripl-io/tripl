@@ -535,8 +535,7 @@ async def _set_active(
             "api_keys": removed.api_keys,
             "invitations": removed.invitations,
             "group_memberships": removed.group_memberships,
-            "sso_identities": removed.sso_identities,
-            "scim_tokens": removed.scim_tokens,
+            **removed.extension_counts,
         }
     await session.flush()
     return None

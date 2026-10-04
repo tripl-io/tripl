@@ -9,6 +9,7 @@ from typing import Any, Final, Literal, cast
 from sqlalchemy import desc, func, null, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from tripl import extensions
 from tripl.middleware.branch_context import current_branch
 from tripl.models.audit_log import AuditLog
 from tripl.models.project import Project
@@ -18,7 +19,6 @@ from tripl.schemas.audit import (
     AuditEntryResponse,
     AuditListResponse,
 )
-from tripl.services import audit_webhook_outbox
 from tripl.services.project_lookup import owning_org_id, project_slug_clause
 
 # Fields that must never make it into the audit payload — credentials, hashes,
@@ -171,9 +171,9 @@ async def record(
         entry.organization_id = null()
     session.add(entry)
     if org_id is not None:
-        # The organization's audit webhook, in this very transaction: the row
-        # is delivered if and only if it commits (audit_webhook_outbox).
-        await audit_webhook_outbox.enqueue(session, entry, org_id)
+        # Audit sinks (the organization's audit webhook), in this very
+        # transaction: the row is delivered if and only if it commits.
+        await extensions.on_audit_recorded(session, entry, org_id)
     if commit:
         await session.commit()
     return entry

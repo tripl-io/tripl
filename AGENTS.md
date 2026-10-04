@@ -169,6 +169,7 @@ Top level:
 
 Backend entrypoints:
 - [backend/src/tripl/main.py](backend/src/tripl/main.py): FastAPI app, middleware stack, lifespan, and `/health`.
+- [backend/src/tripl/extensions.py](backend/src/tripl/extensions.py): extension hooks (routers, access gates, lifecycle, audit, worker). SSO, SCIM and the audit webhook are reached only through them, via the bundled `_bundled_enterprise.py` ([extension points](website/docs/develop/extension-points.md)).
 - [backend/src/tripl/api/v1/router.py](backend/src/tripl/api/v1/router.py): all API router registration.
 - [backend/src/tripl/worker/celery_app.py](backend/src/tripl/worker/celery_app.py): Celery app and beat schedule.
 

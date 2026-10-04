@@ -38,7 +38,7 @@ from functools import partial
 from sqlalchemy import delete, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from tripl import cache
+from tripl import cache, extensions
 from tripl.models.api_key import ApiKey
 from tripl.models.app_setting import AppSetting
 from tripl.models.data_source import DataSource
@@ -47,19 +47,14 @@ from tripl.models.doc_share import DocFolderSetting
 from tripl.models.domain_enums import EventPhotoKind, OrganizationStatus
 from tripl.models.event_photo import EventPhoto
 from tripl.models.invitation import Invitation
-from tripl.models.org_scim import OrgScimConfig, OrgScimToken
 from tripl.models.organization import DEFAULT_ORG_ID, Organization, OrganizationMember
 from tripl.models.photo_storage_config import PhotoStorageConfig
 from tripl.models.project import Project
 from tripl.models.user import User
 from tripl.services import (
     audit_service,
-    audit_webhook_service,
     org_group_service,
-    org_sso_service,
     project_service,
-    scim_group_service,
-    scim_user_service,
 )
 from tripl.services.event_photo_service import BlobRef
 from tripl.services.photo_storage_service import (
@@ -227,14 +222,9 @@ async def purge_organization(session: AsyncSession, org_id: uuid.UUID) -> PurgeR
         delete(DocFolderSetting).where(DocFolderSetting.organization_id == org_id)
     )
     await session.execute(delete(AppSetting).where(AppSetting.organization_id == org_id))
-    # SCIM first: its config and group links reference the groups.
-    await scim_group_service.delete_org_scim_groups(session, org_id)
-    await scim_user_service.delete_org_scim_users(session, org_id)
-    await session.execute(delete(OrgScimConfig).where(OrgScimConfig.organization_id == org_id))
-    await session.execute(delete(OrgScimToken).where(OrgScimToken.organization_id == org_id))
+    # Extensions first: SCIM's config and group links reference the groups.
+    await extensions.on_org_deleting(session, org_id)
     await org_group_service.delete_org_groups(session, org_id)
-    await org_sso_service.delete_org_sso(session, org_id)
-    await audit_webhook_service.delete_org_webhook(session, org_id)
     await session.execute(
         delete(OrganizationMember).where(OrganizationMember.organization_id == org_id)
     )

@@ -1,5 +1,6 @@
 from fastapi import APIRouter, Depends, params
 
+from tripl import extensions
 from tripl.api.deps import (
     get_current_user,
     refuse_writes_on_public_demo,
@@ -11,10 +12,8 @@ from tripl.api.v1.alerting import router as alerting_router
 from tripl.api.v1.api_keys import router as api_keys_router
 from tripl.api.v1.app_settings import router as app_settings_router
 from tripl.api.v1.audit import router as audit_router
-from tripl.api.v1.audit_webhook import router as audit_webhook_router
 from tripl.api.v1.auth import router as auth_router
 from tripl.api.v1.auth_google import router as auth_google_router
-from tripl.api.v1.auth_sso import router as auth_sso_router
 from tripl.api.v1.chart_annotations import router as chart_annotations_router
 from tripl.api.v1.data_sources import router as data_sources_router
 from tripl.api.v1.dependencies import router as dependencies_router
@@ -42,9 +41,7 @@ from tripl.api.v1.metrics import router as metrics_router
 from tripl.api.v1.metrics_catalog import router as metrics_catalog_router
 from tripl.api.v1.notifications import router as notifications_router
 from tripl.api.v1.org_groups import router as org_groups_router
-from tripl.api.v1.org_scim import router as org_scim_router
 from tripl.api.v1.org_settings import router as org_settings_router
-from tripl.api.v1.org_sso import router as org_sso_router
 from tripl.api.v1.orgs import router as orgs_router
 from tripl.api.v1.plan_branches import router as plan_branches_router
 from tripl.api.v1.plan_export import router as plan_export_router
@@ -82,9 +79,17 @@ def _no_outbound(what: str) -> params.Depends:
     return dependency
 
 
+# Extensions' routers come first, so a core route with a path parameter (the
+# audit feed's ``/audit/{entry_id}``) never claims one of theirs
+# (``/audit/webhook``).
+for _extension in extensions.extensions():
+    for _mounted in _extension.api_routers():
+        _dependencies = list(protected_dependencies) if _mounted.protected else []
+        if _mounted.outbound is not None:
+            _dependencies.append(_no_outbound(_mounted.outbound))
+        router.include_router(_mounted.router, dependencies=_dependencies)
+
 router.include_router(auth_router)
-# Signing in through an organization's identity provider (F20): unauthenticated.
-router.include_router(auth_sso_router)
 router.include_router(auth_google_router)
 router.include_router(activity_router, dependencies=protected_dependencies)
 router.include_router(ai_router, dependencies=protected_dependencies)
@@ -137,12 +142,6 @@ router.include_router(plan_validation_router, dependencies=protected_dependencie
 router.include_router(plan_export_router, dependencies=protected_dependencies)
 router.include_router(reconciliation_router, dependencies=protected_dependencies)
 router.include_router(duplicates_router, dependencies=protected_dependencies)
-# The audit webhook (F20) before the feed: ``/audit/{entry_id}`` would claim
-# ``/audit/webhook``.
-router.include_router(
-    audit_webhook_router,
-    dependencies=[*protected_dependencies, _no_outbound("send audit events to a webhook")],
-)
 router.include_router(audit_router, dependencies=protected_dependencies)
 router.include_router(users_router, dependencies=protected_dependencies)
 router.include_router(api_keys_router, dependencies=protected_dependencies)
@@ -154,17 +153,6 @@ router.include_router(
     dependencies=[*protected_dependencies, _no_outbound("change organization settings")],
 )
 router.include_router(org_groups_router, dependencies=protected_dependencies)
-# An organization's single sign-on settings (F20): owners of that organization.
-router.include_router(
-    org_sso_router,
-    dependencies=[*protected_dependencies, _no_outbound("configure single sign-on")],
-)
-# Its SCIM tokens and admin-group mapping (F20): owners of that organization.
-# The SCIM protocol itself is ``tripl.api.scim``, mounted on the app.
-router.include_router(
-    org_scim_router,
-    dependencies=[*protected_dependencies, _no_outbound("provision users over SCIM")],
-)
 router.include_router(platform_settings_router, dependencies=protected_dependencies)
 # The platform console (F20 PR14): organizations, users, read-only step-ins.
 router.include_router(platform_console_router, dependencies=protected_dependencies)

@@ -27,8 +27,7 @@ from tripl.services.app_settings_service import apply_startup_service_overrides
 # those overrides "take effect on the next deploy", as the settings UI states.
 apply_startup_service_overrides()
 
-from tripl.api.deps import SsoRequiredError  # noqa: E402
-from tripl.api.scim import router as scim_router  # noqa: E402
+from tripl import extensions  # noqa: E402
 from tripl.api.v1.router import router as v1_router  # noqa: E402
 from tripl.database import engine  # noqa: E402
 from tripl.logging_config import configure_logging  # noqa: E402
@@ -42,12 +41,6 @@ from tripl.middleware.org_path_rewrite import OrgPathRewriteMiddleware  # noqa: 
 from tripl.middleware.request_id import bound_request_id, request_id_from_scope  # noqa: E402
 from tripl.middleware.security_headers import build_security_headers  # noqa: E402
 from tripl.observability.metrics import render_metrics  # noqa: E402
-from tripl.services.scim_errors import (  # noqa: E402
-    INVALID_SYNTAX,
-    SCIM_PATH_PREFIX,
-    ScimError,
-    error_response,
-)
 
 # Configure logging now (after overrides are applied) so every log line — including
 # those emitted while building the app and importing routers, before the async
@@ -210,10 +203,10 @@ app.add_middleware(
 )
 
 app.include_router(v1_router)
-# SCIM 2.0 provisioning (F20): ``/scim/v2/{org}``, beside ``/api/v1`` rather than
-# under it — identity providers expect a SCIM base URL of their own, and none of
-# the API's session gates apply (``tripl.api.scim``). Before the SPA below.
-app.include_router(scim_router)
+# Extensions add what lives beside ``/api/v1`` (SCIM's ``/scim/v2/{org}``) and
+# their exception handlers. Before the SPA below.
+for _extension in extensions.extensions():
+    _extension.install_app(app)
 
 
 # Serve the built SPA from this same process when enabled — a single-container
@@ -230,40 +223,37 @@ if settings.serve_frontend and settings.frontend_dist_dir:
     app.frontend("/", directory=settings.frontend_dist_dir, fallback="index.html")
 
 
-@app.exception_handler(SsoRequiredError)
-async def sso_required_handler(request: Request, exc: SsoRequiredError) -> JSONResponse:
-    """An organization requiring SSO refused this session (F20): name where to sign in."""
-    return JSONResponse(
-        status_code=exc.status_code,
-        content={"detail": exc.detail, "sso_start": exc.sso_start},
-    )
+@app.exception_handler(extensions.GateRefused)
+async def gate_refused_handler(request: Request, exc: extensions.GateRefused) -> JSONResponse:
+    """An extension's gate refused the request: its detail, plus how to get through.
 
-
-@app.exception_handler(ScimError)
-async def scim_error_handler(request: Request, exc: ScimError) -> Response:
-    """A SCIM request's error, in the RFC 7644 §3.12 error format."""
-    return error_response(exc)
+    An organization requiring SSO (F20) names where to sign in (``sso_start``).
+    """
+    return JSONResponse(status_code=exc.status_code, content={"detail": exc.detail, **exc.extra})
 
 
 @app.exception_handler(StarletteHTTPException)
 async def http_error_handler(request: Request, exc: StarletteHTTPException) -> Response:
-    """FastAPI's own answer, except under ``/scim/v2/``: there, the SCIM error format.
+    """FastAPI's own answer, unless an extension owns the path and its error format.
 
-    Covers what the router itself raises for a SCIM path (a method the path
-    does not serve) and any ``HTTPException`` a shared dependency raises.
+    SCIM (``/scim/v2/``) answers in RFC 7644 §3.12: that covers what the router
+    itself raises for its paths (a method the path does not serve) and any
+    ``HTTPException`` a shared dependency raises.
     """
-    if request.url.path.startswith(SCIM_PATH_PREFIX):
-        return error_response(
-            ScimError(exc.status_code, str(exc.detail), headers=dict(exc.headers or {}))
-        )
+    own = extensions.error_response(
+        request.url.path, "http", exc.status_code, str(exc.detail), dict(exc.headers or {})
+    )
+    if own is not None:
+        return own
     return await http_exception_handler(request, exc)
 
 
 @app.exception_handler(RequestValidationError)
 async def validation_error_handler(request: Request, exc: RequestValidationError) -> Response:
-    """FastAPI's 422, except under ``/scim/v2/``: a SCIM 400 ``invalidSyntax``."""
-    if request.url.path.startswith(SCIM_PATH_PREFIX):
-        return error_response(ScimError(400, "The request is not valid", scim_type=INVALID_SYNTAX))
+    """FastAPI's 422, unless an extension owns the path (SCIM: a 400 ``invalidSyntax``)."""
+    own = extensions.error_response(request.url.path, "validation", 400, "The request is not valid")
+    if own is not None:
+        return own
     return await request_validation_exception_handler(request, exc)
 
 

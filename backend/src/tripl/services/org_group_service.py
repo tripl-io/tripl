@@ -18,8 +18,9 @@ raises plain exceptions:
 
 Nothing here commits: the route commits once, with its audit row.
 
-Every member add/remove and group deletion runs the SCIM admin-group mapping
-(:func:`tripl.services.scim_role_sync.on_group_change`), whoever makes it.
+Every member add/remove and group deletion runs the extensions' group hook
+(:func:`tripl.extensions.on_group_change`; the SCIM admin-group mapping is
+one), whoever makes it.
 
 Reuse: :func:`group_member_ids` resolves groups to the users in them, for note
 sharing (F24), event-type owners and alert routing. SCIM group sync
@@ -37,6 +38,7 @@ from sqlalchemy import ColumnElement, delete, func, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from tripl import extensions
 from tripl.models.organization import OrganizationMember
 from tripl.models.organization_group import OrganizationGroup, OrganizationGroupMember
 from tripl.models.user import User
@@ -45,7 +47,7 @@ from tripl.schemas.organization_group import (
     OrgGroupMemberResponse,
     OrgGroupResponse,
 )
-from tripl.services import auth_service, docs_folders, scim_role_sync
+from tripl.services import auth_service, docs_folders
 
 _UNIQUE_VIOLATION_SQLSTATE = "23505"
 _FOREIGN_KEY_VIOLATION_SQLSTATE = "23503"
@@ -287,9 +289,7 @@ async def delete_group(
         ).all()
     )
     members = len(member_ids)
-    await scim_role_sync.on_group_change(
-        session, group.organization_id, group.id, removed=member_ids
-    )
+    await extensions.on_group_change(session, group.organization_id, group.id, removed=member_ids)
     await session.execute(
         delete(OrganizationGroupMember).where(OrganizationGroupMember.group_id == group.id)
     )
@@ -355,7 +355,7 @@ async def add_member(
         if still_there is None:
             raise GroupNotFoundError(group.id) from None
         raise NotAnOrgMemberError(user_id) from None
-    await scim_role_sync.on_group_change(session, group.organization_id, group.id, added=[user_id])
+    await extensions.on_group_change(session, group.organization_id, group.id, added=[user_id])
     return user
 
 
@@ -387,9 +387,7 @@ async def remove_member(
     membership, user = cast(tuple[OrganizationGroupMember, User], tuple(row))
     await session.delete(membership)
     await session.flush()
-    await scim_role_sync.on_group_change(
-        session, group.organization_id, group.id, removed=[user_id]
-    )
+    await extensions.on_group_change(session, group.organization_id, group.id, removed=[user_id])
     return user
 
 
