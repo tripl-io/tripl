@@ -11,7 +11,6 @@ from tripl.models.anomaly_scope_override import AnomalyScopeOverride
 from tripl.models.api_key import ApiKey
 from tripl.models.app_setting import AppSetting
 from tripl.models.audit_log import AuditLog
-from tripl.models.audit_webhook import AuditWebhookOutbox, OrgAuditWebhook
 from tripl.models.base import Base
 from tripl.models.chart_annotation import ChartAnnotation
 from tripl.models.coverage_metric import CoverageMetric
@@ -49,16 +48,6 @@ from tripl.models.metric_definition import MetricDefinition
 from tripl.models.metric_value import MetricValue
 from tripl.models.metric_value_breakdown import MetricValueBreakdown
 from tripl.models.notification import Notification
-from tripl.models.org_scim import OrgScimConfig, OrgScimToken, ScimGroupLink, ScimUserLink
-from tripl.models.org_sso import (
-    OrgSsoConfig,
-    OrgSsoDomain,
-    SamlAssertionId,
-    SsoLinkTicket,
-    SsoLoginState,
-    SsoMembershipBlock,
-    UserSsoIdentity,
-)
 from tripl.models.organization import Organization, OrganizationMember
 from tripl.models.organization_group import OrganizationGroup, OrganizationGroupMember
 from tripl.models.password_reset_token import PasswordResetToken
@@ -111,7 +100,6 @@ __all__ = [
     "ApiKey",
     "AppSetting",
     "AuditLog",
-    "AuditWebhookOutbox",
     "ChartAnnotation",
     "CoverageMetric",
     "Project",
@@ -145,18 +133,6 @@ __all__ = [
     "Organization",
     "OrganizationGroup",
     "OrganizationGroupMember",
-    "OrgScimConfig",
-    "OrgScimToken",
-    "ScimGroupLink",
-    "ScimUserLink",
-    "OrgAuditWebhook",
-    "OrgSsoConfig",
-    "SamlAssertionId",
-    "OrgSsoDomain",
-    "SsoLinkTicket",
-    "SsoLoginState",
-    "SsoMembershipBlock",
-    "UserSsoIdentity",
     "OrganizationMember",
     "PhotoStorageConfig",
     "PlatformStepIn",
@@ -205,3 +181,9 @@ __all__ = [
     "VariableValueDrift",
     "PropertyDrift",
 ]
+
+# Extensions' models (and, until they move out, the bundled enterprise ones):
+# imported last, so their relationships resolve against the core's mappers.
+from tripl.extensions import import_model_modules  # noqa: E402
+
+import_model_modules()

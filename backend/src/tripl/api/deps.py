@@ -7,6 +7,7 @@ from fastapi.dependencies.models import Dependant
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from tripl import extensions
 from tripl.config import DEPLOYMENT_HOSTED, settings
 from tripl.database import get_session
 from tripl.middleware.branch_context import bound_branch
@@ -22,12 +23,10 @@ from tripl.models.domain_enums import OrganizationRole
 from tripl.models.plan_branch import BranchKind, BranchStatus, PlanBranch
 from tripl.models.project import Project
 from tripl.models.user import User
-from tripl.models.user_session import AUTH_METHOD_SSO
 from tripl.services import (
     api_key_service,
     email_verification_service,
     org_service,
-    org_sso_service,
     project_access,
     project_service,
 )
@@ -79,91 +78,8 @@ async def _resolve_api_key_user(request: Request, session: AsyncSession) -> User
         # The key's organization, bound before get_current_user runs the
         # project-bound key fence: that fence resolves a slug (critique #2).
         await _bind_request_org(request, session, user, key_org_id=api_key.organization_id)
-        await _refuse_key_without_sso(request, session, user, api_key.organization_id, api_key)
+        await extensions.api_key_use_gate(request, session, user, api_key.organization_id, api_key)
     return user
-
-
-SSO_REQUIRED = "This organization requires single sign-on"
-
-
-class SsoRequiredError(HTTPException):
-    """403 of an organization that requires SSO (F20).
-
-    ``main`` answers it as ``{"detail": ..., "sso_start": <login path>}`` so the
-    SPA can offer the organization's sign-in; anywhere else it is a plain 403.
-    """
-
-    def __init__(self, org_slug: str) -> None:
-        super().__init__(status_code=status.HTTP_403_FORBIDDEN, detail=SSO_REQUIRED)
-        self.sso_start = org_sso_service.login_path(org_slug)
-
-
-async def _sso_required(request: Request, session: AsyncSession, org_id: uuid.UUID) -> bool:
-    """Whether ``org_id`` requires SSO; asked once per request and organization."""
-    cache: dict[uuid.UUID, bool] | None = getattr(request.state, "sso_required_orgs", None)
-    if cache is None:
-        cache = {}
-        request.state.sso_required_orgs = cache
-    if org_id not in cache:
-        cache[org_id] = await org_sso_service.sso_required(session, org_id)
-    return cache[org_id]
-
-
-async def refuse_non_sso_session(
-    request: Request,
-    session: AsyncSession,
-    user: User,
-    org: OrgRef,
-    *,
-    role: OrganizationRole | None = None,
-) -> None:
-    """403 :class:`SsoRequiredError` for a browser session that did not sign in through ``org``.
-
-    The gate of an organization's "SSO required" (F20), for cookie sessions (API
-    keys: :func:`_refuse_key_without_sso`). Passes a session of
-    ``auth_method='sso'`` for this very organization, the organization's OWNERS
-    (break-glass: an owner can always sign in with a password and fix a broken
-    provider), a platform admin's read-only step-in, and ``/api/v1/auth/``.
-    ``role`` saves a lookup when the caller already knows it.
-    """
-    if org.step_in_user_id is not None:
-        return
-    if getattr(request.state, "api_key_scope", None) is not None:
-        return
-    if _app_path(request).startswith(_UNVERIFIED_ALLOWED_PREFIX):
-        return
-    if not await _sso_required(request, session, org.id):
-        return
-    if (
-        getattr(request.state, "session_auth_method", None) == AUTH_METHOD_SSO
-        and getattr(request.state, "session_sso_org_id", None) == org.id
-    ):
-        return
-    if role is None:
-        role = await project_access.org_role_of(session, user.id, org.id)
-    if role == OrganizationRole.owner:
-        return
-    raise SsoRequiredError(org.slug)
-
-
-async def _refuse_key_without_sso(
-    request: Request,
-    session: AsyncSession,
-    user: User,
-    org_id: uuid.UUID,
-    api_key: object,
-) -> None:
-    """An API key in an organization requiring SSO must be minted from its SSO session.
-
-    Owners included: their break-glass is a password sign-in to the app, not a
-    key that outlives turning "SSO required" on (such keys are revoked then).
-    """
-    if getattr(api_key, "created_with_sso_org_id", None) == org_id:
-        return
-    if not await _sso_required(request, session, org_id):
-        return
-    org = current_org()
-    raise SsoRequiredError(org.slug if org is not None else "")
 
 
 #: Routes that act in no organization, so a cookie session skips org resolution
@@ -253,7 +169,7 @@ async def _bind_request_org(
     )
     refuse_step_in_writes(request, org)
     if key_org_id is None:
-        await refuse_non_sso_session(request, session, user, org)
+        await extensions.org_session_gate(request, session, user, org)
     bind_org(org)
 
 
@@ -725,8 +641,8 @@ async def legacy_settings_org_id(
         org_id = org.id
         try:
             # An organization requiring SSO is not acted in from another session.
-            await refuse_non_sso_session(request, session, user, org)
-        except SsoRequiredError:
+            await extensions.org_session_gate(request, session, user, org)
+        except extensions.GateRefused:
             org_id = None
     setattr(request.state, _LEGACY_SETTINGS_ORG_STATE_KEY, org_id)
     return org_id
@@ -809,7 +725,7 @@ async def _resolve_path_org(
     ref = OrgRef(id=org.id, slug=org.slug, step_in_user_id=user.id if org.step_in else None)
     refuse_step_in_writes(request, ref)
     if key_org_id is None:
-        await refuse_non_sso_session(request, session, user, ref, role=org.role)
+        await extensions.org_session_gate(request, session, user, ref, role=org.role)
     bind_org(ref)
     request.state.org_role = org.role
     setattr(request.state, _MANAGED_ORG_STATE_KEY, org)

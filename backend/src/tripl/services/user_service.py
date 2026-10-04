@@ -23,11 +23,12 @@ import uuid
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from tripl import extensions
 from tripl.models.domain_enums import OrganizationRole
 from tripl.models.organization import OrganizationMember
 from tripl.models.user import User
 from tripl.schemas.auth import UserListItem
-from tripl.services import auth_service, invitation_service, scim_token_service
+from tripl.services import auth_service, invitation_service
 
 
 class LastOwnerError(Exception):
@@ -141,8 +142,8 @@ async def update_org_role(
             session, org_id, invited_by_user_id=user_id, above_role=OrganizationRole(new_role)
         )
     if old_role == owner and new_role != owner:
-        # A SCIM token is an owner's credential; a former owner keeps none.
-        await scim_token_service.revoke_tokens_created_by(session, org_id, user_id)
+        # A former owner keeps no owner-only credentials (SCIM tokens).
+        await extensions.on_owner_demoted(session, org_id, user_id)
     await session.flush()
     return _item(target, new_role), old_role, dropped
 
