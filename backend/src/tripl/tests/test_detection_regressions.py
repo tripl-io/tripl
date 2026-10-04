@@ -54,17 +54,17 @@ from tripl.models.metric_definition import MetricDefinition
 from tripl.models.scan_job import ScanJob, ScanJobStatus
 from tripl.semver import compare_versions, latest_previous_versions, order_versions
 from tripl.tests._sqlite import enable_sqlite_foreign_keys
-from tripl.tests.test_batch5_demopause import (
-    _run_dispatcher,
-    _seed_scan_config,
-    _simulate_backfill_tick,
-)
-from tripl.tests.test_fact_metrics_batch import (
+from tripl.tests.test_fact_metric_batched_collector import (
     _make_single_metric,
     _seed_fact_table,
     _seed_project_and_ds,
 )
 from tripl.tests.test_metrics_tasks import _create_scan_config
+from tripl.tests.test_paused_demo_collection import (
+    _run_dispatcher,
+    _seed_scan_config,
+    _simulate_backfill_tick,
+)
 from tripl.worker.tasks.metrics import metric_collect
 from tripl.worker.tasks.metrics import schedule as metrics_schedule
 from tripl.worker.tasks.metrics import tasks as metrics_tasks

@@ -3,7 +3,7 @@
 The ``_assert_destination_enabled`` check went into the two send tasks and
 that closed the case it was filed for: a delivery minted at 09:00 against an
 enabled destination, switched off at 09:05, redispatched by the reaper at 09:15.
-``test_batch4_send.py`` pins that case, and it flips the toggle BEFORE the task
+``test_alert_send_path.py`` pins that case, and it flips the toggle BEFORE the task
 runs — so the check at the top of the task is enough to make it pass.
 
 Copilot's review of PR #169 pointed out what that leaves open. The check sits at
@@ -51,7 +51,7 @@ from sqlalchemy import create_engine, update
 from sqlalchemy.orm import Session, sessionmaker
 
 # Imported first, and for its side effect — the same import-order note
-# test_batch4_messages.py carries: celery_app's bottom-of-file registration is
+# test_alert_message_content.py carries: celery_app's bottom-of-file registration is
 # what pulls the worker task modules in an order they all survive, and entering
 # the package at ``alerts`` or ``alerts_digest`` instead raises ImportError.
 import tripl.worker.celery_app  # noqa: F401
@@ -223,7 +223,7 @@ def test_a_destination_switched_off_during_the_render_is_not_posted_to(
 def _seed_digest_member(session: Session) -> tuple[uuid.UUID, uuid.UUID, str]:
     """One flushed digest member on an ENABLED Slack destination.
 
-    The same seed ``test_batch4_send.py`` uses for the pre-flight case, minus
+    The same seed ``test_alert_send_path.py`` uses for the pre-flight case, minus
     its ``destination.enabled = False`` line: here the destination is on when
     the task starts and goes off while the task is rendering.
     """
@@ -437,7 +437,7 @@ def test_the_weekly_plan_digest_re_reads_the_toggle_after_building_its_message(
     # Checked, attempted, refused: the row is counted because it WAS attempted,
     # which is the honest tally and is how the operator sees that something
     # stopped. A demo project, by contrast, is excluded in the SELECT and never
-    # reaches either counter (test_batch4_messages.py).
+    # reaches either counter (test_alert_message_content.py).
     assert result == {"destinations_checked": 1, "sent": 0, "failed": 1}
 
     # And the toggle, not the project: the same seed with the switch left alone

@@ -96,7 +96,7 @@ function makeRule(overrides: Record<string, unknown> = {}) {
     items_template: null,
     message_format: 'plain',
     filters: [],
-    // The delivery-health block the card grew (.18) reads all six
+    // The delivery-health block the card grew reads all six
     // of these unconditionally — `countOf(undefined, …)` throws, and these
     // fixtures are untyped JSON, so tsc would not have caught it.
     muted: false,

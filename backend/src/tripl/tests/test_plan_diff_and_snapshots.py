@@ -440,7 +440,7 @@ def test_an_entry_whose_key_more_than_one_row_holds_says_so(
     is gone): a branch is how an analyst CLEANS UP a pair of namesakes — delete
     both copies, author one row in their place — and refusing that merge takes
     away the only door out of the state this very sentence complains about
-    (``test_event_comment_merge_batch2`` holds that workflow). So the merge is
+    (``test_event_comment_main_twin`` holds that workflow). So the merge is
     named here only as one more reader that matches by name, and the sentence
     ends on the repair the operator can perform. The wording and the claim move
     together, which is why the whole sentence is pinned above rather than a

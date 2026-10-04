@@ -29,7 +29,7 @@ from _pytest.monkeypatch import MonkeyPatch
 from sqlalchemy import create_engine, select
 from sqlalchemy.orm import Session, sessionmaker
 
-# Imported first and for its side effect, exactly as ``test_batch4_replay``
+# Imported first and for its side effect, exactly as ``test_rule_replay_sources``
 # documents: the worker task package is import-order sensitive and celery_app's
 # bottom-of-file registration is what pulls the task modules in an order they all
 # survive. This file reaches into ``demo_runtime`` AND ``metrics.schedule``, so it

@@ -668,7 +668,7 @@ def test_synthetic_event_defs_cover_every_seeded_event_spec() -> None:
     synthetic table does NOT emit loses its recent buckets and the detector reads
     it as "dropped to zero" — which is exactly what an untouched demo did within
     an hour of creation while ``_EVENT_DEFS`` listed only 7 of the 18 seeded
-    events (.71). core/ cannot import services/, so the values
+    events. core/ cannot import services/, so the values
     are duplicated in ``_EVENT_DEFS``; this test pins the two together.
     """
     from tripl.core.adapters.synthetic import _EVENT_DEFS

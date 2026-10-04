@@ -23,7 +23,8 @@ an inner join on ScanConfig, and a catalog metric has no scan config to join to:
 week produced only catalog-metric anomalies was told ``Metric anomalies: 0`` and
 shown no Top anomalies section at all, while its Anomalies page listed every one
 of them. That half needs rows, so it runs the real builder against a sqlite
-session the way ``test_batch3_a2.py`` and ``test_alert_digest_delivery.py`` do.
+session the way ``test_metric_scope_purge.py`` and
+``test_alert_digest_delivery.py`` do.
 
 And who that digest is sent to. Both tasks in
 ``worker/tasks/alerts_digest`` select every enabled Slack/email destination in
@@ -218,7 +219,7 @@ def test_the_preview_words_a_drift_the_way_the_send_does(scope: str, message_for
 
     The release regression runs here with no window on either side; its windowed
     twin, with ``window_from`` set on both models, is
-    ``test_batch4_replay.test_the_preview_words_a_release_regression_the_way_the_send_does``.
+    ``test_rule_replay_sources.test_the_preview_words_a_release_regression_the_way_the_send_does``.
 
     MarkdownV2 rides along because the drift line is escaped as a WHOLE, once,
     on each side: if either side ever escapes its halves separately the escaping

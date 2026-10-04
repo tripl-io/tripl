@@ -27,7 +27,7 @@ Design
   two scans is regenerated at the sampled scale — a different sample, not a
   thinned copy of the earlier one. Measured at ``DEFAULT_SEED``: one hour held
   ~7.8k rows while it was ongoing and 3 once it had aged out, and those 3 were
-  not a subset of the earlier rows (``test_batch5_synthetic`` pins both halves at
+  not a subset of the earlier rows (``test_synthetic_warehouse_numbers`` pins both halves at
   its own seed). Since the anchor moves on every scan, that boundary sweeps the
   dataset continuously, and a re-collection whose window reaches further back
   than ``SYNTHETIC_ONGOING_HOURS`` will not reproduce what an earlier read of the
@@ -215,7 +215,7 @@ class SyntheticEventDef(NamedTuple):
 # Exhaustiveness is the whole point: this used to list only the 7 highest-volume
 # identities, so an hourly metrics collection rewrote the window with counts for
 # 7 of 18 events and the detector read the other 11 as "dropped to zero" within
-# an hour of a demo's creation (.71). The values are duplicated
+# an hour of a demo's creation. The values are duplicated
 # rather than imported from the plan: ``core/`` importing ``services/`` is a
 # direction this repo takes once and deliberately
 # (``core/analyzers/release_regression.py``), not one Python or a lint rule
@@ -810,7 +810,7 @@ def _normalize_sql(statement: str) -> str:
 _ACTIVE_SESSIONS_STATEMENTS: frozenset[str] = frozenset(
     {
         # Current: the statement ``services.demo.builders.catalog`` seeds today.
-        # ``test_batch5_synthetic`` imports that constant and asserts it is a
+        # ``test_synthetic_warehouse_numbers`` imports that constant and asserts it is a
         # member, so the seeder cannot change the text without this set noticing.
         _normalize_sql(
             "SELECT toStartOfDay(event_time) AS ts, "

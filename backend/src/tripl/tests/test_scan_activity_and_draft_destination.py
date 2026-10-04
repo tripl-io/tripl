@@ -16,7 +16,7 @@ from httpx import AsyncClient
 from tripl.models.scan_job import ScanJob
 from tripl.services import _alerting_test_send, alerting_service
 from tripl.tests.conftest import TestSessionLocal
-from tripl.tests.test_design_review_b5_12 import _project_with_scan
+from tripl.tests.test_alert_rule_and_summary_contracts import _project_with_scan
 
 
 def test_alerting_service_reexports_the_draft_test_send() -> None:

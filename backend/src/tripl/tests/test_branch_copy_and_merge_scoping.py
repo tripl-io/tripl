@@ -16,9 +16,9 @@ refusal was removed after review, so the test went with it. No coverage was
 lost: a branch is how an analyst CLEANS UP a pair of namesakes (delete both
 copies, author one row in their place), and refusing that merge took away the
 only door out of the very state it complained about, which is the workflow two
-tests in ``test_event_comment_merge_batch2`` already pin. The diff still warns
+tests in ``test_event_comment_main_twin`` already pin. The diff still warns
 on the row — ``plan_revision_service._shared_key_warning``, held by
-``test_plan_revision_batch2`` — and the merge's half of the work waits on
+``test_plan_diff_and_snapshots`` — and the merge's half of the work waits on
 an origin id on branch copies, which is the one thing that lets
 rows sharing a key be paired instead of refused.
 

@@ -1249,7 +1249,7 @@ def _create_deliveries(
             # demo builder. Only the frontend restates it, in
             # ``lib/percentDelta.hasBaseline``, because it cannot import Python;
             # both sides are pinned against the same grid of baselines
-            # (``tests/test_batch3_a2.py``, ``lib/percentDelta.test.ts``).
+            # (``tests/test_metric_scope_purge.py``, ``lib/percentDelta.test.ts``).
             #
             # Add a reader, route it through the helper — do not re-derive the
             # ratio here or anywhere else.

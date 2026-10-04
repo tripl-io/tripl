@@ -13,7 +13,7 @@ lock is really taken and really released:
   the manual-collect side of the catalog scheduler's advisory lock — with the
   409 a manual collect answers while the scheduler holds it.
 
-Branch-merge locking is covered by ``test_batch18_merge_races_pg``. Like every
+Branch-merge locking is covered by ``test_merge_races_pg``. Like every
 PostgreSQL gate here these skip without ``TRIPL_TEST_PG_URL`` and fail when
 ``TRIPL_TEST_PG_REQUIRED=1`` finds no database (``test_alert_digest_concurrency_pg``).
 """
@@ -37,7 +37,7 @@ from tripl.schemas.auth import RegisterRequest
 from tripl.services import auth_service, metric_definition_service
 from tripl.tests._pg_url import asyncpg_url
 from tripl.tests.test_alert_digest_concurrency_pg import _engine_or_skip
-from tripl.tests.test_batch18_merge_races_pg import _SEARCH_CONFIGURATIONS
+from tripl.tests.test_merge_races_pg import _SEARCH_CONFIGURATIONS
 from tripl.worker.tasks.metrics.schedule import _METRIC_DEFINITION_DISPATCH_ADVISORY_LOCK_KEY
 
 # Long enough that a call which is NOT blocked has finished by then on any CI

@@ -158,7 +158,7 @@ async def create_demo_project(
 
     # Reclaim long-dead failed shells before minting another one. Failed shells
     # only ever appear on this path, so this is also the only path that needs to
-    # sweep them — no extra scheduled job to keep alive (.76).
+    # sweep them — no extra scheduled job to keep alive.
     await _sweep_failed_demo_shells(session)
 
     # The organization the demo is created in; nothing is written without one.

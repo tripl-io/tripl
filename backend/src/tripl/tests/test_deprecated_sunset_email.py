@@ -86,7 +86,7 @@ def _email_config() -> app_settings_service.EmailConfig:
 
     Every destination below carries its own ``email_from_address``, so the
     global Default From never has to be resolved here — which From: address the
-    send path accepts is test_batch4_send.py's question, not this file's.
+    send path accepts is test_alert_send_path.py's question, not this file's.
     """
     return app_settings_service.EmailConfig(
         smtp_host="relay.example.com",
@@ -135,7 +135,7 @@ def _seed_overdue_project(session: Session) -> Project:
     """A project whose main branch holds one deprecated event still receiving data.
 
     The main branch is inserted explicitly and named by the event, the way
-    test_batch4_sunset.py seeds it: ``_build_sunset_alert_message`` resolves the
+    test_deprecated_sunset_alert.py seeds it: ``_build_sunset_alert_message`` resolves the
     ``kind="main"`` row and filters on it, so an event without one is invisible
     and the task would send nothing at all.
     """

@@ -94,7 +94,7 @@ def _captured_reads(engine: Engine) -> Iterator[list[tuple[str, Any]]]:
     Keeping the bound parameters alongside the SQL is the point: it makes a
     captured SELECT RE-RUNNABLE, so a test can count the rows the module's own
     read returned instead of asserting on the shape of its SQL. Same
-    ``before_cursor_execute`` hook ``test_batch3_e1`` uses to pin statement
+    ``before_cursor_execute`` hook ``test_event_last_seen_batching`` uses to pin statement
     counts.
     """
     executed: list[tuple[str, Any]] = []

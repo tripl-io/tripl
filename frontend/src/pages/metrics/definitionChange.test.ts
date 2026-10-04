@@ -186,7 +186,7 @@ interface DefinitionChangeCase {
   form_round_trip: boolean
 }
 
-// The SAME table backend/src/tripl/tests/test_fj5g_batch_a.py runs through the
+// The SAME table backend/src/tripl/tests/test_metric_save_and_audit_contracts.py runs through the
 // real service comparison, so the warning and the deletion cannot drift.
 // Read from disk: a JSON import would need resolveJsonModule.
 const { cases } = JSON.parse(

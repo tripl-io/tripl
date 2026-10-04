@@ -1,6 +1,6 @@
 """Row locks on ``plan_branches`` that serialise plan writes against a merge.
 
-One mechanism for three merge-time races (.290 and .294): the
+One mechanism for three merge-time races: the
 ``plan_branches`` row of the branch a write lands on is the lock for that
 branch's plan.
 

@@ -48,7 +48,7 @@ from typing import Any
 import pytest
 from httpx import AsyncClient
 
-# Imported first and for its side effect, exactly as ``test_batch4_messages``
+# Imported first and for its side effect, exactly as ``test_alert_message_content``
 # documents: the worker task package is import-order sensitive and celery_app's
 # bottom-of-file registration is what pulls the task modules in an order they
 # all survive. This file reaches into ``alerts_messages`` for the SEND-side
@@ -944,7 +944,7 @@ def _release_regression_pair(
 ) -> tuple[AlertDeliveryItem, SimulatedRuleFiring]:
     """One release regression described twice, from ONE set of facts.
 
-    The same construction ``test_batch4_messages._pair`` uses, with one
+    The same construction ``test_alert_message_content._pair`` uses, with one
     difference that is the whole point of this file: ``window_from`` is set on
     BOTH sides. It was the one field a simulated firing could not carry while
     the replay never loaded a release regression; now it can, so leaving it off
@@ -992,7 +992,7 @@ def test_the_preview_words_a_release_regression_the_way_the_send_does(
 ) -> None:
     """The whole default item, byte for byte, for the family .158 made reachable.
 
-    ``test_batch4_messages`` asserts this equality for schema and distribution
+    ``test_alert_message_content`` asserts this equality for schema and distribution
     drift and deliberately excludes release regressions, because at the time
     they were "not reachable from a replay yet" and the preview's
     ``${expected_basis}`` was "deliberately empty". Both clauses expired with
@@ -1248,7 +1248,7 @@ async def test_a_cadence_destination_is_replayed_under_a_limiter_live_switches_o
 
     # The live half of the same sentence, read where it is decided. A source
     # check rather than a dispatch run because this file holds no sync worker
-    # session; ``test_batch4_cadence`` exercises the buffering path itself.
+    # session; ``test_alert_cadence_switch`` exercises the buffering path itself.
     dispatch_source = Path(metrics_dispatch.__file__).read_text(encoding="utf-8")
     assert "cooldown_applies = destination.delivery_schedule_cron is None" in dispatch_source, (
         "the live switch this replay cannot see has moved; re-read the cadence "

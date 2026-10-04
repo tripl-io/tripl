@@ -9,7 +9,7 @@ reasoning that put ``event_types`` and ``reserved_columns`` in this package.
 ``worker.tasks.metrics._helpers`` still *declares* a ``TERMINAL_SCAN_JOB_STATUSES``
 of its own because that name sits in its published ``__all__`` and removing it is
 a wider change than this one. It has no production consumer left — the task
-module imports this copy — and ``test_batch3_a3`` pins the two equal so the
+module imports this copy — and ``test_collection_windows_and_job_status`` pins the two equal so the
 leftover cannot drift.
 """
 

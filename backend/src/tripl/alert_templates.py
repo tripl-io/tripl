@@ -463,7 +463,7 @@ def has_baseline(expected_count: float) -> bool:
     drift — and every one of those arrives with ``expected_count`` exactly 0. The
     stored ``percent_delta`` is a 0.0 placeholder for them, because the ratio is
     undefined and the column is NOT NULL; emitting it reported the largest
-    possible relative move as the smallest (.27).
+    possible relative move as the smallest.
 
     A NEGATIVE expectation is a REAL baseline. A ``fact`` sum/avg/min/max over a
     signed column, or a ``sql`` level that legitimately sits below zero, has a

@@ -67,7 +67,7 @@ from tripl.models.metric_value import MetricValue
 from tripl.models.scan_config import ScanConfig
 from tripl.services import metric_series_service, metrics_service
 from tripl.tests.conftest import TestSessionLocal
-from tripl.tests.test_batch3_a1 import (
+from tripl.tests.test_metric_anomaly_coverage import (
     _BASE,
     _HOUR,
     _add_metric,
@@ -75,7 +75,7 @@ from tripl.tests.test_batch3_a1 import (
     _seed_project,
     _seed_values,
 )
-from tripl.tests.test_batch3_a1 import (
+from tripl.tests.test_metric_anomaly_coverage import (
     sync_session_factory as sync_session_factory,  # noqa: F401  — pytest fixture, consumed by name
 )
 from tripl.tests.test_metric_series_api import (
@@ -110,7 +110,7 @@ def _naive(moment: datetime) -> datetime:
 
     SQLite has no time zones and drops the offset on a
     ``DateTime(timezone=True)`` column, so the API echoes these buckets back
-    naive — the same normalisation ``test_alerting`` and ``test_batch4_dst`` do
+    naive — the same normalisation ``test_alerting`` and ``test_digest_watermark_dst`` do
     before comparing a response timestamp with the one they seeded.
     """
     return moment.replace(tzinfo=None)

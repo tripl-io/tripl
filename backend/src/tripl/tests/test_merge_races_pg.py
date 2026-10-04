@@ -47,7 +47,7 @@ from tripl.tests._pg_url import asyncpg_url
 from tripl.tests._project_ids import project_id_by_slug
 from tripl.tests.conftest import TestSessionLocal, engine
 from tripl.tests.test_alert_digest_concurrency_pg import _engine_or_skip
-from tripl.tests.test_batch18_branches_a import _ask, _branch_track_id, _create_event
+from tripl.tests.test_plan_branch_regressions import _ask, _branch_track_id, _create_event
 from tripl.tests.test_plan_branches import (
     _create_branch,
     _main_branch_id,

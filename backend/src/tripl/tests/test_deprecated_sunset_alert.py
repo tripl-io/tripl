@@ -48,7 +48,7 @@ The final section belongs to a different issue in the same lane
 what a RESUMED Telegram digest says about itself once the remainder needs more
 than one message — the half of that fix that lives in
 ``alerts_messages.split_telegram_messages`` rather than in the send task, and
-which the send-side test deliberately stopped short of (test_batch4_send.py's
+which the send-side test deliberately stopped short of (test_alert_send_path.py's
 ``assert len(posts) == 1`` names it as out of its scope):
 
 * every part of the retry summarises the WHOLE digest, not the leftovers;
@@ -60,7 +60,7 @@ which the send-side test deliberately stopped short of (test_batch4_send.py's
 
 The other half — the ``_assert_egress_allowed`` docstring — is a
 documentation correction with no behaviour to pin, and the behaviour it now
-describes is already covered by test_batch4_messages.py
+describes is already covered by test_alert_message_content.py
 (``test_the_digest_send_helper_refuses_a_demo_project_on_its_own`` and
 ``test_the_backstop_refuses_egress_rather_than_refusing_demos``). A second copy
 here would go green whatever the docstring said.
@@ -75,7 +75,7 @@ snapshot passes no ``correlation_group_id`` and the row call does, so the two
 take different arms of ``_build_item_paths``. The paragraph now states the
 reason that holds (one read of the setting, so the two encodings cannot
 disagree about the BASE) and names the shape divergence as deliberate. The
-divergence itself is already pinned by test_batch4_dispatch.py's
+divergence itself is already pinned by test_alert_dispatch_write_path.py's
 ``test_the_typed_items_and_the_frozen_snapshot_cannot_disagree_about_a_link``,
 which counts six links for two items — two typed audit URLs plus the snapshot's
 event-details + monitoring pair each — and asserts they share one base. A test

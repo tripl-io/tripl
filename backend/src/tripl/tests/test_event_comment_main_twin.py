@@ -335,7 +335,7 @@ async def test_an_event_that_lands_nowhere_on_main_keeps_or_drops_its_thread(
       threads follow. (This used to be a main-side RENAME, which no scan
       identity tied to the copy; since origin ids the copy reads through to
       the row main renamed, which is the row it was copied from, so a rename
-      no longer lands nowhere — test_batch18_origin_id pins that.)
+      no longer lands nowhere — test_branch_copy_origin pins that.)
     * The branch deleted the event: the merge deletes main's row, and main's
       thread goes with it through the same cascade as a delete on main.
     """

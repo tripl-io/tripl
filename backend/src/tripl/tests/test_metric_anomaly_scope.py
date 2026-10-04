@@ -300,7 +300,7 @@ def test_detect_metrics_disabled_emits_nothing_new(
 
     Only that. Nothing is seeded beforehand, so this says nothing about which
     EXISTING rows the disabled pass may delete — that bound is pinned by
-    ``test_batch3_a2.test_detect_metrics_disabled_keeps_history_older_than_the_reeval_window``.
+    ``test_metric_scope_purge.test_detect_metrics_disabled_keeps_history_older_than_the_reeval_window``.
     """
     with sync_session_factory() as session:
         config = _seed_project(session, detect_metrics=False)

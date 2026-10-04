@@ -91,7 +91,7 @@ class AlertRuleBase(BaseModel):
     # handler of last resort in ``main.py`` — a generic 500 for a body we had
     # already accepted. SQLite ignores VARCHAR widths, so this
     # bound is all the unit suite can see of that contract; the column is what it
-    # stands in for, and ``tests/test_batch4_services.py`` asserts the two
+    # stands in for, and ``tests/test_alerting_service_regressions.py`` asserts the two
     # numbers are still the same one.
     name: str | None = Field(None, max_length=255)
     enabled: bool | None = None
@@ -242,7 +242,7 @@ def _reject_explicit_nulls(data: Any, *, not_nullable: frozenset[str]) -> Any:
 # meant to clear the filters got a 200 and kept every one of them. The way to
 # clear them is ``[]``, and the 422 says so.
 #
-# ``tests/test_batch4_services.py`` re-derives the column half of this set from
+# ``tests/test_alerting_service_regressions.py`` re-derives the column half of this set from
 # ``AlertRule.__table__`` and fails if the two disagree, so a NOT NULL column
 # added tomorrow cannot quietly fall out of it.
 _RULE_NOT_NULLABLE_ON_UPDATE = frozenset(
@@ -384,7 +384,7 @@ class AlertRuleResponse(BaseModel):
 # rules and their exact error sentences in this file, and two spellings of one
 # rule drift apart. The field labels below are the SAME strings the public
 # wrappers pass, so which half refused a URL cannot change the sentence the
-# operator reads — ``tests/test_batch4_services.py`` compares the two messages
+# operator reads — ``tests/test_alerting_service_regressions.py`` compares the two messages
 # and fails if they ever diverge.
 
 
@@ -479,7 +479,7 @@ class AlertDestinationCreate(BaseModel):
     # ``jira_base_url`` and ``linear_label_ids`` were the rest, and each now
     # carries its own column's width verbatim, for the reason
     # ``AlertRuleBase.name`` gives. Every pair is asserted
-    # equal to that column in ``tests/test_batch4_services.py``.
+    # equal to that column in ``tests/test_alerting_service_regressions.py``.
     #
     # Bounding the INPUT is enough even though ``validate_channel_config``
     # rewrites all four afterwards: the validators it calls only strip, dedupe
@@ -1161,8 +1161,8 @@ class AlertInboxGroupResponse(BaseModel):
     # ``status`` is ``muted``, i.e. while the mute is IN FORCE. Present because
     # ``AlertRuleResponse`` and ``MonitorSummaryItem`` already pair a ``muted``
     # bool with a raw ``muted_until``, and a client reading both payload families
-    # had to know that "muted" is asked one way here and another way there
-    # (.20). ``muted_until`` is nulled once the mute lapses, so the
+    # had to know that "muted" is asked one way here and another way there.
+    # ``muted_until`` is nulled once the mute lapses, so the
     # two fields can never contradict each other the way the rule payload's can.
     # Always sent, so no default — see ``event_id`` below.
     muted: bool
@@ -1256,7 +1256,7 @@ class AlertInboxGroupResponse(BaseModel):
         so a future builder cannot reintroduce the placeholder: this response's
         ``percent_delta`` describes the same newest item its ``expected_count``
         comes from, so the invariant — null exactly when ``expected_count`` is 0
-        — is checkable right here (.27).
+        — is checkable right here.
 
         ``max_abs_percent_delta`` spans the WHOLE group and has no companion
         expected_count on this model, so nothing here can verify it; the builder

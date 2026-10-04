@@ -594,7 +594,7 @@ async def test_collect_now_reports_the_widened_window_but_dispatches_the_bounded
     ``compute_manual_collect_window``). If the handler pre-widened what it
     dispatched, the authority for that rule would have quietly moved into the API.
     The worker half is pinned by
-    ``test_fact_metrics_batch.test_manual_batch_keeps_the_backlog_of_a_lagging_swept_in_metric``.
+    ``test_fact_metric_batched_collector.test_manual_batch_keeps_the_backlog_of_a_lagging_swept_in_metric``.
     """
     recorder = _DispatchRecorder("task-fact")
     monkeypatch.setattr(metric_collect.collect_fact_metrics_batch, "delay", recorder)
@@ -630,7 +630,7 @@ def test_fetch_limit_follows_a_patched_ceiling() -> None:
     A module-level ``METRIC_QUERY_FETCH_LIMIT = METRIC_QUERY_ROW_LIMIT + 1`` would
     be frozen at import and would NOT follow
     ``monkeypatch.setattr(metric_collect, "METRIC_QUERY_ROW_LIMIT", n)``, which is
-    what ``test_scans`` and ``test_batch3_c2`` already do.
+    what ``test_scans`` and ``test_metric_collector_column_guards`` already do.
     """
     with pytest.MonkeyPatch.context() as patch:
         patch.setattr(metric_collect, "METRIC_QUERY_ROW_LIMIT", 7)

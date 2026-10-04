@@ -31,7 +31,7 @@ from tripl.services.plan_revision_service import (
     list_revisions,
 )
 from tripl.tests.test_plan_branches import _create_branch
-from tripl.tests.test_plan_revision_batch2 import _copy, _event_row, _payload, _relation_row
+from tripl.tests.test_plan_diff_and_snapshots import _copy, _event_row, _payload, _relation_row
 from tripl.tests.test_relations import _setup_relation
 
 # --- a shared key must not swallow the change ------------------

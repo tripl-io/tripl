@@ -21,7 +21,7 @@ This module owns that rule so the request path (async) and the worker (sync)
 cannot drift: three call sites had already grown their own answers — the sidebar
 badge used no interval at all, the metrics/anomalies list paths used only the
 metric's own column, and alert dispatch substituted whichever scan happened to
-be dispatching (.18/.22). It is a pure leaf (models + SQLAlchemy,
+be dispatching. It is a pure leaf (models + SQLAlchemy,
 no service or worker imports) and hands back a statement rather than running it,
 because only the caller knows whether its session is sync or async.
 """

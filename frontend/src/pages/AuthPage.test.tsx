@@ -120,7 +120,7 @@ describe('AuthPage', () => {
     ).not.toBeInTheDocument()
   })
 
-  it('gives the register tab and submit button distinct accessible names (UX .23)', () => {
+  it('gives the register tab and submit button distinct accessible names', () => {
     renderAuth()
 
     fireEvent.click(screen.getByRole('button', { name: 'Create account' }))
@@ -130,7 +130,7 @@ describe('AuthPage', () => {
     expect(screen.getByRole('button', { name: 'Create your account' })).toBeInTheDocument()
   })
 
-  it('advertises the unified password policy on the register form (UX .11)', () => {
+  it('advertises the unified password policy on the register form', () => {
     renderAuth()
 
     fireEvent.click(screen.getByRole('button', { name: 'Create account' }))
@@ -142,7 +142,7 @@ describe('AuthPage', () => {
     ).toBeInTheDocument()
   })
 
-  it('exposes a forgot-password entry point in the login footer (UX .13)', () => {
+  it('exposes a forgot-password entry point in the login footer', () => {
     renderAuth()
 
     expect(
@@ -232,7 +232,7 @@ describe('AuthPage', () => {
     ).toBeInTheDocument()
   })
 
-  it('shows the first-account owner note only on a fresh instance in register mode (UX .13)', async () => {
+  it('shows the first-account owner note only on a fresh instance in register mode', async () => {
     mockStatus(false)
     renderAuth()
 
@@ -249,7 +249,7 @@ describe('AuthPage', () => {
     ).not.toBeInTheDocument()
   })
 
-  it('hides the owner note on a provisioned instance (UX .13)', async () => {
+  it('hides the owner note on a provisioned instance', async () => {
     renderAuth()
 
     // Let the /auth/status query settle (defaults to has_users: true).

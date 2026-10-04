@@ -37,7 +37,7 @@ _SAMPLE_VALUE_MAX_LEN = 255
 # nested `Map(String, Tuple(...))` renders well past 128 characters. Postgres
 # rejects the over-long value and the DataError unwinds the whole catalog sync, so
 # the value is bounded on its way into the row rather than at each producer. Keep
-# in step with the model column — test_batch3_d1 asserts the two still agree.
+# in step with the model column — test_schema_drift_upsert asserts the two still agree.
 _OBSERVED_TYPE_MAX_LEN = 128
 _CONTRACT_DECLARED_TYPES = {
     "required_null_violation": "required",

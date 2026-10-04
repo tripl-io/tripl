@@ -22,7 +22,7 @@ Deliberately NOT re-proved here, because they are already pinned elsewhere:
   ``test_alert_digest_delivery.test_a_second_flush_inside_the_same_window_sends_nothing``
   and its Postgres twin in ``test_alert_digest_concurrency_pg.py``;
 * that the SPRING gap resolves forward to a single instant —
-  ``test_batch4_schedule.py``. The gap case appears below only
+  ``test_cadence_dst_gap.py``. The gap case appears below only
   as the contrast the corrected comments now draw: a gap collapses to one
   window, a fold does not collapse at all.
 """

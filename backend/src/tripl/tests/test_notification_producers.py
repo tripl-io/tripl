@@ -49,7 +49,7 @@ from tripl.models.user import User
 from tripl.services import subscription_service
 from tripl.tests._members import add_member_by_slug
 from tripl.tests.conftest import TestSessionLocal
-from tripl.tests.test_event_comment_merge_batch2 import _create_on_branch, _event_id
+from tripl.tests.test_event_comment_main_twin import _create_on_branch, _event_id
 from tripl.tests.test_plan_branches import _approve_and_merge, _create_branch, _seed_plan
 from tripl.worker.tasks import lifecycle, notification_producers
 from tripl.worker.tasks.lifecycle import LifecycleSweepStats

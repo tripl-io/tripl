@@ -85,7 +85,7 @@ describe('DemoProvisioningDialog', () => {
     expect(screen.queryByRole('button', { name: /try again/i })).not.toBeInTheDocument()
   })
 
-  it('surfaces the backend request id as a support reference on failure (.15)', () => {
+  it('surfaces the backend request id as a support reference on failure', () => {
     // The 500 carries a request id (echoed on the response header -> ApiError);
     // the dialog shows it so the user can quote it to support.
     renderDialog({
@@ -98,7 +98,7 @@ describe('DemoProvisioningDialog', () => {
     expect(alert).toHaveTextContent('Reference: req-abc123')
   })
 
-  it('announces the failure once — no duplicate title/status/alert copy (.15)', () => {
+  it('announces the failure once — no duplicate title/status/alert copy', () => {
     // Regression: the failure sentence used to appear in the title, a polite
     // status region, AND the alert, so screen readers read it repeatedly. Now
     // the assertive alert is the only live region on the error path.

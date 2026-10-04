@@ -131,8 +131,8 @@ def _record_dropped_prefixes(monkeypatch: pytest.MonkeyPatch) -> list[str]:
     """Capture every ``cache.delete_prefix`` call.
 
     The suite runs without Redis, where the real helper is a no-op, so the bust
-    is only observable here — the idiom ``test_batch7_fields`` and
-    ``test_branch_context_batch2`` both use.
+    is only observable here — the idiom ``test_field_audit_trail`` and
+    ``test_branch_context_main_and_read_only`` both use.
     """
     dropped: list[str] = []
 
@@ -633,10 +633,10 @@ async def test_the_demo_trail_matches_the_routes_it_imitates(client: AsyncClient
 # A branch is how an analyst CLEANS UP a pair of namesakes — delete both copies,
 # author one row in their place — so refusing that merge closed the only door out
 # of the state it complained about, and reddened two tests in
-# test_event_comment_merge_batch2 that hold exactly that workflow.
+# test_event_comment_main_twin that hold exactly that workflow.
 #
 # What shipped for this finding is the diff-side warning, pinned by
-# test_plan_revision_batch2. The merge's own half waits on an
+# test_plan_diff_and_snapshots. The merge's own half waits on an
 # origin id on branch copies, which is where batch 2 had already put it: telling
 # the two rows apart is the thing no message or gate can substitute for.
 

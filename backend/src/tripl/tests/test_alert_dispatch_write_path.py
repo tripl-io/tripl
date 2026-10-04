@@ -50,7 +50,7 @@ anomaly stayed active.
 The Postgres ``DataError`` itself is unreachable here: the suite runs on SQLite,
 which ignores ``VARCHAR(n)`` entirely. What is pinned instead is the invariant
 behind it — what lands in the row fits the column — the way
-``test_batch3_d1.py`` pins the same shape one table over. Every test below also
+``test_schema_drift_upsert.py`` pins the same shape one table over. Every test below also
 asserts that its fixture genuinely overflows, so none of them can quietly stop
 exercising the bug if someone shortens a name.
 
@@ -889,7 +889,7 @@ def test_merging_into_a_long_named_group_relabels_within_the_column(
 
 # The merge's third writer is a Core ``UPDATE`` inside ``_merge_event_into_group``
 # with no seam a unit test can reach without standing up the whole grouping
-# pipeline. It is pinned by source instead, the way ``test_batch3_a2.py`` pins
+# pipeline. It is pinned by source instead, the way ``test_metric_scope_purge.py`` pins
 # its ordering rule: cheaper than the fixture, and unlike the fixture it also
 # catches a writer added later. The counts are asserted so the scan cannot
 # silently stop finding anything.

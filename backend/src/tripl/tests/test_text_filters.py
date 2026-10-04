@@ -144,7 +144,7 @@ _GUARDED_ELSEWHERE: dict[str, str] = {
         "The alert-inbox and alert-deliveries keyset cursor is not a "
         "text filter: services/_alerting_cursors.py decodes it and answers 422 "
         "for anything that does not decode, so a NUL never reaches a query. "
-        "test_frontend_review_r3.py pins ?cursor=%00 to 422."
+        "test_alert_cursors_and_signal_fields.py pins ?cursor=%00 to 422."
     ),
     "path": (
         "The docs catalog's note path / folder prefix (F22) is not a text filter: "

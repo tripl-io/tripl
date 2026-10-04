@@ -279,7 +279,7 @@ function resolveCrumbs(fullPathname: string, slug?: string, projectName?: string
   }
   // Nothing claimed this path, which is exactly what the catch-all route renders
   // NotFoundPage for — so the trail says so instead of naming a page ("Overview")
-  // the user is not on (.34).
+  // the user is not on.
   return { crumbs: withProject(), title: 'Not found' }
 }
 

@@ -327,7 +327,7 @@ def test_validate_sql_fragment_rejects_injection(bad: str, match: str) -> None:
     keywords, so the interesting rejections are the ones that probe the MASKER —
     an unterminated literal, an empty literal, a quoted identifier — and they are
     parametrized alongside the accept cases they have to stay distinct from, in
-    ``test_batch5_postgres_validator.py``. Do not "simplify" this list on the
+    ``test_postgres_adapter_and_sql_gate.py``. Do not "simplify" this list on the
     assumption that it is all the coverage there is.
     """
     with pytest.raises(ValueError, match=match):

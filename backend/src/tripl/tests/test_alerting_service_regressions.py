@@ -1665,7 +1665,7 @@ async def _seed_two_metric_anomalies(project_id: uuid.UUID) -> tuple[uuid.UUID, 
     Catalog-metric scope is the cheapest anomaly to seed — it is project-global,
     so it carries a NULL ``scan_config_id`` and reaches the replay through the
     project's metric definitions rather than through any scan join. Copied from
-    ``test_batch3_a2.test_simulator_reports_the_percent_delta_live_dispatch_would_store``,
+    ``test_metric_scope_purge.test_simulator_reports_the_percent_delta_live_dispatch_would_store``,
     which seeds the signed-baseline case the same way.
     """
     now = datetime.now(UTC)

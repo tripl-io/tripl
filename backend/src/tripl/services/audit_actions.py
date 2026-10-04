@@ -4,7 +4,7 @@ The Audit tab used to hand-maintain this list, and it drifted: every action a
 router started recording had to be remembered on the frontend too, and those
 that were not could be read in the feed but not filtered for. It lives here now,
 next to the ``audit_service.record(...)`` calls that write the actions, and
-``tests/test_fj5g_batch_a.py`` fails when a recorded action is missing from it.
+``tests/test_metric_save_and_audit_contracts.py`` fails when a recorded action is missing from it.
 
 Two halves, because the Audit tab's query is always narrowed to one project:
 

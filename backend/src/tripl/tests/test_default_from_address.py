@@ -105,7 +105,7 @@ def test_a_usable_sender_is_still_returned_byte_for_byte() -> None:
     surrounding whitespace included — and both send paths put that string
     straight into ``msg["From"]``. The tempting over-correction here is a
     blanket ``value.strip()``, which would pass every case in this file and
-    every case in ``test_batch4_send`` while quietly rewriting what the operator
+    every case in ``test_alert_send_path`` while quietly rewriting what the operator
     configured; this is the assertion that catches it.
 
     Unlike the two above, this one also passes with the fix reverted. It guards

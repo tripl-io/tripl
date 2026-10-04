@@ -18,7 +18,7 @@ through the API and name the exact edit that reddens them:
 * the demo audit builder claimed "one entry per authored
   object" while the relation, the event-type owner grant and the variable
   override had nothing in the trail, and filed the rows it did write in shapes
-  the real routes have never used. ``test_batch7_seam.py`` pins that those
+  the real routes have never used. ``test_reindex_identity_map.py`` pins that those
   action strings now EXIST; what is pinned here is their SHAPE, which nothing
   else looks at.
 
@@ -176,7 +176,7 @@ async def test_the_demo_files_its_authored_objects_in_their_routes_own_shape(
     carry the ``target_type``, ``target_name`` and payload their REAL routes
     record — including the two routes that deliberately file an empty name.
 
-    ``test_batch7_seam.py::test_the_demo_trail_matches_the_routes_it_imitates``
+    ``test_reindex_identity_map.py::test_the_demo_trail_matches_the_routes_it_imitates``
     asserts these three action strings now exist at all. Nothing asserts their
     shape, which is the half a wrong builder gets wrong quietly: a row in the
     Audit tab that the product itself cannot produce reads as evidence of a
@@ -354,7 +354,7 @@ async def test_field_audit_rows_type_their_target_field_definition_and_name_the_
     ``audit_service.record`` calls of ``api/v1/fields.py`` — including to the
     ``("field", "screen_view.platform")`` shape the demo audit builder seeded,
     which is what the audit fix asked the builder to abandon. The builder side
-    of that is pinned by ``test_batch7_seam.py``.
+    of that is pinned by ``test_reindex_identity_map.py``.
     """
     slug = "b7-field-audit-shape"
     event_type_id = await _project_with_event_type(client, slug)

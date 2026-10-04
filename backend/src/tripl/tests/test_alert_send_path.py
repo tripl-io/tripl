@@ -1,6 +1,5 @@
-"""Batch-4 regressions for the alert SEND path (``worker/tasks/alerts.py``).
+"""Regressions for the alert SEND path (``worker/tasks/alerts.py``).
 
-Named for its batch, the way ``test_batch3_a1.py``…``test_batch3_g1.py`` are.
 The Telegram seeding these tests need already exists in ``test_alerting.py``
 and is imported rather than copied: a second copy of a 100-line delivery
 fixture stops matching the first the moment the model gains a column — and the

@@ -1390,7 +1390,7 @@ class TestCollectNow:
         # metric the two rules land on the same instants (the helper's own
         # docstring says so for 1d and 1h, "which is why nothing caught this").
         # They are not equal in general: a 1w metric reports 210 days and
-        # dispatches 28, pinned in test_batch5_facttables as
+        # dispatches 28, pinned in test_fact_table_authoring as
         # test_collect_now_reports_the_widened_window_but_dispatches_the_bounded_one.
         sql_calls = dispatch_recorder["sql"].calls
         assert len(sql_calls) == 1

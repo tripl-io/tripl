@@ -658,7 +658,7 @@ async def test_a_spike_from_a_zero_baseline_is_still_a_signal(client: AsyncClien
 
 
 # ---------------------------------------------------------------------------
-# Catalog metrics are classified on THEIR OWN grid, everywhere (.18)
+# Catalog metrics are classified on THEIR OWN grid, everywhere
 # ---------------------------------------------------------------------------
 
 # 30 hours back: outside a bare 24h freshness window, inside the daily grid's own

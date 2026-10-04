@@ -29,7 +29,7 @@ SCOPE_RELEASE_REGRESSION = MetricScopeType.release_regression.value
 # The parenthetical that rides on ``${expected_count}`` for the one scope whose
 # expectation is not a plain baseline. Byte-identical to
 # ``worker.tasks.alerts_messages._ADOPTION_ADJUSTED_LABEL``, and pinned to it by
-# ``tests/test_batch4_replay.py``, which renders ONE release regression through
+# ``tests/test_rule_replay_sources.py``, which renders ONE release regression through
 # both renderers and asserts the two whole items are equal.
 #
 # It is spelled twice only because the leaf both renderers already share —

@@ -244,8 +244,8 @@ def metric_query_fetch_limit() -> int:
     It is a FUNCTION, not a derived module constant, for two reasons. First,
     ``METRIC_QUERY_ROW_LIMIT`` is a module global that tests rebind —
     ``monkeypatch.setattr(metric_collect, "METRIC_QUERY_ROW_LIMIT", n)`` appears
-    in tests/test_scans.py and tests/test_batch3_c2.py — and a value computed at
-    import time would not follow the patch, making the fetch limit and the
+    in tests/test_scans.py and tests/test_metric_collector_column_guards.py — and a
+    value computed at import time would not follow the patch, making the fetch limit and the
     ceiling disagree in exactly the tests that exist to make them agree. Second,
     ``services/metric_preview_service`` calls this to disclose the statement
     ``GET /metrics/{id}/generated-sql`` promises is "the exact adapter SQL used

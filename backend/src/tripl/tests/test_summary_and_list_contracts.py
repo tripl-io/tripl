@@ -32,8 +32,8 @@ from tripl.models.variable_value import VariableValue
 from tripl.services import ai_defaults, datasource_service
 from tripl.services._alerting_test_send import classify_test_send_error
 from tripl.tests.conftest import TestSessionLocal
+from tripl.tests.test_alert_rule_and_summary_contracts import _project_with_scan
 from tripl.tests.test_alerting import _inbox_item, _seed_inbox_delivery, _seed_inbox_fixture
-from tripl.tests.test_design_review_b5_12 import _project_with_scan
 from tripl.tests.test_projects import (
     _IN_PERIOD,
     _RESET_BEFORE,
