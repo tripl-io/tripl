@@ -142,3 +142,18 @@ warehouses, and a React frontend, all runnable locally with Docker Compose.
 - **[Architecture](website/docs/develop/architecture.md)** — how the system is
   built, and why.
 - **[AGENTS.md](AGENTS.md)** — a navigation map of the repo for coding agents.
+- **[Code of conduct](CODE_OF_CONDUCT.md)** and **[security policy](SECURITY.md)**:
+  report vulnerabilities privately, never in a public issue.
+- Your first pull request asks you to sign the
+  **[Contributor License Agreement](CLA.md)** once.
+
+---
+
+## License
+
+The server and the web app are licensed under the
+[GNU AGPL v3.0 or later](LICENSE). The [CLI](cli/) and the
+[MCP server](mcp-server/) are licensed under the Apache License 2.0.
+
+"Tripl" and the Tripl logo are trademarks. The code licenses do not cover
+them; see [TRADEMARKS.md](TRADEMARKS.md).
