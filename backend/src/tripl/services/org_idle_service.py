@@ -26,7 +26,12 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from tripl.config import DEPLOYMENT_HOSTED, settings
 from tripl.models.audit_log import AuditLog
 from tripl.models.domain_enums import OrganizationStatus
-from tripl.models.organization import DEFAULT_ORG_ID, Organization, OrganizationMember
+from tripl.models.organization import (
+    DEFAULT_ORG_ID,
+    DEMO_POOL_ORG_ID,
+    Organization,
+    OrganizationMember,
+)
 from tripl.models.project import Project
 from tripl.models.user import User
 from tripl.models.user_session import UserSession
@@ -62,6 +67,9 @@ async def retire_idle_organizations(
                 select(Organization.id).where(
                     Organization.status == OrganizationStatus.active.value,
                     Organization.id != DEFAULT_ORG_ID,
+                    # Nobody signs in to the demo pool; its demos are unopened
+                    # by design until claimed.
+                    Organization.id != DEMO_POOL_ORG_ID,
                     Organization.created_at < cutoff,
                     ~signed_in,
                     ~opened,

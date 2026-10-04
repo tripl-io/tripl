@@ -18,7 +18,7 @@ from collections.abc import Collection
 from datetime import UTC, datetime, timedelta
 
 from fastapi import HTTPException
-from sqlalchemy import ColumnElement, and_, delete, or_, select
+from sqlalchemy import ColumnElement, and_, delete, or_, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from tripl import cache
@@ -33,6 +33,7 @@ from tripl.models.user import User
 from tripl.schemas.project import DemoCancelResponse, ProjectResponse
 from tripl.services import (
     audit_service,
+    demo_pool,
     plan_branch_service,
     project_lookup,
     project_member_service,
@@ -159,6 +160,7 @@ async def create_demo_project(
     Phase 2 — :func:`finish_demo_provision` — keeps the atomicity it had: a
     failure or a cancel leaves no partial demo behind.
     """
+    explicit_slug = slug is not None
     if slug is None:
         # Unique slug so repeated create calls never collide.
         slug = f"demo-{uuid.uuid4().hex[:6]}"
@@ -180,6 +182,18 @@ async def create_demo_project(
                 f"{MAX_DEMOS_PER_CREATOR}). Reset or delete one before generating another."
             ),
         )
+
+    if created_by is not None and not explicit_slug:
+        claimed = await demo_pool.claim_pooled_demo(
+            session,
+            visitor_id=created_by,
+            organization_id=organization_id,
+            name=_demo_project_name(live_names),
+        )
+        if claimed is not None:
+            await _record_claim(session, claimed, created_by)
+            await request_pool_refill()
+            return await project_service.get_project(session, claimed.slug)
 
     project = _new_demo_project(
         slug=slug,
@@ -225,6 +239,39 @@ async def create_demo_project(
         if exc.status_code == 404:
             raise HTTPException(status_code=409, detail="Demo provisioning was cancelled") from exc
         raise
+
+
+async def request_pool_refill() -> None:
+    """Queue a pool refill after a claim. Best effort: the beat task is the backstop.
+
+    A module attribute, so tests can replace it.
+    """
+    try:
+        from tripl.worker.tasks.demo_provision import refill_demo_pool
+
+        await dispatch(refill_demo_pool.delay)
+    except Exception:
+        logger.warning("demo.pool.refill_enqueue_failed", exc_info=True)
+
+
+async def _record_claim(session: AsyncSession, project: Project, user_id: uuid.UUID) -> None:
+    """File the visitor's ``project.create`` for a demo handed out from the pool.
+
+    The seed filed one for the pool's throwaway user, which the claim moved to
+    the visitor; it is restamped to now, because the visitor generated the demo
+    now, not when the pool seeded it.
+    """
+    await session.execute(
+        update(AuditLog)
+        .where(
+            AuditLog.project_id == project.id,
+            AuditLog.action == "project.create",
+            AuditLog.user_id == user_id,
+        )
+        .values(created_at=datetime.now(tz=UTC))
+        .execution_options(synchronize_session=False)
+    )
+    await session.commit()
 
 
 async def enqueue_demo_seed(

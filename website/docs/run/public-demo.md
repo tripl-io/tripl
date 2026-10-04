@@ -43,6 +43,18 @@ one queues a job of a few CPU-seconds and the browser waits for it. A burst of
 sign-ups therefore lengthens the wait for a demo rather than slowing the app,
 and `celery-worker` must be running for a demo to appear.
 
+To hand demos out without that wait, keep a few seeded ahead of time:
+
+```bash
+DEMO_POOL_SIZE=5   # demos kept ready; a visitor gets one at once
+```
+
+The pool is topped up after each claim and every five minutes, and an entry
+older than `DEMO_POOL_MAX_AGE_HOURS` (20) is seeded again. A visitor who
+arrives while the pool is empty gets a demo seeded on the spot, as without one.
+The pooled demos wait in a service organization, `demo-pool`, which has no
+members and is never retired as idle.
+
 ## Google client
 
 In the Google Cloud console, create an OAuth client of type **Web
