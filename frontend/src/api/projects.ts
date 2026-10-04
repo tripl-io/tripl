@@ -1,4 +1,4 @@
-import { api, withBranch } from './client'
+import { api, ApiError, withBranch } from './client'
 import type { Project } from '../types'
 import type { components } from '../types/api.gen'
 import type { ProjectCreateInput, ProjectCreateResult } from '../types/projectTemplates'
@@ -42,6 +42,61 @@ export interface DriftResetCounts {
   distribution_drifts: number
 }
 
+/** How often a demo shell is re-read while the worker seeds it. */
+export const DEMO_POLL_INTERVAL_MS = 1000
+
+/** Resolves after `ms`, or rejects the way an aborted fetch does (408). */
+function pause(ms: number, signal?: AbortSignal): Promise<void> {
+  return new Promise((resolve, reject) => {
+    const aborted = () => new ApiError('Request to the backend timed out. Try again after the API becomes available.', 408)
+    if (signal?.aborted) {
+      reject(aborted())
+      return
+    }
+    const timer = setTimeout(() => {
+      signal?.removeEventListener('abort', onAbort)
+      resolve()
+    }, ms)
+    function onAbort() {
+      clearTimeout(timer)
+      reject(aborted())
+    }
+    signal?.addEventListener('abort', onAbort, { once: true })
+  })
+}
+
+/**
+ * Start a demo and wait until the worker has seeded it.
+ *
+ * `POST /projects/demo` answers 202 with the hidden `seeding` shell; the seed
+ * runs on the worker and the shell is re-read until it is `ready`. The promise
+ * keeps the old blocking contract: it resolves with the ready project and
+ * rejects with a 500-style `ApiError` when the seed failed, or with the
+ * server's 409 "provisioning was cancelled" when a cancel (from any tab)
+ * discarded the shell.
+ */
+async function provisionDemo(signal?: AbortSignal, pollMs = DEMO_POLL_INTERVAL_MS): Promise<Project> {
+  let current = await api.post<Project>('/projects/demo', {}, signal)
+  const slug = current.slug
+  for (;;) {
+    if (current.generation_status === 'failed') {
+      throw new ApiError(current.generation_error || 'Demo generation failed.', 500)
+    }
+    if (current.generation_status !== 'seeding' && current.generation_status !== 'pending') return current
+    await pause(pollMs, signal)
+    try {
+      current = await api.get<Project>(`/projects/${slug}`, signal)
+    } catch (caught) {
+      // A cancel deletes the shell: the read 404s where the old blocking POST
+      // answered 409.
+      if (caught instanceof ApiError && caught.status === 404) {
+        throw new ApiError('Demo provisioning was cancelled', 409)
+      }
+      throw caught
+    }
+  }
+}
+
 export const projectsApi = {
   list: (signal?: AbortSignal) => api.get<Project[]>('/projects', signal),
   // `branchId` scopes the summary's plan counters (event types, events,
@@ -53,16 +108,15 @@ export const projectsApi = {
   // branch and returns its id as `template_branch_id` (F21, #274); main stays
   // empty. Without one the field is null.
   create: (data: ProjectCreateInput) => api.post<ProjectCreateResult>('/projects', data),
-  // Demo lifecycle. Create BLOCKS while seeding (for about
-  // DEMO_PROVISION_EXPECTED_MS, demo/provisioningPhases.ts) and returns a
-  // fully-ready project (201) or 500 on failure. Reset/delete are scoped to the
-  // demo endpoints and permitted for the demo's creator or a workspace owner —
-  // distinct from the owner-only generic DELETE /projects/{slug} (`del`).
-  // Seeding a demo is the one long, blocking POST in the app — the caller passes
-  // a signal so it can be timed out or cancelled instead of hanging forever.
-  createDemo: (signal?: AbortSignal) => api.post<Project>('/projects/demo', {}, signal),
-  // Aborting the create only stops the BROWSER reading the response — the server
-  // finishes seeding regardless. This asks it to abandon the provision instead;
+  // Demo lifecycle. Create resolves once the worker has seeded the demo (for
+  // about DEMO_PROVISION_EXPECTED_MS, demo/provisioningPhases.ts) — see
+  // provisionDemo. Reset/delete are scoped to the demo endpoints and permitted
+  // for the demo's creator or a workspace owner — distinct from the owner-only
+  // generic DELETE /projects/{slug} (`del`). The caller passes a signal so the
+  // wait can be timed out or cancelled instead of hanging forever.
+  createDemo: (signal?: AbortSignal, pollMs?: number) => provisionDemo(signal, pollMs),
+  // Aborting the create only stops the BROWSER waiting — the worker finishes
+  // seeding regardless. This asks it to abandon the provision instead;
   // `cancelled` is false when it was already too late.
   cancelDemo: () => api.post<DemoCancelResult>('/projects/demo/cancel', {}),
   // Reset re-seeds just as long as a create, so it takes a signal for the same

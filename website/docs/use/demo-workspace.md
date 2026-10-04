@@ -227,9 +227,13 @@ The demo offers two guides, and they do different jobs.
 
 - **Create** — provisioning is atomic: you either get a fully‑ready demo or a
   clean failure, which never leaves a half‑built project in your workspace.
-  It takes about 10 seconds; the creation dialog narrates the *expected*
-  phases (the server reports only the final result, not the stage it is on),
-  says so when a create runs well past that, and stops waiting after 90 seconds.
+  The request only reserves the workspace; a background worker seeds it, and
+  the dialog waits until the workspace reads ready. That keeps the app
+  responsive for everyone while many demos are created at once — they queue on
+  the worker instead. It takes about 10 seconds on an idle server; the creation
+  dialog narrates the *expected* phases (the server reports only the final
+  result, not the stage it is on), says so when a create runs well past that,
+  and stops waiting after 90 seconds.
   A failure says what is actually known: the server's own failure was rolled
   back and can be retried; a demo limit or a refusal says why and offers no
   retry; a lost connection or a timeout may still have created the demo, so

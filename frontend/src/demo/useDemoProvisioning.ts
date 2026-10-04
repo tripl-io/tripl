@@ -1,7 +1,8 @@
 /**
  * Demo-provisioning controller hook.
  *
- * Owns the single blocking `POST /projects/demo` mutation and the animated
+ * Owns the single demo-create mutation (`POST /projects/demo`, then waiting
+ * while the worker seeds the shell — `projectsApi.createDemo`) and the animated
  * phase pointer shown while it runs. Guarantees:
  *  - duplicate-request guard: a second `start()` while a create is in flight is
  *    a no-op (a double-click can't spawn two demos);
@@ -9,8 +10,8 @@
  *    welcome (NOT Events), unless the caller overrides `onSuccess`;
  *  - on failure (500): expose the error and a `retry()` that runs a FRESH create.
  *
- * Cancelling is a two-part handshake. Aborting the fetch only
- * stops the browser reading the response — the server finishes the seed anyway —
+ * Cancelling is a two-part handshake. Aborting only stops the browser
+ * waiting — the worker finishes the seed anyway —
  * so `cancel()` also asks the backend to abandon the provision. The server can
  * only do that while the shell is still seeding, so the outcome is reported
  * honestly: either it was stopped, or the demo is going to appear regardless.
