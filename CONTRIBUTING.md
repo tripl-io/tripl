@@ -525,6 +525,25 @@ sources; and API, worker, and beat must all stay runnable together via Compose.
   `frontend/src`, and a few config files; changes to `pyproject.toml`,
   lockfiles, or a `Dockerfile` require a rebuild (re-run `up --watch`).
 
+## Licensing of contributions
+
+Tripl is maintained by one copyright holder:
+
+- the server and the web app are licensed under AGPL-3.0-or-later;
+- the CLI and the MCP server are licensed under Apache-2.0.
+
+To keep the project free to choose its licenses later, commercial licenses
+included, every contributor signs the [Contributor License Agreement](CLA.md)
+once. You keep the copyright in your work; the agreement grants the project a
+license to use it.
+
+The `CLA` check comments on your first pull request. Reply with the sentence
+it quotes to sign. Signatures are recorded on the `cla-signatures` branch.
+Bots and the maintainer are exempt.
+
+A pull request cannot be merged until the check passes. Contributing on behalf
+of a company? Ask for the corporate agreement first; see [CLA.md](CLA.md).
+
 ## Pull Request Conventions
 
 - **Title format:** `[analytics] <Title>`.

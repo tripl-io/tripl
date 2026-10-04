@@ -1,0 +1,42 @@
+name: Bug report
+description: Something does not work as documented.
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Security problem? Do not file it here. See [SECURITY.md](https://github.com/vladenisov/tripl/blob/main/SECURITY.md).
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened
+      description: What you did, what you expected, and what happened instead.
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      placeholder: |
+        1. ...
+        2. ...
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: Version
+      description: The image tag or commit you are running.
+    validations:
+      required: true
+  - type: dropdown
+    id: warehouse
+    attributes:
+      label: Warehouse
+      options: [ClickHouse, BigQuery, PostgreSQL, Demo project, Not relevant]
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs
+      description: Relevant API or worker log lines, with secrets removed.
+      render: text
