@@ -495,13 +495,14 @@ describe('AuthPage single sign-on (F20)', () => {
     expect(screen.getByRole('alert')).toHaveTextContent(text)
   })
 
-  it('opens the SSO form from sign-in and comes back to the password form', () => {
+  it('opens the SSO form from sign-in and comes back to the password form', async () => {
     renderAuth()
 
     fireEvent.click(screen.getByRole('button', { name: 'Sign in with SSO' }))
 
     expect(screen.getByRole('heading', { name: 'Sign in with single sign-on' })).toBeInTheDocument()
-    expect(screen.getByLabelText('Work email')).toBeInTheDocument()
+    // The form is the bundled extension's panel: its chunk loads on open.
+    expect(await screen.findByLabelText('Work email')).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Existing account' })).toBeNull()
 
     fireEvent.click(screen.getByRole('button', { name: 'Sign in with a password instead' }))

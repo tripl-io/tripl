@@ -33,6 +33,11 @@ export default defineConfig({
   ],
   resolve: {
     alias: {
+      // Frontend extensions beyond the bundled one (src/extensions): none
+      // unless the build names a module whose default export lists them.
+      '@tripl/extensions': process.env.TRIPL_EXTENSIONS_ENTRY
+        ? path.resolve(process.env.TRIPL_EXTENSIONS_ENTRY)
+        : path.resolve(import.meta.dirname, './src/extensions/none.ts'),
       '@': path.resolve(import.meta.dirname, './src'),
     },
   },

@@ -6,11 +6,9 @@ import {
   Cpu,
   Database,
   Key,
-  KeyRound,
   Ticket,
   Lock,
   Mail,
-  RefreshCw,
   ScrollText,
   Search,
   Server,
@@ -21,9 +19,9 @@ import {
   UserCog,
   UserPlus,
   Users,
-  Webhook,
   type LucideIcon,
 } from 'lucide-react'
+import { extensionSettingsSections, type ExtensionSettingsSection } from '@/extensions'
 import { stripOrgPrefix } from '@/lib/activeOrg'
 
 /**
@@ -128,7 +126,7 @@ export const PROJECT_GROUPS: SettingsNavGroup[] = [
   },
 ]
 
-export const WORKSPACE_GROUPS: SettingsNavGroup[] = [
+const CORE_WORKSPACE_GROUPS: SettingsNavGroup[] = [
   {
     // "Organization", not "Workspace" (F20 PR7): everything here belongs to
     // the organization the app acts in, and differs from one to the next.
@@ -230,26 +228,6 @@ export const WORKSPACE_GROUPS: SettingsNavGroup[] = [
         ownerOnly: true,
       },
       {
-        id: 'org-sso',
-        label: 'Single sign-on',
-        icon: KeyRound,
-        path: 'organization/sso',
-        // Listed for owners and admins alike; the page itself is an owner's
-        // (F20): only an owner changes how the organization signs in.
-        ownerOnly: true,
-        keywords: ['sso', 'oidc', 'openid', 'identity provider', 'domain verification'],
-      },
-      {
-        id: 'org-scim',
-        label: 'Provisioning',
-        icon: RefreshCw,
-        path: 'organization/scim',
-        // Like single sign-on: listed for owners and admins, the page itself
-        // is an owner's (F20). It decides who is in the organization.
-        ownerOnly: true,
-        keywords: ['scim', 'okta', 'azure', 'entra', 'deprovision', 'user sync'],
-      },
-      {
         id: 'org-limits',
         label: 'Limits',
         icon: SlidersHorizontal,
@@ -268,17 +246,6 @@ export const WORKSPACE_GROUPS: SettingsNavGroup[] = [
         wide: true,
         ownerOnly: true,
         keywords: ['activity', 'who changed', 'log', 'export', 'csv', 'download'],
-      },
-      // The audit log leaving tripl (F20): every entry POSTed, signed, to the
-      // organization's SIEM. Listed for owners and admins alike; the page
-      // itself is an owner's, like Single sign-on.
-      {
-        id: 'org-audit-webhook',
-        label: 'Audit webhook',
-        icon: Webhook,
-        path: 'organization/audit-webhook',
-        ownerOnly: true,
-        keywords: ['siem', 'stream', 'signature', 'hmac'],
       },
     ],
   },
@@ -394,6 +361,31 @@ export const WORKSPACE_GROUPS: SettingsNavGroup[] = [
     ],
   },
 ]
+
+/**
+ * `groups` with the extensions' settings items placed: each after the item it
+ * names (in its group), or at the end of its group. New arrays; `groups` is
+ * left as it is.
+ */
+export function withExtensionItems(
+  groups: readonly SettingsNavGroup[],
+  sections: readonly Pick<ExtensionSettingsSection, 'group' | 'after' | 'item'>[],
+): SettingsNavGroup[] {
+  return groups.map((group) => {
+    let items = [...group.items]
+    for (const section of sections) {
+      if (section.group !== group.label) continue
+      const at = section.after ? items.findIndex((item) => item.id === section.after) : -1
+      items = at < 0 ? [...items, section.item] : [...items.slice(0, at + 1), section.item, ...items.slice(at + 1)]
+    }
+    return { ...group, items }
+  })
+}
+
+export const WORKSPACE_GROUPS: SettingsNavGroup[] = withExtensionItems(
+  CORE_WORKSPACE_GROUPS,
+  extensionSettingsSections,
+)
 
 export const SETTINGS_NAV: Record<SettingsContext, SettingsNavGroup[]> = {
   project: PROJECT_GROUPS,

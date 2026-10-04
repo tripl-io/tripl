@@ -205,3 +205,23 @@ describe('network and timeout failures', () => {
     expect(err.message).toContain('timed out')
   })
 })
+
+describe('a gate refusal', () => {
+  it('keeps the fields beside detail, which say how to get through', async () => {
+    mockFetchOnce({
+      status: 403,
+      body: { detail: 'This organization requires single sign-on', sso_start: '/api/v1/auth/sso/acme/start' },
+    })
+
+    const err = (await api.get('/projects').catch((e: unknown) => e)) as ApiError
+    expect(err.message).toBe('This organization requires single sign-on')
+    expect(err.extra).toEqual({ sso_start: '/api/v1/auth/sso/acme/start' })
+  })
+
+  it('has no extra fields when the body carries only detail', async () => {
+    mockFetchOnce({ status: 403, body: { detail: 'forbidden' } })
+
+    const err = (await api.get('/projects').catch((e: unknown) => e)) as ApiError
+    expect(err.extra).toBeUndefined()
+  })
+})

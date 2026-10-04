@@ -1,10 +1,10 @@
 import { describe, expect, it } from 'vitest'
 import { ApiError } from '@/api/client'
-import { SSO_REQUIRED_DETAIL, findSsoRequiredError, isSsoRequiredError, ssoStartFromError } from './orgStatus'
+import { SSO_REQUIRED_DETAIL, findSsoRequiredError, isSsoRequiredError, ssoStartFromError } from './ssoRefusal'
 
 function refusal(): ApiError {
   const error = new ApiError(SSO_REQUIRED_DETAIL, 403)
-  error.ssoStart = '/api/v1/auth/sso/acme/start'
+  error.extra = { sso_start: '/api/v1/auth/sso/acme/start' }
   return error
 }
 
@@ -26,7 +26,7 @@ describe('single sign-on refusals (F20)', () => {
   it('follows only a start path on this origin', () => {
     expect(ssoStartFromError(refusal())).toBe('/api/v1/auth/sso/acme/start')
     const foreign = refusal()
-    foreign.ssoStart = 'https://evil.example.com/api/v1/auth/sso/acme/start'
+    foreign.extra = { sso_start: 'https://evil.example.com/api/v1/auth/sso/acme/start' }
     expect(ssoStartFromError(foreign)).toBeNull()
   })
 })

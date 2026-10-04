@@ -30,11 +30,11 @@ import { NotFoundState } from './components/not-found-state'
 // Static on purpose: the page is a few hundred bytes and the shell already
 // renders its NotFoundState, so a lazy split bought nothing but a warning.
 import NotFoundPage from './pages/NotFoundPage'
+import { extensionRoutes } from './extensions'
 
 const AuthPage = lazyWithReload(() => import('./pages/AuthPage'))
 const InvitePage = lazyWithReload(() => import('./pages/InvitePage'))
 const VerifyEmailPage = lazyWithReload(() => import('./pages/VerifyEmailPage'))
-const SsoLinkPage = lazyWithReload(() => import('./pages/SsoLinkPage'))
 const MainPage = lazyWithReload(() => import('./pages/ProjectsPage'))
 const EventsPage = lazyWithReload(() => import('./pages/EventsPage'))
 const EventEditPage = lazyWithReload(() => import('./pages/events/EventForm'))
@@ -631,10 +631,11 @@ export default function App() {
                   out, and signed in it is how an unverified account gets past
                   "Check your inbox". */}
               <Route path="/verify-email" element={withSuspense('verify-email', <VerifyEmailPage />, 'form')} />
-              {/* Confirming that a single sign-on may attach to an existing account
-                  (F20). Public: the ticket comes from the identity provider's
-                  callback, before any session exists. */}
-              <Route path="/sso/link" element={withSuspense('sso-link', <SsoLinkPage />, 'form')} />
+              {/* Extensions' own top-level pages (single sign-on's account
+                  link): outside the app shell, each says who may open it. */}
+              {extensionRoutes.map(({ path, key, skeleton, Component }) => (
+                <Route key={key} path={path} element={withSuspense(key, <Component />, skeleton ?? 'form')} />
+              ))}
               {/* Full-takeover Settings area — its own viewport shell, so each route
                   mounts OUTSIDE the app Layout (no app sidebar) but requires auth. */}
               <Route path="/settings" element={<SettingsIndexRedirect />} />

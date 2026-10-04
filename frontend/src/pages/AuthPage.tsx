@@ -1,7 +1,7 @@
-import { useState } from 'react'
+import { Suspense, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useLocation, useNavigate, useSearchParams } from 'react-router-dom'
-import { ArrowRight, KeyRound, LockKeyhole, Radar, UserPlus } from 'lucide-react'
+import { ArrowRight, LockKeyhole, Radar, UserPlus } from 'lucide-react'
 import { authApi } from '@/api/auth'
 import { googleStartUrl, ssoErrorMessage } from '@/api/sso'
 import { FieldError } from '@/components/forms/FieldError'
@@ -20,11 +20,13 @@ import type { AuthUser } from '@/types'
 import { SILENT_ERROR_META } from '@/lib/errorFeedback'
 import { authStatusKey, projectsKey } from '@/lib/queryKeys'
 import { AUTH_QUERY_KEY } from '@/components/auth-context'
-import { SsoSignInForm } from './SsoSignInForm'
+import { extensionAuthPanels } from '@/extensions'
 
-type AuthMode = 'login' | 'register' | 'forgot' | 'reset' | 'sso'
+type CoreMode = 'login' | 'register' | 'forgot' | 'reset'
+/** A core form, or an extension's sign-in panel by id (single sign-on). */
+type AuthMode = CoreMode | `panel:${string}`
 
-const CARD_COPY: Record<AuthMode, { title: string; description: string }> = {
+const CARD_COPY: Record<CoreMode, { title: string; description: string }> = {
   login: {
     title: 'Sign in to tripl',
     description: 'Use your account to access the workspace and monitoring tools.',
@@ -41,11 +43,6 @@ const CARD_COPY: Record<AuthMode, { title: string; description: string }> = {
   reset: {
     title: 'Choose a new password',
     description: 'Set a new password to finish resetting your account.',
-  },
-  sso: {
-    title: 'Sign in with single sign-on',
-    description:
-      "Enter your work email and we will send you to your organization's identity provider.",
   },
 }
 
@@ -219,7 +216,11 @@ export default function AuthPage() {
         : mode === 'forgot'
           ? 'Send reset link'
           : 'Set new password'
-  const { title: cardTitle, description: cardDescription } = CARD_COPY[mode]
+  // An extension's sign-in panel, when one is open.
+  const panel = mode.startsWith('panel:')
+    ? extensionAuthPanels.find((candidate) => `panel:${candidate.id}` === mode)
+    : undefined
+  const { title: cardTitle, description: cardDescription } = panel ?? CARD_COPY[mode as CoreMode]
 
   const submitted = submittedMode === mode
   // Register enforces the shared policy; login stays lenient so pre-policy
@@ -314,8 +315,8 @@ export default function AuthPage() {
               <div className="rounded-full border border-accent/30 bg-accent-soft p-2 text-accent">
                 {mode === 'register' ? (
                   <UserPlus className="h-4 w-4" />
-                ) : mode === 'sso' ? (
-                  <KeyRound className="h-4 w-4" />
+                ) : panel ? (
+                  <panel.icon className="h-4 w-4" />
                 ) : (
                   <LockKeyhole className="h-4 w-4" />
                 )}
@@ -323,7 +324,7 @@ export default function AuthPage() {
             </div>
           </CardHeader>
           <CardContent className="space-y-6 px-6 py-6">
-            {ssoError && (mode === 'login' || mode === 'sso') && (
+            {ssoError && (mode === 'login' || panel) && (
               <div
                 role="alert"
                 className="rounded-lg border border-danger/25 bg-danger-soft px-3 py-2 text-body text-danger"
@@ -534,33 +535,38 @@ export default function AuthPage() {
               </form>
             )}
 
-            {mode === 'login' && (
+            {mode === 'login' && extensionAuthPanels.length > 0 && (
               <div className="space-y-4">
                 <div className="flex items-center gap-3 text-body-sm text-fg-subtle" aria-hidden="true">
                   <span className="h-px flex-1 bg-border" />
                   or
                   <span className="h-px flex-1 bg-border" />
                 </div>
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="lg"
-                  className="w-full justify-center"
-                  onClick={() => switchMode('sso')}
-                >
-                  <KeyRound className="h-4 w-4" aria-hidden="true" />
-                  Sign in with SSO
-                </Button>
+                {extensionAuthPanels.map((candidate) => (
+                  <Button
+                    key={candidate.id}
+                    type="button"
+                    variant="outline"
+                    size="lg"
+                    className="w-full justify-center"
+                    onClick={() => switchMode(`panel:${candidate.id}`)}
+                  >
+                    <candidate.icon className="h-4 w-4" aria-hidden="true" />
+                    {candidate.buttonLabel}
+                  </Button>
+                ))}
               </div>
             )}
 
-            {mode === 'sso' && (
-              <SsoSignInForm
-                email={email}
-                onEmailChange={setEmail}
-                next={destination}
-                onBack={() => switchMode('login')}
-              />
+            {panel && (
+              <Suspense fallback={null}>
+                <panel.Component
+                  email={email}
+                  onEmailChange={setEmail}
+                  next={destination}
+                  onBack={() => switchMode('login')}
+                />
+              </Suspense>
             )}
 
             {mode === 'forgot' &&

@@ -26,11 +26,11 @@ import { DemoBannerPlaceholder } from '@/demo/DemoBannerPlaceholder'
 import { ShellSkeleton } from '@/components/states/skeletons'
 import { ProjectNotFound } from '@/components/states/project-not-found'
 import { OrgSuspendedState } from '@/components/states/org-suspended'
-import { SsoRequiredState } from '@/components/states/sso-required'
 import { StepInBanner } from '@/components/shell/step-in-banner'
 import { PublicDemoBanner } from '@/components/shell/public-demo-banner'
 import { useActiveOrg } from '@/components/active-org-context'
-import { findSsoRequiredError, orgIsSuspended, ssoStartFromError } from '@/lib/orgStatus'
+import { extensionShellGates } from '@/extensions'
+import { orgIsSuspended } from '@/lib/orgStatus'
 import {
   DocumentEntityTitleContext,
   EDIT_PAGE_TITLE_PREFIX,
@@ -522,22 +522,21 @@ export default function Layout() {
     )
   }
 
-  // An organization that requires single sign-on (F20) refuses a session that
-  // did not come through its identity provider, on every request inside it:
-  // offer the sign-in it would accept instead of a wall of failing panels.
-  const ssoRefusal = findSsoRequiredError(projectsQuery.error, confirmProject.error)
-  if (ssoRefusal) {
-    return (
-      <SsoRequiredState
-        orgName={activeOrg.membership?.name ?? activeOrg.slug ?? 'This organization'}
-        orgSlug={activeOrg.slug}
-        serverStart={ssoStartFromError(ssoRefusal)}
-        returnTo={`${location.pathname}${location.search}${location.hash}`}
-        otherOrgs={activeOrg.orgs.filter(
-          (org) => org.slug !== activeOrg.slug && org.status !== 'suspended',
-        )}
-      />
-    )
+  // An extension may replace the shell when the shell's own requests are
+  // refused: an organization that requires single sign-on refuses a session
+  // that did not come through its identity provider, on every request inside
+  // it, so it offers that sign-in instead of a wall of failing panels.
+  for (const gate of extensionShellGates) {
+    const screen = gate({
+      errors: [projectsQuery.error, confirmProject.error],
+      orgName: activeOrg.membership?.name ?? activeOrg.slug ?? 'This organization',
+      orgSlug: activeOrg.slug,
+      returnTo: `${location.pathname}${location.search}${location.hash}`,
+      otherOrgs: activeOrg.orgs.filter(
+        (org) => org.slug !== activeOrg.slug && org.status !== 'suspended',
+      ),
+    })
+    if (screen) return screen
   }
 
   // Hold the shell until the slug is resolved. Everything below fans out
