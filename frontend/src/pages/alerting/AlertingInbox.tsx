@@ -973,7 +973,7 @@ const IncidentCard = memo(function IncidentCard({
           open-ended case render — puts the "Open badge + mute line" card
           straight back. And dropping the inner branch is just as bad the other
           way: an indefinite mute would then say nothing at all, which is the
-          silent mute tripl-oxkt.7 exists to remove.
+          silent mute the indefinite-mute row exists to remove.
 
           The open-ended row keeps status `muted` like any other, so the chip
           and the Muted filter need no special case — but its sort key is frozen
@@ -1203,7 +1203,7 @@ const IncidentCard = memo(function IncidentCard({
               all (`is_rule_muted`), so the same button on the Monitors surfaces
               would do the opposite of its label. The list is
               composed in the shared module so this file cannot grow its own
-              wording for it — and since tripl-yapg the SENTENCE each button is
+              wording for it — and the SENTENCE each button is
               announced by comes from that module too, not just the list, so
               this surface cannot drift from the other two by rewording one
               `aria-label` in place. */}

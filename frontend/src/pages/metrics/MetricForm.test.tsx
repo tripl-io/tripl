@@ -1320,7 +1320,7 @@ describe('MetricForm starter SQL follows the selected warehouse', () => {
 })
 
 describe('MetricForm field labels', () => {
-  // tripl-5gdg reached this form too: the settings kit's Field generates an id
+  // The same label bug reached this form too: the settings kit's Field generates an id
   // and points its <label htmlFor> at it, but only the kit's own controls claim
   // that id. A row wrapping anything else — the read-only name, the checkbox
   // grid, the filter editor — was left with a label addressing an element that

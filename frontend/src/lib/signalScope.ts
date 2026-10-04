@@ -41,7 +41,7 @@ function scopeKind(signal: MonitoringSignal): string {
  * `ondelete=SET NULL`, and the kinds with no entity behind them (schema,
  * distribution, release regression, value drift) are never named at all. Render
  * {@link unnamedScopeLabel} for it — printing the ref in its place is the whole
- * of tripl-y4wt.
+ * of the fix.
  */
 export function signalScopeLabel(signal: MonitoringSignal): string | null {
   if (signal.scope_type === 'project_total') return 'Project total'

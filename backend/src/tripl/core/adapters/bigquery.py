@@ -1831,7 +1831,7 @@ class BigQueryAdapter(BaseAdapter):
                 # slot. GoogleSQL accepts the ambiguity and resolves it, but its
                 # two readings differ in VALUE, not just in spelling: the alias
                 # is the folded value, the column is the raw one, and grouping
-                # by the raw one is the defect tripl-0zpq.58 exists to remove. A
+                # by the raw one is the defect this exists to remove. A
                 # name that can only mean one of them cannot regress quietly.
                 # Nothing downstream is affected — rows are read positionally
                 # and their names come from `col_names`, which still carries the

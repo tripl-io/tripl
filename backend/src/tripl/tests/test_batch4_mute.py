@@ -5,7 +5,7 @@
 ``alert_flush._build_digest`` when a scheduled digest is built — and only the
 second of them was pinned by a test (``test_alert_digest_delivery.py``'s
 "muting a monitor during the hold window"). The first one is the line
-tripl-jfm3.99 added after the Mute button shipped writing a column no worker
+added after the Mute button shipped writing a column no worker
 read; deleting it today left the suite green, which is exactly how that bug
 happened the first time. These cases hold the model comment on
 ``muted_until`` to the code it describes.

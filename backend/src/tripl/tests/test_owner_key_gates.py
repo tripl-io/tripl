@@ -43,7 +43,7 @@ KEY_REACHABLE_OWNER_ROUTES = {
     "POST /api/v1/projects/{slug}/scans/{scan_id}/metrics/replay",
 }
 
-# The stored policy tripl-cj5z explicitly did NOT widen. Named individually
+# The stored policy that was explicitly NOT widened. Named individually
 # because these are the routes whose reach a leaked ``tk_w_`` would extend from
 # "re-run SQL an owner approved" to "own the warehouse credential".
 SESSION_ONLY_OWNER_ROUTES = {

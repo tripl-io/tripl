@@ -345,7 +345,7 @@ class TestMetricSeries:
     ):
         """A non-metric anomaly reusing the metric UUID as scope_ref must NOT flag.
 
-        Finding tripl-dxhp.6 #3: the series read filters on scope_type='metric'
+        Review finding: the series read filters on scope_type='metric'
         too, so a row from another scope that happens to carry the metric UUID is
         excluded rather than surfaced as a false anomaly.
         """

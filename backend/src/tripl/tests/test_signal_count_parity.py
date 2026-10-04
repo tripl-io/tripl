@@ -1,7 +1,7 @@
 """Parity between the sidebar/Overview badge count and the AnomaliesPage signal list.
 
-Regression guard for tripl-yfsj.1 (supersedes the earlier tripl-gf2l/tripl-posm
-contract). The AnomaliesPage now lists EVERY open signal as a flat, magnitude-
+Regression guard (supersedes the earlier contract).
+The AnomaliesPage now lists EVERY open signal as a flat, magnitude-
 filtered list (``get_active_signals(expanded=True)`` -> ``_flag_incident_children``):
 project_total + event_type + per-event, incident children TAGGED but kept, then the
 page hides everything below the "Significant" magnitude threshold. The badge count

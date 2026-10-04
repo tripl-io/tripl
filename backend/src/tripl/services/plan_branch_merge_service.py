@@ -163,7 +163,7 @@ async def _reject_removals_a_scan_names_events_by(
 ) -> None:
     """Refuse the whole merge when it would delete a field a scan names events by.
 
-    The THIRD door to the tripl-lpin outage, after the drift-accept in
+    The THIRD door to the earlier outage, after the drift-accept in
     ``schema_drift_service`` and the plan-UI delete in ``field_service``. A merge
     that drops a FieldDefinition from main is the same ``session.delete(field)``
     with the same consequence: ``generate_events`` builds its format arguments
@@ -283,7 +283,7 @@ async def _load_variables(
     ``Variable.value_contexts`` is ``lazy="selectin"``, and nothing in the merge
     reads it: a bare select would pull every context row and its
     FieldDefinition on each of the three loads, inside the open merge
-    transaction — the cost tripl-xkbb removed from ``build_plan_snapshot``. A
+    transaction — the cost already removed from ``build_plan_snapshot``. A
     deleted variable still cascades its contexts; the ORM loads them at delete
     time.
     """

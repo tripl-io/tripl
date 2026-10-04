@@ -278,7 +278,7 @@ async def test_introspect_buckets_columns_and_identifiers(
 async def test_introspect_does_not_suggest_ordinary_string_columns(
     session: AsyncSession, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """Regression for tripl-8pc0: string-typed is not enough to be an identifier.
+    """Regression: string-typed is not enough to be an identifier.
 
     Under the old rule every non-timestamp string column was a candidate, so
     ordinary dimensions (``country``) and words merely ending in "id"

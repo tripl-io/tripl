@@ -228,7 +228,7 @@ async def _build_monitor_detail(
             # three numbers on the destination card. A scan writes several
             # deliveries in the same instant, so ``created_at`` alone lets the
             # two screens pick different rows and report different statuses for
-            # one rule — the disagreement tripl-oxkt.18 was filed about.
+            # one rule — the disagreement this ordering exists to prevent.
             .order_by(AlertDelivery.created_at.desc(), AlertDelivery.id.desc())
             .limit(1)
         )

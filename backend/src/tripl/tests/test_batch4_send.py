@@ -15,7 +15,7 @@ the delivery it is finishing. The scheduled digest's own send
 task is here for the same reason, on the question of what it leaves in the row
 when one of its groups fails and a later one does not — and on
 which of the members it was handed it is allowed to send at all, which is
-tripl-0zpq.37 again, asked from the digest side.
+the same question as for alerts, asked from the digest side.
 
 One set of cases at the end is about the row's SETTINGS rather than the row:
 which From: addresses the send path will accept, against which ones the two
@@ -1380,8 +1380,8 @@ def _retarget_at_email_destination(sync_session_factory, delivery_id: str) -> No
 
     ``email_from_address`` is left NULL deliberately: that is the only way the
     GLOBAL Default From is the value that ships, which is what this case is
-    about. A destination override can carry a display name too (tripl-v422
-    closed the save-time asymmetry), so the NULL here selects the global path
+    about. A destination override can carry a display name too (the save-time
+    asymmetry has been closed), so the NULL here selects the global path
     rather than the only path a display name can reach.
     """
     with sync_session_factory() as session:
@@ -1622,7 +1622,7 @@ def test_the_settings_form_accepts_exactly_the_senders_the_send_path_accepts() -
 
     Each case pins one way the validator can be wrong. Reach for ``EmailStr`` or
     ``validate_email_address`` instead and the display-name case goes red —
-    that is tripl-0zpq.29 rebuilt at the other end of the same pipe, a value the
+    that is an earlier bug rebuilt at the other end of the same pipe, a value the
     operator can never save rather than one they can save but never deliver.
     Delete the validator and the bare string is accepted again. Forget that
     ``None`` and ``""`` are how the setting is CLEARED (a None is dropped from

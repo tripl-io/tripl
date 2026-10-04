@@ -33,7 +33,7 @@ async def test_service_settings_update_uses_env_fallback_and_encrypts_secrets(
         # built-in default (config.py's ``ai_enabled: bool = False``). This
         # assertion used to read "env" because every field with no stored
         # override was asserted to come from the environment, which is exactly
-        # the claim tripl-wkwv.2 is about — the badge was not evidence of
+        # the claim at issue — the badge was not evidence of
         # anything. The flip is the fix, not a regression.
         assert initial.json()["sources"]["ai.ai_enabled"] == "default"
         assert "runtime" in initial.json()
@@ -322,7 +322,7 @@ async def test_clearing_a_startup_applied_override_stops_crediting_the_environme
 async def test_setting_source_distinguishes_a_delivered_value_from_the_code_default(
     client: AsyncClient, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """The assertion the system could not make before tripl-wkwv.2.
+    """The assertion the system could not make before the source badges.
 
     "Is this instance using the shipped default, or was it told otherwise?" was
     unanswerable from any runtime surface: every field with no stored override

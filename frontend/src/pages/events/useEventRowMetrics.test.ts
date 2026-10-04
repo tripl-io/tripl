@@ -7,7 +7,7 @@ function virtualItem(index: number): VirtualItem {
 }
 
 describe('visibleBucketRange', () => {
-  // Regression for tripl-jfm3.51: window-metrics is the events page's dominant
+  // Regression: window-metrics is the events page's dominant
   // cost (2 calls, ~103 KB, up to 4.5 s on a 200-row first page) and every
   // bucket also carries its own refresh timer, so bucketing over every
   // accumulated row made both the initial cost and the recurring refresh scale

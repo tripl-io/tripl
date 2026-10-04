@@ -7,8 +7,8 @@ operator's laptop — but until this file nothing tied the copies together: the
 CLI's own pinning test compares its formula to literals inside its own package,
 so it cannot see the backend at all, and its CI job runs from ``cli/``. A backend
 change therefore left every CLI test green while ``deferred_by_seconds_estimate``,
-the published backoff table in ``website/docs/run/cli.md`` and the (since removed,
-tripl-0zpq.343) demo staleness allowance all quietly became wrong.
+the published backoff table in ``website/docs/run/cli.md`` and the (since removed)
+demo staleness allowance all quietly became wrong.
 
 The guard lives HERE rather than in ``cli/tests/`` because this is the suite whose
 CI job has the whole repository checked out. It reads the two CLI modules as text
@@ -40,7 +40,7 @@ _PACKAGE = _REPO_ROOT / "cli" / "src" / "tripl_cli"
 _DIAGNOSTICS = _PACKAGE / "diagnostics"
 _SCAN_CHECKS = _DIAGNOSTICS / "scan_checks.py"
 # At the package root, not under diagnostics/: the snapshot dataclasses serve
-# every command including the verdict-free ones, so tripl-azhh moved them out.
+# every command including the verdict-free ones, so they were moved out.
 _MODEL = _PACKAGE / "model.py"
 
 _SCHEDULE = "backend/src/tripl/worker/tasks/metrics/schedule.py"
@@ -121,7 +121,7 @@ def _assignments(path: Path) -> dict[str, ast.expr]:
     if not path.is_file():
         # A moved mirror is exactly what this test exists to catch, so it must
         # arrive as the message below rather than as a pathlib traceback. It did
-        # arrive as a traceback once (tripl-azhh moved model.py to the package
+        # arrive as a traceback once (model.py was moved to the package
         # root), and "FileNotFoundError in _assignments" says nothing about
         # which constant stopped being checked.
         return found

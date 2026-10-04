@@ -195,7 +195,7 @@ def _dry_run_targets(
     for value in group_values:
         # The SAME predicate ``ensure_event_type_with_fields`` guards on, so the
         # preview and the run reach the same verdict for every group value. The
-        # gap this closes is the mirror of tripl-0zpq.45's: there the dry run
+        # gap this closes is the mirror of an earlier one: there the dry run
         # promised a type the manual run skipped; here it would promise a type
         # the run REFUSES — a blank one, or one too long for ``event_types.name``
         # — and then the whole job fails on a value the preview called fine.
@@ -494,7 +494,7 @@ def _dry_run_config(session: Session, job: ScanDryRunJob) -> ScanConfig:
     The draft is a TRANSIENT ``ScanConfig`` — constructed, never ``session.add``ed,
     so it is never flushed. Building it (rather than threading a dozen kwargs
     around) is what lets ``reserved_catalog_columns`` be reused verbatim instead
-    of re-derived, which is the invariant tripl-lpin was about.
+    of re-derived, which is the invariant that mattered there.
     """
     if job.scan_config_id is not None:
         config = session.get(ScanConfig, job.scan_config_id)

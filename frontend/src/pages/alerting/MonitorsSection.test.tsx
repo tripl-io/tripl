@@ -250,7 +250,7 @@ describe('MonitorsSection live state', () => {
     renderSection()
 
     // `Never delivered` and `last sent 3h ago` are opposite facts, and the card
-    // stated neither before tripl-oxkt.17 — the merge must not lose it again.
+    // stated neither before the merge fix — the merge must not lose it again.
     expect(
       await screen.findByText(/115 deliveries · 57 incidents · last .* · sent/),
     ).toBeInTheDocument()
@@ -290,7 +290,7 @@ describe('MonitorsSection rule settings', () => {
 /**
  * Every mute button name below is written out as a literal, and stays that way.
  *
- * Since tripl-yapg this row's component does not compose those sentences: it
+ * Since the shared mute-name helpers, this row's component does not compose those sentences: it
  * calls `muteName`, `muteChoiceName` and `unmuteName` from `@/lib/mutePresets`,
  * exactly as `MonitorDetailPage` and `AlertingInbox` do. Deriving the
  * expectations here from those same functions would make these assertions move
@@ -338,7 +338,7 @@ describe('MonitorsSection mute', () => {
 
   it('always names the instant a muted rule comes back', async () => {
     // READ THIS BEFORE TRUSTING IT: this test does NOT discriminate the guard
-    // tripl-b82m changed, and no honest test can. The only input that separates
+    // an earlier fix changed, and no honest test can. The only input that separates
     // `rule.muted && rule.muted_until` from the old `rule.muted` plus a
     // `: 'muted'` else-branch is `{muted: true, muted_until: null}`, which
     // `is_rule_muted()` cannot produce — so a fixture asserting it would enshrine
@@ -367,7 +367,7 @@ describe('MonitorsSection mute', () => {
     // doing any, since `is_rule_muted()` is the one place that comparison lives.
     // Get that ordering wrong and the row prints "muted until
     // <a date that has passed>", which is the lapsed-mute defect the Inbox card
-    // fixed in tripl-oxkt.20.
+    // fixed earlier.
     //
     // Like its neighbour above, this pins the contract rather than the guard:
     // `muted: false` short-circuits in the old and new code alike.
@@ -420,7 +420,7 @@ describe('MonitorsSection mute', () => {
     // then passes forever while guarding nothing — a silently dead test, unlike
     // a positive assertion, which fails loudly when it goes stale.
     //
-    // It also replaces a canary this row gave up in tripl-yapg. The component
+    // It also replaces a canary this row gave up when it moved to the shared helpers. The component
     // used to write `Mute ${ruleName} for ${preset.label}` as a literal, so it
     // was LEXICALLY incapable of the open-ended phrasing: a leak would have
     // rendered the visibly broken "Mute Prod drops for Until I unmute". It now
@@ -740,7 +740,7 @@ describe('MonitorsSection inert scope notice', () => {
   })
 
   it('keeps that link project-level even for a rule narrowed to one scan', async () => {
-    // The tripwire for tripl-wkwv.9. The monitor detail now aims this same link
+    // The tripwire for the scan-bound link. The monitor detail now aims this same link
     // at the scan its rule is bound to, because there the binding is SAVED. Here
     // it is a draft the picker two fields up can change at any keystroke, while
     // `scopeReadiness` is the project's answer fetched once — so narrowing the

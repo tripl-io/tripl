@@ -136,7 +136,7 @@ describe('friendlyScanError', () => {
 
   it('passes the backend CURATED messages through, not just the generic three', () => {
     // The test above uses the three generic summaries, and every one of them
-    // happens to carry the prefix — which is precisely how tripl-7bol survived
+    // happens to carry the prefix — which is precisely how the bug survived
     // a green suite. The curated messages are the ones the mechanism exists
     // for, and not one of them carried it: each arrived here intact and was
     // collapsed into the bare 'Scan failed.' it had been written to replace.

@@ -9,7 +9,7 @@ than in a module of their own because they exist for one purpose only: a bad
 ``--days``, ``--timeout``, ``--until`` or ``--to`` fails at parse time with
 ``EXIT_USAGE``, before a socket is opened or a container is pulled.
 
-...and, since tripl-3ixs, the three flags that are the same flag on every
+...and, since they were shared, the three flags that are the same flag on every
 command that carries them. ``--json``, ``--timeout`` and ``--project`` were
 spelled out at each ``add_parser`` call, which by the sixth verb was five copies
 of the timeout default and two private ``_add_timeout`` helpers in two command

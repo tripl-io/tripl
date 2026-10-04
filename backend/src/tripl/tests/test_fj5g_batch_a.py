@@ -1,4 +1,4 @@
-"""Backend + contract slices of the tripl-fj5g leftovers, batch A.
+"""Backend + contract slices of the leftovers, batch A.
 
 * the dialect lint runs on metric save, not only in the preview;
 * ``GET /metrics/{id}/generated-sql`` has the metric read's gate;

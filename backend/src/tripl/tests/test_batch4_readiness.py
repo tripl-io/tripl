@@ -8,7 +8,7 @@ them, and the only candidate builder selects the significant band — so a proje
 that watched a column for months without ever crossing the threshold, then
 cleared ``distribution_drift_fields``, was told its scope was fine while nothing
 could ever feed it again. The value-drift half of the same query has mirrored its
-builder's filters since tripl-wkwv.1; this is the missing symmetry.
+builder's filters for some time; this is the missing symmetry.
 
 Both ends are pinned here, because the mirror can be broken from either side:
 the probe, through the endpoint the Alerting tab polls, and

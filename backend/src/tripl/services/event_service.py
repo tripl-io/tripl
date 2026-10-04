@@ -293,7 +293,7 @@ def _record_keyed_changes(
     """One history row per field or meta value whose text changed.
 
     Rows are keyed ``field:<name>`` / ``meta:<name>`` so the history reads as
-    the same list the form shows. Until tripl-kjhi.9 only name, description,
+    the same list the form shows. Previously only name, description,
     status and sunset date were recorded, and an event whose Jira key or
     screen value changed hands had an empty history.
     """
@@ -1341,7 +1341,7 @@ async def _guard_scan_identity(
     event_type_id: uuid.UUID,
     identity: str,
 ) -> None:
-    """Refuse an identity an existing event would compete with. See tripl-u2h9.1."""
+    """Refuse an identity an existing event would compete with."""
     existing = await _event_holding_scan_identity(
         session,
         project_id=project_id,
@@ -1401,7 +1401,7 @@ async def _resolved_event_identity(
     in one query — but through the SAME two helpers, ``apply_scan_name_format``
     and ``_identities_already_held``, so the doors cannot disagree about what an
     authored event is named or when its name is free. They did until
-    tripl-u2h9.11, with bulk writing ``data.name`` verbatim and no identity at all.
+    a later fix, with bulk writing ``data.name`` verbatim and no identity at all.
     """
     generated_name = await _generate_scan_template_name(
         session,
@@ -1508,7 +1508,7 @@ async def _guard_event_breakdown_columns(
     event_type_id: uuid.UUID,
     columns: Sequence[str] | None,
 ) -> None:
-    """Refuse a breakdown column the collector would have to skip. See tripl-0zpq.15."""
+    """Refuse a breakdown column the collector would have to skip."""
     if not columns:
         return
     reserved = await _reserved_breakdown_columns_by_type(

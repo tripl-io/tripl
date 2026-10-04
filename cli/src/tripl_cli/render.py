@@ -81,7 +81,7 @@ def columns(rows: Sequence[Sequence[str]]) -> list[str]:
     Deterministic from the input alone — no terminal width read, no isatty
     branch — so the piped bytes and the terminal bytes are the same artifact.
 
-    Public rather than module-private since tripl-ey6j.3: ``install.render``
+    Public rather than module-private: ``install.render``
     lays out its own tables and a second padder would let the two command
     families' output drift apart by a space.
     """

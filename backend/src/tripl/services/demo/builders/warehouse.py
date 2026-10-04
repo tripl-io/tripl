@@ -219,8 +219,8 @@ async def _build_scan_config(session: AsyncSession, ctx: DemoContext) -> None:
         # The demo still tells its distribution-drift story: builders/monitoring
         # seeds DistributionDrift rows for ``platform`` directly, with PSI from
         # the real ``compute_psi``, so the panel has one daily point per day of
-        # ``noise.DEMO_DRIFT_SPAN_DAYS`` (8, the first a zero-PSI baseline;
-        # tripl-0zpq.252) without the config claiming a field it may not claim.
+        # ``noise.DEMO_DRIFT_SPAN_DAYS`` (8, the first a zero-PSI baseline)
+        # without the config claiming a field it may not claim.
         distribution_drift_fields=[],
         metric_breakdown_columns=[],
         # Platform + app-version observation are CONFIGURED here (the synthetic

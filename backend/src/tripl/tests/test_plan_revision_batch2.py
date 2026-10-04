@@ -1,6 +1,6 @@
 """Plan diff, snapshot and housekeeping fixes from the 2026-09-09 sweep.
 
-* tripl-0zpq.148 / .141 — a meta field's ``allow_multiple`` is diffed, so the
+* A meta field's ``allow_multiple`` is diffed, so the
   approval hash, the merge and the revert no longer act on a change the diff
   never showed.
 * a multi-value meta field's values serialize in one order
@@ -125,7 +125,7 @@ def _copy(row: dict[str, Any], **changes: Any) -> dict[str, Any]:
     return {**row, "id": f"copy-{uuid.uuid4()}", **changes}
 
 
-# --- tripl-0zpq.148 / .141: allow_multiple is a diffed key --------------------
+# --- allow_multiple is a diffed key --------------------
 
 
 @pytest.mark.parametrize(

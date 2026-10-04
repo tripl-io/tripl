@@ -1,4 +1,4 @@
-"""Batch 18 merge-time races: tripl-0zpq.288, .290 and .294.
+"""Batch 18 merge-time races.
 
 One mechanism closes all three (``services/_plan_branch_locks.py``): a plan
 write holds its branch's ``plan_branches`` row ``FOR SHARE`` in its own
@@ -477,7 +477,7 @@ async def test_a_branch_write_arriving_mid_merge_waits_then_is_refused(
 @pytest.mark.postgres
 @pytest.mark.asyncio
 async def test_a_merge_arriving_mid_write_waits_and_then_sees_the_write(pg_app: _PgApp) -> None:
-    """tripl-0zpq.288, the other order: the merge snapshots after the write.
+    """The other order: the merge snapshots after the write.
 
     The write is held open inside the dependency's own transaction, the one the
     route writes through. The merge must wait for it rather than snapshot the
@@ -624,7 +624,7 @@ async def test_a_main_edit_arriving_mid_merge_waits_and_is_not_overwritten(
 async def test_a_merge_arriving_mid_main_edit_waits_and_reports_the_conflict(
     pg_app: _PgApp,
 ) -> None:
-    """tripl-0zpq.294, the other order: the merge's check sees the main edit.
+    """The other order: the merge's check sees the main edit.
 
     The main edit is held open inside the dependency's transaction. Before the
     fix the merge read main without it, found no conflict, and once the edit

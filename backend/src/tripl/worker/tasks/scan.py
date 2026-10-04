@@ -1,7 +1,7 @@
 """Celery tasks for running data source scans.
 
 The dry-run half ("what would this scan create?") lives in the sibling
-``scan_dry_run`` module — split out for size in tripl-28g7, no behaviour change.
+``scan_dry_run`` module — split out for size, no behaviour change.
 Its Celery task is still named ``tripl.worker.tasks.scan.dry_run_scan_config_async``
 because the broker routes on that string.
 """
@@ -113,7 +113,7 @@ def _task_id(task: object) -> str | None:
 
     Recorded on the job so ``cancel_scan_job`` can best-effort revoke a message
     that is still queued — the invariant ``ScanJob.celery_task_id`` documents and
-    which, before tripl-0zpq.44, only ``collect_metrics`` honoured, leaving the
+    which, until recently, only ``collect_metrics`` honoured, leaving the
     revoke branch unreachable for every catalog run and event-group apply.
     """
     return getattr(getattr(task, "request", None), "id", None)

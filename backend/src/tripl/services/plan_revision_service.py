@@ -872,7 +872,8 @@ _V2_EVENT_DEFAULTS: dict[str, Any] = {
 # treat one absent from a current-version payload as skew, so
 # without this every pre-existing snapshot would diff every meta field as
 # changed. That danger is real only because the key IS diffed — which it was
-# not until tripl-0zpq.148 put it in ``_META_FIELD_CHANGE_KEYS``.
+# not until it was added to
+# ``_META_FIELD_CHANGE_KEYS``.
 _V2_META_FIELD_DEFAULTS: dict[str, Any] = {"allow_multiple": False}
 # F23 (#306) added ``json_schema`` to a variable and ``required`` to each of its
 # per-event entries. Without them every stored base would read each variable
@@ -898,7 +899,7 @@ def _with_override_defaults(variable: Any) -> Any:
 
 # Member attributes the diff does not read as a change on their own. A field
 # value's ``is_authored`` flips when a person re-saves a scan-observed value
-# unchanged (every save before tripl-kjhi.4 did that); the reviewer sees the
+# unchanged (every save used to do that); the reviewer sees the
 # same text on both sides and a row claiming it changed. The flag still rides
 # along in ``before``/``after`` — it is only not a difference by itself.
 _MEMBER_ATTRS_NOT_A_CHANGE: dict[str, tuple[str, ...]] = {"field_values": ("is_authored",)}
@@ -908,7 +909,7 @@ def _with_ordered_meta_values(event: Any) -> Any:
     """``event`` with its meta values in ``_meta_value_order`` — itself if already so.
 
     A revision stores the snapshot exactly as it was serialized, and one written
-    before tripl-0zpq.140 holds a multi-value field's rows in whatever order the
+    before the ordering fix holds a multi-value field's rows in whatever order the
     database returned them. Read beside a fresh snapshot of the same content,
     that order alone would be a change to the diff and a divergence to the merge.
     """

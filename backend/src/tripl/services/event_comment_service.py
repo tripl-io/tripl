@@ -67,7 +67,7 @@ async def event_thread(session: AsyncSession, slug: str, event_id: uuid.UUID) ->
     An event has ONE discussion. Deep-copying it onto every branch would fork
     the conversation, and merging the forks back is exactly the machinery that
     turned a comment into an unmergeable branch. Reading through
-    to the twin — the tripl-kjhi.9 pattern, nothing written back — means a
+    to the twin — the same pattern, nothing written back — means a
     question raised on a branch is the same question main can answer.
 
     An event that exists only on a branch has no twin yet, so it keeps its own

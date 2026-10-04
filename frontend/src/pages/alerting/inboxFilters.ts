@@ -124,7 +124,7 @@ function readDay(value: string | null): string {
  * of its union.
  *
  * Unknown values are DROPPED rather than passed through, and this is the same
- * argument tripl-57g0 made on the server: the API 422s a scope type it does not
+ * argument made on the server: the API 422s a scope type it does not
  * know, so forwarding `?scope_type=bogus` would turn a stale link into a failed
  * request instead of an unfiltered list.
  */
@@ -211,7 +211,7 @@ export function hasActiveInboxFilters(state: InboxFilterState): boolean {
 /** The earliest day a date filter can reach, as `YYYY-MM-DD`.
  *
  *  Handed to the inputs' `min` so the control states its own bound instead of
- *  accepting a date and quietly returning nothing — the tripl-39n6 shape. */
+ *  accepting a date and quietly returning nothing — a bug seen before. */
 export function earliestReachableDay(now: Date): string {
   const at = new Date(now)
   at.setDate(at.getDate() - INBOX_LOOKBACK_DAYS)

@@ -257,7 +257,7 @@ function VariablesTableRowImpl({
 }
 
 /** Memoized on purpose: the table renders a page of these and ticking ONE
- * checkbox must not re-render the rest (tripl-jfm3.49 measured ~300 ms–3 s per
+ * checkbox must not re-render the rest (measured at ~300 ms–3 s per
  * click when every row re-rendered). Props are the variable object straight off
  * the query cache plus primitives and callbacks the parent keeps stable, so
  * reference equality holds between renders. */

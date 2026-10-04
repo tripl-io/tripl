@@ -416,14 +416,14 @@ def _validate_email_from_override(value: str | None) -> str | None:
     So ``Tripl Alerts <no-reply@example.com>`` on a destination delivers, and
     delivers with the display name intact — the strict helper here was refusing
     a value every consumer of the column already accepts. That is
-    the inverse of tripl-0zpq.29 at the other end of the same pipe: there the
+    the inverse of an earlier bug at the other end of the same pipe: there the
     diagnostics were more permissive than delivery, here the SAVE was stricter
     than delivery. Both mislead the operator about a configuration they cannot
     otherwise inspect, and both are fixed by the columns' readers and writers
     answering the question the same way.
 
     The global ``EmailSettingsUpdate.smtp_from_address`` — the value this one
-    overrides — has been checked this way since tripl-0zpq.29. A value whose
+    overrides — has been checked this way for some time. A value whose
     SHAPE was accepted globally and then refused on the destination that
     overrides it was the last asymmetry of that kind left in the pair.
 
@@ -1068,8 +1068,8 @@ class AlertDeliveryItemResponse(BaseModel):
     sample_value: str | None
     # The incident this row belongs to: one
     # (scan config, rule, scope type, scope ref, direction).
-    # It is also the handle the alert inbox acts on, so EVERY item written since
-    # tripl-jfm3.91 carries one — a solitary alert had none before and was
+    # It is also the handle the alert inbox acts on, so EVERY item written
+    # now carries one — a solitary alert had none before and was
     # therefore invisible to the inbox and impossible to acknowledge. Co-firing
     # is the peer COUNT within a delivery, not the presence of this id. NULL
     # only on rows written by older releases.
@@ -1534,7 +1534,7 @@ class AlertInboxBulkActionResponse(BaseModel):
     # SHORTER than the request in one case only: an incident whose deliveries
     # were deleted between this call's commit and its rebuild has no rows left to
     # render a card from, and is omitted rather than 404ing a change that already
-    # landed (the failure tripl-oxkt.20 fixed on the single route). The state
+    # landed (the failure already fixed on the single route). The state
     # change still happened and the audit row still names it, so a client that
     # wants certainty should match on ``correlation_group_id`` rather than
     # position.
@@ -1549,7 +1549,7 @@ class AlertInboxBulkActionResponse(BaseModel):
     # never a count to report. The key is still present so a client sharing one
     # handler with the single-incident response cannot read a MISSING key as 0
     # and announce "no scopes tightened" after a bulk acknowledge — the exact
-    # defect tripl-oxkt.6 fixed on the single route.
+    # defect already fixed on the single route.
     overrides_written: int | None
 
 
@@ -1572,7 +1572,7 @@ class SimulatedRuleFiring(BaseModel):
     # activation-anchored rollout overlap rather than a scan bucket — and it is
     # what lets the PREVIEW print the same "over the 51h rollout overlap" clause
     # the delivered message prints, out of the one shared
-    # ``alert_templates.build_drift_line``. Before tripl-0zpq.158 the replay
+    # ``alert_templates.build_drift_line``. Previously the replay
     # never loaded a release regression, so the field would have had nothing to
     # hold; the delivered twin (``AlertDeliveryItem.window_from``) has carried
     # it since the scope shipped.
@@ -1697,7 +1697,7 @@ class AlertRuleSimulateResponse(BaseModel):
     # the rule. Replay existed to answer "would a stricter rule have cut these
     # incidents", but only the cooldown could be varied, so testing a threshold
     # meant saving it onto a rule that is live-routing to a real channel and
-    # waiting to see what it did to production (tripl-oxkt.17 part 3).
+    # waiting to see what it did to production.
     #
     # ``*_used`` equals ``*_saved`` when no override was passed, and mirrors the
     # override otherwise. ``*_saved`` is sent so the UI can show "current vs
@@ -1719,7 +1719,7 @@ class AlertRuleSimulateResponse(BaseModel):
     # ``sigma_threshold_saved`` is the PROJECT's configured threshold — the
     # ``sigma_threshold`` of its Detection settings, and ``DEFAULT_SIGMA_THRESHOLD``
     # for a project that has never opened that screen and so has no settings row.
-    # It was quoted off ``ScanConfig.sigma_threshold`` until tripl-0zpq.160: a
+    # It was quoted off ``ScanConfig.sigma_threshold`` until it was fixed: a
     # per-scan copy of the same number that the detector never reads and no API
     # writes, so a tuned project was told its replay was measured against a value
     # nothing detects with. Per-scope ratchet overrides (the false-positive
@@ -1858,7 +1858,7 @@ class MonitorDetailResponse(MonitorSummaryItem):
     #                                that feeds nothing can still read ready
     #                                because a sibling scan does.
     # Naming them separately is the whole point: one name carrying two meanings
-    # on two responses is the failure tripl-oxkt.18 was filed about.
+    # on two responses is a failure that was reported.
     scan_config_id: uuid.UUID | None
     scan_name: str | None
     # Scope coverage — which signal kinds this monitor subscribes to.
@@ -1886,7 +1886,7 @@ class MonitorDetailResponse(MonitorSummaryItem):
     # The SAME block, under the same name and with the same meaning, as the one
     # on ``MonitorsSummaryResponse``. The monitors list and the monitor detail
     # describe one project, and a field name that meant two things on two
-    # responses is the disagreement tripl-oxkt.18 was filed about.
+    # responses is a disagreement that was reported.
     #
     # Still PROJECT-level even on a rule that carries a ``scan_config_id`` above:
     # narrowing it here and not on the summary would give one name two meanings,

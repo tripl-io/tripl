@@ -409,7 +409,7 @@ export function ScenarioCoachMark({
  *   muting every hint was the only way out before.
  *
  * bottom-[68px] clears the tweaks FAB (fixed bottom-1, h-8 → top edge at 36px;
- * tripl-tvqk tucked it into the activity rail's footer strip) rather than
+ * it was tucked into the activity rail's footer strip) rather than
  * fighting it on z-index, which would also put the coach over modal dialogs.
  * top-14 clears the 44px top bar, and the demo banner below it
  * while that is on screen (see `dockTop`).

@@ -182,7 +182,7 @@ async def _reject_if_a_scan_names_events_by(
 ) -> None:
     """409 when deleting this field would leave a scan unable to name its events.
 
-    The SECOND door to the tripl-lpin outage. Accepting a ``missing_field`` drift
+    The SECOND door to a past outage. Accepting a ``missing_field`` drift
     is guarded in ``schema_drift_service``; this is the same deletion reached from
     the plan UI in one click, with the same consequence — ``generate_events``
     assembles its format arguments only from columns that still have a

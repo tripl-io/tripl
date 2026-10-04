@@ -5,7 +5,7 @@ No projection for ``EventListItemResponse``. Its ``field_values`` and
 rather than into a model's context window — so ``tripl events list --json``
 carries a row verbatim, exactly as ``scans.list_jobs`` does. The MCP's
 ``EVENT_LIST_FIELDS`` is a statement about an AGENT's context budget and stays
-where its one consumer is (tripl-i1dt revisits that).
+where its one consumer is.
 """
 
 from __future__ import annotations

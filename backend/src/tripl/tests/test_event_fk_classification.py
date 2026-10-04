@@ -209,7 +209,7 @@ DELIBERATELY_CASCADES: dict[tuple[str, str], str] = {
         "Derived index, and the cascade does the deleting: the FK is ON DELETE CASCADE, so the "
         "SOURCE's documents go with the source row — the reindex's actual job here is minting the "
         "TARGET's missing document. Both catalog-mutating tasks in worker/tasks/scan.py now "
-        "reindex after their commit; apply_event_groups did not until tripl-68l3."
+        "reindex after their commit; apply_event_groups did not until a later fix."
     ),
 }
 
@@ -516,7 +516,7 @@ def test_the_delete_path_policy_is_pinned_against_the_executor() -> None:
     somewhere in this ledger with a reason that actually mentions the delete
     path — otherwise a column could gain a delete-path policy in the code while
     its entry here still described only the merge, which is precisely the state
-    this file was in before tripl-xjuv.
+    this file was in before the policy table.
     """
     pinned = {
         **NON_FK_EVENT_REFERENCES,

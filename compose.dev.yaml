@@ -42,7 +42,7 @@ x-backend-environment: &backend-environment
   # Outbound email. Blank by default, so the dev stack still sends nothing
   # unless you point it somewhere — but it CAN now be pointed, which it could
   # not before: none of these were forwarded, so a developer had no way to
-  # reproduce an SMTP transport problem locally, and tripl-x1vk was found in
+  # reproduce an SMTP transport problem locally, and an SMTP bug was found in
   # production for that reason. SMTP_SECURITY must match SMTP_PORT: starttls
   # for 587/2525, implicit_tls for 465.
   SMTP_HOST: ${SMTP_HOST:-}

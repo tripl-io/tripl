@@ -1119,7 +1119,7 @@ class TestScanConfigsCRUD:
         # under the "Scan failed" prefix the UI matches on. The sanitiser adds it
         # so no raise site has to remember to — before that, all
         # sixty-odd curated messages reached the browser and were thrown away
-        # there, one layer past where tripl-embs had rescued them.
+        # there, one layer past where an earlier fix had rescued them.
         curated = scan_tasks.ScanError(
             "The scan query reached the configured row limit (60000); increase scan_row_limit"
         )
@@ -1191,7 +1191,7 @@ class TestScanConfigsCRUD:
         when it starts with "scan failed", and collapses everything else into a
         bare "Scan failed." A curated message without the prefix is therefore not
         styled differently — it is deleted before anyone reads it. That was true
-        of every ``ScanError`` in this repository until tripl-7bol, which is why
+        of every ``ScanError`` in this repository until recently, which is why
         this asserts the property rather than four specific strings.
         """
         from tripl.core.name_template import NameFormatError

@@ -2,12 +2,12 @@
 
 Regression tests for four findings in ``services/metric_series_service``:
 
-* ``tripl-0zpq.113`` — breakdowns zero-filled FRACTIONAL series because
+* breakdowns zero-filled FRACTIONAL series because
   ``get_metric_breakdowns`` was the only caller that never passed
   ``count_shaped``.
-* ``tripl-0zpq.114`` — the version fold ADDED ratios together, so a ~30% metric
+* the version fold ADDED ratios together, so a ~30% metric
   plotted its "Other" line at 85%.
-* ``tripl-0zpq.115`` — the value read mixed every scan grid's ``MetricValue``
+* the value read mixed every scan grid's ``MetricValue``
   rows, so a two-grid ``event_composition`` metric plotted the retired grid and
   invented a zero where the live one had data. The repair is a GRID POPULATION
   shared by the read and the detector (``_grid_population_filter`` /
@@ -16,31 +16,31 @@ Regression tests for four findings in ``services/metric_series_service``:
   resolved config instead, which left the plotted line one ADDEND of the band
   drawn around it, so ``TestMetricGridIsolation`` pins both halves — too narrow
   and too wide each redden a different test in it.
-* ``tripl-0zpq.116`` — a stored non-finite value 500'd the whole series read on
+* a stored non-finite value 500'd the whole series read on
   ``round()``.
 
 and for four more in ``services/metrics_service``, the event-metrics read path:
 
-* ``tripl-0zpq.111`` — ``get_events_metrics`` filtered by the BRANCH copy's
+* ``get_events_metrics`` filtered by the BRANCH copy's
   event-type id, which no metric row carries, so every tab's Dynamics card was
   empty on a working branch.
-* ``tripl-0zpq.112`` — the scan's ``platform_column`` never reached the
+* the scan's ``platform_column`` never reached the
   Breakdowns tab's column list, making the stored per-platform series and its
   parity badges unreachable.
-* ``tripl-0zpq.117`` — ``get_platform_presence`` hydrated one row per (event,
+* ``get_platform_presence`` hydrated one row per (event,
   platform, bucket) of the scan's whole history to build a set.
-* ``tripl-0zpq.118`` — ``get_data_source_stats`` summed event-level AND
+* ``get_data_source_stats`` summed event-level AND
   type-level ``event_metrics`` rows, double-counting matched volume.
 
 and for five that span both plus ``services/metrics_insights_service``:
 
-* ``tripl-0zpq.100`` — every read path fitted an STL/MSTL on the event loop,
+* every read path fitted an STL/MSTL on the event loop,
   including a per-event batch that threw the result away.
-* ``tripl-0zpq.119`` / ``tripl-0zpq.299`` — the served band was drawn from a
+* the served band was drawn from a
   sigma no API writes and, on catalog series, from the un-floored stddev.
-* ``tripl-0zpq.120`` — the version-activation rule documented for fractional
+* the version-activation rule documented for fractional
   metrics was not the rule the code applies.
-* ``tripl-0zpq.200`` — a non-UUID ``scope_ref`` 500'd the seasonality heatmap.
+* a non-UUID ``scope_ref`` 500'd the seasonality heatmap.
 
 Fixtures and seeding helpers are reused from ``test_metric_series_api`` and
 ``test_metrics_api`` (the sibling suites for these endpoints) rather than
@@ -413,7 +413,7 @@ class TestMetricGridIsolation:
     async def test_two_live_configs_on_one_grid_are_summed_into_one_line(
         self, client: AsyncClient, project: dict
     ):
-        """tripl-0zpq.115, second half: one chart must describe ONE population.
+        """Second half: one chart must describe ONE population.
 
         Two LIVE scans on the same interval collecting one event type is the
         ordinary shape — an iOS scan and an Android scan feeding one checkout
@@ -513,7 +513,7 @@ class TestMetricGridIsolation:
           it did before this repair) and the retired grid's 100.0 is added to the
           daily bucket — ``[110.0, 5.0]``;
         * narrow it to the grid's own ``scan_config_id`` (the direction
-          tripl-0zpq.115 originally proposed) and the sibling daily source drops
+          first proposed) and the sibling daily source drops
           out — ``[3.0, 5.0]``.
 
         ``_metric_source_config_ids`` is asserted alongside because it is the
@@ -1196,7 +1196,7 @@ async def _set_dead_scan_sigma(scan_config_id: uuid.UUID, value: float) -> None:
 
 class TestServedSigmaThreshold:
     async def test_the_band_multiplier_follows_the_project_setting(self, client: AsyncClient):
-        """tripl-0zpq.119 / tripl-0zpq.299: charts drew a band nobody configured.
+        """Charts drew a band nobody configured.
 
         The detector scores with ``ProjectAnomalySettings.sigma_threshold``,
         which is the value Settings > Monitoring writes. The read path asked

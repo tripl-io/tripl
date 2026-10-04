@@ -317,7 +317,7 @@ class SqlConfig(BaseModel):
     metric_sql: str = Field(min_length=1)
     time_column: str = Field(min_length=1, max_length=255)
     # Which projected column carries the measure. None keeps the documented
-    # ``value`` convention (tripl-0l0p elevated this from convention to config).
+    # ``value`` convention (elevated from convention to config).
     value_column: str | None = Field(default=None, min_length=1, max_length=255)
 
     @field_validator("metric_sql")

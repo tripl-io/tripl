@@ -67,7 +67,7 @@ async def get_event_type_fields(
     fields alone under ``items``, the key its six sibling verbs use. Different
     second request, different result shape, so this merge still has exactly one
     caller. Moving it would freeze an agent-shaped envelope in a package whose
-    tests cannot see it, which is the trade tripl-ey6j.5 declined.
+    tests cannot see it, which is a trade the shared-layer work declined.
     """
     client = client_for(ctx)
     event_type = await send(
@@ -116,7 +116,7 @@ async def get_variable_values(
 
     Stays here. ``tripl plan variables`` lists the catalog and stops
     there — no CLI verb reads one variable's observed values — so this merge has
-    the one caller it had when tripl-ey6j.5 left it behind. It moves the day a
+    the one caller it had when the shared-layer work left it behind. It moves the day a
     ``tripl plan values <variable>`` exists, not before.
     """
     client = client_for(ctx)

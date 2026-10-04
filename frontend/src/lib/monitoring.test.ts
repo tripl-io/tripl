@@ -171,7 +171,7 @@ describe('getScopeNavigationTarget', () => {
     // (worker/tasks/metrics/regression.py), and /monitoring/event-type/:id is a
     // real page for exactly that id — so "the row carries no event" is a reason
     // to withhold the EVENT route, not a reason to leave the name dead text.
-    // What tripl-oxkt.21 removed was /monitoring/event/{event_type_id}: the
+    // What was removed was /monitoring/event/{event_type_id}: the
     // wrong route for an id, not the absence of a destination.
     expect(
       getScopeNavigationTarget('demo', {

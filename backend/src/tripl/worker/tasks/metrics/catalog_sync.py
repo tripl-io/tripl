@@ -971,7 +971,7 @@ def sync_catalog(
         # catalog rows have since been deleted — replaying them would aim an
         # INSERT at a missing foreign-key parent — and a result that loses an
         # entry that way is still the right result: its ``col_meta`` holds the
-        # historical name templates, which is the whole reason tripl-0zpq.19
+        # historical name templates, which is the whole reason an earlier fix
         # made this path reachable. Widening the condition to "or the events are
         # empty" would hand every such replay back to the heuristic rebuild and
         # undo that fix for the surviving events too.

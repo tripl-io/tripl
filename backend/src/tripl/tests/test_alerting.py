@@ -1059,7 +1059,7 @@ async def test_alert_deliveries_filter_by_incident_and_reach_the_ungrouped(
             [
                 _item(grouped, group_id),
                 _item(other_incident, uuid.uuid4()),
-                # Pre-tripl-jfm3.91 shape: an item with no incident at all.
+                # Older shape: an item with no incident at all.
                 _item(orphan, None),
             ]
         )
@@ -5616,7 +5616,7 @@ async def test_monitor_detail_names_the_scan_a_rule_is_narrowed_to(client: Async
 
     ``scope_readiness`` is asserted UNCHANGED here on purpose: it is still the
     project's answer, and re-pointing it at the named scan on this response only
-    would give one field name two meanings across two responses — tripl-oxkt.18.
+    would give one field name two meanings across two responses.
     """
     from tripl.services.scan_service import delete_scan_config
 
@@ -5793,7 +5793,7 @@ async def test_alert_inbox_rejects_unknown_status_instead_of_reporting_empty(
 
 
 # ---------------------------------------------------------------------------
-# Inbox as a triage surface (epic tripl-oxkt): the card has to say WHAT fired
+# Inbox as a triage surface (an epic): the card has to say WHAT fired
 # and how big it was, an incident a human handled must stay reachable, and an
 # action must report what it actually did.
 # ---------------------------------------------------------------------------
@@ -6067,8 +6067,7 @@ async def test_handled_group_never_outranks_an_untouched_open_one(client: AsyncC
     acknowledge, resolve, mute, reopen and false_positive alike, so the last N
     incidents a human TRIAGED took the top N ranks and pushed every untouched one
     off page one — a worse failure than the sinking it was meant to fix, and it
-    did not fix that either (a mute freezes the key just the same, minutes later)
-    — tripl-oxkt.2.
+    did not fix that either (a mute freezes the key just the same, minutes later).
     """
     project_resp = await client.post(
         "/api/v1/projects",
@@ -6483,7 +6482,7 @@ async def test_a_lapsed_mute_on_an_aged_incident_is_not_rescued(
 ) -> None:
     """The rescue reads `_effective_inbox_status`, not `state.status`.
 
-    A mute whose expiry has passed is OPEN again — the whole of tripl-oxkt.20 —
+    A mute whose expiry has passed is OPEN again — the whole of that bug —
     and an open incident that stopped delivering is exactly the resolved-by-time
     case the 30-day window exists to forget. Keying the rescue on the stored
     string instead would turn the inbox into an unbounded archive of everything
@@ -7084,7 +7083,7 @@ async def test_reopen_lifts_an_indefinite_inbox_mute(client: AsyncClient) -> Non
     human and by nobody else, so if ``reopen`` ever stopped nulling the column or
     stopped resetting the status, the operator would hold an unbreakable mute
     with no way out through the API. That is a worse failure than the one
-    tripl-a50u fixed, and it is what this test stands guard over.
+    an earlier fix addressed, and it is what this test stands guard over.
     """
     group_id = await _seed_inbox_group(client, "unmute-forever", "Unmute Forever")
 
@@ -7166,7 +7165,7 @@ async def test_bulk_action_copies_the_decision_into_every_selected_incident(
 ) -> None:
     """The batch is a SHORTCUT for N clicks, so every selected row ends up identical.
 
-    tripl-gpfr deliberately built no group object and no new table: the note,
+    The design deliberately built no group object and no new table: the note,
     ``acted_at`` and ``acted_by`` are COPIED into each incident's own state, so
     afterwards nothing distinguishes a bulk-acknowledged incident from a
     hand-clicked one. That is the whole contract, and these three assertions are
@@ -7768,7 +7767,7 @@ async def test_rule_carries_the_same_mute_state_as_its_monitor(client: AsyncClie
 async def test_rule_mute_still_requires_an_expiry(client: AsyncClient) -> None:
     """A null ``muted_until`` means the OPPOSITE thing on a rule, and must stay 422.
 
-    tripl-a50u made "null = muted forever" true on ``AlertCorrelationState``. On
+    An earlier fix made "null = muted forever" true on ``AlertCorrelationState``. On
     ``AlertRule`` null means NOT MUTED — ``is_rule_muted`` answers False for it,
     and null is the default on every rule ever created — so relaxing
     ``MonitorMuteRequest.muted_until`` to match the inbox payload would report
@@ -8262,7 +8261,7 @@ def _simulate_url(fixture: dict[str, object], slug: str) -> str:
 async def test_simulate_tries_a_percent_threshold_without_saving_it_on_a_live_rule(
     client: AsyncClient,
 ) -> None:
-    """tripl-oxkt.17 part 3: replay accepted only ``days`` and a cooldown, so
+    """Part 3: replay accepted only ``days`` and a cooldown, so
     asking "would min % 300 cut these" meant editing a rule that is live-routing
     to a real channel and waiting to see what production did."""
     slug = "sim-pct-override"

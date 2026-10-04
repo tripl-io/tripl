@@ -5,7 +5,7 @@ WHY THIS NEEDS A REAL POSTGRESQL, AND WHY THE BACKEND SUITE CANNOT HOST IT
 The defect lived entirely in the Postgres score. ``_FULL_CONFIDENCE_SCORE`` was
 derived as ``5.0`` (exact title) ``+ 2.0`` (a perfect trigram on that same
 title), and confidence was that fraction of the TOTAL — but the total also
-carries ``lexical_score * 4.0`` and, since tripl-9t2s, ``COVERAGE_BONUS``.
+carries ``lexical_score * 4.0`` and, since the coverage fix, ``COVERAGE_BONUS``.
 Neither was in the derivation, so documents that are not the thing named crossed
 the line anyway.
 
@@ -80,7 +80,7 @@ async def test_an_exact_title_is_still_served_as_a_certain_answer(
 @pytest.mark.parametrize(
     ("query", "title"),
     [
-        # The two crossings recorded on tripl-d5u8. Neither document is the thing
+        # The two crossings recorded in the original report. Neither document is the thing
         # named: `screen_spot` merely CONTAINS `spot`, and `${property.card_target}`
         # holds `screen_settings` in harvested text.
         pytest.param("spot", EVENT_SCREEN_SPOT, id="spot-does-not-certify-screen_spot"),
@@ -120,7 +120,7 @@ async def test_no_partial_match_anywhere_in_the_table_claims_certainty(
 ) -> None:
     """The general invariant, over every query the harness already measures.
 
-    Two hand-picked crossings are what tripl-d5u8 recorded, but the bound is not
+    Two hand-picked crossings are what was originally recorded, but the bound is not
     about those two documents — it is about the arithmetic. Sweeping the whole
     case table means the next term added to the score sum cannot quietly push
     some OTHER partial match over the line without a case going red, which is

@@ -575,7 +575,7 @@ _NO_SERVER_TLS_HINTS = ("does not support ssl",)
 # Every message below opens with this. A connection probe is not a scan:
 # ``worker.tasks._errors.user_facing_error`` GUARANTEES a "Scan failed" prefix
 # because ``frontend/src/lib/scanError.ts`` keys on it, which reads as nonsense
-# under a data source's Test connection button (tripl-7bol made that prefix a
+# under a data source's Test connection button (that prefix is a
 # contract rather than an accident, so the mismatch is now written down).
 _TEST_FAILED = "Connection test failed"
 

@@ -76,7 +76,7 @@ class NameFormatError(ValueError):
     It exists because raising a bare ``ValueError`` collapsed the one
     self-diagnosing line ("references unknown keys: action") into "Scan failed
     due to an internal error." for four days of production collection failures
-    (root cause of tripl-lpin). It lives in ``core`` because ``core``
+    (the root cause of that outage). It lives in ``core`` because ``core``
     must never import ``worker`` — admitting it to the curated set in
     ``_errors`` keeps the import direction worker → core and means every caller
     of the name-format code gets the behaviour without opting in.

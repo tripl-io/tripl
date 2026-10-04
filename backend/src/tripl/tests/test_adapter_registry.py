@@ -169,7 +169,7 @@ def test_postgres_localhost_skips_tls_and_uses_default_timeout(
     # traffic never leaves the machine. `prefer` is libpq's own default (use TLS if
     # the server offers it, plaintext otherwise) — the adapter now passes it
     # EXPLICITLY rather than leaving it unset, because an sslmode it merely ignored
-    # is the bug tripl-64n8.7 closes.
+    # is the bug this closes.
     assert captured["sslmode"] == "prefer"
     assert captured["connect_timeout"] == _DEFAULT_TIMEOUT_SECONDS
     assert captured["options"] == (

@@ -232,7 +232,7 @@ turns it into `xfail(strict=True)`, so the workflow for a measured fault is:
 write the case down with the marker first, fix it second, delete the marker as
 the proof. **That has now happened once, end to end** —
 `russian-phrase-finds-the-event-it-describes` was written with the marker, and
-tripl-9t2s deleted it by adding the coverage term. Strict is what makes the last
+The coverage-term fix deleted it. Strict is what makes the last
 step honest: an xfail that starts passing FAILS, so a marker cannot outlive the
 fault it describes.
 
@@ -245,11 +245,11 @@ Do not weaken an assertion to make a case pass.
 **Which guarantees are PostgreSQL-only.** The rest of the backend suite runs on
 in-memory SQLite against `_search_query.fallback_score`, a tier ladder with no
 `ts_rank_cd`, no trigram similarity and **no stemmer**. So the SQLite suite does
-**not** cover ranking: everything tripl-nh5s fixed (stemming, and the 3.25 boost
+**not** cover ranking: everything the stemming fix covered (stemming, and the 3.25 boost
 tier that depends on it — the `purchases` / `уловы` / `spots` / `экран спота`
 cases) holds only on PostgreSQL and only this job executes it. What does hold on
-both dialects is anything implemented at document-build time (tripl-gbxj's
-keyword change, tripl-h9x2's spaced aliases and its query fold) and the rule that
+both dialects is anything implemented at document-build time (the
+keyword change, the spaced aliases and the query fold) and the rule that
 only an exact title/keywords match may be reported at confidence 1.0. The
 `fallback_score` docstring carries the same list next to the code.
 

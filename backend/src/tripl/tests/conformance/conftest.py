@@ -156,7 +156,7 @@ def _seed_postgres(adapter: PostgresAdapter) -> None:
             "doc jsonb, "
             # An ARRAY of a JSON type and an ARRAY of a scalar. psycopg's type
             # registry returns the ELEMENT's TypeInfo for both a type's own oid and
-            # its array oid, so before tripl-0zpq.56 `docs` was reported as plain
+            # its array oid, so before that was handled `docs` was reported as plain
             # `jsonb` — which routed it into the JSON path walk, whose
             # `"docs"::jsonb` PostgreSQL refuses ("cannot cast type jsonb[] to
             # jsonb"), failing the whole scan rather than one column. `counts` is
@@ -268,7 +268,7 @@ def _seed_clickhouse(adapter: ClickHouseAdapter) -> None:
     client.command(f"DROP TABLE IF EXISTS {TABLE}")
     # `props` and `tup` are ClickHouse-only and deliberately absent from dataset.py:
     # a Map and a Tuple are the two nested families JSONAllPaths rejects, and before
-    # tripl-0zpq.55 either one made every scan on this table fail with
+    # that was handled either one made every scan on this table fail with
     # ILLEGAL_TYPE_OF_ARGUMENT. Putting them in the shared `FixtureRow` instead would
     # force the PostgreSQL and BigQuery gates to invent an equivalent for a shape
     # neither engine has. `props` varies its key set per row so the shape column has

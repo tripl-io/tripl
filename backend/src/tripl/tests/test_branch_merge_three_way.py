@@ -107,7 +107,7 @@ async def test_a_comment_only_branch_leaves_main_photo_changes_alone(client: Asy
 
 @pytest.mark.asyncio
 async def test_photo_comments_merge_three_way_and_keep_their_time(client: AsyncClient) -> None:
-    """tripl-0zpq.135 + .143: a comment main deleted after the cut stays
+    """A comment main deleted after the cut stays
     deleted, one the branch deleted leaves main too, and one written on the
     branch arrives with the time it was written, not the merge's."""
     slug = "merge3w-comments"

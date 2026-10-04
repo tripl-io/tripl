@@ -22,7 +22,7 @@ class EventChange(UUIDMixin, TimestampMixin, Base):
     #: ``event_service._record_keyed_changes`` and split back apart by
     #: ``frontend/src/lib/eventHistory.ts``. Both name columns are ``String(100)``
     #: and both create schemas allow the full 100, so a keyed entry can be 106
-    #: characters — six more than the 100 this column held until tripl-0zpq.256,
+    #: characters — six more than the 100 this column held before,
     #: which made editing such a field a rolled-back 500 on PostgreSQL
     #: (StringDataRightTruncation at flush) while SQLite, which does not enforce
     #: VARCHAR widths, stored it happily in the tests. 255 rather than a tight 106

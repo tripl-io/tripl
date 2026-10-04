@@ -1,8 +1,8 @@
-"""Demo identity + atomic lifecycle (epic tripl-2su6.1).
+"""Demo identity + atomic lifecycle.
 
 Covers demo identity metadata, provisioning atomicity (a failed seed leaves no
 visible demo), synthetic-DataSource ownership/cleanup, and reset-in-place. The
-full owner/editor/viewer permission matrix and browser E2E live in tripl-2su6.10.
+full owner/editor/viewer permission matrix and browser E2E live elsewhere.
 """
 
 import logging
@@ -152,7 +152,7 @@ async def test_provision_failure_logs_traceback_and_request_id(
 ) -> None:
     # A failed seed must be diagnosable: the warning carries the traceback
     # (exc_info), the per-request id, and the failing detail — not a bare
-    # error=<ExceptionType> (tripl-2su6 .15).
+    # error=<ExceptionType>.
     async def _boom(*args: object, **kwargs: object) -> None:
         raise RuntimeError("injected seed failure")
 

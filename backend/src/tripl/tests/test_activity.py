@@ -356,7 +356,7 @@ async def test_an_open_branch_does_not_add_a_second_unreachable_copy_of_each_eve
 ):
     """A working branch deep-copies the plan; the rail must stay on main.
 
-    Before tripl-r5ri the event query joined Event to Project alone, so every
+    Previously the event query joined Event to Project alone, so every
     open branch contributed its own clone of each event. The rail linked to
     whichever copy won an arbitrary tiebreak, and a branch-local id 404s: the
     monitoring page resolves ids against main. Asserting on the row count alone

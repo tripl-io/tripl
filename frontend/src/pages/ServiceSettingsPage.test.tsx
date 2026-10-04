@@ -331,8 +331,7 @@ describe('Instance settings reset card', () => {
 
   /**
    * The card's copy had claimed every non-overridden field "comes from an
-   * environment variable" — the copy-disagrees-with-badges bug tripl-5qp9 was,
-   * in a second vocabulary. Unbadged rows are now explained once,
+   * environment variable" — the copy-disagrees-with-badges bug in a second vocabulary. Unbadged rows are now explained once,
    * by the page legend, and it makes the same weaker claim.
    */
   it('does not claim the environment delivered fields it cannot vouch for', async () => {

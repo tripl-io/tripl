@@ -1414,7 +1414,7 @@ def _recalculate_project_metric_anomalies(
         count_shaped = is_count_shaped(metric)
         # The scope override lands FIRST, so a fractional metric still drops the
         # count gate afterwards: ratcheting a ratio's min_expected_count would
-        # re-introduce exactly the volume gate tripl-68bc removed for it. Its
+        # re-introduce exactly the volume gate that was removed for it. Its
         # sigma ratchet still applies.
         scoped = _scope_settings(settings, overrides or {}, SCOPE_METRIC, str(metric.id))
         metric_settings = (
@@ -2160,7 +2160,7 @@ def _recalculate_metric_breakdown_anomalies(
             if event_type_id is None:
                 continue
             scope_ref = str(event_type_id)
-            # Provably silent (extended to breakdowns in tripl-jfm3.73):
+            # Provably silent (extended to breakdowns):
             # the detector would early-exit on this series anyway, so skip loading
             # its history — but still run the replace with no anomalies so stale
             # window rows age out.

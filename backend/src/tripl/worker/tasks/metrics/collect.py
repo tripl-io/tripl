@@ -73,7 +73,7 @@ def _bump_event_last_seen(
     re-transitioned. An event missing a required value stays where it is until
     the plan is filled in; the next collection that sees it promotes it.
 
-    ``ready_for_dev`` joined ``implemented`` for tripl-kjhi.6: on production the
+    ``ready_for_dev`` joined ``implemented``: on production the
     handoff goes analyst → developer → data, and nobody flips the row to
     "implemented" by hand before the first rows land, so the tracker read
     "0 implemented" for a feature whose events had been firing for weeks.

@@ -210,7 +210,7 @@ async def list_entries(
         # — including its ``project.delete`` row, which is born with a NULL
         # project id because it is written after its subject is gone. Reaching
         # those from the UI needs the workspace-wide view, which is why
-        # tripl-wkwv.17 ships with this.
+        # this ships alongside it.
         owner_id: uuid.UUID | None = await session.scalar(
             select(Project.id).where(project_slug_clause(project_slug))
         )

@@ -78,7 +78,7 @@ def pair_renames[KeyT: NaturalKey](
     the branch copy so a branch row still answers to main's identity.
 
     So the pairing reads the identity directly on both sides and never the name
-    key sets. That is the whole of tripl-htcz: derived from the key sets, a
+    key sets. That is the whole point: derived from the key sets, a
     rename was only visible when its name VANISHED from the branch, and in a
     cycle no name vanishes. A plain swap — A renamed to B while B is renamed to
     A, reachable through a temporary name — left both sets empty and paired

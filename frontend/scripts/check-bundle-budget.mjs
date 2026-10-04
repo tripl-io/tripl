@@ -24,7 +24,7 @@ const DIST = path.resolve(import.meta.dirname, '..', 'dist')
 // its own chunk to pay for part of it).
 // Critical path raised for React 19.3: react-dom's client build alone grew by
 // ~31 KB minified, all of it in react-vendor, which every page needs (critical
-// path 742 953 with the entry unchanged). Both lowered for tripl-fj5g.15: the
+// path 742 953 with the entry unchanged). Both lowered later: the
 // demo scenario model loads only for demo projects and the alerting tab's
 // sections load per tab (entry 127 029, critical path 724 527).
 // Entry raised for the design-system follow-up (#198 / #206, frontend review

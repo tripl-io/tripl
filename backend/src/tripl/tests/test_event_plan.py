@@ -272,7 +272,7 @@ def test_the_skip_line_is_the_one_function_every_surface_calls(project_and_type)
     and asks for ONE sentence covering the total — ``plan_events`` never sees a
     number bigger than its own rows. Both callers go through the same helper;
     building the aggregate string at the call site is exactly how "1 rows", the
-    defect tripl-3y7z fixed, comes back.
+    defect that was fixed once, comes back.
     """
     _project, _et, fds = project_and_type
 
@@ -536,7 +536,7 @@ def test_a_dotted_warehouse_column_is_reserved_like_any_other_rule_column() -> N
     scans point at. Reading the dot as "this must be a JSON path" dropped such a
     column out of the reserved set, so ``catalog_sync`` auto-created a
     FieldDefinition for a column the scan GROUPS BY and the merge then wrote the
-    rule's own regex into it — tripl-jfm3.57 again, one warehouse over. Which
+    rule's own regex into it — the same bug again, one warehouse over. Which
     names are paths is the config's to declare and nothing else's to guess.
     """
     from tripl.worker.utils.reserved_columns import reserved_catalog_columns
@@ -589,7 +589,7 @@ def test_a_dotted_field_definition_still_gets_its_override_when_a_rule_groups_it
     matches the condition and takes its override, and always did. Dropping the
     override on the dot left exactly that field showing one arbitrary source row's
     value on an event the rule grouped BY it, which is the misreading
-    tripl-jfm3.57 fixed for plain columns.
+    an earlier fix addressed for plain columns.
     """
     project, et, fds = project_and_type
     dotted = FieldDefinition(

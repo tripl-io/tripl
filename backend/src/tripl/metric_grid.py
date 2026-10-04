@@ -166,7 +166,7 @@ def grid_population_filter(
     ``scan_config_id`` exclusively, so the IS NULL branch is exact rather than
     merely narrower and the interval never enters.
 
-    KNOWN OPEN (tripl-0zpq.115 follow-up): two configs scanning the SAME
+    KNOWN OPEN (grid-population follow-up): two configs scanning the SAME
     warehouse rows on the same interval are summed, i.e. double-counted. Nothing
     stored tells them apart from two configs covering disjoint traffic, so the
     read cannot decide it — that is a collection-side question.

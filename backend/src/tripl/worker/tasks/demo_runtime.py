@@ -819,7 +819,7 @@ def _prune_retention(
 
 
 def _emit_status(project_id: uuid.UUID, slug: str) -> None:
-    """Emit a project-scoped 'updated' signal for the tripl-2su6.8 live stream.
+    """Emit a project-scoped 'updated' signal for the live stream.
 
     Invalidates the project-scoped cache prefixes so the next read serves the
     freshly-appended series, then publishes the realtime events so subscribed

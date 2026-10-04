@@ -117,7 +117,7 @@ export function friendlyScanError(raw: string | null | undefined): FriendlyScanE
   // `user_facing_error` (backend/src/tripl/worker/tasks/_errors.py) prefixes
   // every curated message it returns, so this test asks "did this come from that
   // function", not "does this happen to be worded a certain way". Until
-  // tripl-7bol it WAS a hope, and it was wrong for every curated message in the
+  // it was fixed, it WAS a hope, and it was wrong for every curated message in the
   // backend: all ~60 arrived without the prefix and were collapsed right here
   // into the generic line they had been written to replace.
   const hasRawInternals = RAW_INTERNAL_MARKERS.some((marker) => marker.test(haystack))

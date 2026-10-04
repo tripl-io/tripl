@@ -85,7 +85,7 @@ async def test_demo_project_has_events(client: AsyncClient) -> None:
 @pytest.mark.asyncio
 async def test_demo_events_first_seen_matches_history_window(client: AsyncClient) -> None:
     # "First seen" (created_at) is STAGGERED across the seeded ~23-day metric
-    # history (tripl-2su6 .21 / PR #51 follow-up): core events anchor the window
+    # history (PR #51 follow-up): core events anchor the window
     # start, the rest ramp in, and nothing is younger than ~2 days. A uniform
     # history_start stamp left the Overview 14-day "active events" sparkline a
     # flat zero; the provisioning instant made everything first seen "just now".
@@ -515,7 +515,7 @@ async def test_demo_seeds_one_open_variable_value_drift(client: AsyncClient) -> 
     # badge) has a real open row behind it. It never feeds the firing rule's
     # replay, but only because its scan_config_id is NULL and both the live
     # loader and the replay twin require one to be set — the replay HAS read
-    # variable-value drifts since tripl-0zpq.158.
+    # variable-value drifts since the replay learned to load them.
     resp = await client.post("/api/v1/projects/demo")
     assert resp.status_code == 201
     slug = resp.json()["slug"]
@@ -1018,7 +1018,7 @@ async def test_cancel_request_flags_a_seeding_shell(client: AsyncClient) -> None
 async def test_cancelled_provision_deletes_its_shell_instead_of_promoting(
     client: AsyncClient, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """The regression for tripl-jfm3.12: a cancel must leave NO project behind.
+    """The regression for a cancelled demo: a cancel must leave NO project behind.
 
     Before the fix the create ran to completion regardless and a fully-seeded
     demo appeared seconds after the user abandoned it. The cancel arrives from a
@@ -1296,7 +1296,7 @@ async def test_demo_does_not_scope_the_data_source_entry_to_the_project(
     unscoped = await client.get("/api/v1/audit?action=data_source.create&limit=200")
     # The name the warehouse builder really gave the row, read from the same
     # helper it used: the audit entry restated a bare "Demo warehouse" literal
-    # until tripl-0zpq.246, naming a source that exists under no such name.
+    # until it was fixed, naming a source that exists under no such name.
     rows = [
         entry
         for entry in unscoped.json()["items"]
@@ -1335,7 +1335,7 @@ async def test_resetting_a_demo_does_not_stack_the_previous_trail(client: AsyncC
     assert creations(after) == before
 
     # Asserted on the UNFILTERED feed, deliberately, and by COUNT. Since
-    # tripl-wkwv.18 the project filter resolves the slug to whichever project
+    # a later change the project filter resolves the slug to whichever project
     # owns it now, so it hides the replaced demo's rows whether or not they were
     # deleted — the assertion above would pass with the purge removed. And the
     # rows cannot be recognised by the id they used to carry either: deleting the

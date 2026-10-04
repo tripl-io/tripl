@@ -74,7 +74,7 @@ describe('ApiKeysSection', () => {
     const keyListTitle = screen.getByText('All keys')
 
     // The form must render above the key list card so it appears right where
-    // the user clicked, not below the fold (regression: tripl-grjv).
+    // the user clicked, not below the fold (regression).
     expect(
       formTitle.compareDocumentPosition(keyListTitle) & Node.DOCUMENT_POSITION_FOLLOWING,
     ).toBeTruthy()

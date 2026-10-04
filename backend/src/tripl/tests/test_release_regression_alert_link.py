@@ -223,7 +223,7 @@ def test_every_other_scope_keeps_the_links_it_had(
     Asserted rather than eyeballed, because the change replaced a fallthrough
     that every one of these scopes passed through.
 
-    This is the NO-INCIDENT path — pre-tripl-jfm3.91 rows, whose items carry no
+    This is the NO-INCIDENT path — rows from before correlation groups, whose items carry no
     ``correlation_group_id``. When there is an incident to point at, every scope
     links to it instead; see the test below.
     """

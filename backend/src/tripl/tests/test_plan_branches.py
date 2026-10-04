@@ -931,7 +931,7 @@ async def test_merge_refreshes_main_search_index(client: AsyncClient) -> None:
     # Seed main's index BEFORE the merge, so only a post-merge refresh can put
     # the token below into it. This used to be a search GET, which seeded the
     # index only because the read path built an empty branch's index for it —
-    # the side effect tripl-zbv0 removed. Asking for the reindex outright says
+    # the side effect that was since removed. Asking for the reindex outright says
     # what the setup needs instead of relying on a read path's side effect;
     # nothing the test asserts about the merge changed.
     seeded = await client.post("/api/v1/projects/merge-search/search/reindex")

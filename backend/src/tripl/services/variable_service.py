@@ -122,8 +122,8 @@ async def list_variables(
     would take, and ``"used"`` to its complement. It is answered by the shared
     predicate in ``core.variable_retirement`` rather than by an "``event_count``
     is zero" filter, and the difference is not cosmetic: a variable can have no
-    observed context and still be named by a live event's field value — that is
-    tripl-xfxa, eighteen rows on production. A cheap zero-count filter would
+    observed context and still be named by a live event's field value — that was
+    a real case: eighteen rows on production. A cheap zero-count filter would
     have offered precisely those for deletion, from a screen that has a
     select-all checkbox on it.
 
@@ -166,7 +166,7 @@ async def list_variables(
     # with its own ``select(VariableValue)`` rather than walking this
     # relationship. The frontend pins its page size to VARIABLES_PAGE_LIMIT =
     # 5000 and routes every list caller through it, so without the option one
-    # page IS the whole-project select tripl-xkbb exists to remove.
+    # page IS the whole-project select the option exists to remove.
     result = await session.execute(
         select(Variable)
         .where(*scope)

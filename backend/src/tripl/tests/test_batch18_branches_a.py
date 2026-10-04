@@ -1,4 +1,4 @@
-"""Batch 18 plan-branch regressions: tripl-0zpq.293, .289 and .291."""
+"""Batch 18 plan-branch regressions."""
 
 from __future__ import annotations
 

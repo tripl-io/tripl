@@ -22,14 +22,15 @@ reverted:
 * two row filters could share a name; the collector resolves the
   FIRST match, so one of the two fragments could never run and the save-time
   membership check (a SET of names) could not see the ambiguity.
-* Project scoping of a metric's data source (new, out of tripl-0zpq.75's
-  confirmed sub-claim, and NOT the policy half of that issue): both the sql-metric
+* Project scoping of a metric's data source (new, out of a
+  confirmed sub-claim of an earlier review, and NOT the policy half of that issue):
+  both the sql-metric
   PREVIEW and the sql-metric SAVE resolved ``data_source_id`` with no project
   term, so an editor in project A could run — and, worse, schedule — SQL against
   project B's warehouse credential.
 
 Nothing here touches an auth dependency or a role check; the gate question in
-tripl-0zpq.75 is the repo owner's and is deliberately untouched.
+that review is the repo owner's and is deliberately untouched.
 """
 
 import uuid
@@ -535,7 +536,7 @@ async def test_generated_sql_names_the_broken_metric_instead_of_404ing(
     assert "dangling_ratio" in resp.json()["detail"]
 
 
-# ── tripl-0zpq.69 + .182: what /generated-sql discloses ──────────────────────
+# ── what /generated-sql discloses ──────────────────────
 
 
 async def test_generated_sql_discloses_the_executed_limit_and_window(

@@ -236,7 +236,7 @@ describe('columns the form does not show', () => {
   })
 })
 
-describe('a hidden column cannot strand a save (tripl-fj5g.9 review)', () => {
+describe('a hidden column cannot strand a save', () => {
   it('clears the hidden column when the operand moves to another fact table', () => {
     const draft = draftFromMetric(factMetric({ measure_column: 'amount' }))
     const moved = withFactTable(draft.numeratorOp, 'ft-2')

@@ -179,7 +179,7 @@ async def test_a_shared_blob_outlives_every_row_but_the_last(
         assert blob.exists() == bool(holders)
 
 
-# --- tripl-0zpq.214 / .236: refused before it is buffered --------------------
+# --- refused before it is buffered --------------------
 
 
 @pytest.mark.asyncio

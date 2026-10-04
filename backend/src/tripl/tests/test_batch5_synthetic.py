@@ -385,7 +385,7 @@ def test_an_hour_that_ages_out_of_the_ongoing_window_is_a_different_sample() -> 
     ongoing_again = [row for row in still_inside._events if low <= row["event_time"] < high]
     sampled = [row for row in outside._events if low <= row["event_time"] < high]
 
-    # Same regime, two anchors: byte for byte. That is the tripl-0zpq.73 property.
+    # Same regime, two anchors: byte for byte. That is the property.
     assert ongoing, "the hour before the anchor must not be empty"
     assert ongoing == ongoing_again
 

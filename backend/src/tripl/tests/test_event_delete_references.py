@@ -13,7 +13,7 @@ Two things make this worth its own module rather than a couple of extra cases:
   ``JSON`` with no ``MutableList`` mapped anywhere, so an assertion made against
   an in-memory instance passes whether or not anything was written. That trap is
   documented at the top of ``core.event_references``, and it is the reason
-  tripl-xfxa survived as long as it did.
+  that bug survived as long as it did.
 * **Counting ``event_id == dead_id`` proves nothing on its own.** Those foreign
   keys are ``ON DELETE SET NULL``, so the count drops to zero even when the
   cleanup does nothing at all — the database just NULLed the column. The

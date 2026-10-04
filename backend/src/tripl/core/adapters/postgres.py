@@ -408,7 +408,7 @@ class PostgresAdapter(BaseAdapter):
         # An unknown connection parameter is a hard error, not something **kwargs
         # quietly eats. The alternative — accepting `sslmod=verify-full` and
         # connecting in plaintext anyway — is the failure mode this guard exists
-        # to prevent (tripl-64n8.7: "rejected, not ignored").
+        # to prevent ("rejected, not ignored").
         if kwargs:
             unknown = ", ".join(sorted(kwargs))
             msg = (

@@ -132,7 +132,7 @@ def event_composition_binding_error(definition: MetricDefinition) -> str | None:
     * the metric has no operand AT ALL, both the event ref and the event-type
       ref being NULL — structurally unable to produce anything, ever.
 
-    Reporting the second as ``{"values": 0, "grids": 0}`` is what made tripl-jtnv
+    Reporting the second as ``{"values": 0, "grids": 0}`` is what made the flatline bug
     invisible for as long as it was: a SUCCESS with zero rows leaves
     ``last_collection_status`` green, and ``_event_composition_due`` then reads
     the same empty series and returns ``False`` forever, so the scheduler stops
@@ -2161,7 +2161,7 @@ def _reject_foreign_data_source(
     fact half reaches its warehouse through ``fact_tables.data_source_id``, and
     ``_load_fact_table`` scopes the fact TABLE to the metric's project while
     nothing scoped the source behind it. That half needs the guard MORE, because
-    tripl-0zpq.177 tightened its save door from "a ScanConfig binds this source
+    a later change tightened its save door from "a ScanConfig binds this source
     to this project" to ownership — so a stored binding the save door would now
     refuse (a workspace-global source this project has since stopped scanning,
     or one owned by another project) survives untouched in ``fact_tables`` and

@@ -141,7 +141,7 @@ describe('resolveFieldValue', () => {
 
 // The table renders through the hook's memoized per-event index; the exported
 // scan above is the CSV path. Covering only the scan leaves the index free to
-// drop its name key — which is tripl-xv77.1 back on the "All" tab, with every
+// drop its name key — which is an earlier bug back on the "All" tab, with every
 // test above still green.
 describe('useEventsFiltering field value lookups', () => {
   const PV_TYPE = makeEventType('et-1', 'pv', [PAGE_FIELD_PV])

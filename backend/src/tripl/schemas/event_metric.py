@@ -55,7 +55,7 @@ class EventMetricPoint(BaseModel):
     count: int
     expected_count: float | None = None
     # The FLOORED "effective" stddev actually used in the z denominator when the
-    # bucket was flagged (tripl-dmch C3/C4) — served in place of the raw rolling
+    # bucket was flagged — served in place of the raw rolling
     # stddev so the UI band (expected ± sigma_threshold * stddev) lines up exactly
     # with the detector's decision: a flagged point sits outside the band. Only
     # populated for buckets with an anomaly row; for the rest the band is undrawn.
@@ -346,7 +346,7 @@ class EventMetricsResponse(BaseModel):
     # The default below is the system default, and it is served as-is by the one
     # route that does not resolve a sigma — ``get_events_metrics``, whose points
     # carry no ``expected_count``/``stddev``, so no band is drawn from it
-    # (tripl-0zpq.119 follow-up).
+    # .
     sigma_threshold: float = DEFAULT_SIGMA_THRESHOLD
     # When the scan's newest completed metrics collection finished, and the
     # earliest moment the scheduler will dispatch the next one — the bucket half
@@ -682,7 +682,7 @@ class OverviewKpiSeriesResponse(BaseModel):
     Event.created_at) has genuine history; other KPIs (active events, open
     signals, review-pending) have no time series until snapshotting is added,
     so they are intentionally omitted rather than fabricated. The field was
-    named ``active_events`` until tripl-jfm3.22 — it never held active-event
+    named ``active_events`` until it was renamed — it never held active-event
     counts, and the Overview sparkline repeated that false claim in its label.
     """
 

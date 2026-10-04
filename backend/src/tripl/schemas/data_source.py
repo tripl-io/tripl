@@ -87,8 +87,8 @@ DEFAULT_BIGQUERY_MAXIMUM_BYTES_BILLED = 100 * 1024**3
 # browse is bounded; ``core.adapters.bigquery._schema_datasets`` enforces it by
 # truncating. The number is declared here, next to the write path that accepts the
 # allowlist, because the two were separate literals (50 here, 20 there) and a save
-# path that accepts a list the read path then silently drops is the defect
-# tripl-0zpq.70 filed: the operator configured 50 datasets, 30 never appeared, and
+# path that accepts a list the read path then silently drops is a defect
+# once filed: the operator configured 50 datasets, 30 never appeared, and
 # nothing said so.
 MAX_SCHEMA_DATASETS = 20
 

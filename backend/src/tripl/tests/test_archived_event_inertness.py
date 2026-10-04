@@ -641,7 +641,7 @@ def test_archiving_a_busy_event_does_not_move_the_coverage_percentage(
     sync_session_factory: sessionmaker[Session],
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """The headline promise of tripl-w3ms.
+    """The headline promise of archiving.
 
     A fully instrumented project sits at 100% coverage. Archiving its busiest
     event — nine tenths of all traffic — must leave that number exactly where it
@@ -791,7 +791,7 @@ def test_a_quiet_archived_event_reports_nothing(
 async def test_shadow_inbox_hides_candidates_for_archived_identities(
     client: AsyncClient,
 ) -> None:
-    """Rows written before tripl-w3ms shipped must not sit in the inbox forever.
+    """Rows written before archiving shipped must not sit in the inbox forever.
 
     Accepting one only 409s on the duplicate source identity, so without this
     filter the user has no way to clear it.

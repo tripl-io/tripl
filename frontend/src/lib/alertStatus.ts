@@ -456,7 +456,7 @@ export function bulkMuteConfirmMessage(count: number, mutedUntilIso: string | nu
  *    group object, so there is nothing to reopen as a unit.
  *
  * The mute branch still distinguishes a timed silence from an open-ended one,
- * because that distinction is the whole of tripl-a50u and a bulk mute is the
+ * because that distinction is the whole point and a bulk mute is the
  * case that reaches furthest.
  */
 export function bulkInboxActionSuccessMessage(

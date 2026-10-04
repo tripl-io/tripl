@@ -113,7 +113,7 @@ async def _record_lifecycle(
     itself was the one object with no record of its own — an owner could destroy
     a workspace whole, with every event, variable, metric and alert rule in it,
     and the log held nothing about who did it. That is the shape
-    tripl-wkwv.10 fixed for events, one level up, and worse here: a deletion is
+    an earlier fix addressed for events, one level up, and worse here: a deletion is
     irreversible and takes every per-project surface with it, so there is no
     second place left to look.
 

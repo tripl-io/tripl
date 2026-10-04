@@ -136,7 +136,7 @@ export function entityPath(slug: string, entry: PlanDiffEntry): string | null {
  * A variable's editor is its own page now (AU-26), Definition tab first — the
  * same address `entityPath` focuses. The row keeps the Edit action anyway:
  * without it, fixing a variable from a branch review cost
- * exactly the clicks tripl-h2sx.1 removed for events: expand the row, find the
+ * exactly the clicks already removed for events: expand the row, find the
  * small link after Revert.
  *
  * Event types are deliberately absent. `entityPath` already lands them on

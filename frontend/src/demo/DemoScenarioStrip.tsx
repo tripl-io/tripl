@@ -1,5 +1,5 @@
 /**
- * The persistent scenario strip (chapters in tripl-odrj.4).
+ * The persistent scenario strip.
  *
  * Mounted inside the demo banner's row on every surface (LIVE-9: one bar, not
  * two stacked blocks), so the active chapter's
@@ -295,7 +295,7 @@ function CompletedStrip({
              nothing in the whole demo pointing at the real product.
              The dashboard, not Data sources: creating the project comes first,
              and a demo-scoped link straight to the global connection page was
-             deliberately removed by tripl-q7i1.7. */
+             deliberately removed. */
           <Button asChild size="xs">
             <Link to={workspacePath()}>
               <Plus className="h-3 w-3" />

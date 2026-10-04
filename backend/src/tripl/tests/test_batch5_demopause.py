@@ -228,7 +228,7 @@ def test_check_metrics_due_skips_a_paused_demo_and_resumes_on_access(
     sync_session_factory: sessionmaker[Session],
     monkeypatch: MonkeyPatch,
 ) -> None:
-    """The whole of tripl-0zpq.72 in one run: silent while paused, live on access.
+    """The whole demo-pause behaviour in one run: silent while paused, live on access.
 
     Also asserts no ``ScanJob`` row is written while paused — a pending job the
     dispatcher never hands to a worker would be reaped as stale later and counted

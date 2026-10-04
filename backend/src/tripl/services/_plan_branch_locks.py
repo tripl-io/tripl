@@ -102,7 +102,7 @@ async def hold_branch_for_plan_write(
 async def hold_main_plan_for_write(session: AsyncSession, project_id: uuid.UUID) -> None:
     """Hold the project's main branch row ``FOR SHARE`` for a write to main.
 
-    The main-side half of tripl-0zpq.294: a main edit either commits before a
+    The main-side half of the merge-race fix: a main edit either commits before a
     merge reads main for its conflict check, or waits until the merge has
     committed and then applies on top of it. It never lands in between, where the
     merge's apply step would overwrite it without reporting a conflict.

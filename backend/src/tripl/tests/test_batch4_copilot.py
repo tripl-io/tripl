@@ -27,8 +27,8 @@ forbid. With the index the loser's INSERT violates it, and nothing wraps
 ``_prepare_alert_deliveries`` in a savepoint — so the IntegrityError takes the
 whole ``collect_metrics`` run down with it, discarding the anomaly
 recalculation, the cooldown updates and every delivery for every scope of that
-scan, on every collection for as long as the scope keeps firing. That is the
-tripl-0zpq.253 blast radius reached from a different direction, and batch 4 is
+scan, on every collection for as long as the scope keeps firing. That is an
+earlier blast radius reached from a different direction, and batch 4 is
 what made it reachable.
 
 The fix is ``dispatch._claim_rule_state``: an INSERT ... ON CONFLICT DO NOTHING
@@ -69,7 +69,7 @@ THE SAME BUG ONE TABLE OVER: the incident row.
 ``_touch_correlation_state`` was the other select-then-``session.add`` in this
 module, and batch 4 made it collidable for the same reason. Its key is
 ``uq_alert_correlation_state_project_group`` on ``(project_id,
-correlation_group_id)``, and since tripl-0zpq.27 the handle in that second column
+correlation_group_id)``, and since an earlier fix the handle in that second column
 is the same in every worker by design: it hashes the scope's PARTITION, which for
 a project-global ``metric`` scope is one shared NULL. Before that change each
 scan hashed its own firing config and the two runs wrote DIFFERENT rows, so the
@@ -242,7 +242,7 @@ def test_a_racing_sibling_config_no_longer_kills_the_whole_collection(
       minting its own.
     * ``opened_at`` and ``last_notified_at`` untouched. That row IS the shared
       cooldown clock, so DO NOTHING rather than DO UPDATE: an upsert that wrote
-      this run's ``now`` over the peer's ``opened_at`` would be the tripl-0zpq.28
+      this run's ``now`` over the peer's ``opened_at`` would be the earlier
       clock reset wearing another hat.
     * ``last_anomaly_bucket`` not rewound. The peer's is deliberately seeded a
       bucket AHEAD of the anomaly this run matched, so a converge path that

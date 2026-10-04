@@ -241,7 +241,7 @@ def test_truncated_reads_an_absent_flag_as_false_rather_than_unknown() -> None:
 def test_reported_truncated_separates_a_silent_route_from_one_saying_false() -> None:
     """The distinction ``truncated`` cannot make, for the consumer that needs it.
 
-    tripl-wkwv.3. ``tripl plan search`` uses this as the top rung of a ladder
+    ``tripl plan search`` uses this as the top rung of a ladder
     whose bottom rung is "the page filled". Collapsed to a bool, an instance
     that predates the field would read as the route saying nothing was dropped,
     and the guess that exists for exactly that instance would never run. The MCP

@@ -261,9 +261,9 @@ def _base_item(
     list first: the fields of a row the reviewer never looked at, written onto
     the survivor, or a rebuild of the wrong one of two deleted rows.
 
-    A branch copy now records the base row it came from (``origin_id``,
-    tripl-0zpq.292), so ``base_id`` — that origin, or the id a ``removed``
-    entry carries — names the one row directly. Without it, base rows another
+    A branch copy now records the base row it came from (``origin_id``), so
+    ``base_id`` — that origin, or the id a ``removed`` entry carries —
+    names the one row directly. Without it, base rows another
     branch copy already stands for (``claimed``) are left out, the way the
     diff's own pairing leaves them out. Several left over are refused, the
     way ``_one`` refuses several branch rows: restoring from an arbitrary
@@ -1466,7 +1466,7 @@ def _base_successor_count(
     ``_base_identity_count``'s question, asked of the successor key. The
     lookup below refuses two BRANCH events answering to one key, and until
     this nothing asked whether the base named one event to begin with — the
-    every-seam fix for tripl-0zpq.150 left that side open. Namesakes
+    every-seam fix left that side open. Namesakes
     ``track/checkout_v2`` (S1, S2) on main, ``checkout`` pointing at S1, S1
     deleted on the branch: the delete clears the pointer, the key still reads
     ``track.checkout_v2``, only S2 answers on the branch, and the revert
@@ -1478,7 +1478,7 @@ def _base_successor_count(
     have different things to fall back on. Declining a rename leaves the plain
     rebuild, which restores exactly the row that went missing; declining here
     could only clear the pointer — a 200 while the diff goes on showing the
-    change, the very symptom tripl-0zpq.150 was filed for.
+    change, the very symptom of that bug.
 
     The reverted event is left out of the count for the reason the lookup below
     leaves it out: it can spell the key itself (``app`` / ``core.x`` spells

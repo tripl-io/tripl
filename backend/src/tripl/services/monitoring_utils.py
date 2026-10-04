@@ -181,8 +181,8 @@ def _outage_is_still_running(
     it and returns False. ``anomaly_expected_count`` is a DISQUALIFIER, so an
     unanswered one cannot disqualify and is ignored: a caller that supplies the
     pair but not the expectation keeps exactly today's answer instead of quietly
-    closing an incident that is still running — the regression tripl-l429.15/.26
-    fixed, and by far the more expensive of the two ways to be wrong here. Every
+    closing an incident that is still running — the regression an earlier
+    fix addressed, and by far the more expensive of the two ways to be wrong here. Every
     caller that can answer it should, and all of them do.
 
     Callers that cannot answer the pair — catalog ``metric`` scopes have no scan

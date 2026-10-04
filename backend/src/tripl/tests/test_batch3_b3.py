@@ -1,7 +1,5 @@
 """Shadow candidate grain, duplicate breakdown columns, drift rescan cost.
 
-Covers tripl-0zpq.14, tripl-0zpq.15 and tripl-0zpq.17.
-
 Two of the three defects only ever *fail* on Postgres — both are duplicate
 conflict keys inside one multi-row ``INSERT ... ON CONFLICT DO UPDATE``, which
 Postgres refuses with a cardinality violation and SQLite silently resolves

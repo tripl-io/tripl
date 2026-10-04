@@ -1,7 +1,6 @@
 /**
- * The two ways into the coached scenario (chapter picker in
- * tripl-odrj.4): the welcome panel a fresh demo lands on, and the tour — which
- * shows the surfaces but makes nothing happen on them. Both list every chapter
+ * The two ways into the coached scenario (chapter picker): the welcome panel a
+ * fresh demo lands on, and the tour — which shows the surfaces but makes nothing happen on them. Both list every chapter
  * with its status; picking one starts (or resumes) it and navigates to its
  * first surface.
  *

@@ -133,7 +133,7 @@ describe('a choice resolves to the sentence a screen reader announces', () => {
   it('keeps every visible duration inside the name it is announced by (WCAG 2.5.3)', () => {
     // Label in Name: the face of each preset button is its bare duration, so
     // "click 1h" must keep working for speech input — while the name still says
-    // WHOSE alerts stop, which is the gap tripl-in45 closed. Looping over
+    // WHOSE alerts stop, which is the gap that was closed. Looping over
     // MUTE_PRESETS rather than over three literals is right here: a fourth
     // preset added next year is covered automatically, and the duration
     // literals themselves are pinned by the three surface test files.
@@ -143,7 +143,7 @@ describe('a choice resolves to the sentence a screen reader announces', () => {
       expect(name).toContain(TARGET)
       // …and the bare duration is not the WHOLE name. Without this, the
       // degenerate builder `(target, preset) => preset.label` satisfies the
-      // line above and reinstates the very defect tripl-in45 fixed.
+      // line above and reinstates the very defect that was fixed.
       expect(name).not.toBe(preset.label)
     }
     expect(muteName(TARGET)).toContain('Mute')

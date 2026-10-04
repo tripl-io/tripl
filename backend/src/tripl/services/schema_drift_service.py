@@ -75,7 +75,7 @@ async def _reject_if_name_format_needs(
     still have one. So accepting a drift on a column a scan's
     ``event_name_format`` references kills every subsequent collection with
     "the event name format references unknown keys" — which is what took
-    'Old events (iOS)' down for four days (root cause of tripl-lpin),
+    'Old events (iOS)' down for four days (the root cause of a past incident),
     on a drift that was very likely a false positive.
 
     Refusing does not strand an operator whose column really did vanish: the

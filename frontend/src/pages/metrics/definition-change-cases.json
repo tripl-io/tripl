@@ -1,6 +1,6 @@
 {
   "_comment": [
-    "Shared case table for tripl-fj5g.9: whether saving `submitted` (the `definition` block",
+    "Shared case table: whether saving `submitted` (the `definition` block",
     "PATCH /metrics/{id} takes) over the metric whose definition columns are `stored` deletes",
     "its collected history. Read by frontend/src/pages/metrics/definitionChange.test.ts (the",
     "form's pre-save warning, definitionChange.ts) and by",

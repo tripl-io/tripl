@@ -168,7 +168,7 @@ def test_every_string_query_parameter_is_guarded_against_a_nul() -> None:
 
     Enumerated from the live app rather than from a list in this file: a list
     would be maintained by whoever adds a parameter, and that is precisely the
-    person the pin exists for. It found eight beyond the ones tripl-8wez named.
+    person the pin exists for. It found eight beyond the ones first reported.
     """
     unguarded = {
         name: paths

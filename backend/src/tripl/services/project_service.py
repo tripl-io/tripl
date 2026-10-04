@@ -171,7 +171,7 @@ async def _get_project_summaries(
 
     # Destinations AND their enabled rules in one pass. A destination with no
     # enabled rule routes nothing, so callers that ask "is alerting wired up?"
-    # (the onboarding checklist) need both numbers — tripl-jfm3.81. The LEFT
+    # (the onboarding checklist) need both numbers. The LEFT
     # JOIN keeps rule-less destinations in the destination count, and
     # COUNT(DISTINCT ...) stops the join fan-out inflating it; the CASE yields
     # NULL for disabled rows, which COUNT skips.

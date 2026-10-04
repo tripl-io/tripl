@@ -359,7 +359,7 @@ describe('ScanFormSections — the mode choice', () => {
 
     // Asserted on the CONTROL, not on the accessible name. This line used to read
     // `queryByLabelText('Lookback (hours)')` and passed only because the caption was
-    // a dangling <label> naming nothing — the defect tripl-6h2b fixed. Once the row
+    // a dangling <label> naming nothing — a defect since fixed. Once the row
     // names itself as a group, ByLabelText matches that group and the old proxy
     // reports the input as present. What the test means is that the number input is
     // replaced by a sentence, so that is what it now says.
@@ -583,7 +583,7 @@ describe('ScanFormSections — field labelling', () => {
   // when no time column bounds the run. `id={false}` exposes the caption as a
   // group name instead, the same hatch components/settings/kit.tsx
   // already had. Lookback is asserted here rather than in a test of its own
-  // because tripl-otlv fixing the first two BY NAME is exactly what let the
+  // because fixing the first two BY NAME is exactly what let the
   // third one ship: every row that opts out of a label belongs in
   // this one list.
   it('names the rows that hold no labelable control as groups, not dangling labels', async () => {

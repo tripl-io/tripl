@@ -6,7 +6,7 @@ drag the whole ``collect_metrics`` task graph into ``worker.tasks.scan``'s impor
 path — the same reasoning that put ``reserved_columns`` in this package.
 
 Both grouped paths go through this one function so that a manual **Run** and a
-scheduled collection leave the catalog in the same state. Before tripl-0zpq.45
+scheduled collection leave the catalog in the same state. Previously
 only the scheduled path created: a manual grouped run merely *looked up* the
 event type by name and skipped the group when it was missing, so a Catalog-only
 config — which by definition never reaches the scheduler — created zero events
@@ -49,7 +49,7 @@ EVENT_TYPE_NAME_MAX_LEN = 100
 # ``user_facing_error`` caps a curated message at 500 chars from the RIGHT, and
 # the actionable tail ("pick a different Event type column") is what gets eaten
 # first. 40 chars survives even a value that is all backslashes and newlines,
-# whose ``repr`` is four times its length (tripl-3mmh's arithmetic, reused).
+# whose ``repr`` is four times its length (the same arithmetic as elsewhere).
 _NAME_PREVIEW_LEN = 40
 
 

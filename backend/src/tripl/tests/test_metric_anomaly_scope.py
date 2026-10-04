@@ -1,4 +1,4 @@
-"""Anomaly detection + alerting for the catalog-metric scope (ticket tripl-dxhp.6).
+"""Anomaly detection + alerting for the catalog-metric scope.
 
 Covers the metric-scope seam end to end:
 

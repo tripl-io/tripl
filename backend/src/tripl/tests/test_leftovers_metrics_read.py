@@ -1,18 +1,18 @@
 """Regression tests for the metrics read-path leftovers of batch 6.
 
-* ``tripl-67he`` — the grid-population predicate lives once, in
+* the grid-population predicate lives once, in
   :mod:`tripl.metric_grid`, for the async read path and the sync detector.
-* ``tripl-kom5`` — the breakdown read sums the same grid population as the
+* the breakdown read sums the same grid population as the
   series line, not every grid the metric was ever collected on.
-* ``tripl-udiy`` — the open-anchor probe measures that population too.
-* ``tripl-4cgl`` — the catalog-metric series serves the sigma threshold the
+* the open-anchor probe measures that population too.
+* the catalog-metric series serves the sigma threshold the
   detector scores it with (project setting, narrowed by the metric's override).
-* ``tripl-e443`` — ``/events-metrics`` fills the ``sigma_threshold`` it serves.
-* ``tripl-vk1p`` — ``/events-metrics`` evaluates the tag / status filter on the
+* ``/events-metrics`` fills the ``sigma_threshold`` it serves.
+* ``/events-metrics`` evaluates the tag / status filter on the
   caller's branch.
-* ``tripl-m81e`` — the fact-table batch cache never serves one project's fact
+* the fact-table batch cache never serves one project's fact
   table to another project's metric.
-* ``tripl-cyby`` — a metric create may omit ``order`` (or send null).
+* a metric create may omit ``order`` (or send null).
 """
 
 import uuid

@@ -17,7 +17,7 @@ from tripl.services import audit_actions, audit_export_service, audit_service
 # Org owner/admin-only (``get_owner_user``, a browser session): this feed was the
 # back door around two other owner-only gates.
 #
-# Every entry carries the request payload that produced it — since tripl-5ydt on
+# Every entry carries the request payload that produced it — as of now on
 # ``GET /audit/{entry_id}`` alone, not on every list row — and the router had
 # nothing but the shared auth dependency, so any authenticated user could read:
 #

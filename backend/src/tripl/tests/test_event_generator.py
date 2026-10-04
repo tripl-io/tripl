@@ -3976,7 +3976,7 @@ def test_group_merge_carries_the_event_discussion_onto_the_survivor(
 ):
     # A comment is human input: no later scan step rebuilds it, and the FK
     # cascades, so anything the merge does not explicitly move dies with the
-    # source event (tripl-h2sx.25 added this anchor; the FK ledger pins it).
+    # source event (the FK ledger pins this anchor).
     project, et, fds = project_and_type
     source = _add_event(
         sync_session,

@@ -845,7 +845,7 @@ async def _load_latest_metric_anomalies(
 
     Catalog-metric anomalies live in ``MetricAnomaly`` under
     ``scope_type = 'metric'`` and ``scope_ref = str(metric_definition_id)``
-    (the ``MetricScopeType.metric`` scope added by tripl-dxhp.6). Both columns
+    (the ``MetricScopeType.metric`` scope). Both columns
     are matched so a foreign-scope row reusing the same UUID cannot leak in.
     """
     if not metric_ids:
@@ -1222,7 +1222,7 @@ async def create_metric_definition(
 
     create_values = data.to_create_values()
     if not create_values.get("order"):
-        # Omitted (None) or 0 — what clients predating tripl-cyby still send —
+        # Omitted (None) or 0 — what older clients still send —
         # means "no position asked for" → append. An explicit non-zero order is
         # still honoured verbatim.
         create_values["order"] = await _next_metric_order(session, project_id)

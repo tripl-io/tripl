@@ -73,7 +73,7 @@ def _result(
 
 
 def test_a_matched_event_type_is_not_buried_under_its_own_events() -> None:
-    """Ranking is the merged score alone — no event-type boost (tripl-0tt4 item 4).
+    """Ranking is the merged score alone — no event-type boost.
 
     ``_finalize_results`` used to multiply every event whose ``subtitle`` named an
     ``event_type`` document in the same candidate set by up to 1.75, while leaving
@@ -116,7 +116,7 @@ async def test_retrieval_window_does_not_vary_with_the_page_size(
 ) -> None:
     """Each leg retrieves a fixed window, whatever page size was asked for.
 
-    tripl-0tt4 item 2. ``merge_results`` SUMS the two legs, so a document is paid
+    ``merge_results`` SUMS the two legs, so a document is paid
     for a semantic match only if it landed inside BOTH windows. A window that
     tracked the page size therefore decided which documents got that bonus, and
     moved the TOP of the list rather than its tail — ``q='экран спота'`` answered
@@ -163,7 +163,7 @@ async def test_index_maintenance_runs_once_per_branch_not_once_per_search(
 ) -> None:
     """The read path checks the index once per process, not once per keystroke.
 
-    tripl-2x5d. The palette issues a request per debounce boundary, and every one
+    The palette issues a request per debounce boundary, and every one
     of them probed for "does this branch have any document". On the branch that
     indexes to ZERO documents — a project whose catalog is still empty — the
     probe answers None forever, so the old read path answered it by running a
@@ -292,7 +292,7 @@ async def test_the_query_embedding_is_fetched_while_the_lexical_leg_runs(
 async def test_reindex_reports_whether_the_refresh_was_really_queued(
     client: AsyncClient, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """``embeddings_scheduled`` means "handed to the broker" (tripl-0tt4 item 6).
+    """``embeddings_scheduled`` means "handed to the broker".
 
     It used to be answered by re-reading the ``search_embeddings_enabled`` flag,
     so the response said a refresh was queued whenever the feature was switched
@@ -426,7 +426,7 @@ def test_a_hybrid_hit_keeps_the_stronger_of_its_two_certainties() -> None:
 def test_a_document_the_lexical_leg_also_found_is_not_labelled_semantic() -> None:
     """Provenance is which leg PRODUCED the row, not which windows held it.
 
-    tripl-wkwv.3. ``q='local_push_scheduled'`` on production answered with the
+    ``q='local_push_scheduled'`` on production answered with the
     event named exactly that, at confidence 1.0 — and a ``semantic`` chip, as did
     nine of its ten rows. The vector leg is a ``LIMIT``-ed kNN scan with a cosine
     floor, so it returns rows for ANY query, and the rows both legs hold are
@@ -435,7 +435,7 @@ def test_a_document_the_lexical_leg_also_found_is_not_labelled_semantic() -> Non
     they are most likely to trust.
 
     The other two assertions are the ones that make this a labelling change and
-    nothing else: the ranking sum and tripl-txcz's hybrid ``max`` both survive.
+    nothing else: the ranking sum and the hybrid ``max`` both survive.
     """
     document_id = uuid.uuid4()
     lexical = _result(entity_type="event", title="local_push_scheduled", score=12.0)
@@ -471,7 +471,7 @@ async def test_the_envelope_and_the_row_may_disagree_about_the_semantic_leg(
 ) -> None:
     """The production shape end to end: the leg RAN, this row is not its work.
 
-    tripl-wkwv.3. Both flags are spelled ``semantic_used`` and they are two
+    Both flags are spelled ``semantic_used`` and they are two
     different claims — the envelope's is "embeddings answered this request", a
     row's is "no keyword matched this one". Both legs returning the same document
     is the ordinary case, so the two disagreeing is the ordinary response, not a
@@ -518,7 +518,7 @@ async def test_the_envelope_and_the_row_may_disagree_about_the_semantic_leg(
 
 
 def test_sqlite_prefix_match_is_not_served_as_a_certain_answer() -> None:
-    """tripl-txcz on the OTHER dialect: confidence must not depend on the engine.
+    """The absolute-confidence fix on the OTHER dialect: confidence must not depend on the engine.
 
     ``fallback_score`` paid a bare ``title.startswith(query)`` exactly 7.0, which
     is ``_FULL_CONFIDENCE_SCORE`` — so a one-character query was served at
@@ -559,7 +559,7 @@ def test_sqlite_prefix_match_is_not_served_as_a_certain_answer() -> None:
 
 
 def test_sqlite_fallback_folds_a_spaced_query_onto_an_identifier_token() -> None:
-    """tripl-h9x2 is expressible without PostgreSQL, so the fallback implements it.
+    """Spaced-query folding is expressible without PostgreSQL, so the fallback implements it.
 
     The Postgres path folds ``screen spot`` into ``screen_spot`` before its
     word-boundary tiers (``token_boundary_regex``). The SQLite scorer used to do
@@ -795,7 +795,7 @@ async def test_global_search_matches_multilingual_plan_content(client: AsyncClie
     )
     assert event_hit is not None
     # The event's own description is returned verbatim for display, and every
-    # result carries an absolute confidence in [0, 1] (tripl-txcz — it is no
+    # result carries an absolute confidence in [0, 1] (it is no
     # longer normalized to the top hit of the response).
     assert event_hit["event_id"] == str(event_id)
     assert event_hit["name"] == "Checkout Completed"
@@ -819,9 +819,9 @@ async def test_global_search_matches_multilingual_plan_content(client: AsyncClie
     # Pinned to the TIER and to the tier ORDER, not to a range.
     # `0.0 <= confidence <= 1.0` and `0.0 < confidence <= 1.0` are the entire
     # domain of the field: every confidence this endpoint can return satisfies
-    # them — including the 1.0-for-a-nonsense-query that tripl-txcz was filed
-    # about — so the assertions this replaces would have passed against the very
-    # bug they were added to prevent.
+    # them — including the 1.0-for-a-nonsense-query that the absolute-confidence
+    # change was made to fix — so the assertions this replaces would have passed
+    # against the very bug they were added to prevent.
     #
     # Read the three lines below for what each one can actually catch, because
     # the first two deliberately CANNOT catch a re-tuning and that is correct:
@@ -836,8 +836,7 @@ async def test_global_search_matches_multilingual_plan_content(client: AsyncClie
     #   - `< _SQLITE_EXACT_TITLE` is the one that compares two INDEPENDENT
     #     constants, so it is the one a bad re-tuning trips: it fails the moment
     #     a field-value match can score at or above an exact title match, which
-    #     is the inversion tripl-txcz's "strong but not certain" wording rests
-    #     on.
+    #     is the inversion the "strong but not certain" wording rests on.
     assert ru_items[0] == event_hit
     assert ru_items[0]["score"] == pytest.approx(_SQLITE_KEYWORD_TOKEN)
     assert ru_items[0]["confidence"] == pytest.approx(
@@ -1106,7 +1105,7 @@ async def test_event_keywords_carry_only_curated_text_while_body_keeps_the_harve
     )
 
     assert "harvest_marker" not in document.keywords, (
-        "a VariableValue observed on a bound field is the exact text tripl-gbxj "
+        "a VariableValue observed on a bound field is the exact text an earlier change "
         "removed from a VARIABLE's keywords; an EVENT's keywords is the same column"
     )
     assert "harvest_marker" in document.body
@@ -1168,7 +1167,7 @@ async def test_search_query_with_nul_byte_behaves_like_the_clean_query(
 async def test_search_reports_truncation_rather_than_a_full_page(client: AsyncClient) -> None:
     """``total`` cannot say whether hits were dropped, so something else must.
 
-    tripl-wkwv.3. ``total`` is ``len(items)`` computed AFTER the trim, so on a
+    ``total`` is ``len(items)`` computed AFTER the trim, so on a
     full page it equals ``limit`` whether the engine had six more answers or
     none — and this route takes no ``offset``, so an agent reading it as a
     catalog count (the way ``/events`` total genuinely is one) cannot tell a
@@ -1215,7 +1214,7 @@ async def test_a_full_retrieval_window_is_not_by_itself_a_dropped_hit(
 ) -> None:
     """The window filling and hits being dropped are two different facts.
 
-    tripl-wkwv.3, found reviewing it. ``truncated`` also fired on
+    Found reviewing it: ``truncated`` also fired on
     ``candidate_count >= candidate_limit`` — "the retrieval window filled" —
     and every consumer had already been told the flag means "ranked hits exist
     that this response does not carry". Those coincide except on the boundary
@@ -1347,7 +1346,7 @@ async def test_metric_and_fact_table_creation_indexes_them_for_search(
     # Seed the index BEFORE the catalog entities exist, so the hits below can
     # only come from the CRUD-triggered reindex. This used to be a GET, which
     # worked only because the read path built an empty branch's index for it —
-    # the side effect tripl-zbv0 removed. Reindexing explicitly states the setup
+    # the side effect that was since removed. Reindexing explicitly states the setup
     # the assertions actually need instead of leaning on a read path's side
     # effect; nothing below is weakened.
     await search_service.reindex_branch(
@@ -1445,7 +1444,7 @@ def test_finalize_confidence_prefers_exact_token_value_matches() -> None:
 
     finalized = _finalize_results(items, limit=10)
 
-    # RANKING is what this test is about, and it is untouched by tripl-d5u8:
+    # RANKING is what this test is about, and it is untouched by the cap:
     # the cap is applied after the sort, to the badge and never to the position.
     assert [item.title for item in finalized] == [
         "spot:choose:models",
@@ -1650,7 +1649,7 @@ async def test_a_scan_config_is_searchable_the_moment_its_service_saves_it(
 async def test_an_alert_rule_is_searchable_the_moment_its_service_saves_it(
     client: AsyncClient,
 ) -> None:
-    """The other half of tripl-ugrm: alert rules had the same missing trigger.
+    """The other half of an earlier fix: alert rules had the same missing trigger.
 
     A rule is reached through its destination rather than a branch, so the
     refresh has to happen in the destination/rule CRUD module — the branch-scoped
@@ -1702,7 +1701,7 @@ async def test_deleting_a_destination_takes_its_rules_out_of_the_index(
 ) -> None:
     """``AlertDestination.rules`` cascades, so the delete removes documents too.
 
-    The rule CRUD paths are the obvious half of tripl-ugrm; this is the half that
+    The rule CRUD paths are the obvious half of that fix; this is the half that
     deletes rules without ever calling ``delete_rule``.
     """
     await client.post("/api/v1/projects", json={"name": "Fresh", "slug": "fresh-dest"})

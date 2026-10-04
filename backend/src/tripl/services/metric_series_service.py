@@ -11,14 +11,14 @@ forecast (``forecast_next_buckets``), the anomaly→signal mapping
 (``classify_signal_state``) are all imported, not reimplemented. Only the
 float/no-event-scope shaping is specialised here.
 
-ANOMALY-SCOPE (ticket tripl-dxhp.6): catalog-metric anomalies are stored in
+ANOMALY-SCOPE: catalog-metric anomalies are stored in
 ``MetricAnomaly`` under ``scope_type='metric'`` /
 ``scope_ref=str(metric_definition_id)`` with a NULL ``scan_config_id``. The read
 filters on BOTH ``scope_type == MetricScopeType.metric`` and the scope_ref so it
 can never pick up an unrelated row whose scope_ref happens to equal a metric
 definition UUID.
 
-GRID-POPULATION (ticket tripl-0zpq.115): one chart must describe ONE population.
+GRID-POPULATION: one chart must describe ONE population.
 An anomaly row carries no ``scan_config_id``, so the band it draws is whatever
 the detector scored; the value line therefore has to be read the way the
 detector reads it — SUMMED per bucket over every source config on the metric's

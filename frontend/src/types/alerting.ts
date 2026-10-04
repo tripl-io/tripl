@@ -263,7 +263,7 @@ export interface AlertRuleSimulateResponse {
   // Sigma is the odd pair: it has no rule-level column at all,
   // so its `_saved` is the PROJECT's Detection-settings threshold — the same
   // number the detector scores with. It stays `number | null` only because that
-  // is the shipped wire shape; since tripl-0zpq.160 the server always sends a
+  // is the shipped wire shape; the server now always sends a
   // number, so a null here is a contract leftover and not a state to design for.
   cooldown_minutes_used: number
   cooldown_minutes_saved: number
@@ -527,7 +527,7 @@ export type AlertInboxBulkAction = Exclude<AlertInboxAction, 'false_positive'>
  * `overrides_written` is ALWAYS null here and is always SENT. Null means "not
  * applicable" — `false_positive` is the only action that can ratchet anything
  * and this route refuses it. Never read a missing key as 0 and announce "no
- * scopes tightened" after a bulk acknowledge (the defect tripl-oxkt.6 fixed on
+ * scopes tightened" after a bulk acknowledge (a defect once fixed on
  * the single-incident route).
  */
 export interface AlertInboxBulkActionResponse {
@@ -655,7 +655,7 @@ export interface MonitorDetail extends MonitorSummaryItem {
    *
    * NOT an input to `scope_readiness` below, which stays a PROJECT fact. A rule
    * bound to a scan that feeds nothing can still read ready because a sibling
-   * scan does — the limitation tripl-wkwv.9 names, which these two fields make
+   * scan does — a known limitation, which these two fields make
    * visible rather than fix.
    */
   scan_config_id: string | null

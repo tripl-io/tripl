@@ -153,8 +153,7 @@ function SectionSuspense({ section, children }: { section: AlertingSection; chil
 // section already existed, as a separate NAV ITEM called Monitors, rendering
 // the same AlertRule rows under a second noun with the live state this page
 // could not show. Reading a rule and editing it lived under different nav
-// items, which is how the two drifted about mute. Merged in
-// tripl-89ps.
+// items, which is how the two drifted about mute. Merged later.
 const ALERTING_SECTIONS = ['inbox', 'monitors', 'destinations', 'audit'] as const
 type AlertingSection = (typeof ALERTING_SECTIONS)[number]
 
@@ -606,7 +605,7 @@ export default function ProjectAlertingTab({ slug, focusDeliveryId, focusItemKey
     // the destination they just made on a tab they were not on. The checklist
     // promises "a rule prefilled on the new destination", so open exactly that.
     // The section named here is the one that owns the rule
-    // form, which is Monitors since tripl-89ps — landing on Destinations would
+    // form, which is Monitors now — landing on Destinations would
     // reproduce the original bug with a different tab.
     selectSection('monitors')
     setAutoOpenRuleForDestinationId(created.id)

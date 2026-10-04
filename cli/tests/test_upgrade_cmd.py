@@ -412,7 +412,7 @@ def test_a_happy_upgrade_pulls_then_pins_then_restarts(
 
     # The pull carries the target in its ENVIRONMENT (shell env beats .env in
     # compose v2); `up -d` does not, because by then the pin is on disk. An
-    # inline prefix on the pull alone is tripl-jfm3.123.
+    # inline prefix on the pull alone is a known pitfall.
     pull, up = fake_runner.calls[-2:]
     assert pull.argv == ("docker", "compose", "pull")
     assert dict(pull.env) == {"TRIPL_VERSION": "1.5.0"}

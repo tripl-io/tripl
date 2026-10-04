@@ -29,7 +29,7 @@ The pull comes first so that a bad tag or an unreachable registry leaves ``.env`
 untouched. The pin is written to ``.env`` BEFORE ``up -d`` rather than passed
 inline, because an inline ``TRIPL_VERSION=x docker compose pull`` applies to the
 pull only and the following ``up`` then starts ``${TRIPL_VERSION:-latest}`` —
-the trap ``bin/release.sh`` records as tripl-jfm3.123.
+the trap ``bin/release.sh`` records.
 
 It does NOT run ``alembic`` and does NOT run ``docker compose run --rm migrate``.
 The ``migrate`` one-shot with ``condition: service_completed_successfully`` is
@@ -173,7 +173,7 @@ def upgrade_commands(directory: Path, target: str) -> tuple[Command, ...]:
     The environment overlay on the pull is what makes it fetch the new tag while
     ``.env`` still holds the old one — which is the whole point of pulling before
     the pin is rewritten. ``up -d`` carries no overlay because by then the pin is
-    on disk (see the module docstring and tripl-jfm3.123).
+    on disk (see the module docstring).
     """
     return (
         Command(

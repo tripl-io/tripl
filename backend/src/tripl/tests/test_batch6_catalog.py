@@ -29,7 +29,7 @@ change is reverted:
 * ``POST /metrics/bulk-update`` recorded nothing, so a bulk
   archive was the one mutation in its group invisible in the Audit log.
 * the duplicate-id ``IndexError`` 500 in reorder, which is the
-  same defect ``tripl-0zpq.175`` covers above and shares its test.
+  same defect covered above and shares its test.
 * ``metric_definition.collect`` was filed with an empty
   ``target_name``, so the row named no metric.
 * the data-source scope refusal claimed the row was missing on
@@ -1187,7 +1187,7 @@ class TestFactMetricDimensionsAreCheckedAgainstTheFactTable:
 
 
 class TestAPresentationPatchDoesNotAnswerForAStoredDimension:
-    """tripl-0zpq.174, the other half — the re-check must not fence unrelated edits."""
+    """The other half — the re-check must not fence unrelated edits."""
 
     async def test_a_status_only_patch_lands_on_a_metric_whose_dimension_is_stale(
         self, client: AsyncClient, project: dict, fact_table: dict
@@ -1390,7 +1390,7 @@ class TestDataSourceScopeIsOneSharedRule:
         sentence, and then the shared module's own predicate is REPLACED: a router
         that keeps refusing while the function it supposedly calls says "in scope"
         is a router carrying its own copy of the rule, which is the drift
-        tripl-0zpq.347 is about.
+        a past review was about.
         """
         neighbour = await client.post(
             "/api/v1/projects",

@@ -1,6 +1,6 @@
 """Batch 4: what an alert SAYS — one item, one weekly digest — and who gets it.
 
-``tripl-0zpq.165`` — the rule simulator and the live send each built
+the rule simulator and the live send each built
 ``${scope_label}`` and ``${drift_line}`` from their own copy of the rules, and
 the copies had drifted. One schema drift previewed as
 ``drift: type_changed: amount — e.g. 9.99`` and was then delivered as
@@ -17,7 +17,7 @@ Those two renderers are pure — no DB, no network, no Celery — so they are ca
 directly and compared string for string, because "the preview says what the send
 says" is an equality and nothing weaker holds it.
 
-``tripl-0zpq.34`` — the weekly plan digest counted its metric anomalies through
+the weekly plan digest counted its metric anomalies through
 an inner join on ScanConfig, and a catalog metric has no scan config to join to:
 ``metric``-scope rows carry a NULL ``scan_config_id`` by design. A project whose
 week produced only catalog-metric anomalies was told ``Metric anomalies: 0`` and
@@ -25,7 +25,7 @@ shown no Top anomalies section at all, while its Anomalies page listed every one
 of them. That half needs rows, so it runs the real builder against a sqlite
 session the way ``test_batch3_a2.py`` and ``test_alert_digest_delivery.py`` do.
 
-``tripl-0zpq.33`` — and who that digest is sent to. Both tasks in
+And who that digest is sent to. Both tasks in
 ``worker/tasks/alerts_digest`` select every enabled Slack/email destination in
 the database and send to it themselves, without minting an ``AlertDelivery`` and
 without going through a send task, so the demo-project egress guard both send
@@ -160,7 +160,7 @@ _DRIFT_SCOPES: dict[str, dict[str, object]] = {
         "drift_type": "distribution_shift",
         "sample_value": "psi=0.412; ios 61.0%->38.0%",
     },
-    # All four are reachable from a replay: tripl-0zpq.158, in this same batch,
+    # All four are reachable from a replay: a fix in this same batch
     # put release regressions and value drifts into the simulator's candidate
     # set, so the last two below describe firings an operator can preview today
     # rather than a family this file pinned ahead of time. The shared builder is
@@ -329,7 +329,7 @@ def test_the_release_line_names_the_rollout_window_on_both_sides() -> None:
     """The rollout-overlap clause survived the move into ``alert_templates``.
 
     ``window_from`` was the one fact a delivered item had and a replayed firing
-    did not, so this test used to render the send's half alone. tripl-0zpq.158
+    did not, so this test used to render the send's half alone. A fix
     ended that inside this same batch: the replay loads ``ReleaseRegression``
     rows, which record both ends of the overlap, and the firing carries the
     start through ``alerting_rendering._drift_facts``. The clause is an equality
@@ -749,7 +749,7 @@ def test_the_sunset_alert_never_reaches_a_demo_projects_slack(
     the predicate is duplicated in the source: reverting either task's
     ``Project.is_demo`` line alone has to redden something, and one shared test
     would leave the other copy unproven. This task runs daily from beat
-    (``check-deprecated-sunset-events``, wired for tripl-0zpq.31), so the demo
+    (``check-deprecated-sunset-events``, wired up since), so the demo
     row it refuses is one a scheduler now offers it every day.
     """
     with sync_session_factory() as session:

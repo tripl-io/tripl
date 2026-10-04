@@ -108,7 +108,7 @@ InboxGroupRow = tuple[AlertDeliveryItem, AlertDelivery, AlertDestination, AlertR
 # rebuild and the per-group unwindowed fallback), each once per request.
 # ``ScanConfig.scan_jobs`` was such a collection, and being unbounded it charged
 # every inbox request the entire scan history of every config on the page
-# (tripl-0zpq.157 — the reasoning now lives on the relationship in
+# (the reasoning now lives on the relationship in
 # models/scan_config.py). Want more than a column? Add it to the select, or take
 # a second query; do not reach through one of these entities.
 _INBOX_GROUP_SELECT = (
@@ -219,8 +219,8 @@ async def list_deliveries(
                 )
             )
         )
-    # Every item written since tripl-jfm3.91 carries an incident, so this selects
-    # the pre-tripl-jfm3.91 rows — invisible to the inbox and impossible to
+    # Every item written now carries an incident, so this selects
+    # the older rows — invisible to the inbox and impossible to
     # acknowledge. Nesting alone would drop them silently and leave an audit trail
     # that looks complete and is not, so the page gives them their own section.
     if ungrouped:
@@ -487,7 +487,7 @@ def _silenced_orphan_group_ids(
     status and filters afterwards. ``correlation_group_id`` is the last sort term
     for the reason ``_INBOX_SOURCE_ORDER`` has one: several incidents acted on in
     a single bulk click share an ``acted_at`` to the microsecond (that is what
-    tripl-gpfr's batch DOES), so without it the cap could admit a different set
+    the bulk-acknowledge batch DOES), so without it the cap could admit a different set
     on each request and a card would flicker in and out of the list.
 
     Pure, and takes the states rather than a session, so the selection rule can
@@ -734,7 +734,7 @@ def _inbox_sort_key(group: AlertInboxGroupResponse) -> tuple[bool, datetime, str
     bought minutes.
 
     Reaching a handled or muted incident is therefore the job of the ``status``
-    filter and paging — the frontend half of tripl-oxkt.1/.2 — and NOT of
+    filter and paging — the frontend half of that work — and NOT of
     displacing open work. ``status`` here is the EFFECTIVE one, so a lapsed mute
     is open again and returns to the top run on its own.
 
@@ -1847,7 +1847,7 @@ async def _build_inbox_group_batch(
     A group with no rows under EITHER reading is dropped with a warning rather
     than raising: validation already proved its items existed, so reaching here
     means they were deleted concurrently, and 404ing would report an error for a
-    state change that has already committed — the failure tripl-oxkt.20 fixed.
+    state change that has already committed — a failure already fixed on the single route.
     """
     wanted = set(correlation_group_ids)
     rows_by_group: dict[uuid.UUID, list[InboxGroupRow]] = {}

@@ -109,7 +109,7 @@ def _register_list(
         metavar="TEXT",
         # "substring", not "exact": the route compares with ILIKE '%value%', so
         # `--meta-value TRIPL-4` also keeps TRIPL-412. This line claimed "exact
-        # match" until tripl-nhj0 put the sibling --field-value next to it and
+        # match" until the sibling --field-value next to it and
         # the two would have described one ILIKE two different ways.
         help="substring match on any meta value, e.g. a ticket key (case-insensitive)",
     )

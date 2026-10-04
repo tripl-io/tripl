@@ -468,7 +468,7 @@ describe('SettingsLayout unsaved-changes guard', () => {
     )
   }
 
-  // THE POINT OF tripl-l33u.14. Back was the one exit no guard could reach: a
+  // THE POINT OF THIS TEST. Back was the one exit no guard could reach: a
   // plain BrowserRouter offers no blocker, and the history-parking workaround it
   // replaces could only react AFTER the browser had already moved. A blocker is
   // asked first, so the draft is still there to save when the dialog appears.

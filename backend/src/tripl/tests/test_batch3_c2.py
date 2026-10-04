@@ -2,16 +2,16 @@
 
 Three defects, one worker module (``worker/tasks/metrics/metric_collect.py``):
 
-* tripl-0zpq.3 -- ``_collect_distinct_user_series`` queried the warehouse without
+* ``_collect_distinct_user_series`` queried the warehouse without
   ever calling ``get_columns``, so the adapter's column allowlist stayed empty and
   every membership check short-circuited; and a fact metric's missing measure
   column escaped as a plain ``ValueError``, which ``user_facing_error`` replaces
   with the generic internal-error summary.
-* tripl-0zpq.4 -- ``_collect_event_composition`` re-derived from the FULL retained
+* ``_collect_event_composition`` re-derived from the FULL retained
   event-metric history on every dispatch, so a ``per_distinct_user`` metric
   re-queried the warehouse over its whole history every time and errored
   permanently once that history passed ``METRIC_QUERY_ROW_LIMIT`` buckets.
-* tripl-0zpq.5 -- the per-metric fact collectors (kept deliberately as the
+* the per-metric fact collectors (kept deliberately as the
   independent oracle the Gate-4 conformance run compares the batched path
   against) had drifted: an unguarded ``float(None)`` on an all-NULL aggregate
   cell, no collection-time condition-column recheck, and no column allowlist at

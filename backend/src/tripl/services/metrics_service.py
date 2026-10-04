@@ -353,7 +353,7 @@ async def _resolve_events_metrics_scan_config(
     nothing at all, under 366 live events.
 
     So: keep the default whenever it has rows for these filters — the tab and the
-    project total agreeing is the point of tripl-jfm3.20 — and only fall back to
+    project total agreeing is the point — and only fall back to
     whichever scan does have them, most recent data first. The created_at/id
     tiebreak mirrors the default resolver, so the pick can never hang on Postgres
     row order.
@@ -687,7 +687,7 @@ def _signal_from_anomaly(
 
 def _served_stddev(anomaly: MetricAnomaly | MetricBreakdownAnomaly) -> float:
     """Stddev the UI band is drawn from: the FLOORED *effective* stddev actually
-    used in the z denominator (tripl-dmch C3/C4), so ``expected ± k*stddev``
+    used in the z denominator so ``expected ± k*stddev``
     matches the detector's flag decision. Falls back to the raw stored stddev
     when the ``effective_stddev`` column is absent (pre-migration rows / hand-
     built test objects), keeping existing behavior unchanged in that case.

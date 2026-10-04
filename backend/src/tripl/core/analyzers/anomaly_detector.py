@@ -884,8 +884,8 @@ def _detect_trend_shift(
         # in the two numbers a reader is shown, that nothing happened. That is
         # what minted the "spike, 0 actual vs 0 expected" rows production carried
         # on a project running ``min_expected_count = 0``, the one floor that lets
-        # a zero expectation past the gate above (tripl-wkwv.4 made
-        # those rows closable, this stops them being written). Only the PAIR is
+        # a zero expectation past the gate above (making
+        # those rows closable came first, this stops them being written). Only the PAIR is
         # degenerate, never one half of it: traffic against a zero expectation is
         # a real spike from nothing and still emits, and an empty bucket against a
         # real expectation is still a drop. ``== 0.0`` rather than ``<= 0.0`` on
@@ -1121,7 +1121,7 @@ def is_provably_silent(max_count: float, min_expected_count: float) -> bool:
     current_level``, which is a *projection* and can exceed any observed count
     by up to the period length on a spike-shaped history — suppressing that
     also suppresses the drop-vs-projection flags it generates, which on a
-    series this quiet are noise, not signal (review verdict on tripl-h353).
+    series this quiet are noise, not signal (per review).
 
     A ``min_expected_count`` of 0 disables the skip entirely (counts are
     non-negative, so the strict inequality can never hold).

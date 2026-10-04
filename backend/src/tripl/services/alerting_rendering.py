@@ -51,7 +51,7 @@ def _drift_facts(firing: SimulatedRuleFiring) -> DriftLineFacts:
     ``window_from`` rides along like every other fact. It used to be the one
     field a firing could not supply — the replay loaded only stored anomaly
     rows, which record a bucket and no window — but a ``ReleaseRegression`` IS a
-    stored row and it records both ends, and since tripl-0zpq.158 the replay
+    stored row and it records both ends, and now the replay
     loads it. THREE hops carry it from that row to here and all three are
     load-bearing: ``_load_release_regression_candidates``'s
     ``DriftAlertCandidate(window_from=...)``, ``simulate_rule``'s
@@ -142,7 +142,7 @@ def render_firing_item(
         # Same condition as the send's
         # (``alerts_messages._build_item_template_context``), and through the
         # same ``has_baseline`` so a signed expectation is QUALIFIED rather than
-        # denied — the distinction tripl-0zpq.102 drew for every other reader of
+        # denied — the distinction drawn for every other reader of
         # "was there a baseline".
         "expected_basis": escape_alert_value(
             _ADOPTION_ADJUSTED_LABEL

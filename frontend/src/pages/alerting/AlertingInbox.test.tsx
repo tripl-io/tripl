@@ -184,7 +184,7 @@ describe('AlertingInbox item and scope counts', () => {
 
 /**
  * Every mute sentence in this file is written out as a literal, and stays that
- * way after tripl-yapg.
+ * way after the mute-copy rework.
  *
  * The card no longer composes those sentences itself — it calls `muteName`,
  * `muteChoiceName` and `unmuteName` from `@/lib/mutePresets`, the same
@@ -242,7 +242,7 @@ describe('AlertingInbox — the undo for a mute is called Unmute', () => {
 
     // Named in full, not `/for 24h$/`: the old suffix regex asserted the
     // duration and said nothing about WHOSE incident was about to be silenced,
-    // which is the half of the sentence tripl-in45 added.
+    // which is the half of the sentence that was added later.
     fireEvent.click(screen.getByRole('button', { name: `Mute ${TARGET} for 24h` }))
     expect(onAction).toHaveBeenCalledTimes(1)
     const variables = at(onAction.mock.calls, 0)[0]
@@ -311,7 +311,7 @@ describe('AlertingInbox — an incident can be silenced with no end date', () =>
 
     // The line used to be guarded on `muted && muted_until`, so an incident
     // silenced forever rendered a "Muted" chip and not one word about how long
-    // for or how to undo it — the silent mute of tripl-oxkt.7, back again.
+    // for or how to undo it — the silent mute, back again.
     const card = document.getElementById('incident-grp-1')!
     expect(within(card).getByText(/no end date/i)).toBeInTheDocument()
     expect(within(card).getByRole('button', { name: `Unmute ${TARGET}` })).toBeInTheDocument()
@@ -440,7 +440,7 @@ describe('AlertingInbox — the card says what fired', () => {
 })
 
 /**
- * tripl-wkwv.12. A release regression's name was dead text on 30 of the 123
+ * A release regression's name was dead text on 30 of the 123
  * incidents on the live instance: the deny-set in lib/monitoring.ts refuses the
  * event page as SUBSTANTIATION for a release-cohort comparison, and this card
  * was using that one answer to decide whether there was anywhere to go at all.
@@ -1040,7 +1040,7 @@ describe('AlertingInbox — viewer gating', () => {
     renderInbox({}, 'member')
 
     // Present on every card, always — the fixed slots are the whole point of
-    // tripl-oxkt.8. Reopen is the one that is DISABLED on an open incident
+    // the card layout. Reopen is the one that is DISABLED on an open incident
     // rather than missing, which is exactly the distinction being asserted.
     for (const name of ACTION_NAMES) {
       expect(screen.getByRole('button', { name })).toBeInTheDocument()

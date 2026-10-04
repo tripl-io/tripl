@@ -422,7 +422,7 @@ export function resetPayload(section: SectionKey): ServiceSettingsUpdate {
  * security/storage/observability are read once at startup — with
  * registration_mode the one security field applied live. The UI used to promise
  * the exact opposite (a redeploy note on Runtime, which needs none, and silence
- * on Storage and Observability, which do) — tripl-tezn.
+ * on Storage and Observability, which do).
  */
 // One line each: the sticky bar held a 3-4 line paragraph, a quarter of a
 // phone screen pinned while scrolling (ST-28). The fallback rule every section

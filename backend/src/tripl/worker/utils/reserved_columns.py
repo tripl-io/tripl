@@ -67,8 +67,8 @@ def _event_group_rule_columns(config: ScanConfig) -> set[str]:
                 # ADDITIVE. Reserving ``event`` for a rule on ``event.category``
                 # denies that column its FieldDefinition, ``plan_column_meta``
                 # drops it from ``col_meta`` entirely, and every JSON-path variable
-                # under it goes with it — tripl-lpin's mechanism reached from the
-                # other side, and silent where lpin at least raised. On production
+                # under it goes with it — the name-format outage's mechanism reached from the
+                # other side, and silent where that outage at least raised. On production
                 # every variable is JSON-path derived, so that is a column's whole
                 # variable surface for one reserved name.
                 continue
@@ -116,7 +116,7 @@ def reserved_catalog_columns(config: ScanConfig) -> set[str]:
     whole collection dies on ``the event name format references unknown keys``. That
     is what took production's 'Old events (iOS)' scan down for 200 consecutive
     runs: its group rules match ``action`` and its name format is
-    ``{action}``, so tripl-jfm3.90 reserved away the one column the event's
+    ``{action}``, so reserving the group-rule column removed the one column the event's
     identity was built from.
 
     A DOTTED placeholder is subtracted by its BASE column as well as by its full
@@ -127,7 +127,7 @@ def reserved_catalog_columns(config: ScanConfig) -> set[str]:
     ``col_meta`` — i.e. that have a FieldDefinition. Subtracting the full key
     ``event.category`` from a set of top-level column names removes nothing, so a
     config whose ``platform_column`` is ``event`` kept ``event`` reserved and
-    reproduced tripl-lpin from the other direction: same outage, same message,
+    reproduced the name-format outage from the other direction: same outage, same message,
     reached through a placeholder shape the subtraction could not see.
 
     That base reduction belongs to the SUBTRACTION and nowhere else. A group-rule

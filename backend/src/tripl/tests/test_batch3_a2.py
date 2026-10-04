@@ -2,15 +2,15 @@
 
 Three defects that share nothing but the files they live in:
 
-* ``tripl-0zpq.8`` — unticking the project's **Metrics** detection scope deleted
+* unticking the project's **Metrics** detection scope deleted
   the project's WHOLE metric-scope anomaly history instead of the window an
   enabled pass would have rewritten, so a temporary toggle-off destroyed months
   of history nothing else ever ages out;
-* ``tripl-0zpq.102`` — every volume gate compared a SIGNED expectation against a
+* every volume gate compared a SIGNED expectation against a
   non-negative floor, so a catalog metric whose level legitimately sits below
   zero could never be scored and, if it had been, could never have matched a
   rule;
-* ``tripl-0zpq.7`` — event-anchored signals carry a NULL ``event_type_id``, and
+* event-anchored signals carry a NULL ``event_type_id``, and
   the matcher read a missing type as "this signal has no such field", so an
   alert rule's ``event_type`` filter was silently inert for all of them.
 
@@ -574,7 +574,7 @@ def test_trend_shift_reports_a_signed_expectation() -> None:
 
     assert trend_rows(signed=True) == [("drop", -100.0)]
     # The count lane is untouched: a negative deseasonalized trend is still
-    # rejected outright there, which is what keeps the tripl-wkwv.8 rows gone.
+    # rejected outright there, which is what keeps those rows gone.
     assert trend_rows(signed=False) == []
 
 
@@ -713,7 +713,7 @@ def test_delivery_records_a_measured_percent_delta_for_a_negative_baseline(
     against ``min_expected_count``, ``absolute_delta / abs(expected)`` against
     ``min_percent_delta``), so a rule fires on -3 -> -9 precisely BECAUSE the
     move is 200%. The payload builder still asked ``expected_count > 0`` and
-    stored the 0.0 placeholder for it — the tripl-l429.24 misreport, reproduced
+    stored the 0.0 placeholder for it — the earlier misreport, reproduced
     against a REAL baseline — and that column is frozen history: the renderers
     read it back, so nothing later can recover the number.
     """

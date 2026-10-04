@@ -498,7 +498,7 @@ def test_unknown_column_is_rejected() -> None:
 
 
 # --------------------------------------------------------------------------- #
-# ongoing (live-scan) volume — bd tripl-yfsj.14
+# ongoing (live-scan) volume
 # --------------------------------------------------------------------------- #
 
 

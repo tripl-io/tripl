@@ -147,7 +147,7 @@ def test_the_autumn_fold_claims_two_windows_and_the_watermark_admits_both() -> N
 def test_the_spring_gap_collapses_to_one_window_but_the_fold_does_not() -> None:
     """The contrast the corrected comments draw, from the watermark's side.
 
-    A nonexistent wall time resolves forward to a single instant (tripl-0zpq.280
+    A nonexistent wall time resolves forward to a single instant (an earlier fix
     landed that in ``_utc_instants``), so the gap day claims ONE window at 03:30
     local. The fold is the opposite case and is left alone: the wall time really
     did happen twice. Which one a day gets is decided in the schedule module —

@@ -217,7 +217,7 @@ def test_a_display_name_sender_is_accepted_because_real_delivery_accepts_it() ->
     ``validate_email_address`` refuses ``Tripl <no-reply@x>``, while ``EmailMessage``
     takes it, so the strict helper refused a From: that delivers on every fire. The
     alert-destination test hit that first; the alert and digest SEND
-    paths carried the same strictness until tripl-0zpq.29, which is the defect that
+    paths carried the same strictness until it was fixed, which is the defect that
     mattered — a diagnostic reporting success and the real send then failing.
     Five callers now share this one helper, which checks only the address part:
     the two send paths (worker/tasks/alerts.py, worker/tasks/alerts_channels.py),
@@ -248,7 +248,7 @@ def test_a_sender_with_no_at_sign_is_refused_with_a_readable_reason() -> None:
 def test_the_alert_destination_test_send_accepts_a_display_name_sender(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """The half of tripl-q9o6 that lives outside the shared helper.
+    """The half of that fix that lives outside the shared helper.
 
     Pinning the CALL SITE, not just the validator: the defect was that this path
     used the strict helper, so a test asserting only ``validate_sender_address``

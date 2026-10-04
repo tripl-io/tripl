@@ -101,7 +101,7 @@ dev = [
 # the plain version constraint declared above and consumers of the PyPI release
 # resolve `tripl` from the index. `../cli` is also the only thing named `tripl`
 # in the repo now — backend/ used to declare that distribution name too and is
-# `tripl-server` since tripl-ey6j.6.
+# `tripl-server` now.
 tripl = { path = "../cli" }
 
 [build-system]

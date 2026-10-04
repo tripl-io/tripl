@@ -156,7 +156,7 @@ class EmailSettingsUpdate(BaseModel):
         # is what the alert tasks accept. Deliberately NOT ``EmailStr`` or
         # ``validate_email_address``: the strict form refuses
         # ``Tripl Alerts <no-reply@example.com>``, which the From: header takes
-        # happily, and putting it here would rebuild tripl-0zpq.29 at the other
+        # happily, and putting it here would rebuild an earlier bug at the other
         # end of the same pipe — a value the operator can never save, instead of
         # one they can save but never deliver.
         #

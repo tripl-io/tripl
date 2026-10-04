@@ -374,7 +374,7 @@ def test_a_threshold_the_bad_rate_does_not_clear_is_not_a_violation(
 def test_a_violation_past_the_sampling_limit_is_invisible_to_the_fallback(
     contracts_pg: PostgresAdapter,
 ) -> None:
-    """The bug tripl-64n8.5 exists to close, stated as a test.
+    """The bug this suite exists to close, stated as a test.
 
     50,001 rows; exactly one is bad, and it is the last one. BaseAdapter pulls
     ``limit`` (50,000) rows and counts them in Python, so it never sees row 50,001:

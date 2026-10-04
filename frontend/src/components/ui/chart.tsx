@@ -282,8 +282,8 @@ function useChartContainerReady() {
 // made unflagged buckets look flagged.
 //
 // Every scope now serves a real per-scope sigma (event, event-type and
-// project-total since tripl-0zpq.299; events-total since tripl-e443; the catalog
-// metric since tripl-4cgl, threaded through `adaptMetricSeries`), so this
+// project-total, events-total and the catalog
+// metric, the last threaded through `adaptMetricSeries`), so this
 // constant only covers a payload that predates the field.
 const DEFAULT_SIGMA_THRESHOLD = 4
 

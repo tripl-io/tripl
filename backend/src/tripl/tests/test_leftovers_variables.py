@@ -1,7 +1,4 @@
-"""Regressions for the variables leftovers batch (2026-09-25).
-
-tripl-p5ac, tripl-ifuv, tripl-nluj and tripl-0zpq.370.
-"""
+"""Regressions for the variables leftovers batch (2026-09-25)."""
 
 from __future__ import annotations
 

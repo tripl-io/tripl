@@ -619,7 +619,7 @@ class DriftLineFacts:
     one: a release regression is measured over the activation-anchored rollout
     overlap, so ``ReleaseRegression.window_from`` is NOT NULL, the send
     snapshots it onto ``AlertDeliveryItem.window_from`` and — since
-    tripl-0zpq.158 taught the replay to load those rows — the preview carries
+    the replay learned to load those rows — the preview carries
     it through ``DriftAlertCandidate`` and ``SimulatedRuleFiring``. Every other
     scope's window IS its bucket and leaves it None, as does any item delivered
     before the column existed; that is what its only consumer, the

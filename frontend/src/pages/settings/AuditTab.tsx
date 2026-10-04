@@ -49,7 +49,7 @@ const EMAIL_DEBOUNCE_MS = 400
 // anything older. `offset` was already carried end to end by
 // api/audit.ts, api/v1/audit.py and audit_service.list_entries; only the buttons
 // were missing. 50 matches the sibling delivery log (ProjectAlertingTab.tsx),
-// which got the same treatment in tripl-oxkt.12.
+// which got the same treatment.
 const PAGE_SIZE = 50
 
 /**

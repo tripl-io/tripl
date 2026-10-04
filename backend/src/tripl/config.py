@@ -340,7 +340,7 @@ class Settings(BaseSettings):
     # before it serves a byte. With it, an empty value means "unset" and falls
     # through to the default below, which is exactly what that compose comment
     # always claimed. Deleting the `${VAR:-}` lines instead would reintroduce
-    # tripl-2su6.16 / tripl-jfm3.101, where a documented switch silently did
+    # an old bug, where a documented switch silently did
     # nothing.
     model_config = {"env_file": ".env", "extra": "ignore", "env_ignore_empty": True}
 

@@ -623,7 +623,7 @@ def _fold_context_facts(
 
     The rule ``preserve_existing_variable_context_values`` and
     ``_merge_replay_variable_samples`` already apply on their own sides; the
-    merge sink was the third and is what tripl-3rex is filed against.
+    merge sink was the third and is the one that needed fixing.
     """
     merged = sample_variable_values(
         [*kept.values, *folded.values],

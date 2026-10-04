@@ -2,16 +2,16 @@
 
 Five findings, one file:
 
-* ``tripl-0zpq.53`` — a field-contract range check compares in ``numeric``, and the
+* a field-contract range check compares in ``numeric``, and the
   guard in front of the cast bounds MAGNITUDE as well as syntax, so no single event
   row can abort the contract query for every other expectation in it.
-* ``tripl-0zpq.56`` — an array column reports ``jsonb[]`` rather than ``jsonb``, and
+* an array column reports ``jsonb[]`` rather than ``jsonb``, and
   an array classifies as an opaque scalar rather than as a JSON document.
-* ``tripl-0zpq.59``/``.78`` — the libpq startup ``options`` pin
+* the libpq startup ``options`` pin
   ``standard_conforming_strings`` and ``default_transaction_read_only``.
-* ``tripl-0zpq.74`` — a fact condition's time literal is typed from the NATIVE
+* a fact condition's time literal is typed from the NATIVE
   warehouse type, which is the only thing that tells BigQuery DATE from DATETIME.
-* ``tripl-0zpq.77`` — the read-only text gate scans SQL, not the values inside its
+* the read-only text gate scans SQL, not the values inside its
   string literals.
 
 Everything here is SQL text, a classifier answer or a captured kwarg: none of it
@@ -288,7 +288,7 @@ def test_a_scalar_time_type_still_classifies_as_it_did(type_name: str, expected:
     assert classify_time(type_name) is expected
 
 
-# --- tripl-0zpq.59 / .78: the libpq session GUCs -----------------------------
+# --- the libpq session GUCs --------------------------------------------------
 
 
 class _FakeConn:

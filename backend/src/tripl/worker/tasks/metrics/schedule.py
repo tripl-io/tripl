@@ -70,7 +70,7 @@ logger = logging.getLogger(__name__)
 # MSTL(24,168) — 21 volume scopes plus 81-131 breakdown scopes at ~1.2 s each —
 # and none of the existing fast paths apply, because demo volumes sit far above
 # ``min_expected_count`` and every demo series is unique so the decomposition
-# cache added for tripl-jfm3.1 has nothing to reuse.
+# cache added earlier has nothing to reuse.
 #
 # The demo does NOT go dark between runs: ``advance_demos`` already appends
 # hourly buckets and re-runs the real detector for volume anomalies every hour,
@@ -130,7 +130,7 @@ def _hours_since_last_scheduled_collection(
 # (``max(EventMetric.bucket)``) or the window a COMPLETED job recorded — and a
 # collection that dies before writing its first row advances NEITHER, so the
 # config is due again on the very next beat tick — every 300 s, forever, ignoring
-# its own interval (the zero-row twin of this is tripl-wopq). Prod ran
+# its own interval (the zero-row twin of this is a separate bug). Prod ran
 # 200 consecutive failed jobs in 17 h for one 1h-interval config, each a ~30 s
 # warehouse query, and the junk rows pushed real scan history out of the API's
 # 200-row window.
@@ -680,7 +680,7 @@ def _event_composition_due(session: Session, definition: MetricDefinition) -> bo
     # A structurally unconfigured metric is ALWAYS due, so the collector gets to
     # say so. Without this the guard would be inert: both refs NULL means no
     # source bucket, ``source_max`` is None, and this returns False forever —
-    # which is exactly the half of tripl-jtnv that made the flatline permanent.
+    # which is exactly the half of the flatline bug that made the flatline permanent.
     # The hourly post-error backoff keeps it from becoming a storm.
     if event_composition_binding_error(definition) is not None:
         return True
@@ -751,7 +751,7 @@ def _metric_definition_error_backoff(
     dies writes neither a value nor the ``last_collection_window_to`` watermark —
     so a metric that can never succeed is re-dispatched on every 300 s tick,
     ignoring its own interval, exactly as a broken scan config was before
-    tripl-n9ee.
+    the fix for that.
 
     It cannot climb the exponential curve, though: the catalog path has no job
     table — a single ``last_collection_status`` column is the entire history — so

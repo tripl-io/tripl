@@ -9,7 +9,7 @@ also reads it.
 
 That is a blind spot in the frontend's own vocabulary guard, and the reason this
 file lives on the backend side. ``frontend/src/scan-docs-agreement.test.ts``
-enforces the tripl-3y7z settlement (the web UI says *scan* and *run*; the wire
+enforces the vocabulary settlement (the web UI says *scan* and *run*; the wire
 keeps ``scan_config`` and ``job``) by reading string literals and JSX text out of
 frontend sources. A sentence assembled in Python has no literal there to find, so
 "1 scan config(s)" sat in a ``role="alert"`` through the whole epic that banned
@@ -105,7 +105,7 @@ def test_the_shared_409_never_shows_a_web_user_the_wire_noun(count: int) -> None
     assert not _banned_noun().search(detail), (
         f"the 409 body calls a scan a 'scan config': {detail!r}. EventTypesTab and "
         "EventDriftBadge render this string verbatim in a role=alert, so it is web-UI copy "
-        "and tripl-3y7z settled that noun as 'scan'. scan-docs-agreement.test.ts cannot see "
+        "and the settlement fixed that noun as 'scan'. scan-docs-agreement.test.ts cannot see "
         "it from here, which is why this test exists."
     )
 
@@ -115,7 +115,7 @@ def test_the_shared_409_never_pluralises_with_a_parenthesised_s(count: int) -> N
     detail = _detail(count)
     assert "(s)" not in detail, (
         f"the 409 body pluralises with '(s)': {detail!r}. The count is known when the sentence "
-        "is built, and tripl-3y7z replaced this shape everywhere the frontend could reach "
+        "is built, and the frontend replaced this shape everywhere the frontend could reach "
         "(lib/plural.ts countOf) — a string the frontend cannot reach still gets read by the "
         "same user."
     )

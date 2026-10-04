@@ -606,7 +606,7 @@ def test_check_metrics_due_backs_off_after_consecutive_failures(
     """A config that keeps failing waits instead of retrying on every beat tick.
 
     "Due" is derived from max(EventMetric.bucket), which a collection that dies
-    before writing a row never advances — so before tripl-n9ee this config was
+    before writing a row never advances — so before the failure backoff this config was
     re-dispatched every 300 s forever (prod: 200 failed jobs in 17 h, each a ~30 s
     warehouse query).
     """
@@ -1742,8 +1742,8 @@ def test_reserved_catalog_columns_never_reserves_the_event_name_source() -> None
     "the event name format references unknown keys".
 
     This is production's 'Old events (iOS)' config: group rules keyed on
-    ``action`` plus ``event_name_format='{action}'``. tripl-jfm3.90 reserved
-    ``action`` and took the scan down for 200 consecutive runs.
+    ``action`` plus ``event_name_format='{action}'``. Reserving
+    ``action`` once took the scan down for 200 consecutive runs.
     """
     from tripl.worker.tasks.metrics.tasks import reserved_catalog_columns
 
@@ -1761,7 +1761,7 @@ def test_reserved_catalog_columns_never_reserves_the_event_name_source() -> None
     assert reserved_catalog_columns(config) == {"time"}
 
     # A multi-key format is covered the same way, and a group-rule column the
-    # name does NOT use stays reserved — the tripl-jfm3.57 fix is intact.
+    # name does NOT use stays reserved — the group-rule column reservation is intact.
     multi = ScanConfig(
         event_type_column="event_type",
         time_column="time",
@@ -1780,7 +1780,7 @@ def test_reserved_catalog_columns_never_reserves_the_event_name_source() -> None
 
 
 def test_reserved_catalog_columns_never_reserves_a_dotted_placeholders_base_column() -> None:
-    """tripl-lpin reached from the other direction, through a DOTTED placeholder.
+    """The name-format outage reached from the other direction, through a DOTTED placeholder.
 
     ``{event.category}`` is walked out of the ``event`` column's JSON, and
     ``generate_events`` assembles ``col.path`` keys only for columns that reached
@@ -3647,7 +3647,7 @@ def test_a_zero_baseline_spike_that_is_still_live_keeps_alerting(
 ) -> None:
     """And a real move off a zero baseline still reaches dispatch.
 
-    The trap in tripl-wkwv.4: "expected 0" alone must not close anything. A scope
+    The trap: "expected 0" alone must not close anything. A scope
     that started emitting where it never had is a genuine observation, judged on
     freshness like any other signal — here on the newest bucket the detector may
     emit, which is what a live scope carries.
@@ -4575,7 +4575,7 @@ def test_diff_event_type_schema_does_not_call_a_reserved_column_missing(
 ) -> None:
     """A declared field whose column is RESERVED must not read as "it vanished".
 
-    Regression from tripl-jfm3.57. Reserving event-group-rule columns removed
+    Regression: reserving event-group-rule columns removed
     them from `observed`, and the missing_field branch then reported every
     declared field of the same name — production groups on `action` AND declares
     `action` on the same event type, so the first scan after deploy raised a
@@ -6966,7 +6966,7 @@ def test_collect_metrics_fails_when_query_exceeds_row_limit(
     # carrying the prefix the UI matches on, which the sanitiser adds so this
     # raise site does not have to remember it. Without the prefix
     # the text reached the browser intact and was discarded there instead, which
-    # is the same outcome tripl-embs fixed one layer further down.
+    # is the same outcome an earlier fix addressed one layer further down.
     assert user_facing_error(excinfo.value) == f"Scan failed: {excinfo.value}"
 
     # ...and that is exactly what the user reads off the failed job.
@@ -8055,7 +8055,7 @@ def test_grouped_event_type_lookup_is_scoped_to_the_main_plan(
     """Grouped collection must attribute volume to the MAIN plan's event types.
 
     A working branch deep-copies event types under the same names. Before
-    tripl-jfm3.72 the lookup was keyed by name with no branch filter, so the
+    the fix the lookup was keyed by name with no branch filter, so the
     branch copy won the dict: the main-branch series stopped at the last write
     (the detector then read it as "dropped to zero") and buckets carrying rows
     from both branches double-counted.
@@ -8493,7 +8493,7 @@ def test_completed_collection_that_wrote_no_rows_is_not_redispatched_next_tick(
     Due-ness used to read ``max(EventMetric.bucket)`` alone, so a fresh config
     whose warehouse window holds no data yet completed, wrote nothing, left that
     watermark at NULL and was re-dispatched on the very next 300 s tick — forever,
-    without ever registering the failure the tripl-n9ee backoff keys on.
+    without ever registering the failure the scan-config backoff keys on.
     """
     with sync_session_factory() as session:
         config = _create_scan_config(session)
@@ -8667,9 +8667,9 @@ def test_errored_catalog_metric_is_not_redispatched_on_the_next_tick(
     """A catalog metric that cannot collect waits its own interval, like a config.
 
     ``_metric_definition_due`` reads max(MetricValue.bucket) and the completed
-    window watermark, and a collection that dies writes NEITHER — so before
-    tripl-wopq a permanently broken metric was re-dispatched every 300 s, the same
-    retry storm on the same beat that tripl-n9ee removed from scan configs.
+    window watermark, and a collection that dies writes NEITHER — so a permanently
+    broken metric used to be re-dispatched every 300 s, the same retry storm on the
+    same beat that the failure backoff removed from scan configs.
     """
     with sync_session_factory() as session:
         config = _create_scan_config(session)
@@ -8973,7 +8973,7 @@ def test_recalculate_metric_anomalies_honours_per_scope_override(
     The ratchet writes an ``AnomalyScopeOverride`` keyed the way an anomaly keys
     itself — (scan_config_id, scope_type, scope_ref) — so the scope an operator
     dismissed gets stricter and every OTHER scope keeps its previous
-    sensitivity. Before tripl-l429 the ratchet raised the project-wide setting
+    sensitivity. Previously the ratchet raised the project-wide setting
     instead, so one click silenced scopes nobody had complained about.
     """
     from tripl.core.analyzers.anomaly_detector import SCOPE_EVENT, SCOPE_EVENT_TYPE
@@ -9163,7 +9163,7 @@ def test_an_unbound_composition_metric_stays_due_so_it_can_report(
 
     Due is checked before anything else, and a metric with no operand has no
     source bucket — so the old due check returned False forever and the
-    collector was never asked. That is the half of tripl-jtnv that made the
+    collector was never asked. That is the half of the bug that made the
     flatline permanent rather than merely quiet.
     """
     from tripl.models.domain_enums import MetricComposition
@@ -9269,7 +9269,7 @@ def _candidates(session: Session, config: ScanConfig) -> list[tuple[str, str]]:
 def test_a_variable_with_no_context_rows_is_not_a_candidate(
     sync_session_factory: sessionmaker[Session],
 ) -> None:
-    """The ring-bloat half of tripl-81p5.
+    """The ring-bloat half of the sampling fix.
 
     A contextless variable is an unused one — no event field references its
     token, so a sampled value would have no row to land in. Keeping these as
@@ -9322,7 +9322,7 @@ _STRIDE_END = datetime(2026, 8, 30, 12, tzinfo=UTC)
 
 
 def test_rotating_window_strides_by_its_own_size_between_ticks() -> None:
-    """The rotation-pace half of tripl-81p5.
+    """The rotation-pace half of the sampling fix.
 
     Under the pre-fix one-candidate stride this test FAILS: consecutive slices
     would overlap on all but one element (``second[:-1] == first[1:]``), which

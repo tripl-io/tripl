@@ -728,7 +728,7 @@ async def cancel_scan_job(
             # revoke is a synchronous kombu broadcast, and against a hung broker
             # an inline call holds the uvicorn thread for seconds. Harmless while
             # ``celery_task_id`` was almost always NULL — which is exactly what
-            # tripl-0zpq.44 stopped being true, since the scan tasks now record
+            # stopped being true, since the scan tasks now record
             # it and every Stop run reaches this branch.
             await dispatch(celery_app.control.revoke, job.celery_task_id)
         except Exception:  # noqa: BLE001 — revoke is best-effort; cooperative stop is the backstop

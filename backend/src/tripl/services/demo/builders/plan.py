@@ -351,7 +351,7 @@ _META_VALUES: dict[str, dict[str, str]] = {
     "Purchase Completed": {"jira": "PAY-1234", "owner_team": "Payments"},
 }
 
-# "First seen" stagger shape (PR #51 follow-up to tripl-2su6 .21). Core-tagged
+# "First seen" stagger shape (PR #51 follow-up). Core-tagged
 # events anchor the start of the seeded history; the rest ramp in between
 # ``_STAGGER_OLDEST_AGE_DAYS`` and ``_STAGGER_YOUNGEST_AGE_DAYS`` before now.
 # The youngest floor sits ~2 days back (jitter included) so nothing reads as

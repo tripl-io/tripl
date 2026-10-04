@@ -1208,7 +1208,7 @@ describe('ProjectAlertingTab — several incidents, one decision', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Acknowledge 2 selected incidents' }))
 
     await waitFor(() => expect(bulkBodies).toHaveLength(1))
-    // One request, not two. The whole point of tripl-gpfr is that a screenful
+    // One request, not two. The whole point of bulk actions is that a screenful
     // of incidents is one decision and one audit batch, not N clicks.
     expect(bulkBodies[0]).toEqual({
       correlation_group_ids: ['grp-2', 'grp-1'],
@@ -1236,7 +1236,7 @@ describe('ProjectAlertingTab — several incidents, one decision', () => {
     fireEvent.click(screen.getByRole('checkbox', { name: SELECT_SECOND }))
 
     // The bar's mute is a DISCLOSURE, like the card's: a control labelled just
-    // "Mute" that silently posts seven days is what tripl-oxkt.7 removed, and
+    // "Mute" that silently posts seven days is what was removed, and
     // it would be worse here where one click covers a screenful.
     fireEvent.click(screen.getByRole('button', { name: 'Mute 2 selected incidents' }))
     for (const label of ['1h', '24h', '7d']) {
@@ -1452,7 +1452,7 @@ describe('ProjectAlertingTab — several incidents, one decision', () => {
 })
 
 describe('ProjectAlertingTab — a note that is wrong can be taken back', () => {
-  /** Records the action request body and never answers it — see tripl-a50u. */
+  /** Records the action request body and never answers it */
   function mockInboxCapturingAction(groups: Record<string, unknown>[]) {
     const actionBodies: Record<string, unknown>[] = []
     vi.spyOn(globalThis, 'fetch').mockImplementation(async (input, init) => {

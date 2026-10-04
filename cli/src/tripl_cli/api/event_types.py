@@ -150,7 +150,7 @@ def field_count(event_type: JsonDict) -> int:
     replace the array it strips. It lives here, beside ``scans.is_dispatchable``
     and for the same reason: a derived operational fact must not be computed
     twice. Both call sites read it now — the MCP's ``_event_type_summary`` spelled
-    it inline until tripl-i1dt, which meant two places had to remember that
+    it inline until recently, which meant two places had to remember that
     ``field_definitions`` is nullable on the wire.
     """
     return len(event_type.get("field_definitions") or [])

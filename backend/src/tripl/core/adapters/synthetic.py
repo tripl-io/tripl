@@ -1,4 +1,4 @@
-"""Local, in-memory synthetic warehouse adapter (epic tripl-2su6.3).
+"""Local, in-memory synthetic warehouse adapter.
 
 The synthetic adapter replaces the never-queried fake ClickHouse source that
 generated demo projects used to carry. It exercises the *normal* warehouse-facing
@@ -401,7 +401,7 @@ def _projection_columns(base_query: str) -> tuple[str, ...] | None:
 # ``measure_validator._DB_TYPE_DIALECT`` declares ``"synthetic"`` to be a
 # ClickHouse dialect, so ``_fact_conditions._resolve_condition_fragment`` compiles
 # a structured condition to ``` `status` = 'completed' ``` — back-tick quoted,
-# backslash escaped. Until bd tripl-0zpq.71 the evaluator here understood only
+# backslash escaped. Until it was fixed the evaluator here understood only
 # bare identifiers and did a chain of ``.strip("'")`` / ``.replace("''", "'")`` on
 # the literal, so ``` `status` = 'completed' ``` matched NOTHING (every bucket
 # collected NULL) and ``` `status` != 'completed' ``` matched EVERY row. The
@@ -680,7 +680,7 @@ def _where_predicates(base_query: str) -> list[str]:
     was 7303.86 against the batched (and correct) 4908.56, and a CTE-backed fact
     source (``WITH completed AS (… WHERE status = 'completed') SELECT * FROM
     completed``) scanned the whole table on both paths (the
-    shape tripl-0zpq.71 was filed about).
+    shape of an earlier bug).
 
     A ``WHERE`` at depth >= 1 that is NOT inside that one recognised inner
     statement — a subquery in the projection, a join, a CTE list — is REFUSED:
@@ -799,8 +799,8 @@ def _normalize_sql(statement: str) -> str:
 # 'ios'``, divided the count by 2, or read ``events_archive`` (``from events`` is
 # a substring of it) still matched, and the adapter answered with the unfiltered
 # whole-dataset series — a different question, answered confidently, in the one
-# module whose stated contract is to refuse rather than fabricate (bd
-# tripl-0zpq.76). A demo is editable by its creator and by any owner
+# module whose stated contract is to refuse rather than fabricate.
+# A demo is editable by its creator and by any owner
 # (``project_service`` permits both), so that input is reachable.
 #
 # Exact matching is brittle BY DESIGN: reformatting the seeded statement breaks
@@ -817,7 +817,7 @@ _ACTIVE_SESSIONS_STATEMENTS: frozenset[str] = frozenset(
             "count(DISTINCT session_id) AS value FROM events GROUP BY ts"
         ),
         # Legacy: the GROUP BY-less statement every demo created before
-        # tripl-0zpq.76 still carries in ``MetricDefinition.config``. Real
+        # that fix still carries in ``MetricDefinition.config``. Real
         # ClickHouse rejects it ("not under aggregate function and not in GROUP
         # BY"), which is why the seeder stopped writing it — but an existing demo
         # must keep collecting, and one frozenset entry is a far smaller change
@@ -1518,8 +1518,8 @@ class SyntheticAdapter(BaseAdapter):
         The single seam through which every TABLE-SCAN method reads the dataset,
         so the two ways the metric collector delivers a row filter produce the
         same rows — including the fact table's OWN ``WHERE``, which the
-        per-metric wrapper puts one paren level down (``_where_predicates``,
-        tripl-0zpq.344). (``_active_sessions_rows`` reads ``self._events`` directly and
+        per-metric wrapper puts one paren level down (``_where_predicates``).
+        (``_active_sessions_rows`` reads ``self._events`` directly and
         does not come through here: it serves an exactly-recognized statement,
         which by definition has no WHERE to honour.)
 

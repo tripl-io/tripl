@@ -36,7 +36,7 @@ import { SessionProject } from '@/test/PersonaProject'
  *
  * This is a correctness argument, not a speed one. `hidden: true` is only ~1ms cheaper
  * per query in steady state (6.7ms -> 5.5ms measured); it is the *first* role query in
- * a file that costs ~87ms, once, warming dom-accessibility-api. See tripl-mwv3.
+ * a file that costs ~87ms, once, warming dom-accessibility-api.
  */
 function expectAbsent(role: Parameters<typeof screen.queryByRole>[0], name: string) {
   expect(screen.queryByRole(role, { name, hidden: true })).not.toBeInTheDocument()
@@ -328,7 +328,7 @@ describe('EventsPage', () => {
     // One traversal for every column instead of a `getByRole` per header. This is a
     // clarity win — the ordering assertion now reads off the header list directly,
     // rather than through compareDocumentPosition — and only a marginal speed one.
-    // See tripl-mwv3: role queries cost ~6.7ms each in steady state here, so the
+    // Role queries cost ~6.7ms each in steady state here, so the
     // thirteen in this test are not what makes it slow.
     const headers = screen.getAllByRole('columnheader').map((h) => h.textContent?.trim())
     expect(headers).toContain('Event')
@@ -363,15 +363,15 @@ describe('EventsPage', () => {
     // rows carry no per-row action menu, not the toolbar affordance.
     const eventsGrid = container.querySelector('table')
     expect(eventsGrid?.querySelector('button[aria-label="More actions"]')).toBeNull()
-    // tripl-dmch.12 dropped the per-row SignalLink arrow anchors (one incident =
+    // The per-row SignalLink arrow anchors are gone (one incident =
     // one saturated indicator, the Monitor-cell chip). The only surviving
     // monitoring anchor here is the open tab volume card's "View signal" link
     // for the active tab (project_total); the row-level event/event-type anchors
     // and the "Open recent anomaly" affordance are gone.
     expect(container.querySelector('a[href="/p/demo/monitoring/project-total/scan-1"]')).toBeInTheDocument()
     expect(container.querySelector('a[href="/p/demo/monitoring/event-type/type-1"]')).not.toBeInTheDocument()
-    // tripl-fa8l made the event NAME the row's monitoring anchor, so this href
-    // is expected again — what tripl-dmch.12 removed was the separate SignalLink
+    // The event NAME is the row's monitoring anchor, so this href
+    // is expected again — what was removed was the separate SignalLink
     // arrow, which the "Open recent anomaly" assertion below still guards.
     expect(screen.getByRole('link', { name: 'Homepage View' })).toHaveAttribute(
       'href',

@@ -1,6 +1,6 @@
 """Two snapshots in, a tuple of events out. Pure: no network, no clock, no print.
 
-This is where the acceptance criterion of tripl-ey6j.4 lives, which is why it is
+This is where the acceptance criterion of the watch command lives, which is why it is
 a function of two values rather than a method on the loop: "a running replay
 shows live chunk progress" is provable here with no sockets and no wall clock.
 

@@ -9,7 +9,7 @@ having its SQL inspected.
 
 The real adapters cannot be executed without a container, so their conformance is
 pinned at the SQL-string level: the exact dialect expression each one emits for all
-five intervals. Executing that SQL against live warehouses is tripl-64n8.9.
+five intervals. Executing that SQL against live warehouses is a separate follow-up.
 
 Two production bugs motivated this file, and each has a test that fails without the
 fix:

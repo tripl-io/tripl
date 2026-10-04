@@ -224,7 +224,7 @@ describe('MetricsCatalog — the ARIA table owns no live region', () => {
     // createPortal(markup, container) : markup`). They can never be on opposite
     // sides of the table, so a second assertion on the describedBy node could
     // not fail on its own — and an assertion that cannot fail is what
-    // tripl-u7wf was about.
+    // an earlier bug was about.
     expect(table!.querySelector('[role="status"]')).toBeNull()
 
     // And the table still has the rowgroups it is required to have, so this is

@@ -451,7 +451,7 @@ def _read_key(node: ast.Call | ast.Subscript) -> str | None:
 def test_no_tool_re_derives_a_shared_response_fact() -> None:
     """A tool asks ``tripl_cli.api`` what a response MEANS, not just where to send.
 
-    tripl-ey6j.5 shared request building and left response reading behind, so
+    Sharing request building and left response reading behind, so
     three tool bodies unwrapped ``{items, total}`` themselves while the CLI
     unwrapped it through ``model.page_items`` - two readings of one wire format,
     on the routes both surfaces call. The CLI's own test_contract.py scans this
@@ -460,7 +460,7 @@ def test_no_tool_re_derives_a_shared_response_fact() -> None:
 
     This does NOT cover the field projections. ``EVENT_LIST_FIELDS`` and friends
     are context-budget policy for a model that pays per token, they have one
-    caller, and tripl-i1dt left all four here deliberately.
+    caller, and all four were left here deliberately.
     """
     offenders: list[str] = []
     for source in sorted(MCP_PACKAGE.rglob("*.py")):

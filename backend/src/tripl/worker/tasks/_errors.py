@@ -77,7 +77,7 @@ _MAX_CURATED_LEN = 500
 # everything else to a bare "Scan failed."
 #
 # The generic branches below always satisfied it and the curated branch never
-# did, so until tripl-7bol every author-written ``ScanError`` in this repository
+# did, so until the prefix fix every author-written ``ScanError`` in this repository
 # — some sixty of them, the entire reason the curated set exists — was discarded
 # by the UI and rendered as the one message it was written to replace. One raise
 # site worked, ``_apply_name_format``, and only because it spells the prefix

@@ -644,14 +644,14 @@ def test_the_null_rejection_sets_still_match_the_columns_behind_them() -> None:
 # plausible-looking constant. Both halves are asserted below.
 #
 # The two ``email_from_address`` rows arrive by a different road than the rest
-# and belong to tripl-v422, not tripl-0zpq.275: that field was never declared
+# and belong to a separate change, not the max_length sweep: that field was never declared
 # with a bound, it merely inherited one from ``validate_email_address``, which
 # normalises through ``email_validator`` and refuses an address over 254 octets.
 # Loosening the override to ``validate_sender_address`` — which returns the
 # original string so a display name survives — took that accident away, so the
 # bound is declared here like every other row's.
 #
-# The eight destination channel rows close tripl-0zpq.275 late: the sweep
+# The eight destination channel rows close that sweep late: the sweep
 # bounded ``name`` on these two schemas and stopped, leaving four more fields on
 # the very same schemas writing into bounded columns with nothing measuring
 # them. ``linear_label_ids`` is the one whose contradiction was internal rather
@@ -762,12 +762,12 @@ def test_a_bounded_text_field_stops_exactly_where_its_column_does(
     type, the data source username, the event name format, and the four
     destination channel fields — and each one turned a too-long string into an
     INSERT that Postgres refused: a generic 500 naming no field, for a body this
-    layer had already accepted. Drop any ``max_length=`` added for tripl-0zpq.275
+    layer had already accepted. Drop any ``max_length=`` added by that sweep
     and the row for it fails on the first assertion, before the rejection
     assertions are even reached. The ``email_from_address`` pair reddens
     identically for the inverse reason: its bound was never declared, only
-    inherited from the strict address validator the From: override stopped using
-    in tripl-v422, so removing the ``max_length=255`` that now replaces that
+    inherited from the strict address validator the From: override stopped using,
+    so removing the ``max_length=255`` that now replaces that
     accident fails the same first assertion.
 
     The equality against ``type.length`` is what stops the bound drifting from
@@ -1071,7 +1071,7 @@ async def test_mute_monitor_reads_a_naive_argument_as_utc(client: AsyncClient) -
 #
 # ``MonitorMuteRequest`` is deliberately absent: it has refused a past instant
 # since it shipped, and it is the reference the other four were brought into line
-# with — its own coverage is the tripl-0zpq.168 section above.
+# with — its own coverage is the section above.
 # ``EventCommentActionRequest`` is deliberately absent too, for the opposite
 # reason: it still takes a lapsed instant on purpose, which is pinned on its own
 # below and explained in ``schemas/time_guards.py``.
@@ -1130,7 +1130,7 @@ def test_an_offsetless_past_instant_is_a_refusal_and_never_a_typeerror(
     ``require_future_instant`` and ``naive <= datetime.now(UTC)`` raises
     TypeError, which pydantic does NOT wrap into a ValidationError: it escapes
     the validator, reaches ``main.py``'s catch-all and becomes a 500. That is
-    tripl-0zpq.168 on the monitor route, and this fix would have manufactured
+    a real bug on the monitor route, and this fix would have manufactured
     four more copies of it.
 
     ``pytest.raises(ValidationError)`` is what pins it — a TypeError fails this
@@ -1155,7 +1155,7 @@ def test_a_comment_thread_still_takes_a_snooze_whose_date_has_passed() -> None:
     ``isThreadUnanswered`` drops the "snoozed" badge. The operator is told the
     truth on the next render, so there is no 200-that-did-nothing to catch — and
     no second button on that screen refusing the same body, which was the actual
-    defect in tripl-0zpq.273.
+    defect there.
 
     Add ``require_future_instant`` to ``EventCommentActionRequest.validate_action``
     and both halves below go red — as does the wire-level
@@ -1391,7 +1391,7 @@ def _record_resolver(monkeypatch: pytest.MonkeyPatch, address: str) -> list[tupl
     """Stand in for ``socket.getaddrinfo`` and record WHICH THREAD asked.
 
     ``getaddrinfo`` is the blocking call at the bottom of ``reject_private_host``
-    and the whole subject of tripl-0zpq.30: it used to run inside a pydantic
+    and the whole subject of that fix: it used to run inside a pydantic
     validator — i.e. during FastAPI's body parsing, which for an ``async def``
     route happens on the event loop — and now runs in a worker thread. The
     thread id is the only thing that can tell the fix from its absence, because
@@ -1511,8 +1511,8 @@ async def test_a_destination_resolving_to_the_metadata_endpoint_is_still_refused
 ) -> None:
     """Relocating the guard must not soften it.
 
-    A hostname that resolves to 169.254.169.254 is the attack tripl-3h1 added
-    the guard for: a literal IP is refused by inspection, a NAME has to be
+    A hostname that resolves to 169.254.169.254 is the attack the
+    guard exists for: a literal IP is refused by inspection, a NAME has to be
     resolved to be caught. The refusal now arrives as ``HTTPException(422)``
     from the service rather than a pydantic field error, so the body is a
     string instead of a list — both shapes are handled by the frontend's API

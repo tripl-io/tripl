@@ -154,7 +154,7 @@ def _diff_event_type_schema(
         # A RESERVED column is not missing — it is simply not catalog-managed.
         # ``observed`` has skip_columns filtered out above, so without this a
         # declared field whose column is reserved reads as "the warehouse stopped
-        # sending it". Latent until tripl-jfm3.57 put event-group-rule columns in
+        # sending it". Latent until reserving put event-group-rule columns in
         # the reserved set: event_type/time columns are essentially never also
         # declared as fields, but a grouping column very often is — production
         # groups on ``action`` and declares ``action`` on the same event type,

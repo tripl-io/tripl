@@ -44,7 +44,7 @@ class AlertPendingItem(UUIDMixin, TimestampMixin, Base):
     stopped firing; disabling the destination discards the whole buffer; and so
     does clearing the destination's cadence, because "Immediately" has no window
     left to wait for and the immediate path delivers those scopes itself on the
-    next collection (tripl-0zpq.38 — both paths delivering them is a double
+    next collection (both paths delivering them is a double
     send, since a held scope's ``AlertRuleState.last_notified_at`` is still
     NULL). Nothing prunes a row merely because its scope fell quiet.
 

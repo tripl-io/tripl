@@ -39,7 +39,7 @@ _FIGMA_URL = "https://www.figma.com/file/DEMO0paywall/Paywall-Spec?node-id=0-1"
 # them since 9fbc5811: status, name, title, description, sunset_at and
 # superseded_by_event_id. (This comment said "the four fields" and quoted docs
 # wording, "and nothing else", that no longer exists; the count was stale, not
-# the rule — tripl-0zpq.244.) The history used to carry a
+# the rule.) The history used to carry a
 # ``metric_breakdown_columns`` edit, which is a row the product cannot produce,
 # so the demo was teaching a capability that does not exist. Harmless while it
 # sat on one page; not harmless once the audit builder began deriving
@@ -97,7 +97,7 @@ async def _build_creation_history(session: AsyncSession, ctx: DemoContext) -> No
     ``EventChange(field="created", new_value=event.name)`` as an event's first
     history row, so "who created this and when" is answered by the same list as
     every later edit. The demo seeder writes its events directly, so until
-    tripl-0zpq.244 only the three events the ``_EDITS`` table touches had ANY
+    that was fixed only the three events the ``_EDITS`` table touches had ANY
     history at all and the other fifteen opened on an empty History tab — on a
     project whose whole point is to look lived-in.
 

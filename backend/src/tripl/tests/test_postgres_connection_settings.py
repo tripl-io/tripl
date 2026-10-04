@@ -38,7 +38,7 @@ KEY_PEM = "-----BEGIN PRIVATE KEY-----\nZmFrZS1rZXk=\n-----END PRIVATE KEY-----"
 
 
 def test_an_unknown_connection_parameter_is_rejected_not_ignored() -> None:
-    # tripl-64n8.7, verbatim: "Unknown or inapplicable connection parameters are
+    # The requirement, verbatim: "Unknown or inapplicable connection parameters are
     # rejected, not ignored." A **kwargs that swallows `sslmod=verify-full` gives
     # you a plaintext connection and a configuration screen that says otherwise.
     with pytest.raises(ValueError, match="Unsupported PostgreSQL connection parameter"):

@@ -9,7 +9,7 @@ import { PageHeader } from '@/components/primitives/page-header'
 vi.mock('@/api/eventMetrics', () => ({
   eventMetricsApi: { getActiveSignals: vi.fn(), getSignalSeries: vi.fn() },
 }))
-// Kept mocked although the page no longer imports it: the point of tripl-y4wt is
+// Kept mocked although the page no longer imports it: the point is
 // that this catalog download (limit 10_000 — 2641 rows / 1.7s on acme-ios) must
 // never come back as a way to label rows, and the only way to assert an absent
 // request is to hold a spy that stays at zero calls.
@@ -160,7 +160,7 @@ describe('AnomaliesPage — scope names', () => {
   it('never labels a row with a bare scope ref when the server could not name it', async () => {
     // The metric was deleted out from under the anomaly row, so the server sends
     // scope_name: null. "Drop on Metric 9136d575" reads as a name and is what the
-    // page used to show for every row for the first 4.4s — the whole of tripl-y4wt.
+    // page used to show for every row for the first 4.4s — the whole bug.
     vi.mocked(eventMetricsApi.getActiveSignals).mockResolvedValue([
       makeSignal({ scope_ref: '9136d575-0000-4000-8000-000000000001', direction: 'drop' }),
     ])

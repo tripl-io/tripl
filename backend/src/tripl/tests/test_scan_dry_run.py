@@ -351,7 +351,7 @@ class TestDryRunWorker:
     def test_an_unknown_name_format_key_completes_the_job_and_names_the_key(
         self, tmp_path, monkeypatch
     ) -> None:
-        """tripl-lpin, caught before the scan exists rather than after 200 runs.
+        """Caught before the scan exists rather than after 200 runs.
 
         A format referencing a column the rows cannot supply kills every
         production run of that config. The dry-run must REPORT it, not raise:
@@ -380,7 +380,7 @@ class TestDryRunWorker:
     def test_dry_run_does_not_promise_an_unnamed_event(self, tmp_path, monkeypatch) -> None:
         """Preview/run parity for the rows the run now refuses to name.
 
-        tripl-wkwv.5. Both halves read the same planner, which is the whole
+        Both halves read the same planner, which is the whole
         reason ``event_plan`` exists — a preview that still listed a nameless
         event would be promising a row the run no longer writes. The skip is a
         warning rather than a silence because the operator's next question is
@@ -685,7 +685,7 @@ class TestDryRunAPI:
 
 
 class TestDryRunTaskWiring:
-    """What the tripl-28g7 module split could have broken silently.
+    """What the module split could have broken silently.
 
     None of it shows up as a failing assertion elsewhere: a renamed task still
     runs when you call ``.run()`` directly, an unregistered task still imports

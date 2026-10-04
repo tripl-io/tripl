@@ -29,8 +29,8 @@ export const EMPTY_SIGNALS: MonitoringSignal[] = []
 // With 200-row pages + infinite scroll, an all-ids key changed on every append
 // and re-sent the entire set; bucketing keeps each already-loaded bucket's key
 // (and cache entry) stable, so appending a page only fetches the new bucket.
-// Window metrics were fixed this way in tripl-jfm3.51; the signals query next to
-// them kept the accumulating key until tripl-jfm3.121.
+// Window metrics were fixed this way first; the signals query next to
+// them kept the accumulating key for a while longer.
 export const EVENT_ID_BUCKET_SIZE = 100
 
 export function chunkEventIds(eventIds: string[]): string[][] {

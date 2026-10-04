@@ -658,7 +658,7 @@ async def _build_firings(
         # ``_delivery_item``, the ``scope_name`` column. ``_resolve_scope_name``
         # reads ``Event.name`` (String(500)) and ``EventType.display_name`` back
         # out of the DB, and a demo recipe that one day seeds a realistically
-        # long event name would otherwise reproduce tripl-0zpq.253 inside
+        # long event name would otherwise reproduce an earlier overflow bug inside
         # ``create_demo_project``, where the Postgres "value too long" would
         # roll the whole seed back.
         #

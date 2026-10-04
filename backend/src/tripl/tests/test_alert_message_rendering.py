@@ -412,7 +412,7 @@ def test_the_typed_api_item_reports_no_percentage_rather_than_zero() -> None:
     """One delivery must not answer the same question two ways.
 
     ``AlertDeliveryDetailResponse`` carries BOTH ``payload_snapshot`` (where the
-    percent has been null at a zero baseline since tripl-l429.27) and the typed
+    percent has been null at a zero baseline since an earlier fix) and the typed
     ``items[]`` array, which used to be a bare float served straight off the
     NOT NULL column — so a single JSON body said ``null`` and ``0.0`` about the
     same number, and the typed half is the one an external consumer reads off

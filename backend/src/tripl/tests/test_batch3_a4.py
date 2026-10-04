@@ -1026,7 +1026,7 @@ def test_manual_grouped_scan_declares_a_new_warehouse_column(
         assert not [line for line in result.details if "Skipped column 'locale'" in line]
 
 
-# ── tripl-0zpq.45 (review): the catalog's name rule, enforced on both sides ──
+# ── the catalog's name rule, enforced on both sides ──
 #
 # Making the manual run CREATE what the dry run promised put a warehouse value
 # straight into ``EventType(name=...)`` with no emptiness and no length check,
@@ -1261,7 +1261,7 @@ def test_dry_run_promises_only_the_group_values_a_run_would_accept(
 ) -> None:
     """Preview and run reach the same verdict for every group value.
 
-    This is tripl-0zpq.45's defect pointing the other way. There the dry run
+    This is the earlier defect pointing the other way. There the dry run
     promised a type the manual run skipped; here it promised types the run
     REFUSES — a blank one and one too long for ``event_types.name`` — and the
     job then failed on values the preview had called fine, after listing their
@@ -1356,7 +1356,7 @@ def test_dry_run_totals_the_refusals_it_does_not_spell_out(
     matters — group order is identical on both sides, so it is the value the run
     raises on.
 
-    Pluralised rather than "1 values", the defect tripl-3y7z fixed on the other
+    Pluralised rather than "1 values", the defect fixed on the other
     side of the wire and the reason ``unnamed_skip_detail`` keeps its copy in one
     place.
     """
@@ -1620,7 +1620,7 @@ def test_generation_snapshot_walk_skips_a_malformed_head_row(
         assert single_result.col_meta["user_id"]["template"] == "${user_id}"
 
 
-# ── tripl-0zpq.19 follow-up: a snapshot never names an event that is gone ────
+# ── a snapshot never names an event that is gone ────
 #
 # WHAT THESE TESTS CAN AND CANNOT DO. The defect is a foreign-key violation:
 # ``event_metrics.event_id``, ``event_metric_breakdowns.event_id`` and
@@ -1665,7 +1665,7 @@ def test_snapshot_event_deleted_since_the_scan_is_not_handed_to_the_writers(
     none of which rewrite ``ScanJob.result_summary``. Its replayed per-event
     history has nowhere to go: the row it would need to reference is gone. So
     it is dropped, its volume falls through to the event-type and project-total
-    series exactly as it did before tripl-0zpq.19 made this path reachable, and
+    series exactly as it did before this path became reachable, and
     Login — which still exists — keeps both its id and the snapshot's historical
     ``col_meta``. Dropping the one dead entry, NOT abandoning the snapshot.
     """

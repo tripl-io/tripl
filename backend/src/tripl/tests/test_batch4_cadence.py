@@ -724,7 +724,6 @@ def test_the_code_says_which_path_delivers_a_held_scope() -> None:
     assert "update_destination" in flush_source
 
     transition = inspect.getsource(update_destination)
-    assert "tripl-0zpq.38" in transition
     # BOTH halves, named where they are decided. A reader who finds only the
     # discard is back at the premise retired below.
     assert "DISCARDED" in transition
@@ -743,7 +742,6 @@ def test_the_code_says_which_path_delivers_a_held_scope() -> None:
 
     model_doc = AlertPendingItem.__doc__ or ""
     assert "four ways" in model_doc
-    assert "tripl-0zpq.38" in model_doc
 
     # The premise the split retired, verbatim from before it. It justified
     # discarding a held row on the grounds that the immediate path always
@@ -781,7 +779,6 @@ def test_the_rule_mute_comment_reads_as_history_and_the_model_agrees() -> None:
     # Verbatim from before the fix.
     assert 'model comment called worker-side suppression "a separate' not in mute_block
     assert "USED TO call worker-side" in mute_block
-    assert "tripl-0zpq.259" in mute_block
 
     model_module = inspect.getmodule(AlertRule)
     assert model_module is not None

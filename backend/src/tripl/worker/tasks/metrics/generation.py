@@ -101,7 +101,7 @@ def _iter_window_chunks(
     return chunks
 
 
-# The body moved to ``worker.utils.event_types`` in tripl-0zpq.45 so the scan
+# The body moved to ``worker.utils.event_types`` so the scan
 # task can create the same rows without importing this package (that import
 # would pull the whole ``collect_metrics`` task graph into ``worker.tasks.scan``).
 # The private name stays bound here because ``catalog_sync`` and the metrics
@@ -729,7 +729,7 @@ def _resolve_snapshot_event_identities(
     deliberate delete door calls — does not reach ``ScanJob.result_summary``, so
     the snapshot keeps naming a dead uuid for as long as it is the newest
     ``run_scan`` row. The flaw is as old as the snapshot format; what made it
-    reachable is tripl-0zpq.19 moving this path from "the gap between a scan and
+    reachable is a change moving this path from "the gap between a scan and
     its first collection tick" to every replay, however old the snapshot.
 
     Three outcomes, in this order, and the order IS the product decision:
@@ -758,14 +758,14 @@ def _resolve_snapshot_event_identities(
     ``chunk_processing`` and its rows still land in the event-type and
     project-total series, which is exactly what the heuristic
     ``_load_existing_generation_results`` rebuild produced for a deleted event
-    before tripl-0zpq.19 made this path reachable. Logged, because an operator
+    before this path became reachable. Logged, because an operator
     staring at a hole in one event's replayed series deserves to find the reason
     in the worker log rather than infer it.
 
     What this deliberately does NOT do is abandon the snapshot and fall back to
     the live catalog when one event has died. That would throw away the
     historical ``col_meta`` of every surviving event to accommodate one dead
-    one — the heuristic rebuild is the thing tripl-0zpq.19 exists to stop
+    one — the heuristic rebuild is the thing this path exists to stop
     reaching for.
 
     Returns the identities that were dropped.

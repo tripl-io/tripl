@@ -2,7 +2,7 @@
 
 ``audit_service.record`` must not grow a ``branch=`` argument in the
 branch-scoped routes that call it — that is a standing invitation for the next
-branch-scoped route to forget it, which is how tripl-wkwv.6 arrived in the first
+branch-scoped route to forget it, which is how an earlier bug arrived in the first
 place. That is a claim about the routes that audit, not about every write route:
 whether a write is audited is decided route by route, and some writes record
 nothing at all. What this module guarantees is narrower: a row

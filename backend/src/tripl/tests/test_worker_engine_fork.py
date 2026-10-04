@@ -4,7 +4,7 @@ The Celery parent may initialize the module-global sync engine before prefork
 forks the worker children (``apply_startup_service_overrides`` reads the DB at
 import). Forked children must drop that inherited engine so they don't share one
 Postgres socket. ``dispose_engine`` performs the reset and is wired to the
-``worker_process_init`` signal in ``tripl.worker.celery_app``. See tripl-q7i1.3.
+``worker_process_init`` signal in ``tripl.worker.celery_app``.
 """
 
 from __future__ import annotations

@@ -1,4 +1,4 @@
-"""Demo provisioning performance budgets (epic tripl-2su6.10).
+"""Demo provisioning performance budgets.
 
 Guards against a silent cost regression — e.g. a builder switching from batched
 ``add_all`` to per-row inserts, or an accidental N+1. The budgets are generous

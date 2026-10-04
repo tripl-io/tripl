@@ -286,7 +286,7 @@ def validate_sender_address(value: str) -> str:
     the same end state by a shorter road: it validates nothing and passes the
     configured string through.
 
-    The per-destination From: OVERRIDE is on that list too, as of tripl-v422:
+    The per-destination From: OVERRIDE is on that list too:
     ``schemas.alerting`` saves it through this same helper, so a display name a
     destination's own send path would deliver can also be stored on it. It was
     the last place where saving was stricter than sending.

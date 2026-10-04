@@ -3,7 +3,7 @@
 Shared file. Each agent in this lane appends its own section below and leaves the
 sections above it alone; the fakes at the top are common ground.
 
-``tripl-0zpq.68`` — ``BaseAdapter``'s top-N breakdown contract, plus a row layout
+``BaseAdapter``'s top-N breakdown contract, plus a row layout
 the same file contradicted itself about.
 
 * The ABC promised the top ``values_limit`` values "ranked deterministically".
@@ -756,7 +756,7 @@ def test_the_breakdown_columns_own_slot_repeats_the_folded_value(engine: str) ->
         # column's own name analyzes perfectly well — measured — but then a
         # grouping term naming it could mean the source column or this slot, and
         # those hold DIFFERENT values (raw vs folded). Grouping by the raw one is
-        # the defect tripl-0zpq.58 removes, so the name must be unambiguous.
+        # the defect being removed, so the name must be unambiguous.
         assert not slot.endswith(f"AS {_RAW_BREAKDOWN_TERM[engine]}"), slot
     else:
         assert f"{folded} AS {_RAW_BREAKDOWN_TERM[engine]}" in terms, terms

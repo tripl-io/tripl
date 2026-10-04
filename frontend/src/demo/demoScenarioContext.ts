@@ -1,6 +1,5 @@
 /**
- * Context for the coached demo scenario (chapters in
- * tripl-odrj.4).
+ * Context for the coached demo scenario.
  *
  * Two contexts, deliberately: the surfaces that merely *report* an action
  * ("the user's run was accepted") must not re-render every time the scenario

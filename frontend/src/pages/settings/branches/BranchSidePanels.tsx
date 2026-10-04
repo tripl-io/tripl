@@ -17,7 +17,7 @@ import { TICKET_POLL_MS, TICKET_POLL_WINDOW_MS } from './branchQueryKeys'
 /**
  * The tracker ticket a merge opened for this branch.
  *
- * The mapping had been persisted since tripl-hgez but was unreachable from the
+ * The mapping had been persisted for a while but was unreachable from the
  * UI, so a merge that opened a Jira issue left no way back to it. The panel is
  * hidden — not empty — when there is no ticket: only a merge with the project's
  * implementation tracker enabled creates one, so "no ticket" is the normal

@@ -3,21 +3,21 @@ BigQuery half of the data-source schema.
 
 Four defects, three modules:
 
-* tripl-0zpq.64 -- ``_query_rows`` handed the ``_bucket`` cell through exactly as
+* ``_query_rows`` handed the ``_bucket`` cell through exactly as
   ``google-cloud-bigquery`` decoded it, so a DATE time column produced a
   ``datetime.date`` bucket and a DATETIME one a naive ``datetime``. The consumers
   compare that bucket against an aware window bound and store it in a
   ``timestamptz`` column: the first is a ``TypeError``, the second is a silent
   timezone-dependent write. ``BigQueryAdapter._utc_bucket_rows`` now normalizes
   column 0 on every bucketed read path.
-* tripl-0zpq.66 -- the DATE-column and TIME-column rejections were bare
+* the DATE-column and TIME-column rejections were bare
   ``ValueError``s, which ``worker.tasks._errors.user_facing_error`` replaces with
   "Scan failed due to an internal error.". They are ``WarehouseCapabilityError``
   now, and that type is admitted to ``_CURATED_ERRORS``.
-* tripl-0zpq.67 -- ``_quote_string`` escaped the backslash and the quote but not
+* ``_quote_string`` escaped the backslash and the quote but not
   the line terminators, and GoogleSQL reads a raw newline inside a quoted literal
   as an "Unclosed string literal".
-* tripl-0zpq.70 -- the allowlist write path accepted 50 datasets and the schema
+* the allowlist write path accepted 50 datasets and the schema
   browse covered 20, silently. One constant now, and the message says why.
 
 No warehouse, no database and no Celery app: every test here drives the real
@@ -61,7 +61,7 @@ GENERIC = "Scan failed due to an internal error."
 
 _BASE = "SELECT ts, dt, d, tm, event_name, amount FROM events"
 # Aware, because a real caller's window comes from ``datetime.now(UTC)`` — that is
-# the whole point of tripl-0zpq.64 and a naive fixture here would hide it.
+# the whole point of that fix and a naive fixture here would hide it.
 _FROM = datetime(2026, 4, 1, tzinfo=UTC)
 _TO = datetime(2026, 4, 3, tzinfo=UTC)
 
@@ -211,7 +211,7 @@ def test_a_date_bucket_is_comparable_against_the_chunk_window() -> None:
     bound that is aware by construction (``floor_to_bucket(datetime.now(UTC), ...)``).
     A ``date`` or a naive ``datetime`` on the left is a ``TypeError`` — the same one
     ``tests/conformance/test_pipeline_conformance.py`` records for the sibling path
-    at tripl-ju0d. Revert ``_utc_bucket_rows`` and the comparison below raises
+    earlier. Revert ``_utc_bucket_rows`` and the comparison below raises
     instead of returning a bool.
     """
     adapter, client = _bq()
@@ -636,7 +636,7 @@ def test_an_allowlist_that_would_be_truncated_is_rejected() -> None:
 
 
 def test_the_rejection_says_why_rather_than_just_naming_a_number() -> None:
-    """The whole complaint in tripl-0zpq.70 is that the operator was given no
+    """The whole complaint is that the operator was given no
     explanation, so a test that only checks the status of the validation would not
     pin the fix."""
     with pytest.raises(ConnectionSettingsError) as excinfo:

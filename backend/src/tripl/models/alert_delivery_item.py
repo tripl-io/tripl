@@ -136,7 +136,7 @@ class AlertDeliveryItem(UUIDMixin, Base):
     #   group are the same scope over time rather than the scopes that fired
     #   together, and a group outlives the hour that opened it.
     #
-    # Nullable only for history. Rows written before tripl-jfm3.91 carry none,
+    # Nullable only for history. Older rows carry none,
     # and ``_alerting_deliveries.list_deliveries(ungrouped=True)`` exists to
     # give them a section of their own rather than drop them silently. Nothing
     # writes NULL today: the buffered twin ``AlertPendingItem`` declares the

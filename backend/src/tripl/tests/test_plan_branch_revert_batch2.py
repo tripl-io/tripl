@@ -1,10 +1,10 @@
-"""Reverting a branch change against an older base or an awkward name (tripl-0zpq batch 2).
+"""Reverting a branch change against an older base or an awkward name (batch 2).
 
-- tripl-0zpq.147: the revert reads the base snapshot the way the diff reads it,
+- The revert reads the base snapshot the way the diff reads it,
   through ``with_snapshot_defaults``. A base taken before a key joined v2 has no
   such key; the diff shows the default as the base value, so the revert has to
   put back that default — not ``None``.
-- tripl-0zpq.150: the successor pointer is stored as ``"<type>.<name>"`` and is
+- The successor pointer is stored as ``"<type>.<name>"`` and is
   resolved by spelling that key back whole. Dotted names resolve, and a key two
   branch events answer to is a 409 rather than a guess or a 500 — as is a key
   two BASE events answered to. The event being reverted is never its own
@@ -15,7 +15,7 @@
   row it came from, so when several base rows answer to the key a change or a
   removal names, the revert is a 409 rather than a restore from an arbitrary
   one of them.
-- tripl-0zpq.155: an event's type is part of its diff key, never a changed
+- An event's type is part of its diff key, never a changed
   field, so there is no ``event_type_name`` for the revert to restore.
 - A merged branch cannot be reopened, so its refusal does not say to reopen it.
 """

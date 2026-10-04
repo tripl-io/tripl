@@ -19,7 +19,7 @@ results entirely. That was not hypothetical: ``russian-phrase-finds-the-event-it
 describes`` was xfailed for a scoring gap while the fault four
 earlier fixes were aimed at is precisely ``screen_spot`` not being RETRIEVED —
 so the harness was carrying a ranking marker that would have hidden the
-regression it exists to catch. That marker is gone: tripl-9t2s shipped
+regression it exists to catch. That marker is gone: the coverage-term change shipped
 ``_search_query.COVERAGE_BONUS`` and the case passes on its own, which is what
 :func:`test_the_coverage_term_is_what_wins_the_russian_phrase_case` below exists
 to keep honest. The split outlives it — no case carries ``xfail_ordering``
@@ -158,7 +158,7 @@ async def test_the_coverage_term_is_what_wins_the_russian_phrase_case(
     ``russian-phrase-finds-the-event-it-describes`` is green now, and a green
     ordering case is the weakest evidence this harness produces — it says the
     right document is on top, not WHY. This bounds the margin on both sides so
-    that "green" can only mean "green for the reason tripl-9t2s named":
+    that "green" can only mean "green for the reason the coverage term names":
 
     * ``> 0`` — the event beats the field document at all;
     * ``< COVERAGE_BONUS`` — and it does NOT beat it without the bonus. Measured:
@@ -196,7 +196,7 @@ async def test_the_coverage_term_is_what_wins_the_russian_phrase_case(
         f"{EVENT_SCREEN_SPOT!r} beats {FIELD_SCREEN!r} by {margin:.4f}, which is more "
         f"than the whole COVERAGE_BONUS of {COVERAGE_BONUS}. The case is green for "
         f"some OTHER reason, so deleting the coverage term would no longer fail it "
-        f"and tripl-9t2s has lost its guard. Got: {ranking}."
+        f"and the coverage term has lost its guard. Got: {ranking}."
     )
 
 
@@ -262,7 +262,7 @@ async def test_relevance_case_retrieves_what_it_names(
     aimed at — with the case still reporting a tidy expected failure. A ranking
     regression and a retrieval regression are different failures with different
     causes, and the harness now has to say which one it is looking at. The marker
-    was deleted when tripl-9t2s landed; the arrangement is what it left behind.
+    was deleted when the coverage term landed; the arrangement is what it left behind.
 
     ``must_retrieve`` is asserted here too, with no position claim: it carries the
     cases about the retrieval MECHANISM that have no measured ranking (the

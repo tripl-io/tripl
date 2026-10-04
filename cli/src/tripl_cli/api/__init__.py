@@ -33,7 +33,7 @@ the request layer depending on the doctor.
 ``page_items``/``page_total`` are RE-EXPORTED from there, not redefined: the
 ``{items, total}`` envelope is an envelope shape, so it is part of what this
 package is about, and ``tripl_cli.api`` is the whole import surface ``tripl_mcp``
-has. Before tripl-i1dt that unwrapping was written out by hand at four call
+has. Previously that unwrapping was written out by hand at four call
 sites — three tool bodies plus the CLI's own watch loop — and they had already
 diverged from the definition: the shared reader drops a non-dict row where the
 tools passed it through, reading the same routes. ``cli/tests/test_contract.py``

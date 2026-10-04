@@ -33,7 +33,7 @@
  * that surface: the Inbox's "Change mute on <target>" (no other mute surface
  * can change a mute in place — a muted rule offers a direct Unmute) and its
  * "Reopen <target>" (not a mute word at all; it lifts acknowledge, resolve and
- * false-positive too — tripl-oxkt.3). Neither has a second surface to drift
+ * false-positive too). Neither has a second surface to drift
  * from, so hosting them here would export one component's state vocabulary into
  * two components that can never use it.
  */
@@ -128,7 +128,7 @@ export function muteChoiceUntilIso(choice: MuteChoice, now: number = Date.now())
  * ---------------------------------------------------------------------------
  * The words. Above this line a choice becomes a WIRE VALUE; below it, the
  * sentence a screen reader announces. Same inputs, same discriminant, one
- * module — which is the whole point of tripl-yapg: three surfaces were writing
+ * module — which is the whole point of this module: three surfaces were writing
  * that sentence themselves, in template literals no compiler or test could
  * compare with each other.
  *

@@ -35,7 +35,7 @@ const BASE_MONITOR = {
   notify_on_drop: false,
   min_percent_delta: 50,
   min_expected_count: 100,
-  // 360 is the value from tripl-oxkt.18: the monitors side used to print it raw
+  // 360 is the value from the unit-agreement fix: the monitors side used to print it raw
   // as "360m" while the alerting side already said "6h" for the same rule.
   cooldown_minutes: 360,
   muted: false,
@@ -167,7 +167,7 @@ const HOUR_MS = 3_600_000
  *
  * The guard this comment used to ask for now exists. It said "the only real
  * guard against the three surfaces drifting would be a shared name builder next
- * to `MUTE_PRESETS`"; tripl-yapg built it, and this page's component no longer
+ * to `MUTE_PRESETS`"; that builder now exists, and this page's component no longer
  * writes the sentence at all — it calls `muteChoiceName` and `unmuteName` from
  * `@/lib/mutePresets`, as `MonitorsSection` and `AlertingInbox` now do.
  *
@@ -284,7 +284,7 @@ describe('MonitorDetailPage', () => {
     expect(screen.getByText('All scans')).toBeInTheDocument()
   })
 
-  // Pins the unit agreement from tripl-oxkt.18: this page and the alerting
+  // Pins the unit agreement fix: this page and the alerting
   // destinations card described one rule's cooldown two different ways ("360m"
   // vs "6h"). Asserting against `formatCooldown` itself — the helper the
   // alerting side already renders — means the two screens cannot drift apart
@@ -389,7 +389,7 @@ describe('MonitorDetailPage', () => {
     expect(screen.queryByRole('menuitem', { name: /until unmuted/i })).toBeNull()
     expect(screen.queryByRole('menuitem', { name: /Until I unmute/i })).toBeNull()
     // The same two negatives again, built from the shared module rather than
-    // frozen — and this pair matters MORE after tripl-yapg, for two reasons.
+    // frozen — and this pair matters MORE now that the shared builder exists, for two reasons.
     //
     // First, staleness. A frozen negative stops matching anything the day the
     // open-ended phrasing is reworded: it then passes forever while guarding
@@ -420,7 +420,7 @@ describe('MonitorDetailPage', () => {
     expect(screen.getByText(/Muted until/)).toBeInTheDocument()
   })
 
-  // The gap tripl-in45 closed: every button in this control was named only by
+  // The gap this closed: every button in this control was named only by
   // its own face — "1h", "24h", "7d", "Unmute" — so the announcement said how
   // long, never whose alerts. The two assertions below are deliberately a pair:
   // the positive one pins the wording the other surfaces use, the negative one
@@ -754,7 +754,7 @@ describe('MonitorDetailPage inert scopes', () => {
     // Note the fixture: distribution_drift readiness is FALSE, so nothing in the
     // project feeds the scope — this notice cannot render in the case where only
     // the bound scan is empty, and it is not the answer to that question
-    // (tripl-wkwv.9 ships readiness as a PROJECT verdict; the bound scan is named
+    // (readiness ships as a PROJECT verdict; the bound scan is named
     // separately in the Condition panel). What this pins is narrower and real:
     // when the notice DOES render for a scan-bound rule, it sends the reader to
     // that scan's own settings rather than making them find it in the list.

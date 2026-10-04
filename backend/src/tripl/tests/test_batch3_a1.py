@@ -457,7 +457,7 @@ def test_covered_buckets_drops_jobs_older_than_the_history_horizon(
     fetched or not: delete ``ScanJob.created_at >= history_from`` from
     ``covered_buckets_from_scan_jobs`` and the five output assertions below still
     hold against a byte-identical set (measured, not reasoned about). What that
-    deletion costs is the job half of tripl-0zpq.25 — an hourly config a year old
+    deletion costs is the job half of an earlier fix — an hourly config a year old
     re-reads ~8,800 completed ``result_summary`` blobs on every scheduled
     collection — and it is invisible to output, because widening the row set can
     only ADD windows that the clamp then bounds from below.
@@ -693,7 +693,7 @@ def test_coverage_history_start_survives_a_project_without_settings(
 
 
 # --------------------------------------------------------------------------
-# tripl-0zpq.6 follow-up — coverage describes the WHOLE population the series
+# Follow-up — coverage describes the WHOLE population the series
 # is summed from, and the foreign read gets the same created_at slack the
 # running scan's horizon gets
 # --------------------------------------------------------------------------

@@ -6,8 +6,8 @@ visible (i.e. show up as monitoring signals on the UI) live here.
 The classification RULE itself does not. It lives in
 ``tripl.services.monitoring_utils`` and is imported, because the same rule has to
 answer for the Anomalies page and for alert dispatch, and while it was two
-hand-maintained copies it drifted twice inside one PR — tripl-l429.14 widened
-only the display copy's freshness horizon, tripl-l429.19 only its recent branch
+hand-maintained copies it drifted twice inside one PR — one fix widened
+only the display copy's freshness horizon, another only its recent branch
 — each time making the UI render a signal open while this path acted as though
 it were closed. This file used to justify the copies with "the worker must not
 import the async request-path services layer"; that was never true of
@@ -365,7 +365,7 @@ def _get_latest_active_anomalies(
     # and an outage is announced once, at onset, and never re-emitted, so ageing
     # that single row out closed the alert state of an incident that was still
     # running. The Anomalies page, the badge, the list and the drilldown all kept
-    # rendering it open (they have run this re-check since tripl-l429.20), so at
+    # rendering it open (they have run this re-check now), so at
     # ``max(24h, 3 x interval)`` into a live outage the monitor read healthy while
     # the page read down, and ``_reopen_closed_incidents`` cleared the operator's
     # inbox acknowledgement mid-incident.
@@ -757,7 +757,7 @@ def _hours(delta: timedelta) -> float:
 # enum carries prefixed members rather than the bare statuses so the shared
 # ``drift_type`` column stays unambiguous next to the drift families; writing
 # the raw ``"late"`` / ``"overdue"`` failed the Postgres enum on INSERT and took
-# the whole collection transaction with it (the tripl-jfm3.97 trap).
+# the whole collection transaction with it (a known trap).
 FRESHNESS_DRIFT_TYPES: dict[str, str] = {
     STATUS_LATE: AlertDriftType.source_late.value,
     STATUS_OVERDUE: AlertDriftType.source_overdue.value,

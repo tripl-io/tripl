@@ -86,7 +86,7 @@ async def load_governing_scan_configs_by_type(
       type and an ``event_type_column`` discovers its event types from the data,
       so it can produce events for *any* event type in the project and its
       ``event_name_format`` governs this one too. BOTH halves are checked, which
-      they were not until tripl-0zpq.254: ``scan_configs.event_type_id`` is
+      they were not always: ``scan_configs.event_type_id`` is
       ``ON DELETE SET NULL``, so deleting a bound event type — or merging a
       branch that removed it — silently turned that config project-wide. With no
       ``event_type_column`` it is not a grouped scan, it is an orphan that
@@ -363,7 +363,7 @@ def name_format_conflict_detail(
 
     **It says "scan", not "scan config"**, and spells both plurals out rather
     than writing "(s)". One sentence for three surfaces means it has
-    to be readable on all three, and the web UI is the strictest: tripl-3y7z
+    to be readable on all three, and the web UI is the strictest: it
     settled *scan* as its noun and `frontend/src/scan-docs-agreement.test.ts`
     enforces it — but only over frontend source, so a sentence authored here and
     rendered verbatim in a ``role="alert"`` walks straight past that guard. The

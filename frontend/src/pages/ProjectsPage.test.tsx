@@ -946,7 +946,7 @@ describe('ProjectsPage', () => {
     expect(coverageStat).not.toBeNull()
     // The Coverage MiniStat delta ("implemented/active events") must read as
     // neutral — not danger/red — so a healthy 99% coverage never implies a
-    // problem. The unit is part of the delta since tripl-14eh.
+    // problem.
     const fraction = within(coverageStat as HTMLElement).getByText('320/323 events')
     expect(fraction).toHaveStyle({ color: 'var(--fg-subtle)' })
     expect(fraction).not.toHaveStyle({ color: 'var(--danger)' })

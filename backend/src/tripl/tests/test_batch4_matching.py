@@ -1,4 +1,4 @@
-"""Batch 4: the rule simulator's cooldown partition (``tripl-0zpq.42``).
+"""Batch 4: the rule simulator's cooldown partition.
 
 ``tripl.alerting_matching`` exists so the in-UI replay cannot answer a different
 question from the live send path, and its module docstring promises exactly

@@ -261,8 +261,8 @@ class EventFieldVariableValueResponse(BaseModel):
     # Excluding a variable no longer deletes its contexts, so this row can now
     # outlive the scanning that produced it. The values below are then the last
     # ones seen and not a live reading, and the client has to be able to say
-    # which it is holding: one rendering standing for two unrelated facts is the
-    # defect tripl-xv77.4 fixed for the empty context, and a stale value shown as
+    # which it is holding: one rendering standing for two unrelated facts is a
+    # defect already fixed for the empty context, and a stale value shown as
     # current is the same mistake with more consequences.
     excluded_from_scans: bool = False
 
@@ -326,7 +326,7 @@ class EventResponse(BaseModel):
     # event deliberately leaves it alone so the next scan does not recreate the
     # renamed event as a duplicate (core/analyzers/event_generator.py). It
     # decides whether an authored event merges with its scanned counterpart, and
-    # until tripl-u2h9.10 it appeared in no response at all — so after creating
+    # it once appeared in no response at all — so after creating
     # an event by hand there was no way to see which identity it had claimed, or
     # that a later rename had parted the two. NULL on an event no scan has seen
     # and no naming rule governed; the generator adopts ``name`` as the identity

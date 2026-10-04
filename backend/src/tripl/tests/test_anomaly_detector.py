@@ -279,9 +279,9 @@ def test_headroom_preserves_trend_shift_above_max_counts() -> None:
 
     The observable is the trend detector RECOGNIZING the shift, not a persisted
     row: every per-bucket expectation on this series is under 45, and since
-    tripl-jfm3.48 the trend path applies the project's volume gate to the value
+    the volume-gate fix the trend path applies the project's volume gate to the value
     it reports — exactly as the phase and rolling paths always have. What
-    tripl-h353 must never do is skip the series before the detector sees it."""
+    the gate must never do is skip the series before the detector sees it."""
     points = []
     for hour in range(12 * 24):
         is_flat_tail = hour >= 10 * 24
@@ -624,7 +624,7 @@ def test_phase_baseline_poisson_floor_ignores_low_count_wobble() -> None:
 
 
 def test_covered_buckets_gap_is_not_flagged_as_drop() -> None:
-    """tripl-dmch.16 / contract C2: a collection gap (a bucket the scan never
+    """Contract C2: a collection gap (a bucket the scan never
     observed) must be EXCLUDED from evaluation, not zero-filled into a fake
     'drop'. Without covered_buckets the same missing bucket zero-fills and flags
     (see test_detect_anomalies_zero_fills_gaps_after_first_seen_bucket)."""
@@ -907,7 +907,7 @@ def test_trend_shift_emits_only_when_something_moved() -> None:
     # can only bite alongside ``expected_count == 0.0``, and the only lanes that
     # let a zero expectation past the volume gate (count-shaped scopes, the
     # platform-parity ratio) are non-negative by construction, so ``signed`` is
-    # False there and an actual below zero cannot arise. What tripl-0zpq.102 made
+    # False there and an actual below zero cannot arise. What the signed-series change made
     # live is the EXPECTED half — ``== 0.0`` rather than ``<= 0.0`` — because a
     # signed series' reconstruction is no longer clamped up to zero. This harness
     # calls ``_detect_trend_shift`` directly, which defaults to ``signed=False``,
@@ -1252,7 +1252,7 @@ def test_trend_rows_never_report_expectation_below_the_volume_gate() -> None:
 
 
 def test_identical_series_share_one_stl_fit() -> None:
-    """tripl-jfm3.1/.73: the robust MSTL fit is the dominant scan cost and a PURE
+    """The robust MSTL fit is the dominant scan cost and a PURE
     function of (series, grid), so identical series must be fitted once.
 
     This is not hypothetical: a scan whose platform column carries a single

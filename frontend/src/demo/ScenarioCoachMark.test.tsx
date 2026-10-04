@@ -496,8 +496,8 @@ describe('ScenarioCoachMark — a row control has no free side', () => {
 
     const docked = document.querySelector('[data-coach-docked="true"]')
     expect(docked?.className).toContain('text-left')
-    // Above the FAB's top edge — now bottom-1 + h-8 = 36px, since tripl-tvqk
-    // tucked it into the activity rail's footer strip — not level with it.
+    // Above the FAB's top edge — now bottom-1 + h-8 = 36px, since it was tucked
+    // into the activity rail's footer strip — not level with it.
     expect(docked?.className).toContain('bottom-[68px]')
     expect(docked?.className).not.toContain('bottom-4')
   })

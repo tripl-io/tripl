@@ -1,6 +1,5 @@
 /**
- * The stateful engine of the coached demo scenario (chapters in
- * tripl-odrj.4).
+ * The stateful engine of the coached demo scenario
  *
  * Runs once, under the app shell (LazyDemoScenarioProvider in Layout), so the
  * scenario survives every navigation the chains require: the scan the user started keeps being watched while they walk to

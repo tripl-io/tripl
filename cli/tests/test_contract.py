@@ -117,9 +117,9 @@ PATH_LITERAL = re.compile(r'f?"(/(?:projects|auth|data-sources)[^"]*)"')
 # whether search dropped ranked hits, which `total` cannot answer because it is
 # `len(items)`; `field_definitions` is the array `field_count`
 # exists to replace. Each was read at its own call site in both distributions
-# until tripl-i1dt, and the copies had already diverged - `tripl events list`
-# dropped a non-dict row where the MCP's `list_events` kept it, reading the very
-# same response.
+# until they were moved into the shared layer, and the copies had already
+# diverged - `tripl events list` dropped a non-dict row where the MCP's
+# `list_events` kept it, reading the very same response.
 SHARED_RESPONSE_KEYS = frozenset(
     {"items", "total", "truncated", "semantic_used", "field_definitions"}
 )
@@ -358,7 +358,7 @@ def test_no_rest_path_literal_lives_outside_the_shared_layer() -> None:
     """A module cannot spell a path the shared layer does not declare.
 
     Scans BOTH packages: this is one half of the acceptance criterion of
-    tripl-ey6j.5 ("no request-building logic is duplicated between the CLI and
+    the CLI/MCP shared-layer work ("no request-building logic is duplicated between the CLI and
     the MCP tools") turned into something CI can check. Literals in finding
     messages and evidence keys pass, because they are the same templates - what
     fails is inventing a second spelling anywhere.
@@ -442,7 +442,7 @@ def test_nothing_outside_the_shared_layer_calls_a_client_directly() -> None:
 
 
 def test_nothing_outside_the_shared_layer_reads_a_shared_response_fact() -> None:
-    """The third door, and the one tripl-ey6j.5 left open.
+    """The third door, and the one the shared-layer work left open.
 
     Its two tests close request BUILDING: no module outside ``tripl_cli/api``
     spells a path or constructs an ``ApiRequest``. Nothing covered the other
@@ -648,7 +648,7 @@ def test_the_events_list_builder_takes_every_filter_the_route_declares(
 
     No allowance list any more. This shipped with one, naming the two parameters
     that predated the shared layer - ``field_value`` from PR #78 and ``order_by``
-    from PR #29 - and both are mirrored as of tripl-nhj0. An empty allowance list
+    from PR #29 - and both are mirrored now. An empty allowance list
     is an invitation to append to, so the set is deleted rather than emptied:
     every query parameter the route declares must be spellable here.
     """
@@ -847,7 +847,7 @@ def test_the_documented_scans_and_drifts_numbers_are_the_ones_in_the_code() -> N
     can show, how far ``--limit`` may be raised, how much of a drift fan-out one
     run covers, and how long any of them waits. The repo already holds the docs
     to the doctor and watch windows for exactly this reason; the same rule now
-    covers the command surface that shipped with tripl-ey6j.5.
+    covers the command surface that shipped with the shared layer.
     """
     from tripl_cli.api.scans import JOBS_LIMIT_MAX
     from tripl_cli.commands.scans import DEFAULT_JOBS_LIMIT
@@ -1009,7 +1009,7 @@ def _option(parser: argparse.ArgumentParser, flag: str) -> argparse.Action | Non
 def test_every_timeout_flag_is_the_same_flag() -> None:
     """One default and one range across every verb that carries ``--timeout``.
 
-    Before tripl-3ixs the flag was written out at five ``add_parser`` calls plus
+    Before the flag was shared it was written out at five ``add_parser`` calls plus
     two private ``_add_timeout`` helpers, and nothing held the seven together —
     a verb added with ``0.1, 60.0`` would have shipped a command that times out
     at a minute while the page and its six siblings say ten minutes. It is the
@@ -1084,7 +1084,7 @@ def test_every_json_flag_writes_the_document_to_stdout() -> None:
 def test_every_command_and_verb_has_its_own_section() -> None:
     """Derived from the real parser, so a new verb fails until it is written up.
 
-    tripl-ey6j.5 shipped six verbs with no page at all — the docs rule
+    The shared-layer work shipped six verbs with no page at all — the docs rule
     (AGENTS.md, "Practical Coding Guidance") is a habit, and a habit does not
     fail CI. A literal list of expected headings would not help: it would be
     edited by the same person who
@@ -1437,7 +1437,7 @@ def test_every_generated_variable_name_is_documented() -> None:
     ]
     assert not undocumented, (
         "`tripl install` generates variables the docs never name (the docs half of "
-        "tripl-ey6j.3 lands the `## tripl install` / `## tripl upgrade` sections in "
+        "the install work lands the `## tripl install` / `## tripl upgrade` sections in "
         "run/cli.md and rewrites run/deployment.md's three hand-run procedures into a "
         "pointer): " + ", ".join(undocumented)
     )

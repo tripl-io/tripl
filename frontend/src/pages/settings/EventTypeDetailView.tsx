@@ -444,8 +444,7 @@ function GeneralCard({
   })
 
   // A viewer reads the definition; a disabled form kept live borders, a
-  // colour picker and editing hints on controls that did nothing (#237 rule 4,
-  // tripl-i9mt.12).
+  // colour picker and editing hints on controls that did nothing (#237 rule 4).
   if (!canWrite) {
     return (
       <Panel className="mb-3" title="General">

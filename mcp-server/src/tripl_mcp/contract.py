@@ -37,7 +37,7 @@ TOOL_ENDPOINTS: dict[str, tuple[tuple[str, str], ...]] = {
     "list_branches": (("get", branches.LIST),),
     "get_branch_diff": (("get", branches.DIFF),),
     "list_scans": (("get", scans.CONFIGS),),
-    # Added with tripl-ey6j.5: list_scans became a trimmed projection, so the full
+    # list_scans became a trimmed projection, so the full
     # ScanConfigResponse needed a route of its own or the detail an agent used to
     # get from the listing would simply have been removed from the toolset.
     "get_scan": (("get", scans.CONFIG),),

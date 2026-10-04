@@ -906,7 +906,6 @@ class FakeInstance:
         pre-paging count — so a double that could be told otherwise let the CLI
         grow a truncation line no real response could trigger, and let two tests
         assert that line's wording while proving only that the fake could lie
-        (found reviewing tripl-3ixs).
 
         ``truncated`` IS a parameter, for the opposite reason: the route now
         answers it authoritatively, so a double that could not say so left the

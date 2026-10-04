@@ -1,6 +1,6 @@
 """Unit tests for the metrics-serving anomaly band.
 
-Covers the read-time serving pieces added for tripl-dmch (Lane B4 / .4):
+Covers the read-time serving pieces for the anomaly band (Lane B4):
 
 * ``_build_metric_points`` serves the STORED *effective* (floored) stddev and
   ``detector_kind`` on anomaly buckets — so the chart band

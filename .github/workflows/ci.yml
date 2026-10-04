@@ -70,7 +70,7 @@ jobs:
           -m "not conformance and not relevance and not pg_concurrency"
           --cov=tripl --cov-report=term-missing:skip-covered
 
-  # The two client packages. NEITHER ran in PR CI before tripl-ey6j.1 —
+  # The two client packages. NEITHER used to run in PR CI —
   # mcp-server's suite executed only in publish-mcp.yml, at tag time, and cli/
   # did not exist. That was survivable while tripl-mcp was self-contained; it is
   # not now, because tripl-mcp imports its HTTP client FROM cli/, so a change

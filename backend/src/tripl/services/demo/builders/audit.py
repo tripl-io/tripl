@@ -9,7 +9,7 @@ This builder backfills that record from what the recipe REALLY created: it reads
 the ids the earlier builders published on the context (and the rows they
 inserted) and emits one entry per authored object, attributed to the demo's
 creator and back-dated so the log reads as a plausible build-up rather than a
-single timestamp. "Per authored object" was aspirational until tripl-0zpq.246 —
+single timestamp. "Per authored object" was aspirational until a later change —
 the fact table, the four catalog metrics, the relation, the event-type owner
 grant, the variable override, the feature branch and its one branch-side edit
 all existed with nothing in the trail saying who made them. They are covered
@@ -20,9 +20,9 @@ instance-scoped row (``data_source.create``) carries no project, which is how it
 real route records it, and is therefore no more and no less visible than a real
 one.
 
-EVENTS were missing from that list until tripl-wkwv.14, and not by choice: when
+EVENTS were once missing from that list, and not by choice: when
 this builder was written the events router recorded nothing at all, so there was
-no vocabulary to seed. tripl-wkwv.10 gave events one and made the Events group
+no vocabulary to seed. Events later gained one, which made the Events group
 the FIRST thing the filter offers — and on a demo holding eighteen events it
 matched nothing, implying nobody had ever created an event on a project whose
 whole point is to look lived-in.
@@ -36,7 +36,7 @@ THREE RULES THE EVENT ROWS FOLLOW, each of them a way of not lying:
 2. One audit row per REQUEST, not per changed field. A PATCH writes one audit row
    and one ``EventChange`` per TRACKED field it changed (six of them since
    9fbc5811 — ``event_service._TRACKED_FIELDS``; this line said four until
-   tripl-0zpq.244), so the edits are grouped by (event, instant) before becoming
+   an earlier fix), so the edits are grouped by (event, instant) before becoming
    rows; two fields changed together stay one row, as they would in production.
    The ``created`` row every event now carries is skipped here: it is the same
    act ``event.create`` already records, not an edit.

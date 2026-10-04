@@ -292,7 +292,7 @@ def _build_item_paths(
             ),
             None,
         )
-    # No incident to point at — pre-tripl-jfm3.91 rows, and anything the inbox
+    # No incident to point at — rows from before incidents were recorded, and anything the inbox
     # cannot act on. Keep the old behaviour rather than emitting a link to a card
     # that will not be there.
     if scope_type in _SCOPES_LINKED_TO_ALERT_AUDIT:

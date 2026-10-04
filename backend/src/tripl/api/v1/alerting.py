@@ -296,7 +296,7 @@ async def simulate_alert_rule(
     # replay uses the rule's saved value; the reply reports both, as
     # ``*_used``/``*_saved``. Without these, asking "would min % 300 cut these
     # incidents" meant saving 300 onto a rule that is live-routing to a real
-    # channel (tripl-oxkt.17 part 3).
+    # channel (part 3).
     #
     # ``sigma_threshold_override`` is the DETECTOR's sensitivity, not a rule
     # field: it re-reads the recorded anomalies, so it can only ever narrow the

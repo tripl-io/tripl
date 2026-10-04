@@ -190,7 +190,7 @@ interface PaletteGroup {
 /**
  * Does a static row survive what has been typed so far?
  *
- * cmdk used to answer this, and taking the job off it is the whole of tripl-k6gt:
+ * cmdk used to answer this, and taking the job off it is the whole point:
  * its `shouldFilter` prop covers filtering and SORTING together, so leaving it on
  * to keep the static groups responsive also let it re-append every knowledge
  * result in its own fuzzy-score order (cmdk 1.1.1 `dist/index.mjs` sorts by

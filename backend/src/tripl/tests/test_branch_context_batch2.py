@@ -1,9 +1,9 @@
 """``?branch=`` context: main by id is main, and a merged or closed branch is read-only.
 
-tripl-0zpq.215 / tripl-0zpq.121: ``GET /branches`` hands out main's own id and
+``GET /branches`` hands out main's own id and
 ``?branch=<main id>`` is accepted, but every plan service decided "main" by
 ``branch_id is None``. The dependency passed the id through, so the write landed
-on main while skipping the name-format delete guard (the tripl-lpin outage) and
+on main while skipping the name-format delete guard (the name-format outage) and
 the event-type, meta-field and project cache busts.
 
 nothing refused a plan write to a merged or closed branch,
@@ -134,7 +134,7 @@ def _record_dropped_prefixes(monkeypatch: pytest.MonkeyPatch) -> list[str]:
     return dropped
 
 
-# --- tripl-0zpq.121 / .215: main spelled by its id is main ---------------------
+# --- main spelled by its id is main ---------------------------------------------
 
 
 @pytest.mark.asyncio

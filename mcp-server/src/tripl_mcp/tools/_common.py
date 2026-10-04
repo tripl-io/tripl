@@ -2,7 +2,7 @@
 
 Everything here is a statement about THIS consumer: what a model should be made
 to pay for, and what it should be told. That is why the four field projections
-below stayed when tripl-i1dt revisited them — ``tripl events list``, ``plan
+below stayed when they were revisited — ``tripl events list``, ``plan
 types``, ``plan fields`` and ``plan search`` all emit their rows VERBATIM, on
 purpose (see ``tripl_cli.report.plan_read_document``), because a CLI writes to a
 pipe and a trimmed row there is a field the operator has to fetch again. A

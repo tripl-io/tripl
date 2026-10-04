@@ -673,7 +673,7 @@ def page_items(payload: Any) -> JsonList:
     decided in one place.
 
     Re-exported through ``tripl_cli.api`` for ``tripl_mcp``, which read the same
-    envelope by hand at three tool sites until tripl-i1dt. Both distributions
+    envelope by hand at three tool sites until recently. Both distributions
     answer the question here now: a CLI that dropped a non-dict row while the
     MCP kept it, reading the same route, is two readings of one wire format.
 

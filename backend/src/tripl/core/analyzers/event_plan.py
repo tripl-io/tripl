@@ -130,7 +130,7 @@ def unnamed_skip_detail(count: int) -> str:
     Reaches the run report through ``generate_events``' ``details.extend`` and
     the dry-run's ``warnings``, so both surfaces disclose the skip without either
     of them re-deriving the rule. Agreement is spelled out because this is copy
-    an operator reads, and "1 rows" is the defect tripl-3y7z fixed on the other
+    an operator reads, and "1 rows" is a defect already fixed on the other
     side of the wire.
 
     Public because a grouped dry run plans once PER EVENT TYPE and has to sum the
@@ -154,7 +154,7 @@ def absent_json_path_detail(keys: Sequence[str]) -> str:
     decides whether the path is gone or the window was simply quiet.
 
     Pluralised in one place for the same reason as ``unnamed_skip_detail``:
-    "1 paths" is the defect tripl-3y7z fixed on the other side of the wire.
+    "1 paths" is a defect already fixed on the other side of the wire.
     """
     noun = "path" if len(keys) == 1 else "paths"
     segments = "an empty segment" if len(keys) == 1 else "empty segments"
@@ -223,7 +223,7 @@ def json_name_format_keys(
     Deliberately narrow at the COLUMN level. A dotted key whose BASE column is
     missing from ``col_meta`` — its FieldDefinition was deleted, or the column
     was reserved away — or that is not JSON is not seeded and still raises: that
-    failure is what tripl-3mmh and tripl-lpin exist for.
+    failure is what the earlier fixes for it exist for.
 
     Deliberately NOT narrowed at the PATH level, which is the question a reader
     asks next. Nothing here checks that ``col.path`` is a path the scan collects
@@ -233,7 +233,7 @@ def json_name_format_keys(
 
     * a path absent from the whole window is indistinguishable from a path
       renamed away, and raising on it would stop all collection for a quiet
-      window — the outage class of tripl-0zpq.92;
+      window — a known outage class;
     * the obvious narrowing, "require the key to be in
       ``meta['json_passthrough_paths']``", is wrong twice over. In the planner
       that list is declared INTERSECT observed (see ``plan_column_meta``), so it
@@ -914,7 +914,7 @@ def raw_values_from_row(
     EVERY declared path is written, including the ones this row does not carry —
     those come back from ``toJSONString`` as the literal string ``"null"`` and
     are kept as ``"null"``. Skipping them would make the collector's dict differ
-    from the planner's, which is the divergence tripl-0zpq.90 is about, so the
+    from the planner's, which is a known divergence, so the
     absent paths are cheap here rather than absent.
 
     Cost matters: the metric collector calls this once per row, three times per

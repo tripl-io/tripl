@@ -292,7 +292,7 @@ describe('FieldsEditor fields table', () => {
     fireEvent.click(at(screen.getAllByRole('button', { name: /^Delete field / }), 0))
     fireEvent.click(await screen.findByRole('button', { name: 'Delete' }))
 
-    // The WHOLE detail, not a fragment of it: tripl-24i0 chose to render the
+    // The WHOLE detail, not a fragment of it: the design chose to render the
     // shared 409 untouched rather than have this tab rewrite the backend's
     // wording into the web UI's nouns. A partial match would still pass if
     // someone added that rewriter and it silently stopped matching.

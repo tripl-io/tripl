@@ -297,7 +297,7 @@ def _build_digest(
             continue
 
         # Filtered on the id the buffered ROW carries, never on one recomputed
-        # here. Since tripl-0zpq.27 that is also the id the immediate path
+        # here. That is also the id the immediate path
         # computes for the same incident — both hash the partition the row
         # stores — so a decision taken in the Inbox while a digest is being held
         # silences it here, and a decision taken on a digest silences the

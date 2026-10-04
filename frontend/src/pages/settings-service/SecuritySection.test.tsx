@@ -126,7 +126,7 @@ describe('Instance Security & access — registration', () => {
 
   it('points a closed instance at invitations rather than at reopening the door', () => {
     // This used to assert the hint said there was NO way to add anyone while
-    // disabled. That premise died with tripl-jfm3.82 — an owner can now invite
+    // disabled. That premise died: an owner can now invite
     // directly — so the hint must send them there instead of telling them to
     // reopen registration, which is the advice that made instances stay open.
     renderSection(settingsFixture({ registration_mode: 'disabled' }))
@@ -193,7 +193,7 @@ describe('Instance Security & access — registration copy fits its controls', (
 
 describe('Instance Security & access — field labelling', () => {
   it('associates every visible field label with its control', () => {
-    // The whole-section guard for tripl-5gdg: Field generated an id for its
+    // The whole-section guard for field labelling: Field generated an id for its
     // <label htmlFor> but never applied it to the control, so 6 of 13 inputs on
     // this page were announced with no name. Only the registration Select
     // passed an explicit htmlFor, which is why this page scored best.

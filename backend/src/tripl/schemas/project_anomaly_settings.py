@@ -62,7 +62,7 @@ def settling_window_conflict(
     ``services.monitoring_utils._freshness_horizon`` does not bind), so the
     Anomalies page, the sidebar badge and the Overview stat all read zero — while
     alerting, which classifies against the settled head, keeps delivering. That
-    silent disagreement is the thing being refused; ``tripl-l429.15``.
+    silent disagreement is the thing being refused.
 
     REFUSED, not clamped: both numbers are operator-set, so clamping would
     silently rewrite whichever one was touched last and make the stored result

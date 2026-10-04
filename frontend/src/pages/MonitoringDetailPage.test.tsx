@@ -1235,7 +1235,7 @@ describe('MonitoringDetailPage event-detail header and semantics', () => {
     expect(screen.getByLabelText('ios share drop: 50.0% -> 10.0%')).toBeInTheDocument()
 
     // Event-scope breakdowns keep today's rendering exactly: the 'events'
-    // label and NO value formatter (tripl-4dej regression guard).
+    // label and NO value formatter (regression guard).
     const chart = screen.getByTestId('multi-chart')
     expect(chart).toHaveAttribute('data-series-label', 'events')
     expect(chart).toHaveAttribute('data-value-sample', '')

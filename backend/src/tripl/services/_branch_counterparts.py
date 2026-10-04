@@ -7,11 +7,11 @@ ever see main. So a branch copy of a live event read "never seen, no volume"
 on every page, and an analyst on a branch could not tell a dead event from a
 busy one.
 
-A branch copy's twin is the main row it was copied from (``origin_id``,
-tripl-0zpq.292). Only a row without one — created on the branch — or a copy
-whose origin main has since deleted pairs the old way: same event type NAME
-(a branch type has its own id too), and the same scan identity —
-``source_name`` where the row has one, ``name`` where it does not, on both
+A branch copy's twin is the main row it was copied from (``origin_id``). Only a
+row without one — created on the branch — or a copy whose origin main has since
+deleted pairs the old way: same event type NAME (a branch type has its own id
+too), and the same scan identity — ``source_name`` where the row has one,
+``name`` where it does not, on both
 sides. Nothing is written back; the branch row only reads through to its twin.
 """
 

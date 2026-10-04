@@ -57,7 +57,7 @@ def register_demo_project(api: FakeInstance, slug: str = "demo") -> None:
 def test_broken_scan_config_exits_three_and_names_the_cause(
     tripl_api: FakeInstance, capsys: pytest.CaptureFixture[str], now: datetime
 ) -> None:
-    """The acceptance criterion of tripl-ey6j.2."""
+    """The acceptance criterion of the doctor command."""
     tripl_api.jobs(
         "prod",
         "scan-1",

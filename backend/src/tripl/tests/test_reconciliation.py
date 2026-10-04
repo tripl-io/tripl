@@ -190,7 +190,7 @@ async def test_accept_shadow_event_works_when_a_scan_rule_names_the_event_type(
     The rule is BOUND to the event type, which is what makes the seed governing
     and this test a fang rather than a decoration. An unbound config used to
     govern the whole project, so ``event_name_format`` alone was enough; since
-    tripl-0zpq.254 an unbound config with no ``event_type_column`` governs
+    a later fix an unbound config with no ``event_type_column`` governs
     nothing, and this seeded exactly that — the type came out unruled, the 422
     below became unreachable, and reverting the fix left the test green.
 

@@ -162,7 +162,7 @@ def build_variable_index(
     # lazyload: the index reads names, bindings and flags only, and
     # ``Variable.value_contexts`` is ``lazy="selectin"``, which would pull the
     # project's whole context table (and its field definitions) into memory on
-    # every run (as tripl-xkbb did at the other selects).
+    # every run (as it once did at the other selects).
     query = (
         select(Variable)
         .where(Variable.project_id == project_id)

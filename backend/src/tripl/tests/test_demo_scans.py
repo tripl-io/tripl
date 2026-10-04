@@ -1,9 +1,9 @@
-"""Demo scans + governance (epic tripl-2su6.4).
+"""Demo scans + governance.
 
 The demo's scan surface is a local synthetic warehouse: scan history, coverage,
 and reconciliation are seeded coherently with the scanned volume, and the real
 warehouse-facing data path (Preview / Run now / Replay) works over the synthetic
-source with no network. Full Celery worker-transition E2E lives in tripl-2su6.10.
+source with no network. Full Celery worker-transition E2E is covered separately.
 """
 
 import uuid
@@ -177,7 +177,7 @@ async def test_demo_rescan_folds_synthetic_events_without_flooding_catalog(
 ) -> None:
     """A Run now / Replay over the synthetic source creates 0 new events.
 
-    Regression for bd tripl-q7i1.6: the demo ScanConfig used to seed
+    Regression: the demo ScanConfig used to seed
     ``event_type_column`` but no ``event_group_rules``, so ``generate_events``
     derived a raw ``col=value | col=value`` identity for every synthetic row and
     flooded the catalog with ~21 pipe-named draft events (17 -> 38). The demo now
@@ -260,7 +260,7 @@ async def test_demo_rescan_keeps_seeded_variable_values_and_templates(
 ) -> None:
     """The demo's variable story survives its own guided first scan.
 
-    Regression for bd tripl-jfm3.56. The coached "Variables & value drift"
+    Regression: the coached "Variables & value drift"
     chapter tells the user to run a scan and then compare ``${product_id}``'s
     observed values against its documented list — but the scan rewrote the
     curated ``${product_id}`` / ``${platform}`` templates with literal warehouse

@@ -246,7 +246,7 @@ def test_the_sweep_retires_what_generation_left_behind(sync_session: Session, pr
     the stored value and its context exists — the sweep must not touch it. The
     two place names nobody typed again have neither, and go.
 
-    This is the end-to-end shape of tripl-10h4: the catalog stops growing
+    This is the end-to-end shape of the orphan cleanup: the catalog stops growing
     without anyone pressing anything.
     """
     project, et, fds = project_and_type

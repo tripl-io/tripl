@@ -1,4 +1,4 @@
-"""Batch 4: what the rule REPLAY can see — ``tripl-0zpq.158``.
+"""Batch 4: what the rule REPLAY can see.
 
 Live dispatch merges FIVE candidate sources (``worker/tasks/metrics/dispatch``);
 the in-UI replay merged three. Variable-value drifts and release regressions
@@ -32,7 +32,7 @@ both production renderers and compare the whole item. That is where the
 preview's hard-coded ``"expected_basis": ""`` shows up, and with it the LAST of
 ``window_from``'s three hops, ``alerting_rendering._drift_facts`` — those were
 the last two places the preview and the send disagreed about a firing
-(tripl-0zpq.165 closed the other two). They cannot show the first two hops:
+(a later fix closed the other two). They cannot show the first two hops:
 they hand-build both objects, so that a firing the service ACTUALLY emits
 carries the window is asserted over HTTP in
 ``test_a_release_regression_the_pipeline_delivers_now_reaches_the_replay``
@@ -362,7 +362,7 @@ async def test_a_value_drift_the_pipeline_delivers_now_reaches_the_replay(
     assert firing["direction"] == "spike"
     # ``actual`` is how many novel values were observed; there is no baseline to
     # compare them against, so the ratio is null rather than the stored 0.0
-    # placeholder (tripl-0zpq.272 — this family is the newest consumer of it).
+    # placeholder (this family is the newest consumer of it).
     assert firing["actual_count"] == pytest.approx(float(len(_OBSERVED_VALUES)))
     assert firing["expected_count"] == pytest.approx(0.0)
     assert firing["percent_delta"] is None
@@ -524,7 +524,7 @@ async def test_a_schema_drift_no_scan_can_reach_stays_out_of_the_replay(
     Drop ``SchemaDrift.scan_config_id.is_not(None)`` from
     ``_load_schema_drift_candidates`` and ``anomalies_considered`` becomes 1 and
     the firing reappears — the operator tunes a rule against pages the pipeline
-    will never send, which is the same defect as the silence tripl-0zpq.158
+    will never send, which is the same defect as the silence already
     filed, pointed the other way. The test above is the proof this one is not
     green merely because no schema drift was loaded at all.
     """

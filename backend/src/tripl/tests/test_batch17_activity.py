@@ -1,6 +1,6 @@
 """Batch 17 regressions: activity rail, monitor rollup, reconciliation, contracts.
 
-Each test names the finding it pins (tripl-0zpq.N) and fails if that fix is
+Each test pins one finding and fails if that fix is
 reverted.
 """
 
@@ -190,7 +190,7 @@ async def test_a_weekly_catalog_metric_monitor_reads_firing_on_the_metric_grid(
     assert summary.json()["firing_count"] == 1
 
 
-# --- tripl-0zpq.193 / .302 / .195: activity rail anomalies --------------------
+# --- activity rail anomalies --------------------------------------------------
 
 
 @pytest.mark.asyncio

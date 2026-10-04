@@ -139,7 +139,7 @@ class ReindexOutcome:
     ``search_embeddings_enabled`` flag, so the API reported a refresh as queued
     whenever the feature was switched on — including when the broker was down and
     the enqueue had just been swallowed by the ``except`` in
-    :func:`_queue_embedding_refresh` (tripl-0tt4 item 6). The operator reading
+    :func:`_queue_embedding_refresh`. The operator reading
     that response is deciding whether to go and look at the queue, so it has to
     mean "a task was handed to the broker", not "a task would have been if
     everything worked".
@@ -437,7 +437,7 @@ async def _apply_demo_search_embeddings(
 
 
 #: How many rows each retrieval leg pulls before fusion, no matter what page
-#: size the caller asked for (tripl-0tt4 item 2).
+#: size the caller asked for.
 #:
 #: WHY THE WINDOW MUST NOT TRACK THE PAGE SIZE
 #: -------------------------------------------
@@ -989,8 +989,8 @@ async def _ensure_index_exists(
     unindexed that way is picked up by the same triggers every other branch
     relies on: a CRUD mutation, the post-scan reindex of main, or an explicit
     ``POST /search/reindex``. Those triggers now cover every document kind — the
-    ``scan_config``/``alert_rule`` gap this docstring used to describe was closed
-    by tripl-ugrm.
+    ``scan_config``/``alert_rule`` gap this docstring used to describe has since been
+    closed.
     """
     memo_key = (project_id, branch_id)
     if memo_key in _CHECKED_BRANCH_INDEXES:

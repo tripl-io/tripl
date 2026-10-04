@@ -1,11 +1,11 @@
-"""The other two doors to the tripl-lpin outage: plan delete, and branch merge.
+"""The other two doors to the name-format outage: plan delete, and branch merge.
 
 Accepting a ``missing_field`` drift is guarded in ``test_schema_drift_guard``.
 That closed one of three ways to remove a FieldDefinition a scan's
 ``event_name_format`` names events by; the two here are the other two, and both
 end in the same ``session.delete(field)`` and the same dead scan — every
 collection failing on "the event name format references unknown keys"
-(root cause of tripl-lpin).
+(root cause of that outage).
 
 The delete door and the merge door together also pin the DIVISION between them:
 deleting the field on a BRANCH is allowed (a branch is where you plan a removal

@@ -666,7 +666,7 @@ async def _storage_of(session: AsyncSession | None, photo: EventPhoto) -> PhotoS
     Every failure to BUILD the driver answers ``None`` too, not an exception:
     ``GCSPhotoStorage`` raises without a bucket, and its client raises without
     credentials, so a stray ``gcs`` row on a local instance would otherwise turn
-    every photo list into a 500 — the shape of tripl-0zpq.213. ``url_for`` then
+    every photo list into a 500 — a known failure shape. ``url_for`` then
     hands back the ``/file`` URL and ``read_blob`` answers a 409 that names the
     backend, which is a page that loads and an error that explains itself.
 

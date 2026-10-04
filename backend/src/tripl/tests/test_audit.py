@@ -553,7 +553,7 @@ async def test_audit_survives_the_event_it_records(client: AsyncClient) -> None:
 async def test_audit_records_the_branch_an_event_write_was_scoped_to(client: AsyncClient) -> None:
     """Branch attribution is inherited, not re-implemented: every event route
     already declares ``BranchIdDep``, and ``record`` reads the contextvar that
-    binds. This is the case tripl-wkwv.6 could not cover, because
+    binds. This is the case an earlier test could not cover, because
     the row it needed did not exist."""
     await _setup_project(client, "audit-event-branch")
     branch_id = await _create_branch(client, "audit-event-branch", "redesign-checkout")
@@ -1106,7 +1106,7 @@ def test_audit_log_declares_exactly_the_indexes_its_access_paths_need() -> None:
     An extra index is written on every insert into this append-only table.
 
     A MISSING one is the older failure this guards against just as tightly: when
-    tripl-wkwv.18 moved the project predicate from the slug to the id, the index
+    the project predicate moved from the slug to the id, the index
     bought for the slug stopped covering the query it was bought for and the
     audit tab quietly went back to a top-N sort per page. Pinning the exact
     column tuples means the next predicate change has to come here and say so.

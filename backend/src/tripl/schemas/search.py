@@ -136,7 +136,7 @@ class SearchResult(BaseModel):
     #
     # Do NOT "fix" this to track ``_semantic_cosine`` below: that cosine is still
     # recorded on a hybrid row so ``finalize_results`` can report the stronger of
-    # the two certainties, and tripl-d5u8 deliberately lets only an
+    # the two certainties, and the design deliberately lets only an
     # identity match be painted as certain. Confidence and provenance disagreeing
     # on one row is the intended shape, not a bug.
     semantic_used: bool = False

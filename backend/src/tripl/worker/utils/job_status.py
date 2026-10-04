@@ -54,7 +54,7 @@ def closed_by_someone_else(session: Session, job_id: uuid.UUID) -> str | None:
     status column and assigns nothing back: the closing writer owns ``status``,
     ``completed_at`` and ``error_message``, and a re-assignment here would flush
     this run's stale copies over theirs — the ``completed`` beside "Cancelled by
-    user" of tripl-0zpq.44.
+    user" bug.
 
     NOT a lock, and not sold as one. ``ScanJob`` declares no ``version_id_col``
     and no caller takes ``FOR UPDATE``, so a cancel landing between this SELECT

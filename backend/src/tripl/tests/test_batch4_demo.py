@@ -2,7 +2,7 @@
 
 Two seeder defects, both on the surface a new operator reads first.
 
-``tripl-0zpq.247`` — the seeded failed delivery must survive its own Retry.
+The seeded failed delivery must survive its own Retry.
 The local demo sink cannot fail on its own, so the demo
 deliberately seeds one FAILED delivery — otherwise the failed-delivery state and
 the **Retry** action the docs promise (website/docs/use/alerting.md) are
@@ -23,7 +23,7 @@ outbound-network tripwire. A file is needed because the seeding half is async
 and the worker body is sync: they cannot share ``conftest``'s single pooled
 in-memory connection.
 
-``tripl-0zpq.249`` — the "Injected demo spike" chart marker must name the bucket
+The "Injected demo spike" chart marker must name the bucket
 the spike was injected into. The warehouse builder writes the spike into the
 newest stored hour, but the marker was dated ``ctx.now``: the still-open hour,
 one hourly bucket further on, which no series has a point for. The marker

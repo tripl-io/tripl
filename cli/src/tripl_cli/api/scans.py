@@ -138,7 +138,7 @@ def config_names(scans: JsonList) -> dict[str, str]:
     AND a time column because doctor asks "is the scheduler working", and a
     config with no interval has no dispatch history worth reading. Watch — and
     ``tripl scans run`` — ask "what is running right now", and a manual replay on
-    an unscheduled config is exactly what tripl-ey6j.4 was filed for.
+    an unscheduled config is exactly what the watch command was built for.
 
     Kept as a name of its own because that exclusion is the fact worth writing
     down; the extraction itself is ``model.names_by_id``, which the event-type

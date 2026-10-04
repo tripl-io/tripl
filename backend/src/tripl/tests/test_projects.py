@@ -1083,7 +1083,7 @@ async def test_monitoring_signal_count_includes_significant_event_scope_anomalie
     The AnomaliesPage now lists every open scope as a flat, magnitude-filtered list,
     so the badge counts the same population — project_total +
     event_type + per-event — and the "Significant" magnitude gate (not scope
-    exclusion) is what keeps trivial per-event wobble out (supersedes tripl-posm).
+    exclusion) is what keeps trivial per-event wobble out.
     Here both the event_type and the per-event anomaly clear the gate (42 vs 21 ->
     relative effect 1.0), so both count.
     """

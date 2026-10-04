@@ -18,7 +18,7 @@ import {
 
 describe('Panel header', () => {
   /**
-   * The clipping in tripl-jfm3.43 is pure layout, so the unit-level guard is
+   * The header clipping is pure layout, so the unit-level guard is
    * the class contract that produces it: a wrapping header whose right slot is
    * allowed to shrink, and a title that keeps a basis so it cannot collapse to
    * 0px behind the controls. Measured widths are covered by the browser pass.

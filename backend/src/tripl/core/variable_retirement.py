@@ -6,7 +6,7 @@ a JSON column keyed by user-typed text — a map, not a struct — that is unbou
 growth in the width of one column: production's ``acme-ios`` carried 1517
 variables of which 1296 were referenced by nothing at all, 1279 of them minted
 from the keys of a single ``property`` column (``property.Adana``,
-``property.Albany, OR``, and two whitespace-only keys). tripl-10h4.
+``property.Albany, OR``, and two whitespace-only keys).
 
 The obvious fix — stop minting above a cardinality threshold — was tried on
 paper and rejected. Paths are discovered per COLUMN across the whole scan
@@ -26,7 +26,7 @@ That splits the production data exactly — 1296 retirable against 221 kept, wit
 zero human-authored rows in the retirable set (measured, 2026-08-13).
 
 **Both "no observed context" and "no stored ``${token}``" are required, and
-neither implies the other.** tripl-xfxa is the standing proof: a group-rule
+neither implies the other.** A past bug is the standing proof: a group-rule
 merge deleted the source event and let its ``VariableValue`` rows cascade away,
 leaving eighteen production variables that a live event's field value still
 names but that have no contexts at all. A predicate resting on contexts alone
@@ -149,7 +149,7 @@ def _human_claim(variable: Variable) -> str | None:
     Every arm reads a field the scan writes ONCE, at ``ensure_variable``, and
     never touches again — so any value other than the one the scan wrote was
     put there by a person. The name is the newest of those arms and the one
-    tripl-bwo8 made necessary: with the sweep running on every scheduled cycle
+    a later change made necessary: with the sweep running on every scheduled cycle
     rather than only under a declared lookback, a JSON key that stops arriving
     for one interval loses its ``${token}`` and its context in that run's
     rewrite and is a fossil by this predicate. Recycling the row is the point of
@@ -282,7 +282,7 @@ def plan_retirement(
             continue
         if tokens_of(variable) & referenced:
             # No observed context but a live value still names it: the
-            # tripl-xfxa shape. Keeping it is the whole reason this check is
+            # group-rule-merge shape. Keeping it is the whole reason this check is
             # separate from ``with_contexts``.
             plan.keep(KeptReason.REFERENCED)
             continue

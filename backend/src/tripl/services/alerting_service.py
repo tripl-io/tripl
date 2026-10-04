@@ -733,9 +733,8 @@ async def simulate_rule(
 
     Every override answers a what-if WITHOUT writing anything: the rule under
     test is usually live-routing to a real channel, so "would min_percent_delta
-    300 have cut these incidents" must not be asked by saving 300 and waiting
-    (tripl-oxkt.17 part 3). Each is reported back as ``*_used`` beside the rule's
-    stored ``*_saved`` value.
+    300 have cut these incidents" must not be asked by saving 300 and waiting.
+    Each is reported back as ``*_used`` beside the rule's stored ``*_saved`` value.
 
     "What it would have sent" is the IMMEDIATE-delivery answer, and for one
     destination class that is not what production does. ``destination`` is loaded
@@ -976,8 +975,8 @@ async def simulate_rule(
     # disagree about a firing's shape. It also owns the two
     # guarantees this loop used to spell out: the delta goes through the SHARED
     # ``alert_templates.percent_delta_of`` (the simulator reporting 0.0% where
-    # dispatch reported 200% for the same signed catalog metric was
-    # tripl-0zpq.102), and the name is trimmed with ``trim_scope_name`` the way
+    # dispatch reported 200% for the same signed catalog metric was a past bug),
+    # and the name is trimmed with ``trim_scope_name`` the way
     # ``alert_payload`` trims it before the 255-character column, so the preview
     # shows the label the send actually delivers.
     firings: list[SimulatedRuleFiring] = [

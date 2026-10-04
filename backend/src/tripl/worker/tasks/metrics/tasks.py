@@ -786,7 +786,7 @@ def collect_metrics(
         session.commit()
         # The scheduled path mints variables exactly as a manual scan does —
         # ``variables_created`` in the summary below counts them — but until
-        # tripl-bh1q ``run_scan`` was the sweep's only worker call site, so on
+        # recently ``run_scan`` was the sweep's only worker call site, so on
         # the production shape the sweep was written for (a JSON map column
         # keyed by user-typed text, collected hourly on a schedule) it never ran
         # unattended and the catalog only ever grew. Gated on ``is_replay`` for

@@ -19,7 +19,7 @@ scan — so an unscoped answer would show one project's operator a scan belongin
 to another project and block a delete they have no way to unblock: the remedy
 the sentence offers is not reachable from the project they are in.
 
-tripl-u2h9.12 / tripl-0zpq.123 — a scan resolves its types against MAIN's plan,
+A scan resolves its types against MAIN's plan,
 so a shadow candidate always carries a main event type id. Writing that id onto
 a row authored on a working branch is what ``create_event`` now refuses
 outright, which would have taken the whole branch-accept flow with it.
@@ -166,7 +166,7 @@ async def _candidate(
         return candidate.id
 
 
-# --- tripl-0zpq.254, the CRUD delete door -------------------------------------
+# --- the CRUD delete door -------------------------------------
 
 
 @pytest.mark.asyncio
@@ -275,7 +275,7 @@ async def test_another_projects_scan_neither_blocks_the_delete_nor_names_itself(
     assert await _event_type_names(client, slug) == []
 
 
-# --- tripl-0zpq.254, the merge door -------------------------------------------
+# --- the merge door -------------------------------------------
 
 
 @pytest.mark.asyncio
@@ -326,7 +326,7 @@ async def test_merging_a_branch_that_removed_a_bound_event_type_is_refused(
     assert await _event_type_names(client, slug) == ["signup"]
 
 
-# --- tripl-u2h9.12 / tripl-0zpq.123, accepting a candidate on a branch --------
+# --- accepting a candidate on a branch --------
 
 
 @pytest.mark.asyncio

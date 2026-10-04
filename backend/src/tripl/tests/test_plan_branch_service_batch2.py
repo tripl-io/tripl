@@ -1,8 +1,8 @@
-"""Plan-branch service regressions from the tripl-0zpq sweep, batch 2.
+"""Plan-branch service regressions from an earlier sweep, batch 2.
 
-- tripl-0zpq.152: ``?include_diff_counts=true`` counts open branches only, so its
+- ``?include_diff_counts=true`` counts open branches only, so its
   cost follows the work in flight rather than the project's branch history.
-- tripl-0zpq.153: ``create_branch`` takes the merge base and the deep copy inside
+- ``create_branch`` takes the merge base and the deep copy inside
   one snapshot-consistent transaction, so the two describe the same main. When
   Postgres aborts that transaction as unserializable, the creation is retried
   from a clean session a bounded number of times, then answered with 409.

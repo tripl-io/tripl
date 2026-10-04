@@ -313,7 +313,7 @@ function ActionButton({
  *    `MUTE_PRESETS` in `@/lib/mutePresets`, so the three surfaces cannot
  *    describe one action three ways without the edit landing in the one module
  *    all three read. Copying — which is what "lifted verbatim" used to mean
- *    here — is what tripl-yapg replaced.
+ *    here — is what the shared helpers replaced.
  */
 function MuteControl({
   ruleName,
@@ -365,7 +365,7 @@ function MuteControl({
             // call is statically confined to the "for <duration>" branch of
             // `muteChoiceName`. The open-ended phrasing is unreachable from
             // here without importing `INDEFINITE_MUTE` or `INBOX_MUTE_CHOICES`
-            // by name, which tripl-a50u forbids on a rule surface:
+            // by name, which is forbidden on a rule surface:
             // `is_rule_muted()` reads a NULL `muted_until` as NOT MUTED.
             aria-label={muteChoiceName(ruleName, preset)}
             onSelect={() => onMute(preset.ms)}

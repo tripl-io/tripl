@@ -48,7 +48,7 @@ export function ChapterPicker({ chapters, onPick, compact = false }: ChapterPick
             // it starts the chapter and navigates away, reassigning the active
             // chapter the strip may be mid-way through. The tooltip lets the
             // user read what a chapter teaches before that commit, at zero
-            // added height on the surface tripl-wnzi is trying to shorten.
+            // added height on the surface being shortened.
             title={compact ? chapter.blurb : undefined}
             className="flex w-full min-w-0 items-center gap-2 rounded-md border px-2.5 py-1.5 text-left transition-colors hover:bg-[var(--surface-hover)]"
             style={{ background: 'var(--surface)', borderColor: 'var(--border-subtle)' }}

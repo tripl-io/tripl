@@ -6,13 +6,13 @@ WHY THE CASE TABLE COULD NOT SEE THIS
 added together — the boost ladder, ``ts_rank_cd * 4.0`` and the trigram
 similarity ``* 2.0``. So a tier can be paying the WRONG document and the case can
 still be green, as long as another leg covers the difference. That is not
-hypothetical: until tripl-0qld, ``q='purchases'`` paid ``app_open``,
+hypothetical: until a fix, ``q='purchases'`` paid ``app_open``,
 ``screen_home`` and ``screen_settings`` the 3.5 literal keyword-token tier —
 purely because ``${property.screen_name}`` had harvested the string ``purchases``
 onto their ``view_id`` field and ``_event_document`` joined a variable's observed
 values into an EVENT's ``keywords`` — while ``purchase_completed``, the entity the
 query is about, reached only the 3.25 stemmed-identity tier. The ladder ordering
-tripl-nh5s built ("a stemmed match on the entity's own name is stronger than the
+an earlier change built ("a stemmed match on the entity's own name is stronger than the
 literal token appearing somewhere in its body") was inverted for three unrelated
 events, and ``cases.purchase-plural`` stayed green because the trigram leg
 (``similarity('purchase_completed', 'purchases') ~ 0.38 -> +0.76``) more than

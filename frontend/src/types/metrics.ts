@@ -124,7 +124,7 @@ export interface TopEvent {
 export interface OverviewKpiSeries {
   days: number
   // Events CREATED per day on the main branch. Named `active_events` until
-  // tripl-jfm3.22, which is what led the Overview sparkline to announce itself
+  // it was renamed, which is what led the Overview sparkline to announce itself
   // as "Active events by day" while plotting creations across every branch.
   new_events: number[]
 }

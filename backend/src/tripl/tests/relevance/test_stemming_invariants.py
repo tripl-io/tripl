@@ -15,7 +15,7 @@ frequency) can supply the right answer for the wrong reason.
 * the ``улов``/``уловы`` pair asserted on ONE document that carried BOTH
   lexemes, so either query retrieved it by a different lexeme and the asymmetry
   between them was invisible;
-* on the strength of that pair, a query-side-only repair for tripl-uojz was
+* on the strength of that pair, a query-side-only repair for the over-stemming fault was
   certified and was wrong on production.
 
 So this file tests the mechanism directly. It has NO corpus, seeds NOTHING,
@@ -32,7 +32,7 @@ Every token ``w`` contributes ``{stem(w), surface(w)}`` on BOTH sides — see
 ``search_service.TEXT_VECTOR_EXPRESSION`` (document) and
 ``_search_query.TEXT_QUERY_EXPRESSION`` (query). Two forms A and B therefore
 meet iff those sets intersect. They already met when ``stem(A) == stem(B)``,
-which is what a7c3e1b9d5f2 bought. What was missing, and what tripl-uojz adds,
+which is what a7c3e1b9d5f2 bought. What was missing, and what the surface-form leg adds,
 is ``surface(A) == stem(B)``: Snowball over-stems the shortest form of a word
 onto a lexeme that SOME of its inflections never produce (measured on
 production: ``to_tsvector('tripl_search', 'уловы улов уловов')`` is
@@ -205,7 +205,7 @@ WORDS: tuple[WordForms, ...] = (
             "word whose over-stem class is EMPTY on production, which is why the "
             "nominative seeded in the corpus was a form the product does not produce. "
             "'уловов' and 'улове' were listed here and have been dropped: the "
-            "tripl-uojz re-measurement covered улов/уловы/улова only, and after "
+            "the earlier re-measurement covered улов/уловы/улова only, and after "
             "'экрана' turned out not to stem where this file assumed, a form nobody "
             "re-stemmed does not get to carry an assertion"
         ),
@@ -327,7 +327,7 @@ DISTINCT_WORDS: tuple[tuple[str, str], ...] = (
 
 
 # ``unseeded_session`` (the corpus-free session every test here runs on) lives in
-# this package's conftest since tripl-9t2s, because test_coverage_invariants.py
+# this package's conftest, because test_coverage_invariants.py
 # needs the identical fixture.
 
 
@@ -420,7 +420,7 @@ async def test_the_invariant_would_fail_without_the_surface_leg(
     isolated = not await _reaches_on_the_stem_leg(unseeded_session, form=form, query=query)
     assert isolated, (
         f"{form!r} is reachable from {query!r} on the stem leg alone, so the "
-        f"invariant test proves nothing about tripl-uojz for this pair. Either the "
+        f"invariant test proves nothing about the surface-form leg for this pair. Either the "
         f"stemmer changed under us or this pair is no longer the measured one. "
         f"{await _explain(unseeded_session, form, query)}."
     )
@@ -479,7 +479,7 @@ async def test_the_two_legs_under_test_are_the_ones_that_ship(
         normalized = " ".join(expression.split())
         assert "'tripl_search'" in normalized, f"the stem leg is missing from {normalized!r}"
         assert "'tripl_search_surface'" in normalized, (
-            f"the surface leg is missing from {normalized!r}; tripl-uojz has been "
+            f"the surface leg is missing from {normalized!r}; the surface-form fix has been "
             "reverted on one side and this file would silently measure the old "
             "behaviour"
         )

@@ -218,7 +218,7 @@ describe('Instance AI — the embeddings endpoint', () => {
  * it — while the row itself rendered no badge at all. So an instance whose only
  * override was an API key showed a red "Clears the 1 AI override on this
  * instance — every field badged Override above" beside rows that all read
- * "Default": the same copy-versus-badge disagreement tripl-5qp9 was about, in a
+ * "Default": the same copy-versus-badge disagreement as before, in a
  * section that now has three badge states. overrideCount's field
  * set and the badged field set have to be one set.
  */

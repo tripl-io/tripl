@@ -2,7 +2,7 @@
 
 Postgres ``text`` cannot represent U+0000, so a filter value carrying one aborts
 inside asyncpg (``CharacterNotInRepertoireError``) before any SQL runs, and the
-caller gets a 500. tripl-q4q7 fixed that for ``/search`` by sanitising inside the
+caller gets a 500. That was fixed for ``/search`` by sanitising inside the
 search funnel — genuinely the single funnel for ``/search`` and
 ``ai_service.ask_plan``. But the defect class is "user text binds
 straight into a Postgres parameter", and a review found more query parameters,

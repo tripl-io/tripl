@@ -22,7 +22,7 @@ It is a deliberate miniature of three ranking faults measured on production
   every observed value in BOTH ``body`` and ``keywords``
   (``_search_documents._variable_document``), and ``ts_rank_cd`` was called with
   no normalization flag and weighted x4, so raw term frequency scaled without
-  bound. Both halves were fixed by tripl-gbxj — harvested values are body text
+  bound. Both halves have since been fixed — harvested values are body text
   only, and the rank is normalized with flag 32 — and the two cases below that
   measured it no longer carry an ``xfail``. Measured before that: ``q='spot'`` returned
   ``${property.spot_id}`` at 73.69 and ``${property.cube}`` at 55.68 — the
@@ -47,7 +47,7 @@ It is a deliberate miniature of three ranking faults measured on production
   carrying only the singular, and by ``property.screen_name`` — a harvested screen
   name whose observed values happen to include the plurals ``purchases``,
   ``уловы`` and ``spots``, which is what a plural query hit instead. Fixed by
-  tripl-nh5s (migration ``a7c3e1b9d5f2``), and the corpus is deliberately built so
+  migration ``a7c3e1b9d5f2``, and the corpus is deliberately built so
   that the fix cannot be faked: the singular entity and the plural-spelling
   variable are BOTH in the index, so a plural query has a wrong answer available
   to it and has to out-rank it rather than merely retrieve something.
@@ -91,12 +91,11 @@ into the event-type document (``_event_type_document`` folds ``field_text`` into
 ``body``), and any event-type document that matched the query multiplied EVERY
 event of that type by up to 1.75 (``_search_query._apply_event_type_boost``), so
 naming a field after a query term turned that case into a test of the type boost
-instead of a test of the lexical ranking. That boost was deleted in tripl-0tt4
-item 4 and the trap no longer exists. The names are kept anyway, because every
-recorded score in this corpus was measured under them and renaming a field would
-move numbers for reasons unrelated to whatever change is under test. The events,
-their values and the variables still carry ``screen``/``spot`` exactly as
-production does.
+instead of a test of the lexical ranking. That boost has since been deleted and the trap no longer
+exists. The names are kept anyway, because every recorded score in this corpus was
+measured under them and renaming a field would move numbers for reasons
+unrelated to whatever change is under test. The events, their values and the variables still carry
+``screen``/``spot`` exactly as production does.
 
 No event tags are seeded. A tag document has ``keywords = tag.name``, which trips
 the ``lower(d.keywords) = lower(:query)`` 4.0 tier and would add a fourth,
@@ -163,7 +162,7 @@ class SeedContext:
     into ``body``.
 
     ``keywords`` gets the same text MINUS the observed values, on the variable
-    document since tripl-gbxj and on the EVENT document since tripl-0qld. The
+    document and, later, on the EVENT document. The
     values are still indexed and still searchable; they are just body text on
     both sides now, because two boost tiers read ``keywords`` and neither is
     meant to pay for a string a user's app happened to emit.
@@ -216,8 +215,8 @@ EVENT_TYPES: tuple[SeedEventType, ...] = (
         display_name="Commerce",
         # Deliberately free of the word "purchase". This guarded against the
         # event-type boost, which lifted every commerce event at once whenever
-        # the commerce type document matched; the boost is gone (tripl-0tt4
-        # item 4), and the wording is kept so recorded scores stay comparable.
+        # the commerce type document matched; the boost is gone, and
+        # the wording is kept so recorded scores stay comparable.
         description="Payments and refunds",
         fields=(
             SeedField("product", "Product", "Product identifier"),
@@ -253,7 +252,7 @@ EVENTS: tuple[SeedEvent, ...] = (
     # WHAT THIS SEED USED TO BE, AND WHY IT WAS A LIE
     # It carried the bare nominative "улов" twice in the description and once
     # more as the `catch_kind` VALUE, which `_search_documents._event_document`
-    # folded into both `body` (via safe_values) and `keywords`. Since tripl-0qld
+    # folded into both `body` (via safe_values) and `keywords`. Since then
     # a field value reaches `keywords` only when `EventFieldValue.is_authored` is
     # set, and `seed_corpus` below leaves it at the model default False — so on
     # today's code that value would be body text alone. The lie was in the
@@ -269,7 +268,7 @@ EVENTS: tuple[SeedEvent, ...] = (
     # carried BOTH lexemes at once: "ул" from the bare nominative, and "улов"
     # from the stem of "Отчёт об улове" / "Тип улова" / "Вес улова". Either query
     # retrieved it, by a DIFFERENT lexeme each time, so the asymmetry between
-    # them was invisible. A query-side-only repair for tripl-uojz passed this
+    # them was invisible. A query-side-only repair for the over-stemming fault passed this
     # table and was wrong on production — the harness's third false green.
     #
     # WHAT IT IS NOW
@@ -341,7 +340,7 @@ _CUBE_KEYS: tuple[str, ...] = (
 #: Harvested screen names. The plurals are the point: with no stemming, these are
 #: what `q='purchases'`, `q='уловы'` and `q='spots'` used to hit, instead of the
 #: purchase / catch-report / spot entities the user was looking for. They stay in
-#: the corpus after tripl-nh5s because they are the wrong answer the fix has to
+#: the corpus after the stemming fix because they are the wrong answer the fix has to
 #: OUT-RANK: each of them still spells the plural literally, which is worth a 3.0
 #: body-token boost that no correctly-spelled entity can earn — the reason a
 #: stemmer alone did not move these queries and the ladder needed the 3.25 tier.
@@ -349,7 +348,7 @@ _CUBE_KEYS: tuple[str, ...] = (
 #: THEY ALSO LANDED IN THREE EVENT DOCUMENTS, AND THAT WAS THE BUG
 #: This variable binds to the `view_id` field of `app_open`, `screen_home` and
 #: `screen_settings`, all of which declare a `view_id` value — so
-#: `_event_document` picked their contexts up, and until tripl-0qld it joined the
+#: `_event_document` picked their contexts up, and it once joined the
 #: harvested values into those events' `keywords` as well as their `body`. The
 #: three of them therefore took the 3.5 LITERAL KEYWORD-TOKEN tier for
 #: `q='purchases'`, `q='spots'` and `q='уловы'`: strictly above the 3.25 the
@@ -417,14 +416,14 @@ _SCREEN_NAMES: tuple[str, ...] = ("purchases", "уловы", "spots", "экра�
 #:
 #: WHY THESE BINDINGS, WHICH LOOK ARBITRARY
 #: Same reason `property.card_target` uses them, and the same warning applies:
-#: `_event_document` folds a variable's values into an EVENT's body (and, until
-#: tripl-0qld, its keywords too), but only for fields that event has a recorded
+#: `_event_document` folds a variable's values into an EVENT's body (and, formerly,
+#: its keywords too), but only for fields that event has a recorded
 #: value for. `app_open` and `screen_home` declare a `view_id` value and no
 #: `card_id` value, so binding here reaches exactly one document — this
 #: variable's — and no event document acquires a bare `экран`. Binding to
 #: `view_id` instead would put the nominative into three event documents that
 #: already hold the lemma class, which would undo the isolation this seed exists
-#: to create. Note that tripl-0qld did NOT make this warning obsolete: the values
+#: to create. Note that removing them from keywords did NOT make this warning obsolete: the values
 #: still reach `body`, and `body` is half of `text_vector`, which is the leg the
 #: isolation is about.
 _SCREEN_KINDS: tuple[str, ...] = ("экран", "модалка", "шторка", "оверлей")
@@ -452,7 +451,7 @@ _SESSION_KEYS: tuple[str, ...] = ("asdkjhasd7f2", "k18sjdhq", "a91mzz01")
 #: `ts_rank_cd(d.text_vector, q.tsq, 32)` and the
 #: unnormalized `ts_rank_cd(d.text_vector, q.tsq)` it replaced — order this corpus
 #: identically. Measured before this variable existed: reverting the flag left the
-#: harness byte-identically green (14 passed, 1 xfailed), so half of tripl-gbxj
+#: harness byte-identically green (14 passed, 1 xfailed), so half of the term-frequency fix
 #: had no regression guard at all while the other half — harvested values out of
 #: `keywords` — was pinned by `purchase-plural`. This variable is the missing
 #: input; `cases.repetition-outlier-does-not-outrank-the-screen-it-names` is the
@@ -602,7 +601,7 @@ VARIABLES: tuple[SeedVariable, ...] = (
     # re-baselined by a test-only addition, which is exactly what this change is
     # required not to do.
     #
-    # The BOOST half of that hazard is smaller since tripl-0qld and this says so
+    # The BOOST half of that hazard is smaller now and this says so
     # rather than leaving a stale number: those values now land in `body` only,
     # so a `view_id` rebinding would no longer hand the two events the 3.5
     # keyword-token tier, and the 3.25 stemmed tier reads title+keywords and so

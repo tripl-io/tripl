@@ -55,7 +55,7 @@ THE NAIVE-TO-UTC COERCION IS NOT DECORATION. Pydantic parses
 ``"2026-09-20T10:00:00"`` — a body the published schema accepts, since
 ``format: date-time`` has never demanded an offset — into a NAIVE datetime, and
 comparing one of those against ``datetime.now(UTC)`` raises TypeError, which only
-``main.py``'s catch-all handles. That is tripl-0zpq.168 on the monitor route, and
+``main.py``'s catch-all handles. That was a real bug on the monitor route, and
 adding the comparison to four more bodies without the coercion would have been
 four fresh copies of it. A bare instant is read as UTC and never as the host's
 local time, the same reading ``core.bucketing.to_utc`` and

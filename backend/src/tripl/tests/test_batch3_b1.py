@@ -362,7 +362,7 @@ def test_a_dotted_placeholder_on_a_column_the_plan_lost_still_fails_loudly() -> 
     """The narrowness pin: the seed must not disarm the drift guard.
 
     A base column with no FieldDefinition — deleted, or reserved away — is the
-    failure tripl-3mmh and tripl-lpin exist to make loud, and it stays loud.
+    failure the earlier diagnosability fixes exist to make loud, and it stays loud.
     """
     with pytest.raises(NameFormatError) as excinfo:
         plan_events(
@@ -402,7 +402,7 @@ def test_a_dotted_placeholder_no_row_carries_is_reported_not_swallowed() -> None
     renamed away — or a typo in the format — seeds ``""`` exactly like a quiet
     window and renders every name with an empty segment. The two are genuinely
     indistinguishable from one scan, so the run must not raise (that is the
-    tripl-0zpq.92 outage) and must not stay silent either: an identity changing
+    earlier outage) and must not stay silent either: an identity changing
     under the operator is not something to find out from a flat chart.
 
     Red on revert of the report: the names below are correct with or without it.
@@ -431,7 +431,7 @@ def test_a_dotted_placeholder_no_row_carries_is_reported_not_swallowed() -> None
 
 
 def test_a_path_one_row_carries_is_not_reported_absent() -> None:
-    """The boundary: tripl-0zpq.92's rescued row must not look like a rename.
+    """The boundary: the rescued row must not look like a rename.
 
     One of the two rows carries ``event.category`` and the other does not, which
     is the ordinary ``GROUP BY ALL`` shape the seed exists for. Reporting that
@@ -594,7 +594,7 @@ def test_a_genuinely_missing_key_still_raises_the_curated_error() -> None:
     """None of the three new fallbacks may swallow a real drift.
 
     ``action`` is not a JSON path, not the event type column and not in
-    ``col_meta``, so it is still the loud failure tripl-3mmh made self-diagnosing.
+    ``col_meta``, so it is still the loud failure that was made self-diagnosing.
     """
     with pytest.raises(NameFormatError) as excinfo:
         _build_event_name_from_row(

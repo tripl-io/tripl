@@ -342,14 +342,14 @@ def _touch_correlation_state(
 ) -> None:
     """Keep an incident's inbox row alive, converging when a peer opens it first.
 
-    This was a select-then-``session.add``, and since tripl-0zpq.27 its two
+    This was a select-then-``session.add``, and since a later fix its two
     halves can be executed by two workers at once. ``check_metrics_due``
     dispatches ``collect_metrics.delay(str(config.id), str(job.id))`` per CONFIG,
     so two configs of one project collect in parallel; the handle they touch is
     ``_correlation_group_id``, which hashes the scope's PARTITION, and for a
     project-global ``metric`` scope that partition is the same NULL in both runs.
     The two used to hash their own firing config and write different rows — the
-    bug tripl-0zpq.27 fixed — so agreeing on ONE handle is the point of that
+    bug that fix addressed — so agreeing on ONE handle is the point of that
     change, and it is also what turned the first touch of a handle into a race.
 
     ``_claim_rule_state`` does not serialize this one. Its key is the rule state,
@@ -547,7 +547,7 @@ def _retire_config_anchored_metric_states(
     config predicate at all — ``_alerting_monitors`` and ``project_service`` load
     every state of a rule — so ``summarize_monitor_states`` counts it as one
     permanently active scope and the monitor never returns to "healthy" again.
-    That is the rot tripl-0zpq.28 exists to clear, re-created after its migration.
+    That is the rot the reset migration exists to clear, re-created after its migration.
 
     DELETED rather than closed, for the reason ``collapse_metric_rule_states``
     gives for dropping these rows instead of merging them: they are permanently
@@ -639,7 +639,7 @@ def _claim_rule_state(
     already there is the authority, and what it holds is the cooldown clock
     (``opened_at``, ``last_notified_at``, ``last_notified_delivery_id``). An
     update would stamp this run's fresh ``now`` over the timer the shared row
-    exists to keep, which is the tripl-0zpq.28 reset wearing another hat.
+    exists to keep, which is that reset wearing another hat.
 
     WHICH unique index this conflicts against depends on the partition, the same
     branch ``_buffer_pending_items`` makes for the buffer. A NULL config escapes
@@ -1227,7 +1227,7 @@ def _create_deliveries(
             # against min_expected_count, ``absolute_delta / abs(expected)``
             # against min_percent_delta) — so a rule fires
             # BECAUSE the move is 200% and storing 0.0 for it reproduced
-            # exactly the tripl-l429.24 misreport against a real baseline.
+            # exactly the earlier misreport against a real baseline.
             # The divisor is the MAGNITUDE so the ratio stays a size rather
             # than flipping sign with the level; direction is carried by
             # ``direction``/``actual_count`` and never by this field.
@@ -1504,7 +1504,7 @@ def _buffer_pending_items(
         # operator can still acknowledge or mute it before the digest ships.
         #
         # Touch the id the ROW ended up carrying, not the one just computed.
-        # Since tripl-0zpq.27 the two AGREE by construction — both hash the
+        # Now the two AGREE by construction — both hash the
         # partition this row stores — so a second scan collecting the same
         # project-global metric recomputes the handle already buffered instead of
         # minting one of its own, which is what used to leave a stray
@@ -1512,7 +1512,7 @@ def _buffer_pending_items(
         #
         # The read-back stays anyway, because two cases still hand back a
         # DIFFERENT id: the late-bucket fallback above (whatever an earlier
-        # collection stored), and a row buffered by a pre-tripl-0zpq.27 worker
+        # collection stored), and a row buffered by a worker from before that change
         # during a rolling deploy, which carries the old firing-config hash until
         # its digest ships. Touching what the row carries is what keeps the
         # operator's decision attached to the id the digest will actually

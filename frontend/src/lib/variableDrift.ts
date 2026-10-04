@@ -106,7 +106,7 @@ export const MAX_DRIFT_TIMER_DELAY_MS = 2_147_483_647
  * mount: a snooze lapsing while the panel sat open kept reading as snoozed, the
  * panel kept the row collapsed behind the toggle with only Un-snooze on it,
  * while the badge beside it — which the backend recomputes per request — had
- * already moved. That is the badge/panel disagreement tripl-lh61 exists to
+ * already moved. That is the badge/panel disagreement the fix exists to
  * remove, coming back in through the clock. A refetch does not rescue it: new
  * data re-renders the panel, and re-rendering does not re-run an initializer.
  *

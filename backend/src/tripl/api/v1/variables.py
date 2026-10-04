@@ -189,8 +189,8 @@ async def list_value_drifts(
 # ``detect_variable_value_drifts``), and ``apply_drift_action`` writes to
 # ``variable.branch_id`` — main — whatever the request is scoped to. Declaring
 # the dependency would bind the caller's branch and stamp the audit row with a
-# branch the write never touched, which is the misattribution tripl-wkwv.6
-# exists to end. No chip is the correct rendering here: the write is on main.
+# branch the write never touched, which is the misattribution the audit
+# chip exists to end. No chip is the correct rendering here: the write is on main.
 @router.post("/drifts/{drift_id}/action", response_model=VariableValueDriftResponse)
 async def apply_value_drift_action(
     session: SessionDep,

@@ -191,9 +191,6 @@ async def _scan_config(
         return config.id
 
 
-# --- tripl-0zpq.123 -----------------------------------------------------------
-
-
 @pytest.mark.asyncio
 async def test_authoring_on_a_branch_refuses_mains_event_type_id(client: AsyncClient) -> None:
     """The type has to belong to the branch the event is written to.
@@ -359,9 +356,6 @@ async def test_a_bulk_paste_names_the_item_whose_meta_field_is_on_another_branch
         "checkout:done",
         "checkout:new",
     ]
-
-
-# --- tripl-0zpq.124 -----------------------------------------------------------
 
 
 @pytest.mark.asyncio
@@ -555,9 +549,6 @@ async def test_two_main_rows_under_one_key_give_the_branch_one_agreed_twin(
     ]
 
 
-# --- tripl-0zpq.125 -----------------------------------------------------------
-
-
 @pytest.mark.asyncio
 async def test_a_json_value_holding_a_raw_scan_written_token_saves_and_saves_again(
     client: AsyncClient,
@@ -657,7 +648,7 @@ async def test_a_token_holding_a_raw_control_character_is_refused(
         assert "invalid variable token" in refused.json()["detail"], label
 
     # Not a retreat to the identifier grammar: an ordinary space inside a token
-    # is exactly what tripl-0zpq.125 made saveable, and still is.
+    # is exactly what the token-grammar fix made saveable, and still is.
     accepted = await client.post(
         f"/api/v1/projects/{slug}/events",
         json={
@@ -670,9 +661,6 @@ async def test_a_token_holding_a_raw_control_character_is_refused(
     )
     assert accepted.status_code == 201, accepted.text
     assert accepted.json()["field_values"][0]["value"] == '{"city": "${property.x y}"}'
-
-
-# --- tripl-0zpq.130 -----------------------------------------------------------
 
 
 @pytest.mark.asyncio
@@ -723,9 +711,6 @@ async def test_accepting_a_shadow_candidate_survives_a_required_field(
     )
     assert refused.status_code == 422, refused.text
     assert refused.json()["detail"] == "Required field 'screen' is missing"
-
-
-# --- tripl-0zpq.254 -----------------------------------------------------------
 
 
 @pytest.mark.asyncio
@@ -783,9 +768,6 @@ async def test_a_scan_config_orphaned_by_a_deleted_event_type_names_nothing(
     )
     assert governed.status_code == 422, governed.text
     assert "fill field values for: action, category" in governed.json()["detail"]
-
-
-# --- tripl-0zpq.126 -----------------------------------------------------------
 
 
 @pytest.mark.asyncio
@@ -964,9 +946,6 @@ async def test_a_tag_stored_before_normalisation_is_still_reachable_from_the_fac
     assert narrow.json()["items"] == []
 
 
-# --- tripl-0zpq.127 -----------------------------------------------------------
-
-
 @pytest.mark.asyncio
 async def test_a_bulk_paste_keeps_the_owner_and_reviewed_flag_it_was_given(
     client: AsyncClient,
@@ -1023,9 +1002,6 @@ async def test_a_bulk_paste_keeps_the_owner_and_reviewed_flag_it_was_given(
     assert single.status_code == 201, single.text
     assert single.json()["owner_id"] == owner_id
     assert single.json()["reviewed"] is True
-
-
-# --- tripl-0zpq.190 -----------------------------------------------------------
 
 
 @pytest.mark.asyncio
@@ -1091,9 +1067,6 @@ async def test_patching_metric_breakdown_columns_to_null_clears_them_instead_of_
     )
     assert untouched.status_code == 200, untouched.text
     assert untouched.json()["metric_breakdown_columns"] == ["platform"]
-
-
-# --- tripl-0zpq.255 -----------------------------------------------------------
 
 
 @pytest.mark.asyncio
@@ -1192,9 +1165,6 @@ async def test_a_meta_value_too_long_for_its_unique_index_is_refused_not_500(
     assert "2000 bytes" in over.text
     # It names the field, which a payload-shaped refusal could not.
     assert "jira" in over.text
-
-
-# --- tripl-0zpq.129 -----------------------------------------------------------
 
 
 @contextlib.contextmanager
@@ -1319,9 +1289,6 @@ async def test_template_warnings_read_three_columns_not_the_variable_graph(
     # Cheaper and still right: the name, the source name and the binding are all
     # still known tokens, so only the one nothing answers to is reported.
     assert warnings == ["Unknown variable token: ${mystery}"]
-
-
-# --- tripl-0zpq.276 -----------------------------------------------------------
 
 
 @pytest.mark.asyncio

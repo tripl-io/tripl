@@ -80,18 +80,18 @@ _SEMANTIC_MIN_COSINE = 0.35
 # near-perfect trigram on the same short field. The SCORE has never been only
 # those two terms: ``lexical_score * 4.0`` is in the same sum, so a document with
 # a strong lexical leg and a mid ladder tier could already cross 7.0 without
-# being what was typed (measured on the relevance corpus, BEFORE tripl-9t2s:
+# being what was typed (measured on the relevance corpus, BEFORE the coverage bonus:
 # ``screen_spot`` served at 1.0 for ``q='spot'`` on 7.64, and
 # ``${property.spot_id}`` at 7.61).
 #
-# tripl-9t2s widens that: COVERAGE_BONUS adds up to 1.0 to every hit that
+# The coverage bonus widens that: COVERAGE_BONUS adds up to 1.0 to every hit that
 # answered the whole query, so ``${property.card_target}`` for
 # ``q='screen_settings'`` moves 6.2985 -> 7.2985 and crosses the line too. The
-# gap is real and it is tripl-txcz's bound eroding — but it is a CONFIDENCE
+# gap is real and it is the confidence bound eroding — but it is a CONFIDENCE
 # defect with a confidence-shaped fix (raise this constant, or make confidence
 # read the ladder tier rather than the total), not a reason to underpay coverage
-# in the RANKING. TRACKED AS tripl-d5u8; it lived here as prose for four PRs
-# without being filed, which is why nobody could schedule it.
+# in the RANKING. It is tracked as a follow-up; it lived here as prose for four
+# PRs without being filed, which is why nobody could schedule it.
 _FULL_CONFIDENCE_SCORE = 7.0
 
 # How much a semantic hit's cosine similarity is worth to the RANKING, i.e. how
@@ -118,7 +118,7 @@ _IDENTITY_BOOST_MIN = 4.0
 # ----------------------------------------------------
 # ``_FULL_CONFIDENCE_SCORE`` was derived as 5.0 exact-title + 2.0 perfect
 # trigram, but it is divided into a sum that also carries ``lexical_score * 4.0``
-# and, since tripl-9t2s, ``COVERAGE_BONUS``. Neither was in the derivation, so
+# and, since the coverage bonus, ``COVERAGE_BONUS``. Neither was in the derivation, so
 # documents that are not the thing named reached 1.0 anyway — measured on the
 # relevance corpus: ``screen_spot`` at 7.64 for ``q='spot'``,
 # ``${property.spot_id}`` at 7.61, and ``${property.card_target}`` crossing at
@@ -135,7 +135,7 @@ _IDENTITY_BOOST_MIN = 4.0
 # ``title == query`` (8.0) and ``keywords == query`` (7.2) sit at or above the
 # certainty line — so this ceiling does not change SQLite at all. It ports the
 # guarantee to Postgres, which is the "make the two dialects agree" half of
-# tripl-txcz that was never actually true on the dialect users search on.
+# confidence-bound work that was never actually true on the dialect users search on.
 #
 # RANKING IS UNTOUCHED. This is applied in :func:`finalize_results` AFTER the
 # sort, to the number painted on a result and never to its position.
@@ -414,7 +414,7 @@ TEXT_QUERY_EXPRESSION = """
 #:   the russian-phrase case at ``max_top_confidence=0.5``, which starts biting
 #:   near 2.7. 1.0 leaves that bound with room (1.8294 / 7.0 = 0.261).
 #: * IT IS A CONSTANT, and must stay one. Anything that grew with term frequency,
-#:   cover count or document length would re-open tripl-gbxj through a second
+#:   cover count or document length would re-open the term-frequency inflation bug through a second
 #:   door — the whole point of normalization flag 32 is that no text-search leg
 #:   scales with how often a document repeats itself.
 #: * IT IS NOT A LADDER TIER. ``CASE`` is first-match-wins and encodes WHERE the
@@ -510,7 +510,7 @@ async def postgres_lexical_search(
     set of fixed constants (5.0 for "the title IS the query" down to 1.5), the
     trigram leg is a similarity in [0, 1] weighted x2.0, and the lexical leg is
     a ``ts_rank_cd`` weighted x4.0. That only holds if ``ts_rank_cd`` is
-    bounded, and until tripl-gbxj it was called with NO normalization flag —
+    bounded, and it was once called with NO normalization flag —
     i.e. as a raw sum over occurrences, which grows without limit as a document
     repeats a term.
 
@@ -541,13 +541,13 @@ async def postgres_lexical_search(
     it stops it from discriminating at all, and every ranking decision would
     fall to the ladder and the trigram leg.
 
-    Normalization is only half of tripl-gbxj: harvested values are no longer
+    Normalization is only half of that fix: harvested values are no longer
     joined into a variable's ``keywords`` either (see
     ``_search_documents._variable_document``), which removes the duplication
     that made those documents long in the first place. The measured 73.69 vs
     4.55 gap was the two compounding, so both landed together.
 
-    ``token_boundary_regex`` below carries the query-time half of tripl-h9x2: a
+    ``token_boundary_regex`` below carries the query-time half of the spaced-alias fix: a
     spaced query is folded into its underscored form, so the 3.5/3.0
     word-boundary tiers are reachable for ``q='screen spot'`` instead of being
     dead for every multi-word query.
@@ -577,8 +577,8 @@ async def postgres_lexical_search(
     * **title and keywords only, never body.** ``keywords`` carries an entity's
       IDENTITY — its name, that name's spaced alias, its type, its tags, the
       values a person authored into its spec, and its bindings. It carries no
-      OBSERVED VALUE, for any entity type: tripl-gbxj took them out of a
-      variable's keywords and tripl-0qld took them out of an event's, which is
+      OBSERVED VALUE, for any entity type: they were taken out of a
+      variable's keywords first and out of an event's later, which is
       the same rule stated twice because it was implemented once. ``body`` is
       where the harvested text lives, and paying a stemmed body match would hand
       the noise documents the tier a second time.
@@ -630,7 +630,7 @@ async def postgres_lexical_search(
     A document holds roughly twice the lexeme occurrences, so a raw
     ``ts_rank_cd`` roughly doubles — but not uniformly.
 
-    * **The tripl-gbxj guarantees hold by construction.** Flag 32 bounds the
+    * **The term-frequency guarantees hold by construction.** Flag 32 bounds the
       lexical leg at 4.0 however large the raw rank grows, so the cases won by a
       5.0 exact-title boost cannot be caught by a leg that cannot reach 5.0. For
       ``q='spot'`` and ``q='screen_spot'`` the two legs are the same lexemes
@@ -705,7 +705,7 @@ async def postgres_lexical_search(
       was MULTIPLICATIVE, so an event whose type matched banked ``1.75 x`` the
       bonus while a sibling field or variable banked ``1.0 x`` — measured on the
       harness, ``q='улов'`` moved ``catch_report_created`` by +1.75 and ``Тип
-      улова`` by +1.00. That boost was deleted (tripl-0tt4 item 4, see
+      улова`` by +1.00. That boost was deleted (see
       :func:`finalize_results`), and it was the only multiplicative step between
       this SQL and the final order. Every term downstream of here is additive,
       so a constant added to two documents cannot reorder them against each
@@ -716,7 +716,7 @@ async def postgres_lexical_search(
       that did not before (measured: ``${property.card_target}`` for
       ``q='screen_settings'``, 6.2985 -> 7.2985). That erosion is pre-existing
       rather than introduced — ``screen_spot`` was already served at 1.0 for
-      ``q='spot'`` on 7.64 — but it is wider now, and tripl-txcz's bound is worth
+      ``q='spot'`` on 7.64 — but it is wider now, and the confidence bound is worth
       re-tightening on its own terms rather than by shrinking this constant.
       A query that matches NOTHING is unaffected by construction: the term is
       gated on the same ``@@`` that is in the WHERE, and for ``q='asdkjhasd'`` no
@@ -1016,13 +1016,13 @@ def fallback_score(
     * **The identity tiers.** ``title == query`` and ``keywords == query`` are
       the only tiers that reach ``_FULL_CONFIDENCE_SCORE``, matching Postgres's
       5.0/4.0 exact boosts. See below for what that cost.
-    * **Half of tripl-gbxj.** Harvested values are no longer joined into a
+    * **Half of the term-frequency fix.** Harvested values are no longer joined into a
       variable's ``keywords`` (``_search_documents._variable_document``), which
       is an INDEXING change and therefore applies to every dialect. Its other
       half — bounding ``ts_rank_cd`` with normalization flag 32 — has no analogue
       here and needs none: this scorer returns one tier value per document and
       has no term-frequency term to run away with in the first place.
-    * **tripl-h9x2, both halves.** The spaced alias of every identifier is in
+    * **The spaced-alias fix, both halves.** The spaced alias of every identifier is in
       the index (again a document-building change), and the word-boundary tiers
       below additionally fold the QUERY into its identifier form through the
       same :func:`identifier_form` the Postgres regex tiers use. So
@@ -1031,14 +1031,14 @@ def fallback_score(
 
     WHAT IS POSTGRESQL-ONLY — NOT APPROXIMATED, NOT TESTED HERE
     -----------------------------------------------------------
-    * **All of tripl-nh5s: stemming, and the 3.25 boost tier that depends on
+    * **All of the stemming work: stemming, and the 3.25 boost tier that depends on
       it.** Both are ``tripl_search`` — a text-search configuration and a
       ``to_tsvector`` comparison. Python's standard library has no stemmer and
       this project has no dependency that provides one, so ``q='purchases'``
       does NOT reach ``purchase_completed`` on SQLite, and ``q='уловы'`` does not
       reach ``улов``. Every stemming case in the relevance table
       (``tests/relevance/cases.py``: purchase-plural, ulov-plural, spots-plural,
-      russian-phrase) is a Postgres-only guarantee. tripl-uojz — indexing and
+      russian-phrase) is a Postgres-only guarantee. Indexing and
       querying the SURFACE form beside the stem, so an over-stemmed nominative
       (``улов`` -> ``ул``) is still reachable from its own inflections — is the
       same story for the same reason: no stemmer here means no over-stemmer
@@ -1081,8 +1081,8 @@ def fallback_score(
     preserved. Ranking on this dialect is provably unchanged — all comparisons
     are between scaled values, and nothing downstream reorders them: the one
     step that could have, the multiplicative ``_apply_event_type_boost``, was
-    deleted in tripl-0tt4 item 4. Only the number painted on a result moves,
-    which is the whole of tripl-txcz.
+    deleted. Only the number painted on a result moves, which is the whole
+    of the confidence-bound change.
     """
     if not query_norm:
         return 0.0
@@ -1119,7 +1119,7 @@ def fallback_score(
 def _matches_token(source: str | None, query_norm: str, identifier_query: str | None) -> bool:
     """Whether ``source`` carries the query as a whole word, spaced or underscored.
 
-    The SQLite half of tripl-h9x2's query-time fold: ``q='screen spot'`` has to
+    The SQLite half of the spaced-alias query-time fold: ``q='screen spot'`` has to
     reach a document whose text spells ``screen_spot``, the same way
     ``token_boundary_regex`` lets it on Postgres.
     """
@@ -1131,8 +1131,8 @@ def _matches_token(source: str | None, query_norm: str, identifier_query: str | 
 def token_boundary_regex(query: str) -> str | None:
     """PostgreSQL word-boundary pattern for the query, or ``None`` if it is not a token.
 
-    QUERY-TIME HALF OF tripl-h9x2
-    -----------------------------
+    QUERY-TIME HALF OF THE SPACED-ALIAS FIX
+    ---------------------------------------
     Entities in this product are named in snake_case (``screen_spot``,
     ``vip_segment``, ``catch_report_created``) but people type them with spaces.
     This function used to require ``[a-z0-9_]+`` over the RAW query, so it
@@ -1175,7 +1175,7 @@ def identifier_form(query: str) -> str | None:
     fallback scorer can apply the identical fold to its own word-boundary tiers
     rather than carrying a second, subtly different idea of what an identifier
     is — see :func:`fallback_score`. Both dialects therefore agree on which
-    queries are identifier-shaped, which is the part of tripl-h9x2 that does not
+    queries are identifier-shaped, which is the part of the spaced-alias fix that does not
     need PostgreSQL to hold.
     """
     normalized_query = _normalize(query)
@@ -1258,7 +1258,7 @@ def merge_results(
 def finalize_results(items: list[SearchResult], limit: int) -> list[SearchResult]:
     """Rank, trim, and stamp confidence on a merged candidate set.
 
-    WHAT USED TO HAPPEN FIRST HERE, AND WHY IT NO LONGER DOES (tripl-0tt4 item 4)
+    WHAT USED TO HAPPEN FIRST HERE, AND WHY IT NO LONGER DOES
     ----------------------------------------------------------------------------
     An ``_apply_event_type_boost`` pass ran ahead of the sort: every event whose
     ``subtitle`` named an ``event_type`` document present in the candidate set was

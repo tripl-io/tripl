@@ -66,8 +66,8 @@ import { useCanWriteProject } from '@/lib/permissions'
 const MAX_VISIBLE_CLUSTERS = 6
 
 // The "*" a Δ cell prints needs a legend somewhere. It is the only mark a reader
-// sees when collection lags and a 24h window is short of its hours (tripl-oooj:
-// the demo's series ends ~2h before now, so the recent window covers 22 of 24),
+// sees when collection lags and a 24h window is short of its hours (the
+// demo's series ends ~2h before now, so the recent window covers 22 of 24),
 // and the per-cell tooltip is only reachable once you already suspect something.
 const DELTA_HEAD_HELP =
   'Δ · 24h — change in volume versus the previous 24-hour window. A dotted underline marks a window the collected series does not fully cover; hover the value for what it does cover.'

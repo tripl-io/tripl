@@ -531,7 +531,7 @@ describe('MetricsChart', () => {
     expect(plural.textContent).not.toMatch(/\d{4}-\d{2}-\d{2}T/)
   })
 
-  // Regression for tripl-yfsj.2: the events-metrics `events_total` response is
+  // Regression: the events-metrics `events_total` response is
   // count-only (no expected_count/stddev/band/forecast). MetricsChart must treat
   // it as a real, non-empty series (not the "No metrics data available" state) so
   // the volume series is charted — even when one bucket is a huge outlier that

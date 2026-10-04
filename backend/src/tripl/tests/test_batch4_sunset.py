@@ -46,7 +46,7 @@ against:
 The final section belongs to a different issue in the same lane
 (crosslane-35-33) and is here because this lane owns one test file. It covers
 what a RESUMED Telegram digest says about itself once the remainder needs more
-than one message — the half of tripl-0zpq.35 that lives in
+than one message — the half of that fix that lives in
 ``alerts_messages.split_telegram_messages`` rather than in the send task, and
 which the send-side test deliberately stopped short of (test_batch4_send.py's
 ``assert len(posts) == 1`` names it as out of its scope):
@@ -58,7 +58,7 @@ which the send-side test deliberately stopped short of (test_batch4_send.py's
 * the send task hands the splitter both facts, and the part count it reads
   them from advances once per ACCEPTED message.
 
-tripl-0zpq.33's other half — the ``_assert_egress_allowed`` docstring — is a
+The other half — the ``_assert_egress_allowed`` docstring — is a
 documentation correction with no behaviour to pin, and the behaviour it now
 describes is already covered by test_batch4_messages.py
 (``test_the_digest_send_helper_refuses_a_demo_project_on_its_own`` and
@@ -254,7 +254,7 @@ def _branch_copy(session: Session, project: Project, branch: PlanBranch, source:
 def _capture_sends(monkeypatch: pytest.MonkeyPatch) -> list[str]:
     """Record the message at the CHANNEL, one level below the egress guard.
 
-    ``alerts_digest._send_digest_to_destination`` is where tripl-0zpq.33's
+    ``alerts_digest._send_digest_to_destination`` is where the
     ``_assert_egress_allowed`` backstop lives, so stubbing that wrapper — as the
     older sunset tests in test_alerting.py do — would take the guard out of the
     path. Patching the channel function it delegates to leaves every check in
@@ -627,7 +627,7 @@ def _digest_delivery(count: int):
 def _render_remainder(delivery, destination, rule, project, remainder, *, summary_items):
     """The unsplit render ``send_alert_delivery`` performs before it splits.
 
-    Passing ``summary_items`` here is tripl-0zpq.35's landed half; this file is
+    Passing ``summary_items`` here is the landed half of that fix; this file is
     about what happens to that answer when the result then has to be split.
     """
     return am._render_delivery_message(
