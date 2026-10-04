@@ -1,7 +1,7 @@
 """The code exchange and the id_token checks of an OIDC sign-in (F20 SSO).
 
 Blocking (network): call through ``asyncio.to_thread``. Every failure is an
-:class:`~tripl.services.sso_http.IdpError` whose ``code`` is what the browser is
+:class:`~tripl.services.oidc.idp_http.IdpError` whose ``code`` is what the browser is
 told; the provider's own text is never echoed.
 """
 
@@ -16,8 +16,8 @@ from urllib.parse import quote
 
 import jwt
 
-from tripl.services import sso_http
-from tripl.services.sso_http import Discovery, IdpError
+from tripl.services.oidc import idp_http
+from tripl.services.oidc.idp_http import Discovery, IdpError
 
 logger = logging.getLogger(__name__)
 
@@ -53,14 +53,14 @@ def exchange_code(
         "code_verifier": code_verifier,
     }
     headers: dict[str, str] = {}
-    if sso_http.token_auth_method(discovery) == "client_secret_basic":
+    if idp_http.token_auth_method(discovery) == "client_secret_basic":
         # RFC 6749 2.3.1: both halves form-urlencoded before base64.
         pair = f"{quote(client_id, safe='')}:{quote(client_secret, safe='')}"
         headers["Authorization"] = "Basic " + base64.b64encode(pair.encode()).decode("ascii")
     else:
         form["client_id"] = client_id
         form["client_secret"] = client_secret
-    body = sso_http.request(
+    body = idp_http.request(
         "POST", discovery.token_endpoint, field="Token endpoint", headers=headers, form=form
     )
     id_token = body.get("id_token") if isinstance(body, dict) else None

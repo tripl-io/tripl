@@ -34,15 +34,13 @@ from tripl.models.domain_enums import OrganizationStatus
 from tripl.models.org_sso import PROTOCOL_SAML, OrgSsoConfig, SamlAssertionId
 from tripl.models.organization import Organization
 from tripl.services import org_sso_service, saml_response, saml_xml
+from tripl.services.oidc.flow import ERR_STATE, ERR_UNAVAILABLE, SignInFlowError
 from tripl.services.saml_response import SamlError
 from tripl.services.sso_login_service import (
     ERR_SAML,
     ERR_SAML_REPLAY,
-    ERR_STATE,
-    ERR_UNAVAILABLE,
     NeedsLink,
     SignedIn,
-    SsoFlowError,
     VerifiedIdentity,
     complete_sign_in,
     consume_state,
@@ -94,7 +92,7 @@ async def _remember_assertion(
     )
     if seen is not None:
         await session.commit()
-        raise SsoFlowError(ERR_SAML_REPLAY)
+        raise SignInFlowError(ERR_SAML_REPLAY)
     session.add(
         SamlAssertionId(
             organization_id=org_id,
@@ -107,7 +105,7 @@ async def _remember_assertion(
     except IntegrityError:
         # The same assertion, posted twice at once.
         await session.rollback()
-        raise SsoFlowError(ERR_SAML_REPLAY) from None
+        raise SignInFlowError(ERR_SAML_REPLAY) from None
 
 
 async def acs(
@@ -122,23 +120,23 @@ async def acs(
     org = await enabled_org(session, org_slug)
     config = org.config
     if config.protocol != PROTOCOL_SAML:
-        raise SsoFlowError(ERR_UNAVAILABLE)
+        raise SignInFlowError(ERR_UNAVAILABLE)
     if not relay_state:
-        raise SsoFlowError(ERR_STATE)
+        raise SignInFlowError(ERR_STATE)
     state = await consume_state(session, org, relay_state)
     if not state.request_id:
         # An OIDC sign-in's state.
-        raise SsoFlowError(ERR_STATE)
+        raise SignInFlowError(ERR_STATE)
     if not saml_response_b64:
-        raise SsoFlowError(ERR_SAML)
+        raise SignInFlowError(ERR_SAML)
     idp_entity_id = config.saml_idp_entity_id or ""
     try:
         certs = saml_xml.load_certs(config.saml_idp_certs or "")
     except saml_xml.SamlXmlError:
         logger.warning("SAML ACS for %s: the configured certificates do not load", org.slug)
-        raise SsoFlowError(ERR_UNAVAILABLE) from None
+        raise SignInFlowError(ERR_UNAVAILABLE) from None
     if not idp_entity_id:
-        raise SsoFlowError(ERR_UNAVAILABLE)
+        raise SignInFlowError(ERR_UNAVAILABLE)
     try:
         identity = await asyncio.to_thread(
             saml_response.verify_response,
@@ -153,7 +151,7 @@ async def acs(
     except SamlError as exc:
         # The reason stays in the log; the browser gets the code only.
         logger.warning("SAML response for %s refused: %s", org.slug, exc)
-        raise SsoFlowError(exc.code) from None
+        raise SignInFlowError(exc.code) from None
     await _remember_assertion(session, org.id, identity)
     return await complete_sign_in(
         session,

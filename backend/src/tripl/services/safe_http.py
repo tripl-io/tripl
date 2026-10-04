@@ -24,7 +24,7 @@ Self-hosted instances have no private-host rule (an operator may point at an
 internal host on purpose) and keep their proxy settings (urllib).
 
 Blocking: call through ``asyncio.to_thread`` from async code. Callers keep
-their own seam over :func:`send` for tests (``sso_http._send``,
+their own seam over :func:`send` for tests (``idp_http._send``,
 ``audit_webhook_delivery._send``).
 """
 

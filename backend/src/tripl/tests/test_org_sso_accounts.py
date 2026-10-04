@@ -31,7 +31,8 @@ from tripl.models.api_key import ApiKey
 from tripl.models.org_sso import SsoMembershipBlock
 from tripl.models.organization import DEFAULT_ORG_SLUG
 from tripl.models.user import User
-from tripl.services import org_sso_service, sso_http
+from tripl.services import org_sso_service
+from tripl.services.oidc import idp_http
 from tripl.tests._fake_idp import FakeIdp
 from tripl.tests.conftest import TestSessionLocal
 from tripl.tests.test_org_sso import (  # noqa: F401 - fixtures
@@ -231,10 +232,10 @@ def test_a_hosted_request_connects_to_the_vetted_address(
         connected.append(address)
         raise OSError("stop here")
 
-    monkeypatch.setattr(sso_http.socket, "getaddrinfo", getaddrinfo)
-    monkeypatch.setattr(sso_http.socket, "create_connection", create_connection)
+    monkeypatch.setattr(idp_http.socket, "getaddrinfo", getaddrinfo)
+    monkeypatch.setattr(idp_http.socket, "create_connection", create_connection)
     with pytest.raises(OSError):
-        sso_http._send("GET", "https://idp.example.com/.well-known/x", {}, None)
+        idp_http._send("GET", "https://idp.example.com/.well-known/x", {}, None)
     assert lookups == ["idp.example.com"]
     assert connected == [("93.184.215.14", 443)]
 
@@ -244,14 +245,14 @@ def test_a_hosted_request_to_a_private_address_never_connects(
 ) -> None:
     monkeypatch.setattr(settings, "deployment_mode", "hosted")
     monkeypatch.setattr(
-        sso_http.socket,
+        idp_http.socket,
         "getaddrinfo",
         lambda *_a, **_k: [(socket.AF_INET, socket.SOCK_STREAM, 6, "", ("10.0.0.5", 443))],
     )
     connected: list[Any] = []
-    monkeypatch.setattr(sso_http.socket, "create_connection", lambda *a, **_k: connected.append(a))
-    with pytest.raises(sso_http.IdpError) as refused:
-        sso_http._send("GET", "https://idp.example.com/jwks", {}, None)
+    monkeypatch.setattr(idp_http.socket, "create_connection", lambda *a, **_k: connected.append(a))
+    with pytest.raises(idp_http.IdpError) as refused:
+        idp_http._send("GET", "https://idp.example.com/jwks", {}, None)
     assert refused.value.code == "idp_private_host"
     assert connected == []
 

@@ -33,7 +33,7 @@ import uuid
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 
 from tripl.api.deps import ManagedOrgDep, PathOrgOwnerUserDep, SessionDep
-from tripl.api.v1.auth_sso import app_base_url
+from tripl.api.v1._auth_redirects import app_base_url
 from tripl.middleware.rate_limit import enforce, sso_probe_rate_limiter
 from tripl.models.org_sso import PROTOCOL_SAML
 from tripl.schemas.org_sso import (
@@ -46,8 +46,9 @@ from tripl.schemas.org_sso import (
     SamlMetadataImport,
     SamlMetadataImportResult,
 )
-from tripl.services import audit_service, org_sso_service, saml_xml, sso_http
-from tripl.services.sso_http import IdpError
+from tripl.services import audit_service, org_sso_service, saml_xml
+from tripl.services.oidc import idp_http
+from tripl.services.oidc.idp_http import IdpError
 
 router = APIRouter(prefix="/orgs/{org}/sso", tags=["organizations"])
 
@@ -144,8 +145,8 @@ async def probe_sso(
             ok=False, error_code="idp_insecure_url", message=_TEST_MESSAGES["idp_insecure_url"]
         )
     try:
-        discovery = await asyncio.to_thread(sso_http.fetch_discovery, config.issuer)
-        method = sso_http.token_auth_method(discovery)
+        discovery = await asyncio.to_thread(idp_http.fetch_discovery, config.issuer)
+        method = idp_http.token_auth_method(discovery)
     except IdpError as exc:
         # A fixed text per code: no status line, host or other detail of what
         # answered, so the test is no probe of the network behind the issuer.

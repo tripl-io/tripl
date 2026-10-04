@@ -4,7 +4,7 @@ Not an organization's SSO (``sso_login_service``): one Google client for the
 whole instance, configured by the operator (``GOOGLE_CLIENT_ID`` /
 ``GOOGLE_CLIENT_SECRET``), behind one button on the sign-in page. The OIDC
 mechanics are the SSO flow's own — discovery, PKCE, code exchange, JWKS and
-id_token checks (``sso_http``, ``sso_tokens``) — so there is one implementation
+id_token checks (``idp_http``, ``id_tokens``) — so there is one implementation
 of the protocol, not two.
 
 The login state (``state``, ``nonce``, PKCE verifier, where to land, expiry)
@@ -17,7 +17,7 @@ Who signs in, given a Google-verified address:
 
 * an account with that address signs in. One nobody ever proved the address of
   (a hosted sign-up still unverified) is first taken over clean, exactly as an
-  organization's SSO does (``sso_login_service.reclaim_if_unclaimed``);
+  organization's SSO does (``oidc_accounts.reclaim_if_unclaimed``);
 * otherwise an account is created, where sign-up is open and the address is in
   ``GOOGLE_ALLOWED_DOMAINS`` (when that lists any). Self-hosted it joins the
   default organization as the password sign-up would; hosted it gets an
@@ -52,12 +52,11 @@ from tripl.services import (
     auth_service,
     email_verification_service,
     org_service,
-    sso_http,
-    sso_login_service,
-    sso_tokens,
 )
-from tripl.services.sso_http import IdpError
-from tripl.services.sso_login_service import (
+from tripl.services.oidc import accounts as oidc_accounts
+from tripl.services.oidc import flow as oidc_flow
+from tripl.services.oidc import id_tokens, idp_http
+from tripl.services.oidc.flow import (
     ERR_DENIED,
     ERR_DOMAIN,
     ERR_EMAIL_UNVERIFIED,
@@ -65,10 +64,11 @@ from tripl.services.sso_login_service import (
     ERR_IDP,
     ERR_STATE,
     ERR_UNAVAILABLE,
-    SsoFlowError,
+    SignInFlowError,
     safe_next,
 )
-from tripl.services.sso_tokens import IdTokenClaims
+from tripl.services.oidc.id_tokens import IdTokenClaims
+from tripl.services.oidc.idp_http import IdpError
 
 GOOGLE_ISSUER = "https://accounts.google.com"
 SCOPES = "openid email profile"
@@ -99,11 +99,11 @@ class StartedGoogleLogin:
 async def start(*, next_path: str | None, app_base_url: str) -> StartedGoogleLogin:
     """Build Google's sign-in URL and the cookie that carries the login state."""
     if not enabled():
-        raise SsoFlowError(ERR_UNAVAILABLE)
+        raise SignInFlowError(ERR_UNAVAILABLE)
     try:
-        discovery = await asyncio.to_thread(sso_http.fetch_discovery, GOOGLE_ISSUER)
+        discovery = await asyncio.to_thread(idp_http.fetch_discovery, GOOGLE_ISSUER)
     except IdpError:
-        raise SsoFlowError(ERR_IDP) from None
+        raise SignInFlowError(ERR_IDP) from None
     state = secrets.token_urlsafe(_TOKEN_BYTES)
     nonce = secrets.token_urlsafe(_TOKEN_BYTES)
     verifier = secrets.token_urlsafe(_VERIFIER_BYTES)
@@ -126,7 +126,7 @@ async def start(*, next_path: str | None, app_base_url: str) -> StartedGoogleLog
             "scope": SCOPES,
             "state": state,
             "nonce": nonce,
-            "code_challenge": sso_login_service._pkce_challenge(verifier),
+            "code_challenge": oidc_flow.pkce_challenge(verifier),
             "code_challenge_method": "S256",
             "prompt": "select_account",
         }
@@ -139,29 +139,29 @@ async def start(*, next_path: str | None, app_base_url: str) -> StartedGoogleLog
 def _login_state(cookie: str | None, state: str | None) -> dict[str, Any]:
     """The cookie's login state, when it is ours, unexpired and for this ``state``."""
     if not cookie or not state:
-        raise SsoFlowError(ERR_STATE)
+        raise SignInFlowError(ERR_STATE)
     try:
         payload = json.loads(decrypt_value(cookie))
     except InvalidToken, ValueError, TypeError:
-        raise SsoFlowError(ERR_STATE) from None
+        raise SignInFlowError(ERR_STATE) from None
     if not isinstance(payload, dict):
-        raise SsoFlowError(ERR_STATE)
+        raise SignInFlowError(ERR_STATE)
     try:
         expires = float(payload.get("exp", 0))
     except TypeError, ValueError:
-        raise SsoFlowError(ERR_STATE) from None
+        raise SignInFlowError(ERR_STATE) from None
     if expires < datetime.now(UTC).timestamp():
-        raise SsoFlowError(ERR_STATE)
+        raise SignInFlowError(ERR_STATE)
     expected = str(payload.get("state", ""))
     if not secrets.compare_digest(expected.encode(), state.encode()):
-        raise SsoFlowError(ERR_STATE)
+        raise SignInFlowError(ERR_STATE)
     return payload
 
 
 def _authenticate(*, code: str, redirect_to: str, verifier: str, nonce: str) -> IdTokenClaims:
     """Discovery, code exchange, JWKS and id_token checks. Blocking."""
-    discovery = sso_http.fetch_discovery(GOOGLE_ISSUER)
-    id_token = sso_tokens.exchange_code(
+    discovery = idp_http.fetch_discovery(GOOGLE_ISSUER)
+    id_token = id_tokens.exchange_code(
         discovery,
         client_id=settings.google_client_id,
         client_secret=settings.google_client_secret,
@@ -169,8 +169,8 @@ def _authenticate(*, code: str, redirect_to: str, verifier: str, nonce: str) -> 
         redirect_uri=redirect_to,
         code_verifier=verifier,
     )
-    keys = sso_http.fetch_jwks(discovery)
-    return sso_tokens.verify_id_token(
+    keys = idp_http.fetch_jwks(discovery)
+    return id_tokens.verify_id_token(
         id_token,
         keys=keys,
         issuer=GOOGLE_ISSUER,
@@ -197,12 +197,12 @@ async def callback(
 ) -> GoogleSignedIn:
     """Finish the sign-in; see the module docstring for who it signs in. Commits."""
     if not enabled():
-        raise SsoFlowError(ERR_UNAVAILABLE)
+        raise SignInFlowError(ERR_UNAVAILABLE)
     login = _login_state(cookie, state)
     if idp_error:
-        raise SsoFlowError(ERR_DENIED)
+        raise SignInFlowError(ERR_DENIED)
     if not code:
-        raise SsoFlowError(ERR_IDP)
+        raise SignInFlowError(ERR_IDP)
     try:
         claims = await asyncio.to_thread(
             _authenticate,
@@ -212,9 +212,9 @@ async def callback(
             nonce=str(login.get("nonce", "")),
         )
     except IdpError as exc:
-        raise SsoFlowError(sso_login_service._flow_code(exc)) from None
+        raise SignInFlowError(oidc_flow.flow_code(exc)) from None
     if not claims.email_verified:
-        raise SsoFlowError(ERR_EMAIL_UNVERIFIED)
+        raise SignInFlowError(ERR_EMAIL_UNVERIFIED)
     user = await sign_in_verified(session, email=claims.email, name=claims.name)
     token = await auth_service.create_session_for_user(session, user.id)
     await audit_service.record(
@@ -245,11 +245,11 @@ async def sign_in_verified(session: AsyncSession, *, email: str, name: str | Non
     user: User | None = await session.scalar(select(User).where(User.email == email))
     if user is not None:
         if not _domain_allowed(email) and not user.is_platform_admin:
-            raise SsoFlowError(ERR_DOMAIN)
-        await sso_login_service.reclaim_if_unclaimed(session, user)
+            raise SignInFlowError(ERR_DOMAIN)
+        await oidc_accounts.reclaim_if_unclaimed(session, user)
     else:
         if not _domain_allowed(email):
-            raise SsoFlowError(ERR_DOMAIN)
+            raise SignInFlowError(ERR_DOMAIN)
         user = await _create_account(session, email=email, name=name)
     # Google proved the address: the verification a hosted sign-up waits for,
     # and with it the PLATFORM_ADMIN_EMAILS grant that verification carries.
@@ -270,11 +270,11 @@ async def _create_account(session: AsyncSession, *, email: str, name: str | None
         await auth_service.acquire_owner_set_xact_lock(session, DEFAULT_ORG_ID)
     is_first_user = not hosted and not await auth_service.has_any_users(session)
     if not await auth_service.is_registration_allowed(session, is_first_user=is_first_user):
-        raise SsoFlowError(ERR_SIGNUP_CLOSED)
+        raise SignInFlowError(ERR_SIGNUP_CLOSED)
     user = User(
         email=email,
         name=(name or "").strip() or None,
-        password_hash=await sso_login_service._unusable_password_hash(),
+        password_hash=await oidc_flow.unusable_password_hash(),
         is_platform_admin=is_first_user,
     )
     session.add(user)
@@ -326,4 +326,4 @@ async def _create_sandbox_org(session: AsyncSession, user: User) -> None:
             commit=False,
         )
         return
-    raise SsoFlowError(ERR_FAILED)
+    raise SignInFlowError(ERR_FAILED)

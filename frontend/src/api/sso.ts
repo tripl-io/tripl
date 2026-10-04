@@ -1,4 +1,5 @@
 import { api } from './client'
+import { safeNextPath } from './signIn'
 import type { AuthUser } from '@/types'
 
 /**
@@ -193,29 +194,12 @@ function base(org: string): string {
 }
 
 /**
- * Only a same-origin relative path is a place to come back to: it starts with
- * one `/`, never `//` (another host) or `/\` (which some browsers read as one).
- * The server checks it again; this keeps the SPA from asking for a refusal.
- */
-export function safeNextPath(next: string | null | undefined): string | null {
-  if (!next || !next.startsWith('/') || next.startsWith('//') || next.startsWith('/\\')) return null
-  return next
-}
-
-/**
  * The address that begins a sign-in through `org`'s identity provider. A
  * browser navigation target, not a fetch: the server answers with a redirect
  * to the provider, which comes back to the callback with the session cookie.
  */
 export function ssoStartUrl(org: string, next?: string | null): string {
   const path = `/api/v1/auth/sso/${encodeURIComponent(org)}/start`
-  const safe = safeNextPath(next)
-  return safe && safe !== '/' ? `${path}?next=${encodeURIComponent(safe)}` : path
-}
-
-/** The address that begins Sign in with Google, the instance-wide client. */
-export function googleStartUrl(next?: string | null): string {
-  const path = '/api/v1/auth/google/start'
   const safe = safeNextPath(next)
   return safe && safe !== '/' ? `${path}?next=${encodeURIComponent(safe)}` : path
 }
@@ -247,68 +231,4 @@ export const ssoApi = {
    * removed from the organization.
    */
   confirmLink: (ticket: string) => api.post<SsoLinkResult>('/auth/sso/link', { ticket }),
-}
-
-/**
- * The codes the callback puts on `/auth?sso_error=`; never the provider's own
- * text. Exactly the constants of `backend/src/tripl/services/sso_login_service.py`,
- * plus Sign in with Google's `signup_closed` (`google_login_service.py`).
- */
-export type SsoErrorCode =
-  | 'signup_closed'
-  | 'sso_unavailable'
-  | 'invalid_state'
-  | 'idp_error'
-  | 'idp_denied'
-  | 'invalid_token'
-  | 'email_missing'
-  | 'email_not_verified'
-  | 'email_domain_not_allowed'
-  | 'membership_removed'
-  | 'rate_limited'
-  | 'sso_failed'
-  | 'saml_invalid'
-  | 'saml_signature_invalid'
-  | 'saml_replay'
-  | 'saml_unsolicited'
-  | 'encrypted_assertion_unsupported'
-
-const SSO_ERROR_MESSAGES: Record<SsoErrorCode, string> = {
-  signup_closed:
-    'No account here has that address, and this instance is not taking new sign-ups. Ask an administrator for an invitation.',
-  sso_unavailable: 'Single sign-on is not turned on for this organization.',
-  invalid_state:
-    'That single sign-on attempt expired or was already used. Start signing in again.',
-  idp_error:
-    'Your identity provider did not complete the sign-in. Try again, or ask your administrator to check the single sign-on setup.',
-  idp_denied: 'The sign-in was cancelled or refused at your identity provider.',
-  invalid_token:
-    'The sign-in answer from your identity provider could not be verified. Try again, or ask your administrator to check the single sign-on setup.',
-  email_missing:
-    'Your identity provider did not send an email address, so tripl cannot sign you in with it.',
-  email_not_verified:
-    'Your identity provider did not confirm your email address, so tripl cannot sign you in with it.',
-  email_domain_not_allowed:
-    "Your email address's domain is not one this organization signs in with single sign-on.",
-  membership_removed:
-    'You were removed from this organization. Ask an administrator to invite you again.',
-  rate_limited: 'Too many sign-in attempts. Wait a minute, then try again.',
-  sso_failed: 'Single sign-on could not finish. Try again.',
-  saml_invalid:
-    'The sign-in answer from your identity provider was not valid for this organization. Try again, or ask your administrator to check the single sign-on setup.',
-  saml_signature_invalid:
-    'The sign-in answer from your identity provider was not signed with a certificate this organization trusts. Ask your administrator to check the single sign-on setup.',
-  saml_replay: 'That sign-in answer was already used. Start signing in again.',
-  saml_unsolicited:
-    'Sign-ins started from your identity provider are not supported. Start from the tripl sign-in page with Sign in with SSO.',
-  encrypted_assertion_unsupported:
-    'Your identity provider encrypted its sign-in answer, which tripl does not support. Ask your administrator to turn assertion encryption off.',
-}
-
-/** Words for a `sso_error` code; an unknown code still says the sign-in failed. */
-export function ssoErrorMessage(code: string): string {
-  return (
-    SSO_ERROR_MESSAGES[code as SsoErrorCode] ??
-    'Single sign-on did not complete. Try again, or sign in another way.'
-  )
 }

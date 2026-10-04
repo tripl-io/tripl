@@ -3,7 +3,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useLocation, useNavigate, useSearchParams } from 'react-router-dom'
 import { ArrowRight, LockKeyhole, Radar, UserPlus } from 'lucide-react'
 import { authApi } from '@/api/auth'
-import { googleStartUrl, ssoErrorMessage } from '@/api/sso'
+import { googleStartUrl, signInErrorMessage } from '@/api/signIn'
 import { FieldError } from '@/components/forms/FieldError'
 import { REQUIRED_MESSAGE, focusFirstInvalid, invalidAria } from '@/components/forms/validation'
 import { Button } from '@/components/ui/button'
@@ -329,7 +329,7 @@ export default function AuthPage() {
                 role="alert"
                 className="rounded-lg border border-danger/25 bg-danger-soft px-3 py-2 text-body text-danger"
               >
-                {ssoErrorMessage(ssoError)}
+                {signInErrorMessage(ssoError)}
               </div>
             )}
 
