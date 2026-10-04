@@ -2,7 +2,7 @@
  * How the audit log reads its rows: the chip tone and past-tense sentence for an
  * action code, the target a row links to, and the day headers and time of day
  * the list groups under. Kept apart from AuditTab.tsx so the page component
- * stays one screen of layout (tripl-i9mt.11).
+ * stays one screen of layout.
  */
 import type { ChipTone } from '@/components/primitives/chip'
 import { formatDate } from '@/lib/datetime'
@@ -97,7 +97,7 @@ const VERB_PAST: Record<string, string> = {
   add_owner: 'Added an owner to',
   remove_owner: 'Removed an owner from',
   role_update: 'Changed the role of',
-  // Project membership (tripl-vefw): the subject is the project, the member
+  // Project membership: the subject is the project, the member
   // is the row's target.
   member_add: 'Added a member to',
   member_update: 'Changed a member’s role on',

@@ -252,7 +252,7 @@ def test_field_contracts_find_exactly_the_drift_that_is_there(ch: ClickHouseAdap
 def test_map_and_tuple_columns_do_not_break_a_scan(ch: ClickHouseAdapter) -> None:
     """A Map and a Tuple column in the source must not kill the whole scan.
 
-    Before tripl-0zpq.55 the adapter emitted ``JSONAllPaths`` for every column the
+    Previously the adapter emitted ``JSONAllPaths`` for every column the
     caller classified as nested, and ClickHouse answers that with
     ``Code: 43 ... requires argument with type JSON`` for a Map or a Tuple. One such
     column anywhere in the query took down every scan and every metrics collection

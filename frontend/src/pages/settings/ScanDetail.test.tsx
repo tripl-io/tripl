@@ -54,7 +54,7 @@ const scanConfig: ScanConfig = {
   updated_at: '2026-01-01T00:00:00Z',
 }
 
-/** GET /scans/activity with this scan's server-side streak (tripl-fj5g.11). */
+/** GET /scans/activity with this scan's server-side streak. */
 function activityFor(failingStreak = 0) {
   return {
     window_from: '2026-01-01T00:00:00Z',
@@ -426,8 +426,7 @@ describe('ScanDetail', () => {
 
   // A scan's output reaches the user as anomalies and Telegram alerts, and the
   // run report used to print those two counts as dead numbers — the owner got
-  // "Scan: Snowplow Events (iOS)" in Telegram and could reach nothing from it
-  // (tripl-3y7z.2).
+  // "Scan: Snowplow Events (iOS)" in Telegram and could reach nothing from it.
   async function renderExpandedRun(summary: Record<string, number>) {
     vi.spyOn(globalThis, 'fetch').mockImplementation(async input => {
       const url = String(input)
@@ -462,7 +461,7 @@ describe('ScanDetail', () => {
       </QueryClientProvider>,
     )
     fireEvent.click(await screen.findByRole('button', { name: 'Expand run details' }))
-    // The raw counters are demoted behind a disclosure (tripl-3y7z.3); the run
+    // The raw counters are demoted behind a disclosure; the run
     // report leads instead. These cases are about the cards, so open them.
     fireEvent.click(screen.getByRole('button', { name: 'Show raw counters' }))
   }
@@ -646,7 +645,7 @@ describe('ScanDetail', () => {
     await waitFor(() => expect(cancel).toHaveBeenCalledTimes(1))
   })
 
-  it('collapses a wall of consecutive failed runs behind an expander (tripl-7l83.4)', async () => {
+  it('collapses a wall of consecutive failed runs behind an expander', async () => {
     const failedJob = (id: string, startedAt: string) => ({
       id,
       scan_config_id: 'scan-1',
@@ -698,7 +697,7 @@ describe('ScanDetail', () => {
   })
 })
 
-describe('ScanDetail — streak past the loaded page (tripl-fj5g.11)', () => {
+describe('ScanDetail — streak past the loaded page', () => {
   it("banners the server's count, which agrees with the Scans list", async () => {
     const failedJob = (id: string, startedAt: string) => ({
       id,

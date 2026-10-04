@@ -145,7 +145,7 @@ export default function AuthPage() {
   // flight (or if it failed) we keep offering sign-up — the server is the real
   // gate and still answers 403; guessing "closed" here would hide the form on
   // an open instance every time the page loads.
-  // A public demo signs visitors up with Google only (tripl-sav5.2).
+  // A public demo signs visitors up with Google only.
   const registrationClosed =
     statusQuery.data?.registration_enabled === false || statusQuery.data?.public_demo === true
   const googleSignIn = statusQuery.data?.google_sign_in === true

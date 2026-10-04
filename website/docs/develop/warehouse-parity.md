@@ -422,7 +422,6 @@ coarser than ClickHouse's**. Everything users actually reach for is unaffected:
 nested-path *discovery*, *extraction*, and metrics over a chosen path all still see
 `user.address.city`. A conformance test pins both depths, so restoring the nested
 walk to the scan cannot silently reintroduce the regression.
-→ [tripl-64n8.11]
 
 **[7] PostgreSQL requires version 14 or newer, and `time` columns are still not
 rejected at configuration time.** Every bucket query goes through `date_bin()`,
@@ -435,8 +434,7 @@ scan as an opaque "function date_bin(…) does not exist". Three things to know:
   `Connection test failed:` prefix — `_friendly_test_error` surfaces
   `WarehouseCapabilityError` as authored, because tripl wrote it and it carries
   no host, port or driver text. It used to be generalized away, which sent
-  operators to the logs for the one sentence that named their problem
-  (tripl-64n8.12, closed by tripl-rcn8).
+  operators to the logs for the one sentence that named their problem.
 - `classify_time` marks `time`/`timetz` — and any array type — as unsupported, but
   only BigQuery is wired to *act* on that. A PostgreSQL (or ClickHouse) source
   configured with a time-of-day column still fails later, inside a worker, instead
@@ -472,8 +470,8 @@ returns no candidates for these columns, so the UI offers none and
 `json_passthrough_paths` stays empty while the field is still marked JSON. Map
 leaf access needs a subscript (`` `m`['k'] ``) rather than the dotted member
 access the adapter compiles today, which ClickHouse rejects on a Map — that is
-what [tripl-bc1u] covers. (BigQuery `STRUCT`/`RECORD`, which was in the same
-position, is now value-extractable — see caveat [5] for its one remaining
+a known gap (see the table at the end). (BigQuery `STRUCT`/`RECORD`, which was in
+the same position, is now value-extractable — see caveat [5] for its one remaining
 exclusion.)
 
 One narrow exception since F23.6: a property typed by hand as a breakdown, drift
@@ -594,7 +592,6 @@ and a stripped connection is then indistinguishable from a healthy one.
 `require` encrypts but does not check the certificate; if you need the link to
 be *authenticated* as well, choose `verify-full` and supply the CA. Do not read
 "we support TLS" as "your connection is verified".
-→ [tripl-64n8.17]
 
 ---
 
@@ -903,7 +900,6 @@ such a field. The conformance gate does not hide this: it asserts that null-only
 paths are the **only** paths ClickHouse is missing (any other missing path fails
 the build), and it will also fail if ClickHouse ever starts reporting them, at
 which point the exclusion comes out.
-→ [tripl-foo3]
 
 ### BigQuery groups arrays by their JSON text
 
@@ -1085,10 +1081,10 @@ For the record, so the matrix above is not read as static. Every item below was 
 
 ## What is still open
 
-| Gap | Issue |
-| --- | --- |
-| ClickHouse `Tuple`/`Map` columns are shape-enumerated but have **no nested value extractor**: no selectable path in the UI (caveat [8]) | [tripl-bc1u] |
-| A fact-metric breakdown group whose aggregate is all-`NULL` crashes the collector with a `TypeError` instead of being recorded as absent | [tripl-s2m7] |
+| Gap |
+| --- |
+| ClickHouse `Tuple`/`Map` columns are shape-enumerated but have **no nested value extractor**: no selectable path in the UI (caveat [8]) |
+| A fact-metric breakdown group whose aggregate is all-`NULL` crashes the collector with a `TypeError` instead of being recorded as absent |
 
 The rest of what this table used to list has landed: scan/replay, event
 generation, fact metrics and drift now execute against real warehouses in the
@@ -1098,14 +1094,6 @@ ClickHouse null-leaf divergence is pinned by the conformance gate as a
 [documented intentional difference](#clickhouse-cannot-discover-a-key-whose-only-value-is-json-null)
 rather than silently accepted. Details in
 [What was broken and is now fixed](#what-was-broken-and-is-now-fixed).
-
-[tripl-64n8.11]: https://github.com/vladenisov/tripl/issues?q=tripl-64n8.11
-[tripl-64n8.12]: https://github.com/vladenisov/tripl/issues?q=tripl-64n8.12
-[tripl-64n8.17]: https://github.com/vladenisov/tripl/issues?q=tripl-64n8.17
-[tripl-bc1u]: https://github.com/vladenisov/tripl/issues?q=tripl-bc1u
-[tripl-foo3]: https://github.com/vladenisov/tripl/issues?q=tripl-foo3
-[tripl-s2m7]: https://github.com/vladenisov/tripl/issues?q=tripl-s2m7
-[tripl-przk]: https://github.com/vladenisov/tripl/issues?q=tripl-przk
 
 ---
 

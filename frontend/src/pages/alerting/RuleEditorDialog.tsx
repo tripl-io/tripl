@@ -194,7 +194,7 @@ interface RuleEditorDialogProps {
  *
  * It used to live inside `DestinationCard`, which is why it never asked which
  * destination the rule routes to — the card it was rendered in answered that.
- * Now that rules are their own section (tripl-89ps) the question has to be on
+ * Now that rules are their own section the question has to be on
  * the form, and it is the first field after the name: a rule with no
  * destination delivers nowhere, and it is the one setting here with no sensible
  * default.
@@ -316,7 +316,7 @@ export function RuleEditorDialog({
 
   // `=== false` rather than `!`: an absent or still-in-flight readiness must
   // render NOTHING. The form would otherwise accuse a project on the strength
-  // of a value it does not have yet (tripl-wkwv.1).
+  // of a value it does not have yet.
   const distributionIsInert =
     ruleForm.include_distribution_drifts && scopeReadiness?.distribution_drift === false
   const valueDriftIsInert =
@@ -457,7 +457,7 @@ export function RuleEditorDialog({
                   `newTab` is set here and on no other caller: the draft around
                   these notices is component state that no exit preserves, so a
                   same-tab link would discard a half-built rule the moment the
-                  reader acted on what the notice told them (tripl-wkwv.1). */}
+                  reader acted on what the notice told them. */}
               {(distributionIsInert || valueDriftIsInert) && (
                 <div className="grid gap-2">
                   {distributionIsInert && (

@@ -49,8 +49,7 @@ import {
  * The chart granularity matching each backend collection interval
  * (backend/src/tripl/core/intervals.py), so the axis describes the buckets the
  * data actually has. A table rather than a chain of ternaries: that chain once
- * covered only `1d` and `1w`, so a `15m` or `6h` metric fell through to "Hours"
- * (tripl-64n8.15).
+ * covered only `1d` and `1w`, so a `15m` or `6h` metric fell through to "Hours".
  */
 const GRANULARITY_FOR_INTERVAL: Record<string, MetricsGranularity> = {
   '15m': '15min',
@@ -159,7 +158,7 @@ export function adaptMetricSeries(res: MetricSeriesResponse): EventMetricsRespon
     // left untouched.
     forecast: [],
     // The project sigma narrowed by this metric's false-positive override,
-    // the multiplier the detector scored it with (tripl-4cgl).
+    // the multiplier the detector scored it with.
     sigma_threshold: res.sigma_threshold,
   }
 }

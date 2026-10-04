@@ -67,7 +67,7 @@ def _recalculate_release_regressions(session: Session, config: ScanConfig) -> in
     release was newest *inside that window* — then persisted that verdict over
     the live one, which ``_get_active_release_regression_candidates`` reads as
     "current" one call later and turns into alerts attributed to a months-old
-    release (tripl-0zpq.18). Replay's own chunk deletes are window-bounded, so
+    release. Replay's own chunk deletes are window-bounded, so
     ``max(bucket)`` for the scan is still the true latest even mid-replay.
 
     A replay that backfills buckets INSIDE the live comparison window must still
@@ -206,7 +206,7 @@ def _recalculate_release_regressions(session: Session, config: ScanConfig) -> in
         )
 
     # Both partitions go into one call, which holds them to a single
-    # comparability verdict (tripl-phpy). Event types are a coarsening of
+    # comparability verdict. Event types are a coarsening of
     # events, so the two are estimates of the same population question on the
     # same release; judging each on its own let one persist composition-
     # normalized rows that the other had already ruled untrustworthy.
@@ -225,7 +225,7 @@ def _recalculate_release_regressions(session: Session, config: ScanConfig) -> in
             # yet comparable to the baseline's — so the composition-normalized
             # findings are withheld — or no comparison happened at all. Say so,
             # rather than writing nothing and leaving zero rows to be read as
-            # "no regressions" (tripl-9y4l). ``report.results`` still holds any
+            # "no regressions". ``report.results`` still holds any
             # silent-event rows, which no population difference explains — those
             # are persisted. The share logged is the release-level one both
             # scopes were judged on, so the two lines agree by construction.

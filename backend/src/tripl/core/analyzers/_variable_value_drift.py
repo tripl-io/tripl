@@ -200,7 +200,7 @@ def detect_variable_value_drifts(
         # then matches — freezing the first writer would strand the row on a
         # config that may never dispatch again. COALESCE rather than a plain
         # refresh so a caller without a scan config still cannot blank an
-        # attribution, and so a row an older build left NULL heals (tripl-l33u.1).
+        # attribution, and so a row an older build left NULL heals.
         assignments: dict[str, Any] = {
             column: getattr(stmt.excluded, column) for column in refresh_columns
         }

@@ -7,7 +7,7 @@ import {
   QueryClient,
   QueryClientProvider,
 } from '@tanstack/react-query'
-// Self-hosted UI fonts (tripl-fj5g.13): the weights the design uses, bundled
+// Self-hosted UI fonts: the weights the design uses, bundled
 // onto this origin instead of fetched from Google Fonts.
 import '@fontsource/inter/400.css'
 import '@fontsource/inter/500.css'
@@ -55,7 +55,7 @@ const queryClient = new QueryClient({
  * thing that sees a navigation BEFORE it commits, and a plain `BrowserRouter`
  * offers none. The alternative — park a spare history entry and read popstate —
  * was built and pulled, because a settings move the draft survives buries the
- * parked entry and every repair for that opened another hole (tripl-l33u.14).
+ * parked entry and every repair for that opened another hole.
  *
  * The route table stays in `App.tsx` exactly as it is. `RouterProvider` puts a
  * data-router context above the whole tree, and a descendant `<Routes>`

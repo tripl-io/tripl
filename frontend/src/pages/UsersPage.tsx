@@ -279,7 +279,7 @@ export function InviteMemberCard({ actorIsOrgOwner }: { actorIsOrgOwner: boolean
           >
             {/* The kit's Select, not a bare one. A native <select> keeps the
                 platform's own widget: Chrome paints it with the UA's light
-                background whatever `background` we hand it (tripl-h3bb). */}
+                background whatever `background` we hand it. */}
             <NativeSelect
               id="invite-role"
               value={role}
@@ -567,7 +567,7 @@ export default function UsersPage() {
           the list. This used to restate it in a second vocabulary — "workspace"
           there, "instance" here — so two subtitles stacked directly on top of
           each other and a reader had to work out whether they named two
-          different scopes (tripl-h3bb). All that is left is the one fact the
+          different scopes. All that is left is the one fact the
           header does not carry, and only for the people it applies to. */}
       {/* The one read-only notice, not a loose paragraph larger than the
           section description (#237 ST-17). */}
@@ -646,7 +646,7 @@ export default function UsersPage() {
                     sidebar use. The hue used to be hashed from the user id, so
                     the person reading this page saw their own initials in pink
                     here and in blue in the sidebar footer 30px away — one account
-                    rendered as two (tripl-h3bb). A hue carries no meaning worth
+                    rendered as two. A hue carries no meaning worth
                     that. */}
                 <UserAvatar name={u.name ?? u.email} size={28} />
                 <div className="min-w-0 flex-1">
@@ -665,7 +665,7 @@ export default function UsersPage() {
                 </div>
                 {/* The bare "2026-08-19" was a date with no question attached —
                     joined? invited? last seen? — in a table that has no column
-                    headers to answer it (tripl-h3bb). A date in the body font,
+                    headers to answer it. A date in the body font,
                     as a person reads it, not mono ISO (ST-40). */}
                 <span
                   className="hidden w-36 shrink-0 text-right text-caption sm:block text-fg-tertiary"

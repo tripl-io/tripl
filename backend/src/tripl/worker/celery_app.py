@@ -96,7 +96,7 @@ celery_app.conf.beat_schedule = {
     "sweep-orphan-photo-blobs": {
         "task": "tripl.worker.tasks.maintenance.sweep_orphan_photo_blobs",
         # Daily: an orphan costs only storage, and PHOTO_ORPHAN_SWEEP_GRACE_HOURS
-        # already holds every blob back for a day (tripl-0zpq.291).
+        # already holds every blob back for a day.
         "schedule": crontab(hour=5, minute=30),
     },
     "requeue-stranded-alert-deliveries": {

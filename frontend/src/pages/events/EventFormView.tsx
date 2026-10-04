@@ -166,7 +166,7 @@ export function EventForm({
     event ? Object.fromEntries(event.field_values.map(fv => [fv.field_definition_id, fv.value])) : {},
   )
   // A list per field, even where only one value is allowed: a field with
-  // `allow_multiple` carries several rows (tripl-h2sx.31), and one shape for
+  // `allow_multiple` carries several rows, and one shape for
   // both keeps every read site from having to ask which kind it is holding.
   const [metaValues, setMetaValues] = useState<Record<string, string[]>>(() => {
     if (!event) return {}
@@ -199,14 +199,14 @@ export function EventForm({
 
   // The owner used to be settable only from the list's bulk bar, after the
   // event existed; the form is where the analyst is when they know who it is
-  // for (tripl-kjhi.16). GET /users is open to any signed-in user.
+  // for. GET /users is open to any signed-in user.
   const usersQuery = useQuery({ queryKey: usersKey(), queryFn: () => usersApi.list() })
   const users = usersQuery.data ?? []
 
   // A branch named after a ticket pre-fills the meta field that links to it,
   // once, on a new event; a field the reader has touched — typed into, or
   // cleared before the branch list arrived — is never overwritten, which is
-  // why the check is for the KEY, not for a value (tripl-kjhi.14). Off main
+  // why the check is for the KEY, not for a value. Off main
   // there is no branch name to read.
   const branchesQuery = useQuery({
     queryKey: planBranchesKey(slug),
@@ -268,8 +268,8 @@ export function EventForm({
   // columns it can actually collect. Nothing else reads them here any more:
   // the naming rule used to be picked out of this list by event_type_id, which
   // on a plan branch never matched — a branch copy of the type has a new id no
-  // config names — so the form offered free text where a scan rule governed
-  // (tripl-kjhi.1). The server now resolves the rule onto the type itself.
+  // config names — so the form offered free text where a scan rule governed.
+  // The server now resolves the rule onto the type itself.
   const { data: scanConfigs } = useQuery({
     queryKey: scansKey(slug),
     queryFn: () => scansApi.list(slug),
@@ -278,7 +278,7 @@ export function EventForm({
   // creation must use the SAME template or the event never merges with its
   // scan-generated counterpart (identity keys on the formatted name). Read off
   // the type, which the form loads in branch context, so a branch copy carries
-  // its main counterpart's rule (tripl-kjhi.1).
+  // its main counterpart's rule.
   const nameFormat = isNew && selectedEt ? selectedEt.event_name_format ?? null : null
   const generatedName = useMemo(() => {
     if (!nameFormat) return null
@@ -292,7 +292,7 @@ export function EventForm({
   // The rows that decide the name, so the card below can say so. Without this
   // the reader had to map "Fill field values for: category, action, label" —
   // raw warehouse columns — onto rows labelled "Category", "Action", "Label",
-  // and a dotted key named no row at all (tripl-u2h9.4).
+  // and a dotted key named no row at all.
   const namingColumns = useMemo(() => nameFormatBaseColumns(nameFormat), [nameFormat])
   const namingFieldIds = useMemo(
     () => sortedFields.filter(field => namingColumns.has(field.name)).map(field => field.id),
@@ -309,7 +309,7 @@ export function EventForm({
   // described all along — "select scalar event-type fields or add another
   // warehouse column manually; JSON fields are excluded"
   // (website/docs/use/feature-reference.md). The redesign replaced that with
-  // four literals, of which no production scan queries three (tripl-u2h9.6).
+  // four literals, of which no production scan queries three.
   //
   //  1. the selected type's scalar fields — these ARE warehouse columns, and the
   //     backend's own support test measures a configured column against the
@@ -320,7 +320,7 @@ export function EventForm({
   //     excluded here although it is collected the same way: it already has its
   //     own series (Breakdowns → App version), so an event listing it as a
   //     breakdown made the collector write the same row twice, and the API now
-  //     refuses it (tripl-0zpq.15);
+  //     refuses it;
   //  3. anything already stored on this event, so editing never silently drops a
   //     setting the user did not touch — including a version column stored back
   //     when this list offered it, which stays visible so it can be removed.
@@ -354,7 +354,7 @@ export function EventForm({
 
   // The server refuses malformed JSON with a 422 (`_normalize_json_template_value`,
   // event_service.py); ask the same question here so Save is refused with the row
-  // NAMED instead of round-tripping to find out (tripl-h2sx.10).
+  // NAMED instead of round-tripping to find out.
   //
   // It runs the validator over the value that will be POSTed rather than reading
   // JsonEditor's own error state: the editor validates what the user TYPES, so an
@@ -644,7 +644,7 @@ export function EventForm({
           // Submit what the control SHOWS. A field that held several values and
           // then lost `allow_multiple` renders as a single input on `values[0]`;
           // sending the rest would 422 the save and strand the event on a
-          // setting the author may not own (tripl-h2sx.31).
+          // setting the author may not own.
           const allowMultiple = metaFields.find(mf => mf.id === k)?.allow_multiple ?? false
           const visible = allowMultiple ? values : values.slice(0, 1)
           return visible
@@ -729,7 +729,7 @@ export function EventForm({
       // form does not close out from under a post that is still in flight, and
       // able to veto the close: if the caller has already landed the author
       // somewhere else because that post failed, stepping back through history
-      // on top of it would undo the recovery (tripl-htfn.1).
+      // on top of it would undo the recovery.
       const closeAfterCreate = event ? true : ((await onCreated?.(_data)) ?? true)
       if (closeAfterSave && closeAfterCreate) {
         onClose()
@@ -743,7 +743,7 @@ export function EventForm({
       // in place for the next one"). What was missing is any sign that a save
       // happened — so pressing it again looked like the next step, and on a
       // rule-governed type the retained values regenerate the same name, which
-      // is the scan identity (tripl-u2h9.2). Say what was created, and put the
+      // is the scan identity. Say what was created, and put the
       // cursor on the field the next event most likely differs in.
       setJustCreated(_data.name)
       const form = formRef.current
@@ -893,7 +893,7 @@ export function EventForm({
                 // An empty project offered "Select type…" and no way forward: the
                 // field card stayed hidden, Create stayed blocked, and nothing said
                 // a type has to exist first. This is the first thing a new project
-                // does (tripl-u2h9.3).
+                // does.
                 <p className="text-body-sm text-fg-secondary">
                   This project has no event types yet, and an event belongs to one.{' '}
                   <Link
@@ -931,7 +931,7 @@ export function EventForm({
                   <>
                     <span className="mono">generated by scan rule: {nameFormat}</span>
                     {/* The rule owns this box, so the analyst's wording has to go
-                        somewhere the scan never reads (tripl-kjhi.3). */}
+                        somewhere the scan never reads. */}
                     <span className="mt-[2px] block">Your own wording goes in Title.</span>
                   </>
                 ) : undefined
@@ -947,7 +947,7 @@ export function EventForm({
                   {generatedName && name.trim() !== '' && (
                     // The typed name is kept in state (switching to a type with no
                     // rule brings it back), so say plainly that it is not being used
-                    // rather than letting it vanish and reappear (tripl-u2h9.7).
+                    // rather than letting it vanish and reappear.
                     <p className="mt-1 text-body-sm text-fg-tertiary">
                       This event type names its events from the scan rule, so “{name.trim()}” is not used.
                     </p>
@@ -1018,13 +1018,13 @@ export function EventForm({
                   not be lifted into a ticket — and it is skipped by constraint
                   validation, which made the `required` mark a promise the browser
                   never kept. readOnly keeps both, and agrees with the ARIA
-                  already declared here (tripl-u2h9.5). */}
+                  already declared here. */}
               <EvInput
                 id="form-name"
                 className="read-only:opacity-70"
                 value={generatedName ? generatedName.name : name}
                 onChange={e => setName(e.target.value)}
-                // No example to offer once the rule writes this box (tripl-u2h9.9).
+                // No example to offer once the rule writes this box.
                 // Not a fixed sample either: "e.g. checkout:completed" suggested
                 // a convention next to catalogs that use another one (AU-41). A
                 // name of this type's own is the example when its events agree
@@ -1047,7 +1047,7 @@ export function EventForm({
             {/* The name is the scan identity and, under a rule, not the author's
                 to write; the title is the human label, and the event has room for
                 exactly this split now — production had analysts' wording jammed
-                into names that could never match a scan (tripl-kjhi.3). */}
+                into names that could never match a scan. */}
             <EvField
               label="Title"
               htmlFor="form-title"

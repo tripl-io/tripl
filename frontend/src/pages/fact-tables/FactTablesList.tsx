@@ -215,16 +215,15 @@ export function FactTablesList({ slug }: { slug?: string }) {
              panel on the page was named after the tab you are not on — its
              header sat 154px below the unselected "Catalog" tab, at the same
              spot the Catalog tab's own panel header occupies, so a reader
-             glancing at it to work out where they are got the wrong answer
-             (tripl-p4kr).
+             glancing at it to work out where they are got the wrong answer.
 
              Renaming it took the "N total" subtitle with it, on the grounds
              that the stat strip 60px above already states the same number.
              True — and equally true of the Catalog tab, which keeps
              "Catalog / 4 total" under a "METRICS 4" stat. Dropping it here
              only made the two tabs of one page disagree about whether a list
-             panel is captioned, so the two panel headers no longer lined up
-             (tripl-9jzt). Same expression as MetricsCatalog.tsx:603 so the
+             panel is captioned, so the two panel headers no longer lined up.
+             Same expression as MetricsCatalog.tsx:603 so the
              sibling headers stay one shape. */
           <Panel
             title="Fact tables"
@@ -478,7 +477,7 @@ function FactTableRowMenu({
         </button>
       </DropdownMenuTrigger>
       {/* Portaled clicks still bubble through the React tree to the row's
-          navigate-on-click (tripl-4mju). */}
+          navigate-on-click. */}
       <DropdownMenuContent
         align="end"
         sideOffset={6}

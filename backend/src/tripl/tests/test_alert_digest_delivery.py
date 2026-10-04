@@ -703,9 +703,9 @@ def test_the_buffered_incident_handle_is_the_one_the_digest_will_deliver(
 
     The buffer keys metric scopes on NO scan config at all — `_scope_partition_id`
     answers NULL for `metric`, and `_correlation_group_id` hashes that same
-    project-global partition, so since tripl-0zpq.27 the two AGREE by
+    project-global partition, so now the two AGREE by
     construction. This test hands the buffer the OLD handle instead, derived from
-    the FIRING config: the shape a pre-tripl-0zpq.27 worker buffers during a
+    the FIRING config: the shape an older worker buffers during a
     rolling deploy. So the second scan's collection computes a DIFFERENT group id
     than the row already carries. Touching that computed id would leave a stray
     AlertCorrelationState: an inbox row an operator can acknowledge, holding a
@@ -758,7 +758,7 @@ def test_the_buffered_incident_handle_is_the_one_the_digest_will_deliver(
                 anomalies=[candidate],
                 scope_names={("metric", scope_ref): "Signups"},
                 # The OLD handle, keyed on the FIRING config — what a
-                # pre-tripl-0zpq.27 worker buffers. Today's dispatch hashes
+                # older worker buffers. Today's dispatch hashes
                 # ``_scope_partition_id`` here, which is NULL for a metric scope.
                 correlation_by_anomaly={
                     id(candidate): metrics_dispatch._correlation_group_id(
@@ -788,7 +788,7 @@ def test_the_buffered_incident_handle_is_the_one_the_digest_will_deliver(
         ], "one incident, keyed on the id the digest will actually deliver"
 
 
-# ── one message per destination (tripl-o0u7) ──────────────────────────────
+# ── one message per destination ──────────────────────────────
 
 
 def _add_rule(session: Session, destination: AlertDestination, name: str) -> AlertRule:
@@ -845,7 +845,7 @@ def test_two_rules_on_one_destination_become_one_message(
     sync_session_factory: sessionmaker[Session],
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """The whole point of tripl-o0u7: a digest is one message, not one per rule."""
+    """The whole point: a digest is one message, not one per rule."""
     with sync_session_factory() as session:
         config, destination, _rule_a, event_type = _seed(
             session,
@@ -1052,7 +1052,7 @@ def test_a_held_alert_is_visible_from_outside_the_database(
 
     On a cadence that is the difference between the feature working and it
     swallowing every alert for a whole window — which is exactly what could not
-    be confirmed when this shipped to production (tripl-ftrn). The collection
+    be confirmed when this shipped to production. The collection
     now reports what it buffered.
     """
     with sync_session_factory() as session:

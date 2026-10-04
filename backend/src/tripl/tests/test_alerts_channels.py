@@ -1,4 +1,4 @@
-"""Outbound transport guards for alert/webhook/tracker deliveries (tripl-l33u.5).
+"""Outbound transport guards for alert/webhook/tracker deliveries.
 
 The SSRF check on a destination only covers the URL an operator saved. urllib's
 default opener then follows a 3xx to any host, so these tests drive ``_post_json``

@@ -69,7 +69,7 @@ const UNSAVED_MESSAGE =
  * left behind while the owner moved on to AI went out with AI's Save and
  * nothing on the AI page said so — and each must leave the other five
  * sections' unsaved edits standing. Clear additionally keeps the edits in its
- * own section (tripl-ifiy, tripl-l8v2).
+ * own section.
  */
 type SettingsWrite =
   | { kind: 'save'; section: SectionKey; update: ServiceSettingsUpdate }
@@ -141,7 +141,7 @@ export default function ServiceSettingsSection({
       void qc.invalidateQueries({ predicate: query => inheritsPlatformSettings(query.queryKey) })
       // A write settles only what it wrote. `form` spans all six sections, so
       // replacing it here threw away an unsaved prompt or field in a section
-      // this action never touched (tripl-l8v2).
+      // this action never touched.
       if (write.kind === 'save' || write.kind === 'reset') {
         setForm(current => (current ? adoptSection(current, data, write.section) : current))
         setSecretDrafts(current => clearSectionSecrets(current, write.section))
@@ -173,7 +173,7 @@ export default function ServiceSettingsSection({
 
   // buildUpdate spans every section, and switching between two instance
   // sections keeps this component mounted, so only leaving the instance group
-  // actually loses the draft (tripl-l8v2).
+  // actually loses the draft.
   useEffect(() => {
     registerUnsaved(
       dirty
@@ -204,7 +204,7 @@ export default function ServiceSettingsSection({
   // Both of these write straight through to the server — no Save step, no undo
   // (the backend pops the override permanently), and on Security a reset can
   // reopen public signup. They are gated the way every other destructive action
-  // in the app is (tripl-ifiy).
+  // in the app is.
   const resetSection = async (target: SectionKey) => {
     const sectionDraft = Object.keys(update[target] ?? {}).length > 0
     const ok = await confirm({ ...resetConfirm(target, sectionDraft), variant: 'danger' })
@@ -292,7 +292,7 @@ export default function ServiceSettingsSection({
         // The one settings save model (ST-3): the kit's sticky bar, shared
         // with Project · General. The only Save control used to be a
         // non-sticky first child of the scrolling pane, so the AI page's three
-        // prompt textareas were all edited with it off-screen (tripl-l8v2).
+        // prompt textareas were all edited with it off-screen.
         <SettingsSaveBar
           note={applyNote(section)}
           warning={

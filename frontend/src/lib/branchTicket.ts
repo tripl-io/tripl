@@ -3,7 +3,7 @@ import { META_FIELD_LINK_PLACEHOLDER } from './metaFields'
 
 /**
  * The tracker ticket a branch is named after, and the meta field that links to
- * it (tripl-kjhi.14).
+ * it.
  *
  * On production every branch is named after its Jira ticket (`PROJ-4770`) and
  * every event carries a `jira` meta field whose link template turns the key

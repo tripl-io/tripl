@@ -111,7 +111,7 @@ async def test_read_tool_search_plan_end_to_end(stdio_runtime: Runtime) -> None:
     assert "limit=5" in url
     assert route.calls.last.request.headers["Authorization"].startswith("Bearer tk_w_")
     # Covers the STDIO lifespan's User-Agent: server.py builds that pool, and it
-    # is the second of the two places the header is set (tripl-ey6j.1). The
+    # is the second of the two places the header is set. The
     # streamable-http path is covered in test_runtime.
     assert route.calls.last.request.headers["User-Agent"].startswith("tripl-mcp/")
 
@@ -126,8 +126,7 @@ async def test_search_reports_a_missing_semantic_flag_as_false_rather_than_null(
     was never a state this route could be in — and an agent handed null there has
     no way to read the confidences it was handed alongside, which is the whole
     reason the flag is published. Both surfaces now ask
-    ``tripl_cli.api.search.semantic_used`` instead of keeping a ``.get`` each
-    (tripl-i1dt).
+    ``tripl_cli.api.search.semantic_used`` instead of keeping a ``.get`` each.
     """
     respx.get(f"{API_BASE}/projects/demo/search").mock(
         return_value=httpx.Response(200, json={"items": [], "total": 0})
@@ -139,7 +138,7 @@ async def test_search_reports_a_missing_semantic_flag_as_false_rather_than_null(
     envelope = json.loads(text)
     assert envelope["semantic_used"] is False
     # Same rule, same reason, for the truncation flag the route added later:
-    # ``SearchResponse.truncated: bool = False`` (tripl-wkwv.3).
+    # ``SearchResponse.truncated: bool = False``.
     assert envelope["truncated"] is False
 
 
@@ -151,7 +150,7 @@ async def test_search_reports_route_truncation_to_the_agent(
 
     The CLI worked around that with a page-fullness guess; this surface had no
     workaround at all and republished ``total`` verbatim, so an agent could not
-    tell a complete answer from a clipped one (tripl-wkwv.3). ``/search`` takes
+    tell a complete answer from a clipped one. ``/search`` takes
     no offset, so the flag's answer is a bigger ``limit``.
     """
     respx.get(f"{API_BASE}/projects/demo/search").mock(
@@ -175,7 +174,7 @@ async def test_list_events_reads_the_page_through_the_shared_layer(
     The trim is this consumer's context budget and stays; the envelope around it
     is what the route answers, and the CLI reads the same one from the same
     route. A non-object row is dropped rather than passed through to ``trim``,
-    which is what ``tripl events list`` has always done with it (tripl-i1dt).
+    which is what ``tripl events list`` has always done with it.
     """
     respx.get(f"{API_BASE}/projects/demo/events").mock(
         return_value=httpx.Response(
@@ -236,8 +235,7 @@ async def test_list_events_sends_field_value_and_order_by_only_when_asked(
     ``field_value`` (PR #78) and ``order_by`` (PR #29) both predate the shared
     builder and were left out of it, so an agent could neither ask "which events
     carry this value" - it can already SEE field values through get_event - nor
-    rank a large catalog by traffic, only page through the authored order
-    (tripl-nhj0).
+    rank a large catalog by traffic, only page through the authored order.
 
     ``order_by`` is checked absent as well as present: the route owns the
     default, and a tool that always spelled ``catalog`` would pin today's answer
@@ -443,8 +441,8 @@ async def test_401_regains_mcp_credential_guidance_through_mcp(stdio_runtime: Ru
 
     ``tripl_cli.client`` cannot name TRIPL_API_KEY or a Bearer header — the same
     module serves the CLI, which reads --api-key and a config file — so
-    ``runtime._McpTriplClient`` re-attaches the hint via ``errors.to_tool_error``
-    (tripl-ey6j.1). This asserts the agent still gets both, i.e. that the
+    ``runtime._McpTriplClient`` re-attaches the hint via ``errors.to_tool_error``.
+    This asserts the agent still gets both, i.e. that the
     extraction cost nothing an agent reads.
     """
     respx.get(f"{API_BASE}/projects").mock(
@@ -477,8 +475,7 @@ async def test_list_event_types_is_branch_scoped_and_trimmed(stdio_runtime: Runt
 
     Without ``branch`` the API resolves main, so an agent working on a branch was
     quietly answered with main's event types. The response also came back
-    verbatim — every event type carrying all of its field definitions
-    (tripl-jfm3.126).
+    verbatim — every event type carrying all of its field definitions.
     """
     route = respx.get(f"{API_BASE}/projects/demo/event-types").mock(
         return_value=httpx.Response(
@@ -577,7 +574,7 @@ async def test_get_event_type_fields_forwards_branch_and_trims_fields(
 
 @respx.mock
 async def test_list_scans_is_trimmed(stdio_runtime: Runtime) -> None:
-    """The one field projection the CLI and the MCP share (tripl-ey6j.5).
+    """The one field projection the CLI and the MCP share.
 
     ``ScanConfigResponse`` carries ``base_query`` — free-text SQL that can run to
     kilobytes — plus ~20 tuning knobs. The tool's own description already

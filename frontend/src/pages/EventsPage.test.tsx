@@ -36,7 +36,7 @@ import { SessionProject } from '@/test/PersonaProject'
  *
  * This is a correctness argument, not a speed one. `hidden: true` is only ~1ms cheaper
  * per query in steady state (6.7ms -> 5.5ms measured); it is the *first* role query in
- * a file that costs ~87ms, once, warming dom-accessibility-api. See tripl-mwv3.
+ * a file that costs ~87ms, once, warming dom-accessibility-api.
  */
 function expectAbsent(role: Parameters<typeof screen.queryByRole>[0], name: string) {
   expect(screen.queryByRole(role, { name, hidden: true })).not.toBeInTheDocument()
@@ -178,7 +178,7 @@ describe('EventsPage', () => {
     renderEventsPage(['/p/demo/events/all/ev-1?branch=feat-1'])
 
     // Dropping the param here turns a shared branch-diff link into a main-plan
-    // edit, which renders normally and 404s at Save (tripl-h2sx.2).
+    // edit, which renders normally and 404s at Save.
     await waitFor(() =>
       expect(screen.getByTestId('location')).toHaveTextContent(
         '/p/demo/events/all/ev-1/edit?branch=feat-1',
@@ -328,13 +328,13 @@ describe('EventsPage', () => {
     // One traversal for every column instead of a `getByRole` per header. This is a
     // clarity win — the ordering assertion now reads off the header list directly,
     // rather than through compareDocumentPosition — and only a marginal speed one.
-    // See tripl-mwv3: role queries cost ~6.7ms each in steady state here, so the
+    // Role queries cost ~6.7ms each in steady state here, so the
     // thirteen in this test are not what makes it slow.
     const headers = screen.getAllByRole('columnheader').map((h) => h.textContent?.trim())
     expect(headers).toContain('Event')
     // The volume and trend lead; Type follows (EV-12).
     expect(headers.indexOf('48h')).toBeLessThan(headers.indexOf('Type'))
-    // tripl-jfm3.4: the signal-state column is headed "Signal", not "Monitor" —
+    // the signal-state column is headed "Signal", not "Monitor" —
     // its cells report detection output, which exists without any monitor, and
     // heading it "Monitor" contradicted the Monitors page's "No monitors yet".
     expect(headers).toContain('Signal')
@@ -358,20 +358,20 @@ describe('EventsPage', () => {
     // move/status now live on the event detail page, not on the row.
     // (`expectAbsent` searches the whole DOM, not just the a11y tree — see its docstring.)
     expectAbsent('button', 'Edit event')
-    // The toolbar's own "More actions" overflow (tripl-7l83.9) lives above the
+    // The toolbar's own "More actions" overflow lives above the
     // grid; scope this row-cleanliness check to the events table so it verifies
     // rows carry no per-row action menu, not the toolbar affordance.
     const eventsGrid = container.querySelector('table')
     expect(eventsGrid?.querySelector('button[aria-label="More actions"]')).toBeNull()
-    // tripl-dmch.12 dropped the per-row SignalLink arrow anchors (one incident =
+    // The per-row SignalLink arrow anchors are gone (one incident =
     // one saturated indicator, the Monitor-cell chip). The only surviving
     // monitoring anchor here is the open tab volume card's "View signal" link
     // for the active tab (project_total); the row-level event/event-type anchors
     // and the "Open recent anomaly" affordance are gone.
     expect(container.querySelector('a[href="/p/demo/monitoring/project-total/scan-1"]')).toBeInTheDocument()
     expect(container.querySelector('a[href="/p/demo/monitoring/event-type/type-1"]')).not.toBeInTheDocument()
-    // tripl-fa8l made the event NAME the row's monitoring anchor, so this href
-    // is expected again — what tripl-dmch.12 removed was the separate SignalLink
+    // The event NAME is the row's monitoring anchor, so this href
+    // is expected again — what was removed was the separate SignalLink
     // arrow, which the "Open recent anomaly" assertion below still guards.
     expect(screen.getByRole('link', { name: 'Homepage View' })).toHaveAttribute(
       'href',
@@ -836,7 +836,7 @@ describe('EventsPage', () => {
     // Breakdown options come from the type's scalar fields and the project's
     // scans — 'country' is a field on type-1, so it is offered as a chip. A
     // column neither knows about is typed in, which is the half of the picker
-    // the redesign dropped and the docs never stopped describing (tripl-u2h9.6).
+    // the redesign dropped and the docs never stopped describing.
     fireEvent.click(screen.getByRole('button', { name: 'country' }))
     const breakdownInput = screen.getByLabelText(/Metric breakdowns/)
     fireEvent.change(breakdownInput, { target: { value: 'platform' } })
@@ -915,8 +915,8 @@ describe('EventsPage', () => {
     expect(screen.getAllByRole('button', { name: 'New event' }).length).toBeGreaterThan(0)
 
     // The toolbar collapses only once the events query has SETTLED — not during the
-    // initial load, so a populated project never flashes the minimal bar
-    // (tripl-yfsj.12). Wait for the search field to disappear before the synchronous
+    // initial load, so a populated project never flashes the minimal bar.
+    // Wait for the search field to disappear before the synchronous
     // checks below.
     await waitFor(() =>
       expect(

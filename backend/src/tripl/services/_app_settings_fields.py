@@ -13,7 +13,7 @@ from typing import Any, Literal
 # Where the value an owner is looking at actually came from. "default" exists
 # because the badge used to assert "env" for every field with no DB override,
 # which made it useless as evidence: search_embedding_provider read "Env" on an
-# instance that had never been told anything about it (tripl-wkwv.2). See
+# instance that had never been told anything about it. See
 # _setting_source for what "default" does and does not claim.
 #
 # The organization view (F20 PR9) adds two: "org" is the organization's own
@@ -75,7 +75,7 @@ EMAIL_FIELDS = (
     "smtp_username",
     "smtp_password",
     # Replaces the old ``smtp_use_tls`` boolean, which could not express
-    # implicit TLS and so left a 465 relay unreachable (tripl-x1vk). The boolean
+    # implicit TLS and so left a 465 relay unreachable. The boolean
     # survives as a deprecated ENV default only — it is deliberately absent
     # here, so it is neither reported nor editable and exactly one field decides
     # the transport. Stored overrides carrying the old key are rewritten by
@@ -120,7 +120,7 @@ FIELD_SECTIONS: dict[str, tuple[str, ...]] = {
 # resizing the width makes similarity against older vectors meaningless, with no
 # error anywhere. They still get a ``sources`` entry, because "which endpoint is
 # the indexed plan text going to" is the question the AI section exists to
-# answer, and nothing in the running system answered it (tripl-wkwv.2).
+# answer, and nothing in the running system answered it.
 #
 # Read-only for the OPERATOR. An organization may still set its own endpoint
 # (ORG_FIELDS, F20 PR10): its provenance includes it, so a change re-embeds only

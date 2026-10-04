@@ -5,7 +5,7 @@
 # user that tool rather than a 400 MB service stack. Renaming the import package
 # to match would have rewritten every module in the repo to buy nothing: this
 # distribution is never published, so its name is internal and nobody outside
-# the repo ever types it (tripl-ey6j.6).
+# the repo ever types it.
 name = "tripl-server"
 version = "0.2.3"
 description = "Analytics tracking plan service"
@@ -117,7 +117,7 @@ markers = [
     # into a failure. Every case is expected to PASS: the harness and the four
     # ranking fixes landed in one commit, so no case has ever carried the
     # xfail(strict=True) marker RelevanceCase still supports for the next measured
-    # fault (tripl-338u). See CONTRIBUTING.md, "Search relevance harness".
+    # fault. See CONTRIBUTING.md, "Search relevance harness".
     "relevance: ranks a fixed corpus with the real PostgreSQL search SQL",
     # The alert-digest flush concurrency gate
     # (src/tripl/tests/test_alert_digest_concurrency_pg.py). The rest of the
@@ -126,7 +126,7 @@ markers = [
     # returns "acquired" without asking the database. So the flusher's
     # concurrency safety is executed by nothing else. Needs any empty
     # PostgreSQL via TRIPL_TEST_PG_URL and SKIPS without one; CI runs it with
-    # TRIPL_TEST_PG_REQUIRED=1, which turns that skip into a failure (tripl-o3ry).
+    # TRIPL_TEST_PG_REQUIRED=1, which turns that skip into a failure.
     "pg_concurrency: exercises the digest flush guards against a real PostgreSQL",
 ]
 filterwarnings = [
@@ -149,7 +149,7 @@ src = ["src"]
 # directory had never been formatted and every file rewrote at once. Linting it
 # like everything else removes the trap — there is no longer a second, dirtier
 # state for an explicit path to discover. `script.py.mako` generates migrations
-# that already satisfy these rules (tripl-ln1k).
+# that already satisfy these rules.
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "UP", "B", "SIM"]

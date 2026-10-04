@@ -64,7 +64,7 @@ export function VariablesEditDialog({
         <DialogBody className="grid min-w-0 grid-cols-[minmax(0,1fr)] gap-4">
           {/* The form holds the definition only. The sections below act at
               once, and outside it an Enter in one of their inputs cannot
-              submit the definition (tripl-46am). Save in the footer reaches
+              submit the definition. Save in the footer reaches
               the form through `form=`. */}
           <form id={formId} noValidate className="min-w-0" onSubmit={draft.handleSubmit}>
             <VariableDefinitionFields

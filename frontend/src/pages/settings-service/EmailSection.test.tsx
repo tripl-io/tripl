@@ -112,7 +112,7 @@ beforeEach(() => {
 describe('Email settings — transport mode', () => {
   it('offers all three transports and names the port each one belongs to', () => {
     // The port is the part an operator gets wrong, and getting it wrong produces
-    // no error — the send stalls until it times out (tripl-x1vk). So the options
+    // no error — the send stalls until it times out. So the options
     // have to carry the ports, not just the protocol names.
     renderSection(settingsFixture())
 
@@ -163,7 +163,7 @@ describe('Email settings — transport mode', () => {
 
 describe('Email settings — test send', () => {
   it('reports the relay failure verbatim instead of a generic error', async () => {
-    // The whole point of the button (tripl-wmpe): a failed password-reset send is
+    // The whole point of the button: a failed password-reset send is
     // deliberately silent for the requester, so this is the only surface that can
     // say what the relay actually answered.
     vi.mocked(serviceSettingsApi.testEmail).mockResolvedValue({

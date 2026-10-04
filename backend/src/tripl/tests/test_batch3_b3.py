@@ -1,7 +1,5 @@
 """Shadow candidate grain, duplicate breakdown columns, drift rescan cost.
 
-Covers tripl-0zpq.14, tripl-0zpq.15 and tripl-0zpq.17.
-
 Two of the three defects only ever *fail* on Postgres — both are duplicate
 conflict keys inside one multi-row ``INSERT ... ON CONFLICT DO UPDATE``, which
 Postgres refuses with a cardinality violation and SQLite silently resolves
@@ -39,7 +37,7 @@ from tripl.worker.tasks.metrics.metric_rows import (
     _is_supported_metric_breakdown_column,
 )
 
-# --- tripl-0zpq.14: shadow candidates are unique on (scan config, name) ---
+# --- shadow candidates are unique on (scan config, name) ---
 
 _TYPE_A = uuid.UUID("11111111-1111-1111-1111-111111111111")
 _TYPE_B = uuid.UUID("22222222-2222-2222-2222-222222222222")
@@ -134,7 +132,7 @@ def test_shadow_rows_keep_distinct_identities_apart() -> None:
     assert [row["observed_count"] for row in rows] == [3, 4]
 
 
-# --- tripl-0zpq.15: the app version column is collected on its own path ---
+# --- the app version column is collected on its own path ---
 
 
 def _breakdown_scan_config() -> ScanConfig:
@@ -575,7 +573,7 @@ async def test_update_event_grandfathers_a_stored_version_column(client: AsyncCl
     assert resaved.json()["metric_breakdown_columns"] == ["app_version"]
 
 
-# --- tripl-0zpq.17: drift baselines are sliced, not rescanned ---
+# --- drift baselines are sliced, not rescanned ---
 
 _DRIFT_REGULAR_COLS = ["country", "event_type"]
 _DRIFT_REG_INDEX = {"country": 0, "event_type": 1}
@@ -630,7 +628,7 @@ def _stored_drift_bucket(hour: int) -> datetime:
     """The bucket a drift row carries: the naive warehouse cell as aware UTC.
 
     The fake adapter hands back naive buckets, the shape a driver decodes, and
-    the collector stores them through ``stored_bucket`` (tripl-0zpq.348).
+    the collector stores them through ``stored_bucket``.
     """
     return _drift_bucket(hour).replace(tzinfo=UTC)
 
@@ -850,5 +848,5 @@ def test_distribution_drift_baselines_are_not_rescanned() -> None:
     assert len(output_rows) == 2 * 20
     assert equality_checks < 10 * len(rows), (
         f"{equality_checks} equality tests for {len(rows)} rows: the baseline "
-        "split is rescanning the whole count store again (tripl-0zpq.17)"
+        "split is rescanning the whole count store again"
     )

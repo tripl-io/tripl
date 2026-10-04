@@ -76,7 +76,7 @@ function firstFocusable(root: HTMLElement | null): HTMLElement | null {
  *
  * Below `md` the rail slides off-canvas behind a hamburger, mirroring the app
  * shell in `Layout.tsx`. Pinned in flow it would eat 264px of a 390px phone and
- * leave the settings forms a ~45px column (tripl-jfm3.40).
+ * leave the settings forms a ~45px column.
  */
 export function SettingsLayout({
   activePath,
@@ -185,7 +185,7 @@ export function SettingsLayout({
   }
 
   // Draft held by the section currently rendered in the content column, so the
-  // rail can warn before it navigates that draft out of existence (tripl-l8v2).
+  // rail can warn before it navigates that draft out of existence.
   const [unsaved, setUnsaved] = useState<UnsavedWork | null>(null)
   const registerUnsaved = useCallback((work: UnsavedWork | null) => setUnsaved(work), [])
   const unsavedChanges = useMemo(() => ({ registerUnsaved }), [registerUnsaved])
@@ -197,9 +197,9 @@ export function SettingsLayout({
    *
    * The predicate lives here alone so that every way out of the takeover asks
    * the same question: the rail, the palette and Sign out all used to answer it
-   * separately, and two of them answered "no" unconditionally (tripl-l8v2).
+   * separately, and two of them answered "no" unconditionally.
    * Browser Back and reload/close reach it through the effects below, which are
-   * the two exits with no element to hang an onClick on (tripl-l33u.6).
+   * the two exits with no element to hang an onClick on.
    */
   const draftAtRisk = useCallback(
     (settingsPath: string | null): UnsavedWork | null => {
@@ -218,7 +218,7 @@ export function SettingsLayout({
    * that keep it mounted — AI → Email, a Back that lands inside the instance
    * group — would otherwise leave the shell believing a live draft was gone:
    * beforeunload unregistered, no entry parked, every rail link silent, and the
-   * next exit discarding the draft with no warning at all (tripl-l33u.6).
+   * next exit discarding the draft with no warning at all.
    */
   const confirmLeave = useCallback(
     async (settingsPath: string | null): Promise<boolean> => {
@@ -240,7 +240,7 @@ export function SettingsLayout({
    * becomes a router navigation and the blocker below sees it — along with the
    * palette, Back, Forward and everything else. Modified clicks (new tab / new
    * window) never reach the router at all, which is why real anchors were
-   * rendered here in the first place (tripl-wd66) and why they still open a
+   * rendered here in the first place and why they still open a
    * second window leaving the draft where it is.
    */
   const guardLeave = () => closeRail()
@@ -313,7 +313,7 @@ export function SettingsLayout({
    * this needed the data router (see main.tsx). The history-parking attempt it
    * replaces could only ever react AFTER the browser had already moved, which is
    * what made it unfixable: a settings move the draft survives buried the parked
-   * entry, and every repair opened another hole (tripl-l33u.14).
+   * entry, and every repair opened another hole.
    *
    * Note what is NOT here any more: four call sites that each ran their own
    * confirm and then navigated. Under a blocker that shape asks twice — once by
@@ -361,7 +361,7 @@ export function SettingsLayout({
     <div className="relative flex h-screen overflow-hidden bg-background">
       {dialog}
       {/* Ctrl+K. The takeover mounts outside Layout, so the app palette's
-          provider never reached these 14 routes (tripl-wd66) — and mounting it
+          provider never reached these 14 routes — and mounting it
           here would have bound it to `projects[0]`, since no /settings/* route
           carries a :slug. This one is scoped to what the area actually knows,
           and leaves through the same guard the rail uses. */}
@@ -418,7 +418,7 @@ export function SettingsLayout({
           </Link>
           {/* Deliberately not a heading: the rail is chrome, and an <h2> here
               sat above every page's <h1> in DOM order, so the heading outline
-              opened with a level-2 skip (tripl-jfm3.69). It names the nav
+              opened with a level-2 skip. It names the nav
               landmark instead. */}
           {/* No subtitle: "Workspace & account configuration" left out the
               Project and Instance groups, which describe themselves (ST-10). */}
@@ -478,7 +478,7 @@ export function SettingsLayout({
                   return (
                     // A real anchor, not a button: as buttons none of these 14
                     // destinations could be cmd-clicked into a new tab,
-                    // middle-clicked, hovered for a URL or copied (tripl-wd66).
+                    // middle-clicked, hovered for a URL or copied.
                     <Link
                       key={item.id}
                       to={href}

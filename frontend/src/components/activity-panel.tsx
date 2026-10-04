@@ -35,7 +35,7 @@ const ACTIVITY_LIMIT = 20
 
 // The rail earns its full width only when it has something to show. An empty
 // feed narrows to a slim strip so it stops reading as permanent empty chrome on
-// brand-new / quiet projects (tripl-yfsj.8).
+// brand-new / quiet projects.
 const RAIL_WIDTH = 'w-[304px]'
 const RAIL_WIDTH_QUIET = 'w-[220px]'
 
@@ -80,8 +80,8 @@ function rowIcon(item: ActivityItem): RowIcon {
 
 // The noun a collapsed burst counts. A `scan` item is one scan RUN, not one
 // scan, so three completed runs of one nightly scan must read "3 runs
-// completed" — "3 scans completed" claimed the project had three scans
-// (tripl-3y7z). The title stem already carries the scan noun ("Scan completed").
+// completed" — "3 scans completed" claimed the project had three scans.
+// The title stem already carries the scan noun ("Scan completed").
 const TYPE_PLURAL: Record<ActivityItemType, string> = {
   anomaly: 'anomalies',
   scan: 'runs',
@@ -459,7 +459,7 @@ function ActivityRow({
   // message the same delivery sent, which links to the exact row.
   // `resolveActivityTargetPath` rebuilds the deep link from the delivery id the
   // row already carries in its own id, and returns `target_path` untouched for
-  // everything else (tripl-oxkt.21).
+  // everything else.
   const targetPath = resolveActivityTargetPath(item)
 
   if (targetPath) {

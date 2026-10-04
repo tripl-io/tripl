@@ -13,7 +13,7 @@ class RelationCreate(BaseModel):
     # Bounded to the width of ``event_type_relations.relation_type``
     # (String(50)). The field is free-form text with no enum behind it — the UI
     # shows whatever was stored — so nothing else stopped a longer value from
-    # reaching the INSERT and coming back as a generic 500 (tripl-0zpq.275).
+    # reaching the INSERT and coming back as a generic 500.
     relation_type: str = Field("belongs_to", max_length=50)
     # No bound on the description: ``event_type_relations.description`` is Text.
     description: str = ""

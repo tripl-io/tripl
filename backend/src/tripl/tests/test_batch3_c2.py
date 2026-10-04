@@ -2,16 +2,16 @@
 
 Three defects, one worker module (``worker/tasks/metrics/metric_collect.py``):
 
-* tripl-0zpq.3 -- ``_collect_distinct_user_series`` queried the warehouse without
+* ``_collect_distinct_user_series`` queried the warehouse without
   ever calling ``get_columns``, so the adapter's column allowlist stayed empty and
   every membership check short-circuited; and a fact metric's missing measure
   column escaped as a plain ``ValueError``, which ``user_facing_error`` replaces
   with the generic internal-error summary.
-* tripl-0zpq.4 -- ``_collect_event_composition`` re-derived from the FULL retained
+* ``_collect_event_composition`` re-derived from the FULL retained
   event-metric history on every dispatch, so a ``per_distinct_user`` metric
   re-queried the warehouse over its whole history every time and errored
   permanently once that history passed ``METRIC_QUERY_ROW_LIMIT`` buckets.
-* tripl-0zpq.5 -- the per-metric fact collectors (kept deliberately as the
+* the per-metric fact collectors (kept deliberately as the
   independent oracle the Gate-4 conformance run compares the batched path
   against) had drifted: an unguarded ``float(None)`` on an all-NULL aggregate
   cell, no collection-time condition-column recheck, and no column allowlist at
@@ -260,7 +260,7 @@ def _collection_error(session_factory: sessionmaker[Session], def_id: str) -> st
         return definition.last_collection_error
 
 
-# ── tripl-0zpq.5: NULL aggregate cells on the per-metric fact path ────────────
+# ── NULL aggregate cells on the per-metric fact path ────────────
 
 
 def test_collect_fact_records_a_null_aggregate_bucket_as_absent(
@@ -353,7 +353,7 @@ def test_collect_fact_breakdown_skips_an_all_null_group(
         assert {(row.breakdown_value, row.value) for row in rows} == {("US", 8.0)}
 
 
-# ── tripl-0zpq.5: column guards the per-metric path had lost ──────────────────
+# ── column guards the per-metric path had lost ──────────────────
 
 
 def test_collect_fact_condition_column_missing_from_the_fact_table_fails_with_its_name(
@@ -520,7 +520,7 @@ def test_collect_fact_ratio_validates_the_denominator_operand_columns(
     assert adapter.column_queries == [fact_sql, fact_sql]
 
 
-# ── tripl-0zpq.3: the fact path's missing measure column is named ─────────────
+# ── the fact path's missing measure column is named ─────────────
 
 
 def test_collect_fact_names_the_missing_measure_column(
@@ -682,7 +682,7 @@ class _RefusingDistinctUserAdapter(_DistinctUserAdapter):
         raise AssertionError(msg)
 
 
-# ── tripl-0zpq.3: the distinct-user column is validated ───────────────────────
+# ── the distinct-user column is validated ───────────────────────
 
 
 def test_per_distinct_user_rejects_a_column_the_source_scan_does_not_project(
@@ -780,7 +780,7 @@ def test_per_distinct_user_validates_the_configured_column_not_the_default(
         assert {(row.bucket, row.value) for row in rows} == {(_b(10), 5.0)}
 
 
-# ── tripl-0zpq.4: the bounded resume region ──────────────────────────────────
+# ── the bounded resume region ──────────────────────────────────
 
 
 def _seed_per_user_grid(

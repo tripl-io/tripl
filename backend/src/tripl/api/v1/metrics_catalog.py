@@ -79,7 +79,7 @@ async def list_metric_definitions(
     status: Annotated[list[MetricStatus] | None, Query()] = None,
     kind: MetricKind | None = None,
     # FreeTextFilter: binds into an ILIKE, so a NUL aborts inside asyncpg
-    # before SQL runs (tripl-8wez).
+    # before SQL runs.
     search: FreeTextFilter | None = None,
     reviewed: bool | None = None,
     owner_id: uuid.UUID | None = None,
@@ -142,7 +142,7 @@ async def bulk_update_metric_definitions(
     # because the row below needs the actor: this route stops collection and
     # anomaly detection for a whole selection, and it used to be the only bulk
     # mutation in the group invisible in the Audit log — its ``events`` and
-    # ``variables`` siblings both file one (tripl-0zpq.238). The gate is the same
+    # ``variables`` siblings both file one. The gate is the same
     # ``get_editor_user`` either way.
     #
     # A comment and not a docstring: FastAPI publishes a route docstring as the
@@ -378,7 +378,7 @@ async def collect_metric_now(
     # Re-read for the NAME alone. The 202 body carries ids and a window, and this
     # row was filed with an empty ``target_name`` — so the Audit log listed a
     # collect against a bare UUID, while every other row in this router names its
-    # metric (tripl-0zpq.241). After the trigger, so the 404 path pays nothing.
+    # metric. After the trigger, so the 404 path pays nothing.
     collected = await metric_definition_service.get_metric_definition(session, slug, metric_id)
     await audit_service.record(
         session,

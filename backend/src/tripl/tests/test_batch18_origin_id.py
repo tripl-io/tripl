@@ -1,4 +1,4 @@
-"""Branch copies record their origin, so namesakes are told apart (tripl-0zpq.292).
+"""Branch copies record their origin, so namesakes are told apart.
 
 Two events may share (type, name) and two relations may link the same two
 fields — nothing forbids it, and production holds such pairs. Every branch path
@@ -11,7 +11,7 @@ One scenario per defect class batch 2 listed, each built on two namesakes, each
 arranged so the natural-key pairing gets it WRONG — acting on the namesake a
 key-keyed dict does not keep (the last one listed), or on the one the old twin
 rule did not pick (the lowest id) — so reverting to that pairing fails it.
-The remaining half of tripl-0zpq.149 is the first two tests.
+The remaining half of that fix is the first two tests.
 """
 
 from __future__ import annotations
@@ -119,7 +119,7 @@ async def _main_branch_of(slug: str) -> uuid.UUID:
     return branch_id
 
 
-# --- tripl-0zpq.149: the merge's own half ----------------------------------------
+# --- the merge's own half ----------------------------------------
 
 
 @pytest.mark.asyncio

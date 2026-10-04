@@ -23,7 +23,7 @@ function sourceFiles(dir: string): string[] {
   })
 }
 
-describe('shared query keys (tripl-jfm3.115, tripl-jfm3.116)', () => {
+describe('shared query keys', () => {
   it('spells each family exactly one way', () => {
     expect(dataSourcesKey()).toEqual(['dataSources'])
     expect(planBranchesKey('demo')).toEqual(['planBranches', 'demo'])
@@ -33,7 +33,7 @@ describe('shared query keys (tripl-jfm3.115, tripl-jfm3.116)', () => {
   it('keeps the two property shapes in separate caches, page nested under items', () => {
     // The items key holds an array and the page key holds {items, total}. Sharing
     // one key handed the events rows an object and crashed the page in
-    // production (tripl-lqxb) — so they must differ...
+    // production — so they must differ...
     expect(variablesPageKey('demo', 'branch-1')).not.toEqual(variablesKey('demo', 'branch-1'))
 
     // ...but the page key must stay a strict EXTENSION of the items key, because

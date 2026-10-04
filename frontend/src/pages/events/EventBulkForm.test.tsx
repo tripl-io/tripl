@@ -35,8 +35,7 @@ vi.mock('@/api/users', () => ({
 }))
 
 // The rule arrives ON the type, resolved by the server — not read off the scan
-// list by event_type_id, which a branch copy of the type never matches
-// (tripl-kjhi.1).
+// list by event_type_id, which a branch copy of the type never matches.
 const SE_TYPE = {
   id: 'et-se',
   name: 'se',
@@ -143,7 +142,7 @@ describe('EventBulkForm', () => {
     })
 
     // The label is visible before it is stored, next to the identity it never
-    // becomes part of (tripl-kjhi.3).
+    // becomes part of.
     expect(await screen.findByText('weather_alert:show:widget')).toBeInTheDocument()
     expect(screen.getByText('Weather alert widget shown')).toBeInTheDocument()
     await waitFor(() => expect(screen.getByRole('button', { name: 'Create 1 event' })).not.toBeDisabled())
@@ -211,7 +210,7 @@ describe('EventBulkForm', () => {
     expect(screen.getByRole('button', { name: 'Create 1 event' })).toBeInTheDocument()
   })
 
-  it('carries a required field the name is not built from as a column of its own (tripl-hhw3)', async () => {
+  it('carries a required field the name is not built from as a column of its own', async () => {
     vi.mocked(eventTypesApi.list).mockResolvedValue([
       {
         ...SE_TYPE,
@@ -333,7 +332,7 @@ describe('EventBulkForm', () => {
     )
   })
 
-  it('preselects the type the route names, once (tripl-kjhi.13)', async () => {
+  it('preselects the type the route names, once', async () => {
     render(createElement(EventBulkForm), {
       wrapper: ({ children }: { children: ReactNode }) =>
         createElement(

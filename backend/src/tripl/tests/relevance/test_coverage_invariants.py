@@ -1,4 +1,4 @@
-"""The coverage invariant, asserted on the mechanism itself (tripl-9t2s).
+"""The coverage invariant, asserted on the mechanism itself.
 
 WHY THIS FILE EXISTS, AND WHY IT IS THE PRIMARY GUARD FOR THE COVERAGE TERM
 ---------------------------------------------------------------------------
@@ -174,7 +174,7 @@ async def test_a_partial_match_does_not_satisfy_the_shipped_tsquery(
         f"{query!r}, which holds two words. The shipped query is no longer "
         f"conjunctive, so `text_vector @@ tsq` has stopped meaning 'answered every "
         f"term' and COVERAGE_BONUS is now paid for partial matches "
-        f"(tripl-9t2s). {await _explain(unseeded_session, document, query)}."
+        f". {await _explain(unseeded_session, document, query)}."
     )
 
 

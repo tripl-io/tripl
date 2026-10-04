@@ -39,7 +39,7 @@ def normalize_series(series: Mapping[datetime, float]) -> dict[datetime, float]:
     its own opinion (SQLite reads naive). Mixing them made ``sorted()`` in
     :func:`union_buckets` raise ``TypeError: can't compare offset-naive and offset-aware
     datetimes``, so every ``per_distinct_user`` metric on a ClickHouse source failed
-    collection outright (tripl-ju0d).
+    collection outright.
 
     Coercing one side alone only moves the crash: normalizing the warehouse series broke
     the stored series instead. Both sides are normalized here, at the junction, so no

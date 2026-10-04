@@ -97,7 +97,7 @@ beforeEach(() => {
   vi.mocked(projectMembersApi.remove).mockResolvedValue(undefined as never)
 })
 
-describe('Project · Access (tripl-vefw)', () => {
+describe('Project · Access', () => {
   it('lists the members with role chips and no controls for a plain member', async () => {
     renderSection('member', 'u-ada')
 

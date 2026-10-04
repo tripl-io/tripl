@@ -1,6 +1,6 @@
 """Batch 7, R3: the branch copy and the merge, repaired after review.
 
-tripl-0zpq.123, second half — the batch closed the write door for an event
+Second half of the event-scoping fix — the batch closed the write door for an event
 pointing outside its own branch (``event_service`` now scopes both the event
 type and the meta-field definitions it accepts) and taught the RELATION copy in
 ``deep_copy_plan_to_branch`` to answer 409 for the rows stored before that
@@ -9,7 +9,7 @@ subscripts, so one such row still made "create a branch" a bare 500 naming
 nothing, and the meta-value replay in ``_apply_merge`` made the merge one too.
 Both now refuse by name.
 
-tripl-0zpq.149 is deliberately NOT covered here any more. This file used to hold
+The ambiguous-natural-key refusal is deliberately NOT covered here any more. This file used to hold
 the base arm of an ambiguous-natural-key refusal — ``_ambiguous_keys``,
 ``_reject_ambiguous_keys`` and the call in ``merge_branch`` — and that whole
 refusal was removed after review, so the test went with it. No coverage was
@@ -18,11 +18,11 @@ copies, author one row in their place), and refusing that merge took away the
 only door out of the very state it complained about, which is the workflow two
 tests in ``test_event_comment_merge_batch2`` already pin. The diff still warns
 on the row — ``plan_revision_service._shared_key_warning``, held by
-``test_plan_revision_batch2`` — and the merge's half of the ticket waits on
-tripl-0zpq.292, an origin id on branch copies, which is the one thing that lets
+``test_plan_revision_batch2`` — and the merge's half of the work waits on
+an origin id on branch copies, which is the one thing that lets
 rows sharing a key be paired instead of refused.
 
-tripl-0zpq.128, the main side — the KeyError guard on ``relation_key`` was added
+The main side of the relation fix — the KeyError guard on ``relation_key`` was added
 to the branch comprehension only, while ``main_relation_by_key`` still indexed
 main's event-type names unguarded.
 
@@ -140,7 +140,7 @@ async def _field_id_under(event_type_id: uuid.UUID, name: str) -> uuid.UUID:
     return found
 
 
-# --- tripl-0zpq.123: the branch copy refuses by name --------------------------
+# --- the branch copy refuses by name --------------------------
 
 
 @pytest.mark.asyncio
@@ -315,7 +315,7 @@ async def test_a_branch_event_holding_mains_meta_field_refuses_the_merge(
     assert merged.status_code == 200, merged.text
 
 
-# --- tripl-0zpq.128: the main side of the relation guard ----------------------
+# --- the main side of the relation guard ----------------------
 
 
 @pytest.mark.asyncio

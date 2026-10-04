@@ -34,7 +34,7 @@ interface EntityBranchBannerProps {
  * A link pasted from a branch used to open a 404 ("Try again") in a fresh
  * session, and a main event opened while a branch was active did the same the
  * other way round; no page said which plan it was showing beyond the switcher
- * in the rail (tripl-kjhi.7). The read endpoints now answer for any branch of
+ * in the rail. The read endpoints now answer for any branch of
  * the project and report the row's `branch_id`, so this is the one place that
  * turns that into a sentence.
  */

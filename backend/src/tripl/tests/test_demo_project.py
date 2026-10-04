@@ -85,7 +85,7 @@ async def test_demo_project_has_events(client: AsyncClient) -> None:
 @pytest.mark.asyncio
 async def test_demo_events_first_seen_matches_history_window(client: AsyncClient) -> None:
     # "First seen" (created_at) is STAGGERED across the seeded ~23-day metric
-    # history (tripl-2su6 .21 / PR #51 follow-up): core events anchor the window
+    # history (PR #51 follow-up): core events anchor the window
     # start, the rest ramp in, and nothing is younger than ~2 days. A uniform
     # history_start stamp left the Overview 14-day "active events" sparkline a
     # flat zero; the provisioning instant made everything first seen "just now".
@@ -260,7 +260,7 @@ async def test_demo_fact_table_preview_serves_synthetic_orders(client: AsyncClie
     assert "user_id" in preview["identifier_candidates"]
 
     # No rows come back. The preview answers the query's SHAPE and never its
-    # contents (tripl-0zpq.75): sample rows were returned to callers and
+    # contents: sample rows were returned to callers and
     # displayed by nothing, so the second warehouse query behind them is gone.
     # The column assertions above are what prove the synthetic adapter really
     # served this — they are the demo ``orders`` schema, not a fabrication.
@@ -436,7 +436,7 @@ async def test_demo_project_distribution_drift_is_real_psi(client: AsyncClient) 
 
 
 # ---------------------------------------------------------------------------
-# Recipe 4: real pending branch change + variable-value drift (tripl-odrj.3)
+# Recipe 4: real pending branch change + variable-value drift
 # ---------------------------------------------------------------------------
 
 
@@ -515,7 +515,7 @@ async def test_demo_seeds_one_open_variable_value_drift(client: AsyncClient) -> 
     # badge) has a real open row behind it. It never feeds the firing rule's
     # replay, but only because its scan_config_id is NULL and both the live
     # loader and the replay twin require one to be set — the replay HAS read
-    # variable-value drifts since tripl-0zpq.158.
+    # variable-value drifts since the replay learned to load them.
     resp = await client.post("/api/v1/projects/demo")
     assert resp.status_code == 201
     slug = resp.json()["slug"]
@@ -728,8 +728,7 @@ async def test_seeded_scan_history_runs_are_internally_consistent() -> None:
     They used to be constants: three consecutive hourly runs all claimed the
     same window (anchored to the seed instant, so the older two "scanned" an
     hour that had not happened yet), byte-identical millions of rows and an
-    identical 42.0s — next to a real Run now reporting ~30K rows in ~3s
-    (bd tripl-jfm3.61).
+    identical 42.0s — next to a real Run now reporting ~30K rows in ~3s.
     """
     async with TestSessionLocal() as session:
         project_id = await _seed_fixture(session, "demo-scanhistory")
@@ -803,7 +802,7 @@ async def test_seeded_metric_anomaly_sits_on_the_metrics_own_bucket_grid() -> No
     It used to be written at ``now - 1 day`` with the hour preserved, which put a
     half-day-offset point inside a 1-day series, and its ``expected`` was the
     newest stored value — the current PARTIAL period, i.e. the lowest point on
-    the chart (bd tripl-jfm3.63).
+    the chart.
     """
     async with TestSessionLocal() as session:
         project_id = await _seed_fixture(session, "demo-metricanom")
@@ -878,7 +877,7 @@ async def test_demo_variables_document_their_allowed_values() -> None:
 
     The coached "Variables & value drift" chapter tells the user to "compare
     observed values against the documented list", but every demo variable had an
-    empty ``allowed_values``, so the column read "—" (bd tripl-jfm3.56).
+    empty ``allowed_values``, so the column read "—".
     """
     async with TestSessionLocal() as session:
         project_id = await _seed_fixture(session, "demo-allowedvalues")
@@ -914,7 +913,7 @@ async def test_demo_event_field_values_are_authored() -> None:
     Seeded unauthored, the demo's own guided first scan replaced the documented
     ``${product_id}`` / ``${platform}`` templates with whatever literal the
     synthetic warehouse emitted, and the seeded variable value contexts — which
-    describe exactly those templates — were dropped with them (bd tripl-jfm3.56).
+    describe exactly those templates — were dropped with them.
     """
     async with TestSessionLocal() as session:
         project_id = await _seed_fixture(session, "demo-authoredvalues")
@@ -943,7 +942,7 @@ async def test_demo_scan_config_does_not_expose_non_catalog_columns() -> None:
     A ``SELECT *`` scan handed ``user_id``/``session_id`` (the active-sessions
     metric's columns) to the hourly catalog sync, which auto-created USER_ID and
     SESSION_ID FieldDefinitions on every event type and filled the curated events
-    table with raw sample values like ``s29_5`` (bd tripl-jfm3.57).
+    table with raw sample values like ``s29_5``.
     """
     async with TestSessionLocal() as session:
         project_id = await _seed_fixture(session, "demo-scancolumns")
@@ -1019,7 +1018,7 @@ async def test_cancel_request_flags_a_seeding_shell(client: AsyncClient) -> None
 async def test_cancelled_provision_deletes_its_shell_instead_of_promoting(
     client: AsyncClient, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """The regression for tripl-jfm3.12: a cancel must leave NO project behind.
+    """The regression for a cancelled demo: a cancel must leave NO project behind.
 
     Before the fix the create ran to completion regardless and a fully-seeded
     demo appeared seconds after the user abandoned it. The cancel arrives from a
@@ -1063,7 +1062,7 @@ async def test_demo_creation_is_capped_per_creator(client: AsyncClient) -> None:
 
 @pytest.mark.asyncio
 async def test_repeated_demos_get_distinguishable_names(client: AsyncClient) -> None:
-    """Two demos must not be two identically-titled cards (tripl-jfm3.14)."""
+    """Two demos must not be two identically-titled cards."""
     first = (await client.post("/api/v1/projects/demo")).json()
     second = (await client.post("/api/v1/projects/demo")).json()
     assert first["name"] == "Demo Project"
@@ -1083,7 +1082,7 @@ async def test_reset_keeps_the_demos_name(client: AsyncClient) -> None:
 
 @pytest.mark.asyncio
 async def test_stale_failed_shells_are_swept_on_the_next_create(client: AsyncClient) -> None:
-    """Failed shells stop accumulating forever (tripl-jfm3.17/.76)."""
+    """Failed shells stop accumulating forever (.76)."""
     async with TestSessionLocal() as session:
         old = Project(
             name="Demo Project",
@@ -1130,7 +1129,7 @@ async def test_demo_surfaces_its_planted_dead_event(client: AsyncClient) -> None
     The recipe deliberately ages one event's warehouse volume out, but the
     dead-events query also requires ``created_at < cutoff`` (a grace period), and
     every demo event was staggered INSIDE the 30-day window — so the planted
-    example was permanently unflaggable (tripl-jfm3.58).
+    example was permanently unflaggable.
     """
     slug = (await client.post("/api/v1/projects/demo")).json()["slug"]
 
@@ -1144,7 +1143,7 @@ async def test_demo_surfaces_its_planted_dead_event(client: AsyncClient) -> None
 async def test_demo_seeds_a_retryable_failed_delivery(
     client: AsyncClient, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """The Audit table only offers Retry on a failed row (tripl-jfm3.59)."""
+    """The Audit table only offers Retry on a failed row."""
     slug = (await client.post("/api/v1/projects/demo")).json()["slug"]
 
     resp = await client.get(f"/api/v1/projects/{slug}/alert-deliveries")
@@ -1158,7 +1157,7 @@ async def test_demo_seeds_a_retryable_failed_delivery(
     # re-renders the message from ``delivery.items`` while the header it writes
     # counts ``matched_count``, so a failed row seeded with no items of its own
     # came back from the one Retry this demo exists to demonstrate reading
-    # "sent", announcing N signals, with nothing underneath (tripl-0zpq.247).
+    # "sent", announcing N signals, with nothing underneath.
     # Asserted on the DETAIL endpoint because that is the payload the Audit
     # row expands into, and the number the reader compares against the header.
     detail = await client.get(f"/api/v1/projects/{slug}/alert-deliveries/{failed[0]['id']}")
@@ -1188,7 +1187,7 @@ async def test_demo_seeds_a_retryable_failed_delivery(
 
 @pytest.mark.asyncio
 async def test_demo_audit_log_is_not_empty_out_of_the_box(client: AsyncClient) -> None:
-    """A fresh demo used to land on "No audit entries yet" (tripl-jfm3.60)."""
+    """A fresh demo used to land on "No audit entries yet"."""
     slug = (await client.post("/api/v1/projects/demo")).json()["slug"]
 
     resp = await client.get(f"/api/v1/audit?project_slug={slug}&limit=200")
@@ -1208,7 +1207,7 @@ async def test_demo_audit_log_is_not_empty_out_of_the_box(client: AsyncClient) -
 async def test_demo_audit_trail_covers_the_events_it_authored(client: AsyncClient) -> None:
     """Events lead the Audit tab's filter, and on a demo holding eighteen of them
     that group matched nothing — the log implied nobody had ever created an event
-    on the project (tripl-wkwv.14).
+    on the project.
 
     The rows are derived, not invented: a creation is dated from the event's own
     ``created_at``, an edit from the ``EventChange`` the activity builder seeded,
@@ -1236,7 +1235,7 @@ async def test_demo_audit_trail_covers_the_events_it_authored(client: AsyncClien
     # MAIN edits only. The recipe also authors one edit ON the feature branch
     # (branches.CHANGED_EVENT_NAME), and that row targets the branch's COPY of
     # the event — a row the deep copy created, not an authored ``event.create``
-    # — so the creation-precedes-edit check below cannot reach it (tripl-0zpq.246).
+    # — so the creation-precedes-edit check below cannot reach it.
     updated = [
         entry for entry in entries if entry["action"] == "event.update" and not entry["branch_name"]
     ]
@@ -1276,7 +1275,7 @@ async def test_demo_does_not_scope_the_data_source_entry_to_the_project(
 
     The recipe used to seed that one row WITH a project, so the demo was the only
     place in the product where that shape existed: a row sitting in the feed that
-    no filter option could ever isolate (tripl-wkwv.15). The demo's warehouse is
+    no filter option could ever isolate. The demo's warehouse is
     project-OWNED so it is cleaned up with the project, but that is a cascade
     detail, not an audit scope.
     """
@@ -1297,7 +1296,7 @@ async def test_demo_does_not_scope_the_data_source_entry_to_the_project(
     unscoped = await client.get("/api/v1/audit?action=data_source.create&limit=200")
     # The name the warehouse builder really gave the row, read from the same
     # helper it used: the audit entry restated a bare "Demo warehouse" literal
-    # until tripl-0zpq.246, naming a source that exists under no such name.
+    # until it was fixed, naming a source that exists under no such name.
     rows = [
         entry
         for entry in unscoped.json()["items"]
@@ -1312,7 +1311,7 @@ async def test_demo_does_not_scope_the_data_source_entry_to_the_project(
 async def test_resetting_a_demo_does_not_stack_the_previous_trail(client: AsyncClient) -> None:
     """A reset destroys the project and seeds a replacement under the SAME slug,
     and the audit list filters on the slug — so the old project's rows used to
-    reattach to the new one (tripl-wkwv.16).
+    reattach to the new one.
 
     Two resets and the tab claimed every event had been created three times, by a
     project that no longer exists. The rows were not being preserved, they were
@@ -1336,7 +1335,7 @@ async def test_resetting_a_demo_does_not_stack_the_previous_trail(client: AsyncC
     assert creations(after) == before
 
     # Asserted on the UNFILTERED feed, deliberately, and by COUNT. Since
-    # tripl-wkwv.18 the project filter resolves the slug to whichever project
+    # a later change the project filter resolves the slug to whichever project
     # owns it now, so it hides the replaced demo's rows whether or not they were
     # deleted — the assertion above would pass with the purge removed. And the
     # rows cannot be recognised by the id they used to carry either: deleting the
@@ -1405,7 +1404,7 @@ async def test_every_seeded_scan_config_survives_a_patch_of_itself(client: Async
     ``distribution_drift_fields`` while ``platform_column`` designated the same
     column, which that check forbids — so the demo shipped a scan config the API
     would not save, and renaming the demo scan returned a 422 naming fields the
-    user had never touched (tripl-4rr4).
+    user had never touched.
 
     A no-op PATCH is the cheapest general guard: it re-validates the stored row
     against the rules a user's own edit meets, so any future drift between the

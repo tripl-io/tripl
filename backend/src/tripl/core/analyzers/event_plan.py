@@ -65,7 +65,7 @@ DEFAULT_MAX_EVENTS = 10000
 # How many available column names a NameFormatError lists before summarising.
 # ``user_facing_error`` truncates a curated message at 500 chars from the RIGHT,
 # so an uncapped list on a wide table pushes the missing key — the only
-# actionable part — out of the persisted message (tripl-3mmh).
+# actionable part — out of the persisted message.
 _AVAILABLE_KEYS_IN_ERROR = 10
 
 # The same 500 chars, as a character budget rather than a name count. A count
@@ -98,8 +98,8 @@ def render_default_event_name(entries: Iterable[tuple[str, str]]) -> str:
     append a ``col.path=`` segment for every path on the row while this planner
     — the builder that wrote the ``Event.source_name`` the collector then looks
     itself up by — appended none, so a JSON-column scan with no name format
-    matched none of its own events and filed its whole volume as unplanned
-    (tripl-0zpq.91). Both builders call this now so they cannot drift again.
+    matched none of its own events and filed its whole volume as unplanned.
+    Both builders call this now so they cannot drift again.
     """
     parts = []
     for key, value in entries:
@@ -125,12 +125,12 @@ def truncate_event_name(name: str) -> str:
 
 
 def unnamed_skip_detail(count: int) -> str:
-    """What ``plan_events`` says about the rows it refused to name (tripl-wkwv.5).
+    """What ``plan_events`` says about the rows it refused to name.
 
     Reaches the run report through ``generate_events``' ``details.extend`` and
     the dry-run's ``warnings``, so both surfaces disclose the skip without either
     of them re-deriving the rule. Agreement is spelled out because this is copy
-    an operator reads, and "1 rows" is the defect tripl-3y7z fixed on the other
+    an operator reads, and "1 rows" is a defect already fixed on the other
     side of the wire.
 
     Public because a grouped dry run plans once PER EVENT TYPE and has to sum the
@@ -146,7 +146,7 @@ def absent_json_path_detail(keys: Sequence[str]) -> str:
     """What ``plan_events`` says about a dotted placeholder no row carried.
 
     The disclosure half of ``json_name_format_keys``' seed. Seeding ``""`` keeps
-    a quiet window collecting (tripl-0zpq.92), but a path that NO row carried is
+    a quiet window collecting, but a path that NO row carried is
     also what a producer-side rename or a typo in the format looks like, and
     that renders every affected event name with an empty segment — a different
     identity, silently, for as long as nobody notices. The run cannot tell the
@@ -154,7 +154,7 @@ def absent_json_path_detail(keys: Sequence[str]) -> str:
     decides whether the path is gone or the window was simply quiet.
 
     Pluralised in one place for the same reason as ``unnamed_skip_detail``:
-    "1 paths" is the defect tripl-3y7z fixed on the other side of the wire.
+    "1 paths" is a defect already fixed on the other side of the wire.
     """
     noun = "path" if len(keys) == 1 else "paths"
     segments = "an empty segment" if len(keys) == 1 else "empty segments"
@@ -172,7 +172,7 @@ def event_name_format_columns(event_name_format: str | None) -> set[str]:
     a placeholder is: a column named here is the event's identity, which makes
     it both something to enumerate (see ``name_columns`` below) and something
     that must never be reserved away — reserving it skips its FieldDefinition,
-    and the name format is then evaluated without it (tripl-lpin).
+    and the name format is then evaluated without it.
     """
     return set(format_keys(event_name_format)) if event_name_format else set()
 
@@ -186,15 +186,15 @@ def name_format_base_columns(event_name_format: str | None) -> set[str]:
     column, and the ``col.path`` keys below are assembled only from ``col_meta``
     entries, which every column enters through ``field_ids.get(col_name)``.
     So deleting the FieldDefinition for ``event`` kills ``{event.category}``
-    exactly as it kills ``{action}`` (tripl-3mmh), and reserving ``event`` away
-    from ``catalog_sync`` does the same thing by another route (tripl-lpin).
+    exactly as it kills ``{action}``, and reserving ``event`` away
+    from ``catalog_sync`` does the same thing by another route.
 
     The FULL key is included as well, because a dot does not make a name a
     path: a ClickHouse ``Nested`` column comes back as a column literally named
     ``params.screen`` and its FieldDefinition is stored under that name. A
     format ``{params.screen}`` over such a column needs ``params.screen`` itself
     unreserved and undeletable; reducing it to ``params`` alone left it
-    reserved, so every run failed on the missing placeholder (tripl-0zpq.95).
+    reserved, so every run failed on the missing placeholder.
     Returning both is safe either way: the full key of a JSON path names no
     top-level column, and the base of a real dotted column names none either.
 
@@ -218,12 +218,12 @@ def json_name_format_keys(
     ``JSONAllPaths`` gives a row that omits the key a group of its own, and the
     key is then absent from that row's path list; seeding it empty makes an
     absent JSON path behave exactly like a NULL regular column instead of
-    killing the whole scan on "references unknown keys" (tripl-0zpq.92).
+    killing the whole scan on "references unknown keys".
 
     Deliberately narrow at the COLUMN level. A dotted key whose BASE column is
     missing from ``col_meta`` — its FieldDefinition was deleted, or the column
     was reserved away — or that is not JSON is not seeded and still raises: that
-    failure is what tripl-3mmh and tripl-lpin exist for.
+    failure is what the earlier fixes for it exist for.
 
     Deliberately NOT narrowed at the PATH level, which is the question a reader
     asks next. Nothing here checks that ``col.path`` is a path the scan collects
@@ -233,7 +233,7 @@ def json_name_format_keys(
 
     * a path absent from the whole window is indistinguishable from a path
       renamed away, and raising on it would stop all collection for a quiet
-      window — the outage class of tripl-0zpq.92;
+      window — a known outage class;
     * the obvious narrowing, "require the key to be in
       ``meta['json_passthrough_paths']``", is wrong twice over. In the planner
       that list is declared INTERSECT observed (see ``plan_column_meta``), so it
@@ -243,7 +243,7 @@ def json_name_format_keys(
       in ``worker.tasks.metrics.generation`` fills the same key from the declared
       map alone, so the planner and the collector would disagree about which
       keys may be seeded, which is precisely how a row's volume becomes a shadow
-      candidate (tripl-0zpq.90).
+      candidate.
 
     The silence is what is fixed instead: ``plan_events`` reports every dotted
     placeholder that NO row of the analysis carried as a ``details`` line, so an
@@ -311,7 +311,7 @@ class EventPlan:
     columns_analyzed: int = 0
     events_grouped: int = 0
     # Breakdown rows whose derived name came out empty and were therefore not
-    # planned at all (tripl-wkwv.5). Counted rather than silently dropped: the
+    # planned at all. Counted rather than silently dropped: the
     # operator's next question is which rows, and the answer is the name format
     # or the base query.
     events_unnamed: int = 0
@@ -402,7 +402,7 @@ def plan_column_meta(
         # DataError on PostgreSQL (SQLite ignores VARCHAR length), and that error
         # would fail the whole run on every tick while the key stays in the
         # window. A JSON map keyed by user-typed text produces such keys, so the
-        # token is dropped and reported instead (tripl-0zpq.82).
+        # token is dropped and reported instead.
         if len(name) > VARIABLE_NAME_MAX_LENGTH:
             message = (
                 f"Skipped variable {name[:60]!r}…: longer than "
@@ -448,7 +448,7 @@ def plan_column_meta(
             # column of the query even when the event type in hand uses only a
             # few. Staying silent about a column that held NOTHING for these
             # rows keeps the warning meaningful: an undeclared column that DOES
-            # carry data is a real plan gap and still reports (tripl-jfm3.57).
+            # carry data is a real plan gap and still reports.
             # ``count`` excludes NULLs, so 0 means no value in any row here.
             #
             # A RESERVED column is the other false positive: app_version,
@@ -456,7 +456,7 @@ def plan_column_meta(
             # identity inputs, and ``reserved_catalog_columns`` is precisely what
             # kept them from ever getting a FieldDefinition. Reporting that as a
             # plan gap sent a fresh demo's first scan out claiming six missing
-            # fields when one was missing (tripl-jfm3.90). Only the MESSAGE is
+            # fields when one was missing. Only the MESSAGE is
             # suppressed — a reserved column that does carry a FieldDefinition
             # (an older project, declared before the column was reserved) falls
             # through to the normal path and collects values exactly as before.
@@ -732,9 +732,9 @@ def plan_events(
             # skips it outright, and in the grouped shape ``_process_breakdown``
             # does not even leave it in ``analysis.results``. But
             # ``reserved_catalog_columns`` deliberately UN-reserves it when the
-            # format names it (tripl-lpin), so the format is entitled to it and
+            # format names it, so the format is entitled to it and
             # the row carries the value. Reading it straight off the row is what
-            # makes ``{category}:{action}`` work at all (tripl-0zpq.93); it is
+            # makes ``{category}:{action}`` work at all; it is
             # deliberately NOT routed through ``col_meta``, so the column still
             # gets no EventFieldValue and the snapshot shape is unchanged.
             if event_type_column and event_type_column in name_columns:
@@ -789,7 +789,7 @@ def plan_events(
             plan.events_grouped += 1
             event_name = group_match.event_name
             if group_match.field_value_overrides:
-                # A JSON column keeps its template (tripl-p5ac): the regex literal
+                # A JSON column keeps its template: the regex literal
                 # would replace every ``${col.path}`` token at once, and
                 # ``_move_variable_contexts`` then deletes each context whose
                 # target value no longer names its variable. The rule still
@@ -806,7 +806,7 @@ def plan_events(
                 ]
 
         # A derived name of exactly "" is not an event, it is a row the rest of
-        # the pipeline already ignores (tripl-wkwv.5). The metric collector gates
+        # the pipeline already ignores. The metric collector gates
         # on ``if event_name:`` in ``worker.tasks.metrics.chunk_processing`` and
         # twice in ``metric_rows``, so a catalog row minted under an empty name
         # can never take a metric point, never be matched and never be
@@ -906,7 +906,7 @@ def raw_values_from_row(
     ``reserved_catalog_columns`` denies a FieldDefinition, so building this dict
     from ``col_meta`` made the metric collector match no rule the catalog pass
     had already matched. Grouped events then lost their volume to shadow
-    candidates (tripl-0zpq.90).
+    candidates.
 
     Keyed off index maps rather than a :class:`BreakdownAnalysis` so the sync
     worker, which never has one, calls the same code.
@@ -914,7 +914,7 @@ def raw_values_from_row(
     EVERY declared path is written, including the ones this row does not carry —
     those come back from ``toJSONString`` as the literal string ``"null"`` and
     are kept as ``"null"``. Skipping them would make the collector's dict differ
-    from the planner's, which is the divergence tripl-0zpq.90 is about, so the
+    from the planner's, which is a known divergence, so the
     absent paths are cheap here rather than absent.
 
     Cost matters: the metric collector calls this once per row, three times per
@@ -968,7 +968,7 @@ def _summarize_keys(kwargs: dict[str, str], budget: int) -> str:
     A count alone is not enough — ten long column names still overrun 500 chars,
     and because that truncation cuts from the RIGHT it lands mid-name and takes
     the "… and N more" tail with it, so the operator cannot tell the list was
-    summarised (tripl-3mmh).
+    summarised.
     """
     names = sorted(kwargs)
     if not names:
@@ -995,7 +995,7 @@ def _apply_name_format(fmt: str, kwargs: dict[str, str]) -> str:
 
     Raises :class:`NameFormatError` when the row cannot supply a placeholder;
     ``worker.tasks._errors.user_facing_error`` surfaces that message verbatim,
-    so no caller needs a wrapper (tripl-3mmh).
+    so no caller needs a wrapper.
     """
     missing: list[str] = []
 
@@ -1011,7 +1011,7 @@ def _apply_name_format(fmt: str, kwargs: dict[str, str]) -> str:
         # The message MUST start with "Scan failed" — frontend/src/lib/scanError.ts
         # only passes a backend message through verbatim when it does, and without
         # the prefix this self-diagnosing line degrades to a bare "Scan failed."
-        # in the UI, which is the outage this fixes (tripl-3mmh). Missing keys come
+        # in the UI, which is the outage this fixes. Missing keys come
         # first and the available list is capped because ``user_facing_error``
         # truncates from the right at 500 chars, and a wide warehouse table can
         # supply hundreds of column names.

@@ -48,7 +48,7 @@ DEFAULT_MISSING_RATIO = 0.05
 DEFAULT_SIGMA = 3.0
 _SMOOTHING = 0.5
 
-# Comparability gate (tripl-9y4l). Two releases are only comparable once they
+# Comparability gate. Two releases are only comparable once they
 # are drawn from a similar population. In the first hours of a rollout they are
 # not: everyone on the new build is a fresh install working through onboarding,
 # while the baseline is the steady-state base. Measured on acme-ios 15.7.4,
@@ -432,7 +432,7 @@ def _scope_results(
             kind = KIND_MISSING
         # ``settings.sigma`` is the project's ``sigma_threshold`` (default 4.0),
         # not DEFAULT_SIGMA, whenever the project has detection settings — the
-        # docs say so (tripl-0zpq.104).
+        # docs say so.
         elif ratio <= settings.drop_ratio and observed < expected - settings.sigma * math.sqrt(
             expected
         ):
@@ -475,7 +475,7 @@ def detect_release_regressions_by_scope(
 
     Whether two releases describe comparable populations is a property of the
     RELEASE. The partitions are only different estimators of it, so they get one
-    verdict between them rather than one each (tripl-phpy). They can never
+    verdict between them rather than one each. They can never
     disagree about which release is judged or over what window — that is fixed
     by :func:`_select_comparison` from release volumes alone — so the shared
     verdict is exactly the comparability gate and nothing else.

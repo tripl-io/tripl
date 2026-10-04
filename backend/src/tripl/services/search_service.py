@@ -139,7 +139,7 @@ class ReindexOutcome:
     ``search_embeddings_enabled`` flag, so the API reported a refresh as queued
     whenever the feature was switched on — including when the broker was down and
     the enqueue had just been swallowed by the ``except`` in
-    :func:`_queue_embedding_refresh` (tripl-0tt4 item 6). The operator reading
+    :func:`_queue_embedding_refresh`. The operator reading
     that response is deciding whether to go and look at the queue, so it has to
     mean "a task was handed to the broker", not "a task would have been if
     everything worked".
@@ -295,7 +295,7 @@ async def _reindex_branch_documents(
     # the content_hash comparison above proved. So it is current in substance and
     # only its stamp is behind; stamping it here is what lets the staleness sweep
     # converge. Without this a branch whose documents all survive the diff would
-    # come back due on every pass, forever (tripl-uji9).
+    # come back due on every pass, forever.
     restamp_ids = [
         row.id
         for row in existing.values()
@@ -340,7 +340,7 @@ async def reindex_project_branch(
     ``commit=False`` leaves both writes flushed but uncommitted, for a caller
     that owns the transaction: demo provisioning seeds a whole project in one
     phase-2 transaction and must still be able to roll it back when the user
-    cancels (tripl-0zpq.243). Such a caller must not also schedule embeddings —
+    cancels. Such a caller must not also schedule embeddings —
     the queued worker would read the branch before the rows are committed.
     """
     count, ai_config = await _reindex_branch_documents(
@@ -437,7 +437,7 @@ async def _apply_demo_search_embeddings(
 
 
 #: How many rows each retrieval leg pulls before fusion, no matter what page
-#: size the caller asked for (tripl-0tt4 item 2).
+#: size the caller asked for.
 #:
 #: WHY THE WINDOW MUST NOT TRACK THE PAGE SIZE
 #: -------------------------------------------
@@ -462,7 +462,7 @@ async def _apply_demo_search_embeddings(
 #: largest page the HTTP API can ask for is exactly one window. ``max`` rather
 #: than a plain constant because internal callers may request a larger window.
 #:
-#: AND ONE ROW PAST IT (tripl-wkwv.3)
+#: AND ONE ROW PAST IT
 #: ----------------------------------
 #: :func:`search_project` asks each leg for ``candidate_limit + 1``. Every leg
 #: and :func:`merge_results` stop at whatever number they are handed, so a leg
@@ -518,7 +518,7 @@ async def search_project(
     capped_limit = _safe_limit(limit)
     candidate_limit = max(capped_limit, CANDIDATE_WINDOW)
     # One row past the window, so a full window can be told apart from "that was
-    # everything" (tripl-wkwv.3). See CANDIDATE_WINDOW for why the probe cannot
+    # everything". See CANDIDATE_WINDOW for why the probe cannot
     # reach an answer.
     retrieval_limit = candidate_limit + 1
 
@@ -573,7 +573,7 @@ async def search_project(
         )
     # The retrieved set, measured BEFORE the trim: `total` is `len(items)` by
     # construction and therefore equals `limit` on any full page, so it can never
-    # say whether hits were dropped (tripl-wkwv.3). This count is free — the rows
+    # say whether hits were dropped. This count is free — the rows
     # are already in memory — and answers that. After folding it counts rows,
     # which is what the page is made of.
     candidate_count = len(items)
@@ -594,7 +594,7 @@ async def search_project(
         # one row past the window, so a retrieved set bigger than the page IS a
         # hit this response does not carry, and a set that fits IS the whole
         # answer — which is what every consumer of this flag was already told it
-        # means (tripl-wkwv.3).
+        # means.
         #
         # There is deliberately no `candidate_count >= candidate_limit` disjunct
         # beside it. That reads "the window filled", which is a different claim:
@@ -959,7 +959,7 @@ async def _ensure_index_exists(
 ) -> None:
     """Ask for the branch's index once — the first time this process searches it.
 
-    WHY THE ANSWER IS KEPT FOR THE PROCESS LIFETIME (tripl-2x5d)
+    WHY THE ANSWER IS KEPT FOR THE PROCESS LIFETIME
     ------------------------------------------------------------
     The probe answers one question — has this branch ever been indexed — and the
     only thing a "no" can trigger is one rebuild. Both are dead weight afterwards,
@@ -973,7 +973,7 @@ async def _ensure_index_exists(
     from a GET: build every document, diff it against the table, delete, insert,
     and COMMIT.
 
-    WHY THE BUILD IS ENQUEUED RATHER THAN RUN HERE (tripl-zbv0)
+    WHY THE BUILD IS ENQUEUED RATHER THAN RUN HERE
     -----------------------------------------------------------
     The memo bounded that cost to once per branch; the first search still paid it
     in full, inside a GET, with the user waiting. It is handed to
@@ -989,8 +989,8 @@ async def _ensure_index_exists(
     unindexed that way is picked up by the same triggers every other branch
     relies on: a CRUD mutation, the post-scan reindex of main, or an explicit
     ``POST /search/reindex``. Those triggers now cover every document kind — the
-    ``scan_config``/``alert_rule`` gap this docstring used to describe was closed
-    by tripl-ugrm.
+    ``scan_config``/``alert_rule`` gap this docstring used to describe has since been
+    closed.
     """
     memo_key = (project_id, branch_id)
     if memo_key in _CHECKED_BRANCH_INDEXES:
@@ -1011,7 +1011,7 @@ async def _ensure_index_exists(
 
 
 #: The stored-vector expression: the STEMMED lexemes of a document, plus its
-#: SURFACE lexemes, in one tsvector (tripl-uojz).
+#: SURFACE lexemes, in one tsvector.
 #:
 #: WHY BOTH, WHEN a7c3e1b9d5f2 JUST FINISHED ARGUING FOR THE STEM
 #: --------------------------------------------------------------
@@ -1094,7 +1094,7 @@ async def _ensure_index_exists(
 #: both configurations are applied unconditionally to every token, nothing is
 #: classified, and the two results are concatenated into the ONE existing
 #: ``text_vector`` behind the ONE existing GIN index.
-#: THE TITLE IS WEIGHTED, EVERYTHING ELSE IS NOT (tripl-dito)
+#: THE TITLE IS WEIGHTED, EVERYTHING ELSE IS NOT
 #: ----------------------------------------------------------
 #: ``setweight`` was never used, so every lexeme was weight D and ``ts_rank_cd``
 #: scaled all of them by the same 0.1 from its default ``{0.1, 0.2, 0.4, 1.0}``.
@@ -1144,7 +1144,7 @@ async def _refresh_text_vectors(
 ) -> None:
     """Vectorize the rows a reindex just inserted, with the stem+surface expression.
 
-    THIS EXPRESSION AND THE MIGRATION'S MUST STAY BYTE-IDENTICAL (tripl-uojz)
+    THIS EXPRESSION AND THE MIGRATION'S MUST STAY BYTE-IDENTICAL
     ------------------------------------------------------------------------
     A migration rebuilds every stored vector once; this function writes every
     vector produced after that. If the two expressions disagree, half the table

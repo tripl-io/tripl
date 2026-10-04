@@ -27,8 +27,7 @@ describe('resolveMetaFieldHref', () => {
 
   it('does not wrap a value that already is the template applied to a key', () => {
     // What production held for every branch-authored event: the whole address
-    // pasted where the key was meant. Rendering must not double it
-    // (tripl-kjhi.5).
+    // pasted where the key was meant. Rendering must not double it.
     expect(resolveMetaFieldHref(
       { field_type: 'string', link_template: TEMPLATE },
       'https://tracker.example.com/issues/TASK-123',

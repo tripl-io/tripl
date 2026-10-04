@@ -1,4 +1,4 @@
-"""Owner-issued invitations (tripl-jfm3.82).
+"""Owner-issued invitations.
 
 The point of this flow is that a CLOSED instance can still onboard exactly the
 people its owner named, so the tests that matter most assert redemption works

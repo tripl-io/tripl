@@ -5,7 +5,7 @@ There was already a test send, but it hangs off an alert DESTINATION
 operator configuring SMTP so password-reset links go out has no destination and
 never will — so the one path whose failure is invisible was also the one with no
 way to check itself: ``request_password_reset`` returns the same neutral message
-either way, and the background send swallows whatever goes wrong (tripl-wmpe).
+either way, and the background send swallows whatever goes wrong.
 
 Deliberately blocking, like every other channel client here. The caller hands it
 to ``asyncio.to_thread``.
@@ -44,7 +44,7 @@ def send_test_email(*, email_config: EmailConfig, recipient: str) -> None:
         )
     # Shared with the alert-destination test, so the two diagnostics cannot
     # disagree about which senders are usable — they did, and one of them was
-    # failing configurations that deliver (tripl-q9o6).
+    # failing configurations that deliver.
     validate_sender_address(email_config.smtp_from_address)
     address = validate_email_address(recipient)
 

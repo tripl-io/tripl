@@ -1,7 +1,7 @@
 import { deleteDemo, expect, generateDemo, test } from './fixtures'
 
 /**
- * The demo, the first thing a new account does (tripl-fj5g.1): generate it
+ * The demo, the first thing a new account does: generate it
  * from the empty workspace, land on its overview, look around, and delete it.
  * Generation runs the real worker against a synthetic warehouse, so this is
  * the whole pipeline, not a mock of it.

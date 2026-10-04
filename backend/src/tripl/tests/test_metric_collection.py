@@ -635,7 +635,7 @@ def test_truncated_breakdown_query_fails_instead_of_erasing_the_window(
 
     Collection deletes the chunk window before UPSERTing, so a query that hit the
     row ceiling used to erase rows it would never write back — silently, leaving
-    a metric that reads as a clean series with a hole in it (tripl-jfm3.112).
+    a metric that reads as a clean series with a hole in it.
     """
     with sync_session_factory() as session:
         project, data_source = _seed_project_and_ds(session)
@@ -667,7 +667,7 @@ def test_truncated_breakdown_query_fails_instead_of_erasing_the_window(
     monkeypatch.setattr(metric_collect, "METRIC_QUERY_ROW_LIMIT", 1)
 
     # ScanError, not ValueError: a hit row limit is user-actionable, so its
-    # message has to survive user_facing_error verbatim (tripl-embs).
+    # message has to survive user_facing_error verbatim.
     with pytest.raises(ScanError, match="reached the metric query row limit"):
         metric_collect.collect_metric_definitions.run(def_id)
 
@@ -770,7 +770,7 @@ def test_collect_sql_metric_honors_custom_value_column(
     monkeypatch: MonkeyPatch,
 ) -> None:
     """config.value_column redirects the measure read off the projected row
-    (tripl-0l0p) — the documented ``value`` alias is only the default."""
+    — the documented ``value`` alias is only the default."""
     with sync_session_factory() as session:
         project, data_source = _seed_project_and_ds(session)
         definition = MetricDefinition(

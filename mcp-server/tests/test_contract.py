@@ -30,7 +30,7 @@ MCP_PACKAGE = Path(tripl_mcp.__file__).parent
 PATH_LITERAL = re.compile(r'f?"(/(?:projects|auth|data-sources)[^"]*)"')
 
 # Wire keys whose meaning ``tripl_cli.api`` owns: the paged envelope, search's
-# semantic flag, search's truncation flag (tripl-wkwv.3), and the array
+# semantic flag, search's truncation flag, and the array
 # ``event_types.field_count`` exists to replace. Kept identical to the CLI
 # suite's own list on purpose - the two are one rule.
 SHARED_RESPONSE_KEYS = frozenset(
@@ -45,7 +45,7 @@ SHARED_RESPONSE_KEYS = frozenset(
 # the tool does not call.
 #
 # Adding a row here is what mirroring a new enum LOOKS like; the completeness
-# test below is what makes leaving one out fail (tripl-i0vd).
+# test below is what makes leaving one out fail.
 CLOSED_SET_PARAMETERS: tuple[tuple[str, str, tuple[str, str, str, str]], ...] = (
     ("list_events", "status", ("query", "get", events.LIST, "status")),
     ("list_events", "order_by", ("query", "get", events.LIST, "order_by")),
@@ -143,7 +143,7 @@ def test_tool_endpoints_are_the_shared_templates() -> None:
     ``TOOL_ENDPOINTS`` names the constants ``tripl_cli.api`` defines and the tool
     bodies ``.format()``, so this map cannot describe a path the tool does not
     send - and a backend rename breaks the CLI and the MCP together rather than
-    one loudly and the other silently (tripl-ey6j.5).
+    one loudly and the other silently.
     """
     unknown = [
         f"{tool}: {path}"
@@ -275,7 +275,7 @@ def test_every_closed_set_parameter_reaches_the_tool_schema_as_an_enum(
     passing ``order_by="newest"`` paid a request to be told 422 by the route -
     an error it then has to parse, on a value its own tool schema should never
     have let it emit. Typed as a ``Literal``, the enum reaches the schema and
-    the rejection happens locally and for free (tripl-i0vd).
+    the rejection happens locally and for free.
 
     Asserted against the DOCUMENT, never against a list spelled here: a second
     copy of an enum in a test is the drift it was written to catch. This is the
@@ -451,7 +451,7 @@ def _read_key(node: ast.Call | ast.Subscript) -> str | None:
 def test_no_tool_re_derives_a_shared_response_fact() -> None:
     """A tool asks ``tripl_cli.api`` what a response MEANS, not just where to send.
 
-    tripl-ey6j.5 shared request building and left response reading behind, so
+    Sharing request building and left response reading behind, so
     three tool bodies unwrapped ``{items, total}`` themselves while the CLI
     unwrapped it through ``model.page_items`` - two readings of one wire format,
     on the routes both surfaces call. The CLI's own test_contract.py scans this
@@ -460,7 +460,7 @@ def test_no_tool_re_derives_a_shared_response_fact() -> None:
 
     This does NOT cover the field projections. ``EVENT_LIST_FIELDS`` and friends
     are context-budget policy for a model that pays per token, they have one
-    caller, and tripl-i1dt left all four here deliberately.
+    caller, and all four were left here deliberately.
     """
     offenders: list[str] = []
     for source in sorted(MCP_PACKAGE.rglob("*.py")):

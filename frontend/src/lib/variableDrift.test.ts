@@ -34,7 +34,7 @@ describe('driftReviewState', () => {
   it('reads a snooze that has not run out as neither active nor resolved', () => {
     // The third state the panels had no room for: the backend counts this row
     // as NOT open — so the table badge says zero — while a two-state reading
-    // left it in the warning-toned active list (tripl-lh61).
+    // left it in the warning-toned active list.
     expect(driftReviewState(drift('snoozed', IN_A_WEEK), NOW)).toBe('snoozed')
   })
 
@@ -66,7 +66,7 @@ describe('driftReviewState', () => {
 describe('driftStatusNote', () => {
   it('says when a snoozed drift comes back', () => {
     // `snoozed_until` was fetched and rendered nowhere, so neither surface said
-    // when the deferral ends (tripl-lh61).
+    // when the deferral ends.
     expect(driftStatusNote(drift('snoozed', IN_A_WEEK), NOW)).toBe(
       `snoozed until ${formatDateTime(IN_A_WEEK)}`,
     )
@@ -118,7 +118,7 @@ describe('nextDriftSnoozeExpiry', () => {
   })
 })
 
-describe('useDriftReviewClock (tripl-lh61)', () => {
+describe('useDriftReviewClock', () => {
   beforeEach(() => {
     vi.useFakeTimers()
     vi.setSystemTime(new Date(NOW))

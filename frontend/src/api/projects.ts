@@ -53,7 +53,7 @@ export const projectsApi = {
   // branch and returns its id as `template_branch_id` (F21, #274); main stays
   // empty. Without one the field is null.
   create: (data: ProjectCreateInput) => api.post<ProjectCreateResult>('/projects', data),
-  // Demo lifecycle (tripl-2su6). Create BLOCKS while seeding (for about
+  // Demo lifecycle. Create BLOCKS while seeding (for about
   // DEMO_PROVISION_EXPECTED_MS, demo/provisioningPhases.ts) and returns a
   // fully-ready project (201) or 500 on failure. Reset/delete are scoped to the
   // demo endpoints and permitted for the demo's creator or a workspace owner —
@@ -63,7 +63,7 @@ export const projectsApi = {
   createDemo: (signal?: AbortSignal) => api.post<Project>('/projects/demo', {}, signal),
   // Aborting the create only stops the BROWSER reading the response — the server
   // finishes seeding regardless. This asks it to abandon the provision instead;
-  // `cancelled` is false when it was already too late (tripl-jfm3.12).
+  // `cancelled` is false when it was already too late.
   cancelDemo: () => api.post<DemoCancelResult>('/projects/demo/cancel', {}),
   // Reset re-seeds just as long as a create, so it takes a signal for the same
   // timeout (DEMO-4).

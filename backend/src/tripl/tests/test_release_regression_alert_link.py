@@ -223,7 +223,7 @@ def test_every_other_scope_keeps_the_links_it_had(
     Asserted rather than eyeballed, because the change replaced a fallthrough
     that every one of these scopes passed through.
 
-    This is the NO-INCIDENT path — pre-tripl-jfm3.91 rows, whose items carry no
+    This is the NO-INCIDENT path — rows from before correlation groups, whose items carry no
     ``correlation_group_id``. When there is an incident to point at, every scope
     links to it instead; see the test below.
     """
@@ -260,7 +260,7 @@ def test_every_scope_links_to_the_incident_when_there_is_one(scope_type: str) ->
     Only release regressions used to reach the alerting page; an anomaly alert
     linked to the event/monitoring page, which shows neither what was sent nor
     Ack / Resolve / Mute. Acting on a telegram alert therefore meant leaving the
-    page it opened and finding the matching incident by hand (tripl-pq97).
+    page it opened and finding the matching incident by hand.
 
     The delivery id and item anchor stay in the URL — they still select the exact
     row the message quoted, out of up to 8 packed into one delivery — and

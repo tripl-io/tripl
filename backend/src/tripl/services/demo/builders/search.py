@@ -3,7 +3,7 @@
 Runs last so every seeded entity is indexable. No commit — the caller owns the
 phase-2 transaction boundary, so ``commit=False`` is load-bearing: the default
 reindex commits twice, which used to persist the whole seed before
-``create_demo_project`` checked for a cancel (tripl-0zpq.243). Embeddings are not
+``create_demo_project`` checked for a cancel. Embeddings are not
 scheduled (no worker in the demo path).
 """
 

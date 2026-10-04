@@ -6,7 +6,7 @@ the group-rule pass (``merge_existing_events_for_group_rules``) load a type's
 rows into a map keyed by identity, adopt an identity for rows that have none,
 and insert rows claiming a new one — and each of those steps can produce the
 exact collision the constraint forbids. They are written once here so the two
-callers cannot drift apart on what "this identity is taken" means (tripl-8tdl).
+callers cannot drift apart on what "this identity is taken" means.
 
 Not claimed: the adoption UPDATE itself is not raced. It is flushed outside the
 savepoint below, so a writer that claims a NULL row's name between the load and

@@ -87,8 +87,8 @@ DEFAULT_BIGQUERY_MAXIMUM_BYTES_BILLED = 100 * 1024**3
 # browse is bounded; ``core.adapters.bigquery._schema_datasets`` enforces it by
 # truncating. The number is declared here, next to the write path that accepts the
 # allowlist, because the two were separate literals (50 here, 20 there) and a save
-# path that accepts a list the read path then silently drops is the defect
-# tripl-0zpq.70 filed: the operator configured 50 datasets, 30 never appeared, and
+# path that accepts a list the read path then silently drops is a defect
+# once filed: the operator configured 50 datasets, 30 never appeared, and
 # nothing said so.
 MAX_SCHEMA_DATASETS = 20
 
@@ -365,7 +365,7 @@ class DataSourceCreate(BaseModel):
     # Bounded like its neighbours, to the width of ``data_sources.username``
     # (String(255)). It was the one connection field left unbounded, so an
     # overlong username was a 500 out of the INSERT instead of a 422 naming the
-    # field (tripl-0zpq.275). ``password`` needs no bound: it is stored
+    # field. ``password`` needs no bound: it is stored
     # encrypted, in a Text column.
     username: str = Field("", max_length=255)
     password: str = ""
@@ -384,7 +384,7 @@ class DataSourceCreate(BaseModel):
 # The update fields whose DataSource column is NOT NULL, so an explicit ``null``
 # is a 422 naming the field and not a DB-level 500 out of
 # ``update_data_source``'s generic ``setattr`` loop — see
-# ``schemas/not_null_update`` (tripl-0zpq.267). ``password`` and
+# ``schemas/not_null_update``. ``password`` and
 # ``connection_settings`` are handled before that loop and each reads a null as
 # "leave the stored secret / clear the blob"; ``timeout_seconds`` and
 # ``json_path_discovery`` are nullable columns where a null means "the

@@ -46,10 +46,10 @@ const EMAIL_DEBOUNCE_MS = 400
 // and the page sent no offset, so the most recent 200 rows were the ONLY rows a
 // reader could reach: past that the card said "narrow the filter to drill into
 // older actions", which means guessing an action type or a date range to audit
-// anything older (tripl-5ydt). `offset` was already carried end to end by
+// anything older. `offset` was already carried end to end by
 // api/audit.ts, api/v1/audit.py and audit_service.list_entries; only the buttons
 // were missing. 50 matches the sibling delivery log (ProjectAlertingTab.tsx),
-// which got the same treatment in tripl-oxkt.12.
+// which got the same treatment.
 const PAGE_SIZE = 50
 
 /**
@@ -60,7 +60,7 @@ const PAGE_SIZE = 50
  * serialised, sent and parsed to be shown nowhere. On the one project with real
  * audit history this tab had the slowest first content of the 75 routes in the
  * 2026-08-17 walk — one sample per route, so the wasted bytes are the fact and
- * the timing is the hint (tripl-5ydt).
+ * the timing is the hint.
  *
  * An entry recorded without a payload — a bulk inbox mute files `{}` — still
  * renders nothing here, so an expanded row looks exactly as it did.
@@ -155,7 +155,7 @@ export function AuditTab({ slug }: { slug: string }) {
  *
  * This is where the actions that carry no project finally answer — and where a
  * `project.delete` entry can be read at all, since the project tab lives under
- * /p/:slug and a deleted project has no page to open (tripl-wkwv.17). The owner
+ * /p/:slug and a deleted project has no page to open. The owner
  * gate is the endpoint's own: the whole /audit router requires an interactive
  * owner session, so nothing here re-checks it.
  */
@@ -411,7 +411,7 @@ function AuditLog({ slug }: { slug?: string }) {
           {/* No format hint: these are native <input type="date"> controls,
               which render and parse in the browser's own locale (mm/dd/yyyy
               on a US profile). A hard-coded "(YYYY-MM-DD)" contradicted what
-              the control actually showed (tripl-jfm3.37). */}
+              the control actually showed. */}
           <FilterBarItem active={!!sinceDate}>
             <div className="flex items-center gap-1.5">
               <Label htmlFor="audit-since" className="text-caption font-normal text-fg-muted">
@@ -483,7 +483,7 @@ function AuditLog({ slug }: { slug?: string }) {
             // Rows, not a bare "Loading…" line: the header and the whole filter
             // card render immediately, so the only thing pending is this card,
             // and a one-line placeholder made a card that is about to be a list
-            // look like a card that is empty (tripl-5ydt).
+            // look like a card that is empty.
             <div className="divide-y" aria-busy="true" aria-label="Loading audit entries">
               {Array.from({ length: 6 }, (_, i) => (
                 <div key={i} className="flex items-center gap-2 px-3 py-2.5">
@@ -571,8 +571,8 @@ function AuditLog({ slug }: { slug?: string }) {
                             branch_name covers both a write to main and an action
                             with no plan-branch dimension (alerting, scans, data
                             sources), so rendering "main" here would mislabel
-                            alert_rule.create — hence a chip or nothing
-                            (tripl-wkwv.6). An explicit ?branch=<main id> binds no
+                            alert_rule.create — hence a chip or nothing.
+                            An explicit ?branch=<main id> binds no
                             branch context (api/deps.py), so the chip can never
                             read "main". Capped and truncated so it never squeezes
                             the target. */}
@@ -655,7 +655,7 @@ function AuditLog({ slug }: { slug?: string }) {
           {/* This line used to end "narrow the filter to drill into older
               actions" — the only way past row 200 was to guess an action type
               or a date range, on the surface the user guide points at for
-              tracking down a wrong edit or merge (tripl-5ydt). */}
+              tracking down a wrong edit or merge. */}
           <p className="text-body-sm text-fg-tertiary">
             {hasNewer
               ? `Showing ${rangeStart}–${rangeEnd} of ${countOf(total, 'entry', 'entries')}.`

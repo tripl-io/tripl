@@ -2,7 +2,7 @@ import { FlaskConical } from 'lucide-react'
 import { usePublicDemo } from '@/lib/deploymentMode'
 
 /**
- * Across the app shell on a public demo (tripl-sav5): what this instance is,
+ * Across the app shell on a public demo: what this instance is,
  * what it does not do, and that a workspace left unused goes away. Without
  * it the refusals (no connections of one's own, no invitations, no AI) read
  * as faults.

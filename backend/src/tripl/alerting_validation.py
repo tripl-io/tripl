@@ -269,11 +269,11 @@ def validate_sender_address(value: str) -> str:
     It is the SINGLE answer to that question, and it has to be. While the strict
     helper guarded some of these callers and this one guarded the rest, the two
     disagreed — in both directions, a year apart. First the destination Test
-    reported failure for a destination that delivers on every fire (tripl-q9o6).
+    reported failure for a destination that delivers on every fire.
     Then, once the two diagnostics moved here and the send paths did not, the
     inverse: Settings → Send test email and the destination Test both passed a
     display-name Default From that afterwards failed every real alert, the
-    combined digest, the weekly plan digest and the sunset alert (tripl-0zpq.29).
+    combined digest, the weekly plan digest and the sunset alert.
     Either way round the operator is misled about a configuration they cannot
     otherwise inspect, which is worse than not checking at all.
 
@@ -286,7 +286,7 @@ def validate_sender_address(value: str) -> str:
     the same end state by a shorter road: it validates nothing and passes the
     configured string through.
 
-    The per-destination From: OVERRIDE is on that list too, as of tripl-v422:
+    The per-destination From: OVERRIDE is on that list too:
     ``schemas.alerting`` saves it through this same helper, so a display name a
     destination's own send path would deliver can also be stored on it. It was
     the last place where saving was stricter than sending.

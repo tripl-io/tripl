@@ -1,4 +1,4 @@
-"""Regression tests for the Celery->async search-reindex bridge (tripl-5sbu.1).
+"""Regression tests for the Celery->async search-reindex bridge.
 
 The bridge runs inside long-lived prefork workers via a fresh ``asyncio.run()``
 per task. Reusing the module-global pooled async engine across those loops makes
@@ -12,7 +12,7 @@ patched async deps — no real database or event-loop reuse needed. The function
 is synchronous (it owns the ``asyncio.run`` call), so these tests are sync too.
 
 The single-branch Celery entry point into the same bridge
-(``tasks.search.reindex_search_branch``, tripl-zbv0) is covered at the bottom.
+(``tasks.search.reindex_search_branch``) is covered at the bottom.
 """
 
 import uuid

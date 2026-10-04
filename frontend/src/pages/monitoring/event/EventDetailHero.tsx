@@ -145,7 +145,7 @@ function EventDetailHeader({
     <PageHeader
       eyebrow="Plan · Event"
       // Never an empty top-level heading: a blank name gave the whole page no
-      // accessible title (tripl-wkwv.5). The status dot is decoration.
+      // accessible title. The status dot is decoration.
       title={
         <>
           <span className="mr-2.5 inline-flex align-middle">
@@ -291,7 +291,7 @@ function EventSignalBanner({
   // No baseline is a fact about the signal, not a missing value: dropping the
   // clause left the banner silently shorter on exactly the anomalies that moved
   // the most — an event firing where nothing was expected, a scope resuming
-  // after an outage — so it says so instead (tripl-l429.27).
+  // after an outage — so it says so instead.
   const delta = ratioDelta(signal.actual_count, signal.expected_count)
   const Arrow = signal.direction === 'drop' ? ArrowDown : ArrowUp
   return (
@@ -363,7 +363,7 @@ function EventSignalBanner({
  * alert and then showed one bare series — the reader had to take "+198% vs.
  * baseline" on faith from the chart they were handed to check it with. The one
  * baseline that does exist is the flagged bucket's, so it is named in words
- * beside the title instead of implied by a line that is not there (tripl-v2lm).
+ * beside the title instead of implied by a line that is not there.
  */
 function EventSignalMiniChart({
   data,

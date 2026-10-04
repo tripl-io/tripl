@@ -35,7 +35,7 @@ function isUnsetOptional(row: SpecRow): boolean {
  * handed a branch link found a Russian title, an identity reconstructible only
  * from the Fields table, template placeholders with no documented values in
  * sight, and half a page of "No metrics data available" for an event that is
- * not built yet (tripl-kjhi.8). This card is the spec: identity with copy,
+ * not built yet. This card is the spec: identity with copy,
  * the fields with the marks that matter to an implementer, the documented
  * values inline, an example payload, and a Markdown copy for the ticket.
  */

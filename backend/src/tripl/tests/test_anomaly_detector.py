@@ -109,7 +109,7 @@ def test_detect_anomalies_uses_effective_stddev_for_flat_baseline() -> None:
 
 
 def test_detect_anomalies_poisson_floor_ignores_low_volume_noise() -> None:
-    """tripl-dmch.17: a flat 10 +/- 0 count baseline must NOT flag a 10 -> 14
+    """a flat 10 +/- 0 count baseline must NOT flag a 10 -> 14
     move. sqrt(10) ~= 3.16, so a 3-sigma bar needs ~9-10 of deviation; +4 is
     Poisson noise, not an anomaly. The old fixed 1.0 floor scored it z=4."""
     points = [SeriesPoint(bucket=_bucket(hour), count=10) for hour in range(10)]
@@ -129,7 +129,7 @@ def test_detect_anomalies_poisson_floor_ignores_low_volume_noise() -> None:
 def test_detect_anomalies_detects_fractional_spike_without_zero_fill() -> None:
     """A sub-unit ratio movement (0.5 -> 0.9) must be detectable: fractional
     series swap the 1.0 absolute stddev floor for a magnitude-derived one and
-    keep their float values instead of rounding toward 0 (tripl-68bc)."""
+    keep their float values instead of rounding toward 0."""
     fractional_settings = AnomalyDetectionSettings(
         baseline_window_buckets=14,
         min_history_buckets=7,
@@ -215,7 +215,7 @@ def test_detect_anomalies_respects_min_expected_count_gate() -> None:
 def test_sub_threshold_series_early_exits_without_stl_fit(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """tripl-h353: a count series whose every bucket sits below
+    """a count series whose every bucket sits below
     ``min_expected_count`` can never emit (all paths are gated on it), so the
     detector must return [] BEFORE paying for the robust STL/MSTL fit — on real
     projects with hundreds of low-volume events that fit was ~1s per scope per
@@ -269,7 +269,7 @@ def test_max_count_at_threshold_is_not_early_exited() -> None:
 
 
 def test_headroom_preserves_trend_shift_above_max_counts() -> None:
-    """Adversarial-review counterexample (tripl-h353): the deseasonalized STL
+    """Adversarial-review counterexample: the deseasonalized STL
     trend is NOT bounded by max(counts). 10 days of day/night seasonality (45
     by day, 1 by night) followed by 2 days pinned flat at 45 — the troughs
     vanish, a genuine sustained level shift. The deseasonalized trend rises to
@@ -279,9 +279,9 @@ def test_headroom_preserves_trend_shift_above_max_counts() -> None:
 
     The observable is the trend detector RECOGNIZING the shift, not a persisted
     row: every per-bucket expectation on this series is under 45, and since
-    tripl-jfm3.48 the trend path applies the project's volume gate to the value
+    the volume-gate fix the trend path applies the project's volume gate to the value
     it reports — exactly as the phase and rolling paths always have. What
-    tripl-h353 must never do is skip the series before the detector sees it."""
+    the gate must never do is skip the series before the detector sees it."""
     points = []
     for hour in range(12 * 24):
         is_flat_tail = hour >= 10 * 24
@@ -555,7 +555,7 @@ def test_hybrid_detects_sustained_level_shift_on_seasonal_series() -> None:
     """A sustained +35% step on top of the seasonal pattern should surface as the
     shift begins, via either the per-bucket phase baseline or the deseasonalized
     trend-shift detector. It is evaluated across the shift region (not just the
-    final bucket): once the phase baseline re-levels to the new level (tripl-w0ay)
+    final bucket): once the phase baseline re-levels to the new level
     the tail buckets stop flagging, which is the point — a level shift is ONE
     incident, not one flag per bucket."""
     points = [
@@ -580,7 +580,7 @@ def test_hybrid_detects_sustained_level_shift_on_seasonal_series() -> None:
 
 
 def test_phase_baseline_relevels_sustained_shift_instead_of_flagging_every_bucket() -> None:
-    """tripl-w0ay: a level that stepped up ~6x two cycles ago and has been stable
+    """a level that stepped up ~6x two cycles ago and has been stable
     since must NOT flag every bucket. On a real production instance such an event showed 166
     of 167 hourly buckets flagged because the same-phase median stayed anchored to
     the pre-shift level. Re-leveling the phase expectation to the current level
@@ -604,7 +604,7 @@ def test_phase_baseline_relevels_sustained_shift_instead_of_flagging_every_bucke
 
 
 def test_phase_baseline_poisson_floor_ignores_low_count_wobble() -> None:
-    """tripl-w0ay: on a low-count seasonal series the phase path must not flag a
+    """on a low-count seasonal series the phase path must not flag a
     Poisson wobble. Baseline ~11/bucket; a +3 move (11 -> 14) is ~0.9 sigma under
     sqrt(11) spread, not an anomaly. Before the phase Poisson floor this scored
     z=3 against the 1.0 absolute floor and flagged every hour."""
@@ -624,7 +624,7 @@ def test_phase_baseline_poisson_floor_ignores_low_count_wobble() -> None:
 
 
 def test_covered_buckets_gap_is_not_flagged_as_drop() -> None:
-    """tripl-dmch.16 / contract C2: a collection gap (a bucket the scan never
+    """Contract C2: a collection gap (a bucket the scan never
     observed) must be EXCLUDED from evaluation, not zero-filled into a fake
     'drop'. Without covered_buckets the same missing bucket zero-fills and flags
     (see test_detect_anomalies_zero_fills_gaps_after_first_seen_bucket)."""
@@ -737,7 +737,7 @@ def test_effective_stddev_and_kind_populated_on_every_path() -> None:
 
 def _smooth_sinusoid_count(hour: int) -> float:
     """A visually-flat daily sinusoid: level ~1000 with a +/-3% swing. The kind
-    of series the old trend-shift detector over-flagged (tripl-dmch.8) — the
+    of series the old trend-shift detector over-flagged — the
     trend never actually drifts, only the seasonal component wobbles."""
     return 1000.0 + 30.0 * sin(2 * pi * (hour % 24) / 24)
 
@@ -815,7 +815,7 @@ def test_trend_shift_still_flags_sharp_spike_via_phase_detector() -> None:
 
 
 def test_trend_shift_direction_matches_actual_vs_expected() -> None:
-    """tripl-dmch.11: a trend-shift row's stored direction is derived from the
+    """a trend-shift row's stored direction is derived from the
     ACTUAL point vs its reconstructed expected level, so it can never contradict
     the point. A sustained DOWNWARD shift reads 'drop' and every emitted row
     satisfies direction == 'spike' iff actual >= expected."""
@@ -852,8 +852,8 @@ def test_trend_shift_direction_matches_actual_vs_expected() -> None:
 
 # A zero floor is what makes the trend path's clamped-to-zero expectation
 # reachable at all: for any positive floor the volume gate on the REPORTED value
-# (tripl-jfm3.48) already rejects it. This is the acme-ios configuration the 14
-# production rows came from (tripl-wkwv.8).
+# already rejects it. This is the acme-ios configuration the 14
+# production rows came from.
 ZERO_FLOOR_SETTINGS = AnomalyDetectionSettings(
     baseline_window_buckets=14,
     min_history_buckets=7,
@@ -863,7 +863,7 @@ ZERO_FLOOR_SETTINGS = AnomalyDetectionSettings(
 
 
 def test_trend_shift_emits_only_when_something_moved() -> None:
-    """tripl-wkwv.8: a bucket with neither an expectation nor any traffic is not
+    """a bucket with neither an expectation nor any traffic is not
     a spike, it is no movement, and no row may be written for it. Only the PAIR
     is degenerate — the three other corners of the same boundary still emit.
 
@@ -907,7 +907,7 @@ def test_trend_shift_emits_only_when_something_moved() -> None:
     # can only bite alongside ``expected_count == 0.0``, and the only lanes that
     # let a zero expectation past the volume gate (count-shaped scopes, the
     # platform-parity ratio) are non-negative by construction, so ``signed`` is
-    # False there and an actual below zero cannot arise. What tripl-0zpq.102 made
+    # False there and an actual below zero cannot arise. What the signed-series change made
     # live is the EXPECTED half — ``== 0.0`` rather than ``<= 0.0`` — because a
     # signed series' reconstruction is no longer clamped up to zero. This harness
     # calls ``_detect_trend_shift`` directly, which defaults to ``signed=False``,
@@ -927,7 +927,7 @@ def test_trend_shift_emits_only_when_something_moved() -> None:
 
 def test_trend_shift_does_not_write_a_zero_expectation_against_an_empty_bucket() -> None:
     """The same shape through the real MSTL fit, which is how production got its
-    14 rows (tripl-wkwv.8). A scope busy 09:00-18:00 with genuinely empty nights,
+    14 rows. A scope busy 09:00-18:00 with genuinely empty nights,
     dead for 8 days, then alive again: inside the dead run the deseasonalized
     trend overshoots NEGATIVE, so one seasonal period later the per-bucket
     reconstruction clamps to exactly 0.0 — and the bucket it anchors on is a
@@ -980,7 +980,7 @@ def test_trend_shift_does_not_write_a_zero_expectation_against_an_empty_bucket()
 
 
 # --------------------------------------------------------------------------
-# Ingestion settling (tripl-jfm3.7 / tripl-jfm3.6)
+# Ingestion settling
 # --------------------------------------------------------------------------
 
 
@@ -1006,7 +1006,7 @@ def _still_filling_peak_series() -> tuple[list[SeriesPoint], int]:
 
 
 def test_settling_allowance_suppresses_drop_on_still_filling_newest_bucket() -> None:
-    """tripl-jfm3.7: the newest bucket is scored while the warehouse is still
+    """the newest bucket is scored while the warehouse is still
     delivering it, so a partly-filled 20-of-60 peak reads as a 5-sigma drop that
     evaporates once the rows land. One settling bucket holds the scoring back."""
     points, hours = _still_filling_peak_series()
@@ -1069,7 +1069,7 @@ def _day(index: int) -> datetime:
 
 
 def test_settling_allowance_holds_back_newest_present_fractional_bucket() -> None:
-    """tripl-jfm3.6: a 1d ratio metric whose newest stored bucket reads 0 because
+    """a 1d ratio metric whose newest stored bucket reads 0 because
     the inputs that define it are not in yet. The bucket is two grid slots behind
     ``evaluation_end``, so the allowance must be measured from the end of the
     PRESENT series, not from the grid."""
@@ -1098,7 +1098,7 @@ def test_settling_allowance_holds_back_newest_present_fractional_bucket() -> Non
 
 
 # --------------------------------------------------------------------------
-# One incident, one signal (tripl-jfm3.46 / tripl-jfm3.47 / tripl-jfm3.48)
+# One incident, one signal
 # --------------------------------------------------------------------------
 
 
@@ -1147,7 +1147,7 @@ def _simulate_hourly_scans(
 
 
 def test_sustained_level_change_is_one_row_not_one_per_scan() -> None:
-    """tripl-jfm3.47: the run-collapse invariant only ever held inside a single
+    """the run-collapse invariant only ever held inside a single
     invocation. The evaluation window slides one bucket per hourly scan and the
     delete window slides with it, so a window-anchored trend row was written one
     bucket further along every run and never revisited — one incident accumulated
@@ -1174,7 +1174,7 @@ def test_sustained_level_change_is_one_row_not_one_per_scan() -> None:
 
 
 def test_phase_expectation_relevels_within_one_short_cycle() -> None:
-    """tripl-jfm3.46: with the level averaged over the FULL phase period, an
+    """with the level averaged over the FULL phase period, an
     hour-of-week baseline anchors ``median(factors) * current_level`` to a 7-day
     trailing mean, so a step change keeps clearing the sigma bar for days
     (measured: still flagging 71h later, and 106-152h on production series).
@@ -1216,7 +1216,7 @@ def test_phase_expectation_relevels_within_one_short_cycle() -> None:
 
 
 def test_trend_rows_never_report_expectation_below_the_volume_gate() -> None:
-    """tripl-jfm3.48: the trend path gated on the deseasonalized trend but
+    """the trend path gated on the deseasonalized trend but
     persisted a different quantity as ``expected_count`` — a per-bucket
     reconstruction that could fall below (even to 0.00 on) a project whose
     configured floor is 50. Every surfaced row must clear the floor the user set,
@@ -1252,7 +1252,7 @@ def test_trend_rows_never_report_expectation_below_the_volume_gate() -> None:
 
 
 def test_identical_series_share_one_stl_fit() -> None:
-    """tripl-jfm3.1/.73: the robust MSTL fit is the dominant scan cost and a PURE
+    """The robust MSTL fit is the dominant scan cost and a PURE
     function of (series, grid), so identical series must be fitted once.
 
     This is not hypothetical: a scan whose platform column carries a single
@@ -1289,8 +1289,8 @@ def test_identical_series_share_one_stl_fit() -> None:
 def test_flat_series_decomposition_matches_the_fitted_one() -> None:
     """The flat-series shortcut must reproduce what STL computes, not approximate it.
 
-    A single-platform scan makes every scope's parity ratio exactly 1.0
-    (tripl-jfm3.1); those fits are skipped analytically, so pin the equivalence
+    A single-platform scan makes every scope's parity ratio exactly 1.0;
+    those fits are skipped analytically, so pin the equivalence
     against the real fit rather than trusting the algebra.
     """
     from statsmodels.tsa.seasonal import MSTL
@@ -1386,7 +1386,7 @@ def test_uncovered_bucket_does_not_rotate_the_seasonal_phase() -> None:
 
 
 # --------------------------------------------------------------------------
-# A silent scope announces once (tripl-l429.13)
+# A silent scope announces once
 # --------------------------------------------------------------------------
 
 
@@ -1467,7 +1467,6 @@ def test_the_outage_announcement_does_not_move_with_the_evaluation_window() -> N
 
 # --------------------------------------------------------------------------
 # A run this pass declines to announce is reported, not silently dropped
-# (tripl-l429.16)
 # --------------------------------------------------------------------------
 
 # Production geometry. What matters is that ``min_expected_count`` sits ABOVE the

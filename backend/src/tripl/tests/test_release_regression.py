@@ -184,7 +184,7 @@ def test_latest_two_releases_chosen_by_semver_not_lexical() -> None:
     assert results[0].kind == KIND_MISSING
 
 
-# --- comparability gate (tripl-9y4l) -----------------------------------------
+# --- comparability gate -----------------------------------------
 #
 # Proportions below are taken from the acme-ios 15.7.4 incident, where nine
 # scopes were reported as regressions seven hours into a rollout while the app
@@ -325,7 +325,7 @@ def test_a_thin_new_release_spread_over_a_wide_catalog_is_still_judged() -> None
     assert [r.scope_ref for r in report.results] == ["main"]
 
 
-# --- one verdict across scope partitions (tripl-phpy) -------------------------
+# --- one verdict across scope partitions -------------------------
 #
 # The recalculation layer judges the same release twice, once per scope
 # partition, and event types are a coarsening of events. Nothing used to hold

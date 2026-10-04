@@ -46,8 +46,7 @@ from tripl.schemas.time_guards import require_future_instant
 
 # ``note`` is the only member that does NOT change the incident's status: it
 # documents one. Saving a note used to require taking an action, so writing down
-# why something was a false positive meant first undoing the false positive
-# (tripl-oxkt.20).
+# why something was a false positive meant first undoing the false positive.
 AlertInboxAction = Literal["acknowledge", "resolve", "mute", "reopen", "false_positive", "note"]
 
 
@@ -90,7 +89,7 @@ class AlertRuleBase(BaseModel):
     # a 300-character name passed this layer and the INSERT failed underneath it
     # with a Postgres StringDataRightTruncation, which nothing catches but the
     # handler of last resort in ``main.py`` — a generic 500 for a body we had
-    # already accepted (tripl-0zpq.275). SQLite ignores VARCHAR widths, so this
+    # already accepted. SQLite ignores VARCHAR widths, so this
     # bound is all the unit suite can see of that contract; the column is what it
     # stands in for, and ``tests/test_batch4_services.py`` asserts the two
     # numbers are still the same one.
@@ -320,14 +319,14 @@ class AlertRuleResponse(BaseModel):
     # that GET /monitors/{rule_id} already reports. The destination card and the
     # monitors screen render the same object and used to disagree about whether
     # it was muted, because this response carried no mute state at all and the
-    # card therefore could neither show nor set one (tripl-oxkt.18). A lapsed
+    # card therefore could neither show nor set one. A lapsed
     # ``muted_until`` is NOT muted; see ``_alerting_monitors.is_rule_muted``,
     # which both paths call.
     muted: bool
     muted_until: datetime | None
     # Delivery health, so the card can say whether this rule's channel has
     # actually carried anything — "bot token set" means a value is stored, not
-    # that it reaches Telegram (tripl-oxkt.17). All three are the values
+    # that it reaches Telegram. All three are the values
     # ``MonitorDetailResponse`` already reports for the SAME AlertRule, under the
     # same names: a monitor IS an alert rule seen from the other side, so the two
     # payloads must not describe one number twice.
@@ -344,7 +343,7 @@ class AlertRuleResponse(BaseModel):
     last_delivery_status: AlertDeliveryStatus | None
     # What deleting this rule would destroy. AlertDelivery.rule_id is
     # ondelete=CASCADE and the Inbox INNER JOINs through it, so the confirm has
-    # to be quantitative rather than a bare "Delete?" (tripl-oxkt.13).
+    # to be quantitative rather than a bare "Delete?".
     # ``incident_count`` counts DISTINCT non-null correlation groups.
     incident_count: int
     created_at: datetime
@@ -370,7 +369,7 @@ class AlertRuleResponse(BaseModel):
 # parsing, which for an ``async def`` route happens ON THE EVENT LOOP — so
 # saving a destination whose host resolved slowly stalled the entire uvicorn
 # worker, and every unrelated request already in flight on it, for however long
-# the resolver took (tripl-0zpq.30). That is why these wrappers exist and why
+# the resolver took. That is why these wrappers exist and why
 # neither of them may grow a ``block_private_hosts=True``.
 #
 # The SSRF guard is NOT weakened by the move, only relocated: it still runs on
@@ -416,15 +415,15 @@ def _validate_email_from_override(value: str | None) -> str | None:
 
     So ``Tripl Alerts <no-reply@example.com>`` on a destination delivers, and
     delivers with the display name intact — the strict helper here was refusing
-    a value every consumer of the column already accepts (tripl-v422). That is
-    the inverse of tripl-0zpq.29 at the other end of the same pipe: there the
+    a value every consumer of the column already accepts. That is
+    the inverse of an earlier bug at the other end of the same pipe: there the
     diagnostics were more permissive than delivery, here the SAVE was stricter
     than delivery. Both mislead the operator about a configuration they cannot
     otherwise inspect, and both are fixed by the columns' readers and writers
     answering the question the same way.
 
     The global ``EmailSettingsUpdate.smtp_from_address`` — the value this one
-    overrides — has been checked this way since tripl-0zpq.29. A value whose
+    overrides — has been checked this way for some time. A value whose
     SHAPE was accepted globally and then refused on the destination that
     overrides it was the last asymmetry of that kind left in the pair.
 
@@ -440,7 +439,7 @@ def _validate_email_from_override(value: str | None) -> str | None:
     two fields that call this helper therefore carry an explicit
     ``max_length=255`` of their own; without it a long organisation display name
     is accepted here and then fails in the INSERT, the 500 naming no field that
-    ``AlertRuleBase.name`` describes (tripl-0zpq.275). The bound belongs on the
+    ``AlertRuleBase.name`` describes. The bound belongs on the
     fields and not in this function: the send paths that share
     ``validate_sender_address`` read a column this wide or wider, or none at all.
 
@@ -463,7 +462,7 @@ class AlertDestinationCreate(BaseModel):
     # Same width as ``alert_destinations.name`` (String(255)). ``normalize_name``
     # below has always refused a blank destination name, but nothing capped its
     # length, so an overlong one reached the INSERT exactly the way a rule name
-    # did — see ``AlertRuleBase.name`` for the 500 that produced (tripl-0zpq.275).
+    # did — see ``AlertRuleBase.name`` for the 500 that produced.
     name: str = Field(max_length=255)
     enabled: bool = True
     # Hold this destination's alerts and deliver them on a cadence instead of
@@ -479,7 +478,7 @@ class AlertDestinationCreate(BaseModel):
     # with nothing measuring it. ``chat_id``, ``webhook_header_name``,
     # ``jira_base_url`` and ``linear_label_ids`` were the rest, and each now
     # carries its own column's width verbatim, for the reason
-    # ``AlertRuleBase.name`` gives (tripl-0zpq.275). Every pair is asserted
+    # ``AlertRuleBase.name`` gives. Every pair is asserted
     # equal to that column in ``tests/test_batch4_services.py``.
     #
     # Bounding the INPUT is enough even though ``validate_channel_config``
@@ -610,7 +609,7 @@ class AlertDestinationCreate(BaseModel):
         elif self.type == "demo_sink":
             # A demo_sink is a local, non-sendable sink: it carries NO
             # credentials or channel configuration and never stores a secret or
-            # fake token. Reject any attempt to supply them (tripl-2su6.6).
+            # fake token. Reject any attempt to supply them.
             provided = [
                 name
                 for name in (
@@ -889,15 +888,15 @@ class AlertDestinationResponse(BaseModel):
     next_digest_at: datetime | None = None
     # Alerts matched and HELD for the next digest. A cadence puts a destination
     # into "on and quiet" for a whole window by design, and nothing else on the
-    # screen can tell that apart from "on and structurally dead" (tripl-ftrn).
+    # screen can tell that apart from "on and structurally dead".
     held_count: int = 0
     # True for a ``demo_sink`` destination: a local, non-sendable sink that
     # renders and records deliveries locally with no outbound network. The UI
-    # uses it to badge the destination as LOCAL SIMULATED (tripl-2su6.6).
+    # uses it to badge the destination as LOCAL SIMULATED.
     is_local: bool = False
     # Destination-wide totals of what a delete would destroy, so the destination
     # confirm can state it too — deleting a destination CASCADEs every rule under
-    # it and every delivery under those (tripl-oxkt.13). NOT the sum of the
+    # it and every delivery under those. NOT the sum of the
     # per-rule numbers below: one correlation group can be carried by two rules
     # of the same destination, so summing per-rule DISTINCT counts would count
     # that incident twice.
@@ -1017,7 +1016,7 @@ class AlertDestinationTestResponse(BaseModel):
     """Result of a manual test send — did this destination reach its channel?
 
     A channel refusal is an ANSWER, not a server fault: a revoked Telegram token
-    and a healthy one look identical in the destination form (tripl-oxkt.17), and
+    and a healthy one look identical in the destination form, and
     the whole point of the probe is to tell them apart. So the route returns 200
     with ``ok=False`` and the channel's own message rather than a 5xx the UI would
     render as "something went wrong on our side".
@@ -1057,7 +1056,7 @@ class AlertDeliveryItemResponse(BaseModel):
     # carries BOTH: ``AlertDeliveryDetailResponse`` inherits ``payload_snapshot``
     # and adds ``items``, so leaving this one a bare float made a single JSON
     # body answer the same question two ways, and the typed array is the half an
-    # external consumer reads off the OpenAPI spec (tripl-l429.27).
+    # external consumer reads off the OpenAPI spec.
     #
     # ``AlertDeliveryItem.percent_delta`` stays NOT NULL: the row is frozen
     # history and is not rewritten. Only the outbound encoding changes.
@@ -1069,8 +1068,8 @@ class AlertDeliveryItemResponse(BaseModel):
     sample_value: str | None
     # The incident this row belongs to: one
     # (scan config, rule, scope type, scope ref, direction).
-    # It is also the handle the alert inbox acts on, so EVERY item written since
-    # tripl-jfm3.91 carries one — a solitary alert had none before and was
+    # It is also the handle the alert inbox acts on, so EVERY item written
+    # now carries one — a solitary alert had none before and was
     # therefore invisible to the inbox and impossible to acknowledge. Co-firing
     # is the peer COUNT within a delivery, not the presence of this id. NULL
     # only on rows written by older releases.
@@ -1114,8 +1113,7 @@ class AlertDeliveryResponse(BaseModel):
     # True when the delivery was rendered + recorded locally by a ``demo_sink``
     # destination with no outbound network. ``is_local`` and ``is_simulated``
     # both track ``channel == demo_sink`` so the UI can badge the delivery as a
-    # LOCAL SIMULATED send that never claims a real external success
-    # (tripl-2su6.6).
+    # LOCAL SIMULATED send that never claims a real external success.
     is_local: bool = False
     is_simulated: bool = False
     created_at: datetime
@@ -1149,7 +1147,7 @@ class AlertInboxRuleRef(BaseModel):
     index *i* of one had nothing to do with index *i* of the other and the card
     linked "Volume rule" to whichever monitor happened to sort first. Two rules
     of one group can even share a name, so no client-side join could repair it
-    either (tripl-oxkt.4).
+    either.
     """
 
     id: uuid.UUID
@@ -1164,7 +1162,7 @@ class AlertInboxGroupResponse(BaseModel):
     # ``AlertRuleResponse`` and ``MonitorSummaryItem`` already pair a ``muted``
     # bool with a raw ``muted_until``, and a client reading both payload families
     # had to know that "muted" is asked one way here and another way there
-    # (tripl-oxkt.18/.20). ``muted_until`` is nulled once the mute lapses, so the
+    # (.20). ``muted_until`` is nulled once the mute lapses, so the
     # two fields can never contradict each other the way the rule payload's can.
     # Always sent, so no default — see ``event_id`` below.
     muted: bool
@@ -1178,7 +1176,7 @@ class AlertInboxGroupResponse(BaseModel):
     # When this incident first spoke WITHIN THE WINDOW THIS READING COVERS.
     # `latest_delivery_at` alone says when it last fired and nothing about how
     # long it has been going, which is the difference between a blip and a
-    # week-old regression (tripl-oxkt.4). On the list — and on the action reply,
+    # week-old regression. On the list — and on the action reply,
     # which mirrors it — that window is `INBOX_LOOKBACK_DAYS`, so an incident
     # older than the window reports its first delivery INSIDE the window, not its
     # true birth. `GET /alert-inbox/{correlation_group_id}` reads the whole
@@ -1189,7 +1187,7 @@ class AlertInboxGroupResponse(BaseModel):
     direction: AnomalyDirection
     # Magnitude of the newest item. Two firings of one scope differing only in
     # scope_type rendered as near-identical cards, with nothing on screen saying
-    # what fired or how big it was (tripl-oxkt.4). The columns are already on
+    # what fired or how big it was. The columns are already on
     # AlertDeliveryItem, so the builder fills these from rows it already holds.
     actual_count: float
     expected_count: float
@@ -1198,18 +1196,18 @@ class AlertInboxGroupResponse(BaseModel):
     # (see the validator below). Copying the column straight off the row made the
     # card render "0%" for a scope firing from nothing, which is the LOUDEST
     # class there is, while the delivery the card expands to correctly said null
-    # — one payload family answering the same question two ways (tripl-l429.27).
+    # — one payload family answering the same question two ways.
     percent_delta: float | None
     # Largest deviation anywhere in the group, so "worst first" is orderable
     # without fetching the group's items. Computed over the rows that HAVE a
     # baseline only; ``None`` when no row in the group does, because a group of
     # zero-baseline firings has no measured deviation to be largest — reporting
-    # the placeholder 0.0 sorted the loudest incidents last (tripl-l429.24).
+    # the placeholder 0.0 sorted the loudest incidents last.
     max_abs_percent_delta: float | None
     # The scope of the most recent item, so the card can link straight to the
     # thing that fired. `scope_names` is display text and cannot be routed;
     # without these the reader could see WHAT alerted and had no way to go look
-    # at it (tripl-pq97).
+    # at it.
     scope_type: MetricScopeType
     scope_ref: str
     # Nullable but ALWAYS SENT — `_build_inbox_group_response` fills it from the
@@ -1221,7 +1219,7 @@ class AlertInboxGroupResponse(BaseModel):
     # DISTINCT scope types present in the group, sorted. `scope_type` above is
     # the newest item's alone, and legacy groups can mix types, so a single
     # value cannot label the card — nor can the client derive what a
-    # false-positive click will actually tune from it (tripl-oxkt.6).
+    # false-positive click will actually tune from it.
     scope_types: list[MetricScopeType]
     scope_names: list[str]
     destination_names: list[str]
@@ -1237,7 +1235,7 @@ class AlertInboxGroupResponse(BaseModel):
     acted_by: uuid.UUID | None = None
     # Display name of `acted_by`, or `None` when the user has no name on file.
     # The API shipped a bare UUID, so "already handled by <uuid>" was the best a
-    # card could say (tripl-oxkt.5). It deliberately does NOT fall back to the
+    # card could say. It deliberately does NOT fall back to the
     # operator's EMAIL: this endpoint is readable by every project member, and a
     # fallback would turn an incident card into a roster of colleagues' email
     # addresses on a surface that previously exposed only an opaque id. The card
@@ -1258,7 +1256,7 @@ class AlertInboxGroupResponse(BaseModel):
         so a future builder cannot reintroduce the placeholder: this response's
         ``percent_delta`` describes the same newest item its ``expected_count``
         comes from, so the invariant — null exactly when ``expected_count`` is 0
-        — is checkable right here (tripl-l429.24/.27).
+        — is checkable right here (.27).
 
         ``max_abs_percent_delta`` spans the WHOLE group and has no companion
         expected_count on this model, so nothing here can verify it; the builder
@@ -1298,7 +1296,7 @@ class AlertInboxListResponse(BaseModel):
     # was not: the cap is applied on DELIVERY recency before grouping, so a
     # loud-enough project would silently get a shorter window with nothing
     # saying so, and a missing incident would be indistinguishable from a
-    # handled one (tripl-39n6).
+    # handled one.
     #
     # ONE nullable instant rather than a `window_truncated` bool beside a
     # `window_start` datetime: two fields can disagree — truncated with no
@@ -1321,7 +1319,7 @@ class AlertInboxActionRequest(BaseModel):
     note: str | None = Field(None, max_length=2000)
     # ``None`` on a ``mute`` is the INDEFINITE mute — "muted until I unmute" —
     # not a missing field; see ``validate_action``. A value sent with any other
-    # action is refused rather than discarded (tripl-0zpq.325).
+    # action is refused rather than discarded.
     muted_until: datetime | None = None
 
     @model_validator(mode="after")
@@ -1331,7 +1329,7 @@ class AlertInboxActionRequest(BaseModel):
         A ``mute`` with NO ``muted_until`` is no longer one of them. On the INBOX
         a null means "muted until I unmute": the operator watching a scope they
         already know is broken had to invent an expiry date, and got paged again
-        the moment they guessed too short (tripl-a50u). The column is nullable
+        the moment they guessed too short. The column is nullable
         and every reader already agrees on that reading —
         ``_effective_inbox_status`` leaves a null-muted row at ``muted``,
         ``_suppressed_correlation_group_ids`` never lapses it, and
@@ -1353,14 +1351,14 @@ class AlertInboxActionRequest(BaseModel):
         # while still inserting a correlation-state row — the request looked
         # accepted and the note was never saved. The mute guard this one used to
         # mirror — "a mute needs an end" — is still gone, because a null
-        # ``muted_until`` became the indefinite mute (tripl-a50u); the mute guard
+        # ``muted_until`` became the indefinite mute; the mute guard
         # below is a different one, about the value rather than its presence.
         # An EMPTY STRING stays valid: it is the documented way to clear a note
         # (``apply_alert_inbox_action`` stores ``strip() or None``).
         if self.action == "note" and self.note is None:
             raise ValueError("note is required when action is note")
         # A mute that ends BEFORE IT BEGINS is the other body this docstring
-        # promises to refuse and never did (tripl-0zpq.273). Nothing sweeps an
+        # promises to refuse and never did. Nothing sweeps an
         # expired mute or writes it back: ``_effective_inbox_status`` decides
         # whether a mute is in force when the row is READ, so storing one that
         # has already lapsed leaves the card open and hands the operator a 200
@@ -1381,7 +1379,7 @@ class AlertInboxActionRequest(BaseModel):
         # meant to mute; every action but ``mute`` nulls the column, so taking
         # it would answer 200 and do something else. Refused, as
         # ``EventCommentActionRequest`` refuses a stray ``snoozed_until`` —
-        # one rule across the four action bodies (tripl-0zpq.325).
+        # one rule across the four action bodies.
         if self.action != "mute" and self.muted_until is not None:
             raise ValueError("muted_until is only meaningful when action is mute")
         return self
@@ -1392,7 +1390,7 @@ class AlertInboxActionResponse(BaseModel):
 
     ``false_positive`` writes no scope override for scope types the ratchet does
     not tune — release regressions among them — so the button promised a
-    detection change it never made, on 10 of 57 production groups (tripl-oxkt.6).
+    detection change it never made, on 10 of 57 production groups.
     The count is reported so the UI can say "tightened 2 scopes" or "no scopes
     tightened"; it must NOT be guessed client-side from ``scope_type``, which is
     only the newest item's.
@@ -1419,7 +1417,7 @@ class AlertInboxActionResponse(BaseModel):
 # Nothing else in this repo caps its bulk id list — ``EventBulkUpdate``,
 # ``EventBulkDelete``, ``VariableBulkUpdate``, ``VariableBulkDelete`` and
 # ``MetricBulkUpdate`` all take an unbounded one — and those five are
-# deliberately NOT retrofitted here (tripl-gpfr). They each mutate every named
+# deliberately NOT retrofitted here. They each mutate every named
 # row in a single UPDATE statement, so list length costs them almost nothing;
 # this route does per-group work — a correlation-state row, a rebuilt card and an
 # audit row EACH — so length is a real cost here and only a theoretical one
@@ -1429,7 +1427,7 @@ MAX_BULK_INBOX_ACTION_GROUPS = 200
 
 
 class AlertInboxBulkActionRequest(BaseModel):
-    """One triage decision applied to several incidents at once (tripl-gpfr).
+    """One triage decision applied to several incidents at once.
 
     A TRIAGE SHORTCUT, not an incident record. There is no group-of-groups
     object, no new table and no migration behind this body: whatever it says is
@@ -1437,7 +1435,7 @@ class AlertInboxBulkActionRequest(BaseModel):
     every selected row carries the same note, the same ``acted_at`` and the same
     ``acted_by`` and is indistinguishable from N single-incident clicks.
 
-    A persistent supergroup was costed and rejected (tripl-5cc9):
+    A persistent supergroup was costed and rejected:
     ``_reopen_closed_incidents`` runs inside the per-rule loop and resets member
     incidents individually, so a parent row would either never release — because
     no single member's release can speak for it — or leak the moment one member
@@ -1458,7 +1456,7 @@ class AlertInboxBulkActionRequest(BaseModel):
     note: str | None = Field(None, max_length=2000)
     # ``None`` on a ``mute`` is the INDEFINITE mute here too — "muted until I
     # unmute" — exactly as on ``AlertInboxActionRequest``, and for the same
-    # reason (tripl-a50u). Bulk-muting a screenful of incidents an operator
+    # reason. Bulk-muting a screenful of incidents an operator
     # already knows are broken is the case that most needs it, so this route
     # must not be the one place that demands an invented expiry date.
     muted_until: datetime | None = None
@@ -1484,10 +1482,10 @@ class AlertInboxBulkActionRequest(BaseModel):
         # instant is a silence no reader can honour, and why the null arm must
         # stay. It matters MORE here: this route exists to silence a screenful at
         # once, so one mistyped instant is up to 200 incidents reported as muted
-        # and not one of them actually silenced (tripl-0zpq.273).
+        # and not one of them actually silenced.
         if self.action == "mute" and self.muted_until is not None:
             self.muted_until = require_future_instant(self.muted_until, field_name="muted_until")
-        # Same refusal as the single-incident body (tripl-0zpq.325).
+        # Same refusal as the single-incident body.
         if self.action != "mute" and self.muted_until is not None:
             raise ValueError("muted_until is only meaningful when action is mute")
         # ``false_positive`` is refused in bulk, and this is the ONLY action that
@@ -1518,7 +1516,7 @@ class AlertInboxBulkActionRequest(BaseModel):
 
 
 class AlertInboxBulkActionResponse(BaseModel):
-    """The rebuilt cards for every incident the batch touched (tripl-gpfr).
+    """The rebuilt cards for every incident the batch touched.
 
     DELIBERATELY NOT the house 204 that ``/bulk-update`` and ``/bulk-delete``
     return on events, variables and metrics. Those routes mutate rows the caller
@@ -1536,7 +1534,7 @@ class AlertInboxBulkActionResponse(BaseModel):
     # SHORTER than the request in one case only: an incident whose deliveries
     # were deleted between this call's commit and its rebuild has no rows left to
     # render a card from, and is omitted rather than 404ing a change that already
-    # landed (the failure tripl-oxkt.20 fixed on the single route). The state
+    # landed (the failure already fixed on the single route). The state
     # change still happened and the audit row still names it, so a client that
     # wants certainty should match on ``correlation_group_id`` rather than
     # position.
@@ -1551,7 +1549,7 @@ class AlertInboxBulkActionResponse(BaseModel):
     # never a count to report. The key is still present so a client sharing one
     # handler with the single-incident response cannot read a MISSING key as 0
     # and announce "no scopes tightened" after a bulk acknowledge — the exact
-    # defect tripl-oxkt.6 fixed on the single route.
+    # defect already fixed on the single route.
     overrides_written: int | None
 
 
@@ -1574,7 +1572,7 @@ class SimulatedRuleFiring(BaseModel):
     # activation-anchored rollout overlap rather than a scan bucket — and it is
     # what lets the PREVIEW print the same "over the 51h rollout overlap" clause
     # the delivered message prints, out of the one shared
-    # ``alert_templates.build_drift_line``. Before tripl-0zpq.158 the replay
+    # ``alert_templates.build_drift_line``. Previously the replay
     # never loaded a release regression, so the field would have had nothing to
     # hold; the delivered twin (``AlertDeliveryItem.window_from``) has carried
     # it since the scope shipped.
@@ -1611,7 +1609,7 @@ class SimulatedRuleFiring(BaseModel):
         (``demo.builders.alerts._build_firings``). They used to be two
         hand-maintained constructor calls, and they had already drifted: the
         seeder never passed the drift fields, so a field added here reached the
-        live replay and silently not the demo (tripl-0zpq.324).
+        live replay and silently not the demo.
 
         ``scope_name`` is resolved by the caller (each has its own name source)
         and trimmed here the way the live send path trims it. The delta goes
@@ -1635,8 +1633,7 @@ class SimulatedRuleFiring(BaseModel):
             bucket=candidate.bucket if bucket is None else bucket,
             # ``bucket`` is the window's END; this carries the START for the
             # release-regression family, so the preview prints the same
-            # "over the 51h rollout overlap" clause the delivered item does
-            # (tripl-0zpq.165).
+            # "over the 51h rollout overlap" clause the delivered item does.
             window_from=getattr(candidate, "window_from", None),
             direction=candidate.direction,
             actual_count=candidate.actual_count,
@@ -1661,7 +1658,7 @@ class SimulatedRuleFiring(BaseModel):
         it produced and with ``0.0`` on the simulate response that predicted it,
         and a consumer testing ``percent_delta > threshold`` read "no change"
         for the loudest class of firing there is — a scope firing from nothing,
-        or resuming after an outage (tripl-0zpq.272).
+        or resuming after an outage.
 
         A SERIALIZER, not the ``@model_validator(mode="after")`` idiom the two
         sibling responses use, and the difference is not stylistic. Those two are
@@ -1700,7 +1697,7 @@ class AlertRuleSimulateResponse(BaseModel):
     # the rule. Replay existed to answer "would a stricter rule have cut these
     # incidents", but only the cooldown could be varied, so testing a threshold
     # meant saving it onto a rule that is live-routing to a real channel and
-    # waiting to see what it did to production (tripl-oxkt.17 part 3).
+    # waiting to see what it did to production.
     #
     # ``*_used`` equals ``*_saved`` when no override was passed, and mirrors the
     # override otherwise. ``*_saved`` is sent so the UI can show "current vs
@@ -1722,7 +1719,7 @@ class AlertRuleSimulateResponse(BaseModel):
     # ``sigma_threshold_saved`` is the PROJECT's configured threshold — the
     # ``sigma_threshold`` of its Detection settings, and ``DEFAULT_SIGMA_THRESHOLD``
     # for a project that has never opened that screen and so has no settings row.
-    # It was quoted off ``ScanConfig.sigma_threshold`` until tripl-0zpq.160: a
+    # It was quoted off ``ScanConfig.sigma_threshold`` until it was fixed: a
     # per-scan copy of the same number that the detector never reads and no API
     # writes, so a tuned project was told its replay was measured against a value
     # nothing detects with. Per-scope ratchet overrides (the false-positive
@@ -1749,7 +1746,7 @@ class AlertScopeReadiness(BaseModel):
 
     Not a per-rule verdict and not a prediction: it answers "could this scope
     ever produce a candidate here", so a client can tell an enabled-but-inert
-    toggle from a quiet one (tripl-wkwv.1). Both fields are always sent and
+    toggle from a quiet one. Both fields are always sent and
     neither carries a default — see the no-defaults note on
     ``MonitorSummaryItem`` for why a default here would be a lie to the
     generated client rather than a server behaviour.
@@ -1853,7 +1850,7 @@ class MonitorDetailResponse(MonitorSummaryItem):
     # elsewhere rot silently, and this one was already two lines off when written.
     #
     # These two and ``scope_readiness`` below answer DIFFERENT questions and must
-    # never be read as one (tripl-wkwv.9):
+    # never be read as one:
     #   scan_config_id / scan_name — which scan this rule is narrowed to.
     #   scope_readiness            — whether the PROJECT has any source data for
     #                                a drift scope. It is NOT narrowed by the
@@ -1861,7 +1858,7 @@ class MonitorDetailResponse(MonitorSummaryItem):
     #                                that feeds nothing can still read ready
     #                                because a sibling scan does.
     # Naming them separately is the whole point: one name carrying two meanings
-    # on two responses is the failure tripl-oxkt.18 was filed about.
+    # on two responses is a failure that was reported.
     scan_config_id: uuid.UUID | None
     scan_name: str | None
     # Scope coverage — which signal kinds this monitor subscribes to.
@@ -1889,12 +1886,12 @@ class MonitorDetailResponse(MonitorSummaryItem):
     # The SAME block, under the same name and with the same meaning, as the one
     # on ``MonitorsSummaryResponse``. The monitors list and the monitor detail
     # describe one project, and a field name that meant two things on two
-    # responses is the disagreement tripl-oxkt.18 was filed about.
+    # responses is a disagreement that was reported.
     #
     # Still PROJECT-level even on a rule that carries a ``scan_config_id`` above:
     # narrowing it here and not on the summary would give one name two meanings,
     # and narrowing it on both would need a per-draft query the rule editor does
-    # not have (tripl-wkwv.9).
+    # not have.
     scope_readiness: AlertScopeReadiness
 
 
@@ -1902,7 +1899,7 @@ class MonitorMuteRequest(BaseModel):
     # Timed mute ONLY: the monitor stays muted until this instant, which must be
     # in the future. REQUIRED and non-null, unlike the inbox mute action this
     # used to mirror — there a null ``muted_until`` now means "muted until I
-    # unmute" (tripl-a50u), but here it means NOT MUTED: ``is_rule_muted``
+    # unmute", but here it means NOT MUTED: ``is_rule_muted``
     # answers False for a null, and null is the default on every AlertRule ever
     # created. Making this optional to match the inbox would mute the whole
     # fleet at once. A rule's permanent lever is ``enabled``.
@@ -1919,8 +1916,8 @@ class MonitorMuteRequest(BaseModel):
         then compares it against ``datetime.now(UTC)``, which raises "can't
         compare offset-naive and offset-aware datetimes"; the only handler for
         that is the catch-all in ``main.py``, so a client that omitted the
-        offset got a 500 instead of a mute or the 422 about a past instant
-        (tripl-0zpq.168). The browser is not affected — it sends aware ISO
+        offset got a 500 instead of a mute or the 422 about a past instant.
+        The browser is not affected — it sends aware ISO
         strings — so this is an API/agent-client defect only.
 
         Coercion rather than ``AwareDatetime``: rejecting the naive value would

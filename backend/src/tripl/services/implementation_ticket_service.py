@@ -36,9 +36,9 @@ async def list_branch_tickets(
 ) -> list[ImplementationTicketResponse]:
     """Tracker tickets opened for one branch, oldest first.
 
-    Read-only counterpart to the create-on-merge worker (tripl-hgez): the
+    Read-only counterpart to the create-on-merge worker: the
     mapping was persisted but unreachable, so a user who merged a branch had no
-    way back to the Jira issue it opened (tripl-2ayb).
+    way back to the Jira issue it opened.
 
     Scoping goes through :func:`plan_branch_service.resolve_branch_id` rather
     than a local ``branch.project_id == project_id`` check: it REUSES an

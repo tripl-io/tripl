@@ -213,7 +213,7 @@ class CatalogSyncResult:
     # an engine-refused pattern, a REPEATED column on BigQuery, a non-finite
     # bound. A different unit from the line above, so a separate number: one
     # refused pattern is not a whole event type going unchecked, but it is a
-    # contract that is no longer being evaluated (tripl-0zpq.341).
+    # contract that is no longer being evaluated.
     contract_expectations_skipped: int = 0
     replay_branch_id: uuid.UUID | None = None
     # Stays at its zero default on replay: replay has its own sampler in
@@ -971,7 +971,7 @@ def sync_catalog(
         # catalog rows have since been deleted — replaying them would aim an
         # INSERT at a missing foreign-key parent — and a result that loses an
         # entry that way is still the right result: its ``col_meta`` holds the
-        # historical name templates, which is the whole reason tripl-0zpq.19
+        # historical name templates, which is the whole reason an earlier fix
         # made this path reachable. Widening the condition to "or the events are
         # empty" would hand every such replay back to the heuristic rebuild and
         # undo that fix for the surviving events too.
@@ -1013,8 +1013,7 @@ def sync_catalog(
             )
             # ScanError, not ValueError: the message names the setting to change,
             # and user_facing_error only surfaces ScanError verbatim — anything
-            # else is replaced by "Scan failed due to an internal error."
-            # (tripl-embs).
+            # else is replaced by "Scan failed due to an internal error.".
             raise ScanError(msg)
         logger.info(f"Grouped scan: {len(group_values)} groups for {config.event_type_column!r}")
 
@@ -1076,11 +1075,11 @@ def sync_catalog(
                 event_group_rules=config.event_group_rules,
                 # The same set that kept these columns from getting a
                 # FieldDefinition above, so the generator does not then report
-                # their absence as a plan gap (tripl-jfm3.90).
+                # their absence as a plan gap.
                 reserved_columns=skip_cols,
                 # Stamps provenance on the variable value drifts this generates.
                 # Alert dispatch filters drifts by scan config, so an unstamped
-                # row is detected but can never be alerted on (tripl-l33u.1).
+                # row is detected but can never be alerted on.
                 scan_config_id=config.id,
                 json_path_samples=json_path_samples,
             )

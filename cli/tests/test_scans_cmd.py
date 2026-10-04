@@ -2,7 +2,7 @@
 
 The negatives carry the weight here. A 201 that is really a failure, a 403 from a
 read-only key, a prompt in a pipeline and a --dry-run that sends something anyway
-are all silent in the happy path and expensive in production (tripl-ey6j.5).
+are all silent in the happy path and expensive in production.
 """
 
 from __future__ import annotations

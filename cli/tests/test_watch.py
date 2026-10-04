@@ -69,7 +69,7 @@ def query_of(call: Any) -> dict[str, list[str]]:
 def test_a_running_replay_shows_live_chunk_progress(
     tripl_api: FakeInstance, capsys: pytest.CaptureFixture[str]
 ) -> None:
-    """Acceptance criterion 1 of tripl-ey6j.4, end to end.
+    """Acceptance criterion 1 of the watch command, end to end.
 
     The chunk counter is the field that made "is this scan hung or just slow?"
     answerable during the 2026-07-28..31 incident.
@@ -96,7 +96,7 @@ def test_a_running_replay_shows_live_chunk_progress(
 def test_a_signal_that_appears_on_the_second_poll_is_reported_without_a_restart(
     tripl_api: FakeInstance, capsys: pytest.CaptureFixture[str]
 ) -> None:
-    """Acceptance criterion 2 of tripl-ey6j.4, end to end."""
+    """Acceptance criterion 2 of the watch command, end to end."""
     tripl_api.each(tripl_api.signals_url("prod"), [(200, []), (200, [make_signal()])])
 
     code = watch(duration="60")
@@ -251,7 +251,7 @@ def test_a_403_on_one_project_does_not_end_the_run(
 def test_jobs_are_requested_with_the_watch_limit_not_doctors(
     tripl_api: FakeInstance, capsys: pytest.CaptureFixture[str]
 ) -> None:
-    """200 rows per config every 10 seconds is tripl-jfm3.107 rebuilt."""
+    """200 rows per config every 10 seconds is a past bug rebuilt."""
     watch()
     capsys.readouterr()
 

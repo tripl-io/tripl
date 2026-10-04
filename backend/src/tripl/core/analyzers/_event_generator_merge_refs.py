@@ -4,8 +4,8 @@
 This module handles the rest: an event id stored as a STRING or inside a JSON
 list, invisible to database reflection and therefore invisible to the automatic
 half of ``tests/test_event_fk_classification.py``. Those were found by hand while
-classifying the FK ledger (tripl-avf4), together with the one real FK the ledger
-had parked as a known gap (tripl-jtnv).
+classifying the FK ledger, together with the one real FK the ledger
+had parked as a known gap.
 
 Split out of ``_event_generator_merge`` rather than appended to it: that module
 is already past 600 lines against this repo's 800-line ceiling, and it was
@@ -79,8 +79,8 @@ def _move_metric_composition_operands(session: Session, *, source: Event, target
     """Carry an event_composition metric's operands onto the surviving event.
 
     ``numerator_event_id`` / ``denominator_event_id`` are real foreign keys with
-    ``ondelete="SET NULL"``, and the resulting failure is silent and permanent
-    (tripl-jtnv): ``_read_event_metric_series`` returns ``{}`` when both the
+    ``ondelete="SET NULL"``, and the resulting failure is silent and permanent:
+    ``_read_event_metric_series`` returns ``{}`` when both the
     event and event-type refs are NULL, ``_collect_event_composition`` then
     reports ``{"values": 0, "grids": 0}`` — a SUCCESS — so
     ``last_collection_status`` never goes red, and ``_event_composition_due``
@@ -105,7 +105,7 @@ def _move_metric_composition_operands(session: Session, *, source: Event, target
     numerator alone, so a leftover denominator matching it changes nothing they
     compute. The schema now refuses to STORE such a row, but one written before
     that (only a hand-written API call could make one) was being marked red here
-    with a message about a ratio it is not (tripl-0zpq.89).
+    with a message about a ratio it is not.
 
     Deliberately does NOT touch ``numerator_event_type_id`` /
     ``denominator_event_type_id``. They have the identical SET NULL shape when an
@@ -194,8 +194,7 @@ def _move_anomaly_scope_overrides(session: Session, *, source: Event, target: Ev
             row.scope_ref = target_ref
             # Both arms relabel from ``Event.name`` (String(500)) into a
             # String(255) column, and this module may not raise: an override
-            # that could not be relabelled would fail the entire scan
-            # (tripl-0zpq.253).
+            # that could not be relabelled would fail the entire scan.
             row.scope_name = trim_scope_name(target.name)
             existing[row.scan_config_id] = row
             continue
@@ -249,7 +248,7 @@ def _move_superseded_pointers(session: Session, *, source: Event, target: Event)
     ONE row is not re-pointed, and it is the target itself. If the target had
     already named the SOURCE as its successor, the blanket re-point set
     ``target.superseded_by_event_id = target.id`` — an event that says "send this
-    instead: itself" (tripl-0zpq.86). Nothing at the database level stops it:
+    instead: itself". Nothing at the database level stops it:
     ``models/event.py``'s column is a plain FK with ON DELETE SET NULL and
     c3a81f6d40b2 adds no CHECK. The damage outlives the merge, because the event
     form re-sends ``superseded_by_event_id`` on every save while an event is

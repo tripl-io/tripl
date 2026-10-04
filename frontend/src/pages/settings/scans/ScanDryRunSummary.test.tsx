@@ -47,7 +47,7 @@ const THREE_EVENTS = [
   event('Cart Viewed', 112, { status: 'existing' }),
 ]
 
-describe('ScanDryRunSummary — the panel names events, not rows (tripl-3y7z.6)', () => {
+describe('ScanDryRunSummary — the panel names events, not rows', () => {
   // The whole promise quick-start.md made and the panel did not keep: five raw
   // warehouse rows named neither an event nor a field.
   it('counts the events and names every one of them', () => {

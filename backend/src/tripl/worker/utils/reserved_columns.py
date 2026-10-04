@@ -24,7 +24,7 @@ def _event_group_rule_columns(config: ScanConfig) -> set[str]:
     auto-created a FieldDefinition for the rule's column on every event type,
     and the scan then captured a sample value for it. On the demo that produced
     a "Screen View" field literally rendering the rule's own pattern,
-    ``/^Home\\ Screen\\ View$/`` (tripl-jfm3.57).
+    ``/^Home\\ Screen\\ View$/``.
 
     Read defensively: ``event_group_rules`` is a JSON column, so a row written
     by an older release (or by hand) may not match the current shape.
@@ -67,8 +67,8 @@ def _event_group_rule_columns(config: ScanConfig) -> set[str]:
                 # ADDITIVE. Reserving ``event`` for a rule on ``event.category``
                 # denies that column its FieldDefinition, ``plan_column_meta``
                 # drops it from ``col_meta`` entirely, and every JSON-path variable
-                # under it goes with it — tripl-lpin's mechanism reached from the
-                # other side, and silent where lpin at least raised. On production
+                # under it goes with it — the name-format outage's mechanism reached from the
+                # other side, and silent where that outage at least raised. On production
                 # every variable is JSON-path derived, so that is a column's whole
                 # variable surface for one reserved name.
                 continue
@@ -103,7 +103,7 @@ def reserved_catalog_columns(config: ScanConfig) -> set[str]:
     * ``generate_events`` takes it as ``reserved_columns`` and stays quiet about a
       reserved column having no FieldDefinition — of course it has none, that is
       this function's doing, and reporting it as a plan gap sent a fresh demo's
-      very first scan out with six of seven detail lines wrong (tripl-jfm3.90)
+      very first scan out with six of seven detail lines wrong
 
     It deliberately does NOT feed ``check_scalar_columns_unreserved`` — a project
     that already selected a group-rule column as a breakdown keeps working.
@@ -115,8 +115,8 @@ def reserved_catalog_columns(config: ScanConfig) -> set[str]:
     one. The name format is then evaluated with the placeholder missing and the
     whole collection dies on ``the event name format references unknown keys``. That
     is what took production's 'Old events (iOS)' scan down for 200 consecutive
-    runs (tripl-lpin): its group rules match ``action`` and its name format is
-    ``{action}``, so tripl-jfm3.90 reserved away the one column the event's
+    runs: its group rules match ``action`` and its name format is
+    ``{action}``, so reserving the group-rule column removed the one column the event's
     identity was built from.
 
     A DOTTED placeholder is subtracted by its BASE column as well as by its full
@@ -127,7 +127,7 @@ def reserved_catalog_columns(config: ScanConfig) -> set[str]:
     ``col_meta`` — i.e. that have a FieldDefinition. Subtracting the full key
     ``event.category`` from a set of top-level column names removes nothing, so a
     config whose ``platform_column`` is ``event`` kept ``event`` reserved and
-    reproduced tripl-lpin from the other direction: same outage, same message,
+    reproduced the name-format outage from the other direction: same outage, same message,
     reached through a placeholder shape the subtraction could not see.
 
     That base reduction belongs to the SUBTRACTION and nowhere else. A group-rule

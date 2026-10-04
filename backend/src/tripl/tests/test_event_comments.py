@@ -1,6 +1,6 @@
 """The discussion anchored on an event rather than on one of its attachments.
 
-Feedback item 4 (tripl-h2sx.25): "somewhere to write notes and comments — not a
+Feedback item 4: "somewhere to write notes and comments — not a
 Title, and not a Description, because it does not describe the event, it raises
 something for discussion." The object already existed; only its anchor and its
 surface were wrong.
@@ -131,7 +131,7 @@ async def test_a_branch_copy_reads_and_writes_the_events_one_discussion(
 ) -> None:
     """One event, one conversation. A branch copy resolves to its twin on main
     rather than forking the thread — the fork is what let a comment block a
-    merge (tripl-h2sx.28)."""
+    merge."""
     slug = "ev-discussion-branch"
     main_event_id = await _setup_event(client, slug)
     on_main = await client.post(
@@ -193,7 +193,7 @@ async def _open_thread(client: AsyncClient, slug: str, event_id: str, body: str)
 @pytest.mark.asyncio
 async def test_a_thread_resolves_reopens_and_keeps_its_note(client: AsyncClient) -> None:
     """A question typed today never closed: neither comment table had a status
-    column, so the discussion had no way to end (tripl-h2sx.26)."""
+    column, so the discussion had no way to end."""
     slug = "ev-resolve"
     event_id = await _setup_event(client, slug)
     comment_id = await _open_thread(client, slug, event_id, "does this fire on cancel?")
@@ -207,7 +207,7 @@ async def test_a_thread_resolves_reopens_and_keeps_its_note(client: AsyncClient)
     assert resolved.json()["resolved_by"] is not None
 
     # Omitting the note must not erase one an earlier action stored — the defect
-    # schema_drift_service had to learn (tripl-3mmh).
+    # schema_drift_service had to learn.
     again = await client.post(actions, json={"action": "resolve"})
     assert again.json()["resolution_note"] == "cancel has its own"
 

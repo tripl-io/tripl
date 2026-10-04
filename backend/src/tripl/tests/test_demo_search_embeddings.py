@@ -460,7 +460,7 @@ _EMBED_FAILURE_POLL_SECONDS = 0.005
 async def test_postgres_search_serves_lexical_results_when_the_embed_leg_raises(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """An embed leg that raises degrades to lexical instead of 500ing (tripl-l33u).
+    """An embed leg that raises degrades to lexical instead of 500ing.
 
     ``embed_texts`` degrades to ``[]`` for everything it anticipates, but the
     ``asyncio.gather`` here carried no ``return_exceptions``, so anything it did
@@ -579,8 +579,7 @@ async def test_apply_fixture_falls_back_to_identity_when_a_scan_rewrote_the_text
     templates, catalog sync appends auto-created field descriptors). Keyed on
     embed text alone, one scan orphaned EVERY document and left the whole index
     ``embedding_status='disabled'`` with no provider to re-embed it, so the
-    demo's own advertised "money back" query stopped returning any event
-    (bd tripl-jfm3.8).
+    demo's own advertised "money back" query stopped returning any event.
     """
     pristine = _doc_row(
         title="Refund Processed",
@@ -661,14 +660,14 @@ async def test_shipped_fixture_covers_current_demo_documents() -> None:
     pointing at the regeneration script.
 
     It used to require an exact embed-text hit for EVERY document. The ranking
-    fixes (tripl-gbxj dropped harvested values from variable keywords, tripl-h9x2
+    fixes (one dropped harvested values from variable keywords, another
     added the spaced alias of every identifier) changed the indexed text on
     purpose, so the embed-text key of every document those fixes touch has moved
     and will keep missing until a maintainer regenerates the fixture with a real
     embedding key. Asserting it wholesale would have made this a permanent red
     that says nothing about the demo.
 
-    THE EMBED-TEXT GATE IS NARROWED, NOT DELETED (tripl-txcz review)
+    THE EMBED-TEXT GATE IS NARROWED, NOT DELETED
     ---------------------------------------------------------------
     Routing the whole check through ``fixture.vector_for`` was the wrong repair:
     that resolver falls back to ``identity_vectors``, and identity coverage is
@@ -679,9 +678,9 @@ async def test_shipped_fixture_covers_current_demo_documents() -> None:
     So the embed-text half is asserted where it is still exactly true: on TAG
     documents. ``_search_documents._tag_document`` is built from the tag name,
     the event name, the event description and the event-type display name, and
-    is the one builder tripl-h9x2 deliberately did NOT touch (appending a spaced
+    is the one builder the spaced-alias fix deliberately did NOT touch (appending a spaced
     alias to a tag's keywords would have deleted the 4.0 "keywords ARE the
-    query" tier) — nor does tripl-gbxj reach it. Their embed text is therefore
+    query" tier) — nor does the harvested-values fix reach it. Their embed text is therefore
     byte-identical to what was embedded, 21 of the 63 shipped vectors, and any
     drift in the demo's tags, event names or descriptions — or in the embed-text
     recipe itself — turns this red and points at the regeneration script. That is
@@ -771,7 +770,7 @@ async def test_shipped_fixture_covers_current_demo_documents() -> None:
                 # can see, because both halves are individually "present".
                 # A DISAGREEMENT IS ONLY ACCEPTABLE WHEN A COLLISION EXPLAINS IT.
                 #
-                # tripl-khnz recorded three documents whose two lookups land on
+                # An earlier note recorded three documents whose two lookups land on
                 # different vectors and diagnosed it as the archive and the sidecar
                 # having been generated from different demo builds. That diagnosis
                 # was wrong: both artifacts were regenerated from ONE build on
@@ -807,7 +806,7 @@ async def test_shipped_fixture_covers_current_demo_documents() -> None:
         f"{stale_embed_text}"
     )
     # Identity-key coverage is what keeps semantic search alive AFTER a scan
-    # rewrites a document's text (bd tripl-jfm3.8) — a shipped fixture with no
+    # rewrites a document's text — a shipped fixture with no
     # sidecar would silently regress to the pre-fix behaviour.
     assert not missing_identities, (
         "demo documents missing from the fixture's identity sidecar (regenerate via "

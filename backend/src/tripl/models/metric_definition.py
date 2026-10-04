@@ -174,7 +174,7 @@ class MetricDefinition(UUIDMixin, TimestampMixin, Base):
     # dispatcher's post-error cooldown used to measure from ``updated_at``, and
     # ``TimestampMixin`` sets ``onupdate=func.now()``, so an operator editing a
     # broken metric in order to fix it restarted the very cooldown they were
-    # waiting out (tripl-os3v).
+    # waiting out.
     last_collection_failed_at: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True), nullable=True
     )
@@ -187,7 +187,7 @@ class MetricDefinition(UUIDMixin, TimestampMixin, Base):
         would leave the metric cooling down from whenever it last failed, or —
         on a first failure — not cooling down at all, which is the retry storm
         the backoff exists to stop. That exact shape has taken this repository's
-        production down twice (tripl-os3v).
+        production down twice.
 
         It lives on the MODEL rather than in ``worker.tasks.metrics.metric_collect``
         where it was written, because the seventh caller is not a worker: the

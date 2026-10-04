@@ -1,9 +1,9 @@
 """Project-scoped authorization for the per-project mutation surface.
 
-Before tripl-jfm3.19 the instance-wide ``editor`` role meant "may rewrite the
+Previously the instance-wide ``editor`` role meant "may rewrite the
 tracking plan of every project on the instance". That was first fenced by
 provenance (creator / owner-created shared projects), then by explicit project
-membership (tripl-vefw), and since F20 PR4 by organization roles:
+membership, and since F20 PR4 by organization roles:
 
 * a non-member does not see the project at all — 404 on every slug route;
 * an organization member may mutate when their project row says ``editor``;
@@ -149,11 +149,11 @@ def test_every_project_scoped_mutation_carries_a_project_gate() -> None:
     and the two owner gates demand project role ``owner`` in the path project,
     which only an owner/admin of that project's own organization holds. A
     slug-scoped mutation wired to bare ``get_write_user`` (or to no gate at
-    all) would reopen tripl-jfm3.19, so fail the build instead of waiting
+    all) would reopen that hole, so fail the build instead of waiting
     for the next audit.
 
     Read from ``deps`` rather than spelled here: this audit went stale the moment
-    tripl-cj5z added a third gate, and a literal set means the audit silently
+    a third gate was added, and a literal set means the audit silently
     reclassifies the new gate's routes as ungated — an audit that fails open is
     worse than none.
     """

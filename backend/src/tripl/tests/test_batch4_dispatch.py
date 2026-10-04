@@ -1,18 +1,18 @@
 """Batch 4, the dispatch lane: seven defects around the alert write path.
 
-tripl-0zpq.109 — the alert link base URL is resolved once, not once per link.
-tripl-0zpq.253 — every scope label fits the column it is stored in.
-tripl-0zpq.260 — the incident handle is documented as the thing it is.
-tripl-0zpq.157 — loading a scan config does not load its whole scan history.
-tripl-0zpq.28  — a metric scope's STATE and buffered rows store no scan config.
-tripl-0zpq.27  — and its incident HANDLE hashes no scan config either.
-tripl-0zpq.108 — the digest buffer holds one line per INCIDENT, and says so.
+the alert link base URL is resolved once, not once per link.
+every scope label fits the column it is stored in.
+the incident handle is documented as the thing it is.
+loading a scan config does not load its whole scan history.
+a metric scope's STATE and buffered rows store no scan config.
+and its incident HANDLE hashes no scan config either.
+the digest buffer holds one line per INCIDENT, and says so.
 
 The last three carry their write-ups at their own section headers below rather
 than here, because each pins a single connected argument and reading it beside
 the tests is worth more than reading it four hundred lines above them.
 
-## tripl-0zpq.109
+## The alert link base URL
 
 ``app_base_url`` used to be read back out of the database inside every URL
 builder in ``worker/tasks/metrics/urls.py``. ``get_runtime_config_sync`` has no
@@ -35,7 +35,7 @@ Two properties are pinned below, because the fix has two halves:
   defect ``alert_payload._build_delivery_snapshot`` already carries a long
   comment about for ``percent_delta``; here it is the links.
 
-## tripl-0zpq.253
+## Scope label width
 
 ``scope_name`` is VARCHAR(255) on ``alert_delivery_items``,
 ``alert_pending_items`` and ``anomaly_scope_overrides``, and its sources are
@@ -54,7 +54,7 @@ behind it — what lands in the row fits the column — the way
 asserts that its fixture genuinely overflows, so none of them can quietly stop
 exercising the bug if someone shortens a name.
 
-## tripl-0zpq.260
+## The incident handle
 
 ``AlertDeliveryItem.correlation_group_id`` was documented as a per-delivery
 co-firing tag, NULL when an item fired alone. It is neither: the id is a stable
@@ -70,7 +70,7 @@ it, which pin every claim the new text makes: the key carries no bucket and
 splits per scope, the mint is unconditional, and a delivery carrying exactly
 one item still gets a handle the inbox can see.
 
-## tripl-0zpq.157
+## Loading a scan config
 
 ``ScanConfig.scan_jobs`` was declared ``lazy="selectin"``, so loading a
 ScanConfig ENTITY — as opposed to its columns — pulled in every scan job that
@@ -406,7 +406,7 @@ def _mint(
             (candidate.scope_type, candidate.scope_ref): f"scope-{index}"
             for index, candidate in enumerate(candidates)
         },
-        # Every anomaly carries one on the modern path (tripl-jfm3.91), which is
+        # Every anomaly carries one on the modern path, which is
         # what sends the typed row down the audit-URL branch.
         correlation_by_anomaly={id(candidate): uuid.uuid4() for candidate in candidates},
         scan_job_id=None,
@@ -504,7 +504,7 @@ def test_the_typed_items_and_the_frozen_snapshot_cannot_disagree_about_a_link(
 
 
 # --------------------------------------------------------------------------
-# tripl-0zpq.253: the label an alert carries fits the column that stores it
+# the label an alert carries fits the column that stores it
 # --------------------------------------------------------------------------
 
 # 418 characters: over the 255-wide column, under the 500 ``schemas/event.py``
@@ -923,7 +923,7 @@ def test_no_event_merge_stores_a_scope_label_it_has_not_trimmed() -> None:
 
 
 # --------------------------------------------------------------------------
-# tripl-0zpq.260: the incident handle is documented as the thing it is
+# the incident handle is documented as the thing it is
 # --------------------------------------------------------------------------
 
 
@@ -952,7 +952,7 @@ def test_the_incident_column_is_not_documented_as_a_per_delivery_co_firing_tag()
     structural property whose absence made the comment unrepairable last time —
     that it names ``dispatch._correlation_group_id`` as the owner of the key
     instead of restating the key, so that changing the tuple cannot silently
-    falsify a model file. tripl-0zpq.27 then changed exactly that tuple — a
+    falsify a model file. A later fix changed exactly that tuple — a
     project-global metric scope hashes a literal where a config id used to go —
     and this comment needed no edit, which is the property being bought.
 
@@ -979,9 +979,9 @@ def test_the_handle_carries_no_bucket_and_splits_per_scope() -> None:
 
     Event scopes only, deliberately — not because the metric arm is untested but
     because it is tested somewhere else. The partition a metric scope hashes is
-    tripl-0zpq.27's subject and is pinned in its own section at the end of this
+    the subject of a later fix and is pinned in its own section at the end of this
     file; keeping it out of here means these three assertions stay about the
-    BUCKET and the SCOPE, which is all tripl-0zpq.260 ever claimed.
+    BUCKET and the SCOPE, which is all that earlier fix ever claimed.
     """
     signature = inspect.signature(metrics_dispatch._correlation_group_id)
     # "Items that fired in the same bucket ... share this id" cannot be true of
@@ -1107,7 +1107,7 @@ def test_a_delivery_carrying_one_item_still_gets_a_handle_the_inbox_can_see(
 
 
 # --------------------------------------------------------------------------
-# tripl-0zpq.157: a scan config load does not drag in its scan history
+# a scan config load does not drag in its scan history
 # --------------------------------------------------------------------------
 
 
@@ -1312,12 +1312,12 @@ def test_nothing_reads_the_scan_job_collection_off_an_instance() -> None:
     assert scanned > 200, scanned
     assert offenders == [], (
         "these read ScanConfig.scan_jobs off an instance, which is a lazy load "
-        f"since tripl-0zpq.157 — see models/scan_config.py: {offenders}"
+        f"since the selectin removal — see models/scan_config.py: {offenders}"
     )
 
 
 # --------------------------------------------------------------------------
-# tripl-0zpq.28: a metric scope is project-global, so its state and its
+# a metric scope is project-global, so its state and its
 # buffered alerts store NO scan config at all
 # --------------------------------------------------------------------------
 #
@@ -1349,7 +1349,7 @@ _METRIC_SCOPE = MetricScopeType.metric.value
 def fk_session_factory(tmp_path: Path) -> Iterator[sessionmaker[Session]]:
     """Like ``sync_session_factory``, but with ``PRAGMA foreign_keys=ON``.
 
-    A second fixture rather than a change to the first: the tripl-0zpq.157
+    A second fixture rather than a change to the first: the scan-config
     cascade test above needs enforcement OFF, so that the ORM's own child DELETE
     is the only actor that could empty the table. Here the DATABASE's cascade is
     the thing under test — deleting a scan config used to destroy the shared
@@ -1442,7 +1442,7 @@ def _buffer_metric(
         scope_names={(_METRIC_SCOPE, scope_ref): "Signups"},
         # Exactly what dispatch computes, and through the same helper it calls:
         # a metric scope hashes NO config, so every scan of the project arrives
-        # at one handle (tripl-0zpq.27). Mirrored rather than hard-coded, so
+        # at one handle. Mirrored rather than hard-coded, so
         # this fixture cannot drift from the caller it stands in for.
         correlation_by_anomaly={
             id(candidate): metrics_dispatch._correlation_group_id(
@@ -1992,7 +1992,7 @@ def test_dispatch_retires_a_metric_state_an_old_worker_anchored_on_a_config(
     loop never closes it and ``_stamp_rule_state`` never stamps it, while
     ``_alerting_monitors`` and ``project_service`` load EVERY state of a rule with
     no scope or config predicate. Left alone it is one permanently active scope
-    and the monitor never reads "healthy" again — the tripl-0zpq.28 rot,
+    and the monitor never reads "healthy" again — the earlier metric-scope rot,
     re-created after the migration written to clear it.
 
     The ROLLUP is asserted, not only the surviving rows, because the rollup is
@@ -2054,7 +2054,7 @@ def test_dispatch_retires_a_metric_state_an_old_worker_anchored_on_a_config(
         assert rollup.active_scope_count == 0
         assert rollup.status == "healthy", (
             "one unreachable state left open pins this monitor to 'warning' for "
-            "good, which is the symptom tripl-0zpq.28 was filed against"
+            "good, which is the symptom that was reported originally"
         )
 
 
@@ -2092,10 +2092,10 @@ def test_the_demo_builder_seeds_a_metric_state_with_no_scan_config() -> None:
 
 
 # --------------------------------------------------------------------------
-# tripl-0zpq.27: the metric scope's INCIDENT HANDLE hashes no scan config either
+# the metric scope's INCIDENT HANDLE hashes no scan config either
 # --------------------------------------------------------------------------
 #
-# tripl-0zpq.28 moved a metric scope's STATE row and its BUFFERED row onto a NULL
+# An earlier fix moved a metric scope's STATE row and its BUFFERED row onto a NULL
 # scan config. This is the third copy of the same identity, and the one left
 # behind: ``_prepare_alert_deliveries`` built ``correlation_by_anomaly`` in one
 # unconditional loop over ``config.id``, so ``_correlation_group_id`` hashed the
@@ -2114,7 +2114,7 @@ def test_the_demo_builder_seeds_a_metric_state_with_no_scan_config() -> None:
 # ONE partition per call and rebuilds the ids itself, while ``closed_keys`` can
 # hold metric and non-metric scopes together, so the call is split in two.
 #
-# The rule implemented is the one tripl-0zpq.28 established everywhere else:
+# The rule implemented is the one established everywhere else:
 # HASH THE PARTITION THE ROW ACTUALLY STORES. ``_scope_partition_id`` is the one
 # answer for all three copies, and ``_correlation_group_id`` renders its NULL
 # through a non-UUID literal so the project-global id space is provably disjoint
@@ -2333,7 +2333,7 @@ def test_the_digest_buffer_carries_the_handle_the_immediate_path_would_mint(
     buffered by an old worker mid-deploy. What is asserted here is that it is no
     longer papering over a disagreement. Revert the mint and the handle assertion
     goes red while the one-row assertions stay green — which is exactly how this
-    survived tripl-0zpq.28's buffer tests.
+    survived the earlier buffer tests.
     """
     from tripl.models.alert_correlation_state import AlertCorrelationState
     from tripl.tests.test_metric_anomaly_scope import _add_rule, _seed_spiked_metric
@@ -2404,7 +2404,7 @@ def test_no_call_site_hashes_a_scan_config_without_asking_the_partition() -> Non
 
 
 # --------------------------------------------------------------------------
-# tripl-0zpq.108: a scope that flips direction ships one line per INCIDENT,
+# a scope that flips direction ships one line per INCIDENT,
 # and the prose finally says so
 # --------------------------------------------------------------------------
 #
@@ -2510,7 +2510,7 @@ def test_a_scope_that_flips_direction_buffers_a_line_for_each_incident(
 ) -> None:
     """THE FILED SCENARIO: drop at 03:00, spike at 11:00, two rows in the window.
 
-    Red on BOTH remedies tripl-0zpq.108 proposed. Take ``"direction"`` out of
+    Red on BOTH remedies that were proposed. Take ``"direction"`` out of
     ``dispatch._PENDING_ITEM_CONFLICT_KEYS`` and out of
     ``uq_alert_pending_item_scope`` and the 11:00 spike UPDATES the 03:00 drop
     instead of inserting beside it, leaving one row where this asserts two. Add
@@ -2578,7 +2578,7 @@ def test_each_buffered_direction_carries_its_own_incident_handle(
     two Inbox cards already exist by the time the digest is assembled, because
     ``_buffer_pending_items`` touches one per handle; folding the rows would
     leave one of those cards holding a decision no delivery could honour, which
-    is precisely the tripl-0zpq.27 failure one level down.
+    is precisely the earlier project-global scope failure one level down.
     """
     from tripl.models.alert_correlation_state import AlertCorrelationState
 
@@ -2846,7 +2846,7 @@ def _comment_block_containing(source: str, anchor: str) -> str:
 def test_the_four_collapse_claims_all_say_per_direction() -> None:
     """The one-line promise is restated in four places and they move together.
 
-    This is the defect tripl-0zpq.108 actually found: the CODE was right and
+    This is the defect that was actually found: the CODE was right and
     the PROSE was wrong, in four files at once, each saying a scope occupies one
     line without the qualifier that makes it true. That is not cosmetic here —
     those paragraphs are the argument the next reader uses to decide whether
@@ -2887,5 +2887,5 @@ def test_the_four_collapse_claims_all_say_per_direction() -> None:
         assert span.strip(), f"{label} no longer resolves; this guard guards nothing"
         assert "direction" in span.lower(), (
             f"{label} promises a collapse without saying it is PER DIRECTION — "
-            "which is the false sentence tripl-0zpq.108 was filed against"
+            "which is the false sentence that was reported"
         )

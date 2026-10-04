@@ -26,7 +26,7 @@ sends one alert per finding, never one per scan run.
 The shared drift columns carry the context (``alert_templates.lifecycle_line``):
 kind -> ``drift_type`` (``AlertDriftType.sunset_overdue`` / ``successor_silent``,
 added to the native enum by d5f7b9c1e3a8 — without them the delivery INSERT
-fails, the tripl-jfm3.97 trap), the event the message names -> ``drift_field``,
+fails, a known trap), the event the message names -> ``drift_field``,
 the rendered "<event> <what is wrong>" clause -> ``sample_value``. The
 candidate's ``event_id`` is always the finding's (the DEPRECATED event), so
 the alert links to the event whose lifecycle is being enforced; a silent

@@ -202,7 +202,7 @@ export const scansApi = {
     // Check, the wait says "Working out what this scan would create…", the
     // answer says "Would create N events". These two were the only strings that
     // named the mechanism at the user, and the failure line does not repeat the
-    // heading above it (tripl-3y7z.6).
+    // heading above it.
     return pollJob(
       job,
       jobId => scansApi.getDryRunJob(slug, jobId),
@@ -258,7 +258,7 @@ export const scansApi = {
     ),
 
   // Every scan's latest job, exact failing streak and rows read in the last 24h,
-  // in one request (tripl-fj5g.11).
+  // in one request.
   activity: (slug: string) =>
     api.get<ScanActivityResponse>(`/projects/${slug}/scans/activity`),
 

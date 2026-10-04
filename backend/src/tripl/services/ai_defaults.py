@@ -39,7 +39,7 @@ DEFAULT_ALERT_EXPLANATION_SYSTEM_PROMPT = (
     "to check next instead of speculating. "
     # Without this the explanation is a pure function of the current bucket, so
     # a scope that drifts for days gets the same paragraph every time and the
-    # repeat teaches the reader nothing (tripl-ikee). The prompt only carries a
+    # repeat teaches the reader nothing. The prompt only carries a
     # history block when this rule has actually sent something about these same
     # scopes in the last week.
     "If the input includes what you previously sent for these scopes, treat it "
@@ -51,6 +51,6 @@ DEFAULT_ALERT_EXPLANATION_SYSTEM_PROMPT = (
     # mirror, so without this the model picked one per call and alerts arrived
     # in whatever it felt like. The rest of the product and its docs are
     # English. Override this whole prompt under Settings -> Instance -> AI to
-    # get a different language (tripl-jfm3.92).
+    # get a different language.
     "Reply in English."
 )

@@ -1839,7 +1839,7 @@
         "type": "object"
       },
       "AlertDestinationTestResponse": {
-        "description": "Result of a manual test send \u2014 did this destination reach its channel?\n\nA channel refusal is an ANSWER, not a server fault: a revoked Telegram token\nand a healthy one look identical in the destination form (tripl-oxkt.17), and\nthe whole point of the probe is to tell them apart. So the route returns 200\nwith ``ok=False`` and the channel's own message rather than a 5xx the UI would\nrender as \"something went wrong on our side\".",
+        "description": "Result of a manual test send \u2014 did this destination reach its channel?\n\nA channel refusal is an ANSWER, not a server fault: a revoked Telegram token\nand a healthy one look identical in the destination form, and\nthe whole point of the probe is to tell them apart. So the route returns 200\nwith ``ok=False`` and the channel's own message rather than a 5xx the UI would\nrender as \"something went wrong on our side\".",
         "properties": {
           "error": {
             "anyOf": [
@@ -2236,7 +2236,7 @@
         "type": "object"
       },
       "AlertInboxActionResponse": {
-        "description": "What the action DID, not only what the group looks like afterwards.\n\n``false_positive`` writes no scope override for scope types the ratchet does\nnot tune \u2014 release regressions among them \u2014 so the button promised a\ndetection change it never made, on 10 of 57 production groups (tripl-oxkt.6).\nThe count is reported so the UI can say \"tightened 2 scopes\" or \"no scopes\ntightened\"; it must NOT be guessed client-side from ``scope_type``, which is\nonly the newest item's.",
+        "description": "What the action DID, not only what the group looks like afterwards.\n\n``false_positive`` writes no scope override for scope types the ratchet does\nnot tune \u2014 release regressions among them \u2014 so the button promised a\ndetection change it never made, on 10 of 57 production groups.\nThe count is reported so the UI can say \"tightened 2 scopes\" or \"no scopes\ntightened\"; it must NOT be guessed client-side from ``scope_type``, which is\nonly the newest item's.",
         "properties": {
           "group": {
             "$ref": "#/components/schemas/AlertInboxGroupResponse"
@@ -2261,7 +2261,7 @@
         "type": "object"
       },
       "AlertInboxBulkActionRequest": {
-        "description": "One triage decision applied to several incidents at once (tripl-gpfr).\n\nA TRIAGE SHORTCUT, not an incident record. There is no group-of-groups\nobject, no new table and no migration behind this body: whatever it says is\nCOPIED into each selected incident's own correlation state, so afterwards\nevery selected row carries the same note, the same ``acted_at`` and the same\n``acted_by`` and is indistinguishable from N single-incident clicks.\n\nA persistent supergroup was costed and rejected (tripl-5cc9):\n``_reopen_closed_incidents`` runs inside the per-rule loop and resets member\nincidents individually, so a parent row would either never release \u2014 because\nno single member's release can speak for it \u2014 or leak the moment one member\nwent quiet. Copying the decision into the members has neither failure.\n\n``correlation_group_ids`` comes FIRST to match the ``<entity>_ids``-first\nconvention every other bulk body in the repo already uses\n(``EventBulkUpdate``, ``EventBulkDelete``, ``VariableBulkUpdate``,\n``MetricBulkUpdate``, ``DeadEventArchiveRequest``); the action fields that\nfollow are exactly ``AlertInboxActionRequest``'s, and mean exactly the same\nthings, so the two bodies stay readable side by side.",
+        "description": "One triage decision applied to several incidents at once.\n\nA TRIAGE SHORTCUT, not an incident record. There is no group-of-groups\nobject, no new table and no migration behind this body: whatever it says is\nCOPIED into each selected incident's own correlation state, so afterwards\nevery selected row carries the same note, the same ``acted_at`` and the same\n``acted_by`` and is indistinguishable from N single-incident clicks.\n\nA persistent supergroup was costed and rejected:\n``_reopen_closed_incidents`` runs inside the per-rule loop and resets member\nincidents individually, so a parent row would either never release \u2014 because\nno single member's release can speak for it \u2014 or leak the moment one member\nwent quiet. Copying the decision into the members has neither failure.\n\n``correlation_group_ids`` comes FIRST to match the ``<entity>_ids``-first\nconvention every other bulk body in the repo already uses\n(``EventBulkUpdate``, ``EventBulkDelete``, ``VariableBulkUpdate``,\n``MetricBulkUpdate``, ``DeadEventArchiveRequest``); the action fields that\nfollow are exactly ``AlertInboxActionRequest``'s, and mean exactly the same\nthings, so the two bodies stay readable side by side.",
         "properties": {
           "action": {
             "enum": [
@@ -2318,7 +2318,7 @@
         "type": "object"
       },
       "AlertInboxBulkActionResponse": {
-        "description": "The rebuilt cards for every incident the batch touched (tripl-gpfr).\n\nDELIBERATELY NOT the house 204 that ``/bulk-update`` and ``/bulk-delete``\nreturn on events, variables and metrics. Those routes mutate rows the caller\nis about to re-fetch anyway; this one replaces cards the operator is LOOKING\nAT, and its single-incident sibling ``AlertInboxActionResponse`` already\nanswers with the rebuilt group for exactly that reason. A 204 would force the\nclient to re-list the whole inbox to redraw N rows it had just changed, and\nwould throw away ``overrides_written``, which that sibling documents as\nnullable and ALWAYS SENT. ``DeadEventArchiveResponse``\n(services/reconciliation_service.py) is the standing precedent in this repo\nfor a bulk route answering with a body instead of 204.",
+        "description": "The rebuilt cards for every incident the batch touched.\n\nDELIBERATELY NOT the house 204 that ``/bulk-update`` and ``/bulk-delete``\nreturn on events, variables and metrics. Those routes mutate rows the caller\nis about to re-fetch anyway; this one replaces cards the operator is LOOKING\nAT, and its single-incident sibling ``AlertInboxActionResponse`` already\nanswers with the rebuilt group for exactly that reason. A 204 would force the\nclient to re-list the whole inbox to redraw N rows it had just changed, and\nwould throw away ``overrides_written``, which that sibling documents as\nnullable and ALWAYS SENT. ``DeadEventArchiveResponse``\n(services/reconciliation_service.py) is the standing precedent in this repo\nfor a bulk route answering with a body instead of 204.",
         "properties": {
           "batch_id": {
             "format": "uuid",
@@ -2632,7 +2632,7 @@
         "type": "object"
       },
       "AlertInboxRuleRef": {
-        "description": "One rule that carried this incident: the id AND the name, together.\n\nReplaces the parallel ``rule_ids`` / ``rule_names`` arrays, which could not\nbe zipped: ``rule_ids`` was sorted by UUID and ``rule_names`` by name, so\nindex *i* of one had nothing to do with index *i* of the other and the card\nlinked \"Volume rule\" to whichever monitor happened to sort first. Two rules\nof one group can even share a name, so no client-side join could repair it\neither (tripl-oxkt.4).",
+        "description": "One rule that carried this incident: the id AND the name, together.\n\nReplaces the parallel ``rule_ids`` / ``rule_names`` arrays, which could not\nbe zipped: ``rule_ids`` was sorted by UUID and ``rule_names`` by name, so\nindex *i* of one had nothing to do with index *i* of the other and the card\nlinked \"Volume rule\" to whichever monitor happened to sort first. Two rules\nof one group can even share a name, so no client-side join could repair it\neither.",
         "properties": {
           "id": {
             "format": "uuid",
@@ -3698,7 +3698,7 @@
         "type": "object"
       },
       "AlertScopeReadiness": {
-        "description": "Whether each drift-style scope has any source data at all, PROJECT-wide.\n\nNot a per-rule verdict and not a prediction: it answers \"could this scope\never produce a candidate here\", so a client can tell an enabled-but-inert\ntoggle from a quiet one (tripl-wkwv.1). Both fields are always sent and\nneither carries a default \u2014 see the no-defaults note on\n``MonitorSummaryItem`` for why a default here would be a lie to the\ngenerated client rather than a server behaviour.",
+        "description": "Whether each drift-style scope has any source data at all, PROJECT-wide.\n\nNot a per-rule verdict and not a prediction: it answers \"could this scope\never produce a candidate here\", so a client can tell an enabled-but-inert\ntoggle from a quiet one. Both fields are always sent and\nneither carries a default \u2014 see the no-defaults note on\n``MonitorSummaryItem`` for why a default here would be a lie to the\ngenerated client rather than a server behaviour.",
         "properties": {
           "distribution_drift": {
             "title": "Distribution Drift",
@@ -4657,7 +4657,7 @@
         "type": "object"
       },
       "AuditEntryResponse": {
-        "description": "One row of the audit list \u2014 everything the row itself renders.\n\nDeliberately WITHOUT ``payload``. The tab renders a payload only for the\nrows the reader expanded (AuditTab.tsx), so shipping one per row sent a page\nof JSON blobs across the wire to be displayed nowhere: on the only project\nwith real audit history, ``/p/*/audit`` had the slowest first\ncontent of the 75 routes in the 2026-08-17 walk. The payload now travels one\nrow at a time, as ``AuditEntryDetailResponse`` (tripl-5ydt).\n\n``branch_id`` / ``branch_name`` are the plan branch the write was scoped to.\nNull and empty mean the write was not made through a branch-scoped request \u2014\nmain, or an action with no plan-branch dimension (alerting, scans, users) \u2014\nso a reader must not render them as \"main\" (tripl-wkwv.6).",
+        "description": "One row of the audit list \u2014 everything the row itself renders.\n\nDeliberately WITHOUT ``payload``. The tab renders a payload only for the\nrows the reader expanded (AuditTab.tsx), so shipping one per row sent a page\nof JSON blobs across the wire to be displayed nowhere: on the only project\nwith real audit history, ``/p/*/audit`` had the slowest first\ncontent of the 75 routes in the 2026-08-17 walk. The payload now travels one\nrow at a time, as ``AuditEntryDetailResponse``.\n\n``branch_id`` / ``branch_name`` are the plan branch the write was scoped to.\nNull and empty mean the write was not made through a branch-scoped request \u2014\nmain, or an action with no plan-branch dimension (alerting, scans, users) \u2014\nso a reader must not render them as \"main\".",
         "properties": {
           "action": {
             "title": "Action",
@@ -10706,7 +10706,7 @@
         "type": "object"
       },
       "EventCommentStatus": {
-        "description": "Resolution state of one discussion thread on an event.\n\nThe five columns come from ``SchemaDrift``, but not its vocabulary:\n``accepted`` and ``false_positive`` are verdicts a detector's finding earns,\nand a question someone typed is neither accepted nor false. A thread is\nopen, answered, or deliberately parked (tripl-h2sx.26).",
+        "description": "Resolution state of one discussion thread on an event.\n\nThe five columns come from ``SchemaDrift``, but not its vocabulary:\n``accepted`` and ``false_positive`` are verdicts a detector's finding earns,\nand a question someone typed is neither accepted nor false. A thread is\nopen, answered, or deliberately parked.",
         "enum": [
           "open",
           "resolved",
@@ -21744,7 +21744,7 @@
         "type": "string"
       },
       "OverviewKpiSeriesResponse": {
-        "description": "Real daily series behind Overview KPI sparklines.\n\nOnly ``new_events`` (events created per day on the main branch, from\nEvent.created_at) has genuine history; other KPIs (active events, open\nsignals, review-pending) have no time series until snapshotting is added,\nso they are intentionally omitted rather than fabricated. The field was\nnamed ``active_events`` until tripl-jfm3.22 \u2014 it never held active-event\ncounts, and the Overview sparkline repeated that false claim in its label.",
+        "description": "Real daily series behind Overview KPI sparklines.\n\nOnly ``new_events`` (events created per day on the main branch, from\nEvent.created_at) has genuine history; other KPIs (active events, open\nsignals, review-pending) have no time series until snapshotting is added,\nso they are intentionally omitted rather than fabricated. The field was\nnamed ``active_events`` until it was renamed \u2014 it never held active-event\ncounts, and the Overview sparkline repeated that false claim in its label.",
         "properties": {
           "days": {
             "title": "Days",
@@ -22344,7 +22344,7 @@
         "type": "object"
       },
       "PlanDiffRename": {
-        "description": "One removed entry and one added entry that are really a single renamed row.\n\nThe diff keys entities by NAME, so a rename splits into a removal of the old\nname and an addition of the new one. The merge does not see it that way: it\npairs the two by ``source_name`` and UPDATEs main's row in place, keeping the\nid and everything hanging off it. Stating the pairing here is what stops the\nUI having to re-derive it, which it cannot do correctly \u2014 the pairing also\ndepends on main, and the diff the UI holds compares the base with the branch\n(tripl-amnn).\n\n``removed_name`` and ``added_name`` are the two entries' ``name``, and\n``entity_type`` / ``parent`` are shared by both, so the pair addresses its\nhalves exactly the way ``BranchRevertRequest`` addresses a change.",
+        "description": "One removed entry and one added entry that are really a single renamed row.\n\nThe diff keys entities by NAME, so a rename splits into a removal of the old\nname and an addition of the new one. The merge does not see it that way: it\npairs the two by ``source_name`` and UPDATEs main's row in place, keeping the\nid and everything hanging off it. Stating the pairing here is what stops the\nUI having to re-derive it, which it cannot do correctly \u2014 the pairing also\ndepends on main, and the diff the UI holds compares the base with the branch.\n\n``removed_name`` and ``added_name`` are the two entries' ``name``, and\n``entity_type`` / ``parent`` are shared by both, so the pair addresses its\nhalves exactly the way ``BranchRevertRequest`` addresses a change.",
         "properties": {
           "added_name": {
             "title": "Added Name",
@@ -26685,7 +26685,7 @@
         "type": "object"
       },
       "ScanActivityResponse": {
-        "description": "Per-scan activity for a project, aggregated in SQL (tripl-fj5g.11).",
+        "description": "Per-scan activity for a project, aggregated in SQL.",
         "properties": {
           "items": {
             "items": {
@@ -28994,7 +28994,7 @@
           },
           "force": {
             "default": false,
-            "description": "Override the guard that refuses to accept a missing_field drift for a column a scan config's event name format builds event names from (tripl-3mmh). API-only escape hatch for a project-wide config that names the column but never scans this event type; requires a note explaining why, which lands in the audit record. The UI does not offer it \u2014 a warning next to an Accept button is a thing operators click past, and clicking past it is what caused the outage.",
+            "description": "Override the guard that refuses to accept a missing_field drift for a column a scan config's event name format builds event names from . API-only escape hatch for a project-wide config that names the column but never scans this event type; requires a note explaining why, which lands in the audit record. The UI does not offer it \u2014 a warning next to an Accept button is a thing operators click past, and clicking past it is what caused the outage.",
             "title": "Force",
             "type": "boolean"
           },
@@ -39301,7 +39301,7 @@
     },
     "/api/v1/projects/{slug}/alert-inbox/bulk-actions": {
       "post": {
-        "description": "Apply one triage decision to a selection of incidents (tripl-gpfr).\n\nA shortcut for N clicks on the sibling single-incident route, not a new kind\nof object: the decision is copied into each incident's own state. The service\nvalidates every id before mutating anything and commits once, so this either\napplies to the whole selection or to none of it.",
+        "description": "Apply one triage decision to a selection of incidents.\n\nA shortcut for N clicks on the sibling single-incident route, not a new kind\nof object: the decision is copied into each incident's own state. The service\nvalidates every id before mutating anything and commits once, so this either\napplies to the whole selection or to none of it.",
         "operationId": "apply_alert_inbox_bulk_action_api_v1_projects__slug__alert_inbox_bulk_actions_post",
         "parameters": [
           {
@@ -39354,7 +39354,7 @@
     },
     "/api/v1/projects/{slug}/alert-inbox/{correlation_group_id}": {
       "get": {
-        "description": "Resolve one incident by id, ignoring the list's lookback window.\n\nAlert messages deep-link the incident they describe, and the reader opens\nthem late; before this route the link landed on a page of 20 unrelated\nincidents with no explanation (tripl-oxkt.7).",
+        "description": "Resolve one incident by id, ignoring the list's lookback window.\n\nAlert messages deep-link the incident they describe, and the reader opens\nthem late; before this route the link landed on a page of 20 unrelated\nincidents with no explanation.",
         "operationId": "get_alert_inbox_group_api_v1_projects__slug__alert_inbox__correlation_group_id__get",
         "parameters": [
           {
@@ -40801,7 +40801,7 @@
         ]
       },
       "patch": {
-        "description": "Owner-only: min_approvals/block_self_approval govern what editors may\nmerge, so editors must not be able to loosen the policy on themselves.\n\nThis protects the merge POLICY, not the plan: editors can still manage\nevent-type owners and write ``main`` directly, so the owner-approval gate\nis a branch-review convention rather than an access control\n(tripl-0zpq.233).",
+        "description": "Owner-only: min_approvals/block_self_approval govern what editors may\nmerge, so editors must not be able to loosen the policy on themselves.\n\nThis protects the merge POLICY, not the plan: editors can still manage\nevent-type owners and write ``main`` directly, so the owner-approval gate\nis a branch-review convention rather than an access control\n.",
         "operationId": "update_project_branch_settings_api_v1_projects__slug__branch_settings_patch",
         "parameters": [
           {
@@ -42067,7 +42067,7 @@
     },
     "/api/v1/projects/{slug}/danger/retire-unused-variables": {
       "post": {
-        "description": "Owner-only: drop the variables a scan minted that nothing refers to.\n\nA scan creates a variable for every placeholder it discovers and has never\nretired one, so a project whose warehouse holds a JSON column keyed by\nuser-typed text accumulates a row per key forever (tripl-10h4). This deletes\nonly rows that a scan created, no human has edited, no event field value\nnames, and that carry no observed context, drift or override \u2014 see\n``core.variable_retirement`` for why \"no observed context\" alone is not\nenough to be safe.\n\n``dry_run`` defaults to true, so the first call is always a preview. It\nreturns the same counts the real pass would, broken down by why each\nsurviving row was kept.",
+        "description": "Owner-only: drop the variables a scan minted that nothing refers to.\n\nA scan creates a variable for every placeholder it discovers and has never\nretired one, so a project whose warehouse holds a JSON column keyed by\nuser-typed text accumulates a row per key forever. This deletes\nonly rows that a scan created, no human has edited, no event field value\nnames, and that carry no observed context, drift or override \u2014 see\n``core.variable_retirement`` for why \"no observed context\" alone is not\nenough to be safe.\n\n``dry_run`` defaults to true, so the first call is always a preview. It\nreturns the same counts the real pass would, broken down by why each\nsurviving row was kept.",
         "operationId": "retire_unused_variables_api_v1_projects__slug__danger_retire_unused_variables_post",
         "parameters": [
           {
@@ -51579,13 +51579,13 @@
             }
           },
           {
-            "description": "Narrow to the variables nothing refers to ('unused' \u2014 exactly the set the retirement sweep would take) or to their complement ('used'). Declared as an enum rather than a free string so an unknown value is a 422 and not a 500 (tripl-57g0).",
+            "description": "Narrow to the variables nothing refers to ('unused' \u2014 exactly the set the retirement sweep would take) or to their complement ('used'). Declared as an enum rather than a free string so an unknown value is a 422 and not a 500.",
             "in": "query",
             "name": "usage",
             "required": false,
             "schema": {
               "default": "all",
-              "description": "Narrow to the variables nothing refers to ('unused' \u2014 exactly the set the retirement sweep would take) or to their complement ('used'). Declared as an enum rather than a free string so an unknown value is a 422 and not a 500 (tripl-57g0).",
+              "description": "Narrow to the variables nothing refers to ('unused' \u2014 exactly the set the retirement sweep would take) or to their complement ('used'). Declared as an enum rather than a free string so an unknown value is a 422 and not a 500.",
               "enum": [
                 "all",
                 "used",
@@ -55043,7 +55043,7 @@
     },
     "/api/v1/projects/{slug}/scans/{scan_id}/jobs": {
       "get": {
-        "description": "Newest jobs first, capped.\n\nThis was uncapped, and the Scans tab fans it out over every scan config on a\n10-second poll: production configs hold 1,366-1,551 jobs each, so an open tab\npulled roughly 4,400 rows every 10 seconds and rendered them unvirtualized\n(tripl-jfm3.107).",
+        "description": "Newest jobs first, capped.\n\nThis was uncapped, and the Scans tab fans it out over every scan config on a\n10-second poll: production configs hold 1,366-1,551 jobs each, so an open tab\npulled roughly 4,400 rows every 10 seconds and rendered them unvirtualized.",
         "operationId": "list_scan_jobs_api_v1_projects__slug__scans__scan_id__jobs_get",
         "parameters": [
           {
@@ -56288,13 +56288,13 @@
             }
           },
           {
-            "description": "Narrow to the variables nothing refers to ('unused' \u2014 exactly the set the retirement sweep would take) or to their complement ('used'). Declared as an enum rather than a free string so an unknown value is a 422 and not a 500 (tripl-57g0).",
+            "description": "Narrow to the variables nothing refers to ('unused' \u2014 exactly the set the retirement sweep would take) or to their complement ('used'). Declared as an enum rather than a free string so an unknown value is a 422 and not a 500.",
             "in": "query",
             "name": "usage",
             "required": false,
             "schema": {
               "default": "all",
-              "description": "Narrow to the variables nothing refers to ('unused' \u2014 exactly the set the retirement sweep would take) or to their complement ('used'). Declared as an enum rather than a free string so an unknown value is a 422 and not a 500 (tripl-57g0).",
+              "description": "Narrow to the variables nothing refers to ('unused' \u2014 exactly the set the retirement sweep would take) or to their complement ('used'). Declared as an enum rather than a free string so an unknown value is a 422 and not a 500.",
               "enum": [
                 "all",
                 "used",

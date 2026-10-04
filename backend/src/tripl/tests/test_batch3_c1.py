@@ -4,9 +4,9 @@ Two defects on the same function, ``metric_collect._collect_sql``:
 
 * a bounded "collect now" window REPLACED a lagging metric's resume window
   instead of only widening it, so the un-queried backlog was stranded behind an
-  advancing collection progress (tripl-0zpq.1);
+  advancing collection progress;
 * a ``NULL`` value cell went straight into ``float()`` and killed the whole
-  collection with "Scan failed due to an internal error." (tripl-0zpq.2).
+  collection with "Scan failed due to an internal error.".
 
 The worker cases use the sync-sqlite fixture style of ``test_metric_collection``
 (a file-backed engine from ``Base.metadata.create_all``, with the task module's
@@ -134,7 +134,7 @@ def _patch_collector(
     monkeypatch.setattr(metric_collect, "_resolve_value_window", lambda *a, **k: resume_window)
 
 
-# ── the manual backfill window (tripl-0zpq.1) ────────────────────────────────
+# ── the manual backfill window ────────────────────────────────
 
 
 def test_manual_sql_collect_keeps_the_backlog_of_a_lagging_metric(
@@ -202,7 +202,7 @@ def test_explicit_sql_replay_window_is_honoured_verbatim(
     assert adapter.seen_windows == [(MANUAL_FROM, WINDOW_TO)]
 
 
-# ── NULL value cells (tripl-0zpq.2) ──────────────────────────────────────────
+# ── NULL value cells ──────────────────────────────────────────
 
 
 def test_collect_sql_metric_records_a_null_value_bucket_as_absent(

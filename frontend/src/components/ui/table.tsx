@@ -14,7 +14,7 @@ function Table({
   // continue past the right edge. This container — not the outer
   // `.tripl-table-wrap` — is the element that actually scrolls, and its
   // horizontal scrollbar sits far below the header row on a long table
-  // (tripl-jfm3.36 / .70).
+  // (.70).
   return (
     <div
       data-slot="table-container"

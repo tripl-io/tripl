@@ -1,4 +1,4 @@
-"""PostgreSQL wiring for the search-relevance harness (tripl-338u).
+"""PostgreSQL wiring for the search-relevance harness.
 
 WHY A SECOND DATABASE AT ALL
 ----------------------------
@@ -227,7 +227,7 @@ async def unseeded_session(
     rather than the code.
 
     It lived in ``test_stemming_invariants.py`` until a SECOND corpus-free module
-    needed it (``test_coverage_invariants.py``, tripl-9t2s). Importing a fixture
+    needed it (``test_coverage_invariants.py``). Importing a fixture
     across test modules is how two subtly different versions of it appear, and a
     hand-rolled copy in the new file would have been free to drop the "no corpus"
     property that is the whole point.

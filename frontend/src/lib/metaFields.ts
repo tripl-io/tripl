@@ -41,7 +41,7 @@ function templateAround(template: string): { prefix: string; suffix: string } | 
  * People paste the whole address out of the browser into a field whose template
  * already IS that address around a key: on production every branch-authored
  * event held `https://jira…/browse/PROJ-4770` where `PROJ-4770` was meant, and the
- * rendered link was the template applied to a URL (tripl-kjhi.5). The server
+ * rendered link was the template applied to a URL. The server
  * strips on write with this same rule; doing it here too means the form shows
  * what will be stored, not what will be corrected. A template with no fixed
  * prefix wraps nothing, so it strips nothing.
@@ -121,7 +121,7 @@ export function resolveMetaFieldHref(
   if (metaField.link_template) {
     // A value that already is a link — pasted whole, or stored before the
     // server began stripping — must not be wrapped in the template a second
-    // time (tripl-kjhi.5).
+    // time.
     if (ABSOLUTE_URL.test(value)) return rawLink(value)
     // The value IS the template around a key, so it is the link the template
     // would build and is judged as one (a relative template stays a link).

@@ -28,7 +28,7 @@ interface ColumnCheckboxPickerProps {
  * uncommitted draft). A selected column that isn't in `columns` still renders
  * as a checked box, so a saved custom column stays visible and removable.
  *
- * Checkbox-only by design (tripl-z5rq): the free-text "add a column" input
+ * Checkbox-only by design: the free-text "add a column" input
  * this grid used to embed duplicated the checkbox list in its suggestion
  * dropdown and bypassed the reserved-columns guard, so it was removed.
  */

@@ -39,7 +39,7 @@ function renderRow(overrides: Partial<Parameters<typeof ScanListRow>[0]> = {}) {
 // axe's nested-interactive fired because the <tr> wrapping the Run and Review
 // buttons was itself role="button" + tabIndex={0}, so a screen reader announced
 // one control where there were three and could activate none of the inner two.
-describe('ScanListRow is inert markup, not an interactive row (tripl-np3p)', () => {
+describe('ScanListRow is inert markup, not an interactive row', () => {
   it('gives the <tr> no widget role and no tab stop of its own', () => {
     renderRow()
     const row = screen.getByRole('link', { name: 'Orders scan' }).closest('tr')
@@ -88,7 +88,7 @@ describe('ScanListRow is inert markup, not an interactive row (tripl-np3p)', () 
   })
 })
 
-describe('ScanListRow review-events action (tripl-7l83.11.3)', () => {
+describe('ScanListRow review-events action', () => {
   it('triggers review navigation without opening the scan detail', () => {
     const { onNavigate, onReviewEvents } = renderRow()
     fireEvent.click(screen.getByRole('button', { name: 'Review events from Orders scan' }))
@@ -103,7 +103,7 @@ describe('ScanListRow review-events action (tripl-7l83.11.3)', () => {
   })
 })
 
-describe('ScanListRow run action (tripl-q7i1.5)', () => {
+describe('ScanListRow run action', () => {
   it('omits Run now when no onRun handler is provided', () => {
     renderRow()
     expect(screen.queryByRole('button', { name: /Run Orders scan now/ })).toBeNull()
@@ -156,7 +156,7 @@ function badgeConfig(overrides: Partial<ScanConfig> = {}): ScanConfig {
   } as unknown as ScanConfig
 }
 
-describe('ScanBadges — metrics bounds belong to the mode that applies them (tripl-3y7z)', () => {
+describe('ScanBadges — metrics bounds belong to the mode that applies them', () => {
   it('announces the three metrics bounds on a monitoring scan, which is the scan that has them', () => {
     render(<ScanBadges sc={badgeConfig()} intervalLabel={{ '1h': 'Hourly' }} />)
 

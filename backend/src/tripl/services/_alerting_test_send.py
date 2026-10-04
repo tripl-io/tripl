@@ -2,7 +2,7 @@
 
 "bot token set" and "chat -100..." say a value is STORED, not that anything
 arrives: a revoked token, a webhook whose channel was archived and a healthy
-destination all render identically in the form (tripl-oxkt.17). This module
+destination all render identically in the form. This module
 sends one fixed, clearly-marked message through the destination's real channel
 so the two can be told apart.
 
@@ -618,8 +618,7 @@ async def _run_test_send(
     # A demo_sink has no outside to reach: it renders and records locally, which
     # is exactly what a real delivery through it does. Reporting ok here is the
     # truthful answer — "this destination works as configured" — and it keeps the
-    # button from looking broken on the one destination a demo project may own
-    # (tripl-2su6.6).
+    # button from looking broken on the one destination a demo project may own.
     if policy_subject.type == AlertDestinationType.demo_sink:
         return AlertDestinationTestResponse(ok=True, error=None, sent_at=now)
 
@@ -658,7 +657,7 @@ async def _run_test_send(
         # that set would mean a NEW channel's failure becomes a 500 the day it is
         # added, and a 500 tells the operator "Tripl is broken" when the correct
         # reading is "your token is". The message is already secret-safe:
-        # _safe_url_for_error strips everything but scheme+host (tripl-jfm3.94).
+        # _safe_url_for_error strips everything but scheme+host.
         logger.warning(
             "Destination test send failed for %s (%s)",
             log_ref,

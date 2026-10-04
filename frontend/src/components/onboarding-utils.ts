@@ -1,5 +1,5 @@
 /**
- * Pure done-state helpers for the onboarding checklist (tripl-2su6.9).
+ * Pure done-state helpers for the onboarding checklist.
  *
  * Kept out of `onboarding-checklist.tsx` so that file only exports a component
  * (react-refresh/only-export-components) while these stay independently

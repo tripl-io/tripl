@@ -1,4 +1,4 @@
-"""Sign in with Google (tripl-sav5.2): ``start`` and Google's ``callback``.
+"""Sign in with Google: ``start`` and Google's ``callback``.
 
 Browser redirects, like an organization's SSO (``auth_sso``): every outcome
 lands back in the app, a failure as ``/auth?sso_error=<code>`` with the same

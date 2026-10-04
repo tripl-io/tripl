@@ -397,7 +397,7 @@ export function MetaFieldControl({
     )
   }
   // A pasted address is reduced to the key the template wraps, as the server
-  // will do on write anyway (tripl-kjhi.5): the box then shows what is stored,
+  // will do on write anyway: the box then shows what is stored,
   // and the rendered link is never the template applied to a URL. On change
   // catches the paste; the blur catches a value that arrived any other way.
   const template = metaField.link_template
@@ -420,7 +420,7 @@ export function MetaFieldControl({
       />
       {/* Said with the reader's own template: "uses link template with
           ${value}" named a mechanism and left the reader to work out that the
-          box wants the key, not the link (tripl-kjhi.5). A template with no
+          box wants the key, not the link. A template with no
           ${value} in it resolves no link at all, so there is nothing true to
           say about it here; the meta-field settings are where it gets fixed
           (AU-9). */}

@@ -2,7 +2,7 @@
 
 ``commands.Handler`` is synchronous because a CLI owns its own ``main`` and has
 to hand an exit code back to it; ``TriplClient`` is asynchronous because it is
-shared with tripl-mcp, which needs it that way (tripl-ey6j.1). This module is
+shared with tripl-mcp, which needs it that way. This module is
 the only place the two meet, so a command body reads as a straight line and
 exactly one ``asyncio.run`` executes per invocation.
 
@@ -22,7 +22,7 @@ there are two kinds of caller:
     ``/auth/status`` on an instance that BY DEFINITION has no credentials yet:
     the first account has not been created, so no API key can exist. Routing
     them through ``run_async`` would demand a key the operator cannot possibly
-    have, and inventing one is not an option either (tripl-ey6j.3). It sends no
+    have, and inventing one is not an option either. It sends no
     ``Authorization`` header, ever, and ``tests/test_runner.py`` pins that.
 """
 
@@ -111,7 +111,7 @@ async def gather_bounded[T](
 
     No ``return_exceptions=True``. The collect layer wraps every read into a
     ``Fetched``, so anything that still escapes here is a genuine bug and
-    aborting loudly is the correct response (tripl-ey6j.2).
+    aborting loudly is the correct response.
     """
     semaphore = asyncio.Semaphore(limit)
 

@@ -2,15 +2,15 @@
 
 Three defects that share nothing but the files they live in:
 
-* ``tripl-0zpq.8`` — unticking the project's **Metrics** detection scope deleted
+* unticking the project's **Metrics** detection scope deleted
   the project's WHOLE metric-scope anomaly history instead of the window an
   enabled pass would have rewritten, so a temporary toggle-off destroyed months
   of history nothing else ever ages out;
-* ``tripl-0zpq.102`` — every volume gate compared a SIGNED expectation against a
+* every volume gate compared a SIGNED expectation against a
   non-negative floor, so a catalog metric whose level legitimately sits below
   zero could never be scored and, if it had been, could never have matched a
   rule;
-* ``tripl-0zpq.7`` — event-anchored signals carry a NULL ``event_type_id``, and
+* event-anchored signals carry a NULL ``event_type_id``, and
   the matcher read a missing type as "this signal has no such field", so an
   alert rule's ``event_type`` filter was silently inert for all of them.
 
@@ -236,7 +236,7 @@ def _seed_values_at(
 
 
 # ---------------------------------------------------------------------------
-# tripl-0zpq.8 — the detect_metrics purge
+# the detect_metrics purge
 # ---------------------------------------------------------------------------
 
 
@@ -454,7 +454,7 @@ def test_detect_metrics_disabled_spares_metrics_the_enabled_pass_never_scores(
 
 
 # ---------------------------------------------------------------------------
-# tripl-0zpq.102 — the signed volume floor
+# the signed volume floor
 # ---------------------------------------------------------------------------
 
 _FRACTIONAL_SETTINGS = AnomalyDetectionSettings(
@@ -502,7 +502,7 @@ def test_negative_level_fractional_series_is_scored() -> None:
     A ``fact`` sum/avg/min/max over a signed column, or any ``sql`` metric, can
     sit at -100 as naturally as at +100. Every volume gate compared that signed
     expectation against a non-negative floor, so the whole class was rejected on
-    all three scoring paths (tripl-0zpq.102).
+    all three scoring paths.
     """
     anomalies = _score_last_bucket(_level_series(-1.0))
 
@@ -534,7 +534,7 @@ def test_fractional_series_flatlined_at_zero_is_still_gated() -> None:
 
     ``_FRACTIONAL_MIN_EXPECTED_COUNT`` is a tiny POSITIVE floor precisely so an
     empty/flatlined-at-zero fractional series cannot manufacture multi-sigma
-    anomalies out of noise (tripl-dmch.17). A single negative wobble puts the
+    anomalies out of noise. A single negative wobble puts the
     series on the signed lane; the expectation is still 0, so nothing emits.
     """
     counts = [0.0] * _SERIES_BUCKETS
@@ -574,16 +574,16 @@ def test_trend_shift_reports_a_signed_expectation() -> None:
 
     assert trend_rows(signed=True) == [("drop", -100.0)]
     # The count lane is untouched: a negative deseasonalized trend is still
-    # rejected outright there, which is what keeps the tripl-wkwv.8 rows gone.
+    # rejected outright there, which is what keeps those rows gone.
     assert trend_rows(signed=False) == []
 
 
 def test_trend_shift_emits_an_empty_bucket_against_a_negative_expectation() -> None:
     """The degenerate-pair guard is ``expected_count == 0.0``, not ``<= 0.0``.
 
-    The guard exists to stop "spike, 0 actual vs 0 expected" rows (tripl-wkwv.8).
+    The guard exists to stop "spike, 0 actual vs 0 expected" rows.
     Once the trend reconstruction stopped being clamped to 0.0 for a signed
-    series (tripl-0zpq.102), ``<=`` also swallowed a REAL move: an empty bucket
+    series, ``<=`` also swallowed a REAL move: an empty bucket
     against an expectation of -100 is a drop to nothing, not an absence of
     movement. Nothing else in the suite reaches that combination — every other
     signed fixture has a non-zero anchor — so reverting the spelling would leave
@@ -622,7 +622,7 @@ def test_signed_phase_baseline_never_normalizes_by_a_near_zero_level() -> None:
     On a series that STRADDLES zero that divisor is positive-but-tiny — it passes
     the per-cycle ``level > 0`` test while sitting near zero — so the factors
     explode and the expectation lands far outside anything the series has ever
-    reached. The magnitude gate added for signed series (tripl-0zpq.102) then
+    reached. The magnitude gate added for signed series then
     admits the product instead of rejecting it for its sign.
 
     A quiet level of +10/+11 with a deep settlement dip at 03:00 emitted 21 rows,
@@ -713,7 +713,7 @@ def test_delivery_records_a_measured_percent_delta_for_a_negative_baseline(
     against ``min_expected_count``, ``absolute_delta / abs(expected)`` against
     ``min_percent_delta``), so a rule fires on -3 -> -9 precisely BECAUSE the
     move is 200%. The payload builder still asked ``expected_count > 0`` and
-    stored the 0.0 placeholder for it — the tripl-l429.24 misreport, reproduced
+    stored the 0.0 placeholder for it — the earlier misreport, reproduced
     against a REAL baseline — and that column is frozen history: the renderers
     read it back, so nothing later can recover the number.
     """
@@ -859,7 +859,7 @@ def _event_type_filter(operator: str, *values: uuid.UUID) -> AlertRuleFilter:
 
 
 # ---------------------------------------------------------------------------
-# tripl-0zpq.102 — the alert layer's half of the signed gate
+# the alert layer's half of the signed gate
 # ---------------------------------------------------------------------------
 
 
@@ -907,7 +907,7 @@ def test_metric_rule_keeps_matching_a_positive_expectation() -> None:
 
 
 # ---------------------------------------------------------------------------
-# tripl-0zpq.102 — every reader of a baseline has to answer the same way
+# every reader of a baseline has to answer the same way
 #
 # The gate moved to MAGNITUDE in the detector, the matcher and the payload
 # builder. The readers did not: they kept asking ``expected_count > 0`` and so
@@ -1108,7 +1108,7 @@ def test_inbox_group_still_reports_no_worst_move_without_a_baseline() -> None:
     """The class the filter exists for is untouched: 0.0 is a placeholder.
 
     Folding it in made a zero-baseline group — the loudest class there is — sort
-    as the smallest deviation in the inbox (tripl-l429.24), so widening the test
+    as the smallest deviation in the inbox, so widening the test
     to ``!= 0`` must not widen it to "everything".
     """
     now = datetime.now(UTC)
@@ -1226,8 +1226,8 @@ def test_no_alerting_surface_re_derives_the_baseline_test(module_name: str) -> N
     ZERO is the no-baseline condition and the only one. An ordering test against
     zero answers a DIFFERENT question — "is the level positive" — and a signed
     catalog metric, a signed ``fact`` sum/avg, or a ``sql`` level below zero is a
-    real baseline the detector scores and the matcher fires on
-    (tripl-0zpq.102). Any surface asking the ordering question prints "no
+    real baseline the detector scores and the matcher fires on.
+    Any surface asking the ordering question prints "no
     baseline" over the very number that made the rule fire.
 
     Fails with the offending ``file:line``. If a genuinely different question
@@ -1241,7 +1241,7 @@ def test_no_alerting_surface_re_derives_the_baseline_test(module_name: str) -> N
 
 
 # ---------------------------------------------------------------------------
-# tripl-0zpq.7 — event_type filters on event-anchored signals
+# event_type filters on event-anchored signals
 # ---------------------------------------------------------------------------
 
 _TYPE_A = uuid.uuid4()

@@ -2,8 +2,7 @@
 
 ``doctor`` answers "what is broken" at a point in time. ``watch`` answers "what
 is happening right now": scan jobs as they run with their replay chunk progress,
-signals as they open, deliveries as they fail. Terminal output, no daemon
-(tripl-ey6j.4).
+signals as they open, deliveries as they fail. Terminal output, no daemon.
 
 It reaches NO verdict and therefore never exits 3, whatever it observes. Two
 failure modes make any other answer wrong: `tripl watch --duration 300 | tee

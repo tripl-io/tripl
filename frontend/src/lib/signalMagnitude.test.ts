@@ -34,7 +34,7 @@ function signal(over: Partial<MonitoringSignal>): MonitoringSignal {
 describe('relativeEffect', () => {
   it('reads the magnitude the server computed', () => {
     // The server is the only side that knows a metric series is fractional, so
-    // its value wins over anything derivable here (tripl-yf8c).
+    // its value wins over anything derivable here.
     const s = signal({ scope_type: 'metric', actual_count: 0.04, expected_count: 0.12, relative_effect: 0.667 })
     expect(relativeEffect(s)).toBeCloseTo(0.667, 3)
   })
@@ -62,7 +62,7 @@ describe('relativeEffect', () => {
     // JSON carries no Infinity: the backend reports an unbounded move off a zero
     // baseline as a finite ceiling (MAX_RELATIVE_EFFECT). Shipped as inf it
     // arrived here as null and the fallback scored 0.3 — below the bar — so the
-    // sidebar badge counted a signal this list hid (tripl-l33u.3).
+    // sidebar badge counted a signal this list hid.
     const capped = signal({ scope_type: 'metric', actual_count: 0.3, expected_count: 0, relative_effect: 1e6 })
     const asNull = signal({ scope_type: 'metric', actual_count: 0.3, expected_count: 0 })
     expect(selectSignificantSignals([capped])).toHaveLength(1)

@@ -75,7 +75,7 @@ async def _reject_if_name_format_needs(
     still have one. So accepting a drift on a column a scan's
     ``event_name_format`` references kills every subsequent collection with
     "the event name format references unknown keys" — which is what took
-    'Old events (iOS)' down for four days (tripl-3mmh, root cause of tripl-lpin),
+    'Old events (iOS)' down for four days (the root cause of a past incident),
     on a drift that was very likely a false positive.
 
     Refusing does not strand an operator whose column really did vanish: the
@@ -145,7 +145,7 @@ async def _apply_acceptance_to_plan(
         # Guard here, not at the route: this is the exact point where the action
         # is accept, the drift is missing_field, and a FieldDefinition really
         # exists to delete. A missing_field drift whose field is already gone
-        # stays a no-op accept rather than becoming a 409 (tripl-3mmh).
+        # stays a no-op accept rather than becoming a 409.
         if not force:
             await _reject_if_name_format_needs(
                 session, event_type=event_type, field_name=drift.field_name
@@ -239,7 +239,7 @@ async def apply_drift_action(
     else:
         raise HTTPException(status_code=422, detail="Unsupported schema drift action")
 
-    # SEPARATE DEFECT (tripl-3mmh, found while reading the accept path): ``note``
+    # SEPARATE DEFECT (found while reading the accept path): ``note``
     # is optional on every action, so assigning it unconditionally erased a note
     # an earlier action had stored — snooze-with-note then reopen-without wiped
     # it. ``reopen`` still clears it: a reopened drift has no resolution any more.
@@ -268,7 +268,7 @@ async def apply_drift_action(
         # ``event_types.branch_id`` has been NOT NULL since 4e5f60718293 — the
         # guard predates branches (aeb15a8d) — so it never fired and accepting a
         # drift left the 300 s ``GET /event-types`` cache serving a field list
-        # the accept had just changed (tripl-0zpq.222). Not invalidated
+        # the accept had just changed. Not invalidated
         # unconditionally: drift rows are only ever written against scanned
         # (main) event types today, but the explicit main check stays correct if
         # that changes.

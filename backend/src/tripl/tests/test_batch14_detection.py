@@ -1,4 +1,4 @@
-"""Regression tests for the batch-14 DETECTION lane (tripl-0zpq.9, .101, .104-.107,
+"""Regression tests for the batch-14 DETECTION lane (.101, .104-.107,
 .342, .343, .346).
 
 Each test fails when the fix it names is reverted. .104 is a documentation fix
@@ -83,7 +83,7 @@ def _bucket(hour: int) -> datetime:
     return _START + _HOUR * hour
 
 
-# ── tripl-0zpq.105: the forecast repeats the LATEST cycle ────────────────────
+# ── the forecast repeats the LATEST cycle ────────────────────
 
 
 def test_forecast_uses_the_latest_seasonal_cycle_not_the_first() -> None:
@@ -109,7 +109,7 @@ def test_forecast_uses_the_latest_seasonal_cycle_not_the_first() -> None:
     assert forecast[0].expected_count > 260.0
 
 
-# ── tripl-0zpq.101: NaN / inf are "no data", never an anomaly ────────────────
+# ── NaN / inf are "no data", never an anomaly ────────────────
 
 
 _FRACTIONAL = AnomalyDetectionSettings(
@@ -177,7 +177,7 @@ def test_a_nan_bucket_in_a_fractional_series_emits_no_row() -> None:
     assert _bucket(27) not in {anomaly.bucket for anomaly in anomalies}
 
 
-# ── tripl-0zpq.106: dotted-numeric versions sort numerically ─────────────────
+# ── dotted-numeric versions sort numerically ─────────────────
 
 
 def test_dotted_numeric_versions_sort_numerically() -> None:
@@ -195,7 +195,7 @@ def test_a_two_part_marketing_release_is_the_latest() -> None:
     assert latest_previous_versions(["15.8", "15.7.4"]) == ("15.8", "15.7.4")
 
 
-# ── tripl-0zpq.107: trend rows are dated at the raw departure ────────────────
+# ── trend rows are dated at the raw departure ────────────────
 
 
 _TREND_SETTINGS = AnomalyDetectionSettings(
@@ -271,7 +271,7 @@ def test_a_run_whose_row_is_gated_out_does_not_silence_its_buckets() -> None:
     assert result.shifted_buckets == frozenset()
 
 
-# ── tripl-0zpq.342: a resumed demo waits for the backfill tick ───────────────
+# ── a resumed demo waits for the backfill tick ───────────────
 
 
 @pytest.fixture
@@ -372,7 +372,7 @@ def test_a_real_project_with_the_same_stale_history_still_dispatches(
     assert len(dispatched) == 1
 
 
-# ── tripl-0zpq.343: tripl doctor does not FAIL an idle demo ──────────────────
+# ── tripl doctor does not FAIL an idle demo ──────────────────
 
 
 def _scan_checks() -> ModuleType:
@@ -427,7 +427,7 @@ def test_doctor_still_fails_a_dead_scheduler_on_a_real_project() -> None:
     assert "scan_not_dispatched" in codes
 
 
-# ── tripl-0zpq.346: top-N is ranked once over the caller's whole window ──────
+# ── top-N is ranked once over the caller's whole window ──────
 
 
 def _platform_rows() -> list[dict[str, object]]:
@@ -554,7 +554,7 @@ class _RankingRecorder:
 
     A fake adapter reads :attr:`current` on every warehouse call, so a test sees
     the ranking window each chunk query actually ran under; deleting a chunk
-    loop's ``with rank_top_n_once(...)`` leaves it ``None`` (tripl-0zpq.346).
+    loop's ``with rank_top_n_once(...)`` leaves it ``None``.
     """
 
     def __init__(self) -> None:
@@ -839,7 +839,7 @@ def test_a_chunked_scan_collection_ranks_every_chunk_over_the_whole_window(
     assert [window for _from, _to, window in chunks] == [whole, whole, whole]
 
 
-# ── tripl-0zpq.9: scope discovery narrows and de-duplicates in SQL ───────────
+# ── scope discovery narrows and de-duplicates in SQL ───────────
 
 
 @pytest.fixture

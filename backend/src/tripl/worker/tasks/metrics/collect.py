@@ -73,7 +73,7 @@ def _bump_event_last_seen(
     re-transitioned. An event missing a required value stays where it is until
     the plan is filled in; the next collection that sees it promotes it.
 
-    ``ready_for_dev`` joined ``implemented`` for tripl-kjhi.6: on production the
+    ``ready_for_dev`` joined ``implemented``: on production the
     handoff goes analyst → developer → data, and nobody flips the row to
     "implemented" by hand before the first rows land, so the tracker read
     "0 implemented" for a feature whose events had been firing for weeks.
@@ -81,7 +81,7 @@ def _bump_event_last_seen(
     review queue, and a draft reaching the warehouse is news to surface, not a
     status to skip past.
 
-    Every write here is batched (tripl-0zpq.16). ``process_chunk`` calls this
+    Every write here is batched. ``process_chunk`` calls this
     once per replay chunk, so a per-event round trip multiplied out to
     chunks x catalog statements on the sync worker engine, which has no
     pipelining. One chunk now costs one UPDATE (both sighting columns), one
@@ -132,8 +132,7 @@ def _bump_event_last_seen(
             # updated_at pinned to itself: TimestampMixin's onupdate would
             # otherwise stamp now() on every bump, and this bookkeeping write
             # is not a plan edit — the activity rail orders events by
-            # updated_at and re-announced every live event each tick
-            # (tripl-0zpq.194).
+            # updated_at and re-announced every live event each tick.
             .values(
                 last_seen_at=case((moves_last, latest_case), else_=Event.last_seen_at),
                 first_seen_at=case((moves_first, earliest_case), else_=Event.first_seen_at),

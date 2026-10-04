@@ -332,7 +332,7 @@ def test_field_contracts_find_exactly_the_drift_that_is_there(pg: PostgresAdapte
     """The same contracts, the same counts, on every warehouse.
 
     PostgreSQL still runs BaseAdapter's Python row-sampling fallback here, while
-    ClickHouse validates natively in SQL (tripl-64n8.5 tracks closing that gap). Two
+    ClickHouse validates natively in SQL (closing that gap is tracked separately). Two
     unrelated implementations must agree on the answer — including the clean contract,
     which must produce no violation at all.
     """
@@ -355,7 +355,7 @@ def test_field_contracts_find_exactly_the_drift_that_is_there(pg: PostgresAdapte
 def test_an_array_column_is_reported_as_an_array_and_scanned_as_a_scalar(
     pg: PostgresAdapter,
 ) -> None:
-    """The end-to-end half of tripl-0zpq.56, and the only one that executes.
+    """The end-to-end half of the fix, and the only one that executes.
 
     psycopg's type registry is keyed by a type's own oid AND its array oid, and
     both lookups return the ELEMENT's ``TypeInfo``. So a ``jsonb[]`` column used

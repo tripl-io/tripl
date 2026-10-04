@@ -98,7 +98,7 @@ async def _collect_demo_embed_texts(session: AsyncSession) -> CollectedTexts:
     """Seed a demo project and return its deduped embed texts (both branches).
 
     Also builds the ``identity key -> embed-text key`` map that ships beside the
-    archive (bd tripl-jfm3.8), so a document whose text the real scan/collection
+    archive, so a document whose text the real scan/collection
     pipeline later rewrites still resolves to its own vector. MAIN wins every
     identity: a working branch deep-copies the plan, so both branches produce the
     same identity, and main's text is the canonical one.
@@ -218,7 +218,7 @@ async def generate_fixture(
         ),
     )
     # Content-independent fallback index, written beside the archive so the demo
-    # keeps its vectors after a scan rewrites document text (bd tripl-jfm3.8).
+    # keeps its vectors after a scan rewrites document text.
     sidecar = identity_sidecar_path(output_path)
     sidecar.write_text(
         json.dumps(dict(sorted(collected.identity_keys.items())), indent=1, ensure_ascii=False)

@@ -7,7 +7,7 @@ const BASE = '/api/v1'
 
 /**
  * The address to load a photo's file from. The server builds `photo.url` as an
- * org-less `/api/v1/projects/{slug}/…/file` (tripl-0chm), which a cookie
+ * org-less `/api/v1/projects/{slug}/…/file`, which a cookie
  * session resolves in the default organization, so an `<img>` in any other one
  * would load the default organization's same-slug project, or 404. This applies
  * the client's organization rewrite to it; an already org-qualified URL, or one

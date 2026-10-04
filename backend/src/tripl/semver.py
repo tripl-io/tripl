@@ -19,7 +19,7 @@ _SEMVER_RE = re.compile(
 _NUMERIC_IDENTIFIER_RE = re.compile(r"^(0|[1-9]\d*)$")
 # A version that is not strict SemVer but is still a plain dotted number —
 # ``15.8``, ``15.10``, ``1.2.3.4``, ``1.02.0``. Compared numerically segment by
-# segment rather than as text (tripl-0zpq.106).
+# segment rather than as text.
 _DOTTED_NUMERIC_RE = re.compile(r"^[vV]?\d+(?:\.\d+)*$")
 
 # How many latest releases (by SemVer order) to retain as explicit series in
@@ -103,7 +103,7 @@ def compare_versions(left: str, right: str) -> int:
     Numbered versions — SemVer, and dotted numbers that are not strict SemVer
     (``15.8``, ``15.10``, ``1.2.3.4``) — compare by their numeric segments, a
     missing segment reading as ``0``: ``15.9 < 15.10`` and ``15.7.4 < 15.8``
-    (tripl-0zpq.106; a plain text comparison had both backwards and let a
+    (a plain text comparison had both backwards and let a
     two-part marketing release sort below every three-part one). A SemVer
     prerelease still sorts below the bare release it precedes. Free-text
     versions (``beta``) compare as text and sort below every numbered one.
@@ -207,8 +207,8 @@ def _compare_parsed(left: ParsedVersion, right: ParsedVersion, *, total: bool) -
     right_numeric = right.numeric_release
     if left_numeric is not None and right_numeric is not None:
         # At least one side is a dotted-numeric fallback: compare the numbers,
-        # padded with zeros so ``15.8`` meets ``15.8.0`` as an equal release
-        # (tripl-0zpq.106). A SemVer prerelease still ranks below its release.
+        # padded with zeros so ``15.8`` meets ``15.8.0`` as an equal release.
+        # A SemVer prerelease still ranks below its release.
         result = _compare_padded(left_numeric, right_numeric) or _compare_prerelease(
             left.prerelease, right.prerelease
         )

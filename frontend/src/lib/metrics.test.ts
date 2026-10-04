@@ -29,7 +29,7 @@ describe('defaultGranularityForRange', () => {
   })
 
   it('steps up to daily buckets past a week through a month', () => {
-    // 30d hourly would be ~720 points — an unreadable comb (tripl-7l83.10).
+    // 30d hourly would be ~720 points — an unreadable comb.
     expect(defaultGranularityForRange(8)).toBe('day')
     expect(defaultGranularityForRange(30)).toBe('day')
   })
@@ -44,7 +44,7 @@ describe('getBucketStart', () => {
   it('floors to the start of the UTC 15-minute bucket', () => {
     // Every backend interval must have a granularity that matches it. A 15m metric
     // used to chart under "Hours", naming the axis after a bucket width the data
-    // does not have (tripl-64n8.15).
+    // does not have.
     expect(getBucketStart('2026-06-10T13:47:31.500Z', '15min'))
       .toBe('2026-06-10T13:45:00.000Z')
     expect(getBucketStart('2026-06-10T13:00:00.000Z', '15min'))
@@ -114,7 +114,7 @@ describe('getBucketStart', () => {
   // Weeks START ON MONDAY, anchored at 1970-01-05 (the first Monday of the
   // epoch) — see WEEK_ORIGIN in backend/src/tripl/core/bucketing.py. Binning
   // straight off the epoch lands weeks on a THURSDAY (1970-01-01 was one),
-  // which is exactly the bug this suite now guards (tripl-64n8.2).
+  // which is exactly the bug this suite now guards.
   it('snaps a week bucket back to Monday', () => {
     // 2026-06-10 is a Wednesday -> back to Monday 2026-06-08.
     expect(getBucketStart('2026-06-10T23:59:59Z', 'week'))
@@ -306,7 +306,7 @@ describe('aggregateMetricPoints', () => {
   it('rolls up expected_count only when every source carries a baseline', () => {
     // A partial baseline (only one source hour scored) must NOT be summed
     // against a full-count aggregate — that yields expected ~1/N of the count
-    // and a nonsensical tooltip (tripl-dmch.10). Drop it to null instead.
+    // and a nonsensical tooltip. Drop it to null instead.
     const mixed = aggregateMetricPoints(
       [
         point({ bucket: '2026-06-10T10:00:00Z', expected_count: null }),
@@ -339,7 +339,7 @@ describe('aggregateMetricPoints', () => {
     // Six normal hours (count 100, expected 100, stddev 10) plus one hour that
     // was flagged upstream with a mild spike (count 130). The rolled-up day is
     // count 730 vs expected 700, stddev sqrt(7*100) ~= 26.5, z ~= 1.13 — well
-    // under the ~3 sigma bar, so the day must stay un-reddened (tripl-dmch.10).
+    // under the ~3 sigma bar, so the day must stay un-reddened.
     const hourly: EventMetricPoint[] = []
     for (let hour = 0; hour < 6; hour += 1) {
       const stamp = String(hour).padStart(2, '0')

@@ -1,4 +1,4 @@
-"""Sign in with Google: the instance-wide OAuth client (tripl-sav5.2).
+"""Sign in with Google: the instance-wide OAuth client.
 
 Not an organization's SSO (``sso_login_service``): one Google client for the
 whole instance, configured by the operator (``GOOGLE_CLIENT_ID`` /

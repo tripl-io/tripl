@@ -53,7 +53,7 @@ export interface CommentThreadProps {
    *  Read once, at mount. It exists for handing a note ACROSS a navigation:
    *  a question drafted while creating an event is posted the moment the event
    *  exists, and if that post fails the author lands here with the words they
-   *  wrote still in the box rather than losing them (tripl-htfn.1). Making it
+   *  wrote still in the box rather than losing them. Making it
    *  live would fight the reader for their own textarea. */
   initialBody?: string
   className?: string
@@ -123,7 +123,7 @@ export function CommentThread({
 
   const commentsQuery = useQuery({ queryKey: queryKey, queryFn: list })
   // The @ list: the project's members plus the organization's owners and
-  // admins, who see every project without a member row (tripl-vefw) — the server notifies exactly
+  // admins, who see every project without a member row — the server notifies exactly
   // those. Members are fetched only for someone who can post.
   const membersQuery = useQuery({
     ...projectMembersQueryOptions(mentionSlug),

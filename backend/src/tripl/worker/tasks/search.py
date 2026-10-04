@@ -274,7 +274,7 @@ def _config_of_group(session: Session, org_ids: list[uuid.UUID]) -> AiConfig:
 def reindex_stale_search_documents() -> dict[str, int]:
     """Rebuild branches with stale builders or embedding provenance.
 
-    WHY THIS EXISTS (tripl-uji9)
+    WHY THIS EXISTS
     ----------------------------
     A change to how documents are BUILT reaches a main branch on its own: the
     worker reindexes main after every scan and every metrics collection. Nothing
@@ -364,7 +364,7 @@ def reindex_org_search_documents(org_id: str) -> dict[str, int]:
     name="tripl.worker.tasks.search.reindex_search_branch",
 )
 def reindex_search_branch(project_id: str, branch_id: str) -> dict[str, int]:
-    """Rebuild ONE named branch's index, off the request path (tripl-zbv0).
+    """Rebuild ONE named branch's index, off the request path.
 
     This is what the search read path enqueues the first time this process
     searches a branch that has never been indexed (see

@@ -233,7 +233,7 @@ export function JobDetails({
               )}
               {/* Reads next to Variables created on purpose: a scheduled run now
                   both mints and retires, and the pair is the only way to tell a
-                  catalog that is growing from one holding steady (tripl-bh1q). */}
+                  catalog that is growing from one holding steady. */}
               {summary.variables_retired != null && (
                 <MiniStat label="Properties retired" value={summary.variables_retired} />
               )}

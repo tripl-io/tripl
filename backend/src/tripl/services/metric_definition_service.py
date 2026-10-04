@@ -139,7 +139,7 @@ async def load_project_data_source(
     before it existed walked in while it was open.
     ``metric_collect._reject_foreign_data_source``, called from
     ``metric_collect._collect_sql``, re-applies the same predicate to the stored
-    ``data_source_id`` before it opens the adapter (tripl-0zpq.347), so a legacy
+    ``data_source_id`` before it opens the adapter, so a legacy
     ``sql`` row now fails its collection loudly instead of running under a
     foreign credential — but the row itself stays as saved until someone edits
     it.
@@ -430,7 +430,7 @@ async def _verify_fact_breakdown_columns(
     201 and then failed on every tick — and it failed the WHOLE metric, not just that dimension: the
     assembly loop re-raises a breakdown scan's error before writing anything, so
     even the top line went uncollected and the catalog said "Scan failed due to
-    an internal error." (tripl-0zpq.174).
+    an internal error.".
 
     ``fact_table_id`` is the NUMERATOR's table for a ratio, which is the only
     table a ratio with breakdowns may use — ``_reject_cross_table_ratio_breakdowns``
@@ -643,8 +643,7 @@ def _metric_search_clause(search: str | None) -> ColumnElement[bool] | None:
     table it sits above: the active count used to match name/display_name only,
     against a stripped term, while the list also matched ``description`` against
     the raw one. A term appearing only in descriptions listed rows and counted
-    zero active, and a trailing space moved the two counts apart the other way
-    (tripl-0zpq.178).
+    zero active, and a trailing space moved the two counts apart the other way.
 
     A blank or whitespace-only term filters nothing, rather than turning into a
     ``%%`` pattern that matches every row with a non-NULL column.
@@ -671,7 +670,7 @@ async def count_active_metric_definitions(
 
     The catalog KPI strip pairs it with the server-side total. "Active" used to
     be counted off the LOADED page, so past the page limit the two stats sat on
-    different bases and the strip contradicted itself (tripl-jfm3.109).
+    different bases and the strip contradicted itself.
 
     Deliberately ignores the ``status`` filter — the stat answers "how many of my
     metrics are active", which must not change when you filter the list BY
@@ -846,7 +845,7 @@ async def _load_latest_metric_anomalies(
 
     Catalog-metric anomalies live in ``MetricAnomaly`` under
     ``scope_type = 'metric'`` and ``scope_ref = str(metric_definition_id)``
-    (the ``MetricScopeType.metric`` scope added by tripl-dxhp.6). Both columns
+    (the ``MetricScopeType.metric`` scope). Both columns
     are matched so a foreign-scope row reusing the same UUID cannot leak in.
     """
     if not metric_ids:
@@ -900,8 +899,7 @@ async def _build_list_enrichment(
     # measured on that grid too — a daily metric judged against a bare 24h window
     # closes on the day it fires. Resolved HERE rather than handed in by the
     # caller: the caller only holds ``MetricDefinition.interval``, which is NULL
-    # for an ``event_composition`` metric whose grid comes from its source scan
-    # (tripl-l429.18).
+    # for an ``event_composition`` metric whose grid comes from its source scan.
     grids = (
         metric_grids(
             (await session.execute(metric_grid_stmt(MetricDefinition.id.in_(metric_ids)))).all()
@@ -1046,7 +1044,7 @@ def _collection_schedule(
     # however far behind its watermark has fallen. Asking the scheduler rather
     # than reproducing its rule: this function used to answer from the watermark
     # alone, so the drilldown said "due now" for a metric the dispatcher would
-    # skip for up to a full interval (tripl-os3v). Imported lazily, like the two
+    # skip for up to a full interval. Imported lazily, like the two
     # other scheduler reads in this module, to keep the request path out of the
     # Celery import graph.
     from tripl.worker.tasks.metrics.schedule import metric_definition_cooldown_until
@@ -1160,7 +1158,7 @@ async def _reject_dialect_mismatches(
 
     Runs :func:`lint_dialect_sql` — the check the metric preview reports — on the
     SQL-bearing fields of a created or updated ``sql`` / ``fact`` definition,
-    with the preview's own message (tripl-0zpq.371). Only NEW SQL is linted:
+    with the preview's own message. Only NEW SQL is linted:
     a target that is also in ``previous`` (the stored definition) is skipped, so
     a rename, a recolour or a form resending the unchanged definition of a metric
     stored before this check existed still saves.
@@ -1189,7 +1187,7 @@ async def _next_metric_order(session: AsyncSession, project_id: uuid.UUID) -> in
     Mirrors ``fact_table_service``'s ``_next_order``. Without it every metric
     created from the form landed on the schema default 0, and a catalog of ties
     cannot be reordered at all: the drag handle permutes positions that are all
-    the same value (tripl-0zpq.175).
+    the same value.
     """
     highest = await session.scalar(
         select(func.max(MetricDefinition.order)).where(MetricDefinition.project_id == project_id)
@@ -1224,7 +1222,7 @@ async def create_metric_definition(
 
     create_values = data.to_create_values()
     if not create_values.get("order"):
-        # Omitted (None) or 0 — what clients predating tripl-cyby still send —
+        # Omitted (None) or 0 — what older clients still send —
         # means "no position asked for" → append. An explicit non-zero order is
         # still honoured verbatim.
         create_values["order"] = await _next_metric_order(session, project_id)
@@ -1325,7 +1323,7 @@ async def _reject_definition_change_during_collection(session: AsyncSession) -> 
     manual window — which no later scheduled run recomputes, because the
     watermark the worker stamps says that ground is already covered. Resetting
     ``last_collection_status`` to NULL also drops the one-active-job guard, so
-    the scheduler may dispatch a second run alongside the first (tripl-0zpq.172).
+    the scheduler may dispatch a second run alongside the first.
 
     Rejected rather than queued: the user can save again when the run finishes,
     and a ``running`` marker left by a crashed worker ages out of the guard by
@@ -1432,7 +1430,7 @@ def _definition_values_changed(metric: MetricDefinition, new_values: dict[str, o
     dicts counted the newly defaulted key as a change, so editing only the
     description of a legacy metric — the form always resends the unchanged
     definition — wiped its entire collected history, and the next defaulted
-    config key added would do it to every metric in the catalog (tripl-0zpq.171).
+    config key added would do it to every metric in the catalog.
 
     A row today's schema cannot parse falls back to the raw columns. That answer
     is conservative (it can over-report a change, never miss one), and it keeps
@@ -1501,8 +1499,8 @@ async def update_metric_definition(
     # (here: delete the series and reset the marker). Unlocked, a beat tick could
     # stamp ``running`` and dispatch in the window between this read and the
     # commit at the bottom, and the clear would then wipe the marker the tick
-    # just wrote and race the worker writing old-definition buckets
-    # (tripl-0zpq.172). So this takes the SAME advisory-lock key
+    # just wrote and race the worker writing old-definition buckets.
+    # So this takes the SAME advisory-lock key
     # ``trigger_metric_collection`` and the beat use, and for the same reason;
     # the transaction-scoped lock is released by the commit below, which is the
     # write it has to cover. It MUST precede every ORM read in this transaction.
@@ -1538,7 +1536,7 @@ async def update_metric_definition(
         # renamed. Running them on every definition-less PATCH turned that into a
         # 422 on ``{"status": "archived"}`` — the metric could not be archived,
         # recoloured or renamed until the caller repaired a dimension it had not
-        # asked to change (tripl-0zpq.174).
+        # asked to change.
         _verify_persisted_ratio_breakdown_compatibility(metric)
         await _verify_persisted_fact_breakdown_columns(session, metric)
     await session.commit()
@@ -1556,7 +1554,7 @@ async def delete_metric_definition(session: AsyncSession, slug: str, metric_id: 
     detector's project sweep, the detection reset, the per-scope delete — finds
     rows through the ids of metrics that STILL EXIST, so anomalies left behind
     here were unreachable forever and grew without a surface that could show
-    them (tripl-0zpq.179).
+    them.
     """
     metric = await get_metric_definition(session, slug, metric_id)
     project_id = metric.project_id
@@ -1967,7 +1965,7 @@ async def trigger_metric_collection(
             # the status alone put the whole group — up to a fact metric's entire
             # active closure — into the error state measuring its cooldown from
             # an unrelated older failure, or from ``updated_at`` when the metric
-            # had never failed, i.e. from no cooldown at all (tripl-0zpq.180).
+            # had never failed, i.e. from no cooldown at all.
             definition.mark_collection_error("Failed to dispatch collection task to worker")
         await session.commit()
         raise HTTPException(
@@ -2040,7 +2038,7 @@ async def _write_catalog_order(
     the write land and keeps it landed. Metrics that share an order — which,
     before ``_next_metric_order``, was ALL of them — describe a permutation of
     equal values, so permuting the values found was silently a no-op and every
-    drag sprang back on the next refetch (tripl-0zpq.175). Forcing only the sent
+    drag sprang back on the next refetch. Forcing only the sent
     rows apart instead would have written one of them onto a value some unsent
     metric already holds, re-creating the tie a slot down; a dense pass over the
     project cannot, because no two positions are equal.
@@ -2145,7 +2143,7 @@ async def move_metric_definition(
     # Swap the two POSITIONS and let the catalog be renumbered from the result,
     # rather than swapping the two order values: neighbours sharing an order value
     # (the normal state of a catalog whose metrics were all created at 0) swap to
-    # exactly what they had, so the move never moved anything (tripl-0zpq.175).
+    # exactly what they had, so the move never moved anything.
     ordered[current_index], ordered[target_index] = (
         ordered[target_index],
         ordered[current_index],

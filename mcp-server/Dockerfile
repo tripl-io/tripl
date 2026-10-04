@@ -1,7 +1,7 @@
 # Build context is the REPOSITORY ROOT, not mcp-server/ — note the COPY paths.
 #
 # tripl-mcp depends on the `tripl` distribution, which uv resolves from ../cli
-# via [tool.uv.sources] while it is unpublished (tripl-ey6j.1), and ../cli sits
+# via [tool.uv.sources] while it is unpublished, and ../cli sits
 # outside an mcp-server/ context. So `docker build ./mcp-server` now fails at
 # `uv sync`; build it as `docker build -f mcp-server/Dockerfile .`. compose.yaml,
 # compose.dev.yaml and release.yml all pass context `.` for this reason.

@@ -479,7 +479,7 @@ function SignalNotification({
   // The ref lives in the tooltip and nowhere else: it is what keeps a row the
   // server could not name traceable back to the detector, while printing it as
   // the label is what put a uuid here and a name on the activity rail for one
-  // and the same incident (tripl-y4wt).
+  // and the same incident.
   const title = `${verb} on ${scopeLabel ?? signalScopeRefLabel(signal)}`
   return (
     <Link

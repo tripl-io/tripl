@@ -1,6 +1,6 @@
 """Monitoring tools: monitors summary, anomaly signals, reconciliation health.
 
-Both bodies here are two- and three-call merges, and both stay (tripl-i1dt).
+Both bodies here are two- and three-call merges, and both stay.
 The CLI reaches three of these five routes and asks a different question of each:
 ``doctor`` reads ``coverage`` and ``signals`` to reach a VERDICT, through the
 ``Fetched`` regime where a 403 is data rather than an exception, and ``watch``

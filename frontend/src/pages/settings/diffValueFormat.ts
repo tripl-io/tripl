@@ -4,7 +4,7 @@
  * separate from `BranchesTab.tsx`: `react-refresh/only-export-components` is
  * an error in this project, and it fires on ANY module that exports both a
  * component and something else — not only on page modules. Shape-testing these
- * predicates directly is worth a second file (tripl-h2sx.16).
+ * predicates directly is worth a second file.
  */
 
 /** Header text for a collection member's keys. The key repeats identically on

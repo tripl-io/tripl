@@ -24,7 +24,7 @@ router = APIRouter(
 
 
 async def _to_response(session: SessionDep, photo, slug: str) -> EventPhotoResponse:  # type: ignore[no-untyped-def]
-    # The organization this request resolved ``slug`` in (tripl-0chm): the file
+    # The organization this request resolved ``slug`` in: the file
     # URL names it, so a later fetch cannot land in another organization.
     org = current_org()
     url = await event_photo_service.url_for(

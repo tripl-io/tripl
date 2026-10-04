@@ -89,7 +89,7 @@ export function canWriteProject(
   const role = activeOrgRole(user)
   if (!canWrite(role)) return false
   if (typeof project?.can_mutate === 'boolean') return project.can_mutate
-  // Project membership (tripl-vefw): a viewer member only reads.
+  // Project membership: a viewer member only reads.
   // `can_mutate` already folds this in when present.
   if (project?.my_role === 'viewer') return false
   if (!user || !project?.is_demo) return true
@@ -216,7 +216,7 @@ export function ownerOnlyReason(action: string): string {
  * ~80 write affordances across its three sections, and a tooltip on each of
  * them is a page that explains itself eighty times and reads once. Naming all
  * three jobs in one sentence lets the same string sit at the head of whichever
- * section the reader is actually on (tripl-oxkt.9).
+ * section the reader is actually on.
  */
 export const VIEWER_READ_ONLY_NOTICE =
   'Read-only: you have the viewer role in this project. Acting on incidents, changing destinations and rules, and retrying deliveries are done by an editor or owner.'

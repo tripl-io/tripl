@@ -427,7 +427,7 @@ def refuse_on_public_demo(what: str) -> Callable[[], None]:
     """A dependency that refuses the route on a public demo instance (403).
 
     ``what`` completes "This public demo does not …", so the refusal says what
-    is off rather than only that something is (tripl-sav5).
+    is off rather than only that something is.
     """
 
     def refuse() -> None:
@@ -520,7 +520,7 @@ async def require_project_mutation_access(
 
     Every route whose path carries a project ``slug`` has to answer "may they
     edit *this* project", otherwise a member of one project could rewrite the
-    tracking plan of every project (tripl-jfm3.19). The answer is the caller's
+    tracking plan of every project. The answer is the caller's
     project role (:mod:`tripl.services.project_access`): an owner or admin of
     the project's organization, or a member whose membership role is
     ``editor``. A viewer member gets 403; a non-member never gets this far, the
@@ -644,7 +644,7 @@ async def get_key_reachable_owner_user(
 
     Same role and scope demands as :func:`get_owner_user` — it only drops the
     "must be a cookie session" clause, so a member's key and any ``read`` key are
-    still 403. Added for the bounded metrics replay (tripl-cj5z): no Bearer client
+    still 403. Added for the bounded metrics replay: no Bearer client
     could trigger one, which is why tripl-mcp ships no replay tool and the CLI
     dropped ``tripl scans replay``.
 
@@ -931,7 +931,7 @@ PROJECT_SCOPED_GATES = frozenset({get_editor_user, get_owner_user, get_key_reach
 # A merged branch is the record of what landed on main and a closed one is
 # shelved until someone reopens it, so neither takes plan writes. Main is stored
 # with ``status="merged"`` too, which is why the check runs only after main has
-# been split off (tripl-0zpq.145). Photo and Figma spec writes address a
+# been split off. Photo and Figma spec writes address a
 # branch's event by its own id, with no ``?branch=``, so they never reach this;
 # ``event_photo_service._get_plan_writable_event`` refuses them the same way.
 _READ_ONLY_BRANCH_STATUSES = frozenset({BranchStatus.merged.value, BranchStatus.closed.value})
@@ -947,7 +947,7 @@ _SAFE_METHODS = frozenset({"GET", "HEAD", "OPTIONS"})
 # import it. test_branch_context_batch2 fails if the name stops matching.
 _DERIVED_DATA_HANDLERS = frozenset({"tripl.api.v1.search.reindex_project_search"})
 # Write-gated routes that change no plan row, so they take no plan lock
-# (tripl-0zpq.288, .294): the AI describe suggestions. They are still refused
+# (.294): the AI describe suggestions. They are still refused
 # on a merged or closed branch (see above), but holding the branch row across
 # an LLM call would only make a merge wait for a request that writes nothing.
 # Named by handler for the same reason as above; test_batch18_merge_races_pg
@@ -1012,7 +1012,7 @@ def _is_a_write(request: Request) -> bool:
 
 
 def _writes_the_plan(request: Request) -> bool:
-    """Whether this request must hold its branch's plan lock (tripl-0zpq.288).
+    """Whether this request must hold its branch's plan lock.
 
     Every write, as :func:`_is_a_write` decides it, less the handlers in
     :data:`_LOCK_FREE_WRITE_HANDLERS`.
@@ -1032,10 +1032,10 @@ async def _refuse_writes_to_a_read_only_branch(
     Before this, only revert and the transition route read ``status``. Every
     other write landed, so a merged branch kept drifting from the revision it
     merged. The docs said such writes are refused, which is why the UI offers no
-    Edit on these branches (tripl-0zpq.145). 409 matches the revert refusal for
+    Edit on these branches. 409 matches the revert refusal for
     the same state. For a write, :func:`get_branch_id_override` has re-read
     the row ``FOR SHARE`` before this runs, so a write that arrived during a
-    merge has waited for it and sees ``merged`` here (tripl-0zpq.288). A close
+    merge has waited for it and sees ``merged`` here. A close
     takes no row lock, so a write already past this check when a close commits
     still lands; a closed branch can be reopened, so nothing is lost.
 
@@ -1065,7 +1065,7 @@ async def _refuse_writes_to_a_read_only_branch(
 
 
 async def _hold_main_for_a_plan_write(request: Request, session: AsyncSession) -> None:
-    """Hold main's branch row for a write to main (tripl-0zpq.294).
+    """Hold main's branch row for a write to main.
 
     A merge takes main's row before it reads main for its conflict check, so a
     main edit arriving mid-merge waits and applies on top of the merged plan,
@@ -1110,7 +1110,7 @@ async def get_branch_id_override(
     Declared as a parameter rather than read off ``request.query_params`` so
     FastAPI propagates it into the OpenAPI schema of every route carrying
     :data:`BranchIdDep` — otherwise the one documented way to keep agent edits
-    off the live plan is invisible to every generated client (tripl-l33u.7).
+    off the live plan is invisible to every generated client.
     Typed ``str`` and parsed here on purpose: FastAPI's own ``uuid.UUID``
     coercion answers a malformed value with 422, and the published contract for
     this parameter is 400.
@@ -1160,8 +1160,7 @@ async def get_branch_id_override(
         # spelled as the absence of a branch everywhere else — audit_service,
         # the audit tab's chip, the CLI's "there is no literal for main" — so
         # binding it would spell it a second way and make two identical writes
-        # to main render differently in the same compliance trail
-        # (tripl-wkwv.6).
+        # to main render differently in the same compliance trail.
         #
         # The same holds for what this yields, so it yields ``None``, not the
         # id. event_type_service, meta_field_service and event_service decide
@@ -1172,7 +1171,7 @@ async def get_branch_id_override(
         # a caller spells main. With the id passed through, the write still
         # landed on main but skipped the checks and busts keyed on
         # ``branch_id is None``, and a field a scan names events by could be
-        # deleted from the live plan (tripl-0zpq.121, tripl-0zpq.215).
+        # deleted from the live plan.
         # Normalising here, in the one place that resolves ``?branch=``, makes
         # the request exactly what it is with no ``?branch=`` at all.
         await _hold_main_for_a_plan_write(request, session)
@@ -1183,7 +1182,7 @@ async def get_branch_id_override(
         # the lock lasts until the write commits: a merge of this branch that is
         # in flight is waited for, and its ``merged`` is what the refusal below
         # reads; a merge that starts later waits for this write before it
-        # snapshots the branch (tripl-0zpq.288). ``_plan_branch_locks`` holds
+        # snapshots the branch. ``_plan_branch_locks`` holds
         # the deadlock audit.
         locked = await hold_branch_for_plan_write(session, plan_branch.id)
         if locked is None:

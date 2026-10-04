@@ -323,7 +323,7 @@ def test_validate_sql_fragment_accepts_realistic_filter() -> None:
 def test_validate_sql_fragment_rejects_injection(bad: str, match: str) -> None:
     """The gate's own cases. The adversarial ones live next to the masker.
 
-    Since tripl-0zpq.77 the gate masks closed literals before it looks for
+    The gate masks closed literals before it looks for
     keywords, so the interesting rejections are the ones that probe the MASKER —
     an unterminated literal, an empty literal, a quoted identifier — and they are
     parametrized alongside the accept cases they have to stay distinct from, in
@@ -560,7 +560,7 @@ def test_time_kind_of_reads_the_NATIVE_type(native_type: str, expected: TimeKind
     BigQuery time types into it. Passing it here collapses every BigQuery time
     column to ``TimeKind.timestamp`` and makes the DATE/DATETIME arms of
     ``quote_timestamp_literal`` unreachable, so the test encoded the bug rather
-    than the contract (tripl-0zpq.74).
+    than the contract.
     """
     assert time_kind_of("ts", {"ts": native_type}) is expected
 

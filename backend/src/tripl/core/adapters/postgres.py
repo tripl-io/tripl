@@ -262,7 +262,7 @@ def _validated_search_path(search_path: str) -> str:
 #: a wider run is spelled as consecutive runs of at most 255 each.
 #:
 #: The widths are those of the float8 domain the OTHER engines parse in, which is
-#: what this guard is standing in for (tripl-0zpq.349): a double prints with at
+#: what this guard is standing in for: a double prints with at
 #: most 309 integer digits (``1.8e308``) and at most 1074 fractional places (the
 #: smallest subnormal, ``5e-324``, written out in full). So the integer run takes
 #: up to 510 digits and the fractional run up to 1275. A single 255-digit cap,
@@ -408,7 +408,7 @@ class PostgresAdapter(BaseAdapter):
         # An unknown connection parameter is a hard error, not something **kwargs
         # quietly eats. The alternative — accepting `sslmod=verify-full` and
         # connecting in plaintext anyway — is the failure mode this guard exists
-        # to prevent (tripl-64n8.7: "rejected, not ignored").
+        # to prevent ("rejected, not ignored").
         if kwargs:
             unknown = ", ".join(sorted(kwargs))
             msg = (
@@ -1014,7 +1014,7 @@ class PostgresAdapter(BaseAdapter):
             # numeric has no float range to leave, so it never raises here.
             #
             # It does NOT always agree with the other engines on the verdict, and
-            # this comment used to say it did (tripl-0zpq.349). base.py's fallback,
+            # this comment used to say it did. base.py's fallback,
             # ClickHouse's toFloat64OrNull and BigQuery's SAFE_CAST all compare in
             # float64, which rounds; numeric compares exact decimals. So a value
             # and a bound that are different decimals but the same double disagree:

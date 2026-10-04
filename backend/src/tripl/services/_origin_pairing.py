@@ -6,7 +6,7 @@ the four names a relation links — so two rows can share it (namesakes). Keyed
 one row per key, every one of those paths collapsed a pair to whichever row was
 listed last: a deleted namesake stayed on main after the merge, an edit to one
 landed on the other, and the batch-2 attempt to pair by content found 21 more
-ways to guess wrong (tripl-0zpq.149, tripl-0zpq.292).
+ways to guess wrong.
 
 A branch copy now records the main row it was made from (``origin_id``), and a
 main row IS its own origin, so two sides pair exactly when one of them names

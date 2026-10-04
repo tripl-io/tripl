@@ -142,7 +142,7 @@ export function EmailSection({
           // the card whose wrong value produces no error message anywhere — the
           // send just hangs. It replaced a "Use TLS" switch that could only ever
           // mean STARTTLS, which is why a 465 relay was unreachable however it
-          // was set (tripl-x1vk).
+          // was set.
           stacked
           hint={SECURITY_HINTS[form.email.smtp_security]}
           last
@@ -179,7 +179,7 @@ export function EmailSection({
       >
         {/* A test button and its status line, not a control to be named —
             the same shape the AI section uses. This card is the whole point of
-            tripl-wmpe: a failed password-reset send is deliberately invisible to
+            a failed password-reset send is deliberately invisible to
             the person who asked for the link, so the operator needs somewhere
             else to look, and until now there was nowhere. */}
         <Field label="Delivery" last htmlFor={false}>

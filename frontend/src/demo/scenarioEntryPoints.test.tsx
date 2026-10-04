@@ -1,7 +1,6 @@
 /**
- * The two ways into the coached scenario (tripl-2su6.21.6, chapter picker in
- * tripl-odrj.4): the welcome panel a fresh demo lands on, and the tour — which
- * shows the surfaces but makes nothing happen on them. Both list every chapter
+ * The two ways into the coached scenario (chapter picker): the welcome panel a
+ * fresh demo lands on, and the tour — which shows the surfaces but makes nothing happen on them. Both list every chapter
  * with its status; picking one starts (or resumes) it and navigates to its
  * first surface.
  *
@@ -113,7 +112,7 @@ afterEach(() => {
 })
 
 describe('DemoWelcomePanel — how much of the Overview it occupies', () => {
-  it('is one row: no second chapter list, no expander (tripl-wnzi, #251 SH-3 / SH-4)', () => {
+  it('is one row: no second chapter list, no expander (#251 SH-3 / SH-4)', () => {
     renderWithScenario(<DemoWelcomePanel project={demoProject()} />, demoProject())
 
     // Expanded, this panel pushed the Overview's own heading ~500-770px down
@@ -124,7 +123,7 @@ describe('DemoWelcomePanel — how much of the Overview it occupies', () => {
     expect(screen.queryByText('Metric building blocks')).toBeNull()
   })
 
-  it('comes back when the dismissal is cleared elsewhere (tripl-imco)', () => {
+  it('comes back when the dismissal is cleared elsewhere', () => {
     renderWithScenario(<DemoWelcomePanel project={demoProject()} />, demoProject())
 
     fireEvent.click(screen.getByRole('button', { name: 'Dismiss demo welcome' }))
@@ -154,7 +153,7 @@ describe('DemoWelcomePanel — how much of the Overview it occupies', () => {
     expect(picker()).toBeInTheDocument()
   })
 
-  it('points at the real product, not only at more demo (tripl-1mzh)', () => {
+  it('points at the real product, not only at more demo', () => {
     renderWithScenario(<DemoWelcomePanel project={demoProject()} />, demoProject())
 
     expect(screen.getByRole('link', { name: /Create a real project/ })).toHaveAttribute(

@@ -1,4 +1,4 @@
-"""Demo integration + zero-network-egress capstone (epic tripl-2su6.10).
+"""Demo integration + zero-network-egress capstone.
 
 Consolidates the cross-cutting guarantees: provisioning rollback, full cleanup,
 cache coherence, repeated-create safety, and — the security capstone — that a full

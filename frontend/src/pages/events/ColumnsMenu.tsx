@@ -55,7 +55,7 @@ export function ColumnsMenu({
   // Toggled-off is only half the story: at 1512px the table is ~1665px wide in
   // a ~902px pane, so 8 further columns are merely scrolled out of sight. The
   // chip used to say "3 hidden" while 11 of 17 were unreadable, and it is the
-  // only signal that the table continues to the right (tripl-u1ib).
+  // only signal that the table continues to the right.
   const badge = [
     totalHidden > 0 ? `${totalHidden} hidden` : null,
     offscreenColumnCount > 0 ? `${offscreenColumnCount} off-screen` : null,

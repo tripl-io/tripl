@@ -28,7 +28,7 @@ const LATEST = Date.parse('2026-06-10T23:00:00Z')
 //
 // Anchored on the clock the row renders against, not on a frozen date: the Δ
 // cell splits the series on NOW, because "Δ · 24h" is a claim about the last 24
-// hours (tripl-oooj). A fixture pinned to LATEST would sit outside both windows
+// hours. A fixture pinned to LATEST would sit outside both windows
 // and every delta assertion here would pass on an em dash.
 function windowSeries(
   priorPerHour: number,
@@ -67,7 +67,7 @@ function makeEvent(overrides: Partial<EventListItem> = {}): EventListItem {
     // a double that stamped one would assert the wrong world is normal.
     source_name: null,
     // Empty by default: most rows carry no free-text title, and the row must
-    // not reserve space for one (tripl-kjhi.3).
+    // not reserve space for one.
     title: '',
     description: '',
     order: 0,
@@ -231,7 +231,7 @@ describe('EventRow Δ · 24h and Signal cells', () => {
     expect(cell).not.toHaveTextContent('*')
   })
 
-  // tripl-oooj: the fresh demo's own payload. Collection ends ~2h before now, so
+  // the fresh demo's own payload. Collection ends ~2h before now, so
   // the series spans 46h rather than 47h — and the span guard blanked the whole
   // column on it, while the same points carried a sound double-digit delta. The
   // number is shown and marked; the tooltip states what is actually covered.
@@ -308,7 +308,7 @@ describe('EventRow Δ · 24h and Signal cells', () => {
 })
 
 describe('EventRow name and type cells', () => {
-  // tripl-fa8l: an href is what makes cmd/middle-click, "copy link address" and
+  // an href is what makes cmd/middle-click, "copy link address" and
   // the status-bar preview work; an onClick-only <button> offered none of them.
   it('renders the event name as a link to its monitoring page', () => {
     renderRow(makeEvent(), windowSeries(10, 20))
@@ -317,7 +317,7 @@ describe('EventRow name and type cells', () => {
     expect(link).toHaveAttribute('href', '/p/proj-1/monitoring/event/evt-1')
   })
 
-  // tripl-wkwv.5: acme-ios holds one event whose name is the empty string. The
+  // acme-ios holds one event whose name is the empty string. The
   // anchor's only child was <EventName name="">, which rendered nothing — a
   // zero-width click target with no accessible name, on the one row a user would
   // most want to open in order to rename or archive it.
@@ -333,7 +333,7 @@ describe('EventRow name and type cells', () => {
     expect(screen.getByLabelText('Drag to reorder (unnamed event)')).toBeInTheDocument()
   })
 
-  // tripl-w9od: the sidebar and Settings call this type "Page View"; the table
+  // the sidebar and Settings call this type "Page View"; the table
   // answered with the internal key "pv" and no legend anywhere.
   it('badges the type with its display name, not its internal key', () => {
     renderRow(makeEvent(), windowSeries(10, 20))
@@ -342,7 +342,7 @@ describe('EventRow name and type cells', () => {
     expect(screen.queryByText('pv')).not.toBeInTheDocument()
   })
 
-  // tripl-kjhi.7: a row link copied out of a branch catalog carried no
+  // a row link copied out of a branch catalog carried no
   // `?branch=`, so it opened a 404 in a fresh session — the event only exists
   // on that branch. The href must carry the branch AND the click must set it,
   // because the provider reads the param only when it mounts.
@@ -366,7 +366,7 @@ describe('EventRow name and type cells', () => {
     )
   })
 
-  // tripl-kjhi.3: the free-text title is the human label for a machine
+  // the free-text title is the human label for a machine
   // identity, so it sits beside the name. It is real text (not a tooltip), yet
   // the link's accessible name stays the identity people search by.
   it('shows the title beside the identity, only when the event has one', () => {
@@ -451,7 +451,7 @@ const OBSERVED_PAGES: EventFieldVariableValue = {
   values: ['/checkout', '/cart'],
 }
 
-// tripl-xv77.1: on the default "All" tab the column a row renders under often
+// on the default "All" tab the column a row renders under often
 // belongs to a DIFFERENT event type — whichever type was deduped first. The cell
 // resolved its text through the name fallback and its contexts through a second,
 // id-only lookup, so on acme-ios the majority of context-carrying values printed
@@ -520,11 +520,11 @@ describe('EventRow single saturated signal indicator', () => {
   // A live signal used to fan out into four saturated marks on one row (a
   // pulsing name dot, the signal chip, the SignalLink arrow, and a red
   // sparkline dot). The row now surfaces ONE act-on-me affordance — the signal
-  // chip — so a single incident does not read as many. (tripl-dmch.12)
+  // chip — so a single incident does not read as many.
   //
   // The chip reads "Open", never "Firing": Firing belongs to monitors (alert
   // rules), and 30 rows saying "Firing" contradicted a Monitors page that
-  // correctly said "No monitors yet" (tripl-jfm3.4). Nor "Live": that is the
+  // correctly said "No monitors yet". Nor "Live": that is the
   // green lifecycle status one column over (EV-5 / DS-7).
   it('renders the Open signal chip as the single indicator and drops the SignalLink arrow', () => {
     renderRow(makeEvent({ monitored: true }), windowSeries(10, 20), makeSignal())
@@ -554,7 +554,7 @@ describe('EventRow single saturated signal indicator', () => {
   })
 })
 
-describe('EventRow multi-value meta field (tripl-h2sx.31)', () => {
+describe('EventRow multi-value meta field', () => {
   const KEYS_FIELD = {
     id: 'mf-keys',
     project_id: 'p-1',
@@ -586,8 +586,7 @@ describe('EventRow multi-value meta field (tripl-h2sx.31)', () => {
 describe('EventRow open questions', () => {
   it('marks a row whose discussion is still waiting, with the count', async () => {
     // The filter beside it says "open questions"; a marker that cannot say how
-    // many leaves the reader guessing whether one thing is open or five
-    // (tripl-h2sx.26).
+    // many leaves the reader guessing whether one thing is open or five.
     renderRow({ ...makeEvent(), open_question_count: 3 } as EventListItem, [])
 
     const marker = await screen.findByTitle('3 unanswered questions in the discussion')

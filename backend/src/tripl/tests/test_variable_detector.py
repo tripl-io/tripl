@@ -13,7 +13,7 @@ class TestJsonDetection:
         assert "${spot_id}" in result.template
         # "type" is low-cardinality (one unique value), so the template carries
         # that value literally rather than a ``${_low:type}`` token nothing ever
-        # expanded (tripl-0zpq.96).
+        # expanded.
         assert json.loads(result.template)["type"] == "banner"
         assert any(v.name == "spot_id" for v in result.variables)
         assert any(v.inferred_type == "number" for v in result.variables)

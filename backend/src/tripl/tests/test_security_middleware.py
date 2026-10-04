@@ -49,8 +49,8 @@ async def test_security_headers_on_a_normal_response_match_the_shared_builder(
     """Pins the middleware to ``build_security_headers``.
 
     The catch-all 500 handler in ``main`` has to attach the same set by hand,
-    because ServerErrorMiddleware answers from outside this middleware
-    (tripl-qu9m). Asserting both ends against the one builder — here for a 200,
+    because ServerErrorMiddleware answers from outside this middleware.
+    Asserting both ends against the one builder — here for a 200,
     in test_error_handling for a 500 — is what keeps the two from drifting.
     """
     response = await anon_client.get("/health")

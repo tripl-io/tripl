@@ -1,4 +1,4 @@
-"""Executable coverage for the semantic leg's cosine floor (tripl-txcz).
+"""Executable coverage for the semantic leg's cosine floor.
 
 WHY THIS FILE EXISTS SEPARATELY FROM THE CASE TABLE
 ---------------------------------------------------
@@ -7,7 +7,7 @@ through :func:`postgres_semantic_search`, and the case table
 (:mod:`tripl.tests.relevance.cases`) deliberately runs with the semantic leg
 OFF — ``seeded_corpus`` hard-fails if embeddings are enabled, because a live
 provider would make the lexical rankings irreproducible. The headline fix of
-tripl-txcz was therefore asserted by nothing at all: the floor could be deleted,
+the confidence change was therefore asserted by nothing at all: the floor could be deleted,
 or set to 0.0, and every test in the repository would still pass.
 
 The way out is that the floor does not need a provider — it needs VECTORS. This
@@ -190,7 +190,7 @@ async def test_a_semantic_only_hit_is_not_reported_as_a_weak_answer(
     relevance_session: AsyncSession,
     seeded_corpus: Corpus,
 ) -> None:
-    """The confidence half of tripl-txcz, executed end to end on real SQL.
+    """The confidence half of that change, executed end to end on real SQL.
 
     ``merge_results`` scores a vector-only hit ``cosine * 2.5``, so its score
     cannot exceed 2.5. Confidence uses the cosine, then caps non-identity hits

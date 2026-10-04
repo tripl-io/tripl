@@ -19,17 +19,17 @@ from datetime import datetime
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
-# Bumped to "2" for tripl-2su6.2: the scenario expanded (meta values, event-type
+# Bumped to "2": the scenario expanded (meta values, event-type
 # relation/owner, authored variable override, event change history, figma spec,
 # and a feature-branch journey), so demos seeded under recipe "1" are semantically
 # older. Reset re-runs the current recipe, so re-seeding yields equivalent
 # semantics with no duplicate rows (every id is minted fresh per run).
-# Bumped to "4" for tripl-odrj.3: the feature branch now carries a REAL pending
+# Bumped to "4": the feature branch now carries a REAL pending
 # change (the main plan is deep-copied onto it and one event description is
 # edited, so the branch diff / merge preview are non-empty) and one open
 # variable-value drift is seeded on product_id (Trial Started).
 #
-# NOT bumped for tripl-wkwv.14 (events in the seeded audit trail), and that is a
+# NOT bumped for the events in the seeded audit trail, and that is a
 # decision rather than an oversight: this string is what
 # ``search_embeddings._parse_fixture`` matches the precomputed vector bundle's
 # manifest against, while the bundle's filename is a SEPARATE constant
@@ -38,7 +38,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 # version stamp, silently. Nothing else consumes the value: the banner displays
 # it and does not compare it. So bump when the recipe gains something a reader
 # can navigate to that an older demo lacks AND the fixture is regenerated with
-# it; tripl-wkwv.14 adds rows to surfaces a recipe-4 demo already has, and
+# it; those events add rows to surfaces a recipe-4 demo already has, and
 # indexes nothing new. Nor for F18's seeded planned promo, for the same reason.
 DEMO_RECIPE_VERSION = "4"
 
@@ -159,7 +159,7 @@ def build_default_scenario() -> DemoScenario:
             branches.build_branches,
             # 10. Audit trail for everything the recipe authored, attributed to
             #     the demo's creator. Runs after every builder that creates an
-            #     object it records (tripl-jfm3.60).
+            #     object it records.
             audit.build_audit,
             # 11. Search reindex (last).
             search.build_search,

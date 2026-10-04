@@ -1,4 +1,4 @@
-"""Unit tests for the search-embedding worker task (tripl-kt6v).
+"""Unit tests for the search-embedding worker task.
 
 A request-level embedding failure (``embed_texts`` returning ``[]`` for a
 non-empty batch: network error, 429, 400) must NOT mark documents ``failed``
@@ -194,8 +194,7 @@ def test_embeddings_are_posted_to_the_configured_endpoint(
     """The endpoint was hardcoded to api.openai.com while the docs told
     self-hosters to point SEARCH_EMBEDDING_* at their own provider "to keep all
     text inside your own infrastructure" — so following the written instruction
-    sent tracking-plan text to OpenAI with the operator's own key on it
-    (tripl-0tt4).
+    sent tracking-plan text to OpenAI with the operator's own key on it.
 
     Asserted at the REQUEST, not at the helper that builds the string: what
     matters is where the bytes actually go, and a test on the builder alone would

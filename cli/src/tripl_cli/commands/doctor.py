@@ -4,7 +4,7 @@ The command the 2026-07-28..31 incident needed: a scan config failing for days
 behind a generic error, events frozen with no indication why, a stale ACCEPTED
 schema drift that had silently deleted a field, and a retry backoff that looked
 like a hang. All four are visible through read-only REST calls, and this is the
-one invocation that surfaces them (tripl-ey6j.2).
+one invocation that surfaces them.
 """
 
 from __future__ import annotations

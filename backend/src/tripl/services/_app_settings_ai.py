@@ -99,7 +99,7 @@ def _ai_config_from(
     )
     if settings.public_demo:
         # Every call a stranger can trigger would run on the operator's key, so
-        # a public demo has no AI whatever the settings say (tripl-sav5.4). Demo
+        # a public demo has no AI whatever the settings say. Demo
         # projects still search semantically from their bundled embedding
         # fixture, which needs no provider.
         return _without_credentials(config)

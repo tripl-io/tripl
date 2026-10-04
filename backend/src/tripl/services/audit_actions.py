@@ -132,7 +132,7 @@ PROJECT_GROUPS: tuple[tuple[str, tuple[str, ...]], ...] = (
             "fact_table.update",
             "fact_table.delete",
             # The SQL-executing previews: they store nothing but run an editor's
-            # SQL against a warehouse credential (tripl-0zpq.75).
+            # SQL against a warehouse credential.
             "fact_table.preview",
             "metric.preview",
             "metric.fact_preview",

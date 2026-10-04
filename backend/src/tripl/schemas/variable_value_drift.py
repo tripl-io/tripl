@@ -53,12 +53,12 @@ class VariableValueDriftActionRequest(BaseModel):
             # all, because ``variable_value_drift_service`` decides what is
             # snoozed by reading the stored instant against now, and the frontend
             # repeats that reading in ``lib/variableDrift.ts`` so the row is back
-            # among the open ones on the very next render (tripl-0zpq.273).
+            # among the open ones on the very next render.
             self.snoozed_until = require_future_instant(
                 self.snoozed_until, field_name="snoozed_until"
             )
         elif self.snoozed_until is not None:
             # Refused rather than discarded, as on ``SchemaDriftActionRequest``
-            # and ``EventCommentActionRequest`` (tripl-0zpq.325).
+            # and ``EventCommentActionRequest``.
             raise ValueError("snoozed_until is only meaningful when action is snooze")
         return self

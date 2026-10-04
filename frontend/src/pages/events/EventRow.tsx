@@ -255,14 +255,14 @@ export const EventRow = memo(function EventRow({
   const statusTone = EVENT_STATUS_DOT_TONE[(ev.status as EventStatus) ?? 'draft'] ?? 'neutral'
   // Every place this row puts the name into a STRING — an aria-label, a native
   // title, the sparkline's labels. A blank name made those read "Select " and
-  // "Edit " with a trailing space (tripl-wkwv.5). The link's own text keeps the
+  // "Edit " with a trailing space. The link's own text keeps the
   // RAW name, because <EventName> needs it to paint ∅ empty segments.
   const nameLabel = eventNameLabel(ev.name)
 
   // The detail link carries the ACTIVE branch, not just the path. The provider
   // reads `?branch=` only when it mounts, so a row link copied out of a branch
   // catalog without it opened a 404 in a fresh session — the event only exists
-  // on that branch (tripl-kjhi.7). useBranchLinkProps bundles the query param
+  // on that branch. useBranchLinkProps bundles the query param
   // with the on-click branch set, so in-app and pasted navigation agree.
   const activeBranchId = useActiveBranchId()
   const branchLink = useBranchLinkProps()
@@ -369,7 +369,7 @@ export const EventRow = memo(function EventRow({
                   means opening rows in background tabs, and cmd/ctrl/middle
                   click, "copy link address" and the status-bar preview all
                   need an href. react-router's Link leaves modified clicks to
-                  the browser (tripl-fa8l). */}
+                  the browser. */}
               <Link
                 to={detailLink.to}
                 onClick={detailLink.onClick}
@@ -391,7 +391,7 @@ export const EventRow = memo(function EventRow({
               </TooltipContent>
             )}
           </Tooltip>
-          {/* The free-text title beside the identity (tripl-kjhi.3). Inline, not
+          {/* The free-text title beside the identity. Inline, not
               a second line: the virtualizer sizes every row to ROW_H_ESTIMATE
               and never measures (useEventsTableVirtualization), so a taller
               titled row would shift every row under it. Rendered only when set,
@@ -414,7 +414,7 @@ export const EventRow = memo(function EventRow({
           {/* An unanswered question on this event's discussion. A count, not a
               dot: the filter beside it says "open questions", and a marker that
               cannot say how many leaves the operator guessing whether the row
-              matched for one reason or several (tripl-h2sx.26). */}
+              matched for one reason or several. */}
           {(ev.open_question_count ?? 0) > 0 && (
             <Chip
               size="xs"
@@ -528,7 +528,7 @@ export const EventRow = memo(function EventRow({
             }
             const delta = computeWindowDelta(windowData)
             // One sentence for every outcome, naming what was compared and how
-            // much of each 24h window was there to compare (tripl-oooj).
+            // much of each 24h window was there to compare.
             const title = describeWindowDelta(delta)
             const pct = delta.pct
             if (pct == null) {
@@ -593,8 +593,8 @@ export const EventRow = memo(function EventRow({
               Settings all call these types "Pageview"/"Structured Event", and
               only this chip answered with the internal key ("pv"/"se") — an
               undocumented two-letter mapping the reader had to learn, with the
-              colour dot unable to help when all types share one colour
-              (tripl-w9od). Truncated with a title so the wider label does not
+              colour dot unable to help when all types share one colour.
+              Truncated with a title so the wider label does not
               push more columns off-screen. */}
           <Chip size="xs" title={eventType?.display_name ?? eventType?.name ?? undefined}>
             <span
@@ -654,7 +654,7 @@ export const EventRow = memo(function EventRow({
         // The text and the popover must name the SAME value row, so both come
         // from the one lookup (useEventsFiltering). Re-deriving the row here by
         // id alone silently dropped the popover on the "All" tab, where a column
-        // belongs to whichever event type was deduped first (tripl-xv77.1).
+        // belongs to whichever event type was deduped first.
         const fieldValue = getFieldValueRow(ev, f)
         const val = getFieldValue(ev, f)
         const cellKey = `${ev.id}-${f.id}`
@@ -714,7 +714,7 @@ export const EventRow = memo(function EventRow({
       {metaFields.map((mf) => {
         // Every value gets its own rendering. A field with `allow_multiple`
         // holds several, and joining them first would hand the link template a
-        // string it wraps into one broken address (tripl-h2sx.31).
+        // string it wraps into one broken address.
         const values = metaValueMap?.get(mf.id) ?? []
         const first = values[0] ?? ''
         return (

@@ -322,7 +322,7 @@ NO_BASELINE_LABEL = "no baseline"
 # One constant for both writers — the demo seeder that records the initial
 # delivery and the worker's demo_sink dispatch branch (send, retry, simulate) —
 # so a freshly seeded delivery and a retried one always describe themselves the
-# same way (tripl-0zpq.320).
+# same way.
 DEMO_SINK_LOCAL_NOTICE = (
     "Simulated local delivery (demo_sink) — rendered and recorded locally with "
     "no external message sent."
@@ -458,12 +458,12 @@ def has_baseline(expected_count: float) -> bool:
     """Was there an expectation to divide by?
 
     ZERO is the no-baseline condition, and it is the ONLY one. The percent gate
-    deliberately admits anomalies with no baseline at all (tripl-l429.12) — a
+    deliberately admits anomalies with no baseline at all — a
     scope resuming after an outage, an event firing for the first time, a schema
     drift — and every one of those arrives with ``expected_count`` exactly 0. The
     stored ``percent_delta`` is a 0.0 placeholder for them, because the ratio is
     undefined and the column is NOT NULL; emitting it reported the largest
-    possible relative move as the smallest (tripl-l429.24/.27).
+    possible relative move as the smallest (.27).
 
     A NEGATIVE expectation is a REAL baseline. A ``fact`` sum/avg/min/max over a
     signed column, or a ``sql`` level that legitimately sits below zero, has a
@@ -472,7 +472,7 @@ def has_baseline(expected_count: float) -> bool:
     (``anomaly_detector._clears_volume_gate``) and the matcher fires on it the
     same way (``alerting_matching.rule_matches_anomaly``: ``abs(expected)``
     against ``min_expected_count``, ``absolute_delta / abs(expected)`` against
-    ``min_percent_delta``, tripl-0zpq.102). A reader still asking
+    ``min_percent_delta``). A reader still asking
     ``expected_count > 0`` therefore prints "no baseline" over the very number
     that made the rule fire — the renderer contradicting the matcher.
 
@@ -494,7 +494,7 @@ def percent_delta_of(actual_count: float, expected_count: float) -> float:
     the demo builder seeds it — so the simulator cannot disagree with the thing
     it simulates and one delivery cannot disagree with itself. Each of those was
     once a separate copy of this expression, which is how the signed fix
-    (tripl-0zpq.102) reached some of them and not others; add a writer, call
+     reached some of them and not others; add a writer, call
     this, do not re-derive the ratio.
 
     Both numerator and divisor are MAGNITUDES, so the ratio stays a size instead
@@ -536,7 +536,7 @@ def percent_delta_or_none(percent_delta: float, expected_count: float) -> float 
     neither may be handed is the stored ``0.0`` placeholder, because a consumer
     cannot tell it apart from a real "no change" — and the class it hides is
     exactly the loudest one, a scope firing from nothing or resuming after an
-    outage (tripl-l429.27). ``expected_count`` travels beside it in every payload
+    outage. ``expected_count`` travels beside it in every payload
     and corroborates the null, but a consumer that only reads this field must
     still not be misled by it.
 
@@ -561,7 +561,7 @@ def percent_delta_or_none(percent_delta: float, expected_count: float) -> float 
 # for one schema drift the worker wrote "drift: type_changed amount
 # sample=9.99" where the preview wrote "drift: type_changed: amount — e.g.
 # 9.99", so a rule tested in the simulator and then sent for real described the
-# same firing two different ways (tripl-0zpq.165). The label map had split the
+# same firing two different ways. The label map had split the
 # same way — only the worker's knew about release regressions.
 #
 # The WORKER's wording is the one kept in both cases. It is the text an
@@ -619,7 +619,7 @@ class DriftLineFacts:
     one: a release regression is measured over the activation-anchored rollout
     overlap, so ``ReleaseRegression.window_from`` is NOT NULL, the send
     snapshots it onto ``AlertDeliveryItem.window_from`` and — since
-    tripl-0zpq.158 taught the replay to load those rows — the preview carries
+    the replay learned to load those rows — the preview carries
     it through ``DriftAlertCandidate`` and ``SimulatedRuleFiring``. Every other
     scope's window IS its bucket and leaves it None, as does any item delivered
     before the column existed; that is what its only consumer, the
@@ -675,7 +675,7 @@ def _format_window_span(facts: DriftLineFacts) -> str | None:
     whose window IS its bucket, and any item delivered before the column
     existed, gets None and simply loses the clause. Release regressions are the
     one family that carries a window, and they carry it on BOTH sides since
-    tripl-0zpq.158 — a simulated firing has it too, which is what lets the
+    a simulated firing has it too, which is what lets the
     preview print the same "over the 51h rollout overlap" the delivered message
     prints. A span that rounds to under an hour returns None as well, rather
     than printing ``0h``.
@@ -723,7 +723,7 @@ def release_regression_basis(facts: DriftLineFacts) -> str:
         # zero as if it were an expectation. Through ``has_baseline`` so that it
         # is the SAME question ``format_percent_delta`` answers four lines down:
         # a signed expectation renders a real percentage there, and this sentence
-        # has to explain the ratio rather than deny there is one (tripl-0zpq.102).
+        # has to explain the ratio rather than deny there is one.
         return line
     return (
         f"{line}; {plain_alert_number(facts.expected_count)} is {previous}'s share "

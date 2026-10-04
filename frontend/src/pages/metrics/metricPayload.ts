@@ -38,7 +38,7 @@ export interface OperandColumns {
  * than nulled. The form hides that field, so the draft only carries one the
  * stored metric already had — the API accepts, say, a `count` with a
  * `measure_column` — and nulling it made an untouched save change the stored
- * definition, which deletes the metric's history (tripl-fj5g.9). Changing the
+ * definition, which deletes the metric's history. Changing the
  * aggregation or the fact table in the form clears the column it hid
  * (`withAggregation`, `withFactTable`), so a stale choice is not carried along
  * instead. And a hidden column the loaded fact table no longer has is dropped:

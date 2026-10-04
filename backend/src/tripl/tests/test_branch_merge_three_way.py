@@ -76,7 +76,7 @@ async def _comments(photo_id: str | uuid.UUID) -> list[EventPhotoComment]:
 
 @pytest.mark.asyncio
 async def test_a_comment_only_branch_leaves_main_photo_changes_alone(client: AsyncClient) -> None:
-    """tripl-0zpq.132: main adds Q and deletes R after the cut; the branch only
+    """main adds Q and deletes R after the cut; the branch only
     comments on P. The photos arm used to replace main's set with the branch's,
     deleting Q and putting R back."""
     slug = "merge3w-set"
@@ -107,7 +107,7 @@ async def test_a_comment_only_branch_leaves_main_photo_changes_alone(client: Asy
 
 @pytest.mark.asyncio
 async def test_photo_comments_merge_three_way_and_keep_their_time(client: AsyncClient) -> None:
-    """tripl-0zpq.135 + .143: a comment main deleted after the cut stays
+    """A comment main deleted after the cut stays
     deleted, one the branch deleted leaves main too, and one written on the
     branch arrives with the time it was written, not the merge's."""
     slug = "merge3w-comments"
@@ -145,7 +145,7 @@ async def test_photo_comments_merge_three_way_and_keep_their_time(client: AsyncC
 
 
 def test_comparable_photos_ignore_the_order_a_comment_gives_them() -> None:
-    """tripl-0zpq.136: the snapshot sorts photos by canonical JSON with the
+    """the snapshot sorts photos by canonical JSON with the
     comments inside, so one comment can swap two photos. Stripping the comments
     without re-sorting left that swap in place and read as a photo change."""
 
@@ -165,7 +165,7 @@ def test_comparable_photos_ignore_the_order_a_comment_gives_them() -> None:
 
 
 def test_touched_events_are_keyed_by_type_and_name() -> None:
-    """tripl-0zpq.137: two types may each have a ``login``; keyed on the name
+    """two types may each have a ``login``; keyed on the name
     alone, the branch's edit of app/login compared web/login with itself."""
 
     def event(event_type: str, description: str) -> dict[str, Any]:
@@ -185,7 +185,7 @@ def test_touched_events_are_keyed_by_type_and_name() -> None:
 async def test_merge_drops_main_list_caches(
     client: AsyncClient, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """tripl-0zpq.133: the merge rewrites main's types and meta fields, so the
+    """the merge rewrites main's types and meta fields, so the
     Redis lists every other write invalidates must go too."""
     slug = "merge3w-cache"
     await _seed_plan(client, slug)
@@ -211,7 +211,7 @@ async def test_merge_drops_main_list_caches(
 async def test_a_failed_search_reindex_does_not_fail_a_committed_merge(
     client: AsyncClient, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """tripl-0zpq.139: a reindex whose flush fails leaves the session waiting
+    """a reindex whose flush fails leaves the session waiting
     for a rollback, and the response read after it used to 500."""
 
     async def broken_reindex(session, **_kwargs) -> None:  # type: ignore[no-untyped-def]

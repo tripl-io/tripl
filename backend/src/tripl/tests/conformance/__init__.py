@@ -1,4 +1,4 @@
-"""Executable warehouse conformance gates (tripl-64n8.9).
+"""Executable warehouse conformance gates.
 
 Every other adapter test in this repo asserts generated SQL *strings* against
 *fake* clients. A fake client accepts any string, which is how BigQuery shipped

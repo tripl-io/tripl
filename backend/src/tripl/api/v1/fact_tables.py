@@ -26,7 +26,7 @@ async def list_fact_tables(
     session: SessionDep,
     slug: str,
     # FreeTextFilter: binds into an ILIKE, so a NUL aborts inside asyncpg
-    # before SQL runs (tripl-8wez).
+    # before SQL runs.
     search: FreeTextFilter | None = None,
     offset: int = Query(0, ge=0),
     limit: int = Query(200, ge=1, le=1000),
@@ -119,7 +119,7 @@ async def preview_fact_table(
     except DataSourceNotAvailableError as exc:
         # 404, the same status and sentence the fact-table SAVE door and both
         # ``sql``-metric doors answer with for this exact cause. Caught before
-        # its base class, which is the 400 case (tripl-0zpq.353).
+        # its base class, which is the 400 case.
         raise HTTPException(status_code=404, detail=str(exc)) from exc
     except FactTableIntrospectionError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc

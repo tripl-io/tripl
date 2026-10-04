@@ -65,8 +65,8 @@ const COVERAGE_DAYS = 14 as const
 // of occurrences matched the plan?"), and Coverage's "Instrumentation gaps"
 // panel links straight into this one. While that panel used 30 days and this
 // one 14, the hand-off silently widened the population — 14 days is a weaker
-// silence test, so this list showed MORE events than the count the user clicked
-// (tripl-jfm3.79). Both now share one constant, which also matches the backend
+// silence test, so this list showed MORE events than the count the user clicked.
+// Both now share one constant, which also matches the backend
 // default and the Events page's "Silent > 30d" filter. The panel subtitle names
 // the window, so the page never leaves the look-back implicit.
 const DEAD_DAYS = DEAD_EVENT_DAYS
@@ -100,8 +100,8 @@ const DATA_MATCH_HELP = `Share of tracked event occurrences in warehouse data th
 
 // Ceiling for an imperfect match. `coverage_pct` arrives rounded to 2 dp, so a
 // single unmatched occurrence in 672 million comes back as exactly 100.0 and any
-// rounding of it prints "100%" — a perfect score over an imperfect match
-// (tripl-jfm3.26). 100% is reserved for matched === total; everything else is
+// rounding of it prints "100%" — a perfect score over an imperfect match.
+// 100% is reserved for matched === total; everything else is
 // held just below it.
 const MAX_IMPERFECT_MATCH_PCT = 99.9
 
@@ -836,7 +836,7 @@ export default function ReconciliationPage() {
               // Name the window and the population. Coverage links here from its
               // "Instrumentation gaps" panel, so leaving this as "not seen recently"
               // made two adjacent surfaces look like they disagreed about the same
-              // question (tripl-jfm3.23). Both now compute over DEAD_EVENT_DAYS, so
+              // question. Both now compute over DEAD_EVENT_DAYS, so
               // this subtitle and Coverage's report the same number.
               subtitle={`Implemented events with no data in the last ${DEAD_DAYS} days${
                 onFeatureBranch ? ' · main branch' : ''

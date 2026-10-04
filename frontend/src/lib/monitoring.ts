@@ -39,7 +39,7 @@ const SCOPES_WITH_MONITORING_ROUTE = new Set<string>([
  * urls.py), it "could not corroborate the alert even in principle". A reader who
  * follows it sees a chart that disagrees with the alert and cannot tell which
  * one is wrong. The backend made that call and the frontend was still sending
- * people there (tripl-oxkt.21) — one decision, made twice, in opposite
+ * people there — one decision, made twice, in opposite
  * directions.
  *
  * A deny-set rather than a narrower fallback because a release regression's
@@ -97,8 +97,7 @@ export function getScopeMonitoringPath(
  * Nothing else may join without that same guarantee. Schema and distribution
  * drift also carry an `event_type_id` on the backend row, but their `scope_ref`
  * is a FIELD NAME — reading it as an id here would rebuild the
- * valid-looking-URL-for-a-nonexistent-page defect one scope to the left
- * (tripl-wkwv.12, tripl-oxkt.21).
+ * valid-looking-URL-for-a-nonexistent-page defect one scope to the left.
  */
 const SCOPES_WHOSE_REF_IS_AN_EVENT_TYPE = new Set<string>(['release_regression'])
 
@@ -108,8 +107,8 @@ const SCOPES_WHOSE_REF_IS_AN_EVENT_TYPE = new Set<string>(['release_regression']
  *
  * The page is on the result because the two destinations chart different
  * entities: an event page and an event-type page announced with the same words
- * is the event/event-type conflation this whole area was fenced against
- * (tripl-oxkt.21), so callers must word the link from `scope`.
+ * is the event/event-type conflation this whole area was fenced against,
+ * so callers must word the link from `scope`.
  */
 export interface ScopeNavigationTarget {
   path: string
@@ -121,8 +120,8 @@ export interface ScopeNavigationTarget {
  * {@link getScopeMonitoringPath} has already refused — `null` when there is no
  * such place either.
  *
- * Two different questions, and the deny-set above was being made to answer both
- * (tripl-wkwv.12). `getScopeMonitoringPath` answers "does a page corroborate
+ * Two different questions, and the deny-set above was being made to answer both.
+ * `getScopeMonitoringPath` answers "does a page corroborate
  * this alert?" — for a release regression the answer is still no, and nothing
  * here weakens it: the monitoring page charts its entity's volume against the
  * seasonal baseline over that page's own range, a different numerator,
@@ -160,7 +159,7 @@ export function getScopeNavigationTarget(
   // release regression's scope_ref IS its event id on this partition: on the
   // other one that same field is an event_type_id, and building the event URL
   // out of it is how /monitoring/event/{event_type_id} — a valid-looking link to
-  // a page that does not exist — got emitted (tripl-oxkt.21).
+  // a page that does not exist — got emitted.
   if (scope.event_id) {
     return { path: projectPath(currentOrgSlug(), slug, `/monitoring/event/${scope.event_id}`), scope: 'event' }
   }

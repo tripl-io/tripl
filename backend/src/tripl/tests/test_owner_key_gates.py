@@ -5,7 +5,7 @@ classification of every owner-gated route is pinned below. Owner-only means
 security and organization administration, so ``get_owner_user`` refuses a
 Bearer token at any scope. That also blocked the bounded metrics
 replay, which is why tripl-mcp ships no replay tool and the CLI dropped
-``tripl scans replay`` (tripl-cj5z). The replay — and only the replay — now takes
+``tripl scans replay``. The replay — and only the replay — now takes
 ``get_key_reachable_owner_user``, so this module pins all four corners of that
 gate plus the exact route list that carries it: the value of a per-route
 exception is that it stays short and reviewed.
@@ -43,7 +43,7 @@ KEY_REACHABLE_OWNER_ROUTES = {
     "POST /api/v1/projects/{slug}/scans/{scan_id}/metrics/replay",
 }
 
-# The stored policy tripl-cj5z explicitly did NOT widen. Named individually
+# The stored policy that was explicitly NOT widened. Named individually
 # because these are the routes whose reach a leaked ``tk_w_`` would extend from
 # "re-run SQL an owner approved" to "own the warehouse credential".
 SESSION_ONLY_OWNER_ROUTES = {

@@ -43,7 +43,7 @@ export function JsonEditor({
   // Validated on mount, not only on the first keystroke: a stored value can be
   // invalid — seven backend paths write a field value without going through
   // `_normalize_json_template_value` — and an untouched field used to render
-  // aria-invalid="false" over text the server would refuse (tripl-h2sx.10).
+  // aria-invalid="false" over text the server would refuse.
   const [error, setError] = useState<string | null>(() => validateJsonWithVars(value))
   const [showMenu, setShowMenu] = useState(false)
   const [filter, setFilter] = useState('')

@@ -1,4 +1,4 @@
-"""Batch 5, lane W5-demopause: a PAUSED demo must not be collected (tripl-0zpq.72).
+"""Batch 5, lane W5-demopause: a PAUSED demo must not be collected.
 
 ``advance_demos`` already skips a demo nobody has opened for
 ``DEMO_IDLE_PAUSE_MINUTES``. The metrics dispatcher did not, and the two together
@@ -174,7 +174,7 @@ def _simulate_backfill_tick(session: Session, scan_config_id: uuid.UUID) -> None
 
     It backfills the paused hours, so the newest stored bucket catches up to the
     present. Without it the dispatcher now declines a resumed demo whose window
-    would still reach back to pause start (tripl-0zpq.342); these tests are about
+    would still reach back to pause start; these tests are about
     the pause gate, so they let the backfill win the race. Two hours back keeps
     the config due (its progress end sits one interval below the boundary).
     """
@@ -228,7 +228,7 @@ def test_check_metrics_due_skips_a_paused_demo_and_resumes_on_access(
     sync_session_factory: sessionmaker[Session],
     monkeypatch: MonkeyPatch,
 ) -> None:
-    """The whole of tripl-0zpq.72 in one run: silent while paused, live on access.
+    """The whole demo-pause behaviour in one run: silent while paused, live on access.
 
     Also asserts no ``ScanJob`` row is written while paused — a pending job the
     dispatcher never hands to a worker would be reaped as stale later and counted

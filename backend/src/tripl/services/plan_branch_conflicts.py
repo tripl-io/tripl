@@ -123,7 +123,7 @@ def comparable_field(item: dict[str, Any], field: str) -> Any:
     part of the tracking plan. The consequence was worse than a noisy diff: a
     comment on main made the event conflict with the branch, an event conflict
     is not resolvable inline, and the branch became unmergeable while the
-    conflicts endpoint reported nothing to resolve (tripl-h2sx.28). Compare the
+    conflicts endpoint reported nothing to resolve. Compare the
     attachments; leave the conversation out of it — including the ORDER the
     conversation gave them in the snapshot, which ``photos_without_comments``
     re-sorts away.
@@ -226,7 +226,7 @@ def _anchored_slots(
     on each side, so main's edit to one and the branch's edit to the other read
     as a conflict, and two edits to the SAME one could compare two different
     rows and pass — after which the merge, which pairs by origin id, wrote the
-    branch's value over main's (tripl-0zpq.292). Each side is placed against
+    branch's value over main's. Each side is placed against
     the base with ``pair_rows``: main's rows by their own ids, the branch's by
     their origin ids. A key the branch's pairing leaves ambiguous (a branch
     opened before origin ids) falls back to the old one-row-per-key slot on

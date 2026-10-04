@@ -169,7 +169,7 @@ async def test_activity_feed_excludes_stale_anomalies(client: AsyncClient):
     """A week-old anomaly must drop off the rail while a fresh one stays.
 
     Regression for the 'Now' rail pinning weeks-old high-z anomalies at the top
-    of the feed on every page (tripl-dmch.13).
+    of the feed on every page.
     """
     slug = "activity-recency"
     await client.post("/api/v1/projects", json={"name": "Recency Project", "slug": slug})
@@ -262,7 +262,7 @@ async def test_activity_feed_collapses_one_incident_into_one_rail_item(client: A
 
     They share a scan, bucket and direction, so the Now rail must surface the
     single parent project_total item and suppress the co-firing child instead of
-    stacking both. Layered on top of Wave 1's recency filter (tripl-dmch.12).
+    stacking both. Layered on top of Wave 1's recency filter.
     """
     slug = "activity-incident"
     await client.post("/api/v1/projects", json={"name": "Incident Rail", "slug": slug})
@@ -356,7 +356,7 @@ async def test_an_open_branch_does_not_add_a_second_unreachable_copy_of_each_eve
 ):
     """A working branch deep-copies the plan; the rail must stay on main.
 
-    Before tripl-r5ri the event query joined Event to Project alone, so every
+    Previously the event query joined Event to Project alone, so every
     open branch contributed its own clone of each event. The rail linked to
     whichever copy won an arbitrary tiebreak, and a branch-local id 404s: the
     monitoring page resolves ids against main. Asserting on the row count alone
@@ -515,7 +515,7 @@ async def test_another_projects_main_branch_does_not_satisfy_the_main_branch_fil
 
 
 class TestScanJobDetail:
-    """Unit coverage for the scan/collection activity detail line (tripl-yfsj.5).
+    """Unit coverage for the scan/collection activity detail line.
 
     A healthy run on an established catalog routinely creates 0 new events while
     still writing metric points and scanning rows; the detail must read as work
@@ -574,7 +574,7 @@ class TestScanJobDetail:
     def test_signals_added_is_labelled_as_a_delta_not_a_total(self):
         """signals_added is a per-run delta. A bare "1 signal" beside a run that
         detected 560 anomalies read as the project's open-signal total and could
-        not be reconciled with the Anomalies headline (tripl-jfm3.27)."""
+        not be reconciled with the Anomalies headline."""
         detail = _scan_job_detail(
             "completed",
             {"events_created": 0, "anomalies_detected": 560, "signals_added": 1},
@@ -611,7 +611,7 @@ class TestScanJobDetail:
         assert _scan_job_detail("running", None, None) == "Run status changed"
 
     def test_no_fallback_uses_the_api_spelling_job(self):
-        """The activity rail is a web-UI surface, so it says *run* (tripl-3y7z).
+        """The activity rail is a web-UI surface, so it says *run*.
 
         feature-reference.md states the `job` spelling lives in the API and the
         CLI only, and activity-panel.tsx renders `detail` verbatim.

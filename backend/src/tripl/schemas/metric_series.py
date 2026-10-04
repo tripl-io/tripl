@@ -52,7 +52,7 @@ class MetricSeriesResponse(BaseModel):
     # scores it: the project setting narrowed by this metric's false-positive
     # override (``metrics_service._apply_scope_sigma_override``). Required, not
     # defaulted like ``EventMetricsResponse.sigma_threshold``, so an unfilled
-    # value cannot ship silently at 4.0 (tripl-4cgl).
+    # value cannot ship silently at 4.0.
     sigma_threshold: float
     data: list[MetricSeriesPoint]
     forecast: list[ForecastPoint] = []

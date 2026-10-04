@@ -267,8 +267,8 @@ function renderTab(branchId?: string, role: Persona = 'owner') {
 
 beforeEach(() => {
   vi.mocked(usersApi.list).mockResolvedValue(USERS)
-  // The reviewer picker offers the project's members, not the whole roster
-  // (tripl-vefw); here everyone on the roster is a member.
+  // The reviewer picker offers the project's members, not the whole roster;
+  // here everyone on the roster is a member.
   vi.mocked(projectMembersApi.list).mockResolvedValue(
     USERS.map((u) => ({
       user_id: u.id,
@@ -490,7 +490,7 @@ describe('BranchesTab', () => {
     // A branch that renames one field is the ordinary case, not a corner: the
     // Changes panel is the first thing a reviewer opens, and it read
     // "Changes / 1 changes". Same defect the Scans list shipped as "1 scans"
-    // (tripl-3y7z) — `countOf` exists so this is not the fourth hand-rolled copy.
+    // — `countOf` exists so this is not the fourth hand-rolled copy.
     vi.mocked(planBranchesApi.list).mockResolvedValue({ items: [MAIN, FEATURE], total: 2 })
     vi.mocked(planBranchesApi.getConflicts).mockResolvedValue({ entities: [], unresolved_count: 0 })
     vi.mocked(planBranchesApi.listComments).mockResolvedValue([])
@@ -566,7 +566,7 @@ describe('BranchesTab', () => {
 
   it('answers a review remark in place instead of starting a second one', async () => {
     // PlanBranchComment has carried parent_id all along and the service has
-    // validated it; the panel simply never posted one (tripl-h2sx.27).
+    // validated it; the panel simply never posted one.
     vi.mocked(planBranchesApi.list).mockResolvedValue({ items: [MAIN, FEATURE], total: 2 })
     vi.mocked(planBranchesApi.getConflicts).mockResolvedValue({ entities: [], unresolved_count: 0 })
     vi.mocked(planBranchesApi.diff).mockResolvedValue({
@@ -904,8 +904,8 @@ describe('BranchesTab', () => {
     const edit = await screen.findByRole('link', { name: 'Edit checkout_started' })
     expect(edit).toHaveAttribute('href', '/p/demo/events/all/ev-9/edit?branch=feat-1')
 
-    // A variable's Edit opens its own page (AU-26), Definition tab first
-    // (tripl-htfn.2). Before this it had no Edit at all and a reviewer had to
+    // A variable's Edit opens its own page (AU-26), Definition tab first.
+    // Before this it had no Edit at all and a reviewer had to
     // expand the row and find the small link after Revert.
     const editVariable = await screen.findByRole('link', { name: 'Edit variant' })
     expect(editVariable).toHaveAttribute(
@@ -1436,7 +1436,7 @@ describe('BranchesTab', () => {
   // the body on `error.detail` — a reviewer got a status line and no
   // instruction. Both payloads below carry the backend's own wording in
   // `message` and neither had an arm: `merge_constraint_violation` is new
-  // (tripl-htcz) and `incomplete_base_snapshot` had been in the same hole all
+  // and `incomplete_base_snapshot` had been in the same hole all
   // along.
   const undecoded409s: Array<[string, Record<string, unknown>, RegExp]> = [
     [
@@ -1549,7 +1549,7 @@ describe('BranchesTab', () => {
    * the entries below deliberately keep a matching `source_name` on both sides
    * whether or not the pair is stated, because that is what this screen used to
    * pair on for itself. It cannot: the real rule also refuses a move onto a name
-   * a staying main row holds, which a base-to-branch diff cannot see (tripl-amnn).
+   * a staying main row holds, which a base-to-branch diff cannot see.
    *
    * Typed as the shared `PlanBranchDiffSummary` and nothing else: `renames` is a
    * field of that type, declared once in `types/branches.ts` and mirrored by the
@@ -1631,7 +1631,7 @@ describe('BranchesTab', () => {
 
     // The REMOVED half: that is the request the backend answers by moving the
     // name back onto the row. Sending the added half would delete the row and
-    // cascade the observed values away (tripl-hjxy).
+    // cascade the observed values away.
     await waitFor(() =>
       expect(planBranchesApi.revert).toHaveBeenCalledWith('demo', 'feat-1', {
         entity_type: 'variable',
@@ -1700,7 +1700,7 @@ describe('BranchesTab', () => {
     // per-kind tally. One branch therefore said "↑2", "+1 added · −1 removed"
     // and "1 change" over a single Renamed row, all on one screen — and the red
     // "−1 removed" is exactly the false deletion signal the Renamed row exists
-    // to remove (tripl-amnn).
+    // to remove.
     mockRenamedVariableDiff()
 
     renderTab()
@@ -1749,8 +1749,7 @@ describe('BranchesTab', () => {
     // asks a narrower, main-free question (`_row_renamed_from`), finds the
     // branch row still carrying `payload.variant`, and moves the name back onto
     // it: the addition the reviewer was looking at disappears and nothing is
-    // restored. The dialog used to read the merge's "no" and promise a restore
-    // (tripl-amnn).
+    // restored. The dialog used to read the merge's "no" and promise a restore.
     mockRenamedVariableDiff({ paired: false })
     vi.mocked(planBranchesApi.revert).mockResolvedValue({
       behind_base: false,
@@ -1990,7 +1989,7 @@ describe('BranchesTab', () => {
   })
 })
 
-describe('BranchesTab housekeeping rows (tripl-kjhi.12)', () => {
+describe('BranchesTab housekeeping rows', () => {
   it('folds machine removals into one uncounted line, opened on request', async () => {
     mockBranchDetailQueries([MAIN, FEATURE])
     vi.mocked(planBranchesApi.diff).mockResolvedValue({
@@ -2064,7 +2063,7 @@ describe('BranchesTab housekeeping rows (tripl-kjhi.12)', () => {
   })
 })
 
-describe('BranchesTab ticket link (tripl-kjhi.14)', () => {
+describe('BranchesTab ticket link', () => {
   const PROJ = makeBranch({ id: 'feat-proj', name: 'PROJ-4770', kind: 'working', status: 'draft' })
 
   it('links a branch named after a ticket through the meta field that links to it', async () => {
@@ -2503,7 +2502,7 @@ describe('BranchesTab review flows (frontend review batch 14)', () => {
     )
   })
 
-  it('offers only project members as reviewers (tripl-vefw)', async () => {
+  it('offers only project members as reviewers', async () => {
     vi.mocked(planBranchesApi.list).mockResolvedValue({ items: [MAIN, FEATURE], total: 2 })
     vi.mocked(planBranchesApi.get).mockResolvedValue({ ...FEATURE, reviewers: [], approvals: [] })
     // Priya is on the instance roster but not a member of this project.
@@ -2526,7 +2525,7 @@ describe('BranchesTab review flows (frontend review batch 14)', () => {
     expect(projectMembersApi.list).toHaveBeenCalledWith('demo', expect.anything())
   })
 
-  it('also offers instance owners, who hold no member row, once each (tripl-vefw)', async () => {
+  it('also offers instance owners, who hold no member row, once each', async () => {
     vi.mocked(planBranchesApi.list).mockResolvedValue({ items: [MAIN, FEATURE], total: 2 })
     vi.mocked(planBranchesApi.get).mockResolvedValue({ ...FEATURE, reviewers: [], approvals: [] })
     vi.mocked(usersApi.list).mockResolvedValue([

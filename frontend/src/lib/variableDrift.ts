@@ -5,8 +5,8 @@ import { formatDateTime } from './datetime'
 
 /**
  * Where a drift sits in review. THREE states, because the backend has three and
- * reading only two is what put the table badge and the review panels at odds
- * (tripl-lh61): `_active_drift_predicates` counts `open` AND `snoozed` rows and
+ * reading only two is what put the table badge and the review panels at odds:
+ * `_active_drift_predicates` counts `open` AND `snoozed` rows and
  * then drops the ones whose `snoozed_until` is still in the future, so snoozing
  * a variable's last drift feeds a ZERO into `open_drift_count` and the list says
  * nothing needs attention — while the panels, which knew only "resolved vs not",
@@ -106,7 +106,7 @@ export const MAX_DRIFT_TIMER_DELAY_MS = 2_147_483_647
  * mount: a snooze lapsing while the panel sat open kept reading as snoozed, the
  * panel kept the row collapsed behind the toggle with only Un-snooze on it,
  * while the badge beside it — which the backend recomputes per request — had
- * already moved. That is the badge/panel disagreement tripl-lh61 exists to
+ * already moved. That is the badge/panel disagreement the fix exists to
  * remove, coming back in through the clock. A refetch does not rescue it: new
  * data re-renders the panel, and re-rendering does not re-run an initializer.
  *
@@ -152,8 +152,8 @@ const DRIFT_STATUS_LABEL: Record<VariableValueDriftStatus, string> = {
 /**
  * Text for the row's status pill. A snooze is the one state whose useful content
  * is a TIME: "snoozed" on its own never said when the row comes back, and
- * `snoozed_until` was fetched by `api/variableDrifts.ts` and rendered NOWHERE
- * (tripl-lh61). Deferring review is only defensible if the deferral is legible.
+ * `snoozed_until` was fetched by `api/variableDrifts.ts` and rendered NOWHERE.
+ * Deferring review is only defensible if the deferral is legible.
  */
 export function driftStatusNote(
   drift: Pick<VariableValueDrift, 'status' | 'snoozed_until'>,

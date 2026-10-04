@@ -137,7 +137,7 @@ describe('DestinationCard test send', () => {
   it('renders a channel refusal as the answer, not as a crash', async () => {
     // The route answers 200 with `ok: false` — a revoked bot token IS what the
     // button was pressed to find out, so it must not be styled as a server
-    // fault the operator can do nothing about (tripl-oxkt.17).
+    // fault the operator can do nothing about.
     vi.spyOn(alertingApi, 'testDestination').mockResolvedValue({
       ok: false,
       error: 'Forbidden: bot was blocked by the user',
@@ -167,7 +167,7 @@ describe('DestinationCard traffic', () => {
     renderCard()
 
     // The rule COUNT stays after the rules themselves moved to the Monitors
-    // section (tripl-89ps): "wired up and nothing routes here" is a fact about
+    // section: "wired up and nothing routes here" is a fact about
     // the channel, and it is the one thing the card would otherwise not say.
     expect(screen.getByText('1 rule · 115 deliveries · 57 incidents')).toBeInTheDocument()
   })
@@ -185,7 +185,7 @@ describe('DestinationCard traffic', () => {
   })
 })
 
-describe('DestinationCard viewer gating (tripl-oxkt.9)', () => {
+describe('DestinationCard viewer gating', () => {
   // Both are editor-only endpoints (deps.py `require_editor`), and each used to
   // render fully enabled for a viewer whose click came straight back as a 403.
   // The rule controls that used to be in this list moved to the Monitors

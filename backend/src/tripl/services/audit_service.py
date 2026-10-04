@@ -52,7 +52,7 @@ _REDACTED_KEYS = frozenset(
 # and no audit row. The guard lives here, not at the six event call sites, so
 # the next long-named target cannot reintroduce it. Widening the column was the
 # alternative and was rejected: a migration whose downgrade has to truncate
-# rows, for a display-only field (tripl-wkwv.10).
+# rows, for a display-only field.
 _TARGET_NAME_MAX = 255
 
 
@@ -98,8 +98,7 @@ async def record(
     inside that loop made a 200-incident mute 200 separate transactions, any of
     which could fail after the earlier ones were already durable — leaving
     incidents silenced with no record of who silenced them. Passing
-    ``commit=False`` and committing once after the loop makes the batch atomic
-    (tripl-gpfr).
+    ``commit=False`` and committing once after the loop makes the batch atomic.
 
     It defaults to True because every other caller writes exactly one row and
     relies on this function to land it; flipping that default would silently
@@ -111,8 +110,8 @@ async def record(
     The branch is NOT a parameter. It is read off the request-scoped contextvar
     that ``api.deps.get_branch_id_override`` — the one function that resolves
     ``?branch=`` — binds, so EVERY branch-scoped route handler records it
-    without a single call-site edit and the next one cannot forget to
-    (tripl-wkwv.6). Deliberately not a census: this sentence used to say "all 21
+    without a single call-site edit and the next one cannot forget to.
+    Deliberately not a census: this sentence used to say "all 21
     ... and the 22nd", which was already off by one when it was written and is
     off by six now that the six event routes record. Universal quantification is
     what the mechanism guarantees, and it cannot go stale.
@@ -203,7 +202,7 @@ async def list_entries(
         # a row is DENORMALIZED — the slug the project answered to when the row
         # was written — so matching the label means a rename splits a trail in two
         # and a slug re-used by a later project makes it inherit its predecessor's
-        # history (tripl-wkwv.18).
+        # history.
         #
         # The fallback is the other half of the same idea: when NOTHING live
         # answers to this slug, the label is all there is and no live project can
@@ -211,7 +210,7 @@ async def list_entries(
         # — including its ``project.delete`` row, which is born with a NULL
         # project id because it is written after its subject is gone. Reaching
         # those from the UI needs the workspace-wide view, which is why
-        # tripl-wkwv.17 ships with this.
+        # this ships alongside it.
         owner_id: uuid.UUID | None = await session.scalar(
             select(Project.id).where(project_slug_clause(project_slug))
         )
@@ -248,7 +247,7 @@ async def list_entries(
     # its own top-N sort with a different bound, so ties are free to come out in a
     # different order per page: paging through a tie group repeated some rows and
     # made others unreachable. The primary key is unique, so appending it makes
-    # the order total and every page a slice of one sequence (tripl-5ydt).
+    # the order total and every page a slice of one sequence.
     rows = (
         (
             await session.execute(
@@ -271,7 +270,7 @@ async def get_entry(session: AsyncSession, entry_id: uuid.UUID) -> AuditEntryDet
     """One entry with the payload the list rows deliberately leave out.
 
     ``None`` for an id that is not in the log, so the router can answer 404
-    rather than an empty body (tripl-5ydt) — and for another organization's
+    rather than an empty body — and for another organization's
     entry, which does not exist for the caller.
     """
     row = await session.scalar(

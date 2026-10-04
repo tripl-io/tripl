@@ -1,5 +1,5 @@
 """``embed_texts`` degrading rather than raising, and attributing vectors to the
-text that was actually embedded (tripl-l33u).
+text that was actually embedded.
 
 The function documents exactly one failure mode — return ``[]`` and let the
 caller carry on without embeddings — and the transport errors always honoured

@@ -218,7 +218,7 @@ describe('ProjectSettingsPage', () => {
       </QueryClientProvider>,
     )
 
-    // tripl-jfm3.39: one name for this surface. It used to head itself
+    // one name for this surface. It used to head itself
     // "Monitoring" while its only card called itself "Anomaly Detection" and the
     // buttons leading here said "Detection settings" — three names, one thing.
     expect(await screen.findByRole('heading', { name: 'Detection settings' })).toBeInTheDocument()
@@ -239,7 +239,7 @@ describe('ProjectSettingsPage', () => {
     await waitFor(() => expect(screen.queryByRole('alertdialog')).toBeNull())
     // Numeric settings commit on blur, not per keystroke: saving as you type
     // persisted every intermediate value ("168" wrote 1, then 16, then 168) as a
-    // live detection setting (tripl-jfm3.105). Toggles still save immediately.
+    // live detection setting. Toggles still save immediately.
     const sigma = screen.getByDisplayValue('4.5')
     fireEvent.change(sigma, { target: { value: '5.5' } })
     fireEvent.blur(sigma)
@@ -392,8 +392,8 @@ describe('ProjectSettingsPage', () => {
     const expandButton = at(within(jobsTable).getAllByRole('button'), -1)
     fireEvent.click(expandButton)
 
-    // The run leads with what it did; the raw counters sit behind a disclosure
-    // (tripl-3y7z.3). This case is about the counters, so open them.
+    // The run leads with what it did; the raw counters sit behind a disclosure.
+    // This case is about the counters, so open them.
     fireEvent.click(await screen.findByRole('button', { name: 'Show raw counters' }))
 
     expect(await screen.findByText('Signals added')).toBeInTheDocument()
@@ -797,7 +797,7 @@ describe('ProjectSettingsPage', () => {
       </QueryClientProvider>,
     )
 
-    // The rule form moved to the Monitors section with the rules (tripl-89ps).
+    // The rule form moved to the Monitors section with the rules.
     fireEvent.click(await screen.findByRole('button', { name: /Add rule/ }))
 
     const dialog = await screen.findByRole('dialog')
@@ -951,9 +951,8 @@ describe('ProjectSettingsPage', () => {
     )
 
     expect(await screen.findByRole('link', { name: 'Main Rule' })).toBeInTheDocument()
-    // Each setting is a labelled pair, not one run-on line (tripl-oxkt.18) —
-    // now behind the row's expansion, since the list leads with state
-    // (tripl-89ps).
+    // Each setting is a labelled pair, not one run-on line —
+    // now behind the row's expansion, since the list leads with state.
     fireEvent.click(screen.getByRole('button', { name: 'Show settings for Main Rule' }))
     expect(screen.getByText('total, groups, events')).toBeInTheDocument()
     expect(screen.getByText('up')).toBeInTheDocument()
@@ -1004,7 +1003,7 @@ describe('ProjectSettingsPage', () => {
       'aria-selected',
       'true',
     )
-    // The log panel is its own chunk (tripl-fj5g.15), so it can land a tick
+    // The log panel is its own chunk, so it can land a tick
     // after the tab strip.
     expect(await screen.findByRole('combobox', { name: /^Status filter/ })).toBeInTheDocument()
     expect(screen.queryByText('Set up alerting')).toBeNull()

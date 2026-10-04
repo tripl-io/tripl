@@ -127,7 +127,7 @@ function makeSummary(overrides: Partial<MonitorsSummaryResponse> = {}): Monitors
     healthy_count: 0,
     total: 1,
     // Both scopes fed, so every assertion below sees the ordinary editor. The
-    // inert case is its own describe block at the bottom (tripl-wkwv.1).
+    // inert case is its own describe block at the bottom.
     scope_readiness: { variable_value_drift: true, distribution_drift: true },
     ...overrides,
   }
@@ -203,7 +203,7 @@ async function openRowMenu(ruleName = 'Prod drops') {
   return screen.findByRole('menu')
 }
 
-describe('MonitorsSection live state (tripl-89ps)', () => {
+describe('MonitorsSection live state', () => {
   it('shows the firing state that only the standalone page used to carry', async () => {
     // This is the whole point of the merge: the rule and the state it is in are
     // one row now, so nothing has to be read on a second nav item.
@@ -250,7 +250,7 @@ describe('MonitorsSection live state (tripl-89ps)', () => {
     renderSection()
 
     // `Never delivered` and `last sent 3h ago` are opposite facts, and the card
-    // stated neither before tripl-oxkt.17 — the merge must not lose it again.
+    // stated neither before the merge fix — the merge must not lose it again.
     expect(
       await screen.findByText(/115 deliveries · 57 incidents · last .* · sent/),
     ).toBeInTheDocument()
@@ -290,7 +290,7 @@ describe('MonitorsSection rule settings', () => {
 /**
  * Every mute button name below is written out as a literal, and stays that way.
  *
- * Since tripl-yapg this row's component does not compose those sentences: it
+ * Since the shared mute-name helpers, this row's component does not compose those sentences: it
  * calls `muteName`, `muteChoiceName` and `unmuteName` from `@/lib/mutePresets`,
  * exactly as `MonitorDetailPage` and `AlertingInbox` do. Deriving the
  * expectations here from those same functions would make these assertions move
@@ -306,7 +306,7 @@ describe('MonitorsSection rule settings', () => {
 describe('MonitorsSection mute', () => {
   it('mutes from the row, on the same screen that shows the rule is muted', async () => {
     // Mute lived on a separate page while the mute STATE was rendered here, and
-    // that split is exactly how the two disagreed (tripl-oxkt.18).
+    // that split is exactly how the two disagreed.
     vi.spyOn(alertingApi, 'getMonitorsSummary').mockResolvedValue(makeSummary())
     const mute = vi.spyOn(alertingApi, 'muteMonitor').mockResolvedValue({} as never)
     renderSection()
@@ -336,9 +336,9 @@ describe('MonitorsSection mute', () => {
     await waitFor(() => expect(unmute).toHaveBeenCalledWith('acme-ios', 'rule-1'))
   })
 
-  it('always names the instant a muted rule comes back (tripl-b82m)', async () => {
+  it('always names the instant a muted rule comes back', async () => {
     // READ THIS BEFORE TRUSTING IT: this test does NOT discriminate the guard
-    // tripl-b82m changed, and no honest test can. The only input that separates
+    // an earlier fix changed, and no honest test can. The only input that separates
     // `rule.muted && rule.muted_until` from the old `rule.muted` plus a
     // `: 'muted'` else-branch is `{muted: true, muted_until: null}`, which
     // `is_rule_muted()` cannot produce — so a fixture asserting it would enshrine
@@ -359,15 +359,15 @@ describe('MonitorsSection mute', () => {
     expect(screen.queryByText('muted')).toBeNull()
   })
 
-  it('shows no mute chip for a rule whose mute has already lapsed (tripl-b82m)', async () => {
+  it('shows no mute chip for a rule whose mute has already lapsed', async () => {
     // A stale `muted_until` in the past with `muted: false` is a NORMAL server
     // response, not a corrupt one: the timestamp is the raw column and stays put
     // after the mute lifts. The row says nothing because it leads on the
     // EFFECTIVE flag — it does no date arithmetic of its own, and must not start
-    // doing any, since `is_rule_muted()` is the one place that comparison lives
-    // (tripl-oxkt.18). Get that ordering wrong and the row prints "muted until
+    // doing any, since `is_rule_muted()` is the one place that comparison lives.
+    // Get that ordering wrong and the row prints "muted until
     // <a date that has passed>", which is the lapsed-mute defect the Inbox card
-    // fixed in tripl-oxkt.20.
+    // fixed earlier.
     //
     // Like its neighbour above, this pins the contract rather than the guard:
     // `muted: false` short-circuits in the old and new code alike.
@@ -384,7 +384,7 @@ describe('MonitorsSection mute', () => {
     expect(screen.queryByRole('menuitem', { name: 'Unmute Prod drops' })).toBeNull()
   })
 
-  it('can only mute a rule for a fixed time — no open-ended choice here (tripl-a50u)', async () => {
+  it('can only mute a rule for a fixed time — no open-ended choice here', async () => {
     // The scope boundary of the indefinite mute. On an INCIDENT a NULL
     // `muted_until` means "silenced until somebody unmutes it"; on a RULE
     // `is_rule_muted()` returns FALSE for a NULL `muted_until`, so the very same
@@ -420,7 +420,7 @@ describe('MonitorsSection mute', () => {
     // then passes forever while guarding nothing — a silently dead test, unlike
     // a positive assertion, which fails loudly when it goes stale.
     //
-    // It also replaces a canary this row gave up in tripl-yapg. The component
+    // It also replaces a canary this row gave up when it moved to the shared helpers. The component
     // used to write `Mute ${ruleName} for ${preset.label}` as a literal, so it
     // was LEXICALLY incapable of the open-ended phrasing: a leak would have
     // rendered the visibly broken "Mute Prod drops for Until I unmute". It now
@@ -437,7 +437,7 @@ describe('MonitorsSection rule writes', () => {
   it('states what the cascade destroys instead of asking Delete "Prod drops"?', async () => {
     // `AlertDelivery.rule_id` is ON DELETE CASCADE and the inbox INNER JOINs
     // through it, so this one button takes 115 deliveries and 57 incidents —
-    // with their notes and mutes (tripl-oxkt.13).
+    // with their notes and mutes.
     vi.spyOn(alertingApi, 'getMonitorsSummary').mockResolvedValue(makeSummary())
     const remove = vi.spyOn(alertingApi, 'deleteRule').mockResolvedValue(undefined)
     renderSection()
@@ -467,7 +467,7 @@ describe('MonitorsSection rule writes', () => {
 
   it('leaves the switch showing the server value when the write is rejected', async () => {
     // `checked` is bound to the rule the server sent, so a 403 leaves it exactly
-    // where it was rather than flipping and silently reverting (tripl-oxkt.9).
+    // where it was rather than flipping and silently reverting.
     vi.spyOn(alertingApi, 'getMonitorsSummary').mockResolvedValue(makeSummary())
     vi.spyOn(alertingApi, 'updateRule').mockRejectedValue(new Error('Editor role required'))
     renderSection()
@@ -479,7 +479,7 @@ describe('MonitorsSection rule writes', () => {
   })
 })
 
-describe('MonitorsSection guided-setup handoff (tripl-oxkt.15)', () => {
+describe('MonitorsSection guided-setup handoff', () => {
   it('opens the rule form prefilled for the destination just created', async () => {
     vi.spyOn(alertingApi, 'getMonitorsSummary').mockResolvedValue(makeSummary())
     renderSection({ autoOpenRuleForDestinationId: 'dest-1' })
@@ -628,7 +628,7 @@ describe('MonitorsSection rule editor', () => {
   })
 })
 
-describe('MonitorsSection panel subtitle (tripl-6r8c)', () => {
+describe('MonitorsSection panel subtitle', () => {
   it('counts the rules with the noun attached, not a bare "2 routing"', async () => {
     // The subtitle was `${rules.length} routing` — a count whose noun never got
     // written — sitting directly above a table of numbers, where an unfinished
@@ -671,7 +671,7 @@ describe('MonitorsSection empty states', () => {
   })
 })
 
-describe('MonitorsSection viewer gating (tripl-oxkt.9)', () => {
+describe('MonitorsSection viewer gating', () => {
   // Mute and Delete sit behind "More actions" (AL-8); the menu itself is the
   // write control a viewer must not get.
   const WRITE_CONTROLS = ['More actions for Prod drops', 'Edit rule Prod drops']
@@ -708,7 +708,7 @@ describe('MonitorsSection viewer gating (tripl-oxkt.9)', () => {
 })
 
 /**
- * A scope switched on that nothing can feed (tripl-wkwv.1).
+ * A scope switched on that nothing can feed.
  *
  * Production had both drift scopes enabled on its only monitor while no scan
  * watched a column and no variable documented a value list, so the editor
@@ -740,7 +740,7 @@ describe('MonitorsSection inert scope notice', () => {
   })
 
   it('keeps that link project-level even for a rule narrowed to one scan', async () => {
-    // The tripwire for tripl-wkwv.9. The monitor detail now aims this same link
+    // The tripwire for the scan-bound link. The monitor detail now aims this same link
     // at the scan its rule is bound to, because there the binding is SAVED. Here
     // it is a draft the picker two fields up can change at any keystroke, while
     // `scopeReadiness` is the project's answer fetched once — so narrowing the
@@ -762,7 +762,7 @@ describe('MonitorsSection inert scope notice', () => {
   it('opens that link in a new tab, so the half-built rule survives the click', async () => {
     // The dialog is modal and its draft is component state — Escape, Cancel and
     // a same-tab navigation all discard it. This link is the only navigation
-    // inside the form, and it exists to be followed (tripl-wkwv.1).
+    // inside the form, and it exists to be followed.
     await openEditorFor(
       makeRule({ include_distribution_drifts: true }),
       makeSummary({ scope_readiness: { variable_value_drift: true, distribution_drift: false } }),

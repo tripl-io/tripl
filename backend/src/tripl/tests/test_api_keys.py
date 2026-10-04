@@ -424,7 +424,7 @@ async def test_minting_a_project_key_requires_membership(
     anon_client: AsyncClient, client: AsyncClient
 ) -> None:
     """A key bound to a project the caller cannot see is refused as if the project
-    did not exist (tripl-vefw): minting must not confirm a hidden slug."""
+    did not exist: minting must not confirm a hidden slug."""
     await client.post("/api/v1/projects", json={"name": "Hidden", "slug": "key-hidden"})
 
     await anon_client.post("/api/v1/auth/logout")

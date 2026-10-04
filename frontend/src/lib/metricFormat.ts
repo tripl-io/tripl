@@ -1,5 +1,5 @@
 /**
- * Shared metric value formatting (tripl-nxk2.1).
+ * Shared metric value formatting.
  *
  * Convention: a metric whose unit is '%' stores FRACTIONS (0.08 for an 8%
  * conversion), so every display multiplies by 100. All other units render the

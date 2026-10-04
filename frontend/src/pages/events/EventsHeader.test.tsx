@@ -41,7 +41,7 @@ describe('EventsHeader', () => {
     expect(screen.queryByRole('heading', { name: 'Events' })).not.toBeInTheDocument()
   })
 
-  it('says the in-review stat is project-wide, not a slice of Total (tripl-4oqs)', () => {
+  it('says the in-review stat is project-wide, not a slice of Total', () => {
     // The archived tab rendered "TOTAL 1 · IN REVIEW 6 pending" above a single
     // archived row. Lifecycle status is single-valued, so 6 of those 1 events
     // cannot be awaiting review — the row only reads as one sentence because

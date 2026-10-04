@@ -30,8 +30,8 @@ import { currentOrgSlug, projectPath } from '@/lib/navigation'
  * so once dismissed it stays dismissed across remounts and later visits. It is
  * not a one-way door: the dismissal offers Undo, and the command palette's
  * "Show getting started" brings it back (WS-35). The card also
- * auto-hides on its own in two cases so it never becomes permanent chrome
- * (tripl-7l83.12): once every step is complete, and — crucially for a mature
+ * auto-hides on its own in two cases so it never becomes permanent chrome:
+ * once every step is complete, and — crucially for a mature
  * project — once the core loop is set up and coverage is high but the only
  * remaining step is an optional one the owner deliberately skipped (e.g.
  * alerting). Genuinely new / low-coverage projects still see it. When the user
@@ -39,7 +39,7 @@ import { currentOrgSlug, projectPath } from '@/lib/navigation'
  * naming the single remaining step, which can be expanded on demand, so a
  * nearly-onboarded project isn't dominated by a tall card (fix #13).
  *
- * The checklist is role-aware (tripl-yfsj.4). Some steps are actionable only by
+ * The checklist is role-aware. Some steps are actionable only by
  * an owner — connecting a data source is owner-only — and a self-registered /
  * invited user is an editor, not an owner. For a non-owner an owner-only step
  * would otherwise be a silent dead-end (they see the list with no "Add
@@ -50,7 +50,7 @@ import { currentOrgSlug, projectPath } from '@/lib/navigation'
 
 // Steps a mature owner can legitimately leave undone forever. Alerting is opt-in:
 // a high-coverage project that never wires up a destination should not be nagged
-// by a checklist that, by design, can never reach 5 of 5 (tripl-7l83.12). A key
+// by a checklist that, by design, can never reach 5 of 5. A key
 // metric is the same for a project that predates the metric step (JR-2).
 const OPTIONAL_STEP_IDS: ReadonlySet<OnboardingStepId> = new Set<OnboardingStepId>(['alert', 'metric'])
 
@@ -108,7 +108,7 @@ export function OnboardingChecklist({
 
   // Demo projects have their own onboarding (DemoWelcomePanel + coach). Their
   // only source is synthetic, so "Connect a data source" can never complete and
-  // the checklist would be stuck at "4 of 5" forever (tripl-q7i1.7) — hide it.
+  // the checklist would be stuck at "4 of 5" forever — hide it.
   if (isDemo) return null
 
   // Not loaded yet — render nothing rather than a checklist full of false
@@ -127,13 +127,13 @@ export function OnboardingChecklist({
   const steps = buildOnboardingSteps(slug, summary, sourceCount, metricCount)
   // Owner-only steps don't count toward a non-owner's progress: an editor can't
   // action them, so counting them would leave the checklist permanently short of
-  // "done" with no way forward (tripl-yfsj.4). They stay in `steps` (still shown,
+  // "done" with no way forward. They stay in `steps` (still shown,
   // still discoverable) but drop out of the progress/self-hide math below.
   const counts = (s: OnboardingStep): boolean => isOwner || !s.ownerOnly
   const remainingSteps = steps.filter((s) => counts(s) && !s.done)
   const { completed, total } = onboardingProgress(steps, isOwner)
 
-  // Self-hiding, two ways (tripl-7l83.12):
+  // Self-hiding, two ways:
   //   1. Every step is complete — nothing left to guide.
   //   2. Established project: the core loop is set up (every remaining step is
   //      optional, i.e. one the owner can legitimately skip) AND coverage is
@@ -166,8 +166,8 @@ export function OnboardingChecklist({
   // persistence are unchanged (fix #13).
   const isMostlyDone = completed >= total - 1
   // Here exactly one step is outstanding (mostly-done but not complete). Name
-  // it inline so the bar says *which* step is left, not just the count
-  // (tripl-7l83.12), while keeping the "1 step left" detail.
+  // it inline so the bar says *which* step is left, not just the count,
+  // while keeping the "1 step left" detail.
   const nextStep = remainingSteps[0]
   if (isMostlyDone && !expanded && nextStep) {
     return (

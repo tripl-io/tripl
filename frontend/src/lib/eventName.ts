@@ -4,7 +4,7 @@
  * acme-ios held exactly one event whose stored name was the empty string, and
  * every surface rendered it as a zero-width anchor with no accessible name — the
  * one row a user would most want to clean up was the one row they could not
- * click, and a screen reader had nothing to announce (tripl-wkwv.5). Fixed once
+ * click, and a screen reader had nothing to announce. Fixed once
  * here rather than at each call site that interpolates a name into an
  * aria-label, a title, a heading or a row.
  *

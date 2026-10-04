@@ -1,4 +1,4 @@
-"""Reverting one change in a plan branch (tripl-mzsb.2).
+"""Reverting one change in a plan branch.
 
 A revert restores the entity — or one field of it — to the branch's base
 snapshot: the state the plan was in when the branch was opened. These tests
@@ -294,8 +294,8 @@ async def test_revert_refuses_when_two_events_share_the_name(client: AsyncClient
     )
     assert resp.status_code == 409
     # Since origin ids the diff tells the two apart — the copy's edit and the
-    # added namesake are two entries — so the name alone now names two changes
-    # (tripl-0zpq.292); the entry's entity_id picks one.
+    # added namesake are two entries — so the name alone now names two changes;
+    # the entry's entity_id picks one.
     assert "More than one" in resp.json()["detail"]
 
     # Neither namesake was touched.

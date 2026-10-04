@@ -188,7 +188,7 @@ function channelFields(
       }
     case 'demo_sink':
       // A local sink carries no channel configuration at all, and the API
-      // refuses any it is sent (tripl-2su6.6): name, switch and schedule only.
+      // refuses any it is sent: name, switch and schedule only.
       return {}
   }
 }

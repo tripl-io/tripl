@@ -547,7 +547,7 @@ def check_drifts(snapshot: Snapshot) -> Check:
         # examined and another at a third of it; a single instance-wide ratio
         # reads as even coverage and names nobody, which is the one thing an
         # operator needs here — "nothing found in X" and "X was barely looked at"
-        # must not print the same (tripl-ey6j.9).
+        # must not print the same.
         coverage = snapshot.drift_coverage.get(slug)
         if coverage is not None and coverage.truncated:
             findings.append(

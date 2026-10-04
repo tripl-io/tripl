@@ -523,7 +523,7 @@ async def test_embedding_settings_are_for_the_orgs_admins(hosted: Hosted) -> Non
 @pytest.mark.asyncio
 async def test_the_self_hosted_operator_endpoint_stays_env_only(client: AsyncClient) -> None:
     """The default organization is the operator scope when self-hosted: its
-    endpoint is SEARCH_EMBEDDING_BASE_URL, pinned env-only (tripl-wkwv.2)."""
+    endpoint is SEARCH_EMBEDDING_BASE_URL, pinned env-only."""
     resp = await client.patch(
         f"{API}/orgs/default/settings",
         json={"search": {"search_embedding_base_url": ALPHA_URL}},

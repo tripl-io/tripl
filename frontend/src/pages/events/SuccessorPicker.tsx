@@ -8,7 +8,7 @@ import { EvField, EvInput, SelectControl } from './eventFormLayout'
 import { disambiguate, type SuccessorCandidate } from './successorLabels'
 
 // Replacement candidates offered at once. Deliberately small, for the reason
-// the variables tab spells out (tripl-46am): the search below is server-side,
+// the variables tab spells out: the search below is server-side,
 // so anything outside the page is one keystroke away, and the count of what is
 // missing is printed rather than hidden.
 const SUCCESSOR_PAGE_SIZE = 100
@@ -40,7 +40,7 @@ export function SuccessorPicker({
 }) {
   const [search, setSearch] = useState('')
   // The successor roster, searched SERVER-side for the reason the variables tab
-  // states at length (tripl-46am): /events returns full list rows, so pulling a
+  // states at length: /events returns full list rows, so pulling a
   // whole catalog into a <select> to spare the user typing is the wrong trade,
   // and narrowing a page the server already truncated is the defect itself.
   const debouncedSearch = useDebouncedValue(search, 350)

@@ -34,7 +34,7 @@ async def update_project_branch_settings(
     This protects the merge POLICY, not the plan: editors can still manage
     event-type owners and write ``main`` directly, so the owner-approval gate
     is a branch-review convention rather than an access control
-    (tripl-0zpq.233)."""
+    ."""
     settings = await project_branch_settings_service.update_project_branch_settings(
         session,
         slug,

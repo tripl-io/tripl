@@ -655,7 +655,7 @@ def test_metric_anomaly_detect_path_over_collected_series(
     assert any(anomaly.bucket == spike_bucket for anomaly in detected), "spike not flagged"
 
 
-# ── ongoing volume reconciles with the seeded baseline (bd tripl-yfsj.14) ─────
+# ── ongoing volume reconciles with the seeded baseline ─────
 
 
 def test_synthetic_event_defs_cover_every_seeded_event_spec() -> None:
@@ -668,7 +668,7 @@ def test_synthetic_event_defs_cover_every_seeded_event_spec() -> None:
     synthetic table does NOT emit loses its recent buckets and the detector reads
     it as "dropped to zero" — which is exactly what an untouched demo did within
     an hour of creation while ``_EVENT_DEFS`` listed only 7 of the 18 seeded
-    events (bd tripl-jfm3.55 / .71). core/ cannot import services/, so the values
+    events (.71). core/ cannot import services/, so the values
     are duplicated in ``_EVENT_DEFS``; this test pins the two together.
     """
     from tripl.core.adapters.synthetic import _EVENT_DEFS
@@ -698,7 +698,7 @@ def test_synthetic_event_defs_match_the_plans_documented_field_values() -> None:
 
     A rescan records what the warehouse holds, so a synthetic ``screen_name`` /
     ``button_id`` that disagrees with the authored field value would rewrite the
-    curated catalog (bd tripl-jfm3.57). ``${var}`` template values are skipped:
+    curated catalog. ``${var}`` template values are skipped:
     they are the templating showcase and have no single literal.
     """
     from tripl.core.adapters.synthetic import _EVENT_DEFS
@@ -747,7 +747,7 @@ def test_synthetic_dataset_stays_within_row_budget() -> None:
             assert len(rows) < synth.SYNTHETIC_MAX_ROWS, (anchor, len(rows))
             newest = anchor - timedelta(hours=1)
             emitted = {row["event_name"] for row in rows if row["event_time"] >= newest}
-            # Retired identities (the planted dead event, tripl-0zpq.245) stay on
+            # Retired identities (the planted dead event) stay on
             # the roster but emit nothing.
             live_names = {ev.event_name for ev in synth._EVENT_DEFS if not ev.retired}
             assert emitted == live_names, (anchor, sorted(emitted))
@@ -756,7 +756,7 @@ def test_synthetic_dataset_stays_within_row_budget() -> None:
 def test_synthetic_ongoing_counts_stay_within_detector_drop_band() -> None:
     """Every ongoing per-event count lands inside the anomaly detector's per-bucket
     band of the seeded ``noise.hourly_volume`` baseline, across all hour/weekday
-    phases, so scanning an idle demo does not surface a drop (bd tripl-yfsj.14).
+    phases, so scanning an idle demo does not surface a drop.
 
     The band is the flag condition |actual - expected| < sigma * effective_stddev
     with sigma=3 and the phase baseline's Poisson-aware stddev floor

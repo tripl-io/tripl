@@ -3,14 +3,13 @@
 The demo seeder writes plan objects directly rather than through the audited
 service paths, so a fresh demo landed on "No audit entries yet" — a dead end on
 a surface the product calls a headline governance record and the Concepts
-glossary describes as "a chronological record of who changed what in the plan"
-(tripl-jfm3.60).
+glossary describes as "a chronological record of who changed what in the plan".
 
 This builder backfills that record from what the recipe REALLY created: it reads
 the ids the earlier builders published on the context (and the rows they
 inserted) and emits one entry per authored object, attributed to the demo's
 creator and back-dated so the log reads as a plausible build-up rather than a
-single timestamp. "Per authored object" was aspirational until tripl-0zpq.246 —
+single timestamp. "Per authored object" was aspirational until a later change —
 the fact table, the four catalog metrics, the relation, the event-type owner
 grant, the variable override, the feature branch and its one branch-side edit
 all existed with nothing in the trail saying who made them. They are covered
@@ -19,11 +18,11 @@ a PROJECT-scoped row uses is one the Audit
 tab's filter offers, so the seeded trail is filterable out of the box; the one
 instance-scoped row (``data_source.create``) carries no project, which is how its
 real route records it, and is therefore no more and no less visible than a real
-one (tripl-wkwv.15).
+one.
 
-EVENTS were missing from that list until tripl-wkwv.14, and not by choice: when
+EVENTS were once missing from that list, and not by choice: when
 this builder was written the events router recorded nothing at all, so there was
-no vocabulary to seed. tripl-wkwv.10 gave events one and made the Events group
+no vocabulary to seed. Events later gained one, which made the Events group
 the FIRST thing the filter offers — and on a demo holding eighteen events it
 matched nothing, implying nobody had ever created an event on a project whose
 whole point is to look lived-in.
@@ -37,7 +36,7 @@ THREE RULES THE EVENT ROWS FOLLOW, each of them a way of not lying:
 2. One audit row per REQUEST, not per changed field. A PATCH writes one audit row
    and one ``EventChange`` per TRACKED field it changed (six of them since
    9fbc5811 — ``event_service._TRACKED_FIELDS``; this line said four until
-   tripl-0zpq.244), so the edits are grouped by (event, instant) before becoming
+   an earlier fix), so the edits are grouped by (event, instant) before becoming
    rows; two fields changed together stay one row, as they would in production.
    The ``created`` row every event now carries is skipped here: it is the same
    act ``event.create`` already records, not an edit.
@@ -110,8 +109,7 @@ class _Entry:
     # only for a demo's synthetic warehouse, so it can be cleaned up with the
     # project — and ``api/v1/data_sources.py`` records the action with no project
     # at all. Seeding it WITH one made the demo the only place that shape exists,
-    # and put a row in the Audit tab that its filter deliberately cannot offer
-    # (tripl-wkwv.15).
+    # and put a row in the Audit tab that its filter deliberately cannot offer.
     project_scoped: bool = True
 
 
@@ -126,8 +124,7 @@ def _plan_entries(ctx: DemoContext) -> list[_Entry]:
         # the shape ``api/v1/fields.py`` writes. ``ctx.field_ids`` is keyed
         # "<event type>.<field>" for the builders' own lookups, and seeding that
         # qualified key as the target name — under a ``target_type`` no route has
-        # ever used — put a row in the Audit tab that the product cannot produce
-        # (tripl-0zpq.246).
+        # ever used — put a row in the Audit tab that the product cannot produce.
         _Entry("field.create", "field_definition", field_id, key.split(".", 1)[-1])
         for key, field_id in ctx.field_ids.items()
     ]
@@ -148,7 +145,7 @@ async def _authored_plan_entries(session: AsyncSession, ctx: DemoContext) -> lis
     The relation, the event-type owner grant and the authored variable override
     are all things the recipe really writes, and all three were missing from the
     trail while the module docstring above promised "one entry per authored
-    object" (tripl-0zpq.246). Each carries the ``target_type`` and the
+    object". Each carries the ``target_type`` and the
     ``target_name`` its own route records — including the two routes that
     deliberately record an EMPTY name (a relation has none; an owner grant names
     the event type in the payload, not the title).
@@ -328,7 +325,7 @@ async def _alerting_entries(session: AsyncSession, ctx: DemoContext) -> list[_En
                 # like chronology and is not: every row in one seed shares a
                 # single server-side ``now()``, so the whole ordering fell
                 # through to the uuid4 tie-break and the trail came out in a
-                # different order every time (tripl-0zpq.246). ``id`` still
+                # different order every time. ``id`` still
                 # breaks a name tie, so the sort stays total.
                 select(AlertDestination)
                 .where(AlertDestination.project_id == ctx.project_id)
@@ -441,7 +438,7 @@ async def _event_edit_entries(
         # because that is what ``create_event`` does, and ``event.create`` above
         # already records the same act — without this every event would carry
         # both an ``event.create`` and an ``event.update`` at the same instant,
-        # for one creation (tripl-0zpq.244).
+        # for one creation.
         if change.event_id in names and change.field != "created":
             grouped[(change.event_id, to_utc(change.created_at))][change.field] = change.new_value
 
@@ -476,7 +473,7 @@ async def _shadow_dismissal_entries(
     the instant comes off ``resolved_at``, so the audit row and the candidate row
     name the same moment instead of two. A dismissal is audited at all because the
     candidate row is CASCADE-deleted with its scan and takes ``resolved_by`` with
-    it (tripl-wkwv.13) — a demo showing a dismissed candidate over an empty filter
+    it — a demo showing a dismissed candidate over an empty filter
     would teach the opposite.
     """
     candidates = (
@@ -560,7 +557,7 @@ async def build_audit(session: AsyncSession, ctx: DemoContext) -> None:
                     # records ``ds.name``, and the literal here said "Demo
                     # warehouse" while the warehouse builder names the source
                     # "Demo warehouse <slug>" — one audit row naming an object
-                    # that does not exist under that name (tripl-0zpq.246).
+                    # that does not exist under that name.
                     data_source.name,
                     project_scoped=False,
                 )

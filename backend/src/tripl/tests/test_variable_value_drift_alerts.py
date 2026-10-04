@@ -1,4 +1,4 @@
-"""Alert-rule integration for variable value drifts (tripl-j94c.13)."""
+"""Alert-rule integration for variable value drifts."""
 
 import uuid
 from datetime import UTC, datetime, timedelta
@@ -228,7 +228,7 @@ def _variant_analysis() -> BreakdownAnalysis:
 
 
 def test_drift_detected_by_collection_is_stamped_with_the_scan_config(sync_session: Session):
-    """Detection and dispatch must agree on provenance (tripl-l33u.1).
+    """Detection and dispatch must agree on provenance.
 
     Seeding drift rows by hand is what hid this: alert dispatch filters on
     ``scan_config_id``, so a row the collector writes without one is detected
@@ -324,7 +324,7 @@ def test_drift_detected_by_collection_is_stamped_with_the_scan_config(sync_sessi
 
 
 def test_rescan_without_a_scan_config_keeps_the_existing_attribution(sync_session: Session):
-    """Provenance is written once and never downgraded (tripl-l33u.1)."""
+    """Provenance is written once and never downgraded."""
     project = Project(id=uuid.uuid4(), name="P", slug="vvd-keep", description="")
     sync_session.add(project)
     sync_session.flush()
@@ -411,7 +411,7 @@ def test_rescan_without_a_scan_config_keeps_the_existing_attribution(sync_sessio
     # A second config scanning the same pair takes the row over. Detection and
     # dispatch run in one task per config, so the run that saw the drift has to
     # be the one whose alert query matches it; freezing the first writer would
-    # strand the row on a config that may never dispatch again (tripl-l33u.1).
+    # strand the row on a config that may never dispatch again.
     other_config = ScanConfig(
         id=uuid.uuid4(),
         project_id=project.id,

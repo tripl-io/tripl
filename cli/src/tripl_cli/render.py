@@ -9,14 +9,14 @@ polish and can be added later without changing anything here.
 At the package root rather than inside ``diagnostics`` for the same reason as
 ``report.py``: ``render_scan_configs`` / ``render_scan_jobs`` / ``render_drifts``
 / ``render_mutation`` reach no verdict, and ``plural`` and ``columns`` are read
-by ``watch.render`` and ``install.render`` as well (tripl-azhh). Both of those
+by ``watch.render`` and ``install.render`` as well. Both of those
 re-export rather than re-implement, which is the whole point of one home.
 
 The one import out of this module is ``api.event_types``, for the two derived
 facts its tables print — how many fields an event type has, and a field's enum
 options coerced to text. Those are facts about the API's payloads rather than
 about layout, and computing either here would be a second copy of one the
-request layer already owns (tripl-3ixs).
+request layer already owns.
 """
 
 from __future__ import annotations
@@ -50,7 +50,7 @@ _GAP = "  "
 
 # Endings that take ``-es``. Not general English pluralisation — that needs a
 # dictionary — just the sibilants, which is the only class the CLI's nouns
-# reach. It exists because `tripl plan branches` printed "2 branchs" (tripl-3ixs),
+# reach. It exists because `tripl plan branches` printed "2 branchs",
 # and the fix belongs in the one pluraliser rather than in a special case at the
 # one call site that noticed.
 _SIBILANT_ENDINGS = ("s", "x", "z", "ch", "sh")
@@ -81,7 +81,7 @@ def columns(rows: Sequence[Sequence[str]]) -> list[str]:
     Deterministic from the input alone — no terminal width read, no isatty
     branch — so the piped bytes and the terminal bytes are the same artifact.
 
-    Public rather than module-private since tripl-ey6j.3: ``install.render``
+    Public rather than module-private: ``install.render``
     lays out its own tables and a second padder would let the two command
     families' output drift apart by a space.
     """

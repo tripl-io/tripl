@@ -3,7 +3,7 @@
 Two defects on the same write path, both in
 ``worker/tasks/metrics/schema_drift._upsert_schema_drifts``:
 
-* tripl-0zpq.20 — the raw warehouse type name went into ``observed_type``
+* the raw warehouse type name went into ``observed_type``
   (``String(128)``) untruncated. A labelled ClickHouse ``Enum8`` or a nested
   ``Map(String, Tuple(...))`` renders well past 128 characters, so on Postgres
   the drift upsert raised and took the whole catalog sync down with it. The
@@ -11,7 +11,7 @@ Two defects on the same write path, both in
   ignores ``VARCHAR(n)``), so what is pinned is the invariant behind it: what
   lands in the row fits the column. That goes red on revert because SQLite
   happily stores the full 287-character string.
-* tripl-0zpq.21 — the ON CONFLICT branches wrote ``scan_config_id =
+* the ON CONFLICT branches wrote ``scan_config_id =
   excluded.scan_config_id`` unconditionally, so a NULL provenance would blank
   the column that alerting (``signals.py``), detection reset
   (``detection_reset_service.py``) and demo pruning (``demo_runtime.py``) all

@@ -176,7 +176,7 @@ def test_drifts_list_reports_truncation_per_project(
     """The budget is spent round-robin, so coverage is stated per project.
 
     One instance-wide ratio would name no project, and "we did not look there"
-    is only useful when it says where (tripl-ey6j.9).
+    is only useful when it says where.
     """
     tripl_api.projects([make_project("prod"), make_project("staging")])
     for slug in ("prod", "staging"):
@@ -320,7 +320,7 @@ def test_no_reachable_drift_invocation_can_send_accept(
     original "safety change quietly made `snooze` unreachable" case, and it is
     what catches an action declared in the constant but wired to a verb nobody
     can reach - the failure mode of adding an action and its command in the same
-    change (tripl-k8j9).
+    change.
     """
     from tripl_cli.api.event_types import CLI_ALLOWED_DRIFT_ACTIONS
 

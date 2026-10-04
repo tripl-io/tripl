@@ -90,7 +90,7 @@ async def test_unhandled_exception_returns_generic_500_with_request_id() -> None
     assert body["detail"] == "Internal server error"
     # The *real* id, not the "-" placeholder. Asserting mere truthiness passed
     # for as long as the handler could only see the already-reset contextvar,
-    # which is how tripl-qu9m survived having a test.
+    # which is how that bug survived having a test.
     assert body["request_id"] == "boom-body-1"
     assert "kaboom" not in resp.text
 
@@ -99,7 +99,7 @@ async def test_unhandled_exception_returns_generic_500_with_request_id() -> None
 async def test_unhandled_exception_response_carries_request_id_and_security_headers() -> None:
     """A 500 is written by ServerErrorMiddleware, which wraps the app from
     outside every middleware, so nothing they add on the way out lands on this
-    response unless the handler reproduces it (tripl-qu9m).
+    response unless the handler reproduces it.
 
     The header set is compared against ``build_security_headers()`` rather than
     a literal list: a header added there must not be able to quietly skip the
@@ -122,7 +122,7 @@ async def test_unhandled_exception_response_carries_request_id_and_security_head
 @pytest.mark.asyncio
 async def test_unhandled_exception_log_line_shares_the_response_request_id() -> None:
     """Correlating a user's 500 with its log line is the entire point of the id.
-    Before tripl-qu9m both sides read "-", which correlated nothing."""
+    Before the fix both sides read "-", which correlated nothing."""
     handler = _RecordingHandler()
     root = logging.getLogger()
     root.addHandler(handler)

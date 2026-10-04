@@ -82,7 +82,7 @@ async def test_audit_records_field_lifecycle(client: AsyncClient) -> None:
     assert all(entry["user_email"] == "test@example.com" for entry in body["items"])
     # A list row carries NO payload. The tab renders one only for the row a
     # reader expanded, so a page of blobs crossed the wire to be displayed
-    # nowhere (tripl-5ydt).
+    # nowhere.
     update_entry = next(e for e in body["items"] if e["action"] == "field.update")
     assert "payload" not in update_entry
 
@@ -275,7 +275,7 @@ async def test_audit_detail_reports_an_unknown_id_as_missing(client: AsyncClient
     assert resp.status_code == 404
 
 
-# --- branch context on audit rows (tripl-wkwv.6) ----------------------------
+# --- branch context on audit rows ----------------------------
 
 
 async def _create_branch(client: AsyncClient, slug: str, name: str) -> str:
@@ -345,7 +345,7 @@ async def test_an_explicit_main_branch_id_records_no_branch_either(client: Async
     schema docstring, the CLI's "there is no literal for main"), so binding it
     here would spell it a second way: two identical writes to main, one with the
     parameter and one without, would render differently in the same compliance
-    trail and the chip would read "main" (tripl-wkwv.6).
+    trail and the chip would read "main".
     """
     await _setup_project(client, "audit-main-id")
     listed = await client.get("/api/v1/projects/audit-main-id/branches")
@@ -446,7 +446,7 @@ async def test_a_malformed_branch_still_answers_400_and_writes_nothing(
     assert listed.json()["items"] == []
 
 
-# --- events in the audit log (tripl-wkwv.10) --------------------------------
+# --- events in the audit log --------------------------------
 #
 # api/v1/events.py called ``audit_service.record`` zero times, so the central
 # object of the product was the one object the compliance trail had no rows for.
@@ -553,7 +553,7 @@ async def test_audit_survives_the_event_it_records(client: AsyncClient) -> None:
 async def test_audit_records_the_branch_an_event_write_was_scoped_to(client: AsyncClient) -> None:
     """Branch attribution is inherited, not re-implemented: every event route
     already declares ``BranchIdDep``, and ``record`` reads the contextvar that
-    binds (tripl-wkwv.6). This is the case tripl-wkwv.6 could not cover, because
+    binds. This is the case an earlier test could not cover, because
     the row it needed did not exist."""
     await _setup_project(client, "audit-event-branch")
     branch_id = await _create_branch(client, "audit-event-branch", "redesign-checkout")
@@ -670,7 +670,7 @@ async def test_archiving_dead_events_writes_an_audit_row(client: AsyncClient) ->
     this, an editor could retire 40 events from that screen and the audit log
     the docs describe as covering every event edit held nothing for it; the only
     trace was per-event history, which is the surface the docs contrast with the
-    log rather than a substitute for it (tripl-wkwv.10).
+    log rather than a substitute for it.
     """
     et_id = await _setup_project(client, "audit-dead-archive")
     first = await _create_event(client, "audit-dead-archive", et_id, "one")
@@ -759,7 +759,7 @@ async def test_accepting_a_shadow_event_writes_an_event_create_row(client: Async
     authoring a plan row — the event that results is indistinguishable from a
     hand-written one. An action of its own would have been worse than none, not
     better: an owner filtering ``event.create`` for "which events did people
-    create?" would get a subset that looks complete (tripl-wkwv.13).
+    create?" would get a subset that looks complete.
     """
     et_id = await _setup_project(client, "audit-shadow-accept")
     candidate_id = await _seed_shadow_candidate(
@@ -805,7 +805,7 @@ async def test_dismissing_a_shadow_event_is_recorded_against_the_candidate(
     substitute for the audit row: it is CASCADE-deleted with its project and its
     scan config, so deleting the scan that found the traffic would erase every
     trace of who waved it away — the same way ``event_changes`` died with the
-    event it described (tripl-wkwv.13).
+    event it described.
     """
     await _setup_project(client, "audit-shadow-dismiss")
     candidate_id = await _seed_shadow_candidate(
@@ -893,7 +893,7 @@ async def test_audit_truncates_a_target_name_longer_than_the_column(client: Asyn
 async def test_audit_records_the_life_of_a_project(client: AsyncClient) -> None:
     """Everything the log tracks lives inside a project, and the project was the
     one object with no record of its own: an owner could destroy a workspace
-    whole and the log held nothing about who did it (tripl-wkwv.19).
+    whole and the log held nothing about who did it.
 
     The delete row is the point. Afterwards the id resolves to nothing and every
     per-project surface is gone with it, so the row has to carry what it named.
@@ -914,7 +914,7 @@ async def test_audit_records_the_life_of_a_project(client: AsyncClient) -> None:
 
     # Filed under the slug the project had AT THE TIME, so the create row keeps
     # the old one — which is why the tab has to resolve a slug rather than match
-    # the label (tripl-wkwv.18).
+    # the label.
     create_row = await _one_entry(client, "life-before", "project.create")
     assert create_row["target_type"] == "project"
     assert create_row["target_id"] == project_id
@@ -947,7 +947,7 @@ async def test_audit_records_generating_and_resetting_a_demo(client: AsyncClient
     files the same action a hand-made project does.
 
     A reset files ``project.reset`` against the REPLACEMENT: the reset drops the
-    old demo's rows by its id (tripl-wkwv.16), so a row filed against the project
+    old demo's rows by its id, so a row filed against the project
     being destroyed would go with them, and this one is what explains why the
     trail below it starts fresh.
     """
@@ -973,7 +973,7 @@ async def test_audit_records_generating_and_resetting_a_demo(client: AsyncClient
 async def test_renaming_a_project_keeps_its_history_together(client: AsyncClient) -> None:
     """A row records the slug the project answered to at the time, so matching
     that label split a renamed project's trail in two: the tab showed what
-    happened after the rename and nothing from before (tripl-wkwv.18).
+    happened after the rename and nothing from before.
 
     Filtering by the project the slug RESOLVES TO puts them back together, which
     is what the row's ``project_id`` was carrying all along.
@@ -999,7 +999,7 @@ async def test_renaming_a_project_keeps_its_history_together(client: AsyncClient
 async def test_a_recreated_slug_does_not_inherit_the_previous_trail(client: AsyncClient) -> None:
     """Delete a project and make a new one at the same slug and the newcomer
     used to show its predecessor's history as its own — a slug is unique only
-    among projects that currently exist (tripl-wkwv.18)."""
+    among projects that currently exist."""
     await _setup_project(client, "recycled")
     assert (await client.delete("/api/v1/projects/recycled")).status_code == 204
 
@@ -1061,7 +1061,7 @@ def test_the_scan_pipeline_cannot_write_audit_rows() -> None:
     assert offenders == []
 
 
-# --- audit_log indexes: the model, the migrations, and the queries (tripl-1iic) ---
+# --- audit_log indexes: the model, the migrations, and the queries ---
 
 # Every index ``audit_log`` is supposed to carry, and the exact column order that
 # makes it useful. Each entry is earned by a live access path, so a row removed
@@ -1069,12 +1069,12 @@ def test_the_scan_pipeline_cannot_write_audit_rows() -> None:
 #
 #   project_created      ``audit_service.list_entries`` scoped to one project,
 #                        whose predicate is the resolved ``project_id``
-#                        (tripl-wkwv.18) — and, as a prefix, the
+#                         — and, as a prefix, the
 #                        ``ON DELETE SET NULL`` cascade a project delete runs;
 #   project_slug_created the fallback for a slug no live project answers to, the
 #                        only route back to a deleted project's rows;
 #   created              the workspace-wide feed, which filters by nothing at all
-#                        (tripl-wkwv.17);
+#                        ;
 #   branch               the ``SET NULL`` cascade a branch delete runs;
 #   organization_created one organization's log (F20). Added with the column so
 #                        the backfill and the index ship together; today it only
@@ -1082,7 +1082,7 @@ def test_the_scan_pipeline_cannot_write_audit_rows() -> None:
 #
 # All four read indexes trail ``created_at, id`` because every one of those
 # queries ends in ``ORDER BY created_at DESC, id DESC`` with a LIMIT, and
-# ``created_at`` alone is not a total order (tripl-5ydt).
+# ``created_at`` alone is not a total order.
 _AUDIT_LOG_INDEXES = {
     "ix_audit_log_project_created": ("project_id", "created_at", "id"),
     "ix_audit_log_project_slug_created": ("project_slug", "created_at", "id"),
@@ -1106,7 +1106,7 @@ def test_audit_log_declares_exactly_the_indexes_its_access_paths_need() -> None:
     An extra index is written on every insert into this append-only table.
 
     A MISSING one is the older failure this guards against just as tightly: when
-    tripl-wkwv.18 moved the project predicate from the slug to the id, the index
+    the project predicate moved from the slug to the id, the index
     bought for the slug stopped covering the query it was bought for and the
     audit tab quietly went back to a top-N sort per page. Pinning the exact
     column tuples means the next predicate change has to come here and say so.

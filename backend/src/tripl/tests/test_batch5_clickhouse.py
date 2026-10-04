@@ -1,6 +1,6 @@
 """Batch 5, ClickHouse adapter: nested columns that are not JSON documents.
 
-``tripl-0zpq.55`` — ClickHouse has three unrelated nested families (``JSON``,
+ClickHouse has three unrelated nested families (``JSON``,
 ``Map``, ``Tuple``) and one shape function per family. The adapter used to emit
 ``arraySort(JSONAllPaths(col))`` for every column the caller put in
 ``json_columns``, and the caller's split is
@@ -24,7 +24,7 @@ executable half belongs in ``tests/conformance/test_clickhouse_conformance.py``,
 whose fixture has no Map or Tuple column today; widening that fixture is reported
 as a follow-up rather than done here.
 
-``tripl-0zpq.62`` — four docstrings in the same file each carried their own copy
+Four docstrings in the same file each carried their own copy
 of the return contract and three were wrong. Nothing here asserts prose; the
 executable statement of those shapes is the conformance gate, which unpacks four
 values from ``get_full_breakdown`` and three from ``get_time_bucketed_counts``.

@@ -85,7 +85,7 @@ class AlertMatchCandidate(Protocol):
     event_type_id: uuid.UUID | None
     bucket: datetime
     direction: str
-    # Float: fractional catalog metrics carry sub-unit actuals (tripl-68bc).
+    # Float: fractional catalog metrics carry sub-unit actuals.
     actual_count: float
     expected_count: float
 
@@ -145,7 +145,7 @@ def filter_matches_anomaly(
     event-TYPE series several read paths select by it alone). Without the map
     their type reads as "field absent" and the ``actual is None`` passthrough
     below admits every signal an ``event_type`` filter was written to narrow, in
-    both directions (tripl-0zpq.7). BOTH production call sites must supply it —
+    both directions. BOTH production call sites must supply it —
     ``dispatch._prepare_alert_deliveries`` and ``alerting_service.simulate_rule``
     — or that bypass comes straight back.
     """
@@ -194,7 +194,7 @@ def rule_matches_anomaly(
     named like ``simulate_rule_firings``' ``cooldown_minutes_override`` for the
     same reason it exists: answering "would min_percent_delta 300 have cut these
     incidents" must not require SAVING 300 onto a rule that is live-routing to a
-    real channel and waiting to find out (tripl-oxkt.17).
+    real channel and waiting to find out.
 
     ``event_type_by_event_id`` is forwarded whole to
     :func:`filter_matches_anomaly`; every PRODUCTION caller must supply it, and
@@ -304,8 +304,8 @@ def rule_matches_anomaly(
     )
     # Magnitude, not sign: a catalog metric whose level legitimately sits below
     # zero is as substantial as the same level above it, and the rule's floor is
-    # ``ge=0`` by schema, so a signed expectation failed every rule there was
-    # (tripl-0zpq.102). Identity for every non-negative expectation.
+    # ``ge=0`` by schema, so a signed expectation failed every rule there was.
+    # Identity for every non-negative expectation.
     if abs(anomaly.expected_count) < min_expected_count:
         return False
     absolute_delta = abs(anomaly.actual_count - anomaly.expected_count)
@@ -401,8 +401,8 @@ def simulate_rule_firings(
     live pipeline gates on for a destination that delivers IMMEDIATELY. (For one
     that does not, see the last two paragraphs: it gates on no clock at all.)
     Keying it on (scope_type, scope_ref) alone was ONE place this module's
-    no-divergence promise was false
-    (tripl-0zpq.42): ``dispatch._prepare_alert_deliveries`` runs once per scan
+    no-divergence promise was false:
+    ``dispatch._prepare_alert_deliveries`` runs once per scan
     config and loads only THAT config's states, while the replay hands a whole
     project's anomalies through in a single pass, and a rule is project-wide
     unless deliberately bound to one scan. An event that is anomalous in scan A
@@ -418,7 +418,7 @@ def simulate_rule_firings(
     metric is not a per-scan series, so its live state carries NO scan config at
     all — ``AlertRuleState.scan_config_id`` is NULL for a metric scope, and a
     partial unique index over that NULL space is what gives it one clock per
-    (rule, scope) for the whole project (tripl-0zpq.28). The branch below reads
+    (rule, scope) for the whole project. The branch below reads
     the scope rather than the candidate's ``scan_config_id`` anyway: metric
     candidates carry NULL there too, so the two agree, and keying on the scope
     says what the partition IS rather than what one candidate happens to hold.

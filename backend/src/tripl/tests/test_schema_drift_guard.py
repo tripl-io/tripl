@@ -1,8 +1,8 @@
 """Accepting a missing_field drift must not delete a column a scan names events by.
 
-Regression suite for tripl-3mmh, the root cause of the four-day tripl-lpin
-outage: accepting a (probably false-positive) ``missing_field`` drift on
-``action`` deleted the FieldDefinition, and the scan config whose
+Regression suite for the root cause of a four-day outage:
+accepting a (probably false-positive) ``missing_field`` drift on ``action``
+deleted the FieldDefinition, and the scan config whose
 ``event_name_format`` was ``{action}`` could no longer name a single event.
 """
 
@@ -64,7 +64,7 @@ async def _seed(
     event type or discovers its types from a column. Unbound-with-a-column is the
     grouped scan; unbound-WITHOUT one (``config_event_type_column=None``) is the
     orphan ``ON DELETE SET NULL`` leaves behind when a bound event type is
-    deleted, and since tripl-0zpq.254 the loader tells the two apart.
+    deleted, and now the loader tells the two apart.
     """
     async with TestSessionLocal() as session:
         data_source = DataSource(
@@ -188,7 +188,7 @@ async def test_accept_missing_field_is_blocked_by_a_project_wide_config(
     governs this event type too — the ``or_`` NULL arm, BOTH halves of it.
 
     ``event_type_id IS NULL`` alone is not the grouped scan and has not been one
-    since tripl-0zpq.254; the config also needs the ``event_type_column`` it
+    for some time; the config also needs the ``event_type_column`` it
     discovers types from. The sibling test below is the same seed without that
     column, and it must NOT block.
     """
@@ -216,7 +216,7 @@ async def test_accept_is_not_blocked_by_a_scan_orphaned_by_a_deleted_event_type(
     event type — or merging a branch that removed it — leaves a config with no
     binding AND no ``event_type_column``. That config discovers nothing and
     collects nothing, so its ``{action}`` says nothing about this event type's
-    fields; until tripl-0zpq.254 it read as project-wide and blocked every
+    fields; it used to read as project-wide and blocked every
     missing_field accept in the project.
 
     Delete the ``ScanConfig.event_type_column.is_not(None)`` line from the
@@ -551,7 +551,7 @@ async def test_other_drift_types_on_a_name_format_column_still_accept(
 @pytest.mark.asyncio
 async def test_accept_keeps_a_note_stored_by_an_earlier_action(client: AsyncClient) -> None:
     """Separate defect: ``note`` is optional on every action, so assigning it
-    unconditionally erased a note an earlier action had stored (tripl-3mmh)."""
+    unconditionally erased a note an earlier action had stored."""
     project_id, event_type_id = await _project_and_event_type(client)
     drift_id = await _seed(
         project_id=project_id,

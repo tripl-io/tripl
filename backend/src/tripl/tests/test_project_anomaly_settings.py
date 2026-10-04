@@ -82,7 +82,7 @@ async def test_recent_signal_window_hours_out_of_range_is_rejected(
 
 @pytest.mark.asyncio
 async def test_ingestion_settling_minutes_defaults_and_updates(client: AsyncClient) -> None:
-    """tripl-jfm3.79: the ingestion-settling allowance is a per-project setting.
+    """the ingestion-settling allowance is a per-project setting.
 
     Its default must reproduce the module constant it replaced (2 hours), so a
     project that never touches it keeps today's detection latency.
@@ -129,7 +129,7 @@ async def test_ingestion_settling_minutes_out_of_range_is_rejected(
 
 
 class TestSettlingAllowanceVersusOpenSignalWindow:
-    """tripl-l429.15: the two dials must not be set to cancel each other out.
+    """the two dials must not be set to cancel each other out.
 
     A bucket is held back from scoring for ``anomaly_ingestion_settling_minutes``
     and then counts as an open signal for ``recent_signal_window_hours``. Once

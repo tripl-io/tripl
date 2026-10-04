@@ -29,11 +29,11 @@ import { noteBudgetLabel } from './constants'
  * `ProjectAlertingTab` beside the query whose rows it indexes into, so the
  * page is the only thing that can prune a selection when a filter change or a
  * refetch drops rows out from under it. The bar knows a COUNT — which is all
- * its words need — and the page attaches the ids at click time (tripl-gpfr).
+ * its words need — and the page attaches the ids at click time.
  *
  * `mutedUntil` has the same three non-interchangeable states as the
- * single-incident {@link InboxActionVariables}, for the same reason
- * (tripl-a50u): `undefined` = no mute value at all, a string = mute until that
+ * single-incident {@link InboxActionVariables}, for the same reason:
+ * `undefined` = no mute value at all, a string = mute until that
  * instant, `null` = mute with NO end. Nothing downstream may branch on
  * truthiness — a `&& mutedUntil` drops the key from the request body for
  * exactly the most far-reaching choice on the bar.
@@ -43,7 +43,7 @@ export interface InboxBulkActionRequest {
   mutedUntil?: string | null
   /**
    * The one sentence explaining the whole batch, copied onto every selected
-   * incident (tripl-saq1).
+   * incident.
    *
    * Absent, not empty, when there is nothing to say. The server's rule is that
    * a note it is not GIVEN is a stored note it does not touch, while an empty
@@ -72,7 +72,7 @@ function selectionTarget(count: number): string {
  * What to do about a selection the server will not accept, said BEFORE acting.
  *
  * The batch route caps the id list at {@link MAX_BULK_INBOX_ACTION_GROUPS} and
- * refuses a longer one with a 422 (tripl-gpfr). Nothing on the page used to
+ * refuses a longer one with a 422. Nothing on the page used to
  * bound the selection, and the inbox is an ACCUMULATING infinite list at 50 rows
  * per page — so a fifth "Load more" puts 250 tickable rows on screen and the
  * operator learns about the cap by watching a decision they had already
@@ -102,8 +102,7 @@ interface InboxBulkActionBarProps {
 }
 
 /**
- * The floating bar that acts on every selected incident in one request
- * (tripl-gpfr).
+ * The floating bar that acts on every selected incident in one request.
  *
  * Chrome, position and the "<N> selected" phrasing are copied from
  * `pages/events/BulkActionBar` on purpose: this is the second bulk surface in
@@ -127,7 +126,7 @@ interface InboxBulkActionBarProps {
  *    per-incident, i.e. deliberately deliberate.
  *
  *    The Inbox header's "Select all N shown" and its shift-click range
- *    (tripl-rzkx) are not that control and do not reopen this: N is the number
+ *     are not that control and do not reopen this: N is the number
  *    of cards under the box, every one of them is on screen, and the count on
  *    this bar therefore still describes something the operator can look at. What
  *    is refused above is a sweep of rows nobody has seen.
@@ -144,10 +143,10 @@ export function InboxBulkActionBar({
   // Same disclosure shape as the incident card's mute: the durations are
   // revealed, never applied by the control that reveals them. A bar button
   // labelled just "Mute" that silently posts seven days is the defect
-  // `mutePresets` was extracted to end (tripl-oxkt.7), and it would be worse
+  // `mutePresets` was extracted to end, and it would be worse
   // here, where one click covers a screenful of incidents.
   const [muteOpen, setMuteOpen] = useState(false)
-  // The batch's shared note (tripl-saq1). Owned HERE, unlike the per-incident
+  // The batch's shared note. Owned HERE, unlike the per-incident
   // drafts on `ProjectAlertingTab`, because those are keyed by an incident that
   // outlives any one decision while this belongs to a selection that does not:
   // it is written for the batch in front of you and is meaningless against the
@@ -189,7 +188,7 @@ export function InboxBulkActionBar({
     // next one — offering "Until I unmute", the furthest-reaching control on the
     // page, to someone who has just ticked one new incident and never asked for
     // it. Adjusting state during render is React's documented way to follow a
-    // prop, and the guard makes it converge in one extra render (tripl-gpfr).
+    // prop, and the guard makes it converge in one extra render.
     if (muteOpen) setMuteOpen(false)
     // The note is reset for a sharper version of the same reason. It does not
     // merely reappear — it RIDES ALONG with whatever is pressed next, so a
@@ -202,7 +201,7 @@ export function InboxBulkActionBar({
   }
 
   const target = selectionTarget(selectedCount)
-  // How far past what the server will accept this selection is (tripl-gpfr).
+  // How far past what the server will accept this selection is.
   // Every ACTION is switched off above the cap — see `overCapNotice` — while
   // "Clear selection" and the individual checkboxes stay live, because those are
   // the two ways back under it.
@@ -213,7 +212,7 @@ export function InboxBulkActionBar({
   const noteBudget = noteBudgetLabel(note.length)
   // The note is attached HERE rather than by each button, so there is exactly
   // one place that decides whether a batch carries one and no button can be
-  // added later that quietly forgets to (tripl-saq1). Omitted when empty — see
+  // added later that quietly forgets to. Omitted when empty — see
   // `InboxBulkActionRequest.note` for why an empty string is not the same
   // request. `setMuteOpen(false)` collapses the duration row because it is a
   // menu that has been used; the note box deliberately stays as the operator
@@ -252,7 +251,7 @@ export function InboxBulkActionBar({
       {/* The note comes FIRST in the DOM, which is the same rule the incident
           card follows and for the same reason: its text is sent BY the action
           buttons, so a keyboard user who meets the buttons first spends the
-          decision and the note never goes anywhere (tripl-oxkt.14).
+          decision and the note never goes anywhere.
 
           It differs from the card in being first VISUALLY too — the card pushes
           its editor back underneath with `order`, because there the actions are
@@ -329,7 +328,7 @@ export function InboxBulkActionBar({
         </span>
       )}
       <div className="h-5 w-px max-sm:hidden bg-border" />
-      {/* No fixed-slot rule here, unlike the incident card (tripl-oxkt.8). That
+      {/* No fixed-slot rule here, unlike the incident card. That
           rule exists because the card's buttons line up in a COLUMN across
           rows, so a slot that appears on one row and not the next moves the
           destructive action under a cursor aimed at a snooze. This bar is one
@@ -411,7 +410,7 @@ export function InboxBulkActionBar({
         // vocabulary: `reopen` lifts acknowledge, resolve and false-positive as
         // well as a mute. The card can say "Unmute" because it knows the one
         // status it is looking at; a mixed selection does not, so the honest
-        // name is the one that covers every case (tripl-oxkt.3).
+        // name is the one that covers every case.
         aria-label={`Reopen ${target}`}
         title="Puts each one back in the open queue. Alerts resume, and any mute on them is lifted."
         disabled={actionsDisabled}
@@ -458,7 +457,7 @@ export function InboxBulkActionBar({
               the open-ended choice IS offered here — and the sentence each
               button is announced by comes from the same module, so this fourth
               mute surface cannot drift from the other three by rewording an
-              `aria-label` in place (tripl-a50u, tripl-yapg). */}
+              `aria-label` in place. */}
           {INBOX_MUTE_CHOICES.map(choice => (
             <Button
               key={choice.label}

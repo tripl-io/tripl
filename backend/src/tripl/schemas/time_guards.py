@@ -5,8 +5,8 @@ inbox's ``muted_until`` (``AlertInboxActionRequest`` and its bulk twin), the
 ``snoozed_until`` of a schema drift and of a variable value drift, and
 ``MonitorMuteRequest.muted_until``. Only the last one ever refused an instant
 that had already passed — ``mute_monitor`` answers 422 "muted_until must be in
-the future" — while the other four accepted it, stored it and returned 200
-(tripl-0zpq.273). A sixth field carries such an instant and is deliberately left
+the future" — while the other four accepted it, stored it and returned 200.
+A sixth field carries such an instant and is deliberately left
 taking a spent one; see WHERE THE RULE STOPS below.
 
 That 200 is exactly the kind of lie the validators it slipped past were written
@@ -55,7 +55,7 @@ THE NAIVE-TO-UTC COERCION IS NOT DECORATION. Pydantic parses
 ``"2026-09-20T10:00:00"`` — a body the published schema accepts, since
 ``format: date-time`` has never demanded an offset — into a NAIVE datetime, and
 comparing one of those against ``datetime.now(UTC)`` raises TypeError, which only
-``main.py``'s catch-all handles. That is tripl-0zpq.168 on the monitor route, and
+``main.py``'s catch-all handles. That was a real bug on the monitor route, and
 adding the comparison to four more bodies without the coercion would have been
 four fresh copies of it. A bare instant is read as UTC and never as the host's
 local time, the same reading ``core.bucketing.to_utc`` and

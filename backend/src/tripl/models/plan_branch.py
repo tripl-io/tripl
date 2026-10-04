@@ -100,7 +100,7 @@ class PlanBranch(UUIDMixin, TimestampMixin, Base):
     # True, a base row no copy names was deleted on the branch and a row with no
     # origin was authored there, so several of them under one name are still
     # told apart; where it is False, such a name keeps the one-row-per-name
-    # handling it always had (tripl-0zpq.292).
+    # handling it always had.
     origin_ids_complete: Mapped[bool] = mapped_column(
         Boolean, default=True, server_default="false", nullable=False
     )

@@ -1,4 +1,4 @@
-"""End-to-end metrics pipeline integration tests (ticket tripl-dxhp.9).
+"""End-to-end metrics pipeline integration tests.
 
 Exercises the FULL catalog-metric pipeline for each kind:
 

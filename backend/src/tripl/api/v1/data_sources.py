@@ -39,7 +39,7 @@ _owner_required = [Depends(get_owner_user)]
 # it stops at editor rather than at "any authenticated user". Three editor
 # surfaces genuinely need it — the scan form, the metric form and the fact-table
 # form all drive column pickers off it — but a viewer edits none of those, and
-# the response is a map of the customer's warehouse (tripl-jfm3.83). That made it
+# the response is a map of the customer's warehouse. That made it
 # a wider disclosure than the host/port this router already redacts, and it is
 # reachable by anyone who can register once the instance is in "open" mode.
 # Project-owned sources also require membership with edit rights in their owning
@@ -48,7 +48,7 @@ _owner_required = [Depends(get_owner_user)]
 _editor_required = [Depends(get_editor_user)]
 
 # A visitor to a public demo explores the synthetic source the demo generator
-# adds; connecting to anything else is the host's network, not theirs (tripl-sav5).
+# adds; connecting to anything else is the host's network, not theirs.
 _own_warehouses_refused = Depends(refuse_on_public_demo("connect to warehouses of your own"))
 
 
@@ -59,7 +59,7 @@ _own_warehouses_refused = Depends(refuse_on_public_demo("connect to warehouses o
 # side was open to every authenticated user — viewers
 # included — and handed out the full warehouse connection: host, port, database,
 # username, whether a password is stored, TLS material and the last connection
-# error (tripl-jfm3.79). That is an internal network map plus a credential
+# error. That is an internal network map plus a credential
 # inventory, and nothing outside the org-admin Data Sources settings form
 # consumes it.
 #

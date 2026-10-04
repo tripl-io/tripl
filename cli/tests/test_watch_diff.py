@@ -1,6 +1,6 @@
 """The watch diff as arithmetic: no network, no loop, no wall clock.
 
-The acceptance criterion of tripl-ey6j.4 - "a running replay shows live chunk
+The acceptance criterion of the watch work - "a running replay shows live chunk
 progress" - is provable here, which is why this file exists separately from the
 end-to-end one. Every test below pins a decision that could plausibly have been
 made the other way.

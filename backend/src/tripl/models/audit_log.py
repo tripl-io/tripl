@@ -22,16 +22,16 @@ class AuditLog(UUIDMixin, Base):
         # THE THREE READ PATHS. Every one of them ends in the same
         # ``ORDER BY created_at DESC, id DESC`` with a LIMIT, so each needs its
         # filter column in front of those two or the page becomes a top-N sort
-        # over everything that matched (tripl-wkwv.20). All three are ASCENDING
+        # over everything that matched. All three are ASCENDING
         # though the query reads descending: a btree is scanned equally well in
         # either direction as long as EVERY sort column is reversed together,
         # which these are. And all three carry ``id``, because ``created_at``
         # alone is not a total order — ``server_default=now()`` gives every row of
         # one batch the same value, so the pager needs its tie-break inside the
-        # index rather than in a sort on top of it (tripl-5ydt).
+        # index rather than in a sort on top of it.
         #
         # 1. One project's log, the common case. ``list_entries`` resolves the
-        # slug to a project and matches the ID (tripl-wkwv.18), so the leading
+        # slug to a project and matches the ID, so the leading
         # column is ``project_id`` and not the slug. This also covers the
         # ``ON DELETE SET NULL`` cascade as a prefix: deleting any project scans
         # this table to null the column out, which is the argument that earned
@@ -43,8 +43,8 @@ class AuditLog(UUIDMixin, Base):
         # project's rows keep the label and lose the id, so this is the only way
         # back to them.
         Index("ix_audit_log_project_slug_created", "project_slug", "created_at", "id"),
-        # 3. The workspace-wide feed, which filters by nothing at all
-        # (tripl-wkwv.17). Without this the instance audit page sorts the whole
+        # 3. The workspace-wide feed, which filters by nothing at all.
+        # Without this the instance audit page sorts the whole
         # table on every load — the same failure as the others, with no predicate
         # to narrow it first.
         Index("ix_audit_log_created", "created_at", "id"),
@@ -59,7 +59,7 @@ class AuditLog(UUIDMixin, Base):
         # every predicate a btree on ``(project_id)`` could. The declaration
         # outlived that migration here and made the ORM metadata disagree with
         # the migrated schema, which is what ``alembic check`` reports and what
-        # ``create_all``-built test schemas hid (tripl-1iic). Do not restore it.
+        # ``create_all``-built test schemas hid. Do not restore it.
     )
 
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
@@ -85,7 +85,7 @@ class AuditLog(UUIDMixin, Base):
     # The plan branch the write was scoped to. NULL/"" means the write was not
     # made through a branch-scoped request — main, or an action with no
     # plan-branch dimension at all (alerting, scans, users). It does NOT assert
-    # "main" (tripl-wkwv.6).
+    # "main".
     branch_id: Mapped[uuid.UUID | None] = mapped_column(
         ForeignKey("plan_branches.id", ondelete="SET NULL"), nullable=True
     )

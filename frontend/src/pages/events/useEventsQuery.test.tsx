@@ -96,7 +96,7 @@ describe('useEventsQuery.fetchAllMatchingIds', () => {
 
   it('sends the open-questions filter to the server, and keeps it out of the default request', async () => {
     // Absent means "any", so the default request has to stay byte-identical to
-    // what it was before the filter existed (tripl-h2sx.26).
+    // what it was before the filter existed.
     const { result } = renderEventsQuery()
     await waitFor(() => expect(result.current.eventsQuery.isSuccess).toBe(true))
     expect(

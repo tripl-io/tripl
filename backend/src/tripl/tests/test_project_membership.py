@@ -1,4 +1,4 @@
-"""Per-project membership (tripl-vefw).
+"""Per-project membership.
 
 Projects used to be visible to every user on the instance. Now:
 

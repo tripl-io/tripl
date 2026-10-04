@@ -8,7 +8,7 @@ import type { ImplementationTicket } from '@/types/tracker'
  * tickets a branch opened, and which tickets ever named an event —
  * `uq_implementation_ticket_branch` is one ticket per branch, and `event_ids`
  * lists what that branch touched, so an event carried by three merged branches
- * is named by three of these (tripl-h2sx.32).
+ * is named by three of these.
  */
 
 export function ImplementationTicketRow({ ticket }: { ticket: ImplementationTicket }) {

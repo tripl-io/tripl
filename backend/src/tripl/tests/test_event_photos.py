@@ -69,7 +69,7 @@ def test_gcs_delete_treats_a_missing_object_as_done() -> None:
     ],
 )
 def test_gcs_delete_reports_a_real_failure(error: Exception) -> None:
-    """A delete that did not happen must not be reported as success (tripl-jfm3.118).
+    """A delete that did not happen must not be reported as success.
 
     This was ``suppress(Exception)``, so a permission, network or quota failure
     left the object fetchable at a stable key while the API answered 204 and the

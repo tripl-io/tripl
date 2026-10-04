@@ -18,7 +18,7 @@ BINDING_PATTERN = re.compile(r"^[A-Za-z_][A-Za-z0-9_-]*(\.[A-Za-z0-9_-]+)*$")
 # enforces. They reach the wire as ``maxItems``, and a row that overflowed one
 # now fails response validation instead of shipping: the value cap held only
 # within a single context row and a variable with a hundred contexts walked out
-# with 119 values, past a limit the description called hard (tripl-x050).
+# with 119 values, past a limit the description called hard.
 SUMMARY_VALUE_LIMIT = 20
 # Event names shipped inline on the list row. The row only renders a preview
 # list (``event_count`` carries the true total), so a cap keeps a variable used
@@ -41,8 +41,7 @@ def _validate_bindings(bindings: list[str] | None) -> list[str] | None:
 # admits anything but ``}``, and a JSON map keyed by user-typed text mints keys
 # such as ``props.$os`` or ``props.utm source``. An update resends the
 # variable's stored bindings, so the schema accepts that grammar and the
-# service applies ``BINDING_PATTERN`` only to bindings the update ADDS
-# (tripl-0zpq.265).
+# service applies ``BINDING_PATTERN`` only to bindings the update ADDS.
 _STORED_BINDING_PATTERN = re.compile(r"^[^}\x00-\x1f\x7f]+$")
 
 
@@ -105,7 +104,7 @@ class VariableCreate(BaseModel):
 # Every field of VariableUpdate maps to a NOT NULL Variable column, and
 # ``update_variable`` ``setattr``s whatever the dump holds — so an explicit
 # ``null`` is a 422 naming the field rather than a DB-level 500. See
-# ``schemas/not_null_update`` (tripl-0zpq.267). ``name`` is in the set for a
+# ``schemas/not_null_update``. ``name`` is in the set for a
 # second reason: the rename branch reaches ``_STRICT_NAME_PATTERN.match(None)``,
 # which is a TypeError before any column is touched.
 _VARIABLE_NOT_NULL_UPDATE_FIELDS = frozenset(
@@ -124,7 +123,7 @@ class VariableUpdate(BaseModel):
     # No pattern here: the edit form resends the stored name, and a scan-created
     # name can be anything the scan writes (``userId``, ``params.screenName``).
     # The service enforces the strict pattern only when the name actually
-    # changes (tripl-0zpq.265).
+    # changes.
     name: str | None = Field(None, min_length=1, max_length=100)
     variable_type: VariableType | None = None
     description: str | None = None
@@ -331,7 +330,7 @@ class VariableValueContextResponse(BaseModel):
     # ``TimestampMixin.onupdate`` fires, but only when the merge changed
     # something. A scan that re-observes nothing new leaves this frozen —
     # "last seen" and "last checked" are both wrong, "last refreshed" is what
-    # it supports (tripl-h2sx.22).
+    # it supports.
     updated_at: datetime
 
     model_config = {"from_attributes": True}

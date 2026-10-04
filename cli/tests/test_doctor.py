@@ -57,7 +57,7 @@ def register_demo_project(api: FakeInstance, slug: str = "demo") -> None:
 def test_broken_scan_config_exits_three_and_names_the_cause(
     tripl_api: FakeInstance, capsys: pytest.CaptureFixture[str], now: datetime
 ) -> None:
-    """The acceptance criterion of tripl-ey6j.2."""
+    """The acceptance criterion of the doctor command."""
     tripl_api.jobs(
         "prod",
         "scan-1",
@@ -583,7 +583,7 @@ def test_truncation_names_the_partly_examined_project_and_spares_the_complete_on
     unevenly by construction: here beta's one event type fits and alpha is read a
     third of the way. If alpha's unread part holds the accepted missing_field
     drift that deleted a FieldDefinition, "we did not look there" has to name
-    alpha - and must not smear beta, which was read in full (tripl-ey6j.9).
+    alpha - and must not smear beta, which was read in full.
     """
     tripl_api.projects([make_project("alpha"), make_project("beta")])
     for slug, type_ids in (("alpha", ["et-1", "et-2", "et-3"]), ("beta", ["et-9"])):

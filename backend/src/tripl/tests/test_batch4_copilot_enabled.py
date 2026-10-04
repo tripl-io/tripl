@@ -1,6 +1,6 @@
 """The disabled-destination window, measured where it actually is.
 
-tripl-0zpq.39 put ``_assert_destination_enabled`` into the two send tasks and
+The ``_assert_destination_enabled`` check went into the two send tasks and
 that closed the case it was filed for: a delivery minted at 09:00 against an
 enabled destination, switched off at 09:05, redispatched by the reaper at 09:15.
 ``test_batch4_send.py`` pins that case, and it flips the toggle BEFORE the task

@@ -29,8 +29,8 @@ export const EMPTY_SIGNALS: MonitoringSignal[] = []
 // With 200-row pages + infinite scroll, an all-ids key changed on every append
 // and re-sent the entire set; bucketing keeps each already-loaded bucket's key
 // (and cache entry) stable, so appending a page only fetches the new bucket.
-// Window metrics were fixed this way in tripl-jfm3.51; the signals query next to
-// them kept the accumulating key until tripl-jfm3.121.
+// Window metrics were fixed this way first; the signals query next to
+// them kept the accumulating key for a while longer.
 export const EVENT_ID_BUCKET_SIZE = 100
 
 export function chunkEventIds(eventIds: string[]): string[][] {
@@ -61,8 +61,8 @@ const compactCountFormatter = new Intl.NumberFormat(APP_LOCALE, {
  * Case is load-bearing here and must NOT be lowercased: the neighbouring
  * "Last seen" cell renders relative durations ("1m ago", "1h ago") in a
  * similarly sized tabular-figure cell, so a lowercase "1m" volume under a
- * header that reads only "48h" invited a six-order-of-magnitude misread
- * (tripl-klfb). Uppercase M also matches every other count formatter in the
+ * header that reads only "48h" invited a six-order-of-magnitude misread.
+ * Uppercase M also matches every other count formatter in the
  * app (lib/metricFormat.ts, components/ui/chart-format.ts), including the
  * chart directly above this table.
  */
@@ -83,7 +83,7 @@ export const WINDOW_DELTA_HOURS = 24
  * into the printed percentage: at 22 of 24 hours (the demo's 2h collection lag)
  * the number is ~8% low, which the "*" marker and the tooltip disclose. At 1 of
  * 24 hours it is ~24x off, which is how 13 rows on one stand came out between
- * +1673% and +1907% (tripl-7vnw) — no marker rescues a number that is mostly
+ * +1673% and +1907% — no marker rescues a number that is mostly
  * gap. Three quarters caps the leak at a third and still keeps the column alive
  * through a six-hour lag.
  */
@@ -145,14 +145,14 @@ export interface WindowDelta {
  * Both halves are anchored on NOW, not on the newest bucket that carries data —
  * "Δ · 24h" is a claim about the last 24 hours, and anchoring on the newest
  * bucket made a lagging collection shrink the PRIOR half instead of the recent
- * one, which inflates the ratio (tripl-7vnw). Anchored here, a lag shrinks the
+ * one, which inflates the ratio. Anchored here, a lag shrinks the
  * recent half, so the error is conservative and, above `MIN_WINDOW_COVERAGE`,
  * small enough to print with a marker.
  *
  * It does NOT gate on the series spanning a full 47h. That blanket span guard
  * blanked the whole column on the fresh demo, where 47 hourly points span 46.0h
  * because collection ends ~2h before now, while the same payload carries recent
- * 51,456 against prior 45,812 — a perfectly sound +12% (tripl-oooj). Coverage is
+ * 51,456 against prior 45,812 — a perfectly sound +12%. Coverage is
  * now measured per half and reported instead of being a reason to render
  * nothing; the genuine empty states are a prior half with no volume at all and
  * a half too thin to divide by.
@@ -234,7 +234,7 @@ export function computeWindowDelta(
  * The Δ cell's tooltip. It always names what was compared and how much of each
  * window was there to compare, because the sentence it replaces ("No prior 24h
  * window to compare against") was asserted for every null — including the fresh
- * demo, where the prior window held 45,812 events (tripl-oooj).
+ * demo, where the prior window held 45,812 events.
  */
 export function describeWindowDelta(delta: WindowDelta): string {
   const {
@@ -549,7 +549,7 @@ export function applyEventNameFormat(
  * the answer a set of rows the form can actually point at. Client mirror of
  * `name_format_base_columns` in backend `core/analyzers/event_plan.py`, and it
  * reuses this module's `{key}` regex rather than restating the grammar: four
- * copies of that grammar is what took production down once (tripl-lpin).
+ * copies of that grammar is what took production down once.
  */
 export function nameFormatBaseColumns(fmt: string | null | undefined): Set<string> {
   if (!fmt) return new Set()

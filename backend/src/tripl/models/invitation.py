@@ -23,7 +23,7 @@ class Invitation(UUIDMixin, TimestampMixin, Base):
 
     Why this exists: registration used to be the only way in, which forced the
     instance-wide ``registration_mode`` to ``open`` on any deployment that still
-    needed to onboard someone (tripl-jfm3.80). An invitation is the narrow
+    needed to onboard someone. An invitation is the narrow
     alternative — it admits exactly one address, at a role the owner chose, for
     a bounded window — so the instance-wide door can stay shut.
 

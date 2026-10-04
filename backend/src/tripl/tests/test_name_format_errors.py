@@ -1,6 +1,6 @@
 """A name-format failure must reach the operator with its reason intact.
 
-tripl-3mmh: ``_apply_name_format`` raised a bare ``ValueError``, so the worker's
+``_apply_name_format`` raised a bare ``ValueError``, so the worker's
 sanitiser collapsed the one self-diagnosing line ("references unknown keys:
 action") into "Scan failed due to an internal error." for four days.
 """
@@ -116,7 +116,7 @@ def _imported_modules(path: Path, package_parts: tuple[str, ...]) -> set[str]:
 
 def test_core_does_not_import_worker() -> None:
     """``core`` must never import ``worker`` — that layering is why NameFormatError
-    lives in ``core.name_template`` instead of subclassing ``ScanError`` (tripl-3mmh).
+    lives in ``core.name_template`` instead of subclassing ``ScanError``.
 
     Parsed with ``ast``, not grepped, the way ``test_cli_constant_mirror`` reads the
     CLI. A text search fails on a comment or docstring that merely QUOTES an import

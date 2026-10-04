@@ -118,7 +118,7 @@ _AI_EXPLANATION_MAX_TOKENS = 250
 # How much of what this rule already said about these same scopes goes into the
 # prompt. The explanation used to be a pure function of the current bucket, so
 # an event drifting for the third day running produced the same paragraph three
-# times and the reader learned nothing from the repeat (tripl-ikee).
+# times and the reader learned nothing from the repeat.
 _AI_HISTORY_MAX_DELIVERIES = 3
 _AI_HISTORY_WINDOW = timedelta(days=7)
 # Prior explanations are 2-4 sentences; keep a readable head of each so three of
@@ -240,7 +240,7 @@ def _drift_facts(item: AlertDeliveryItem) -> DriftLineFacts:
 
     The wording itself lives in ``alert_templates.build_drift_line``, because
     the rule simulator renders the same firing from a ``SimulatedRuleFiring``
-    and the two builders had drifted apart (tripl-0zpq.165). This adapter and
+    and the two builders had drifted apart. This adapter and
     its twin in ``services.alerting_rendering`` are the only production
     constructors of the facts, which is what keeps the wording from splitting
     again: a field one side forgets is a field neither side can render.
@@ -452,7 +452,7 @@ def _digest_headline(items: list[AlertDeliveryItem], total: int) -> str:
     # ``has_baseline`` decides "new", never a sign test: a signed catalog
     # metric at a baseline of -100 is an ordinary drop or spike with a real
     # percent, and filing it under "new" both miscounted the headline and made
-    # it ineligible to be named the worst mover (tripl-0zpq.102).
+    # it ineligible to be named the worst mover.
     downs = [i for i in items if i.direction != "spike" and has_baseline(i.expected_count)]
     ups = [i for i in items if i.direction == "spike" and has_baseline(i.expected_count)]
     new = [i for i in items if not has_baseline(i.expected_count)]
@@ -832,8 +832,8 @@ def split_telegram_messages(
     are the same set on a first attempt, so ``summary_items`` may be left None;
     a Telegram RESUME packs only the undelivered remainder and has to hand in
     the whole delivery, or every part of the retry summarises the remainder and
-    the reader gets "9 alerts" under two earlier messages that said 24
-    (tripl-0zpq.35). Deriving it from ``items`` here, as this did, silently
+    the reader gets "9 alerts" under two earlier messages that said 24.
+    Deriving it from ``items`` here, as this did, silently
     undid the answer the caller had already worked out for the unsplit render.
 
     ``part_offset`` is how many messages of this delivery the reader ALREADY
@@ -1107,8 +1107,7 @@ def _build_ai_explanation(
             continue
         # "no baseline" rather than "+0%" for a zero-expected item: the note the
         # model writes from this prompt is what the reader receives, and "+0%"
-        # reads as "nothing moved" for the one class where everything did
-        # (tripl-l429.24).
+        # reads as "nothing moved" for the one class where everything did.
         line = (
             f"- [{item.scope_type}] {item.scope_name}: {item.direction}, "
             f"actual {item.actual_count} vs expected {item.expected_count} "
@@ -1128,7 +1127,7 @@ def _build_ai_explanation(
             line += " [co-fired with other items]"
         lines.append(line)
     # What was already said about these scopes, so a recurring drift reads as
-    # "still going, now worse" instead of the same paragraph again (tripl-ikee).
+    # "still going, now worse" instead of the same paragraph again.
     # Best-effort: a history lookup must never cost the reader their alert.
     if session is not None:
         try:
@@ -1268,8 +1267,8 @@ def _webhook_item_payload(item: AlertDeliveryItem) -> dict[str, object]:
     divide by. The stored column is NOT NULL and holds the ``0.0`` placeholder,
     but shipping that placeholder made the payload say "no change" about the one
     class of anomaly that moved the most, and a consumer writing the obvious
-    ``percent_delta > threshold`` had no way to tell the two apart
-    (tripl-l429.27). ``expected_count: 0`` still travels beside it as
+    ``percent_delta > threshold`` had no way to tell the two apart.
+    ``expected_count: 0`` still travels beside it as
     corroboration; it is no longer the only thing standing between a consumer
     and a wrong number.
     """
@@ -1352,7 +1351,7 @@ def _build_plan_digest_message(
     # purely by ``scope_ref`` = str(metric_definition_id), so an inner join on
     # ScanConfig drops every one of them. That is how a week of nothing but
     # catalog-metric anomalies used to read "Metric anomalies: 0" with no Top
-    # anomalies section at all (tripl-0zpq.34). Resolve the project's metrics once
+    # anomalies section at all. Resolve the project's metrics once
     # here, outside both statements below, and reuse the result for the count, the
     # top-5 filter and the top-5 labels. ``display_name`` rather than ``name``
     # because that is what alerting already calls a metric everywhere else
@@ -1501,7 +1500,7 @@ def _build_sunset_alert_message(
     expanded into named events — the first ``_SUNSET_ALERT_MAX_EVENTS`` of them,
     see below — and that line is already main-scoped, so without this predicate
     the pair disagreed about one project: the digest said 1 while the alert said
-    "Count: 2" and listed the same event twice (tripl-0zpq.31).
+    "Count: 2" and listed the same event twice.
 
     A project with no main branch row resolves no id, the predicate becomes
     ``branch_id IS NULL``, and ``Event.branch_id`` is NOT NULL — so the alert

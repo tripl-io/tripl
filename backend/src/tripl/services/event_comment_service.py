@@ -3,14 +3,14 @@
 Every other text box on an event ships to whoever implements it — ``description``
 is its own indexed search column, the catalog tooltip and a line in the Markdown
 pasted into the ticket — so a question typed there arrives as if it were the
-spec. This is the box for the question instead (tripl-h2sx.25).
+spec. This is the box for the question instead.
 
 Same table as the photo threads, a different anchor. Nothing here reaches
 ``build_plan_snapshot``, the branch deep copy, the approval hash or the search
 index, because every one of those selects on ``photo_id``. The merge does one
 thing with it and only one: a thread hanging on a BRANCH row is moved to main —
 onto the twin that row already reads through, else the row the merge gives the
-event (``_move_event_threads_to_main``, tripl-0zpq.122).
+event (``_move_event_threads_to_main``).
 """
 
 from __future__ import annotations
@@ -57,7 +57,7 @@ class EventThread(NamedTuple):
     home: Event
     # ``home`` plus the event's own row. The two differ only for a branch row
     # that has a twin, and that row can still hold a thread of its own — one
-    # started before main had the event (tripl-0zpq.122).
+    # started before main had the event.
     anchors: frozenset[uuid.UUID]
 
 
@@ -66,8 +66,8 @@ async def event_thread(session: AsyncSession, slug: str, event_id: uuid.UUID) ->
 
     An event has ONE discussion. Deep-copying it onto every branch would fork
     the conversation, and merging the forks back is exactly the machinery that
-    turned a comment into an unmergeable branch (tripl-h2sx.28). Reading through
-    to the twin — the tripl-kjhi.9 pattern, nothing written back — means a
+    turned a comment into an unmergeable branch. Reading through
+    to the twin — the same pattern, nothing written back — means a
     question raised on a branch is the same question main can answer.
 
     An event that exists only on a branch has no twin yet, so it keeps its own
@@ -75,7 +75,7 @@ async def event_thread(session: AsyncSession, slug: str, event_id: uuid.UUID) ->
     A twin can also appear WITHOUT a merge — a scan creates the main row for
     that identity, or someone authors it on main — and reading only the twin
     from then on hid every thread the branch row already held, the note typed
-    at creation included (tripl-0zpq.122). So a branch row reads its own anchor
+    at creation included. So a branch row reads its own anchor
     as well as its twin's; it just never starts a new thread there once the
     twin exists.
 
@@ -116,7 +116,7 @@ async def _wait_out_a_merge_of_the_events_branch(
     A merge holds that row FOR UPDATE from its first read to its commit, and it
     moves the branch row's threads to main in between. Resolving the twin and
     the parent before the merge commits sees the pre-merge anchors, so a reply
-    landed on the branch row while its question moved to main (tripl-0zpq.290).
+    landed on the branch row while its question moved to main.
     Waiting here puts every read below after the merge: the twin exists, the
     question is on it, and the reply follows it there. Same lock as a plan
     write's (``_plan_branch_locks``), so a comment and a merge are ordered the
@@ -156,12 +156,11 @@ async def create_comment(
         # merge's and ``_merge_event_into_group``'s, each one UPDATE by anchor —
         # and so does every door that deletes a branch row: whole threads move
         # to its twin, or go with the row, not a parent on one row with its
-        # answers stranded on another (tripl-0zpq.289).
+        # answers stranded on another.
         #
         # Holds under concurrency with a merge too: the branch row was held
         # above before the parent was read, so a merge in flight has committed
-        # its move by now and the parent is read where the merge left it
-        # (tripl-0zpq.290).
+        # its move by now and the parent is read where the merge left it.
         anchor_id = parent.event_id
 
     comment = EventPhotoComment(
@@ -415,7 +414,7 @@ async def events_with_open_questions(
     # Main's anchors only. Another branch's own row can hold a thread on the
     # same key — two branches each drafting "checkout:new_tap" — and matching
     # through it listed this branch's row under "has open questions" beside a
-    # count of ?0, since that thread is no anchor of this row (tripl-0zpq.122).
+    # count of ?0, since that thread is no anchor of this row.
     keys = (
         await session.execute(
             select(EventType.name, _identity_column())
@@ -429,8 +428,7 @@ async def events_with_open_questions(
     # A copy matches through the main row it was made from and nothing else;
     # only a row without a live origin matches by key — the rule
     # ``main_counterparts`` reads the thread by. By key alone, a question on one
-    # of two namesakes listed the other one's copy too, beside a count of ?0
-    # (tripl-0zpq.292).
+    # of two namesakes listed the other one's copy too, beside a count of ?0.
     origin_row = aliased(Event)
     origin_is_live = (
         select(origin_row.id)
@@ -466,7 +464,7 @@ async def events_with_open_questions(
     # twin and keeps its own thread, and a thread started before the twin
     # existed stays on the branch row until the merge moves it. The key match
     # reaches the twin on main and the union the row's own anchor — the same
-    # two anchors ``open_question_counts`` adds up (tripl-0zpq.122). Anchors
+    # two anchors ``open_question_counts`` adds up. Anchors
     # on other branches ride along in the set but never match a row listed
     # here, which is scoped to this branch.
     return set(branch_ids) | {anchor for anchor in anchors if anchor is not None}
@@ -479,8 +477,7 @@ async def open_question_counts(
 
     Counted over the same anchors ``event_thread`` reads: the twin's and the
     row's own. Counting the twin alone showed ?0 on a branch row that
-    ``events_with_open_questions`` had just matched through its own anchor
-    (tripl-0zpq.122).
+    ``events_with_open_questions`` had just matched through its own anchor.
 
     Page-sized: the twin lookup and the count are one round of queries over the
     rows being rendered, the same budget ``attach_main_last_seen`` spends.

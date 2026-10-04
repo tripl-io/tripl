@@ -51,7 +51,7 @@ function triageQuery(scope: SignalTriageScope, withBucket: boolean): string {
  */
 export const eventMetricsApi = {
   // `branchId` scopes the tag / status / search filter to that branch's events;
-  // their metrics are read through each copy's main twin (tripl-vk1p).
+  // their metrics are read through each copy's main twin.
   getEventsMetrics: (slug: string, params?: EventsMetricsParams, branchId?: string | null) => {
     const sp = new URLSearchParams()
     if (params?.event_type_id) sp.set('event_type_id', params.event_type_id)

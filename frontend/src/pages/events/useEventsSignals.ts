@@ -46,10 +46,10 @@ export function useEventsSignals({ slug }: { slug: string | undefined }) {
 /**
  * Per-row monitoring signals, keyed by event id, for the rows on screen.
  *
- * Bucketed for the same reason the window-metrics query is (tripl-jfm3.51):
+ * Bucketed for the same reason the window-metrics query is:
  * keying on the whole accumulated id list minted a fresh cache entry on every
  * infinite-scroll append and re-sent every id already loaded, so page 12 posted
- * 2,400 ids to learn about the 200 that were new (tripl-jfm3.121).
+ * 2,400 ids to learn about the 200 that were new.
  * Index-aligned buckets keep each loaded bucket's key stable, so an append
  * fetches one bucket.
  *

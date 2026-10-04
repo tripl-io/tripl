@@ -8,7 +8,7 @@ import { isLandedBranch } from './branches/branchMeta'
  *
  * They used to cost one `/branches/{id}/diff` per feature branch — a
  * server-side plan comparison measured at 2-3.5 s on a real project — capped at
- * eight rows (tripl-jfm3.50). `GET /branches?include_diff_counts=true` returns
+ * eight rows. `GET /branches?include_diff_counts=true` returns
  * `ahead` / `behind_base` for every open branch off one shared main snapshot, so
  * the list now reads those and fires no diff at all (PLAN-3). Merged and closed
  * branches come back without counts, and get no badge: a landed branch is not
@@ -31,7 +31,7 @@ export interface RowCounts {
  * counted once (plan_branch_service pairs them before counting), so every row
  * can show the list's number. The selected branch's diff is on screen anyway, so
  * its row counts through the same paired view as the strip and the Changes
- * panel: the numbers a reviewer can compare are computed one way (tripl-amnn).
+ * panel: the numbers a reviewer can compare are computed one way.
  */
 export function rowBadgeCounts(
   items: PlanBranchListItem[],

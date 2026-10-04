@@ -79,7 +79,7 @@ describe('getScopeMonitoringPath', () => {
     ).toBeNull()
   })
 
-  it('never links a release regression to the event page, even though it has an event_id (tripl-oxkt.21)', () => {
+  it('never links a release regression to the event page, even though it has an event_id', () => {
     // The deny-set case. A release regression compares a release cohort against
     // the previous release; the event page charts all versions against the
     // seasonal baseline, so it cannot corroborate the alert even in principle —
@@ -88,7 +88,7 @@ describe('getScopeMonitoringPath', () => {
     // scope_ref IS its event id, so nothing cheaper than an explicit deny would
     // have caught it: before the fix this returned the event page twice over.
     // Navigation to that event lives in `getScopeNavigationTarget` below
-    // (tripl-wkwv.12) — deleting this deny-set entry restores nothing, it only
+    // — deleting this deny-set entry restores nothing, it only
     // puts the contradicting link back.
     expect(
       getScopeMonitoringPath('demo', {
@@ -151,7 +151,7 @@ describe('getScopeMonitoringPath', () => {
 })
 
 describe('getScopeNavigationTarget', () => {
-  it('opens the event a release regression was found on (tripl-wkwv.12)', () => {
+  it('opens the event a release regression was found on', () => {
     // 30 of 123 incidents on the live instance were exactly this shape and
     // rendered their event name as dead text. The deny-set still refuses this
     // page as SUBSTANTIATION for a release-cohort comparison; this answers the
@@ -171,7 +171,7 @@ describe('getScopeNavigationTarget', () => {
     // (worker/tasks/metrics/regression.py), and /monitoring/event-type/:id is a
     // real page for exactly that id — so "the row carries no event" is a reason
     // to withhold the EVENT route, not a reason to leave the name dead text.
-    // What tripl-oxkt.21 removed was /monitoring/event/{event_type_id}: the
+    // What was removed was /monitoring/event/{event_type_id}: the
     // wrong route for an id, not the absence of a destination.
     expect(
       getScopeNavigationTarget('demo', {

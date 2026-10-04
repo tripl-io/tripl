@@ -1,4 +1,4 @@
-"""Every server-emitted link names the organization (F20 PR8, tripl-oam4.7, tripl-0chm).
+"""Every server-emitted link names the organization (F20 PR8).
 
 Since F20 PR5 a project slug is unique only inside its organization, so a
 ``/p/{slug}/...`` link opens whichever project of that slug the READER's
@@ -245,7 +245,7 @@ def test_a_stored_legacy_href_is_org_qualified_on_read() -> None:
     assert _stored_fact({"id": 2, "kind": "scope", "text": "x", "href": None}, ACME).href is None
 
 
-# --- event photo file URL (tripl-0chm) ------------------------------------------------
+# --- event photo file URL ------------------------------------------------
 
 
 async def test_photo_file_url_names_the_org_of_the_request() -> None:

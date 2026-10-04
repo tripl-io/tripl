@@ -35,7 +35,7 @@ const BASE_MONITOR = {
   notify_on_drop: false,
   min_percent_delta: 50,
   min_expected_count: 100,
-  // 360 is the value from tripl-oxkt.18: the monitors side used to print it raw
+  // 360 is the value from the unit-agreement fix: the monitors side used to print it raw
   // as "360m" while the alerting side already said "6h" for the same rule.
   cooldown_minutes: 360,
   muted: false,
@@ -43,7 +43,7 @@ const BASE_MONITOR = {
   rule_enabled: true,
   destination_enabled: true,
   // Project-wide, the default every rule is created with. The scan-bound case
-  // is its own describe block (tripl-wkwv.9).
+  // is its own describe block.
   scan_config_id: null,
   scan_name: null,
   include_project_total: true,
@@ -56,7 +56,7 @@ const BASE_MONITOR = {
   last_delivery_at: '2026-06-26T10:01:00Z',
   last_delivery_status: 'sent',
   // Both drift scopes have source data, so the ordinary fixture renders plain
-  // chips. The inert case is its own describe block (tripl-wkwv.1).
+  // chips. The inert case is its own describe block.
   scope_readiness: { variable_value_drift: true, distribution_drift: true },
 }
 
@@ -167,7 +167,7 @@ const HOUR_MS = 3_600_000
  *
  * The guard this comment used to ask for now exists. It said "the only real
  * guard against the three surfaces drifting would be a shared name builder next
- * to `MUTE_PRESETS`"; tripl-yapg built it, and this page's component no longer
+ * to `MUTE_PRESETS`"; that builder now exists, and this page's component no longer
  * writes the sentence at all — it calls `muteChoiceName` and `unmuteName` from
  * `@/lib/mutePresets`, as `MonitorsSection` and `AlertingInbox` now do.
  *
@@ -183,7 +183,7 @@ const HOUR_MS = 3_600_000
  *
  * Named `expected…` rather than `mutePresetName` / `unmuteName` so nothing in
  * this file can be read as, or shadowed by, the production builders that now
- * export those exact names (tripl-yapg, tripl-in45, tripl-oxkt.7).
+ * export those exact names.
  *
  * What else stays literal in this file, and why, is called out where it is
  * asserted: the preset labels '1h' / '24h' / '7d' and the count 3. The shared
@@ -259,7 +259,7 @@ describe('MonitorDetailPage', () => {
   // The Condition panel described everything that narrows a rule except the
   // first thing that does. A reader told by the docs to go and check the bound
   // scan's own drift settings could not learn from this screen which scan that
-  // was — the only scan it ever named was a delivery's (tripl-wkwv.9).
+  // was — the only scan it ever named was a delivery's.
   it('names the scan a rule is narrowed to', async () => {
     mockApi({
       monitor: { ...BASE_MONITOR, scan_config_id: 'scan-7', scan_name: 'ios hourly' },
@@ -284,7 +284,7 @@ describe('MonitorDetailPage', () => {
     expect(screen.getByText('All scans')).toBeInTheDocument()
   })
 
-  // Pins the unit agreement from tripl-oxkt.18: this page and the alerting
+  // Pins the unit agreement fix: this page and the alerting
   // destinations card described one rule's cooldown two different ways ("360m"
   // vs "6h"). Asserting against `formatCooldown` itself — the helper the
   // alerting side already renders — means the two screens cannot drift apart
@@ -326,7 +326,7 @@ describe('MonitorDetailPage', () => {
 
     // The clock is pinned across the click only. This page used to own a
     // private `futureIso` beside a private copy of the preset list; the rewire
-    // onto the shared `muteUntilIso` (tripl-es0f) is only behaviour-preserving
+    // onto the shared `muteUntilIso` is only behaviour-preserving
     // if the instant is identical, so assert the instant rather than merely
     // "some time in the future" — which would also pass if the wrong number
     // were passed in, or the label, or an already-absolute timestamp.
@@ -335,8 +335,7 @@ describe('MonitorDetailPage', () => {
     const nowSpy = vi.spyOn(Date, 'now').mockReturnValue(clickedAt)
     // Queried by the name a screen reader hears, not by the "For 1h" on its
     // face: the item is reachable by either, and picking the accessible one
-    // means this test also breaks if the label ever stops naming its target
-    // (tripl-in45).
+    // means this test also breaks if the label ever stops naming its target.
     fireEvent.click(screen.getByRole('menuitem', { name: expectedMutePresetName(RULE, '1h') }))
     nowSpy.mockRestore()
 
@@ -352,7 +351,7 @@ describe('MonitorDetailPage', () => {
     expect(await screen.findByRole('button', { name: expectedUnmuteName(RULE) })).toBeInTheDocument()
   })
 
-  it('offers the shared presets, and only those (tripl-es0f, tripl-a50u)', async () => {
+  it('offers the shared presets, and only those', async () => {
     mockApi()
 
     renderDetail()
@@ -365,7 +364,7 @@ describe('MonitorDetailPage', () => {
     // literals stay literal on purpose: deriving them from `MUTE_PRESETS` would
     // make a rename in the shared module invisible here, which is the one thing
     // this test was written to catch. Only the surrounding sentence moved when
-    // the buttons started naming their target (tripl-in45).
+    // the buttons started naming their target.
     for (const label of ['1h', '24h', '7d']) {
       expect(
         screen.getByRole('menuitem', { name: expectedMutePresetName(RULE, label) }),
@@ -390,7 +389,7 @@ describe('MonitorDetailPage', () => {
     expect(screen.queryByRole('menuitem', { name: /until unmuted/i })).toBeNull()
     expect(screen.queryByRole('menuitem', { name: /Until I unmute/i })).toBeNull()
     // The same two negatives again, built from the shared module rather than
-    // frozen — and this pair matters MORE after tripl-yapg, for two reasons.
+    // frozen — and this pair matters MORE now that the shared builder exists, for two reasons.
     //
     // First, staleness. A frozen negative stops matching anything the day the
     // open-ended phrasing is reworded: it then passes forever while guarding
@@ -405,8 +404,7 @@ describe('MonitorDetailPage', () => {
     // would have rendered the visibly broken "Mute <rule> for Until I unmute".
     // It now calls the shared builder, which HAS the open-ended branch, so the
     // same leak would read as grammatical English and could ship unnoticed.
-    // This assertion is what replaces the broken grammar (tripl-a50u,
-    // tripl-yapg).
+    // This assertion is what replaces the broken grammar.
     expect(
       screen.queryByRole('menuitem', { name: muteChoiceName(RULE, INDEFINITE_MUTE) }),
     ).toBeNull()
@@ -422,13 +420,13 @@ describe('MonitorDetailPage', () => {
     expect(screen.getByText(/Muted until/)).toBeInTheDocument()
   })
 
-  // The gap tripl-in45 closed: every button in this control was named only by
+  // The gap this closed: every button in this control was named only by
   // its own face — "1h", "24h", "7d", "Unmute" — so the announcement said how
   // long, never whose alerts. The two assertions below are deliberately a pair:
   // the positive one pins the wording the other surfaces use, the negative one
   // pins that the bare duration is GONE as a button name, which is what makes
   // three of these controls on one page tellable apart.
-  it('names the monitor in every mute preset button, not just the duration (tripl-in45)', async () => {
+  it('names the monitor in every mute preset button, not just the duration', async () => {
     mockApi()
 
     renderDetail()
@@ -656,7 +654,7 @@ describe('MonitorDetailPage', () => {
 
     renderDetail()
 
-    // "Alert rule", not "Monitor": one name for one object (tripl-89ps, JR-28).
+    // "Alert rule", not "Monitor": one name for one object (JR-28).
     expect(await screen.findByText('Alert rule not found')).toBeInTheDocument()
     expect(screen.getByRole('link', { name: 'Back to alert rules' })).toHaveAttribute(
       'href',
@@ -689,7 +687,7 @@ describe('MonitorDetailPage', () => {
 })
 
 /**
- * A watched scope with nothing behind it (tripl-wkwv.1).
+ * A watched scope with nothing behind it.
  *
  * "Watching: Value drifts" is a promise, and in production it was one the
  * project could not keep — no variable documented an allowed-values list, so
@@ -699,7 +697,7 @@ describe('MonitorDetailPage', () => {
 describe('MonitorDetailPage inert scopes', () => {
   // Loose on purpose: the exact wording is pinned once, in InertScopeNotice's
   // own test. Repeating it here only bought a second file to edit whenever the
-  // qualifiers the backend enforces changed (tripl-wkwv.1).
+  // qualifiers the backend enforces changed.
   const VALUE_DRIFT_SENTENCE = /documents an allowed-values list/
 
   it('marks a watched scope the project cannot feed, and links to the fix', async () => {
@@ -756,7 +754,7 @@ describe('MonitorDetailPage inert scopes', () => {
     // Note the fixture: distribution_drift readiness is FALSE, so nothing in the
     // project feeds the scope — this notice cannot render in the case where only
     // the bound scan is empty, and it is not the answer to that question
-    // (tripl-wkwv.9 ships readiness as a PROJECT verdict; the bound scan is named
+    // (readiness ships as a PROJECT verdict; the bound scan is named
     // separately in the Condition panel). What this pins is narrower and real:
     // when the notice DOES render for a scan-bound rule, it sends the reader to
     // that scan's own settings rather than making them find it in the list.

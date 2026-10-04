@@ -33,7 +33,7 @@ describe('DemoProvisioningDialog', () => {
     expect(live).toHaveTextContent('Seeding events')
   })
 
-  it('lets the user abandon an in-flight create (tripl-2su6.15)', () => {
+  it('lets the user abandon an in-flight create', () => {
     // The dialog used to be un-dismissable while pending, so a stalled request
     // left a page reload as the only way out. It is abandonable now: both the
     // close (X) button and the footer Cancel abort the request.
@@ -111,7 +111,7 @@ describe('DemoProvisioningDialog', () => {
     expect(screen.getByRole('alert')).toHaveTextContent('rolled back')
   })
 
-  it('says so visibly on success and offers a positive action (tripl-jfm3.15)', () => {
+  it('says so visibly on success and offers a positive action', () => {
     // Regression: the success frame kept the "Generating demo workspace" title
     // and a greyed-out Cancel; the only "ready" sentence was sr-only.
     renderDialog({ status: 'success', phaseIndex: 4 })
@@ -123,12 +123,12 @@ describe('DemoProvisioningDialog', () => {
     expect(screen.queryByRole('button', { name: /^cancel$/i })).not.toBeInTheDocument()
   })
 
-  it('labels the phase list as an estimate while the request is open (tripl-jfm3.16)', () => {
+  it('labels the phase list as an estimate while the request is open', () => {
     renderDialog({ phaseIndex: 3 })
     expect(screen.getByText(/estimated steps/i)).toBeInTheDocument()
   })
 
-  it('confirms a cancel that actually stopped the create (tripl-jfm3.12)', () => {
+  it('confirms a cancel that actually stopped the create', () => {
     renderDialog({ status: 'cancelled', cancelOutcome: 'stopped' })
 
     expect(screen.getByText('Demo generation cancelled')).toBeInTheDocument()
@@ -137,7 +137,7 @@ describe('DemoProvisioningDialog', () => {
     expect(screen.queryByRole('alert')).not.toBeInTheDocument()
   })
 
-  it('admits when a cancel arrived too late instead of implying a rollback (tripl-jfm3.12)', () => {
+  it('admits when a cancel arrived too late instead of implying a rollback', () => {
     renderDialog({ status: 'cancelled', cancelOutcome: 'already-finished' })
 
     expect(screen.getByText('Too late to cancel')).toBeInTheDocument()

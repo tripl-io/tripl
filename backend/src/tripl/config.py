@@ -74,7 +74,7 @@ OrgSettingsOperatorFallback = Literal["all", "none"]
 # The distinction is not cosmetic: a client that speaks STARTTLS to an
 # implicit-TLS port waits for a plaintext greeting that never comes and blocks
 # until its timeout. That is what took password-reset delivery down on a
-# SendGrid relay configured for 465 (tripl-x1vk).
+# SendGrid relay configured for 465.
 SMTP_SECURITY_NONE = "none"
 SMTP_SECURITY_STARTTLS = "starttls"
 SMTP_SECURITY_IMPLICIT_TLS = "implicit_tls"
@@ -153,7 +153,7 @@ class Settings(BaseSettings):
     # roster, AND edit any shared project. A data source's connection details
     # (host, port, username) are owner-only; the password is never returned to
     # anybody. Note the write half: "can read X" alone understates it. It is the
-    # default for historical reasons (tripl-jfm3.80): it was once the only way to
+    # default for historical reasons: it was once the only way to
     # onboard anyone, since /api/v1/users had no create route, there was no
     # invite flow, and SMTP is optional — so "disabled" left real instances
     # unable to add anybody at all. That is no longer true. An owner can invite
@@ -198,7 +198,7 @@ class Settings(BaseSettings):
     gcs_photo_signed_url_ttl_seconds: int = 3600
     # Daily sweep of photo blobs no event_photos row references. A blob younger
     # than this is left alone, because an upload writes its blob before the row
-    # commits (tripl-0zpq.291). The age is the blob's write time, not its last
+    # commits. The age is the blob's write time, not its last
     # reference, so it does not cover a branch creation copying an OLD key in a
     # transaction the sweep cannot see while the last committed row holding that
     # key is deleted: that narrow window can still lose the blob.
@@ -224,7 +224,7 @@ class Settings(BaseSettings):
     search_embedding_model: str = "text-embedding-3-small"
     search_embedding_dimensions: int = 1536
     search_embedding_api_key: str = ""
-    # Where the OpenAI-COMPATIBLE embeddings endpoint lives (tripl-0tt4).
+    # Where the OpenAI-COMPATIBLE embeddings endpoint lives.
     #
     # The docs have told self-hosters since this feature shipped that they can
     # "keep all text inside your own infrastructure — point SEARCH_EMBEDDING_*
@@ -295,7 +295,7 @@ class Settings(BaseSettings):
     # so this only turns demo self-advancement on or off.
     demo_runtime_enabled: bool = True
 
-    # A public demo instance (tripl-sav5): strangers sign in and explore generated
+    # A public demo instance: strangers sign in and explore generated
     # demo projects. Only what such a visitor cannot be trusted with is switched
     # off — connecting a warehouse of their own (the synthetic one the demo
     # generator adds is all they get), delivering alerts to anything outside the
@@ -306,12 +306,12 @@ class Settings(BaseSettings):
 
     # Hosted only: an organization nobody has signed in to, or opened a project
     # of, for this many days is deleted by a daily sweep, through the same purge
-    # an owner's delete runs (tripl-sav5.5). 0 keeps every organization — the
+    # an owner's delete runs. 0 keeps every organization — the
     # default, since on a real instance an idle organization is still a
     # customer. A public demo sets it, or its database only ever grows.
     idle_org_retention_days: int = Field(default=0, ge=0)
 
-    # "Sign in with Google" on the sign-in page (tripl-sav5.2): an instance-wide
+    # "Sign in with Google" on the sign-in page: an instance-wide
     # OAuth client, unlike an organization's own SSO. Both set turns the button
     # on; the redirect URI to register at Google is
     # ``{APP_BASE_URL}/api/v1/auth/google/callback``. A first Google sign-in
@@ -340,8 +340,8 @@ class Settings(BaseSettings):
     # before it serves a byte. With it, an empty value means "unset" and falls
     # through to the default below, which is exactly what that compose comment
     # always claimed. Deleting the `${VAR:-}` lines instead would reintroduce
-    # tripl-2su6.16 / tripl-jfm3.101, where a documented switch silently did
-    # nothing (tripl-ey6j.3).
+    # an old bug, where a documented switch silently did
+    # nothing.
     model_config = {"env_file": ".env", "extra": "ignore", "env_ignore_empty": True}
 
     @field_validator("debug", mode="before")
@@ -462,7 +462,7 @@ class Settings(BaseSettings):
 
         Split out so a caller can ask "would THIS change break startup?" by
         diffing two settings objects, instead of inheriting every unrelated
-        complaint the ambient environment already carries (tripl-jfm3.93).
+        complaint the ambient environment already carries.
         """
         if self.debug:
             return []

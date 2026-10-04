@@ -12,7 +12,7 @@ Docker's response to a missing bind-mount SOURCE is to create a DIRECTORY at
 that path, after which RabbitMQ fails to start with an error that names neither
 tripl nor the mount.
 
-THE SAFETY RULES, in one place (tripl-ey6j.3):
+THE SAFETY RULES, in one place:
 
 1. ``.env`` is never overwritten. It is created, or appended to with the
    operator's confirmation, or left alone. ``--force`` does not reach it, and
@@ -288,8 +288,7 @@ def plan_settings(
     file is never overwritten (rule 1 in the module docstring) and so it — not
     the command line — decides what the stack runs with. Reporting the flag
     value on a re-run told an operator changing ``--app-url`` that it had worked
-    when the only thing that changed was the sentence they were reading
-    (tripl-jfm3).
+    when the only thing that changed was the sentence they were reading.
 
     ``explicit`` names the settings a FLAG asked for, so a default nobody typed
     is never reported back as a request that was refused.

@@ -90,7 +90,7 @@ function EventTicketsCard({ slug, event }: { slug: string; event: TEvent }) {
   // an empty card would be noise on every one of them — the same rule the
   // branch panel states for itself. No merged-status gate here: an event has
   // no branch status to gate on, and these tickets come from branches that
-  // already merged (tripl-h2sx.32).
+  // already merged.
   if (!tickets || tickets.length === 0) return null
   return (
     <div className={SURFACE_CARD} style={SURFACE_STYLE}>
@@ -171,13 +171,13 @@ export function EventSideColumn({
             // Shown only when the two have parted. The scan matches on
             // source_name, so once a rename moves the display name away from it
             // this row is the only place that says which event the warehouse is
-            // still feeding (tripl-u2h9.10). When they agree the name IS the
+            // still feeding. When they agree the name IS the
             // identity and a second row saying so would be noise.
             <PropertyRow label="Scan identity" value={event.source_name} mono />
           )}
           <PropertyRow label="Owner" value={ownerLabel} />
           {/* Authored and seen are two dates: an event planned before it
-              shipped was "first seen" on a day nothing was (tripl-kjhi.10).
+              shipped was "first seen" on a day nothing was.
               First seen is set once, by the scan that first saw volume (#258). */}
           <PropertyRow label="Created" value={formatTimestamp(event.created_at)} />
           <PropertyRow label="First seen in data" value={event.first_seen_at ? formatTimestamp(event.first_seen_at) : '—'} />
@@ -187,8 +187,8 @@ export function EventSideColumn({
           {/* What to send instead. Shown whenever the pointer is set, not only
               on a deprecated event: an analyst can name the successor while the
               old event is still live, and hiding the row until the status flips
-              would lose the one answer the retirement notice owes its reader
-              (tripl-h2sx.13). Falls back to the raw id if the successor cannot
+              would lose the one answer the retirement notice owes its reader.
+              Falls back to the raw id if the successor cannot
               be loaded — a link to a name we do not have is worse than the id. */}
           {successorId && (
             <PropertyRow

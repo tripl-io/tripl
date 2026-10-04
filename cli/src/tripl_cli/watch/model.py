@@ -45,7 +45,7 @@ MAX_INTERVAL_SECONDS = 3600.0
 # How many jobs one poll asks for. Deliberately NOT doctor's JOBS_WINDOW=200:
 # doctor asks "how long has this been broken" and needs history, watch asks "what
 # appeared since the last poll" and needs recency. 20x the payload on a loop that
-# repeats every 10 seconds is tripl-jfm3.107 rebuilt - production configs hold
+# repeats every 10 seconds is an earlier bug rebuilt - production configs hold
 # 1,366-1,551 jobs each and an uncapped fan-out pulled ~4,400 rows per tick.
 WATCH_JOBS_LIMIT = 10
 

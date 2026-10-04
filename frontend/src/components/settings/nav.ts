@@ -257,7 +257,7 @@ export const WORKSPACE_GROUPS: SettingsNavGroup[] = [
         ownerOnly: true,
       },
       // Not a settings form: the organization's audit feed. Its path predates
-      // the Platform group (tripl-wkwv.17); the actions it exists for — data
+      // the Platform group; the actions it exists for — data
       // sources, member roles, API keys, and a project's own DELETION — belong
       // to the organization, not to any one project.
       {
@@ -417,7 +417,7 @@ export function firstSectionPath(ctx: SettingsContext): string {
  *
  * Exists so the navigation blocker can ask about a DESTINATION the same question
  * the rail asks about a link — one parser, so a Back press and a click cannot
- * disagree about where they are going (tripl-l33u.14).
+ * disagree about where they are going.
  */
 export function sectionPathForUrl(pathname: string): string | null {
   const prefix = '/settings/'

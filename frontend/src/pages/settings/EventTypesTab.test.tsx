@@ -139,8 +139,7 @@ describe('EventTypesTab list', () => {
     // A project has exactly one event type for as long as onboarding takes, so
     // "All types / 1 types" greeted every new project. The suite already
     // rendered this one-item list above without asserting the subtitle, which is
-    // how it survived. `countOf` from @/lib/plural, same as the Scans list
-    // (tripl-3y7z).
+    // how it survived. `countOf` from @/lib/plural, same as the Scans list.
     renderWithRoutes('/p/demo/event-types', async (input) => {
       const url = String(input)
       if (url.endsWith('/api/v1/projects/demo/event-types')) return mockJsonResponse([CHECKOUT])
@@ -257,10 +256,10 @@ describe('FieldsEditor fields table', () => {
   it('shows the backend 409 when a scan names events by the field being deleted', async () => {
     // services/field_service._reject_if_a_scan_names_events_by refuses this
     // deletion; without an alert the row simply stays and nothing explains why,
-    // which is how the guard would be invisible from the plan UI (tripl-3mmh).
+    // which is how the guard would be invisible from the plan UI.
     // Wording copied from scan_config_lookup.name_format_conflict_detail, whole
     // rather than abbreviated: *scan*, not "scan config", and both plurals
-    // spelled out (tripl-24i0). The backend owns that rule and
+    // spelled out. The backend owns that rule and
     // test_name_format_conflict_vocabulary enforces it, so this fixture is a
     // sample of what arrives rather than a second definition of it — which only
     // holds if it is the actual sentence.
@@ -293,7 +292,7 @@ describe('FieldsEditor fields table', () => {
     fireEvent.click(at(screen.getAllByRole('button', { name: /^Delete field / }), 0))
     fireEvent.click(await screen.findByRole('button', { name: 'Delete' }))
 
-    // The WHOLE detail, not a fragment of it: tripl-24i0 chose to render the
+    // The WHOLE detail, not a fragment of it: the design chose to render the
     // shared 409 untouched rather than have this tab rewrite the backend's
     // wording into the web UI's nouns. A partial match would still pass if
     // someone added that rewriter and it silently stopped matching.
@@ -422,8 +421,7 @@ describe('EventTypeDetail tabbed page', () => {
     expect(screen.queryByRole('button', { name: 'Edit field' })).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Delete field' })).not.toBeInTheDocument()
     expect(screen.queryByText('Danger zone')).not.toBeInTheDocument()
-    // The General card reads as a definition, not as disabled controls
-    // (tripl-i9mt.12).
+    // The General card reads as a definition, not as disabled controls.
     expect(screen.queryByDisplayValue('Revenue-critical.')).not.toBeInTheDocument()
     expect(screen.getByText('Type name').tagName).toBe('DT')
     expect(screen.getByText('Display name').tagName).toBe('DT')
@@ -475,7 +473,7 @@ describe('EventTypeDetail tabbed page', () => {
   })
 })
 
-describe('EventTypesTab in branch context (tripl-kjhi.11)', () => {
+describe('EventTypesTab in branch context', () => {
   it('does not ask for owners, which live on main under main ids', async () => {
     const fetchImpl = vi.fn(async (input: RequestInfo | URL) => {
       const url = String(input)
@@ -781,7 +779,7 @@ describe('EventTypeDetail settings (PLAN-42 / PLAN-43 / PLAN-45)', () => {
     expect(calls).toHaveLength(1)
   })
 
-  it('offers only project members and instance owners as new owners (tripl-vefw)', async () => {
+  it('offers only project members and instance owners as new owners', async () => {
     renderWithRoutes('/p/demo/event-types/type-1?tab=settings', async (input) => {
       const url = String(input)
       if (url.endsWith('/api/v1/projects/demo/event-types')) return mockJsonResponse([CHECKOUT])

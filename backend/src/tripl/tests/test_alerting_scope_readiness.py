@@ -1,4 +1,4 @@
-"""An enabled drift scope that nothing can feed says so (tripl-wkwv.1).
+"""An enabled drift scope that nothing can feed says so.
 
 Production shape this pins: every acme-ios scan config carried
 ``distribution_drift_fields=[]`` and 0 of 1793 variables documented
@@ -311,7 +311,7 @@ async def test_scope_readiness_ignores_documentation_on_a_working_branch(
 async def test_scope_readiness_true_when_open_value_drifts_exist_without_documented_values(
     client: AsyncClient,
 ) -> None:
-    """Collected rows keep THIS scope live too — the symmetric case (tripl-wkwv.1).
+    """Collected rows keep THIS scope live too — the symmetric case.
 
     Emptying a variable's ``allowed_values`` (the obvious way to quiet the noise)
     stops new detections but closes no existing row, and the candidate builder
@@ -434,7 +434,7 @@ def test_the_readiness_probe_and_the_drift_service_agree_on_active_and_stale() -
     search_service → project_service, and ``alerting_service`` imports
     ``_alerting_monitors``, which imports the readiness module — so the values
     are duplicated deliberately. Let them drift and the notice starts lying
-    again, silently, in the direction this fix came from (tripl-wkwv.1).
+    again, silently, in the direction this fix came from.
     """
     assert _DRIFT_RETENTION_DAYS == DRIFT_RETENTION_DAYS
     assert set(_ACTIVE_DRIFT_STATUSES) == ACTIVE_DRIFT_STATUSES
@@ -470,8 +470,8 @@ async def test_scope_readiness_true_when_distribution_rows_exist_without_configu
     "Collected rows" means SIGNIFICANT ones, which is what ``_drift_row`` seeds
     and what the readiness query selects: ``metric_rows`` bands every scored PSI
     and persists the stable and minor buckets too, so a project that has only
-    ever scored stable has collected plenty and can still never fire
-    (tripl-0zpq.166). The band's own arm is pinned in test_batch4_readiness.py,
+    ever scored stable has collected plenty and can still never fire.
+    The band's own arm is pinned in test_batch4_readiness.py,
     which parametrises the band; this test deliberately stays the one-shape case.
     """
     # Arrange

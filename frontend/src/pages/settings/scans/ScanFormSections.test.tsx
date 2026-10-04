@@ -359,7 +359,7 @@ describe('ScanFormSections — the mode choice', () => {
 
     // Asserted on the CONTROL, not on the accessible name. This line used to read
     // `queryByLabelText('Lookback (hours)')` and passed only because the caption was
-    // a dangling <label> naming nothing — the defect tripl-6h2b fixed. Once the row
+    // a dangling <label> naming nothing — a defect since fixed. Once the row
     // names itself as a group, ByLabelText matches that group and the old proxy
     // reports the input as present. What the test means is that the number input is
     // replaced by a sentence, so that is what it now says.
@@ -554,7 +554,7 @@ describe('ScanFormSections — field labelling', () => {
   // This form's Field takes an explicit `id` and every call site repeats it on
   // the control it renders — a shadcn Input or a raw <select>, none of which
   // adopt anything on their own. Nothing checks the two still agree, so a
-  // renamed control id leaves the label naming nothing (tripl-5gdg).
+  // renamed control id leaves the label naming nothing.
   //
   // Only labels that carry a `for` are checked: the rows holding the SQL editor
   // and the Load preview button hold nothing a <label> can point at, so they opt
@@ -581,10 +581,10 @@ describe('ScanFormSections — field labelling', () => {
   // CodeMirror contenteditable that names itself with ariaLabel, Preview is a
   // button with no control beside it, and Lookback drops its input entirely
   // when no time column bounds the run. `id={false}` exposes the caption as a
-  // group name instead (tripl-otlv), the same hatch components/settings/kit.tsx
+  // group name instead, the same hatch components/settings/kit.tsx
   // already had. Lookback is asserted here rather than in a test of its own
-  // because tripl-otlv fixing the first two BY NAME is exactly what let the
-  // third one ship (tripl-6h2b): every row that opts out of a label belongs in
+  // because fixing the first two BY NAME is exactly what let the
+  // third one ship: every row that opts out of a label belongs in
   // this one list.
   it('names the rows that hold no labelable control as groups, not dangling labels', async () => {
     setupFetch()

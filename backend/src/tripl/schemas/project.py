@@ -104,7 +104,7 @@ class ProjectCreate(BaseModel):
 # ``schemas/not_null_update``. ``timezone`` and ``app_version_keep_releases``
 # are absent because they refuse a null a second way, through the
 # ``Field(cast(T, None))`` spelling below; every other field here reaches
-# ``update_project``'s generic ``setattr`` loop unfiltered (tripl-0zpq.267).
+# ``update_project``'s generic ``setattr`` loop unfiltered.
 _PROJECT_NOT_NULL_UPDATE_FIELDS = frozenset({"name", "slug", "description"})
 
 
@@ -277,7 +277,7 @@ class ProjectSummary(BaseModel):
     # ENABLED alert rules across this project's destinations. A destination on
     # its own routes nothing — a rule is what binds a signal to a channel — so
     # "is alerting actually wired up?" needs both counters, not just the
-    # destination one (tripl-jfm3.81). Disabled rules are excluded because they
+    # destination one. Disabled rules are excluded because they
     # deliver nothing either.
     alert_rule_count: int = 0
     monitoring_signal_count: int = 0
@@ -289,7 +289,7 @@ class ProjectSummary(BaseModel):
     firing_monitor_count: int = 0
     # Incidents in the Alerting Inbox whose effective status is `open`. The
     # sidebar used to badge Alerting with ``alert_destination_count``, so it read
-    # "Alerting 1" while 52 incidents sat open (tripl-oxkt.16). A badge that
+    # "Alerting 1" while 52 incidents sat open. A badge that
     # disagrees with the page it labels is worse than no badge — this one is
     # computed by ``_populate_open_incident_counts``, which shares the inbox's
     # own window and status rules rather than approximating them.
@@ -339,7 +339,7 @@ class ProjectResponse(BaseModel):
     # a demo seeded at 10:59 carries 10:00. Use demo_last_tick_at for that.
     demo_seeded_at: datetime | None = None
     # When the runtime tick last advanced this demo's data. NULL until the first
-    # tick. This is the only honest freshness signal the UI has (tripl-2su6.17).
+    # tick. This is the only honest freshness signal the UI has.
     demo_last_tick_at: datetime | None = None
     created_by_user_id: uuid.UUID | None = None
     # Whether THIS caller may write inside the project: the answer the editor

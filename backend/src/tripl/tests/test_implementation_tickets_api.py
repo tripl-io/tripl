@@ -1,4 +1,4 @@
-"""Read surface for the merge-created tracker tickets (tripl-2ayb).
+"""Read surface for the merge-created tracker tickets.
 
 The worker-side behaviour (create-on-merge, poll sync) lives in
 ``test_implementation_tickets.py``; this file covers only
@@ -136,7 +136,7 @@ async def test_list_requires_authentication(client: AsyncClient) -> None:
     assert resp.status_code == 401
 
 
-# --- the same rows, read per EVENT (tripl-h2sx.32) ---------------------------
+# --- the same rows, read per EVENT ---------------------------
 #
 # One ticket per BRANCH and `event_ids` naming what that branch touched means an
 # event carried by three merged branches was already named by three rows. Only

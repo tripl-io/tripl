@@ -1,5 +1,5 @@
 /**
- * Persistent demo banner (tripl-2su6.9).
+ * Persistent demo banner.
  *
  * Shown across every surface of a demo project (mounted in the app Layout). It
  * makes the workspace's synthetic/local nature unmistakable, shows the recipe
@@ -8,7 +8,7 @@
  * only to the demo's creator or a workspace owner. On delete it returns to the
  * Projects list.
  *
- * It also owns the one way back into the guided onboarding (tripl-imco): being
+ * It also owns the one way back into the guided onboarding: being
  * mounted on every demo surface, its "Tour & chapters" opens the tour, and the
  * tour offers the dismissed welcome panel back (DEMO-26). For the same reason
  * it hosts the tour's docked card, which follows the reader from surface to
@@ -76,7 +76,7 @@ const RESEED_WATCH_MS = 3 * 60_000
  * Reset is a single blocking ~10 s POST that re-seeds the whole recipe in one
  * transaction (deliberately, for atomicity). A button that just says "Resetting…"
  * for ten seconds reads as a hang, so the wait gets the same estimated-phase
- * narration the create dialog uses (tripl-jfm3.75). It is not dismissable while
+ * narration the create dialog uses. It is not dismissable while
  * the request runs: unlike a create there is nothing to abandon — the demo is
  * already mid-replacement.
  */
@@ -182,7 +182,7 @@ export function DemoBanner({
   const canManage = canManageProject(user, project)
 
   // A re-seed rewrites every entity with a NEW id, so anything still holding
-  // an old one now points at a deleted row (tripl-2su6.14):
+  // an old one now points at a deleted row:
   //   - the branch id persisted in localStorage would make every
   //     branch-aware query fail with "Branch not found", so drop it;
   //   - the banner is mounted on every surface, so a reset can be triggered
@@ -205,7 +205,7 @@ export function DemoBanner({
     void queryClient.invalidateQueries({ queryKey: projectKey(project.slug) })
   }
 
-  // The guidance is data too (tripl-imco): a re-seeded demo that came back
+  // The guidance is data too: a re-seeded demo that came back
   // with every chapter still marked completed and the welcome panel still
   // dismissed was a fresh dataset with no way left into the coaching. Only
   // once a re-seed is KNOWN to have happened: the scenario's artifact ids
@@ -358,7 +358,7 @@ export function DemoBanner({
   // grid to it — so using it as a freshness stamp made a demo created at 10:59
   // read "refreshed 59m ago" the instant it appeared, and runtime ticks never
   // moved it. demo_last_tick_at is when the data was actually last advanced;
-  // until the first tick there is nothing to claim, so say so (tripl-2su6.17).
+  // until the first tick there is nothing to claim, so say so.
   const freshnessLabel = project.demo_last_tick_at
     ? `updated ${formatRelativeTime(project.demo_last_tick_at)}`
     : 'freshly seeded'
@@ -455,7 +455,7 @@ export function DemoBanner({
               />
             </button>
 
-            {/* The way back into the guided onboarding (tripl-imco). It opens the
+            {/* The way back into the guided onboarding. It opens the
                 tour and nothing else (DEMO-26): it used to restore the dismissed
                 welcome panel on every click, so a user who had put the panel
                 away on purpose got it back each time they wanted the tour. The

@@ -99,7 +99,7 @@ function renderSection(settings: ServiceSettings, setField = vi.fn()) {
 }
 
 describe('Instance Security & access — registration', () => {
-  it('exposes registration_mode as an owner control (tripl-jfm3.79)', () => {
+  it('exposes registration_mode as an owner control', () => {
     renderSection(settingsFixture())
 
     const select = screen.getByLabelText('Self-service registration') as HTMLSelectElement
@@ -118,7 +118,7 @@ describe('Instance Security & access — registration', () => {
     // capability too — "can read X" alone reads as harmless.
     expect(hint).toHaveTextContent(/edit any shared project/i)
     // ...and must NOT keep claiming connection metadata is exposed: this branch
-    // made host/port/username owner-only (tripl-jfm3.19), so the old wording
+    // made host/port/username owner-only, so the old wording
     // now overstates the blast radius.
     expect(hint).not.toHaveTextContent(/connection metadata/i)
     expect(hint).toHaveTextContent(/owner-only/i)
@@ -126,7 +126,7 @@ describe('Instance Security & access — registration', () => {
 
   it('points a closed instance at invitations rather than at reopening the door', () => {
     // This used to assert the hint said there was NO way to add anyone while
-    // disabled. That premise died with tripl-jfm3.82 — an owner can now invite
+    // disabled. That premise died: an owner can now invite
     // directly — so the hint must send them there instead of telling them to
     // reopen registration, which is the advice that made instances stay open.
     renderSection(settingsFixture({ registration_mode: 'disabled' }))
@@ -166,7 +166,7 @@ describe('Instance Security & access — registration copy fits its controls', (
     // A native <select> with `appearance-none` hard-clips its own value: the old
     // label, "Open — anyone who can reach this instance can sign up", rendered
     // as "Open — anyone who can reach this insta" sliced against the chevron,
-    // with no ellipsis and ~380px of the row empty beside it (tripl-p1c6). The
+    // with no ellipsis and ~380px of the row empty beside it. The
     // one setting deciding who may create an account here was the one value on
     // the page you could not read. ~40 characters is what fits at 12.5px inside
     // the kit's 280px Select once its 30px chevron padding is taken out.
@@ -183,7 +183,7 @@ describe('Instance Security & access — registration copy fits its controls', (
     // applyNote('security') already names the exception two lines above this
     // card. The description used to repeat it in a second vocabulary — "no
     // redeploy" against the note's "no restart" — so one caveat was stated
-    // twice within 200px in two different words (tripl-p1c6).
+    // twice within 200px in two different words.
     expect(
       screen.getByText('Who is allowed to create an account on this instance.'),
     ).toBeInTheDocument()
@@ -193,7 +193,7 @@ describe('Instance Security & access — registration copy fits its controls', (
 
 describe('Instance Security & access — field labelling', () => {
   it('associates every visible field label with its control', () => {
-    // The whole-section guard for tripl-5gdg: Field generated an id for its
+    // The whole-section guard for field labelling: Field generated an id for its
     // <label htmlFor> but never applied it to the control, so 6 of 13 inputs on
     // this page were announced with no name. Only the registration Select
     // passed an explicit htmlFor, which is why this page scored best.

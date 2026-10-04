@@ -158,7 +158,7 @@ class GenerationResult:
     # still needs them by name to tell "put away" apart from "never planned":
     # without this an archived identity misses ``events_by_name``, is filed as a
     # shadow candidate, and its volume lands in the coverage denominator but not
-    # the numerator — so archiving a busy event tanks coverage (tripl-w3ms).
+    # the numerator — so archiving a busy event tanks coverage.
     archived_identities: set[str] = field(default_factory=set)
     snapshot: dict[str, Any] | None = None
 
@@ -175,7 +175,7 @@ def lock_project_catalog(session: Session, project_id: uuid.UUID) -> None:
     beat tick. Each deletes stale ``variable_values`` rows it read earlier and
     inserts fresh ones, so without a lock the second writer's INSERT meets the
     first one's committed row on ``uq_variable_value_context`` and its whole
-    collection fails (tripl-0zpq.83). The lock is taken before the variable index
+    collection fails. The lock is taken before the variable index
     is read, so the second writer plans against what the first committed.
     ``ensure_event_type_with_fields`` takes it too, because it inserts shared
     event types and field definitions before this function runs: a writer that
@@ -297,8 +297,7 @@ def generate_events(
     # order still decides is which of several rows with NO identity and one
     # shared name gets to adopt it. The order and the adoption rule live in
     # ``_event_identity``, shared with the group-rule pass, which used to adopt
-    # every NULL row and could write the very collision the constraint forbids
-    # (tripl-8tdl).
+    # every NULL row and could write the very collision the constraint forbids.
     existing_events_list = (
         session.execute(existing_events_query.order_by(*scan_identity_winner_order()))
         .scalars()
@@ -313,7 +312,7 @@ def generate_events(
     # Keyed on ``event.id``, but nothing is written until the insert far below —
     # so a context recorded here has no row for ``_move_variable_contexts`` to
     # re-point if the merge pass deletes the event, which is why that pass has to
-    # be handed the map (tripl-gsum). The event rows themselves ARE flushed by
+    # be handed the map. The event rows themselves ARE flushed by
     # then; it is the contexts that are not.
     variable_contexts: PendingVariableContexts = {}
     # ``(event_id, field_definition_id)`` pairs whose stored value this run
@@ -403,7 +402,7 @@ def generate_events(
             # a scan must not rewrite its field values or re-observe its
             # variable contexts just because the identity still arrives.
             # Counted as skipped like any other already-known identity, so
-            # the run summary keeps reconciling against the plan (tripl-rsei).
+            # the run summary keeps reconciling against the plan.
             result.events_skipped += 1
             continue
         # Update field values on existing event
@@ -457,7 +456,7 @@ def generate_events(
         # the specific rules just produced. Handing the map over lets the pass
         # carry those entries onto the surviving event; without it they were
         # inserted below against a deleted id and the flush killed the job on
-        # ``variable_values_event_id_fkey`` (tripl-gsum).
+        # ``variable_values_event_id_fkey``.
         pending_variable_contexts=variable_contexts,
     )
     prior_context_values = _preserve_existing_variable_context_values(
@@ -513,7 +512,7 @@ def generate_events(
     # events up by the same row-derived name, so renamed events still match here.
     # Exclude archived events so we don't collect metrics/send alerts for them, but hand
     # their identities over separately — dropping them entirely is what made the collector
-    # mistake an archived event for an unplanned one (tripl-w3ms).
+    # mistake an archived event for an unplanned one.
     result.events_by_name = {
         k: v for k, v in existing_by_identity.items() if v.status != EventStatus.archived
     }

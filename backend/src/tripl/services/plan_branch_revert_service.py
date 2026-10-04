@@ -11,7 +11,7 @@ One "deletion" is not one: a rename shows up as a removal of the old name plus
 an addition of the new one, because the diff keys entities by name. Where the
 base row carried a scan identity, reverting that removal moves the name back
 onto the row that is still there rather than inserting a second copy of it —
-see ``_row_renamed_from`` (tripl-hjxy). A second copy is what
+see ``_row_renamed_from``. A second copy is what
 ``uq_variable_project_source_name`` and ``uq_event_scan_identity`` refuse
 outright; the rename is what keeps the surviving row's history.
 
@@ -167,7 +167,7 @@ async def _load_branch(session: AsyncSession, project: Project, branch_id: uuid.
     # Held FOR SHARE to the revert's commit, not read plainly: a revert is a
     # plan write on the branch like any other, so one that arrives during a
     # merge of it waits and then sees ``merged`` below, and a merge that
-    # arrives during it waits for it before snapshotting (tripl-0zpq.288).
+    # arrives during it waits for it before snapshotting.
     branch = await hold_branch_for_plan_write(session, branch_id)
     if branch is None or branch.project_id != project.id:
         raise HTTPException(status_code=404, detail="Branch not found")
@@ -198,7 +198,7 @@ async def _base_payload(session: AsyncSession, branch: PlanBranch) -> dict[str, 
     a model card'``. The revert has to put back the same ``''``. Reading the raw
     payload put back ``None`` instead: a NOT NULL violation on ``events.title``
     that the handler in ``revert_change`` reported as a name clash, on every
-    try (tripl-0zpq.147).
+    try.
     """
     revision = (
         await session.get(PlanRevision, branch.base_revision_id)
@@ -221,8 +221,8 @@ def _find_entry(diff: PlanBranchDiff, data: BranchRevertRequest) -> PlanDiffEntr
 
     By its ``entity_id`` as well when the request carries one: two namesakes
     can each have an entry under the same name — one deleted, the other edited
-    — and the name alone would pick whichever the diff listed first
-    (tripl-0zpq.292). Without an id, a name several entries share is refused
+    — and the name alone would pick whichever the diff listed first.
+    Without an id, a name several entries share is refused
     rather than guessed.
     """
     matches = [
@@ -261,9 +261,9 @@ def _base_item(
     list first: the fields of a row the reviewer never looked at, written onto
     the survivor, or a rebuild of the wrong one of two deleted rows.
 
-    A branch copy now records the base row it came from (``origin_id``,
-    tripl-0zpq.292), so ``base_id`` — that origin, or the id a ``removed``
-    entry carries — names the one row directly. Without it, base rows another
+    A branch copy now records the base row it came from (``origin_id``), so
+    ``base_id`` — that origin, or the id a ``removed`` entry carries —
+    names the one row directly. Without it, base rows another
     branch copy already stands for (``claimed``) are left out, the way the
     diff's own pairing leaves them out. Several left over are refused, the
     way ``_one`` refuses several branch rows: restoring from an arbitrary
@@ -364,7 +364,7 @@ async def _find_entity(
     """The branch-side row the change lives on.
 
     By the entry's ``entity_id`` when the request carries one, for the two
-    entity types whose name may be shared (tripl-0zpq.292).
+    entity types whose name may be shared.
     """
     if data.entity_id is not None and data.entity_type in ("event", "relation"):
         return await _entity_by_id(session, project_id, branch_id, data)
@@ -511,8 +511,7 @@ async def _origins_on_branch(
 
     Only events and relations share names; for them these are the ``origin_id``
     of every branch row the diff pairs to a base row by id, which a revert
-    looking for the base side of an entry by NAME has to leave out
-    (tripl-0zpq.292).
+    looking for the base side of an entry by NAME has to leave out.
     """
     if data.entity_type == "event":
         rows = (
@@ -708,7 +707,7 @@ async def _restore_variable_overrides(
     base_overrides = base_item.get("event_value_overrides") or []
 
     # Overrides point at their event by name, and event names are not unique.
-    # Both sides are asked (tripl-0zpq.292). In the BASE, several events under
+    # Both sides are asked. In the BASE, several events under
     # the name means nothing says which of them held the override — the
     # snapshot records it by name only. On the BRANCH, the copy of the base's
     # one event is found by its origin id, and only a name the ids leave
@@ -847,9 +846,9 @@ async def _row_renamed_from(
     for an Event, which at the time had only an index on ``(project,
     event_type, source_name)``, nothing stopped it and the branch was quietly
     left with two rows claiming one scan identity — which the next scan matched
-    arbitrarily and which ``pair_renames`` then refused to pair for ever after
-    (tripl-hjxy). ``uq_event_scan_identity`` now refuses the event copy too
-    (tripl-8tdl), and ``revert_change`` turns that into a 409 — so the worst
+    arbitrarily and which ``pair_renames`` then refused to pair for ever after.
+    ``uq_event_scan_identity`` now refuses the event copy too,
+    and ``revert_change`` turns that into a 409 — so the worst
     case is a refused revert, not a corrupted branch; the rename below is still
     the right answer because it keeps the row.
 
@@ -875,8 +874,8 @@ async def _row_renamed_from(
     """
     if data.entity_type == "event" and base_item.get("id") is not None:
         # The copy of this very base row, still on the branch under another
-        # name: its origin id says so outright, scan identity or not
-        # (tripl-0zpq.292). Only a copy that lost its origin — or a base row
+        # name: its origin id says so outright, scan identity or not.
+        # Only a copy that lost its origin — or a base row
         # without one — goes on to the identity match below.
         try:
             base_row_id = uuid.UUID(str(base_item["id"]))
@@ -921,11 +920,11 @@ async def _row_renamed_from(
     # deleted while the other stayed put, so the plain rebuild restores exactly
     # what went missing. Neither arm can fire from live rows today —
     # ``uq_variable_project_source_name`` makes a variable's identity singular
-    # per branch and ``uq_event_scan_identity`` an event's singular per type
-    # (tripl-8tdl), and the base IS one branch's snapshot — and both are written
+    # per branch and ``uq_event_scan_identity`` an event's singular per type,
+    # and the base IS one branch's snapshot — and both are written
     # anyway, because this reads a stored payload, a snapshot from before the
     # event constraint existed can still name one identity twice, and a payload
-    # is data, not a constraint (tripl-hjxy).
+    # is data, not a constraint.
     if _base_identity_count(base_payload, data, source_name) > 1:
         return None
 
@@ -985,8 +984,8 @@ async def _recreate_entity(
     Reached once ``_row_renamed_from`` has declined to call the removal a
     rename, and it declines in two different shapes. Either it LOOKED and found
     no branch row still carrying the base row's scan identity, in which case the
-    insert below is a genuine rebuild rather than a duplicate of a renamed row
-    (tripl-hjxy); or the base row carried no ``source_name`` to look for, in
+    insert below is a genuine rebuild rather than a duplicate of a renamed row;
+    or the base row carried no ``source_name`` to look for, in
     which case nothing was ruled out and a rename of such a row does arrive here
     and revert as a delete plus an insert. The second shape is the common one:
     ``source_name`` is NULL for every API-created variable and for every event
@@ -1077,7 +1076,7 @@ async def _recreate_entity(
             required_presence_threshold=base_item.get("required_presence_threshold"),
             # Linked back to the main row it stands for, so the diff and the
             # merge pair the rebuilt row with that row again rather than with
-            # whichever namesake the key finds (tripl-0zpq.292).
+            # whichever namesake the key finds.
             origin_id=_origin_of(base_item),
         )
         session.add(event)
@@ -1127,7 +1126,7 @@ async def _recreate_entity(
             field_type=_required(base_item, "field_type"),
             is_required=base_item.get("is_required", False),
             # An older snapshot predates the key. ``_base_payload`` fills it
-            # in through with_snapshot_defaults (tripl-0zpq.147); the
+            # in through with_snapshot_defaults; the
             # fallback only restates the column default.
             allow_multiple=base_item.get("allow_multiple", False),
             enum_options=list(base_item["enum_options"]) if base_item.get("enum_options") else None,
@@ -1211,7 +1210,7 @@ async def _restore_field(
         # by (event_type_name, name), so an event under another type is a
         # removal plus an addition and never a changed field. Nothing moves an
         # event between types either. The arm that used to sit here could not
-        # be reached (tripl-0zpq.155).
+        # be reached.
         if field == "sunset_at":
             raw = base_item.get("sunset_at")
             entity.sunset_at = datetime.fromisoformat(raw) if raw else None
@@ -1277,7 +1276,7 @@ async def _apply_revert(
         )
         # A removal that is really the old half of a rename puts the name back on
         # the row that moved; rebuilding it from the snapshot would duplicate a
-        # row the branch still has (tripl-hjxy). Every other field the branch
+        # row the branch still has. Every other field the branch
         # edited on that row stays, and surfaces as its own ``changed`` entry
         # once the name no longer hides it.
         renamed = await _row_renamed_from(
@@ -1301,8 +1300,7 @@ async def _apply_revert(
                 # Variables only, and deliberately: a ``${token}`` names a
                 # Variable and nothing else — ``_attach_template_warnings``
                 # resolves tokens against Variable rows alone — so the event arm
-                # of this revert has no references to carry and needs no rewrite
-                # (tripl-hjxy).
+                # of this revert has no references to carry and needs no rewrite.
                 await rewrite_variable_token_references(
                     session,
                     project_id=project_id,
@@ -1328,13 +1326,13 @@ async def _apply_revert(
         # Reverting an "added" entity deletes it outright — no survivor — so the
         # references to it are DROPPED, the same rule the CRUD delete doors use.
         # An event_type takes its events with it through the database cascade
-        # that no service can see, which is why it is expanded here (tripl-a64t).
+        # that no service can see, which is why it is expanded here.
         doomed_event_ids = await _doomed_event_ids(session, data.entity_type, entity)
         await drop_dangling_event_references(
             session, project_id=project_id, event_ids=doomed_event_ids
         )
         # The discussion is not plan content, so reverting the row must not
-        # take the part its main twin shows as well (tripl-0zpq.289).
+        # take the part its main twin shows as well.
         await rescue_branch_event_threads(
             session, project_id=project_id, event_ids=doomed_event_ids
         )
@@ -1400,7 +1398,7 @@ async def revert_change(
         # have not modelled. It is still the user's revert that cannot proceed,
         # and 409 says so; the constraint's own text stays in the log for an
         # operator to read against the request id rather than in a response body
-        # that would leak the schema (tripl-hjxy).
+        # that would leak the schema.
         await session.rollback()
         # Plain locals only — see the note above the try.
         logger.exception(
@@ -1468,7 +1466,7 @@ def _base_successor_count(
     ``_base_identity_count``'s question, asked of the successor key. The
     lookup below refuses two BRANCH events answering to one key, and until
     this nothing asked whether the base named one event to begin with — the
-    every-seam fix for tripl-0zpq.150 left that side open. Namesakes
+    every-seam fix left that side open. Namesakes
     ``track/checkout_v2`` (S1, S2) on main, ``checkout`` pointing at S1, S1
     deleted on the branch: the delete clears the pointer, the key still reads
     ``track.checkout_v2``, only S2 answers on the branch, and the revert
@@ -1480,7 +1478,7 @@ def _base_successor_count(
     have different things to fall back on. Declining a rename leaves the plain
     rebuild, which restores exactly the row that went missing; declining here
     could only clear the pointer — a 200 while the diff goes on showing the
-    change, the very symptom tripl-0zpq.150 was filed for.
+    change, the very symptom of that bug.
 
     The reverted event is left out of the count for the reason the lookup below
     leaves it out: it can spell the key itself (``app`` / ``core.x`` spells
@@ -1511,7 +1509,7 @@ async def _event_id_by_dotted_key(
     ``"app.core.checkout_v2"`` reads as ``app.core`` / ``checkout_v2`` just as
     well as ``app`` / ``core.checkout_v2``. Cutting at the first dot found
     nothing for the first reading and silently cleared the pointer, while the
-    diff went on showing the change (tripl-0zpq.150). So every dot is tried as
+    diff went on showing the change. So every dot is tried as
     the seam, and an event matches when its type and name spell the whole key
     back — the same string the snapshot builds.
 
@@ -1652,7 +1650,7 @@ async def delete_branch_entity(
     """Delete one branch row the way reverting its addition deletes it.
 
     References to the events it takes are dropped and their discussion handed
-    to the main twin first (tripl-a64t, tripl-0zpq.289).
+    to the main twin first.
     """
     doomed_event_ids = await _doomed_event_ids(session, entity_type, entity)
     await drop_dangling_event_references(session, project_id=project_id, event_ids=doomed_event_ids)

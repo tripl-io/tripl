@@ -234,7 +234,7 @@ describe('ReconciliationPage', () => {
     ).not.toBeInTheDocument()
   })
 
-  // tripl-jfm3.26: `coverage_pct` arrives rounded to 2 dp, so 672,190,768 of
+  // `coverage_pct` arrives rounded to 2 dp, so 672,190,768 of
   // 672,190,769 comes back as exactly 100.0 and the card printed "100%" over a
   // subtitle that showed an unmatched occurrence.
   it('never prints 100% while an occurrence is unmatched', async () => {
@@ -366,8 +366,8 @@ describe('ReconciliationPage', () => {
     expect(screen.queryByText(/often expected/)).not.toBeInTheDocument()
     // The panel names its window and population, so arriving here from
     // Coverage's own gap panel does not read as two contradictory answers to
-    // the same question (tripl-jfm3.23) — and the window it names is the one
-    // Coverage counted over, not a second, shorter one (tripl-jfm3.79).
+    // the same question — and the window it names is the one
+    // Coverage counted over, not a second, shorter one.
     expect(
       screen.getByText(`Implemented events with no data in the last ${DEAD_EVENT_DAYS} days`),
     ).toBeInTheDocument()
@@ -381,8 +381,8 @@ describe('ReconciliationPage', () => {
   // Coverage's "Instrumentation gaps" panel links here with "Triage in
   // Reconciliation". This page used to ask for a 14-day window while Coverage
   // counted over 30, so the destination list was a SUPERSET of the count that
-  // sent the user here — a shorter window is a weaker silence test
-  // (tripl-jfm3.79). CoveragePage.test.tsx pins the other half of the pair.
+  // sent the user here — a shorter window is a weaker silence test.
+  // CoveragePage.test.tsx pins the other half of the pair.
   it('requests dead events over the same window Coverage counts', async () => {
     mockFetch()
     renderPage()

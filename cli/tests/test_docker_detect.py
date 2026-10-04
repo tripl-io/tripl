@@ -3,8 +3,7 @@
 Every one of these is a NEGATIVE: they are written first and they are the tests
 that matter, because each names a failure an operator will actually hit on their
 first attempt and each must cost an exit code rather than a half-provisioned
-directory. Nothing here starts a container - the runner is a recorder
-(tripl-ey6j.3).
+directory. Nothing here starts a container - the runner is a recorder.
 """
 
 from __future__ import annotations

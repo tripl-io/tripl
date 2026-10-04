@@ -253,7 +253,7 @@
   --info: oklch(0.72 0.14 240);
   --info-soft: oklch(0.72 0.14 240 / 0.14);
 
-  /* The destructive button's label, flipped for this theme (tripl-ds9m).
+  /* The destructive button's label, flipped for this theme.
      `--destructive` is `--danger`, and --danger has to stay light here to work
      as status text on --danger-soft — which leaves a bright red fill that white
      cannot sit on (3.03:1). Dark ink on it reads 6.30:1. Same ink and the same
@@ -309,7 +309,7 @@
 /* Horizontal-overflow affordance. The events catalog is ~1700-2000px of columns
    in an 830px content pane, and the scroller's horizontal scrollbar sits at the
    bottom of a very tall list — so while the reader is looking at the header row
-   there was no sign the table continued (tripl-jfm3.36 / .70). The classic
+   there was no sign the table continued (.70). The classic
    two-layer trick: `local` cover gradients ride with the content and hide the
    shadows at the extremes, `scroll` shadow gradients stay pinned to the box.
    Both paint on the scroller, i.e. behind the table, so the sticky header keeps
@@ -638,7 +638,7 @@
 /* WCAG 2.2 SC 2.5.8 (Target Size Minimum). Icon-sized controls — table row
    checkboxes at 16px, icon links at 20px — keep their visual box but grow a
    transparent 24×24 pointer target around it, so a thumb hits the control
-   instead of the row (tripl-jfm3.66). */
+   instead of the row. */
 .hit-target-24 {
   position: relative;
 }
@@ -681,7 +681,7 @@
 .pulse-dot { animation: pulse-dot 1.8s ease-in-out infinite; }
 
 /* The coach mark's beacon: a soft ring that breathes outward around the exact
-   control the demo scenario wants clicked (tripl-odrj.2). */
+   control the demo scenario wants clicked. */
 @keyframes coach-ring {
   from { box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 45%, transparent); }
   to { box-shadow: 0 0 0 8px color-mix(in srgb, var(--accent) 12%, transparent); }
@@ -693,7 +693,7 @@
 }
 
 /* The pulse says "still running". Reduced motion means it must say so without
-   moving: the dot stays, the animation goes (tripl-2su6.21.6). The coach ring
+   moving: the dot stays, the animation goes. The coach ring
    likewise keeps pointing — statically — instead of disappearing. */
 @media (prefers-reduced-motion: reduce) {
   .pulse-dot { animation: none; }
@@ -742,7 +742,7 @@
 
 /* Bypass block (WCAG 2.4.1). Parked off-screen until it takes focus, so the
    first Tab on any page offers an escape from the 27-stop sidebar instead of
-   walking through it (tripl-jfm3.45). Kept in CSS rather than focus: utilities
+   walking through it. Kept in CSS rather than focus: utilities
    so the two shells (app + settings) share one definition. */
 .skip-link {
   position: absolute;
@@ -905,7 +905,7 @@
   font-style: italic;
 }
 
-/* Soft-wrap long lines in the SQL editor (tripl-h2sx.33).
+/* Soft-wrap long lines in the SQL editor.
  *
  * NOT via `EditorView.lineWrapping`: that has to be imported as a VALUE from
  * '@uiw/react-codemirror' — package.json declares no @codemirror/view and

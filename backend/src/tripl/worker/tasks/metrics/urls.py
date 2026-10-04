@@ -11,7 +11,7 @@ for an ordinary scope, 2 for a release regression, so a 24-item digest paid for
 48-72 of them. Worse, it paid while ``alert_flush._build_digest`` held FOR
 UPDATE locks on the whole buffer plus the flush advisory lock on the FIRST
 connection: a bounded pool and a second connection taken under a lock is the
-classic way to turn a slow settings read into a stuck flush (tripl-0zpq.109).
+classic way to turn a slow settings read into a stuck flush.
 
 Taking the value as an argument also makes it CONSISTENT. That helper swallows
 every exception and falls back to the env config, so one failing read used to
@@ -26,7 +26,7 @@ is non-optional and an unconfigured instance carries ``""``. The empty string
 is the "emit no link" case, and every builder below still guards for it, so
 behaviour at an unconfigured base URL is exactly what it was.
 
-Every link names the project's ORGANIZATION as well (F20 PR8, tripl-oam4.7):
+Every link names the project's ORGANIZATION as well (F20 PR8):
 ``{base}/o/{org_slug}/p/{project_slug}/...``, built by
 ``services.project_links.project_url``. A project slug is unique only inside
 its organization, so a slug-only link opened whichever project of that slug the
@@ -221,7 +221,7 @@ def _build_alert_audit_url(
     # positive all key on it — so the link carries it and the page can open the
     # right card with its actions in view. Without it the reader landed on the
     # delivery and had to find the matching incident in a second list further up
-    # the page (tripl-pq97). The delivery id and item anchor stay in the URL:
+    # the page. The delivery id and item anchor stay in the URL:
     # they still pick the exact row the message quoted, and links sent before
     # this change keep working.
     #
@@ -276,7 +276,7 @@ def _build_item_paths(
     # actions are. Previously only release regressions came here and everything
     # else was sent to the event/monitoring page — which shows neither what was
     # sent nor Ack / Resolve / Mute, so acting on an anomaly alert meant finding
-    # the incident by hand on a different page (tripl-pq97). ``monitoring_path``
+    # the incident by hand on a different page. ``monitoring_path``
     # stays empty to keep the message to one link; the incident card carries the
     # link onward to the chart.
     if correlation_group_id is not None:
@@ -292,7 +292,7 @@ def _build_item_paths(
             ),
             None,
         )
-    # No incident to point at — pre-tripl-jfm3.91 rows, and anything the inbox
+    # No incident to point at — rows from before incidents were recorded, and anything the inbox
     # cannot act on. Keep the old behaviour rather than emitting a link to a card
     # that will not be there.
     if scope_type in _SCOPES_LINKED_TO_ALERT_AUDIT:

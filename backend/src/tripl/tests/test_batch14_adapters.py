@@ -1,22 +1,22 @@
 """Batch-14 regression tests for the warehouse adapter layer (lane ADAPTERS).
 
-* tripl-0zpq.344 / tripl-0zpq.71 — the in-memory warehouse read only a depth-0
+* The in-memory warehouse read only a depth-0
   ``WHERE``, so the per-metric fact path (which wraps the fact SQL one paren
   level down) dropped the fact table's own predicate and disagreed with the
   batched path; a CTE-backed fact source lost its predicate on both.
-* tripl-0zpq.350 — a trailing ``ORDER BY`` / ``LIMIT`` after a top-level
+* a trailing ``ORDER BY`` / ``LIMIT`` after a top-level
   ``WHERE`` was swept into the predicate and failed the whole collection.
-* tripl-0zpq.345 — the in-memory warehouse answered ``0.0`` for ``sum`` over a
+* the in-memory warehouse answered ``0.0`` for ``sum`` over a
   set with no non-NULL measure, where every SQL engine answers NULL.
-* tripl-0zpq.341 / tripl-0zpq.358 — a contract expectation an engine declined
+* A contract expectation an engine declined
   (a refused regex, a REPEATED BigQuery column, a non-finite bound) left only a
   log line, so "could not check" reported as "checked and clean".
-* tripl-0zpq.348 — a naive or ``date`` bucket reached a ``timestamptz`` column
+* a naive or ``date`` bucket reached a ``timestamptz`` column
   as-is and was stored in the database session's timezone.
-* tripl-0zpq.349 — PostgreSQL range contracts compare in exact numeric while the
+* PostgreSQL range contracts compare in exact numeric while the
   other engines compare in float64; the comment said they agreed, and the
   number guard refused digit runs the float64 engines parse.
-* tripl-0zpq.355 — the parity page claimed the dialect lint runs at collection
+* the parity page claimed the dialect lint runs at collection
   and before save; it runs only in the metric preview.
 """
 
@@ -144,7 +144,7 @@ def _ground_truth(adapter: SyntheticAdapter, keep: object) -> dict[datetime, flo
 
 
 # --------------------------------------------------------------------------- #
-# tripl-0zpq.344 / tripl-0zpq.71 — the fact table's own WHERE
+# The fact table's own WHERE
 # --------------------------------------------------------------------------- #
 
 
@@ -207,7 +207,7 @@ def test_a_nested_where_the_scanner_cannot_read_is_refused() -> None:
 
 
 # --------------------------------------------------------------------------- #
-# tripl-0zpq.350 — a trailing ORDER BY / LIMIT
+# a trailing ORDER BY / LIMIT
 # --------------------------------------------------------------------------- #
 
 
@@ -257,7 +257,7 @@ def test_a_trailing_clause_that_reshapes_rows_is_refused_by_name() -> None:
 
 
 # --------------------------------------------------------------------------- #
-# tripl-0zpq.345 — sum over an all-NULL measure
+# sum over an all-NULL measure
 # --------------------------------------------------------------------------- #
 
 
@@ -293,7 +293,7 @@ def test_sum_over_rows_whose_measure_is_all_null_is_a_gap() -> None:
 
 
 # --------------------------------------------------------------------------- #
-# tripl-0zpq.341 / tripl-0zpq.358 — skipped expectations are counted
+# Skipped expectations are counted
 # --------------------------------------------------------------------------- #
 
 
@@ -468,7 +468,7 @@ def test_the_skip_count_reaches_the_run_summary() -> None:
 
 
 # --------------------------------------------------------------------------- #
-# tripl-0zpq.348 — the stored bucket instant
+# the stored bucket instant
 # --------------------------------------------------------------------------- #
 
 
@@ -493,7 +493,7 @@ def test_every_bucket_writer_normalizes_column_zero() -> None:
 
 
 # --------------------------------------------------------------------------- #
-# tripl-0zpq.349 — the PostgreSQL range comparison domain
+# the PostgreSQL range comparison domain
 # --------------------------------------------------------------------------- #
 
 
@@ -512,15 +512,15 @@ def test_the_number_guard_admits_the_float64_digit_range() -> None:
 def test_the_range_divergence_is_declared_not_denied() -> None:
     source = inspect.getsource(PostgresAdapter._contract_bad_condition)
     assert "agrees with them on\n            # the verdict" not in source
-    assert "tripl-0zpq.349" in source
+    assert "ClickHouse's toFloat64OrNull and BigQuery's SAFE_CAST" in source
     contract = inspect.getdoc(BaseAdapter)
     assert contract is not None
-    assert "tripl-0zpq.349" in contract
+    assert "PostgreSQL's range comparison domain" in contract
     assert "PostgreSQL range contracts compare exactly" in _PARITY_DOC.read_text()
 
 
 # --------------------------------------------------------------------------- #
-# tripl-0zpq.355 — where the dialect lint runs
+# where the dialect lint runs
 # --------------------------------------------------------------------------- #
 
 
@@ -528,5 +528,5 @@ def test_the_parity_page_does_not_claim_a_collection_time_lint() -> None:
     text = _PARITY_DOC.read_text()
     assert "again at collection" not in text
     assert "before it is saved" not in text
-    # tripl-0zpq.371 added the save; collection still does not lint.
+    # The save was added later; collection still does not lint.
     assert "Dialect pre-flight lint (metric preview and metric save [9])" in text

@@ -195,7 +195,7 @@ def _utc_instants(day: _dt.date, hour: int, minute: int, tz: ZoneInfo) -> list[_
     BEFORE the configured time. Returning the pair there would hand the
     flusher two windows for a wall time that happened zero times, and the
     earlier of the two ships the digest ahead of its own schedule
-    (tripl-0zpq.280) — so the gap keeps only the forward instant.
+     — so the gap keeps only the forward instant.
 
     The gap is recognised by converting ``first`` back into the zone: a wall
     time that exists always comes back as itself, and only a nonexistent one

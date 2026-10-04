@@ -122,5 +122,5 @@ Released $tag.
   • Watch it:  gh run watch   (or the GitHub Actions tab)
   • Deploy:    export TRIPL_VERSION=$new && docker compose pull && docker compose up -d
                (an inline VAR=x prefix would apply to the pull only, so the
-                'up' would start \${TRIPL_VERSION:-latest} — tripl-jfm3.123)
+                'up' would start \${TRIPL_VERSION:-latest})
 EOF

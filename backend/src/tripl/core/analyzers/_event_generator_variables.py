@@ -40,7 +40,7 @@ _TOKEN_PATTERN = VARIABLE_TOKEN_PATTERN
 # row exists: ``(variable_id, event_id, field_definition_id)`` -> the payload
 # ``insert_variable_contexts`` will write. Named here, beside the four functions
 # that read and write it, because the merge pass now has to reconcile it too
-# (``_reconcile_pending_variable_contexts``, tripl-gsum) and three modules
+# (``_reconcile_pending_variable_contexts``) and three modules
 # spelling the raw tuple out by hand is how a key order drifts apart.
 VariableContextKey = tuple[uuid.UUID, uuid.UUID, uuid.UUID]
 PendingVariableContexts = dict[VariableContextKey, dict[str, Any]]
@@ -61,7 +61,7 @@ class VariableIndex:
         # ``_by_token``, because the two answer different questions and only this
         # one is about variables: the map holds the WINNER of each token, so a
         # variable whose every token an earlier-sorted sibling already claimed is
-        # absent from its values entirely. See ``excluded_ids`` (tripl-cef2).
+        # absent from its values entirely. See ``excluded_ids``.
         self._excluded_ids: set[uuid.UUID] = set()
         for variable in sorted(variables, key=lambda v: v.name):
             self.add(variable)
@@ -109,7 +109,7 @@ class VariableIndex:
         for token in self.tokens_of(variable):
             self._by_token.setdefault(token, variable)
         # Recorded whether or not the variable won a single token: it is in the
-        # index, so this run has seen it, and that is the whole test (tripl-cef2).
+        # index, so this run has seen it, and that is the whole test.
         if variable.excluded_from_scans:
             self._excluded_ids.add(variable.id)
 
@@ -138,8 +138,8 @@ class VariableIndex:
         their ``name``. Reading the winners left such a variable out of the set,
         and the deleter then took its rows on the next rewrite of their
         ``(event, field)`` — the permanent, silent loss the set exists to
-        prevent, reappearing for exactly the variables hardest to notice
-        (tripl-cef2). Being shadowed is a fact about which variable answers a
+        prevent, reappearing for exactly the variables hardest to notice.
+        Being shadowed is a fact about which variable answers a
         token; it says nothing about whether a stored row can be restated, and
         it cannot, because ``resolve`` hands ``record_variable_contexts`` the
         shadowing sibling instead.
@@ -162,7 +162,7 @@ def build_variable_index(
     # lazyload: the index reads names, bindings and flags only, and
     # ``Variable.value_contexts`` is ``lazy="selectin"``, which would pull the
     # project's whole context table (and its field definitions) into memory on
-    # every run (tripl-0zpq.87, as tripl-xkbb did at the other selects).
+    # every run (as it once did at the other selects).
     query = (
         select(Variable)
         .where(Variable.project_id == project_id)
@@ -249,7 +249,7 @@ def delete_variable_contexts_for_event_type(
     about: values enriched by an earlier replay, and — the case that surfaced it
     — a demo's seeded observed values hanging off authored field values the scan
     is not allowed to touch, so the demo's very first scan emptied its own
-    "Variables & value drift" story (bd tripl-jfm3.56). The scheduled metrics
+    "Variables & value drift" story. The scheduled metrics
     path already merges into existing rows rather than replacing them
     (``_merge_replay_variable_samples``); this brings the scan path in line.
 
@@ -257,8 +257,8 @@ def delete_variable_contexts_for_event_type(
     two arms one rule: INVALIDATE only what you could state afresh. That held
     implicitly while every row on a rewritten field was re-recorded by the same
     run, so the second arm never needed to name the variable. It stopped holding
-    when excluding a variable became a tombstone instead of a purge (bd
-    tripl-95pu): ``record_variable_contexts`` skips an excluded variable, so its
+    when excluding a variable became a tombstone instead of a purge:
+    ``record_variable_contexts`` skips an excluded variable, so its
     rows reach ``insert_variable_contexts`` by no route at all, and a rewrite
     here destroyed observations permanently — silently, inside the scan, which is
     the deletion that change was supposed to have removed.
@@ -639,8 +639,8 @@ def _backfill_source_name(session: Session, variable: Variable, token: str) -> N
     ``source_name`` is unique per project and branch. A variable renamed through
     the API keeps its old ``source_name``, so a hand-made variable adopted by that
     same token must not claim it: the flush would violate
-    ``uq_variable_project_source_name`` and fail every run that plans the column
-    (tripl-0zpq.81). The adoption itself still stands for this run.
+    ``uq_variable_project_source_name`` and fail every run that plans the column.
+    The adoption itself still stands for this run.
     """
     holder = session.scalar(
         select(Variable.id).where(

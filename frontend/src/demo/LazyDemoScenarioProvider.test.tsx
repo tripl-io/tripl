@@ -68,7 +68,7 @@ afterEach(() => {
   window.localStorage.clear()
 })
 
-describe('LazyDemoScenarioProvider (tripl-fj5g.15)', () => {
+describe('LazyDemoScenarioProvider', () => {
   it('stays inert for a project that is not a demo', () => {
     renderProvider(project({ is_demo: false }))
 

@@ -66,7 +66,7 @@ export interface MetricWatchRequest<TContext> {
    * The project the collect was fired against. Captured with the watch rather
    * than read live from the route: otherwise navigating to another project
    * mid-watch repointed the poll at `project-B/metric-A`, a metric that does not
-   * exist there (tripl-htvg).
+   * exist there.
    */
   slug: string
   metricId: string
@@ -75,7 +75,7 @@ export interface MetricWatchRequest<TContext> {
    * Caller-supplied ids/state captured at collect-start (e.g. the route's
    * scope/scopeId). Threaded back to `onSettled` on completion so the settle
    * always acts on the metric it was actually collecting — never whatever the
-   * page has since navigated to mid-watch (tripl-0s3d).
+   * page has since navigated to mid-watch.
    */
   context?: TContext
 }
@@ -104,7 +104,7 @@ export interface MetricCollectionWatcher<TContext = void> {
   /**
    * The metric currently being watched, or `null`. Callers key their own
    * "collecting" UI to this so an in-flight watch on metric A does not render as
-   * "collecting" after the page navigates to metric B (tripl-0s3d).
+   * "collecting" after the page navigates to metric B.
    */
   watchingMetricId: string | null
 }

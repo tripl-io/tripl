@@ -1,6 +1,6 @@
-"""The NUL guard on free-text query filters (tripl-8wez).
+"""The NUL guard on free-text query filters.
 
-``sanitize_query`` fixed ``/search`` (tripl-q4q7). The defect class is wider than
+``sanitize_query`` fixed ``/search``. The defect class is wider than
 that route: any user string bound as a Postgres parameter aborts inside asyncpg
 when it carries U+0000, and the events, metrics, metric-catalog, fact-table and
 audit list filters all bind one. The fix is a route-parameter type, so this file
@@ -135,7 +135,7 @@ def _unguarded_string_parameters() -> dict[str, set[str]]:
 # unguarded parameter cannot be added without someone making a decision here.
 _GUARDED_ELSEWHERE: dict[str, str] = {
     "q": (
-        "/search sanitises inside search_service (tripl-q4q7) and declares "
+        "/search sanitises inside search_service and declares "
         "min_length=1. A BeforeValidator runs BEFORE constraints, so moving the "
         "guard onto the parameter would turn ?q=%00 from its documented "
         "200-with-no-items into a 422 — a behaviour change, not a fix."
@@ -168,7 +168,7 @@ def test_every_string_query_parameter_is_guarded_against_a_nul() -> None:
 
     Enumerated from the live app rather than from a list in this file: a list
     would be maintained by whoever adds a parameter, and that is precisely the
-    person the pin exists for. It found eight beyond the ones tripl-8wez named.
+    person the pin exists for. It found eight beyond the ones first reported.
     """
     unguarded = {
         name: paths

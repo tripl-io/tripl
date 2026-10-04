@@ -20,7 +20,7 @@
  * "Dead events" panel with "Triage in Reconciliation". While the two pages held
  * their own copies (30 here, 14 there) that hand-off silently changed the
  * question: a shorter window is a WEAKER silence test, so Reconciliation listed
- * more events than the count that sent the user there (tripl-jfm3.79). One
+ * more events than the count that sent the user there. One
  * constant keeps the hand-off honest.
  *
  * 30 is the value the backend already defaults to

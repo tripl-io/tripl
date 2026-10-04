@@ -105,8 +105,7 @@ class TestFreshnessHorizon:
         *here* means the freshness horizon knowing the allowance, which is a
         per-project value the display path does not load.
 
-        tripl-l429.15 took the other option instead: the API now REFUSES a
-        settling allowance that reaches the open-signal window
+        The API instead REFUSES a settling allowance that reaches the open-signal window
         (``schemas.project_anomaly_settings.settling_window_conflict``, enforced
         on the merged settings in ``project_anomaly_settings_service``), since
         asking to score a day late and to close signals after a day is
@@ -171,8 +170,8 @@ class TestFreshnessHorizon:
         table, the two predicates and the classifier, on the stated grounds that
         the worker must not import the request-path services layer. That reason
         was false (see ``test_monitoring_utils_is_a_pure_leaf`` below) and the
-        copies drifted twice inside one PR — tripl-l429.14 widened only the
-        display copy's freshness horizon, tripl-l429.19 only its recent branch —
+        copies drifted twice inside one PR — one fix widened only the
+        display copy's freshness horizon, another only its recent branch —
         each time making the UI show a signal open while the alerting path acted
         as though it were closed.
 
@@ -698,7 +697,7 @@ async def test_monitors_summary_empty_project(client: AsyncClient) -> None:
         "total": 0,
         # A project with nothing in it feeds neither drift scope, so both read
         # False here. What the flags MEAN, and every shape that flips them, is
-        # pinned in test_alerting_scope_readiness.py (tripl-wkwv.1).
+        # pinned in test_alerting_scope_readiness.py.
         "scope_readiness": {"variable_value_drift": False, "distribution_drift": False},
     }
 

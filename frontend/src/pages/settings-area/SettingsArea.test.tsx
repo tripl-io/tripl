@@ -67,7 +67,7 @@ function project(slug: string, name: string): Project {
 }
 
 // GET /projects returns acme-android first — the project the takeover used to
-// bind to when nothing had been chosen (tripl-jfm3.32).
+// bind to when nothing had been chosen.
 const projects = [project('acme-android', 'Acme Android'), project('acme-ios', 'Acme iOS')]
 
 function renderArea(section: string, search = '', auth: AuthContextValue = ownerAuthValue()) {
@@ -116,7 +116,7 @@ describe('SettingsArea project binding', () => {
     )
   })
 
-  it('binds the project the user picks from the empty state (tripl-kr4u)', async () => {
+  it('binds the project the user picks from the empty state', async () => {
     vi.spyOn(projectsApi, 'list').mockResolvedValue(projects)
 
     // Plan rules is the project-scoped section with no data fetching of its own.
@@ -135,7 +135,7 @@ describe('SettingsArea project binding', () => {
     expect(window.localStorage.getItem(LAST_SLUG_STORAGE_KEY)).toBe('acme-ios')
   })
 
-  it('opens Access for the bound project (tripl-vefw)', async () => {
+  it('opens Access for the bound project', async () => {
     vi.spyOn(projectsApi, 'list').mockResolvedValue(projects)
     vi.spyOn(projectsApi, 'get').mockResolvedValue(project('acme-ios', 'Acme iOS'))
     const list = vi.spyOn(projectMembersApi, 'list').mockResolvedValue([

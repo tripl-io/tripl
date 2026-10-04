@@ -15,7 +15,7 @@ class MetricBaseline(UUIDMixin, Base):
     """The band the detector judged one bucket of one scope against.
 
     ``metric_anomalies`` only holds FLAGGED buckets, so a chart could draw the
-    expected value and band on those alone (tripl-i9mt.25). The metrics worker
+    expected value and band on those alone. The metrics worker
     writes one row here for every bucket it scored — flagged or not — keyed like
     an anomaly row. Scan-scoped series only (``project_total``, ``event_type``,
     ``event``): catalog ``metric`` scopes chart through their own series and

@@ -12,7 +12,7 @@ load-bearing rather than stylistic: these columns are plain ``JSON`` and this
 repository maps no ``MutableList`` anywhere, so an in-place edit leaves the
 instance unflagged, the write is never flushed, and every assertion made
 against the in-memory object still passes. A test that cannot fail is how
-tripl-xfxa survived as long as it did.
+a past bug survived as long as it did.
 """
 
 from __future__ import annotations

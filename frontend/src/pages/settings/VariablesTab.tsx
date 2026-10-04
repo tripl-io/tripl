@@ -40,7 +40,7 @@ import { PropertyDriftList } from '@/pages/events/PropertyDriftList'
 
 // Rows rendered at once. The whole set arrives in one request, but a governance
 // project can hold >1k variables and painting them all froze the tab for
-// seconds (tripl-jfm3.49) — one page keeps the DOM and every re-render bounded.
+// seconds — one page keeps the DOM and every re-render bounded.
 const PAGE_SIZE = 50
 const LOADING_SKELETON_ROWS = 6
 
@@ -58,7 +58,7 @@ const matchesQuery = (variable: Variable, needle: string) =>
 
 // Server-side, because the honest answer needs data this page does not hold.
 // "Unused" is NOT "event_count is zero": a variable can have no observed
-// context and still be named by a live event's field value (tripl-xfxa, 18 rows
+// context and still be named by a live event's field value (18 rows
 // on production). Only the backend sees every stored value, so it decides — and
 // the count sitting under a select-all checkbox is then exactly the set the
 // retirement sweep would take, not a superset that includes rows still in use.
@@ -109,7 +109,7 @@ export function VariablesTab({
   const canWrite = useCanWriteProject()
   const focusRef = useRef<HTMLTableRowElement | null>(null)
   // The excluded panel renders <li>s, not table rows, so the focused variable
-  // there needs its own ref — see the scroll effect below (tripl-acp2).
+  // there needs its own ref — see the scroll effect below.
   const excludedFocusRef = useRef<HTMLLIElement | null>(null)
   const [showForm, setShowForm] = useState(false)
   // The id of the variable being edited, plus the row as it was when opened.
@@ -130,11 +130,11 @@ export function VariablesTab({
   // no per-row fan-out — the same anti-pattern documented in
   // pages/events/useEventRowMetrics.ts. `keepPreviousData` holds the previous
   // rows while the branch id resolves and changes the key, instead of dropping
-  // back to an empty list (tripl-jfm3.52).
+  // back to an empty list.
   const variablesQuery = useQuery({
     // The PAGE key, not the items key: this is the one caller that needs
     // `total`, and caching the envelope under the shared key is what fed the
-    // events rows an object instead of an array (tripl-lqxb).
+    // events rows an object instead of an array.
     // The usage filter is part of the key because it is answered server-side —
     // the page cannot narrow to "unused" itself without every event's stored
     // field values.
@@ -150,7 +150,7 @@ export function VariablesTab({
   // Drawn from this project rather than hard-coded, because the hard-coded one
   // was the confusion: `page_data.extra.variant` is three segments deep in a
   // container many warehouses do not have, so it read as a different namespace
-  // from the tokens the reader actually picks (tripl-htfn.3).
+  // from the tokens the reader actually picks.
   const example = useMemo(() => bindingExample(variables), [variables])
   const truncatedCount = Math.max(0, (variablePage?.total ?? 0) - variables.length)
 
@@ -282,7 +282,7 @@ export function VariablesTab({
     // The row is gone server-side, so a selection still naming it inflates the
     // next bulk confirm — "Delete 12 selected variables?" over eleven rows — and
     // then takes the whole bulk call down with it: `_load_variables_by_ids`
-    // raises 404 for the batch on the first id it cannot load (tripl-42en).
+    // raises 404 for the batch on the first id it cannot load.
     onSuccess: (_data, id) => {
       qc.invalidateQueries({ queryKey: variablesKey(slug, branchId) })
       qc.invalidateQueries({ queryKey: projectKey(slug) })
@@ -299,8 +299,7 @@ export function VariablesTab({
     // still-selected tombstone rides along on the next bulk Delete — and per the
     // Delete copy right above, deleting an excluded variable un-excludes the
     // name, because the flag is a column on the row being dropped. The next scan
-    // then re-creates it and the operator's instruction is silently revoked
-    // (tripl-42en).
+    // then re-creates it and the operator's instruction is silently revoked.
     //
     // Restore (`excluded: false`) needs no guard and gets none: it only ADDS a
     // row back to the match set, which can never leave an id naming a row nobody
@@ -421,7 +420,7 @@ export function VariablesTab({
    * Selection deliberately spans every matching row rather than the page on
    * screen, so once the match set moves the selected ids can be rows nobody can
    * see or name. The usage-filter buttons cleared the selection; the filter
-   * text box did not (tripl-42en). Filter "checkout", tick select-all, retype
+   * text box did not. Filter "checkout", tick select-all, retype
    * to "payment": the table showed only payment rows, all unticked, and the
    * bulk bar still said "12 selected". Delete confirmed with a bare count and
    * destroyed the twelve checkout variables, cascading their value contexts and
@@ -459,7 +458,7 @@ export function VariablesTab({
   // the variable `activeVariables` filters OUT of the table, so `findIndex`
   // returned -1, `focusPage` fell back to 0, and the reviewer arrived on page 1
   // of an unrelated list with nothing marked — while X sat, unmarked, in the
-  // "Excluded from scans" panel further down (tripl-acp2). Following the link
+  // "Excluded from scans" panel further down. Following the link
   // now marks the row wherever it renders.
   const focusedExcludedVisible =
     focusIndex < 0 && focusId !== undefined && excludedVariables.some(v => v.id === focusId)
@@ -564,8 +563,7 @@ export function VariablesTab({
       >
         {variablesPending ? (
           // A pending list is NOT an empty list — rendering the empty state here
-          // made the page claim "No variables" while 1.2k were loading
-          // (tripl-jfm3.52).
+          // made the page claim "No variables" while 1.2k were loading.
           <div className="space-y-2 px-4 py-4" aria-busy="true" aria-label="Loading properties">
             {Array.from({ length: LOADING_SKELETON_ROWS }, (_, index) => (
               <Skeleton key={index} className="h-10 w-full" />
@@ -653,7 +651,7 @@ export function VariablesTab({
                       {/* Width hints, not fixed widths: `table-layout: auto` left
                           Description ~110px, so a 45-character sentence ran five
                           lines while the values columns — whose chips wrap for free —
-                          held the slack (tripl-bb8m). Variable is pinned too, because
+                          held the slack. Variable is pinned too, because
                           its pills no longer wrap and would otherwise be squeezed
                           out. Doc/Observed values share whatever is left. */}
                       <TableHead className="w-[24%]">Property</TableHead>
@@ -787,7 +785,7 @@ export function VariablesTab({
                 key={v.id}
                 // The same marking the table row carries, because the diff link
                 // that brought the reviewer here neither knows nor cares which
-                // of the two lists the variable ended up in (tripl-acp2).
+                // of the two lists the variable ended up in.
                 ref={v.id === focusId ? excludedFocusRef : undefined}
                 data-focused={v.id === focusId || undefined}
                 className={`flex items-center justify-between gap-2 px-4 py-2${v.id === focusId ? ' bg-primary/5 outline outline-1 outline-primary/40' : ''}`}

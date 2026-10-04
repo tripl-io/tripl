@@ -347,7 +347,7 @@ async def test_reviewers_add_list_remove(client: AsyncClient) -> None:
             )
         )
         await session.commit()
-    # A reviewer must be a member of the project (tripl-vefw).
+    # A reviewer must be a member of the project.
     await add_member_by_slug("branch-rev", "reviewer@example.com", "editor")
 
     added = await client.post(
@@ -560,7 +560,7 @@ async def test_diff_only_reports_branch_changes_when_main_advances(client: Async
     # whole contract: `changed` carries the BRANCH-side row, because the entry
     # is a deep link to /edit and only the branch copy is editable here. The
     # inequality is what makes this non-vacuous — the deep copy mints a fresh
-    # uuid, so the two ids genuinely differ (tripl-h2sx.6).
+    # uuid, so the two ids genuinely differ.
     main_events = await client.get("/api/v1/projects/branch-diff/events")
     main_event_id = next(
         e["id"] for e in main_events.json()["items"] if e["name"] == "purchase:success"
@@ -584,7 +584,7 @@ async def test_branch_list_can_carry_diff_counts(client: AsyncClient) -> None:
 
     The Branches tab used to need one ``/branches/{id}/diff`` per feature branch
     just for those two numbers, and every one of those calls rebuilt main's plan
-    snapshot (tripl-jfm3.79). The list now derives them for the whole page from a
+    snapshot. The list now derives them for the whole page from a
     single main snapshot; they must agree with the diff endpoint exactly.
     """
     slug = "branch-list-counts"
@@ -733,7 +733,7 @@ async def test_merge_requires_approved_status(client: AsyncClient) -> None:
 
 @pytest.mark.asyncio
 async def test_second_merge_of_the_same_branch_is_rejected(client: AsyncClient) -> None:
-    """Applying an approved branch twice would duplicate every add (tripl-jfm3.113)."""
+    """Applying an approved branch twice would duplicate every add."""
     await _seed_plan(client, "merge-twice")
     branch_id = await _create_branch(client, "merge-twice")
 
@@ -748,7 +748,7 @@ async def test_second_merge_of_the_same_branch_is_rejected(client: AsyncClient) 
 async def test_merge_lock_rereads_status_instead_of_trusting_the_identity_map(
     client: AsyncClient,
 ) -> None:
-    """The status gate must read the ROW, not a cached instance (tripl-jfm3.113).
+    """The status gate must read the ROW, not a cached instance.
 
     This is the half of the double-merge race that a row lock alone does not
     fix: the loser wakes up holding a `PlanBranch` it loaded before the winner
@@ -931,7 +931,7 @@ async def test_merge_refreshes_main_search_index(client: AsyncClient) -> None:
     # Seed main's index BEFORE the merge, so only a post-merge refresh can put
     # the token below into it. This used to be a search GET, which seeded the
     # index only because the read path built an empty branch's index for it —
-    # the side effect tripl-zbv0 removed. Asking for the reindex outright says
+    # the side effect that was since removed. Asking for the reindex outright says
     # what the setup needs instead of relying on a read path's side effect;
     # nothing the test asserts about the merge changed.
     seeded = await client.post("/api/v1/projects/merge-search/search/reindex")
@@ -1933,7 +1933,7 @@ async def test_merge_carries_branch_photo_changes_to_main(client: AsyncClient) -
 async def test_merge_keeps_comments_written_on_main_and_the_photo_id(
     client: AsyncClient,
 ) -> None:
-    """Regression (tripl-h2sx.28): a merge used to replace main's whole photo
+    """Regression: a merge used to replace main's whole photo
     canvas whenever the branch's snapshot subtree differed — and comments are
     nested INSIDE each photo there, so one comment written on the branch was
     enough. Main's photo rows were deleted, ``event_photo_comments.photo_id``
@@ -2307,7 +2307,7 @@ async def test_deep_copy_carries_event_source_name_so_merge_preserves_it(
         assert merged_main_event.source_name == "purchase_success_raw"
 
 
-# --- merge: a branch rename is a rename, not a delete plus an add (tripl-25sv)
+# --- merge: a branch rename is a rename, not a delete plus an add
 
 
 async def _main_branch_id() -> uuid.UUID:
@@ -2638,7 +2638,7 @@ async def test_merge_of_two_variables_whose_names_were_swapped(client: AsyncClie
     ``source_name`` onto it, inside one flush, against a non-deferrable
     ``UNIQUE (project_id, branch_id, source_name)``. The IntegrityError reached
     the client as a bare 500 and the branch stayed unmergeable until someone
-    renamed a row by hand (tripl-htcz).
+    renamed a row by hand.
     """
     await _seed_plan(client, "merge-swap-variables")
     main_ids = await _seed_main_variables(
@@ -2675,7 +2675,7 @@ async def test_merge_of_three_variables_rotated_through_each_others_names(
     swap does, so it paired nothing either; unlike a swap it cannot be settled by
     "when two rows collide, exchange them". The moves have to be applied as the
     permutation they are — through a parking name — or one of the three UPDATEs
-    always lands on a name another main row still holds (tripl-htcz).
+    always lands on a name another main row still holds.
     """
     await _seed_plan(client, "merge-rotate-variables")
     main_ids = await _seed_main_variables(
@@ -2774,7 +2774,7 @@ async def test_merge_moving_a_rename_onto_a_deleted_variables_name_is_a_409(
     Base and main both hold ``cart_total``/``cart_total_raw`` and a
     ``cart_count`` with NO ``source_name``. The branch DELETES ``cart_count`` and
     RENAMES ``cart_total`` into the name it vacated. With an identity on the
-    occupant that shape now merges (tripl-ifuv, pinned in
+    occupant that shape now merges (pinned in
     ``test_leftovers_variables``); without one nothing proves the branch's
     ``cart_count`` is not the occupant edited, so ``pair_renames`` still drops
     the move, the merge's two arms disagree about who owns ``cart_total_raw``,
@@ -2793,7 +2793,7 @@ async def test_merge_moving_a_rename_onto_a_deleted_variables_name_is_a_409(
     never built at all: the failed flush has already rolled back to the root
     transaction and expired every state in the identity map, so reading the
     primary key back is implicit IO on the sync Session from async code and the
-    client gets the bare 500 the handler exists to replace (tripl-htcz).
+    client gets the bare 500 the handler exists to replace.
     """
     await _seed_plan(client, "merge-delete-then-rename")
     main_ids = await _seed_main_variables(
@@ -2866,13 +2866,13 @@ async def test_merge_moving_a_rename_onto_a_deleted_events_name_lands_row_by_row
     the row the user kept was deleted with everything hanging off it, the row
     the user deleted survived wearing the kept row's scan identity, and no
     snapshot diff showed either half. ``uq_event_scan_identity`` then turned
-    the two arms' disagreement into a 409 that lost nothing (tripl-8tdl).
+    the two arms' disagreement into a 409 that lost nothing.
 
     The branch copies now name the main rows they came from (``origin_id``),
     so there is nothing left to disagree about: the copy of ``purchase:success``
     was renamed, the copy of ``purchase:completed`` was deleted, and the merge
     does exactly that to exactly those rows — the kept row keeps its id and its
-    identity under the new name, the deleted one goes (tripl-0zpq.292).
+    identity under the new name, the deleted one goes.
     """
     slug = "merge-delete-then-rename-event"
     et_id = await _seed_plan(client, slug)
@@ -3040,7 +3040,7 @@ def test_pair_renames_leaves_a_source_name_shared_by_two_candidates_unpaired() -
 
     Live rows cannot do this any more — ``uq_variable_project_source_name`` and
     ``uq_event_scan_identity`` make an identity singular per branch and per type
-    (tripl-8tdl) — so these shapes now come only from a base payload snapshotted
+     — so these shapes now come only from a base payload snapshotted
     before the event constraint existed. ``pair_renames`` is pure over three
     mappings and cannot tell which side is live, and a payload is data, so the
     rule holds on every side.
@@ -3075,7 +3075,7 @@ def test_pair_renames_reads_a_move_to_another_event_type_as_what_it_is() -> None
     assert renames == {}
 
 
-# --- pair_renames: the cycles a name-keyed diff could not see (tripl-htcz) ---
+# --- pair_renames: the cycles a name-keyed diff could not see ---
 
 
 def test_pair_renames_pairs_a_two_row_swap_as_the_two_renames_it_is() -> None:
@@ -3136,10 +3136,10 @@ def test_pair_renames_ignores_a_main_row_the_base_never_had_when_reading_identit
     letting it make the identity look ambiguous therefore costs the pair and
     nothing else. The rename then falls back to a delete plus an insert, and the
     cascade takes ``variable_values``, their drift rows and ``event_changes``
-    with it (tripl-htcz).
+    with it.
 
     ``uq_event_scan_identity`` has since made the shape impossible for live main
-    rows (tripl-8tdl). The test stays because what it pins is the ORDER of the
+    rows. The test stays because what it pins is the ORDER of the
     two steps — narrow main to the base, then count — which the function owes
     every caller regardless of where its mappings came from.
     """
@@ -3159,7 +3159,7 @@ def test_pair_renames_still_refuses_two_base_rows_sharing_one_identity() -> None
     than the deletion the pairing set out to avoid.
 
     A base naming one identity twice under one type is now only a snapshot taken
-    before ``uq_event_scan_identity`` existed (tripl-8tdl); such a payload is
+    before ``uq_event_scan_identity`` existed; such a payload is
     data, not a constraint, and this is the rule that keeps it from being
     guessed at.
     """
@@ -3174,7 +3174,7 @@ def test_rekey_in_place_moves_a_whole_cycle_without_fusing_two_rows() -> None:
     assert rows == {"bucket": "row_for_variant", "variant": "row_for_bucket"}
 
 
-# --- merge policy: min approvals + self-approval guard (tripl-s8t0) ---------
+# --- merge policy: min approvals + self-approval guard ---------
 
 
 async def _seed_second_user(email: str, slug: str) -> uuid.UUID:
@@ -3347,7 +3347,7 @@ async def test_self_approval_blocked_by_policy(client: AsyncClient) -> None:
 
 @pytest.mark.asyncio
 async def test_stale_approval_blocks_merge_until_reapproved(client: AsyncClient) -> None:
-    """Editing branch content after an approval voids it (tripl-d8v6): the
+    """Editing branch content after an approval voids it: the
     merge gate only counts approvals stamped for the current content."""
     await _seed_plan(client, "branch-stale")
     branch_id = await _create_branch(client, "branch-stale")
@@ -3375,7 +3375,7 @@ async def test_stale_approval_blocks_merge_until_reapproved(client: AsyncClient)
 
 @pytest.mark.asyncio
 async def test_photo_comment_does_not_void_an_approval(client: AsyncClient) -> None:
-    """Discussion is not a plan change (tripl-zjmo).
+    """Discussion is not a plan change.
 
     A comment typed under a spec screenshot used to change the branch's
     snapshot hash and void every approval on it, so merge answered
@@ -3523,7 +3523,7 @@ async def test_merge_discards_author_approval_when_self_approval_blocked(
     assert merged.status_code == 200
 
 
-# --- variables: documented values / bindings / overrides round-trip (tripl-j94c.1)
+# --- variables: documented values / bindings / overrides round-trip
 
 
 @pytest.mark.asyncio
@@ -3799,7 +3799,7 @@ async def test_branch_round_trip_carries_variable_exclusion_flag(client: AsyncCl
         assert main_var.excluded_from_scans is True
 
 
-# --- reverting the removed half of a rename (tripl-hjxy) ---------------------
+# --- reverting the removed half of a rename ---------------------
 
 
 @pytest.mark.asyncio
@@ -3810,7 +3810,7 @@ async def test_revert_of_a_renamed_variable_moves_the_name_back(client: AsyncCli
     removal of the old name plus an addition of the new one. Rebuilding the
     removed row from the base snapshot puts a SECOND row on the branch carrying
     ``source_name``, which ``uq_variable_project_source_name`` rejects at commit
-    — and with no handler anywhere the reviewer got a bare 500 (tripl-hjxy).
+    — and with no handler anywhere the reviewer got a bare 500.
 
     The row is moved, not replaced, so its id survives; the observed values,
     per-event overrides and drift history hanging off that id survive with it.
@@ -3894,8 +3894,8 @@ async def test_revert_of_a_renamed_event_does_not_duplicate_the_scan_identity(
     two events claiming one scan identity: the next scan matched warehouse data
     onto whichever it found, and ``pair_renames`` refused that identity for ever
     after because two candidates make the pairing a guess. No error, no diff
-    entry, nothing to see — which is why it is tested (tripl-hjxy).
-    ``uq_event_scan_identity`` now refuses that second row outright (tripl-8tdl),
+    entry, nothing to see — which is why it is tested.
+    ``uq_event_scan_identity`` now refuses that second row outright,
     so without the rename reading this revert would 409 instead of corrupting;
     the assertion is unchanged because the rename is still the answer that keeps
     the row and everything hanging off it.
@@ -4006,7 +4006,7 @@ async def test_reverting_a_variable_rename_puts_the_token_back_in_the_values(
     ``event_service._attach_template_warnings`` renders as "Unknown variable
     token" on each affected event and which a merge then carries to main. The
     dialog offering the revert promises the opposite: that the variable's
-    documented values and history are untouched (tripl-hjxy).
+    documented values and history are untouched.
     """
     slug = "revert-var-rename-tokens"
     et_id = await _seed_plan(client, slug)
@@ -4124,7 +4124,7 @@ async def _name_one_identity_twice_in_the_base(
 
     Live rows cannot say this any more — ``uq_event_scan_identity`` refuses the
     second — but a ``PlanRevision`` payload is data, and one snapshotted before
-    the constraint existed can still say it (tripl-8tdl). The column is plain
+    the constraint existed can still say it. The column is plain
     JSON with no mutation tracking, so the payload is replaced, not edited.
     """
     async with TestSessionLocal() as session:
@@ -4150,11 +4150,11 @@ async def test_revert_is_not_a_rename_when_the_base_named_one_identity_twice(
     """Ambiguity on the BASE side must stop the rename reading too.
 
     ``_row_renamed_from`` counted candidates on the branch and never asked what
-    the base held. When that was fixed (tripl-hjxy) main could legitimately hold
+    the base held. When that was fixed main could legitimately hold
     two events sharing one scan identity under one type — create
     ``checkout:start``, rename it, let the scan mint ``checkout:start`` again.
-    ``uq_event_scan_identity`` has since made that impossible for live rows
-    (tripl-8tdl), so the shape is now reachable only through a base snapshot
+    ``uq_event_scan_identity`` has since made that impossible for live rows,
+    so the shape is now reachable only through a base snapshot
     taken before the constraint existed; a ``PlanRevision`` payload is data, not
     a constraint, which is why the guard stays and why this seed writes the
     duplicate into the stored payload and leaves the live rows unique.
@@ -4243,7 +4243,7 @@ async def test_building_a_plan_snapshot_does_not_hydrate_variable_contexts(
     ``Variable.value_contexts`` is ``lazy="selectin"`` and each context then
     selectin-loads its FieldDefinition, so a bare ``select(Variable)`` here
     pulled the project's entire context table into memory to serialise eight
-    columns (tripl-xkbb). A snapshot is built on every branch DIFF, not only on
+    columns. A snapshot is built on every branch DIFF, not only on
     a merge, so this is a request path.
     """
     slug = "snapshot-no-contexts"
@@ -4298,7 +4298,7 @@ async def test_building_a_plan_snapshot_does_not_hydrate_variable_contexts(
     assert [s for s in statements if "variable_values" in s] == [], statements
 
 
-# --- the diff states which renames a merge will pair (tripl-amnn) ------------
+# --- the diff states which renames a merge will pair ------------
 
 
 def test_snapshot_rename_pairs_reports_only_the_renames_the_diff_split() -> None:
@@ -4513,8 +4513,7 @@ async def test_a_renamed_event_splits_into_entries_pointing_at_opposite_sides(
     carries the branch copy — which is the same physical row the removal is
     talking about, renamed. A client that deep-links the removed entry lands on
     main's untouched event, not on the edit the reviewer is looking at, so the
-    pairing has to be resolved rather than either id followed blindly
-    (tripl-h2sx.6).
+    pairing has to be resolved rather than either id followed blindly.
     """
     slug = "branch-diff-rename-ids"
     await _seed_plan(client, slug)
@@ -4579,8 +4578,7 @@ async def test_branch_diff_names_the_rename_the_merge_will_pair(client: AsyncCli
     ``snapshot_rename_pairs`` is unit-tested above against three payloads. This
     asserts the wiring: that ``diff_branch`` actually calls it with the base,
     main and branch snapshots, and that the pair survives serialisation. Without
-    the call the field is a well-typed empty list and the UI is back to guessing
-    (tripl-amnn).
+    the call the field is a well-typed empty list and the UI is back to guessing.
     """
     slug = "diff-rename-pair"
     await _seed_plan(client, slug)
@@ -4649,7 +4647,7 @@ async def test_diff_keeps_scan_housekeeping_out_of_the_reviewers_counts(
     entries stay in the diff with a reason, and the counts a reviewer reads
     (``summary`` here, ``ahead`` on the list) count only the rest. A removal
     main has ALSO made since the branch was cut is housekeeping too: the merge
-    has nothing to do for it (tripl-kjhi.12).
+    has nothing to do for it.
     """
     from tripl.core.analyzers._event_generator_variables import SCAN_PROVENANCE_DESCRIPTION
 

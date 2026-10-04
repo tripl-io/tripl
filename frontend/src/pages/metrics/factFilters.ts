@@ -133,7 +133,7 @@ function isFullyWrapped(sql: string): boolean {
  * removing it would change AND/OR evaluation order). Applied on BOTH load
  * ({@link filtersFromConfig}) and save ({@link filtersToPayload}) so the edit
  * round trip is a fixed point and definitions polluted by the historical
- * wrap-on-every-save bug (tripl-wumc) self-heal on their next save.
+ * wrap-on-every-save bug self-heal on their next save.
  */
 export function stripRedundantOuterParens(sql: string): string {
   let out = sql.trim()
@@ -221,7 +221,7 @@ export function sqlFiltersFromStored(filterSql: string | null): string[] {
  * stored fragment itself before ANDing it with `row_filters` / `conditions`
  * (`_resolve_combined_filter` in metric_collect.py) — and, with
  * {@link sqlFiltersFromStored}, it keeps the load→save round trip a fixed
- * point (tripl-wumc).
+ * point.
  *
  * A condition row still exactly as it was loaded re-sends its stored form
  * (see `stored` on {@link FactFilter}).

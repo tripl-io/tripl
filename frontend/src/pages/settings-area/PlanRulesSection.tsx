@@ -38,7 +38,7 @@ const PLANNED_RULES: ReadonlyArray<{ title: string; items: readonly string[] }> 
  * Project · Plan rules: a description of a feature that is not built.
  *
  * It was first a page of live controls pre-set to a governed state, which an
- * owner could read as proof their plan was protected (tripl-x2ho), and then a
+ * owner could read as proof their plan was protected, and then a
  * page of dozens of disabled switches, radios and selects set to "off" — honest,
  * but still a quarter of the settings rail spent on controls that do nothing
  * (WS-37). What is left is one card that says what the rules will cover, with

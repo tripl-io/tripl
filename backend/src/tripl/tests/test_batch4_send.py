@@ -5,21 +5,21 @@ The Telegram seeding these tests need already exists in ``test_alerting.py``
 and is imported rather than copied: a second copy of a 100-line delivery
 fixture stops matching the first the moment the model gains a column — and the
 model just gained one. What is covered here is what a send does to the DELIVERY
-ROW: what the Inbox is told when a message is refused (tripl-0zpq.40), which
-worker is allowed to send at all when two are handed the same delivery
-(tripl-0zpq.37), and whether the destination's own toggle is still on by the
-time the message actually goes out (tripl-0zpq.39, which covers the scheduled
+ROW: what the Inbox is told when a message is refused, which
+worker is allowed to send at all when two are handed the same delivery,
+and whether the destination's own toggle is still on by the
+time the message actually goes out (which covers the scheduled
 digest's send task as well as the per-delivery one) — and, once a send is
 resumed rather than started, what the message it puts in the chat CLAIMS about
-the delivery it is finishing (tripl-0zpq.35). The scheduled digest's own send
+the delivery it is finishing. The scheduled digest's own send
 task is here for the same reason, on the question of what it leaves in the row
-when one of its groups fails and a later one does not (tripl-0zpq.32) — and on
+when one of its groups fails and a later one does not — and on
 which of the members it was handed it is allowed to send at all, which is
-tripl-0zpq.37 again, asked from the digest side.
+the same question as for alerts, asked from the digest side.
 
 One set of cases at the end is about the row's SETTINGS rather than the row:
 which From: addresses the send path will accept, against which ones the two
-diagnostics and the settings form accept (tripl-0zpq.29). Those reach past
+diagnostics and the settings form accept. Those reach past
 ``alerts.py`` on purpose — the same question is answered in
 ``alerts_channels._send_digest_to_destination`` for the weekly plan digest and
 in ``EmailSettingsUpdate`` for the form that stores the value — because a
@@ -970,7 +970,7 @@ def test_a_resumed_telegram_digest_does_not_regenerate_its_ai_note(
     engine.dispose()
 
 
-# ── a failed digest group must not erase a later group's body (tripl-0zpq.32) ──
+# ── a failed digest group must not erase a later group's body ──
 
 
 def _digest_member(
@@ -1189,7 +1189,7 @@ def test_a_failed_digest_group_does_not_erase_the_next_groups_rendered_body(
     engine.dispose()
 
 
-# ── the digest's own single-flight claim (tripl-0zpq.37, from the digest side) ──
+# ── the digest's own single-flight claim (from the digest side) ──
 
 # What the reaper's failed arm, or an earlier attempt at this member on its own,
 # left in the row. Asserted back byte-for-byte at the end: the one thing worse
@@ -1380,8 +1380,8 @@ def _retarget_at_email_destination(sync_session_factory, delivery_id: str) -> No
 
     ``email_from_address`` is left NULL deliberately: that is the only way the
     GLOBAL Default From is the value that ships, which is what this case is
-    about. A destination override can carry a display name too (tripl-v422
-    closed the save-time asymmetry), so the NULL here selects the global path
+    about. A destination override can carry a display name too (the save-time
+    asymmetry has been closed), so the NULL here selects the global path
     rather than the only path a display name can reach.
     """
     with sync_session_factory() as session:
@@ -1456,8 +1456,8 @@ def test_a_display_name_default_from_delivers_the_alert_instead_of_failing_it(
     ``validate_email_address``, which refuses a display name outright. So
     ``Tripl Alerts <no-reply@example.com>`` passed every check the UI offers and
     then failed EVERY alert to every email destination without an override
-    (tripl-0zpq.29) — a diagnostic more permissive than delivery, which is the
-    inverse of the fault the earlier From-validation work (tripl-q9o6) fixed.
+     — a diagnostic more permissive than delivery, which is the
+    inverse of the fault the earlier From-validation work fixed.
 
     The line under test is the single call inside
     ``alerts._resolve_email_context``. Put ``validate_email_address`` back and
@@ -1569,7 +1569,7 @@ def test_the_weekly_digest_sends_from_a_display_name_default_from() -> None:
     Both callers wrap it in ``except Exception`` -> ``logger.warning``
     (alerts_digest.py), so a display-name Default From did not surface as a
     failed delivery anywhere in the product: the digests simply stopped
-    arriving, every week, and said so only in the worker log (tripl-0zpq.29).
+    arriving, every week, and said so only in the worker log.
 
     Restore ``validate_email_address`` on that line and the first half raises
     "A display name and angle brackets ... are not permitted here" with
@@ -1622,7 +1622,7 @@ def test_the_settings_form_accepts_exactly_the_senders_the_send_path_accepts() -
 
     Each case pins one way the validator can be wrong. Reach for ``EmailStr`` or
     ``validate_email_address`` instead and the display-name case goes red —
-    that is tripl-0zpq.29 rebuilt at the other end of the same pipe, a value the
+    that is an earlier bug rebuilt at the other end of the same pipe, a value the
     operator can never save rather than one they can save but never deliver.
     Delete the validator and the bare string is accepted again. Forget that
     ``None`` and ``""`` are how the setting is CLEARED (a None is dropped from

@@ -195,7 +195,7 @@ export function useEventsQuery({
 
   // Reviewed is an axis of its own (an event can be reviewed and still sit in
   // `in_review` — see the user guide), and it had no filter at all, so "Mark
-  // reviewed" wrote a flag nobody could isolate afterwards (tripl-invv).
+  // reviewed" wrote a flag nobody could isolate afterwards.
   // Absent param = any; only an explicit true/false is persisted, so the
   // default request stays byte-identical to today.
   const filterReviewedRaw = searchParams.get('reviewed')
@@ -217,8 +217,8 @@ export function useEventsQuery({
   )
 
   // "Which events are still waiting on an answer?" — the question the discussion
-  // (tripl-h2sx.25) could not be asked until threads could be resolved
-  // (tripl-h2sx.26). Same URL shape as `reviewed`: absent means any, so the
+  // could not be asked until threads could be resolved.
+  // Same URL shape as `reviewed`: absent means any, so the
   // default request is unchanged.
   const filterOpenQuestionsRaw = searchParams.get('questions')
   const filterOpenQuestions =

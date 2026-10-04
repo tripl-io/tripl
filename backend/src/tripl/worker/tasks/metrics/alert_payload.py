@@ -190,7 +190,7 @@ def _build_alert_scope_names(
     # ``AlertDeliveryItem`` rows and the ``AlertPendingItem`` digest buffer,
     # whose ON CONFLICT arm rewrites ``scope_name`` on every collection — as is
     # the frozen ``payload_snapshot`` that quotes the same dict. That is why
-    # ``dispatch.py`` needs no guard of its own (tripl-0zpq.253).
+    # ``dispatch.py`` needs no guard of its own.
     #
     # The ``setdefault`` fallback needs no trim of its own but gets one anyway,
     # for free: ``scope_ref`` is String(64) on the same rows.
@@ -210,7 +210,7 @@ def _build_event_type_by_event_id(
     select by that column alone). ``alerting_matching.filter_matches_anomaly``
     resolves the type through this map instead, so an ``event_type`` filter
     narrows them the same way ``rule_covers_event`` already does for the
-    catalog's Monitor column (tripl-0zpq.7).
+    catalog's Monitor column.
 
     One query per dispatch run, covering all three candidate families at once,
     and none at all when no such candidate is present.
@@ -379,8 +379,8 @@ def _build_delivery_snapshot(
                 # ``null`` rather than the stored 0.0 placeholder when there was
                 # no baseline: this blob is read as JSON (the Inbox, the audit
                 # API, anything reading ``AlertDelivery.payload_snapshot``), and
-                # a number there is indistinguishable from "no change"
-                # (tripl-l429.27). Rows written before that change still carry
+                # a number there is indistinguishable from "no change".
+                # Rows written before that change still carry
                 # 0.0 — a frozen record is not rewritten — so a consumer reading
                 # historical deliveries disambiguates on ``expected_count == 0``.
                 #
@@ -389,7 +389,7 @@ def _build_delivery_snapshot(
                 # the simulator replays — rather than a local copy. A local copy
                 # is what let this line keep an ``expected > 0`` divisor after
                 # the outer encoding had already moved to ``!= 0``
-                # (tripl-0zpq.102): a signed catalog metric at a baseline of
+                #: a signed catalog metric at a baseline of
                 # -3 moving to -9 got ``percent_delta: 0.0`` frozen into the
                 # snapshot while the typed ``items[]`` beside it rendered the
                 # true 200.0%, so one delivery disagreed with itself.

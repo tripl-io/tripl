@@ -88,7 +88,7 @@ async def plan_project_retirement(
     selectin-loads its FieldDefinition, so the plain statement was two further
     reads that nothing here asked for and that no ``LIMIT`` bounds — the
     project's entire context table, hydrated to answer a question the indexed
-    ``with_contexts`` anti-join below already answers by id (tripl-xkbb). This
+    ``with_contexts`` anti-join below already answers by id. This
     runs on every ``GET /variables?usage=used|unused``, so it is a request path
     and not only the danger-zone one.
     """

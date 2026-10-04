@@ -122,10 +122,10 @@ class AuthStatusResponse(BaseModel):
     # app: true exactly when hosted.
     email_verification_required: bool = False
     # Whether "Sign in with Google" is offered (GOOGLE_CLIENT_ID and
-    # GOOGLE_CLIENT_SECRET set; tripl-sav5.2).
+    # GOOGLE_CLIENT_SECRET set).
     google_sign_in: bool = False
     # A public demo instance (PUBLIC_DEMO): the app says so, signs up with
-    # Google only, and hides what it refuses (tripl-sav5.6).
+    # Google only, and hides what it refuses.
     public_demo: bool = False
 
 

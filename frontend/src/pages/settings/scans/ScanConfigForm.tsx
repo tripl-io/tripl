@@ -353,7 +353,7 @@ export function ScanCreatePage({
           // In Catalog + monitoring the preview is not optional: the time column
           // is chosen from the columns it returns. In Catalog only it is not
           // "optional" either any more — it is how you find out what this scan
-          // would put in your plan before you create it (tripl-3y7z.6).
+          // would put in your plan before you create it.
           // A blocker leads, as visible text, since a disabled button's
           // `title` never shows (#237 DA-9); the next step stays under it.
           // Muted, not warning: on a form nobody has typed into yet it is the

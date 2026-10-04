@@ -246,7 +246,7 @@ def rank_top_n_once(
     The chunk loops in ``worker/tasks/metrics/`` enter this rather than the
     method so a stand-in that is not a :class:`BaseAdapter` — a test double
     answering canned rows — needs no top-N machinery: it has no pre-query to
-    share, and gets a no-op (tripl-0zpq.346).
+    share, and gets a no-op.
     """
     if isinstance(adapter, BaseAdapter):
         return adapter.top_n_ranking_window(time_from, time_to)
@@ -292,7 +292,7 @@ class BaseAdapter(abc.ABC):
       chunk or a replay does, can keep a different set than the first pass did
       and silently reshape the stored series.
     * "The requested window" is the CALLER's whole collection window, not the
-      chunk (tripl-0zpq.346). Ranked per chunk, a chunked collection kept
+      chunk. Ranked per chunk, a chunked collection kept
       ``{a,b,c,d}`` for its first week and ``{a,b,e,f}`` for its last, so one
       series stored real rows for ``c`` early and none late — its counts sat
       inside ``'Other'`` there with nothing recording the demotion. A chunk
@@ -352,7 +352,7 @@ class BaseAdapter(abc.ABC):
       counts 0 on all four. It used to answer ``0.0`` for ``sum`` alone, so the
       demo warehouse stored a zero where the SQL engines leave a gap — reachable,
       because ``amount`` is in ``synthetic._EVENTS_NULLABLE`` and every
-      screen-view row carries NULL in it (tripl-0zpq.345). Nothing pins the SQL
+      screen-view row carries NULL in it. Nothing pins the SQL
       side of the comparison by execution: the conformance fixture keeps all-NULL
       breakdown groups out by construction (``tests/conformance/dataset.py``).
     * A spec with no ``filter_sql`` is unconditional and none of this applies.
@@ -442,7 +442,7 @@ class BaseAdapter(abc.ABC):
     ``required_null_violation`` stays legal on such a column everywhere — it is
     pure NULL logic and needs no rendering.
 
-    The third is PostgreSQL's range comparison domain (tripl-0zpq.349). The
+    The third is PostgreSQL's range comparison domain. The
     fallback, ClickHouse and BigQuery parse the value into float64 and compare
     there; PostgreSQL compares in exact ``numeric``, because float8's input
     function raises 22003 on overflow AND underflow-to-zero and one such row
@@ -475,7 +475,7 @@ class BaseAdapter(abc.ABC):
     being: it counts the rows it sampled, so there ``limit`` bounds both.
     """
 
-    # Set only inside ``top_n_ranking_window`` (tripl-0zpq.346).
+    # Set only inside ``top_n_ranking_window``.
     _top_n_ranking_window: tuple[datetime, datetime] | None = None
     _top_n_ranking_cache: dict[object, object] | None = None
 
@@ -534,7 +534,7 @@ class BaseAdapter(abc.ABC):
         The SQL adapters' shared seam: it resolves the window (the caller's
         whole one inside :meth:`top_n_ranking_window`) and runs the engine's
         :meth:`_query_top_breakdown_values_multi` once per distinct pre-query
-        there (tripl-0zpq.346).
+        there.
         """
         rank_from, rank_to = self._ranking_window(time_from, time_to)
         key = (
@@ -795,7 +795,7 @@ class BaseAdapter(abc.ABC):
         this engine cannot render (BigQuery's REPEATED), a column absent from the
         result. Each of those used to leave nothing but a log line, so a contract
         that silently stopped being evaluated reported exactly like one that was
-        being met (tripl-0zpq.341 / tripl-0zpq.358). The caller reads the record
+        being met. The caller reads the record
         through :meth:`take_skipped_field_contracts` and reports it.
 
         The "says nothing" inert cases — an empty enum, a pattern-less regex, a

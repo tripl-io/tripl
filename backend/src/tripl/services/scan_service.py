@@ -51,14 +51,14 @@ async def _refresh_main_search_index(
     on their next rebuild. Same rule metrics and fact tables already follow.
 
     Without this a scan the user just created stayed unfindable in the command
-    palette until some unrelated reindex happened to fire (tripl-ugrm).
+    palette until some unrelated reindex happened to fire.
     """
     main_branch_id = await resolve_branch_id(session, project_id, None)
     await reindex_project_branch(
         session, project_id=project_id, branch_id=main_branch_id, slug=slug
     )
-    # The event type list carries each type's resolved ``event_name_format``
-    # (tripl-kjhi.1), so a scan config edit changes that response too.
+    # The event type list carries each type's resolved ``event_name_format``,
+    # so a scan config edit changes that response too.
     await cache.delete(cache.key_event_types_list(project_id))
 
 
@@ -541,7 +541,7 @@ async def _reject_if_already_running(session: AsyncSession, scan_config_id: uuid
     (worker/tasks/metrics/schedule.py), but the manual trigger had no guard at
     all: a double-click, or Run pressed during the hourly run, started a second
     scan on the same config. Collection deletes a chunk window and rewrites it,
-    so two interleaved runs lose rows (tripl-jfm3.100).
+    so two interleaved runs lose rows.
 
     "Live" uses the same staleness rule as the scheduler: a job whose newest
     activity marker is older than STALE_ACTIVE_SCAN_JOB_TIMEOUT is a corpse the
@@ -662,7 +662,7 @@ async def list_scan_jobs(
     *,
     limit: int = 50,
 ) -> list[ScanJob]:
-    """Newest jobs first. Capped — see the route docstring (tripl-jfm3.107)."""
+    """Newest jobs first. Capped — see the route docstring."""
     await get_scan_config(session, slug, scan_id)
     result = await session.execute(
         select(ScanJob)
@@ -728,7 +728,7 @@ async def cancel_scan_job(
             # revoke is a synchronous kombu broadcast, and against a hung broker
             # an inline call holds the uvicorn thread for seconds. Harmless while
             # ``celery_task_id`` was almost always NULL — which is exactly what
-            # tripl-0zpq.44 stopped being true, since the scan tasks now record
+            # stopped being true, since the scan tasks now record
             # it and every Stop run reaches this branch.
             await dispatch(celery_app.control.revoke, job.celery_task_id)
         except Exception:  # noqa: BLE001 — revoke is best-effort; cooperative stop is the backstop

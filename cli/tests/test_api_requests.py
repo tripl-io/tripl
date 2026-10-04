@@ -2,7 +2,7 @@
 
 No network and no ``main([...])`` here on purpose: everything in ``tripl_cli.api``
 is a value or a total function over an already-decoded payload, which is exactly
-what makes it safe for two distributions to share (tripl-ey6j.5).
+what makes it safe for two distributions to share.
 """
 
 from __future__ import annotations
@@ -186,7 +186,7 @@ def test_drift_items_reads_the_items_envelope() -> None:
 
 
 def test_field_count_reads_a_null_field_definitions_as_zero() -> None:
-    """The one derived fact both surfaces put in a table (tripl-i1dt).
+    """The one derived fact both surfaces put in a table.
 
     ``field_definitions`` is nullable on the wire, and the two spellings of this
     count - the CLI's table and the MCP's ``list_event_types`` - each had to
@@ -219,7 +219,7 @@ def test_semantic_used_reads_an_absent_flag_as_false_rather_than_unknown() -> No
 
 
 def test_truncated_reads_an_absent_flag_as_false_rather_than_unknown() -> None:
-    """The second envelope fact ``/search`` adds, read the same way (tripl-wkwv.3).
+    """The second envelope fact ``/search`` adds, read the same way.
 
     ``total`` on this route is ``len(items)``, so it equals ``limit`` on any full
     page and cannot say whether ranked hits were dropped. ``truncated`` can, and
@@ -241,7 +241,7 @@ def test_truncated_reads_an_absent_flag_as_false_rather_than_unknown() -> None:
 def test_reported_truncated_separates_a_silent_route_from_one_saying_false() -> None:
     """The distinction ``truncated`` cannot make, for the consumer that needs it.
 
-    tripl-wkwv.3. ``tripl plan search`` uses this as the top rung of a ladder
+    ``tripl plan search`` uses this as the top rung of a ladder
     whose bottom rung is "the page filled". Collapsed to a bool, an instance
     that predates the field would read as the route saying nothing was dropped,
     and the guess that exists for exactly that instance would never run. The MCP

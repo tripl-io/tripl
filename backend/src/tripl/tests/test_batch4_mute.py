@@ -5,7 +5,7 @@
 ``alert_flush._build_digest`` when a scheduled digest is built — and only the
 second of them was pinned by a test (``test_alert_digest_delivery.py``'s
 "muting a monitor during the hold window"). The first one is the line
-tripl-jfm3.99 added after the Mute button shipped writing a column no worker
+added after the Mute button shipped writing a column no worker
 read; deleting it today left the suite green, which is exactly how that bug
 happened the first time. These cases hold the model comment on
 ``muted_until`` to the code it describes.
@@ -52,7 +52,7 @@ def test_a_muted_monitor_mints_no_immediate_delivery(
     """The Mute button on the Monitors screen has to stop messages.
 
     Its whole effect is this column, and for one release nothing in the worker
-    read it (tripl-jfm3.99): the UI reported the monitor muted and the alerts
+    read it: the UI reported the monitor muted and the alerts
     kept arriving.
     """
     with sync_session_factory() as session:

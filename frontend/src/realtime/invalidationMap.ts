@@ -1,5 +1,5 @@
 /**
- * Centralized event → query-key invalidation map (tripl-2su6.8).
+ * Centralized event → query-key invalidation map.
  *
  * One place that maps each server event type to the set of React-Query keys that
  * must be refreshed, replacing per-widget polling. Keys are targeted by PREFIX
@@ -128,7 +128,7 @@ export function invalidationKeysFor(type: ProjectEventType, slug: string): Query
         projectMonitorHistoryKey(slug),
         reconciliationRootKey(),
         // Covers the Events tabs/rows signals AND the expanded list shared by
-        // the bell, Overview and the Anomalies page (tripl-jfm3.119). The old
+        // the bell, Overview and the Anomalies page. The old
         // per-surface prefixes ('anomalies'/'overview'/'topbarNotifications'
         // + signals) are gone — one key now, so a new surface cannot forget to
         // register itself here.

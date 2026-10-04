@@ -251,7 +251,7 @@ async def test_alert_inbox_false_positive_updates_state_and_thresholds(
 
     # A second action carrying no note must not erase the first one's. The
     # assignment was unconditional, so every follow-up action silently wiped the
-    # note written with the previous one (tripl-jfm3.91).
+    # note written with the previous one.
     await client.post(
         f"/api/v1/projects/inbox-workflow/alert-inbox/{group_id}/actions",
         json={"action": "acknowledge"},
@@ -292,7 +292,7 @@ async def test_alert_inbox_false_positive_ratchets_only_the_marked_scope(
     project's monitoring settings AND on every scan the group touched, so
     dismissing one noisy event made the detector stricter on every other event,
     event type, project total and catalog metric in the project. Per-scope
-    correlation groups (tripl-l429.1) made that button easy to reach, so the
+    correlation groups made that button easy to reach, so the
     blast radius had to shrink to the scope that was actually dismissed.
     """
     project_resp = await client.post(
@@ -476,7 +476,7 @@ def test_every_drift_type_the_pipeline_writes_exists_in_the_enum() -> None:
     INSERT, and since dispatch runs inside collect_metrics the whole collection
     transaction dies with it. That is exactly what 'value_drift' did: the scope
     shipped in d1c2b3a4f5e6, which extended metric_scope_type and forgot
-    alert_drift_type (tripl-jfm3.97).
+    alert_drift_type.
 
     SQLite stores enums as unvalidated text, so no behavioural test on this
     suite can catch it — hence checking the literals against the enum directly.
@@ -499,7 +499,7 @@ def test_delivery_errors_never_carry_the_destination_secret() -> None:
 
     Masking used to be a Telegram-shaped regex, so a Slack incoming-webhook URL
     — which IS the credential — was written to alert_deliveries.error_message in
-    full and readable by any project member (tripl-jfm3.94).
+    full and readable by any project member.
     """
     from tripl.worker.tasks.alerts_channels import _safe_url_for_error
 
@@ -959,7 +959,7 @@ async def test_alert_deliveries_filter_by_incident_and_reach_the_ungrouped(
     no incident stay reachable.
 
     The alerting page folds "what was sent" into the incident card so the actions
-    sit next to the alert instead of in a second panel further up (tripl-pq97).
+    sit next to the alert instead of in a second panel further up.
     That needs a per-incident query — and, because ``correlation_group_id`` is
     nullable, a way to ask for the rows no incident id can select. Without the
     second filter, nesting would quietly drop every ungrouped delivery (rows that
@@ -1059,7 +1059,7 @@ async def test_alert_deliveries_filter_by_incident_and_reach_the_ungrouped(
             [
                 _item(grouped, group_id),
                 _item(other_incident, uuid.uuid4()),
-                # Pre-tripl-jfm3.91 shape: an item with no incident at all.
+                # Older shape: an item with no incident at all.
                 _item(orphan, None),
             ]
         )
@@ -2448,7 +2448,7 @@ def _build_rule(**overrides: object) -> AlertRule:
 # a project-global (``metric``-scope) anomaly really carries on its row.
 #
 # A COOLDOWN TEST MUST NOT USE IT. The replay's cooldown key carries the scan
-# partition (tripl-0zpq.42), mirroring ``uq_alert_rule_state_scope``, so a fresh
+# partition, mirroring ``uq_alert_rule_state_scope``, so a fresh
 # id per anomaly puts each one on its own clock and nothing is ever suppressed.
 # Pass one explicit ``scan_config_id`` to every anomaly that shares a clock.
 _ANY_SCAN_CONFIG = uuid.UUID("00000000-0000-0000-0000-0000000000ff")
@@ -2490,7 +2490,7 @@ def test_simulate_rule_firings_applies_cooldown_per_scope() -> None:
     scope_b = str(uuid.uuid4())
     base = datetime(2026, 5, 1, 12, tzinfo=UTC)
     # One scan for every anomaly, stated explicitly: the cooldown partition
-    # includes the scan (tripl-0zpq.42), so the ``_ANY_SCAN_CONFIG`` default
+    # includes the scan, so the ``_ANY_SCAN_CONFIG`` default
     # would give each of these its own clock and admit all four.
     scan = uuid.uuid4()
 
@@ -3282,7 +3282,7 @@ async def test_alert_rule_simulate_renders_percent_metric_values(client: AsyncCl
 async def test_alert_rule_simulate_includes_project_global_metric_anomaly(
     client: AsyncClient,
 ) -> None:
-    """Regression (tripl-nxk2.18): catalog metric anomalies are project-global,
+    """Regression: catalog metric anomalies are project-global,
     stored with scope_type='metric' and a NULL scan_config_id. The simulator's
     old scan_config inner join silently dropped them, so metric-including rules
     never fired. The simulator must now load them (scoped via MetricDefinition)
@@ -3438,8 +3438,8 @@ def test_simulate_rule_firings_respects_cooldown_override() -> None:
     rule = _build_rule(cooldown_minutes=60)
     scope = str(uuid.uuid4())
     base = datetime(2026, 5, 1, 12, tzinfo=UTC)
-    # One scan for all three: the cooldown partition includes the scan
-    # (tripl-0zpq.42), and three separate scans would be three separate clocks.
+    # One scan for all three: the cooldown partition includes the scan,
+    # and three separate scans would be three separate clocks.
     scan = uuid.uuid4()
     anomalies = [
         _build_anomaly(base, scope_ref=scope, scan_config_id=scan),
@@ -3815,7 +3815,7 @@ def _email_sender_with(refused: object):
 
 
 def test_email_partial_recipient_refusal_is_not_a_successful_send() -> None:
-    """smtplib only raises when EVERY recipient is refused (tripl-jfm3.117).
+    """smtplib only raises when EVERY recipient is refused.
 
     The partial-refusal dict used to be discarded, so a mail that reached one of
     three people was stored and shown as "sent".
@@ -4471,7 +4471,7 @@ def _seed_alert_delivery(
     reason. A row holding one is a row no send task can pick up until the lease
     ages out ``STRANDED_DELIVERY_MINUTES``, so which rows the reaper clears it
     on — and which it leaves alone — decides whether the delivery it just
-    enqueued actually goes anywhere (tripl-0zpq.37)."""
+    enqueued actually goes anywhere."""
     suffix = uuid.uuid4().hex[:8]
     project = Project(
         id=uuid.uuid4(), name=f"Reaper Project {suffix}", slug=f"reaper-{suffix}", description=""
@@ -4893,7 +4893,7 @@ def test_is_transient_send_error_classifies_persisted_error_text() -> None:
     assert not is_transient_send_error(None)
 
 
-# --- SSRF guard on destination URLs (tripl-3h1) ------------------------------
+# --- SSRF guard on destination URLs ------------------------------
 
 
 @pytest.mark.parametrize(
@@ -4968,7 +4968,7 @@ def test_validate_webhook_target_url_allows_public_host(monkeypatch) -> None:
     )
 
 
-# --- idempotent re-delivery under acks_late (tripl-908) ----------------------
+# --- idempotent re-delivery under acks_late ----------------------
 
 
 def test_send_alert_delivery_is_idempotent_on_resend(monkeypatch, tmp_path) -> None:
@@ -5559,7 +5559,7 @@ async def test_monitor_detail_mute_and_unmute(client: AsyncClient) -> None:
     assert detail["last_delivery_at"] is None
     # The project-wide default, which is what every rule is created with and
     # every rule predating the column carries. The scan join is an OUTER one for
-    # exactly this row; an inner join would 404 here (tripl-wkwv.9).
+    # exactly this row; an inner join would 404 here.
     assert detail["scan_config_id"] is None
     assert detail["scan_name"] is None
 
@@ -5581,7 +5581,7 @@ async def test_monitor_detail_mute_and_unmute(client: AsyncClient) -> None:
     assert mute_resp.json()["muted_until"] is not None
     # All three endpoints return MonitorDetailResponse through one builder, and
     # all three had to be rewired for the scan join — a GET-only assertion would
-    # miss a POST that stopped compiling the pair (tripl-wkwv.9).
+    # miss a POST that stopped compiling the pair.
     assert mute_resp.json()["scan_config_id"] is None
     assert mute_resp.json()["scan_name"] is None
 
@@ -5612,11 +5612,11 @@ async def test_monitor_detail_names_the_scan_a_rule_is_narrowed_to(client: Async
     go and check that scan's own distribution-drift list before trusting
     ``scope_readiness`` — a project verdict that a sibling scan can satisfy on a
     bound rule's behalf. Naming the scan does not fix that verdict; it makes the
-    documented workaround reachable (tripl-wkwv.9).
+    documented workaround reachable.
 
     ``scope_readiness`` is asserted UNCHANGED here on purpose: it is still the
     project's answer, and re-pointing it at the named scan on this response only
-    would give one field name two meanings across two responses — tripl-oxkt.18.
+    would give one field name two meanings across two responses.
     """
     from tripl.services.scan_service import delete_scan_config
 
@@ -5669,7 +5669,7 @@ async def test_monitor_detail_names_the_scan_a_rule_is_narrowed_to(client: Async
     # verdict is still True — the SIBLING scan watches a column, this rule's own
     # scan does not — which is the shipped limitation this task mitigates rather
     # than fixes. It reads identically on the monitors list, which is what stops
-    # one field name meaning two things on two responses (tripl-oxkt.18).
+    # one field name meaning two things on two responses.
     assert detail["scope_readiness"]["distribution_drift"] is True
     summary = (await client.get("/api/v1/projects/monitor-scan/monitors-summary")).json()
     assert detail["scope_readiness"] == summary["scope_readiness"]
@@ -5702,7 +5702,7 @@ async def test_monitor_detail_names_the_scan_a_rule_is_narrowed_to(client: Async
     assert orphaned.json()["rule_enabled"] is False
 
 
-# --- tripl-57g0: enum-shaped query params reject garbage at the edge ---------
+# --- enum-shaped query params reject garbage at the edge ---------
 #
 # ``status`` and ``channel`` on /alert-deliveries bind against native Postgres
 # enums, so while they were declared ``str`` a typo travelled to the driver and
@@ -5793,7 +5793,7 @@ async def test_alert_inbox_rejects_unknown_status_instead_of_reporting_empty(
 
 
 # ---------------------------------------------------------------------------
-# Inbox as a triage surface (epic tripl-oxkt): the card has to say WHAT fired
+# Inbox as a triage surface (an epic): the card has to say WHAT fired
 # and how big it was, an incident a human handled must stay reachable, and an
 # action must report what it actually did.
 # ---------------------------------------------------------------------------
@@ -5922,7 +5922,7 @@ def _inbox_item(
 @pytest.mark.asyncio
 async def test_inbox_group_reports_magnitude_scope_types_and_rules(client: AsyncClient) -> None:
     """Two firings of one scope were near-identical cards: status, item count and
-    names, but never what fired or how big it was (tripl-oxkt.4)."""
+    names, but never what fired or how big it was."""
     project_resp = await client.post(
         "/api/v1/projects",
         json={"name": "Inbox Magnitude", "slug": "inbox-magnitude", "description": ""},
@@ -5999,7 +5999,7 @@ async def test_inbox_group_reports_magnitude_scope_types_and_rules(client: Async
 @pytest.mark.asyncio
 async def test_lapsed_mute_stops_reporting_muted_until(client: AsyncClient) -> None:
     """A mute that has expired reported status `open` AND `muted_until` in the
-    past, so the card rendered two contradictory claims (tripl-oxkt.20)."""
+    past, so the card rendered two contradictory claims."""
     project_resp = await client.post(
         "/api/v1/projects",
         json={"name": "Lapsed Mute", "slug": "lapsed-mute", "description": ""},
@@ -6067,8 +6067,7 @@ async def test_handled_group_never_outranks_an_untouched_open_one(client: AsyncC
     acknowledge, resolve, mute, reopen and false_positive alike, so the last N
     incidents a human TRIAGED took the top N ranks and pushed every untouched one
     off page one — a worse failure than the sinking it was meant to fix, and it
-    did not fix that either (a mute freezes the key just the same, minutes later)
-    — tripl-oxkt.2.
+    did not fix that either (a mute freezes the key just the same, minutes later).
     """
     project_resp = await client.post(
         "/api/v1/projects",
@@ -6131,7 +6130,7 @@ async def test_muted_group_stays_findable_behind_the_status_filter(client: Async
     A muted group is suppressed, so it records no further deliveries and its
     activity key is frozen: no ordering rule can keep it on page one while open
     incidents keep firing. Sinking it is therefore expected — what must NOT
-    happen is it becoming unreachable (tripl-oxkt.1/.2).
+    happen is it becoming unreachable (.2).
     """
     project_resp = await client.post(
         "/api/v1/projects",
@@ -6190,7 +6189,7 @@ async def test_muted_group_stays_findable_behind_the_status_filter(client: Async
 async def test_false_positive_reports_how_many_scopes_it_tightened(client: AsyncClient) -> None:
     """`release_regression` is not in RATCHETABLE_SCOPE_TYPES, so the button
     wrote nothing on 10 of 57 production groups while promising a permanent
-    detection change (tripl-oxkt.6). The count says which happened."""
+    detection change. The count says which happened."""
     project_resp = await client.post(
         "/api/v1/projects",
         json={"name": "Override Count", "slug": "override-count", "description": ""},
@@ -6251,7 +6250,7 @@ async def test_note_action_records_the_note_and_nothing_else(client: AsyncClient
     """Documenting an incident used to require taking an action, and the stamp at
     the end of apply_alert_inbox_action was unconditional — so a note-only save
     forged the "already handled by X" line the card derives from acted_at
-    (tripl-oxkt.20)."""
+    ."""
     project_resp = await client.post(
         "/api/v1/projects",
         json={"name": "Note Only", "slug": "note-only", "description": ""},
@@ -6322,7 +6321,7 @@ async def test_inbox_group_route_resolves_a_group_outside_the_lookback_window(
 ) -> None:
     """An alert message deep-links its incident and the reader opens it late, so
     this route must ignore INBOX_LOOKBACK_DAYS — the links that most need to land
-    are the old ones (tripl-oxkt.7)."""
+    are the old ones."""
     project_resp = await client.post(
         "/api/v1/projects",
         json={"name": "Deep Link", "slug": "deep-link", "description": ""},
@@ -6371,7 +6370,7 @@ async def test_inbox_action_succeeds_on_a_group_outside_the_lookback_window(
 ) -> None:
     """The action committed and THEN rebuilt the whole inbox to find the group it
     had just written, so an aged incident 404'd after a successful write and the
-    UI reported an error for a change that landed (tripl-oxkt.20)."""
+    UI reported an error for a change that landed."""
     project_resp = await client.post(
         "/api/v1/projects",
         json={"name": "Aged Action", "slug": "aged-action", "description": ""},
@@ -6415,7 +6414,7 @@ async def test_an_indefinite_mute_stays_reachable_after_its_deliveries_age_out(
     """Muting is the act of stopping deliveries, and the list only sees
     deliveries — so 30 days later the incident dropped out of every filter while
     its suppression went on being enforced forever, taking the only Unmute
-    control with it (tripl-zfr3)."""
+    control with it."""
     project_resp = await client.post(
         "/api/v1/projects",
         json={"name": "Silenced Window", "slug": "silenced-window", "description": ""},
@@ -6442,7 +6441,7 @@ async def test_an_indefinite_mute_stays_reachable_after_its_deliveries_age_out(
 
     # `muted_until: null` IS the indefinite mute, and it is the one status
     # nothing ever releases: `_reopen_closed_incidents` skips it on purpose
-    # (tripl-a50u) and `_suppressed_correlation_group_ids` has no time bound.
+    # and `_suppressed_correlation_group_ids` has no time bound.
     mute = await client.post(
         f"/api/v1/projects/silenced-window/alert-inbox/{group_id}/actions",
         json={"action": "mute", "muted_until": None},
@@ -6483,7 +6482,7 @@ async def test_a_lapsed_mute_on_an_aged_incident_is_not_rescued(
 ) -> None:
     """The rescue reads `_effective_inbox_status`, not `state.status`.
 
-    A mute whose expiry has passed is OPEN again — the whole of tripl-oxkt.20 —
+    A mute whose expiry has passed is OPEN again — the whole of that bug —
     and an open incident that stopped delivering is exactly the resolved-by-time
     case the 30-day window exists to forget. Keying the rescue on the stored
     string instead would turn the inbox into an unbounded archive of everything
@@ -6516,7 +6515,7 @@ async def test_a_lapsed_mute_on_an_aged_incident_is_not_rescued(
     # row carrying `muted` with an expiry that has passed. It used to POST the
     # lapsed instant directly, which the route now refuses with a 422 — a mute
     # whose end has already gone by is a silence no reader can honour, so it is
-    # rejected at the door (tripl-0zpq.273; the refusal itself is pinned in
+    # rejected at the door (the refusal itself is pinned in
     # test_batch4_services.py). So the mute is made the way an operator makes
     # one, with a real future expiry, and then TIME is what passes — written
     # onto the row directly, the same way ``test_lapsed_mute_stops_reporting_
@@ -6558,8 +6557,7 @@ async def test_inbox_says_where_its_window_really_starts_when_the_cap_shortens_i
     grouping, so a project loud enough to exceed it gets a window shorter than
     the documented one, with the oldest incidents simply absent — and absent
     looks exactly like handled. The response now names the instant the visible
-    window really starts, and names nothing when the documented window held
-    (tripl-39n6).
+    window really starts, and names nothing when the documented window held.
 
     Both branches are pinned, because "exactly at the cap" and "cut short by the
     cap" are the two the limit+1 probe exists to tell apart: fetching only the
@@ -6627,7 +6625,7 @@ async def test_inbox_group_reports_no_baseline_as_null_not_zero(client: AsyncCli
     Copied off the column, it rendered "0%" on the card and sorted as the
     SMALLEST deviation in the group, while the delivery the card expands to
     correctly reported null — one payload family answering the same question two
-    ways (tripl-l429.24/.27).
+    ways (.27).
     """
     project_resp = await client.post(
         "/api/v1/projects",
@@ -6825,7 +6823,7 @@ async def test_inbox_never_reports_an_operators_email(client: AsyncClient) -> No
 
     Every project member can read the inbox, and this endpoint previously exposed
     only an opaque UUID, so the fallback turned incident cards into a roster of
-    colleagues' addresses. An unnamed operator gets no name (tripl-oxkt.5).
+    colleagues' addresses. An unnamed operator gets no name.
     """
     project_resp = await client.post(
         "/api/v1/projects",
@@ -6935,8 +6933,8 @@ async def test_note_action_without_a_note_is_rejected(client: AsyncClient) -> No
     The note write is conditional on ``note is not None``, so the request looked
     accepted, changed nothing, and still inserted a correlation-state row. It
     used to mirror a guard on mute/muted_until; that one is gone, because a null
-    ``muted_until`` is now the indefinite mute rather than a missing field
-    (tripl-a50u). This guard stands alone and is still needed.
+    ``muted_until`` is now the indefinite mute rather than a missing field.
+    This guard stands alone and is still needed.
     """
     project_resp = await client.post(
         "/api/v1/projects",
@@ -7029,7 +7027,7 @@ async def test_inbox_mute_without_an_expiry_is_an_indefinite_mute(client: AsyncC
 
     The validator used to reject it with a 422, so an operator watching a scope
     they already KNEW was broken had to invent an end date, and got paged again
-    the moment they guessed too short (tripl-a50u). A null ``muted_until`` on a
+    the moment they guessed too short. A null ``muted_until`` on a
     muted row is the encoding, and it has to survive the whole round trip: the
     column stays NULL, the group still reads ``muted``, and the card gets
     ``muted: true`` with ``muted_until: null`` — which is the pair the frontend
@@ -7085,7 +7083,7 @@ async def test_reopen_lifts_an_indefinite_inbox_mute(client: AsyncClient) -> Non
     human and by nobody else, so if ``reopen`` ever stopped nulling the column or
     stopped resetting the status, the operator would hold an unbreakable mute
     with no way out through the API. That is a worse failure than the one
-    tripl-a50u fixed, and it is what this test stands guard over.
+    an earlier fix addressed, and it is what this test stands guard over.
     """
     group_id = await _seed_inbox_group(client, "unmute-forever", "Unmute Forever")
 
@@ -7125,8 +7123,7 @@ async def _seed_inbox_groups(
     Never-acted-on ON PURPOSE: none of them has an ``AlertCorrelationState`` row
     until something acts on it, and that is what a real bulk selection is mostly
     made of. It is also the case the bulk route's id validation has to get right
-    — validating on the presence of a state row would 404 every one of these
-    (tripl-gpfr).
+    — validating on the presence of a state row would 404 every one of these.
 
     Deliveries are staggered an hour apart so the inbox ordering is deterministic
     and the returned list is newest-first, matching what the list endpoint hands
@@ -7168,7 +7165,7 @@ async def test_bulk_action_copies_the_decision_into_every_selected_incident(
 ) -> None:
     """The batch is a SHORTCUT for N clicks, so every selected row ends up identical.
 
-    tripl-gpfr deliberately built no group object and no new table: the note,
+    The design deliberately built no group object and no new table: the note,
     ``acted_at`` and ``acted_by`` are COPIED into each incident's own state, so
     afterwards nothing distinguishes a bulk-acknowledged incident from a
     hand-clicked one. That is the whole contract, and these three assertions are
@@ -7211,7 +7208,7 @@ async def test_bulk_action_copies_the_decision_into_every_selected_incident(
         assert group["acted_by_name"] == "Test User"
     # ``false_positive`` is refused on this route, so nothing here can ever ratchet
     # a threshold and the count is structurally null — never 0, which a shared
-    # client handler would render as "no scopes tightened" (tripl-oxkt.6).
+    # client handler would render as "no scopes tightened".
     assert body["overrides_written"] is None
     assert body["batch_id"] is not None
 
@@ -7247,7 +7244,7 @@ async def test_bulk_action_404s_the_whole_request_and_mutates_nothing(
     The single-incident route validates inside a call that has already done work,
     which is harmless at N=1. At N groups that ordering would leave a half-applied
     batch sitting behind a 404, so the bulk route validates every id in one query
-    up front and mutates only after all of them pass (tripl-gpfr). There is no
+    up front and mutates only after all of them pass. There is no
     partial success and no per-item error array — nothing in this repo has one.
 
     The second half of this test is the half that matters: a 404 that had already
@@ -7307,7 +7304,7 @@ async def test_bulk_action_refuses_false_positive_with_the_reason(client: AsyncC
     within a single call and each step compounds off the scope's own current
     value, so marking both would take two ratchet steps on one scope for one
     human decision, permanently desensitising detection there with nothing in the
-    record to say it was one click (tripl-gpfr).
+    record to say it was one click.
 
     A refusal rather than a silent dedupe: deduping would have to guess which of
     the two incidents the operator meant, and the ratchet is not undoable from
@@ -7367,7 +7364,7 @@ async def test_bulk_action_caps_the_selection_and_rejects_an_empty_one(
     The cap is pinned to ``list_alert_inbox``'s own page ceiling (``limit`` is
     ``le=200``), because the selection is made by ticking rows on ONE page: any
     lower and "select all" on a full page would 422, any higher and it would admit
-    a list no page of the UI can produce (tripl-gpfr). Unlike the other bulk
+    a list no page of the UI can produce. Unlike the other bulk
     routes, which mutate every named row in a single UPDATE, this one does
     per-group work — a state row, a rebuilt card and an audit row EACH — so the
     length of the list is a real cost here.
@@ -7416,7 +7413,7 @@ async def test_bulk_action_writes_one_audit_row_per_group_sharing_a_batch_id(
     the same ``alert_correlation_group`` target type the single route uses, which
     keeps a bulk mute searchable by exactly the query that finds a hand-clicked
     one, and a shared ``batch_id`` in the payload re-joins them into the one click
-    that wrote them (tripl-gpfr).
+    that wrote them.
     """
     from tripl.models.audit_log import AuditLog
 
@@ -7448,7 +7445,7 @@ async def test_bulk_action_writes_one_audit_row_per_group_sharing_a_batch_id(
         # that an existing audit query would silently miss.
         assert {row.action for row in rows} == {"alert_inbox.mute"}
         # Each row names its OWN incident. ``target_id`` is the identity; the name
-        # is the readable form of it (see the scope-name test below, tripl-ckun),
+        # is the readable form of it (see the scope-name test below),
         # which for these fixtures is the same scope on every group.
         assert {row.target_id for row in rows} == set(group_ids)
         assert {row.target_name for row in rows} == {"event · event scope"}
@@ -7466,7 +7463,7 @@ async def test_bulk_action_writes_one_audit_row_per_group_sharing_a_batch_id(
 async def test_inbox_audit_rows_name_the_incident_rather_than_its_uuid(
     client: AsyncClient,
 ) -> None:
-    """An ``alert_inbox.*`` row has to say WHICH incident, in words (tripl-ckun).
+    """An ``alert_inbox.*`` row has to say WHICH incident, in words.
 
     Both routes recorded ``str(correlation_group_id)`` as the target name, so the
     project Audit log — the page whose stated job is a compliance trail — was a
@@ -7552,7 +7549,7 @@ async def test_bulk_action_treats_a_repeated_id_as_one_incident(client: AsyncCli
     ``dedupe_correlation_group_ids`` is the one definition of "what this batch
     acted on", and it is read twice: by the service, which mutates and then
     rebuilds a card per entry, and by the route, which writes an audit row per
-    entry (tripl-gpfr). Both readings go wrong on a repeat, and the audit one
+    entry. Both readings go wrong on a repeat, and the audit one
     goes wrong silently — two rows under one ``batch_id``, each claiming its own
     decision on the same incident, which is a trail that reports two mutes where
     an operator made one. Nothing about the response would say so.
@@ -7631,7 +7628,7 @@ async def test_bulk_action_treats_a_repeated_id_as_one_incident(client: AsyncCli
 async def test_bulk_mute_without_an_expiry_is_indefinite_here_too(client: AsyncClient) -> None:
     """A null ``muted_until`` means "muted until I unmute" on this route as well.
 
-    The single route already allows it (tripl-a50u): an operator watching a scope
+    The single route already allows it: an operator watching a scope
     they know is broken should not have to invent an end date and get paged again
     the moment they guess too short. Bulk-muting a screenful of incidents is the
     case that needs it MOST, so this route must not become the one place that
@@ -7719,7 +7716,7 @@ async def _seed_slack_destination_with_rule(
 async def test_rule_carries_the_same_mute_state_as_its_monitor(client: AsyncClient) -> None:
     """The destination card and the monitors screen render the SAME AlertRule and
     used to disagree about its mute, because AlertRuleResponse had no mute state
-    at all — so the card could neither show nor set one (tripl-oxkt.18)."""
+    at all — so the card could neither show nor set one."""
     await client.post(
         "/api/v1/projects",
         json={"name": "Rule Mute", "slug": "rule-mute", "description": ""},
@@ -7770,7 +7767,7 @@ async def test_rule_carries_the_same_mute_state_as_its_monitor(client: AsyncClie
 async def test_rule_mute_still_requires_an_expiry(client: AsyncClient) -> None:
     """A null ``muted_until`` means the OPPOSITE thing on a rule, and must stay 422.
 
-    tripl-a50u made "null = muted forever" true on ``AlertCorrelationState``. On
+    An earlier fix made "null = muted forever" true on ``AlertCorrelationState``. On
     ``AlertRule`` null means NOT MUTED — ``is_rule_muted`` answers False for it,
     and null is the default on every rule ever created — so relaxing
     ``MonitorMuteRequest.muted_until`` to match the inbox payload would report
@@ -7821,7 +7818,7 @@ async def test_rule_mute_still_requires_an_expiry(client: AsyncClient) -> None:
 async def test_delete_confirm_can_state_what_it_would_destroy(client: AsyncClient) -> None:
     """Both AlertDelivery FKs are ondelete=CASCADE and the Inbox INNER JOINs
     through them, so deleting a rule or a destination silently takes the delivery
-    history and the incidents with it. The confirm needs numbers (tripl-oxkt.13)."""
+    history and the incidents with it. The confirm needs numbers."""
     project_resp = await client.post(
         "/api/v1/projects",
         json={"name": "Delete Impact", "slug": "delete-impact", "description": ""},
@@ -7906,7 +7903,7 @@ async def test_delete_confirm_can_state_what_it_would_destroy(client: AsyncClien
 async def test_destination_test_send_reaches_the_channel_and_logs_no_delivery(
     client: AsyncClient, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """'webhook set' says a value is STORED, not that it arrives (tripl-oxkt.17)."""
+    """'webhook set' says a value is STORED, not that it arrives."""
     from tripl.models.audit_log import AuditLog
     from tripl.worker.tasks import alerts
 
@@ -7995,7 +7992,7 @@ async def test_destination_test_send_reports_a_channel_refusal_as_an_answer(
 async def test_destination_test_send_on_a_demo_project_never_leaves_the_box(
     client: AsyncClient, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """A demo is zero-egress (tripl-2su6.12): its local sink tests ok with no
+    """A demo is zero-egress: its local sink tests ok with no
     network, and its disabled Slack example is refused rather than sent."""
     from tripl.worker.tasks import alerts
 
@@ -8047,7 +8044,7 @@ async def test_destination_test_send_on_a_demo_project_never_leaves_the_box(
 @pytest.mark.asyncio
 async def test_open_incident_count_agrees_with_the_inbox_it_badges(client: AsyncClient) -> None:
     """The sidebar badged `alert_destination_count`, so it read "Alerting 1" while
-    52 incidents sat open (tripl-oxkt.16). A badge that disagrees with the page it
+    52 incidents sat open. A badge that disagrees with the page it
     labels is worse than none, so it is asserted equal to the page's own total."""
     project_resp = await client.post(
         "/api/v1/projects",
@@ -8144,7 +8141,7 @@ async def _seed_simulate_fixture(
     No ``ProjectAnomalySettings`` row is seeded, so every replay driven from this
     fixture quotes ``DEFAULT_SIGMA_THRESHOLD`` as its saved sigma — the value
     that row is born holding. Sigma is a PROJECT setting and the replay reads it
-    from there alone (tripl-0zpq.160); the ``ScanConfig.sigma_threshold`` column
+    from there alone; the ``ScanConfig.sigma_threshold`` column
     is a per-scan copy nothing scores against and no API writes. That is why the
     ``second_scan_sigma`` knob this fixture used to carry is gone: a second scan
     disagreeing on that column could not move the quoted number, so it had
@@ -8264,7 +8261,7 @@ def _simulate_url(fixture: dict[str, object], slug: str) -> str:
 async def test_simulate_tries_a_percent_threshold_without_saving_it_on_a_live_rule(
     client: AsyncClient,
 ) -> None:
-    """tripl-oxkt.17 part 3: replay accepted only ``days`` and a cooldown, so
+    """Part 3: replay accepted only ``days`` and a cooldown, so
     asking "would min % 300 cut these" meant editing a rule that is live-routing
     to a real channel and waiting to see what production did."""
     slug = "sim-pct-override"
@@ -8338,7 +8335,7 @@ async def test_simulate_sigma_override_re_reads_what_the_detector_recorded(
     baseline = (await client.post(f"{url}?days=7")).json()
     assert baseline["anomalies_considered"] == 3
     # No override: `used` mirrors the SAVED threshold, and saved is the
-    # PROJECT's Detection setting, never the scan's column (tripl-0zpq.160).
+    # PROJECT's Detection setting, never the scan's column.
     # This fixture seeds no ``ProjectAnomalySettings`` row, so both numbers are
     # ``DEFAULT_SIGMA_THRESHOLD`` — the value that row would be born holding —
     # and this test cannot tell the two sources apart, because the scan column's
@@ -8375,7 +8372,7 @@ async def test_simulate_sigma_override_re_reads_what_the_detector_recorded(
 
 
 # ``test_simulate_reports_no_saved_sigma_when_the_scans_disagree`` stood here and
-# is deliberately gone rather than repaired (tripl-0zpq.160). Its subject was the
+# is deliberately gone rather than repaired. Its subject was the
 # premise, not an assertion: "``sigma_threshold`` is a SCAN setting, and a
 # project-wide rule reads many", from which it followed that a project whose
 # scans disagree has no saved number to quote and the replay answers null. That
@@ -8531,7 +8528,7 @@ def test_monitor_and_test_send_contracts_declare_every_field_they_always_send() 
     # let the generated client treat "every scan in the project" and "the server
     # did not say" as one value — and ``AlertRuleResponse`` already declares
     # ``scan_config_id`` required-but-nullable for the very same column, so a
-    # default here would give one AlertRule two shapes again (tripl-wkwv.9).
+    # default here would give one AlertRule two shapes again.
     assert "scan_config_id" in set(schemas["AlertRuleResponse"]["required"])
     assert {"scan_config_id", "scan_name"} <= set(schemas["MonitorDetailResponse"]["required"])
     # The test-send reply serializes both on every response, including the
@@ -8690,7 +8687,7 @@ async def test_naming_a_destination_for_the_audit_log_costs_no_rollup_queries(
     assert named["alert_destination.delete"] == "Delete Me"
 
 
-# --- tripl-htfn.4: the inbox narrows by more than status --------------------
+# --- the inbox narrows by more than status --------------------
 #
 # An analyst working through "the events I already know are fine" had exactly
 # one control on a list of 180 incidents. Every filter below is applied to the
@@ -8868,7 +8865,7 @@ async def test_inbox_filters_by_scope_type_and_direction(client: AsyncClient) ->
         str(groups["old_drop"])
     ]
 
-    # Enums, for the reason `status` is one (tripl-57g0): a typo has to be a 422
+    # Enums, for the reason `status` is one: a typo has to be a 422
     # rather than an empty inbox nobody can explain.
     for params in ({"scope_type": "BOGUS"}, {"direction": "BOGUS"}):
         rejected = await client.get(base, params=params)

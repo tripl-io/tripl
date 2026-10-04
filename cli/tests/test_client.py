@@ -1,7 +1,7 @@
 """Client error mapping and User-Agent handling.
 
 Moved wholesale from mcp-server/tests/test_client.py when the client became
-shared (tripl-ey6j.1). Every ``match=`` string is preserved: the extraction was
+shared. Every ``match=`` string is preserved: the extraction was
 supposed to change the exception TYPE and nothing an operator or agent reads.
 """
 

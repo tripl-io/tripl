@@ -70,7 +70,7 @@ function toDatetimeLocalValue(date: Date): string {
  * still filling for every config coarser than an hour — and for an hourly one in
  * a half-hour-offset timezone. Replay refuses such a period (it holds no
  * complete bucket), so the dialog's own defaults were rejected on any 6h/1d/1w
- * scan (tripl-0zpq.22).
+ * scan.
  */
 function defaultReplayWindow(interval: IntervalCode | null): { from: string; to: string } {
   const granularity = GRANULARITY_FOR_INTERVAL[interval ?? '1h']

@@ -22,7 +22,7 @@ class EventFieldValueIn(BaseModel):
 # page. Nothing bounded it, so a pasted note or blob reached Postgres and came
 # back as ProgramLimitExceeded ("index row size ... exceeds btree version 4
 # maximum") — a 500 on the whole event save, for a payload that stored fine while
-# the key was the two uuids alone (tripl-0zpq.255). The budget is in BYTES
+# the key was the two uuids alone. The budget is in BYTES
 # because bytes are what the index counts: 2000 characters of Cyrillic are 4000
 # of them. 2000 leaves room for the tuple header and the two uuids beside it.
 #
@@ -50,7 +50,7 @@ class EventCreate(BaseModel):
     event_type_id: uuid.UUID
     name: str = Field(min_length=1, max_length=500)
     # Free-text label shown beside the identity; never part of it. Optional so
-    # every existing client keeps working unchanged (tripl-kjhi.3).
+    # every existing client keeps working unchanged.
     title: str = Field("", max_length=500)
     description: str = ""
     status: EventStatus = EventStatus.draft
@@ -76,12 +76,12 @@ class EventCreate(BaseModel):
 
 # The single-event PATCH counterpart of ``_BULK_NOT_NULL_UPDATE_FIELDS`` below:
 # the update fields whose Event column is NOT NULL, where ``update_event``
-# assigns the dumped value straight onto the row (tripl-0zpq.267). Four names
+# assigns the dumped value straight onto the row. Four names
 # only, and every omission is deliberate:
 #   * ``title`` — NOT NULL, but ``update_event`` writes ``(value or "").strip()``,
 #     so a null already means "clear the label" and has always worked;
 #   * ``metric_breakdown_columns`` — NOT NULL, but its own validator turns a null
-#     into ``[]`` (tripl-0zpq.190), which is a MEANING, not an error;
+#     into ``[]``, which is a MEANING, not an error;
 #   * ``tags`` / ``field_values`` / ``meta_values`` — the service tests these
 #     ``is not None``, so a null is how a client says "leave the children alone";
 #   * ``sunset_at`` / ``owner_id`` / ``superseded_by_event_id`` — nullable, and a
@@ -122,8 +122,8 @@ class EventUpdate(BaseModel):
         # is already the way to leave them alone. Before this, a sent ``null``
         # was assigned straight to a NOT NULL column and re-indexed inside the
         # same transaction, where ``" ".join(None)`` in ``_event_document``
-        # raised TypeError — a rolled-back 500 instead of a save
-        # (tripl-0zpq.190). Nothing can depend on the old meaning: it had none,
+        # raised TypeError — a rolled-back 500 instead of a save.
+        # Nothing can depend on the old meaning: it had none,
         # every such request failed.
         return _normalize_metric_breakdown_columns(value or [])
 
@@ -226,7 +226,7 @@ class EventBulkUpdate(BaseModel):
         # made ``{"owner_id": null}`` a 422 claiming nothing was provided, and
         # ``{"reviewed": true, "owner_id": null}`` a 204 that kept every owner,
         # so the one selection-wide unassign the API offered could not be
-        # spelled (tripl-0zpq.276). The same body on metrics unassigns.
+        # spelled. The same body on metrics unassigns.
         if not (self.model_fields_set - {"event_ids"}):
             raise ValueError(
                 "At least one of status, sunset_at, owner_id or reviewed must be provided"
@@ -261,8 +261,8 @@ class EventFieldVariableValueResponse(BaseModel):
     # Excluding a variable no longer deletes its contexts, so this row can now
     # outlive the scanning that produced it. The values below are then the last
     # ones seen and not a live reading, and the client has to be able to say
-    # which it is holding: one rendering standing for two unrelated facts is the
-    # defect tripl-xv77.4 fixed for the empty context, and a stale value shown as
+    # which it is holding: one rendering standing for two unrelated facts is a
+    # defect already fixed for the empty context, and a stale value shown as
     # current is the same mistake with more consequences.
     excluded_from_scans: bool = False
 
@@ -326,13 +326,13 @@ class EventResponse(BaseModel):
     # event deliberately leaves it alone so the next scan does not recreate the
     # renamed event as a duplicate (core/analyzers/event_generator.py). It
     # decides whether an authored event merges with its scanned counterpart, and
-    # until tripl-u2h9.10 it appeared in no response at all — so after creating
+    # it once appeared in no response at all — so after creating
     # an event by hand there was no way to see which identity it had claimed, or
     # that a later rename had parted the two. NULL on an event no scan has seen
     # and no naming rule governed; the generator adopts ``name`` as the identity
     # the first time one does.
     source_name: str | None = None
-    # The human label, empty when the identity is all there is (tripl-kjhi.3).
+    # The human label, empty when the identity is all there is.
     title: str = ""
     description: str
     required_presence_threshold: float | None = None
@@ -347,7 +347,7 @@ class EventResponse(BaseModel):
     # The earliest metric bucket with traffic, read off the main twin for a
     # branch copy. ``created_at`` is when the ROW was authored, which the detail
     # page used to label "First seen" — for an event planned before it shipped,
-    # that is a date nothing was seen on (tripl-kjhi.10). Null until the first
+    # that is a date nothing was seen on. Null until the first
     # collection finds it, and on list responses, which do not compute it.
     first_seen_at: datetime | None = None
     # A branch copy's twin on main (``_branch_counterparts.main_counterparts``),
@@ -370,7 +370,7 @@ class EventResponse(BaseModel):
     updated_at: datetime
     # The branch this row lives on. A link into a branch event without its
     # ``?branch=`` used to dead-end on a 404; the read path now answers for the
-    # row's own branch and says which one, so the client can switch (tripl-kjhi.7).
+    # row's own branch and says which one, so the client can switch.
     branch_id: uuid.UUID | None = None
 
     model_config = {"from_attributes": True}
@@ -411,7 +411,7 @@ class EventListItemResponse(BaseModel):
     # The earliest metric bucket with traffic, read off the main twin for a
     # branch copy. ``created_at`` is when the ROW was authored, which the detail
     # page used to label "First seen" — for an event planned before it shipped,
-    # that is a date nothing was seen on (tripl-kjhi.10). Null until the first
+    # that is a date nothing was seen on. Null until the first
     # collection finds it, and on list responses, which do not compute it.
     first_seen_at: datetime | None = None
     owner_id: uuid.UUID | None = None

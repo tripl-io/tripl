@@ -52,8 +52,7 @@ DEPLOYMENT_DOCS_PATH = REPO_ROOT / "website" / "docs" / "run" / "deployment.md"
 # loudly instead of silently changing what a fresh install gets. See
 # test_the_packaged_compose_matches_the_repo_compose for why it is removed.
 MCP_BUILD_BLOCK = """    # Context is the repo root, not ./mcp-server: tripl-mcp builds against the
-    # sibling `tripl` package in ./cli, which a mcp-server/ context cannot see
-    # (tripl-ey6j.1).
+    # sibling `tripl` package in ./cli, which a mcp-server/ context cannot see.
     build:
       context: .
       dockerfile: mcp-server/Dockerfile
@@ -66,7 +65,7 @@ DIAGNOSTICS_PACKAGE = Path(collect.__file__).parent
 # ``collect`` reads and ``checks``/``scan_checks`` judge; ``endpoints`` is the
 # per-section map this file checks against the OpenAPI document. The `--json`
 # builders, the ASCII renderers and the shared vocabulary sit at the package
-# root instead (tripl-azhh) - only ``doctor`` reaches a verdict, so holding the
+# root instead - only ``doctor`` reaches a verdict, so holding the
 # scans/drifts/status/install documents under this name made the name a false
 # claim about most of what it held. Adding an entry here is a design decision,
 # not a fix for a failing test.
@@ -79,7 +78,7 @@ VERDICT_MODULES = frozenset({"__init__", "collect", "checks", "scan_checks", "en
 ENVELOPE_MINT = '"schema_version":'
 
 # Both packages, because the request layer is shared and a rule that applied to
-# only one of them could not be checked mechanically (tripl-ey6j.5). mcp-server
+# only one of them could not be checked mechanically. mcp-server
 # keeps its own half of this test too, so its job fails on its own.
 CLI_PACKAGE = Path(tripl_cli.__file__).parent
 MCP_PACKAGE = REPO_ROOT / "mcp-server" / "src" / "tripl_mcp"
@@ -90,7 +89,7 @@ SHARED_LAYER = CLI_PACKAGE / "api"
 # five of them, and `events`/`plan` both declare "fields" and "branches" — so a
 # section could stop being checked without anything failing. It also makes the
 # failure message name the COMMAND that would have gone blind, which is the
-# whole reason endpoints.py groups them at all (tripl-3ixs).
+# whole reason endpoints.py groups them at all.
 DECLARED = {
     f"{group}.{section}": endpoints
     for group, group_map in (
@@ -116,11 +115,11 @@ PATH_LITERAL = re.compile(r'f?"(/(?:projects|auth|data-sources)[^"]*)"')
 # `items`/`total` are the paged envelope seven routes answer; `semantic_used`
 # says whether search's scores are semantic or substring; `truncated` says
 # whether search dropped ranked hits, which `total` cannot answer because it is
-# `len(items)` (tripl-wkwv.3); `field_definitions` is the array `field_count`
+# `len(items)`; `field_definitions` is the array `field_count`
 # exists to replace. Each was read at its own call site in both distributions
-# until tripl-i1dt, and the copies had already diverged - `tripl events list`
-# dropped a non-dict row where the MCP's `list_events` kept it, reading the very
-# same response.
+# until they were moved into the shared layer, and the copies had already
+# diverged - `tripl events list` dropped a non-dict row where the MCP's
+# `list_events` kept it, reading the very same response.
 SHARED_RESPONSE_KEYS = frozenset(
     {"items", "total", "truncated", "semantic_used", "field_definitions"}
 )
@@ -151,8 +150,8 @@ TRANSPORT_EXEMPTIONS: frozenset[tuple[str, str | None]] = frozenset(
         ("diagnostics/collect.py", "probe_health"),
         # The unauthenticated /auth/status probe. Same regime, and unauthenticated
         # by NECESSITY rather than by choice: `tripl install` reads it on an
-        # instance that has no accounts yet, so no API key can exist to send
-        # (tripl-ey6j.3). Its path still comes from api.auth.
+        # instance that has no accounts yet, so no API key can exist to send.
+        # Its path still comes from api.auth.
         ("diagnostics/collect.py", "probe_auth_status"),
     }
 )
@@ -359,7 +358,7 @@ def test_no_rest_path_literal_lives_outside_the_shared_layer() -> None:
     """A module cannot spell a path the shared layer does not declare.
 
     Scans BOTH packages: this is one half of the acceptance criterion of
-    tripl-ey6j.5 ("no request-building logic is duplicated between the CLI and
+    the CLI/MCP shared-layer work ("no request-building logic is duplicated between the CLI and
     the MCP tools") turned into something CI can check. Literals in finding
     messages and evidence keys pass, because they are the same templates - what
     fails is inventing a second spelling anywhere.
@@ -443,7 +442,7 @@ def test_nothing_outside_the_shared_layer_calls_a_client_directly() -> None:
 
 
 def test_nothing_outside_the_shared_layer_reads_a_shared_response_fact() -> None:
-    """The third door, and the one tripl-ey6j.5 left open.
+    """The third door, and the one the shared-layer work left open.
 
     Its two tests close request BUILDING: no module outside ``tripl_cli/api``
     spells a path or constructs an ``ApiRequest``. Nothing covered the other
@@ -455,7 +454,7 @@ def test_nothing_outside_the_shared_layer_reads_a_shared_response_fact() -> None
     request layer is shared, and "the shared layer answers this" enforced on one
     side only is not a rule. A projection is NOT covered here and must not be -
     ``EVENT_LIST_FIELDS`` and friends are statements about a model's context
-    budget, which is a cost a CLI writing to a pipe does not have (tripl-i1dt).
+    budget, which is a cost a CLI writing to a pipe does not have.
     """
     offenders = [
         f"tripl_cli: {offender}"
@@ -502,7 +501,7 @@ def test_the_diagnostics_package_holds_only_the_verdict_layers() -> None:
     assert found == VERDICT_MODULES, (
         "tripl_cli/diagnostics no longer holds exactly the verdict layers - a module that "
         "serves a command reaching no verdict belongs at the package root next to report.py "
-        f"(tripl-azhh): unexpected {sorted(found - VERDICT_MODULES)}, "
+        f": unexpected {sorted(found - VERDICT_MODULES)}, "
         f"missing {sorted(VERDICT_MODULES - found)}"
     )
 
@@ -513,7 +512,7 @@ def test_only_one_module_mints_a_json_envelope() -> None:
     Its docstring claims "if a key is not built here it does not exist", which
     is what makes "what does tripl emit" answerable by reading one file - and it
     is the reason the module was NOT split into a diagnostics half and a
-    commands half when it moved (tripl-azhh). Nothing held anyone to it. Every
+    commands half when it moved. Nothing held anyone to it. Every
     document carries ``schema_version`` by rule, so a second module minting that
     key is a second document the one file does not describe, which is this
     repo's signature defect (one fact, two spellings) applied to the published
@@ -541,7 +540,7 @@ def test_the_declared_query_bounds_are_the_ones_the_routes_enforce(
     refuses a value the API accepts is a capability nobody can reach; one that
     forwards a value the API rejects turns a typo into "the instance rejected
     me". Both are silent, so the numbers are read out of the document rather
-    than trusted (tripl-3ixs).
+    than trusted.
     """
     from tripl_cli.api import docs, events, search, variables
 
@@ -552,7 +551,7 @@ def test_the_declared_query_bounds_are_the_ones_the_routes_enforce(
         # Not a bound the CLI enforces: `--order-by` is left off the wire when
         # unasked-for, and this is the value its help text tells the operator
         # that omission buys. A route that changed its default would leave the
-        # help stating an ordering nobody gets (tripl-nhj0).
+        # help stating an ordering nobody gets.
         (events.LIST, "order_by", "default"): events.ORDER_BY_DEFAULT,
         (variables.LIST, "limit", "maximum"): variables.LIMIT_MAX,
         (variables.LIST, "limit", "default"): variables.LIMIT_DEFAULT,
@@ -644,12 +643,12 @@ def test_the_events_list_builder_takes_every_filter_the_route_declares(
     comment already said it mirrors the route's Query constraints - that was a
     habit, and a habit does not fail CI. ``branch`` is resolved through a
     dependency but is declared like any other query parameter, so it appears in
-    the document and this check covers it too (tripl-l33u.7; how the CLI turns a
+    the document and this check covers it too (how the CLI turns a
     name into an id is test_branch_is_resolved_by_name_and_sent_as_an_id).
 
     No allowance list any more. This shipped with one, naming the two parameters
     that predated the shared layer - ``field_value`` from PR #78 and ``order_by``
-    from PR #29 - and both are mirrored as of tripl-nhj0. An empty allowance list
+    from PR #29 - and both are mirrored now. An empty allowance list
     is an invitation to append to, so the set is deleted rather than emptied:
     every query parameter the route declares must be spellable here.
     """
@@ -682,7 +681,7 @@ def test_the_declared_enums_are_the_openapi_ones(
 
     ``order_by`` is a route-level ``Literal`` rather than a named schema, so its
     two values are read off the parameter itself - the same rule, the other
-    corner of the document (tripl-nhj0).
+    corner of the document.
     """
     from tripl_cli.api import events, search
 
@@ -848,7 +847,7 @@ def test_the_documented_scans_and_drifts_numbers_are_the_ones_in_the_code() -> N
     can show, how far ``--limit`` may be raised, how much of a drift fan-out one
     run covers, and how long any of them waits. The repo already holds the docs
     to the doctor and watch windows for exactly this reason; the same rule now
-    covers the command surface that shipped with tripl-ey6j.5.
+    covers the command surface that shipped with the shared layer.
     """
     from tripl_cli.api.scans import JOBS_LIMIT_MAX
     from tripl_cli.commands.scans import DEFAULT_JOBS_LIMIT
@@ -897,7 +896,7 @@ def test_the_documented_status_choices_are_exactly_the_ones_the_parser_accepts()
     Scoped per SECTION rather than to "the one --status row in the file": two
     commands carry the flag now, they mean different vocabularies by it, and a
     whole-file match would have silently started checking whichever one happened
-    to be first (tripl-3ixs).
+    to be first.
     """
     from tripl_cli.api.events import STATUSES
     from tripl_cli.commands.drifts import STATUS_CHOICES
@@ -1010,7 +1009,7 @@ def _option(parser: argparse.ArgumentParser, flag: str) -> argparse.Action | Non
 def test_every_timeout_flag_is_the_same_flag() -> None:
     """One default and one range across every verb that carries ``--timeout``.
 
-    Before tripl-3ixs the flag was written out at five ``add_parser`` calls plus
+    Before the flag was shared it was written out at five ``add_parser`` calls plus
     two private ``_add_timeout`` helpers, and nothing held the seven together —
     a verb added with ``0.1, 60.0`` would have shipped a command that times out
     at a minute while the page and its six siblings say ten minutes. It is the
@@ -1085,7 +1084,7 @@ def test_every_json_flag_writes_the_document_to_stdout() -> None:
 def test_every_command_and_verb_has_its_own_section() -> None:
     """Derived from the real parser, so a new verb fails until it is written up.
 
-    tripl-ey6j.5 shipped six verbs with no page at all — the docs rule
+    The shared-layer work shipped six verbs with no page at all — the docs rule
     (AGENTS.md, "Practical Coding Guidance") is a habit, and a habit does not
     fail CI. A literal list of expected headings would not help: it would be
     edited by the same person who
@@ -1253,7 +1252,7 @@ def test_the_page_s_closed_claim_about_dismiss_actions_is_still_true() -> None:
     between the tuples breaks whichever sentence went stale.
 
     The two sentences read DIFFERENT constants, and that is the point since
-    ``reopen`` became a verb (tripl-k8j9). What ``dismiss`` can send is
+    ``reopen`` became a verb. What ``dismiss`` can send is
     ``DISMISS_ACTIONS``; what the CLI never sends at all is the complement of
     ``CLI_ALLOWED_DRIFT_ACTIONS``, which is ``accept`` alone. Reading one
     constant for both would have the page deny that this CLI can reopen a drift,
@@ -1302,7 +1301,7 @@ def test_the_packaged_compose_matches_the_repo_compose() -> None:
     only way that asset can drift from the stack this repository actually
     deploys is if somebody edits one and not the other. This is that check, and
     the fix when it fails is to re-copy - which is exactly the review
-    conversation we want (tripl-ey6j.3).
+    conversation we want.
 
     The one transform: the `mcp` service's `build:` block is removed. A fresh
     machine has no source tree, so `context: .` would point at the install
@@ -1365,11 +1364,11 @@ def test_both_stacks_forward_every_documented_embedding_variable() -> None:
     Compose passes an explicit allowlist - no `env_file:`, no .env mount - so a
     name in .env.example that the anchor omits reaches nothing in the container
     and the application default silently wins. That is how DEMO_ENABLED
-    (tripl-2su6.16) and REGISTRATION_MODE (tripl-jfm3.101) shipped inert, and
+     and REGISTRATION_MODE shipped inert, and
     the third time it cost more than a switch: SEARCH_EMBEDDING_BASE_URL is the
     whole of the documented "keep indexed text on your own endpoint" control, so
     its omission POSTed tracking-plan text to api.openai.com on stacks
-    configured for a self-hosted endpoint (tripl-l33u.2).
+    configured for a self-hosted endpoint.
 
     Derived from .env.example rather than a hand-kept list, so a future
     SEARCH_EMBEDDING_* documented there and forwarded nowhere fails here.
@@ -1422,8 +1421,7 @@ def test_every_generated_variable_name_is_documented() -> None:
     property tests in test_install_files.py. What a test CAN pin is that every
     name that definition emits is documented in both places an operator looks -
     the CLI reference and the deployment guide - and that the deployment guide
-    points at the command rather than republishing a third `openssl` recipe
-    (tripl-ey6j.3).
+    points at the command rather than republishing a third `openssl` recipe.
     """
     from tripl_cli.install.secrets import REQUIRED_SECRETS, REQUIRED_SETTINGS
 
@@ -1439,7 +1437,7 @@ def test_every_generated_variable_name_is_documented() -> None:
     ]
     assert not undocumented, (
         "`tripl install` generates variables the docs never name (the docs half of "
-        "tripl-ey6j.3 lands the `## tripl install` / `## tripl upgrade` sections in "
+        "the install work lands the `## tripl install` / `## tripl upgrade` sections in "
         "run/cli.md and rewrites run/deployment.md's three hand-run procedures into a "
         "pointer): " + ", ".join(undocumented)
     )

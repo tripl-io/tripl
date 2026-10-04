@@ -127,7 +127,7 @@ export function SCard({
           <div className="min-w-0 flex-1">
             {/* h2, not h3, by default: settings cards are the first level
                 under each settings page's h1, so h3 made the outline read
-                1 → 3 (tripl-jfm3.69). No heading at all for a card with only a
+                1 → 3. No heading at all for a card with only a
                 description — it used to emit an empty <h2> (DS-16). */}
             {title && (
               <Heading
@@ -299,7 +299,7 @@ export function Field({
   }
   // Side-by-side label + control only once the row is 560px wide (FormRow). The 232px label gutter plus
   // its 24px gap left a phone's control column ~100px wide, so the Name/Slug
-  // inputs measured 22px and ran off-screen (tripl-jfm3.40).
+  // inputs measured 22px and ran off-screen.
   return (
     <FormRow
       {...rowProps}
@@ -764,7 +764,7 @@ export function RadioCards({
   groupLabel?: string
 }) {
   // Adopt the enclosing Field's id too, so its <label htmlFor> resolves to a
-  // real element instead of dangling (tripl-5gdg). `groupLabel` still supplies
+  // real element instead of dangling. `groupLabel` still supplies
   // the accessible name — a <label> cannot name a non-labelable element.
   const groupId = useFieldControlId()
   const optionRefs = useRef<(HTMLButtonElement | null)[]>([])
@@ -801,7 +801,7 @@ export function RadioCards({
       // came out 145 / 141 / 111px inside a 393px control column — 413px of
       // tracks, so the row spilled 19px past the panel padding every other
       // control respects and the third card's right border landed outside the
-      // panel entirely (tripl-8fa6). A zero floor makes N siblings render at
+      // panel entirely. A zero floor makes N siblings render at
       // exactly 1/N and keeps the row inside its column.
       style={{ gridTemplateColumns: `repeat(${columns}, minmax(0, 1fr))` }}
     >
@@ -952,7 +952,7 @@ export function Panel({
       {/* The header wraps below `sm`-ish widths instead of pinning the right
           slot: callers hand it fixed-width search boxes and selects, and with a
           `shrink-0` slot the title collapsed to 0px while the last filter was
-          sliced off by the section's `overflow-hidden` (tripl-jfm3.43). The
+          sliced off by the section's `overflow-hidden`. The
           title keeps a 10rem basis so it never collapses again. */}
       {(title || right) && (
         <header

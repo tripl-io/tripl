@@ -1,4 +1,4 @@
-"""Project membership helpers shared by the suite (tripl-vefw).
+"""Project membership helpers shared by the suite.
 
 Non-members do not see a project at all: every ``/projects/{slug}/...`` route
 404s for them. A test that has a second, non-owner user act on a project someone

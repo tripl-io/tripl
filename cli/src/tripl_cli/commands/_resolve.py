@@ -11,7 +11,7 @@ two config names share a prefix is worse than one that refuses to start, and a
 ``--branch`` that silently guessed would answer plan questions about the wrong
 revision — which is the same class of wrong answer, on a read, and quieter. So
 a selector matching nothing lists the candidates and exits 2, and a selector
-matching two names them both and exits 2 (tripl-3ixs).
+matching two names them both and exits 2.
 """
 
 from __future__ import annotations

@@ -1,7 +1,7 @@
 """Parity between the sidebar/Overview badge count and the AnomaliesPage signal list.
 
-Regression guard for tripl-yfsj.1 (supersedes the earlier tripl-gf2l/tripl-posm
-contract). The AnomaliesPage now lists EVERY open signal as a flat, magnitude-
+Regression guard (supersedes the earlier contract).
+The AnomaliesPage now lists EVERY open signal as a flat, magnitude-
 filtered list (``get_active_signals(expanded=True)`` -> ``_flag_incident_children``):
 project_total + event_type + per-event, incident children TAGGED but kept, then the
 page hides everything below the "Significant" magnitude threshold. The badge count
@@ -218,7 +218,7 @@ async def test_sidebar_count_matches_page_signal_list(client: AsyncClient) -> No
 
 
 # ---------------------------------------------------------------------------
-# An outage that is still running (tripl-l429.15)
+# An outage that is still running
 # ---------------------------------------------------------------------------
 
 # Five days back: far outside the 24h open-signal window on every grid this scan
@@ -254,7 +254,7 @@ async def _seed_ongoing_outage(
     ``actual_count``/``expected_count`` describe the anchor row itself. The
     defaults are the ordinary outage (nothing observed against a baseline of 40);
     the interesting departures are ``expected_count=0`` (a scope that was never
-    expected to emit — no incident, tripl-wkwv.4) and a non-zero ``actual_count``
+    expected to emit — no incident) and a non-zero ``actual_count``
     off a zero baseline (a real spike from nothing, which must keep working).
     """
     project_resp = await client.post("/api/v1/projects", json={"name": slug, "slug": slug})
@@ -423,7 +423,7 @@ async def test_ongoing_outage_reaches_a_drilldown_range_that_starts_after_it(
     rather than ageing it out), but the chart the list links to loads only its
     selected range — 7 days by default — so the anchor was outside every query
     the drilldown ran and the page for the incident answered ``latest_signal:
-    null`` (tripl-l429.23).
+    null``.
     """
     slug = f"outage-open-before-range-{case}"
     await _seed_ongoing_outage(
@@ -532,7 +532,7 @@ async def test_outage_on_a_stopped_scan_closes_on_both_surfaces(client: AsyncCli
 
 
 # ---------------------------------------------------------------------------
-# A zero baseline is not an outage (tripl-wkwv.4)
+# A zero baseline is not an outage
 # ---------------------------------------------------------------------------
 
 
@@ -658,7 +658,7 @@ async def test_a_spike_from_a_zero_baseline_is_still_a_signal(client: AsyncClien
 
 
 # ---------------------------------------------------------------------------
-# Catalog metrics are classified on THEIR OWN grid, everywhere (tripl-l429.17/.18)
+# Catalog metrics are classified on THEIR OWN grid, everywhere (.18)
 # ---------------------------------------------------------------------------
 
 # 30 hours back: outside a bare 24h freshness window, inside the daily grid's own
@@ -1038,7 +1038,7 @@ async def test_a_metric_that_left_active_is_closed_on_every_surface(
     daily grid, three weeks on a weekly one).
 
     Same seed and same daily bucket as the detection-off case above, so the only
-    thing under test is the status half of the predicate (tripl-l429.25).
+    thing under test is the status half of the predicate.
     """
     slug = f"metric-{parked.value}"
     metric_id = await _seed_catalog_metric_signal(
@@ -1060,7 +1060,7 @@ async def test_a_metric_that_left_active_is_closed_on_every_surface(
 
 
 def test_relative_effect_floors_a_count_but_not_a_fractional_series() -> None:
-    """The floor protects counts and is a category error on a ratio (tripl-yf8c).
+    """The floor protects counts and is a category error on a ratio.
 
     A count expected below 1 means essentially no traffic, so dividing by it
     would let a dead scope outrank a real move — the floor stays. A conversion
@@ -1096,7 +1096,7 @@ def test_relative_effect_states_a_zero_baseline_rather_than_dividing_by_it() -> 
     did not compute this" and falls back to its count-shaped estimate, which for
     a sub-unit actual scores below the 0.5 bar. The badge gates in-process, where
     ``inf`` compares fine, so such a signal was counted on the sidebar and hidden
-    on every page the badge links to (tripl-l33u.3).
+    on every page the badge links to.
     """
     from tripl.services.metrics_insights_service import (
         MAX_RELATIVE_EFFECT,
@@ -1122,7 +1122,7 @@ def test_a_zero_baseline_signal_reaches_the_client_as_a_number() -> None:
 
     Serialization is where the badge and the page parted: the count is taken in
     Python and the filter is applied in the browser, so a value that only
-    compares correctly in Python is a parity bug (tripl-l33u.3).
+    compares correctly in Python is a parity bug.
     """
     from tripl.services.metrics_insights_service import (
         SIGNIFICANT_MIN_REL_EFFECT,

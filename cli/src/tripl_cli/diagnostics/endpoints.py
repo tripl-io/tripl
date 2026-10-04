@@ -3,8 +3,8 @@
 Single source of truth for the contract test: every (method, path) here must
 exist in ``backend/openapi.json``. The path LITERALS live in ``tripl_cli.api``
 now, which is also where ``tripl_mcp.contract`` takes them from — so a rename
-breaks both packages loudly instead of one loudly and the other silently
-(tripl-ey6j.5). What survives here is the per-section GROUPING, because a
+breaks both packages loudly instead of one loudly and the other silently.
+What survives here is the per-section GROUPING, because a
 contract failure should name the check that would have gone blind, not just a
 URL, and the MCP's map is keyed by tool name instead.
 
@@ -61,7 +61,7 @@ STATUS_ENDPOINTS: dict[str, tuple[tuple[str, str], ...]] = {
 # adding it would fail the contract test rather than protect it - and watch does
 # not open it anyway, because the replay chunk progress that is this command's
 # headline is written to ScanJob.result_summary with no publish_project_event
-# call and is invisible on that bus (tripl-ey6j.4).
+# call and is invisible on that bus.
 #
 # /auth/me is deliberately absent too: raise_selection_failure already turns a
 # listing 403 into the "name the project with --project <slug>" advice, so
@@ -82,7 +82,7 @@ WATCH_ENDPOINTS: dict[str, tuple[tuple[str, str], ...]] = {
 # METRICS_REPLAY is absent on purpose: the route exists, but it is guarded by
 # ``deps.get_owner_user``, which rejects EVERY request carrying an API key scope.
 # No Bearer-token client can reach it, so shipping `tripl scans replay` would
-# ship a command that always 403s (tripl-ey6j.5).
+# ship a command that always 403s.
 SCANS_ENDPOINTS: dict[str, tuple[tuple[str, str], ...]] = {
     "selection": _SELECTION,
     "scans": (("get", scans.CONFIGS),),
@@ -102,7 +102,7 @@ DRIFTS_ENDPOINTS: dict[str, tuple[tuple[str, str], ...]] = {
     # Both writes post to the SAME route with a different `action`, so this pair
     # is one path spelled twice on purpose: the key names the verb whose contract
     # check would go blind, and a `reopen` with no entry of its own would be
-    # protected only by the coincidence that dismiss shares its route (tripl-k8j9).
+    # protected only by the coincidence that dismiss shares its route.
     "dismiss": (("post", event_types.DRIFT_ACTIONS_PATH),),
     "reopen": (("post", event_types.DRIFT_ACTIONS_PATH),),
 }
@@ -115,7 +115,7 @@ DRIFTS_ENDPOINTS: dict[str, tuple[tuple[str, str], ...]] = {
 # and it is a query parameter. It is watched all the same -
 # deps.get_branch_id_override declares it, so it is in backend/openapi.json, and
 # for GET /events test_the_events_list_builder_takes_every_filter_the_route_declares
-# covers it alongside every other filter the route offers (tripl-l33u.7).
+# covers it alongside every other filter the route offers.
 EVENTS_ENDPOINTS: dict[str, tuple[tuple[str, str], ...]] = {
     "events": (("get", events.LIST),),
     "event": (("get", events.DETAIL),),

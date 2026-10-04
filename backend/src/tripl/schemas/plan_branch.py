@@ -35,7 +35,7 @@ class PlanBranchCreate(BaseModel):
     # below strips the name and rejects the two unusable ones, but nothing capped
     # its length, so a 300-character branch name passed here and failed in the
     # INSERT as a Postgres StringDataRightTruncation — a generic 500 naming no
-    # field, for a body this layer had already accepted (tripl-0zpq.275). The
+    # field, for a body this layer had already accepted. The
     # bound is checked before the strip, the same order ``DataSourceCreate.name``
     # uses, so padding cannot buy extra characters.
     name: str = Field(max_length=255)
@@ -79,7 +79,7 @@ class PlanBranchResponse(BaseModel):
     # ``GET /branches?include_diff_counts=true``, which computes them for every
     # open (not merged or closed) feature branch off a single main snapshot;
     # ``None`` everywhere else, so a caller can tell "not asked for" from
-    # "nothing to show" (tripl-jfm3.79, tripl-0zpq.152). ``ahead`` counts a
+    # "nothing to show". ``ahead`` counts a
     # rename the merge will apply as ONE change, as the branch's diff view does.
     ahead: int | None = None
     behind_base: bool | None = None
@@ -104,7 +104,7 @@ class BranchApprovalResponse(BaseModel):
     user_id: uuid.UUID | None
     approved_at: datetime
     # Whether the branch changed since this approval was given, i.e. the row's
-    # plan_hash no longer matches the branch's content (tripl-d8v6). A stale
+    # plan_hash no longer matches the branch's content. A stale
     # approval does NOT count toward the merge quota, so a client that cannot
     # see this flag necessarily renders a green quota the merge endpoint then
     # rejects with insufficient_approvals. Legacy NULL-hash rows read stale.
@@ -159,8 +159,7 @@ class PlanDiffRename(BaseModel):
     pairs the two by ``source_name`` and UPDATEs main's row in place, keeping the
     id and everything hanging off it. Stating the pairing here is what stops the
     UI having to re-derive it, which it cannot do correctly — the pairing also
-    depends on main, and the diff the UI holds compares the base with the branch
-    (tripl-amnn).
+    depends on main, and the diff the UI holds compares the base with the branch.
 
     ``removed_name`` and ``added_name`` are the two entries' ``name``, and
     ``entity_type`` / ``parent`` are shared by both, so the pair addresses its
@@ -183,7 +182,7 @@ class PlanBranchDiff(BaseModel):
     # is the honest answer for a diff nothing pairs, and also the answer a caller
     # gets from a build that has not filled it in yet — which is why every reader
     # must treat an absent pairing as "these really are two unrelated changes"
-    # rather than as an error (tripl-amnn).
+    # rather than as an error.
     renames: list[PlanDiffRename] = Field(default_factory=list)
 
 
@@ -203,7 +202,7 @@ class BranchRevertRequest(BaseModel):
     field: str | None = None
     # The diff entry's own ``entity_id``. Events and relations may share a name
     # (namesakes), and then the name alone cannot say which entry is meant;
-    # with the id the revert acts on exactly that row (tripl-0zpq.292). Omitted,
+    # with the id the revert acts on exactly that row. Omitted,
     # the entry is found by name as before, and a name several entries share
     # is refused.
     entity_id: str | None = Field(default=None, max_length=64)

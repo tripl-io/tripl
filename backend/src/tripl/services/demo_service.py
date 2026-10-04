@@ -61,7 +61,7 @@ DEMO_SHELL_SWEPT_EVENT = "demo.shell.swept"
 
 # Cancellation handshake. The create is one long blocking request, so a client
 # abort only kills the browser's read of the response — the server would happily
-# finish and materialise a workspace the user explicitly abandoned (tripl-jfm3.12).
+# finish and materialise a workspace the user explicitly abandoned.
 # `request_demo_cancel` instead flags the committed phase-1 shell with this stage
 # from a SECOND request; phase 2 re-reads it before promoting and deletes itself
 # if the flag is set. Writing a non-key column does not conflict with the FK
@@ -70,8 +70,8 @@ DEMO_CANCEL_REQUESTED_STAGE = "cancel_requested"
 
 # How many live (seeding or ready) demos one creator may hold at once. Demos are
 # synthetic workspaces that aggregate into the real workspace roll-ups, so an
-# unbounded generator turns an exploratory click into permanent pollution
-# (tripl-jfm3.14). Reset/delete are the intended way to get a fresh one.
+# unbounded generator turns an exploratory click into permanent pollution.
+# Reset/delete are the intended way to get a fresh one.
 MAX_DEMOS_PER_CREATOR = 3
 
 # A `failed` shell is diagnostic residue: hidden from every list, holding its
@@ -93,11 +93,11 @@ def _demo_clock() -> datetime:
 def _demo_project_name(taken: Collection[str]) -> str:
     """Distinguishable name per demo, so N demos are not N identical cards.
 
-    The first demo keeps the plain product name; later ones are numbered
-    (tripl-jfm3.14). The number is the lowest one not already used by the
+    The first demo keeps the plain product name; later ones are numbered.
+    The number is the lowest one not already used by the
     creator's live demos, NOT their count: after deleting ``Demo Project`` from
     a pair, a count of one would mint a second ``Demo Project 2`` next to the
-    survivor (tripl-0zpq.250). Reusing the freed low number is deliberate.
+    survivor. Reusing the freed low number is deliberate.
     """
     if "Demo Project" not in taken:
         return "Demo Project"
@@ -158,7 +158,7 @@ async def create_demo_project(
 
     # Reclaim long-dead failed shells before minting another one. Failed shells
     # only ever appear on this path, so this is also the only path that needs to
-    # sweep them — no extra scheduled job to keep alive (tripl-jfm3.17/.76).
+    # sweep them — no extra scheduled job to keep alive (.76).
     await _sweep_failed_demo_shells(session)
 
     # The organization the demo is created in; nothing is written without one.
@@ -230,7 +230,7 @@ async def create_demo_project(
 
     # Cancellation is decided here, at the one atomic decision point: everything
     # seeded above is still uncommitted (the search builder reindexes with
-    # ``commit=False`` for exactly this, tripl-0zpq.243), so abandoning it costs
+    # ``commit=False`` for exactly this), so abandoning it costs
     # a rollback and the shell delete. The trail purge is belt and braces: a
     # cancelled demo never existed, so nothing it wrote may outlive it in the
     # workspace-wide audit view. The client has long since aborted its read, so
@@ -276,7 +276,7 @@ async def request_demo_cancel(
     that flag before promoting. Returns ``cancelled=False`` when there is no
     seeding shell to flag — the create either already finished or never got far
     enough — so the caller can say so instead of implying a rollback that did
-    not happen (tripl-jfm3.12).
+    not happen.
 
     ``state`` tells those two apart (DEMO-28): ``finished`` when a demo of this
     user's became ready within :data:`DEMO_CANCEL_FINISHED_WINDOW`, so the UI can
@@ -405,8 +405,7 @@ async def _sweep_failed_demo_shells(session: AsyncSession) -> int:
         return 0
     for shell in stale:
         # A shell that never became a workspace keeps no trail either: a seed
-        # that got as far as writing audit rows must not leave them orphaned
-        # (tripl-0zpq.243).
+        # that got as far as writing audit rows must not leave them orphaned.
         await _purge_audit_trail(session, shell)
         await project_service.purge_project_rows(session, shell)
     await session.commit()
@@ -431,7 +430,7 @@ async def reset_demo_project(
     are dropped, a fresh demo is seeded under the same slug, and only then is
     anything committed. If seeding fails the rollback puts the original demo back
     exactly as it was, so a transient error can never trade a working demo for a
-    hidden failed shell (tripl-2su6.13).
+    hidden failed shell.
 
     Re-seeding in place — rather than seeding a replacement elsewhere and swapping
     it in — is deliberate: the seed derives the synthetic warehouse's name and the
@@ -521,14 +520,14 @@ async def _purge_audit_trail(session: AsyncSession, project: Project) -> None:
     they are being orphaned in place.
 
     Note what this does NOT rely on: ``list_entries`` resolves a slug to a project
-    and filters on its id now (tripl-wkwv.18), so the project tab would hide the
+    and filters on its id now, so the project tab would hide the
     old rows either way. Hiding is not the same as not having — the workspace-wide
-    view (tripl-wkwv.17) shows every row on the instance, and that is where three
+    view shows every row on the instance, and that is where three
     generations of a demo would otherwise be on display.
 
     The demo's own ``data_source.create`` row goes too, and it needs finding by a
     second rule: it deliberately carries no project (its real route records the
-    action instance-wide, tripl-wkwv.15), so an id-scoped delete cannot see it.
+    action instance-wide), so an id-scoped delete cannot see it.
     Left behind it would outlive the warehouse it names — ``purge_project_rows``
     drops that DataSource in this same transaction and writes no ``delete``
     counterpart — so every reset would add another creation of a warehouse that

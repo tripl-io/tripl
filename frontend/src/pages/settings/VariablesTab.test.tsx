@@ -148,7 +148,7 @@ describe('VariablesTab', () => {
   it('renders a row from the list response alone — no per-variable request', async () => {
     // One variable referenced by two events. Both event names and the unioned
     // observed values ship with the list row, so the page must not issue the
-    // per-variable /values call that used to fan out once per row (tripl-jfm3.10).
+    // per-variable /values call that used to fan out once per row.
     mockList([
       makeVariable({
         id: 'var-1',
@@ -205,8 +205,7 @@ describe('VariablesTab', () => {
 
   it('shows a loading skeleton, not the empty state, while the list is pending', async () => {
     // The list resolving to [] and the list still loading are different things;
-    // conflating them flashed "No variables" over a 1.2k-variable project
-    // (tripl-jfm3.52).
+    // conflating them flashed "No variables" over a 1.2k-variable project.
     vi.mocked(variablesApi.listPage).mockReturnValue(new Promise(() => {}))
 
     renderVariablesTab()
@@ -232,7 +231,7 @@ describe('VariablesTab', () => {
 
   it('renders one page of rows for a large project instead of all of them', async () => {
     // 120 variables must not become 120 rows: the unwindowed table was the
-    // reason one checkbox click took hundreds of ms (tripl-jfm3.49).
+    // reason one checkbox click took hundreds of ms.
     mockList(
       Array.from({ length: 120 }, (_, index) =>
         makeVariable({ id: `var-${index}`, name: `var_${String(index).padStart(3, '0')}` }),
@@ -299,7 +298,7 @@ describe('VariablesTab', () => {
     // "Unused" cannot be computed on this page: it depends on whether any event
     // field or meta value still names the token, which the page never loads.
     // Deciding it locally would put rows that ARE referenced under a select-all
-    // checkbox (tripl-xfxa).
+    // checkbox.
     mockList([makeVariable({ id: 'var-1', name: 'spot_id', source_name: 'spot_id' })])
 
     renderVariablesTab()
@@ -374,8 +373,7 @@ describe('VariablesTab', () => {
     expect(within(dialog).queryByRole('columnheader', { name: 'Property' })).not.toBeInTheDocument()
     expect(within(dialog).queryByRole('columnheader', { name: 'Type' })).not.toBeInTheDocument()
     expect(within(dialog).queryByRole('columnheader', { name: 'Description' })).not.toBeInTheDocument()
-    // The two scan-derived facts the dialog used to fetch and discard
-    // (tripl-h2sx.30, tripl-h2sx.22).
+    // The two scan-derived facts the dialog used to fetch and discard.
     expect(within(dialog).getByRole('columnheader', { name: 'Source' })).toBeInTheDocument()
     expect(within(dialog).getByRole('columnheader', { name: 'Last refreshed' })).toBeInTheDocument()
     expect(await within(dialog).findByText('u2')).toBeInTheDocument()
@@ -573,13 +571,13 @@ describe('VariablesTab', () => {
     )
   })
 
-  it('names a blank-named event in the override picker and its row actions (tripl-wkwv.5)', async () => {
+  it('names a blank-named event in the override picker and its row actions', async () => {
     // acme-ios holds exactly one event whose stored name is ''. A native
     // <option> takes its accessible name from its text content, so that row was
     // a selectable option announced as nothing — indistinguishable from a
     // rendering glitch — and the two icon buttons on its existing override read
     // "Edit override for " / "Delete override for ": a trailing space and no
-    // more (tripl-wkwv.5).
+    // more.
     mockList([makeVariable({ id: 'var-1', name: 'variant', allowed_values: ['a'] })])
     vi.mocked(variablesApi.values).mockResolvedValue([])
     vi.mocked(variableOverridesApi.list).mockResolvedValue([
@@ -682,7 +680,7 @@ describe('VariablesTab', () => {
     )
   })
 
-  it('bulk-adds a JSON value with a comma in it as one value (tripl-fj5g.25)', async () => {
+  it('bulk-adds a JSON value with a comma in it as one value', async () => {
     mockList([makeVariable({ id: 'var-1', name: 'payload', variable_type: 'json' })])
     vi.mocked(variablesApi.bulkUpdate).mockResolvedValue(undefined)
     renderVariablesTab()
@@ -954,7 +952,7 @@ describe('VariablesTab', () => {
     expect(screen.queryByText(/use Exclude to keep it out/)).not.toBeInTheDocument()
   })
 
-  it('searches the override roster server-side instead of taking the endpoint default (tripl-46am)', async () => {
+  it('searches the override roster server-side instead of taking the endpoint default', async () => {
     // The picker used to fetch the roster with `params` literally undefined, so
     // no limit was emitted and the endpoint's own default of 200 applied. On a
     // project with more events than that the dropdown listed the first 200 in
@@ -1006,7 +1004,7 @@ describe('VariablesTab', () => {
     )
   })
 
-  it('shows the event of an override that sits outside the loaded roster (tripl-46am)', async () => {
+  it('shows the event of an override that sits outside the loaded roster', async () => {
     mockList([makeVariable({ id: 'var-1', name: 'variant', allowed_values: ['a'] })])
     vi.mocked(variablesApi.values).mockResolvedValue([])
     vi.mocked(variableDriftsApi.list).mockResolvedValue({ items: [], total: 0 })
@@ -1055,7 +1053,7 @@ describe('VariablesTab', () => {
     )
   })
 
-  it('drops the selection when the filter text changes, not only on the usage filter (tripl-42en)', async () => {
+  it('drops the selection when the filter text changes, not only on the usage filter', async () => {
     mockList([
       makeVariable({ id: 'var-1', name: 'checkout_step' }),
       makeVariable({ id: 'var-2', name: 'checkout_total' }),
@@ -1109,7 +1107,7 @@ describe('VariablesTab', () => {
     ])
   }
 
-  it('drops only the excluded row from the selection, keeping the rest of the batch (tripl-42en)', async () => {
+  it('drops only the excluded row from the selection, keeping the rest of the batch', async () => {
     selectAllOfThree()
     vi.mocked(variablesApi.update).mockResolvedValue({} as never)
     vi.mocked(variablesApi.bulkUpdate).mockResolvedValue(undefined)
@@ -1150,7 +1148,7 @@ describe('VariablesTab', () => {
     )
   })
 
-  it('drops a singly-deleted row from the selection before the next bulk confirm (tripl-42en)', async () => {
+  it('drops a singly-deleted row from the selection before the next bulk confirm', async () => {
     selectAllOfThree()
     vi.mocked(variablesApi.del).mockResolvedValue(undefined)
     vi.mocked(variablesApi.bulkDelete).mockResolvedValue(undefined)
@@ -1181,7 +1179,7 @@ describe('VariablesTab', () => {
     )
   })
 
-  it('clears the selection when the sidebar switches branch (tripl-42en)', async () => {
+  it('clears the selection when the sidebar switches branch', async () => {
     // The fixture returns the same rows on both branches ON PURPOSE, so the
     // assertion isolates the branch guard: a prune against the refetched list
     // would find every selected id still matching and leave the bar up. A branch
@@ -1206,7 +1204,7 @@ describe('VariablesTab', () => {
     )
   })
 
-  it('prunes a selection its own bulk update moved out of the usage filter (tripl-42en)', async () => {
+  it('prunes a selection its own bulk update moved out of the usage filter', async () => {
     // "Unused" is answered SERVER-side by the retirement predicate, which keeps
     // any row carrying documented values. Adding values to every selected row is
     // therefore the edit that empties this filter's own list — the mock moves
@@ -1246,7 +1244,7 @@ describe('VariablesTab', () => {
     expect(screen.queryByRole('button', { name: 'Delete' })).not.toBeInTheDocument()
   })
 
-  it('lets Enter search events without submitting the edit form (tripl-46am)', async () => {
+  it('lets Enter search events without submitting the edit form', async () => {
     mockList([makeVariable({ id: 'var-1', name: 'variant', allowed_values: ['a'] })])
     vi.mocked(variablesApi.values).mockResolvedValue([])
     vi.mocked(variableOverridesApi.list).mockResolvedValue([])
@@ -1282,7 +1280,7 @@ describe('VariablesTab', () => {
     await waitFor(() => expect(variablesApi.update).toHaveBeenCalled())
   })
 
-  it('reads a future-snoozed drift the way the badge counts it (tripl-lh61)', async () => {
+  it('reads a future-snoozed drift the way the badge counts it', async () => {
     // `open_drift_count` is `get_open_drift_counts`, and its predicate drops a
     // snooze whose time has not come — so the row carries NO badge. The dialog
     // used to disagree with the table beside it: same drift, warning tone, full
@@ -1348,7 +1346,7 @@ describe('VariablesTab', () => {
     )
   })
 
-  it('lets a snooze lapse in a dialog left open, without a remount (tripl-lh61)', async () => {
+  it('lets a snooze lapse in a dialog left open, without a remount', async () => {
     // The dialog's clock was `useState(() => Date.now())`, and a lazy
     // initializer runs once per mount — of the whole tab, which outlives any one
     // dialog by a long way. So a snooze that ran out while the tab sat open kept
@@ -1413,7 +1411,7 @@ describe('VariablesTab', () => {
     }
   })
 
-  it('marks the excluded property a branch-diff link points at (tripl-acp2)', async () => {
+  it('marks the excluded property a branch-diff link points at', async () => {
     // `excluded_from_scans` is a tracked plan-diff key, so a diff can carry a
     // "variable X — excluded from scans" row linking here with X's id. X is
     // exactly the variable the table filters out, so `findIndex` returned -1,
@@ -1442,7 +1440,7 @@ describe('VariablesTab', () => {
   })
 })
 
-describe('VariablesTab clear observed values (tripl-h2sx.21)', () => {
+describe('VariablesTab clear observed values', () => {
   it('clears the contexts on confirm, and refreshes both queries', async () => {
     vi.mocked(variablesApi.clearValues).mockResolvedValue(undefined as never)
     mockList([makeVariable({ id: 'var-1', name: 'variant', source_name: 'variant', context_count: 2 })])
@@ -1527,7 +1525,7 @@ describe('VariablesTab — focusing one property from a link', () => {
 })
 
 /**
- * tripl-htfn.3 — "is the path under Data bindings the same thing as the token
+ * "is the path under Data bindings the same thing as the token
  * after `$`?" They are not, and the hard-coded example was making it worse.
  */
 describe('VariablesTab — bindings versus tokens', () => {
@@ -1597,8 +1595,8 @@ describe('VariablesTab — a viewer reads without write controls', () => {
     // Opening the variable is how its drift and observed values are read.
     fireEvent.click(edit)
     const dialog = await screen.findByRole('dialog')
-    // The definition reads as a description list, not as disabled inputs
-    // (tripl-i9mt.12), and nothing that would write is offered.
+    // The definition reads as a description list, not as disabled inputs,
+    // and nothing that would write is offered.
     expect(within(dialog).queryByRole('textbox')).not.toBeInTheDocument()
     expect(within(dialog).getByText('Name').tagName).toBe('DT')
     expect(within(dialog).queryByRole('button', { name: 'Save' })).not.toBeInTheDocument()

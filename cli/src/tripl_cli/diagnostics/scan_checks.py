@@ -64,8 +64,8 @@ GENERIC_SCAN_ERROR = "Scan failed due to an internal error."
 STALE_INTERVALS = 3
 NEVER_COLLECTED_INTERVALS = 2
 
-# A DEMO project's scheduled collection is NOT judged for staleness at all
-# (tripl-0zpq.343). The scheduler throttles a demo to one collection per
+# A DEMO project's scheduled collection is NOT judged for staleness at all.
+# The scheduler throttles a demo to one collection per
 # cooldown and stops collecting entirely while nobody has opened the demo
 # (backend/src/tripl/worker/tasks/_demo_pause.py), and nothing the API exposes
 # tells a deliberately paused demo from a dead beat scheduler. A doctor that
@@ -382,7 +382,7 @@ def _config_findings(
         created = parse_time(config.get("created_at"))
         age = (now - created).total_seconds() if created is not None else None
         # Not for a demo: one nobody opened may never have been collected, and
-        # that is the pause working, not a dead scheduler (tripl-0zpq.343).
+        # that is the pause working, not a dead scheduler.
         if not is_demo and age is not None and age > never_after:
             findings.append(
                 Finding(
@@ -451,7 +451,7 @@ def _config_findings(
     else:
         dispatched_at = parse_time(newest.get("created_at"))
         idle = (now - dispatched_at).total_seconds() if dispatched_at is not None else 0.0
-        # Never for a demo (tripl-0zpq.343): its silence is the pause gate
+        # Never for a demo: its silence is the pause gate
         # working, and nothing exposed can tell it from a dead scheduler.
         if not is_demo and dispatched_at is not None and idle > stale_after:
             # Suppressed above when the config is already failing: one root
@@ -481,8 +481,7 @@ def _config_findings(
         if watermark is not None:
             behind = (now - watermark).total_seconds()
             # Not for a demo: a paused demo's watermark freezes with its
-            # collection, and its synthetic source is never "producing no rows"
-            # (tripl-0zpq.343).
+            # collection, and its synthetic source is never "producing no rows".
             if not is_demo and behind > stale_after:
                 findings.append(
                     Finding(

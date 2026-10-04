@@ -62,7 +62,7 @@ router = APIRouter(
 _owner_required = [Depends(get_owner_user)]
 _editor_required = [Depends(get_editor_user)]
 # Replaying an existing config over an explicit window is the one owner-only scan
-# action an org owner's or admin's ``tk_w_`` key may take (tripl-cj5z). It re-runs SQL an owner
+# action an org owner's or admin's ``tk_w_`` key may take. It re-runs SQL an owner
 # already authored through the session-only routes above, over a window the caller
 # names, and writes nothing but metric values for that config — so the credential
 # reach a leaked key gains is bounded by what an owner already approved, unlike
@@ -337,8 +337,7 @@ async def list_scan_jobs(
 
     This was uncapped, and the Scans tab fans it out over every scan config on a
     10-second poll: production configs hold 1,366-1,551 jobs each, so an open tab
-    pulled roughly 4,400 rows every 10 seconds and rendered them unvirtualized
-    (tripl-jfm3.107).
+    pulled roughly 4,400 rows every 10 seconds and rendered them unvirtualized.
     """
     return await scan_service.list_scan_jobs(session, slug, scan_id, limit=limit)
 

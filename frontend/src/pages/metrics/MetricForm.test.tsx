@@ -391,7 +391,7 @@ describe('MetricForm validation', () => {
       }),
     )
     // No `order`: the contract lists it optional and the backend appends a
-    // metric that names no position (tripl-cyby).
+    // metric that names no position.
     const payload = at(vi.mocked(metricsCatalogApi.create).mock.calls, 0)[1]
     expect(payload).not.toHaveProperty('order')
     await waitFor(() => expect(onClose).toHaveBeenCalled())
@@ -508,7 +508,7 @@ describe('MetricForm validation', () => {
             aggregation: 'sum',
             measure_column: 'amount',
             row_filters: ['completed'],
-            // Verbatim: an untouched load→save must not add parens (tripl-wumc).
+            // Verbatim: an untouched load→save must not add parens.
             filter_sql: 'amount > 0',
           }),
           denominator: expect.objectContaining({
@@ -1062,7 +1062,7 @@ describe('MetricForm validation', () => {
     fireEvent.change(document.getElementById('metric-sql-time')!, { target: { value: 'bucket' } })
 
     // Checkbox-only picker: the embedded add-column combobox that duplicated
-    // the checkbox list was removed (tripl-z5rq).
+    // the checkbox list was removed.
     showDimensions()
     const group = document.getElementById('metric-breakdowns')!
     expect(within(group).queryByRole('combobox')).toBeNull()
@@ -1320,7 +1320,7 @@ describe('MetricForm starter SQL follows the selected warehouse', () => {
 })
 
 describe('MetricForm field labels', () => {
-  // tripl-5gdg reached this form too: the settings kit's Field generates an id
+  // The same label bug reached this form too: the settings kit's Field generates an id
   // and points its <label htmlFor> at it, but only the kit's own controls claim
   // that id. A row wrapping anything else — the read-only name, the checkbox
   // grid, the filter editor — was left with a label addressing an element that

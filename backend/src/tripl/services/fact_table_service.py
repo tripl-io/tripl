@@ -59,7 +59,7 @@ async def _verify_data_source(
     with the ``sql``-metric save and preview doors — see
     ``services/data_source_scope``. It used to be "at least one ``ScanConfig``
     links the two", which answered the same question differently from the metric
-    doors and refused a workspace-global warehouse nobody scans (tripl-0zpq.177).
+    doors and refused a workspace-global warehouse nobody scans.
     """
     data_source = await session.get(DataSource, data_source_id)
     if data_source is None:

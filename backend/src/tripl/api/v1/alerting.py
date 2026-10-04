@@ -268,7 +268,7 @@ async def delete_alert_rule(
     # this route's "Alert rule not found", while a rule id present under that
     # same foreign destination fell through to the service's "Alert destination
     # not found". Two 404s that, read together, answered "does this rule exist?"
-    # for a project the caller cannot see (tripl-0zpq.242).
+    # for a project the caller cannot see.
     name = await alerting_service.delete_rule(session, slug, destination_id, rule_id)
     await audit_service.record(
         session,
@@ -296,7 +296,7 @@ async def simulate_alert_rule(
     # replay uses the rule's saved value; the reply reports both, as
     # ``*_used``/``*_saved``. Without these, asking "would min % 300 cut these
     # incidents" meant saving 300 onto a rule that is live-routing to a real
-    # channel (tripl-oxkt.17 part 3).
+    # channel (part 3).
     #
     # ``sigma_threshold_override`` is the DETECTOR's sensitivity, not a rule
     # field: it re-reads the recorded anomalies, so it can only ever narrow the
@@ -338,8 +338,7 @@ async def list_alert_deliveries(
     # AlertDeliveryStatus / AlertDestinationType (not str): both columns are
     # native Postgres enums, so a garbage value used to travel all the way to
     # the driver and blow up as a 500 ("not among the defined enum values").
-    # FastAPI now 422s it at the edge, like GET /events?status= already did
-    # (tripl-57g0).
+    # FastAPI now 422s it at the edge, like GET /events?status= already did.
     status: AlertDeliveryStatus | None = None,
     channel: AlertDestinationType | None = None,
     destination_id: uuid.UUID | None = None,
@@ -347,7 +346,7 @@ async def list_alert_deliveries(
     scan_config_id: uuid.UUID | None = None,
     # The page nests deliveries under their incident, so it fetches them one
     # incident at a time; `ungrouped` reaches the rows that have no incident,
-    # which no value of `correlation_group_id` can select (tripl-pq97).
+    # which no value of `correlation_group_id` can select.
     correlation_group_id: uuid.UUID | None = None,
     ungrouped: bool = False,
     date_from: datetime | None = None,
@@ -470,18 +469,18 @@ async def list_alert_inbox(
     # Inbox status is filtered in Python against the derived group status, so a
     # typo never reached the driver — it silently matched nothing and reported
     # "no incidents", which is worse than a crash. AlertInboxStatus makes the
-    # typo a 422 (tripl-57g0).
+    # typo a 422.
     status: AlertInboxStatus | None = None,
     # Bounds on `latest_delivery_at` — when the incident last spoke, which is
     # the column the card leads with and the one triage asks about. Both are
     # INCLUSIVE, and both are narrowings INSIDE the list's own window: nothing
     # here can reach an incident older than INBOX_LOOKBACK_DAYS, or one the
     # source cap dropped. The page states that; the API cannot, so it must not
-    # be read as an unbounded date search (tripl-htfn.4).
+    # be read as an unbounded date search.
     last_fired_from: datetime | None = None,
     last_fired_to: datetime | None = None,
     # Enums, not bare strings, for the reason `status` is one: a typo has to be
-    # a 422 rather than an empty inbox nobody can explain (tripl-57g0).
+    # a 422 rather than an empty inbox nobody can explain.
     scope_type: MetricScopeType | None = None,
     direction: AnomalyDirection | None = None,
     # Case-insensitive substring over every scope name and ref in the incident,
@@ -532,7 +531,7 @@ def incident_audit_name(
     project Audit log a wall of hex — 28 of 31 captured rows on the one project
     with real inbox history — while every other action on the same page named its
     target. Neither affordance on the row rescued it: the title attribute reveals
-    the FULL UUID, and expanding shows only the action body (tripl-ckun).
+    the FULL UUID, and expanding shows only the action body.
 
     Named off the SAME fields the incident card renders — the newest item's
     ``scope_type`` and the group's ``scope_names``, joined the way
@@ -571,7 +570,7 @@ async def apply_alert_inbox_bulk_action(
     data: AlertInboxBulkActionRequest,
     current_user: EditorUserDep,
 ) -> AlertInboxBulkActionResponse:
-    """Apply one triage decision to a selection of incidents (tripl-gpfr).
+    """Apply one triage decision to a selection of incidents.
 
     A shortcut for N clicks on the sibling single-incident route, not a new kind
     of object: the decision is copied into each incident's own state. The service
@@ -618,7 +617,7 @@ async def apply_alert_inbox_bulk_action(
             # default, which for 200 incidents meant 200 separate transactions
             # after the state change was already durable — a failure partway
             # through left incidents silenced with only a partial record of who
-            # silenced them, and the response still said 200 OK (tripl-gpfr).
+            # silenced them, and the response still said 200 OK.
             commit=False,
         )
     await session.commit()
@@ -635,7 +634,7 @@ async def get_alert_inbox_group(
 
     Alert messages deep-link the incident they describe, and the reader opens
     them late; before this route the link landed on a page of 20 unrelated
-    incidents with no explanation (tripl-oxkt.7).
+    incidents with no explanation.
     """
     return await alerting_service.get_alert_inbox_group(session, slug, correlation_group_id)
 

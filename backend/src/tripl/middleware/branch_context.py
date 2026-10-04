@@ -2,10 +2,10 @@
 
 ``audit_service.record`` must not grow a ``branch=`` argument in the
 branch-scoped routes that call it — that is a standing invitation for the next
-branch-scoped route to forget it, which is how tripl-wkwv.6 arrived in the first
+branch-scoped route to forget it, which is how an earlier bug arrived in the first
 place. That is a claim about the routes that audit, not about every write route:
 whether a write is audited is decided route by route, and some writes record
-nothing at all (tripl-0zpq.217). What this module guarantees is narrower: a row
+nothing at all. What this module guarantees is narrower: a row
 that IS written from a route that declares ``BranchIdDep``, on a request whose
 ``?branch=`` resolves to a branch other than main, carries that branch. Two
 kinds of request leave ``branch_id`` NULL with a working branch in play: routes
@@ -23,7 +23,7 @@ two are the only binder and the only reader; each names the other in a comment.
 Unlike the request id, this value needs no ASGI-scope mirror. The hazard that
 forced one on ``request_id`` — ServerErrorMiddleware serves the catch-all 500
 handler from OUTSIDE RequestIDMiddleware, so the contextvar is already reset by
-the time that handler runs (tripl-qu9m, see ``request_id._SCOPE_KEY``) — cannot
+the time that handler runs (see ``request_id._SCOPE_KEY``) — cannot
 bite here: the audit row is written mid-handler, long before any unwinding, and
 a request that never reaches its handler writes no audit row at all.
 

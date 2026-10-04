@@ -1,5 +1,5 @@
 /**
- * Demo welcome surface on the Overview (tripl-2su6.9).
+ * Demo welcome surface on the Overview.
  *
  * A freshly-created demo lands here (not Events). The panel orients the user
  * and hands them to the one guided path: the chapters. It is dismissible and
@@ -95,7 +95,7 @@ export function DemoWelcomePanel({ project }: { project: Project }) {
           {available ? 'Browse chapters' : 'Take the tour'}
         </Button>
         {/* The demo never pointed at the real product, so the funnel it is
-            the front of ended in a dead stop (tripl-1mzh). The dashboard is
+            the front of ended in a dead stop. The dashboard is
             where "New project — start empty and connect your own warehouse"
             lives. */}
         <Button asChild size="xs" variant="ghost">

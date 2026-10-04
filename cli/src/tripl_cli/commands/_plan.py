@@ -4,7 +4,7 @@ Seven verbs read seven resources and print seven tables. Everything AROUND that
 — resolving ``--branch``, opening a counting reader, stamping the run, choosing
 which stream the human lines go to, and writing at most one JSON document — is
 the same seven times, and was already spelled six times across ``scans.py`` and
-``drifts.py`` before these landed. It is spelled once here (tripl-3ixs).
+``drifts.py`` before these landed. It is spelled once here.
 
 The ``--branch`` rule is the load-bearing part. Every plan read is answered from
 ONE revision, and which one is decided by a query parameter that

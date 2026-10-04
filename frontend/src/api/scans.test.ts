@@ -44,7 +44,7 @@ describe('scansApi.dryRun — what the user is told when the check does not answ
     // "Dry run" appears nowhere on the preview panel: the button says Check, the
     // wait says "Working out what this scan would create…", the answer says
     // "Would create N events". These two strings were the only place the
-    // mechanism's name reached a screen (tripl-3y7z.6).
+    // mechanism's name reached a screen.
     vi.spyOn(globalThis, 'fetch').mockResolvedValue(jsonResponse(dryRunJob({})))
 
     const message = await dryRunMessage()

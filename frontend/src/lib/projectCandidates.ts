@@ -15,7 +15,7 @@ export interface ProjectCandidate {
  * - The project's members with a granting row (`editor` / `viewer`). A
  *   `'none'` row opts its member out of the project, whatever the default.
  * - Every owner and admin of the organization: they see and write every
- *   project of it without ever holding a member row (tripl-vefw, F20 PR4).
+ *   project of it without ever holding a member row (F20 PR4).
  * - When the organization's default access (`defaultRole`, F20 PR15) is not
  *   `'none'`, every other member of the roster without a row too: the default
  *   gives them the project.

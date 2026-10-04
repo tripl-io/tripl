@@ -22,7 +22,7 @@ describe('Edit dialog password field', () => {
    * The placeholder was gated on `isEdit` alone, so a source with no stored
    * password showed "Leave empty to keep" directly above a hint reading
    * "Password: not set." — two contradictory instructions about a credential,
-   * five pixels apart (tripl-ofvc). The BigQuery key field one branch up had
+   * five pixels apart. The BigQuery key field one branch up had
    * always gated on `isEdit && secretSet`.
    */
   it('offers to keep a secret only when one is stored', () => {
@@ -41,7 +41,7 @@ describe('Edit dialog password field', () => {
    * rather than removing it: eight bullets render in the same grey as the
    * "default" placeholder in the Username box beside it, so the field reads as
    * holding an 8-character stored password — directly above the hint
-   * "Password: not set." (tripl-s8rg). The empty state has to say, in words,
+   * "Password: not set.". The empty state has to say, in words,
    * that it is empty.
    */
   it('spells out the empty state instead of showing masked dots', () => {

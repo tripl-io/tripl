@@ -1,4 +1,4 @@
-"""The PostgreSQL-only advisory locks, run against PostgreSQL (tripl-r6ec).
+"""The PostgreSQL-only advisory locks, run against PostgreSQL.
 
 Every one of these guards is a no-op on the SQLite the suite runs on, by design
 and said so at each site, so a wrong dialect string or a dropped lock call used

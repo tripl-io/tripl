@@ -129,7 +129,7 @@ export function measureOverflow(table: HTMLTableElement): number {
  *
  * At 1512px the catalog is ~1665px of columns in a ~902px pane, so 8 of 17
  * columns sit off-screen (10 at 1280px) with nothing but the scrollbar — far
- * below the fold of a tall list — to say so (tripl-1uls / tripl-u1ib). The
+ * below the fold of a tall list — to say so. The
  * count feeds the Columns chip; the scroll position drives the pinned columns'
  * shadow through a custom property, so crossing scrollLeft 0 repaints instead
  * of re-rendering every row.

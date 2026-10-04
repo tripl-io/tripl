@@ -1,4 +1,4 @@
-"""Project-scoped SSE live-update stream (tripl-2su6.8).
+"""Project-scoped SSE live-update stream.
 
 Covers three layers without a live Redis (tests run with ``redis_url`` empty, so
 the pub/sub bus degrades to a no-op):
@@ -8,8 +8,7 @@ the pub/sub bus degrades to a no-op):
 * the core SSE generator (``sse_response_stream``) — hello, replay, live delivery
   from a faked message iterator, and heartbeat-only degraded mode.
 
-Heavy browser E2E (two clients on one job, reconnect, fallback) is deferred to
-tripl-2su6.10.
+Heavy browser E2E (two clients on one job, reconnect, fallback) is deferred.
 """
 
 from __future__ import annotations

@@ -36,8 +36,7 @@ function notifiedOwners(
 }
 
 /**
- * The largest selection {@link alertingApi.applyInboxBulkAction} may send
- * (tripl-gpfr).
+ * The largest selection {@link alertingApi.applyInboxBulkAction} may send.
  *
  * The server's half of this number is `MAX_BULK_INBOX_ACTION_GROUPS` in
  * backend/src/tripl/schemas/alerting.py, where it is a `max_length` on the id
@@ -60,7 +59,7 @@ function notifiedOwners(
 export const MAX_BULK_INBOX_ACTION_GROUPS = 200
 
 /**
- * The longest note either inbox route will store (tripl-gwrd).
+ * The longest note either inbox route will store.
  *
  * The server's half is `max_length=2000` on `AlertInboxActionRequest.note` AND
  * on `AlertInboxBulkActionRequest.note` (schemas/alerting.py) — already written
@@ -187,7 +186,7 @@ export const alertingApi = {
   /**
    * Send a probe through this destination's real channel. Resolves 200 even
    * when the channel refuses — inspect `ok`/`error` rather than catching, since
-   * a rejected token IS the answer the button was pressed for (tripl-oxkt.17).
+   * a rejected token IS the answer the button was pressed for.
    */
   testDestination: (slug: string, destinationId: string) =>
     api.post<AlertDestinationTestResponse>(
@@ -378,7 +377,7 @@ export const alertingApi = {
     slug: string,
     // Every narrowing member is its union, not a bare string: the API 422s on
     // anything else, and a filter typo should fail at build time rather than as
-    // an empty inbox nobody can explain (tripl-57g0).
+    // an empty inbox nobody can explain.
     //
     // `lastFiredFrom`/`lastFiredTo` are instants, and both bound
     // `latest_delivery_at` — when the incident last spoke, the column the card
@@ -414,7 +413,7 @@ export const alertingApi = {
   /**
    * One incident by id, ignoring the 30-day window the list is scoped to. A
    * deep link to an older incident used to land on an empty inbox because the
-   * only way to fetch a group was to find it in that page (tripl-oxkt.11).
+   * only way to fetch a group was to find it in that page.
    */
   getInboxGroup: (slug: string, correlationGroupId: string) =>
     api.get<AlertInboxGroup>(`/projects/${slug}/alert-inbox/${correlationGroupId}`),
@@ -434,8 +433,7 @@ export const alertingApi = {
     ),
 
   /**
-   * One triage decision, applied to several incidents in ONE request
-   * (tripl-gpfr).
+   * One triage decision, applied to several incidents in ONE request.
    *
    * A triage shortcut, not an incident record: the server copies this body into
    * each selected incident's own state, so afterwards every selected row
@@ -453,7 +451,7 @@ export const alertingApi = {
    *
    * `muted_until` follows the single-incident route exactly: pass it only with
    * a `mute`, and pass it EXPLICITLY as `null` for the open-ended mute rather
-   * than omitting the key (tripl-a50u). Every other action nulls the column
+   * than omitting the key. Every other action nulls the column
    * server-side regardless of what is sent.
    */
   applyInboxBulkAction: (

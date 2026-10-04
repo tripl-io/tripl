@@ -1,5 +1,5 @@
 /**
- * Project event stream subscription hook (tripl-2su6.8).
+ * Project event stream subscription hook.
  *
  * Opens an `EventSource` to `GET /api/v1/projects/{slug}/events/stream` and, on
  * each named event, invalidates the mapped React-Query keys (see
@@ -17,7 +17,7 @@
  * carries the project's current sequence number (`seq`) and the ring's size, so
  * after a reconnect the client compares `seq` with its cursor: a gap the ring
  * covers, in the same sequence `epoch`, arrives as replay and needs nothing
- * more (tripl-fj5g.17) — as long as the replayed ids arrive without a hole,
+ * more — as long as the replayed ids arrive without a hole,
  * which is checked as they come in. Only when it cannot tell — no `seq`, no
  * cursor, a new epoch — or the gap is wider than the ring, or `seq` fell below
  * the cursor (a reset), or the replay has a hole, does it refresh every project cache the

@@ -70,7 +70,7 @@ def test_the_helpers_return_a_new_list_rather_than_mutating() -> None:
 
     An in-place edit leaves the instance unflagged, is never flushed, and every
     assertion against the in-memory object still passes — a test that cannot
-    fail, which is how tripl-xfxa lasted as long as it did.
+    fail, which is how a past bug lasted as long as it did.
     """
     original = ["a", "b"]
     assert replace_preserving_order(original, "a", "z") is not original

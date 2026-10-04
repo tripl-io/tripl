@@ -106,7 +106,7 @@ export default function ProjectSettingsPage({
   const [searchParams] = useSearchParams()
   const focusItemKey = searchParams.get('item') ?? undefined
   // `?scan=<scan_config_id>` narrows the alerting audit log to one scan — the
-  // target of the "Alerts queued" counter on a scan run (tripl-3y7z.2).
+  // target of the "Alerts queued" counter on a scan run.
   const focusScanId = searchParams.get('scan') ?? undefined
   // The incident an alert link points at — the card that holds Ack / Resolve /
   // Mute. `item` still picks the row the message quoted inside it.
@@ -114,7 +114,7 @@ export default function ProjectSettingsPage({
   // `?focus=<id>` marks one row of the variables list: where the variable
   // page's back link returns to. `/p/:slug/variables/:id` is that variable's
   // own page now (AU-26), so a branch diff's links — focus and Edit alike
-  // (tripl-htfn.2) — land on it, Definition tab first.
+  // — land on it, Definition tab first.
   const focusListId = searchParams.get('focus') ?? undefined
 
   if (!slug) return null

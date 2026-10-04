@@ -7,11 +7,11 @@
  *
  * - `['data-sources']` (metric card, metric form, fact-table form and list) vs
  *   `['dataSources']`, the one DataSourcesPage invalidates and `setQueryData`s
- *   (tripl-jfm3.115) — four surfaces kept showing a source you had just edited;
+ *    — four surfaces kept showing a source you had just edited;
  * - `['plan-branches', slug]` in the sidebar switcher vs `['planBranches', slug]`
- *   invalidated by BranchesTab (tripl-jfm3.116) — creating or merging a branch
+ *   invalidated by BranchesTab — creating or merging a branch
  *   left the switcher stale;
- * - three spellings of the expanded signals list (tripl-jfm3.119).
+ * - three spellings of the expanded signals list.
  *
  * Importing the key instead of retyping it makes a fourth impossible: a typo is
  * a compile error rather than a silent second cache. Every key lives here now
@@ -634,7 +634,7 @@ export const eventWindowMetricsKey = (slug: string | undefined, bucketIds: reado
 
 /**
  * Active signals. One family for every surface — the Events tabs and rows, and
- * the expanded list the bell, Overview and Anomalies share (tripl-jfm3.119) —
+ * the expanded list the bell, Overview and Anomalies share —
  * so a single prefix refreshes them all.
  */
 export const activeSignalsRootKey = () => [...orgRoot(), 'activeSignals'] as const

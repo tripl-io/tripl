@@ -127,8 +127,8 @@ export function AiSection({
         {/* Badged like every other resettable field. A stored key IS an override
             — overrideCount counts it and Reset nulls it — but the row rendered
             nothing, so an instance whose only override was this key showed a red
-            "Clears the 1 AI override" card above rows that all read "Default"
-            (tripl-5qp9 / tripl-wkwv.2). The source says override/env/default and
+            "Clears the 1 AI override" card above rows that all read "Default".
+            The source says override/env/default and
             nothing about the value; the *_configured placeholder beside it
             already reveals more. */}
         <OperatorFields locked={!platformAdmin} quiet>
@@ -285,7 +285,7 @@ export function AiSection({
             unreportable: nothing in the running system said which endpoint the
             vectors came from, so a compose allowlist slip that dropped
             SEARCH_EMBEDDING_BASE_URL sent the text to OpenAI with nothing to
-            notice it by (tripl-wkwv.2). Shown, never editable — and its badge is
+            notice it by. Shown, never editable — and its badge is
             what answers "did the variable reach this container?", which is the
             whole reason the row exists. */}
         <Field

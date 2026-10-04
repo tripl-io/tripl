@@ -17,8 +17,7 @@ A second exception is admitted to that curated set: ``core.name_template
 .NameFormatError``. It is raised in ``core``, which must never import ``worker``,
 so it cannot subclass ``ScanError``; admitting it by type here rather than
 wrapping it at each call site means every caller of the name-format code — there
-are two today and a third will come — surfaces the real reason without opting in
-(tripl-3mmh).
+are two today and a third will come — surfaces the real reason without opting in.
 
 A third is ``core.adapters.errors.WarehouseCapabilityError``, on the identical
 bargain and for the identical reason. It also lives in ``core``, it is documented
@@ -28,7 +27,7 @@ surface it verbatim on their own paths — the worker was the one consumer that
 flattened it. What the operator saw instead was "Scan failed due to an internal
 error." on every tick, forever, for conditions like a DATE time column configured
 at a 1h interval or a PostgreSQL server too old for ``date_bin`` — each of which
-names the setting to change in its own text (tripl-0zpq.66).
+names the setting to change in its own text.
 """
 
 from __future__ import annotations
@@ -78,7 +77,7 @@ _MAX_CURATED_LEN = 500
 # everything else to a bare "Scan failed."
 #
 # The generic branches below always satisfied it and the curated branch never
-# did, so until tripl-7bol every author-written ``ScanError`` in this repository
+# did, so until the prefix fix every author-written ``ScanError`` in this repository
 # — some sixty of them, the entire reason the curated set exists — was discarded
 # by the UI and rendered as the one message it was written to replace. One raise
 # site worked, ``_apply_name_format``, and only because it spells the prefix

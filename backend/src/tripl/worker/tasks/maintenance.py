@@ -17,7 +17,7 @@
 - delete photo blobs no ``event_photos`` row references. Inline deletion alone
   leaks them: an event, project or branch delete removes photo rows by FK
   cascade without a storage call, and two concurrent ``delete_photo`` calls can
-  each see the other's row and both keep the blob (tripl-0zpq.291).
+  each see the other's row and both keep the blob.
 """
 
 from __future__ import annotations
@@ -200,7 +200,7 @@ def requeue_stranded_alert_deliveries() -> dict[str, object]:
         # No ``AlertDestination.enabled`` join here, deliberately, and the
         # asymmetry with the failed arm below is load-bearing rather than an
         # oversight to tidy up. A disabled destination must not be sent to
-        # (tripl-0zpq.39) — but that is enforced in the send task, by
+        # — but that is enforced in the send task, by
         # ``alerts._assert_destination_enabled``, which turns this redispatch
         # into a `failed` row naming the toggle: visible in the Inbox, where an
         # alert that did not go out belongs. Filtering it out HERE instead
@@ -432,7 +432,7 @@ def _store_has_rows(session: Session, store: _SweptStore) -> bool:
 def sweep_orphan_photo_blobs() -> dict[str, object]:
     """Delete photo blobs no ``event_photos`` row references, once they are old.
 
-    Inline deletion cannot be the whole story (tripl-0zpq.291): deleting an
+    Inline deletion cannot be the whole story: deleting an
     event, a project or a branch removes photo rows by FK cascade and never
     calls storage, and two concurrent ``delete_photo`` calls on the last two
     rows holding one key each see the other and both keep the blob. This sweep

@@ -18,7 +18,7 @@ import {
 
 describe('Panel header', () => {
   /**
-   * The clipping in tripl-jfm3.43 is pure layout, so the unit-level guard is
+   * The header clipping is pure layout, so the unit-level guard is
    * the class contract that produces it: a wrapping header whose right slot is
    * allowed to shrink, and a title that keeps a basis so it cannot collapse to
    * 0px behind the controls. Measured widths are covered by the browser pass.
@@ -62,7 +62,7 @@ describe('Field label association', () => {
    * Field generated an id for its <label htmlFor> but rendered its children
    * raw, so unless a caller passed `htmlFor` AND repeated the id on its own
    * control the label addressed nothing — 10 of 14 inputs on
-   * /settings/instance/ai had no accessible name (tripl-5gdg).
+   * /settings/instance/ai had no accessible name.
    */
   it('names an input, a textarea and a select the caller gave no id', () => {
     const noop = () => {}

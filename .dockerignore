@@ -1,6 +1,6 @@
 # Build context for BOTH root-context images: the service (`docker build .`)
 # and tripl-mcp (`docker build -f mcp-server/Dockerfile .`, which moved to the
-# root context so it can reach ./cli — tripl-ey6j.1). Keep this tight: the
+# root context so it can reach ./cli). Keep this tight: the
 # multi-arch release builds send the context to the builder, so excluding VCS,
 # deps, caches, and secrets makes builds faster and avoids leaking .env.
 #

@@ -446,7 +446,7 @@ describe('ScenarioCoachMark — hiding the hints', () => {
   })
 })
 
-describe('ScenarioCoachMark — a row control has no free side (tripl-jfm3.62)', () => {
+describe('ScenarioCoachMark — a row control has no free side', () => {
   it('docks the card clear of the grid instead of opening over the rows it explains', () => {
     // Anchored to a row action, every side Radix can pick lands on the table
     // body: it only flips to avoid the VIEWPORT edge, not the content beneath.
@@ -475,7 +475,7 @@ describe('ScenarioCoachMark — a row control has no free side (tripl-jfm3.62)',
     expect(runButton()).toHaveAttribute('data-coach-target', 'live-loop/run-scan')
   })
 
-  it('does not inherit the cell’s right-align, and clears the tweaks FAB (tripl-gr0x)', () => {
+  it('does not inherit the cell’s right-align, and clears the tweaks FAB', () => {
     // A position:fixed card still inherits text-align, and row actions sit in a
     // `text-right` <td>: the card rendered ragged-left with "Hide hints" pushed
     // under the tweaks FAB (then fixed bottom-5 right-5, h-9, same z-index and
@@ -496,8 +496,8 @@ describe('ScenarioCoachMark — a row control has no free side (tripl-jfm3.62)',
 
     const docked = document.querySelector('[data-coach-docked="true"]')
     expect(docked?.className).toContain('text-left')
-    // Above the FAB's top edge — now bottom-1 + h-8 = 36px, since tripl-tvqk
-    // tucked it into the activity rail's footer strip — not level with it.
+    // Above the FAB's top edge — now bottom-1 + h-8 = 36px, since it was tucked
+    // into the activity rail's footer strip — not level with it.
     expect(docked?.className).toContain('bottom-[68px]')
     expect(docked?.className).not.toContain('bottom-4')
   })

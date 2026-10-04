@@ -1,7 +1,7 @@
 import { defineConfig, devices } from '@playwright/test'
 
 /**
- * End-to-end tests (tripl-fj5g.1): a real browser against a running stack,
+ * End-to-end tests: a real browser against a running stack,
  * `compose.dev.yaml` by default (the Vite dev server on :5173 proxying the
  * API). Point E2E_BASE_URL elsewhere to walk another instance. The stack is
  * not started from here: CI brings it up first, and locally it is usually up

@@ -68,7 +68,7 @@ async def _assert_public_destination_host(url: str | None, *, field: str) -> Non
     ours. It used to run inside the pydantic validators for ``target_url`` and
     ``jira_base_url``, i.e. during FastAPI's body parsing for an ``async def``
     route — on the event loop, where one degraded lookup stalls every other
-    request already in flight on the same uvicorn worker (tripl-0zpq.30). The
+    request already in flight on the same uvicorn worker. The
     schema now settles the URL's SHAPE; this settles where it points.
 
     Nothing is weakened by the move. This runs before the row is written on both
@@ -107,7 +107,7 @@ async def _refresh_main_search_index(
     metrics, fact tables and scan configs already follow.
 
     Without this a rule the user just created stayed unfindable in the command
-    palette until some unrelated reindex happened to fire (tripl-ugrm).
+    palette until some unrelated reindex happened to fire.
 
     The imports are deferred because the module graph is cyclic here:
     ``search_service`` imports ``project_service``, which imports
@@ -361,7 +361,7 @@ def destination_to_response(
     while building the LIST, so reading the clock inside it gave one response N
     different "now"s and two destinations muted to the same instant could
     disagree about whether that instant had passed. The parameter is required so
-    a future caller has to decide which clock it means (tripl-oxkt.18).
+    a future caller has to decide which clock it means.
     """
     rules = sorted(destination.rules, key=lambda item: item.created_at, reverse=True)
     return AlertDestinationResponse(
@@ -474,7 +474,7 @@ def _reject_demo_ai_explanation(*, is_demo: bool, ai_explanation_enabled: bool |
 
     Building the explanation is an outbound LLM call, which a zero-egress demo
     must never make. The worker skips it for demo projects regardless, so without
-    this the toggle would just silently do nothing (tripl-2su6.12).
+    this the toggle would just silently do nothing.
     """
     if is_demo and ai_explanation_enabled:
         raise HTTPException(
@@ -503,7 +503,7 @@ async def replace_rule_filters(
     collection that is already loaded on an identity-mapped object. A PATCH that
     changed the filters therefore answered 200 listing the PREVIOUS filters, and
     a client reading its own write back concluded the update had not landed or
-    re-applied stale state (tripl-0zpq.159). The UI never saw it because it
+    re-applied stale state. The UI never saw it because it
     invalidates and refetches instead of trusting the mutation body.
 
     Assigning the collection makes the rule in memory and the rule in the
@@ -663,7 +663,7 @@ async def create_destination(
     project = await _get_project(session, slug)
     # A ``demo_sink`` is a local, non-sendable sink that only ever belongs to a
     # generated demo project — mirroring how synthetic data sources are
-    # demo-only. Block creating one on a real project (tripl-2su6.6).
+    # demo-only. Block creating one on a real project.
     if data.type == AlertDestinationType.demo_sink and not project.is_demo:
         raise HTTPException(
             status_code=422,
@@ -672,7 +672,7 @@ async def create_destination(
     # ...and the mirror of that rule: a demo project is zero-egress, so the local
     # sink is the ONLY destination it may gain. Without this a demo user could add
     # a real Slack/webhook/Jira destination and the next collection would send a
-    # genuine outbound message built from synthetic data (tripl-2su6.12). The
+    # genuine outbound message built from synthetic data. The
     # permanently-disabled Slack example a demo ships with is written by the seed
     # builder, not through this API.
     if project.is_demo and data.type != AlertDestinationType.demo_sink:
@@ -791,7 +791,7 @@ async def update_destination(
     # destination — a permanently disabled Slack example — purely to SHOW what a
     # real channel looks like. Renaming it is fine; enabling it or handing it a
     # webhook/token/recipient is not, because the next collection would then send
-    # a real message from synthetic data (tripl-2su6.12).
+    # a real message from synthetic data.
     if project.is_demo and destination.type != AlertDestinationType.demo_sink:
         forbidden = [field for field in _EXTERNAL_CHANNEL_UPDATE_FIELDS if field in update_dict]
         if update_dict.get("enabled") is True:
@@ -836,8 +836,8 @@ async def update_destination(
                 #
                 # This is the handoff, and it exists to settle which of the two
                 # delivery paths ships each held incident — because both of them
-                # can, and the operator must receive each one exactly once
-                # (tripl-0zpq.38). The split is on the scope's
+                # can, and the operator must receive each one exactly once.
+                # The split is on the scope's
                 # ``AlertRuleState.last_notified_at``, because that column is
                 # precisely what dispatch's re-send gate reads:
                 #
@@ -1315,7 +1315,7 @@ async def delete_rule(
     it first — and the only lookup a router can reach without a project is a bare
     ``AlertRule.id``/``destination_id`` select. That select answers BEFORE
     ``get_rule`` has checked that ``slug`` owns the destination, which is how the
-    two 404s of one cross-project delete came to disagree (tripl-0zpq.242).
+    two 404s of one cross-project delete came to disagree.
     """
     project = await _get_project(session, slug)
     _destination, rule = await get_rule(

@@ -5,7 +5,7 @@ does NOT. In particular ``test_a_variable_a_live_event_still_names_is_kept``
 covers the shape that made this design conditional: on production, eighteen
 variables across three projects had zero observed contexts and were still named
 by a live event's field value, because a group-rule merge had deleted the event
-their contexts hung off (tripl-xfxa). A predicate resting on "no contexts" alone
+their contexts hung off. A predicate resting on "no contexts" alone
 would delete exactly those eighteen — from a screen with a select-all checkbox
 on it.
 """
@@ -263,7 +263,7 @@ def _plan_alone(variable: Variable):
 
 
 # --------------------------------------------------------------------------
-# The names a scan can write (tripl-bwo8)
+# The names a scan can write
 # --------------------------------------------------------------------------
 
 
@@ -367,7 +367,7 @@ def test_the_rename_arm_needs_a_source_name_to_compare_against() -> None:
 
 
 # --------------------------------------------------------------------------
-# Which variables came out of a JSON column (tripl-bwo8)
+# Which variables came out of a JSON column
 # --------------------------------------------------------------------------
 
 
@@ -418,7 +418,7 @@ async def test_a_dry_run_reports_the_counts_and_deletes_nothing(client: AsyncCli
 
 
 async def test_a_variable_a_live_event_still_names_is_kept(client: AsyncClient) -> None:
-    """The tripl-xfxa shape: referenced by a value, with no observed context.
+    """The production shape: referenced by a value, with no observed context.
 
     This is what makes the reference check load-bearing rather than
     belt-and-braces. On production it was eighteen rows, and every one of them
@@ -581,7 +581,7 @@ async def test_the_unused_filter_returns_exactly_what_retirement_would_take(
     """The count under a select-all checkbox has to be the retirable set itself.
 
     A cheaper "event_count is zero" filter would list the referenced variable
-    too, which is how somebody select-alls their way into the tripl-xfxa rows.
+    too, which is how somebody select-alls their way into the rows that are still referenced.
     """
     slug = "retire-filter"
     await _project_with_event(client, slug, '{"kept": "${property.kept}"}')
@@ -598,7 +598,7 @@ async def test_the_unused_filter_returns_exactly_what_retirement_would_take(
 
 
 async def test_an_unknown_usage_value_is_a_422_not_a_500(client: AsyncClient) -> None:
-    """Free-string enum params were the tripl-57g0 defect; this one is declared."""
+    """Free-string enum params were once a defect; this one is declared."""
     slug = "retire-enum"
     await _project_with_event(client, slug, "{}")
     response = await client.get(f"/api/v1/projects/{slug}/variables?usage=maybe")

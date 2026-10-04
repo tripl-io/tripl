@@ -173,7 +173,7 @@ def _as_utc_bucket(value: object) -> object:
     against the chunk window will say so far more clearly.
 
     This moves the STORED instant of a ``DATETIME`` / ``DATE`` bucket, and rows
-    already written are not rewritten (tripl-0zpq.348). Before it, the naive
+    already written are not rewritten. Before it, the naive
     value reached a ``timestamptz`` column and was read in the app database
     session's timezone; now it is the same wall clock stamped UTC. Where that
     session ran in UTC — the default of a PostgreSQL image initialised without a
@@ -309,7 +309,7 @@ class BigQueryAdapter(BaseAdapter):
         # "authentication was rejected", sending the operator to look at a network
         # and a password when the real problem is an empty field. They are also
         # quoted verbatim in website/docs/use/troubleshooting.md, which was
-        # therefore describing a message the UI never showed (tripl-rcn8).
+        # therefore describing a message the UI never showed.
         if not host:
             raise WarehouseCapabilityError("BigQuery: host (project_id) is required")
         if not password:
@@ -484,7 +484,7 @@ class BigQueryAdapter(BaseAdapter):
             return f"{prefix}_TRUNC({col}, WEEK(MONDAY){zone})"
         if kind is TimeKind.date and spec.unit in _SUB_DAY_UNITS:
             # ``WarehouseCapabilityError``, not a bare ``ValueError``, for the same
-            # reason ``__init__``'s three rejections are (see its comment, tripl-rcn8):
+            # reason ``__init__``'s three rejections are (see its comment):
             # nothing configuration-time catches this combination, so the first thing
             # that runs it is a collection tick, and the worker's sanitiser replaces
             # an uncurated exception with "Scan failed due to an internal error." —
@@ -799,7 +799,7 @@ class BigQueryAdapter(BaseAdapter):
         it here is the answer that scales: this is the only place that knows which
         GoogleSQL family the cell was decoded from, and the readers are not a closed
         set — ``metric_collect._collect_distinct_user_series`` was given its own
-        laundering for this exact ``TypeError`` (tripl-ju0d) and the four remaining
+        laundering for this exact ``TypeError`` and the four remaining
         ``cast(datetime, row[0])`` sites (``chunk_processing``, three in
         ``metric_rows``) were not, which is how the bug survived that fix.
 
@@ -1831,7 +1831,7 @@ class BigQueryAdapter(BaseAdapter):
                 # slot. GoogleSQL accepts the ambiguity and resolves it, but its
                 # two readings differ in VALUE, not just in spelling: the alias
                 # is the folded value, the column is the raw one, and grouping
-                # by the raw one is the defect tripl-0zpq.58 exists to remove. A
+                # by the raw one is the defect this exists to remove. A
                 # name that can only mean one of them cannot regress quietly.
                 # Nothing downstream is affected — rows are read positionally
                 # and their names come from `col_names`, which still carries the

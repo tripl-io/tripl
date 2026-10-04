@@ -108,7 +108,7 @@ export function TabMetricsCard({
   /** Active table filters this chart does not apply — see `unappliedChartFilters`. */
   unappliedFilters?: string[]
   // The active plan branch: the tag / status filter must select the events the
-  // table beside it lists, not main's (tripl-vk1p).
+  // table beside it lists, not main's.
   branchId?: string | null
 }) {
   const [rangeDays, setRangeDaysState] = useState(TAB_METRICS_RANGE_DAYS_DEFAULT)
@@ -121,7 +121,7 @@ export function TabMetricsCard({
     setGranularity(defaultGranularity(days))
   }
 
-  // Live bound, not a mount-time snapshot (tripl-jfm3.114).
+  // Live bound, not a mount-time snapshot.
   const range = useLiveTimeRange(rangeDays * 24 * 60 * 60 * 1000)
   const refetchInterval = useAdaptiveRefetchInterval({ activeMs: 60_000 })
 
@@ -169,7 +169,7 @@ export function TabMetricsCard({
             {/* The series is scoped to ONE scan — summing every scan
                 double-counts the events a legacy/backfill scan also collected —
                 so name it here rather than let the title imply the project's
-                whole volume (tripl-jfm3.20). */}
+                whole volume. */}
             {/* Collapsed by default, and then a bare header: the chart pushed
                 the table below the fold on every visit (EV-21). */}
             {isOpen && (
@@ -247,7 +247,7 @@ export function TabMetricsCard({
               ) : (
                 // The served band multiplier rather than the chart's own
                 // constant, so this card can never disagree with the drilldown
-                // it links to (tripl-0zpq.299). No `color`: volume takes the one
+                // it links to. No `color`: volume takes the one
                 // fixed single-series hue (DS-27).
                 <MetricsChart
                   data={tabMetricsData}

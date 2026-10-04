@@ -3,33 +3,34 @@
 Six defects, each pinned by an assertion that goes red if the production change is
 reverted:
 
-* tripl-0zpq.69 — ``GET /metrics/{id}/generated-sql`` promises "the exact adapter
+* ``GET /metrics/{id}/generated-sql`` promises "the exact adapter
   SQL used by collection" and then disclosed ``LIMIT 100000`` for a statement the
   collector runs as ``LIMIT 100001``. The ``+ 1`` is the probe row
   ``_reject_truncated_rows`` needs, so the two numbers can never be equal; the
   endpoint has to disclose the executed one.
-* tripl-0zpq.176 — a fact-table edit could strand a saved metric: renaming or
+* a fact-table edit could strand a saved metric: renaming or
   dropping a named row filter, unbinding the data source, or deleting the table
   all left a metric pointing at something that is gone, and the failure only
   appeared later inside a Celery worker. The same walk also 404'd the whole
   ``/generated-sql`` request when ONE operand's fact table was missing.
-* tripl-0zpq.182 — both "collect now" surfaces reported the bare bounded manual
+* both "collect now" surfaces reported the bare bounded manual
   window while the worker widens it to each metric's own resume point. A fresh
   ``1w`` metric was reported as 28 days and scanned as 210.
-* tripl-0zpq.269 — a warehouse type name longer than 255 characters raised a
+* a warehouse type name longer than 255 characters raised a
   ``ValidationError`` inside the preview handler and 500'd the whole preview over
   one irrelevant column.
-* tripl-0zpq.271 — two row filters could share a name; the collector resolves the
+* two row filters could share a name; the collector resolves the
   FIRST match, so one of the two fragments could never run and the save-time
   membership check (a SET of names) could not see the ambiguity.
-* Project scoping of a metric's data source (new, out of tripl-0zpq.75's
-  confirmed sub-claim, and NOT the policy half of that issue): both the sql-metric
+* Project scoping of a metric's data source (new, out of a
+  confirmed sub-claim of an earlier review, and NOT the policy half of that issue):
+  both the sql-metric
   PREVIEW and the sql-metric SAVE resolved ``data_source_id`` with no project
   term, so an editor in project A could run — and, worse, schedule — SQL against
   project B's warehouse credential.
 
 Nothing here touches an auth dependency or a role check; the gate question in
-tripl-0zpq.75 is the repo owner's and is deliberately untouched.
+that review is the repo owner's and is deliberately untouched.
 """
 
 import uuid
@@ -221,7 +222,7 @@ class _PreviewStubAdapter:
 _PREVIEW_SQL = "SELECT toStartOfHour(ts) AS t, count() AS value FROM e GROUP BY t"
 
 
-# ── tripl-0zpq.269: an over-long warehouse type name ─────────────────────────
+# ── an over-long warehouse type name ─────────────────────────
 
 
 def test_over_long_native_type_is_truncated_from_the_tail() -> None:
@@ -259,7 +260,7 @@ def test_native_type_bound_matches_the_declared_field_constraint() -> None:
     assert declared == [NATIVE_TYPE_MAX_LEN]
 
 
-# ── tripl-0zpq.271: duplicate row-filter names ───────────────────────────────
+# ── duplicate row-filter names ───────────────────────────────
 
 
 def test_create_rejects_two_row_filters_sharing_a_name() -> None:
@@ -327,7 +328,7 @@ async def test_api_rejects_duplicate_row_filter_names(client: AsyncClient) -> No
     assert "paid" in resp.text
 
 
-# ── tripl-0zpq.176: referential guards on fact-table edits ───────────────────
+# ── referential guards on fact-table edits ───────────────────
 
 
 async def test_renaming_a_referenced_row_filter_is_refused_and_nothing_is_written(
@@ -535,7 +536,7 @@ async def test_generated_sql_names_the_broken_metric_instead_of_404ing(
     assert "dangling_ratio" in resp.json()["detail"]
 
 
-# ── tripl-0zpq.69 + .182: what /generated-sql discloses ──────────────────────
+# ── what /generated-sql discloses ──────────────────────
 
 
 async def test_generated_sql_discloses_the_executed_limit_and_window(
@@ -987,7 +988,7 @@ async def test_previewing_a_fact_table_leaves_an_audit_row(client: AsyncClient) 
     previews wrote nothing, so an editor could run SQL against a warehouse
     credential and leave no trace. That — not the data access, which the saved
     paths already grant — was the real argument for moving these routes behind
-    the owner gate (tripl-0zpq.75). Recording them is what makes the editor
+    the owner gate. Recording them is what makes the editor
     boundary defensible, so it is pinned here.
 
     The row carries the SQL on purpose: a trail that says only "someone

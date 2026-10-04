@@ -25,7 +25,7 @@ def reindex_main_branch_from_worker(session: Session, project_id: uuid.UUID) -> 
     catalog refresh, a change to how documents are BUILT reaches main within the
     hour without anybody asking for it. Working branches have no equivalent
     trigger, which is what :func:`reindex_branch_from_worker` and the staleness
-    sweep in ``worker/tasks/search.py`` exist to cover (tripl-uji9).
+    sweep in ``worker/tasks/search.py`` exist to cover.
     """
     branch_id = session.scalar(
         select(PlanBranch.id).where(

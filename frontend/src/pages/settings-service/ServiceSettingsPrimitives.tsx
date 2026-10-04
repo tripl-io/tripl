@@ -47,7 +47,7 @@ const SOURCE_BADGE: Record<
  * There used to be no third state, so every field with no stored override was
  * badged "Env" — including ones nothing had ever delivered, which is how an
  * instance could assert it had been told where to send embeddings when it had
- * not (tripl-wkwv.2).
+ * not.
  *
  * A value at its built-in default carries no badge at all: on a fresh instance
  * every one of ~40 rows wore a grey "Default" pill, which said nothing and hid
@@ -227,7 +227,7 @@ export function NumberSettingInput({
  * It used to be a neutral footer on the section's FIRST sub-card while it reset
  * the whole section: on Security & access it sat in "Sessions" (3 fields) and
  * reverted all 13 security overrides, including Registration in the card above
- * it and the CSP and rate limits in the cards below (tripl-ifiy). The count and
+ * it and the CSP and rate limits in the cards below. The count and
  * the danger tone here state the blast radius the position used to hide.
  *
  * `overrides` is what makes that count honest: it is the number of fields the
@@ -250,7 +250,7 @@ export function ResetSectionCard({
   // Nothing stored, nothing to clear: no card. On a fresh instance a full card
   // holding a disabled button ended all six pages, as tall as Runtime's
   // settings themselves (ST-29); red with a live button before that, it taught
-  // people to ignore the one colour kept for real consequences (tripl-5qp9).
+  // people to ignore the one colour kept for real consequences.
   if (overrides === 0) return null
   return (
     <SCard

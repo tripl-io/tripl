@@ -33,7 +33,7 @@ describe('WorkspaceWelcome', () => {
 
     // Primary demo CTA with its caption, secondary empty-project CTA with its own.
     // The wait-time claim comes from the one shared constant the provisioning
-    // dialog also renders, so the hero cannot drift from it (tripl-jfm3.16).
+    // dialog also renders, so the hero cannot drift from it.
     expect(
       screen.getByText(new RegExp(`Builds a complete example in ${DEMO_PROVISION_ESTIMATE}`)),
     ).toBeInTheDocument()

@@ -81,7 +81,7 @@ def _build_event_name_from_row(
     }
     # Group rules see the whole row, not just the columns with a field
     # definition: rule columns are reserved columns by construction, and a
-    # reserved column never enters ``col_meta`` (tripl-0zpq.90).
+    # reserved column never enters ``col_meta``.
     raw_values_by_field = raw_values_from_row(
         data_row,
         reg_index=reg_index,
@@ -141,7 +141,7 @@ def _build_event_name_from_row(
                 # Only a name format can consume a per-path key. The default
                 # name is one segment per COLUMN, which is how ``plan_events``
                 # builds the ``source_name`` this has to match: appending a
-                # ``col.path=`` segment here matched nothing (tripl-0zpq.91).
+                # ``col.path=`` segment here matched nothing.
                 if event_name_format:
                     kwargs[full_path] = rendered
 
@@ -152,7 +152,7 @@ def _build_event_name_from_row(
         # The event type column has no ``col_meta`` entry — it is skipped there
         # by design — but ``reserved_catalog_columns`` un-reserves it when the
         # format names it, so the format is entitled to it and the row carries
-        # the value. The planner injects it the same way (tripl-0zpq.93); this
+        # the value. The planner injects it the same way; this
         # must stay AFTER the ``not kwargs`` guard so the collector never mints
         # an identity the planner, which returns no events at all for an empty
         # ``col_meta``, did not plan.
@@ -161,12 +161,12 @@ def _build_event_name_from_row(
             if et_idx is not None:
                 kwargs.setdefault(event_type_column, _format_value(data_row[et_idx]))
         # A dotted placeholder whose path this row does not carry is an empty
-        # segment, exactly like a NULL regular column (tripl-0zpq.92).
+        # segment, exactly like a NULL regular column.
         for key in json_name_format_keys(event_name_format, col_meta):
             kwargs.setdefault(key, "")
         # Second caller of ``_apply_name_format``. It raises ``NameFormatError``,
         # which ``user_facing_error`` surfaces verbatim, so this path needs no
-        # try/except wrapper — do not add one (tripl-3mmh).
+        # try/except wrapper — do not add one.
         res = _apply_name_format(event_name_format, kwargs)
     else:
         res = render_default_event_name(kwargs.items())
@@ -227,8 +227,7 @@ def _is_supported_configured_breakdown_column(
     writes the SAME (scope, bucket, column, value, is_other) key twice inside one
     multi-row ON CONFLICT DO UPDATE — a cardinality violation on Postgres — and
     adds a generic ``('app_version', 'Other', True)`` row the version path never
-    writes and never deletes, which then double-counts in the version series
-    (tripl-0zpq.15).
+    writes and never deletes, which then double-counts in the version series.
 
     ``platform_column`` is deliberately NOT excluded. It is added scan-wide below
     and deduped through ``scan_breakdown_column_set``, so an event listing it
@@ -1177,7 +1176,7 @@ def _collect_distribution_drift_rows(
         ", ".join(distribution_fields),
     )
 
-    # Buckets below are ``stored_bucket`` values, aware UTC (tripl-0zpq.348), so
+    # Buckets below are ``stored_bucket`` values, aware UTC, so
     # the window they are compared against is stamped the same way. Only the
     # comparison bounds: the adapter above gets the window exactly as the caller
     # passed it, like every other collector query.
@@ -1188,8 +1187,8 @@ def _collect_distribution_drift_rows(
     # one bucket's values and its handful of predecessors at a time; against a
     # flat dict that is a full rescan per (scope, bucket) pair, and the fetch is
     # bounded only by metrics_row_limit (100k rows, two scopes each), so a chunk
-    # spent minutes of pure-Python dict iteration inside one Celery task
-    # (tripl-0zpq.17). ``grouped[scope].keys()`` is exactly the set of buckets
+    # spent minutes of pure-Python dict iteration inside one Celery task.
+    # ``grouped[scope].keys()`` is exactly the set of buckets
     # the scope has data for, so no parallel bucket index is needed.
     grouped: dict[tuple[uuid.UUID | None, str], dict[datetime, dict[str, int]]] = {}
     et_col_idx = reg_index.get(config.event_type_column) if config.event_type_column else None
@@ -1305,7 +1304,7 @@ def _drop_non_finite_values(rows: list[dict[str, object]], *, kind: str) -> list
     precision`` column verbatim; SQLite rewrites NaN to NULL and keeps inf. Once
     stored they poison every consumer downstream: a mean, a stddev, an anomaly
     band and a JSON response all go NaN, and the anomaly detector's thresholds
-    stop comparing true (tripl-0zpq.116).
+    stop comparing true.
 
     DROPPED rather than clamped or zeroed. The surrounding window-delete has
     already cleared the bucket, so it reads as ABSENT — the same outcome as a
@@ -1351,8 +1350,7 @@ def _upsert_metric_values_rows(
     Returns how many rows were actually written, which is ``len(rows)`` MINUS
     whatever that filter removed. Callers accumulate this instead of the length
     of the list they passed in: a collection whose warehouse answered one bucket
-    with ``0.0/0.0`` would otherwise report a value it did not store
-    (tripl-0zpq.116).
+    with ``0.0/0.0`` would otherwise report a value it did not store.
     """
     rows = _drop_non_finite_values(rows, kind="metric value")
     if not rows:

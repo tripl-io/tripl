@@ -113,8 +113,8 @@ export default function MonitoringDetailPage() {
   // One page, THREE surfaces — the same three-way split navigation.ts makes for
   // these exact routes: `/monitoring/event/` is an Events drilldown (Plan),
   // `/monitoring/metric/` a Metrics one, and everything left under
-  // `/monitoring/` (event-type, project-total) belongs to Anomalies
-  // (tripl-lkox). The eyebrow names the nav group and the scope, the rule
+  // `/monitoring/` (event-type, project-total) belongs to Anomalies.
+  // The eyebrow names the nav group and the scope, the rule
   // every Observe page follows, instead of a separate back button above the
   // header (DS-2 / MO-40); the top bar's breadcrumb is the way back.
   const eyebrow = scope === 'metric'
@@ -138,7 +138,7 @@ export default function MonitoringDetailPage() {
   const volumeLabel = scope === 'metric' ? 'Value' : 'Volume'
 
   // Follows the clock: the upper bound used to be pinned at mount, so a chart
-  // left open never showed a bucket recorded after you opened it (tripl-jfm3.114).
+  // left open never showed a bucket recorded after you opened it.
   const timeRange = useLiveTimeRange(rangeDays * 24 * 60 * 60 * 1000)
   // Live-metric/monitoring queries fall back to polling only while the stream is
   // unavailable; metric_collection.updated / signals.updated refresh them live.
@@ -198,7 +198,7 @@ export default function MonitoringDetailPage() {
 
   // Every catalog metric renders through the shared metric formatters, in the
   // chart ticks, the tooltip and the stat card alike: percent units store
-  // fractions (0.08 for 8 %, tripl-nxk2.1) and render ×100, currency units lead
+  // fractions (0.08 for 8 %) and render ×100, currency units lead
   // ('$1,234', not '1,234 $'), and a sub-1 value keeps two significant digits
   // (a 0.004 s latency used to tick and tooltip as '0', DS-31 / MET-40). The
   // axis leaves a trailing unit off, where every tick would repeat it; the
@@ -246,7 +246,7 @@ export default function MonitoringDetailPage() {
     enabled: !!slug && !!scopeId,
     refetchInterval,
     // Keep the previous range's series on screen while the new range loads so the
-    // chart doesn't remount into a loading flash on range change (tripl-7l83.10).
+    // chart doesn't remount into a loading flash on range change.
     placeholderData: keepPreviousData,
     meta: SILENT_ERROR_META,
   })
@@ -407,7 +407,7 @@ export default function MonitoringDetailPage() {
     if (scope === 'project_total') return 'Total volume'
     if (scope === 'event_type') return eventType?.display_name ?? 'Event type'
     // The label an analyst wrote leads when there is one; the identity the scan
-    // matches on then sits beneath it in mono (tripl-kjhi.3).
+    // matches on then sits beneath it in mono.
     return event?.title || (event?.name ?? 'Event')
   })()
   // The top bar names the entity once it has loaded, not the generic fallback.
@@ -582,7 +582,7 @@ export default function MonitoringDetailPage() {
           eventType={eventType}
           metrics={metrics}
           // Branch-aware: a bare path would drop the branch out of the URL and
-          // leave the editor relying on context alone (tripl-h2sx.2).
+          // leave the editor relying on context alone.
           onEdit={canWrite ? () => {
             const link = branchLink(
               projectPath(currentOrgSlug(), slug, `/events/${event.event_type?.name ?? 'all'}/${event.id}/edit`),
@@ -677,7 +677,7 @@ export default function MonitoringDetailPage() {
 
       {/* The spec comes first for an event that is not yet live: that page is
           where a developer is sent to instrument it, and the metrics below can
-          only say "no data" until they have (tripl-kjhi.8). Once the event is
+          only say "no data" until they have. Once the event is
           live the chart leads and the spec follows the fields. */}
       {isEventScope && event && slug && !LIVE_STATUSES.has(event.status) && (
         <EventSpecCard slug={slug} event={event} eventType={eventType} metaFieldMap={metaFieldMap} />

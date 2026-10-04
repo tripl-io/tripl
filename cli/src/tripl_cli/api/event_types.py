@@ -45,7 +45,7 @@ DISMISS_ACTIONS: tuple[str, ...] = ("false_positive", "snooze")
 
 # `tripl drifts reopen`, a verb of its own rather than a flag on `dismiss`:
 # dismissing and reopening move a drift in opposite directions, and
-# `dismiss --reopen` would name the wrong one (tripl-k8j9).
+# `dismiss --reopen` would name the wrong one.
 REOPEN_ACTION = "reopen"
 
 # Everything the CLI can put on the wire. `accept` is the one exclusion, and it
@@ -150,7 +150,7 @@ def field_count(event_type: JsonDict) -> int:
     replace the array it strips. It lives here, beside ``scans.is_dispatchable``
     and for the same reason: a derived operational fact must not be computed
     twice. Both call sites read it now — the MCP's ``_event_type_summary`` spelled
-    it inline until tripl-i1dt, which meant two places had to remember that
+    it inline until recently, which meant two places had to remember that
     ``field_definitions`` is nullable on the wire.
     """
     return len(event_type.get("field_definitions") or [])
@@ -201,7 +201,7 @@ def plan_drift_targets(
     The per-project counts are what let the caller record what each project
     actually got. A split budget lands unevenly by construction, and one
     instance-wide ratio names no project: "we did not look there" is only useful
-    when it says where (tripl-ey6j.9).
+    when it says where.
     """
     totals: dict[str, int] = {}
     per_project: list[list[tuple[str, str]]] = []

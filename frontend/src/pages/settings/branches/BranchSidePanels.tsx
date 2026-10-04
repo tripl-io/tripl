@@ -15,9 +15,9 @@ import { planBranchCommentsKey, planBranchTicketsKey, trackerConfigKey } from '@
 import { TICKET_POLL_MS, TICKET_POLL_WINDOW_MS } from './branchQueryKeys'
 
 /**
- * The tracker ticket a merge opened for this branch (tripl-2ayb).
+ * The tracker ticket a merge opened for this branch.
  *
- * The mapping had been persisted since tripl-hgez but was unreachable from the
+ * The mapping had been persisted for a while but was unreachable from the
  * UI, so a merge that opened a Jira issue left no way back to it. The panel is
  * hidden — not empty — when there is no ticket: only a merge with the project's
  * implementation tracker enabled creates one, so "no ticket" is the normal
@@ -111,7 +111,7 @@ export function CommentsPanel({
   // all along — a review remark could be made but never answered in place. The
   // shared thread already does the threading; what it did NOT have was the
   // author, which this panel always showed, so that moved into the component
-  // for both callers rather than being lost here (tripl-h2sx.27).
+  // for both callers rather than being lost here.
   //
   // A plain card, as on the event page's Discussion, not a Panel: the Panel's
   // "Comments / 1" header sat right above the thread's own "Comments (1)"

@@ -4,7 +4,7 @@
 for the four sites that build a statement, and a Python test for the two that
 hold loaded ORM rows. Two encodings of one rule is exactly the shape that drifted
 in the first place (detection required ``status`` AND the flag; all six consumers
-required only the flag, tripl-l429.25), so both are pinned here against the same
+required only the flag), so both are pinned here against the same
 population, across the whole status x flag matrix.
 """
 

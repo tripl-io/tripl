@@ -2,12 +2,12 @@
 
 Regression tests for four findings in ``services/metric_series_service``:
 
-* ``tripl-0zpq.113`` — breakdowns zero-filled FRACTIONAL series because
+* breakdowns zero-filled FRACTIONAL series because
   ``get_metric_breakdowns`` was the only caller that never passed
   ``count_shaped``.
-* ``tripl-0zpq.114`` — the version fold ADDED ratios together, so a ~30% metric
+* the version fold ADDED ratios together, so a ~30% metric
   plotted its "Other" line at 85%.
-* ``tripl-0zpq.115`` — the value read mixed every scan grid's ``MetricValue``
+* the value read mixed every scan grid's ``MetricValue``
   rows, so a two-grid ``event_composition`` metric plotted the retired grid and
   invented a zero where the live one had data. The repair is a GRID POPULATION
   shared by the read and the detector (``_grid_population_filter`` /
@@ -16,31 +16,31 @@ Regression tests for four findings in ``services/metric_series_service``:
   resolved config instead, which left the plotted line one ADDEND of the band
   drawn around it, so ``TestMetricGridIsolation`` pins both halves — too narrow
   and too wide each redden a different test in it.
-* ``tripl-0zpq.116`` — a stored non-finite value 500'd the whole series read on
+* a stored non-finite value 500'd the whole series read on
   ``round()``.
 
 and for four more in ``services/metrics_service``, the event-metrics read path:
 
-* ``tripl-0zpq.111`` — ``get_events_metrics`` filtered by the BRANCH copy's
+* ``get_events_metrics`` filtered by the BRANCH copy's
   event-type id, which no metric row carries, so every tab's Dynamics card was
   empty on a working branch.
-* ``tripl-0zpq.112`` — the scan's ``platform_column`` never reached the
+* the scan's ``platform_column`` never reached the
   Breakdowns tab's column list, making the stored per-platform series and its
   parity badges unreachable.
-* ``tripl-0zpq.117`` — ``get_platform_presence`` hydrated one row per (event,
+* ``get_platform_presence`` hydrated one row per (event,
   platform, bucket) of the scan's whole history to build a set.
-* ``tripl-0zpq.118`` — ``get_data_source_stats`` summed event-level AND
+* ``get_data_source_stats`` summed event-level AND
   type-level ``event_metrics`` rows, double-counting matched volume.
 
 and for five that span both plus ``services/metrics_insights_service``:
 
-* ``tripl-0zpq.100`` — every read path fitted an STL/MSTL on the event loop,
+* every read path fitted an STL/MSTL on the event loop,
   including a per-event batch that threw the result away.
-* ``tripl-0zpq.119`` / ``tripl-0zpq.299`` — the served band was drawn from a
+* the served band was drawn from a
   sigma no API writes and, on catalog series, from the un-floored stddev.
-* ``tripl-0zpq.120`` — the version-activation rule documented for fractional
+* the version-activation rule documented for fractional
   metrics was not the rule the code applies.
-* ``tripl-0zpq.200`` — a non-UUID ``scope_ref`` 500'd the seasonality heatmap.
+* a non-UUID ``scope_ref`` 500'd the seasonality heatmap.
 
 Fixtures and seeding helpers are reused from ``test_metric_series_api`` and
 ``test_metrics_api`` (the sibling suites for these endpoints) rather than
@@ -194,7 +194,7 @@ async def _seed_count_shaped_metric(
 async def _metric_value_scan_config_id(metric_id: str) -> uuid.UUID | None:
     """The scan config the count-shaped metric's anchoring value was stored under.
 
-    Breakdown rows are read on the metric's grid population (tripl-kom5), so a
+    Breakdown rows are read on the metric's grid population, so a
     breakdown seeded for a scan-bound metric must carry that metric's config,
     exactly as its value rows do.
     """
@@ -212,7 +212,7 @@ class TestBreakdownValueKind:
     async def test_fractional_breakdown_keeps_its_gaps_instead_of_dropping_to_zero(
         self, client: AsyncClient, project: dict, data_source: dict
     ):
-        """tripl-0zpq.113: a sql metric is fractional, so a missing breakdown
+        """a sql metric is fractional, so a missing breakdown
         bucket is "no data", never 0.
 
         The ratio collector skips zero-denominator buckets outright, so filling
@@ -276,7 +276,7 @@ class TestVersionFold:
     async def test_folding_versions_into_other_never_adds_fractional_levels(
         self, client: AsyncClient, project: dict, data_source: dict
     ):
-        """tripl-0zpq.114: "Other" must stay on the scale of the lines it folds.
+        """ "Other" must stay on the scale of the lines it folds.
 
         With ``app_version_keep_releases = 1`` only 2.0.0 keeps its own line and
         the two older releases fold into "Other". Summing them made a metric
@@ -362,7 +362,7 @@ class TestMetricGridIsolation:
     async def test_series_plots_only_the_resolved_grids_values(
         self, client: AsyncClient, project: dict
     ):
-        """tripl-0zpq.115: two scan grids, one chart.
+        """two scan grids, one chart.
 
         ``_collect_event_composition`` writes a ``MetricValue`` series per source
         scan, and ``MetricValue``'s unique key is per ``(metric, scan_config,
@@ -413,7 +413,7 @@ class TestMetricGridIsolation:
     async def test_two_live_configs_on_one_grid_are_summed_into_one_line(
         self, client: AsyncClient, project: dict
     ):
-        """tripl-0zpq.115, second half: one chart must describe ONE population.
+        """Second half: one chart must describe ONE population.
 
         Two LIVE scans on the same interval collecting one event type is the
         ordinary shape — an iOS scan and an Android scan feeding one checkout
@@ -513,7 +513,7 @@ class TestMetricGridIsolation:
           it did before this repair) and the retired grid's 100.0 is added to the
           daily bucket — ``[110.0, 5.0]``;
         * narrow it to the grid's own ``scan_config_id`` (the direction
-          tripl-0zpq.115 originally proposed) and the sibling daily source drops
+          first proposed) and the sibling daily source drops
           out — ``[3.0, 5.0]``.
 
         ``_metric_source_config_ids`` is asserted alongside because it is the
@@ -569,7 +569,7 @@ class TestNonFiniteValues:
     async def test_series_survives_a_stored_non_finite_value(
         self, client: AsyncClient, project: dict, data_source: dict
     ):
-        """tripl-0zpq.116: one poisoned bucket must not 500 the metric page.
+        """one poisoned bucket must not 500 the metric page.
 
         ClickHouse returns ``inf`` for ``x/0`` in a user-written sql metric, and
         neither ``_coerce_value`` nor ``_build_metric_value_rows`` checks
@@ -611,7 +611,7 @@ class TestBranchEventsMetrics:
     async def test_a_branch_tab_charts_the_volume_its_main_twin_collected(
         self, client: AsyncClient
     ):
-        """tripl-0zpq.111: the Dynamics card must not go blank on a branch.
+        """the Dynamics card must not go blank on a branch.
 
         A working branch deep-copies every EventType under a NEW uuid, and the
         Events page on a branch sends that copy's id as ``event_type_id``. No
@@ -707,7 +707,7 @@ class TestPlatformBreakdownColumn:
     async def test_the_scans_platform_column_is_offered_on_the_breakdowns_tab(
         self, client: AsyncClient
     ):
-        """tripl-0zpq.112: the platform series must be selectable.
+        """the platform series must be selectable.
 
         ``platform_column`` is collected as a scan-level breakdown by the
         collector itself, and ``ScanConfigCreate`` REFUSES to let anyone list it
@@ -821,7 +821,7 @@ class TestPlatformPresenceCost:
     async def test_presence_asks_the_database_for_distinct_pairs_not_every_bucket(
         self, client: AsyncClient
     ):
-        """tripl-0zpq.117: the answer is a set, so the query must return one.
+        """the answer is a set, so the query must return one.
 
         Breakdown rows are keyed per bucket and have no retention outside demo
         projects, so the undeduplicated select hydrated one row per (event,
@@ -877,7 +877,7 @@ class TestPlatformPresenceCost:
 
 class TestDataSourceStatsRowKinds:
     async def test_volume_counts_each_warehouse_row_once(self, client: AsyncClient):
-        """tripl-0zpq.118: event-level and type-level rollups overlap.
+        """event-level and type-level rollups overlap.
 
         Every collection chunk writes an event-level ``event_metrics`` row for
         each matched plan event AND a type-level row that re-counts the same
@@ -994,7 +994,7 @@ class TestForecastCost:
     async def test_the_window_batch_skips_the_fit_the_drilldown_still_runs(
         self, client: AsyncClient, forecast_spy: _ForecastSpy
     ):
-        """tripl-0zpq.100: the batch copies ``.data`` out and drops the rest.
+        """the batch copies ``.data`` out and drops the rest.
 
         ``get_events_window_metrics`` built a whole drilldown response per
         requested event — the Events page asks for up to 100 at a time — and
@@ -1049,7 +1049,7 @@ class TestForecastCost:
     async def test_the_fit_runs_off_the_event_loop(
         self, client: AsyncClient, forecast_spy: _ForecastSpy
     ):
-        """tripl-0zpq.100: an STL/MSTL fit must not park the uvicorn worker.
+        """an STL/MSTL fit must not park the uvicorn worker.
 
         The fit is pure CPU inside numpy/statsmodels. Run inline on the async
         request path it blocks the loop for its whole duration — measured on
@@ -1091,7 +1091,7 @@ class TestForecastCost:
     async def test_a_series_wider_than_the_cap_is_not_fitted_at_all(
         self, client: AsyncClient, forecast_spy: _ForecastSpy
     ):
-        """tripl-0zpq.100: long ranges pay the most and are the ones that hide it.
+        """long ranges pay the most and are the ones that hide it.
 
         A 30d or 90d drilldown on an hourly scan is 720 or 2160 densified
         points, which is an MSTL over periods 24 and 168 — 1.75 s and 5.3 s
@@ -1138,7 +1138,7 @@ class TestForecastCost:
     async def test_a_catalog_series_obeys_the_same_cap(
         self, client: AsyncClient, project: dict, forecast_spy: _ForecastSpy
     ):
-        """tripl-0zpq.100: the metric detail page pays it too.
+        """the metric detail page pays it too.
 
         ``get_metric_series`` is the endpoint whose forecast the UI provably
         never draws — ``adaptMetricSeries`` replaces it with ``[]`` because a
@@ -1196,7 +1196,7 @@ async def _set_dead_scan_sigma(scan_config_id: uuid.UUID, value: float) -> None:
 
 class TestServedSigmaThreshold:
     async def test_the_band_multiplier_follows_the_project_setting(self, client: AsyncClient):
-        """tripl-0zpq.119 / tripl-0zpq.299: charts drew a band nobody configured.
+        """Charts drew a band nobody configured.
 
         The detector scores with ``ProjectAnomalySettings.sigma_threshold``,
         which is the value Settings > Monitoring writes. The read path asked
@@ -1320,7 +1320,7 @@ class TestServedCatalogStddev:
     async def test_a_catalog_point_and_its_signal_serve_the_floored_stddev(
         self, client: AsyncClient, project: dict, data_source: dict
     ):
-        """tripl-0zpq.119: the band was narrower than the rule that drew the dot.
+        """the band was narrower than the rule that drew the dot.
 
         The detector divides by the FLOORED effective stddev, and stores it
         alongside the raw one exactly so the chart can draw ``expected ± k *
@@ -1370,7 +1370,7 @@ class TestFractionalVersionActivation:
     async def test_a_fractional_metric_without_project_totals_marks_releases_active(
         self, client: AsyncClient, project: dict, data_source: dict
     ):
-        """tripl-0zpq.120: ``is_active`` is NOT "always False" for a ratio.
+        """``is_active`` is NOT "always False" for a ratio.
 
         The schema comment claimed a fractional metric can never be active
         because a value-share gate is meaningless on a ratio. The code says
@@ -1414,7 +1414,7 @@ class TestFractionalVersionActivation:
 
 class TestSeasonalityScopeRef:
     async def test_a_non_uuid_scope_ref_is_rejected_not_crashed(self, client: AsyncClient):
-        """tripl-0zpq.200: the heatmap 500'd where its siblings answer 422.
+        """the heatmap 500'd where its siblings answer 422.
 
         The route types ``scope_ref`` as free text (it only strips NUL bytes),
         and for the event and event-type scopes ``_scope_metric_filters`` hands

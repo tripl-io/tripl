@@ -10,7 +10,7 @@ install page for an afternoon, but falling back to it would be a lie: the
 production compose file uses ``depends_on.condition``, which is v2-only, so the
 `migrate` one-shot's ``service_completed_successfully`` gate — the thing that
 keeps a multi-worker deploy from racing the schema upgrade — simply does not
-exist under v1 (tripl-ey6j.3).
+exist under v1.
 """
 
 from __future__ import annotations

@@ -1,7 +1,7 @@
 /**
- * The coached demo scenario — pure model, v3: chapters (tripl-odrj.4).
+ * The coached demo scenario — pure model, v3: chapters.
  *
- * v1 (tripl-2su6.21.1) was a single four-step chain. v2 turns the scenario into
+ * v1 was a single four-step chain. v2 turns the scenario into
  * an ordered set of CHAPTERS — live-loop, edit-event, variables, branches,
  * reconcile, alerting, explore — each a short step chain over one product area.
  * One chapter is active at a time; per-chapter progress, dismissal and restart
@@ -570,8 +570,8 @@ export function buildChapterSteps(
           // right-aligned and the header's own causal note runs 620px out to its
           // left. `align: 'end'` opened the card back across that note and cut it
           // mid-word, hiding the one clause that qualifies this very button:
-          // metric points are collected on the schedule, "not by Run now"
-          // (tripl-pbzs). `align: 'start'` grows the card into the header's empty
+          // metric points are collected on the schedule, "not by Run now".
+          // `align: 'start'` grows the card into the header's empty
           // right gutter instead. The scan LIST uses the same step from inside a
           // <td>, where the card docks and this placement is ignored.
           coach: { side: 'bottom', align: 'start', emphasis: 'ring' },

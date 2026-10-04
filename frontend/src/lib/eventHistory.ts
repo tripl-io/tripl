@@ -6,7 +6,7 @@ export const SIGNAL_VERDICT_FIELD = 'signal_verdict'
 
 /**
  * The history's `field` as a person reads it. The backend records the tags,
- * each field value and each meta value under their own keys since tripl-kjhi.9
+ * each field value and each meta value under their own keys
  * (`tags`, `field:<name>`, `meta:<name>`) and a `created` row first.
  */
 export function historyFieldLabel(field: string): string {

@@ -1,4 +1,4 @@
-"""The branch merge, batch 2 of the backend review sweep (tripl-0zpq).
+"""The branch merge, batch 2 of the backend review sweep.
 
 * .146 — a screenshot the merge deletes from main releases its blob once no
   row holds the key any more — only after the merge has committed — and a
@@ -41,7 +41,7 @@ def local_photos(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Iterator[Pa
     reset_photo_storage()
 
 
-# --- tripl-0zpq.146: the blob of a photo the merge deletes ------------------
+# --- the blob of a photo the merge deletes ------------------
 
 
 def _photos_url(slug: str, event_id: str) -> str:

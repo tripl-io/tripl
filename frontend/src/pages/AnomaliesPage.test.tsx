@@ -9,7 +9,7 @@ import { PageHeader } from '@/components/primitives/page-header'
 vi.mock('@/api/eventMetrics', () => ({
   eventMetricsApi: { getActiveSignals: vi.fn(), getSignalSeries: vi.fn() },
 }))
-// Kept mocked although the page no longer imports it: the point of tripl-y4wt is
+// Kept mocked although the page no longer imports it: the point is
 // that this catalog download (limit 10_000 — 2641 rows / 1.7s on acme-ios) must
 // never come back as a way to label rows, and the only way to assert an absent
 // request is to hold a spy that stays at zero calls.
@@ -139,7 +139,7 @@ afterEach(() => {
   vi.restoreAllMocks()
 })
 
-describe('AnomaliesPage — scope names (tripl-nxk2.4, tripl-y4wt)', () => {
+describe('AnomaliesPage — scope names', () => {
   it('renders a metric signal with the name the server resolved and links to the drilldown', async () => {
     vi.mocked(eventMetricsApi.getActiveSignals).mockResolvedValue([
       makeSignal({ scope_ref: 'metric-abc', scope_name: 'Checkout conversion' }),
@@ -160,7 +160,7 @@ describe('AnomaliesPage — scope names (tripl-nxk2.4, tripl-y4wt)', () => {
   it('never labels a row with a bare scope ref when the server could not name it', async () => {
     // The metric was deleted out from under the anomaly row, so the server sends
     // scope_name: null. "Drop on Metric 9136d575" reads as a name and is what the
-    // page used to show for every row for the first 4.4s — the whole of tripl-y4wt.
+    // page used to show for every row for the first 4.4s — the whole bug.
     vi.mocked(eventMetricsApi.getActiveSignals).mockResolvedValue([
       makeSignal({ scope_ref: '9136d575-0000-4000-8000-000000000001', direction: 'drop' }),
     ])
@@ -290,7 +290,7 @@ describe('AnomaliesPage — scope names (tripl-nxk2.4, tripl-y4wt)', () => {
   })
 })
 
-describe('AnomaliesPage — severity label (tripl-yfsj.9)', () => {
+describe('AnomaliesPage — severity label', () => {
   it('shows "dropped to zero" instead of the clamped z-score for a drop-to-zero signal', async () => {
     vi.mocked(eventMetricsApi.getActiveSignals).mockResolvedValue([
       makeSignal({
@@ -400,7 +400,7 @@ describe('AnomaliesPage — row actions (MO-4, JR-6)', () => {
   })
 })
 
-describe('AnomaliesPage — counts (tripl-nj4n)', () => {
+describe('AnomaliesPage — counts', () => {
   it('keeps a sub-unit baseline instead of rounding it to zero', async () => {
     // `metric` is a first-class scope here and a `%` catalog metric STORES a
     // fraction (0.08 == 8%), so Math.round wrote "1.2 vs 0" on a row whose
@@ -507,8 +507,8 @@ describe('AnomaliesPage — magnitude filter', () => {
 // The rows on this page are links off the route (each one opens a monitoring
 // detail page), so Back is the primary way out of an investigation. With the
 // level in component state that Back re-hid 162 of acme-ios's 209 signals every
-// single time (tripl-ahg5).
-describe('AnomaliesPage — ?level= facet (tripl-ahg5)', () => {
+// single time.
+describe('AnomaliesPage — ?level= facet', () => {
   function tinySignal(): MonitoringSignal {
     // relEffect = 2/80 = 0.025 → visible only at "All".
     return makeSignal({
@@ -730,7 +730,7 @@ describe('AnomaliesPage — scan facet', () => {
 
   // `?scan=` is what makes a scan's "Signals added" counter reach the anomalies
   // it produced. Before this the facet was component state only, so the link had
-  // nowhere to land but the unfiltered page (tripl-3y7z.2).
+  // nowhere to land but the unfiltered page.
   it('pre-selects the scan named by ?scan= and shows only its signals', async () => {
     vi.mocked(eventMetricsApi.getActiveSignals).mockResolvedValue(legacyAndLiveSignals())
     vi.mocked(scansApi.list).mockResolvedValue(scans)
@@ -765,7 +765,7 @@ describe('AnomaliesPage — scan facet', () => {
     // "Raised 2 anomaly signals" on a run from last week links here; both have
     // since closed. Silently widening to "all" answers a question the user did
     // not ask — a full list of a DIFFERENT scan's anomalies, with no control
-    // showing that the filter was discarded (tripl-3y7z.2).
+    // showing that the filter was discarded.
     vi.mocked(eventMetricsApi.getActiveSignals).mockResolvedValue([
       makeSignal({
         scan_config_id: 'scan-legacy',

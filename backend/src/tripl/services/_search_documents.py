@@ -62,8 +62,8 @@ _IDENTIFIER_SEPARATORS = re.compile(r"[._]+")
 def _spaced_identifiers(values: Sequence[object | None]) -> str:
     """Space-separated aliases for the snake_case / dotted names in ``values``.
 
-    INDEX-TIME HALF OF tripl-h9x2
-    -----------------------------
+    INDEX-TIME HALF OF THE SPACED-ALIAS FIX
+    ---------------------------------------
     Entities are named ``screen_spot`` and people type ``screen spot``. The
     tsvector already survives that (the text-search parser splits on ``_``), but
     the ranking's boost ladder does not: its tiers are ``LIKE``/regex
@@ -79,7 +79,7 @@ def _spaced_identifiers(values: Sequence[object | None]) -> str:
 
     * only the ALIAS is added, once per distinct identifier and only when it
       actually differs — this is not a second copy of the document text, which
-      would feed the very term-frequency inflation tripl-gbxj is about;
+      would feed the very term-frequency inflation the normalization fix targets;
     * it is applied to ``keywords`` and never to a tag document, whose
       ``keywords`` is exactly ``tag.name`` and is compared for EQUALITY by the
       4.0 tier — appending anything there would silently delete that tier;
@@ -87,9 +87,9 @@ def _spaced_identifiers(values: Sequence[object | None]) -> str:
       adding one. What ``keywords`` means for the 3.5/3.25 tiers is an entity's
       IDENTITY, and this function's whole job is to make the segments of an
       identity reachable; a value spelled into the same column would take the
-      same tiers without being anything anyone named (tripl-gbxj, tripl-0qld).
+      same tiers without being anything anyone named.
 
-    "IDENTITY" AND NOT "CURATED", DELIBERATELY (tripl-0qld)
+    "IDENTITY" AND NOT "CURATED", DELIBERATELY
     -------------------------------------------------------
     A variable that the scanner auto-detected is still passed through here by
     ``_variable_document`` — ``variable.name`` is derived from the source column,
@@ -97,7 +97,7 @@ def _spaced_identifiers(values: Sequence[object | None]) -> str:
     ``q='spot'`` can reach it at the 3.5 tier on a name nobody typed. That is
     intended, and calling it "curated" would be a lie this docstring is not going
     to tell: the entity exists, that IS what it is called, and the ranking's
-    complaint in tripl-gbxj was never about names — it was about one document
+    complaint behind that fix was never about names — it was about one document
     repeating a harvested VALUE more often than the entity named after it. The
     event named ``spot`` still wins ``q='spot'`` on the 5.0 exact-title tier,
     which is above anything an alias can buy.
@@ -185,7 +185,7 @@ class BuiltDocument:
         return hashlib.sha256(content.encode("utf-8")).hexdigest()
 
 
-#: Which generation of the document builders produced a stored row (tripl-uji9).
+#: Which generation of the document builders produced a stored row.
 #:
 #: BUMP THIS whenever a change to this module alters the TEXT a document is built
 #: from — a new field folded into ``body``, a keyword rule, a title format. Do not
@@ -209,7 +209,7 @@ class BuiltDocument:
 #: HISTORY
 #: 1 — first stamped generation. Everything written before this column existed is
 #:     0, which is what makes those eight branches visible to the sweep.
-#: 2 — scan configurations and alert rules became searchable (tripl-dfct). Every
+#: 2 — scan configurations and alert rules became searchable. Every
 #:     branch gains documents it did not have, which no content_hash comparison
 #:     could have discovered, so this is exactly the case the stamp exists for.
 #: 3 — generated titles and subtitles are capped to their storage column width.
@@ -227,7 +227,7 @@ DOCUMENT_BUILDER_VERSION = 4
 # through ``field_service`` is missing from or still present in
 # ``EventType.field_definitions``. The rebuilt text then matches the stored
 # ``content_hash``, the row is KEPT, and the index sits exactly one write behind
-# until some later reindex runs from a fresh session (tripl-0zpq.183). Reading
+# until some later reindex runs from a fresh session. Reading
 # with ``populate_existing`` costs the same query and returns what the
 # transaction actually holds.
 #
@@ -294,7 +294,7 @@ async def build_documents(
             # ``select(VariableValue)`` below. Every variable create, every
             # variable update and every event write reaches this through
             # ``reindex_project_branch``, which makes it the hottest of the
-            # tripl-xkbb sites.
+            # such sites.
             .options(lazyload(Variable.value_contexts))
         )
     )
@@ -346,7 +346,7 @@ async def build_documents(
     # Metrics, fact tables, scans and alert rules are GLOBAL, project-scoped
     # entities (not plan-branched), so they are queried by project_id only; the
     # same documents are duplicated into each branch's index — consistent with
-    # the per-branch index design (tripl-dfct). Ordered by name for
+    # the per-branch index design. Ordered by name for
     # deterministic output.
     metrics = list(
         await session.scalars(
@@ -531,10 +531,10 @@ def _event_document(
 ) -> BuiltDocument:
     """Build the search document for one event.
 
-    OBSERVED VALUES ARE BODY TEXT HERE TOO (tripl-0qld)
+    OBSERVED VALUES ARE BODY TEXT HERE TOO
     ---------------------------------------------------
     ``_variable_document`` stopped joining harvested values into ``keywords``
-    for tripl-gbxj; this builder was missed, and it feeds the SAME column that
+    for the same reason; this builder was missed, and it feeds the SAME column that
     two ranking tiers read — the 3.5 literal keyword-token tier and the 3.25
     stemmed-identity tier. Both rest on ``keywords`` carrying an entity's
     IDENTITY and no observed value, the premise stated on the 3.25 tier in
@@ -549,7 +549,7 @@ def _event_document(
     ``screen_home`` and ``screen_settings``. So ``q='purchases'`` paid those
     three unrelated pageview events ``keywords ~* '\\mpurchases\\M'`` = 3.5 while
     ``purchase_completed`` — the entity the query is about — reached only the
-    3.25 stemmed tier. tripl-nh5s built that ladder to say "a stemmed match on
+    3.25 stemmed tier. The stemming work built that ladder to say "a stemmed match on
     the entity's own name outranks the literal token appearing somewhere in its
     body"; for those three the order was inverted, and ``purchase-plural`` was
     green only because the trigram leg covered the 0.25 the ladder gave away.
@@ -621,7 +621,7 @@ def _event_document(
     meta_names: list[str] = []
     safe_meta_values: list[str] = []
     # Names once per FIELD, values once per row. A multi-valued field
-    # (tripl-h2sx.31) has several rows, and extending the names inside the loop
+    # has several rows, and extending the names inside the loop
     # would repeat "jira" once per key and weight the field by how many tickets
     # happen to be attached to the event.
     seen_meta_fields: set[uuid.UUID] = set()
@@ -658,7 +658,7 @@ def _event_document(
                 " ".join(tag_names),
             ]
         ),
-        # IDENTITY text only (tripl-0qld) — deliberately not "curated", see
+        # IDENTITY text only — deliberately not "curated", see
         # `_spaced_identifiers` and the 3.25-tier bullet in
         # `_search_query.postgres_lexical_search` for why that word is wrong
         # here. The event's name, its type, its tags, its breakdown columns, the
@@ -676,7 +676,7 @@ def _event_document(
                 " ".join(tag_names),
                 # ``or []`` matches the two readers in ``event_service.update_event``.
                 # The column is NOT NULL and the PATCH schema now turns an explicit
-                # null into ``[]`` (tripl-0zpq.190), so nothing can write None here
+                # null into ``[]``, so nothing can write None here
                 # — but a legacy row that did would take out the reindex of the
                 # WHOLE branch with a TypeError, where this makes it a blank keyword.
                 " ".join(event.metric_breakdown_columns or []),
@@ -711,7 +711,7 @@ def _tag_document(
                 event_type.display_name if event_type is not None else "",
             ]
         ),
-        # Deliberately NOT run through ``_spaced_identifiers`` (tripl-h9x2): a
+        # Deliberately NOT run through ``_spaced_identifiers``: a
         # tag document's keywords are exactly the tag name, which is what the
         # 4.0 "keywords ARE the query" tier compares for equality. Appending an
         # alias here would delete that tier for every tag.
@@ -728,7 +728,7 @@ def _variable_document(
 ) -> BuiltDocument:
     """Build the search document for one variable.
 
-    HARVESTED VALUES ARE BODY TEXT, NOT KEYWORDS (tripl-gbxj)
+    HARVESTED VALUES ARE BODY TEXT, NOT KEYWORDS
     ---------------------------------------------------------
     A variable is bound to many (event, field) contexts, and every context
     repeats the variable name, the event name, the source column AND all of its
@@ -750,13 +750,13 @@ def _variable_document(
     it comes from and the events it is bound to are. So the values stay in
     ``body`` — searching a concrete observed value still finds both the variable
     and its owning event, which is behaviour the product documents — and they
-    are simply no longer joined into ``keywords``. Both halves of tripl-gbxj had
+    are simply no longer joined into ``keywords``. Both halves of that fix had
     to land together: the measured 73.69-vs-4.55 gap was the duplication and the
     missing normalization compounding.
 
-    THIS RULE IS NOW SYMMETRIC (tripl-0qld)
+    THIS RULE IS NOW SYMMETRIC
     ---------------------------------------
-    tripl-gbxj drew the line here and nowhere else, so ``_event_document`` went
+    That fix drew the line here and nowhere else, so ``_event_document`` went
     on joining the SAME harvested values — the ones it picks up through the
     contexts bound to its own fields — into an EVENT's ``keywords``. The two
     builders now draw the identical line, which is what lets the 3.5 and 3.25
@@ -799,8 +799,8 @@ def _variable_context_text(
     """Flatten a variable's bindings into indexable text.
 
     ``include_values=False`` yields the same text without the observed values,
-    which is what a variable's ``keywords`` is built from (tripl-gbxj) and, since
-    tripl-0qld, an EVENT's keywords too: the binding is a keyword of both, the
+    which is what a variable's ``keywords`` is built from and, since
+    then, an EVENT's keywords too: the binding is a keyword of both, the
     harvested value is a keyword of neither. Sensitive fields never contribute
     values under either setting.
 
@@ -809,7 +809,7 @@ def _variable_context_text(
     ``context.value_kind`` and ``str(context.observed_count)`` below are written
     by the scanner, not by a person, and they reach ``keywords`` under BOTH
     settings. So "keywords holds only text a human wrote" is false even after
-    tripl-0qld, and ``postgres_lexical_search``'s docstring says the narrower
+    that change, and ``postgres_lexical_search``'s docstring says the narrower
     true thing instead of the tidy one. Removing them is a separate change with
     its own blast radius — it moves every variable document's keywords, which
     the relevance harness ranks — and it was not folded in here so that this

@@ -1,4 +1,4 @@
-"""Local, in-memory synthetic warehouse adapter (epic tripl-2su6.3).
+"""Local, in-memory synthetic warehouse adapter.
 
 The synthetic adapter replaces the never-queried fake ClickHouse source that
 generated demo projects used to carry. It exercises the *normal* warehouse-facing
@@ -19,7 +19,7 @@ Design
   identical" and it has to be: ``registry._build_synthetic`` rebuilds the adapter
   on every scan with ``anchor=None``, i.e. with a MOVING anchor, so
   anchor-relative keys made the same absolute hour hold different rows on every
-  scan (bd tripl-0zpq.73). The total row count is capped.
+  scan. The total row count is capped.
 * Cross-anchor identity is NOT guaranteed across the ongoing/sampled boundary,
   and the gap is not a rounding error. Which hours are "ongoing" is measured back
   from the anchor (``_generate_events``: ``ongoing_start_hour = total_hours -
@@ -35,7 +35,7 @@ Design
 * The most-recent ``SYNTHETIC_ONGOING_HOURS`` hours are generated at each event's
   seeded *base* volume (a believable daily/weekly shape with mild noise), so a
   live scan's current window continues the demo's seeded baseline instead of
-  reading a near-empty warehouse and stamping a spurious drop (bd tripl-yfsj.14).
+  reading a near-empty warehouse and stamping a spurious drop.
   Older hours stay at a small "sample" scale so the 30-day dataset (preview,
   active-sessions history) stays comfortably within the row budget.
 * Every abstract method aggregates the in-memory rows in Python according to the
@@ -199,7 +199,7 @@ class SyntheticEventDef(NamedTuple):
     # authored ``ongoing_base``, which the roster test pins to the plan) but emits
     # no rows at all. The demo's planted dead event is one: its volume dried up
     # 45 days ago, and an hourly emission meant the first collection bumped its
-    # ``last_seen_at`` and promoted it back to live (tripl-0zpq.245). Mirrors
+    # ``last_seen_at`` and promoted it back to live. Mirrors
     # ``services.demo.builders.warehouse.DEAD_EVENT_NAME``.
     retired: bool = False
 
@@ -210,12 +210,12 @@ class SyntheticEventDef(NamedTuple):
 # same ``ongoing_base`` volume and the same per-event column values the plan
 # documents as field values. ``ongoing_base`` is the hourly volume generated for
 # the *most-recent* hours (the ongoing window a live scan reads back), so a
-# rescan continues the seeded baseline rather than dropping (bd tripl-yfsj.14).
+# rescan continues the seeded baseline rather than dropping.
 #
 # Exhaustiveness is the whole point: this used to list only the 7 highest-volume
 # identities, so an hourly metrics collection rewrote the window with counts for
 # 7 of 18 events and the detector read the other 11 as "dropped to zero" within
-# an hour of a demo's creation (bd tripl-jfm3.55 / .71). The values are duplicated
+# an hour of a demo's creation (.71). The values are duplicated
 # rather than imported from the plan: ``core/`` importing ``services/`` is a
 # direction this repo takes once and deliberately
 # (``core/analyzers/release_regression.py``), not one Python or a lint rule
@@ -381,7 +381,7 @@ def _projection_columns(base_query: str) -> tuple[str, ...] | None:
     with the whole table no matter what the query asked for, which made a demo
     scan observe warehouse-internal columns the curated plan does not model —
     and the hourly catalog sync then auto-created junk ``FieldDefinition`` rows
-    (with raw sample values like ``s29_5``) for them (bd tripl-jfm3.57).
+    (with raw sample values like ``s29_5``) for them.
 
     Only a bare comma-separated identifier list is recognized; ``*``, expressions
     and aliases fall back to the full table, so the adapter still never guesses.
@@ -401,7 +401,7 @@ def _projection_columns(base_query: str) -> tuple[str, ...] | None:
 # ``measure_validator._DB_TYPE_DIALECT`` declares ``"synthetic"`` to be a
 # ClickHouse dialect, so ``_fact_conditions._resolve_condition_fragment`` compiles
 # a structured condition to ``` `status` = 'completed' ``` — back-tick quoted,
-# backslash escaped. Until bd tripl-0zpq.71 the evaluator here understood only
+# backslash escaped. Until it was fixed the evaluator here understood only
 # bare identifiers and did a chain of ``.strip("'")`` / ``.replace("''", "'")`` on
 # the literal, so ``` `status` = 'completed' ``` matched NOTHING (every bucket
 # collected NULL) and ``` `status` != 'completed' ``` matched EVERY row. The
@@ -576,7 +576,7 @@ def _split_comparison(atom: str) -> tuple[str, str, str]:
 #: Without them the whole tail was read as the predicate, so ``WHERE status =
 #: 'completed' ORDER BY created_at`` failed every collection on the source with
 #: ``Unsupported filter literal: "'completed' ORDER BY created_at"`` — naming a
-#: "literal" that is not one (tripl-0zpq.350).
+#: "literal" that is not one.
 #:
 #: IGNORED clauses change neither which rows exist nor what any of them holds as
 #: far as a table-scan method is concerned: this adapter imposes its own order
@@ -679,8 +679,8 @@ def _where_predicates(base_query: str) -> list[str]:
     currency = 'USD'`` with a ``status = 'completed'`` filter the per-metric sum
     was 7303.86 against the batched (and correct) 4908.56, and a CTE-backed fact
     source (``WITH completed AS (… WHERE status = 'completed') SELECT * FROM
-    completed``) scanned the whole table on both paths (tripl-0zpq.344, the
-    shape tripl-0zpq.71 was filed about).
+    completed``) scanned the whole table on both paths (the
+    shape of an earlier bug).
 
     A ``WHERE`` at depth >= 1 that is NOT inside that one recognised inner
     statement — a subquery in the projection, a join, a CTE list — is REFUSED:
@@ -799,8 +799,8 @@ def _normalize_sql(statement: str) -> str:
 # 'ios'``, divided the count by 2, or read ``events_archive`` (``from events`` is
 # a substring of it) still matched, and the adapter answered with the unfiltered
 # whole-dataset series — a different question, answered confidently, in the one
-# module whose stated contract is to refuse rather than fabricate (bd
-# tripl-0zpq.76). A demo is editable by its creator and by any owner
+# module whose stated contract is to refuse rather than fabricate.
+# A demo is editable by its creator and by any owner
 # (``project_service`` permits both), so that input is reachable.
 #
 # Exact matching is brittle BY DESIGN: reformatting the seeded statement breaks
@@ -817,7 +817,7 @@ _ACTIVE_SESSIONS_STATEMENTS: frozenset[str] = frozenset(
             "count(DISTINCT session_id) AS value FROM events GROUP BY ts"
         ),
         # Legacy: the GROUP BY-less statement every demo created before
-        # tripl-0zpq.76 still carries in ``MetricDefinition.config``. Real
+        # that fix still carries in ``MetricDefinition.config``. Real
         # ClickHouse rejects it ("not under aggregate function and not in GROUP
         # BY"), which is why the seeder stopped writing it — but an existing demo
         # must keep collecting, and one frozenset entry is a far smaller change
@@ -850,8 +850,8 @@ def _ongoing_hourly_count(seed: int, base: int, event_name: str, bucket: datetim
     Mirrors the shape family of ``services.demo.noise.hourly_volume`` (which builds
     the seeded EventMetric baseline) closely enough that a live scan's per-event
     count for the ongoing window lands inside the anomaly detector's per-bucket
-    tolerance band, so scanning an idle demo does not surface a spurious drop
-    (bd tripl-yfsj.14). Digest-seeded (never ``Date.now``/random), per the adapter's
+    tolerance band, so scanning an idle demo does not surface a spurious drop.
+    Digest-seeded (never ``Date.now``/random), per the adapter's
     determinism contract, and never below 1.
     """
     hour = bucket.hour
@@ -974,7 +974,7 @@ def _epoch_hour(bucket: datetime) -> int:
     The digest key for everything generated inside one hour. It must not be the
     hour's OFFSET from the anchor: the adapter is rebuilt with ``anchor=None`` on
     every scan, so an offset key made the same wall-clock hour hold different
-    rows each time the clock moved on (bd tripl-0zpq.73).
+    rows each time the clock moved on.
     """
     return int(bucket.timestamp()) // 3600
 
@@ -988,7 +988,7 @@ def _session_span(seed: int, day_ordinal: int) -> int:
     UTC midnight, so a single UTC day drew from two pools and its distinct-session
     count inflated by up to ~70% for an afternoon anchor — against a seeded
     history written at a different hour, and recollected hourly by the scheduler
-    at whatever hour it fired (bd tripl-0zpq.73).
+    at whatever hour it fired.
     """
     return 25 + _digest_int(seed, "day_sessions", day_ordinal) % 20
 
@@ -1004,7 +1004,7 @@ def _generate_events(
 
     The most-recent ``SYNTHETIC_ONGOING_HOURS`` hours carry each event's seeded
     ``ongoing_base`` volume (so a live scan's current window continues the demo's
-    baseline, bd tripl-yfsj.14); older hours keep the small sampled scale so the
+    baseline); older hours keep the small sampled scale so the
     full-history dataset stays within ``max_rows``.
 
     The ongoing window is generated FIRST and is never truncated. It is the only
@@ -1063,13 +1063,13 @@ def _generate_orders(
       is stamped at or after the anchor. The days used to be measured from the
       anchor's HOUR and the newest one ran to ``anchor + 24h``, so orders sat up
       to a day in the FUTURE while ``_generate_events`` stopped at the last
-      complete hour (bd tripl-0zpq.80) — the two tables disagreed about when
+      complete hour — the two tables disagreed about when
       "now" was, and the untimed ``get_full_breakdown`` path reported the future
       rows. The newest day is therefore a genuine partial day that fills up as
       the day goes on, exactly like the events table's newest hour.
     * **Absolute keying.** Every digest is keyed on the day's UTC date ordinal,
       not its offset from the anchor, so a given date yields the same orders for
-      any anchor (bd tripl-0zpq.73). Without it, each scan's freshly-built adapter
+      any anchor. Without it, each scan's freshly-built adapter
       re-rolled the amount, country and status of every historical order.
     """
     anchor_day = anchor.replace(hour=0, minute=0, second=0, microsecond=0)
@@ -1125,7 +1125,7 @@ class SyntheticAdapter(BaseAdapter):
         # comprehension over at most ``max_rows`` dicts. The value used to be
         # stored in ``self._timeout_seconds`` and read by nothing, while the
         # module docstring advertised a wall-clock budget — a guard that does not
-        # exist reads as one that does (bd tripl-0zpq.79). Implementing a real
+        # exist reads as one that does. Implementing a real
         # timer would be theatre; saying so is not.
         #
         # Anchor to the start of the current UTC HOUR by default. Events are
@@ -1136,7 +1136,7 @@ class SyntheticAdapter(BaseAdapter):
         # start of the *day* instead — as this used to — left every hour of
         # "today" with no synthetic rows, so once a demo sat idle past midnight a
         # scan of the current window read 0 for every series and the detector
-        # stamped a clamped z=-20 "drop to zero" on all of them (bd tripl-yfsj.3).
+        # stamped a clamped z=-20 "drop to zero" on all of them.
         # Because the adapter is rebuilt per scan with ``anchor=None`` (see
         # registry._build_synthetic), the dataset now always advances to the
         # current hour. Deterministic within the hour; tests pass an explicit
@@ -1159,7 +1159,7 @@ class SyntheticAdapter(BaseAdapter):
         # contacted and no real warehouse success is reported. This used to read
         # ``len(self._events) >= 0 and len(self._orders) >= 0``, which is true of
         # any list — a connection test that cannot fail tells the operator
-        # nothing (bd tripl-0zpq.79). Non-empty can fail: ``history_days=0``, or a
+        # nothing. Non-empty can fail: ``history_days=0``, or a
         # future generator change that stops emitting a table, both make the
         # source report a problem instead of a green tick over no data.
         return bool(self._events) and bool(self._orders)
@@ -1518,8 +1518,8 @@ class SyntheticAdapter(BaseAdapter):
         The single seam through which every TABLE-SCAN method reads the dataset,
         so the two ways the metric collector delivers a row filter produce the
         same rows — including the fact table's OWN ``WHERE``, which the
-        per-metric wrapper puts one paren level down (``_where_predicates``,
-        tripl-0zpq.344). (``_active_sessions_rows`` reads ``self._events`` directly and
+        per-metric wrapper puts one paren level down (``_where_predicates``).
+        (``_active_sessions_rows`` reads ``self._events`` directly and
         does not come through here: it serves an exactly-recognized statement,
         which by definition has no WHERE to honour.)
 
@@ -1532,8 +1532,7 @@ class SyntheticAdapter(BaseAdapter):
         seeded ``status = 'completed'`` filter the two paths disagreed by about
         2x, directly contradicting the invariant ``metric_collect`` states for the
         batched path ("The per-bucket VALUES are identical to the per-metric
-        path"), and the fact-operand dry run counted every row in the window
-        (bd tripl-0zpq.71).
+        path"), and the fact-operand dry run counted every row in the window.
 
         A predicate the evaluator cannot read raises ``SyntheticCapabilityError``
         — the documented outcome, and the honest one. Refusing every top-level
@@ -1585,7 +1584,7 @@ class SyntheticAdapter(BaseAdapter):
         the SAME allowlist ``_validate_column`` uses. Without the membership check
         an unknown name simply read as ``None`` on every row, so the filter
         matched nothing and the metric collected NULL for every bucket with no
-        error anywhere (bd tripl-0zpq.71).
+        error anywhere.
         """
         name = _filter_identifier(raw)
         if name not in _table_columns(table):
@@ -1659,7 +1658,7 @@ class SyntheticAdapter(BaseAdapter):
         This used to run on every scan, against ``self._events`` /
         ``self._orders`` — the very lists the generators had already capped at
         ``max_rows`` — so the branch was unreachable and read as a guard while
-        guarding nothing (bd tripl-0zpq.79). Checking the generators' OUTPUT once,
+        guarding nothing. Checking the generators' OUTPUT once,
         here, is the assertion that can actually fire: it catches a future change
         to ``_generate_events`` / ``_generate_orders`` that stops respecting the
         cap, which is the failure mode that matters, because
@@ -1720,7 +1719,7 @@ class SyntheticAdapter(BaseAdapter):
 
         Inside ``top_n_ranking_window`` the ranking reads the rows of THAT window,
         once per (query, column, limit, window), so every chunk of one collection folds
-        the same values into ``'Other'`` (tripl-0zpq.346). Outside it, the rows
+        the same values into ``'Other'``. Outside it, the rows
         this call already windowed are ranked, as before.
         """
         window = self._top_n_ranking_window
@@ -1785,8 +1784,8 @@ class SyntheticAdapter(BaseAdapter):
             # that back untouched, so on them such a bucket is a GAP in the stored
             # series. This used to answer ``0.0`` for ``sum`` alone, which made the
             # demo warehouse store a zero where every real engine stores nothing,
-            # contradicting the conditional-aggregate contract on ``BaseAdapter``
-            # (tripl-0zpq.345). Only ``count`` / ``count_distinct`` — handled
+            # contradicting the conditional-aggregate contract on ``BaseAdapter``.
+            # Only ``count`` / ``count_distinct`` — handled
             # above — are 0 over such a set.
             return None
         if agg is MetricAggregation.sum:

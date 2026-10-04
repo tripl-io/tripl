@@ -217,7 +217,7 @@ export function SqlEditor({
       {/* `sql-editor` is a styling hook, not decoration: index.css targets
           `.sql-editor .cm-editor …` for the frame, the tooltips and the
           soft-wrap of long lines. Renaming it here silently drops all three,
-          which is why a test pins the pair (tripl-h2sx.33).
+          which is why a test pins the pair.
 
           No border, background or overflow clip of its own: `.cm-editor` is
           the frame, and a second one here doubled the border and clipped the

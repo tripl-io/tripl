@@ -89,7 +89,7 @@ DEMO_RELEASE_AGE = timedelta(days=6)
 
 # Seeded catalog-metric spike: scored against the median of the whole stored
 # series, over the most recent complete buckets, so the signal is on-grid and
-# genuinely high against its own baseline (bd tripl-jfm3.63).
+# genuinely high against its own baseline.
 _METRIC_ANOMALY_RECENT_BUCKETS = 7
 _METRIC_ANOMALY_MIN_POINTS = 3
 _METRIC_ANOMALY_Z_SCORE = 3.0
@@ -110,7 +110,7 @@ _WEEKLY_PROMO_Z_SCORE = 4.0
 
 # One FAILED earlier attempt at the same incident. The Audit table only offers
 # Retry on a failed row, and the local sink cannot fail, so without a seeded
-# failure the retry the docs promise is unreachable in a demo (tripl-jfm3.59).
+# failure the retry the docs promise is unreachable in a demo.
 # It is recorded against the local sink, so pressing Retry re-dispatches it down
 # the normal path and it succeeds — a complete, safe round trip.
 _FAILED_DELIVERY_AGE_HOURS = 3
@@ -261,7 +261,7 @@ async def build_alerts(session: AsyncSession, ctx: DemoContext) -> None:
     # with the result. While the failed row owned no items, the one retry the
     # demo exists to demonstrate replaced the seeded message with a header
     # counting ``matched_count`` signals above an empty list, and left the row
-    # reading "sent" with nothing in it (tripl-0zpq.247).
+    # reading "sent" with nothing in it.
     #
     # The copies share ``correlation_group_id`` because that is the shape live
     # dispatch writes — items are stamped with the incident's group id when the
@@ -293,7 +293,7 @@ async def build_alerts(session: AsyncSession, ctx: DemoContext) -> None:
             AlertRuleState(
                 rule_id=firing_rule.id,
                 # A ``metric`` firing is project-global and stores NULL, which is
-                # the key live dispatch writes (tripl-0zpq.28). Seeding it on a
+                # the key live dispatch writes. Seeding it on a
                 # real scan config would leave the demo carrying a state row the
                 # dispatcher could never load again — and the builder seeds a
                 # catalog-metric firing, so this arm is reached every time.
@@ -318,8 +318,8 @@ async def build_alerts(session: AsyncSession, ctx: DemoContext) -> None:
     # newest stored point, so a marker there never lines up with the series it
     # explains: on the default hourly view the chart snaps it onto the one-step
     # dashed forecast point, and once the demo runtime has appended that hour for
-    # real the marker labels an ordinary bucket sitting right after the spike
-    # (tripl-0zpq.249). ``ChartAnnotation.bucket`` is NOT NULL, so ``or ctx.now``
+    # real the marker labels an ordinary bucket sitting right after the spike.
+    # ``ChartAnnotation.bucket`` is NOT NULL, so ``or ctx.now``
     # keeps the row valid for a context assembled without the warehouse builder;
     # inside the recipe that cannot happen, because the early return at the top
     # of this builder already requires the scan config warehouse writes.
@@ -327,7 +327,7 @@ async def build_alerts(session: AsyncSession, ctx: DemoContext) -> None:
     # The demo runtime's retention pass deletes this row once its bucket falls
     # behind the retention cutoff — the same cutoff that prunes the anomaly it
     # explains. The runtime appends plain noise with no new spike, so an aging
-    # demo retires the story rather than re-injecting it (tripl-0zpq.322).
+    # demo retires the story rather than re-injecting it.
     spike_event_id = ctx.event_ids.get(SPIKE_EVENT_NAME)
     session.add(
         ChartAnnotation(
@@ -417,7 +417,7 @@ async def _seed_catalog_metric_anomaly(
     row is project-global (NULL ``scan_config_id``), matching the live metric
     detector.
 
-    The anomaly describes a REAL feature of the stored series (bd tripl-jfm3.63):
+    The anomaly describes a REAL feature of the stored series:
     it lands ON an existing stored bucket — so it is always on the metric's
     interval grid instead of adding a half-day-offset point to a daily chart —
     reports that bucket's stored value as ``actual``, and scores it against the
@@ -432,7 +432,7 @@ async def _seed_catalog_metric_anomaly(
                 # ``order`` first: every demo metric is inserted with the same
                 # ``created_at``, so ordering by it alone let Postgres break the
                 # tie arbitrarily and the seeded anomaly landed on a different
-                # metric per install (bd tripl-jfm3.63).
+                # metric per install.
                 .order_by(MetricDefinition.order, MetricDefinition.created_at, MetricDefinition.id)
             )
         )
@@ -650,7 +650,7 @@ async def _build_firings(
         # Built by ``SimulatedRuleFiring.from_candidate``, the constructor
         # ``alerting_service.simulate_rule`` uses too, so the field list exists
         # once: a field added to the DTO reaches the demo and the live replay
-        # together (tripl-0zpq.324). It also trims the scope name and computes
+        # together. It also trims the scope name and computes
         # the delta through the shared ``percent_delta_of``.
         #
         # The trim matters here: this list feeds both ``render_firings_message``
@@ -658,7 +658,7 @@ async def _build_firings(
         # ``_delivery_item``, the ``scope_name`` column. ``_resolve_scope_name``
         # reads ``Event.name`` (String(500)) and ``EventType.display_name`` back
         # out of the DB, and a demo recipe that one day seeds a realistically
-        # long event name would otherwise reproduce tripl-0zpq.253 inside
+        # long event name would otherwise reproduce an earlier overflow bug inside
         # ``create_demo_project``, where the Postgres "value too long" would
         # roll the whole seed back.
         #

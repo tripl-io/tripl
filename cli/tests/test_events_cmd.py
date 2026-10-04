@@ -188,7 +188,7 @@ def test_field_value_is_absent_unless_asked_for(
     ``--meta-value`` reached the wire from the first release and ``--field-value``
     did not, though the route has declared both since PR #78 and compares them
     the same way (a case-insensitive substring) - so "which events carry this
-    screen name" was a question only the web app could ask (tripl-nhj0).
+    screen name" was a question only the web app could ask.
 
     Absence is asserted first for the same reason every filter here is: a
     parameter that appears without being asked for narrows an UNFILTERED listing,
@@ -314,8 +314,8 @@ def test_the_document_carries_the_row_verbatim(
 
     A CLI writes to a pipe, where a trimmed row is a field the operator has to
     fetch again. The MCP's ``EVENT_LIST_FIELDS`` exists because a model pays for
-    every token; that is a different cost and it stays with its consumer
-    (tripl-i1dt). If this ever starts trimming, it is a contract change.
+    every token; that is a different cost and it stays with its consumer.
+    If this ever starts trimming, it is a contract change.
     """
     row = make_event(
         last_seen_at=_SEEN,

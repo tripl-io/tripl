@@ -238,7 +238,7 @@ def _forbid_adapters(monkeypatch: MonkeyPatch) -> None:
     monkeypatch.setattr(metric_collect, "_build_adapter", _build)
 
 
-# ── tripl-0zpq.347: the collector applies the save door's scope rule ──────────
+# ── the collector applies the save door's scope rule ──────────
 
 
 class TestCollectionRefusesAForeignWarehouse:
@@ -400,7 +400,7 @@ class TestCollectionRefusesAForeignWarehouse:
             assert isinstance(adapter, _StubAdapter)
 
 
-# ── tripl-0zpq.173: a stored SELECT reports the validator's English ───────────
+# ── a stored SELECT reports the validator's English ───────────
 
 
 class TestStoredSqlReportsTheValidatorsMessage:
@@ -440,7 +440,7 @@ class TestStoredSqlReportsTheValidatorsMessage:
         assert "internal error" not in surfaced
 
 
-# ── tripl-0zpq.270: a stored duplicate breakdown column ──────────────────────
+# ── a stored duplicate breakdown column ──────────────────────
 
 
 class TestStoredBreakdownColumnsAreDeduplicated:
@@ -472,7 +472,7 @@ class TestStoredBreakdownColumnsAreDeduplicated:
         assert columns == ["user_id", "country", "app_version"]
 
 
-# ── tripl-0zpq.116: non-finite values never reach the table ──────────────────
+# ── non-finite values never reach the table ──────────────────
 
 
 class TestNonFiniteValuesAreDroppedBeforeTheUpsert:
@@ -719,7 +719,7 @@ class TestMainBranchEventTypeResolutionIsProjectScoped:
 
     async def test_this_projects_branch_copy_still_resolves_to_its_main_twin(self) -> None:
         """The positive control for the predicate above: pairing by NAME inside
-        the project is the whole feature (tripl-0zpq.111), so a fix that simply
+        the project is the whole feature, so a fix that simply
         stopped resolving would pass the test above and break the Dynamics card.
         """
         async with TestSessionLocal() as session:

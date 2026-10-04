@@ -124,7 +124,7 @@ def test_branches_names_the_one_that_is_behind_its_base(
     out = capsys.readouterr().out
     assert "b-0001  main               main     merged  -" in out
     assert "b-9f21  checkout-redesign  working  draft   3 ahead  behind base" in out
-    # The pluraliser's sibilant rule. "2 branchs" shipped once (tripl-3ixs).
+    # The pluraliser's sibilant rule. "2 branchs" shipped once.
     assert out.endswith("2 branches.\n")
 
 
@@ -153,7 +153,7 @@ def test_search_reports_whether_the_semantic_index_answered(
     """
     # Both bodies below carry `truncated`, so a test about `semantic_used` does
     # not double as a second pin of the older instance that sends no such key —
-    # that one is pinned on its own, further down (tripl-wkwv.11).
+    # that one is pinned on its own, further down.
     tripl_api.search("prod", [make_search_result()], semantic_used=True, truncated=True)
     assert main(["plan", "search", "purchase", "--project", "prod", "--limit", "1"]) == 0
     captured = capsys.readouterr()
@@ -179,7 +179,7 @@ def test_search_reports_whether_the_semantic_index_answered(
 def test_search_prefers_the_routes_truncation_flag_over_a_full_page(
     tripl_api: FakeInstance, configured_env: None, capsys: pytest.CaptureFixture[str]
 ) -> None:
-    """A page that filled exactly is not a page that dropped rows (tripl-wkwv.3).
+    """A page that filled exactly is not a page that dropped rows.
 
     ``/search`` retrieves one row past its candidate window, so it KNOWS. The CLI
     was guessing from ``len(items) >= limit`` and printing "more may have
@@ -226,7 +226,7 @@ def test_search_takes_the_routes_flag_even_where_the_page_did_not_fill(
 def test_search_still_guesses_against_an_instance_that_reports_no_truncation(
     tripl_api: FakeInstance, configured_env: None, capsys: pytest.CaptureFixture[str]
 ) -> None:
-    """Silence is not the route saying nothing was dropped (tripl-wkwv.3).
+    """Silence is not the route saying nothing was dropped.
 
     ``truncated`` is new and the CLI is installed separately from the instance it
     talks to, so an older body simply has no key. The page-fullness guess — the

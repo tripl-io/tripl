@@ -1,21 +1,21 @@
-"""Reverting a branch change against an older base or an awkward name (tripl-0zpq batch 2).
+"""Reverting a branch change against an older base or an awkward name (batch 2).
 
-- tripl-0zpq.147: the revert reads the base snapshot the way the diff reads it,
+- The revert reads the base snapshot the way the diff reads it,
   through ``with_snapshot_defaults``. A base taken before a key joined v2 has no
   such key; the diff shows the default as the base value, so the revert has to
   put back that default — not ``None``.
-- tripl-0zpq.150: the successor pointer is stored as ``"<type>.<name>"`` and is
+- The successor pointer is stored as ``"<type>.<name>"`` and is
   resolved by spelling that key back whole. Dotted names resolve, and a key two
   branch events answer to is a 409 rather than a guess or a 500 — as is a key
   two BASE events answered to. The event being reverted is never its own
   successor, though it can spell the key itself.
 - review2#18: rebuilding a deleted event puts its successor back, resolved the
   way the field revert resolves it — including both 409s.
-- Namesakes (tripl-0zpq.149, cut back): a branch copy does not record which base
+- Namesakes (cut back): a branch copy does not record which base
   row it came from, so when several base rows answer to the key a change or a
   removal names, the revert is a 409 rather than a restore from an arbitrary
   one of them.
-- tripl-0zpq.155: an event's type is part of its diff key, never a changed
+- An event's type is part of its diff key, never a changed
   field, so there is no ``event_type_name`` for the revert to restore.
 - A merged branch cannot be reopened, so its refusal does not say to reopen it.
 """
@@ -157,7 +157,7 @@ async def _age_base(
         await session.commit()
 
 
-# --- tripl-0zpq.147: the base is read through with_snapshot_defaults ----------
+# --- the base is read through with_snapshot_defaults ----------
 
 
 async def _titled_event_on_an_untitled_base(client: AsyncClient, slug: str) -> tuple[str, str, str]:
@@ -245,7 +245,7 @@ async def test_reverting_allow_multiple_puts_back_the_default_of_an_older_base(
 ) -> None:
     """The defaults' other collection, reached through a field revert.
 
-    ``allow_multiple`` is a diff change key (tripl-0zpq.148), so reverting it
+    ``allow_multiple`` is a diff change key, so reverting it
     writes the base value straight onto the column. A base taken before the
     key existed has none; the diff shows the default ``False`` as the base
     value, and reading the raw payload wrote ``NULL`` into a NOT NULL column
@@ -285,7 +285,7 @@ async def test_reverting_allow_multiple_puts_back_the_default_of_an_older_base(
     assert restored["allow_multiple"] is False
 
 
-# --- tripl-0zpq.150: the successor key is spelled back whole -------------------
+# --- the successor key is spelled back whole -------------------
 
 
 @pytest.mark.asyncio
@@ -412,7 +412,7 @@ async def test_revert_refuses_a_successor_key_two_base_events_answered_to(
     named. Only the other still answers on the branch, so the lookup found
     exactly one and pointed the event at it with a 200 — at a namesake, or at
     an event under another type — and the diff, spelling the base key again,
-    read level over the swap (tripl-0zpq.150). Clearing instead would leave
+    read level over the swap. Clearing instead would leave
     the change in the diff after a 200, so it is a 409.
     """
     slug = f"revert-base-ambiguous-successor-{clash}"
@@ -466,7 +466,7 @@ async def test_revert_never_names_the_event_as_its_own_successor(
     revert a spurious 409 while its successor was still there, and made it the
     only match once the successor was gone: a self-pointer, which
     ``_resolve_successor`` refuses from any client, written with a 200 while
-    the diff, spelling the base key again, read level (tripl-0zpq.150).
+    the diff, spelling the base key again, read level.
     """
     slug = f"revert-self-spelled-successor-{successor}"
     await _project(client, slug)
@@ -639,8 +639,7 @@ async def test_reverting_a_change_to_one_namesake_restores_that_namesake(
     Before origin ids no base row was THE before of that change, and the revert
     refused rather than copy the fields of whichever the payload listed first.
     The copy now names the base row it came from, so the diff shows a removal
-    and an edit, and reverting the edit restores that row's own values
-    (tripl-0zpq.292).
+    and an edit, and reverting the edit restores that row's own values.
     """
     slug = "revert-namesake-group-change"
     branch_id = await _namesakes(client, slug)
@@ -674,8 +673,7 @@ async def test_reverting_the_removal_of_namesakes_rebuilds_each_one(client: Asyn
 
     The revert used to refuse, because the name could not say which namesake to
     rebuild. The removed entry now carries that base row's id, so each revert
-    rebuilds exactly its row, linked back to it, and the diff comes out level
-    (tripl-0zpq.292).
+    rebuilds exactly its row, linked back to it, and the diff comes out level.
     """
     slug = "revert-namesake-removals"
     branch_id = await _namesakes(client, slug)
@@ -702,7 +700,7 @@ async def test_reverting_the_removal_of_namesakes_rebuilds_each_one(client: Asyn
     assert await _event_entries(client, slug, branch_id) == []
 
 
-# --- tripl-0zpq.155: an event's type is its key, not a changed field ------------
+# --- an event's type is its key, not a changed field ------------
 
 
 @pytest.mark.asyncio

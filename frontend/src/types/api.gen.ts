@@ -2060,7 +2060,7 @@ export interface paths {
         put?: never;
         /**
          * Apply Alert Inbox Bulk Action
-         * @description Apply one triage decision to a selection of incidents (tripl-gpfr).
+         * @description Apply one triage decision to a selection of incidents.
          *
          *     A shortcut for N clicks on the sibling single-incident route, not a new kind
          *     of object: the decision is copied into each incident's own state. The service
@@ -2087,7 +2087,7 @@ export interface paths {
          *
          *     Alert messages deep-link the incident they describe, and the reader opens
          *     them late; before this route the link landed on a page of 20 unrelated
-         *     incidents with no explanation (tripl-oxkt.7).
+         *     incidents with no explanation.
          */
         get: operations["get_alert_inbox_group_api_v1_projects__slug__alert_inbox__correlation_group_id__get"];
         put?: never;
@@ -2469,7 +2469,7 @@ export interface paths {
          *     This protects the merge POLICY, not the plan: editors can still manage
          *     event-type owners and write ``main`` directly, so the owner-approval gate
          *     is a branch-review convention rather than an access control
-         *     (tripl-0zpq.233).
+         *     .
          */
         patch: operations["update_project_branch_settings_api_v1_projects__slug__branch_settings_patch"];
         trace?: never;
@@ -2850,7 +2850,7 @@ export interface paths {
          *
          *     A scan creates a variable for every placeholder it discovers and has never
          *     retired one, so a project whose warehouse holds a JSON column keyed by
-         *     user-typed text accumulates a row per key forever (tripl-10h4). This deletes
+         *     user-typed text accumulates a row per key forever. This deletes
          *     only rows that a scan created, no human has edited, no event field value
          *     names, and that carry no observed context, drift or override — see
          *     ``core.variable_retirement`` for why "no observed context" alone is not
@@ -5614,8 +5614,7 @@ export interface paths {
          *
          *     This was uncapped, and the Scans tab fans it out over every scan config on a
          *     10-second poll: production configs hold 1,366-1,551 jobs each, so an open tab
-         *     pulled roughly 4,400 rows every 10 seconds and rendered them unvirtualized
-         *     (tripl-jfm3.107).
+         *     pulled roughly 4,400 rows every 10 seconds and rendered them unvirtualized.
          */
         get: operations["list_scan_jobs_api_v1_projects__slug__scans__scan_id__jobs_get"];
         put?: never;
@@ -7073,7 +7072,7 @@ export interface components {
          * @description Result of a manual test send — did this destination reach its channel?
          *
          *     A channel refusal is an ANSWER, not a server fault: a revoked Telegram token
-         *     and a healthy one look identical in the destination form (tripl-oxkt.17), and
+         *     and a healthy one look identical in the destination form, and
          *     the whole point of the probe is to tell them apart. So the route returns 200
          *     with ``ok=False`` and the channel's own message rather than a 5xx the UI would
          *     render as "something went wrong on our side".
@@ -7163,7 +7162,7 @@ export interface components {
          *
          *     ``false_positive`` writes no scope override for scope types the ratchet does
          *     not tune — release regressions among them — so the button promised a
-         *     detection change it never made, on 10 of 57 production groups (tripl-oxkt.6).
+         *     detection change it never made, on 10 of 57 production groups.
          *     The count is reported so the UI can say "tightened 2 scopes" or "no scopes
          *     tightened"; it must NOT be guessed client-side from ``scope_type``, which is
          *     only the newest item's.
@@ -7175,7 +7174,7 @@ export interface components {
         };
         /**
          * AlertInboxBulkActionRequest
-         * @description One triage decision applied to several incidents at once (tripl-gpfr).
+         * @description One triage decision applied to several incidents at once.
          *
          *     A TRIAGE SHORTCUT, not an incident record. There is no group-of-groups
          *     object, no new table and no migration behind this body: whatever it says is
@@ -7183,7 +7182,7 @@ export interface components {
          *     every selected row carries the same note, the same ``acted_at`` and the same
          *     ``acted_by`` and is indistinguishable from N single-incident clicks.
          *
-         *     A persistent supergroup was costed and rejected (tripl-5cc9):
+         *     A persistent supergroup was costed and rejected:
          *     ``_reopen_closed_incidents`` runs inside the per-rule loop and resets member
          *     incidents individually, so a parent row would either never release — because
          *     no single member's release can speak for it — or leak the moment one member
@@ -7211,7 +7210,7 @@ export interface components {
         };
         /**
          * AlertInboxBulkActionResponse
-         * @description The rebuilt cards for every incident the batch touched (tripl-gpfr).
+         * @description The rebuilt cards for every incident the batch touched.
          *
          *     DELIBERATELY NOT the house 204 that ``/bulk-update`` and ``/bulk-delete``
          *     return on events, variables and metrics. Those routes mutate rows the caller
@@ -7329,7 +7328,7 @@ export interface components {
          *     index *i* of one had nothing to do with index *i* of the other and the card
          *     linked "Volume rule" to whichever monitor happened to sort first. Two rules
          *     of one group can even share a name, so no client-side join could repair it
-         *     either (tripl-oxkt.4).
+         *     either.
          */
         AlertInboxRuleRef: {
             /**
@@ -7766,7 +7765,7 @@ export interface components {
          *
          *     Not a per-rule verdict and not a prediction: it answers "could this scope
          *     ever produce a candidate here", so a client can tell an enabled-but-inert
-         *     toggle from a quiet one (tripl-wkwv.1). Both fields are always sent and
+         *     toggle from a quiet one. Both fields are always sent and
          *     neither carries a default — see the no-defaults note on
          *     ``MonitorSummaryItem`` for why a default here would be a lie to the
          *     generated client rather than a server behaviour.
@@ -8166,12 +8165,12 @@ export interface components {
          *     of JSON blobs across the wire to be displayed nowhere: on the only project
          *     with real audit history, ``/p/*\/audit`` had the slowest first
          *     content of the 75 routes in the 2026-08-17 walk. The payload now travels one
-         *     row at a time, as ``AuditEntryDetailResponse`` (tripl-5ydt).
+         *     row at a time, as ``AuditEntryDetailResponse``.
          *
          *     ``branch_id`` / ``branch_name`` are the plan branch the write was scoped to.
          *     Null and empty mean the write was not made through a branch-scoped request —
          *     main, or an action with no plan-branch dimension (alerting, scans, users) —
-         *     so a reader must not render them as "main" (tripl-wkwv.6).
+         *     so a reader must not render them as "main".
          */
         AuditEntryResponse: {
             /** Action */
@@ -10760,7 +10759,7 @@ export interface components {
          *     The five columns come from ``SchemaDrift``, but not its vocabulary:
          *     ``accepted`` and ``false_positive`` are verdicts a detector's finding earns,
          *     and a question someone typed is neither accepted nor false. A thread is
-         *     open, answered, or deliberately parked (tripl-h2sx.26).
+         *     open, answered, or deliberately parked.
          * @enum {string}
          */
         EventCommentStatus: "open" | "resolved" | "snoozed";
@@ -14846,7 +14845,7 @@ export interface components {
          *     Event.created_at) has genuine history; other KPIs (active events, open
          *     signals, review-pending) have no time series until snapshotting is added,
          *     so they are intentionally omitted rather than fabricated. The field was
-         *     named ``active_events`` until tripl-jfm3.22 — it never held active-event
+         *     named ``active_events`` until it was renamed — it never held active-event
          *     counts, and the Overview sparkline repeated that false claim in its label.
          */
         OverviewKpiSeriesResponse: {
@@ -15076,8 +15075,7 @@ export interface components {
          *     pairs the two by ``source_name`` and UPDATEs main's row in place, keeping the
          *     id and everything hanging off it. Stating the pairing here is what stops the
          *     UI having to re-derive it, which it cannot do correctly — the pairing also
-         *     depends on main, and the diff the UI holds compares the base with the branch
-         *     (tripl-amnn).
+         *     depends on main, and the diff the UI holds compares the base with the branch.
          *
          *     ``removed_name`` and ``added_name`` are the two entries' ``name``, and
          *     ``entity_type`` / ``parent`` are shared by both, so the pair addresses its
@@ -16893,7 +16891,7 @@ export interface components {
         };
         /**
          * ScanActivityResponse
-         * @description Per-scan activity for a project, aggregated in SQL (tripl-fj5g.11).
+         * @description Per-scan activity for a project, aggregated in SQL.
          */
         ScanActivityResponse: {
             /** Items */
@@ -17650,7 +17648,7 @@ export interface components {
             action: "accept" | "snooze" | "false_positive" | "reopen";
             /**
              * Force
-             * @description Override the guard that refuses to accept a missing_field drift for a column a scan config's event name format builds event names from (tripl-3mmh). API-only escape hatch for a project-wide config that names the column but never scans this event type; requires a note explaining why, which lands in the audit record. The UI does not offer it — a warning next to an Accept button is a thing operators click past, and clicking past it is what caused the outage.
+             * @description Override the guard that refuses to accept a missing_field drift for a column a scan config's event name format builds event names from . API-only escape hatch for a project-wide config that names the column but never scans this event type; requires a note explaining why, which lands in the audit record. The UI does not offer it — a warning next to an Accept button is a thing operators click past, and clicking past it is what caused the outage.
              * @default false
              */
             force: boolean;
@@ -29714,7 +29712,7 @@ export interface operations {
             query?: {
                 offset?: number;
                 limit?: number;
-                /** @description Narrow to the variables nothing refers to ('unused' — exactly the set the retirement sweep would take) or to their complement ('used'). Declared as an enum rather than a free string so an unknown value is a 422 and not a 500 (tripl-57g0). */
+                /** @description Narrow to the variables nothing refers to ('unused' — exactly the set the retirement sweep would take) or to their complement ('used'). Declared as an enum rather than a free string so an unknown value is a 422 and not a 500. */
                 usage?: "all" | "used" | "unused";
                 /** @description Plan branch id (UUID) to read and write instead of the main branch. */
                 branch?: string | null;
@@ -32121,7 +32119,7 @@ export interface operations {
             query?: {
                 offset?: number;
                 limit?: number;
-                /** @description Narrow to the variables nothing refers to ('unused' — exactly the set the retirement sweep would take) or to their complement ('used'). Declared as an enum rather than a free string so an unknown value is a 422 and not a 500 (tripl-57g0). */
+                /** @description Narrow to the variables nothing refers to ('unused' — exactly the set the retirement sweep would take) or to their complement ('used'). Declared as an enum rather than a free string so an unknown value is a 422 and not a 500. */
                 usage?: "all" | "used" | "unused";
                 /** @description Plan branch id (UUID) to read and write instead of the main branch. */
                 branch?: string | null;

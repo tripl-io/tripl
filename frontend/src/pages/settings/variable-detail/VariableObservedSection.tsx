@@ -86,8 +86,8 @@ export function VariableObservedSection({
           Observed values
         </div>
         {/* Sits with the thing it clears. Deleting the variable was the only
-            reset available, and it takes everything else on the row with it
-            (tripl-h2sx.21). A viewer is not offered it at all. */}
+            reset available, and it takes everything else on the row with it.
+            A viewer is not offered it at all. */}
         {canWrite && (
           <Button
             type="button"
@@ -129,7 +129,7 @@ export function VariableObservedSection({
               <TableRow key={context.id}>
                 {/* `event_name` is a bare passthrough of `Event.name`, so the
                     blank-named catalog row reaches this cell as '' and the
-                    Event column painted nothing (tripl-wkwv.5). */}
+                    Event column painted nothing. */}
                 <TableCell className="text-body-sm">{eventNameLabel(context.event_name)}</TableCell>
                 <TableCell className="font-mono text-body-sm">
                   {context.source_column

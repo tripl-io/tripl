@@ -1,13 +1,13 @@
 /**
- * Expected phases of a synchronous demo-project provision (tripl-2su6.9).
+ * Expected phases of a synchronous demo-project provision.
  *
  * Provisioning is a single blocking `POST /projects/demo` with NO mid-request
  * stage polling — the response is terminal (ready or 500). The progress UI
  * therefore *estimates* its way through these expected phases on a timer so the
  * wait reads as staged work rather than an indefinite spinner. The client cannot
  * know which phase the server is really in, so the UI presents the list as an
- * estimate and only marks work done once the request itself resolves
- * (tripl-jfm3.16). The real outcome comes from the request resolving, not from
+ * estimate and only marks work done once the request itself resolves.
+ * The real outcome comes from the request resolving, not from
  * any phase reaching the end.
  */
 
@@ -41,7 +41,7 @@ export const DEMO_PROVISION_EXPECTED_MS = 10_000
 /**
  * How often the progress UI advances to the next expected phase, in ms: the
  * five phases spread across the expected duration, so the pointer reaches
- * "Finalizing" about when the server does (tripl-jfm3.16).
+ * "Finalizing" about when the server does.
  */
 export const PHASE_TICK_MS = DEMO_PROVISION_EXPECTED_MS / PROVISIONING_PHASES.length
 
@@ -55,7 +55,7 @@ export const DEMO_PROVISION_SLOW_MS = DEMO_PROVISION_EXPECTED_MS * 2
  * Seeding is heavy but bounded — it is a fixed recipe, not user-sized data — so
  * a create or reset still running after this long is a stall, not slow
  * progress. Without a bound, a dead connection leaves the dialog spinning
- * forever and a page reload is the only way out (tripl-2su6.15, DEMO-4).
+ * forever and a page reload is the only way out (DEMO-4).
  */
 export const DEMO_PROVISION_TIMEOUT_MS = 90_000
 

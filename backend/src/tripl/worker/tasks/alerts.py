@@ -207,7 +207,7 @@ def _record_delivered_items(
     call here adds the part that just went out. Its size is therefore the whole
     answer to "how many items does the reader already have", which is what the
     too-long failure in :func:`send_alert_delivery` quotes — adding this
-    attempt's own tally to it double-counts (tripl-0zpq.40).
+    attempt's own tally to it double-counts.
 
     The part COUNT written beside them answers a different question — how many
     MESSAGES the reader holds, not how many items — and only the "2/3" marker
@@ -253,7 +253,7 @@ def _digest_summary_items(
     caller that used to hand it nothing. The retried part of a 24-item digest
     therefore announced "9 alerts" over a window that opens hours after the one
     the two earlier messages named: three disagreeing summaries of one morning,
-    which is the reading the digest layout exists to prevent (tripl-0zpq.35).
+    which is the reading the digest layout exists to prevent.
     The MarkdownV2→plain fallback re-renders a remainder for the same reason
     and needs the same answer. So does ``split_telegram_messages``, at both
     call sites: it re-renders every part it packs, and left to itself it
@@ -355,7 +355,7 @@ def _claim_delivery(session: Session, delivery: AlertDelivery, *, now: datetime)
 
 
 def _assert_egress_allowed(destination: AlertDestination, project: Project | None) -> None:
-    """Refuse an outbound send from a demo project (tripl-2su6.12).
+    """Refuse an outbound send from a demo project.
 
     A demo project is strictly zero-egress: the only sendable destination it may
     have is the local ``demo_sink``. The API refuses to create or enable an
@@ -373,7 +373,7 @@ def _assert_egress_allowed(destination: AlertDestination, project: Project | Non
     weekly plan digest and the sunset alert. They are not outside the guard —
     ``alerts_digest._send_digest_to_destination`` calls it directly — but there
     it is a backstop, because both tasks already exclude demo projects in their
-    SELECT (tripl-0zpq.33). The one destination send genuinely outside it is the
+    SELECT. The one destination send genuinely outside it is the
     **Test** button, which calls this predicate from
     ``services/_alerting_test_send.send_destination_test``.
 
@@ -393,7 +393,7 @@ def _assert_egress_allowed(destination: AlertDestination, project: Project | Non
 
 
 def _assert_destination_enabled(destination: AlertDestination) -> None:
-    """Refuse a send through a destination the operator switched off (tripl-0zpq.39).
+    """Refuse a send through a destination the operator switched off.
 
     Every path that MINTS a delivery already filters on ``enabled`` — the
     dispatcher's ``_load_enabled_alert_destinations``, both of the flusher's
@@ -562,8 +562,8 @@ def _resolve_email_context(
         # there. The strict helper refuses a display name outright, while both
         # diagnostics — Settings → Send test email and the destination's own
         # Test — accept one, so a Default From that passed every check the UI
-        # offers then failed EVERY real alert here, with the message below
-        # (tripl-0zpq.29). A diagnostic that is more permissive than delivery is
+        # offers then failed EVERY real alert here, with the message below.
+        # A diagnostic that is more permissive than delivery is
         # worse than no diagnostic: it certifies a configuration that does not
         # deliver. The ORIGINAL string comes back, display name intact, and goes
         # straight into ``msg["From"]``, which takes it; what is still refused
@@ -590,7 +590,7 @@ def _stamp_rule_state(session: Session, delivery: AlertDelivery) -> None:
             AlertRuleState.scope_ref == item.scope_ref,
         ]
         # Every scope but the project-global ones keys its state on the scan
-        # config that produced the delivery. A ``metric`` scope (tripl-0zpq.28)
+        # config that produced the delivery. A ``metric`` scope
         # and a ``lifecycle`` one (GH #258) store NULL there, so they match on
         # the NULL — filter for what the row actually holds, rather than
         # dropping the column.
@@ -804,7 +804,7 @@ def send_alert_delivery(self: object, delivery_id: str) -> dict[str, object]:
             _enqueue_owner_followup(session, delivery)
             return {"status": "already_sent", "delivery_id": delivery_id}
 
-        # Single flight (tripl-0zpq.37). The early return above only catches a
+        # Single flight. The early return above only catches a
         # re-run that STARTS after the first one committed; a second worker
         # that starts while this delivery is still being rendered or posted
         # reads the same `pending` row and sends a second copy. That is what
@@ -829,7 +829,7 @@ def send_alert_delivery(self: object, delivery_id: str) -> dict[str, object]:
         is_demo_project = project is not None and project.is_demo
         _assert_egress_allowed(destination, project)
         # Read here, not at dispatch: this row may have been minted before the
-        # operator flipped the toggle (tripl-0zpq.39). Like the guard above it
+        # operator flipped the toggle. Like the guard above it
         # runs BEFORE the render, so a destination that is off costs no AI
         # round-trip and no sparkline queries either.
         #
@@ -966,7 +966,7 @@ def send_alert_delivery(self: object, delivery_id: str) -> dict[str, object]:
                 project_name=project.name if project else "",
                 item_context_cache=item_context_cache,
                 # Lets the explanation build on what this rule already sent for
-                # these scopes rather than restating it (tripl-ikee).
+                # these scopes rather than restating it.
                 session=session,
             )
         if ai_explanation:
@@ -983,7 +983,7 @@ def send_alert_delivery(self: object, delivery_id: str) -> dict[str, object]:
         delivery.payload_snapshot = payload_snapshot
 
         # The toggle again, with the render behind us and the next statement
-        # the outbound call itself (tripl-0zpq.39). The check at the top of the
+        # the outbound call itself. The check at the top of the
         # task bought the AI round-trip and the sparkline queries; this one
         # buys the window between them and the egress — the only window long
         # enough for an operator to reach the switch, and the one the check at
@@ -1045,7 +1045,7 @@ def send_alert_delivery(self: object, delivery_id: str) -> dict[str, object]:
                     digest=is_digest,
                     # Zero on a first attempt. On a resume it is what keeps the
                     # marker continuous with the messages already on the
-                    # reader's screen (tripl-0zpq.35).
+                    # reader's screen.
                     part_offset=already_delivered_parts,
                     project_timezone=project.timezone if project else None,
                 )
@@ -1214,7 +1214,7 @@ def send_alert_delivery(self: object, delivery_id: str) -> dict[str, object]:
                     # reports. Adding ``len(delivered_items)`` counted this
                     # attempt's parts a second time: a 24-item delivery that
                     # landed two 8-item parts and lost the third announced
-                    # "32 of 24 items had already been sent" (tripl-0zpq.40).
+                    # "32 of 24 items had already been sent".
                     # ``parts_sent`` below is this attempt's alone on purpose,
                     # which is why the sentence names the attempt only there.
                     raise _telegram_too_long_error(
@@ -1374,8 +1374,8 @@ def send_alert_delivery(self: object, delivery_id: str) -> dict[str, object]:
                 # duplicate ticket on re-run (see the Jira branch above).
                 session.commit()
         elif destination.type == AlertDestinationType.demo_sink:
-            # Local, non-sendable sink for generated demo projects
-            # (tripl-2su6.6). The message is already rendered above and stored in
+            # Local, non-sendable sink for generated demo projects.
+            # The message is already rendered above and stored in
             # payload_snapshot["rendered_message"]; here we ONLY stamp local
             # markers and perform NO network call — no httpx/urllib POST, no
             # SMTP, no SSRF re-check. The delivery then falls through to the

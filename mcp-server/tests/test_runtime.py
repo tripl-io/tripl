@@ -150,7 +150,7 @@ class TestClientFor:
         # Covers the STREAMABLE-HTTP transport's User-Agent. http mode leaves
         # http_client=None, so TriplClient builds the transport itself from this
         # attribute — the path that would silently regress to the CLI's default
-        # `tripl/...` if client_for stopped passing it (tripl-ey6j.1). The stdio
+        # `tripl/...` if client_for stopped passing it. The stdio
         # lifespan's UA is covered in test_tools_e2e.
         assert first._user_agent == f"tripl-mcp/{__version__}"
 

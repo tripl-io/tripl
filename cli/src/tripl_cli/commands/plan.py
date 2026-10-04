@@ -13,8 +13,7 @@ an action. The alternative was one top-level group per REST collection —
 is four more entries in ``tripl --help`` for four reads, and that is the same
 objection that rejected ``list-scans``. An operator does not arrive with "I want
 to query the event-types collection"; they arrive with "what does this plan look
-like", and this is one group per QUESTION rather than one per collection
-(tripl-3ixs).
+like", and this is one group per QUESTION rather than one per collection.
 
 ``plan diff`` is deliberately ABSENT even though ``api.branches.get_diff``
 exists and the MCP exposes it. The diff route answers
@@ -431,7 +430,7 @@ def run_search(args: argparse.Namespace, config: Config) -> int:
             meta={"semantic_used": search_api.semantic_used(payload)},
         )
         # The route's OWN truncation flag, which `PlanRead.truncated` prefers to
-        # its page-fullness guess (tripl-wkwv.3). That guess reads True whenever
+        # its page-fullness guess. That guess reads True whenever
         # the matches land exactly on --limit, so this command was printing "more
         # may have matched" on the same HTTP body that said nothing was dropped —
         # and answering the opposite of `tripl-mcp`'s `search_plan`, which reads

@@ -1,4 +1,4 @@
-"""Every reference to an event must be a decision, not an oversight (tripl-xfxa).
+"""Every reference to an event must be a decision, not an oversight.
 
 ``_event_generator_merge._merge_event_into_group`` migrates a merged-away
 event's rows onto the surviving group event and then calls
@@ -47,7 +47,7 @@ MIGRATED: dict[tuple[str, str], str] = {
         "and any number of retired events may name the same successor. ONE row is exempt, the "
         "TARGET itself: re-pointing it would write superseded_by_event_id = its own id, an event "
         "telling clients to send itself instead, which _resolve_successor then 400s on every save "
-        "while the event is deprecated (tripl-0zpq.86). Where the target really did name the "
+        "while the event is deprecated. Where the target really did name the "
         "source, its pointer is CLEARED rather than moved: the successor it named is the row "
         "being merged into it, so 'send this instead' has no referent left. "
         "DELETE: the FK is ondelete SET NULL and that is the entire policy — a deleted "
@@ -91,7 +91,7 @@ MIGRATED: dict[tuple[str, str], str] = {
         "_move_metric_composition_operands: re-points. No fold — nothing constrains the operand "
         "columns, and two metrics may legally name the same event. When BOTH operands of a ratio "
         "land on the target the metric would compute a constant 1.0, so it is re-pointed and then "
-        "driven to the error state naming both originals (tripl-jtnv)."
+        "driven to the error state naming both originals."
     ),
     ("metric_definitions", "denominator_event_id"): (
         "_move_metric_composition_operands, same rule as numerator_event_id. Read for 'ratio' "
@@ -103,8 +103,7 @@ MIGRATED: dict[tuple[str, str], str] = {
     # red at collection instead, by event_composition_binding_error, which asks
     # about the BINDING rather than about the door. One kind-level guard covers
     # a deleted event, a deleted event type and any future SET NULL on those
-    # four columns; a per-door copy is the "seventh call site" failure again
-    # (tripl-nmn3).
+    # four columns; a per-door copy is the "seventh call site" failure again.
 }
 
 # The merge intentionally lets these go. Nothing rebuilds them; losing them is
@@ -169,7 +168,7 @@ DELIBERATELY_CASCADES: dict[tuple[str, str], str] = {
         "and NULL reads as 'allow' at both gates — signals.py keeps a row whose joined event is "
         "NULL, and filter_matches_anomaly returns True for a NULL actual — so the orphans passed "
         "every event filter. Archiving an event suppressed its alerts; deleting one un-suppressed "
-        "them (tripl-xjuv)."
+        "them."
     ),
     ("metric_breakdown_anomalies", "event_id"): (
         "Same as metric_anomalies.event_id in every respect, breakdown variant: the FK is SET "
@@ -210,7 +209,7 @@ DELIBERATELY_CASCADES: dict[tuple[str, str], str] = {
         "Derived index, and the cascade does the deleting: the FK is ON DELETE CASCADE, so the "
         "SOURCE's documents go with the source row — the reindex's actual job here is minting the "
         "TARGET's missing document. Both catalog-mutating tasks in worker/tasks/scan.py now "
-        "reindex after their commit; apply_event_groups did not until tripl-68l3."
+        "reindex after their commit; apply_event_groups did not until a later fix."
     ),
 }
 
@@ -345,7 +344,7 @@ NON_FK_EVENT_REFERENCES: dict[tuple[str, str], str] = {
         "_correlation_group_id computes uuid5(ns, '{scan_config}:{rule}:{scope_type}:{scope_ref}"
         ":{direction}') and scope_ref is str(event.id) for event scope, so the reference survives "
         "neither reflection nor a scope_ref grep. "
-        "NEITHER carried NOR deleted, and both halves of that are deliberate (tripl-crow). "
+        "NEITHER carried NOR deleted, and both halves of that are deliberate. "
         "Not carried: the decision was made about a different series, and handing it to the "
         "survivor would suppress the group's FIRST genuine alert on a baseline the merge just "
         "wiped — the same argument that keeps alert_rule_states.scope_ref in place. The durable "
@@ -517,7 +516,7 @@ def test_the_delete_path_policy_is_pinned_against_the_executor() -> None:
     somewhere in this ledger with a reason that actually mentions the delete
     path — otherwise a column could gain a delete-path policy in the code while
     its entry here still described only the merge, which is precisely the state
-    this file was in before tripl-xjuv.
+    this file was in before the policy table.
     """
     pinned = {
         **NON_FK_EVENT_REFERENCES,
@@ -554,7 +553,7 @@ def test_the_delete_path_policy_is_pinned_against_the_executor() -> None:
 # All five drop, and none of them has a survivor to consider: the merge's two
 # deletes remove MAIN rows whose event type the branch removed or that the
 # branch deleted on purpose, and revert and delete_branch remove branch-local
-# rows outright (tripl-a64t).
+# rows outright.
 DELETE_PATH_CALLERS: dict[str, str] = {
     "services/event_service.py": "delete_event, bulk_delete_events",
     "services/event_type_service.py": "delete_event_type — its events go by DB cascade, unseen",

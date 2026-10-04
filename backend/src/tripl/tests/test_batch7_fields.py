@@ -1,12 +1,12 @@
 """Batch 7, lane B: fields and their audit trail.
 
 Both findings routed to this lane have their DEFECT outside the lane's file
-list, in another service each — ``schema_drift_service`` for tripl-0zpq.222 and
-``demo/builders/audit`` for tripl-0zpq.246. A test does not have to live beside
+list, in another service each — ``schema_drift_service`` for the cache bust and
+``demo/builders/audit`` for the audit trail. A test does not have to live beside
 the code it pins, so the two REGRESSION tests below drive those two fixes
 through the API and name the exact edit that reddens them:
 
-* tripl-0zpq.222 — ``schema_drift_service.apply_drift_action`` guarded its
+* ``schema_drift_service.apply_drift_action`` guarded its
   event-type cache bust on ``event_type.branch_id is None``, a NOT NULL column
   since the branches migration, so accepting a drift never busted the 300 s
   ``GET /event-types`` cache although it had just added, retyped or deleted a
@@ -15,7 +15,7 @@ through the API and name the exact edit that reddens them:
   one arm alone is not the spec: an unconditional bust satisfies the main arm,
   and the guard as written satisfies the branch arm.
 
-* tripl-0zpq.246 — the demo audit builder claimed "one entry per authored
+* the demo audit builder claimed "one entry per authored
   object" while the relation, the event-type owner grant and the variable
   override had nothing in the trail, and filed the rows it did write in shapes
   the real routes have never used. ``test_batch7_seam.py`` pins that those
@@ -25,7 +25,7 @@ through the API and name the exact edit that reddens them:
 The three tests after those two are REFERENCE, not regression: they assert what
 ``field_service`` and ``api/v1/fields.py`` already did before this batch and
 still do after it, and they are green either way. They are kept because the
-tripl-0zpq.222 fix is written as "mirror ``field_service._on_main``", and that
+cache-bust fix is written as "mirror ``field_service._on_main``", and that
 claim is worth something only if the thing being mirrored is itself held still.
 Do not count them toward this batch's regression coverage.
 """
@@ -106,9 +106,6 @@ async def _field_names(event_type_id: uuid.UUID) -> set[str]:
         )
 
 
-# --- tripl-0zpq.222 -----------------------------------------------------------
-
-
 @pytest.mark.asyncio
 async def test_the_drift_door_busts_mains_event_type_cache_and_only_mains(
     client: AsyncClient, monkeypatch: pytest.MonkeyPatch
@@ -171,9 +168,6 @@ async def test_the_drift_door_busts_mains_event_type_cache_and_only_mains(
     assert cache.prefix_event_types(await project_id_by_slug(slug)) not in dropped, dropped
 
 
-# --- tripl-0zpq.246 -----------------------------------------------------------
-
-
 @pytest.mark.asyncio
 async def test_the_demo_files_its_authored_objects_in_their_routes_own_shape(
     client: AsyncClient,
@@ -193,7 +187,7 @@ async def test_the_demo_files_its_authored_objects_in_their_routes_own_shape(
     * deleting the helper, or its ``+ await _authored_plan_entries(...)`` in
       ``build_audit`` — all three ``assert len(...) == 1`` fail;
     * filing the EVENT's name on the override row (``event_names.get`` in place
-      of ``variable_names.get``), which is the tripl-0zpq.241 shape the route
+      of ``variable_names.get``), which is the shape the route
       was fixed out of — ``target_name`` becomes "Trial Started" and the
       product_id assertion fails;
     * giving ``relation.create`` or ``event_type.add_owner`` a non-empty
@@ -359,7 +353,7 @@ async def test_field_audit_rows_type_their_target_field_definition_and_name_the_
     Reddens on changing ``target_type`` or ``target_name`` in the ``field.*``
     ``audit_service.record`` calls of ``api/v1/fields.py`` — including to the
     ``("field", "screen_view.platform")`` shape the demo audit builder seeded,
-    which is what tripl-0zpq.246 asked the builder to abandon. The builder side
+    which is what the audit fix asked the builder to abandon. The builder side
     of that is pinned by ``test_batch7_seam.py``.
     """
     slug = "b7-field-audit-shape"

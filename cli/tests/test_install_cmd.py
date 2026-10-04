@@ -4,7 +4,7 @@ NOTHING HERE STARTS A CONTAINER. Every ``docker`` invocation goes to
 ``FakeRunner``, which records it; every HTTP call goes to respx. That is a
 property of the design, not of the discipline in this file - the command
 resolves its runner through ``default_runner()`` precisely so the fixture can
-replace it (tripl-ey6j.3).
+replace it.
 
 The negatives come first, because they are the tests that matter: each one is a
 mistake an operator makes on their first attempt, and each must cost an exit
@@ -129,7 +129,7 @@ def test_new_secrets_are_never_appended_to_a_world_readable_env(
 
     A secret written into a file other users can read is disclosed the moment it
     lands, and no later chmod undoes that. Refusing rather than tightening the
-    mode ourselves keeps the file the operator's (tripl-jfm3).
+    mode ourselves keeps the file the operator's.
     """
     if sys.platform == "win32":  # pragma: no cover - st_mode carries no such meaning
         pytest.skip("file modes do not restrain this user")
@@ -266,7 +266,7 @@ def test_a_failing_up_is_the_documented_exit_one_and_never_polls_health(
 
     It differs from a failing `pull` in the way that matters: the files are
     already on disk AND the pull succeeded, so an operator retrying by hand is
-    retrying the last step rather than the whole command (tripl-jfm3).
+    retrying the last step rather than the whole command.
     """
     fake_runner.codes["up"] = 1
 
@@ -304,7 +304,7 @@ def test_wait_zero_opens_no_connection_at_all(
     It used to skip the /health poll and then read /auth/status anyway, which
     bought a ten-second stall against exactly the origin the operator had just
     said not to try - and then reported that the bootstrap state "could not be
-    read", inventing a failed attempt (tripl-jfm3).
+    read", inventing a failed attempt.
     """
     respx_mock.get(HEALTH_URL).mock(return_value=httpx.Response(200, json={"status": "ok"}))
     respx_mock.get(STATUS_URL).mock(
@@ -333,7 +333,7 @@ def test_the_json_document_never_asserts_a_mode_it_did_not_set(
 
     The command opens an appended file with O_APPEND and no mode at all, and
     never stats it. Reporting the permissions of the secrets file on that path
-    was an assertion an operator could paste into a ticket (tripl-jfm3).
+    was an assertion an operator could paste into a ticket.
     """
     respx_mock.get("https://mine.example.com/health").mock(
         return_value=httpx.Response(200, json={"status": "ok"})
@@ -554,7 +554,7 @@ def test_re_installing_with_a_changed_app_url_names_the_kept_value_not_the_reque
 
     Reporting the flag value here told an operator re-running `install` to move
     the app URL that it had worked. It had not: the only thing that changed was
-    the sentence they were reading (tripl-jfm3).
+    the sentence they were reading.
     """
     respx_mock.get("https://old.example.com/health").mock(
         return_value=httpx.Response(200, json={"status": "ok"})

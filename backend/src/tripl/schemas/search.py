@@ -19,7 +19,7 @@ SearchEntityType = Literal[
     "fact_table",
     # Project-scoped configuration, indexed exactly the way metrics and fact
     # tables already are: they carry project_id and no branch_id, so every
-    # branch's index holds a copy (tripl-dfct).
+    # branch's index holds a copy.
     "scan_config",
     "alert_rule",
     # Docs catalog notes (F22): the project's own and its organization's. Not
@@ -102,7 +102,7 @@ class SearchResult(BaseModel):
     route_path: str
     score: float
     # How certain this result is, in [0, 1] — an ABSOLUTE property of the
-    # result, NOT a fraction of the top hit of this response (tripl-txcz).
+    # result, NOT a fraction of the top hit of this response.
     # Surfaced in the UI as a percentage / colored badge, so it has to mean the
     # same thing across two different searches: a query that matched nothing
     # well comes back low instead of being 1.0 by construction.
@@ -113,7 +113,7 @@ class SearchResult(BaseModel):
     highlights: list[str] = []
 
     # Whether the MEANING LEG is why this row is here — the keyword leg's own
-    # ranked candidate window did not hold it (tripl-wkwv.3).
+    # ranked candidate window did not hold it.
     #
     # NOT "no keyword matched this", and the difference is reachable: the lexical
     # leg is itself a ``LIMIT``-ed scan, so a WEAK keyword match — a stem-only
@@ -136,7 +136,7 @@ class SearchResult(BaseModel):
     #
     # Do NOT "fix" this to track ``_semantic_cosine`` below: that cosine is still
     # recorded on a hybrid row so ``finalize_results`` can report the stronger of
-    # the two certainties (tripl-txcz), and tripl-d5u8 deliberately lets only an
+    # the two certainties, and the design deliberately lets only an
     # identity match be painted as certain. Confidence and provenance disagreeing
     # on one row is the intended shape, not a bug.
     semantic_used: bool = False
@@ -147,7 +147,7 @@ class SearchResult(BaseModel):
     # Cosine similarity of the semantic leg for this result in [0, 1], or None
     # when that leg did not contribute to it.
     #
-    # PRIVATE, and deliberately NOT a response field (tripl-txcz): it exists
+    # PRIVATE, and deliberately NOT a response field: it exists
     # only so ``finalize_results`` can express a semantic hit's certainty on the
     # same 0-1 scale as a lexical one. The merged ``score`` cannot carry that
     # information, because a vector-only hit is scored ``cosine * 2.5`` for
@@ -167,7 +167,7 @@ class SearchResult(BaseModel):
         self._semantic_cosine = max(0.0, min(1.0, cosine))
 
     # Whether the lexical leg matched this document BY IDENTITY — its title or
-    # its keywords being the query, rather than merely containing it (tripl-d5u8).
+    # its keywords being the query, rather than merely containing it.
     #
     # PRIVATE for the same reason as the cosine above: it exists so
     # ``finalize_results`` can enforce one dialect-independent rule — only an
@@ -194,8 +194,8 @@ class SearchResult(BaseModel):
 
 class SearchResponse(BaseModel):
     items: list[SearchResult]
-    # The number of hits IN THIS RESPONSE, not a catalog-wide count
-    # (tripl-wkwv.3). ``/search`` takes no ``offset`` and cannot be paged, and a
+    # The number of hits IN THIS RESPONSE, not a catalog-wide count.
+    # ``/search`` takes no ``offset`` and cannot be paged, and a
     # real count is not definable for a fused retrieval anyway: the retrieved set
     # is the union of the lexical predicate and every document above the vector
     # leg's cosine floor, and that second half is a kNN tail that fills its
@@ -209,7 +209,7 @@ class SearchResponse(BaseModel):
     #
     # Observed, not guessed: ``search_project`` retrieves one row PAST its
     # candidate window, so "the window filled" and "that was everything" are
-    # distinguishable and only the first sets this (tripl-wkwv.3). A full page is
+    # distinguishable and only the first sets this. A full page is
     # not enough on its own — a query matching exactly ``limit`` documents fills
     # the page while carrying every hit there is.
     #
@@ -221,7 +221,7 @@ class SearchResponse(BaseModel):
     truncated: bool = False
     # Whether the semantic leg RAN. Deliberately wider than the per-hit
     # ``SearchResult.semantic_used``; the two disagreeing on one response is the
-    # normal case (tripl-wkwv.3).
+    # normal case.
     semantic_used: bool = False
 
 

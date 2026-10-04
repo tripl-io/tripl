@@ -26,8 +26,8 @@ type Override = VariableEventOverride & { values: string[] }
 // Events offered in the per-event override picker at once. The roster used to
 // be fetched with no params at all, which inherited the endpoint's own default
 // of 200 and left every event past it unreachable — no search, no note, and
-// "Accept for this event" only reaches events that already carry a drift
-// (tripl-46am). The cap is small on purpose now that the search below is
+// "Accept for this event" only reaches events that already carry a drift.
+// The cap is small on purpose now that the search below is
 // server-side: /events returns full list rows (tags, field values, meta
 // values), so pulling thousands into a picker to avoid typing is the wrong
 // trade. Anything not in the page is one search away, and the count of what is
@@ -64,11 +64,11 @@ export function VariableOverridesSection({
   // catalog that can run to thousands, so an id alone is not enough to render
   // the selection: Edit on an override whose event sits outside the page set an
   // id no <option> carried and the select painted BLANK while Save stayed
-  // enabled (tripl-46am). Carrying the name the event was picked under — from
+  // enabled. Carrying the name the event was picked under — from
   // the override row, or from the roster option — means the picker can always
   // show what is selected, whatever the search is currently narrowed to. The
   // name is stored RAW; eventNameLabel is applied where it is painted, so a
-  // blank-named event still reads "(unnamed event)" (tripl-wkwv.5).
+  // blank-named event still reads "(unnamed event)".
   const [overrideEvent, setOverrideEvent] = useState<{ id: string; name: string } | null>(null)
   const [overrideEventSearch, setOverrideEventSearch] = useState('')
   const [overrideValues, setOverrideValues] = useState<string[]>([])
@@ -94,8 +94,8 @@ export function VariableOverridesSection({
   // (pages/alerting/FilterEditor.tsx useEventOptions): the backend matches name,
   // description and source_name with an ILIKE, so any event in the catalog is
   // reachable by typing part of its name. Narrowing here instead would only
-  // re-filter the page the server already truncated, which is the defect
-  // (tripl-46am). `keepPreviousData` holds the current options while the next
+  // re-filter the page the server already truncated, which is the defect.
+  // `keepPreviousData` holds the current options while the next
   // search lands, so the select does not flicker empty on every keystroke.
   const debouncedOverrideEventSearch = useDebouncedValue(overrideEventSearch)
   const { data: eventsList } = useQuery({
@@ -111,7 +111,7 @@ export function VariableOverridesSection({
   const rosterEvents = useMemo(() => eventsList?.items ?? [], [eventsList])
   // What the search did not return. The variables table prints exactly this
   // note for its own truncation; the picker printed nothing at all, so an
-  // operator had no way to tell a short list from a complete one (tripl-46am).
+  // operator had no way to tell a short list from a complete one.
   const hiddenEventCount = Math.max(0, (eventsList?.total ?? 0) - rosterEvents.length)
   // The selected event is prepended when the search does not hold it, so Edit on
   // an out-of-roster override shows that event rather than a blank select — and
@@ -184,14 +184,13 @@ export function VariableOverridesSection({
                 <div className="flex shrink-0 gap-1">
                   {/* Without the placeholder these read "Edit override for " and
                       "Delete override for " — a trailing space and nothing else,
-                      the same defect EventRow fixed on the events list
-                      (tripl-wkwv.5).
+                      the same defect EventRow fixed on the events list.
 
                       Edit hands the picker the event NAME as well as the id,
                       both straight off this override row. The event is often
                       absent from the roster page below — an override outlives
                       whatever the picker is searched to — and a bare id left
-                      the select blank with Save still enabled (tripl-46am). */}
+                      the select blank with Save still enabled. */}
                   <IconButton
                     type="button"
                     variant="ghost"
@@ -235,7 +234,7 @@ export function VariableOverridesSection({
               // edit dialog this one used to sit inside the definition's
               // <form>, one `type="submit"` Save away from HTML's implicit
               // submission: pressing it PATCHed the variable and closed the
-              // dialog, destroying the override being written (tripl-46am).
+              // dialog, destroying the override being written.
               // Kept as a guard wherever the section is mounted. Nothing runs
               // in its place: the search is debounced and applies as you type.
               onKeyDown={e => { if (e.key === 'Enter') e.preventDefault() }}
@@ -243,7 +242,7 @@ export function VariableOverridesSection({
             {/* A native <option> takes its accessible name from its text
                 content, so a blank-named event was a selectable row with no
                 name at all — indistinguishable from a rendering glitch in the
-                list, and announced as nothing (tripl-wkwv.5). */}
+                list, and announced as nothing. */}
             <NativeSelect
               aria-label="Override event"
               value={overrideEvent?.id ?? ''}
@@ -258,7 +257,7 @@ export function VariableOverridesSection({
             />
             {hiddenEventCount > 0 && (
               // Say what is missing rather than presenting a truncated roster
-              // as the whole catalog (tripl-46am) — the same note the
+              // as the whole catalog — the same note the
               // variables table prints for its own truncation.
               <p className="text-caption text-fg-tertiary">
                 {hiddenEventCount} more not listed — search to narrow.

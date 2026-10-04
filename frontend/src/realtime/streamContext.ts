@@ -1,5 +1,5 @@
 /**
- * React bindings for the adaptive polling policy (tripl-2su6.8).
+ * React bindings for the adaptive polling policy.
  *
  * The project event stream is mounted once (in the app Layout) and publishes its
  * status through the shared {@link StreamStatusContext}. Any polling query reads

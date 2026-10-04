@@ -69,7 +69,7 @@ function RegressionRow({ slug, item }: { slug: string; item: ReleaseRegressionIt
   // The row names another event (or event type) than the page it sits on, so
   // it links there instead of being dead text (MON-41). Through the
   // release-regression navigation rule: a place to LOOK at the entity, never
-  // offered as evidence for the regression (tripl-wkwv.12). It reads the event
+  // offered as evidence for the regression. It reads the event
   // page off `event_id` and the event-type page off `scope_ref`.
   const target = getScopeNavigationTarget(slug, {
     scope_type: 'release_regression',

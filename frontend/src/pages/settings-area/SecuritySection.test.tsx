@@ -75,7 +75,7 @@ afterEach(() => {
 
 describe('Account · Security', () => {
   /**
-   * The old card held an "Update password" button that did nothing (tripl-2o74)
+   * The old card held an "Update password" button that did nothing
    * and then told the reader to sign out and find "Forgot your password?".
    * The reset flow works, so the card runs it for the signed-in address (WS-37).
    */
@@ -144,7 +144,7 @@ describe('Account · Security', () => {
 
   /**
    * Two-factor and sessions were cards of switches nobody could move, one of
-   * them "Strongly recommended for owners" (tripl-91j6), and a fabricated
+   * them "Strongly recommended for owners", and a fabricated
    * device row. One card now names them, with nothing to click.
    */
   it('collapses the unbuilt protections into one card with no controls', () => {

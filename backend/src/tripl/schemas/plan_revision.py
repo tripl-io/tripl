@@ -109,21 +109,21 @@ class PlanDiffEntry(BaseModel):
     after: dict[str, Any] | None = None
     # Things a reviewer should know that are not a change between the two
     # sides — an event on a scan-governed type with no scan identity, which
-    # will never merge with its scanned twin (tripl-kjhi.1), or a natural key
+    # will never merge with its scanned twin, or a natural key
     # more than one event or relation holds, which the diff, the merge and a
     # revert all match rows by. Plain sentences, rendered beside the row.
     warnings: list[str] = Field(default_factory=list)
     # Set when the entry is the machine's doing rather than the author's — a
     # scan-minted variable nobody used being retired, or a removal main has
     # already made — with the reason in words. Such entries stay in the list
-    # but are left out of ``summary``'s added/removed/changed and shown folded
-    # (tripl-kjhi.12). Null for a change a reviewer should read.
+    # but are left out of ``summary``'s added/removed/changed and shown folded.
+    # Null for a change a reviewer should read.
     housekeeping: str | None = None
     # Not part of the API: a private attribute, so never serialized and not in
     # the schema. ``compute_plan_diff_entries`` sets it on a removed variable
     # that some event on the new side still names with a ``${token}`` in a field
     # or meta value, and ``mark_housekeeping`` reads it. Carried on the entry
-    # because the diff is where the new side is read (tripl-0zpq.138); main's
+    # because the diff is where the new side is read; main's
     # events, which the base-to-branch diff never reads, reach
     # ``mark_housekeeping`` as ``main_payload``.
     _still_referenced: bool = PrivateAttr(default=False)

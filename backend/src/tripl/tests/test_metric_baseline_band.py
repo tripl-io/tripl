@@ -1,4 +1,4 @@
-"""Per-bucket baseline band for every scored bucket (tripl-i9mt.25).
+"""Per-bucket baseline band for every scored bucket.
 
 ``metric_anomalies`` holds flagged buckets only, so the chart drew its expected
 value and band on anomalies alone. The detector now reports the baseline of

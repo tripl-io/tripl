@@ -67,7 +67,7 @@ def test_public_snapshot_redacts_internal_merge_fingerprints() -> None:
     assert payload["events"][0]["photos"][0]["storage_key_fingerprint"] == "secret-hash"
 
 
-# --- snapshot version skew (tripl-avrs) -------------------------------------
+# --- snapshot version skew -------------------------------------
 # Branches frozen before the PLAN_SNAPSHOT_VERSION 2 bump hold v1 base payloads
 # whose events lack source_name / owner_id / reviewed / metric_breakdown_columns /
 # field_values / meta_values / tags / photos and whose variables lack
@@ -184,7 +184,7 @@ def test_diff_from_v1_base_still_reports_genuine_changes() -> None:
     assert any("description" in change for change in entry.changes)
 
 
-# --- version-anchored skip-absent-key tolerance (tripl-2d3d) ----------------
+# --- version-anchored skip-absent-key tolerance ----------------
 # The skip-absent-key tolerance must be anchored to the OLD payload's
 # snapshot_version. A current-version base is expected to carry every change
 # key, so a missing key is a genuine divergence and must surface; only a
@@ -197,7 +197,7 @@ def test_current_version_base_missing_change_key_surfaces_diff() -> None:
     Simulates a future conditionally-omitting serializer path: the v2 base omits
     the ``tags`` change key while the new snapshot carries a real value. Because
     the base IS the current version, the missing key must NOT be silently
-    dropped — the diff has to surface (tripl-2d3d).
+    dropped — the diff has to surface.
     """
     old_event = _v2_event("Home View")
     del old_event["tags"]  # current-version snapshot missing a change key
@@ -217,7 +217,7 @@ def test_current_version_base_missing_change_key_surfaces_diff() -> None:
 
 def test_old_version_base_missing_change_key_still_tolerated() -> None:
     """Backward tolerance preserved: the SAME structural omission under a v1
-    base is still skipped, so no phantom "changed" entry appears (tripl-2d3d).
+    base is still skipped, so no phantom "changed" entry appears.
 
     Only ``snapshot_version`` differs from the test above — proving the outcome
     is governed by the OLD payload's version, not by the missing key alone.
@@ -235,7 +235,7 @@ def test_old_version_base_missing_change_key_still_tolerated() -> None:
     assert entries == []
 
 
-# --- per-item diff of collection-valued fields (tripl-mzsb.1) ----------------
+# --- per-item diff of collection-valued fields ----------------
 # An event's field values, its tags, a variable's documented values and its
 # per-event overrides are collections. Comparing them as opaque blobs makes the
 # reviewer eyeball two JSON dumps to find the one item that moved, so the diff

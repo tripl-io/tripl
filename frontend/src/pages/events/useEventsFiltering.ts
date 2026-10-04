@@ -22,8 +22,7 @@ function normalizeFieldValue(value: string): string {
  * The ROW is the primitive, not the string: the cell renders the value AND the
  * observed-values popover hanging off the same `EventFieldValue`. Answering
  * "which value is this?" twice — once for the text, once for the contexts — is
- * what let the two answers disagree, and the popover was the one that lost
- * (tripl-xv77.1).
+ * what let the two answers disagree, and the popover was the one that lost.
  *
  * The name pass exists for the "All" tab, where columns are deduped by name and
  * keep whichever event type came first; a row of any other type carries a
@@ -89,7 +88,7 @@ export function resolveMetaValues(ev: EventListItem, mf: MetaFieldDefinition): s
  * For reading and searching: a CSV cell, a filter match, a truncated column.
  * Anything that turns a value into a LINK needs `resolveMetaValues` instead,
  * since the template wraps one value and a joined string would render a single
- * broken address (tripl-h2sx.31). */
+ * broken address. */
 export function resolveMetaValue(ev: EventListItem, mf: MetaFieldDefinition): string {
   return resolveMetaValues(ev, mf).join(', ')
 }

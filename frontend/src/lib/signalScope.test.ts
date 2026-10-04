@@ -18,7 +18,7 @@ function signal(overrides: Partial<MonitoringSignal> = {}): MonitoringSignal {
   } as MonitoringSignal
 }
 
-describe('signalScopeLabel — scope kinds (tripl-jfm3.120)', () => {
+describe('signalScopeLabel — scope kinds', () => {
   it('names project total without a ref', () => {
     expect(signalScopeLabel(signal({ scope_type: 'project_total' }))).toBe('Project total')
   })
@@ -50,7 +50,7 @@ describe('signalScopeLabel — scope kinds (tripl-jfm3.120)', () => {
   })
 })
 
-describe('signalScopeLabel — display names (tripl-y4wt)', () => {
+describe('signalScopeLabel — display names', () => {
   it('reads the name the server resolved, off the signal', () => {
     expect(signalScopeLabel(signal())).toBe('Event · checkout_started')
   })
@@ -95,7 +95,7 @@ describe('signalScopeRefLabel', () => {
 
   it('does not call a never-named kind an event either', () => {
     // The kinds with no entity behind them reach the operator through this
-    // function alone, so tripl-jfm3.120's wrong fallback would survive here.
+    // function alone, so the old wrong fallback would survive here.
     expect(signalScopeRefLabel(signal({ scope_type: 'release_regression' }))).toBe(
       'Release regression 3f2a1b9c',
     )

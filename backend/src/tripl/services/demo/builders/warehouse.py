@@ -41,7 +41,7 @@ from tripl.services.project_service import demo_data_source_name
 SPIKE_EVENT_NAME = "Home Screen View"
 # The label of the chart annotation the alerts builder pins to that spike. Shared
 # with the demo runtime, whose retention pass retires the marker together with
-# the anomaly it explains (tripl-0zpq.322).
+# the anomaly it explains.
 SPIKE_ANNOTATION_LABEL = "Injected demo spike"
 
 # A weekly promo email lifts this event at one hour of one weekday. Its last
@@ -67,8 +67,8 @@ def weekly_promo_buckets(spike_bucket: datetime) -> list[datetime]:
 # many days ago — old enough to surface in the dead-events review. Owned here,
 # not by the governance builder that stamps ``last_seen_at``, because this
 # builder runs first and must stop the event's volume at that same instant: a
-# series with traffic in the last hour contradicted "dead for 45 days"
-# (tripl-0zpq.245). The synthetic warehouse mirrors it with a ``retired`` roster
+# series with traffic in the last hour contradicted "dead for 45 days".
+# The synthetic warehouse mirrors it with a ``retired`` roster
 # row, so a live collection cannot revive the event either, and the demo runtime
 # tick advances only series that have seeded rows, so it never starts one.
 DEAD_EVENT_NAME = "Subscription Cancelled"
@@ -99,7 +99,7 @@ def _synthetic_event_group_rules() -> list[dict[str, object]]:
 
     Without these, a Run now / Replay over the synthetic source derives a raw
     ``col=value | col=value`` identity for every synthetic row and floods the
-    catalog with ~21 pipe-named draft events (bd tripl-q7i1.6). Each rule keys on
+    catalog with ~21 pipe-named draft events. Each rule keys on
     the synthetic ``event_name`` column with an anchored, escaped pattern
     (``^<name>$``) and renames the derived identity to the matching curated
     event name — which already exists in the catalog — so ``generate_events``
@@ -184,7 +184,7 @@ async def _build_scan_config(session: AsyncSession, ctx: DemoContext) -> None:
         # Selects the synthetic ``events`` table so the normal preview/scan paths
         # run against the in-memory dataset served by the SyntheticAdapter.
         #
-        # The projection is EXPLICIT rather than ``SELECT *`` (bd tripl-jfm3.57):
+        # The projection is EXPLICIT rather than ``SELECT *``:
         # ``user_id``/``session_id`` back the ``active_sessions`` sql metric, not
         # the catalog, and a ``SELECT *`` scan handed them to the hourly catalog
         # sync, which auto-created ``USER_ID``/``SESSION_ID`` FieldDefinitions on
@@ -200,27 +200,27 @@ async def _build_scan_config(session: AsyncSession, ctx: DemoContext) -> None:
         # synthetic source scans and reconciles against the authored plan.
         event_type_column="event_type",
         # Fold every synthetic identity back onto its curated catalog event so a
-        # rescan creates 0 new events instead of ~21 raw pipe-named drafts
-        # (bd tripl-q7i1.6). Exhaustive over the synthetic event names.
+        # rescan creates 0 new events instead of ~21 raw pipe-named drafts.
+        # Exhaustive over the synthetic event names.
         event_group_rules=_synthetic_event_group_rules(),
         interval="1h",
         replay_chunk_interval="6h",
         anomaly_detection_enabled=True,
         # Both lists stay EMPTY of ``platform``, and that is load-bearing rather
         # than an omission. Designating ``platform_column`` already collects the
-        # column as a deduped scan-level breakdown (tripl-4de), so naming it
+        # column as a deduped scan-level breakdown, so naming it
         # again here is a double-collect — which is exactly why
         # ``check_scalar_columns_unreserved`` rejects a reserved column in either
         # list. The seeder used to write both anyway, because it inserts through
         # the ORM and never meets that check: the result was a demo whose own
         # scan config the API refused to save, so renaming the demo scan failed
-        # with a 422 naming fields the user had not touched (tripl-4rr4).
+        # with a 422 naming fields the user had not touched.
         #
         # The demo still tells its distribution-drift story: builders/monitoring
         # seeds DistributionDrift rows for ``platform`` directly, with PSI from
         # the real ``compute_psi``, so the panel has one daily point per day of
-        # ``noise.DEMO_DRIFT_SPAN_DAYS`` (8, the first a zero-PSI baseline;
-        # tripl-0zpq.252) without the config claiming a field it may not claim.
+        # ``noise.DEMO_DRIFT_SPAN_DAYS`` (8, the first a zero-PSI baseline)
+        # without the config claiming a field it may not claim.
         distribution_drift_fields=[],
         metric_breakdown_columns=[],
         # Platform + app-version observation are CONFIGURED here (the synthetic
@@ -257,7 +257,7 @@ async def _build_event_metrics(session: AsyncSession, ctx: DemoContext) -> None:
     # Built as plain dicts and inserted in one executemany rather than one ORM
     # instance per row. 18 events x 552 hourly buckets plus the per-type
     # aggregates is ~11.6k rows for a single demo, and every test that creates a
-    # demo paid the unit-of-work cost for all of them (tripl-jfm3.88). ``id``
+    # demo paid the unit-of-work cost for all of them. ``id``
     # carries a Python-side uuid4 default and the timestamps are server-side, so
     # a core insert still produces complete rows.
     event_rows: list[dict[str, object]] = []
@@ -269,7 +269,7 @@ async def _build_event_metrics(session: AsyncSession, ctx: DemoContext) -> None:
         noise_seed = noise.derive_seed(ctx.seed, spec.name) % 997
         is_spike = spec.name == SPIKE_EVENT_NAME
         # The dead example has no volume after it was last seen, which with a
-        # 45-day age is the whole seeded history (tripl-0zpq.245).
+        # 45-day age is the whole seeded history.
         dead_after = (
             ctx.now - timedelta(days=DEAD_EVENT_AGE_DAYS) if spec.name == DEAD_EVENT_NAME else None
         )
@@ -317,7 +317,7 @@ async def _build_event_metrics(session: AsyncSession, ctx: DemoContext) -> None:
     # written above (``hour_buckets`` stops before the open hour), so on a fresh
     # demo it labelled the chart's dashed forecast point instead of the spike,
     # and once the demo runtime appended the ``now`` hour for real it labelled an
-    # ordinary hour sitting right after the spike (tripl-0zpq.249).
+    # ordinary hour sitting right after the spike.
     ctx.spike_bucket = spike_bucket
 
 

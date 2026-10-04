@@ -33,7 +33,7 @@ async def _scan_titles(client: AsyncClient, slug: str, query: str) -> list[str]:
 
     Deliberately the HTTP search endpoint rather than a ``SearchDocument`` row
     count: the index is only worth anything if the palette and /search stop
-    offering a scan that no longer exists (tripl-9jvz).
+    offering a scan that no longer exists.
     """
     resp = await client.get(f"/api/v1/projects/{slug}/search?q={query}&limit=50")
     assert resp.status_code == 200, resp.text
@@ -68,7 +68,7 @@ class TestDataSourcesCRUD:
         assert "password" not in data
         assert "password_encrypted" not in data
         # project_id is now exposed so the UI can scope Source health to the current
-        # project (tripl-q7i1.14); a workspace-wide source (created here) reports null.
+        # project; a workspace-wide source (created here) reports null.
         assert data["project_id"] is None
         # Unset by default — the CH adapter falls back to "dynamic" discovery.
         assert data["json_path_discovery"] is None
@@ -226,7 +226,7 @@ class TestDataSourcesCRUD:
         is NULL for a shared source — so the projects whose search index has to be
         refreshed can only be read off the scan configs that cascade away with it.
         Two projects scanning one warehouse is the case that makes reindexing
-        ``ds.project_id`` alone (or at all) visibly wrong (tripl-9jvz).
+        ``ds.project_id`` alone (or at all) visibly wrong.
 
         Nothing below reindexes by hand: deleting the source is the only trigger.
         """
@@ -946,8 +946,8 @@ class TestConnectionErrorSanitization:
         As bare ``ValueError`` they did not: the sanitiser's substring hints matched
         "host" and "credentials" and answered "could not reach the data source" /
         "authentication was rejected" — a network and a password to go check, when the
-        real fault is an empty field. They are ``WarehouseCapabilityError`` now
-        (tripl-rcn8). Built through the real registry, not a hand-made exception, so
+        real fault is an empty field. They are ``WarehouseCapabilityError`` now.
+        Built through the real registry, not a hand-made exception, so
         the test fails if the adapter stops raising the curated type.
         """
         ds = DataSource(

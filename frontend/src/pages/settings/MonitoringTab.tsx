@@ -39,7 +39,7 @@ const SAVED_HINT_MS = 2000
  * retypes, and `Number('')` is `0`, which is *valid* for `min_expected_count`
  * and `anomaly_ingestion_settling_minutes` (settling 0 = score immediately, the
  * very behaviour the allowance exists to prevent). Committing on blur/Enter
- * removes the whole class (tripl-jfm3.105).
+ * removes the whole class.
  *
  * Local state is seeded from the server value and re-seeded whenever it changes,
  * so an edit made elsewhere still lands here; empty and non-numeric input is
@@ -225,7 +225,7 @@ function ScopeOverridesCard({ slug, canWrite }: { slug: string; canWrite: boolea
         {/* A failed load is NOT an empty list. `data` is undefined either way, so
             reading the length alone told an operator "no scope has been
             tightened" — a claim about the ratchet — when the request never
-            answered (tripl-l429.24). ErrorState is what this app shows for a
+            answered. ErrorState is what this app shows for a
             load that failed, and it carries the retry this card needs: it is the
             only undo the permanent ratchet has. */}
         {isPending ? (
@@ -413,7 +413,7 @@ export function MonitoringTab({ slug }: { slug: string }) {
   // so every signal on the project would read as closed on the Anomalies page
   // while alerts kept firing. The backend refuses that pair from both directions
   // (see settling_window_conflict); these bounds are the hint that keeps an
-  // operator from walking into the 422 (tripl-l429.15).
+  // operator from walking into the 422.
   const settlingCeilingMinutes = Math.max(
     0,
     Math.min(1440, settings.recent_signal_window_hours * 60 - 1),
@@ -442,7 +442,7 @@ export function MonitoringTab({ slug }: { slug: string }) {
       {/* "Detection settings" — the same words as the buttons on the Anomalies
           and Alerting pages that lead here. The surface used to call itself
           "Monitoring" while its only card called itself "Anomaly Detection",
-          giving one thing three names (tripl-jfm3.39). Detection raises
+          giving one thing three names. Detection raises
           SIGNALS; alert rules are layered on top. The shared page header gives
           it a real h1 (DS-1). */}
       <PageHeader
@@ -491,8 +491,7 @@ export function MonitoringTab({ slug }: { slug: string }) {
           <div className="space-y-6 p-4">
             {/* Four scopes, not three: catalog metrics have always been detected
                 (detect_metrics defaults to on) but had no control here, so the
-                only way to stop scoring them was to disable detection entirely
-                (tripl-jfm3.108).
+                only way to stop scoring them was to disable detection entirely.
 
                 The legend and the sentence under it are the whole reason this is
                 a fieldset: four checked boxes decide WHAT GETS SCORED AT ALL.
@@ -523,13 +522,13 @@ export function MonitoringTab({ slug }: { slug: string }) {
 
             {/* Two groups (AL-43): what counts as unusual, and when a bucket is
                 judged. Sentence-case labels and `content-start` cells hold for
-                every field (tripl-jj0h). */}
+                every field. */}
             <SettingGroup
               title="Sensitivity"
               lead="What counts as unusual enough to raise a signal."
             >
-              {/* The two settings that decide whether anything is flagged at all
-                  (tripl-pdyc): `_rolling_anomaly_at` skips a bucket whose
+              {/* The two settings that decide whether anything is flagged at all:
+                  `_rolling_anomaly_at` skips a bucket whose
                   baseline expects fewer than min_expected_count, then flags it
                   only when |z| reaches the sigma threshold. */}
               <SettingField
@@ -575,7 +574,7 @@ export function MonitoringTab({ slug }: { slug: string }) {
             >
               {/* Both counted in BUCKETS, and the labels say so: a bare "14" on
                   an hourly scan reads as fourteen days when it means fourteen
-                  hours (tripl-wb58). */}
+                  hours. */}
               <SettingField
                 id={baselineWindowId}
                 label="Baseline window (buckets)"

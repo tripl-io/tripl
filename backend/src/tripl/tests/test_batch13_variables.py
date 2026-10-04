@@ -55,9 +55,6 @@ def _project(session: Session) -> Project:
     return project
 
 
-# --- tripl-0zpq.81 -----------------------------------------------------------
-
-
 def test_adoption_does_not_backfill_a_source_name_another_variable_holds(
     sync_session: Session,
 ) -> None:
@@ -95,9 +92,6 @@ def test_adoption_does_not_backfill_a_source_name_another_variable_holds(
     assert renamed.source_name == "screen"
 
 
-# --- tripl-0zpq.82 -----------------------------------------------------------
-
-
 def test_json_path_longer_than_the_variable_column_is_skipped_and_reported() -> None:
     long_key = "k" * VARIABLE_NAME_MAX_LENGTH
     analysis = BreakdownAnalysis(
@@ -120,9 +114,6 @@ def test_json_path_longer_than_the_variable_column_is_skipped_and_reported() -> 
     assert [need.name for need in needed] == ["props.short"]
     assert [obs.name for obs in col_meta["props"]["variable_observations"]] == ["props.short"]
     assert any("longer than" in detail for detail in details)
-
-
-# --- tripl-0zpq.83 -----------------------------------------------------------
 
 
 def test_catalog_lock_is_taken_on_postgresql_only() -> None:
@@ -151,9 +142,6 @@ def test_catalog_lock_is_taken_on_postgresql_only() -> None:
     assert statements == []
     lock_project_catalog(_Session("postgresql"), project_id)  # type: ignore[arg-type]
     assert statements == ["SELECT pg_advisory_xact_lock(:namespace, :key)"]
-
-
-# --- tripl-0zpq.85 -----------------------------------------------------------
 
 
 def test_group_merge_keeps_a_value_drift_items_own_reference(sync_session: Session) -> None:
@@ -206,9 +194,6 @@ def test_group_merge_keeps_a_value_drift_items_own_reference(sync_session: Sessi
     )
 
 
-# --- tripl-0zpq.87 -----------------------------------------------------------
-
-
 def test_variable_index_does_not_load_value_contexts(sync_session: Session) -> None:
     project = _project(sync_session)
     variable = Variable(
@@ -236,9 +221,6 @@ def test_variable_index_does_not_load_value_contexts(sync_session: Session) -> N
     assert "value_contexts" in inspect(loaded).unloaded
 
 
-# --- tripl-0zpq.95 -----------------------------------------------------------
-
-
 def test_a_real_dotted_column_in_the_name_format_is_not_reserved() -> None:
     config = ScanConfig(
         time_column="ts",
@@ -248,9 +230,6 @@ def test_a_real_dotted_column_in_the_name_format_is_not_reserved() -> None:
     assert reserved_catalog_columns(config) == {"ts"}
     assert configs_naming_column([config], "params.screen") == [config]
     assert configs_naming_column([config], "params") == [config]
-
-
-# --- tripl-0zpq.97 -----------------------------------------------------------
 
 
 def test_two_numeric_path_positions_get_distinct_variables() -> None:
@@ -265,9 +244,6 @@ def test_two_numeric_path_positions_get_distinct_variables() -> None:
     assert pattern.template == f"/users/${{{names[0]}}}/posts/${{{names[1]}}}"
 
 
-# --- tripl-0zpq.98 -----------------------------------------------------------
-
-
 def test_dotted_keys_render_json_values_as_the_scan_does() -> None:
     values = {"action": "tap", "payload": '{"is_premium": true, "plan": null, "n": 2.0}'}
 
@@ -278,9 +254,6 @@ def test_dotted_keys_render_json_values_as_the_scan_does() -> None:
     assert resolved["payload.is_premium"] == "true"
     assert resolved["payload.plan"] == "null"
     assert resolved["payload.n"] == "2"
-
-
-# --- tripl-0zpq.265 ----------------------------------------------------------
 
 
 def test_update_schema_accepts_names_and_bindings_the_scan_writes() -> None:
@@ -326,7 +299,7 @@ async def test_saving_a_scan_created_variable_resends_its_bindings(client: Async
     assert added.status_code == 422
 
 
-# --- tripl-0zpq.228 / .81 (API side) ------------------------------------------
+# --- API side ------------------------------------------
 
 
 @pytest.mark.asyncio

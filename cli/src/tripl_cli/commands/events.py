@@ -8,8 +8,7 @@ edit that lands on main is an edit to the live plan nobody reviewed. Reproducing
 that gate from a shell (resolve a branch, refuse main, prompt, then read the
 server's canonical-name warnings back and tell the operator their proposed name
 was ignored) is a command surface of its own, and shipping the easy half first
-would leave the CLI with a write easier to get wrong than the agent's
-(tripl-3ixs).
+would leave the CLI with a write easier to get wrong than the agent's.
 
 Both verbs take exactly one ``--project``: every route here is per project and
 there is no instance-wide form, so a repeated ``--project`` would be a fan-out
@@ -110,7 +109,7 @@ def _register_list(
         metavar="TEXT",
         # "substring", not "exact": the route compares with ILIKE '%value%', so
         # `--meta-value TRIPL-4` also keeps TRIPL-412. This line claimed "exact
-        # match" until tripl-nhj0 put the sibling --field-value next to it and
+        # match" until the sibling --field-value next to it and
         # the two would have described one ILIKE two different ways.
         help="substring match on any meta value, e.g. a ticket key (case-insensitive)",
     )

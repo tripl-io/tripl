@@ -224,7 +224,7 @@ describe('DemoBanner', () => {
     for (const item of items) expect(item).not.toHaveAttribute('aria-disabled')
   })
 
-  it('reports freshness from the runtime tick, not the seed time (tripl-2su6.17)', () => {
+  it('reports freshness from the runtime tick, not the seed time', () => {
     // demo_seeded_at is floored to the hour, so a demo seeded at 10:59 carries
     // 10:00 and would read "refreshed 59m ago" the moment it appeared — and no
     // runtime tick ever moved it. Until the first tick there is nothing to claim.
@@ -260,7 +260,7 @@ describe('DemoBanner', () => {
   it('after reset, leaves the now-dead detail URL and drops the stored branch', async () => {
     // A re-seed recreates every entity with a NEW id, so the metric this page is
     // showing no longer exists, and the persisted branch id would make every
-    // branch-aware query fail with "Branch not found" (tripl-2su6.14).
+    // branch-aware query fail with "Branch not found".
     window.localStorage.setItem('tripl-branch:demo-1', 'branch-abc')
     const resetSpy = vi.spyOn(projectsApi, 'resetDemo').mockResolvedValue(makeProject())
 
@@ -315,7 +315,7 @@ describe('DemoBanner', () => {
   })
 })
 
-describe('DemoBanner — the way back into the guided onboarding (tripl-imco)', () => {
+describe('DemoBanner — the way back into the guided onboarding', () => {
   it('opens the tour without restoring a panel the user put away (DEMO-26)', async () => {
     // Dismissing the welcome panel used to remove the tour and the chapter
     // picker for good; then this button restored the panel on every click,

@@ -5,13 +5,13 @@ and everything that arrives from a warehouse — ``event_metrics`` rows,
 ``last_seen_at`` bumps, anomalies — lands on the MAIN row, because scans only
 ever see main. So a branch copy of a live event read "never seen, no volume"
 on every page, and an analyst on a branch could not tell a dead event from a
-busy one (tripl-kjhi.9).
+busy one.
 
-A branch copy's twin is the main row it was copied from (``origin_id``,
-tripl-0zpq.292). Only a row without one — created on the branch — or a copy
-whose origin main has since deleted pairs the old way: same event type NAME
-(a branch type has its own id too), and the same scan identity —
-``source_name`` where the row has one, ``name`` where it does not, on both
+A branch copy's twin is the main row it was copied from (``origin_id``). Only a
+row without one — created on the branch — or a copy whose origin main has since
+deleted pairs the old way: same event type NAME (a branch type has its own id
+too), and the same scan identity — ``source_name`` where the row has one,
+``name`` where it does not, on both
 sides. Nothing is written back; the branch row only reads through to its twin.
 """
 
@@ -48,7 +48,7 @@ async def main_counterparts(
     # The row the copy was made from, when there is one. Keyed by type and
     # identity instead, two main rows sharing that key answered for each other:
     # the discussion, the metrics and the merge's thread move all read through
-    # whichever of them the key kept (tripl-0zpq.292).
+    # whichever of them the key kept.
     out: dict[uuid.UUID, Event] = {}
     origin_ids = {ev.origin_id for ev in branch_events if ev.origin_id is not None}
     if origin_ids:
@@ -113,8 +113,7 @@ async def main_counterparts(
                 # — nothing refuses that state — and while this query was
                 # unordered the rendered Last seen came from whichever row it
                 # happened to return last, so the filter and the column could
-                # answer about two different main rows on the same branch row
-                # (tripl-0zpq.124).
+                # answer about two different main rows on the same branch row.
                 .order_by(Event.id.asc())
             )
         )

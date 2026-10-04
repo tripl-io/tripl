@@ -165,7 +165,7 @@ describe('Settings command palette focus restore', () => {
 
     // Nothing focused: the state a deep link or a reload leaves, where Radix's
     // own restore target is <body> and the next Tab restarts at the skip link,
-    // ahead of the ~20-stop rail (tripl-jfm3.68).
+    // ahead of the ~20-stop rail.
     ;(document.activeElement as HTMLElement | null)?.blur()
     expect(document.activeElement).toBe(document.body)
 

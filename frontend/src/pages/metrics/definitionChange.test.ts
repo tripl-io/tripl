@@ -187,8 +187,8 @@ interface DefinitionChangeCase {
 }
 
 // The SAME table backend/src/tripl/tests/test_fj5g_batch_a.py runs through the
-// real service comparison, so the warning and the deletion cannot drift
-// (tripl-fj5g.9). Read from disk: a JSON import would need resolveJsonModule.
+// real service comparison, so the warning and the deletion cannot drift.
+// Read from disk: a JSON import would need resolveJsonModule.
 const { cases } = JSON.parse(
   readFileSync(resolve(dirname(fileURLToPath(import.meta.url)), 'definition-change-cases.json'), 'utf8'),
 ) as { cases: DefinitionChangeCase[] }
@@ -217,7 +217,7 @@ describe('definitionDiffersFromStored agrees with the backend (shared case table
   )
 })
 
-describe('columns the form does not show (tripl-fj5g.9)', () => {
+describe('columns the form does not show', () => {
   it('sends back a count metric’s API-only measure column instead of dropping it', () => {
     const metric = factMetric({ measure_column: 'amount' })
     const { definition, changed } = loadAndSave(metric)
@@ -236,7 +236,7 @@ describe('columns the form does not show (tripl-fj5g.9)', () => {
   })
 })
 
-describe('a hidden column cannot strand a save (tripl-fj5g.9 review)', () => {
+describe('a hidden column cannot strand a save', () => {
   it('clears the hidden column when the operand moves to another fact table', () => {
     const draft = draftFromMetric(factMetric({ measure_column: 'amount' }))
     const moved = withFactTable(draft.numeratorOp, 'ft-2')

@@ -25,7 +25,7 @@ def enable_sqlite_foreign_keys(engine: Engine) -> None:
     ``ondelete="CASCADE"``. ``Event`` maps no ``variable_values`` relationship,
     so SQLAlchemy issues no ORM-side cascade either. Without this pragma a test
     that seeds a context, merges, and asserts "the context is still there"
-    passes both before and after the fix that actually migrates it (tripl-xfxa)
+    passes both before and after the fix that actually migrates it
     — the row simply never got deleted in the first place. Turning enforcement
     on is what gives the assertion the power to fail.
 

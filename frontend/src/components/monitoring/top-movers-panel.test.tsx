@@ -67,7 +67,7 @@ describe('TopMoversPanel', () => {
     expect(screen.queryByText('no baseline')).not.toBeInTheDocument()
   })
 
-  it('says there is no baseline instead of leaving the cell blank (tripl-l429.27)', async () => {
+  it('says there is no baseline instead of leaving the cell blank', async () => {
     // A brand-new breakdown value: nothing was expected, so the ratio is
     // undefined. The row used to render an empty span, which reads as missing
     // data — indistinguishable from a value the panel simply failed to load.

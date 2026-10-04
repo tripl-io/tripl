@@ -1,7 +1,7 @@
 """Celery tasks for running data source scans.
 
 The dry-run half ("what would this scan create?") lives in the sibling
-``scan_dry_run`` module — split out for size in tripl-28g7, no behaviour change.
+``scan_dry_run`` module — split out for size, no behaviour change.
 Its Celery task is still named ``tripl.worker.tasks.scan.dry_run_scan_config_async``
 because the broker routes on that string.
 """
@@ -113,7 +113,7 @@ def _task_id(task: object) -> str | None:
 
     Recorded on the job so ``cancel_scan_job`` can best-effort revoke a message
     that is still queued — the invariant ``ScanJob.celery_task_id`` documents and
-    which, before tripl-0zpq.44, only ``collect_metrics`` honoured, leaving the
+    which, until recently, only ``collect_metrics`` honoured, leaving the
     revoke branch unreachable for every catalog run and event-group apply.
     """
     return getattr(getattr(task, "request", None), "id", None)
@@ -329,7 +329,7 @@ def run_scan(self: object, scan_config_id: str, job_id: str) -> dict[str, object
         # one line later it is durable and the sweep and the reindex follow. A
         # stop landing after this point is still honoured on the job row — the
         # close-out below re-reads the status and leaves a terminal one alone
-        # (tripl-0zpq.44) — but it cannot un-write the catalog, which is why the
+        # — but it cannot un-write the catalog, which is why the
         # checkpoint is here and not next to the ``completed`` stamp.
         #
         # This is only a true undo because neither ``generate_events`` nor
@@ -345,7 +345,7 @@ def run_scan(self: object, scan_config_id: str, job_id: str) -> dict[str, object
         session.commit()
         # Scans mint variables and, before this, never retired one, so a project
         # whose warehouse holds a JSON column keyed by user-typed text grew a
-        # permanent row per key (tripl-10h4). Sweeping here — after the commit,
+        # permanent row per key. Sweeping here — after the commit,
         # before the reindex — keeps the catalog self-healing instead of relying
         # on somebody remembering the danger-zone button. It does not undo the
         # run above: a path enters ``all_paths`` only by appearing in a row, and
@@ -367,7 +367,7 @@ def run_scan(self: object, scan_config_id: str, job_id: str) -> dict[str, object
         # the reindex above were running. The stop that landed there could not
         # undo the commit at the checkpoint, but the verdict on the ROW is the
         # closer's: re-opening it as ``completed`` would leave a Succeeded run
-        # carrying "Cancelled by user" (tripl-0zpq.44). Only ``status`` and
+        # carrying "Cancelled by user". Only ``status`` and
         # ``completed_at`` are withheld; ``result_summary`` is still recorded
         # below so the run report survives. Same rule, same helper, as
         # ``collect_metrics``.
@@ -530,8 +530,8 @@ def _scan_with_grouping(
     # group when it was missing, which made a Catalog-only config — the mode
     # whose entire promise is "adds events and fields to your tracking plan when
     # you run it", and which by definition never reaches the scheduler — create
-    # zero events forever, while the dry run promised the type "would be added"
-    # (tripl-0zpq.45). It also handed ``generate_events`` only the
+    # zero events forever, while the dry run promised the type "would be added".
+    # It also handed ``generate_events`` only the
     # already-declared fields, so a new warehouse column stayed dropped from
     # event identities until the next scheduled tick declared it.
     #
@@ -629,8 +629,8 @@ def apply_event_groups(self: object, scan_config_id: str, job_id: str) -> dict[s
         # Event under fresh ids, so a DISTINCT over ``Event.event_type_id`` alone
         # returned each open branch's private copies too, and the merge then
         # deleted the branch author's events, analyst edits included, minting a
-        # group event there that only main's reindex would ever have indexed
-        # (tripl-0zpq.43). ``Event.branch_id`` states the intent;
+        # group event there that only main's reindex would ever have indexed.
+        # ``Event.branch_id`` states the intent;
         # ``EventType.branch_id`` is the column the downstream load actually keys
         # on, since the merge re-selects by ``event_type_id``.
         #
@@ -664,7 +664,7 @@ def apply_event_groups(self: object, scan_config_id: str, job_id: str) -> dict[s
             # The fold that combines two stored contexts demotes on this bound,
             # so it has to be the project's own. The parameter defaults to the
             # column default, which would silently be right for everyone who
-            # never moved it and wrong for everyone who did (tripl-3rex).
+            # never moved it and wrong for everyone who did.
             cardinality_threshold=config.cardinality_threshold,
         )
 
@@ -687,8 +687,8 @@ def apply_event_groups(self: object, scan_config_id: str, job_id: str) -> dict[s
         # uncommitted work, so running it earlier would index the pre-merge
         # state. Without it the group event a merge had just created carried no
         # search document until some unrelated later task happened to reindex
-        # the branch — this was the one catalog-mutating task that never did
-        # (tripl-68l3). The source event's documents go with the FK cascade, so
+        # the branch — this was the one catalog-mutating task that never did.
+        # The source event's documents go with the FK cascade, so
         # it is the survivor's missing row this repairs.
         reindex_main_branch_from_worker(session, config.project_id)
 

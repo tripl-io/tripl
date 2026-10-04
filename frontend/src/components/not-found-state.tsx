@@ -53,7 +53,7 @@ export function NotFoundState({
       </p>
       {/* A project-scoped 404 keeps that project's sidebar and breadcrumb, so
           ejecting to the portfolio was two navigations away from where the
-          reader actually was (tripl-tvqk). When we know the project, it leads
+          reader actually was. When we know the project, it leads
           and the portfolio stays as the secondary way out. */}
       <div className="mt-6 flex flex-wrap items-center justify-center gap-2.5">
         {/* Button, not links hand-painted in the accent: those skipped the

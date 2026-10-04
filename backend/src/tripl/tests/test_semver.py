@@ -70,7 +70,7 @@ def test_mixed_invalid_versions_use_deterministic_lexical_fallback() -> None:
     versions = ["beta", "2.0", "1.0.0", "2.0.0", "alpha", "v1.2.0"]
 
     # A dotted-numeric "2.0" now ranks numerically, tied with "2.0.0" and
-    # placed just below it (tripl-0zpq.106); free text still sorts lowest.
+    # placed just below it; free text still sorts lowest.
     assert order_versions(versions) == ["alpha", "beta", "1.0.0", "v1.2.0", "2.0", "2.0.0"]
     assert compare_versions("alpha", "beta") == -1
     assert compare_versions("1.0.0", "beta") == 1

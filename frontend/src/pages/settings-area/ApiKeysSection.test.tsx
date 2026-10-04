@@ -74,7 +74,7 @@ describe('ApiKeysSection', () => {
     const keyListTitle = screen.getByText('All keys')
 
     // The form must render above the key list card so it appears right where
-    // the user clicked, not below the fold (regression: tripl-grjv).
+    // the user clicked, not below the fold (regression).
     expect(
       formTitle.compareDocumentPosition(keyListTitle) & Node.DOCUMENT_POSITION_FOLLOWING,
     ).toBeTruthy()
@@ -102,7 +102,7 @@ describe('ApiKeysSection', () => {
   })
 
   // The card used to headline "Active keys · 10 keys" from the unfiltered list,
-  // so revoked and expired tokens were counted as live ones (tripl-jfm3.33).
+  // so revoked and expired tokens were counted as live ones.
   it('counts only usable keys in the card heading and names the dead ones', async () => {
     vi.spyOn(apiKeysApi, 'list').mockResolvedValue([
       key({ id: 'k1', name: 'codex' }),

@@ -21,7 +21,7 @@ class ProjectAnomalySettingsUpdate(BaseModel):
     # already covers long scan intervals.
     recent_signal_window_hours: int | None = Field(None, ge=1, le=720)
     # Wall-clock allowance for the warehouse to finish delivering a bucket
-    # before its value is scored (tripl-jfm3.79). 0 scores every collected
+    # before its value is scored. 0 scores every collected
     # bucket immediately; capped at 24h because the allowance is also the
     # detection latency it buys, and the trailing re-eval window that re-scores
     # the held-back buckets is 30 buckets wide.
@@ -62,7 +62,7 @@ def settling_window_conflict(
     ``services.monitoring_utils._freshness_horizon`` does not bind), so the
     Anomalies page, the sidebar badge and the Overview stat all read zero — while
     alerting, which classifies against the settled head, keeps delivering. That
-    silent disagreement is the thing being refused; ``tripl-l429.15``.
+    silent disagreement is the thing being refused.
 
     REFUSED, not clamped: both numbers are operator-set, so clamping would
     silently rewrite whichever one was touched last and make the stored result

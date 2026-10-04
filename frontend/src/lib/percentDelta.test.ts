@@ -20,8 +20,8 @@ describe('hasBaseline', () => {
 
   it('counts a negative expectation as a real baseline', () => {
     // A signed `fact` sum or a `sql` level below zero: -100 is exactly as
-    // substantial an expectation as +100, and the matcher already fires on it
-    // (tripl-0zpq.102). Saying "no baseline" here would contradict the rule
+    // substantial an expectation as +100, and the matcher already fires on it.
+    // Saying "no baseline" here would contradict the rule
     // that produced the row.
     expect(hasBaseline(-3)).toBe(true)
     expect(hasBaseline(-0.5)).toBe(true)

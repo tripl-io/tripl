@@ -60,7 +60,7 @@ class MetaFieldCreate(BaseModel):
 # The update fields whose MetaFieldDefinition column is NOT NULL, so an explicit
 # ``null`` is a 422 naming the field and not a DB-level 500 out of
 # ``update_meta_field``'s generic ``setattr`` loop — see
-# ``schemas/not_null_update`` (tripl-0zpq.267). ``field_type`` is in the set for
+# ``schemas/not_null_update``. ``field_type`` is in the set for
 # a second reason: the service resolves the stored type through
 # ``MetaFieldType(resulting_type)``, and ``MetaFieldType(None)`` raises ValueError
 # before any column is touched. ``enum_options``, ``default_value`` and

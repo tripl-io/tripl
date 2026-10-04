@@ -66,8 +66,8 @@ import { useCanWriteProject } from '@/lib/permissions'
 const MAX_VISIBLE_CLUSTERS = 6
 
 // The "*" a Δ cell prints needs a legend somewhere. It is the only mark a reader
-// sees when collection lags and a 24h window is short of its hours (tripl-oooj:
-// the demo's series ends ~2h before now, so the recent window covers 22 of 24),
+// sees when collection lags and a 24h window is short of its hours (the
+// demo's series ends ~2h before now, so the recent window covers 22 of 24),
 // and the per-cell tooltip is only reachable once you already suspect something.
 const DELTA_HEAD_HELP =
   'Δ · 24h — change in volume versus the previous 24-hour window. A dotted underline marks a window the collected series does not fully cover; hover the value for what it does cover.'
@@ -148,8 +148,7 @@ export type EventsTableProps = {
   onRowAction: (action: RowAction, ev: EventListItem) => void
   /**
    * What produced the current (possibly empty) result, so a zero-row table can
-   * say why it is empty instead of always claiming the project has no events
-   * (tripl-jfm3.30).
+   * say why it is empty instead of always claiming the project has no events.
    */
   emptyContext?: EventsEmptyContext
   /** Offered on a first-run empty state; omitted for a viewer. */
@@ -248,7 +247,7 @@ export function EventsTable({
   // unknown-token tinting across every row. NOT shared with the Variables
   // settings tab: that one needs `total` and so caches the page envelope under
   // variablesPageKey. They used to share this key, which handed these rows an
-  // object instead of an array and crashed the page (tripl-lqxb).
+  // object instead of an array and crashed the page.
   const { data: projectVariables } = useQuery({
     queryKey: variablesKey(slug, branchId),
     queryFn: () => variablesApi.list(slug, branchId),
@@ -486,7 +485,7 @@ export function EventsTable({
                   {/* Pinned left with the checkbox: 8 of 17 columns sit
                       off-screen at 1512px, so without this the reader scrolls
                       to PAGE/CATEGORY/ACTION with no way to see which event the
-                      row belongs to (tripl-1uls). `data-pinned` also tells the
+                      row belongs to. `data-pinned` also tells the
                       overflow measurement which column never leaves. */}
                   <TableHead
                     data-pinned="true"
@@ -504,7 +503,7 @@ export function EventsTable({
                       tripl detected on the row, which needs no monitor to
                       exist. Heading them "Monitor" put "Firing" beside 30
                       events on a project whose Monitors page correctly said
-                      "No monitors yet" (tripl-jfm3.4). */}
+                      "No monitors yet". */}
                   {!hideMonitor && (
                     <TableHead
                       className="w-24"

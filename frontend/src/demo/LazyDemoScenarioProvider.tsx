@@ -1,5 +1,5 @@
 /**
- * The coached demo scenario as the app shell mounts it (tripl-fj5g.15).
+ * The coached demo scenario as the app shell mounts it.
  *
  * A thin context: the scenario model and its runtime are a chunk of their own,
  * fetched only when the project in scope is a ready demo — every other project

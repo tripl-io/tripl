@@ -134,7 +134,7 @@ export function ColumnSuggestInput({
           // knock-down. This box used to dim itself with `opacity: 0.6`, the same
           // treatment that on the dark theme left a dead field 3/255 of fill and
           // 7/255 of border away from a live one — indistinguishable in a
-          // screenshot (tripl-91j6). INPUT_DISABLED is a shape change (no well,
+          // screenshot. INPUT_DISABLED is a shape change (no well,
           // dashed border) precisely so it does not depend on that delta.
           style={{ ...INPUT_BASE, ...(disabled ? INPUT_DISABLED : {}) }}
           value={value}

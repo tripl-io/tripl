@@ -156,7 +156,7 @@ function introspectionKey(dataSourceId: string, sql: string): string {
  * preview of an edit session the previous suggestion set is empty, so every
  * saved `identifier_column` counts as a manual pick and is UNION-ed with the
  * new candidates — a preview may ADD newly-suggested columns but never
- * silently DROPS a saved pick (tripl-4qfr).
+ * silently DROPS a saved pick.
  */
 function mergeIdentifierPicks(
   current: readonly string[],
@@ -268,7 +268,7 @@ export function FactTableForm({ slug, factTable, dataSources, onClose }: FactTab
   // The backend's *suggested* identifiers for this session. There are no
   // suggestions until a preview runs, so this starts empty even when editing:
   // the saved `identifier_columns` are the user's picks, NOT prior suggestions.
-  // Seeding this from `identifier_columns` (tripl-4qfr) made the first preview of
+  // Seeding this from `identifier_columns` made the first preview of
   // an edit session treat saved manual picks as stale suggestions and silently
   // uncheck the ones the tightened count_distinct heuristic no longer returns.
   const [identifierCandidates, setIdentifierCandidates] = useState<string[]>([])

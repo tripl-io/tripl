@@ -1,4 +1,4 @@
-"""Retire organizations nobody uses any more (tripl-sav5.5).
+"""Retire organizations nobody uses any more.
 
 A public demo gives every visitor an organization, and most visitors look once
 and leave. :func:`retire_idle_organizations` marks the ones left idle for
@@ -12,7 +12,7 @@ a sign-in (a session row touched) and a demo project opened (its
 never idle, and the default organization is never touched.
 
 :func:`delete_orphan_accounts` then removes the accounts those purges leave in
-no organization (tripl-sav5.8).
+no organization.
 """
 
 from __future__ import annotations
@@ -85,7 +85,7 @@ async def retire_idle_organizations(
 
 
 async def delete_orphan_accounts(session: AsyncSession, *, now: datetime | None = None) -> int:
-    """Delete accounts left in no organization and unused since the cutoff (tripl-sav5.8).
+    """Delete accounts left in no organization and unused since the cutoff.
 
     An idle organization's purge removes its memberships but not its members'
     accounts, so a public demo would keep every visitor's email and name for

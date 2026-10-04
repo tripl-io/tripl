@@ -51,8 +51,7 @@ function formatCount(value: number): string {
  * signed absolute-delta badge next to this chip already carries it. The second
  * is a fact, and one the detector admits on purpose (a brand-new breakdown value
  * whose median expectation is 0 passes `min_expected_count` at its floor), so it
- * is named rather than left as a gap in a column every other row fills
- * (tripl-l429.27).
+ * is named rather than left as a gap in a column every other row fills.
  */
 function percentDelta(actual: number, expected: number): string {
   const pct = ratioDelta(actual, expected)

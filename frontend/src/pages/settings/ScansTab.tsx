@@ -151,7 +151,7 @@ export function ScansTab({ slug }: { slug: string }) {
 
   // The exact figures the capped job pages cannot give: each scan's failing
   // streak over its whole history, and the rows read in the last 24 hours,
-  // aggregated by the server (tripl-fj5g.11). Keyed under the `['scanJobs',
+  // aggregated by the server. Keyed under the `['scanJobs',
   // slug]` prefix so the stream's scan-job invalidation refreshes it too.
   const activityRefetchInterval = useAdaptiveRefetchIntervalFn<ScanActivityResponse>({
     activeMs: 10000,
@@ -181,7 +181,7 @@ export function ScansTab({ slug }: { slug: string }) {
 
   // A job query that has not resolved yet passes `undefined` through, so the row
   // renders a loading placeholder instead of the definitive "Never run" verdict
-  // it used to show while the fan-out was still in flight (tripl-jfm3.28).
+  // it used to show while the fan-out was still in flight.
   const runInfoById = useMemo(() => {
     const map = new Map<string, ScanRunInfo>()
     scanConfigs.forEach((sc: ScanConfig, index: number) => {
@@ -208,7 +208,7 @@ export function ScansTab({ slug }: { slug: string }) {
       // (DATA-18). The streak collapses into its newest failure, tagged, after
       // any active run; with no streak the two most recent jobs show as before.
       // The loaded page decides which rows collapse; the number on the tag is
-      // the server's, which counts past the page (tripl-fj5g.11).
+      // the server's, which counts past the page.
       const streak = consecutiveFailedRuns(jobs)
       const firstSettled = jobs.findIndex(job => job.status !== 'pending' && job.status !== 'running')
       const streakHead = streak > 0 ? jobs[firstSettled] : null
@@ -244,7 +244,7 @@ export function ScansTab({ slug }: { slug: string }) {
   }, [scanConfigs, jobsByScan, failingStreakById])
 
   // Null until the activity has arrived: "0" while loading contradicted the
-  // completed runs already listed in the activity rail (tripl-jfm3.28).
+  // completed runs already listed in the activity rail.
   // `formatCount(null)` renders "—". Exact, not a floor: the server sums every
   // job in the window rather than the capped page this list loads.
   // Warehouse rows and catalog combinations are summed apart: they are
@@ -275,7 +275,7 @@ export function ScansTab({ slug }: { slug: string }) {
     mutationFn: (scanId: string) => scansApi.run(slug, scanId),
     onSuccess: (job, scanId) => {
       // Only the job this POST returned can advance the coached demo scenario:
-      // the demo's tick creates scan jobs on its own (tripl-2su6.21.5).
+      // the demo's tick creates scan jobs on its own.
       notifyScanRunStarted(job)
       void queryClient.invalidateQueries({ queryKey: scanJobsKey(slug, scanId) })
       void queryClient.invalidateQueries({ queryKey: scanActivityKey(slug) })
@@ -291,7 +291,7 @@ export function ScansTab({ slug }: { slug: string }) {
     : null
 
   // Counting `interval` alone counted the broken quadrant — a schedule with no
-  // time column is never dispatched, so it monitors nothing (tripl-3y7z.1).
+  // time column is never dispatched, so it monitors nothing.
   const monitoringCount = scanConfigs.filter(
     (sc: ScanConfig) => scanModeOf(sc) === 'monitoring',
   ).length
@@ -312,7 +312,7 @@ export function ScansTab({ slug }: { slug: string }) {
           eyebrow, like Reconciliation and Coverage, instead of an h2 text-heading
           with a 14px paragraph. The description says what a scan PRODUCES and
           what consumes it, because a scan's output reaches the user as
-          anomalies and alerts (tripl-3y7z.2). */}
+          anomalies and alerts. */}
       <PageHeader
         eyebrow="Govern"
         title="Scans"
@@ -400,7 +400,7 @@ export function ScansTab({ slug }: { slug: string }) {
               }
               action={
                 // The empty state used to name the page that fixes it and leave the
-                // reader to find it; the link IS the remedy now (tripl-eadx). Only
+                // reader to find it; the link IS the remedy now. Only
                 // for an owner: data sources are owner-only, and anyone else landed
                 // on a page with nothing they could add.
                 isOwner ? (
@@ -464,7 +464,7 @@ export function ScansTab({ slug }: { slug: string }) {
                     // screen-reader route) and the row's mouse click. Deriving them
                     // from separate literals is how they drift apart — and this is
                     // the live route, NOT the /settings/scans/ form, which App.tsx
-                    // only keeps as a redirect (tripl-np3p).
+                    // only keeps as a redirect.
                     const detailHref = projectPath(currentOrgSlug(), slug, `/scans/${sc.id}`)
                     return (
                       <ScanListRow
@@ -526,7 +526,7 @@ export function ScansTab({ slug }: { slug: string }) {
                           )}
                           {/* What this completed run changed — surfaced inline so a
                               finished scan/collection shows its impact, not just a
-                              status pill (tripl-2su6.9). */}
+                              status pill. */}
                           {!isFailed && run.changes.length > 0 && (
                             <div className="flex flex-wrap gap-1">
                               {run.changes.map((change) => (

@@ -7,7 +7,7 @@
  * `Date.now() + 7 * 86_400_000` inside its mutation and put the word "Mute" on
  * an unlabelled button, so an operator could not find out how long they had
  * just snoozed something for — and re-clicking Mute silently extended it
- * another week (tripl-oxkt.7).
+ * another week.
  *
  * A preset is a DURATION, never a stored instant: the contract requires
  * `muted_until` to be in the future, so it is rendered into an absolute
@@ -17,7 +17,7 @@
  * only and is what every mute surface maps; {@link INBOX_MUTE_CHOICES} is that
  * list plus the open-ended {@link INDEFINITE_MUTE}, and only the incident Inbox
  * may map it — see the note on `INDEFINITE_MUTE` for why the same button on an
- * alert rule would UNMUTE it (tripl-a50u).
+ * alert rule would UNMUTE it.
  *
  * The button NAMES live here for the same reason the durations and the
  * open-ended label do. Three surfaces — the incident Inbox, the Monitors row
@@ -27,13 +27,13 @@
  * missing piece in a comment: "the only real guard against the three surfaces
  * drifting would be a shared name builder next to `MUTE_PRESETS`". That builder
  * is {@link muteName} / {@link muteChoiceName} / {@link unmuteName} at the foot
- * of this file (tripl-yapg, tripl-in45).
+ * of this file.
  *
  * The module owns the MUTE words ONLY. A surface's own vocabulary stays with
  * that surface: the Inbox's "Change mute on <target>" (no other mute surface
  * can change a mute in place — a muted rule offers a direct Unmute) and its
  * "Reopen <target>" (not a mute word at all; it lifts acknowledge, resolve and
- * false-positive too — tripl-oxkt.3). Neither has a second surface to drift
+ * false-positive too). Neither has a second surface to drift
  * from, so hosting them here would export one component's state vocabulary into
  * two components that can never use it.
  */
@@ -58,7 +58,7 @@ export const MUTE_PRESETS: readonly MutePreset[] = [
  *
  * A preset above is a DURATION; this is the deliberate ABSENCE of one, which is
  * why it is a separate type with `ms: null` rather than a fourth member of
- * `MUTE_PRESETS` (tripl-a50u). The split is load-bearing, not stylistic:
+ * `MUTE_PRESETS`. The split is load-bearing, not stylistic:
  *
  *  - On an INCIDENT (`alert_inbox`), `status = 'muted'` with a NULL
  *    `muted_until` is an indefinite mute: `_effective_inbox_status` only lapses
@@ -75,7 +75,7 @@ export const MUTE_PRESETS: readonly MutePreset[] = [
  *
  * The wording lives here, once, for the same reason the durations do: two
  * surfaces inventing "Forever" and "Indefinitely" for one idea is exactly the
- * vocabulary drift this module was written to stop (tripl-oxkt.7).
+ * vocabulary drift this module was written to stop.
  */
 export interface IndefiniteMute {
   label: string
@@ -118,7 +118,7 @@ export function muteUntilIso(durationMs: number, now: number = Date.now()): stri
  * is assembled with an object spread, so an `undefined` would be OMITTED and
  * the most far-reaching mute on the page would post `{action: 'mute'}` with no
  * `muted_until` at all — a different request, meaning "unspecified" rather than
- * "deliberately open-ended" (tripl-a50u).
+ * "deliberately open-ended".
  */
 export function muteChoiceUntilIso(choice: MuteChoice, now: number = Date.now()): string | null {
   return choice.ms === null ? null : muteUntilIso(choice.ms, now)
@@ -128,7 +128,7 @@ export function muteChoiceUntilIso(choice: MuteChoice, now: number = Date.now())
  * ---------------------------------------------------------------------------
  * The words. Above this line a choice becomes a WIRE VALUE; below it, the
  * sentence a screen reader announces. Same inputs, same discriminant, one
- * module — which is the whole point of tripl-yapg: three surfaces were writing
+ * module — which is the whole point of this module: three surfaces were writing
  * that sentence themselves, in template literals no compiler or test could
  * compare with each other.
  *
@@ -145,7 +145,7 @@ export function muteChoiceUntilIso(choice: MuteChoice, now: number = Date.now())
  * this takes no choice and never will — a button that COMMITS a mute must be
  * named by {@link muteChoiceName}, so the duration it is about to write is part
  * of its name. "Mute <target>" on a control that silently posts seven days is
- * the exact defect this module was extracted to end (tripl-oxkt.7), so an
+ * the exact defect this module was extracted to end, so an
  * optional second parameter here would be an invitation to reintroduce it.
  *
  * `target` is a plain string and not a group or a monitor, because all three
@@ -161,8 +161,7 @@ export function muteChoiceUntilIso(choice: MuteChoice, now: number = Date.now())
  * `isMuted ? `Change mute on ${target}` : muteName(target)`: an asymmetric
  * ternary on purpose, because one branch is shared vocabulary and the other is
  * that surface's own. Renaming this function is the one change that could
- * desynchronise those two branches, so grep for the ternary when you do
- * (tripl-yapg, tripl-oxkt.3).
+ * desynchronise those two branches, so grep for the ternary when you do.
  */
 export function muteName(target: string): string {
   return `Mute ${target}`
@@ -179,7 +178,7 @@ export function muteName(target: string): string {
  * the parameter is a `MuteChoice` and never a label string: keying the phrasing
  * off wording would let a rule surface reach the open-ended sentence by passing
  * `INDEFINITE_MUTE.label`, and `is_rule_muted()` reads what that button writes
- * as NOT MUTED (tripl-a50u).
+ * as NOT MUTED.
  *
  * THE ASYMMETRY, which is the strongest single reason this function exists. The
  * open-ended button's visible face is `INDEFINITE_MUTE.label` ("Until I
@@ -187,7 +186,7 @@ export function muteName(target: string): string {
  * label into the duration sentence yields "Mute <target> for Until I unmute",
  * which is not English. That knowledge used to live in a comment beside the one
  * call site that had the branch; a fourth mute surface would have had to
- * rediscover it (tripl-yapg).
+ * rediscover it.
  *
  * It is also a KNOWN, deliberate WCAG 2.5.3 (Label in Name) deviation, and the
  * only one in this module: for every {@link MUTE_PRESETS} entry the visible
@@ -205,7 +204,7 @@ export function muteName(target: string): string {
  * only `MutePreset` values and its call here is statically confined to the
  * duration branch. Reaching the other branch still requires importing
  * `INDEFINITE_MUTE` or `INBOX_MUTE_CHOICES` by name — a visible, greppable,
- * reviewable act (tripl-a50u).
+ * reviewable act.
  *
  * ONE CANARY IS LOST, and is replaced deliberately. The two rule surfaces used
  * to write the duration sentence as a literal, so an open-ended choice reaching
@@ -236,11 +235,11 @@ export function muteChoiceName(target: string, choice: MuteChoice): string {
  * `isMuted ? unmuteName(target) : `Reopen ${target}``. "Reopen" is NOT mute
  * vocabulary: it is the Inbox's own action for lifting acknowledge, resolve and
  * false-positive, and it does that second, different job on a card that was
- * never muted (tripl-oxkt.3). Only the Unmute half comes from here. Do not grow
+ * never muted. Only the Unmute half comes from here. Do not grow
  * a `reopenName` in this module, and do not fold that ternary into a single
  * builder — a two-state accessible name is written as a ternary of two WHOLE
  * names, never as a ternary of verb fragments glued to a target, so that the
- * shared half and the surface's own half stay tellable apart (tripl-yapg).
+ * shared half and the surface's own half stay tellable apart.
  */
 export function unmuteName(target: string): string {
   return `Unmute ${target}`

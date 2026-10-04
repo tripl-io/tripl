@@ -1,4 +1,4 @@
-"""The two digest-flush guards that only exist on PostgreSQL (tripl-o3ry).
+"""The two digest-flush guards that only exist on PostgreSQL.
 
 ``test_alert_digest_delivery.py`` runs on SQLite, where both of these are
 silent no-ops: ``SELECT ... FOR UPDATE`` emits nothing, and

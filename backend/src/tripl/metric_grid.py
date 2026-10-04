@@ -21,7 +21,7 @@ This module owns that rule so the request path (async) and the worker (sync)
 cannot drift: three call sites had already grown their own answers — the sidebar
 badge used no interval at all, the metrics/anomalies list paths used only the
 metric's own column, and alert dispatch substituted whichever scan happened to
-be dispatching (tripl-l429.17/.18/.22). It is a pure leaf (models + SQLAlchemy,
+be dispatching (.18/.22). It is a pure leaf (models + SQLAlchemy,
 no service or worker imports) and hands back a statement rather than running it,
 because only the caller knows whether its session is sync or async.
 """
@@ -166,12 +166,12 @@ def grid_population_filter(
     ``scan_config_id`` exclusively, so the IS NULL branch is exact rather than
     merely narrower and the interval never enters.
 
-    KNOWN OPEN (tripl-0zpq.115 follow-up): two configs scanning the SAME
+    KNOWN OPEN (grid-population follow-up): two configs scanning the SAME
     warehouse rows on the same interval are summed, i.e. double-counted. Nothing
     stored tells them apart from two configs covering disjoint traffic, so the
     read cannot decide it — that is a collection-side question.
 
-    One definition for the async read path and the sync worker (tripl-67he):
+    One definition for the async read path and the sync worker:
     the two used to spell it separately, which is how the read and the detector
     drifted in the first place.
     """

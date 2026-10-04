@@ -1,49 +1,49 @@
 """Batch 7, lane A — the events domain core.
 
-tripl-0zpq.123: nothing checked that ``event_type_id`` (or
+nothing checked that ``event_type_id`` (or
 ``meta_field_definition_id``) belongs to the project AND branch the event is
 written to, so a row authored on a branch against main's type held MAIN's scan
 identity and quietly intercepted main's field values, contexts and metrics.
 
-tripl-0zpq.124: on a branch, "Silent > N days" and "Busiest first" read the
+on a branch, "Silent > N days" and "Busiest first" read the
 COPY's frozen ``last_seen_at`` and its nonexistent metric rows, while the Last
 seen column beside them showed the main twin's live value.
 
-tripl-0zpq.125: a JSON token the scan writes raw — a display-name collision
+a JSON token the scan writes raw — a display-name collision
 fallback, an excluded path, a legacy variable — failed the web form's
 identifier-grammar check, so every later save of that event returned 422.
 
-tripl-0zpq.130: the ``scan_identity`` create skipped name generation but still
+the ``scan_identity`` create skipped name generation but still
 enforced required field values, which a shadow candidate can never carry, so
 Reconciliation → Accept 422'd on any event type with one required field.
 
-tripl-0zpq.254: ``scan_configs.event_type_id`` is ``ON DELETE SET NULL``, so
+``scan_configs.event_type_id`` is ``ON DELETE SET NULL``, so
 deleting a bound event type turns its config project-wide and its name format
 starts governing every type nothing else binds.
 
-tripl-0zpq.126: only the web form lower-cased a tag, so every other door stored
+only the web form lower-cased a tag, so every other door stored
 the spelling it was handed — invisible to the ``?tag=`` equality the docs
 promise — and a repeated or over-long tag reached the database as a 500.
 
-tripl-0zpq.127: the bulk paste took the same ``EventCreate`` the single create
+the bulk paste took the same ``EventCreate`` the single create
 takes and then dropped ``owner_id`` and ``reviewed`` on the floor, so one
 payload meant two different things depending on which door it came through.
 
-tripl-0zpq.190: ``PATCH`` with ``metric_breakdown_columns: null`` assigned None
+``PATCH`` with ``metric_breakdown_columns: null`` assigned None
 to a NOT NULL column and then reached ``" ".join(None)`` in the search document
 builder inside the same transaction, so the save rolled back as a 500 instead of
 clearing the list.
 
-tripl-0zpq.255: the previous schema took the unbounded meta value into a unique btree,
+the previous schema took the unbounded meta value into a unique btree,
 where an entry over 2704 bytes is ProgramLimitExceeded — a 500 on the event save
 for a value that stored fine while the key was the two uuids alone.
 
-tripl-0zpq.129: the template-warning pass selected the mapped ``Variable``, so
+the template-warning pass selected the mapped ``Variable``, so
 every event create and PATCH pulled the branch's whole variable graph — each
 ``value_contexts`` row with its JSON values, and each of those rows' field
 definition — across the async request path to read three scalars.
 
-tripl-0zpq.276: ``EventBulkUpdate`` judged "was anything provided?" by the
+``EventBulkUpdate`` judged "was anything provided?" by the
 values rather than the fields sent, so a bulk ``owner_id: null`` was a 422 on
 its own and was dropped in silence beside another field — the one clearing the
 API offered could not be spelled, while the same body on metrics unassigns.
@@ -189,9 +189,6 @@ async def _scan_config(
         session.add(config)
         await session.commit()
         return config.id
-
-
-# --- tripl-0zpq.123 -----------------------------------------------------------
 
 
 @pytest.mark.asyncio
@@ -359,9 +356,6 @@ async def test_a_bulk_paste_names_the_item_whose_meta_field_is_on_another_branch
         "checkout:done",
         "checkout:new",
     ]
-
-
-# --- tripl-0zpq.124 -----------------------------------------------------------
 
 
 @pytest.mark.asyncio
@@ -555,9 +549,6 @@ async def test_two_main_rows_under_one_key_give_the_branch_one_agreed_twin(
     ]
 
 
-# --- tripl-0zpq.125 -----------------------------------------------------------
-
-
 @pytest.mark.asyncio
 async def test_a_json_value_holding_a_raw_scan_written_token_saves_and_saves_again(
     client: AsyncClient,
@@ -657,7 +648,7 @@ async def test_a_token_holding_a_raw_control_character_is_refused(
         assert "invalid variable token" in refused.json()["detail"], label
 
     # Not a retreat to the identifier grammar: an ordinary space inside a token
-    # is exactly what tripl-0zpq.125 made saveable, and still is.
+    # is exactly what the token-grammar fix made saveable, and still is.
     accepted = await client.post(
         f"/api/v1/projects/{slug}/events",
         json={
@@ -670,9 +661,6 @@ async def test_a_token_holding_a_raw_control_character_is_refused(
     )
     assert accepted.status_code == 201, accepted.text
     assert accepted.json()["field_values"][0]["value"] == '{"city": "${property.x y}"}'
-
-
-# --- tripl-0zpq.130 -----------------------------------------------------------
 
 
 @pytest.mark.asyncio
@@ -723,9 +711,6 @@ async def test_accepting_a_shadow_candidate_survives_a_required_field(
     )
     assert refused.status_code == 422, refused.text
     assert refused.json()["detail"] == "Required field 'screen' is missing"
-
-
-# --- tripl-0zpq.254 -----------------------------------------------------------
 
 
 @pytest.mark.asyncio
@@ -783,9 +768,6 @@ async def test_a_scan_config_orphaned_by_a_deleted_event_type_names_nothing(
     )
     assert governed.status_code == 422, governed.text
     assert "fill field values for: action, category" in governed.json()["detail"]
-
-
-# --- tripl-0zpq.126 -----------------------------------------------------------
 
 
 @pytest.mark.asyncio
@@ -964,9 +946,6 @@ async def test_a_tag_stored_before_normalisation_is_still_reachable_from_the_fac
     assert narrow.json()["items"] == []
 
 
-# --- tripl-0zpq.127 -----------------------------------------------------------
-
-
 @pytest.mark.asyncio
 async def test_a_bulk_paste_keeps_the_owner_and_reviewed_flag_it_was_given(
     client: AsyncClient,
@@ -1023,9 +1002,6 @@ async def test_a_bulk_paste_keeps_the_owner_and_reviewed_flag_it_was_given(
     assert single.status_code == 201, single.text
     assert single.json()["owner_id"] == owner_id
     assert single.json()["reviewed"] is True
-
-
-# --- tripl-0zpq.190 -----------------------------------------------------------
 
 
 @pytest.mark.asyncio
@@ -1091,9 +1067,6 @@ async def test_patching_metric_breakdown_columns_to_null_clears_them_instead_of_
     )
     assert untouched.status_code == 200, untouched.text
     assert untouched.json()["metric_breakdown_columns"] == ["platform"]
-
-
-# --- tripl-0zpq.255 -----------------------------------------------------------
 
 
 @pytest.mark.asyncio
@@ -1192,9 +1165,6 @@ async def test_a_meta_value_too_long_for_its_unique_index_is_refused_not_500(
     assert "2000 bytes" in over.text
     # It names the field, which a payload-shaped refusal could not.
     assert "jira" in over.text
-
-
-# --- tripl-0zpq.129 -----------------------------------------------------------
 
 
 @contextlib.contextmanager
@@ -1319,9 +1289,6 @@ async def test_template_warnings_read_three_columns_not_the_variable_graph(
     # Cheaper and still right: the name, the source name and the binding are all
     # still known tokens, so only the one nothing answers to is reported.
     assert warnings == ["Unknown variable token: ${mystery}"]
-
-
-# --- tripl-0zpq.276 -----------------------------------------------------------
 
 
 @pytest.mark.asyncio

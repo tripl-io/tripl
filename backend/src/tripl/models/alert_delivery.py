@@ -61,7 +61,7 @@ class AlertDelivery(UUIDMixin, TimestampMixin, Base):
     # delivery is eventually marked failed instead of re-enqueued forever.
     dispatch_attempts: Mapped[int] = mapped_column(default=0, server_default="0")
     # The single-flight lease held by the worker currently sending this
-    # delivery (tripl-0zpq.37). Non-NULL means "an attempt is in flight", so a
+    # delivery. Non-NULL means "an attempt is in flight", so a
     # second worker handed the same id — the reaper re-enqueues a `pending` row
     # on age alone, and prefork runs several tasks per host — loses the
     # compare-and-set in ``alerts._claim_delivery`` and returns without

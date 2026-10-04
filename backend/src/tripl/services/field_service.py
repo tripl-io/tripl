@@ -29,7 +29,7 @@ async def _on_main(session: AsyncSession, event_type: EventType) -> bool:
     argument admits main's own id as well as ``None``, because
     ``resolve_branch_id`` accepts both. Keying the name-format guard on
     ``branch_id is None`` let ``?branch=<main id>`` delete a field a scan names
-    events by from the live plan (tripl-0zpq.121). ``get_branch_id_override``
+    events by from the live plan. ``get_branch_id_override``
     now yields ``None`` for main, which closes the HTTP door. This keeps the
     guard, which prevents an outage rather than a stale cache, correct however
     a caller spells main.
@@ -182,12 +182,12 @@ async def _reject_if_a_scan_names_events_by(
 ) -> None:
     """409 when deleting this field would leave a scan unable to name its events.
 
-    The SECOND door to the tripl-lpin outage. Accepting a ``missing_field`` drift
+    The SECOND door to a past outage. Accepting a ``missing_field`` drift
     is guarded in ``schema_drift_service``; this is the same deletion reached from
     the plan UI in one click, with the same consequence — ``generate_events``
     assembles its format arguments only from columns that still have a
     FieldDefinition, so removing the one ``{action}`` names kills every collection
-    with "the event name format references unknown keys" (tripl-3mmh).
+    with "the event name format references unknown keys".
 
     **409, deliberately**, the status the drift door already returns: this is not a
     malformed request (422) and not a permission problem (403) — the field is in a

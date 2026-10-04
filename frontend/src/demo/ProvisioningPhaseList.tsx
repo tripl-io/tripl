@@ -4,7 +4,7 @@
  * Both are single blocking POSTs of ~10 s with no server-side stage feed, so the
  * list narrates *expected* phases on a timer. Passed phases are deliberately NOT
  * ticked while the request is open — the client cannot observe that the server
- * finished them (tripl-jfm3.16) — and the caption says so.
+ * finished them — and the caption says so.
  */
 
 import { useEffect, useState } from 'react'

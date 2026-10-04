@@ -56,14 +56,14 @@ async def _check_binding_conflicts(
     A binding conflicts when another variable carries it as its ``name``, in
     ``bindings`` or as its scan identity (``source_name``): scan adoption matches
     on all three, and the index hands a contested token to whichever variable
-    sorts first, so a shared token makes attribution ambiguous (tripl-0zpq.228).
+    sorts first, so a shared token makes attribution ambiguous.
 
     ``name``, when given, is a name being created or renamed to, and conflicts
     with another variable's ``bindings`` or ``source_name`` for the same reason.
     Its clash with another NAME is the caller's plain duplicate check. A
     variable renamed away keeps its ``source_name``, so without this a new
     variable could take that token and the scan's ``source_name`` backfill would
-    then violate the unique key on every run (tripl-0zpq.81).
+    then violate the unique key on every run.
     """
     if not bindings and name is None:
         return
@@ -71,7 +71,7 @@ async def _check_binding_conflicts(
     # each context then selectin-loads its FieldDefinition: hydrating the
     # entities plainly pulls the project's whole context table into memory to
     # answer a question about NAMES, on a statement that runs on every create
-    # and on every update that touches bindings (tripl-xkbb). The same option
+    # and on every update that touches bindings. The same option
     # for the same reason as ``worker.tasks.metrics.catalog_sync``.
     #
     # One of TWO whole-project selects the same request makes: ``create_variable``
@@ -122,8 +122,8 @@ async def list_variables(
     would take, and ``"used"`` to its complement. It is answered by the shared
     predicate in ``core.variable_retirement`` rather than by an "``event_count``
     is zero" filter, and the difference is not cosmetic: a variable can have no
-    observed context and still be named by a live event's field value — that is
-    tripl-xfxa, eighteen rows on production. A cheap zero-count filter would
+    observed context and still be named by a live event's field value — that was
+    a real case: eighteen rows on production. A cheap zero-count filter would
     have offered precisely those for deletion, from a screen that has a
     select-all checkbox on it.
 
@@ -166,7 +166,7 @@ async def list_variables(
     # with its own ``select(VariableValue)`` rather than walking this
     # relationship. The frontend pins its page size to VARIABLES_PAGE_LIMIT =
     # 5000 and routes every list caller through it, so without the option one
-    # page IS the whole-project select tripl-xkbb exists to remove.
+    # page IS the whole-project select the option exists to remove.
     result = await session.execute(
         select(Variable)
         .where(*scope)
@@ -232,14 +232,13 @@ async def rewrite_variable_token_references(
     answers to, so ``event_service._attach_template_warnings`` stamped "Unknown
     variable token" on each affected event and a merge carried the broken
     templates to main — under a confirm dialog promising the variable's
-    "documented values and history are untouched" (tripl-hjxy). One
+    "documented values and history are untouched". One
     implementation for both directions, because two cannot drift.
 
     BOTH value tables, for the reason ``variable_retirement_service`` spells out
     on the read side: a ``${token}`` is legal in an event's field values and in
     its META values. Field values alone left the meta half holding a literal
-    ``${old_name}`` naming nothing anybody can now find by the variable's name
-    (tripl-mpw3).
+    ``${old_name}`` naming nothing anybody can now find by the variable's name.
 
     No ``is_authored`` test on either pass, and none to add. The column lives
     only on ``EventFieldValue``, where TRUE marks a value a PERSON typed and a
@@ -294,7 +293,7 @@ async def update_variable(
     The previous name is returned for the audit trail. A rename is not confined
     to this row — it rewrites ``${old}`` to ``${new}`` in every event field value
     on the branch — and the record carried only the new name, so the token that
-    was replaced was not recoverable from the trail (tripl-0zpq.241). Unchanged
+    was replaced was not recoverable from the trail. Unchanged
     when the patch is not a rename, which is how the route tells the two apart.
     """
     project_id = await resolve_project_id(session, slug)
@@ -313,7 +312,7 @@ async def update_variable(
     update_data = data.model_dump(exclude_unset=True)
     # Only what the update ADDS is judged: the edit form resends the stored
     # bindings, which the scan may have written in a grammar the strict pattern
-    # refuses, or which may predate a conflict rule (tripl-0zpq.265).
+    # refuses, or which may predate a conflict rule.
     added_bindings: list[str] = []
     if "bindings" in update_data and update_data["bindings"] is not None:
         stored = set(var.bindings or [])
@@ -558,7 +557,7 @@ async def bulk_delete_variables(
     The return value is for the audit trail, and it is what the REQUEST said only
     by coincidence: ids that name no variable on this branch are silently skipped
     by ``_load_variables_by_ids``, so recording the request body would file a
-    delete of rows that were never there (tripl-0zpq.241).
+    delete of rows that were never there.
     """
     project_id = await resolve_project_id(session, slug)
     branch_id = await resolve_branch_id(session, project_id, branch_id)
@@ -623,8 +622,8 @@ async def upsert_event_override(
 
     The name is returned because the audit row this feeds has
     ``target_type="variable"``: it used to file the EVENT's name against a
-    variable target, so a reader could not tell which variable was overridden
-    (tripl-0zpq.241). The event name belongs in the payload, not the target.
+    variable target, so a reader could not tell which variable was overridden.
+    The event name belongs in the payload, not the target.
     """
     project_id = await resolve_project_id(session, slug)
     branch_id = await resolve_branch_id(session, project_id, branch_id)
@@ -676,8 +675,7 @@ async def delete_event_override(
 
     Both are read BEFORE the delete: after the commit the row is expired and its
     ``event`` relationship is no longer loadable on an async session. The audit
-    row this feeds had an EMPTY ``target_name`` and named neither
-    (tripl-0zpq.241).
+    row this feeds had an EMPTY ``target_name`` and named neither.
     """
     project_id = await resolve_project_id(session, slug)
     branch_id = await resolve_branch_id(session, project_id, branch_id)

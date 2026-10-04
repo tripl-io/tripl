@@ -1,4 +1,4 @@
-"""Cross-surface demo contract (epic tripl-2su6.10).
+"""Cross-surface demo contract.
 
 Creates one demo and asserts every advertised Plan / Observe / Govern surface is
 non-empty and internally coherent (ids resolve, coverage reconciles, deliveries

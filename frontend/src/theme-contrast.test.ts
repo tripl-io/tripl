@@ -5,8 +5,8 @@ import { dirname, resolve } from 'node:path'
 import { describe, expect, it } from 'vitest'
 
 /**
- * Guards the WCAG AA floor for the text tokens in `index.css` (tripl-jfm3.44,
- * extended to the status tones by tripl-zgtu).
+ * Guards the WCAG AA floor for the text tokens in `index.css`,
+ * extended to the status tones.
  *
  * `--fg-subtle` and `--fg-faint` are not decoration: they carry activity
  * timestamps, chart captions, search placeholders, sidebar section labels and
@@ -25,7 +25,7 @@ import { describe, expect, it } from 'vitest'
 // Only the body floor is left: `--accent` used to be held to AA-large on the
 // bare background, on the theory that it is decoration. It is not — it carries
 // icons, links and chip labels at body size — so it now answers to AA_BODY like
-// everything else here (tripl-yx0k).
+// everything else here.
 const AA_BODY = 4.5
 
 // WCAG 2.x SC 1.4.11: the boundary of a user-interface component needs 3:1. It
@@ -311,8 +311,8 @@ describe('identity chip', () => {
 })
 
 /**
- * The brand hue works both ways at once, which is what made it the hard case
- * (tripl-yx0k): it is the ink for `--accent-soft` and for accent-coloured text
+ * The brand hue works both ways at once, which is what made it the hard case:
+ * it is the ink for `--accent-soft` and for accent-coloured text
  * on a plain row (~48 call sites), *and* the solid fill under `--accent-fg` on
  * every primary button, switch, checkbox and tooltip (~26). Both roles are
  * measured here, for all five switchable variants, because a user who picks

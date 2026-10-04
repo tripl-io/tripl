@@ -8,7 +8,7 @@ import type { BindingExample } from './bindingExample'
  * warehouse address, a token is a variable's NAME — and they look alike because
  * a scan that discovers a path stores it as the binding and, when every short
  * name is taken, as the name too. Showing the project's own pair says that
- * faster than explaining it (tripl-htfn.3).
+ * faster than explaining it.
  */
 export function BindingVersusTokenNote({ example }: { example: BindingExample }) {
   return (

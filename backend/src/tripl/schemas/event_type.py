@@ -19,7 +19,7 @@ class EventTypeCreate(BaseModel):
 # Every field of EventTypeUpdate maps to a NOT NULL EventType column, and
 # ``update_event_type`` ``setattr``s whatever the dump holds — so an explicit
 # ``null`` is a 422 naming the field rather than a DB-level 500. See
-# ``schemas/not_null_update`` (tripl-0zpq.267). ``name`` is immutable and has no
+# ``schemas/not_null_update``. ``name`` is immutable and has no
 # update field at all.
 _EVENT_TYPE_NOT_NULL_UPDATE_FIELDS = frozenset({"display_name", "description", "color", "order"})
 
@@ -48,7 +48,7 @@ class EventTypeResponse(BaseModel):
     updated_at: datetime
     field_definitions: list[FieldDefinitionResponse] = []
     # The scan naming rule that governs this type, already resolved on the
-    # server — for a branch copy, through its main counterpart (tripl-kjhi.1).
+    # server — for a branch copy, through its main counterpart.
     # Null when no scan names the type and a free-text name is the identity.
     # Clients read this instead of re-deriving it from the scan config list,
     # which is how the form got it wrong on branches in the first place.

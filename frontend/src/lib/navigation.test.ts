@@ -16,7 +16,7 @@ import {
  * A project summary with every counter quiet, so each test states only the
  * counters it is actually about. Written as a factory rather than a literal per
  * test because the badges are bound to a growing struct — `open_incident_count`
- * is the eighth field to arrive (tripl-oxkt.16) — and a repeated literal makes
+ * is the eighth field to arrive — and a repeated literal makes
  * every addition a seven-place edit that hides which number a test cares about.
  */
 function projectSummary(overrides: Partial<ProjectSummary> = {}): ProjectSummary {
@@ -81,7 +81,7 @@ describe('buildNavGroups', () => {
     expect(items.find((i) => i.id === 'variables')!.count).toBe('40')
   })
 
-  it('has no Monitors item: rules are an Alerting section, not a nav peer (tripl-89ps)', () => {
+  it('has no Monitors item: rules are an Alerting section, not a nav peer', () => {
     // The item rendered the same AlertRule rows the Alerting page owned, under a
     // second noun, and badged `firing_monitor_count` beside Anomalies' signal
     // count and Alerting's incident count — three danger badges in one group for
@@ -131,7 +131,7 @@ describe('buildNavGroups', () => {
     }
   })
 
-  it('binds the Alerting badge to the open-incident count, never the destination count (tripl-oxkt.16)', () => {
+  it('binds the Alerting badge to the open-incident count, never the destination count', () => {
     // The production numbers that exposed this: one telegram destination, 52
     // incidents awaiting triage. The badge read "Alerting 1", untoned, directly
     // under "Anomalies 68" in danger — so the one surface carrying a real queue
@@ -177,7 +177,7 @@ describe('buildNavGroups', () => {
     expect(alerting.tone).not.toBe(anomalies.tone)
   })
 
-  it('gives Plan history a home next to the branches it snapshots (tripl-ebib)', () => {
+  it('gives Plan history a home next to the branches it snapshots', () => {
     // The page was fully built and carried real revisions, but no nav item
     // matched it: zero inbound links across the whole product, nothing
     // highlighted in the sidebar while you stood on it, and the only way in was
@@ -238,7 +238,7 @@ describe('buildNavGroups', () => {
     })
   })
 
-  it('activates Metrics — and not Anomalies — on the metric monitoring drilldown (tripl-nxk2.3)', () => {
+  it('activates Metrics — and not Anomalies — on the metric monitoring drilldown', () => {
     // /p/:slug/monitoring/metric/:id is the catalog-metric detail page
     // (getMetricMonitoringPath). Breadcrumbs read "Metrics › Detail", so the
     // sidebar must highlight Metrics; the blanket /monitoring prefix — carried
@@ -251,7 +251,7 @@ describe('buildNavGroups', () => {
     expect(anomalies.match(path)).toBe(false)
   })
 
-  it('puts the event-type and project-total drilldowns on Anomalies (tripl-89ps)', () => {
+  it('puts the event-type and project-total drilldowns on Anomalies', () => {
     // The catalog-metric (/monitoring/metric/) and catalog-event
     // (/monitoring/event/) drilldowns belong to Metrics and Events. What is left
     // is reached from a signal, so it belongs to Anomalies — it used to activate
@@ -271,7 +271,7 @@ describe('buildNavGroups', () => {
     }
   })
 
-  it('puts the detection settings on Anomalies, which is what they tune (tripl-89ps)', () => {
+  it('puts the detection settings on Anomalies, which is what they tune', () => {
     // /settings/monitoring decides what gets FLAGGED and notifies nobody, so it
     // never belonged with the rules that route the result.
     const items = buildNavGroups('demo', undefined).flatMap((g) => g.items)
@@ -281,7 +281,7 @@ describe('buildNavGroups', () => {
     expect(alerting.match('/p/demo/settings/monitoring')).toBe(false)
   })
 
-  it('keeps the per-rule detail on Alerting, which owns rules (tripl-89ps)', () => {
+  it('keeps the per-rule detail on Alerting, which owns rules', () => {
     const items = buildNavGroups('demo', undefined).flatMap((g) => g.items)
     const alerting = items.find((i) => i.id === 'alerting')!
     const anomalies = items.find((i) => i.id === 'anomalies')!
@@ -289,7 +289,7 @@ describe('buildNavGroups', () => {
     expect(anomalies.match('/p/demo/monitors/rule-1')).toBe(false)
   })
 
-  it('activates Events — and not Anomalies — on the catalog-event monitoring drilldown (tripl-7l83.8)', () => {
+  it('activates Events — and not Anomalies — on the catalog-event monitoring drilldown', () => {
     // /p/:slug/monitoring/event/:id is the catalog-event detail page
     // (getMonitoringPath, scope_type 'event'), reached from the Events catalog.
     // Breadcrumbs read "Events › Detail", so the sidebar must highlight Events.
@@ -317,7 +317,7 @@ describe('resolveNavLocation', () => {
     ['/p/demo/branches', 'Plan', 'Plan branches'],
     ['/p/demo/history', 'Plan', 'Plan history'],
     // A rule's fired history is an Alerting surface; the detection settings are
-    // an Anomalies one. Both used to read "Monitors" (tripl-89ps).
+    // an Anomalies one. Both used to read "Monitors".
     ['/p/demo/monitors/rule-1', 'Observe', 'Alerting'],
     ['/p/demo/metrics', 'Observe', 'Metrics'],
     ['/p/demo/anomalies', 'Observe', 'Anomalies'],
@@ -332,9 +332,9 @@ describe('resolveNavLocation', () => {
     expect(resolveNavLocation('demo', path)).toEqual({ area, label })
   })
 
-  it('names the sub-surface a nav item owns but is not (tripl-34tw)', () => {
+  it('names the sub-surface a nav item owns but is not', () => {
     // The detection settings stay ON Anomalies — that mapping is deliberate
-    // (tripl-89ps) and the sidebar highlights Anomalies here. What was missing is
+    // and the sidebar highlights Anomalies here. What was missing is
     // the leaf: the crumb terminal read "Anomalies" in bold over a page headed
     // "Detection settings", so arriving from the Anomalies page's own link
     // showed no evidence you had navigated.
@@ -345,7 +345,7 @@ describe('resolveNavLocation', () => {
     })
   })
 
-  it('names the leaf with the string the browser tab uses (tripl-34tw)', () => {
+  it('names the leaf with the string the browser tab uses', () => {
     // Three surfaces name this one page — crumb, tab title and the page's own
     // H2 — and the defect was that all three disagreed. Pin the two this repo
     // can check against each other.
@@ -423,7 +423,7 @@ describe('resolveActivityTargetPath', () => {
     target_path: '/p/demo/alerting',
   }
 
-  it('rebuilds the delivery deep link for an alert row (tripl-oxkt.21)', () => {
+  it('rebuilds the delivery deep link for an alert row', () => {
     // The backend sends the bare page, which drops the reader at the top of a
     // list of every delivery and every incident — strictly worse than the
     // telegram message the same delivery sent. The delivery id was never lost:

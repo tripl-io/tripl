@@ -5,7 +5,7 @@ import { dirname, join, resolve } from 'node:path'
 import { describe, expect, it } from 'vitest'
 
 /**
- * Keeps the published scan docs saying what the Scans surfaces say (tripl-3y7z).
+ * Keeps the published scan docs saying what the Scans surfaces say.
  *
  * The docs are read by a user who is stuck, which is exactly when a sentence
  * that disagrees with the product costs the most: the FAQ used to answer "Do I

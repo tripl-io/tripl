@@ -3,7 +3,7 @@
 ``doctor``, ``status`` and ``watch`` are all read-only and a ``tk_r_`` key
 suffices for every one of them. ``scans run``, ``scans cancel``,
 ``drifts dismiss`` and ``drifts reopen`` change the instance, which is a new
-category and needs rules rather than habits (tripl-ey6j.5):
+category and needs rules rather than habits:
 
 * THE SERVER IS THE AUTHORITY ON SCOPE. The ``tk_r_``/``tk_w_`` prefix is derived
   in ``api_key_service.py`` from the scope's first letter and says NOTHING about
@@ -32,7 +32,7 @@ from tripl_cli.errors import TriplConfigError, TriplError
 from tripl_cli.model import JsonDict
 
 # ``require_single_project`` used to live here. It moved to ``commands`` in
-# tripl-3ixs: four read verbs need it now, and "this command acts on one
+# four read verbs need it now, and "this command acts on one
 # project" is an argument rule rather than a write-safety one — leaving it here
 # would have had `tripl plan fields` importing the write-safety module.
 

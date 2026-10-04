@@ -588,7 +588,7 @@ def apply_startup_service_overrides(session: Session | None = None) -> list[str]
     # "*") under Settings -> Instance -> Security therefore bricked the instance
     # on the NEXT restart — and because the UI that set it lives in the process
     # that now refuses to start, the only way out was hand-editing app_settings
-    # in Postgres (tripl-jfm3.93). Falling back to env-only config keeps the
+    # in Postgres. Falling back to env-only config keeps the
     # instance reachable so the operator can undo the change where they made it.
     if applied and not settings.debug:
         with_overrides = settings.production_problems()
@@ -619,7 +619,7 @@ def apply_startup_service_overrides(session: Session | None = None) -> list[str]
         # is the rollback branch above, which returns [] before reaching here —
         # so ``settings`` has now lost what the environment delivered for these
         # fields. Keep it, or clearing the override later reports the deleted
-        # value and badges it "Env" (tripl-wkwv.2).
+        # value and badges it "Env".
         #
         # ``setdefault``, not ``update``: only the FIRST apply in a process saw
         # the pre-override value, so a repeat call must not record what it wrote.

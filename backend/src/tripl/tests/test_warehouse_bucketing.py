@@ -1,4 +1,4 @@
-"""Golden conformance suite for the warehouse bucket contract (tripl-64n8).
+"""Golden conformance suite for the warehouse bucket contract.
 
 :mod:`tripl.core.bucketing` is the spec; this file is the executable copy of it.
 Every adapter translates an interval *code* into its own dialect, and each
@@ -9,7 +9,7 @@ having its SQL inspected.
 
 The real adapters cannot be executed without a container, so their conformance is
 pinned at the SQL-string level: the exact dialect expression each one emits for all
-five intervals. Executing that SQL against live warehouses is tripl-64n8.9.
+five intervals. Executing that SQL against live warehouses is a separate follow-up.
 
 Two production bugs motivated this file, and each has a test that fails without the
 fix:
@@ -567,7 +567,7 @@ def test_bigquery_date_column_rejects_sub_day_intervals(code: str) -> None:
     so the first thing to run the combination is a collection tick. Hence
     ``WarehouseCapabilityError``: one of the three classes the worker's sanitiser
     surfaces verbatim instead of flattening to "Scan failed due to an internal
-    error." (``worker.tasks._errors._CURATED_ERRORS``, tripl-0zpq.66)."""
+    error." (``worker.tasks._errors._CURATED_ERRORS``)."""
     with pytest.raises(WarehouseCapabilityError, match="no time-of-day"):
         _bigquery(time_type="DATE")._bucket_expression(_COL, code)
 

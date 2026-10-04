@@ -1,10 +1,10 @@
-"""Per-scan run activity for the Scans list, aggregated in SQL (tripl-fj5g.11).
+"""Per-scan run activity for the Scans list, aggregated in SQL.
 
 The list used to derive three figures from a capped page of each scan's jobs —
 the last run, the current failing streak, and the rows read in the last 24 hours
 — so a scan that ran more often than the page held showed the streak and the
 24h total as floors ("failed last 10+ runs", "1.2M+"). Loading every job to make
-them exact is what tripl-jfm3.107 capped in the first place, so each figure is
+them exact is what was capped in the first place, so each figure is
 one grouped query here instead, over every scan config in the project at once.
 """
 

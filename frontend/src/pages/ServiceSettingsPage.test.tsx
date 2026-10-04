@@ -10,7 +10,7 @@ import { RESET_FIELDS } from './settings-service/serviceSettingsHelpers'
 /**
  * One override per section, so the reset card is live in the tests that click
  * it. A section with nothing overridden has nothing to reset, and its button is
- * disabled on purpose (tripl-5qp9) — see the reset-card describe below.
+ * disabled on purpose — see the reset-card describe below.
  */
 const OVERRIDDEN_SOURCES: ServiceSettings['sources'] = {
   'runtime.app_base_url': 'override',
@@ -142,8 +142,7 @@ describe('Instance settings destructive actions', () => {
   /**
    * Both of these used to call the mutation straight from onClick: one click
    * nulled 13 overrides (including registration_mode, which applies live) or
-   * deleted a stored key server-side, with no confirmation and no undo
-   * (tripl-ifiy).
+   * deleted a stored key server-side, with no confirmation and no undo.
    */
   it('confirms before resetting a section, naming the section and its field count', async () => {
     const update = renderSection('security')
@@ -166,7 +165,7 @@ describe('Instance settings destructive actions', () => {
   it('does not promise the AI prompts an environment property that cannot exist', async () => {
     // The dialog names "all three system prompts" in its own stakes line, and
     // none of the three has an environment variable — a reset returns them to a
-    // built-in constant. Said in front of an irreversible write (tripl-wkwv.2).
+    // built-in constant. Said in front of an irreversible write.
     renderSection('ai')
 
     fireEvent.click(await screen.findByRole('button', { name: /Reset to defaults/ }))
@@ -209,7 +208,7 @@ describe('Instance settings write-through vs the unsaved draft', () => {
   /**
    * `form` spans all six sections and switching between two instance sections
    * keeps this component mounted, so the draft the leave-guard protects
-   * (tripl-l8v2) is exactly what Reset and Clear used to overwrite: both adopted
+   * is exactly what Reset and Clear used to overwrite: both adopted
    * the whole settings response, and the response cannot contain an edit that
    * was never sent.
    */
@@ -305,7 +304,7 @@ describe('Instance settings reset card', () => {
    * is ABLE to null — and called them overrides. On a fresh instance, where
    * every row above it carries the outline "Env" badge, it therefore claimed in
    * red that there were 6 Email overrides to clear, next to a live button whose
-   * PATCH would have changed nothing (tripl-5qp9).
+   * PATCH would have changed nothing.
    */
   it('counts the overrides that exist, not the fields it could reset', async () => {
     renderSection('email', { 'email.smtp_host': 'override', 'email.smtp_port': 'override' })
@@ -332,8 +331,7 @@ describe('Instance settings reset card', () => {
 
   /**
    * The card's copy had claimed every non-overridden field "comes from an
-   * environment variable" — the copy-disagrees-with-badges bug tripl-5qp9 was,
-   * in a second vocabulary (tripl-wkwv.2). Unbadged rows are now explained once,
+   * environment variable" — the copy-disagrees-with-badges bug in a second vocabulary. Unbadged rows are now explained once,
    * by the page legend, and it makes the same weaker claim.
    */
   it('does not claim the environment delivered fields it cannot vouch for', async () => {
@@ -351,7 +349,7 @@ describe('Instance settings source badges', () => {
   /**
    * `SettingSource` was `env | override`, computed as "override if a stored row
    * exists, else env" — so a field nothing had ever delivered was still badged
-   * "Env", and the badge was not evidence of anything (tripl-wkwv.2).
+   * "Env", and the badge was not evidence of anything.
    */
   it('separates a delivered value from one that merely equals the built-in default', async () => {
     renderSection('email', { 'email.smtp_host': 'default', 'email.smtp_port': 'env' })
@@ -369,8 +367,7 @@ describe('Instance settings save row', () => {
     renderSection('storage')
 
     // Storage is startup-applied; the page used to say nothing at all, while
-    // Runtime — which is read per request — carried the redeploy note
-    // (tripl-tezn).
+    // Runtime — which is read per request — carried the redeploy note.
     expect(await screen.findByText(/after the next restart/i)).toBeInTheDocument()
   })
 
@@ -379,8 +376,7 @@ describe('Instance settings save row', () => {
    * lines above the three AI prompt rows — and those three have no environment
    * variable at all: the backend reads them off ai_defaults, never off Settings,
    * so DESCRIBE_SYSTEM_PROMPT is silently ignored if anyone sets it. The badges
-   * gained a third state in this same change; this sentence never caught up
-   * (tripl-wkwv.2).
+   * gained a third state in this same change; this sentence never caught up.
    */
   it('does not promise an environment fallback for fields that have no property', async () => {
     renderSection('ai')

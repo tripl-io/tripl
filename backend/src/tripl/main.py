@@ -139,9 +139,9 @@ _OPENAPI_TAGS = [
 # address the deployment happened to have in APP_BASE_URL, so "Try it out" issued a
 # cross-origin request the browser blocked as mixed content and CORS would have
 # refused anyway — `Settings.cors_origins()` derives the allow-list from that same
-# value, so a wrong `app_base_url` breaks both halves in the same direction
-# (tripl-ouxw). Resolving it per request from the Settings -> Runtime override only
-# made the wrong value correctable without a restart (tripl-mfqm); no single
+# value, so a wrong `app_base_url` breaks both halves in the same direction.
+# Resolving it per request from the Settings -> Runtime override only
+# made the wrong value correctable without a restart; no single
 # absolute URL is right for an instance reachable at several origins.
 #
 # It also keeps the served document identical to the committed backend/openapi.json
@@ -175,7 +175,7 @@ setup_api_tracing(app)
 #   validation errors. CORS preflights and early body-limit 413s skip it.
 #   Unhandled 500s are another gap:
 #   Starlette writes those above this entire stack, so unhandled_exception_handler
-#   re-attaches the same headers itself from build_security_headers (tripl-qu9m).
+#   re-attaches the same headers itself from build_security_headers.
 # - CORS is outermost so preflight requests skip the other middleware.
 # - Brotli compresses the final response body (≥1KB), except the project SSE
 #   stream where compression adds buffering risk to latency-sensitive chunks.
@@ -280,7 +280,7 @@ async def unhandled_exception_handler(request: Request, exc: Exception) -> JSONR
     Everything below exists because this handler runs from Starlette's
     ServerErrorMiddleware, which wraps the app from *outside* every middleware
     added above — the 500 never travels back through them, so whatever they add
-    on the way out has to be reproduced here (tripl-qu9m). Concretely: the id is
+    on the way out has to be reproduced here. Concretely: the id is
     recovered from the ASGI scope because ``RequestIDMiddleware`` has already
     reset its contextvar by now, and the security headers come from the same
     builder that middleware uses so the two lists cannot drift apart.

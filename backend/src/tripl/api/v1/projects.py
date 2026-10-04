@@ -84,7 +84,7 @@ def _require_project_manager(
     """Guard project-identity edits (name, slug, retention policy).
 
     Being an ``editor`` member lets a user edit the tracking plan, not the
-    project's identity (tripl-jfm3.19), so the manager set is: the owners and
+    project's identity, so the manager set is: the owners and
     admins of the project's organization, plus whoever created the project.
     Projects created before creators were recorded have no creator and are
     therefore org owner/admin-managed.
@@ -112,8 +112,8 @@ async def _record_lifecycle(
     Everything the audit log tracks lives inside a project, and the project
     itself was the one object with no record of its own — an owner could destroy
     a workspace whole, with every event, variable, metric and alert rule in it,
-    and the log held nothing about who did it (tripl-wkwv.19). That is the shape
-    tripl-wkwv.10 fixed for events, one level up, and worse here: a deletion is
+    and the log held nothing about who did it. That is the shape
+    an earlier fix addressed for events, one level up, and worse here: a deletion is
     irreversible and takes every per-project surface with it, so there is no
     second place left to look.
 
@@ -186,7 +186,7 @@ async def list_projects(
     response_model=ProjectCreateResponse,
     status_code=201,
     # Only a generated demo is zero-egress: a real project could gain Slack,
-    # webhook or email destinations and send through them (tripl-sav5.3).
+    # webhook or email destinations and send through them.
     dependencies=[Depends(refuse_on_public_demo("create projects other than demo ones"))],
 )
 async def create_project(
@@ -273,7 +273,7 @@ async def reset_demo_project(
     """Re-seed a demo in place. Restricted to the demo's creator or an owner."""
     # Reset re-provisions the demo from scratch, so it IS a provisioning path and
     # the kill switch has to gate it too — otherwise flipping the switch off still
-    # left a full re-seed one click away (tripl-2su6.16). Delete deliberately
+    # left a full re-seed one click away. Delete deliberately
     # stays ungated, so a workspace can never be stuck with a demo it can't remove.
     _require_demo_enabled()
     project = await project_lookup.resolve_project(session, slug)
@@ -282,7 +282,7 @@ async def reset_demo_project(
     _require_demo_manager(project_role, current_user, project)
     replacement = await demo_service.reset_demo_project(session, slug, created_by=current_user.id)
     # Recorded against the REPLACEMENT, and after it exists, so the row survives:
-    # the reset drops the old demo's audit rows by its id (tripl-wkwv.16), and a
+    # the reset drops the old demo's audit rows by its id, and a
     # row filed against the project being destroyed would go with them. It is also
     # the only thing that explains why the trail below it starts fresh.
     await _record_lifecycle(
@@ -350,7 +350,7 @@ async def update_project(
     #
     # Which leaves the rows written BEFORE it carrying the old one. That is why
     # ``audit_service.list_entries`` resolves a slug to a project and filters on
-    # the id rather than matching the label (tripl-wkwv.18): every row on both
+    # the id rather than matching the label: every row on both
     # sides of a rename carries the same ``project_id``, so the trail stays whole
     # as long as the reader asks by project rather than by name.
     await _record_lifecycle(
@@ -467,7 +467,7 @@ async def retire_unused_variables(
 
     A scan creates a variable for every placeholder it discovers and has never
     retired one, so a project whose warehouse holds a JSON column keyed by
-    user-typed text accumulates a row per key forever (tripl-10h4). This deletes
+    user-typed text accumulates a row per key forever. This deletes
     only rows that a scan created, no human has edited, no event field value
     names, and that carry no observed context, drift or override — see
     ``core.variable_retirement`` for why "no observed context" alone is not

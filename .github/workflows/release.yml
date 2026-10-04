@@ -83,8 +83,8 @@ jobs:
 
   # The MCP proxy is a SEPARATE image with its own Dockerfile — compose.yaml's
   # `mcp` service pins ghcr.io/<repo>-mcp:${TRIPL_VERSION}, which nothing built
-  # until now, so `docker compose --profile mcp up` could only ever fail to pull
-  # (tripl-jfm3.122). Same tag scheme as the app image so the two move together.
+  # until now, so `docker compose --profile mcp up` could only ever fail to pull.
+  # Same tag scheme as the app image so the two move together.
   mcp-image:
     name: Build & push MCP image
     needs: ci
@@ -124,8 +124,7 @@ jobs:
         uses: docker/build-push-action@v7
         with:
           # Repo root, not ./mcp-server: the image builds the sibling `tripl`
-          # package from ./cli, which a mcp-server/ context cannot reach
-          # (tripl-ey6j.1).
+          # package from ./cli, which a mcp-server/ context cannot reach.
           context: .
           file: ./mcp-server/Dockerfile
           platforms: linux/amd64,linux/arm64

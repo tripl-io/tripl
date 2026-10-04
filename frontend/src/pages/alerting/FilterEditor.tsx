@@ -38,8 +38,8 @@ type PickerOption = { value: string; label: string }
 
 // Event catalogs are unbounded — production projects hold 2,400+ events — so the
 // event picker queries the server per keystroke instead of the alerting tab
-// downloading the whole catalog on mount to filter it in the browser
-// (tripl-jfm3.106). Anything past this page is reachable by typing, and the
+// downloading the whole catalog on mount to filter it in the browser.
+// Anything past this page is reachable by typing, and the
 // footer says how much is hidden rather than truncating silently.
 const EVENT_PAGE_SIZE = 50
 
@@ -179,7 +179,7 @@ function useEventOptions({
   const items = useMemo(() => listQuery.data?.items ?? [], [listQuery.data])
   // A stored name of "" paints an option with no text and no accessible name —
   // a picker row a screen reader announces as nothing but "button", on the one
-  // event a user would most want to find in order to clean it up (tripl-wkwv.5).
+  // event a user would most want to find in order to clean it up.
   //
   // Both label sources are wrapped HERE rather than at the `?? value` fallbacks
   // that read them: `Map.get` returns '' as a HIT, so `??` never fires for an

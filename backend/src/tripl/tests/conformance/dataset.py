@@ -216,7 +216,7 @@ def expected_json_leaf_paths() -> frozenset[str]:
 #: Field contracts checked on every executing warehouse.
 #:
 #: ClickHouse validates these with a native warehouse-side aggregate query; PostgreSQL
-#: and BigQuery still fall back to BaseAdapter's Python row sampling (tripl-64n8.5).
+#: and BigQuery still fall back to BaseAdapter's Python row sampling.
 #: Two completely different implementations, one required answer — which is precisely
 #: what a conformance gate is for. The thresholds are 0.0 so the assertion is about the
 #: COUNTS the two paths derive, not about threshold arithmetic.

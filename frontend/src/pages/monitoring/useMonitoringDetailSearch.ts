@@ -23,7 +23,7 @@ export interface MonitoringDetailSearch {
   versionFilter: VersionFilter
   distributionField: string
   breakdownColumn: string
-  /** Breakdown values narrowed to; empty shows every value (tripl-egt5). */
+  /** Breakdown values narrowed to; empty shows every value. */
   breakdownValues: string[]
 }
 

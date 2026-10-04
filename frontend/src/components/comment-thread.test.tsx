@@ -269,7 +269,7 @@ describe('CommentThread catalog counts (EVT-29)', () => {
   })
 })
 
-describe('CommentThread authors (tripl-h2sx.27)', () => {
+describe('CommentThread authors', () => {
   it('names the author on a comment and on its reply', async () => {
     renderThread(
       [
@@ -307,7 +307,7 @@ describe('CommentThread authors (tripl-h2sx.27)', () => {
 describe('CommentThread resolution', () => {
   it('shows no resolution controls when the caller offers no action', async () => {
     // The branch-review thread's table has no resolution columns, so the same
-    // component must render exactly as it did before (tripl-h2sx.26).
+    // component must render exactly as it did before.
     renderThread([comment({ id: 'c-1' })])
     await screen.findByText('a comment')
 

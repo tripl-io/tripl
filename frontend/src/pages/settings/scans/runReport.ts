@@ -61,7 +61,7 @@ export interface RunReportLine {
  * `signals_added` is this RUN's delta — the scan's open signals after the run
  * minus before it. The Anomalies page the sentence links to counts what is OPEN
  * NOW for the scan. They are different questions with legitimately different
- * answers, and readers have taken the pair for a contradiction (tripl-jfm3.27).
+ * answers, and readers have taken the pair for a contradiction.
  *
  * The first attempt at saying so was a 20-word disclaimer under every run that
  * raised anything, asserting as fact that "the two numbers differ" — which is

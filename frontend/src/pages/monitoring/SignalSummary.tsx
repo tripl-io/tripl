@@ -43,8 +43,8 @@ export function SignalSummary({
   let change: ReactNode
   let why: string
   if (droppedToZero) {
-    // The z-score of a series that bottomed out is clamped, not informative
-    // (tripl-yfsj.9), so neither line leans on it.
+    // The z-score of a series that bottomed out is clamped, not informative,
+    // so neither line leans on it.
     change = <>dropped to <span style={{ color: `var(--${tone})` }}>zero</span>, against an expected {expected}.</>
     why = `the series fell to zero where ${expected} was expected.`
   } else if (delta === null) {

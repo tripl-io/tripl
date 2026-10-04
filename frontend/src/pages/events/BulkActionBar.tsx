@@ -37,8 +37,8 @@ export function BulkActionBar({
    * selection deliberately keeps ids that are off-screen so "Select all N
    * matching" can sweep unloaded rows — but a hand-ticked selection orphaned by
    * a narrowing filter or a tab switch got the same silence, leaving the bar
-   * reading "20 selected" over a table with nothing ticked and a total of 3
-   * (tripl-4i49). Omit when the two cannot differ.
+   * reading "20 selected" over a table with nothing ticked and a total of 3.
+   * Omit when the two cannot differ.
    */
   selectedVisibleCount?: number
   /**
@@ -153,7 +153,7 @@ export function BulkActionBar({
             {/*
               The one bulk owner change the API offers that is not an
               assignment. `bulk-update` reads an explicit `owner_id: null` as
-              "clear it across the selection" (tripl-0zpq.276); without an entry
+              "clear it across the selection"; without an entry
               here it was reachable from the API and MCP only.
             */}
             <SelectItem value={UNASSIGN_VALUE}>

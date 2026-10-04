@@ -40,8 +40,7 @@ export type Portfolio = {
    * Projects with ANY scan config whose LATEST run failed — NOT just the single
    * newest job across the project. A config that fails every hourly run is
    * invisible in latest_scan_job once a different config logs a newer success,
-   * so the rollup follows the per-config failing_scan_config_count instead
-   * (tripl-7l83.3).
+   * so the rollup follows the per-config failing_scan_config_count instead.
    */
   projectsWithFailedScan: number
   failingScanConfigCount: number
@@ -105,8 +104,7 @@ const REVIEW_HINT_PROJECT_LIMIT = 3
  * Where the workspace review backlog actually sits, biggest queue first.
  *
  * "across 3 projects" told the operator nothing about which project holds the
- * 1441 of the 2292 events, and the tile's single link opened a different one
- * (tripl-a1d1).
+ * 1441 of the 2292 events, and the tile's single link opened a different one.
  */
 export function reviewQueueHint(projects: readonly Project[]): string {
   const pending = projects

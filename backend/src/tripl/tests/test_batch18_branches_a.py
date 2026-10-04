@@ -1,4 +1,4 @@
-"""Batch 18 plan-branch regressions: tripl-0zpq.293, .289 and .291."""
+"""Batch 18 plan-branch regressions."""
 
 from __future__ import annotations
 
@@ -29,7 +29,7 @@ from tripl.tests.test_plan_branches import (
 )
 from tripl.worker.tasks import maintenance
 
-# --- tripl-0zpq.293: a main-side rename is not a branch rename ---------------
+# --- a main-side rename is not a branch rename ---------------
 
 
 def test_pair_renames_ignores_a_base_key_main_handed_to_another_identity() -> None:
@@ -124,7 +124,7 @@ async def test_merging_an_unrelated_branch_keeps_mains_retire_and_promote(
     assert promoted.source_name == "checkout:v2_raw"
 
 
-# --- tripl-0zpq.289: deleting a branch row keeps the thread its twin shows ---
+# --- deleting a branch row keeps the thread its twin shows ---
 
 
 async def _branch_track_id(client: AsyncClient, slug: str, branch_id: str, name: str) -> str:
@@ -302,7 +302,7 @@ async def test_deleting_a_branch_only_event_with_no_twin_still_drops_its_thread(
         assert await session.get(EventPhotoComment, uuid.UUID(question)) is None
 
 
-# --- tripl-0zpq.291: the orphan photo sweep -----------------------------------
+# --- the orphan photo sweep -----------------------------------
 
 
 @pytest.fixture

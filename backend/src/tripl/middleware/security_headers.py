@@ -42,7 +42,7 @@ def build_security_headers(*, gcs_images: bool = False) -> dict[str, str]:
     the app's catch-all ``Exception`` handler answers from Starlette's
     ServerErrorMiddleware, which sits *outside* the whole user middleware stack,
     so a 500 never passes back through this middleware and has to attach the
-    same headers itself (tripl-qu9m). Two hand-maintained copies of the list is
+    same headers itself. Two hand-maintained copies of the list is
     exactly the drift that bug was — so both callers read this one function.
 
     Returns an empty mapping when security headers are disabled, so a 500 always

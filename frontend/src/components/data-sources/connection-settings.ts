@@ -160,7 +160,7 @@ export function connectionSettingsErrors(dbType: DbType, form: ConnectionSetting
 // help paragraph. `content-start` is load-bearing — without it the row height
 // comes from the tallest column and grid hands the surplus to the shorter
 // column's auto rows, so Username's label and input sat 12px below Password's
-// purely because the Password column carried a third child (tripl-ofvc).
+// purely because the Password column carried a third child.
 export const FIELD_COL_CLASS = 'grid content-start gap-2'
 
 function parseAllowlist(value: string): string[] {

@@ -1,4 +1,4 @@
-"""Sign in with Google, the instance-wide OAuth client (tripl-sav5.2).
+"""Sign in with Google, the instance-wide OAuth client.
 
 Google itself is never reached: discovery is answered locally and the code
 exchange plus id_token checks (the SSO flow's own, tested in test_org_sso) are

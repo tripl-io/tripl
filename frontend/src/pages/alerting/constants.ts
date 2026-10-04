@@ -171,7 +171,7 @@ export const ITEM_TEMPLATE_VARIABLE_OPTIONS = [
   // Named here rather than only in the docs because this list is what an
   // operator with a saved custom template reads while editing it: a template
   // written before `percent_delta_label` existed still prints "0.0%" at a zero
-  // baseline, and nothing may rewrite it for them (tripl-l429.27).
+  // baseline, and nothing may rewrite it for them.
   { name: 'percent_delta', description: 'Percent delta as a bare number. Prints 0 when there was no baseline, so prefer percent_delta_label unless you need the raw number' },
   { name: 'percent_delta_label', description: 'Percent delta with its "%" sign, or "no baseline" when expected is 0' },
   { name: 'bucket', description: 'Anomaly bucket timestamp' },
@@ -644,8 +644,7 @@ export function unknownTemplateVariables(
 }
 
 /**
- * How much room is left in a note, said only once it is worth saying
- * (tripl-gwrd).
+ * How much room is left in a note, said only once it is worth saying.
  *
  * Both note editors hand {@link MAX_INBOX_NOTE_LENGTH} to `maxLength`, and a
  * `maxLength` that has been reached does not warn, error or truncate visibly —

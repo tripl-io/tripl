@@ -12,7 +12,7 @@ export interface DraftDiscussionNoteProps {
  * A comment needs an event to hang on, so the thread itself cannot exist yet —
  * but the question does. "Should this fire on cancel too?" occurs while the
  * event is being authored, and by the time it exists its author has navigated
- * away (tripl-htfn.1).
+ * away.
  *
  * It is not Description and not Title, and the copy says so: everything else on
  * this page travels with the event into the spec the implementer reads, while

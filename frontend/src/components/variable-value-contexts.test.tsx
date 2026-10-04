@@ -164,7 +164,7 @@ describe('VariableValueContextTrigger', () => {
   })
 })
 
-describe('VariableValueContextTrigger last refreshed (tripl-h2sx.22)', () => {
+describe('VariableValueContextTrigger last refreshed', () => {
   it('dates the reading when the row carries a timestamp', () => {
     render(
       <VariableValueContextTrigger

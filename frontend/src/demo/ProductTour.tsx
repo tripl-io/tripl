@@ -1,11 +1,11 @@
 /**
- * Capability-aware product tour (tripl-2su6.9).
+ * Capability-aware product tour.
  *
  * A stepper through the core surfaces. Each step deep-links to the REAL surface,
  * so following the tour closes the dialog — which means progress has to survive
  * that, or the tour is unfollowable. It used to reset to step one on
  * every close, so opening a step's surface and coming back put you straight back
- * at the beginning: a link list wearing a stepper's clothes (tripl-2su6.18).
+ * at the beginning: a link list wearing a stepper's clothes.
  *
  * Now: opening a step's surface ADVANCES the tour (visiting is progress, not
  * abandonment), the position is persisted per project, and a plain dismissal

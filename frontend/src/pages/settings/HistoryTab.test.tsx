@@ -1,7 +1,7 @@
 /**
  * Plan history — the revision list is the only place a snapshot's branch is
- * named, so what it renders about a revision has to survive a narrow card
- * (tripl-lzge). Both assertions here are about text and attributes, not layout:
+ * named, so what it renders about a revision has to survive a narrow card.
+ * Both assertions here are about text and attributes, not layout:
  * the CSS truncation itself is not observable in jsdom, but the tooltip that
  * makes it recoverable and the separator-joined metadata are.
  */
@@ -89,7 +89,7 @@ afterEach(() => {
   vi.restoreAllMocks()
 })
 
-describe('HistoryTab — a revision row keeps its identity readable (tripl-lzge)', () => {
+describe('HistoryTab — a revision row keeps its identity readable', () => {
   it('titles the summary with the full string, so a clipped branch name survives', async () => {
     renderHistory()
 

@@ -5,8 +5,8 @@ None`` so that ``model_dump(exclude_unset=True)`` can tell "not sent" from
 "sent". That ``| None`` is a wire convention, not a statement about the column:
 a client that sends ``{"status": null}`` gets past validation, the service
 ``setattr``s ``None`` onto a NOT NULL column, and the commit raises
-``IntegrityError``, which the unhandled-exception handler renders as a blank 500
-(tripl-0zpq.181). An unset field never reaches a validator at all, so rejecting
+``IntegrityError``, which the unhandled-exception handler renders as a blank 500.
+An unset field never reaches a validator at all, so rejecting
 ``None`` at the boundary costs the honest client nothing and turns the 500 into
 a 422 that names the field.
 

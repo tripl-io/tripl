@@ -124,7 +124,7 @@ export interface TopEvent {
 export interface OverviewKpiSeries {
   days: number
   // Events CREATED per day on the main branch. Named `active_events` until
-  // tripl-jfm3.22, which is what led the Overview sparkline to announce itself
+  // it was renamed, which is what led the Overview sparkline to announce itself
   // as "Active events by day" while plotting creations across every branch.
   new_events: number[]
 }
@@ -150,7 +150,7 @@ export interface MonitoringSignal {
   // How big this signal is relative to what was expected — what the Significant
   // gate and the sidebar badge both read. Computed server-side because only it
   // knows whether a catalog metric's series is count-shaped, which decides
-  // whether the denominator is floored at 1 (tripl-yf8c). Null on a payload
+  // whether the denominator is floored at 1. Null on a payload
   // that did not compute it; `relativeEffect` falls back to the count-shaped
   // estimate there rather than treating the signal as having no magnitude.
   relative_effect?: number | null
@@ -158,7 +158,7 @@ export interface MonitoringSignal {
   // could not be resolved (the entity was deleted) or when the scope names
   // itself — `project_total`. Never substitute `scope_ref`: a hex prefix reads
   // as a name, and the page then disagrees with the activity rail about what
-  // fired (tripl-y4wt). Optional like `scan_config_name`: the server always
+  // fired. Optional like `scan_config_name`: the server always
   // sends it, but locally-synthesised signals need not fabricate one.
   scope_name?: string | null
   // True when this row is a child scope (event_type/event) folded under a
@@ -429,8 +429,7 @@ export interface SeasonalityHeatmap {
   max_count: number
   total_count: number
   // The scan interval the cells were binned from. A daily/weekly scan puts every
-  // bucket in hour 0, so the 7×24 grid can never fill and must not be drawn
-  // (tripl-jfm3.128).
+  // bucket in hour 0, so the 7×24 grid can never fill and must not be drawn.
   interval: string
   hourly_resolution: boolean
 }
@@ -456,7 +455,7 @@ export interface EventMetricsResponse {
   scan_config_id: string | null
   // Display name of the single scan config the `project_total` / `events_total`
   // series is scoped to, so the chart can name its scope instead of implying
-  // it covers every scan in the project (tripl-jfm3.20). Optional like
+  // it covers every scan in the project. Optional like
   // `sigma_threshold`: the server always sends it (null for scopes that have no
   // single scan), but locally-synthesised responses need not fabricate one.
   scan_config_name?: string | null

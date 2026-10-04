@@ -8,15 +8,15 @@ the coverage numerator, and real traffic is filed as an unplanned identity.
 
 Four such divergences are pinned here, one section each:
 
-* tripl-0zpq.90 — group rules could only read columns that had a FieldDefinition,
+* group rules could only read columns that had a FieldDefinition,
   which is exactly the set a rule column is never in;
-* tripl-0zpq.91 — with no name format the collector appended a ``col.path=``
+* with no name format the collector appended a ``col.path=``
   segment per JSON path and the planner appended none;
-* tripl-0zpq.92 — a dotted placeholder the row did not carry killed the run
+* a dotted placeholder the row did not carry killed the run
   instead of contributing an empty segment, the way a NULL column does; the same
   section pins the other edge of that seed, a path NO row carries, which renames
   every affected identity and must therefore be reported rather than swallowed;
-* tripl-0zpq.93 — a format naming the ``event_type_column`` could never resolve,
+* a format naming the ``event_type_column`` could never resolve,
   even though ``reserved_catalog_columns`` un-reserves that column for it.
 
 Every assertion is pure Python over hand-built rows: no session, no Postgres, so
@@ -40,7 +40,7 @@ from tripl.worker.tasks.metrics.metric_rows import _build_event_name_from_row
 from tripl.worker.utils.reserved_columns import reserved_catalog_columns
 
 # --------------------------------------------------------------------------
-# tripl-0zpq.90 — group rules read the row, not just the catalog columns
+# group rules read the row, not just the catalog columns
 # --------------------------------------------------------------------------
 
 _EVENT_NAME_RULE = [
@@ -198,7 +198,7 @@ def test_a_reserved_column_stays_out_of_the_catalog_even_though_the_rules_can_re
     """Widening what the rules see must not widen what the scan tracks.
 
     The rule column has no FieldDefinition on purpose; making it a field value
-    would put the rule's own pattern in the catalog (tripl-jfm3.57).
+    would put the rule's own pattern in the catalog.
     """
     plan = plan_events(
         _warehouse_event_name_analysis(),
@@ -212,7 +212,7 @@ def test_a_reserved_column_stays_out_of_the_catalog_even_though_the_rules_can_re
 
 
 # --------------------------------------------------------------------------
-# tripl-0zpq.91 — with no name format, one segment per COLUMN in both builders
+# with no name format, one segment per COLUMN in both builders
 # --------------------------------------------------------------------------
 
 
@@ -285,7 +285,7 @@ def test_a_name_format_still_resolves_every_json_path_in_both_builders() -> None
 
 
 # --------------------------------------------------------------------------
-# tripl-0zpq.92 — a JSON path the row does not carry is an empty segment
+# a JSON path the row does not carry is an empty segment
 # --------------------------------------------------------------------------
 
 
@@ -362,7 +362,7 @@ def test_a_dotted_placeholder_on_a_column_the_plan_lost_still_fails_loudly() -> 
     """The narrowness pin: the seed must not disarm the drift guard.
 
     A base column with no FieldDefinition — deleted, or reserved away — is the
-    failure tripl-3mmh and tripl-lpin exist to make loud, and it stays loud.
+    failure the earlier diagnosability fixes exist to make loud, and it stays loud.
     """
     with pytest.raises(NameFormatError) as excinfo:
         plan_events(
@@ -402,7 +402,7 @@ def test_a_dotted_placeholder_no_row_carries_is_reported_not_swallowed() -> None
     renamed away — or a typo in the format — seeds ``""`` exactly like a quiet
     window and renders every name with an empty segment. The two are genuinely
     indistinguishable from one scan, so the run must not raise (that is the
-    tripl-0zpq.92 outage) and must not stay silent either: an identity changing
+    earlier outage) and must not stay silent either: an identity changing
     under the operator is not something to find out from a flat chart.
 
     Red on revert of the report: the names below are correct with or without it.
@@ -424,14 +424,14 @@ def test_a_dotted_placeholder_no_row_carries_is_reported_not_swallowed() -> None
     )
     # Pluralised in the helper, for the same reason ``unnamed_skip_detail`` is:
     # this is copy an operator reads, and "1 paths" is a defect this repo has
-    # already shipped once (tripl-3y7z).
+    # already shipped once.
     assert absent_json_path_detail(["a.b", "c.d"]) == (
         "Event name format JSON paths not present on any row, rendered as empty segments: a.b, c.d"
     )
 
 
 def test_a_path_one_row_carries_is_not_reported_absent() -> None:
-    """The boundary: tripl-0zpq.92's rescued row must not look like a rename.
+    """The boundary: the rescued row must not look like a rename.
 
     One of the two rows carries ``event.category`` and the other does not, which
     is the ordinary ``GROUP BY ALL`` shape the seed exists for. Reporting that
@@ -447,7 +447,7 @@ def test_a_path_one_row_carries_is_not_reported_absent() -> None:
 
 
 # --------------------------------------------------------------------------
-# tripl-0zpq.93 — a name format may name the event type column
+# a name format may name the event type column
 # --------------------------------------------------------------------------
 
 _EVENT_TYPE_NAME_FORMAT = "{screen}:{action}"
@@ -594,7 +594,7 @@ def test_a_genuinely_missing_key_still_raises_the_curated_error() -> None:
     """None of the three new fallbacks may swallow a real drift.
 
     ``action`` is not a JSON path, not the event type column and not in
-    ``col_meta``, so it is still the loud failure tripl-3mmh made self-diagnosing.
+    ``col_meta``, so it is still the loud failure that was made self-diagnosing.
     """
     with pytest.raises(NameFormatError) as excinfo:
         _build_event_name_from_row(

@@ -42,7 +42,7 @@ from tripl.services.project_lookup import project_slug_clause, resolve_project_i
 # feed on every page and read as live/streaming events. Bound the query to a
 # recent window measured against wall-clock now so only fresh anomalies show.
 #
-# Measured on ``MetricAnomaly.bucket``, never ``created_at`` (tripl-0zpq.193):
+# Measured on ``MetricAnomaly.bucket``, never ``created_at``:
 # the detector deletes and re-inserts its trailing re-evaluation window every
 # tick, so ``created_at`` is "last re-scored", not "happened". Keyed on it, a
 # 26-day-old daily anomaly read "just now" on every collection and a replay
@@ -270,7 +270,7 @@ async def _metric_anomaly_items(
     A ``metric``-scope row carries a NULL ``scan_config_id`` and is keyed by
     ``scope_ref = str(metric_definition_id)`` (``models.metric_anomaly``), so
     the inner join through ScanConfig dropped every one of them and a spiking
-    catalog metric never reached the rail (tripl-0zpq.302, tripl-0zpq.195).
+    catalog metric never reached the rail.
     Project is reached through ``MetricDefinition.project_id`` instead. The
     metric ids are resolved first and matched on ``scope_ref`` in Python-side
     string form, the way ``metrics_insights_service`` loads metric scopes,
@@ -349,7 +349,7 @@ async def _metric_anomaly_items(
                 title=f"{direction.capitalize()} on {metric.display_name}",
                 # Catalog metrics carry fractional values (ratios, averages), so
                 # int() would print a collapsed 0.04 ratio as "0 actual vs 0
-                # expected" (tripl-0zpq.195).
+                # expected".
                 detail=(
                     f"{_format_metric_value(row.actual_count)} actual vs "
                     f"{_format_metric_value(row.expected_count)} expected · z={z_score:.1f}"
@@ -482,7 +482,7 @@ async def _event_items(
 
     Event is branch-scoped and ``deep_copy_plan_to_branch`` clones every plan
     entity with fresh ids, so joining on ``project_id`` alone put one copy of
-    each event into the feed per open working branch (tripl-r5ri). Those rows
+    each event into the feed per open working branch. Those rows
     were emitted as ``/p/<slug>/monitoring/event/<id>``, which the detail page
     resolves against main — so a branch-local id produced a hard 404 rather than
     a wrong-but-working link, and which copy took the slot was a coin flip: rows
@@ -490,8 +490,8 @@ async def _event_items(
     ``updated_at``, leaving the ``desc(updated_at), desc(id)`` tiebreak nothing
     to order by.
 
-    Same defect class as ``metrics_service.get_overview_kpi_series``
-    (tripl-jfm3.77), scoped the same way. The predicate is a join on
+    Same defect class as ``metrics_service.get_overview_kpi_series``,
+    scoped the same way. The predicate is a join on
     ``branch_id`` rather than a per-project subquery because this feed also runs
     unscoped (no ``slug``) across every visible project at once.
 
@@ -646,7 +646,7 @@ def _monitoring_path(
 ) -> str | None:
     """Route an anomaly to its monitoring page, or nowhere.
 
-    Built from the FK columns, never from ``scope_ref`` (tripl-r5ri).
+    Built from the FK columns, never from ``scope_ref``.
     ``scope_ref`` is an unconstrained ``String(64)`` the detector writes for
     dedupe keying, whereas ``event_id`` / ``event_type_id`` are real foreign
     keys declared ``ondelete=SET NULL`` — so deleting an event nulls the FK but
@@ -742,7 +742,7 @@ def _scan_job_detail(
     # Lead with what the run actually produced. A completed scan on an
     # established catalog routinely discovers 0 new events yet still writes
     # metric points and scans rows; surfacing a bare "0 events created" made a
-    # healthy run read as a no-op / failure (tripl-yfsj.5). Only non-zero deltas
+    # healthy run read as a no-op / failure. Only non-zero deltas
     # are shown, mirroring the frontend Scans-page summary.
     parts: list[str] = []
     events_created = _as_positive_count(summary.get("events_created"))
@@ -755,7 +755,7 @@ def _scan_job_detail(
     if signals_added:
         # "new signal(s)", not "signal(s)": this is the run's signals_added
         # DELTA, and a bare "1 signal" read as the project's open-signal total —
-        # irreconcilable with the Anomalies headline (tripl-jfm3.27). Matches the
+        # irreconcilable with the Anomalies headline. Matches the
         # events_created branch above, which already qualifies its delta.
         parts.append(_count_label(signals_added, "new signal", "new signals"))
     alerts_queued = _as_positive_count(summary.get("alerts_queued"))
@@ -774,7 +774,7 @@ def _scan_job_detail(
     if parts:
         return " · ".join(parts)
     # The activity rail is a web-UI surface, so it says *run*, never the API/CLI
-    # spelling "job" (tripl-3y7z). Neither fallback may name a run TYPE it cannot
+    # spelling "job". Neither fallback may name a run TYPE it cannot
     # know either: a completed metrics collection always carries "events_created"
     # (collect_metrics writes it unconditionally), so the completed branch is
     # never a metrics collection — it is reached by an event-groups apply, or by

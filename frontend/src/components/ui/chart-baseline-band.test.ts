@@ -4,7 +4,7 @@ import type { EventMetricPoint } from '@/types'
 import { at } from '@/test/at'
 import { buildChartData, hasExpectedDot } from './chart'
 
-// tripl-i9mt.25: the detector stores the baseline of every bucket it scores,
+// the detector stores the baseline of every bucket it scores,
 // so the band is drawn on unflagged buckets too, not only on anomalies.
 function point(bucket: string, overrides: Partial<EventMetricPoint> = {}): EventMetricPoint {
   return {

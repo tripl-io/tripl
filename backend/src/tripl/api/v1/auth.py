@@ -262,7 +262,7 @@ async def get_status(session: SessionDep) -> AuthStatusResponse:
     dependencies=[
         Depends(enforce(register_rate_limiter)),
         # Visitors sign up with Google: an address it vouches for, and no mail
-        # relay needed to verify a typed one (tripl-sav5.2).
+        # relay needed to verify a typed one.
         Depends(refuse_on_public_demo("take password sign-ups; sign in with Google")),
     ],
 )

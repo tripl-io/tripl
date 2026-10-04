@@ -1,4 +1,4 @@
-"""Serving the built SPA from FastAPI via app.frontend() (tripl-jmve).
+"""Serving the built SPA from FastAPI via app.frontend().
 
 The consolidated single-container prod deploy serves the SPA from the API process
 using FastAPI 0.138+'s app.frontend(). These tests pin the behavior that makes

@@ -60,7 +60,7 @@ class ScanActivityItem(BaseModel):
 
 
 class ScanActivityResponse(BaseModel):
-    """Per-scan activity for a project, aggregated in SQL (tripl-fj5g.11)."""
+    """Per-scan activity for a project, aggregated in SQL."""
 
     window_from: datetime
     window_to: datetime

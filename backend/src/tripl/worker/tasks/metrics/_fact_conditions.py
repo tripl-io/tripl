@@ -287,7 +287,7 @@ def _condition_text(value: object, dialect: SqlDialect) -> str:
 
 
 def _escape_like_wildcards(text: str) -> str:
-    """Neutralise ``%`` and ``_`` so ``contains`` means *contains* (tripl-jfm3.111).
+    """Neutralise ``%`` and ``_`` so ``contains`` means *contains*.
 
     ``contains`` is a substring test in the UI, but it compiled to a bare
     ``LIKE '%value%'``, so a value holding a wildcard silently widened the match:
@@ -629,7 +629,7 @@ def _validate_breakdown_columns(
     The save door now refuses an unknown dimension itself:
     ``_verify_fact_breakdown_columns`` in ``metric_definition_service`` answers 422
     for a breakdown column, ``app_version_column`` or ``platform_column`` that is
-    not in the fact table's STORED ``columns`` snapshot (tripl-0zpq.174). So this
+    not in the fact table's STORED ``columns`` snapshot. So this
     is the live-introspection backstop rather than the only check. It still has to
     exist, because the snapshot and the warehouse are two different facts: a
     dimension that was in the snapshot at save time can be dropped from the

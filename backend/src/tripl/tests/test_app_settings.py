@@ -33,7 +33,7 @@ async def test_service_settings_update_uses_env_fallback_and_encrypts_secrets(
         # built-in default (config.py's ``ai_enabled: bool = False``). This
         # assertion used to read "env" because every field with no stored
         # override was asserted to come from the environment, which is exactly
-        # the claim tripl-wkwv.2 is about — the badge was not evidence of
+        # the claim at issue — the badge was not evidence of
         # anything. The flip is the fix, not a regression.
         assert initial.json()["sources"]["ai.ai_enabled"] == "default"
         assert "runtime" in initial.json()
@@ -147,7 +147,7 @@ def test_apply_startup_service_overrides_mutates_settings(
     finally:
         for field, value in originals.items():
             setattr(settings, field, value)
-        # Process-lifetime state (tripl-wkwv.2): a successful apply records what
+        # Process-lifetime state: a successful apply records what
         # the environment held before it, and pytest shares one process.
         app_settings_service._ENV_BEFORE_STARTUP_APPLY.clear()
 
@@ -174,7 +174,7 @@ def test_startup_ignores_an_override_that_would_prevent_boot(
     refuses a non-debug boot without it, so unticking "Secure cookie" in the
     admin UI used to brick the instance on the next restart — with the only
     recovery being hand-edited SQL, because the UI lives in the process that no
-    longer starts (tripl-jfm3.93).
+    longer starts.
     """
     monkeypatch.setattr(
         app_settings_service,
@@ -228,7 +228,7 @@ def test_saving_is_not_blocked_by_problems_the_environment_already_has(
 
 
 def test_registration_mode_is_resolved_live_not_at_startup() -> None:
-    """Closing registration must not wait for a redeploy (tripl-jfm3.9).
+    """Closing registration must not wait for a redeploy.
 
     Every other security override is pinned onto ``settings`` at process start;
     ``registration_mode`` is deliberately excluded and read per request instead.
@@ -263,7 +263,7 @@ async def test_registration_mode_override_wins_over_env(
     # "default", not "env": the monkeypatch above pins "open", which IS the
     # built-in default (config.py's ``registration_mode: str = REGISTRATION_OPEN``),
     # and a resolved value equal to the default cannot be told apart from a
-    # delivered one (tripl-wkwv.2). The fallback itself is unchanged — only the
+    # delivered one. The fallback itself is unchanged — only the
     # badge stopped claiming an environment variable it has no evidence for.
     assert cleared.json()["sources"]["security.registration_mode"] == "default"
     async with TestSessionLocal() as session:
@@ -274,7 +274,7 @@ async def test_registration_mode_override_wins_over_env(
 async def test_clearing_a_startup_applied_override_stops_crediting_the_environment(
     client: AsyncClient, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """The case the registration_mode test above cannot reach (tripl-wkwv.2).
+    """The case the registration_mode test above cannot reach.
 
     ``registration_mode`` is the one security field excluded from
     STARTUP_APPLIED_FIELDS, so its singleton is never mutated. Every other one is:
@@ -322,7 +322,7 @@ async def test_clearing_a_startup_applied_override_stops_crediting_the_environme
 async def test_setting_source_distinguishes_a_delivered_value_from_the_code_default(
     client: AsyncClient, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """The assertion the system could not make before tripl-wkwv.2.
+    """The assertion the system could not make before the source badges.
 
     "Is this instance using the shipped default, or was it told otherwise?" was
     unanswerable from any runtime surface: every field with no stored override
@@ -358,7 +358,7 @@ async def test_ai_settings_report_the_embeddings_endpoint_and_agree_with_the_cal
 
     SEARCH_EMBEDDING_BASE_URL has been dropped from the compose env allowlist
     three times. Each time the only way to notice was to read the source and
-    diff by hand, because no API surface carried the value at all (tripl-wkwv.2).
+    diff by hand, because no API surface carried the value at all.
     """
     self_hosted = "https://llm.internal.example/v1"
     monkeypatch.setattr(settings, "search_embedding_base_url", self_hosted)
@@ -419,7 +419,7 @@ async def test_the_embeddings_endpoint_cannot_be_repointed_at_runtime(
 async def test_system_section_reports_the_applied_revision_and_head(
     client: AsyncClient,
 ) -> None:
-    """A serving app used to only IMPLY that migrations ran (tripl-wkwv.7).
+    """A serving app used to only IMPLY that migrations ran.
 
     Note what this suite can and cannot show: its schema is built by
     ``Base.metadata.create_all``, so there is no ``alembic_version`` table at

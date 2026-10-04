@@ -9,7 +9,7 @@ It is also what keeps ``mcp`` out of this distribution. The client used to raise
 invert the dependency (tripl-mcp depends on tripl, not the other way round) and
 drag the whole MCP SDK into every ``uvx tripl`` install. tripl-mcp re-attaches
 its own agent-facing wording at its tool boundary instead — see
-``tripl_mcp/errors.py`` (tripl-ey6j.1).
+``tripl_mcp/errors.py``.
 """
 
 from __future__ import annotations
@@ -26,7 +26,7 @@ EXIT_USAGE = 2
 # least one check reported `fail` (or, under --strict, `warn`). Distinct from
 # EXIT_FAILURE so a cron can tell "your instance has a problem" from "the tool
 # itself broke" — doctor turns every API failure into a finding, so an exit 1
-# out of doctor is a bug report, not a diagnosis (tripl-ey6j.2).
+# out of doctor is a bug report, not a diagnosis.
 EXIT_CHECKS_FAILED = 3
 # 4+ stays unallocated. A per-severity code or a --fail-on=warn|fail was
 # considered and dropped: one code plus --strict covers the cron contract, and
@@ -53,7 +53,7 @@ class TriplAPIError(TriplError):
     belongs in the transport. One class with a ``status_code`` rather than a
     subclass per status: ``raise_for_status`` is already an if-ladder on the
     code and consumers branch the same way, so per-status types would be
-    speculative generality (tripl-ey6j.1).
+    speculative generality.
     """
 
     def __init__(self, status_code: int, detail: Any, message: str) -> None:

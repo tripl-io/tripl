@@ -11,8 +11,8 @@ const META: Record<ServiceSettingsSectionKey, { title: string; description: stri
   // No "takes effect on the next deploy" line here any more: all three runtime
   // fields are read fresh at request/task time, so this page was the one page
   // carrying a redeploy warning that it did not need, while Storage and
-  // Observability — which really are startup-applied — carried none
-  // (tripl-tezn). Each section now states its own timing from applyNote().
+  // Observability — which really are startup-applied — carried none.
+  // Each section now states its own timing from applyNote().
   runtime: {
     title: 'Runtime',
     description:

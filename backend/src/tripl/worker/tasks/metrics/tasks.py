@@ -137,7 +137,7 @@ SCHEDULED_RESUME_OVERLAP_BUCKETS = 2
 COLLECT_METRICS_SOFT_TIME_LIMIT_SECONDS = 24 * 60 * 60
 COLLECT_METRICS_TIME_LIMIT_SECONDS = 25 * 60 * 60
 
-# Ingestion-settling allowance (tripl-jfm3.7). ``_resolve_collection_window``
+# Ingestion-settling allowance. ``_resolve_collection_window``
 # ends the collection window at the last COMPLETE clock interval, but a
 # warehouse keeps delivering rows for an interval well after that interval
 # closes: on acme-ios the newest hourly bucket grew ~9% and the second-newest
@@ -154,7 +154,7 @@ COLLECT_METRICS_TIME_LIMIT_SECONDS = 25 * 60 * 60
 # daily metric withholds one day and a 15-minute grid withholds eight buckets.
 #
 # This is now the FALLBACK only: the allowance is a per-project setting
-# (``ProjectAnomalySettings.anomaly_ingestion_settling_minutes``, tripl-jfm3.79)
+# (``ProjectAnomalySettings.anomaly_ingestion_settling_minutes``)
 # whose default reproduces this value. Projects with no settings row yet — and
 # every caller that does not resolve one — keep the historical two hours.
 ANOMALY_INGESTION_SETTLING = timedelta(minutes=DEFAULT_ANOMALY_INGESTION_SETTLING_MINUTES)
@@ -224,7 +224,7 @@ def _last_collected_window_to(session: Session, scan_config_id: uuid.UUID) -> da
     fresh config whose warehouse window is still empty, or a stream that has gone
     silent) leaves ``max(EventMetric.bucket)`` untouched and is due again on the
     very next 300 s tick — the same unbounded loop the failure backoff fixes,
-    minus the failures that would trigger it (tripl-wopq).
+    minus the failures that would trigger it.
 
     Only ``metrics_collection`` jobs count. A replay carries its own explicit
     historical window and must not be read as progress on the live grid; a demo
@@ -786,7 +786,7 @@ def collect_metrics(
         session.commit()
         # The scheduled path mints variables exactly as a manual scan does —
         # ``variables_created`` in the summary below counts them — but until
-        # tripl-bh1q ``run_scan`` was the sweep's only worker call site, so on
+        # recently ``run_scan`` was the sweep's only worker call site, so on
         # the production shape the sweep was written for (a JSON map column
         # keyed by user-typed text, collected hourly on a schedule) it never ran
         # unattended and the catalog only ever grew. Gated on ``is_replay`` for
@@ -797,7 +797,7 @@ def collect_metrics(
         # the retired set and a later failure cannot roll the deletions back.
         #
         # ``catalog_window_declared`` decides how MUCH of the catalog this run
-        # may sweep, not whether it sweeps (tripl-bwo8). On this path the
+        # may sweep, not whether it sweeps. On this path the
         # catalog is ALWAYS judged through a window — the task returns early
         # without a ``time_column`` — and when the operator set no
         # ``scan_lookback_hours`` that window is the collection window
@@ -981,7 +981,7 @@ def collect_metrics(
         # Per-chunk accumulators. Each chunk runs its own bounded warehouse query,
         # delete, and UPSERT so a long replay never scans the whole range at once
         # — except for the top-N ranking pre-query below, which is deliberately
-        # the one statement spanning the whole window (tripl-0zpq.346).
+        # the one statement spanning the whole window.
         metrics_deleted = 0
         breakdown_metrics_deleted = 0
         distribution_drifts_deleted = 0
@@ -995,12 +995,12 @@ def collect_metrics(
         # "Archived but still arriving" is real information, but it is NOT a
         # coverage story: folding a deliberate user decision into a governance
         # percentage makes that number move for reasons unrelated to
-        # instrumentation quality. It is reported on the run instead (tripl-w3ms).
+        # instrumentation quality. It is reported on the run instead.
         archived_volume = 0
         archived_identities_seen: set[str] = set()
 
         # Top-N breakdown values are ranked ONCE over the whole collection window
-        # and shared by every chunk, not re-ranked per chunk (tripl-0zpq.346).
+        # and shared by every chunk, not re-ranked per chunk.
         # That pre-query is an un-bucketed GROUP BY over the breakdown columns and
         # is NOT bounded by ``replay_chunk_interval``: on a long replay it is the
         # one statement that reads the whole range.
@@ -1145,10 +1145,10 @@ def collect_metrics(
         # Re-evaluate a trailing window (not just the collected slice) so a
         # backfilled/re-collected bucket has its flag refreshed, and hand the
         # detector the set of buckets a successful collection actually covered so
-        # gaps are excluded rather than flagged as fake drops (tripl-dmch.14/.16).
+        # gaps are excluded rather than flagged as fake drops (.16).
         # The head of that window is additionally held back from EMISSION for the
         # ingestion-settling allowance, so a bucket the warehouse is still filling
-        # is scored by a later run instead of read as a drop (tripl-jfm3.7).
+        # is scored by a later run instead of read as a drop.
         anomaly_evaluation_start = min(
             time_from_dt, time_to_dt - delta * ANOMALY_TRAILING_REEVAL_BUCKETS
         )
@@ -1171,7 +1171,7 @@ def collect_metrics(
         held_counts: list[int] = []
         # Coverage is read only as deep as a pass in this run can consult it.
         # Unbounded, both reads walked the config's whole lifetime every run
-        # (tripl-0zpq.25) — and a REPLAY's recorded window is multi-year, so even
+        # — and a REPLAY's recorded window is multi-year, so even
         # one row was unbounded.
         coverage_from = coverage_history_start(
             session,
@@ -1231,7 +1231,7 @@ def collect_metrics(
         # Deliberately window-free, unlike the two anomaly passes above: a
         # release verdict describes the CURRENT rollout, so it anchors on the
         # newest bucket the scan has stored rather than on the slice this run
-        # happened to collect (tripl-0zpq.18).
+        # happened to collect.
         release_regressions_detected = _recalculate_release_regressions(session, config)
         # Same anchoring and the same activation gate: a version absent at the
         # start of that slice that activated inside it gets its
@@ -1291,14 +1291,13 @@ def collect_metrics(
             # means: "no violations" and "no check" are the same number
             # otherwise, and the swallow in
             # ``schema_drift._detect_field_contract_violations`` is only
-            # acceptable while this number is reported (tripl-0zpq.54). It
+            # acceptable while this number is reported. It
             # counts whole checks that raised, not single expectations the
             # adapter declined while the rest ran; those are the next line.
             "contract_checks_failed": contract_checks_failed,
             # Single expectations dropped unevaluated — an engine-refused regex,
             # a REPEATED column on BigQuery, a non-finite bound. Before this they
-            # were a worker log line only, so "could not check" read as "clean"
-            # (tripl-0zpq.341 / tripl-0zpq.358).
+            # were a worker log line only, so "could not check" read as "clean".
             "contract_expectations_skipped": contract_expectations_skipped,
             "anomalies_detected": anomalies_detected,
             "breakdown_anomalies_detected": breakdown_anomalies_detected,
@@ -1312,7 +1311,7 @@ def collect_metrics(
             # is ambiguous: "held 12" and "nothing matched" look identical
             # from outside the database, and on a cadence that is the
             # difference between the feature working and it swallowing
-            # every alert for a whole window (tripl-ftrn).
+            # every alert for a whole window.
             "alerts_buffered": sum(buffered_counts),
             # Source freshness at collection time and the drop anomalies it
             # withheld (#269); ``signals_held`` is 0 whenever nothing was held.

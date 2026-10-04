@@ -2,7 +2,7 @@
 
 Every behaviour below shipped in this batch with no test at all.
 
-tripl-0zpq.254 — ``scan_configs.event_type_id`` is ``ON DELETE SET NULL``, so
+``scan_configs.event_type_id`` is ``ON DELETE SET NULL``, so
 deleting a bound event type never failed: it silently unbound every scan that
 named it, and an unbound config with no ``event_type_column`` discovers nothing
 from the data, so it went on listing and running and collecting zero events.
@@ -19,7 +19,7 @@ scan — so an unscoped answer would show one project's operator a scan belongin
 to another project and block a delete they have no way to unblock: the remedy
 the sentence offers is not reachable from the project they are in.
 
-tripl-u2h9.12 / tripl-0zpq.123 — a scan resolves its types against MAIN's plan,
+A scan resolves its types against MAIN's plan,
 so a shadow candidate always carries a main event type id. Writing that id onto
 a row authored on a working branch is what ``create_event`` now refuses
 outright, which would have taken the whole branch-accept flow with it.
@@ -166,7 +166,7 @@ async def _candidate(
         return candidate.id
 
 
-# --- tripl-0zpq.254, the CRUD delete door -------------------------------------
+# --- the CRUD delete door -------------------------------------
 
 
 @pytest.mark.asyncio
@@ -221,7 +221,7 @@ async def test_the_refusal_names_every_scan_and_agrees_with_its_own_count(
     singular arms unconditionally and the body reads "1 scan", "that scan would
     collect into nothing" and "Point the scan at another event type" while
     naming two of them — every assertion below fails, and the sentence goes back
-    to instructing the reader about one scan after listing two (tripl-24i0).
+    to instructing the reader about one scan after listing two.
     Drop the guard entirely and the request is 204.
     """
     slug = "b7r-delete-bound-plural"
@@ -275,7 +275,7 @@ async def test_another_projects_scan_neither_blocks_the_delete_nor_names_itself(
     assert await _event_type_names(client, slug) == []
 
 
-# --- tripl-0zpq.254, the merge door -------------------------------------------
+# --- the merge door -------------------------------------------
 
 
 @pytest.mark.asyncio
@@ -326,7 +326,7 @@ async def test_merging_a_branch_that_removed_a_bound_event_type_is_refused(
     assert await _event_type_names(client, slug) == ["signup"]
 
 
-# --- tripl-u2h9.12 / tripl-0zpq.123, accepting a candidate on a branch --------
+# --- accepting a candidate on a branch --------
 
 
 @pytest.mark.asyncio
@@ -337,8 +337,8 @@ async def test_accepting_a_candidate_on_a_branch_uses_the_branchs_own_event_type
 
     ``uq_event_scan_identity`` is ``(event_type_id, source_name)`` and a type
     lives on exactly one branch, so a branch row holding main's type id holds
-    MAIN's scan identity. ``create_event`` refuses that outright now
-    (tripl-0zpq.123), which is what would have taken the branch accept with it.
+    MAIN's scan identity. ``create_event`` refuses that outright now,
+    which is what would have taken the branch accept with it.
 
     RED on a revert: drop the ``_event_type_on_branch`` call from
     ``accept_shadow_event`` and the candidate's main id goes straight into

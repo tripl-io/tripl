@@ -22,7 +22,7 @@ export interface OnboardingStep {
   /**
    * Actionable only by an owner (e.g. connecting a data source). For a non-owner
    * such a step is shown but never counted toward progress, so it can't block
-   * the checklist from completing (tripl-yfsj.4).
+   * the checklist from completing.
    */
   ownerOnly?: boolean
   /** Hint shown to a non-owner in place of `hint` on an owner-only step. */
@@ -160,7 +160,7 @@ export function buildOnboardingSteps(
       title: ONBOARDING_STEP_TITLES.scan,
       // A run writes events and fields — never a metric point. Volume arrives
       // later, from the scheduled collection a Catalog + monitoring scan gets,
-      // so the hint promises the import now and the tracking after (tripl-3y7z).
+      // so the hint promises the import now and the tracking after.
       hint: 'Imports your events and fields. Catalog + monitoring also starts tracking their volume.',
       href: `${base}/scans`,
       // A seeded ScanConfig (scan_count > 0) does NOT count — require an
@@ -198,8 +198,8 @@ export function buildOnboardingSteps(
     href: `${base}/alerting`,
     // Both halves, because a destination with no enabled rule delivers
     // nothing: ticking this off on the destination alone let a user stop
-    // half-way and read 5 of 5 while no anomaly could reach anyone
-    // (tripl-jfm3.81). `alert_rule_count` counts ENABLED rules only.
+    // half-way and read 5 of 5 while no anomaly could reach anyone.
+    // `alert_rule_count` counts ENABLED rules only.
     done: summary.alert_destination_count > 0 && summary.alert_rule_count > 0,
   })
   // Tag every link with its step and place, so the page it opens can say

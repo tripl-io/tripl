@@ -216,7 +216,7 @@ function ConnectionsTab({ openDsId }: { openDsId?: string }) {
   // re-enable A's button mid-test, and A's finish re-enabled B's (DATA-34).
   const [testingIds, setTestingIds] = useState<ReadonlySet<string>>(() => new Set())
   const canManageDataSources = isOwner(user?.role)
-  // A public demo connects to no warehouse of one's own (tripl-sav5).
+  // A public demo connects to no warehouse of one's own.
   const publicDemo = usePublicDemo()
   const canAddConnection = canManageDataSources && !publicDemo
 
@@ -561,7 +561,7 @@ function ConnectionsTab({ openDsId }: { openDsId?: string }) {
   /* Nothing numeric is claimed before the fetch settles: `dataSources` defaults
      to [], so a cold load would otherwise report "Connections 0 / Healthy 0" as
      if those were measurements. ScansTab holds its 24h KPI at "—" for the same
-     reason (tripl-jfm3.28). */
+     reason. */
   const statsPending = dataSourcesQuery.isLoading
 
   return (
@@ -883,9 +883,9 @@ function DataSourceCard({
   // host:port/database summary would print a meaningless ":8123". It is a
   // project and a dataset.
   const isBigQuery = ds.db_type === 'bigquery'
-  // Non-owners get the connection redacted server-side (tripl-jfm3.19), so
+  // Non-owners get the connection redacted server-side, so
   // host/port/database_name arrive blank and this summary would render as a
-  // bare ":0/" (tripl-jfm3.84). Keyed off the payload rather than the viewer's
+  // bare ":0/". Keyed off the payload rather than the viewer's
   // role on purpose: the response is the ground truth for what we were allowed
   // to see, so this stays correct if the redaction rule changes.
   const connectionRedacted = !ds.host

@@ -121,7 +121,7 @@ _APPROVAL_CLEARING_ACTIONS = {"submit", "request_changes", "reopen"}
 
 # The branches ``include_diff_counts`` counts: every status a review can still
 # move. Merged and closed are settled, so they are left out — see
-# ``_diff_counts_for_branches`` for why (tripl-0zpq.152).
+# ``_diff_counts_for_branches`` for why.
 _DIFF_COUNTED_STATUSES = frozenset(
     {
         BranchStatus.draft.value,
@@ -132,7 +132,7 @@ _DIFF_COUNTED_STATUSES = frozenset(
 )
 
 # The isolation under which every read of one transaction sees ONE committed
-# state, per dialect (tripl-0zpq.153). Postgres needs it: its default READ
+# state, per dialect. Postgres needs it: its default READ
 # COMMITTED gives each statement a fresh snapshot. SQLite, the test database, is
 # deliberately absent. SQLAlchemy has no REPEATABLE READ for it, pysqlite does not
 # honour its SERIALIZABLE for reads (it emits no BEGIN before a SELECT), and the
@@ -142,7 +142,7 @@ _CONSISTENT_READ_ISOLATION: dict[str, IsolationLevel] = {"postgresql": "REPEATAB
 
 # The SQLSTATE of a transaction the database aborted as unserializable. Under
 # the level above, ``create_branch`` retries it rather than answering 500 —
-# see the comment there for when it happens (tripl-0zpq.153).
+# see the comment there for when it happens.
 _SERIALIZATION_FAILURE_SQLSTATE = "40001"
 _UNIQUE_VIOLATION_SQLSTATE = "23505"
 _BRANCH_NAME_CONSTRAINT = "uq_plan_branch_project_name"
@@ -211,7 +211,7 @@ async def _resolve_project_id(session: AsyncSession, slug: str) -> uuid.UUID:
     """Resolve a slug to a project id without materialising the Project entity.
 
     Every branch endpoint only ever needed ``project.id``, but selecting the
-    entity used to drag the project's whole plan in with it (tripl-jfm3.54), so
+    entity used to drag the project's whole plan in with it, so
     ``GET /branches`` cost 559 ms on the largest project against 84 ms on the
     smallest. Selecting the single indexed column keeps it flat.
     """
@@ -256,7 +256,7 @@ async def _diff_counts_for_branches(
     will apply (``snapshot_rename_pairs``, the list ``diff_branch`` returns as
     ``renames``) is ONE change, not its removal plus its addition. Without that,
     a branch whose only change is a rename read "2 ahead" in the list and one
-    change in the branch's own view (tripl-amnn). A legacy branch with no base
+    change in the branch's own view. A legacy branch with no base
     snapshot has no pairing, as in ``diff_branch``.
 
     Per-row diffs are what this saves: a diff is two plan snapshots, a snapshot
@@ -265,7 +265,7 @@ async def _diff_counts_for_branches(
     main's snapshot again. Here main is built once and each counted branch
     once — N+1 snapshots instead of 2N, in one HTTP call.
 
-    Only open branches are counted (tripl-0zpq.152). A merge deletes only
+    Only open branches are counted. A merge deletes only
     main-side rows and closing deletes nothing, so a merged or closed branch
     keeps its whole deep copy for good, and counting every non-main row cost one
     snapshot per branch in the project's HISTORY. That crossed the CLI's 10 s
@@ -294,7 +294,7 @@ async def _diff_counts_for_branches(
                 base_payload = base_revision.payload or {}
         # The badge counts what the reviewer will read, so housekeeping
         # entries are left out of it exactly as ``diff_branch`` leaves them
-        # out of ``summary`` (tripl-kjhi.12).
+        # out of ``summary``.
         if base_payload is None:
             # Legacy branch with no base snapshot: same fallback as diff_branch —
             # it cannot tell branch-authored changes from later main changes.
@@ -465,7 +465,7 @@ async def deep_copy_plan_to_branch(
     the first SELECT here already does under autoflush, so a caller must not
     hold unflushable objects across this call. The ``superseded_by_event_id``
     remap set after the final flush stays pending until the caller's next flush
-    or commit (tripl-0zpq.156).
+    or commit.
     """
     event_types = (
         (
@@ -596,7 +596,7 @@ async def deep_copy_plan_to_branch(
         # row and for the same reason. ``event_service`` now scopes an event's
         # type and its meta values to the branch the event is written on, but
         # rows stored before those checks exist and no migration sweeps them
-        # (tripl-0zpq.123) — and all three lookups below were unqualified
+        # — and all three lookups below were unqualified
         # subscripts, i.e. a KeyError surfacing as a bare 500 on "create a
         # branch", naming nothing. 409 for the same reason the relation guard
         # gives: copying the event without its dangling child would make the new
@@ -654,7 +654,7 @@ async def deep_copy_plan_to_branch(
             reviewed=ev.reviewed,
             # Which main row this copy is, so rows sharing a (type, name) can be
             # told apart by the diff, the merge, a revert and the discussion
-            # twin (tripl-0zpq.292). A copy of a copy keeps the first origin.
+            # twin. A copy of a copy keeps the first origin.
             origin_id=ev.origin_id or ev.id,
             # superseded_by_event_id is set AFTER the flush below: the FK is
             # immediate on Postgres and, with no mapped relationship, the
@@ -812,8 +812,7 @@ async def deep_copy_plan_to_branch(
             for c in comments:
                 # The query selects on photo_id, so an event-anchored comment
                 # cannot arrive here — and must not: the event discussion is one
-                # conversation read through to main, never deep-copied
-                # (tripl-h2sx.25).
+                # conversation read through to main, never deep-copied.
                 if c.photo_id is None:
                     continue
                 new_c_id = uuid.uuid4()
@@ -836,7 +835,7 @@ async def deep_copy_plan_to_branch(
         # whose ids are not all resolvable within the branch, but rows stored
         # before that refusal exist and no migration sweeps them — and here they
         # were an unqualified ``et_map[...]`` KeyError, i.e. a 500 on "create a
-        # branch" naming nothing (tripl-0zpq.128). 409 rather than a silent skip:
+        # branch" naming nothing. 409 rather than a silent skip:
         # a copy that quietly drops a relation is a branch whose diff then reads
         # as a deletion nobody made, and the merge would carry that deletion onto
         # main.
@@ -870,7 +869,7 @@ async def deep_copy_plan_to_branch(
                 target_field_id=fd_map[rel.target_field_id],
                 relation_type=rel.relation_type,
                 description=rel.description,
-                # As ``origin_id`` on the events above (tripl-0zpq.292).
+                # As ``origin_id`` on the events above.
                 origin_id=rel.origin_id or rel.id,
             )
         )
@@ -957,7 +956,7 @@ async def create_branch(
         raise HTTPException(status_code=409, detail="Branch with this name already exists")
 
     # The merge base and the branch copy are two separate passes over main, and
-    # they must describe the SAME main (tripl-0zpq.153). Under Postgres' default
+    # they must describe the SAME main. Under Postgres' default
     # READ COMMITTED every SELECT sees whatever committed last, so a catalog scan
     # or another editor committing to main between the two passes (seconds
     # apart on a large plan) left the base short of rows the copy has. A
@@ -1099,7 +1098,7 @@ async def delete_branch(session: AsyncSession, slug: str, branch_id: uuid.UUID) 
     # ORM reporting it. This is the door the issue did not name, and the only one
     # that reaches BRANCH-LOCAL events — which project-scoped rows really can
     # reference, because the alert-rule filter picker lists events on the active
-    # branch. No survivor, so DROP (tripl-a64t).
+    # branch. No survivor, so DROP.
     doomed_event_ids = list(
         (await session.execute(select(Event.id).where(Event.branch_id == branch.id)))
         .scalars()
@@ -1107,8 +1106,8 @@ async def delete_branch(session: AsyncSession, slug: str, branch_id: uuid.UUID) 
     )
     await drop_dangling_event_references(session, project_id=project_id, event_ids=doomed_event_ids)
     # A thread on a branch row whose main twin appeared later is shown on that
-    # twin as well, so it is main's to keep, not the cascade's to take
-    # (tripl-0zpq.289). Local import: ``_branch_counterparts`` imports this
+    # twin as well, so it is main's to keep, not the cascade's to take.
+    # Local import: ``_branch_counterparts`` imports this
     # module, so a top-level import here would be circular.
     from tripl.services._branch_event_threads import rescue_branch_event_threads
 
@@ -1168,7 +1167,7 @@ async def transition_branch(
 
     if action == "approve":
         # Pin the approval to the content being approved: the merge gates only
-        # count approvals whose hash still matches the branch (tripl-d8v6).
+        # count approvals whose hash still matches the branch.
         current_hash = plan_snapshot_hash(
             await build_plan_snapshot(session, project_id, branch_id=branch.id)
         )
@@ -1517,8 +1516,7 @@ async def diff_branch(session: AsyncSession, slug: str, branch_id: uuid.UUID) ->
             # The MERGE's own pairing, read through the same function the merge
             # applies, so a rename reads as one change instead of a deletion
             # beside an unrelated addition. A second implementation here would
-            # be free to drift from what the merge then actually does
-            # (tripl-amnn).
+            # be free to drift from what the merge then actually does.
             renames = snapshot_rename_pairs(base_payload, main_snapshot, branch_snapshot)
     else:
         # Legacy working branches without a base snapshot cannot distinguish

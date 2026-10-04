@@ -344,7 +344,7 @@ function ProjectFacts({
 
       {/* The workspace tile above is only a readout; each card's own count is
           the link into that project's queue — unambiguous, one per queue, and
-          cmd-clickable (tripl-a1d1). */}
+          cmd-clickable. */}
       {summary.review_pending_event_count > 0 ? (
         <Link
           to={projectPath(currentOrgSlug(), project.slug, '/events/review')}
@@ -379,7 +379,7 @@ function ProjectFacts({
         )}
         {/* A config that fails every run is hidden by the single newest
             latest_scan_job once a sibling config succeeds — surface the
-            per-config failing count so it never goes unnoticed (tripl-7l83.3). */}
+            per-config failing count so it never goes unnoticed. */}
         {summary.failing_scan_config_count > 0 && (
           <Chip tone="danger" size="xs">
             {pluralize(
@@ -539,8 +539,7 @@ function LatestScanJobSummary({
   const scanned = jobScanned(job)
   // Zero deltas are suppressed, all three alike. A green "+0 events" announced
   // in the success colour that nothing happened, while its zero siblings were
-  // correctly silent — the card then read as a positive result at a glance
-  // (tripl-h5um).
+  // correctly silent — the card then read as a positive result at a glance.
   const eventsCreated = job.result_summary?.events_created ?? 0
   const signalsAdded = job.result_summary?.signals_added ?? 0
   const alertsQueued = job.result_summary?.alerts_queued ?? 0
@@ -557,7 +556,7 @@ function LatestScanJobSummary({
         <p>{describeScanJobTiming(job)}</p>
         {/* What this number counts, spelled out in the line: warehouse rows a
             metrics run read, or the column combinations a catalog run grouped —
-            never the Monitoring tile's event count for one bucket (tripl-h5um). */}
+            never the Monitoring tile's event count for one bucket. */}
         {scanned?.unit === 'rows' && (
           <p
             className="tnum"
@@ -643,7 +642,7 @@ function LatestSignalSummary({
       <div className="space-y-0.5">
         {/* "Spike on <scope>" is the sentence the bell and the Anomalies list
             already use, so the scope name cannot be read as a readout of its
-            own (tripl-h5um). */}
+            own. */}
         <p className="text-body-sm font-medium">
           {signal.direction === 'drop' ? 'Drop' : 'Spike'} on {signal.scope_name}
         </p>
@@ -652,7 +651,7 @@ function LatestSignalSummary({
             reports. The noun is on the line ("events … in this bucket") so the
             two figures cannot read as one number disagreeing with itself: the
             workspace summary only carries project_total / event_type / event
-            scopes, and all three are EventMetric volume (tripl-h5um). */}
+            scopes, and all three are EventMetric volume. */}
         <p
           className="text-caption text-fg-tertiary"
           title="What the detector measured in this one bucket, against the baseline it expected. Not a row count."

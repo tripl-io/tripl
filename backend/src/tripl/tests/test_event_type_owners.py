@@ -35,7 +35,7 @@ async def _seed_second_user(
 ) -> uuid.UUID:
     """Insert a second user directly via the test session (no auth handshake).
 
-    Owners must be project members (tripl-vefw), so the user is made an editor
+    Owners must be project members, so the user is made an editor
     member of ``slug`` unless ``member=False``.
     """
     async with TestSessionLocal() as session:
@@ -83,7 +83,7 @@ async def test_add_list_remove_owner(client: AsyncClient) -> None:
 
 @pytest.mark.asyncio
 async def test_non_member_cannot_be_made_an_owner(client: AsyncClient) -> None:
-    """An owner is a project stakeholder, so they must be a member (tripl-vefw)."""
+    """An owner is a project stakeholder, so they must be a member."""
     et_id, slug = await _seed_project_with_type(client, "own-non-member")
     outsider_id = await _seed_second_user(slug, "outsider@example.com", member=False)
 
@@ -269,7 +269,7 @@ async def _set_branch_et_color(branch_id: str, color: str) -> None:
 @pytest.mark.asyncio
 async def test_owner_approval_goes_stale_after_content_edit(client: AsyncClient) -> None:
     """An owner's approval stops satisfying the owner gate once the branch
-    content changes after the review (tripl-d8v6). min_approvals is zeroed so
+    content changes after the review. min_approvals is zeroed so
     the owner gate — not the quota gate — is what blocks."""
     et_id, slug = await _seed_project_with_type(client, "own-merge-stale")
     zeroed = await client.patch(
@@ -357,7 +357,7 @@ async def test_merge_passes_when_event_type_unowned(client: AsyncClient) -> None
     assert merge.status_code == 200, merge.text
 
 
-# ── removed members stop gating merges (tripl-vefw) ─────────────────────────
+# ── removed members stop gating merges ─────────────────────────
 
 
 async def _touch_branch_type(client: AsyncClient, slug: str, branch_name: str, color: str) -> str:

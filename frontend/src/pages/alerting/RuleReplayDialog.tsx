@@ -37,7 +37,7 @@ const DAYS_OPTIONS = [1, 3, 7, 14, 30] as const
  * The preview caption used to pick its wording from
  * `firings[0]?.scope_type ? 'destination' : 'Slack/Telegram'` — a field that
  * says nothing whatsoever about how a message is rendered, so the line was a
- * coin flip dressed as information (tripl-oxkt.17). What the preview is actually
+ * coin flip dressed as information. What the preview is actually
  * rendered with is the rule's own message format, so that is what it now names.
  */
 const MESSAGE_FORMAT_LABEL: Record<AlertMessageFormat, string> = {
@@ -383,7 +383,7 @@ export function RuleReplayDialog({
             {/* Every threshold the simulation can vary, tried WITHOUT saving it:
                 answering "would Min % 300 cut these incidents" used to mean
                 writing 300 onto the rule that is live-routing to a real channel
-                and waiting to find out (tripl-oxkt.17). */}
+                and waiting to find out. */}
             <OverrideField
               id="replay-cooldown"
               label="Cooldown (minutes)"
@@ -553,7 +553,7 @@ export function RuleReplayDialog({
                     />
                     {/* Sigma has no rule-level column: `saved` is the project's
                         Detection-settings threshold, the one the detector scores
-                        with (tripl-0zpq.160). The null arms below are defensive
+                        with. The null arms below are defensive
                         — the contract is still `number | null` and older cached
                         responses can hold one — but this backend always sends a
                         number, so "detector default" is no longer a state a
@@ -616,7 +616,7 @@ export function RuleReplayDialog({
                                 the replay could only produce `project_total` /
                                 `event_type` / `event`; since it also replays
                                 value drifts and release regressions
-                                (tripl-0zpq.158) that cell would otherwise read
+                                 that cell would otherwise read
                                 `variable_value_drift`, in a table whose
                                 neighbouring surfaces call it "value drift".
 

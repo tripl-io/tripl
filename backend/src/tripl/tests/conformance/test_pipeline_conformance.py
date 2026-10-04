@@ -516,7 +516,7 @@ def _run_pipeline(
                 ),
                 # This one is the reason the gate exists. On its first real run it
                 # crashed right here with ``TypeError: can't compare offset-naive and
-                # offset-aware datetimes`` (tripl-ju0d, now fixed): ClickHouse hands
+                # offset-aware datetimes`` (now fixed): ClickHouse hands
                 # back NAIVE bucket cells where PostgreSQL hands back AWARE ones, and
                 # ``_collect_distinct_user_series`` was the one collection path that did
                 # not launder its cells through ``_coerce_bucket``, so the naive
@@ -724,7 +724,7 @@ def test_per_distinct_user_matches_the_reference(run: PipelineRun) -> None:
     its cells through ``_coerce_bucket``, so the two met unnormalized in
     ``evaluate_composition`` and ``sorted()`` raised ``TypeError: can't compare
     offset-naive and offset-aware datetimes``. Every per_distinct_user metric on a
-    ClickHouse source failed collection outright (tripl-ju0d).
+    ClickHouse source failed collection outright.
 
     This gate found it on its first real run, and no pre-existing test could have: the
     fake adapter returns naive datetimes AND SQLite reads naive buckets back, so both

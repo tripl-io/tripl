@@ -3,15 +3,15 @@
 Every other command in this CLI acts on a running instance over HTTP. These two
 act on a DIRECTORY and on the local Docker daemon, which is a different category
 with different rules, so they live in their own package rather than beside
-``doctor`` (tripl-ey6j.3).
+``doctor``.
 
 Three decisions worth stating once, here, rather than re-arguing at each call
 site:
 
 * IT SHELLS OUT TO ``docker compose``. No docker SDK, no PyYAML, no
   python-dotenv. ``httpx`` is this distribution's ONLY runtime dependency and
-  that is a budget rather than an accident: tripl-mcp depends on this package
-  (tripl-ey6j.1), so a dependency added here is forced onto every MCP-server
+  that is a budget rather than an accident: tripl-mcp depends on this package,
+  so a dependency added here is forced onto every MCP-server
   install too. ``subprocess`` and ``importlib.resources`` are stdlib and cost
   nobody anything.
 * THE COMPOSE FILE IS A PACKAGED ASSET, COPIED BYTE FOR BYTE — not a template,

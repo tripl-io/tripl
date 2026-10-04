@@ -143,7 +143,7 @@ describe('EventDriftBadge', () => {
 
   it('renders the backend 409 verbatim when the accept is blocked', async () => {
     // Without this the guard is invisible: the button just stops pending and the
-    // drift stays open with no explanation (tripl-3mmh).
+    // drift stays open with no explanation.
     vi.mocked(eventTypesApi.listDrifts).mockResolvedValue({ items: [DRIFT], total: 1 })
     vi.mocked(eventTypesApi.applyDriftAction).mockRejectedValue(
       new ApiError(CONFLICT_DETAIL, 409),

@@ -1,4 +1,4 @@
-"""Property drift surfaced (F23, #306, tripl-1dz3.10).
+"""Property drift surfaced (F23, #306).
 
 A ``PropertyDrift`` row (new property, missing required property, type change)
 reaches the same places a value drift does:

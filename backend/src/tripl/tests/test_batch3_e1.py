@@ -2,8 +2,8 @@
 
 ``process_chunk`` calls the bump once per replay chunk and commits per chunk, so
 a per-event round trip on the sync worker engine — which has no pipelining —
-multiplied out to chunks x catalog statements on a historical replay
-(tripl-0zpq.16). These tests pin the statement SHAPE: the row state they assert
+multiplied out to chunks x catalog statements on a historical replay.
+These tests pin the statement SHAPE: the row state they assert
 alongside it is the same state the per-event form produced, and is what stops a
 "one statement" count from being satisfied by a statement that writes the wrong
 value.

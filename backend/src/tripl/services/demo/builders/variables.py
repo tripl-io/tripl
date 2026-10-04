@@ -10,7 +10,7 @@ does NOT feed the firing alert rule's replay, but only because both paths
 require a non-NULL ``scan_config_id`` (``None`` here): the live worker matches
 ``scan_config_id == config.id`` and the replay loader
 ``alerting_service._load_variable_value_drift_candidates`` — one of FIVE
-candidate sources since tripl-0zpq.158, not three — requires ``is_not(None)``.
+candidate sources, not three — requires ``is_not(None)``.
 All rows are reachable through the variables API.
 """
 
@@ -33,7 +33,7 @@ from tripl.services.demo.scenario import DemoContext
 # its "Documented values" column and the coached "Variables & value drift"
 # chapter tells the user to compare observed values against. It used to be unset
 # on every demo variable, so the column read "—" and the chapter's instruction
-# had nothing to point at (bd tripl-jfm3.56). Only the closed-vocabulary variable
+# had nothing to point at. Only the closed-vocabulary variable
 # gets one: ``user_id``/``session_id`` are unbounded identifiers, and documenting
 # a list for them would be a lie the drift detector would then act on.
 _VARIABLE_SPECS: tuple[tuple[str, str, str, str, tuple[str, ...]], ...] = (
@@ -53,7 +53,7 @@ _VARIABLE_SPECS: tuple[tuple[str, str, str, str, tuple[str, ...]], ...] = (
         ("prod_monthly", "prod_annual", "prod_lifetime"),
     ),
     # Twelve of the plan's events template ``${platform}`` in a field value, and
-    # until tripl-0zpq.248 no variable answered to that token: the demo shipped
+    # once, no variable answered to that token: the demo shipped
     # with ``_attach_template_warnings`` reporting an unknown variable on every
     # one of them, on every PATCH. Seeded rather than de-templated because the
     # demo exists to show templating WORKING — and the twelve values would all
@@ -182,7 +182,7 @@ async def _build_value_drift(session: AsyncSession, ctx: DemoContext) -> None:
     equals a config id; the replay twin
     ``alerting_service._load_variable_value_drift_candidates`` requires
     ``scan_config_id.is_not(None)`` for exactly that reason. Rule replay HAS read
-    this family since tripl-0zpq.158 — do not relax that clause on the assumption
+    this family now — do not relax that clause on the assumption
     the replay is blind to it
     (``test_batch4_replay.py::test_a_value_drift_no_scan_can_reach_stays_out_of_the_replay``
     pins it).

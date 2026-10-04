@@ -170,7 +170,7 @@ def test_plan_events_uses_the_callers_reserved_set_verbatim(
 
     Reserving it skips its FieldDefinition, the name format is then evaluated
     without it, and the whole config's collection dies on "the event name format
-    references unknown keys" — 200 consecutive production runs (tripl-lpin). The
+    references unknown keys" — 200 consecutive production runs. The
     planner does not re-derive the set; it takes what the caller computed, which
     is the only way ``core`` can honour a rule that lives in ``worker``.
     """
@@ -240,7 +240,7 @@ _NULL_ACTION = {
 
 
 def test_a_row_whose_name_resolves_to_empty_is_not_planned(project_and_type) -> None:
-    """A NULL naming column used to mint a nameless catalog row (tripl-wkwv.5).
+    """A NULL naming column used to mint a nameless catalog row.
 
     ``_format_value(None)`` is ``""`` and ``_apply_name_format`` raises only for a
     placeholder the row cannot supply AT ALL, so ``{action}`` over a NULL
@@ -266,13 +266,13 @@ def test_a_row_whose_name_resolves_to_empty_is_not_planned(project_and_type) -> 
 
 
 def test_the_skip_line_is_the_one_function_every_surface_calls(project_and_type) -> None:
-    """The plural is the reason this helper is a function (tripl-wkwv.5).
+    """The plural is the reason this helper is a function.
 
     A grouped dry run plans once per event type, so it sums the per-plan counts
     and asks for ONE sentence covering the total — ``plan_events`` never sees a
     number bigger than its own rows. Both callers go through the same helper;
     building the aggregate string at the call site is exactly how "1 rows", the
-    defect tripl-3y7z fixed, comes back.
+    defect that was fixed once, comes back.
     """
     _project, _et, fds = project_and_type
 
@@ -300,7 +300,7 @@ def test_the_skip_line_is_the_one_function_every_surface_calls(project_and_type)
 
 
 def test_a_name_of_only_empty_segments_is_still_planned(project_and_type) -> None:
-    """The conservative half, pinned so nobody widens the guard (tripl-wkwv.5).
+    """The conservative half, pinned so nobody widens the guard.
 
     ``"::"`` and ``"onboarding:start:"`` are non-empty strings: they have a click
     target, an accessible name and a purpose-built rendering (the frontend paints
@@ -360,7 +360,7 @@ def test_a_group_rule_rescues_an_otherwise_empty_name(project_and_type) -> None:
     ``_event_generator_merge`` skips any rule whose own name is blank, so a rule
     can only ever rescue an empty derived name into a real one — never produce
     one. Guarding before the rules would delete the very rows a scan config was
-    written to salvage (tripl-wkwv.5).
+    written to salvage.
     """
     _project, _et, fds = project_and_type
 
@@ -503,7 +503,7 @@ def test_a_scalar_condition_still_reserves_and_still_overrides(project_and_type)
     project that declared the field BEFORE the column became a rule column — that
     is the case ``plan_column_meta`` deliberately lets fall through — and there the
     grouped event must still show the rule's own pattern rather than one arbitrary
-    source row's value (tripl-jfm3.57).
+    source row's value.
     """
     from tripl.worker.utils.reserved_columns import reserved_catalog_columns
 
@@ -536,7 +536,7 @@ def test_a_dotted_warehouse_column_is_reserved_like_any_other_rule_column() -> N
     scans point at. Reading the dot as "this must be a JSON path" dropped such a
     column out of the reserved set, so ``catalog_sync`` auto-created a
     FieldDefinition for a column the scan GROUPS BY and the merge then wrote the
-    rule's own regex into it — tripl-jfm3.57 again, one warehouse over. Which
+    rule's own regex into it — the same bug again, one warehouse over. Which
     names are paths is the config's to declare and nothing else's to guess.
     """
     from tripl.worker.utils.reserved_columns import reserved_catalog_columns
@@ -556,7 +556,7 @@ def test_a_dotted_warehouse_column_is_reserved_like_any_other_rule_column() -> N
 
     # The reservation is also what keeps the planner quiet about that column
     # having no FieldDefinition — the plan-gap line that had a fresh demo's first
-    # scan reporting six missing fields when one was missing (tripl-jfm3.90).
+    # scan reporting six missing fields when one was missing.
     plan = plan_events(
         _make_analysis(
             {
@@ -589,7 +589,7 @@ def test_a_dotted_field_definition_still_gets_its_override_when_a_rule_groups_it
     matches the condition and takes its override, and always did. Dropping the
     override on the dot left exactly that field showing one arbitrary source row's
     value on an event the rule grouped BY it, which is the misreading
-    tripl-jfm3.57 fixed for plain columns.
+    an earlier fix addressed for plain columns.
     """
     project, et, fds = project_and_type
     dotted = FieldDefinition(

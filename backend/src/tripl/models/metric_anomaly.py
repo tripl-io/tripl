@@ -73,7 +73,7 @@ class MetricAnomaly(UUIDMixin, Base):
     )
     bucket: Mapped[datetime] = mapped_column(UtcDateTime())
     # Float: catalog metrics carry fractional actuals (ratios/averages); volume
-    # scopes keep storing whole counts in the same column (tripl-68bc).
+    # scopes keep storing whole counts in the same column.
     actual_count: Mapped[float] = mapped_column(Float)
     expected_count: Mapped[float] = mapped_column(Float)
     stddev: Mapped[float] = mapped_column(Float)

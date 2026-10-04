@@ -1,4 +1,4 @@
-"""Scenario-builder tests (epic tripl-2su6.2).
+"""Scenario-builder tests.
 
 Covers the new plan/catalog examples added by the declarative demo scenario
 (meta values, event-type relation + owner, authored variable override, event

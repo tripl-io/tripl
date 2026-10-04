@@ -55,20 +55,20 @@ _PHASE_STDDEV_FLOOR_RATIO = 0.05
 # tight residual scale can't inflate small level wobble into a multi-sigma shift.
 # The separate _TREND_MIN_RELATIVE_SHIFT gate below enforces a visible effect
 # size; the old 0.01 floor (with no effect-size gate) flagged 8-49% of buckets on
-# smooth seasonal series that never visibly drifted (tripl-dmch.8).
+# smooth seasonal series that never visibly drifted.
 _TREND_STDDEV_FLOOR_RATIO = 0.05
 # Minimum fractional trend-level change (relative to the larger of the pre-shift
 # and current trend levels) required before the trend-shift detector flags a
 # bucket. This is ANDed with the sigma threshold: a shift must be BOTH
 # statistically significant AND a visible fraction of the level. Without it, a
 # few-percent daily sinusoid tripped a flood of "trend shift" rows that deviated
-# <10% from expected (tripl-dmch.8).
+# <10% from expected.
 _TREND_MIN_RELATIVE_SHIFT = 0.15
 # Fractional series derive their absolute stddev floor from the series' own
 # robust magnitude instead of the count-shaped 1.0: a ratio living around 0.5
 # gets a ~0.02 floor, so a 0.5 -> 0.8 movement scores as the multi-sigma event
 # it is, while micro-wobble below a few percent of the level stays suppressed.
-# Widened from 0.01 -> 0.04 (tripl-dmch.17): a 1% floor still let Poisson-like
+# Widened from 0.01 -> 0.04: a 1% floor still let Poisson-like
 # jitter on ratios trip the sigma bar; ~4% of the level is a better "noticeable
 # fractional change" anchor for averages/ratios/sql levels.
 _FRACTIONAL_STDDEV_FLOOR_RATIO = 0.04
@@ -76,7 +76,7 @@ _FRACTIONAL_STDDEV_FLOOR_EPSILON = 1e-9
 # Minimum length of a strictly monotonic run (ending at the evaluated bucket)
 # that marks a bucket as part of a *sustained fractional trend*. Such buckets are
 # exempted from per-bucket fractional flagging and deferred to the trend-shift
-# detector (tripl-dmch.17), so a smooth ratio ramp surfaces as one trend row
+# detector, so a smooth ratio ramp surfaces as one trend row
 # instead of a flag on every rung.
 _MONOTONIC_TREND_MIN_RUN = 4
 
@@ -86,7 +86,7 @@ def settling_buckets_for(interval: timedelta, delay: timedelta) -> int:
 
     A warehouse keeps delivering rows for a bucket well after that bucket's clock
     interval closes, so the newest bucket(s) of a freshly collected series read
-    low purely because the scan ran early (tripl-jfm3.7). ``delay`` is the
+    low purely because the scan ran early. ``delay`` is the
     wall-clock allowance the operator gives ingestion; this converts it to whole
     buckets of the series' own grid (rounding up, so any positive allowance
     withholds at least one bucket).
@@ -108,8 +108,8 @@ def _fractional_stddev_floor(counts: Sequence[float]) -> float:
         # parity path deliberately runs with min_expected_count=0, so nothing
         # else gates it. Taking the median literally collapsed the floor to
         # 1e-9, and any bucket where the other platform emitted even once scored
-        # z ~ 1e8 — a flood of false parity anomalies on a routine tracking plan
-        # (tripl-jfm3.96). Fall back to the series' own peak so the floor still
+        # z ~ 1e8 — a flood of false parity anomalies on a routine tracking plan.
+        # Fall back to the series' own peak so the floor still
         # reflects its scale instead of machine epsilon.
         magnitude = max(magnitudes)
     return max(magnitude * _FRACTIONAL_STDDEV_FLOOR_RATIO, _FRACTIONAL_STDDEV_FLOOR_EPSILON)
@@ -127,7 +127,7 @@ class AnomalyDetectionSettings:
 class SeriesPoint:
     """One bucket of the analyzed series. ``count`` carries whole counts for
     volume series and fractional values (ratios/averages/sql levels) for
-    catalog metrics — the detector is scale-aware either way (tripl-68bc)."""
+    catalog metrics — the detector is scale-aware either way."""
 
     bucket: datetime
     count: float
@@ -173,7 +173,7 @@ class SuppressedRange:
 
 @dataclass(frozen=True)
 class BaselinePoint:
-    """The band one bucket was judged against, flagged or not (tripl-i9mt.25).
+    """The band one bucket was judged against, flagged or not.
 
     ``effective_stddev`` is the floored stddev the z-score divides by, so the
     chart band ``expected_count ± sigma_threshold * effective_stddev`` is the
@@ -199,8 +199,8 @@ class DetectionResult:
     suppressed_ranges: tuple[SuppressedRange, ...] = ()
     # The per-bucket (phase / rolling / fractional) baseline of every bucket
     # this pass SCORED — cleared the volume gate inside the emission window —
-    # whether or not it was flagged, so the chart can draw a continuous band
-    # (tripl-i9mt.25). Buckets the pass skipped (history too short, below the
+    # whether or not it was flagged, so the chart can draw a continuous band.
+    # Buckets the pass skipped (history too short, below the
     # volume floor, settling, a fractional ramp, a provably silent series)
     # carry none, and so do buckets whose own flag was dropped in favour of the
     # one row reporting a trend shift or outage (see ``_drawable_baselines``).
@@ -217,7 +217,7 @@ def expand_series(
 ) -> list[SeriesPoint]:
     """Zero-fill missing buckets onto the interval grid.
 
-    ``covered_buckets`` (contract C2, tripl-dmch.16) marks the buckets a scan
+    ``covered_buckets`` (contract C2) marks the buckets a scan
     actually observed. When provided, a bucket NOT in the set is EXCLUDED from
     the expanded series entirely rather than zero-filled, so a collection gap no
     longer reads as a real drop to zero (fake ``z << -3`` "drop" anomalies). A
@@ -227,7 +227,7 @@ def expand_series(
 
     A NaN or infinite point is EXCLUDED the same way an uncovered bucket is —
     neither zero-filled nor kept — so it can neither become a fake zero nor
-    poison every mean, band and z-score it touches (tripl-0zpq.101).
+    poison every mean, band and z-score it touches.
     """
     if not points:
         return []
@@ -287,11 +287,11 @@ def _effective_stddev(
     Count-shaped series keep the historical 1.0 absolute floor (sub-unit
     deviations on volumes are noise); fractional series pass a floor derived
     from their own magnitude, otherwise a 1.0 floor would flatten every
-    sub-unit ratio movement to z~0 (tripl-68bc). ``ratio`` lets each detector
+    sub-unit ratio movement to z~0. ``ratio`` lets each detector
     pick its own tightness (wider for the noisy per-bucket phase baseline,
     tighter for the averaged trend).
 
-    ``poisson`` (COUNT-shaped per-bucket detection only, tripl-dmch.17) adds a
+    ``poisson`` (COUNT-shaped per-bucket detection only) adds a
     ``sqrt(expected_count)`` term to the floor: a count process of rate N has
     natural spread ~sqrt(N), so a flat baseline of N needs ~sigma*sqrt(N)
     deviation to flag regardless of ``min_expected_count``. This kills
@@ -318,7 +318,7 @@ def _clears_volume_gate(
     as one of +100. Comparing the signed value against a non-negative floor
     rejected that whole class on every scoring path, so a ``fact`` sum/avg/min/max
     over a signed column, or any ``sql`` metric sitting below zero, stayed listed
-    as monitored and could never signal (tripl-0zpq.102).
+    as monitored and could never signal.
 
     A series that never goes negative keeps the historical signed comparison
     verbatim, so no count-shaped behaviour moves — which is why ``signed`` is
@@ -333,7 +333,7 @@ def _continues_monotonic_trend(counts: Sequence[float], idx: int) -> bool:
 
     Used only by the fractional per-bucket path: a bucket riding a smooth,
     sustained ramp is part of a *trend*, not a point anomaly, so it is deferred
-    to the trend-shift detector (tripl-dmch.17) instead of being flagged on
+    to the trend-shift detector instead of being flagged on
     every rung. A flat baseline with a single jump is NOT monotonic here (equal
     neighbours break the strict run), so genuine step spikes still flag.
     """
@@ -348,10 +348,10 @@ def _continues_monotonic_trend(counts: Sequence[float], idx: int) -> bool:
 # The robust MSTL fit below is the single most expensive thing a metrics scan
 # does: ~1.4s per scope over the ~530-bucket history an hourly grid loads, and it
 # is 97% of the wall time of a collection once the provably-silent scopes are
-# skipped (measured on the demo's in-memory warehouse, tripl-jfm3.73). It is also
+# skipped (measured on the demo's in-memory warehouse). It is also
 # a PURE function of (series, grid) — and identical series are routine on real
 # projects: a scan whose platform column carries a single value (an iOS-only or
-# Android-only scan, tripl-jfm3.1) produces a platform-parity ratio of exactly
+# Android-only scan) produces a platform-parity ratio of exactly
 # 1.0 for EVERY scope, and the parity path has no volume gate to skip them, so
 # the same fit was recomputed once per scope per run. Memoizing on the full
 # series makes those runs collapse to one fit while staying byte-identical to the
@@ -377,8 +377,8 @@ def _fit_components_cached(
     # statsmodels computes that same answer to ~1e-13 by running fifteen robust
     # iterations of three LOESS passes per period, at ~1.4s a go. Flat series are
     # routine here rather than a curiosity: a scan whose platform column carries
-    # a single value gives EVERY scope a platform-parity ratio of exactly 1.0
-    # (tripl-jfm3.1). This is a shortcut, not an approximation — and a flat trend
+    # a single value gives EVERY scope a platform-parity ratio of exactly 1.0.
+    # This is a shortcut, not an approximation — and a flat trend
     # can never trip the shift detector either way (level change is 0).
     if len(set(counts)) == 1:
         level = float(counts[0])
@@ -483,7 +483,7 @@ def _score_against_baseline(
 ) -> DetectedAnomaly | None:
     z_score = (point.count - baseline.expected_count) / baseline.effective_stddev
     # ``abs(nan) < sigma`` is False, so without the finiteness test a NaN z
-    # slipped through as an "anomaly" (tripl-0zpq.101).
+    # slipped through as an "anomaly".
     if not isfinite(z_score) or abs(z_score) < settings.sigma_threshold:
         return None
 
@@ -556,7 +556,7 @@ def _phase_level_window(interval: timedelta, period: int) -> int:
     ``current_level`` averages the FULL phase period, an hour-of-week baseline
     (period 168) anchors the expectation to a 7-DAY trailing mean, so a step
     change takes ~a week to be absorbed and the same incident is re-announced
-    every hour for days (tripl-jfm3.46). Averaging over the SHORTEST seasonal
+    every hour for days. Averaging over the SHORTEST seasonal
     cycle instead (a day, for hourly data) keeps the level phase-independent — it
     still spans one whole cycle, so every phase sees the same level — while
     converging on a sustained shift within that single cycle.
@@ -599,15 +599,15 @@ def _seasonal_factors(
     of the trailing ``level_window`` buckets immediately before ``idx`` — the
     same window, so numerator and denominator stay consistent. Multiplying the
     median factor by ``current_level`` gives a seasonal expectation that tracks a
-    sustained level shift instead of lagging it (tripl-w0ay); see
+    sustained level shift instead of lagging it; see
     ``_phase_level_window`` for why the window is one SHORT cycle rather than the
     full phase period. Cycles whose level is 0 (all-zero history) contribute no
     factor.
 
     ``signed`` short-circuits the whole normalization to the degenerate
     fallback below — the raw same-phase median, a correct if less adaptive
-    baseline — and leaves sustained level shifts to the trend path
-    (tripl-0zpq.102). The per-cycle ``level > 0`` test cannot stand in for it: it
+    baseline — and leaves sustained level shifts to the trend path.
+    The per-cycle ``level > 0`` test cannot stand in for it: it
     only excludes a partner whose trailing mean is non-POSITIVE, and a series
     that straddles zero (small positive buckets plus one deep negative one) keeps
     every trailing mean positive-but-tiny, so ``counts[j] / level`` explodes.
@@ -690,7 +690,7 @@ def _phase_anomaly_at(
     and to sharp seasonal shapes, so recurring troughs/peaks score ~0 instead of
     tripping every cycle.
 
-    The expectation is re-leveled to the CURRENT level (tripl-w0ay): the plain
+    The expectation is re-leveled to the CURRENT level: the plain
     same-phase median lags a sustained level shift because its history spans up
     to ``_MIN_PHASE_CYCLES`` cycles, so a stepped-but-stable series would flag
     every bucket for ~1.5 cycles. Normalizing each same-phase count by its own
@@ -723,9 +723,9 @@ class TrendShiftResult:
     ``shifted_buckets`` covers the whole contiguous run — including the buckets
     no row is emitted for — of every run that OWNS a trend row (emitted now, by
     an earlier scan, or once it settles); a run whose row is gated out claims
-    nothing (tripl-0zpq.107). ``detect_anomalies`` uses it to suppress the
+    nothing. ``detect_anomalies`` uses it to suppress the
     per-bucket rows that would otherwise re-announce one level change bucket
-    after bucket (tripl-jfm3.46).
+    after bucket.
     """
 
     anomalies: list[DetectedAnomaly]
@@ -733,7 +733,7 @@ class TrendShiftResult:
 
 
 def _departs_from_pre_shift(actual: float, reconstructed: float) -> bool:
-    """Whether a bucket's RAW value left its pre-shift expectation (tripl-0zpq.107).
+    """Whether a bucket's RAW value left its pre-shift expectation.
 
     Uses the trend path's own relative effect-size bar, against the larger of
     the two magnitudes so it stays defined near zero — a bucket inside normal
@@ -778,22 +778,22 @@ def _detect_trend_shift(
     # evaluation window slides forward one bucket per run and ``_replace_scope_
     # anomalies`` only deletes inside it, so a window-anchored row landed one
     # bucket further along every run and the incident accumulated one row per
-    # scan (tripl-jfm3.47).
+    # scan.
     #
     # The anchor is the run's first bucket whose RAW value actually left its
     # pre-shift expectation, not the run's first shifted TREND bucket. The STL
     # trend is centred, so it starts bending hours before the change; anchored
     # at the bend, a run could date its row on a bucket that was inside normal
     # noise, and that start moved with every refit — one scan replaced an
-    # incident's drop rows with a single misdated row and the next reverted it
-    # (tripl-0zpq.107). The raw departure does not move between refits.
+    # incident's drop rows with a single misdated row and the next reverted it.
+    # The raw departure does not move between refits.
     #
     # A run only suppresses its buckets' per-bucket rows when it owns the trend
     # row: it emitted one now, its anchor sits before the window (a previous
     # scan owned the emission), or its anchor is still settling (a later scan
     # will). A run whose anchor is gated out, or which never
     # departs at all, leaves its per-bucket rows alone instead of silencing the
-    # incident with nothing written in its place (tripl-0zpq.107).
+    # incident with nothing written in its place.
     runs: list[list[tuple[int, SeriesPoint, float, float, float, float]]] = []
     current_run: list[tuple[int, SeriesPoint, float, float, float, float]] = []
     for idx, point in enumerate(expanded):
@@ -869,13 +869,13 @@ def _detect_trend_shift(
         # The clamp exists only because a negative reconstruction is meaningless
         # for a non-negative series. On a signed series it IS the answer, so
         # clamping it to 0.0 would both hide the real expectation and hand the
-        # gate below a value the floor rejects (tripl-0zpq.102).
+        # gate below a value the floor rejects.
         expected_count = reconstructed if signed else max(reconstructed, 0.0)
         # The volume gate above tests the deseasonalized trend, but the quantity
         # we PERSIST as expected_count is this per-bucket reconstruction — a
         # different number that can sit below the floor the project configured,
         # so a signal could surface claiming an expectation under the user's
-        # min_expected_count (tripl-jfm3.48). Gate the reported value too.
+        # min_expected_count. Gate the reported value too.
         if not _clears_volume_gate(expected_count, settings, signed=signed):
             continue
         # ...and a reconstruction that lands AT zero says something else again.
@@ -884,8 +884,8 @@ def _detect_trend_shift(
         # in the two numbers a reader is shown, that nothing happened. That is
         # what minted the "spike, 0 actual vs 0 expected" rows production carried
         # on a project running ``min_expected_count = 0``, the one floor that lets
-        # a zero expectation past the gate above (tripl-wkwv.8; tripl-wkwv.4 made
-        # those rows closable, this stops them being written). Only the PAIR is
+        # a zero expectation past the gate above (making
+        # those rows closable came first, this stops them being written). Only the PAIR is
         # degenerate, never one half of it: traffic against a zero expectation is
         # a real spike from nothing and still emits, and an empty bucket against a
         # real expectation is still a drop. ``== 0.0`` rather than ``<= 0.0`` on
@@ -896,7 +896,7 @@ def _detect_trend_shift(
         # scope total — two event counts, so it lands in [0, 1]. The fractional
         # series that CAN go negative (a catalog ``fact`` sum/avg/min/max or a
         # ``sql`` metric, i.e. a level over a possibly-signed column) DO reach
-        # this line now that the gates above measure magnitude (tripl-0zpq.102),
+        # this line now that the gates above measure magnitude,
         # and they are exactly why the expectation half is ``== 0.0`` rather than
         # ``<= 0.0``: an empty bucket against an expectation of -100 is a real
         # move, and ``<=`` would swallow it. The two spellings agree for every
@@ -904,7 +904,7 @@ def _detect_trend_shift(
         if expected_count == 0.0 and point.count == 0.0:
             continue
         # Direction is derived from the ACTUAL point vs the reconstructed
-        # expected level, not from the sign of the trend z-score (tripl-dmch.11).
+        # expected level, not from the sign of the trend z-score.
         # The z-score is computed on the deseasonalized trend delta, which can
         # disagree with where the raw point sits relative to its expected band
         # once the seasonal component is added back — so a point above expected
@@ -973,7 +973,7 @@ def _collapse_outage_runs(
     delete the only row the outage ever had, with no replacement and no later
     pass willing to write one. Every run skipped here is therefore reported as a
     ``SuppressedRange`` covering its buckets, and callers must exclude those
-    ranges when they clear the window (tripl-l429.16).
+    ranges when they clear the window.
 
     Runs are contiguous in the ANALYZED series, not on the clock: a bucket the
     scan never covered is absent from the list, and an unobserved bucket is not
@@ -1121,7 +1121,7 @@ def is_provably_silent(max_count: float, min_expected_count: float) -> bool:
     current_level``, which is a *projection* and can exceed any observed count
     by up to the period length on a spike-shaped history — suppressing that
     also suppresses the drop-vs-projection flags it generates, which on a
-    series this quiet are noise, not signal (review verdict on tripl-h353).
+    series this quiet are noise, not signal (per review).
 
     A ``min_expected_count`` of 0 disables the skip entirely (counts are
     non-negative, so the strict inequality can never hold).
@@ -1152,7 +1152,7 @@ def _present_series(
     Used instead of ``expand_series`` when gaps must NOT be zero-filled (e.g.
     fractional metric series, where a missing bucket means "no data" rather than
     "the value dropped to zero"). Later points win on duplicate buckets. A NaN
-    or infinite value is "no data" too and is dropped (tripl-0zpq.101).
+    or infinite value is "no data" too and is dropped.
     """
     counts_by_bucket = {
         point.bucket: point.count for point in points if point.bucket < end_exclusive
@@ -1177,7 +1177,7 @@ def _emission_end(
     Indexed off the END OF THE ANALYZED SERIES rather than off the grid slot
     ``evaluation_end - settling * interval``. The two agree for a zero-filled
     count series, but a sparse fractional series (e.g. a 1d ratio whose newest
-    bucket is still missing the inputs that define it, tripl-jfm3.6) has its
+    bucket is still missing the inputs that define it) has its
     newest PRESENT bucket held back even when that bucket already sits several
     slots behind the grid's last one.
     """
@@ -1214,7 +1214,7 @@ def detect_anomalies(
     series (ratios/averages), where a missing bucket means "no data" and must
     not read as a drop to zero. Fractional series also swap the 1.0 absolute
     stddev floor for one derived from their own magnitude, so sub-unit
-    movements stay detectable (tripl-68bc).
+    movements stay detectable.
 
     ``covered_buckets`` (contract C2) is threaded into the zero-fill grid: when
     provided, buckets a scan never observed are excluded from evaluation instead
@@ -1222,7 +1222,7 @@ def detect_anomalies(
     meaningful for the ``fill_gaps`` count path). When ``None`` the behavior is
     unchanged.
 
-    ``settling_buckets`` (tripl-jfm3.7) withholds the newest N buckets of the
+    ``settling_buckets`` withholds the newest N buckets of the
     series from EMISSION. They stay in the series — baselines, charts and the
     stored metric values are unaffected — only their scoring is deferred to the
     next scan, by which time the warehouse has finished delivering them. Without
@@ -1257,11 +1257,11 @@ def detect_anomalies(
     # sum/avg/min/max or a ``sql`` level over a signed column). A count series is
     # non-negative by construction and a parity ratio lands in [0, 1], so this is
     # False for every count-shaped scope and the volume gates below keep their
-    # historical signed comparison there (tripl-0zpq.102).
+    # historical signed comparison there.
     signed = min(counts) < 0.0
     slots = _grid_slots(expanded, interval)
 
-    # Silent-series early exit (tripl-h353): when no gate can realistically be
+    # Silent-series early exit: when no gate can realistically be
     # cleared, skip the per-bucket loop and the ~1s robust MSTL fit below — on
     # real projects tracking hundreds of low-volume events that fit was the
     # dominant scan cost (~1s per scope per run). See is_provably_silent for
@@ -1272,7 +1272,7 @@ def detect_anomalies(
 
     stddev_absolute_floor = 1.0 if is_count_shaped else _fractional_stddev_floor(counts)
     # Poisson-aware floor (~sqrt(N)) applies to BOTH count-shaped per-bucket
-    # paths (tripl-dmch.17, tripl-w0ay). A flat/degenerate baseline's stddev
+    # paths. A flat/degenerate baseline's stddev
     # collapses to ~0, so a fixed 1.0 floor turns Poisson jitter (e.g. 10 -> 14)
     # into a 4-sigma flag. The phase path's same-phase MAD was assumed to carry
     # Poisson-scale spread empirically, but low-count seasonal series with few
@@ -1281,7 +1281,7 @@ def detect_anomalies(
     # series are unaffected: sqrt(N) sits well below their real spread. The
     # averaged trend path keeps its own relative effect-size gate and is not
     # Poisson-floored. The fractional path keeps its magnitude floor and instead
-    # exempts sustained monotonic ramps below (tripl-dmch.17).
+    # exempts sustained monotonic ramps below.
     per_bucket_kind = "phase" if is_count_shaped else "fractional"
     rolling_kind = "rolling" if is_count_shaped else "fractional"
     primary: list[DetectedAnomaly] = []
@@ -1294,7 +1294,7 @@ def detect_anomalies(
 
         # Fractional series: a bucket riding a smooth sustained ramp is a trend,
         # not a point anomaly — defer it to the trend-shift path instead of
-        # flagging every rung (tripl-dmch.17).
+        # flagging every rung.
         if not is_count_shaped and _continues_monotonic_trend(counts, idx):
             has_phase_period = (
                 has_phase_period or _select_phase_period(interval, slots[idx]) is not None
@@ -1329,7 +1329,7 @@ def detect_anomalies(
         if baseline is None:
             continue
 
-        # Kept for every scored bucket, flagged or not (tripl-i9mt.25). A NaN
+        # Kept for every scored bucket, flagged or not. A NaN
         # or infinite band cannot be drawn and is not stored.
         if isfinite(baseline.expected_count) and isfinite(baseline.effective_stddev):
             baselines.append(
@@ -1359,7 +1359,7 @@ def detect_anomalies(
         )
         # Every bucket inside a shifted run describes the SAME incident as the
         # single trend row anchored at that run's start, so its per-bucket row is
-        # dropped rather than merged (tripl-jfm3.46). Without this a sustained
+        # dropped rather than merged. Without this a sustained
         # level change keeps clearing the per-bucket sigma bar for as long as the
         # baseline takes to re-level, and the incident re-enters the signal list
         # every scan.
@@ -1435,7 +1435,7 @@ def forecast_next_buckets(
     if not points or horizon < 1:
         return []
 
-    # A NaN/inf point would turn the whole STL fit into NaN (tripl-0zpq.101).
+    # A NaN/inf point would turn the whole STL fit into NaN.
     sorted_points = sorted(
         (point for point in points if isfinite(point.count)), key=lambda point: point.bucket
     )
@@ -1492,7 +1492,7 @@ def forecast_next_buckets(
             # The same phase as the future bucket, taken from the LATEST cycle
             # rather than the first one: STL's seasonal component drifts over
             # the window, so a first-cycle lookup (``future_index % period``)
-            # replays a stale amplitude (tripl-0zpq.105).
+            # replays a stale amplitude.
             same_phase_index = series_length - period + ((step - 1) % period)
             seasonal_future += float(seasonal_columns[same_phase_index, col])
         expected = max(trend_future + seasonal_future, 0.0)

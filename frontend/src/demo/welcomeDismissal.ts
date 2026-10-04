@@ -1,5 +1,5 @@
 /**
- * Whether the demo welcome panel has been put away, per project (tripl-imco).
+ * Whether the demo welcome panel has been put away, per project.
  *
  * A subscribable module store rather than a bare localStorage read, because the
  * two ends live in different subtrees: the panel is on the Overview, the control

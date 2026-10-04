@@ -87,7 +87,7 @@ jobs:
           # turning the one gate that catches what a lockfile hides into a gate
           # that hides it too.
           #
-          # `tripl` 0.1.0 is on PyPI (tripl-ey6j.6), so the `tripl>=0.1,<0.2`
+          # `tripl` 0.1.0 is on PyPI, so the `tripl>=0.1,<0.2`
           # constraint this wheel declares resolves here exactly as it will for
           # a user. Should a future tripl-mcp ever need an unreleased `tripl`,
           # this step FAILS — the correct outcome, because a released wheel with

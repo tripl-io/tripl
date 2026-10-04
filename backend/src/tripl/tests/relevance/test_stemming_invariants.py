@@ -1,4 +1,4 @@
-"""The stemming invariant, asserted on the mechanism itself (tripl-uojz).
+"""The stemming invariant, asserted on the mechanism itself.
 
 WHY THIS FILE EXISTS, AND WHY IT IS THE PRIMARY GUARD
 -----------------------------------------------------
@@ -15,7 +15,7 @@ frequency) can supply the right answer for the wrong reason.
 * the ``улов``/``уловы`` pair asserted on ONE document that carried BOTH
   lexemes, so either query retrieved it by a different lexeme and the asymmetry
   between them was invisible;
-* on the strength of that pair, a query-side-only repair for tripl-uojz was
+* on the strength of that pair, a query-side-only repair for the over-stemming fault was
   certified and was wrong on production.
 
 So this file tests the mechanism directly. It has NO corpus, seeds NOTHING,
@@ -32,7 +32,7 @@ Every token ``w`` contributes ``{stem(w), surface(w)}`` on BOTH sides — see
 ``search_service.TEXT_VECTOR_EXPRESSION`` (document) and
 ``_search_query.TEXT_QUERY_EXPRESSION`` (query). Two forms A and B therefore
 meet iff those sets intersect. They already met when ``stem(A) == stem(B)``,
-which is what a7c3e1b9d5f2 bought. What was missing, and what tripl-uojz adds,
+which is what a7c3e1b9d5f2 bought. What was missing, and what the surface-form leg adds,
 is ``surface(A) == stem(B)``: Snowball over-stems the shortest form of a word
 onto a lexeme that SOME of its inflections never produce (measured on
 production: ``to_tsvector('tripl_search', 'уловы улов уловов')`` is
@@ -72,7 +72,7 @@ WHICH INDIVIDUAL FORMS WERE STEMMED, AND WHICH WERE ONLY REASONED ABOUT
 The row counts above say which LEXEMES exist in production. They do not say
 which FORM produces which lexeme, and assuming the obvious mapping is how the
 first version of this file ended up asserting a vacuous pair. Every form
-stemmed directly against the deployed database (tripl-uojz)::
+stemmed directly against the deployed database::
 
     экран -> экра     улов  -> ул      архив  -> арх
     экрана -> экра    уловы -> улов    архивы -> архив
@@ -101,8 +101,7 @@ section before widening any group here.
 WHAT IS DELIBERATELY ABSENT, AND WHY THAT IS A FINDING AND NOT A GAP
 ---------------------------------------------------------------------
 Two INFLECTED forms of one word can still land in different classes, and then
-neither the stem leg nor the identity leg joins them. Measured, not guessed
-(tripl-uojz):
+neither the stem leg nor the identity leg joins them. Measured, not guessed:
 
     экран -> экра    экрана -> экра    экраны -> экра    экране -> экран
 
@@ -206,7 +205,7 @@ WORDS: tuple[WordForms, ...] = (
             "word whose over-stem class is EMPTY on production, which is why the "
             "nominative seeded in the corpus was a form the product does not produce. "
             "'уловов' and 'улове' were listed here and have been dropped: the "
-            "tripl-uojz re-measurement covered улов/уловы/улова only, and after "
+            "the earlier re-measurement covered улов/уловы/улова only, and after "
             "'экрана' turned out not to stem where this file assumed, a form nobody "
             "re-stemmed does not get to carry an assertion"
         ),
@@ -223,7 +222,7 @@ WORDS: tuple[WordForms, ...] = (
             "both sides land on 'экра' and meet on the stem leg alone. Do not add "
             "'экрана' or 'экраны' back: paired with 'экране' they are the measured "
             "MISS this fix does not repair (see the module docstring), and the group "
-            "would go red for a real reason (tripl-uojz)"
+            "would go red for a real reason"
         ),
     ),
     WordForms(
@@ -232,7 +231,7 @@ WORDS: tuple[WordForms, ...] = (
         measured=(
             "архив -> 'арх', архивы -> 'архив'; архив/арх 23/53. 'архива' was listed "
             "here and has been dropped as never stemmed against the database "
-            "(tripl-uojz)"
+            ""
         ),
     ),
     WordForms(
@@ -285,7 +284,7 @@ WORDS: tuple[WordForms, ...] = (
 #: here would be the same mistake as the corpus comments that asserted a case
 #: pinned a fix it did not.
 #:
-#: ``('экран','экрана')`` was here and is gone (tripl-uojz): ``экрана`` stems to
+#: ``('экран','экрана')`` was here and is gone: ``экрана`` stems to
 #: ``экра``, exactly like ``экран``, so the pair met on the stem leg alone. This
 #: parametrization was therefore RED against the shipped code while claiming to
 #: certify it, and the ``экран`` group above was GREEN with the surface leg
@@ -313,7 +312,7 @@ STEM_LEG_ISOLATED_PAIRS: tuple[tuple[str, str], ...] = (
 #: measured table in the module docstring (улов {ул, улов} vs экран {экра,
 #: экран}; уловы {улов, уловы} vs экрана {экра, экрана}), not assumed.
 #:
-#: What this CANNOT rule out, and no list of pairs can (tripl-uojz): the surface
+#: What this CANNOT rule out, and no list of pairs can: the surface
 #: leg joins A to B whenever ``surface(A) == stem(B)``, and nothing in the
 #: mechanism checks that A and B are forms of the same word. Two unrelated words
 #: where one's spelling is the other's stem now match. These pairs show the
@@ -328,7 +327,7 @@ DISTINCT_WORDS: tuple[tuple[str, str], ...] = (
 
 
 # ``unseeded_session`` (the corpus-free session every test here runs on) lives in
-# this package's conftest since tripl-9t2s, because test_coverage_invariants.py
+# this package's conftest, because test_coverage_invariants.py
 # needs the identical fixture.
 
 
@@ -416,12 +415,12 @@ async def test_the_invariant_would_fail_without_the_surface_leg(
     the stem leg, so this parametrization was RED against the very fix it was
     written to certify, while the ``экран`` group above was GREEN with the
     surface leg reverted. Both are fixed by using ``экране``, the one measured
-    form of that word that lands in the other class (tripl-uojz).
+    form of that word that lands in the other class.
     """
     isolated = not await _reaches_on_the_stem_leg(unseeded_session, form=form, query=query)
     assert isolated, (
         f"{form!r} is reachable from {query!r} on the stem leg alone, so the "
-        f"invariant test proves nothing about tripl-uojz for this pair. Either the "
+        f"invariant test proves nothing about the surface-form leg for this pair. Either the "
         f"stemmer changed under us or this pair is no longer the measured one. "
         f"{await _explain(unseeded_session, form, query)}."
     )
@@ -445,7 +444,7 @@ async def test_distinct_words_do_not_reach_each_other(
     Note what this does and does not establish. The surface leg is purely
     ADDITIVE — both legs are OR-ed on both sides — so it cannot take a match
     away, but "it only adds a more specific lexeme, therefore it cannot merge two
-    classes" is false and is not the claim being checked here (tripl-uojz). The
+    classes" is false and is not the claim being checked here. The
     added lexeme is a plain string, and a match on it is a string equality that
     knows nothing about words: ``surface(A) == stem(B)`` is the identity the
     whole repair rests on, and it fires just as happily when A and B are
@@ -480,7 +479,7 @@ async def test_the_two_legs_under_test_are_the_ones_that_ship(
         normalized = " ".join(expression.split())
         assert "'tripl_search'" in normalized, f"the stem leg is missing from {normalized!r}"
         assert "'tripl_search_surface'" in normalized, (
-            f"the surface leg is missing from {normalized!r}; tripl-uojz has been "
+            f"the surface leg is missing from {normalized!r}; the surface-form fix has been "
             "reverted on one side and this file would silently measure the old "
             "behaviour"
         )

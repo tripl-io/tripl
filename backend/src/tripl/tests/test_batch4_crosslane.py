@@ -5,7 +5,7 @@ did not own, and each lands in a different layer — a service, a demo seeder, a
 schema. They are together here because that is the one thing they have in
 common; nothing in this file shares a fixture with anything else in it.
 
-``tripl-0zpq.37`` (service lane) — the Inbox **Retry** button has to hand the
+Service lane: the Inbox **Retry** button has to hand the
 send task a CLAIMABLE row. The single-flight lease that fix added refuses a
 delivery whose ``claimed_at`` is newer than ``STRANDED_DELIVERY_MINUTES``, and
 ``retry_delivery`` flips a `failed` row back to `pending` without clearing it.
@@ -14,14 +14,14 @@ does clear it, and says why: the hand-off must not depend on the send path's own
 release having run. This is defence in depth rather than a live bug, and the
 test says which: see ``test_retry_hands_the_send_task_a_row_it_can_claim``.
 
-``tripl-0zpq.253`` (demo lane) — ``scope_name`` is a String(255) fed by wider
+Demo lane: ``scope_name`` is a String(255) fed by wider
 sources, and ``demo.builders.alerts`` was the last writer family outside the
 trim the rest of the batch installed.
 
-``tripl-v422`` (schema lane) — a per-destination From: override that every
+Schema lane: a per-destination From: override that every
 reader of the column would happily deliver could not be SAVED, because the save
 used the strict validator and the send paths use ``validate_sender_address``.
-The mirror image of ``tripl-0zpq.29``, which fixed the same disagreement at the
+The mirror image of an earlier fix, which closed the same disagreement at the
 other end of the same pipe.
 """
 
@@ -61,7 +61,7 @@ from tripl.worker.tasks.alerts import _claim_delivery
 from tripl.worker.tasks.maintenance import STRANDED_DELIVERY_MINUTES
 
 # ---------------------------------------------------------------------------
-# tripl-0zpq.37: Retry has to leave a row the send task it enqueues can claim
+# Retry has to leave a row the send task it enqueues can claim
 # ---------------------------------------------------------------------------
 
 
@@ -225,7 +225,7 @@ async def test_retry_hands_the_send_task_a_row_it_can_claim(tmp_path, monkeypatc
 
 
 # ---------------------------------------------------------------------------
-# tripl-0zpq.253: the demo seeder is a scope_name writer like any other
+# the demo seeder is a scope_name writer like any other
 # ---------------------------------------------------------------------------
 
 # Longer than the column and longer than the ellipsis budget, in the shape the
@@ -291,7 +291,7 @@ async def test_the_demo_seeder_trims_the_scope_label_it_writes() -> None:
     # In-memory and without ``enable_sqlite_foreign_keys``: the Event's branch
     # and event type are not read by anything here, and sqlite ignores
     # VARCHAR(n), which is the property that lets the overlong name be stored at
-    # all — the same reason the suite never saw tripl-0zpq.253 in the first place.
+    # all — the same reason the suite never saw the overlong-name bug in the first place.
     engine = create_async_engine("sqlite+aiosqlite:///:memory:")
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
@@ -325,7 +325,7 @@ async def test_the_demo_seeder_trims_the_scope_label_it_writes() -> None:
 
 
 # ---------------------------------------------------------------------------
-# tripl-v422: the destination override accepts what the destination delivers
+# the destination override accepts what the destination delivers
 # ---------------------------------------------------------------------------
 
 # What an operator types into a From: field when they want the alert to arrive
@@ -356,7 +356,7 @@ def test_a_destination_can_save_the_from_address_its_own_send_path_delivers() ->
     refused it, so the value was unreachable: not a send-time surprise, a
     configuration the operator simply could not enter.
 
-    That is the mirror of tripl-0zpq.29, where the diagnostics were more
+    That is the mirror of that earlier fix, where the diagnostics were more
     permissive than delivery. Here the save was stricter than delivery, and the
     pair is only consistent once both ends of it — the global Default From and
     the per-destination override — use the send path's own helper.
@@ -443,8 +443,8 @@ def test_the_from_override_stops_exactly_where_its_column_does() -> None:
     through ``email_validator``, which refuses an address over 254 octets, and
     254 fits ``String(255)``. ``validate_sender_address`` validates only the
     address parsed out of the value and returns the ORIGINAL string, so the
-    display name that tripl-v422 exists to allow — and any padding around it —
-    was left with no ceiling at all. A long organisation name is an ordinary
+    display name that the per-destination From: override exists to allow — and any
+    padding around it — was left with no ceiling at all. A long organisation name is an ordinary
     value to type, and on Postgres it became a StringDataRightTruncation out of
     the INSERT: the catch-all 500 in ``main.py`` naming no field, nothing
     written. SQLite ignores VARCHAR widths, so that is invisible to this suite

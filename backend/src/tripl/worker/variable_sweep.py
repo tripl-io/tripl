@@ -3,7 +3,7 @@
 The scan is what mints variables, so the scan is where they should stop
 accumulating. Without this the catalog only ever grows: production's
 ``acme-ios`` reached 1517 variables of which 1296 were referenced by nothing,
-1279 of them minted from the keys of one JSON map column (tripl-10h4).
+1279 of them minted from the keys of one JSON map column.
 
 The predicate is :mod:`tripl.core.variable_retirement`, shared verbatim with the
 owner-facing danger-zone endpoint. Only the queries differ — that module runs on
@@ -19,7 +19,7 @@ exactly the fossil.
 
 One case does mint and sweep in the same run, and it is the right answer rather
 than an exception to apologise for: a path carried *only* by an ARCHIVED event.
-A scan deliberately leaves an archived row's field values alone (tripl-rsei), so
+A scan deliberately leaves an archived row's field values alone, so
 the token is never written and nothing live refers to the variable.
 
 Runs after the scan's ``session.commit()`` and before the search reindex, so the
@@ -40,7 +40,7 @@ loss of the ROW: the next run that sees the token again mints a new id, runs
 where nothing changed in the warehouse.
 
 How wide that flicker is depends on what the variable was minted from, and
-that is the split ``include_scalar_derived`` carries (tripl-bwo8):
+that is the split ``include_scalar_derived`` carries:
 
 - A SCALAR column's variable is one ``${token}`` per column, and it vanishes
   on the cardinality of the window: ``event_plan.plan_column_meta`` sets
@@ -211,8 +211,7 @@ def retire_unused_variables(
     # selects: ``Variable.value_contexts`` is ``lazy="selectin"`` and each context
     # then selectin-loads its FieldDefinition, so hydrating these plainly pulls the
     # project's entire context table into a sweep that only ever reads ids, names
-    # and provenance. The contexts are answered by the anti-join below instead
-    # (tripl-xkbb).
+    # and provenance. The contexts are answered by the anti-join below instead.
     variables = list(
         session.execute(
             select(Variable).where(*scope).options(lazyload(Variable.value_contexts))

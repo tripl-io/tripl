@@ -133,7 +133,7 @@ export function EventDriftBadge({
         )}
         {/* Without this the backend's 409 (accepting a drift for a column the
             scan's event name format needs) is invisible: the button just stops
-            pending and the drift stays open with no explanation (tripl-3mmh).
+            pending and the drift stays open with no explanation.
             The backend sends a plain string detail, which api/client.ts puts
             straight into ApiError.message, so it renders verbatim. */}
         {actionMut.isError && (

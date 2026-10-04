@@ -69,7 +69,7 @@ export interface Project {
   created_at: string
   updated_at: string
   summary: ProjectSummary
-  // Demo identity + lifecycle (tripl-2su6). Optional on the wire for
+  // Demo identity + lifecycle. Optional on the wire for
   // backward-compatible fixtures; real responses always carry is_demo /
   // generation_status (which default to false / 'ready').
   is_demo?: boolean
@@ -81,7 +81,7 @@ export interface Project {
   // it), so it is NOT a freshness stamp — a demo seeded at 10:59 carries 10:00.
   demo_seeded_at?: string | null
   // When the runtime tick last advanced this demo's data; null until the first
-  // tick. The only honest freshness signal we have (tripl-2su6.17).
+  // tick. The only honest freshness signal we have.
   demo_last_tick_at?: string | null
   created_by_user_id?: string | null
   // Whether the signed-in caller may write inside this project: the backend's

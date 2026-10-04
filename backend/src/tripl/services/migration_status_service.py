@@ -4,8 +4,7 @@ The deployment is safe by construction — compose runs a ``migrate`` one-shot a
 the app waits on ``service_completed_successfully`` — but that is an INFERENCE
 drawn from the compose file, not an observation of the database. A
 constraint-only migration changes nothing a probe can see, so a hand-rolled
-deploy that skipped ``alembic upgrade head`` looked exactly like a correct one
-(tripl-wkwv.7).
+deploy that skipped ``alembic upgrade head`` looked exactly like a correct one.
 
 Every read here degrades to an honest unknown instead of raising, in the spirit
 of ``apply_startup_service_overrides``: this backs the owner-only System panel,

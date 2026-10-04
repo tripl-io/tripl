@@ -3,27 +3,27 @@
 Five defects on the scan-job seam — what a run is allowed to touch, and what
 "now" means to the passes that run after it:
 
-* tripl-0zpq.43 — ``apply_event_groups`` derived its event-type list from a
+* ``apply_event_groups`` derived its event-type list from a
   branch-blind ``SELECT DISTINCT Event.event_type_id``, so on a project with
   open working branches it folded and DELETED every branch's deep-copied
   events, while only main was reindexed afterwards.
-* tripl-0zpq.44 — neither ``run_scan`` nor ``apply_event_groups`` ever read
+* neither ``run_scan`` nor ``apply_event_groups`` ever read
   ``ScanJob.status`` back, so a job the user stopped was flipped to ``running``,
   rewrote the catalog and was committed ``completed`` while still carrying
   "Cancelled by user"; and neither recorded ``celery_task_id``, which left
   ``cancel_scan_job``'s revoke branch unreachable for both.
-* tripl-0zpq.45 — a manual grouped run only LOOKED UP its event types by name
+* a manual grouped run only LOOKED UP its event types by name
   and skipped the group when one was missing, while the dry run promised the
   type "would be added" and the scheduled catalog sync actually created it. Its
   review follow-up is here too: once a raw warehouse value is CREATED from, it
   has to obey the catalog's own name rule (``event_types.name`` is
   ``String(100)``, and a NULL group cell arrives as ``""``), and the dry run
   needs the matching filter so the preview refuses what the run refuses.
-* tripl-0zpq.19 — ``_load_latest_generation_snapshot`` took the newest completed
+* ``_load_latest_generation_snapshot`` took the newest completed
   ScanJob with any summary, but only ``run_scan`` writes ``generation_snapshot``,
   so from the first collection tick after a scan every replay silently fell
   through to the heuristic rebuild.
-* tripl-0zpq.18 — ``_recalculate_release_regressions`` anchored on the caller's
+* ``_recalculate_release_regressions`` anchored on the caller's
   collection window, so a replay of a past window replaced the current release's
   verdict with the release that was newest back then.
 
@@ -219,7 +219,7 @@ def _seed_event_type_with_clicks(
     return event_type.id, event_ids
 
 
-# ── tripl-0zpq.43: apply-groups stays on the main plan ───────────────────────
+# ── apply-groups stays on the main plan ───────────────────────
 
 
 def test_apply_event_groups_leaves_working_branch_events_untouched(
@@ -303,7 +303,7 @@ def test_apply_event_groups_leaves_working_branch_events_untouched(
         assert len(main_group) == 1
 
 
-# ── tripl-0zpq.44: Stop run is honoured by every scan task ───────────────────
+# ── Stop run is honoured by every scan task ───────────────────
 
 # Far enough from ``datetime.now`` that a close-out stamping its own
 # ``completed_at`` over the closer's is unmistakable.
@@ -871,7 +871,7 @@ async def test_cancel_scan_job_revokes_off_the_request_event_loop(
     assert session.commits == 1
 
 
-# ── tripl-0zpq.45: a manual grouped run creates what the dry run promised ────
+# ── a manual grouped run creates what the dry run promised ────
 
 _GROUP_COLUMNS = [
     ColumnInfo("screen", "String"),
@@ -1026,7 +1026,7 @@ def test_manual_grouped_scan_declares_a_new_warehouse_column(
         assert not [line for line in result.details if "Skipped column 'locale'" in line]
 
 
-# ── tripl-0zpq.45 (review): the catalog's name rule, enforced on both sides ──
+# ── the catalog's name rule, enforced on both sides ──
 #
 # Making the manual run CREATE what the dry run promised put a warehouse value
 # straight into ``EventType(name=...)`` with no emptiness and no length check,
@@ -1148,7 +1148,7 @@ def test_auto_created_event_type_refuses_a_name_longer_than_the_column(
         assert f"{EVENT_TYPE_NAME_MAX_LEN + 1}-character value" in message
         # Quoted back ELIDED, and the actionable tail survives the 500-char
         # right-truncation ``user_facing_error`` applies to a curated message
-        # (tripl-3mmh): an un-elided value would push it off the end.
+        #: an un-elided value would push it off the end.
         assert _TOO_LONG not in message
         assert user_facing_error(excinfo.value).endswith("pick a different Event type column.")
 
@@ -1261,7 +1261,7 @@ def test_dry_run_promises_only_the_group_values_a_run_would_accept(
 ) -> None:
     """Preview and run reach the same verdict for every group value.
 
-    This is tripl-0zpq.45's defect pointing the other way. There the dry run
+    This is the earlier defect pointing the other way. There the dry run
     promised a type the manual run skipped; here it promised types the run
     REFUSES — a blank one and one too long for ``event_types.name`` — and the
     job then failed on values the preview had called fine, after listing their
@@ -1356,7 +1356,7 @@ def test_dry_run_totals_the_refusals_it_does_not_spell_out(
     matters — group order is identical on both sides, so it is the value the run
     raises on.
 
-    Pluralised rather than "1 values", the defect tripl-3y7z fixed on the other
+    Pluralised rather than "1 values", the defect fixed on the other
     side of the wire and the reason ``unnamed_skip_detail`` keeps its copy in one
     place.
     """
@@ -1381,7 +1381,7 @@ def test_dry_run_totals_the_refusals_it_does_not_spell_out(
             )
 
 
-# ── tripl-0zpq.19: the replay snapshot survives later collection jobs ────────
+# ── the replay snapshot survives later collection jobs ────────
 
 
 LOGIN_IDENTITY = "event_name=Login|user_id=${user_id}"
@@ -1620,7 +1620,7 @@ def test_generation_snapshot_walk_skips_a_malformed_head_row(
         assert single_result.col_meta["user_id"]["template"] == "${user_id}"
 
 
-# ── tripl-0zpq.19 follow-up: a snapshot never names an event that is gone ────
+# ── a snapshot never names an event that is gone ────
 #
 # WHAT THESE TESTS CAN AND CANNOT DO. The defect is a foreign-key violation:
 # ``event_metrics.event_id``, ``event_metric_breakdowns.event_id`` and
@@ -1665,7 +1665,7 @@ def test_snapshot_event_deleted_since_the_scan_is_not_handed_to_the_writers(
     none of which rewrite ``ScanJob.result_summary``. Its replayed per-event
     history has nowhere to go: the row it would need to reference is gone. So
     it is dropped, its volume falls through to the event-type and project-total
-    series exactly as it did before tripl-0zpq.19 made this path reachable, and
+    series exactly as it did before this path became reachable, and
     Login — which still exists — keeps both its id and the snapshot's historical
     ``col_meta``. Dropping the one dead entry, NOT abandoning the snapshot.
     """
@@ -1974,7 +1974,7 @@ def test_replay_variable_sample_at_a_dead_event_id_is_refused_by_the_database(
         session.rollback()
 
 
-# ── tripl-0zpq.18: the release verdict describes the CURRENT rollout ─────────
+# ── the release verdict describes the CURRENT rollout ─────────
 
 
 def _seed_version_series(

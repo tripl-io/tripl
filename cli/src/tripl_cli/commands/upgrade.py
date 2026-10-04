@@ -1,8 +1,7 @@
 """``tripl upgrade --to X.Y.Z`` — the most dangerous thing this CLI does.
 
 It moves a running stack to a new image tag, which applies Alembic migrations,
-which are not reversible here. Everything below follows from that one fact
-(tripl-ey6j.3):
+which are not reversible here. Everything below follows from that one fact:
 
 * ``--to`` IS REQUIRED. There is no default and no "upgrade to latest"
   convenience. Refusing to guess which version you meant is the whole safety
@@ -14,8 +13,8 @@ which are not reversible here. Everything below follows from that one fact
   ``--allow-unordered-tag``, rather than inventing an ordering. NOT ``--yes``:
   every non-interactive caller must pass ``--yes`` or the backup prompt hangs
   it, so overloading that flag with "and ignore the ordering guard" turned the
-  guard off on exactly the runs nobody is watching — the CI pipelines
-  (tripl-jfm3). Two decisions, two flags.
+  guard off on exactly the runs nobody is watching — the CI pipelines.
+  Two decisions, two flags.
 * THE BACKUP IS THE OPERATOR'S. This command PRINTS the ``pg_dump`` invocation
   and refuses to continue without an acknowledgement; it never runs it. A dump
   we invoked and then called "your backup" would be a promise we cannot keep —
@@ -30,7 +29,7 @@ The pull comes first so that a bad tag or an unreachable registry leaves ``.env`
 untouched. The pin is written to ``.env`` BEFORE ``up -d`` rather than passed
 inline, because an inline ``TRIPL_VERSION=x docker compose pull`` applies to the
 pull only and the following ``up`` then starts ``${TRIPL_VERSION:-latest}`` —
-the trap ``bin/release.sh`` records as tripl-jfm3.123.
+the trap ``bin/release.sh`` records.
 
 It does NOT run ``alembic`` and does NOT run ``docker compose run --rm migrate``.
 The ``migrate`` one-shot with ``condition: service_completed_successfully`` is
@@ -174,7 +173,7 @@ def upgrade_commands(directory: Path, target: str) -> tuple[Command, ...]:
     The environment overlay on the pull is what makes it fetch the new tag while
     ``.env`` still holds the old one — which is the whole point of pulling before
     the pin is rewritten. ``up -d`` carries no overlay because by then the pin is
-    on disk (see the module docstring and tripl-jfm3.123).
+    on disk (see the module docstring).
     """
     return (
         Command(
@@ -260,8 +259,8 @@ def run_upgrade(args: Namespace, config: Config) -> int:
     # --dry-run FIRST, so the one move an operator is most unsure about is the
     # one they can preview. The refusal below used to come first, which made
     # `upgrade --to latest --dry-run` an exit 2 that printed nothing about what
-    # the move would be - on a flag documented as "write nothing, run nothing"
-    # (tripl-jfm3). The refusal is still stated here, as a preview.
+    # the move would be - on a flag documented as "write nothing, run nothing".
+    # The refusal is still stated here, as a preview.
     if dry_run:
         if ordering == ORDER_UNKNOWN and not allow_unordered:
             print(f"a real run would refuse here: {_unorderable(current, target)}", file=human)
@@ -343,8 +342,8 @@ def run_upgrade(args: Namespace, config: Config) -> int:
         print(f"{target} is running.", file=human)
     elif health.skipped:
         # NOT "<tag> is running." - nothing here has contacted the instance, and
-        # saying it is running was a claim this command had no evidence for
-        # (tripl-jfm3). Still exit 0: the pull, the pin and `up -d` all
+        # saying it is running was a claim this command had no evidence for.
+        # Still exit 0: the pull, the pin and `up -d` all
         # succeeded, there is nothing to retry, and failing a converging
         # provisioning run for a check it never asked us to skip would be a red
         # pipeline no rerun can turn green. The unverified state is said in

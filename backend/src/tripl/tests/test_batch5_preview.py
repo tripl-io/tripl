@@ -1,6 +1,6 @@
 """Batch 5, scan preview: nested warehouse values and JSON path discovery.
 
-``tripl-0zpq.94`` — a preview payload must be ``json.dumps``-able with the
+A preview payload must be ``json.dumps``-able with the
 stdlib encoder, because ``ScanPreviewJob.result_summary`` is ``sa.JSON`` and the
 worker's sync engine registers no ``json_serializer``. Only the TOP level of
 each cell was ever checked, so a ``datetime`` inside a ClickHouse
@@ -9,7 +9,7 @@ and raised ``TypeError`` at commit — surfacing to the operator as "Scan failed
 due to an internal error." There are two distinct routes into that failure
 (with and without the diversity pass) and one test per route below.
 
-``tripl-0zpq.99`` — JSON path discovery used to wrap the adapter call in
+JSON path discovery used to wrap the adapter call in
 ``except AttributeError`` and fall back to sampling rows locally. Every adapter
 inherits a concrete ``BaseAdapter.get_json_path_samples``, so the only thing
 that except could still catch was an AttributeError raised inside an adapter,

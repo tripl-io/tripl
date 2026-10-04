@@ -38,7 +38,7 @@ function renderBanner(activeBranchId: string | null, rowBranchId: string, mainPa
   return { setBranchId, queryClient }
 }
 
-describe('EntityBranchBanner (tripl-kjhi.7)', () => {
+describe('EntityBranchBanner', () => {
   it('names the branch a row lives on and offers main when the reader is on that branch', async () => {
     const { setBranchId } = renderBanner('proj-4770', 'proj-4770', '/p/demo/events')
     const banner = await screen.findByTestId('entity-branch-banner')

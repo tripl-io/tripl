@@ -1,7 +1,7 @@
 """``tripl watch`` — follow mode for an operator sitting in front of an incident.
 
 POLLING, NOT SSE, and that is a measured decision rather than a shortcut. The
-headline acceptance criterion of tripl-ey6j.4 is live replay chunk progress, and
+headline acceptance criterion of this feature is live replay chunk progress, and
 ``_heartbeat_replay_progress`` (backend worker/tasks/metrics/tasks.py) writes
 that progress into ``ScanJob.result_summary`` and commits with NO
 ``publish_project_event`` call — so it is invisible on the realtime bus. The bus

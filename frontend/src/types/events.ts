@@ -78,7 +78,7 @@ export interface Event {
   superseded_by_event_id?: string | null
   last_seen_at: string | null
   /** Oldest metric bucket with traffic; null until a collection sees the event,
-   * and on list responses, which do not compute it (tripl-kjhi.10). */
+   * and on list responses, which do not compute it. */
   first_seen_at?: string | null
   /** A branch copy's twin on main; null on main, for a branch-only event, and on
    *  every response but the single-event read (EVT-42). */

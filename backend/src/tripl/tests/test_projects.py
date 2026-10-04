@@ -392,8 +392,7 @@ async def test_project_summary_alert_rule_count_ignores_ruleless_and_disabled(
     A destination on its own delivers nothing — a rule is what binds a signal to
     a channel — and a disabled rule delivers nothing either. The onboarding
     checklist reads both counters to decide whether alerting is wired up, so a
-    project with destinations but no *enabled* rule has to report 0
-    (tripl-jfm3.81).
+    project with destinations but no *enabled* rule has to report 0.
     """
     slug = "alert-rule-count"
     create_resp = await client.post(
@@ -465,7 +464,7 @@ async def test_project_summary_counts_configs_whose_latest_run_failed(client: As
     project, so a scan config that fails every hourly run becomes invisible the
     moment a *different* config logs a newer success. ``failing_scan_config_count``
     ranks jobs per config instead and counts the configs whose latest run failed,
-    so the workspace "failed jobs" rollup stays honest (tripl-7l83.3).
+    so the workspace "failed jobs" rollup stays honest.
     """
     slug = "failing-configs-proj"
 
@@ -565,7 +564,7 @@ async def test_project_summary_failing_config_count_isolates_one_failing_among_h
     client: AsyncClient,
 ) -> None:
     """One failing config among several succeeding configs counts as exactly 1,
-    and an all-healthy project stays at 0 (tripl-7l83.3).
+    and an all-healthy project stays at 0.
 
     Complements ``test_project_summary_counts_configs_whose_latest_run_failed`` by
     proving the per-config rollup isolates a single failing config from a majority
@@ -861,7 +860,7 @@ def _breakdown(
 
 @pytest.mark.asyncio
 async def test_project_summary_counts_catalog_metric_signal(client: AsyncClient) -> None:
-    """A fresh catalog-metric anomaly (scan_config_id NULL) is counted (tripl-dmch.15).
+    """A fresh catalog-metric anomaly (scan_config_id NULL) is counted.
 
     Catalog metric anomalies carry a NULL scan_config_id and are keyed by
     ``str(metric_definition_id)``, so the project-summary query that inner-joins
@@ -1011,7 +1010,7 @@ async def test_project_list_counts_catalog_metric_signals_per_project(client: As
 
 @pytest.mark.asyncio
 async def test_project_summary_plan_counts_unchanged_by_plan_branch(client: AsyncClient) -> None:
-    """Opening a working branch must not move the plan counters (tripl-posm).
+    """Opening a working branch must not move the plan counters.
 
     Creating a branch deep-copies every plan entity (event types, events,
     variables) into the SAME tables under a new ``branch_id``. The summary
@@ -1079,12 +1078,12 @@ async def test_project_summary_plan_counts_unchanged_by_plan_branch(client: Asyn
 async def test_monitoring_signal_count_includes_significant_event_scope_anomalies(
     client: AsyncClient,
 ) -> None:
-    """Per-event anomalies now count toward the badge when significant (tripl-yfsj.1).
+    """Per-event anomalies now count toward the badge when significant.
 
-    The AnomaliesPage now lists every open scope as a flat, magnitude-filtered list
-    (tripl-w0ay), so the badge counts the same population — project_total +
+    The AnomaliesPage now lists every open scope as a flat, magnitude-filtered list,
+    so the badge counts the same population — project_total +
     event_type + per-event — and the "Significant" magnitude gate (not scope
-    exclusion) is what keeps trivial per-event wobble out (supersedes tripl-posm).
+    exclusion) is what keeps trivial per-event wobble out.
     Here both the event_type and the per-event anomaly clear the gate (42 vs 21 ->
     relative effect 1.0), so both count.
     """
@@ -1173,7 +1172,7 @@ async def test_monitoring_signal_count_includes_significant_event_scope_anomalie
             )
         )
         # Event scope: the expanded AnomaliesPage now lists it and it clears the
-        # magnitude gate (42 vs 21 -> relative effect 1.0), so it counts (tripl-yfsj.1).
+        # magnitude gate (42 vs 21 -> relative effect 1.0), so it counts.
         session.add(
             MetricAnomaly(
                 id=uuid.uuid4(),
@@ -1207,7 +1206,7 @@ async def test_monitoring_signal_count_includes_significant_event_scope_anomalie
 async def test_monitoring_signal_count_excludes_below_significant_signals(
     client: AsyncClient,
 ) -> None:
-    """The magnitude gate — not scope exclusion — bounds the badge (tripl-yfsj.1).
+    """The magnitude gate — not scope exclusion — bounds the badge.
 
     A fresh open anomaly whose relative effect is below the "Significant" threshold
     (|actual - expected| / max(expected, 1) < 0.5) is hidden by the AnomaliesPage's

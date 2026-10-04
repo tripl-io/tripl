@@ -100,7 +100,7 @@ def _send_digest_to_destination(
     digest-shaped task added to this module from egressing by forgetting a
     WHERE clause. These two are the only WORKER sends that resolve a
     destination themselves instead of minting an ``AlertDelivery`` and handing
-    it to a send task, so before tripl-0zpq.33 they were the only alert sends
+    it to a send task, so they were once the only alert sends
     :func:`_assert_egress_allowed` never saw — which is why that guard's
     docstring no longer claims every dispatch path funnels through a send task,
     and names these two instead. The one other
@@ -110,7 +110,7 @@ def _send_digest_to_destination(
     rather than delivering an alert, so it refuses a demo with an ``ok=False``
     explanation the operator can read instead of raising.
 
-    The ENABLED toggle is re-read here too, and until tripl-0zpq.39's follow-up
+    The ENABLED toggle is re-read here too, and until a later fix
     it was not checked at all: both tasks filter on ``AlertDestination.enabled``
     in their SELECT and that was taken for the guard. It is not one. Each task
     SELECTs every destination in the database up front and then loops, and each
@@ -189,7 +189,7 @@ def send_weekly_plan_digest() -> dict[str, int]:
                 # refusing them row by row also keeps them out of
                 # ``destinations_checked`` and off the weekly ``failed`` tally,
                 # which is the honest tally: nothing was attempted, and nothing
-                # is wrong (tripl-0zpq.33).
+                # is wrong.
                 Project.is_demo.is_(False),
                 project_in_active_org(),
                 AlertDestination.enabled.is_(True),

@@ -116,7 +116,7 @@ describe('EventsToolbar filter bar (DS-15)', () => {
   })
 })
 
-describe('EventsToolbar reviewed filter (tripl-invv)', () => {
+describe('EventsToolbar reviewed filter', () => {
   it('offers a verified filter so the flag "Mark as verified" writes can be isolated', () => {
     renderToolbar()
 
@@ -126,7 +126,7 @@ describe('EventsToolbar reviewed filter (tripl-invv)', () => {
   })
 })
 
-describe('EventsToolbar More menu (tripl-evbw)', () => {
+describe('EventsToolbar More menu', () => {
   it('offers a working export and no longer advertises the unbuilt Ask AI', async () => {
     const { onExportCsv } = renderToolbar()
 
@@ -144,7 +144,7 @@ describe('EventsToolbar More menu (tripl-evbw)', () => {
 
   it('asks the server which events are waiting on an answer', async () => {
     // Server-side like every other filter here: narrowing the loaded page would
-    // answer for the page, not the catalog (tripl-h2sx.26).
+    // answer for the page, not the catalog.
     const onFilterOpenQuestionsChange = vi.fn()
     renderToolbar({ onFilterOpenQuestionsChange })
 

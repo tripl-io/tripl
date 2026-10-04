@@ -1,20 +1,19 @@
-"""Regression tests for batch 16 of the tripl-0zpq backend review (demo builders).
+"""Regression tests for batch 16 of an earlier backend review (demo builders).
 
-``tripl-0zpq.243`` — the search builder must not commit mid-seed, and the cancel
-    and sweep paths drop the audit trail of a demo that never became one.
-``tripl-0zpq.245`` — the planted dead event has no volume after its last
-    sighting, is not backdated a further 30 days, and the synthetic warehouse
-    cannot revive it.
-``tripl-0zpq.250`` — a new demo takes the lowest free name, not ``count + 1``.
-``tripl-0zpq.251`` — the MSTL detector, the PSI ladder and the synthetic adapter
-    run off the event loop.
-``tripl-0zpq.320`` — one ``demo_sink`` local notice, shared by seeder and worker.
-``tripl-0zpq.322`` — the demo runtime retires the "Injected demo spike" marker
-    with the anomaly it explains.
-``tripl-0zpq.324`` — both ``SimulatedRuleFiring`` builders go through
-    ``SimulatedRuleFiring.from_candidate``.
+- The search builder must not commit mid-seed, and the cancel and sweep paths
+  drop the audit trail of a demo that never became one.
+- The planted dead event has no volume after its last sighting, is not
+  backdated a further 30 days, and the synthetic warehouse cannot revive it.
+- A new demo takes the lowest free name, not ``count + 1``.
+- The MSTL detector, the PSI ladder and the synthetic adapter run off the event
+  loop.
+- One ``demo_sink`` local notice, shared by seeder and worker.
+- The demo runtime retires the "Injected demo spike" marker with the anomaly it
+  explains.
+- Both ``SimulatedRuleFiring`` builders go through
+  ``SimulatedRuleFiring.from_candidate``.
 
-``tripl-0zpq.252`` corrected a code comment only and has no behaviour to pin.
+One further item in the batch corrected a code comment only and has no behaviour to pin.
 """
 
 from __future__ import annotations
@@ -65,7 +64,7 @@ def _utc(value: datetime) -> datetime:
     return value if value.tzinfo else value.replace(tzinfo=UTC)
 
 
-# ── tripl-0zpq.243 ────────────────────────────────────────────────────────────
+# ── search builder does not commit mid-seed ───────────────────────────────
 
 
 @pytest.mark.asyncio
@@ -146,7 +145,7 @@ async def test_sweeping_a_stalled_shell_drops_its_audit_trail() -> None:
     assert left == 0
 
 
-# ── tripl-0zpq.245 ────────────────────────────────────────────────────────────
+# ── dead event stays dead ─────────────────────────────────────────────────
 
 
 @pytest.mark.asyncio
@@ -259,7 +258,7 @@ def test_synthetic_warehouse_never_emits_the_dead_event() -> None:
     assert [row for row in rows if row["event_name"] == DEAD_EVENT_NAME] == []
 
 
-# ── tripl-0zpq.250 ────────────────────────────────────────────────────────────
+# ── lowest free demo name ─────────────────────────────────────────────────
 
 
 def test_demo_name_takes_the_lowest_free_number() -> None:
@@ -285,7 +284,7 @@ async def test_a_demo_created_after_a_delete_does_not_repeat_a_live_name(
     assert third["name"] == "Demo Project"
 
 
-# ── tripl-0zpq.251 ────────────────────────────────────────────────────────────
+# ── blocking work runs off the event loop ─────────────────────────────────
 
 
 @pytest.mark.asyncio
@@ -316,7 +315,7 @@ async def test_demo_cpu_work_runs_off_the_event_loop(
         assert loop_thread not in threads, f"{key} ran on the event loop"
 
 
-# ── tripl-0zpq.320 ────────────────────────────────────────────────────────────
+# ── demo_sink local notice ────────────────────────────────────────────────
 
 
 def test_demo_sink_notice_is_written_down_once() -> None:
@@ -352,7 +351,7 @@ async def test_seeded_demo_delivery_carries_the_shared_notice(client: AsyncClien
     assert notices == {DEMO_SINK_LOCAL_NOTICE}
 
 
-# ── tripl-0zpq.322 ────────────────────────────────────────────────────────────
+# ── spike marker retires with its anomaly ─────────────────────────────────
 
 
 def test_retention_retires_the_spike_marker_with_its_anomaly() -> None:
@@ -399,7 +398,7 @@ def test_retention_retires_the_spike_marker_with_its_anomaly() -> None:
     }
 
 
-# ── tripl-0zpq.324 ────────────────────────────────────────────────────────────
+# ── SimulatedRuleFiring.from_candidate ────────────────────────────────────
 
 
 def test_from_candidate_carries_every_candidate_field() -> None:

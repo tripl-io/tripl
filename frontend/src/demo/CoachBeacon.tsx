@@ -1,5 +1,5 @@
 /**
- * The pulsing ring a coach mark draws around its anchor (tripl-odrj.2).
+ * The pulsing ring a coach mark draws around its anchor.
  *
  * An overlay, not a wrapper: the ring is a fixed-position div portalled to
  * document.body and sized from the anchor's client rect, so anchors whose DOM

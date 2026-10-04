@@ -6,7 +6,7 @@ from importlib.metadata import PackageNotFoundError, version
 
 # The DISTRIBUTION name, not the import package name: this is `tripl-mcp`, while
 # the module you are reading is `tripl_mcp` — the same split the sibling `tripl`
-# distribution documents in cli/src/tripl_cli/__init__.py (tripl-ey6j.7).
+# distribution documents in cli/src/tripl_cli/__init__.py.
 DISTRIBUTION_NAME = "tripl-mcp"
 
 try:
@@ -22,7 +22,7 @@ except PackageNotFoundError:  # pragma: no cover - source tree with no install
 
 # What this server calls itself on the wire. It lives HERE rather than in the
 # client because the client now ships in the shared `tripl` distribution and
-# must not claim to be tripl-mcp (tripl-ey6j.1).
+# must not claim to be tripl-mcp.
 #
 # Both transports have to pass it: server.py builds the stdio lifespan pool, and
 # TriplClient builds a per-request transport for streamable-http. Miss either

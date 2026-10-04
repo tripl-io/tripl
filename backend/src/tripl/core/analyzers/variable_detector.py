@@ -176,7 +176,7 @@ def _detect_json_pattern(
             # value and ``normalize_variable_tokens`` leaves an unresolved token
             # alone, so the token reached the plan as text and
             # ``event_service._attach_template_warnings`` reported it on every
-            # save, naming a variable that can never exist (tripl-0zpq.96).
+            # save, naming a variable that can never exist.
             # First of the sorted distinct values so two scans over the same
             # data produce the same template.
             representative = _distinct_values(vals)
@@ -283,7 +283,7 @@ def _position_unique_name(name: str, position: int, taken: list[DetectedVariable
 
     ``/users/123/posts/456`` has two numeric positions, and both would be named
     ``{column}_id``. The planner dedups needs by name, so user ids and post ids
-    became one variable with one merged value list (tripl-0zpq.97). The first
+    became one variable with one merged value list. The first
     position keeps the plain name, so existing single-position variables are
     unchanged; a later clash gets its position index.
     """

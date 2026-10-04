@@ -81,7 +81,7 @@ def replay_metrics(slug: str, scan_id: str, body: JsonDict) -> ApiRequest:
     ``scans.py`` guards this route with ``deps.get_owner_user``, which rejects
     ANY request carrying ``request.state.api_key_scope`` — and every valid API
     key sets it, read or write. So a Bearer-token client cannot reach it at all
-    and a ``tripl scans replay`` would 403 every time (tripl-ey6j.5). The builder
+    and a ``tripl scans replay`` would 403 every time. The builder
     exists so the contract test still watches the route; see the follow-up bead
     on whether an owner-role ``tk_w_`` key should be allowed through.
     """
@@ -138,7 +138,7 @@ def config_names(scans: JsonList) -> dict[str, str]:
     AND a time column because doctor asks "is the scheduler working", and a
     config with no interval has no dispatch history worth reading. Watch — and
     ``tripl scans run`` — ask "what is running right now", and a manual replay on
-    an unscheduled config is exactly what tripl-ey6j.4 was filed for.
+    an unscheduled config is exactly what the watch command was built for.
 
     Kept as a name of its own because that exclusion is the fact worth writing
     down; the extraction itself is ``model.names_by_id``, which the event-type

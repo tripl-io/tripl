@@ -3,21 +3,21 @@
 Five defects on the same seam — the window a collection run is given, and who is
 allowed to close the job that ran it:
 
-* tripl-0zpq.10 — ``_floor_to_interval`` anchored at 2000-01-01, a *Saturday*, so
+* ``_floor_to_interval`` anchored at 2000-01-01, a *Saturday*, so
   every ``1w`` window bound sat five days off the Monday grid the warehouse
   adapters, ``core.bucketing`` and the frontend all bin weeks on.
-* tripl-0zpq.22 — a replay period reaching into the interval still filling was
+* a replay period reaching into the interval still filling was
   refused by the worker with a bare ``ValueError``, which the error sanitiser
   flattens to "Scan failed due to an internal error.", and only AFTER the API had
   created the job and dispatched it.
-* tripl-0zpq.23 — ``collect_metrics`` skipped only ``cancelled`` jobs before
+* ``collect_metrics`` skipped only ``cancelled`` jobs before
   start, so a job the stale reaper had already stamped ``failed`` was flipped
   back to ``running`` and re-run, and a run that finished after being reaped
   overwrote that ``failed`` with ``completed``.
-* tripl-0zpq.24 — the demo collection cooldown identified "the last scheduled
+* the demo collection cooldown identified "the last scheduled
   collection" by excluding the demo tick, so a manual scan or a replay on the
   same scan config deferred the real collection for up to six hours.
-* tripl-0zpq.26 — the scheduled window started from ``max(EventMetric.bucket)``
+* the scheduled window started from ``max(EventMetric.bucket)``
   alone and ignored the job watermark, so a source that had gone silent widened
   its window by one interval per tick without bound.
 
@@ -81,8 +81,8 @@ def _create_scan_config(
     with_event_type: bool = False,
     is_demo: bool = False,
 ) -> ScanConfig:
-    # An ACTIVE demo when is_demo: the dispatcher skips a PAUSED one outright
-    # (tripl-0zpq.72), and a demo with neither stamp set reads as paused, so the
+    # An ACTIVE demo when is_demo: the dispatcher skips a PAUSED one outright,
+    # and a demo with neither stamp set reads as paused, so the
     # cooldown's job-identity rule below would never be reached.
     now = datetime.now(UTC)
     project = Project(
@@ -134,7 +134,7 @@ def _create_scan_config(
     return config
 
 
-# ── tripl-0zpq.10: the worker's window bounds sit on the bucket grid ──────────
+# ── the worker's window bounds sit on the bucket grid ──────────
 
 # A whole week plus an instant already on the weekly grid: the Saturday anchor
 # and the Monday one agree on exactly one day in seven, so a single sample date
@@ -182,7 +182,7 @@ def test_weekly_replay_chunks_never_split_a_monday_bucket() -> None:
     assert len({chunk_from for chunk_from, _ in chunks}) == len(chunks)
 
 
-# ── tripl-0zpq.22: a replay period that cannot run is refused, and says why ────
+# ── a replay period that cannot run is refused, and says why ────
 
 
 def test_replay_into_the_incomplete_interval_is_a_curated_scan_error(
@@ -329,7 +329,7 @@ async def test_replay_accepts_a_period_ending_on_the_last_complete_boundary(
     assert dispatched[0][3] == boundary.isoformat()
 
 
-# ── tripl-0zpq.23: a terminal job is never re-run, nor re-opened ──────────────
+# ── a terminal job is never re-run, nor re-opened ──────────────
 
 
 def _no_adapter(*args: object, **kwargs: object) -> object:
@@ -536,7 +536,7 @@ def test_collect_metrics_does_not_unfail_a_job_reaped_mid_run(
         assert reloaded.result_summary["event_metrics"] == result["event_metrics"]
 
 
-# ── tripl-0zpq.26: the scheduled window is bounded by collection progress ─────
+# ── the scheduled window is bounded by collection progress ─────
 
 
 def _seed_completed_collection(
@@ -741,7 +741,7 @@ def test_stale_daily_buckets_do_not_open_a_weekly_window_mid_week(
     assert floor_to_bucket(time_from, "1w") == time_from
 
 
-# ── tripl-0zpq.24: the demo cooldown counts only the dispatcher's own jobs ────
+# ── the demo cooldown counts only the dispatcher's own jobs ────
 
 
 def _demo_config_with_job(

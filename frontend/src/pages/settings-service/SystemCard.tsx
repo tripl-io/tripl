@@ -14,7 +14,7 @@ type SystemRow = {
    * Required, not optional. The tiles sit in a `grid`, which equalises the
    * height of every tile in a row, so the three annotated rows stretched the
    * four bare ones to their height and left ~70px of dead space under the word
-   * "Configured" on each (tripl-my0t). Every row explains itself, in every
+   * "Configured" on each. Every row explains itself, in every
    * state it can be in — including the unknown branches of the schema row.
    */
   note: string
@@ -56,8 +56,7 @@ function required(label: string, configured: boolean, use: string): SystemRow {
  * because compose gates it behind a `migrate` one-shot with
  * `service_completed_successfully`. That is an inference from a compose file,
  * not an observation, and it says nothing about a hand-rolled deploy — a
- * constraint-only migration changes nothing else a probe can see
- * (tripl-wkwv.7).
+ * constraint-only migration changes nothing else a probe can see.
  *
  * Unknown is a real answer here and gets its own branch: a database whose
  * revision merely could not be read must not be painted as one whose migrations
@@ -92,14 +91,14 @@ function schemaRevisionRow(system: SystemSettings): SystemRow {
       // has not applied it" for both causes the admin guide itself lists: the
       // second is a rollback, where migrate DID run and applied something newer,
       // and pointing that operator at `alembic upgrade head` on the older image
-      // only earns them "Can't locate revision" (tripl-wkwv.7).
+      // only earns them "Can't locate revision".
       note: `This database is stamped with a revision that is not this build's head (${head}). Either the migrate step has not run here, or a newer release upgraded this database — migrations are forward-only.`,
     }
   }
   if (applied) {
     // Only the head is missing. The applied revision arrived in the payload, and
     // printing "Unknown" over it sent the operator to psql for a number already
-    // on the tile (tripl-wkwv.7).
+    // on the tile.
     return {
       label: 'Schema revision',
       value: applied,
@@ -125,7 +124,7 @@ function schemaRevisionRow(system: SystemSettings): SystemRow {
  * Every row used to map `active -> success + pulse`, which rendered the two
  * rows that matter backwards: "Debug mode" on was a pulsing green "Configured"
  * while "Encryption key" unset was the same neutral grey as the optional OpenAI
- * fallback key (tripl-lgr4). `active` means "set", not "healthy" — and for
+ * fallback key. `active` means "set", not "healthy" — and for
  * `debug` it means the opposite — so each row now states its own judgement.
  *
  * The judgements are the ones backend/src/tripl/config.py already makes:

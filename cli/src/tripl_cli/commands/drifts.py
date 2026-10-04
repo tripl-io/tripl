@@ -11,13 +11,13 @@ Two facts shape this whole module:
   ``schema_drift_service._apply_acceptance_to_plan``, which DELETES the
   FieldDefinition — the exact damage ``doctor``'s ``schema_field_deleted_by_accept``
   finding exists to report. The tool that reports it must not be the easiest way
-  to cause it. Accepting stays in the tripl UI (tripl-ey6j.5).
+  to cause it. Accepting stays in the tripl UI.
 
 ``reopen`` is a VERB, not a flag on ``dismiss``. The two move a drift in
 opposite directions, so ``dismiss --reopen`` would read as its own opposite. It
 prompts for a reason ``dismiss``'s prompt does not share: reopening DISCARDS the
 resolution note and the resolver, so the record of who triaged this drift and
-why is gone, and nothing in the API restores it (tripl-k8j9).
+why is gone, and nothing in the API restores it.
 """
 
 from __future__ import annotations
@@ -310,7 +310,7 @@ def run_list(args: argparse.Namespace, config: Config) -> int:
         types_by_slug = dict(zip(found, type_reads, strict=True))
         # The SAME plan doctor uses, from the same function: two implementations
         # of a budgeted fan-out is how "we did not look there" starts printing as
-        # "nothing there" (tripl-ey6j.5).
+        # "nothing there".
         targets, examined, totals = event_types_api.plan_drift_targets(
             {slug: types_by_slug[slug].value or [] for slug in found}, budget=budget
         )

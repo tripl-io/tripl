@@ -135,7 +135,7 @@ def _deliver_freshness_candidates(
 
     Mirrors ``dispatch._prepare_alert_deliveries`` for one config-partitioned
     scope family, minus the close loop (see the module docstring). The mute
-    check is here too: a delivery path without one is the tripl-jfm3.99 bug.
+    check is here too: a delivery path without one is a known bug.
     """
     destinations = _load_enabled_alert_destinations(session, config.project_id)
     if not destinations or not candidates:
@@ -219,7 +219,7 @@ def _deliver_freshness_candidates(
 
             if not anomalies_to_send:
                 continue
-            # Same NULL-means-not-muted reading as the dispatch (tripl-a50u).
+            # Same NULL-means-not-muted reading as the dispatch.
             rule_muted_until = _as_utc(rule.muted_until)
             if rule_muted_until is not None and rule_muted_until > now:
                 continue

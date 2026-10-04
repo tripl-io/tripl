@@ -1,4 +1,4 @@
-"""Incremental search reindex (tripl-kt6v).
+"""Incremental search reindex.
 
 ``_reindex_branch_documents`` diffs the rebuilt documents against existing
 rows on ``(entity_type, entity_id)`` + ``content_hash`` instead of doing
@@ -199,7 +199,7 @@ async def test_reindex_stamps_kept_rows_so_the_staleness_sweep_converges(
 ) -> None:
     """A KEPT row gets the current builder stamp, or the sweep never terminates.
 
-    tripl-uji9. ``reindex_stale_search_documents`` picks branches by
+    ``reindex_stale_search_documents`` picks branches by
     ``builder_version < DOCUMENT_BUILDER_VERSION``. The rebuild it runs keeps
     every row whose text is unchanged — which, on a branch that was only ever
     stale in its STAMP, is all of them. If keeping a row left its old version in

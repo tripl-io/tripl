@@ -43,7 +43,7 @@ def _normalise_breakdown_columns(value: list[str]) -> list[str]:
     as ONE ``INSERT ... ON CONFLICT DO UPDATE``. Postgres refuses that with
     "command cannot affect row a second time", so the metric errors on every
     tick; SQLite applies the statement row by row and never notices, which is
-    why no test caught it (tripl-0zpq.270).
+    why no test caught it.
 
     The sibling scalar-column fields — ``scan_config``'s and ``event``'s
     ``metric_breakdown_columns`` — have always deduplicated; only the catalog
@@ -317,7 +317,7 @@ class SqlConfig(BaseModel):
     metric_sql: str = Field(min_length=1)
     time_column: str = Field(min_length=1, max_length=255)
     # Which projected column carries the measure. None keeps the documented
-    # ``value`` convention (tripl-0l0p elevated this from convention to config).
+    # ``value`` convention (elevated from convention to config).
     value_column: str | None = Field(default=None, min_length=1, max_length=255)
 
     @field_validator("metric_sql")
@@ -346,11 +346,11 @@ class SqlConfig(BaseModel):
         it raises a bare ``ValueError``, not a ``ScanError``, so the failure
         reaches the user as "Scan failed due to an internal error." A save that
         returned 201 therefore produced a metric that could never collect and
-        could not say why (tripl-0zpq.173). The classic shape is a CTE finished
+        could not say why. The classic shape is a CTE finished
         with ``SELECT * FROM b``: the columns exist in the result, but the outer
         projection does not mention them, so the textual check cannot see them.
 
-        Both columns are held to it (tripl-nluj). The time column is always
+        Both columns are held to it. The time column is always
         explicit config; the value column is the one the caller named, or the
         documented ``value`` convention when ``value_column`` is None — the same
         fallback ``_collect_sql`` applies, so a save no longer accepts a SELECT
@@ -388,10 +388,9 @@ class _MetricDefinitionBase(BaseModel):
     # Catalog position. Omitted (or 0, what older clients send) means "no
     # position asked for", so the service appends, giving the new metric
     # ``max(order) + 1``. Without that every metric shared order 0 and the
-    # catalog could not be reordered at all (tripl-0zpq.175). ``None`` rather
+    # catalog could not be reordered at all. ``None`` rather
     # than a 0 default so the generated contract lists it as optional instead
-    # of forcing every caller to send the value that means "I did not choose"
-    # (tripl-cyby).
+    # of forcing every caller to send the value that means "I did not choose".
     order: int | None = None
     unit: str | None = Field(default=None, max_length=50)
     status: MetricStatus = MetricStatus.draft
@@ -637,7 +636,7 @@ class EventCompositionMetricDefinition(BaseModel):
     denominator_event_type_id: uuid.UUID | None = None
     # per_distinct_user denominator column; None keeps the documented
     # ``user_id`` default. The collector already honored this config key —
-    # the schema layer just used to drop it (tripl-0l0p).
+    # the schema layer just used to drop it.
     user_id_column: str | None = Field(default=None, min_length=1, max_length=255)
 
     @field_validator("user_id_column")
@@ -670,7 +669,7 @@ class EventCompositionMetricDefinition(BaseModel):
             # operands for EVERY composition and drives the metric into the
             # error state with a message about a constant-1.0 ratio when a merge
             # makes them equal, although the metric is a plain count and is
-            # still collecting correctly (tripl-0zpq.89). Config the collector
+            # still collecting correctly. Config the collector
             # never reads has no business being storable.
             msg = "denominator is only valid for ratio composition"
             raise ValueError(msg)
@@ -979,7 +978,7 @@ class MetricDefinitionListResponse(BaseModel):
     items: list[MetricDefinitionListItem]
     total: int
     # Server-side, so the catalog KPI strip does not pair a project-wide total
-    # with a count taken off the loaded page (tripl-jfm3.109).
+    # with a count taken off the loaded page.
     active_total: int = 0
 
 

@@ -120,7 +120,7 @@ function mockSignal() {
     z_score: 7,
     direction: 'spike',
     // Resolved server-side and carried on the signal, so the bell reads a name
-    // off the payload instead of downloading catalogs to find one (tripl-y4wt).
+    // off the payload instead of downloading catalogs to find one.
     scope_name: 'Page View',
   }
 }
@@ -234,7 +234,7 @@ function mockNotificationsFetch(
     if (handled) return handled
     // No branch for the event / event-type / metrics-catalog lookups on purpose:
     // names ride on the signals now, so any such request lands on the throw
-    // below rather than being quietly served (tripl-y4wt).
+    // below rather than being quietly served.
     throw new Error(`Unhandled fetch: ${url}`)
   })
   return calls
@@ -292,9 +292,9 @@ describe('TopBar notifications', () => {
     )
   })
 
-  it('names non-event scopes for what they are (tripl-jfm3.120)', async () => {
+  it('names non-event scopes for what they are', async () => {
     // The bell's own label function fell through to `event ${ref}`, so once it
-    // started reading the expanded list (tripl-jfm3.89) every metric and drift
+    // started reading the expanded list every metric and drift
     // signal was announced as an event.
     mockNotificationsFetch(
       [
@@ -384,7 +384,7 @@ describe('TopBar notifications', () => {
   })
 
   it('counts event-scope signals, which the collapsed endpoint would have dropped', async () => {
-    // tripl-jfm3.89: the bell used the collapsed variant (project_total +
+    // the bell used the collapsed variant (project_total +
     // event_type only). On prod acme-ios every open signal was event-scope, so
     // an incident with no parent to roll into vanished and the bell read clean
     // while the sidebar and the Anomalies page both showed 30.
@@ -593,7 +593,7 @@ describe('TopBar notifications — all projects (i9mt.19 / SH-17)', () => {
   })
 })
 
-describe('TopBar notifications — scope names (tripl-9tyr, tripl-y4wt)', () => {
+describe('TopBar notifications — scope names', () => {
   it('names the scope off the signal, fetching no catalog to do it', async () => {
     // The bell used to read "Spike on Event type type-123" while the Overview
     // panel below it read "Event type · Page View" for the very same signal, and
@@ -629,7 +629,7 @@ describe('TopBar notifications — scope names (tripl-9tyr, tripl-y4wt)', () => 
   it('keeps a sub-unit baseline instead of rounding it away', async () => {
     // `metric` is a first-class alert scope and a `%` catalog metric stores a
     // fraction (0.08 == 8%), so Math.round printed "vs 0 expected" beside a
-    // delta computed from the real baseline (tripl-nj4n).
+    // delta computed from the real baseline.
     mockNotificationsFetch(
       [
         {

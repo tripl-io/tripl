@@ -7,7 +7,7 @@ import App from './App'
 // App routes its pages through `lazy(() => import(...))`, so the first render of a
 // route pays to transform and evaluate that page's whole dependency tree — seconds
 // of it on a busy machine, and all of it inside whatever `findBy*` timeout the
-// assertion happens to have (tripl-gk3l). Importing the pages this file asserts
+// assertion happens to have. Importing the pages this file asserts
 // text against warms Vite's module cache during collection, so the lazy routes
 // resolve from memory instead of racing a timer. The routes stay lazy in the app;
 // only the test stops paying the import cost in the middle of an assertion.
@@ -196,7 +196,7 @@ describe('App', () => {
         }))
       }
       // The shell resolves `:slug` against this list before it mounts anything
-      // project-scoped (tripl-jfm3.2), so the project the URL names has to
+      // project-scoped, so the project the URL names has to
       // exist for the routed redirect below it to run at all.
       if (url.endsWith('/api/v1/projects')) {
         return Promise.resolve(jsonResponse([makeProject('demo', 'Demo')]))
@@ -409,7 +409,7 @@ describe('App', () => {
     })
   })
 
-  it('keeps the project shell on an unmatched path under a real project (tripl-jfm3.3)', async () => {
+  it('keeps the project shell on an unmatched path under a real project', async () => {
     // `/p/demo/<no-such-page>` used to fall through to the GLOBAL catch-all,
     // which declares no `:slug` — so the shell collapsed to "No project
     // selected" and the tab kept the previous page's title.
@@ -432,7 +432,7 @@ describe('App', () => {
     })
   })
 
-  it('shows a not-found state for an unknown project slug without fanning out (tripl-jfm3.2)', async () => {
+  it('shows a not-found state for an unknown project slug without fanning out', async () => {
     // An invented slug used to render a complete, working-looking project shell
     // backed by a dozen 404ing project-scoped requests, with the bogus slug
     // echoed into the document title.

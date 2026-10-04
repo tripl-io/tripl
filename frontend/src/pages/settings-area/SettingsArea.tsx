@@ -69,7 +69,7 @@ const LAST_SLUG_STORAGE_KEY = 'tripl-last-project-slug'
  * There is deliberately NO "first project" fallback: falling back to
  * `projects[0]` bound Settings to whichever project happened to sort first and
  * then offered to rename/delete it, one click after the workspace page said "no
- * project selected" (tripl-jfm3.32). With nothing chosen we return undefined
+ * project selected". With nothing chosen we return undefined
  * and the project sections ask the user to pick one.
  */
 function useSettingsSlug(pickedSlug: string | null): string | undefined {
@@ -326,7 +326,7 @@ function renderSection({
     // Audit is the one Instance section that is not a settings form, so it does
     // not go through InstanceSection — that component's whole job is to frame a
     // ServiceSettingsPage section, and this reads a feed instead. It is the
-    // organization's feed, so it takes the org owner gate (tripl-wkwv.17).
+    // organization's feed, so it takes the org owner gate.
     if (section === 'instance/audit') {
       return isOwner ? <WorkspaceAuditSection /> : <OwnerOnly section={section} />
     }
@@ -370,8 +370,8 @@ function renderSection({
 /**
  * The project-scoped routes are the only ones that can render with nothing
  * bound. They used to print "pick a project first" and offer no way to do it,
- * so the user had to leave, choose a project elsewhere and navigate back
- * (tripl-kr4u). The instruction now comes with the control it asks for.
+ * so the user had to leave, choose a project elsewhere and navigate back.
+ * The instruction now comes with the control it asks for.
  */
 function NoProjectSelected({
   projects,

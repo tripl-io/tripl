@@ -1,4 +1,4 @@
-"""Organizations nobody uses are retired on a hosted instance (tripl-sav5.5)."""
+"""Organizations nobody uses are retired on a hosted instance."""
 
 from __future__ import annotations
 

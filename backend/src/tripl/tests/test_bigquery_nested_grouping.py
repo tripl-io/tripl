@@ -1,7 +1,7 @@
 """BigQuery: nested/array columns must produce GROUP-BY-able SQL, and must still
 come back as lists.
 
-The bug this file pins down (tripl-64n8.13): ``_json_paths_expression`` returned an
+The bug this file pins down: ``_json_paths_expression`` returned an
 ``ARRAY<STRING>`` and every caller put it straight into ``GROUP BY``. GoogleSQL rejects
 that outright — verified against Google's real ZetaSQL analyzer:
 

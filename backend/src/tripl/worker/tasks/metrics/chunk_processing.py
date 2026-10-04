@@ -187,14 +187,14 @@ def _build_shadow_candidate_rows(
     which type contributed what, but ``shadow_event_candidates`` is unique on
     (scan_config_id, event_name) alone. The generated identity carries the event
     type column only when ``event_name_format`` names it — that placeholder is
-    the documented exception both name builders honour (tripl-0zpq.93); no other
+    the documented exception both name builders honour; no other
     route puts the type into the name, because the column gets no ``col_meta``
     entry. So in a grouped scan whose format does NOT name the type, two event
     types produce the SAME identity whenever their name-bearing values coincide.
     Emitting a row per type then put two rows with one conflict key into a single
     multi-row ON CONFLICT DO UPDATE, which Postgres refuses outright (cardinality
     violation) and which aborted the whole collection run, every run, until a
-    plan event absorbed one of the two identities (tripl-0zpq.14). A format that
+    plan event absorbed one of the two identities. A format that
     does name the type is not exempt from the fold either — two types can still
     collide through a group rule that rewrites both names to one.
 
@@ -305,8 +305,7 @@ def process_chunk(
         # change, and only a ScanError survives ``user_facing_error`` verbatim.
         # As a ValueError it was replaced on ScanJob.error_message by the generic
         # "Scan failed due to an internal error.", so the one thing that would
-        # have told the user what to do only ever reached the worker log
-        # (tripl-embs).
+        # have told the user what to do only ever reached the worker log.
         msg = (
             "Metrics query reached configured row limit "
             f"({metrics_row_limit}) for chunk "
@@ -425,7 +424,7 @@ def process_chunk(
                 # to describe, how much does it describe", and archiving withdraws
                 # the event from that question on both sides. Leaving it in the
                 # denominator alone made archiving a busy event silently tank the
-                # project's coverage percentage (tripl-w3ms). The volume is not
+                # project's coverage percentage. The volume is not
                 # lost — it still lands in the event-type series below, and the
                 # run reports it via ``ChunkStats.archived_volume``.
                 coverage_entry[0] -= cnt
@@ -509,7 +508,7 @@ def process_chunk(
     )
     if breakdown_truncated:
         # ScanError so the "increase metrics_row_limit" instruction survives
-        # user_facing_error and lands on ScanJob.error_message (tripl-embs).
+        # user_facing_error and lands on ScanJob.error_message.
         msg = (
             "Metrics breakdown query reached configured row limit "
             f"({metrics_row_limit}) for chunk "
@@ -560,7 +559,7 @@ def process_chunk(
     )
     if drifts_truncated:
         # ScanError so the "increase metrics_row_limit" instruction survives
-        # user_facing_error and lands on ScanJob.error_message (tripl-embs).
+        # user_facing_error and lands on ScanJob.error_message.
         msg = (
             "Distribution drift query reached configured row limit "
             f"({metrics_row_limit}) for chunk "

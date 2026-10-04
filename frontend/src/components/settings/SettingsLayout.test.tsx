@@ -32,7 +32,7 @@ vi.mock('@/components/auth-context', () => ({
 }))
 
 // A DATA router, not MemoryRouter: SettingsLayout guards unsaved drafts with
-// useBlocker, which needs one to exist at all (tripl-l33u.14).
+// useBlocker, which needs one to exist at all.
 function dataRouter(element: ReactNode, initialEntries: string[] = ['/settings/general']) {
   return createMemoryRouter([{ path: '*', element }], { initialEntries })
 }
@@ -239,7 +239,7 @@ describe('SettingsLayout nav accessibility', () => {
     for (const item of instance!.items) {
       expect(item.label.trim().length).toBeGreaterThan(0)
       // As <button>s none of these could be cmd-clicked into a new tab,
-      // middle-clicked, hovered for a URL or copied (tripl-wd66).
+      // middle-clicked, hovered for a URL or copied.
       expect(screen.getByRole('link', { name: item.label })).toHaveAttribute(
         'href',
         `/settings/${item.path}`,
@@ -267,8 +267,7 @@ describe('SettingsLayout responsive rail', () => {
     const { container } = renderSettings('members')
 
     // Off-canvas by default (phones) but forced back into static flow at md, so
-    // a 264px rail can never leave a 390px viewport a ~45px content column
-    // (tripl-jfm3.40).
+    // a 264px rail can never leave a 390px viewport a ~45px content column.
     expect(rail(container).className).toContain('-translate-x-full')
     expect(rail(container).className).toContain('md:static')
     expect(rail(container).className).toContain('md:translate-x-0')
@@ -469,7 +468,7 @@ describe('SettingsLayout unsaved-changes guard', () => {
     )
   }
 
-  // THE POINT OF tripl-l33u.14. Back was the one exit no guard could reach: a
+  // THE POINT OF THIS TEST. Back was the one exit no guard could reach: a
   // plain BrowserRouter offers no blocker, and the history-parking workaround it
   // replaces could only react AFTER the browser had already moved. A blocker is
   // asked first, so the draft is still there to save when the dialog appears.
@@ -570,7 +569,7 @@ describe('SettingsLayout unsaved-changes guard', () => {
 
   it('stays silent when the destination keeps the draft', () => {
     // AI → Mail relay keeps ServiceSettingsPage mounted, so a prompt here would
-    // be a false alarm on every section switch (tripl-l8v2).
+    // be a false alarm on every section switch.
     renderWithDraft()
 
     fireEvent.click(screen.getByRole('link', { name: 'Mail relay' }))
@@ -580,7 +579,7 @@ describe('SettingsLayout unsaved-changes guard', () => {
 
   it('lets the browser prompt before a reload or tab close discards the draft', () => {
     // Neither is a React navigation, so the dialog above can never run for
-    // them — only a beforeunload listener reaches them (tripl-l33u.6).
+    // them — only a beforeunload listener reaches them.
     renderWithDraft()
 
     expect(reload().defaultPrevented).toBe(true)
@@ -617,7 +616,7 @@ describe('SettingsLayout landmarks and headings', () => {
     renderSettings('members')
 
     // The rail used to render <h2>Settings</h2> before every page's <h1>,
-    // which opened the heading outline with a level-2 skip (tripl-jfm3.69).
+    // which opened the heading outline with a level-2 skip.
     expect(screen.queryByRole('heading', { name: 'Settings' })).toBeNull()
     expect(screen.getByRole('navigation', { name: 'Settings' })).toBeInTheDocument()
   })

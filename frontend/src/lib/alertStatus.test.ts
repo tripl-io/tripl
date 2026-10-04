@@ -52,7 +52,7 @@ function makeGroup(overrides: Partial<AlertInboxGroup> = {}): AlertInboxGroup {
   }
 }
 
-describe('alert inbox status lexicon (tripl-oxkt.16)', () => {
+describe('alert inbox status lexicon', () => {
   it('gives every status a human label, never the raw enum member', () => {
     // The badge printed `{group.status}`, so one of them literally read
     // "false_positive".
@@ -81,7 +81,7 @@ describe('alert inbox status lexicon (tripl-oxkt.16)', () => {
   })
 })
 
-describe('what fired, on the card (tripl-oxkt.4)', () => {
+describe('what fired, on the card', () => {
   it('names direction and scope kind together', () => {
     expect(incidentReasonLabel('drop', ['event'])).toBe('drop · volume')
     expect(incidentReasonLabel('drop', ['release_regression'])).toBe('drop · release regression')
@@ -102,8 +102,7 @@ describe('what fired, on the card (tripl-oxkt.4)', () => {
   it('rounds and groups the counts so a baseline never reads as "88.318"', () => {
     // `expected_count` is a rolling baseline and arrives as a float. Raw, the
     // card read "197 vs 88.318 expected", which a reader used to a decimal comma
-    // takes for 88,318 — and every other surface in the product already rounds
-    // (tripl-nj4n).
+    // takes for 88,318 — and every other surface in the product already rounds.
     const label = incidentMagnitudeLabel(
       makeGroup({ actual_count: 197, expected_count: 88.318, percent_delta: 123.1 }),
     )
@@ -162,7 +161,7 @@ describe('what fired, on the card (tripl-oxkt.4)', () => {
   it('says a zero baseline in words, never as 0%', () => {
     // `percent_delta` is NULL exactly when there is nothing to divide by. The
     // stored 0.0 it replaced reported the largest possible relative move as the
-    // smallest one (tripl-l429.24).
+    // smallest one.
     const label = incidentMagnitudeLabel(
       makeGroup({ actual_count: 412, expected_count: 0, percent_delta: null }),
     )
@@ -198,7 +197,7 @@ describe('what fired, on the card (tripl-oxkt.4)', () => {
   })
 })
 
-describe('the confirmation names the whole suppression key (tripl-oxkt.7)', () => {
+describe('the confirmation names the whole suppression key', () => {
   it('spells scope, kind, direction, scan and rule, then what is not covered', () => {
     const message = muteConfirmMessage(makeGroup(), '2026-08-19T10:00:00Z')
 
@@ -213,7 +212,7 @@ describe('the confirmation names the whole suppression key (tripl-oxkt.7)', () =
   })
 
   it('says an open-ended mute has no end date, instead of printing "Invalid Date"', () => {
-    // The Inbox can now mute with no end at all (tripl-a50u), which arrives here
+    // The Inbox can now mute with no end at all, which arrives here
     // as a null. Handing that to `formatDateTime` renders "Invalid Date" in the
     // middle of the one sentence whose entire job is to state the blast radius
     // before anything goes quiet — on the most far-reaching mute of the lot.
@@ -231,7 +230,7 @@ describe('the confirmation names the whole suppression key (tripl-oxkt.7)', () =
   })
 })
 
-describe('an action says what it actually did (tripl-oxkt.6)', () => {
+describe('an action says what it actually did', () => {
   function response(overrides: Partial<AlertInboxActionResponse> = {}): AlertInboxActionResponse {
     return { group: makeGroup(), overrides_written: null, ...overrides }
   }
@@ -275,7 +274,7 @@ describe('an action says what it actually did (tripl-oxkt.6)', () => {
   it('does not let an open-ended mute read like a timed one', () => {
     // This branch was unreachable while the API demanded a `muted_until`, and
     // it was a bare "Muted." — indistinguishable from a seven-day snooze, for
-    // the one mute that never lapses on its own (tripl-a50u).
+    // the one mute that never lapses on its own.
     const message = inboxActionSuccessMessage(
       'mute',
       'open',
@@ -287,7 +286,7 @@ describe('an action says what it actually did (tripl-oxkt.6)', () => {
   })
 })
 
-describe('one sentence for a whole batch (tripl-gpfr)', () => {
+describe('one sentence for a whole batch', () => {
   it('counts the incidents it silences, and says what stays loud', () => {
     // The count IS the blast radius here: the single-incident sentence spells
     // the whole five-part suppression key, which cannot be scaled up — at ten
@@ -310,8 +309,8 @@ describe('one sentence for a whole batch (tripl-gpfr)', () => {
 
   it('carries the open-ended clause instead of printing "Invalid Date"', () => {
     // Shared with `muteConfirmMessage` through `muteDurationClause` precisely so
-    // the two confirmations cannot describe the same wire value differently
-    // (tripl-a50u). A bulk indefinite mute is the furthest-reaching thing this
+    // the two confirmations cannot describe the same wire value differently.
+    // A bulk indefinite mute is the furthest-reaching thing this
     // page can do, so it is the last sentence that may go vague.
     const message = bulkMuteConfirmMessage(4, null)
 
@@ -325,7 +324,7 @@ describe('one sentence for a whole batch (tripl-gpfr)', () => {
   })
 })
 
-describe('a batch says what it did, in the plural (tripl-gpfr)', () => {
+describe('a batch says what it did, in the plural', () => {
   it('acknowledges and resolves by the number asked for', () => {
     expect(bulkInboxActionSuccessMessage('acknowledge', 1, null)).toBe('Acknowledged 1 incident.')
     expect(bulkInboxActionSuccessMessage('acknowledge', 12, null)).toBe(
@@ -339,7 +338,7 @@ describe('a batch says what it did, in the plural (tripl-gpfr)', () => {
     // "It stays quiet until the scope goes quiet, then reopens" is true of each
     // member individually and, over a batch, reads as a promise about the batch
     // — which is not a thing that exists: there is no group object, so there is
-    // nothing to reopen as a unit (tripl-5cc9).
+    // nothing to reopen as a unit.
     const message = bulkInboxActionSuccessMessage('acknowledge', 12, null)
     expect(message).not.toMatch(/scope goes quiet/i)
     expect(message).not.toMatch(/reopens/i)
@@ -364,7 +363,7 @@ describe('a batch says what it did, in the plural (tripl-gpfr)', () => {
     // `reopen` clears an acknowledge, a resolve and a false positive AND lifts a
     // mute. A mixed selection is the normal case in bulk, so there is no single
     // previous status to key the wording off the way the single-incident message
-    // does (tripl-oxkt.3).
+    // does.
     expect(bulkInboxActionSuccessMessage('reopen', 2, null)).toBe(
       'Reopened 2 incidents — alerts resume.',
     )
@@ -376,7 +375,7 @@ describe('a batch says what it did, in the plural (tripl-gpfr)', () => {
   })
 })
 
-describe('a server rule reaches the toast as English (tripl-gpfr)', () => {
+describe('a server rule reaches the toast as English', () => {
   it('drops the "Value error, " Pydantic prepends to a model_validator message', () => {
     // The one message a bulk caller can realistically provoke is the long
     // false-positive refusal, which ends by naming the way to do it anyway, one

@@ -9,7 +9,7 @@ than in a module of their own because they exist for one purpose only: a bad
 ``--days``, ``--timeout``, ``--until`` or ``--to`` fails at parse time with
 ``EXIT_USAGE``, before a socket is opened or a container is pulled.
 
-...and, since tripl-3ixs, the three flags that are the same flag on every
+...and, since they were shared, the three flags that are the same flag on every
 command that carries them. ``--json``, ``--timeout`` and ``--project`` were
 spelled out at each ``add_parser`` call, which by the sixth verb was five copies
 of the timeout default and two private ``_add_timeout`` helpers in two command
@@ -82,7 +82,7 @@ def register_all(
     # word; a command acting on a CLASS OF OBJECTS is `<plural-noun> <verb>`.
     scans.register(subparsers, parent)
     drifts.register(subparsers, parent)
-    # The read groups (tripl-3ixs). `events` obeys the grammar above exactly.
+    # The read groups. `events` obeys the grammar above exactly.
     # `plan` bends it — its verbs name KINDS (`plan types`, `plan variables`)
     # rather than actions — and that is deliberate: the alternative was
     # `event-types list`, `variables list`, `branches list` and `search`, four
@@ -92,7 +92,7 @@ def register_all(
     events.register(subparsers, parent)
     plan.register(subparsers, parent)
     # One word each, by the same rule: they act on an instance as a whole — one
-    # that does not exist yet, or one being moved to a new tag (tripl-ey6j.3).
+    # that does not exist yet, or one being moved to a new tag.
     install.register(subparsers, parent)
     upgrade.register(subparsers, parent)
     # One word as well: it records one fact about the project ("we deployed") from
@@ -184,7 +184,7 @@ def require_single_project(args: argparse.Namespace) -> str:
     infer from a drift id, and every ``events``/``plan`` route is per project
     with no instance-wide form at all. Lives beside the other argparse rules
     rather than in ``_write.py``, where it started: four READ verbs now need it,
-    and "exactly one project" was never a write-safety rule (tripl-3ixs).
+    and "exactly one project" was never a write-safety rule.
     """
     slugs: tuple[str, ...] = tuple(getattr(args, "project", None) or ())
     if len(slugs) == 1:

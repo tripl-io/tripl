@@ -36,10 +36,10 @@ const UNBUILT = [
  * one click instead of telling the reader to sign out and find "Forgot your
  * password?" (WS-37). It used to hold two inputs and an "Update password"
  * button that did nothing at all, so people walked away believing their
- * password had rotated (tripl-2o74), and then the same controls disabled.
+ * password had rotated, and then the same controls disabled.
  *
  * Two-factor and session management are not built; they share one "Coming
- * later" card instead of a page of switches nobody can move (tripl-91j6).
+ * later" card instead of a page of switches nobody can move.
  */
 export default function SecuritySection() {
   const { user } = useAuth()

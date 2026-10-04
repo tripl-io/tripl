@@ -51,16 +51,16 @@ from tripl.worker.analyzers.metric_value_kind import is_count_shaped
 from tripl.worker.tasks.metrics.coverage import covered_buckets_from_scan_jobs
 
 # Fractional (ratio/average/sql) catalog metrics drop the count-shaped
-# ``min_expected_count`` gate so sub-unit ratio movements survive (tripl-68bc).
+# ``min_expected_count`` gate so sub-unit ratio movements survive.
 # We keep a tiny POSITIVE floor rather than a blanket 0 so a genuinely
 # empty/flatlined-at-zero fractional series can't manufacture multi-sigma
 # anomalies from pure noise — the detector lane widens the stddev floor, this
-# preserves the volume guard (tripl-dmch.17).
+# preserves the volume guard.
 #
 # On a series that actually carries negative values the detector reads this as a
 # floor on |expected| (``anomaly_detector._clears_volume_gate``): a ratio
 # flatlined at 0 is still gated, while a level sitting at -100 is scored exactly
-# like one at +100 instead of being rejected for its sign (tripl-0zpq.102).
+# like one at +100 instead of being rejected for its sign.
 _FRACTIONAL_MIN_EXPECTED_COUNT = 1e-6
 # Age-out horizon for config-scoped anomaly markers. Rows older than this are
 # deleted during each recompute so stale historical dots stop being served as
@@ -72,8 +72,8 @@ ANOMALY_RETENTION_DAYS = 180
 # Anomaly re-evaluation always sweeps at least this many trailing buckets, even
 # on an incremental run that only collected the newest one or two. A backfilled
 # or re-collected bucket inside this window then gets its flag cleared/updated on
-# the next run instead of being frozen at whatever the first pass decided
-# (tripl-dmch.14). Replays over a wider explicit window keep that wider window.
+# the next run instead of being frozen at whatever the first pass decided.
+# Replays over a wider explicit window keep that wider window.
 #
 # The count is in buckets OF THE SERIES BEING SCORED, which is why it lives here
 # rather than in the scan orchestrator: catalog metrics carry their own grid.
@@ -108,7 +108,7 @@ COVERAGE_HORIZON_SLACK = timedelta(days=1)
 #
 #  * ``core.bucketing`` already declares it for the whole pipeline ("a naive
 #    datetime is ASSUMED to be UTC"), and ``metric_composition.normalize_series``
-#    already enforces it at the other junction where two series meet (tripl-ju0d);
+#    already enforces it at the other junction where two series meet;
 #  * PostgreSQL — what production runs on — hands back aware values from every
 #    ``timestamptz`` bucket column, so aware is the majority convention already;
 #  * the alternative (strip to naive) would have to UNDO a correct annotation on
@@ -338,7 +338,7 @@ def _replace_scope_anomalies(
     hold_drops: bool = False,
     held: list[int] | None = None,
 ) -> int:
-    # The chart band of every scored bucket (tripl-i9mt.25). ``None`` leaves the
+    # The chart band of every scored bucket. ``None`` leaves the
     # stored baselines alone; a sequence, even an empty one, replaces the window.
     # Scan scopes only — see ``MetricBaseline``.
     if baselines is not None and scan_config_id is not None:
@@ -360,7 +360,7 @@ def _replace_scope_anomalies(
         MetricAnomaly.bucket >= evaluation_start,
         MetricAnomaly.bucket < evaluation_end,
     ]
-    # Ranges the detector declined to score rather than found clean (tripl-l429.16).
+    # Ranges the detector declined to score rather than found clean.
     # An outage is announced ONCE, at the first flagged bucket at or after its
     # anchor, and every later pass whose window starts past that anchor emits
     # nothing for the run — while the announced row may still sit inside this
@@ -600,7 +600,7 @@ def _load_platform_ratio_points(
     breakdown_by_bucket = {point.bucket: point.count for point in breakdown_points}
     # The scope TOTAL is the same series for every breakdown value of that scope,
     # so the caller may hand in a cached copy instead of re-reading ~500 rows once
-    # per platform value (tripl-jfm3.1).
+    # per platform value.
     if total_points is None:
         total_points = _load_scope_points(
             session,
@@ -650,7 +650,7 @@ def _replace_scope_breakdown_anomalies(
         MetricBreakdownAnomaly.bucket >= evaluation_start,
         MetricBreakdownAnomaly.bucket < evaluation_end,
     ]
-    # Same exclusion, same reason as ``_replace_scope_anomalies`` (tripl-l429.16):
+    # Same exclusion, same reason as ``_replace_scope_anomalies``:
     # a count-shaped breakdown series goes through the identical outage collapse,
     # so a ``platform=ios`` slice that dies announces ONCE, downstream of its
     # anchor, and every later pass declines to re-announce it while the announced
@@ -753,7 +753,7 @@ def _scope_max_counts(
 ) -> dict[uuid.UUID, float]:
     """MAX(count) per scope over the detection history window, in one query.
 
-    The prefilter for the silent-series early exit (tripl-h353): a scope whose
+    The prefilter for the silent-series early exit: a scope whose
     max count satisfies ``is_provably_silent`` against ``min_expected_count``
     cannot emit, so the caller skips loading its ~500-row history and the
     detector entirely. The filters mirror ``_load_scope_points`` exactly:
@@ -790,7 +790,7 @@ def _breakdown_scope_max_counts(
 ) -> dict[tuple[uuid.UUID, str, str, bool], float]:
     """MAX(count) per breakdown series over the detection history window, in one query.
 
-    The breakdown twin of ``_scope_max_counts`` (tripl-h353). ``detect_anomalies``
+    The breakdown twin of ``_scope_max_counts``. ``detect_anomalies``
     already early-exits on a provably-silent count series, but only AFTER the
     caller has loaded that series' ~500-bucket history — one query per silent
     (scope, column, value) triple, on every run, on a project that may have
@@ -936,7 +936,7 @@ def _collect_breakdown_scope_keys(
     DISTINCT in SQL and narrowed in SQL (``breakdown_column`` keeps only that
     column, ``app_version_column`` drops that one), so a scan with a few thousand
     events no longer materialises one row per stored BUCKET — up to 534 per key
-    — just to build a set (tripl-0zpq.9).
+    — just to build a set.
     """
     metric_id_column = (
         EventMetricBreakdown.event_type_id
@@ -1030,8 +1030,8 @@ def _metric_grid_population(grid: MetricGrid | None) -> ColumnExpressionArgument
     What :func:`_load_metric_value_points` sums, what
     :func:`_metric_source_config_ids` reads coverage back for, and what the
     series read plots. The rule lives in
-    :func:`tripl.metric_grid.grid_population_filter`, shared with the read path
-    (tripl-67he). A ``None`` grid (the metric row vanished mid-run) takes the
+    :func:`tripl.metric_grid.grid_population_filter`, shared with the read path.
+    A ``None`` grid (the metric row vanished mid-run) takes the
     IS NULL branch and matches nothing, which is the safe answer.
     """
     return grid_population_filter(
@@ -1054,7 +1054,7 @@ def _load_metric_value_points(
     Values are summed per bucket over the metric's grid population — see
     :func:`_metric_grid_population` for which configs that is and why — and kept
     as floats, because the detector is scale-aware, so sub-unit ratio/average
-    movements survive instead of rounding toward 0 (tripl-68bc).
+    movements survive instead of rounding toward 0.
 
     ``grid`` is optional only to save the resolving query for the detection loop,
     which has already resolved it; omitting it resolves the same grid here rather
@@ -1394,8 +1394,8 @@ def _recalculate_project_metric_anomalies(
     # queries rather than one per metric.
     source_coverage: dict[tuple[uuid.UUID, timedelta], set[datetime]] = {}
     # Every monitored metric's grid in ONE window-function query — the batch
-    # ``metric_grid_stmt`` exists for — rather than one per metric
-    # (tripl-0zpq.9). Same population as ``metrics`` above, so every metric
+    # ``metric_grid_stmt`` exists for — rather than one per metric.
+    # Same population as ``metrics`` above, so every metric
     # finds its entry; a metric that vanished between the two reads gets None,
     # exactly what the per-metric lookup answered.
     grids = metric_grids(
@@ -1414,7 +1414,7 @@ def _recalculate_project_metric_anomalies(
         count_shaped = is_count_shaped(metric)
         # The scope override lands FIRST, so a fractional metric still drops the
         # count gate afterwards: ratcheting a ratio's min_expected_count would
-        # re-introduce exactly the volume gate tripl-68bc removed for it. Its
+        # re-introduce exactly the volume gate that was removed for it. Its
         # sigma ratchet still applies.
         scoped = _scope_settings(settings, overrides or {}, SCOPE_METRIC, str(metric.id))
         metric_settings = (
@@ -1605,7 +1605,7 @@ def _recalculate_metric_anomalies(
     )
     # Buckets at the head of the window that the warehouse may still be filling.
     # They stay in the loaded series (so baselines are complete) but no anomaly
-    # is emitted for them until a later scan re-evaluates them (tripl-jfm3.7).
+    # is emitted for them until a later scan re-evaluates them.
     settling_buckets = settling_buckets_for(interval_spec.delta, settling_delay)
     # History depth is driven by the baseline/min-history buckets, which no
     # override touches, so one window serves every scope.
@@ -1684,7 +1684,7 @@ def _recalculate_metric_anomalies(
         ):
             scope_ref = str(event_type_id)
             scope_settings = _scope_settings(settings, overrides, SCOPE_EVENT_TYPE, scope_ref)
-            # Provably silent (tripl-h353): the detector would early-exit on
+            # Provably silent: the detector would early-exit on
             # this series anyway, so skip loading its history — but still run
             # the replace with no anomalies so stale window rows age out.
             if is_provably_silent(
@@ -1773,7 +1773,7 @@ def _recalculate_metric_anomalies(
         ):
             scope_ref = str(event_id)
             scope_settings = _scope_settings(settings, overrides, SCOPE_EVENT, scope_ref)
-            # Provably silent (tripl-h353): see the event-type loop above.
+            # Provably silent: see the event-type loop above.
             if is_provably_silent(
                 event_max_counts.get(event_id, 0.0), scope_settings.min_expected_count
             ):
@@ -1871,7 +1871,7 @@ def _recalculate_metric_anomalies(
 # A platform-parity ratio needs a genuine two-platform history before the
 # comparison says anything. Five non-zero buckets is deliberately low: it clears
 # platform-exclusive events (whose ratio is zero almost everywhere) without
-# muting a real platform that merely has quiet hours (tripl-jfm3.96).
+# muting a real platform that merely has quiet hours.
 _PARITY_MIN_NONZERO_BUCKETS = 5
 
 
@@ -1993,8 +1993,8 @@ def _recalculate_platform_parity_anomalies(
             # event, not a platform imbalance. Scoring it flagged every bucket
             # where the other platform emitted even once: the ratio path runs at
             # min_expected_count=0 by design, so no volume gate stops it, and a
-            # near-zero baseline made the deviation look enormous
-            # (tripl-jfm3.96). Require a real two-platform history before the
+            # near-zero baseline made the deviation look enormous.
+            # Require a real two-platform history before the
             # comparison means anything.
             if sum(1 for point in points if point.count) < _PARITY_MIN_NONZERO_BUCKETS:
                 continue
@@ -2160,7 +2160,7 @@ def _recalculate_metric_breakdown_anomalies(
             if event_type_id is None:
                 continue
             scope_ref = str(event_type_id)
-            # Provably silent (tripl-h353, extended to breakdowns in tripl-jfm3.73):
+            # Provably silent (extended to breakdowns):
             # the detector would early-exit on this series anyway, so skip loading
             # its history — but still run the replace with no anomalies so stale
             # window rows age out.

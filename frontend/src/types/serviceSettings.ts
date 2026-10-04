@@ -3,7 +3,7 @@
  * default — either nothing was delivered for it, or what was delivered happens
  * to match; from the running process the two are indistinguishable. The badge
  * used to answer `env` for every field with no stored override, which made it
- * useless as evidence that a variable had reached the container (tripl-wkwv.2).
+ * useless as evidence that a variable had reached the container.
  */
 export type SettingSource = 'env' | 'override' | 'default'
 
@@ -87,7 +87,7 @@ export interface AiServiceSettings {
   search_embedding_dimensions: number
   /** Read-only, and absent from `AiSettingsUpdate` on purpose: this is where
    *  indexed plan text is POSTed, and repointing it at runtime would poison
-   *  every vector already in the index (tripl-wkwv.2). */
+   *  every vector already in the index. */
   search_embedding_base_url: string
 }
 

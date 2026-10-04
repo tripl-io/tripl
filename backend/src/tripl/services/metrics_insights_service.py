@@ -305,7 +305,7 @@ async def _get_active_metric_signals(
 # (frontend AnomaliesPage.MAGNITUDE_PRESETS -> minRelEffect 0.5). The sidebar /
 # Overview badge (``monitoring_signal_count``) counts a signal only when its
 # relative effect clears this bar, so the badge equals the page's default
-# (significant) open-signal count across every scope (tripl-yfsj.1).
+# (significant) open-signal count across every scope.
 SIGNIFICANT_MIN_REL_EFFECT = 0.5
 
 # The magnitude a move off a zero baseline is reported as, and the ceiling every
@@ -314,7 +314,7 @@ SIGNIFICANT_MIN_REL_EFFECT = 0.5
 # JSON null, so an unbounded value reached the client as "not computed" and the
 # client re-derived a count-shaped estimate that lands below the gate. The badge,
 # which gates in-process where ``inf`` still compares, counted such a signal while
-# every page it links to hid it (tripl-l33u.3). Far above the highest magnitude
+# every page it links to hid it. Far above the highest magnitude
 # preset ("Major", 1.0) so it cannot be mistaken for a measured ratio.
 MAX_RELATIVE_EFFECT = 1e6
 
@@ -331,7 +331,7 @@ def relative_effect(actual: float, expected: float, *, count_shaped: bool = True
     collapse; divided by 1 it scores 0.08 and never clears the 0.5 gate, so the
     metric anomalies the detector deliberately admits (``detect.py`` drops the
     zero-fill and min-expected gates for fractional metrics) were invisible at
-    the default magnitude level (tripl-yf8c). Shape is decided the one way the
+    the default magnitude level. Shape is decided the one way the
     codebase already decides it, ``metric_value_kind.is_count_shaped``.
 
     Measured when this was written: of 191 open signals on production, all were
@@ -395,7 +395,7 @@ async def _active_metric_signals_by_project(
     window applied. That parity was claimed here long before it was true: this
     query did not even select an interval, so every catalog metric was judged
     against a bare 24h window and a DAILY metric read OPEN on the Anomalies page
-    and ZERO on the badge (tripl-l429.17).
+    and ZERO on the badge.
     """
     if not project_ids:
         return {}
@@ -428,7 +428,7 @@ async def _active_metric_signals_by_project(
 
     # This counter sees ONLY metric scopes, which is the population where the
     # magnitude floor is a category error — a ratio expected at 0.12 is not a
-    # count (tripl-yf8c). One batched lookup, same rule the detector uses.
+    # count. One batched lookup, same rule the detector uses.
     fractional_refs = {
         str(metric.id)
         for metric in (
@@ -589,7 +589,7 @@ async def _attach_derived_fields(
     and stays NULL, as does any scope whose entity has been deleted — the FKs
     are ``ondelete=SET NULL``, so a NULL ``event_id`` next to a populated
     ``scope_ref`` means the event is gone, and ``scope_ref`` is the one thing a
-    client must not print in its place (tripl-y4wt).
+    client must not print in its place.
     """
     event_ids = {
         signal.event_id
@@ -625,7 +625,7 @@ async def _attach_derived_fields(
     metric_names: dict[uuid.UUID, str] = {}
     metric_units: dict[uuid.UUID, str | None] = {}
     # Shape, not just name: the magnitude below divides a fractional series by
-    # its real baseline and a count by a floored one (tripl-yf8c).
+    # its real baseline and a count by a floored one.
     fractional_metric_ids: set[uuid.UUID] = set()
     if metric_ids:
         metrics = (
@@ -772,10 +772,10 @@ async def get_active_signals(
             interval=scan_interval_to_timedelta(interval_map.get(anomaly.scan_config_id)),
             recent_window=recent_window,
             # An outage announced once and never re-emitted is re-checked against
-            # the current series rather than its own age (tripl-l429.15) — but
+            # the current series rather than its own age — but
             # only while the anchor had volume to lose, or a scope expected to
             # emit nothing would sit in this list, and in the "N of M open"
-            # denominator it feeds, forever (tripl-wkwv.4).
+            # denominator it feeds, forever.
             anomaly_actual_count=anomaly.actual_count,
             anomaly_expected_count=anomaly.expected_count,
             scan_latest_bucket=scan_latest_buckets.get(anomaly.scan_config_id),
@@ -1098,10 +1098,10 @@ async def get_seasonality_heatmap(
 
     # Say which interval produced these bins. Below an hour of resolution every
     # bucket floors into hour 0, so the 7x24 grid is 23/24 structurally empty and
-    # a reader takes it for missing data rather than a coarser scan
-    # (tripl-jfm3.128). A 6h scan is not hourly either: its buckets land on
+    # a reader takes it for missing data rather than a coarser scan.
+    # A 6h scan is not hourly either: its buckets land on
     # 00/06/12/18, leaving 20 of 24 columns structurally empty, so only an
-    # interval of one hour or finer resolves an hour (tripl-0zpq.199).
+    # interval of one hour or finer resolves an hour.
     interval_code = scan_config.interval or ""
     try:
         hourly_resolution = get_interval(interval_code).delta <= timedelta(hours=1)

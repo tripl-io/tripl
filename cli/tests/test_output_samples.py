@@ -333,7 +333,7 @@ def test_plan_branches_sample(
     configured_env: None,
     capsys: pytest.CaptureFixture[str],
 ) -> None:
-    """Note the footer: ``2 branches``, not ``2 branchs`` (tripl-3ixs)."""
+    """Note the footer: ``2 branches``, not ``2 branchs``."""
     tripl_api.branches(
         "prod",
         [
@@ -363,8 +363,8 @@ def test_plan_search_sample(
     """Search is capped by ``--limit`` alone: the route has no offset parameter.
 
     The body is what a CURRENT instance sends, so the warning below is the
-    route's own ``truncated`` rather than the CLI's page-fullness guess
-    (tripl-wkwv.11). One row against ``--limit 1`` renders identically either
+    route's own ``truncated`` rather than the CLI's page-fullness guess.
+    One row against ``--limit 1`` renders identically either
     way, which is precisely why the canonical sample has to say which rung it
     means: the documentation quotes this output under a paragraph that credits
     the route. The instance that predates the key keeps its own test in

@@ -28,7 +28,7 @@ type ListQuery = NonNullable<
  * le=10000)` in backend/src/tripl/api/v1/events.py — and the caller gets a
  * silently truncated page with no signal that anything was left behind. That is
  * exactly how the variables tab's override picker came to offer only the first
- * 200 events of a larger project (tripl-46am). A caller that renders a roster
+ * 200 events of a larger project. A caller that renders a roster
  * must pass a limit it chose and read `total` to say what it did not show.
  */
 export type EventListParams = {

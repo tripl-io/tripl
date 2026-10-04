@@ -60,7 +60,7 @@ export interface AlertRule {
   // Manual snooze state, same shape as MonitorSummaryItem: `muted` is the
   // effective flag, `muted_until` the timestamp it lifts at. Carried on the rule
   // itself so the destinations list can show a snoozed rule without a second
-  // round-trip to /monitors-summary (tripl-oxkt.13).
+  // round-trip to /monitors-summary.
   muted: boolean
   muted_until: string | null
   // Fired-history counters: how often this rule has actually delivered, and how
@@ -136,7 +136,7 @@ export interface AlertDestination {
   is_local: boolean
   // Traffic this destination has actually carried. A configured destination that
   // has delivered nothing looks identical to a working one in the form, which is
-  // the same blind spot the test-send probe closes (tripl-oxkt.17).
+  // the same blind spot the test-send probe closes.
   delivery_count: number
   incident_count: number
   rules: AlertRule[]
@@ -147,7 +147,7 @@ export interface AlertDestination {
 /**
  * Result of a manual test send. A channel refusal is an ANSWER, not a server
  * fault — a revoked Telegram token and a healthy one look identical in the
- * destination form (tripl-oxkt.17) — so the route answers 200 with `ok: false`
+ * destination form — so the route answers 200 with `ok: false`
  * and the channel's own message rather than a 5xx the UI would render as
  * "something went wrong on our side".
  */
@@ -225,7 +225,7 @@ export interface SimulatedRuleFiring {
   // table does not render it: the backend already folds it into the
   // `release: … over the 51h rollout overlap` sentence inside `rendered_item`.
   // It is on the wire because the preview and the delivered message only stay
-  // identical while both know the window (tripl-0zpq.158).
+  // identical while both know the window.
   window_from: string | null
   direction: 'spike' | 'drop'
   actual_count: number
@@ -233,7 +233,7 @@ export interface SimulatedRuleFiring {
   absolute_delta: number
   // `null` exactly when `expected_count` is 0: the ratio is undefined, and the
   // replay sends null rather than the stored 0.0 placeholder a consumer cannot
-  // tell apart from a real "no change" (tripl-0zpq.272). The same encoding
+  // tell apart from a real "no change". The same encoding
   // `AlertDeliveryItemResponse.percent_delta` and the inbox card already use, so
   // one incident no longer answers the question two ways depending on whether
   // you read the delivery it produced or the replay that predicted it.
@@ -259,11 +259,11 @@ export interface AlertRuleSimulateResponse {
   // Every tunable the simulation can override reports the same pair: `_used` is
   // the value this run applied, `_saved` the value stored on the rule. Without
   // both, a preview run and the rule's real behaviour are indistinguishable on
-  // screen and "what would happen if I raised the threshold" cannot be answered
-  // (tripl-oxkt.15). Sigma is the odd pair: it has no rule-level column at all,
+  // screen and "what would happen if I raised the threshold" cannot be answered.
+  // Sigma is the odd pair: it has no rule-level column at all,
   // so its `_saved` is the PROJECT's Detection-settings threshold — the same
   // number the detector scores with. It stays `number | null` only because that
-  // is the shipped wire shape; since tripl-0zpq.160 the server always sends a
+  // is the shipped wire shape; the server now always sends a
   // number, so a null here is a contract leftover and not a state to design for.
   cooldown_minutes_used: number
   cooldown_minutes_saved: number
@@ -294,7 +294,7 @@ export interface AlertDeliveryItem {
   actual_count: number
   expected_count: number
   absolute_delta: number
-  // NULL when there was no baseline to divide by (tripl-l429.27) — the API has
+  // NULL when there was no baseline to divide by — the API has
   // sent null since then while this said `number`. `formatPercentDelta` in
   // lib/percentDelta already handles null; go through it rather than coercing to
   // 0 and printing "0%", which reads as "nothing changed" for exactly the items
@@ -398,7 +398,7 @@ export type AlertInboxStatus =
  * index *i* of one had nothing to do with index *i* of the other and the card
  * linked "Volume rule" to whichever monitor happened to sort first. Two rules
  * in one group can even share a name, so no client-side join could repair it
- * either (tripl-oxkt.4). Link with `rules`; `rule_names` stays display text.
+ * either. Link with `rules`; `rule_names` stays display text.
  */
 export interface AlertInboxRuleRef {
   id: string
@@ -411,7 +411,7 @@ export interface AlertInboxGroup {
   // `muted` is the effective flag (true iff status === 'muted'); `muted_until`
   // is null unless that mute is actually in force. The card used to derive
   // "muted" from a `muted_until` that outlived the mute, so a reopened group
-  // kept rendering as snoozed (tripl-oxkt.9).
+  // kept rendering as snoozed.
   muted: boolean
   muted_until: string | null
   note: string | null
@@ -466,7 +466,7 @@ export interface AlertInboxGroup {
  * `overrides_written` is null for every action except `false_positive`, where
  * it counts the scopes actually tightened. It is zero for release regressions,
  * which the ratchet does not tune — the button promised a detection change it
- * never made on 10 of 57 production groups (tripl-oxkt.6). Never guess this
+ * never made on 10 of 57 production groups. Never guess this
  * client-side from `scope_type`; that is only the newest item's.
  */
 export interface AlertInboxActionResponse {
@@ -487,7 +487,7 @@ export type AlertInboxAction =
   | 'note'
 
 /**
- * The actions POST /alert-inbox/bulk-actions will accept (tripl-gpfr).
+ * The actions POST /alert-inbox/bulk-actions will accept.
  *
  * Written as an `Exclude` of the full union rather than as a fresh list of five
  * literals, for the same reason `MUTE_PRESETS` and `INDEFINITE_MUTE` are two
@@ -527,7 +527,7 @@ export type AlertInboxBulkAction = Exclude<AlertInboxAction, 'false_positive'>
  * `overrides_written` is ALWAYS null here and is always SENT. Null means "not
  * applicable" — `false_positive` is the only action that can ratchet anything
  * and this route refuses it. Never read a missing key as 0 and announce "no
- * scopes tightened" after a bulk acknowledge (the defect tripl-oxkt.6 fixed on
+ * scopes tightened" after a bulk acknowledge (a defect once fixed on
  * the single-incident route).
  */
 export interface AlertInboxBulkActionResponse {
@@ -555,7 +555,7 @@ export interface AlertInboxListResponse {
    *
    * Non-null means the server's per-project row cap bit before the window did,
    * so incidents that last fired before this instant are absent — and absent
-   * looks exactly like handled unless the page says otherwise (tripl-39n6).
+   * looks exactly like handled unless the page says otherwise.
    * ALWAYS SENT: required here and required in `api.gen.ts`, so the two cannot
    * disagree about a key the server never omits.
    */
@@ -594,7 +594,7 @@ export interface MonitorSummaryItem {
  *
  * Not a per-rule verdict and not a prediction: it answers "could this scope ever
  * produce a candidate here", so a screen can tell an enabled-but-inert toggle
- * from a quiet one (tripl-wkwv.1).
+ * from a quiet one.
  */
 export interface AlertScopeReadiness {
   /**
@@ -655,7 +655,7 @@ export interface MonitorDetail extends MonitorSummaryItem {
    *
    * NOT an input to `scope_readiness` below, which stays a PROJECT fact. A rule
    * bound to a scan that feeds nothing can still read ready because a sibling
-   * scan does — the limitation tripl-wkwv.9 names, which these two fields make
+   * scan does — a known limitation, which these two fields make
    * visible rather than fix.
    */
   scan_config_id: string | null

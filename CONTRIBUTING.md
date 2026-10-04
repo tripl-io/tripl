@@ -161,7 +161,7 @@ of the suite cannot execute, because it runs on SQLite: the plain
 `SELECT ... FOR UPDATE` in `_build_digest`, which SQLite does not emit at all,
 and `_try_acquire_advisory_lock`, which returns "acquired" off PostgreSQL
 without asking the database. `src/tripl/tests/test_alert_digest_concurrency_pg.py`
-runs both against a real server (tripl-o3ry). Without one it SKIPS, so a plain
+runs both against a real server. Without one it SKIPS, so a plain
 `uv run pytest` is unaffected; CI runs it as its own job with
 `TRIPL_TEST_PG_REQUIRED=1`, which turns that skip into a failure.
 
@@ -200,7 +200,7 @@ Because the suite runs on SQLite, search keeps a Python fallback and the
 **production ranking SQL** — `ts_rank_cd`, the trigram/boost tiers,
 `merge_results`, and the `tripl_search` text-search configuration — is executed by
 nothing else in the repo. `src/tripl/tests/relevance/` ranks a fixed, readable
-corpus with that real SQL on a real PostgreSQL (tripl-338u). Without a server it
+corpus with that real SQL on a real PostgreSQL. Without a server it
 SKIPS, so a plain `uv run pytest` is unaffected; CI runs it as its own job with
 `TRIPL_RELEVANCE_REQUIRED=1`, which turns that skip into a failure.
 
@@ -232,7 +232,7 @@ turns it into `xfail(strict=True)`, so the workflow for a measured fault is:
 write the case down with the marker first, fix it second, delete the marker as
 the proof. **That has now happened once, end to end** —
 `russian-phrase-finds-the-event-it-describes` was written with the marker, and
-tripl-9t2s deleted it by adding the coverage term. Strict is what makes the last
+The coverage-term fix deleted it. Strict is what makes the last
 step honest: an xfail that starts passing FAILS, so a marker cannot outlive the
 fault it describes.
 
@@ -245,11 +245,11 @@ Do not weaken an assertion to make a case pass.
 **Which guarantees are PostgreSQL-only.** The rest of the backend suite runs on
 in-memory SQLite against `_search_query.fallback_score`, a tier ladder with no
 `ts_rank_cd`, no trigram similarity and **no stemmer**. So the SQLite suite does
-**not** cover ranking: everything tripl-nh5s fixed (stemming, and the 3.25 boost
+**not** cover ranking: everything the stemming fix covered (stemming, and the 3.25 boost
 tier that depends on it — the `purchases` / `уловы` / `spots` / `экран спота`
 cases) holds only on PostgreSQL and only this job executes it. What does hold on
-both dialects is anything implemented at document-build time (tripl-gbxj's
-keyword change, tripl-h9x2's spaced aliases and its query fold) and the rule that
+both dialects is anything implemented at document-build time (the
+keyword change, the spaced aliases and the query fold) and the rule that
 only an exact title/keywords match may be reported at confidence 1.0. The
 `fallback_score` docstring carries the same list next to the code.
 
