@@ -390,6 +390,9 @@ def test_orphan_sweep_refuses_when_no_row_references_the_backend(tmp_path, monke
 
     monkeypatch.setattr(settings, "photo_local_dir", str(tmp_path))
     monkeypatch.setattr(settings, "gcs_photo_bucket", "")
+    # The local driver is cached by name: one built by an earlier test still
+    # points at that test's directory.
+    reset_photo_storage()
     blob = tmp_path / "events" / "e" / "old.jpg"
     blob.parent.mkdir(parents=True)
     blob.write_bytes(b"x")
@@ -401,7 +404,10 @@ def test_orphan_sweep_refuses_when_no_row_references_the_backend(tmp_path, monke
     session = sessionmaker(engine)()
     monkeypatch.setattr(maintenance, "_get_sync_session", lambda: session)
 
-    result = maintenance.sweep_orphan_photo_blobs()
+    try:
+        result = maintenance.sweep_orphan_photo_blobs()
+    finally:
+        reset_photo_storage()
 
     assert blob.exists()
     assert result["deleted"] == []
