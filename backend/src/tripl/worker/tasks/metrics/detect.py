@@ -54,7 +54,7 @@ from tripl.worker.tasks.metrics.coverage import covered_buckets_from_scan_jobs
 # ``min_expected_count`` gate so sub-unit ratio movements survive.
 # We keep a tiny POSITIVE floor rather than a blanket 0 so a genuinely
 # empty/flatlined-at-zero fractional series can't manufacture multi-sigma
-# anomalies from pure noise — the detector lane widens the stddev floor, this
+# anomalies from pure noise — the detector widens the stddev floor, this
 # preserves the volume guard.
 #
 # On a series that actually carries negative values the detector reads this as a

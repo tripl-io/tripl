@@ -1082,10 +1082,10 @@ def _shared_key_warning(entity_type: str, name: str, parent: str | None) -> str:
     land on, the other.
 
     It deliberately claims NOTHING about the merge refusing. A refusal was
-    written in batch 7 and then removed: the branch is how an analyst CLEANS
+    written and then removed: the branch is how an analyst CLEANS
     UP a pair of namesakes — delete both copies, author one row in their place —
     and refusing that merge takes away the only door out of the state the message
-    complains about (test_event_comment_merge_batch2 holds exactly that
+    complains about (test_event_comment_main_twin holds exactly that
     workflow).
     """
     if entity_type == "event":

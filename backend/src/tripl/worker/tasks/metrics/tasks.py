@@ -1145,7 +1145,7 @@ def collect_metrics(
         # Re-evaluate a trailing window (not just the collected slice) so a
         # backfilled/re-collected bucket has its flag refreshed, and hand the
         # detector the set of buckets a successful collection actually covered so
-        # gaps are excluded rather than flagged as fake drops (.16).
+        # gaps are excluded rather than flagged as fake drops.
         # The head of that window is additionally held back from EMISSION for the
         # ingestion-settling allowance, so a bucket the warehouse is still filling
         # is scored by a later run instead of read as a drop.

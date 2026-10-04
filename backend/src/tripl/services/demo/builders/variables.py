@@ -184,7 +184,7 @@ async def _build_value_drift(session: AsyncSession, ctx: DemoContext) -> None:
     ``scan_config_id.is_not(None)`` for exactly that reason. Rule replay HAS read
     this family now — do not relax that clause on the assumption
     the replay is blind to it
-    (``test_batch4_replay.py::test_a_value_drift_no_scan_can_reach_stays_out_of_the_replay``
+    (``test_rule_replay_sources.py::test_a_value_drift_no_scan_can_reach_stays_out_of_the_replay``
     pins it).
     """
     session.add(

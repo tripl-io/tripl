@@ -12,7 +12,7 @@ agrees with BaseAdapter's Python fallback row for row) and in the conformance ga
 
 What is NOT here: anything a second engine also has to satisfy. The row layout,
 the shared verdict and the per-expectation regex probe are pinned across all four
-engines at once in ``test_batch5_parity.py``, because a rule two adapters must
+engines at once in ``test_warehouse_engine_parity.py``, because a rule two adapters must
 agree on cannot be pinned in one adapter's file.
 """
 
@@ -193,7 +193,7 @@ def test_the_threshold_never_reaches_the_statement_but_is_still_clamped() -> Non
     decided what a violation IS. Three engines each deciding that is how the rule
     drifted, so the statement returns counts and nothing else and
     ``field_contract_verdict`` judges. That the OTHER engines stopped shipping it
-    too is ``test_batch5_parity.py``'s to say; what is pinned here is that this
+    too is ``test_warehouse_engine_parity.py``'s to say; what is pinned here is that this
     adapter's statement carries no threshold and no rate.
 
     Out-of-range thresholds are still clamped rather than trusted, and the clamp is

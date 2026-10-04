@@ -471,7 +471,7 @@ async def test_scope_readiness_true_when_distribution_rows_exist_without_configu
     and what the readiness query selects: ``metric_rows`` bands every scored PSI
     and persists the stable and minor buckets too, so a project that has only
     ever scored stable has collected plenty and can still never fire.
-    The band's own arm is pinned in test_batch4_readiness.py,
+    The band's own arm is pinned in test_distribution_drift_readiness.py,
     which parametrises the band; this test deliberately stays the one-shape case.
     """
     # Arrange

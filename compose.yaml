@@ -26,7 +26,7 @@
 #   docker compose -f compose.dev.yaml up --watch
 #
 # Schema upgrades run once via the `migrate` one-shot before app/workers start,
-# so a multi-worker deploy never races the upgrade (.18).
+# so a multi-worker deploy never races the upgrade.
 x-app-image: &app-image "${TRIPL_IMAGE:-ghcr.io/vladenisov/tripl}:${TRIPL_VERSION:-latest}"
 
 x-app-environment: &app-environment

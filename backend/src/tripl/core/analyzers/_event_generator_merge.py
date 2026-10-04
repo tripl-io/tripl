@@ -69,7 +69,7 @@ _RETIRED_STATUSES = frozenset({_ES.deprecated.value, _ES.archived.value})
 # over that total order, and a maximum is commutative: a family merges to the
 # same survivor status whichever member the loop reaches first, because a
 # retired member folds in as a no-op and every other one folds in as a max.
-# ``test_batch3_f1`` pins the partition, the order, and the commutativity.
+# ``test_group_merge_status_progression`` pins the partition, the order, and the commutativity.
 _PROGRESSION_STATUSES = frozenset(status.value for status in _ES) - _RETIRED_STATUSES
 
 # Where an auto-generated group row starts: the same place ``generate_events``

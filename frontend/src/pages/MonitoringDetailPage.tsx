@@ -515,7 +515,7 @@ export default function MonitoringDetailPage() {
 
   // The metric and event-type pages are titled by their definition: until it
   // arrives, the page's shape, not a generic "Metric" / "Event type" header
-  // that then swaps its title (batch 5).
+  // that then swaps its title.
   if (
     (scope === 'metric' && metricDefinitionQuery.isPending)
     || (scope === 'event_type' && eventTypesQuery.isPending)

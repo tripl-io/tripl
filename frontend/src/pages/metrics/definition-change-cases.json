@@ -4,7 +4,7 @@
     "PATCH /metrics/{id} takes) over the metric whose definition columns are `stored` deletes",
     "its collected history. Read by frontend/src/pages/metrics/definitionChange.test.ts (the",
     "form's pre-save warning, definitionChange.ts) and by",
-    "backend/src/tripl/tests/test_fj5g_batch_a.py (the real metric_definition_service",
+    "backend/src/tripl/tests/test_metric_save_and_audit_contracts.py (the real metric_definition_service",
     "comparison), so the two cannot drift. `form_round_trip`: loading `stored` into the form",
     "and saving it untouched must not warn either."
   ],

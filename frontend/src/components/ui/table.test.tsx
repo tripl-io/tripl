@@ -16,7 +16,7 @@ describe('Table container', () => {
 
     // The wide events catalog scrolls inside this container, and its horizontal
     // scrollbar is far below the header row — `.tripl-scroll-x` paints the edge
-    // fade that says "there is more to the right" (.70).
+    // fade that says "there is more to the right".
     const scroller = container.querySelector('[data-slot="table-container"]')
     expect(scroller).not.toBeNull()
     expect(scroller!.classList.contains('tripl-scroll-x')).toBe(true)

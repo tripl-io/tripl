@@ -944,13 +944,13 @@ _SAFE_METHODS = frozenset({"GET", "HEAD", "OPTIONS"})
 # suggestions write nothing either, and they are refused on purpose, since a
 # description suggested for a branch that cannot take the edit has nowhere to
 # go. Named by handler because this module cannot import the routers that
-# import it. test_branch_context_batch2 fails if the name stops matching.
+# import it. test_branch_context_main_and_read_only fails if the name stops matching.
 _DERIVED_DATA_HANDLERS = frozenset({"tripl.api.v1.search.reindex_project_search"})
-# Write-gated routes that change no plan row, so they take no plan lock
-# (.294): the AI describe suggestions. They are still refused
+# Write-gated routes that change no plan row, so they take no plan lock:
+# the AI describe suggestions. They are still refused
 # on a merged or closed branch (see above), but holding the branch row across
 # an LLM call would only make a merge wait for a request that writes nothing.
-# Named by handler for the same reason as above; test_batch18_merge_races_pg
+# Named by handler for the same reason as above; test_merge_races_pg
 # fails if a name stops matching a route.
 _LOCK_FREE_WRITE_HANDLERS = frozenset(
     {

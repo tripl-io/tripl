@@ -2109,7 +2109,7 @@ describe('BranchesTab accessibility', () => {
   })
 })
 
-describe('BranchesTab review flows (frontend review batch 14)', () => {
+describe('BranchesTab review flows', () => {
   const CONFLICTED: PlanBranchConflicts = {
     entities: [
       {

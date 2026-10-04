@@ -6130,7 +6130,7 @@ async def test_muted_group_stays_findable_behind_the_status_filter(client: Async
     A muted group is suppressed, so it records no further deliveries and its
     activity key is frozen: no ordering rule can keep it on page one while open
     incidents keep firing. Sinking it is therefore expected — what must NOT
-    happen is it becoming unreachable (.2).
+    happen is it becoming unreachable.
     """
     project_resp = await client.post(
         "/api/v1/projects",
@@ -6516,7 +6516,7 @@ async def test_a_lapsed_mute_on_an_aged_incident_is_not_rescued(
     # lapsed instant directly, which the route now refuses with a 422 — a mute
     # whose end has already gone by is a silence no reader can honour, so it is
     # rejected at the door (the refusal itself is pinned in
-    # test_batch4_services.py). So the mute is made the way an operator makes
+    # test_alerting_service_regressions.py). So the mute is made the way an operator makes
     # one, with a real future expiry, and then TIME is what passes — written
     # onto the row directly, the same way ``test_lapsed_mute_stops_reporting_
     # muted_until`` above ages its own state. Nothing sweeps an expired mute,
@@ -6625,7 +6625,7 @@ async def test_inbox_group_reports_no_baseline_as_null_not_zero(client: AsyncCli
     Copied off the column, it rendered "0%" on the card and sorted as the
     SMALLEST deviation in the group, while the delivery the card expands to
     correctly reported null — one payload family answering the same question two
-    ways (.27).
+    ways.
     """
     project_resp = await client.post(
         "/api/v1/projects",
@@ -8146,7 +8146,7 @@ async def _seed_simulate_fixture(
     ``second_scan_sigma`` knob this fixture used to carry is gone: a second scan
     disagreeing on that column could not move the quoted number, so it had
     nothing left to control. Telling the two columns apart needs values that are
-    the default on neither side, and those cases live in test_batch4_services.py.
+    the default on neither side, and those cases live in test_alerting_service_regressions.py.
     """
     project_resp = await client.post(
         "/api/v1/projects",
@@ -8340,7 +8340,7 @@ async def test_simulate_sigma_override_re_reads_what_the_detector_recorded(
     # ``DEFAULT_SIGMA_THRESHOLD`` — the value that row would be born holding —
     # and this test cannot tell the two sources apart, because the scan column's
     # own default happens to be the same number. The ones that can are in
-    # test_batch4_services.py, which seeds a project sigma and a scan column that
+    # test_alerting_service_regressions.py, which seeds a project sigma and a scan column that
     # agree with neither each other nor the default.
     assert baseline["sigma_threshold_saved"] == DEFAULT_SIGMA_THRESHOLD
     assert baseline["sigma_threshold_used"] == DEFAULT_SIGMA_THRESHOLD
@@ -8384,7 +8384,7 @@ async def test_simulate_sigma_override_re_reads_what_the_detector_recorded(
 # columns' defaults are both 4.0, so it asserted the right value for the wrong
 # reason and could not have caught this.
 #
-# Rewriting it here would have reproduced test_batch4_services.py's
+# Rewriting it here would have reproduced test_alerting_service_regressions.py's
 # ``test_the_replay_has_one_sigma_to_quote_whatever_the_scans_hold``, which seeds
 # the same two disagreeing scans plus a project sigma that is neither, and checks
 # a wide and a bound rule in one pass — the assertion this test could not make.

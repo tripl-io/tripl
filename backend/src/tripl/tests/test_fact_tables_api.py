@@ -228,7 +228,7 @@ class TestDataSourceScoping:
         Under the ownership rule that call is inert: the fixture source is
         workspace-global and nobody else scans it, so it was already in scope
         with or without a ScanConfig, and the test asserted nothing about the
-        door — ``test_batch6_seam`` says that case out loud instead, in
+        door — ``test_metric_data_source_seam`` says that case out loud instead, in
         ``test_a_fact_table_may_bind_a_warehouse_nobody_scans``. Stamping the
         owning project covers the third branch, and it does so with NO
         ScanConfig anywhere.

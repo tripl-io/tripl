@@ -11,7 +11,7 @@ candidate, keyed on the scan config, which
   so one delay produces one alert, not one per collection;
 * renders "Data late: <scan> — newest event 7h ago (expected within 3h)".
 
-Sync sqlite, one file per test, like ``test_batch4_cadence.py``: the worker
+Sync sqlite, one file per test, like ``test_alert_cadence_switch.py``: the worker
 dispatch is sync and needs a real session.
 """
 

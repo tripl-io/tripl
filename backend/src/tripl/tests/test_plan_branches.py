@@ -2775,7 +2775,7 @@ async def test_merge_moving_a_rename_onto_a_deleted_variables_name_is_a_409(
     ``cart_count`` with NO ``source_name``. The branch DELETES ``cart_count`` and
     RENAMES ``cart_total`` into the name it vacated. With an identity on the
     occupant that shape now merges (pinned in
-    ``test_leftovers_variables``); without one nothing proves the branch's
+    ``test_variable_regressions``); without one nothing proves the branch's
     ``cart_count`` is not the occupant edited, so ``pair_renames`` still drops
     the move, the merge's two arms disagree about who owns ``cart_total_raw``,
     and SQLAlchemy — which runs a mapper's saves ahead of its deletes inside one

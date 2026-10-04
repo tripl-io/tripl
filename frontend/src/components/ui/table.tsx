@@ -13,8 +13,7 @@ function Table({
   // `tripl-scroll-x` adds the edge fade/shadow that tells the reader the columns
   // continue past the right edge. This container — not the outer
   // `.tripl-table-wrap` — is the element that actually scrolls, and its
-  // horizontal scrollbar sits far below the header row on a long table
-  // (.70).
+  // horizontal scrollbar sits far below the header row on a long table.
   return (
     <div
       data-slot="table-container"

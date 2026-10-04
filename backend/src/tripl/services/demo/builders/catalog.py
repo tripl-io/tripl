@@ -60,7 +60,7 @@ from tripl.services.demo.scenario import DemoContext
 # buried in the create schema. Two readers need the exact text: the synthetic
 # adapter recognises the sql-metric statements it can compute by EXACT match
 # (``synthetic._ACTIVE_SESSIONS_STATEMENTS``) rather than by probing for
-# substrings, and ``test_batch5_synthetic`` imports this constant to pin the two
+# substrings, and ``test_synthetic_warehouse_numbers`` imports this constant to pin the two
 # together. The adapter carries its own copy rather than importing this one, and
 # the reason is not that Python forbids it: ``core/`` importing ``services/`` is a
 # direction this repo allows exactly once and deliberately

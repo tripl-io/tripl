@@ -1082,7 +1082,7 @@ async def test_reset_keeps_the_demos_name(client: AsyncClient) -> None:
 
 @pytest.mark.asyncio
 async def test_stale_failed_shells_are_swept_on_the_next_create(client: AsyncClient) -> None:
-    """Failed shells stop accumulating forever (.76)."""
+    """Failed shells stop accumulating forever."""
     async with TestSessionLocal() as session:
         old = Project(
             name="Demo Project",

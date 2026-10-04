@@ -911,10 +911,10 @@ def test_trend_shift_emits_only_when_something_moved() -> None:
     # live is the EXPECTED half — ``== 0.0`` rather than ``<= 0.0`` — because a
     # signed series' reconstruction is no longer clamped up to zero. This harness
     # calls ``_detect_trend_shift`` directly, which defaults to ``signed=False``,
-    # so what it pins is the COUNT path; the signed lane is pinned by
-    # ``test_batch3_a2.test_trend_shift_reports_a_signed_expectation`` (the
-    # expectation VALUE) and
-    # ``test_batch3_a2.test_trend_shift_emits_an_empty_bucket_against_a_negative_expectation``
+    # so what it pins is the COUNT path; the signed lane is pinned in
+    # ``test_metric_scope_purge.py`` by
+    # ``test_trend_shift_reports_a_signed_expectation`` (the expectation VALUE)
+    # and ``test_trend_shift_emits_an_empty_bucket_against_a_negative_expectation``
     # (the guard spelling itself).
     assert [(row.direction, row.expected_count) for row in trend_rows(0.5, -3.0)] == [("drop", 0.0)]
 

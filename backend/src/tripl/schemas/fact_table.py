@@ -67,7 +67,7 @@ class FactTableColumnSchema(BaseModel):
         min_length=1,
         # Kept even though the before-validator makes it unreachable for strings:
         # it is the declared contract NATIVE_TYPE_MAX_LEN is pinned against, and
-        # the two are asserted equal by the batch-5 fact-table tests.
+        # the two are asserted equal by the fact-table tests.
         max_length=NATIVE_TYPE_MAX_LEN,
         exclude_if=lambda value: value is None,
     )

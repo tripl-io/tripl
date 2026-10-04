@@ -227,7 +227,7 @@ async def _build_scope_name_map(
     # only add to it. The label is spelled twice for the same reason
     # ``alerting_rendering._ADOPTION_ADJUSTED_LABEL`` is — the live builder sits
     # in the worker package and the two share no leaf to import it from — so the
-    # copy is pinned by ``tests/test_batch4_replay.py``, which runs one
+    # copy is pinned by ``tests/test_rule_replay_sources.py``, which runs one
     # project-total candidate through BOTH builders and asserts the maps are
     # equal.
     names: dict[tuple[str, str], str] = {

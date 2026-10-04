@@ -27,7 +27,7 @@ from httpx import AsyncClient
 from sqlalchemy import create_engine, select, update
 from sqlalchemy.orm import Session, sessionmaker
 
-import tripl.worker.celery_app  # noqa: F401  (import-order side effect, see test_batch4_replay)
+import tripl.worker.celery_app  # noqa: F401  (import-order side effect, see test_rule_replay_sources)
 from tripl.alert_templates import DriftLineFacts, alert_scope_label, build_drift_line
 from tripl.alerting_matching import SCOPE_PROPERTY_DRIFT, rule_matches_anomaly
 from tripl.alerting_property_drift import (

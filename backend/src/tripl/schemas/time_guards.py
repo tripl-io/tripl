@@ -39,7 +39,7 @@ carries the stored ``snoozed_until`` back beside ``status``, which both
 A past instant there tells the operator the truth on the next render rather than
 a comfortable lie, so there is nothing for this module to catch —
 ``test_event_comments.py::test_a_lapsed_snooze_counts_as_unanswered_again``
-posts one on purpose, and ``test_batch4_services.py`` pins that it still may.
+posts one on purpose, and ``test_alerting_service_regressions.py`` pins that it still may.
 
 WHY THE RULE LIVES HERE. It is wanted in three schema modules that share no
 domain. Reaching it through ``alerting_validation`` would make the two drift
@@ -96,7 +96,7 @@ def require_future_instant(value: datetime, *, field_name: str) -> datetime:
     pydantic's ``Value error,`` prefix and all, because its ``loc``-minus-``body``
     path comes out empty. So the sentence reaches the operator intact, but a
     client that scopes a 422 to a form control BY ``loc`` has nothing to match on.
-    ``test_batch4_services.py`` pins both shapes.
+    ``test_alerting_service_regressions.py`` pins both shapes.
     """
     # Normalize BEFORE comparing, never after: the point of doing it here is
     # that the comparison below cannot be handed a naive value.

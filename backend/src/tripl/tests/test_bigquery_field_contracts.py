@@ -513,7 +513,7 @@ def test_enum_on_a_repeated_column_is_refused_before_it_becomes_sql() -> None:
     ``_string_value_expression`` keeps raising for a breakdown column, where the
     caller is still CHOOSING the column and a loud failure is the right answer; that
     half is pinned in test_bigquery_nested_grouping.py. The cross-engine statement of
-    the skip rule, and the warning it has to leave behind, are in test_batch5_parity.py.
+    the skip rule, and the warning it has to leave behind, are in test_warehouse_engine_parity.py.
     """
     adapter, client = _adapter()
     adapter.validate_field_contracts(

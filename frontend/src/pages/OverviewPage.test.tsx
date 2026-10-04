@@ -185,7 +185,7 @@ describe('OverviewPage', () => {
 
     // active_event_count = 323 → "323"
     expect(await screen.findByText('323')).toBeInTheDocument()
-    // plan coverage 320/323 → "99.1%", identical to the projects dashboard (issue H2)
+    // plan coverage 320/323 → "99.1%", identical to the projects dashboard
     expect(await screen.findByText('99.1%')).toBeInTheDocument()
     expect(screen.getByText('Coverage')).toBeInTheDocument()
   })
@@ -398,7 +398,7 @@ describe('OverviewPage', () => {
     ).toBeInTheDocument()
   })
 
-  it('keeps the open-signals headline in agreement with the signals panel (issue H1)', async () => {
+  it('keeps the open-signals headline in agreement with the signals panel', async () => {
     // monitoring_signal_count is 5, but the canonical signals array is empty.
     mockFetch()
     renderOverview()
@@ -414,7 +414,7 @@ describe('OverviewPage', () => {
     expect(screen.queryByText('5')).not.toBeInTheDocument()
   })
 
-  it('renders a friendly message for failed-scan activity, hiding raw internals (issue H3)', async () => {
+  it('renders a friendly message for failed-scan activity, hiding raw internals', async () => {
     const rawError =
       "HTTPSConnectionPool(host='clickhouse.internal', port=8443): Read timed out. (read timeout=30)"
     mockFetch({
@@ -448,7 +448,7 @@ describe('OverviewPage', () => {
     )
   })
 
-  it('short-circuits to the full-page not-found on a project 404 (issue .9)', async () => {
+  it('short-circuits to the full-page not-found on a project 404', async () => {
     // A nonexistent slug 404s the project query; the whole widget grid is
     // replaced by NotFoundPage and the project-scoped widgets never fire.
     vi.spyOn(globalThis, 'fetch').mockImplementation(async (input) => {
@@ -470,7 +470,7 @@ describe('OverviewPage', () => {
     expect(screen.queryByRole('heading', { level: 1, name: 'Overview' })).not.toBeInTheDocument()
   })
 
-  it('labels a metric-scope signal with the name the server resolved (issue .17)', async () => {
+  it('labels a metric-scope signal with the name the server resolved', async () => {
     mockFetch({
       signals: [
         {
@@ -648,7 +648,7 @@ describe('OverviewPage', () => {
     expect(row).not.toHaveTextContent('z=-20')
   })
 
-  it('scopes the source-health rail to this project plus global sources (issue .14)', async () => {
+  it('scopes the source-health rail to this project plus global sources', async () => {
     mockFetch({
       sources: [
         makeSource({ id: 's-global', name: 'Shared warehouse', project_id: null }),
@@ -824,7 +824,7 @@ function makeSource(overrides: {
   }
 }
 
-describe('OverviewPage — design review batches', () => {
+describe('OverviewPage — design review follow-ups', () => {
   it('links the KPI tiles where the work is, under one review name', async () => {
     mockFetch()
     renderOverview()
