@@ -73,7 +73,7 @@ def test_the_generated_env_is_exactly_this(install_dir: Path) -> None:
         "# Docker Compose reads this file to INTERPOLATE compose.yaml. The containers receive\n"
         "# only the variables compose.yaml lists in its environment map, so a variable added\n"
         "# here that compose.yaml does not mention reaches nothing. Every tunable is listed at\n"
-        "# https://vladenisov.github.io/tripl/run/configuration\n"
+        "# https://tripl-io.github.io/tripl/run/configuration\n"
         "#\n"
         "# This file holds live secrets: mode 600, and it must stay out of version control.\n"
         "# Back up ENCRYPTION_KEY separately from the database - warehouse and alert-\n"
@@ -84,7 +84,7 @@ def test_the_generated_env_is_exactly_this(install_dir: Path) -> None:
         "APP_BASE_URL=https://tripl.example.com\n"
         "\n"
         "# Released image and tag. `tripl upgrade --to X.Y.Z` moves the tag.\n"
-        "TRIPL_IMAGE=ghcr.io/vladenisov/tripl\n"
+        "TRIPL_IMAGE=ghcr.io/tripl-io/tripl\n"
         "TRIPL_VERSION=1.5.0\n"
         "\n"
         "# Generated secrets - do not edit by hand.\n"
@@ -337,7 +337,7 @@ def test_an_incomplete_env_is_appended_to_and_every_existing_line_survives(
         "ENCRYPTION_KEY=already-set\n"
         "SECRET_KEY=already-set\n"
         "POSTGRES_PASSWORD=already-set\n"
-        "TRIPL_IMAGE=ghcr.io/vladenisov/tripl\n"
+        "TRIPL_IMAGE=ghcr.io/tripl-io/tripl\n"
         "TRIPL_VERSION=1.4.0"
     )
     env.write_text(original, encoding="utf-8")

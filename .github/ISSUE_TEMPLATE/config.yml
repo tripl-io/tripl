@@ -1,8 +1,8 @@
 blank_issues_enabled: false
 contact_links:
   - name: Report a security vulnerability
-    url: https://github.com/vladenisov/tripl/security/advisories/new
+    url: https://github.com/tripl-io/tripl/security/advisories/new
     about: Report it privately, not as a public issue.
   - name: Documentation
-    url: https://vladenisov.github.io/tripl/
+    url: https://tripl-io.github.io/tripl/
     about: Setup, concepts, and guides.

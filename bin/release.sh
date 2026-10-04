@@ -118,7 +118,7 @@ git push origin "$tag"
 cat <<EOF
 
 Released $tag.
-  • Release workflow is building + pushing ghcr.io/vladenisov/tripl:$new (and :latest)
+  • Release workflow is building + pushing ghcr.io/tripl-io/tripl:$new (and :latest)
   • Watch it:  gh run watch   (or the GitHub Actions tab)
   • Deploy:    export TRIPL_VERSION=$new && docker compose pull && docker compose up -d
                (an inline VAR=x prefix would apply to the pull only, so the

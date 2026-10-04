@@ -67,10 +67,10 @@ dependencies = [
 ]
 
 [project.urls]
-Homepage = "https://vladenisov.github.io/tripl/"
-Documentation = "https://vladenisov.github.io/tripl/integrate/mcp-server"
-Repository = "https://github.com/vladenisov/tripl"
-Issues = "https://github.com/vladenisov/tripl/issues"
+Homepage = "https://tripl-io.github.io/tripl/"
+Documentation = "https://tripl-io.github.io/tripl/integrate/mcp-server"
+Repository = "https://github.com/tripl-io/tripl"
+Issues = "https://github.com/tripl-io/tripl/issues"
 
 [project.scripts]
 tripl-mcp = "tripl_mcp.server:main"

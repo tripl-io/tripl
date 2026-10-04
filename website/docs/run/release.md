@@ -49,7 +49,7 @@ bin/release.sh -n patch  # dry-run: print the plan, change nothing
 bin/release.sh -y minor  # skip the confirmation prompt
 ```
 
-What [`bin/release.sh`](https://github.com/vladenisov/tripl/blob/main/bin/release.sh)
+What [`bin/release.sh`](https://github.com/tripl-io/tripl/blob/main/bin/release.sh)
 does:
 
 1. Reads the current version from `backend/pyproject.toml` (the `[project]`
@@ -77,11 +77,11 @@ and what it would commit, tag, and push, without changing anything.
 ## What the tag triggers
 
 Pushing a `v*` tag starts the
-[Release workflow](https://github.com/vladenisov/tripl/blob/main/.github/workflows/release.yml),
+[Release workflow](https://github.com/tripl-io/tripl/blob/main/.github/workflows/release.yml),
 which has two jobs:
 
 1. **CI gate (`ci`)** — reuses
-   [`ci.yml`](https://github.com/vladenisov/tripl/blob/main/.github/workflows/ci.yml)
+   [`ci.yml`](https://github.com/tripl-io/tripl/blob/main/.github/workflows/ci.yml)
    via `workflow_call`: the backend job (`ruff` + `mypy` + `pytest`) and the
    frontend job (`bun run lint` + `bun run build` + `bun run test`). The image job
    `needs: ci`, so **no image is ever published from red code**.
@@ -125,8 +125,8 @@ release, and neither forces a version bump on the other.
 
 | Distribution | Tag | Workflow | What it is |
 |---|---|---|---|
-| `tripl` | `cli-v*` | [`publish-cli.yml`](https://github.com/vladenisov/tripl/blob/main/.github/workflows/publish-cli.yml) | The [operator CLI](./cli.md) — `install`, `upgrade`, `doctor`, `status`, `watch`, `scans`, `drifts` |
-| `tripl-mcp` | `mcp-v*` | [`publish-mcp.yml`](https://github.com/vladenisov/tripl/blob/main/.github/workflows/publish-mcp.yml) | The [MCP server](../integrate/mcp-server.md) for LLM agents |
+| `tripl` | `cli-v*` | [`publish-cli.yml`](https://github.com/tripl-io/tripl/blob/main/.github/workflows/publish-cli.yml) | The [operator CLI](./cli.md) — `install`, `upgrade`, `doctor`, `status`, `watch`, `scans`, `drifts` |
+| `tripl-mcp` | `mcp-v*` | [`publish-mcp.yml`](https://github.com/tripl-io/tripl/blob/main/.github/workflows/publish-mcp.yml) | The [MCP server](../integrate/mcp-server.md) for LLM agents |
 
 `bin/release.sh` does **not** touch either: it versions the service. Release a
 package by bumping its own `pyproject.toml` and pushing the matching tag.
@@ -180,7 +180,7 @@ created on PyPI before the tag is pushed, under *Your projects → Publishing*:
 | Field | Value |
 |---|---|
 | PyPI Project Name | `tripl` |
-| Owner | `vladenisov` |
+| Owner | `tripl-io` |
 | Repository name | `tripl` |
 | Workflow name | `publish-cli.yml` |
 | Environment name | `pypi` |
@@ -214,10 +214,10 @@ gh run watch
 gh release view v1.4.0
 
 # 3. Confirm the multi-arch image is published (should list amd64 + arm64)
-docker buildx imagetools inspect ghcr.io/vladenisov/tripl:1.4.0
+docker buildx imagetools inspect ghcr.io/tripl-io/tripl:1.4.0
 
 # 4. Confirm the floating tags point at it
-docker buildx imagetools inspect ghcr.io/vladenisov/tripl:latest
+docker buildx imagetools inspect ghcr.io/tripl-io/tripl:latest
 ```
 
 Then do a real pull-and-run on a throwaway host or locally, pinning the new tag:
@@ -228,7 +228,7 @@ TRIPL_VERSION=1.4.0 docker compose up -d
 docker compose ps        # migrate one-shot Completed; app/workers healthy/Up
 ```
 
-The stack from [`compose.yaml`](https://github.com/vladenisov/tripl/blob/main/compose.yaml)
+The stack from [`compose.yaml`](https://github.com/tripl-io/tripl/blob/main/compose.yaml)
 is `postgres`, `rabbitmq`, `redis`, a one-shot `migrate` (`alembic upgrade head`
 before anything starts), the `app` (API + SPA on `:8000`), and
 `celery-worker` / `celery-beat` — all from the same image. The `migrate`

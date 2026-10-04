@@ -7,9 +7,9 @@ where new code belongs, and the conventions we expect on pull requests.
 
 The agent-facing navigation map (domain model, API map, async pipeline map,
 "where to look first") lives in
-[AGENTS.md](https://github.com/vladenisov/tripl/blob/main/AGENTS.md). This file
+[AGENTS.md](https://github.com/tripl-io/tripl/blob/main/AGENTS.md). This file
 is the human contributor guide. The repo's
-[CLAUDE.md](https://github.com/vladenisov/tripl/blob/main/CLAUDE.md) links here
+[CLAUDE.md](https://github.com/tripl-io/tripl/blob/main/CLAUDE.md) links here
 for build and test commands instead of duplicating them, so keep the command
 sections below accurate.
 
@@ -46,7 +46,7 @@ external warehouse.
 
 The dev stack builds from source, runs as root, and hot-reloads via Docker
 Compose watch. It is defined in
-[compose.dev.yaml](https://github.com/vladenisov/tripl/blob/main/compose.dev.yaml)
+[compose.dev.yaml](https://github.com/tripl-io/tripl/blob/main/compose.dev.yaml)
 (this is **not** the deploy stack — production runs the published single-
 container image via `compose.yaml`).
 
@@ -92,7 +92,7 @@ docker compose -f compose.dev.yaml config
 
 ## Backend Workflow
 
-The backend lives in [`backend/`](https://github.com/vladenisov/tripl/blob/main/backend).
+The backend lives in [`backend/`](https://github.com/tripl-io/tripl/blob/main/backend).
 Run these from inside that directory.
 
 ```bash
@@ -255,7 +255,7 @@ only an exact title/keywords match may be reported at confidence 1.0. The
 
 ## Frontend Workflow
 
-The frontend lives in [`frontend/`](https://github.com/vladenisov/tripl/blob/main/frontend)
+The frontend lives in [`frontend/`](https://github.com/tripl-io/tripl/blob/main/frontend)
 (React 19 + TypeScript + Vite, Tailwind 4, Radix UI, TanStack Query, Recharts).
 
 ```bash
@@ -455,7 +455,7 @@ tripl is one codebase with two runtimes sharing a common core.
 ### Shared core kernel
 
 Provider-agnostic, framework-agnostic logic lives in
-[`backend/src/tripl/core/`](https://github.com/vladenisov/tripl/blob/main/backend/src/tripl/core):
+[`backend/src/tripl/core/`](https://github.com/tripl-io/tripl/blob/main/backend/src/tripl/core):
 
 - `core/adapters/` — warehouse connectors (`clickhouse.py`, `bigquery.py`,
   `postgres.py`) behind a shared `base.py` interface and a `registry.py`.
@@ -514,7 +514,7 @@ sources; and API, worker, and beat must all stay runnable together via Compose.
   (it also requires the database/broker URLs). The dev stack sets `DEBUG=true`
   so these are tolerated locally; if you run the API outside dev mode you must
   supply real values. Generation commands are documented inline in
-  [`.env.example`](https://github.com/vladenisov/tripl/blob/main/.env.example).
+  [`.env.example`](https://github.com/tripl-io/tripl/blob/main/.env.example).
 - **`alembic` shebang errors.** Use `uv run python -m alembic ...` (see the
   migrations section).
 - **Lockfile drift / CI mismatch.** Always use `uv` and `bun`. A stray `pip`,
@@ -567,4 +567,4 @@ Always call out in the PR description when a change touches:
 
 For deeper area-by-area pointers (which service, schema, task, and test files
 correspond to each feature), see
-[AGENTS.md](https://github.com/vladenisov/tripl/blob/main/AGENTS.md).
+[AGENTS.md](https://github.com/tripl-io/tripl/blob/main/AGENTS.md).

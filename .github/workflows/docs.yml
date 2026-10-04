@@ -1,7 +1,7 @@
 name: Docs
 
 # Build the Docusaurus site in website/ and publish it to GitHub Pages
-# (https://vladenisov.github.io/tripl/). Runs when docs sources change on main,
+# (https://tripl-io.github.io/tripl/). Runs when docs sources change on main,
 # on release tags, and on manual dispatch. A pull request that touches them
 # builds the site without publishing it. One-time setup: in repo Settings ->
 # Pages, set Source = "GitHub Actions".

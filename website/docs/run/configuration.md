@@ -6,21 +6,21 @@ sidebar_position: 2
 # Configuration Reference
 
 tripl is configured entirely through environment variables. The backend reads
-them into a single [`Settings`](https://github.com/vladenisov/tripl/blob/main/backend/src/tripl/config.py)
+them into a single [`Settings`](https://github.com/tripl-io/tripl/blob/main/backend/src/tripl/config.py)
 object (Pydantic `BaseSettings`); values can come from the process environment
 or from a `.env` file in the backend working directory (`model_config = {"env_file": ".env", "extra": "ignore"}`).
 Unknown variables are ignored, so a single `.env` can hold backend, frontend,
 and Docker Compose values side by side.
 
 The canonical starting point is
-[`.env.example`](https://github.com/vladenisov/tripl/blob/main/.env.example).
+[`.env.example`](https://github.com/tripl-io/tripl/blob/main/.env.example).
 Copy it to `.env` and fill in real values.
 
 :::note Env-var names
 Every setting below is matched case-insensitively by its uppercased field name:
 the `database_url` field is set with `DATABASE_URL`, `rate_limit_login_per_minute`
 with `RATE_LIMIT_LOGIN_PER_MINUTE`, and so on. Defaults shown are the in-code
-defaults from `Settings`; the production [`compose.yaml`](https://github.com/vladenisov/tripl/blob/main/compose.yaml)
+defaults from `Settings`; the production [`compose.yaml`](https://github.com/tripl-io/tripl/blob/main/compose.yaml)
 overrides several of them, as noted.
 :::
 
@@ -66,7 +66,7 @@ characters in URL credentials (for example, `@` as `%40`); Alembic preserves
 the encoded URL when loading its configuration.
 :::
 
-In the production [`compose.yaml`](https://github.com/vladenisov/tripl/blob/main/compose.yaml)
+In the production [`compose.yaml`](https://github.com/tripl-io/tripl/blob/main/compose.yaml)
 these are derived from compose-level secrets (the broker user is `tripl`, not
 `guest`):
 
@@ -627,7 +627,7 @@ they fail gracefully or stay disabled when unconfigured.
 
 These are consumed by Docker Compose and the image, not by the backend
 `Settings` object. They appear in
-[`.env.example`](https://github.com/vladenisov/tripl/blob/main/.env.example) so
+[`.env.example`](https://github.com/tripl-io/tripl/blob/main/.env.example) so
 one `.env` covers the whole stack.
 
 | Variable | Default | Used by | Purpose |
@@ -636,7 +636,7 @@ one `.env` covers the whole stack.
 | `POSTGRES_DB` | `tripl` | PostgreSQL container | Database name. |
 | `POSTGRES_PASSWORD` | — (required) | Compose | Builds the DB URLs. The prod stack **requires** a non-default value. |
 | `RABBITMQ_PASSWORD` | — (required) | Compose | Builds `RABBITMQ_URL`; broker user is `tripl`. |
-| `TRIPL_IMAGE` | `ghcr.io/vladenisov/tripl` | Compose | Published image to run. |
+| `TRIPL_IMAGE` | `ghcr.io/tripl-io/tripl` | Compose | Published image to run. |
 | `TRIPL_VERSION` | `latest` | Compose | Image tag — pin to a released tag in production. |
 | `VITE_API_URL` | `http://127.0.0.1:8000` | Frontend build | Base URL the SPA calls; baked in at build time. |
 
@@ -658,6 +658,6 @@ own `assert_production_ready()` checks.
 - [Administration](../administer/admin-guide.md) — day-2 operations.
 - [Troubleshooting](../use/troubleshooting.md) — diagnosing common failures.
 - Source of truth:
-  [`config.py`](https://github.com/vladenisov/tripl/blob/main/backend/src/tripl/config.py),
-  [`.env.example`](https://github.com/vladenisov/tripl/blob/main/.env.example),
-  [`compose.yaml`](https://github.com/vladenisov/tripl/blob/main/compose.yaml).
+  [`config.py`](https://github.com/tripl-io/tripl/blob/main/backend/src/tripl/config.py),
+  [`.env.example`](https://github.com/tripl-io/tripl/blob/main/.env.example),
+  [`compose.yaml`](https://github.com/tripl-io/tripl/blob/main/compose.yaml).

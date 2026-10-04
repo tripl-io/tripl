@@ -36,12 +36,12 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           path-to-signatures: signatures/cla.json
-          path-to-document: https://github.com/vladenisov/tripl/blob/main/CLA.md
+          path-to-document: https://github.com/tripl-io/tripl/blob/main/CLA.md
           branch: cla-signatures
           allowlist: vladenisov,claude,dependabot[bot],github-actions[bot],copilot*,*[bot]
           lock-pullrequest-aftermerge: false
           custom-notsigned-prcomment: >-
             Thank you for the contribution! Before it can be merged, please read the
-            [Contributor License Agreement](https://github.com/vladenisov/tripl/blob/main/CLA.md)
+            [Contributor License Agreement](https://github.com/tripl-io/tripl/blob/main/CLA.md)
             and sign it by commenting on this pull request with the sentence below.
             You sign once; it covers your future contributions too.

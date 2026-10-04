@@ -62,7 +62,7 @@ From git — no clone needed, and the way to run what is in this repository:
       "command": "uvx",
       "args": [
         "--from",
-        "git+https://github.com/vladenisov/tripl.git#subdirectory=mcp-server",
+        "git+https://github.com/tripl-io/tripl.git#subdirectory=mcp-server",
         "tripl-mcp"
       ],
       "env": {

@@ -48,14 +48,14 @@ dependencies = [
 ]
 
 [project.urls]
-Homepage = "https://vladenisov.github.io/tripl/"
+Homepage = "https://tripl-io.github.io/tripl/"
 # The docs site sets `routeBasePath: '/'` under baseUrl `/tripl/`, so a page at
 # website/docs/run/cli.md is served at /tripl/run/cli — there is no /docs/
 # segment. mcp-server/pyproject.toml carried the /docs/ form and 404ed; both are
 # corrected now, so check this shape when adding a third package.
-Documentation = "https://vladenisov.github.io/tripl/run/cli"
-Repository = "https://github.com/vladenisov/tripl"
-Issues = "https://github.com/vladenisov/tripl/issues"
+Documentation = "https://tripl-io.github.io/tripl/run/cli"
+Repository = "https://github.com/tripl-io/tripl"
+Issues = "https://github.com/tripl-io/tripl/issues"
 
 [project.scripts]
 # `main` returns an int rather than calling sys.exit itself: the generated

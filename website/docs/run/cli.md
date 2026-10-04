@@ -117,7 +117,7 @@ pip install tripl     # or put it on PATH for good
 **From a checkout.** The form to use when you are working on the CLI itself:
 
 ```bash
-git clone https://github.com/vladenisov/tripl.git
+git clone https://github.com/tripl-io/tripl.git
 uv run --project tripl/cli tripl --version
 # tripl 0.1.0
 ```
@@ -126,9 +126,9 @@ uv run --project tripl/cli tripl --version
 yet. Both forms below resolve, but neither is exercised by CI:
 
 ```bash
-uvx --from 'git+https://github.com/vladenisov/tripl.git#subdirectory=cli' tripl doctor
+uvx --from 'git+https://github.com/tripl-io/tripl.git#subdirectory=cli' tripl doctor
 
-pip install 'git+https://github.com/vladenisov/tripl.git#subdirectory=cli'
+pip install 'git+https://github.com/tripl-io/tripl.git#subdirectory=cli'
 ```
 
 :::note "Install the CLI" and "`tripl install`" are different things
@@ -2673,7 +2673,7 @@ usage: tripl install [-h] [--url URL] [--api-key KEY] [--config PATH]
 | `--app-url URL` | **Required, no default.** The public origin of the instance you are creating, e.g. `https://tripl.example.com`. Becomes `APP_BASE_URL`, which drives CORS and cookies. A trailing `/` or a pasted `/api/v1` is trimmed. |
 | `--dir PATH` | Where the stack lives. Default `./tripl`; always **reported absolute**, whatever you typed. |
 | `--version TAG` | Image tag to pin in `.env`. Default `latest`. Must look like a Docker tag — a letter, digit or underscore followed by up to 127 of `[A-Za-z0-9._-]`. |
-| `--edition NAME` | Which image `.env` pins as `TRIPL_IMAGE`: `community` (the default, `ghcr.io/vladenisov/tripl`) or `enterprise` (`ghcr.io/vladenisov/tripl-enterprise`). The Enterprise image is private, so run `docker login ghcr.io` with the credentials that come with your subscription before `install` pulls it; `install` prints that reminder and holds no credentials itself. Like `--version`, it does not change an existing `.env`. |
+| `--edition NAME` | Which image `.env` pins as `TRIPL_IMAGE`: `community` (the default, `ghcr.io/tripl-io/tripl`) or `enterprise` (`ghcr.io/tripl-io/tripl-enterprise`). The Enterprise image is private, so run `docker login ghcr.io` with the credentials that come with your subscription before `install` pulls it; `install` prints that reminder and holds no credentials itself. Like `--version`, it does not change an existing `.env`. |
 | `--wait SECONDS` | How long to poll `/health` before giving up. Default `300`, range `0`–`3600`. **`0` skips waiting entirely** — it does not mean "probe once". |
 | `--no-start` | Write the files and run nothing. Also skips the Docker probe, so it works on a machine with no Docker at all. |
 | `--force` | Replace a `compose.yaml` or `rabbitmq.conf` that differs from the packaged one. **Never reaches `.env`.** |
@@ -2704,7 +2704,7 @@ tripl install --app-url https://tripl.example.com --dir /srv/tripl --dry-run
 tripl install - /srv/tripl
 
 app url  https://tripl.example.com
-image    ghcr.io/vladenisov/tripl:latest
+image    ghcr.io/tripl-io/tripl:latest
 
 files
   compose.yaml                  create  0644
@@ -2775,7 +2775,7 @@ this project deploys.
 # Docker Compose reads this file to INTERPOLATE compose.yaml. The containers receive
 # only the variables compose.yaml lists in its environment map, so a variable added
 # here that compose.yaml does not mention reaches nothing. Every tunable is listed at
-# https://vladenisov.github.io/tripl/run/configuration
+# https://tripl-io.github.io/tripl/run/configuration
 #
 # This file holds live secrets: mode 600, and it must stay out of version control.
 # Back up ENCRYPTION_KEY separately from the database - warehouse and alert-
@@ -2786,7 +2786,7 @@ this project deploys.
 APP_BASE_URL=https://tripl.example.com
 
 # Released image and tag. `tripl upgrade --to X.Y.Z` moves the tag.
-TRIPL_IMAGE=ghcr.io/vladenisov/tripl
+TRIPL_IMAGE=ghcr.io/tripl-io/tripl
 TRIPL_VERSION=1.5.0
 
 # Generated secrets - do not edit by hand.
@@ -2804,7 +2804,7 @@ Seven variables, and that is the whole file. It is **not** a copy of
 | Variable | How it is produced |
 |----------|--------------------|
 | `APP_BASE_URL` | Your `--app-url`, normalised. |
-| `TRIPL_IMAGE` | `ghcr.io/vladenisov/tripl`, or `ghcr.io/vladenisov/tripl-enterprise` with `--edition enterprise`. |
+| `TRIPL_IMAGE` | `ghcr.io/tripl-io/tripl`, or `ghcr.io/tripl-io/tripl-enterprise` with `--edition enterprise`. |
 | `TRIPL_VERSION` | Your `--version`, default `latest`. |
 | `ENCRYPTION_KEY` | 32 random bytes, url-safe base64 — 44 characters. This is exactly what a **Fernet** key is, which is what the backend builds from it at startup. |
 | `SECRET_KEY` | `secrets.token_urlsafe(48)` — 64 url-safe characters. |
@@ -4207,7 +4207,7 @@ A completed first run. Note the two absent keys — no `requests`, no `instance`
   "duration_ms": 74210,
   "directory": "/srv/tripl",
   "app_base_url": "https://tripl.example.com",
-  "image": "ghcr.io/vladenisov/tripl",
+  "image": "ghcr.io/tripl-io/tripl",
   "version": "1.5.0",
   "dry_run": false,
   "files": [

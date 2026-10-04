@@ -7,7 +7,7 @@ requests.
 
 Report them privately through GitHub instead: go to the repository's
 **Security** tab and choose **Report a vulnerability**
-([direct link](https://github.com/vladenisov/tripl/security/advisories/new)).
+([direct link](https://github.com/tripl-io/tripl/security/advisories/new)).
 The report is visible only to the maintainers.
 
 If you cannot use GitHub, write to security@tripl.io.
@@ -43,5 +43,5 @@ Out of scope:
 - missing hardening headers that have no demonstrated impact;
 - volumetric denial of service.
 
-[Security & secrets](https://vladenisov.github.io/tripl/run/security) describes
+[Security & secrets](https://tripl-io.github.io/tripl/run/security) describes
 how a deployment is meant to be hardened.

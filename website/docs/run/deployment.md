@@ -34,7 +34,7 @@ A modest single-host deployment is comfortable at roughly **2 vCPU / 4 GB RAM** 
 
 ## Registry access
 
-The image lives at `ghcr.io/vladenisov/tripl`. The first publish to a new GHCR package creates it as **private**, so anonymous pulls fail until it is made public (in the repo's *Packages → tripl → Package settings*). Until then, authenticate on the deploy host with a GitHub personal access token that has `read:packages`:
+The image lives at `ghcr.io/tripl-io/tripl`. The first publish to a new GHCR package creates it as **private**, so anonymous pulls fail until it is made public (in the repo's *Packages → tripl → Package settings*). Until then, authenticate on the deploy host with a GitHub personal access token that has `read:packages`:
 
 ```bash
 echo "$GHCR_TOKEN" | docker login ghcr.io -u <your-github-username> --password-stdin
@@ -44,7 +44,7 @@ The image and tag are configurable via `.env`:
 
 | Variable | Default | Notes |
 |---|---|---|
-| `TRIPL_IMAGE` | `ghcr.io/vladenisov/tripl` | Registry/repo of the image. |
+| `TRIPL_IMAGE` | `ghcr.io/tripl-io/tripl` | Registry/repo of the image. |
 | `TRIPL_VERSION` | `latest` | **Pin** to a released tag (e.g. `1.4.0`) in production; `latest` is fine for trials. |
 
 Released tags are `X.Y.Z`, `X.Y`, `latest` (stable only), and `sha-<short>`. Multi-arch images are published for **`linux/amd64` and `linux/arm64`**, so the same tag runs on both architectures.
@@ -125,7 +125,7 @@ If you put a trusted reverse proxy or load balancer in front that overwrites `X-
 | `app` | tripl image | The single API + SPA process on port `8000`. Runs uvicorn with `UVICORN_WORKERS` (default 4). Mounts the `photos` volume at `/app/var/photos`, where the local photo backend keeps uploaded event photos. |
 | `celery-worker` | tripl image | Runs `celery -A tripl.worker.celery_app worker`. Executes scans, warehouse queries, monitor evaluation, and alert delivery, plus the daily sweep of orphan photo files. It mounts the same `photos` volume as `app` for that sweep. Its container healthcheck is disabled. |
 | `celery-beat` | tripl image | Runs `celery -A tripl.worker.celery_app beat` with the schedule at `/tmp/celerybeat-schedule`. Enqueues periodic jobs. Its container healthcheck is disabled. |
-| `mcp` | `${TRIPL_MCP_IMAGE:-ghcr.io/vladenisov/tripl-mcp}:${TRIPL_VERSION}` | **Not started by default** — it is behind `profiles: [mcp]`, so it needs `docker compose --profile mcp up -d`. Serves the [MCP server](../integrate/mcp-server.md) over streamable HTTP for agents. |
+| `mcp` | `${TRIPL_MCP_IMAGE:-ghcr.io/tripl-io/tripl-mcp}:${TRIPL_VERSION}` | **Not started by default** — it is behind `profiles: [mcp]`, so it needs `docker compose --profile mcp up -d`. Serves the [MCP server](../integrate/mcp-server.md) over streamable HTTP for agents. |
 
 In a default run only `app` publishes a port, `8000:8000`. With the `mcp` profile on, `mcp` publishes `127.0.0.1:8765:8765` — bound to loopback on purpose, since it forwards write-capable `tk_w_` keys verbatim and has no auth of its own, so put it behind the same reverse proxy or trusted network as the app before widening that bind.
 
@@ -216,7 +216,7 @@ tripl reads from your existing warehouse — it never writes to it. You connect 
 `POST /data-sources` requires an interactive **owner session** and answers `403` to an API key of any scope — see [what a key cannot reach](../administer/admin-guide.md#api-keys--governance). Step 1 *could* be automated and deliberately is not, because it would mean a password on a command line and a `Secure` session cookie that a plain-HTTP first run discards. Between them they are why `tripl install` finishes by [handing you this URL](./cli.md#what-install-deliberately-does-not-do) rather than by finishing the job.
 :::
 
-Warehouse queries and scans run on `celery-worker`, so make sure that container has network access to your warehouse. Adapter-specific details live in the [warehouse adapters](https://github.com/vladenisov/tripl/tree/main/backend/src/tripl/core/adapters) source.
+Warehouse queries and scans run on `celery-worker`, so make sure that container has network access to your warehouse. Adapter-specific details live in the [warehouse adapters](https://github.com/tripl-io/tripl/tree/main/backend/src/tripl/core/adapters) source.
 
 ## Upgrading
 

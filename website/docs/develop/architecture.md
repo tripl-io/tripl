@@ -5,7 +5,7 @@ The technical picture of how tripl is built. If you want the *what* and the
 the *how* for people working on the system.
 
 For local setup, commands, and the source tree, see
-**[CONTRIBUTING.md](https://github.com/vladenisov/tripl/blob/main/CONTRIBUTING.md)**.
+**[CONTRIBUTING.md](https://github.com/tripl-io/tripl/blob/main/CONTRIBUTING.md)**.
 
 ---
 
@@ -693,7 +693,7 @@ branch is searchable from the next request.
 
 ## See also
 
-- **[CONTRIBUTING.md](https://github.com/vladenisov/tripl/blob/main/CONTRIBUTING.md)** — setup, commands, source tree,
+- **[CONTRIBUTING.md](https://github.com/tripl-io/tripl/blob/main/CONTRIBUTING.md)** — setup, commands, source tree,
   API surface.
 - **[agent-api-guide.md](../integrate/agent-api-guide.md)** — the API contract for agents and
   scripts.

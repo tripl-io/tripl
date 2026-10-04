@@ -32,7 +32,7 @@ legacy `docker-compose`). Clone the repository and start the dev stack — it
 builds from source and needs no secrets:
 
 ```bash
-git clone https://github.com/vladenisov/tripl.git
+git clone https://github.com/tripl-io/tripl.git
 cd tripl
 cp .env.example .env
 docker compose -f compose.dev.yaml up --build

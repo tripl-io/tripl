@@ -6,7 +6,7 @@ sidebar_position: 4
 # Operations Runbook
 
 Operational procedures for running the self-hosted tripl stack defined in
-[`compose.yaml`](https://github.com/vladenisov/tripl/blob/main/compose.yaml):
+[`compose.yaml`](https://github.com/tripl-io/tripl/blob/main/compose.yaml):
 backups and restore, disaster recovery, horizontal scaling, health checks,
 rollback, and post-deploy verification.
 
@@ -17,7 +17,7 @@ For first-time install and the full service/env reference, see
 ## Stack at a glance
 
 The production stack runs the single published image
-(`${TRIPL_IMAGE:-ghcr.io/vladenisov/tripl}:${TRIPL_VERSION:-latest}`) in
+(`${TRIPL_IMAGE:-ghcr.io/tripl-io/tripl}:${TRIPL_VERSION:-latest}`) in
 several roles — only the command differs:
 
 | Service | Image / command | Persistence | Docker healthcheck |
@@ -196,7 +196,7 @@ Recovery hinges on the durable/ephemeral split:
 - **RabbitMQ — ephemeral broker.** With no data volume, queued messages do not
   survive a broker restart. Celery is configured with `task_acks_late=True` and
   `task_reject_on_worker_lost=True` (see
-  [`celery_app.py`](https://github.com/vladenisov/tripl/blob/main/backend/src/tripl/worker/celery_app.py)),
+  [`celery_app.py`](https://github.com/tripl-io/tripl/blob/main/backend/src/tripl/worker/celery_app.py)),
   which re-queues a task when a **worker** crashes mid-execution — but that does
   not protect messages already sitting in the broker if **RabbitMQ itself** is
   lost. `celery-beat` resumes recurring work at the next scheduled time:
@@ -238,7 +238,7 @@ care as the database backups themselves.
 
 Each worker process opens one shared sync SQLAlchemy engine + connection pool on
 first use (see
-[`worker/db.py`](https://github.com/vladenisov/tripl/blob/main/backend/src/tripl/worker/db.py)),
+[`worker/db.py`](https://github.com/tripl-io/tripl/blob/main/backend/src/tripl/worker/db.py)),
 and runs with `worker_prefetch_multiplier=1` so one slow task can't hoard the
 queue while peers idle. Scale out by adding replicas:
 
@@ -254,7 +254,7 @@ soft limit (`SoftTimeLimitExceeded`, allows cleanup) and a 60-minute hard limit.
 
 The auth rate limiter (`/auth/login`, `/auth/register`) is a token bucket
 keyed on `(client_ip, route)`, stored in Redis when `REDIS_URL` is set — see
-[`middleware/rate_limit.py`](https://github.com/vladenisov/tripl/blob/main/backend/src/tripl/middleware/rate_limit.py).
+[`middleware/rate_limit.py`](https://github.com/tripl-io/tripl/blob/main/backend/src/tripl/middleware/rate_limit.py).
 Defaults are 5 login attempts/minute and 3 registrations/hour
 (`rate_limit_login_per_minute`, `rate_limit_register_per_hour`).
 

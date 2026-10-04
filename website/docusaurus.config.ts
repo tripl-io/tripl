@@ -2,16 +2,16 @@ import {themes as prismThemes} from 'prism-react-renderer';
 import type {Config} from '@docusaurus/types';
 import type * as Preset from '@docusaurus/preset-classic';
 
-// Project site published at https://vladenisov.github.io/tripl/
+// Project site published at https://tripl-io.github.io/tripl/
 const config: Config = {
   title: 'tripl',
   tagline: 'Keep your product analytics honest.',
   favicon: 'img/logo.svg',
 
-  url: 'https://vladenisov.github.io',
+  url: 'https://tripl-io.github.io',
   baseUrl: '/tripl/',
 
-  organizationName: 'vladenisov',
+  organizationName: 'tripl-io',
   projectName: 'tripl',
   trailingSlash: false,
 
@@ -31,7 +31,7 @@ const config: Config = {
         docs: {
           routeBasePath: '/',
           sidebarPath: './sidebars.ts',
-          editUrl: 'https://github.com/vladenisov/tripl/tree/main/website/',
+          editUrl: 'https://github.com/tripl-io/tripl/tree/main/website/',
         },
         blog: false,
         theme: {customCss: './src/css/custom.css'},
@@ -55,7 +55,7 @@ const config: Config = {
       items: [
         {type: 'docSidebar', sidebarId: 'docsSidebar', position: 'left', label: 'Docs'},
         {to: '/integrate/api/', label: 'API', position: 'left'},
-        {href: 'https://github.com/vladenisov/tripl', label: 'GitHub', position: 'right'},
+        {href: 'https://github.com/tripl-io/tripl', label: 'GitHub', position: 'right'},
       ],
     },
     footer: {

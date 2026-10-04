@@ -20,7 +20,7 @@ from shutil import which
 
 from tripl_cli.install.shell import Command, Runner
 
-DOCS_PREREQUISITES = "https://vladenisov.github.io/tripl/run/deployment#prerequisites"
+DOCS_PREREQUISITES = "https://tripl-io.github.io/tripl/run/deployment#prerequisites"
 
 # Both spellings, so a message can name the one the operator actually typed.
 DOCKER = "docker"

@@ -441,7 +441,7 @@ def test_an_explicit_version_gets_no_pin_reminder(
     assert main(argv(install_dir, "--version", "1.5.0", "--dry-run")) == 0
 
     captured = capsys.readouterr()
-    assert "ghcr.io/vladenisov/tripl:1.5.0" in captured.out
+    assert "ghcr.io/tripl-io/tripl:1.5.0" in captured.out
     assert "pin a released tag" not in captured.err
 
 
@@ -603,7 +603,7 @@ def test_re_installing_with_a_changed_app_url_names_the_kept_value_not_the_reque
     plan_text = captured.err
     assert "app url  https://old.example.com" in plan_text
     assert "(kept from .env: APP_BASE_URL)" in plan_text
-    assert "ghcr.io/vladenisov/tripl:1.4.0" in plan_text
+    assert "ghcr.io/tripl-io/tripl:1.4.0" in plan_text
     assert "https://new.example.com\n" not in plan_text.replace(
         "requested https://new.example.com", ""
     )
@@ -649,7 +649,7 @@ def test_a_re_run_that_omits_version_does_not_claim_a_tag_was_refused(
     captured = capsys.readouterr()
     assert "TRIPL_VERSION" not in captured.err.split("kept from .env:")[-1].split("\n")[0]
     assert "was NOT applied" not in captured.err
-    assert "ghcr.io/vladenisov/tripl:1.4.0" in captured.out
+    assert "ghcr.io/tripl-io/tripl:1.4.0" in captured.out
     # ...and the effective tag is not `latest`, so the pin reminder stays quiet.
     assert "pin a released tag" not in captured.err
 

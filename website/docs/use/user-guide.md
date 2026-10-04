@@ -904,4 +904,4 @@ For a wider list of issues, see [Troubleshooting](./troubleshooting).
 - Keeping team notes and agent skills next to the plan? → [Docs catalog](./docs-catalog)
 - Automating tripl from a script or agent? → [Agent API guide](../integrate/agent-api-guide)
 - Working on tripl itself? → [Architecture](../develop/architecture) and
-  [CONTRIBUTING.md](https://github.com/vladenisov/tripl/blob/main/CONTRIBUTING.md)
+  [CONTRIBUTING.md](https://github.com/tripl-io/tripl/blob/main/CONTRIBUTING.md)
