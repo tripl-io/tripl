@@ -21,7 +21,11 @@ import {
   Users,
   type LucideIcon,
 } from 'lucide-react'
-import { extensionSettingsSections, type ExtensionSettingsSection } from '@/extensions'
+import {
+  enterpriseTeasers,
+  extensionSettingsSections,
+  type ExtensionSettingsSection,
+} from '@/extensions'
 import { stripOrgPrefix } from '@/lib/activeOrg'
 
 /**
@@ -382,10 +386,12 @@ export function withExtensionItems(
   })
 }
 
-export const WORKSPACE_GROUPS: SettingsNavGroup[] = withExtensionItems(
-  CORE_WORKSPACE_GROUPS,
-  extensionSettingsSections,
-)
+// Extension sections, then the Enterprise features this build does not have
+// (tagged "Enterprise", where the real item would be).
+export const WORKSPACE_GROUPS: SettingsNavGroup[] = withExtensionItems(CORE_WORKSPACE_GROUPS, [
+  ...extensionSettingsSections,
+  ...enterpriseTeasers,
+])
 
 export const SETTINGS_NAV: Record<SettingsContext, SettingsNavGroup[]> = {
   project: PROJECT_GROUPS,

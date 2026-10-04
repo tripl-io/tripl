@@ -1,7 +1,14 @@
 import { describe, expect, it } from 'vitest'
 import { Lock } from 'lucide-react'
 import { WORKSPACE_GROUPS, withExtensionItems, type SettingsNavGroup } from '@/components/settings/nav'
-import { EXTENSIONS, extensionRoutes, extensionSettingsSection } from '.'
+import {
+  EXTENSIONS,
+  enterpriseTeaser,
+  enterpriseTeasers,
+  extensionRoutes,
+  extensionSettingsSection,
+} from '.'
+import { ENTERPRISE_TEASERS, visibleTeasers, type EnterpriseTeaser } from './teasers'
 
 const item = (id: string) => ({ id, label: id, icon: Lock, path: `organization/${id}` })
 
@@ -40,5 +47,43 @@ describe('frontend extensions', () => {
   it('finds an extension settings section by its path', () => {
     expect(extensionSettingsSection('organization/sso')?.access).toBe('orgOwner')
     expect(extensionSettingsSection('organization/general')).toBeUndefined()
+  })
+})
+
+describe('Enterprise teasers', () => {
+  const section = (id: string) => ({ item: item(id) })
+  const teaser = (id: string): EnterpriseTeaser => ({
+    group: 'Organization',
+    item: { ...item(id), tag: 'Enterprise', ownerOnly: true },
+    summary: `${id} does things`,
+  })
+
+  it('shows a teaser only where no extension provides the section', () => {
+    const shown = visibleTeasers([teaser('sso'), teaser('scim')], [section('sso')])
+    expect(shown.map((entry) => entry.item.id)).toEqual(['scim'])
+  })
+
+  it('hides every teaser while the bundled extension still provides the features', () => {
+    expect(enterpriseTeasers).toEqual([])
+    expect(enterpriseTeaser('organization/sso')).toBeUndefined()
+  })
+
+  it('tags every teaser Enterprise, for owners and admins only, once each', () => {
+    const ids = ENTERPRISE_TEASERS.map((entry) => entry.item.id)
+    expect(new Set(ids).size).toBe(ids.length)
+    for (const entry of ENTERPRISE_TEASERS) {
+      expect(entry.item.tag).toBe('Enterprise')
+      expect(entry.item.ownerOnly).toBe(true)
+      expect(entry.summary.length).toBeGreaterThan(20)
+    }
+  })
+
+  it('places a teaser in the rail like an extension item', () => {
+    const placed = withExtensionItems(GROUPS, [{ ...teaser('x'), after: 'a' }])
+    expect(placed[0]?.items.map((entry) => [entry.id, entry.tag])).toEqual([
+      ['a', undefined],
+      ['x', 'Enterprise'],
+      ['b', undefined],
+    ])
   })
 })
