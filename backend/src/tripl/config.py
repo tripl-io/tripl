@@ -310,6 +310,20 @@ class Settings(BaseSettings):
     google_client_id: str = ""
     google_client_secret: str = ""
     google_allowed_domains: Annotated[list[str], NoDecode] = Field(default_factory=list)
+    # "Sign in with <provider>": the instance's own OpenID Connect provider
+    # (Okta, Microsoft Entra ID, Keycloak, ...), beside Google. Issuer, client
+    # id and secret all set turn the button on; register the redirect URI
+    # ``{APP_BASE_URL}/api/v1/auth/oidc/callback`` at the provider. An address
+    # the provider marks verified signs in to the account that has it;
+    # OIDC_ALLOWED_DOMAINS limits sign-in to those domains (platform admins
+    # included), and OIDC_AUTO_CREATE_USERS=false signs in existing accounts only.
+    oidc_issuer: str = ""
+    oidc_client_id: str = ""
+    oidc_client_secret: str = ""
+    oidc_scopes: str = "openid email profile"
+    oidc_button_label: str = "Sign in with OpenID Connect"
+    oidc_allowed_domains: Annotated[list[str], NoDecode] = Field(default_factory=list)
+    oidc_auto_create_users: bool = True
 
     # AI features (LLM-powered descriptions, Q&A). Disabled by default because
     # plan content — event names, descriptions, field names — is sent to the
@@ -388,7 +402,9 @@ class Settings(BaseSettings):
         # surrounding whitespace, as registration_mode does.
         return value.strip().lower() if isinstance(value, str) else value
 
-    @field_validator("platform_admin_emails", "google_allowed_domains", mode="before")
+    @field_validator(
+        "platform_admin_emails", "google_allowed_domains", "oidc_allowed_domains", mode="before"
+    )
     @classmethod
     def _split_platform_admin_emails(cls, value: object) -> object:
         if isinstance(value, str):
@@ -398,6 +414,27 @@ class Settings(BaseSettings):
             # users.email matches however the operator capitalised it.
             return [str(item).strip().lower() for item in value if str(item).strip()]
         return value
+
+    @field_validator("oidc_issuer")
+    @classmethod
+    def _oidc_issuer_is_https(cls, value: str) -> str:
+        value = value.strip()
+        if value and not value.lower().startswith("https://"):
+            # Discovery, keys and tokens are fetched over https only (idp_http).
+            msg = "OIDC_ISSUER must be an https:// URL"
+            raise ValueError(msg)
+        return value
+
+    @field_validator("oidc_scopes")
+    @classmethod
+    def _oidc_scopes_include_openid(cls, value: str) -> str:
+        scopes = value.split()
+        # The id_token, and the email in it, are what sign the user in.
+        missing = [scope for scope in ("openid", "email") if scope not in scopes]
+        if missing:
+            msg = f"OIDC_SCOPES must include {' and '.join(missing)}"
+            raise ValueError(msg)
+        return " ".join(scopes)
 
     @field_validator("search_embedding_dimensions")
     @classmethod

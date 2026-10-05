@@ -467,6 +467,8 @@ async def test_auth_status_reports_whether_registration_is_accepted(
         "deployment_mode": "self_hosted",
         "email_verification_required": False,
         "google_sign_in": False,
+        "oidc_sign_in": False,
+        "oidc_button_label": None,
         "public_demo": False,
         "multi_org": False,
     }
@@ -481,6 +483,8 @@ async def test_auth_status_reports_whether_registration_is_accepted(
         "deployment_mode": "self_hosted",
         "email_verification_required": False,
         "google_sign_in": False,
+        "oidc_sign_in": False,
+        "oidc_button_label": None,
         "public_demo": False,
         "multi_org": False,
     }

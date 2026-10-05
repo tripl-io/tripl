@@ -23,6 +23,7 @@ own identity and compliance rules. It ships as a separate private image,
 | More organizations on one instance, each with its own members and projects | | ✓ |
 | Project audit history | ✓ | ✓ |
 | Sign in with Google | ✓ | ✓ |
+| Sign in through your own OpenID Connect provider (Okta, Entra ID, Keycloak, …), for the whole instance | ✓ | ✓ |
 | Single sign-on per organization (OpenID Connect, SAML 2.0), verified domains, SSO required | | ✓ |
 | Provisioning over SCIM 2.0, groups mapped to roles | | ✓ |
 | Organization-wide audit log, search across projects, export (CSV, NDJSON) | | ✓ |

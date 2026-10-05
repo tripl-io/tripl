@@ -13,6 +13,7 @@ from tripl.api.v1.api_keys import router as api_keys_router
 from tripl.api.v1.app_settings import router as app_settings_router
 from tripl.api.v1.auth import router as auth_router
 from tripl.api.v1.auth_google import router as auth_google_router
+from tripl.api.v1.auth_oidc import router as auth_oidc_router
 from tripl.api.v1.chart_annotations import router as chart_annotations_router
 from tripl.api.v1.data_sources import router as data_sources_router
 from tripl.api.v1.dependencies import router as dependencies_router
@@ -89,6 +90,7 @@ for _extension in extensions.extensions():
 
 router.include_router(auth_router)
 router.include_router(auth_google_router)
+router.include_router(auth_oidc_router)
 router.include_router(activity_router, dependencies=protected_dependencies)
 router.include_router(ai_router, dependencies=protected_dependencies)
 router.include_router(app_settings_router, dependencies=protected_dependencies)

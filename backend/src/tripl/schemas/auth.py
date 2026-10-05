@@ -124,6 +124,11 @@ class AuthStatusResponse(BaseModel):
     # Whether "Sign in with Google" is offered (GOOGLE_CLIENT_ID and
     # GOOGLE_CLIENT_SECRET set).
     google_sign_in: bool = False
+    # Whether "Sign in with <provider>" is offered for the instance's OpenID
+    # Connect provider (OIDC_ISSUER, OIDC_CLIENT_ID and OIDC_CLIENT_SECRET set),
+    # and its button's text (OIDC_BUTTON_LABEL); null when it is not.
+    oidc_sign_in: bool = False
+    oidc_button_label: str | None = None
     # A public demo instance (PUBLIC_DEMO): the app says so, signs up with
     # Google only, and hides what it refuses.
     public_demo: bool = False
