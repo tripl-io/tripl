@@ -32,8 +32,8 @@ The separate group is needed because `tripl.models` imports these modules at
 the end of its own initialisation, before any service can be imported. The
 extension object cannot be reached that early.
 
-Extensions are loaded once per process and called in load order: the bundled
-one first, then the installed ones sorted by entry point name. A server that
+Extensions are loaded once per process and called in load order, sorted by
+entry point name. A server that
 finds an entry point whose object is not an `Extension` refuses to start.
 
 ## Database migrations
@@ -119,7 +119,7 @@ the app renders what it lists without knowing what it is:
 | `authPanels` | Offers a button under the password form on the sign-in page, which opens the panel. |
 | `shellGates` | Called with the app shell's request errors; a gate returns a screen to show instead of the shell, or `null`. |
 
-Extensions beyond the bundled one come from the `@tripl/extensions` module, a
+Frontend extensions come from the `@tripl/extensions` module, a
 build-time alias. By default it points to `src/extensions/none.ts`, which lists
 none. A build that sets `TRIPL_EXTENSIONS_ENTRY` to the path of another module
 gets that module's default export, a `FrontendExtension[]`, instead.
@@ -139,7 +139,7 @@ it exists. The feature does not just disappear from Community.
   links to the [Editions](../editions.md) page. A teaser has the id of the
   section the Enterprise extension registers, and it is hidden whenever an
   installed extension provides that id. An Enterprise build therefore shows
-  the real page, and so does Community while the feature is still bundled.
+  the real page.
 - **Docs.** The [Editions](../editions.md) page lists every Enterprise
   feature. A page that documents one opens with this admonition:
 
@@ -152,12 +152,9 @@ it exists. The feature does not just disappear from Community.
 Moving a feature out adds its teaser (when it has a settings page), a row on
 the Editions page, and the admonition on its docs pages.
 
-## The bundled extension
+## The Enterprise package
 
-The audit webhook still lives in this repository. It is registered as a
-bundled extension: on the backend `tripl._bundled_enterprise`, with its models
-in the bundled model list; in the web app `frontend/src/extensions/bundled`.
-The core reaches it only through the hooks and the registry above. When it
-moves to a separately installed package, only those modules and their imports
-move with it. Single sign-on per organization and SCIM provisioning have
-already moved to the private Enterprise package, which uses the same hooks.
+Community bundles no extension. Every Enterprise feature (single sign-on per
+organization, SCIM provisioning, the organization-wide audit log, audit export
+and the audit webhook) lives in the separately installed, private Enterprise
+package, which reaches the core only through the hooks and the registry above.

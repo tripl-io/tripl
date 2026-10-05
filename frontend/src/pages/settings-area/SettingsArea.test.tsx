@@ -8,7 +8,6 @@ import { projectsApi } from '@/api/projects'
 import { usersApi } from '@/api/users'
 import { AuthContext, type AuthContextValue } from '@/components/auth-context'
 import type { Project } from '@/types'
-import { auditWebhookApi } from '@/api/auditExport'
 import SettingsArea from './SettingsArea'
 import { at } from '@/test/at'
 
@@ -403,17 +402,15 @@ describe('SettingsArea owner-only sections (#237)', () => {
     expect(screen.queryByText(/part of Tripl Enterprise/)).toBeNull()
   })
 
-  it('keeps the Audit webhook from an organization admin: it is an owner\'s alone (F20)', async () => {
+  it('opens the organization audit log as an Enterprise feature for an admin', async () => {
     vi.spyOn(projectsApi, 'list').mockResolvedValue(projects)
-    const get = vi.spyOn(auditWebhookApi, 'get')
     const owner = ownerAuthValue()
     const admin: AuthContextValue = { ...owner, user: owner.user && { ...owner.user, role: 'admin' } }
 
-    renderArea('organization/audit-webhook', '', admin)
+    renderArea('instance/audit', '', admin)
 
-    expect(await screen.findByRole('heading', { level: 1, name: 'Audit webhook' })).toBeInTheDocument()
-    expect(screen.getByRole('note')).toHaveTextContent(/Only an organization owner can view or change the audit webhook/)
-    expect(get).not.toHaveBeenCalled()
+    expect(await screen.findByRole('heading', { level: 1, name: 'Audit log' })).toBeInTheDocument()
+    expect(screen.getByText(/part of Tripl Enterprise/)).toBeInTheDocument()
   })
 
   it('keeps the Platform console from an organization owner who is not a platform admin (F20 PR9)', async () => {

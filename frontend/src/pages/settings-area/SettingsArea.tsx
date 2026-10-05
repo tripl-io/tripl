@@ -36,7 +36,6 @@ const ApiKeysSection = lazyWithReload(() => import('./ApiKeysSection'))
 const ProfileSection = lazyWithReload(() => import('./ProfileSection'))
 const SecuritySection = lazyWithReload(() => import('./SecuritySection'))
 const InstanceSection = lazyWithReload(() => import('./InstanceSection'))
-const WorkspaceAuditSection = lazyWithReload(() => import('./WorkspaceAuditSection'))
 const OrgSettingsSection = lazyWithReload(() => import('./OrgSettingsSection'))
 const OrgTrackersSection = lazyWithReload(() => import('./OrgTrackersSection'))
 const OrgGroupsSection = lazyWithReload(() => import('./OrgGroupsSection'))
@@ -319,13 +318,6 @@ function renderSection({
   // project section to guess at.
   if (section.startsWith('organization/')) return <Navigate to="/settings/organization/general" replace />
   if (section.startsWith('instance/')) {
-    // Audit is the one Instance section that is not a settings form, so it does
-    // not go through InstanceSection — that component's whole job is to frame a
-    // ServiceSettingsPage section, and this reads a feed instead. It is the
-    // organization's feed, so it takes the org owner gate.
-    if (section === 'instance/audit') {
-      return isOwner ? <WorkspaceAuditSection /> : <OwnerOnly section={section} />
-    }
     // Every other instance/* section is the Platform console (F20 PR9): the
     // operator's, whatever the caller's organization role.
     if (!platformAdmin) return <PlatformOnly section={section} />

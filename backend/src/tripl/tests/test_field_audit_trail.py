@@ -207,7 +207,7 @@ async def test_the_demo_files_its_authored_objects_in_their_routes_own_shape(
         # The list response carries no payload on purpose (AuditEntryResponse);
         # it travels one row at a time, which is the door the Audit tab uses
         # when a reader expands a row.
-        detail = await client.get(f"/api/v1/audit/{entry['id']}")
+        detail = await client.get(f"/api/v1/projects/{slug}/audit/{entry['id']}")
         assert detail.status_code == 200, detail.text
         return detail.json()["payload"]
 
@@ -225,7 +225,7 @@ async def test_the_demo_files_its_authored_objects_in_their_routes_own_shape(
         set: a trail that outgrows one page reddens here, loudly, instead of
         quietly narrowing what the counts below are about.
         """
-        listed = await client.get(f"/api/v1/audit?project_slug={slug}&action={action}&limit=200")
+        listed = await client.get(f"/api/v1/projects/{slug}/audit?action={action}&limit=200")
         assert listed.status_code == 200, listed.text
         body = listed.json()
         assert len(body["items"]) == body["total"], body["total"]
@@ -370,7 +370,7 @@ async def test_field_audit_rows_type_their_target_field_definition_and_name_the_
     deleted = await client.delete(f"{url}/{field_id}")
     assert deleted.status_code == 204, deleted.text
 
-    audit = await client.get(f"/api/v1/audit?project_slug={slug}")
+    audit = await client.get(f"/api/v1/projects/{slug}/audit")
     assert audit.status_code == 200, audit.text
     rows = [entry for entry in audit.json()["items"] if entry["action"].startswith("field.")]
 

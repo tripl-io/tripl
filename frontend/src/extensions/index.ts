@@ -1,5 +1,4 @@
 import installed from '@tripl/extensions'
-import { bundledEnterprise } from './bundled'
 import { ENTERPRISE_TEASERS, visibleTeasers, type EnterpriseTeaser } from './teasers'
 import type {
   ExtensionAuthPanel,
@@ -12,12 +11,12 @@ import type {
 export type * from './types'
 
 /**
- * The frontend extensions this build carries: the bundled one, then those of
- * the `@tripl/extensions` module. That module is a build-time alias:
+ * The frontend extensions this build carries: those of the
+ * `@tripl/extensions` module. That module is a build-time alias:
  * `./none.ts` (no extensions) unless the build sets `TRIPL_EXTENSIONS_ENTRY`
  * to another module whose default export is a `FrontendExtension[]`.
  */
-export const EXTENSIONS: readonly FrontendExtension[] = [bundledEnterprise, ...installed]
+export const EXTENSIONS: readonly FrontendExtension[] = installed
 
 export const extensionRoutes: readonly ExtensionRoute[] = EXTENSIONS.flatMap(
   (extension) => extension.routes ?? [],

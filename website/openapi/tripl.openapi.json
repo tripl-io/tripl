@@ -6,194 +6,6 @@
     "version": "0.1.0"
   },
   "paths": {
-    "/api/v1/audit/webhook": {
-      "get": {
-        "tags": [
-          "audit"
-        ],
-        "summary": "Get Audit Webhook",
-        "operationId": "get_audit_webhook_api_v1_audit_webhook_get",
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/AuditWebhookResponse"
-                }
-              }
-            }
-          }
-        }
-      },
-      "put": {
-        "tags": [
-          "audit"
-        ],
-        "summary": "Put Audit Webhook",
-        "description": "Create the webhook (the answer carries its secret, once) or change it.\n\n422 for a URL that is not https, carries credentials, or (hosted) names a\nprivate host.",
-        "operationId": "put_audit_webhook_api_v1_audit_webhook_put",
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/AuditWebhookUpdate"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/AuditWebhookSaved"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      },
-      "delete": {
-        "tags": [
-          "audit"
-        ],
-        "summary": "Delete Audit Webhook",
-        "operationId": "delete_audit_webhook_api_v1_audit_webhook_delete",
-        "responses": {
-          "204": {
-            "description": "Successful Response"
-          }
-        }
-      }
-    },
-    "/api/v1/audit/webhook/rotate-secret": {
-      "post": {
-        "tags": [
-          "audit"
-        ],
-        "summary": "Rotate Audit Webhook Secret",
-        "description": "A new signing secret, shown once; the old one stops working at once.",
-        "operationId": "rotate_audit_webhook_secret_api_v1_audit_webhook_rotate_secret_post",
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/AuditWebhookSaved"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/v1/audit/webhook/test": {
-      "post": {
-        "tags": [
-          "audit"
-        ],
-        "summary": "Send Audit Webhook Test",
-        "description": "Send a synthetic ``audit.webhook_test`` event now; 200 whatever the receiver said.",
-        "operationId": "send_audit_webhook_test_api_v1_audit_webhook_test_post",
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/AuditWebhookTestResult"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/v1/audit/webhook/deliveries": {
-      "get": {
-        "tags": [
-          "audit"
-        ],
-        "summary": "List Audit Webhook Deliveries",
-        "operationId": "list_audit_webhook_deliveries_api_v1_audit_webhook_deliveries_get",
-        "parameters": [
-          {
-            "name": "status",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "enum": [
-                    "pending",
-                    "failed",
-                    "sent",
-                    "dead"
-                  ],
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Status"
-            }
-          },
-          {
-            "name": "limit",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "type": "integer",
-              "maximum": 200,
-              "minimum": 1,
-              "default": 50,
-              "title": "Limit"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "array",
-                  "items": {
-                    "$ref": "#/components/schemas/AuditWebhookDeliveryResponse"
-                  },
-                  "title": "Response List Audit Webhook Deliveries Api V1 Audit Webhook Deliveries Get"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
     "/api/v1/auth/status": {
       "get": {
         "tags": [
@@ -21323,28 +21135,22 @@
         }
       }
     },
-    "/api/v1/audit": {
+    "/api/v1/projects/{slug}/audit": {
       "get": {
         "tags": [
           "audit"
         ],
-        "summary": "List Audit",
-        "operationId": "list_audit_api_v1_audit_get",
+        "summary": "List Project Audit",
+        "description": "The project's entries, newest first. A deleted project's rows stay\nreachable by its last slug while no live project answers to it.",
+        "operationId": "list_project_audit_api_v1_projects__slug__audit_get",
         "parameters": [
           {
-            "name": "project_slug",
-            "in": "query",
-            "required": false,
+            "name": "slug",
+            "in": "path",
+            "required": true,
             "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Project Slug"
+              "type": "string",
+              "title": "Slug"
             }
           },
           {
@@ -21478,14 +21284,25 @@
         }
       }
     },
-    "/api/v1/audit/actions": {
+    "/api/v1/projects/{slug}/audit/actions": {
       "get": {
         "tags": [
           "audit"
         ],
-        "summary": "List Audit Actions",
-        "description": "Every action the log records, grouped for the filter; see audit_actions.",
-        "operationId": "list_audit_actions_api_v1_audit_actions_get",
+        "summary": "List Project Audit Actions",
+        "description": "Every action the log records, grouped for the filter; see audit_actions.\nA project's entries carry the ``project`` group's actions.",
+        "operationId": "list_project_audit_actions_api_v1_projects__slug__audit_actions_get",
+        "parameters": [
+          {
+            "name": "slug",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Slug"
+            }
+          }
+        ],
         "responses": {
           "200": {
             "description": "Successful Response",
@@ -21493,99 +21310,6 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/AuditActionCatalog"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/v1/audit/export": {
-      "get": {
-        "tags": [
-          "audit"
-        ],
-        "summary": "Export Audit",
-        "description": "Stream the organization's audit log for ``[from, to)`` (UTC; default the\nlast 30 days, at most 366). ``to`` is exclusive: to include a whole last\nday, send the day after it. Rows of the organization and of its projects;\nnever platform-scope rows. 422 for an empty, reversed or too wide range.",
-        "operationId": "export_audit_api_v1_audit_export_get",
-        "parameters": [
-          {
-            "name": "format",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "enum": [
-                "csv",
-                "json"
-              ],
-              "type": "string",
-              "default": "csv",
-              "title": "Format"
-            }
-          },
-          {
-            "name": "from",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string",
-                  "format": "date-time"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "From"
-            }
-          },
-          {
-            "name": "to",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string",
-                  "format": "date-time"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "To"
-            }
-          },
-          {
-            "name": "action",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Action"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "The rows, oldest first: CSV (a header row) or NDJSON.",
-            "content": {
-              "text/csv": {
-                "schema": {
-                  "type": "string"
-                }
-              },
-              "application/x-ndjson": {
-                "schema": {
-                  "type": "string"
                 }
               }
             }
@@ -21603,14 +21327,24 @@
         }
       }
     },
-    "/api/v1/audit/{entry_id}": {
+    "/api/v1/projects/{slug}/audit/{entry_id}": {
       "get": {
         "tags": [
           "audit"
         ],
-        "summary": "Get Audit Entry",
-        "operationId": "get_audit_entry_api_v1_audit__entry_id__get",
+        "summary": "Get Project Audit Entry",
+        "description": "One entry with its payload. 404 for an entry of another project.",
+        "operationId": "get_project_audit_entry_api_v1_projects__slug__audit__entry_id__get",
         "parameters": [
+          {
+            "name": "slug",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Slug"
+            }
+          },
           {
             "name": "entry_id",
             "in": "path",
@@ -28817,334 +28551,6 @@
           "total"
         ],
         "title": "AuditListResponse"
-      },
-      "AuditWebhookDeliveryResponse": {
-        "properties": {
-          "id": {
-            "type": "string",
-            "format": "uuid",
-            "title": "Id"
-          },
-          "audit_log_id": {
-            "type": "string",
-            "format": "uuid",
-            "title": "Audit Log Id"
-          },
-          "action": {
-            "type": "string",
-            "title": "Action"
-          },
-          "status": {
-            "type": "string",
-            "enum": [
-              "pending",
-              "failed",
-              "sent",
-              "dead"
-            ],
-            "title": "Status"
-          },
-          "attempts": {
-            "type": "integer",
-            "title": "Attempts"
-          },
-          "next_attempt_at": {
-            "type": "string",
-            "format": "date-time",
-            "title": "Next Attempt At"
-          },
-          "last_error": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Last Error"
-          },
-          "created_at": {
-            "type": "string",
-            "format": "date-time",
-            "title": "Created At"
-          },
-          "sent_at": {
-            "anyOf": [
-              {
-                "type": "string",
-                "format": "date-time"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Sent At"
-          }
-        },
-        "type": "object",
-        "required": [
-          "id",
-          "audit_log_id",
-          "action",
-          "status",
-          "attempts",
-          "next_attempt_at",
-          "last_error",
-          "created_at",
-          "sent_at"
-        ],
-        "title": "AuditWebhookDeliveryResponse"
-      },
-      "AuditWebhookResponse": {
-        "properties": {
-          "configured": {
-            "type": "boolean",
-            "title": "Configured"
-          },
-          "url": {
-            "type": "string",
-            "title": "Url",
-            "default": ""
-          },
-          "enabled": {
-            "type": "boolean",
-            "title": "Enabled",
-            "default": false
-          },
-          "secret_configured": {
-            "type": "boolean",
-            "title": "Secret Configured",
-            "default": false
-          },
-          "created_at": {
-            "anyOf": [
-              {
-                "type": "string",
-                "format": "date-time"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Created At"
-          },
-          "updated_at": {
-            "anyOf": [
-              {
-                "type": "string",
-                "format": "date-time"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Updated At"
-          },
-          "last_success_at": {
-            "anyOf": [
-              {
-                "type": "string",
-                "format": "date-time"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Last Success At"
-          },
-          "last_error": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Last Error"
-          },
-          "last_error_at": {
-            "anyOf": [
-              {
-                "type": "string",
-                "format": "date-time"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Last Error At"
-          }
-        },
-        "type": "object",
-        "required": [
-          "configured"
-        ],
-        "title": "AuditWebhookResponse",
-        "description": "The webhook as its owner reads it; ``configured`` false when there is none."
-      },
-      "AuditWebhookSaved": {
-        "properties": {
-          "configured": {
-            "type": "boolean",
-            "title": "Configured"
-          },
-          "url": {
-            "type": "string",
-            "title": "Url",
-            "default": ""
-          },
-          "enabled": {
-            "type": "boolean",
-            "title": "Enabled",
-            "default": false
-          },
-          "secret_configured": {
-            "type": "boolean",
-            "title": "Secret Configured",
-            "default": false
-          },
-          "created_at": {
-            "anyOf": [
-              {
-                "type": "string",
-                "format": "date-time"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Created At"
-          },
-          "updated_at": {
-            "anyOf": [
-              {
-                "type": "string",
-                "format": "date-time"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Updated At"
-          },
-          "last_success_at": {
-            "anyOf": [
-              {
-                "type": "string",
-                "format": "date-time"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Last Success At"
-          },
-          "last_error": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Last Error"
-          },
-          "last_error_at": {
-            "anyOf": [
-              {
-                "type": "string",
-                "format": "date-time"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Last Error At"
-          },
-          "secret": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Secret"
-          }
-        },
-        "type": "object",
-        "required": [
-          "configured"
-        ],
-        "title": "AuditWebhookSaved",
-        "description": "What a create or a rotation answers: the new secret, this once."
-      },
-      "AuditWebhookTestResult": {
-        "properties": {
-          "ok": {
-            "type": "boolean",
-            "title": "Ok"
-          },
-          "status_code": {
-            "anyOf": [
-              {
-                "type": "integer"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Status Code"
-          },
-          "error": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Error"
-          },
-          "event_id": {
-            "type": "string",
-            "format": "uuid",
-            "title": "Event Id"
-          }
-        },
-        "type": "object",
-        "required": [
-          "ok",
-          "event_id"
-        ],
-        "title": "AuditWebhookTestResult"
-      },
-      "AuditWebhookUpdate": {
-        "properties": {
-          "url": {
-            "type": "string",
-            "maxLength": 2048,
-            "minLength": 1,
-            "title": "Url"
-          },
-          "enabled": {
-            "type": "boolean",
-            "title": "Enabled",
-            "default": true
-          }
-        },
-        "additionalProperties": false,
-        "type": "object",
-        "required": [
-          "url"
-        ],
-        "title": "AuditWebhookUpdate",
-        "description": "``PUT /orgs/{org}/audit/webhook``: create it, or change its URL or switch.\n\nThe secret is never sent: it is generated on create and on\n``POST .../rotate-secret``, and shown once."
       },
       "AuthStatusResponse": {
         "properties": {

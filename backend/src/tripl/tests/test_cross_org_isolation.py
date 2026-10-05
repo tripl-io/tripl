@@ -610,7 +610,7 @@ async def _seed_plan(seed: OrgSeed, p: str) -> None:
 
     await _seed_rows(seed, p)
 
-    audit = await _ok(await c.get(f"{API}/audit"))
+    audit = await _ok(await c.get(f"{API}/projects/{SLUG}/audit"))
     ids["entry_id"] = audit["items"][0]["id"]
 
 
@@ -881,7 +881,6 @@ def _body(method: str, path: str, w: World) -> Any:
         f"{API}/orgs/{{org}}/groups": {"name": "probe"},
         f"{API}/orgs/{{org}}/groups/{{group_id}}": {"name": "probe"},
         f"{API}/orgs/{{org}}/groups/{{group_id}}/members": {"user_id": w.a.member_id},
-        f"{API}/audit/webhook": {"url": "https://hooks.example.com/probe", "enabled": True},
     }
     return table.get(path, {})
 
@@ -1120,13 +1119,8 @@ LIST_READS: list[tuple[str, dict[str, str] | None]] = [
     ("/data-sources", None),
     ("/users", None),
     ("/users/invitations", None),
-    ("/audit", None),
-    ("/audit/actions", None),
-    # The export (owner/admin) and the webhook's deliveries (owner): B's rows only.
-    ("/audit/export", None),
-    ("/audit/export", {"format": "json"}),
-    ("/audit/webhook", None),
-    ("/audit/webhook/deliveries", None),
+    (f"/projects/{SLUG}/audit", None),
+    (f"/projects/{SLUG}/audit/actions", None),
     ("/activity", None),
     (f"/activity/projects/{SLUG}", None),
     ("/me/api-keys", None),
@@ -1341,7 +1335,7 @@ async def test_a_demo_seeded_in_org_a_files_its_audit_trail_in_org_a(world: Worl
     assert any(entry.project_id is None for entry in seeded)
 
     own = await world.a.owner.get(
-        f"{API}/orgs/{ORG_A}/audit", params={"project_slug": demo_slug, "limit": "200"}
+        f"{API}/orgs/{ORG_A}/projects/{demo_slug}/audit", params={"limit": "200"}
     )
     assert own.status_code == 200, own.text
     assert own.json()["items"], "A's own audit tab shows nothing of its demo"
@@ -1352,15 +1346,12 @@ async def test_a_demo_seeded_in_org_a_files_its_audit_trail_in_org_a(world: Worl
         async with TestSessionLocal() as session:
             await add_org_member(session, uuid.UUID(default_owner_id), "owner")
         for name, client, url in (
-            ("b-owner", world.b.owner, f"{API}/audit"),
-            ("default-owner", default_owner, f"{API}/audit"),
+            ("b-owner", world.b.owner, f"{API}/projects/{demo_slug}/audit"),
+            ("default-owner", default_owner, f"{API}/projects/{demo_slug}/audit"),
         ):
-            feed = await client.get(url, params={"limit": "200"})
-            assert feed.status_code == 200, f"{name}: {feed.text}"
-            assert demo_slug not in feed.text, f"{name} reads A's demo trail"
-            scoped = await client.get(url, params={"project_slug": demo_slug})
-            assert scoped.status_code == 200, f"{name}: {scoped.text}"
-            assert scoped.json()["items"] == [], f"{name} reads A's demo trail by slug"
+            # No such project in their organization: no trail to read either.
+            scoped = await client.get(url, params={"limit": "200"})
+            assert scoped.status_code == 404, f"{name}: {scoped.text}"
     finally:
         await default_owner.aclose()
 

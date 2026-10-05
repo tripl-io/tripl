@@ -108,21 +108,23 @@ async def test_another_orgs_admin_cannot_reach_a_data_source(stand: Stand) -> No
 
 
 @pytest.mark.asyncio
-async def test_the_audit_feed_is_per_organization(stand: Stand) -> None:
-    await _default_org_source(stand.boss)
+async def test_a_project_audit_history_is_per_organization(stand: Stand) -> None:
+    """Another organization's admin asking for the same slug in their own
+    organization finds no such project, and no entry of it."""
+    created = await stand.boss.post("/api/v1/projects", json={"name": "Fenced", "slug": "fenced"})
+    assert created.status_code == 201, created.text
     async with TestSessionLocal() as session:
         entry_id = await session.scalar(
             select(AuditLog.id).where(
                 AuditLog.organization_id == DEFAULT_ORG_ID,
-                AuditLog.action == "data_source.create",
+                AuditLog.project_slug == "fenced",
             )
         )
     assert entry_id is not None
 
-    feed = await stand.xavier.get(f"{ACME}/audit")
-    assert feed.status_code == 200, feed.text
-    assert str(entry_id) not in {row["id"] for row in feed.json()["items"]}
-    assert (await stand.xavier.get(f"{ACME}/audit/{entry_id}")).status_code == 404
+    feed = await stand.xavier.get(f"{ACME}/projects/fenced/audit")
+    assert feed.status_code == 404, feed.text
+    assert (await stand.xavier.get(f"{ACME}/projects/fenced/audit/{entry_id}")).status_code == 404
 
-    own = await stand.boss.get(f"/api/v1/audit/{entry_id}")
+    own = await stand.boss.get(f"/api/v1/projects/fenced/audit/{entry_id}")
     assert own.status_code == 200, own.text

@@ -145,7 +145,7 @@ async def test_a_step_in_reads_the_org_as_a_viewer(world: World) -> None:
     assert (org.json()["role"], org.json()["step_in"]) == ("member", True)
 
     # Owner/admin reads stay closed: a step-in is a member, not an admin.
-    for path in (f"{ORG}/settings", f"{ORG}/audit", f"{ORG}/users/invitations"):
+    for path in (f"{ORG}/settings", f"{PROJECT}/audit", f"{ORG}/users/invitations"):
         resp = await world.operator.get(path)
         assert resp.status_code == 403, (path, resp.text)
 
@@ -219,12 +219,6 @@ async def test_the_step_in_is_audited_in_the_target_org(world: World) -> None:
     assert ended.json()["active"] is False
     (end,) = await audit_rows("platform.step_in_end")
     assert end.organization_id == GLOBEX_ID
-
-    # The target organization's owner reads both in their own feed.
-    feed = await world.alice.get(f"{ORG}/audit", params={"limit": 50})
-    assert feed.status_code == 200, feed.text
-    actions = {item["action"] for item in feed.json()["items"]}
-    assert {"platform.step_in", "platform.step_in_end"} <= actions
 
 
 @pytest.mark.asyncio

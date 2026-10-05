@@ -758,7 +758,8 @@ def _recorded_actions() -> tuple[set[str], set[str]]:
 async def test_audit_actions_route_serves_every_recorded_action(client: AsyncClient) -> None:
     from tripl.services import audit_actions
 
-    resp = await client.get("/api/v1/audit/actions")
+    await client.post("/api/v1/projects", json={"name": "Actions", "slug": "actions"})
+    resp = await client.get("/api/v1/projects/actions/audit/actions")
 
     assert resp.status_code == 200, resp.text
     body = resp.json()

@@ -317,21 +317,25 @@ async def test_audit_log_is_owner_only(fresh_anon_client: AsyncClient) -> None:
     Entries carry the payload that produced them, so a non-owner could read the
     warehouse connection details that data_sources.py:69 blanks on a direct
     read, and the ``base_query`` SQL that authoring a scan is owner-only to
-    protect. ``project_slug`` is a filter, not a scope, so the reach was every
-    project on the instance.
+    protect. A project's history is gated the same way, for a member of the
+    project too.
     """
     await _register(fresh_anon_client, "audit-owner@example.com")
-    as_owner = await fresh_anon_client.get("/api/v1/audit")
+    await fresh_anon_client.post("/api/v1/projects", json={"name": "Gate", "slug": "gate"})
+    as_owner = await fresh_anon_client.get("/api/v1/projects/gate/audit")
     assert as_owner.status_code == 200, as_owner.text
 
     await fresh_anon_client.post("/api/v1/auth/logout")
     await _register(fresh_anon_client, "audit-editor@example.com")
+    await add_member_by_slug("gate", "audit-editor@example.com", "editor")
 
-    as_editor = await fresh_anon_client.get("/api/v1/audit")
+    as_editor = await fresh_anon_client.get("/api/v1/projects/gate/audit")
     assert as_editor.status_code == 403
 
     # Filters do not buy their way past the gate.
-    filtered = await fresh_anon_client.get("/api/v1/audit", params={"action": "scan_config.create"})
+    filtered = await fresh_anon_client.get(
+        "/api/v1/projects/gate/audit", params={"action": "scan_config.create"}
+    )
     assert filtered.status_code == 403
 
 
@@ -359,10 +363,13 @@ async def test_role_change_keeps_sessions_and_applies_on_the_next_request(
     user out of every other organization they belong to.
     """
     await _register(fresh_anon_client, "owner3@example.com")
+    await fresh_anon_client.post("/api/v1/projects", json={"name": "Gate", "slug": "gate"})
     await fresh_anon_client.post("/api/v1/auth/logout")
     await _register(fresh_anon_client, "promoted@example.com")
+    # A member who can see the project, so the refusal below is the owner gate's.
+    await add_member_by_slug("gate", "promoted@example.com", "viewer")
     member_cookies = dict(fresh_anon_client.cookies)
-    assert (await fresh_anon_client.get("/api/v1/audit")).status_code == 403
+    assert (await fresh_anon_client.get("/api/v1/projects/gate/audit")).status_code == 403
 
     transport = ASGITransport(app=app)
     async with AsyncClient(transport=transport, base_url="http://test") as owner_client:
@@ -378,11 +385,11 @@ async def test_role_change_keeps_sessions_and_applies_on_the_next_request(
             me = await same_session.get("/api/v1/auth/me")
             assert me.status_code == 200, me.text
             assert me.json()["role"] == "admin"
-            assert (await same_session.get("/api/v1/audit")).status_code == 200
+            assert (await same_session.get("/api/v1/projects/gate/audit")).status_code == 200
 
             await _set_role(owner_client, "promoted@example.com", "member")
             assert (await same_session.get("/api/v1/auth/me")).status_code == 200
-            assert (await same_session.get("/api/v1/audit")).status_code == 403
+            assert (await same_session.get("/api/v1/projects/gate/audit")).status_code == 403
 
 
 @pytest.mark.asyncio

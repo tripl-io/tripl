@@ -20,7 +20,6 @@ from httpx import ASGITransport, AsyncClient
 from tripl.api.deps import (
     ORG_ADMIN_REQUIRED,
     get_key_reachable_owner_user,
-    get_org_owner_user,
     get_owner_user,
     get_path_org_admin_user,
     get_path_org_owner_user,
@@ -59,7 +58,7 @@ SESSION_ONLY_OWNER_ROUTES = {
 # F20 PR4: every route gated on organization owner/admin, session only
 # (``get_owner_user``). Org-owned business resources: projects, their danger
 # zone and settings, scan SQL authored against org-owned credentials, the
-# org-owned data sources, the audit feed, and org membership administration.
+# org-owned data sources, a project's audit history, and org membership administration.
 # A route moving in or out of this set is a security decision, so it is listed
 # rather than derived.
 ORG_ADMIN_SESSION_ONLY_ROUTES = {
@@ -83,10 +82,9 @@ ORG_ADMIN_SESSION_ONLY_ROUTES = {
     "PATCH /api/v1/data-sources/{ds_id}",
     "DELETE /api/v1/data-sources/{ds_id}",
     "POST /api/v1/data-sources/{ds_id}/test",
-    "GET /api/v1/audit",
-    "GET /api/v1/audit/actions",
-    "GET /api/v1/audit/export",
-    "GET /api/v1/audit/{entry_id}",
+    "GET /api/v1/projects/{slug}/audit",
+    "GET /api/v1/projects/{slug}/audit/actions",
+    "GET /api/v1/projects/{slug}/audit/{entry_id}",
     "POST /api/v1/users/invitations",
     "GET /api/v1/users/invitations",
     "DELETE /api/v1/users/invitations/{invitation_id}",
@@ -232,25 +230,6 @@ def test_org_management_routes_take_the_path_org_gates() -> None:
     assert (PATH_ORG_ADMIN_ROUTES | PATH_ORG_OWNER_ROUTES).isdisjoint(
         _routes_carrying(get_owner_user)
     )
-
-
-# The audit webhook (F20): OWNERS of the request's bound organization, from a
-# browser session (``get_org_owner_user``), reached through the org rewrite.
-# An admin reads and exports the feed; where it is copied to is the owner's.
-ORG_OWNER_SESSION_ONLY_ROUTES = {
-    "GET /api/v1/audit/webhook",
-    "PUT /api/v1/audit/webhook",
-    "DELETE /api/v1/audit/webhook",
-    "POST /api/v1/audit/webhook/rotate-secret",
-    "POST /api/v1/audit/webhook/test",
-    "GET /api/v1/audit/webhook/deliveries",
-}
-
-
-def test_audit_webhook_routes_take_the_org_owner_gate() -> None:
-    assert _routes_carrying(get_org_owner_user) == ORG_OWNER_SESSION_ONLY_ROUTES
-    assert ORG_OWNER_SESSION_ONLY_ROUTES.isdisjoint(_routes_carrying(get_owner_user))
-    assert ORG_OWNER_SESSION_ONLY_ROUTES.isdisjoint(_routes_carrying(get_key_reachable_owner_user))
 
 
 def _bearer_client() -> AsyncClient:

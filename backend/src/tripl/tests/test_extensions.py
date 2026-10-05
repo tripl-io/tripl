@@ -2,8 +2,8 @@
 
 A server with no extension must behave as Community: every hook a no-op. An
 installed extension is reached only through these hooks, so each dispatch is
-pinned here with a fake extension, and the bundled enterprise extension is
-checked to be the one loaded by default.
+pinned here with a fake extension, and Community alone is checked to load
+none.
 """
 
 import uuid
@@ -72,12 +72,12 @@ class _OwnsZzz(Extension):
         return PlainTextResponse(f"{kind}:{status_code}", status_code=status_code)
 
 
-def test_bundled_enterprise_extension_is_loaded_by_default() -> None:
-    assert [e.name for e in extensions.extensions()] == ["bundled-enterprise"]
-
-
-def test_bundled_models_are_in_the_metadata() -> None:
-    assert {"org_audit_webhooks", "audit_webhook_outbox"} <= set(Base.metadata.tables)
+def test_community_alone_loads_no_extension() -> None:
+    """Every Enterprise feature lives in the separate package; without it the
+    server loads no extension and its schema has none of their tables."""
+    assert extensions.extensions() == []
+    enterprise_tables = {"org_audit_webhooks", "audit_webhook_outbox", "org_sso_configs"}
+    assert not enterprise_tables & set(Base.metadata.tables)
 
 
 async def test_no_extension_makes_every_hook_a_no_op() -> None:
@@ -157,7 +157,6 @@ def test_an_entry_point_that_is_not_an_extension_is_refused(
         def load(self) -> object:
             return object()
 
-    monkeypatch.setattr(extensions, "_BUNDLED", ())
     monkeypatch.setattr(extensions, "entry_points", lambda group: [_Point()])
     with pytest.raises(TypeError, match="not a tripl.extensions.Extension"):
         extensions._load()

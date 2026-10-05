@@ -169,7 +169,7 @@ Top level:
 
 Backend entrypoints:
 - [backend/src/tripl/main.py](backend/src/tripl/main.py): FastAPI app, middleware stack, lifespan, and `/health`.
-- [backend/src/tripl/extensions.py](backend/src/tripl/extensions.py): extension hooks (routers, access gates, lifecycle, audit, worker). The audit webhook is reached only through them, via the bundled `_bundled_enterprise.py`; single sign-on per organization and SCIM live in the private Enterprise package ([extension points](website/docs/develop/extension-points.md)).
+- [backend/src/tripl/extensions.py](backend/src/tripl/extensions.py): extension hooks (routers, access gates, lifecycle, audit, worker). Community bundles no extension: single sign-on per organization, SCIM, the organization-wide audit log (`/audit`), audit export and the audit webhook live in the private Enterprise package, which reaches the core only through them. Community still writes every audit row (`services/audit_service.py`) and serves a project's audit history from `api/v1/project_audit.py` ([extension points](website/docs/develop/extension-points.md)).
 - [backend/src/tripl/api/v1/router.py](backend/src/tripl/api/v1/router.py): all API router registration.
 - [backend/src/tripl/worker/celery_app.py](backend/src/tripl/worker/celery_app.py): Celery app and beat schedule.
 
@@ -188,7 +188,7 @@ Backend layers:
 
 Frontend layers:
 - `frontend/src/App.tsx`: route table.
-- `frontend/src/extensions/`: frontend extension registry (routes, settings sections, sign-in panels, shell gates). The audit-webhook UI is registered in `extensions/bundled/`; `extensions/teasers.ts` shows Enterprise-only features as tagged teasers and reached only through it ([extension points](website/docs/develop/extension-points.md)).
+- `frontend/src/extensions/`: frontend extension registry (routes, settings sections, sign-in panels, shell gates). Community registers no frontend extension; `extensions/teasers.ts` shows Enterprise-only features (single sign-on, SCIM, the organization-wide audit log, the audit webhook) as tagged teasers ([extension points](website/docs/develop/extension-points.md)).
 - `frontend/src/pages`: screen-level UI.
 - `frontend/src/api`: typed HTTP client wrappers.
 - `frontend/src/components`: layout and shared UI.
@@ -316,8 +316,10 @@ Base prefix: `/api/v1`
 
 Routers currently registered:
 - `/auth`, `/users`, `/me/api-keys`, `/settings`
-- `/activity`, `/audit`
+- `/activity`
 - `/projects`
+- `/projects/{slug}/audit` (`/actions`, `/{entry_id}`; org owner or admin,
+  browser session only): the project's audit history
 - `/projects/{slug}/members` (list: any member; add/re-role/remove: instance
   owner or the project's creator, browser session only)
 - `/projects/{slug}/event-types`

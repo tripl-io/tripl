@@ -426,15 +426,6 @@ export const authStatusKey = () => ['auth', 'status'] as const
  * Under `auth` so signing in or out never drops the answer the page is showing. */
 export const verifyEmailKey = (token: string) => ['auth', 'verify-email', token] as const
 
-/** An organization's audit webhook and its recent deliveries (F20). The
- * deliveries nest under the webhook so a save or delete refreshes both. */
-export const orgAuditWebhookKey = (org: string) => [org, 'orgAuditWebhook'] as const
-export const orgAuditWebhookDeliveriesKey = (org: string) =>
-  [org, 'orgAuditWebhook', 'deliveries'] as const
-/** One status filter of those deliveries (`''` for all of them). */
-export const orgAuditWebhookDeliveriesListKey = (org: string, status: string) =>
-  [...orgAuditWebhookDeliveriesKey(org), status] as const
-
 export const usersKey = () => [...orgRoot(), 'users'] as const
 /** Who belongs to one project — `GET /projects/{slug}/members`. The reviewer
  * and event-type owner pickers read it too, since only members can be picked. */
@@ -478,9 +469,12 @@ export const commandPaletteLexicalSearchKey = (slug: string | null | undefined, 
 export const dataSourceSchemaKey = (dataSourceId: string | null | undefined) =>
   [...orgRoot(), 'data-source-schema', dataSourceId] as const
 
-export const auditKey = (params: unknown) => [...orgRoot(), 'audit', params] as const
+// `source` is an `AuditSource.key`: one project's history or the organization's.
+export const auditKey = (source: string, params: unknown) =>
+  [...orgRoot(), 'audit', source, params] as const
 export const auditActionsKey = () => [...orgRoot(), 'auditActions'] as const
-export const auditEntryKey = (entryId: string | null) => [...orgRoot(), 'auditEntry', entryId] as const
+export const auditEntryKey = (source: string, entryId: string | null) =>
+  [...orgRoot(), 'auditEntry', source, entryId] as const
 
 // ---------------------------------------------------------------------------
 // Events

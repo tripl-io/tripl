@@ -324,7 +324,7 @@ async def test_delete_variable_does_not_scan_the_whole_variable_list(
     missing = await client.delete(f"/api/v1/projects/var-del-cost/variables/{uuid.uuid4()}")
     assert missing.status_code == 404
 
-    audit = await client.get("/api/v1/audit?project_slug=var-del-cost")
+    audit = await client.get("/api/v1/projects/var-del-cost/audit")
     deletes = [e for e in audit.json()["items"] if e["action"] == "variable.delete"]
     assert [e["target_name"] for e in deletes] == ["del_b"]
 
