@@ -1,4 +1,4 @@
-import { Building, KeyRound, RefreshCw, ScrollText, UserCog, Webhook } from 'lucide-react'
+import { Building, History, KeyRound, RefreshCw, ScrollText, UserCog, Webhook } from 'lucide-react'
 import type { SettingsNavItem } from '@/components/settings/nav'
 import type { ExtensionSettingsSection } from './types'
 
@@ -92,6 +92,19 @@ export const ENTERPRISE_TEASERS: readonly EnterpriseTeaser[] = [
     }),
     summary:
       "Every entry of the organization's audit log is sent, signed, to your SIEM as it is written.",
+  },
+  {
+    group: 'Organization',
+    after: 'org-audit-webhook',
+    item: tagged({
+      id: 'org-audit-retention',
+      label: 'Audit retention',
+      icon: History,
+      path: 'organization/audit-retention',
+      keywords: ['retention', 'legal hold', 'compliance', 'delete old entries'],
+    }),
+    summary:
+      "How long the organization's audit log is kept, with a legal hold that keeps every entry while a dispute or investigation needs it.",
   },
   {
     group: 'Platform',
