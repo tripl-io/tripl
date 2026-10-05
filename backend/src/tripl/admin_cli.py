@@ -25,7 +25,7 @@ from typing import TextIO
 from sqlalchemy.orm import Session
 
 from tripl.auth_utils import normalize_email
-from tripl.services import platform_console_service as console
+from tripl.services import platform_admins as console
 
 EXIT_OK = 0
 EXIT_UNKNOWN_USER = 1
@@ -35,7 +35,7 @@ EXIT_REFUSED = 2
 def grant(session: Session, email: str, out: TextIO) -> int:
     try:
         change = console.set_platform_admin_sync(session, normalize_email(email), grant=True)
-    except console.ConsoleUserNotFoundError:
+    except console.PlatformUserNotFoundError:
         print(f"No account with email {email}", file=sys.stderr)
         return EXIT_UNKNOWN_USER
     if change.changed:
@@ -48,7 +48,7 @@ def grant(session: Session, email: str, out: TextIO) -> int:
 def revoke(session: Session, email: str, out: TextIO) -> int:
     try:
         change = console.set_platform_admin_sync(session, normalize_email(email), grant=False)
-    except console.ConsoleUserNotFoundError:
+    except console.PlatformUserNotFoundError:
         print(f"No account with email {email}", file=sys.stderr)
         return EXIT_UNKNOWN_USER
     except console.LastPlatformAdminError as exc:

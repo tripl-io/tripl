@@ -98,12 +98,6 @@ _PLATFORM_REASON = (
     "the operator console (F20 PR9): the operator scope, platform admins only "
     "(require_platform_admin); names and reads no organization"
 )
-_PLATFORM_CONSOLE_REASON = (
-    "the platform console (F20 PR14): platform admins only, browser session "
-    "(require_platform_admin); org-free, it names an organization by slug as its "
-    "SUBJECT (metadata, suspension, step-in), never acts in one; "
-    "test_platform_console.py and test_platform_step_in.py pin who reaches it"
-)
 
 #: Every route that is NOT per organization, with the reason. Keyed by path: a
 #: path's methods share the reason.
@@ -143,15 +137,6 @@ PUBLIC_OR_INSTANCE_WIDE: dict[str, str] = {
     f"{API}/platform/settings": _PLATFORM_REASON,
     f"{API}/platform/settings/ai/test": _PLATFORM_REASON,
     f"{API}/platform/settings/email/test": _PLATFORM_REASON,
-    f"{API}/platform/orgs": _PLATFORM_CONSOLE_REASON,
-    f"{API}/platform/orgs/{{org_slug}}": _PLATFORM_CONSOLE_REASON,
-    f"{API}/platform/orgs/{{org_slug}}/suspend": _PLATFORM_CONSOLE_REASON,
-    f"{API}/platform/orgs/{{org_slug}}/unsuspend": _PLATFORM_CONSOLE_REASON,
-    f"{API}/platform/orgs/{{org_slug}}/step-in": _PLATFORM_CONSOLE_REASON,
-    f"{API}/platform/users": _PLATFORM_CONSOLE_REASON,
-    f"{API}/platform/users/{{user_id}}/platform-admin": _PLATFORM_CONSOLE_REASON,
-    f"{API}/platform/step-ins": _PLATFORM_CONSOLE_REASON,
-    f"{API}/platform/step-ins/{{step_in_id}}/end": _PLATFORM_CONSOLE_REASON,
     f"{API}/project-templates": "static instance-wide catalog of starter templates",
     f"{API}/orgs": (
         "the caller's own organizations (an API key: its own one) and creating a new "

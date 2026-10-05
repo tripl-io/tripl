@@ -39,20 +39,12 @@ const InstanceSection = lazyWithReload(() => import('./InstanceSection'))
 const OrgSettingsSection = lazyWithReload(() => import('./OrgSettingsSection'))
 const OrgTrackersSection = lazyWithReload(() => import('./OrgTrackersSection'))
 const OrgGroupsSection = lazyWithReload(() => import('./OrgGroupsSection'))
-// The platform console (F20): its own chunks, fetched by platform admins alone.
-const PlatformOrgsSection = lazyWithReload(() => import('@/pages/platform/PlatformOrgsSection'))
-const PlatformOrgDetailSection = lazyWithReload(() => import('@/pages/platform/PlatformOrgDetailSection'))
-const PlatformUsersSection = lazyWithReload(() => import('@/pages/platform/PlatformUsersSection'))
-
-/** The console's organization list, which its detail pages belong to in the rail. */
-const PLATFORM_ORGS_SECTION = 'platform/orgs'
-
 /**
- * The rail entry a section lights up: an organization's console page
- * (`platform/orgs/<slug>`) belongs to Organizations.
+ * The rail entry a section lights up: an extension page's own item for the
+ * paths below it (`platform/orgs/<slug>` lights Organizations).
  */
 function railPathFor(section: string): string {
-  return section.startsWith(`${PLATFORM_ORGS_SECTION}/`) ? PLATFORM_ORGS_SECTION : section
+  return extensionSettingsSection(section)?.item.path ?? section
 }
 
 const LAST_SLUG_STORAGE_KEY = 'tripl-last-project-slug'
@@ -295,17 +287,28 @@ function renderSection({
   if (extensionSection) {
     // An extension's page (single sign-on, provisioning, the audit webhook):
     // `orgOwner` is the organization's owners alone, not its admins.
-    const { Component, access, deniedReason } = extensionSection
-    if (access === 'orgOwner') {
-      return isOrgOwner ? <Component /> : <OrgOwnerOnly section={section} reason={deniedReason ?? 'this page'} />
+    const { Component, access, deniedReason, subpath } = extensionSection
+    if (access === 'platform') {
+      // The operator's (the platform console), whatever the caller's organization role.
+      return platformAdmin ? <Component subpath={subpath} /> : <PlatformOnly section={extensionSection.item.path} />
     }
-    return isOwner ? <Component /> : <OwnerOnly section={section} />
+    if (access === 'orgOwner') {
+      return isOrgOwner ? (
+        <Component subpath={subpath} />
+      ) : (
+        <OrgOwnerOnly section={section} reason={deniedReason ?? 'this page'} />
+      )
+    }
+    return isOwner ? <Component subpath={subpath} /> : <OwnerOnly section={section} />
   }
   const teaser = enterpriseTeaser(section)
   if (teaser) {
-    // An Enterprise feature this build does not have: say so, for owners and
-    // admins, who are the ones who could get it.
-    return isOwner ? (
+    // An Enterprise feature this build does not have: say so, for those who
+    // could get it — platform admins for the operator's, owners and admins
+    // for an organization's.
+    const allowed = teaser.item.platformOnly ? platformAdmin : isOwner
+    if (!allowed && teaser.item.platformOnly) return <PlatformOnly section={section} />
+    return allowed ? (
       <div>
         <StateHeader section={section} />
         <EnterpriseFeature teaser={teaser} />
@@ -323,18 +326,9 @@ function renderSection({
     if (!platformAdmin) return <PlatformOnly section={section} />
     return <InstanceSection section={section.slice('instance/'.length)} />
   }
-  if (section.startsWith('platform/')) {
-    // The platform console (F20): organizations, users, suspension and
-    // read-only step-in. The operator's, whatever the caller's organization role.
-    if (!platformAdmin) return <PlatformOnly section={railPathFor(section)} />
-    if (section === PLATFORM_ORGS_SECTION) return <PlatformOrgsSection />
-    if (section === 'platform/users') return <PlatformUsersSection />
-    const orgSlug = section.slice(`${PLATFORM_ORGS_SECTION}/`.length)
-    if (section.startsWith(`${PLATFORM_ORGS_SECTION}/`) && orgSlug && !orgSlug.includes('/')) {
-      return <PlatformOrgDetailSection key={orgSlug} slug={orgSlug} />
-    }
-    return <Navigate to={`/settings/${PLATFORM_ORGS_SECTION}`} replace />
-  }
+  // The platform console is the Enterprise edition's: a path below it in a
+  // build without it goes to its teaser.
+  if (section.startsWith('platform/')) return <Navigate to="/settings/platform/orgs" replace />
   // Everything below is project-scoped. Never guess which project that is.
   if (!slug) {
     return (

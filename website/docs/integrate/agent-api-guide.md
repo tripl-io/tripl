@@ -122,37 +122,11 @@ browser session both are `null`. A project-bound key cannot call `/auth/me`
 
 ### Platform console {#platform-console}
 
-The instance operator's API, under `/api/v1/platform`. Every route takes a
-**platform admin's browser session**: an API key is `403 Platform admin session
-required` whatever its scope or owner, and anyone else is `403 Platform admin
-required`. Agents cannot use it; it is listed so a client can tell it apart.
-Organizations are named by slug; nothing here returns project content. See
-[Platform console](../administer/admin-guide.md#platform-console) for the
-rules behind each action.
-
-| Method and path | What |
-|---|---|
-| `GET /api/v1/platform/orgs` | `q` (name or slug), `status` (`active`, `suspended`, `deleting`), `limit`, `offset`. `{"items", "total"}`; each item: `id`, `slug`, `name`, `status`, `created_at`, `suspended_at`, `suspended_reason`, `member_count`, `project_count`, `owner_emails`. |
-| `GET /api/v1/platform/orgs/{org_slug}` | The same fields plus `members` (`email`, `name`, `role`) and `projects` (`slug`, `name`, `created_at`). |
-| `POST /api/v1/platform/orgs/{org_slug}/suspend` | `{"reason"}` (required, 1 to 500 characters, no NUL). The organization answers `403 This organization is suspended` to its members and keys until unsuspended. `409` for an organization being deleted and for the default organization (in any `DEPLOYMENT_MODE`). A platform admin's read-only step-in may still read it. Audited as `org.suspend` in the organization. |
-| `POST /api/v1/platform/orgs/{org_slug}/unsuspend` | Back to `active`. `409` for an organization being deleted. Audited as `org.unsuspend`. |
-| `POST /api/v1/platform/orgs/{org_slug}/step-in` | `{"reason", "ttl_minutes"?}`: reason 1 to 500 characters, `ttl_minutes` 5 to 240 (default 60). `{"id", "org_slug", "expires_at"}`. Starts a read-only step-in into an active or a suspended organization (`409` for one being deleted); a second step-in to the same organization supersedes the first. Audited as `platform.step_in` in the organization. |
-| `POST /api/v1/platform/step-ins/{id}/end` | Ends one of your step-ins now; audited as `platform.step_in_end`. A step-in that runs out is recorded as `platform.step_in_end` with `expired: true`, lazily, the first time a request or a listing sees it. |
-| `GET /api/v1/platform/step-ins` | Your step-ins; `active=true` keeps the unexpired, un-ended ones. |
-| `GET /api/v1/platform/users` | `q` (email or name), `limit`, `offset`. Each item: `id`, `email`, `name`, `is_platform_admin`, `email_verified`, `created_at`, `org_count`. |
-| `POST /api/v1/platform/users/{user_id}/platform-admin` | `{"grant": true \| false}`. `409` when revoking the last platform admin or yourself. Audited as `platform.admin_grant` / `platform.admin_revoke`, with no organization. |
-
-During a step-in the admin acts in that organization as a `member` with the
-`viewer` role on every project, from the browser session only. Any request in
-it other than `GET`, `HEAD` and `OPTIONS` answers `403 Step-in is read-only`,
-except `POST /api/v1/projects/{slug}/anomalies/signals/query` and
-`POST /api/v1/projects/{slug}/events/window-metrics`. `GET /api/v1/auth/me`
-returns the caller's active step-ins as `active_step_ins`
-(`[{"org_slug", "expires_at"}]`).
-
-A suspended organization answers `403 This organization is suspended` to every
-request that acts in it, from a session or a key; `GET /api/v1/orgs` still lists
-it, with `status: "suspended"`.
+The instance operator's API under `/api/v1/platform/orgs`, `/platform/users`
+and `/platform/step-ins` is part of the [Enterprise edition](../editions.md)
+and documented with it. `/api/v1/platform/settings` (**Settings → Instance**)
+is in every edition. Agents cannot use either: both take a platform admin's
+browser session.
 
 ## MCP Server
 

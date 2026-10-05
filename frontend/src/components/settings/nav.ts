@@ -2,7 +2,6 @@ import {
   Activity,
   Building2,
   Archive,
-  Building,
   Cpu,
   Database,
   Key,
@@ -271,28 +270,8 @@ const CORE_WORKSPACE_GROUPS: SettingsNavGroup[] = [
     sub: 'Platform admin',
     desc: 'Server-wide settings',
     items: [
-      // The console (F20): every organization and account on the instance.
-      // "Organizations" and "User accounts", not "Organization" / "Members": those
-      // are the organization's own pages, and two items with one label read
-      // as one page in the rail and in both palettes.
-      {
-        id: 'platform-orgs',
-        label: 'Organizations',
-        icon: Building,
-        path: 'platform/orgs',
-        wide: true,
-        platformOnly: true,
-        keywords: ['tenants', 'suspend', 'step in', 'support'],
-      },
-      {
-        id: 'platform-users',
-        label: 'User accounts',
-        icon: UserCog,
-        path: 'platform/users',
-        wide: true,
-        platformOnly: true,
-        keywords: ['accounts', 'platform admin', 'operators'],
-      },
+      // The console (every organization and account on the instance) is the
+      // Enterprise edition's: its items come before Runtime (extensions/teasers.ts).
       {
         id: 'runtime',
         label: 'Runtime',
@@ -353,18 +332,23 @@ const CORE_WORKSPACE_GROUPS: SettingsNavGroup[] = [
 ]
 
 /**
- * `groups` with the extensions' settings items placed: each after the item it
- * names (in its group), or at the end of its group. New arrays; `groups` is
+ * `groups` with the extensions' settings items placed: each before or after the
+ * item it names (in its group), or at the end of its group. New arrays; `groups` is
  * left as it is.
  */
 export function withExtensionItems(
   groups: readonly SettingsNavGroup[],
-  sections: readonly Pick<ExtensionSettingsSection, 'group' | 'after' | 'item'>[],
+  sections: readonly Pick<ExtensionSettingsSection, 'group' | 'after' | 'before' | 'item'>[],
 ): SettingsNavGroup[] {
   return groups.map((group) => {
     let items = [...group.items]
     for (const section of sections) {
       if (section.group !== group.label) continue
+      const before = section.before ? items.findIndex((item) => item.id === section.before) : -1
+      if (before >= 0) {
+        items = [...items.slice(0, before), section.item, ...items.slice(before)]
+        continue
+      }
       const at = section.after ? items.findIndex((item) => item.id === section.after) : -1
       items = at < 0 ? [...items, section.item] : [...items.slice(0, at + 1), section.item, ...items.slice(at + 1)]
     }

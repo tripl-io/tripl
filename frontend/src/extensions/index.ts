@@ -1,3 +1,4 @@
+import type { ComponentType } from 'react'
 import installed from '@tripl/extensions'
 import { ENTERPRISE_TEASERS, visibleTeasers, type EnterpriseTeaser } from './teasers'
 import type {
@@ -34,9 +35,21 @@ export const extensionShellGates: readonly ExtensionShellGate[] = EXTENSIONS.fla
   (extension) => extension.shellGates ?? [],
 )
 
-/** The extension settings section at `path` (under /settings), if any. */
-export function extensionSettingsSection(path: string): ExtensionSettingsSection | undefined {
-  return extensionSettingsSections.find((section) => section.item.path === path)
+export const extensionShellBanners: readonly ComponentType[] = EXTENSIONS.flatMap(
+  (extension) => extension.shellBanners ?? [],
+)
+
+/** The extension settings section at `path` (under /settings), if any, and what follows its own path. */
+export function extensionSettingsSection(
+  path: string,
+): (ExtensionSettingsSection & { subpath: string }) | undefined {
+  for (const section of extensionSettingsSections) {
+    if (section.item.path === path) return { ...section, subpath: '' }
+    if (section.subpaths && path.startsWith(`${section.item.path}/`)) {
+      return { ...section, subpath: path.slice(section.item.path.length + 1) }
+    }
+  }
+  return undefined
 }
 
 /**

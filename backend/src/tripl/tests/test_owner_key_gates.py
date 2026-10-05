@@ -172,22 +172,8 @@ PLATFORM_SETTINGS_ROUTES = {
     "POST /api/v1/platform/settings/email/test",
 }
 
-# The platform console (F20 PR14): organizations, users and read-only step-ins,
-# for platform admins from a browser session.
-PLATFORM_CONSOLE_ROUTES = {
-    "GET /api/v1/platform/orgs",
-    "GET /api/v1/platform/orgs/{org_slug}",
-    "POST /api/v1/platform/orgs/{org_slug}/suspend",
-    "POST /api/v1/platform/orgs/{org_slug}/unsuspend",
-    "POST /api/v1/platform/orgs/{org_slug}/step-in",
-    "GET /api/v1/platform/users",
-    "POST /api/v1/platform/users/{user_id}/platform-admin",
-    "GET /api/v1/platform/step-ins",
-    "POST /api/v1/platform/step-ins/{step_in_id}/end",
-}
-
-# Routes only a platform admin reaches.
-PLATFORM_ADMIN_ROUTES = PLATFORM_SETTINGS_ROUTES | PLATFORM_CONSOLE_ROUTES
+# The platform console's routes are the Enterprise package's.
+PLATFORM_ADMIN_ROUTES = PLATFORM_SETTINGS_ROUTES
 # Creating an organization: a platform admin self-hosted, any verified session
 # hosted (``deps.require_org_creator``, F20 hosted sign-up).
 ORG_CREATOR_ROUTES = {"POST /api/v1/orgs"}

@@ -16,7 +16,7 @@ from __future__ import annotations
 
 import uuid
 from collections.abc import AsyncIterator
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 
 import pytest
 from fastapi import HTTPException
@@ -26,6 +26,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from tripl.middleware.org_context import OrgRef, bound_org
 from tripl.models.domain_enums import OrganizationStatus
 from tripl.models.organization import DEFAULT_ORG_ID, Organization, OrganizationMember
+from tripl.models.platform_step_in import PlatformStepIn
 from tripl.models.project import Project
 from tripl.models.project_health_snapshot import ProjectHealthSnapshot
 from tripl.models.user import User
@@ -61,10 +62,19 @@ async def world() -> AsyncIterator[World]:
 
 
 async def _suspend(world: World) -> None:
-    resp = await world.operator.post(
-        f"{API}/platform/orgs/{GLOBEX}/suspend", json={"reason": "Terms of service review"}
-    )
-    assert resp.status_code == 200, resp.text
+    """What the platform console's suspend writes (Enterprise); ``world`` sets the scene."""
+    del world
+    async with TestSessionLocal() as session:
+        await session.execute(
+            update(Organization)
+            .where(Organization.id == GLOBEX_ID)
+            .values(
+                status=OrganizationStatus.suspended.value,
+                suspended_reason="Terms of service review",
+                suspended_at=datetime.now(UTC),
+            )
+        )
+        await session.commit()
 
 
 @pytest.mark.asyncio
@@ -124,8 +134,7 @@ async def test_it_stays_listed_with_its_status(world: World) -> None:
 async def test_unsuspending_restores_access(world: World) -> None:
     await _suspend(world)
     assert (await world.alice.get(f"{ORG}/projects")).status_code == 403
-    resp = await world.operator.post(f"{API}/platform/orgs/{GLOBEX}/unsuspend")
-    assert resp.status_code == 200, resp.text
+    await set_org_status(GLOBEX_ID, OrganizationStatus.active)
     listed = await world.alice.get(f"{ORG}/projects")
     assert listed.status_code == 200, listed.text
     assert [p["slug"] for p in listed.json()] == [SHOP]
@@ -246,10 +255,16 @@ async def test_an_open_streams_guard_is_revoked_by_suspension(world: World) -> N
 @pytest.mark.asyncio
 async def test_a_step_in_stream_survives_suspension_but_not_deletion(world: World) -> None:
     shop_id = await _shop_id()
-    started = await world.operator.post(
-        f"{API}/platform/orgs/{GLOBEX}/step-in", json={"reason": "Support ticket 1234"}
-    )
-    assert started.status_code == 201, started.text
+    async with TestSessionLocal() as session:
+        session.add(
+            PlatformStepIn(
+                user_id=world.operator_id,
+                organization_id=GLOBEX_ID,
+                reason="Support ticket 1234",
+                expires_at=datetime.now(UTC) + timedelta(hours=1),
+            )
+        )
+        await session.commit()
     await _suspend(world)
     with bound_org(OrgRef(id=GLOBEX_ID, slug=GLOBEX, step_in_user_id=world.operator_id)):
         assert await project_access.still_member(
