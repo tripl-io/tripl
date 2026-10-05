@@ -17,7 +17,7 @@ import uuid
 from fastapi import HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from tripl.config import DEPLOYMENT_HOSTED, settings
+from tripl import tenancy
 from tripl.services import app_settings_service
 
 FROM_NEEDS_OWN_RELAY = (
@@ -31,7 +31,7 @@ async def assert_from_override_allowed(
     session: AsyncSession, org_id: uuid.UUID | None, from_address: str | None
 ) -> None:
     """Refuse (422) a From: override that send time would ignore."""
-    if not from_address or settings.deployment_mode != DEPLOYMENT_HOSTED:
+    if not from_address or not tenancy.multi_tenant():
         return
     if org_id is not None:
         resolved = await app_settings_service.resolve_for_org(session, org_id)

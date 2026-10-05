@@ -27,7 +27,7 @@ from tripl.services.app_settings_service import apply_startup_service_overrides
 # those overrides "take effect on the next deploy", as the settings UI states.
 apply_startup_service_overrides()
 
-from tripl import extensions  # noqa: E402
+from tripl import extensions, tenancy  # noqa: E402
 from tripl.api.v1.router import router as v1_router  # noqa: E402
 from tripl.database import engine  # noqa: E402
 from tripl.logging_config import configure_logging  # noqa: E402
@@ -207,6 +207,8 @@ app.include_router(v1_router)
 # their exception handlers. Before the SPA below.
 for _extension in extensions.extensions():
     _extension.install_app(app)
+# DEPLOYMENT_MODE=hosted needs an extension's multi-tenant policy.
+tenancy.check_deployment_mode()
 
 
 # Serve the built SPA from this same process when enabled — a single-container

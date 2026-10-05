@@ -71,6 +71,7 @@ no-op.
 | `on_org_deleting(session, org_id)` | an organization is being deleted, before its groups | Delete the extension's rows for it. |
 | `on_group_change(session, org_id, group_id, added=, removed=)` | members are added to or removed from an organization group | React to the change, for example by mapping groups to roles. |
 | `on_audit_recorded(session, entry, org_id)` | an organization's audit row is added | Forward it, in the writing transaction. |
+| `tenancy()` | a decision differs between one team's instance and a multi-tenant service | Return a `tripl.tenancy.TenancyPolicy` to run the instance as a multi-tenant service, or `None`. The first policy returned wins; without one the instance is a single team's, and `DEPLOYMENT_MODE=hosted` refuses to start. |
 | `celery_task_modules()` | the Celery app is configured | Return modules to import so their tasks register. |
 | `beat_schedule()` | the Celery app is configured | Return beat entries to add. |
 

@@ -47,6 +47,7 @@ from tripl.services.app_settings_service import (
 from tripl.tests._accounts import sign_up
 from tripl.tests._members import add_org_member
 from tripl.tests._sqlite import enable_sqlite_foreign_keys
+from tripl.tests._tenancy import use_multi_tenant
 from tripl.tests.conftest import TestSessionLocal
 from tripl.worker.tasks import alerts as alerts_task
 
@@ -227,7 +228,7 @@ def test_the_self_hosted_default_org_is_the_operator_scope(
     assert settings_scope_for(None) is None
     assert settings_scope_for(DEFAULT_ORG_ID) is None
     assert settings_scope_for(ORG_A_ID) == ORG_A_ID
-    monkeypatch.setattr(settings, "deployment_mode", "hosted")
+    use_multi_tenant(monkeypatch)
     assert settings_scope_for(DEFAULT_ORG_ID) == DEFAULT_ORG_ID
 
 
@@ -237,7 +238,7 @@ def test_the_self_hosted_default_org_is_the_operator_scope(
 def test_llm_service_refuses_a_private_org_host_at_use_time(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    monkeypatch.setattr(settings, "deployment_mode", "hosted")
+    use_multi_tenant(monkeypatch)
     org = {
         "ai_base_url": "http://127.0.0.1:11434/v1",
         "ai_api_key": _enc("sk-org"),
@@ -270,7 +271,7 @@ def test_self_hosted_operator_hosts_may_be_private(monkeypatch: pytest.MonkeyPat
 def test_a_private_org_smtp_host_is_dropped_at_use_time(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    monkeypatch.setattr(settings, "deployment_mode", "hosted")
+    use_multi_tenant(monkeypatch)
     resolved = resolve_settings(
         _operator(),
         {"smtp_host": "10.0.0.5", "smtp_from_address": "a@example.com"},
@@ -436,7 +437,7 @@ class Hosted:
 
 @pytest.fixture
 async def hosted(monkeypatch: pytest.MonkeyPatch) -> AsyncIterator[Hosted]:
-    monkeypatch.setattr(settings, "deployment_mode", "hosted")
+    use_multi_tenant(monkeypatch)
     async with TestSessionLocal() as session:
         session.add_all(
             [

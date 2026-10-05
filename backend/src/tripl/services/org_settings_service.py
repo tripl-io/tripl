@@ -43,8 +43,9 @@ from fastapi import HTTPException
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from tripl import tenancy
 from tripl.alerting_validation import reject_private_host
-from tripl.config import DEPLOYMENT_HOSTED, settings
+from tripl.config import settings
 from tripl.services import app_settings_service, embedding_service, org_storage_csp
 from tripl.services._celery_dispatch import dispatch
 from tripl.services._org_settings_merge import (
@@ -325,10 +326,10 @@ def local_backend_allowed(scope: uuid.UUID | None) -> bool:
     """Whether this scope may keep photos on the server's disk.
 
     The operator scope may (its own server); an organization only on a
-    self-hosted instance (design section 4): on a hosted one the disk is the
+    single-team instance (design section 4): on a multi-tenant one the disk is the
     operator's, shared by tenants, and outside any organization's control.
     """
-    return scope is None or settings.deployment_mode != DEPLOYMENT_HOSTED
+    return scope is None or not tenancy.multi_tenant()
 
 
 def touches_storage(changes: Mapping[str, Any]) -> bool:

@@ -7,8 +7,8 @@ from fastapi.dependencies.models import Dependant
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from tripl import extensions
-from tripl.config import DEPLOYMENT_HOSTED, settings
+from tripl import extensions, tenancy
+from tripl.config import settings
 from tripl.database import get_session
 from tripl.middleware.branch_context import bound_branch
 from tripl.middleware.org_context import (
@@ -596,18 +596,10 @@ async def require_platform_admin(request: Request, user: CurrentUserDep) -> User
 async def require_org_creator(request: Request, user: CurrentUserDep) -> User:
     """Who may create an organization (``POST /orgs``). Never an API key.
 
-    Self-hosted: a platform admin only (owner decision 4). Hosted: any signed-in
-    browser session; the hosted email-verification gate in
-    :func:`get_current_user` has already refused unverified accounts.
+    The tenancy policy decides (``tenancy.TenancyPolicy.require_org_creator``):
+    a single-team instance allows a platform admin only (owner decision 4).
     """
-    if settings.deployment_mode != DEPLOYMENT_HOSTED:
-        return await require_platform_admin(request, user)
-    require_write_scope(request)
-    if getattr(request.state, "api_key_scope", None) is not None:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN, detail="A browser session is required"
-        )
-    return user
+    return await tenancy.policy().require_org_creator(request, user)
 
 
 _LEGACY_SETTINGS_ORG_STATE_KEY = "legacy_settings_org_id"

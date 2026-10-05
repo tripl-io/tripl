@@ -37,6 +37,7 @@ from tripl.services import _alerting_test_send, app_settings_service
 from tripl.services._alerting_from_policy import assert_from_override_allowed
 from tripl.services.app_settings_service import email_sender_for, resolve_settings
 from tripl.tests._sqlite import enable_sqlite_foreign_keys
+from tripl.tests._tenancy import use_multi_tenant
 from tripl.tests.conftest import TestSessionLocal
 from tripl.worker.tasks import alerts as alerts_task
 from tripl.worker.tasks import alerts_channels
@@ -61,7 +62,7 @@ def _env(monkeypatch: pytest.MonkeyPatch) -> Iterator[None]:
 
 @pytest.fixture
 def hosted(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setattr(settings, "deployment_mode", "hosted")
+    use_multi_tenant(monkeypatch)
 
 
 def _operator() -> dict[str, Any]:

@@ -17,8 +17,8 @@ from datetime import UTC, datetime
 
 from httpx import AsyncClient
 
+from tripl import tenancy
 from tripl.auth_utils import hash_password, normalize_email
-from tripl.config import DEPLOYMENT_HOSTED, settings
 from tripl.models.domain_enums import OrganizationRole
 from tripl.models.organization import DEFAULT_ORG_ID, OrganizationMember
 from tripl.models.user import User
@@ -29,7 +29,7 @@ API = "/api/v1"
 
 async def sign_up(client: AsyncClient, *, email: str, password: str, name: str) -> uuid.UUID:
     """Create ``email``'s account, sign ``client`` in, and return the user's id."""
-    if settings.deployment_mode != DEPLOYMENT_HOSTED:
+    if not tenancy.multi_tenant():
         resp = await client.post(
             f"{API}/auth/register", json={"email": email, "password": password, "name": name}
         )

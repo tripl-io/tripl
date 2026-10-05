@@ -4,7 +4,7 @@ from typing import Literal, Self
 
 from pydantic import BaseModel, EmailStr, Field, field_validator, model_validator
 
-from tripl.config import DEPLOYMENT_HOSTED, settings
+from tripl import tenancy
 from tripl.models.domain_enums import ApiKeyScope, OrganizationRole, OrganizationStatus
 from tripl.schemas.organization import (
     ORG_NAME_MAX_LENGTH,
@@ -67,7 +67,7 @@ class RegisterRequest(BaseModel):
 
     @model_validator(mode="after")
     def _organization_fields_by_mode(self) -> Self:
-        if settings.deployment_mode != DEPLOYMENT_HOSTED:
+        if not tenancy.multi_tenant():
             self.org_name = None
             self.org_slug = None
             return self

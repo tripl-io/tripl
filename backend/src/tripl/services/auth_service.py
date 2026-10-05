@@ -9,10 +9,10 @@ from typing import cast
 
 from fastapi import HTTPException, status
 from sqlalchemy import delete, func, select, text, update
-from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
+from tripl import tenancy
 from tripl.auth_utils import (
     hash_password,
     hash_session_token,
@@ -21,7 +21,7 @@ from tripl.auth_utils import (
     password_hash_needs_rehash,
     verify_password,
 )
-from tripl.config import DEPLOYMENT_SELF_HOSTED, REGISTRATION_OPEN, settings
+from tripl.config import REGISTRATION_OPEN, settings
 from tripl.middleware.org_context import current_org
 from tripl.models.api_key import ApiKey
 from tripl.models.domain_enums import ApiKeyScope, OrganizationRole, OrganizationStatus
@@ -37,7 +37,7 @@ from tripl.schemas.auth import (
     OrgMembershipOut,
     RegisterRequest,
 )
-from tripl.services import app_settings_service, audit_service, email_verification_service
+from tripl.services import app_settings_service, email_verification_service
 from tripl.services.step_in_expiry import close_expired_step_ins
 
 # Password-reset link lifetime. Short on purpose: a reset link is a bearer
@@ -80,7 +80,7 @@ _OWNER_SET_LOCK_TAG = b"trplown1"
 _DUMMY_PASSWORD_HASH = hash_password(secrets.token_urlsafe(32))
 
 
-def _normalize_name(value: str | None) -> str | None:
+def normalize_name(value: str | None) -> str | None:
     if value is None:
         return None
     stripped = value.strip()
@@ -213,7 +213,9 @@ def add_organization_membership(
 async def register_user(session: AsyncSession, data: RegisterRequest) -> tuple[User, str]:
     """Self-hosted self-service sign-up into the default organization.
 
-    A hosted instance signs up through :func:`register_hosted_user` instead.
+    A multi-tenant instance signs up through its tenancy policy instead
+    (``tenancy.TenancyPolicy.register``).
+
     The first user becomes the default organization's owner AND a platform
     admin, so the instance always has someone who can manage members and the
     operator settings. Every later user joins as ``member``. Every account is
@@ -245,11 +247,10 @@ async def register_user(session: AsyncSession, data: RegisterRequest) -> tuple[U
             detail="User with this email already exists",
         )
 
-    self_hosted = settings.deployment_mode == DEPLOYMENT_SELF_HOSTED
-    bootstrap = is_first_user and self_hosted
+    bootstrap = is_first_user and not tenancy.multi_tenant()
     user = User(
         email=email,
-        name=_normalize_name(data.name),
+        name=normalize_name(data.name),
         password_hash=await asyncio.to_thread(hash_password, data.password),
         is_platform_admin=bootstrap,
     )
@@ -267,111 +268,6 @@ async def register_user(session: AsyncSession, data: RegisterRequest) -> tuple[U
     await session.commit()
     await session.refresh(user)
     return user, session_token
-
-
-async def register_hosted_user(
-    session: AsyncSession, data: RegisterRequest, *, email_can_send: bool
-) -> tuple[User, str, str]:
-    """Hosted sign-up: a new account that creates and owns a new organization.
-
-    Returns ``(user, session_token, verification_token)``; the caller mails the
-    verification link after this commits. Refusals, in order: registration
-    closed (403 — there is no first-user bootstrap on a hosted instance, and
-    this comes first so a closed instance never answers anything else), the
-    operator relay unable to send (503, ``email_can_send``), the address taken
-    (409), the slug taken (409). A concurrent sign-up that slips past those
-    pre-checks trips a unique constraint instead: rolled back, also 409.
-
-    The account starts unverified and is never a platform admin, whatever
-    ``PLATFORM_ADMIN_EMAILS`` says: that is granted when the account confirms
-    its verification link (``email_verification_service.confirm``). It joins no other
-    organization — joining an existing one is what invitations are for. The
-    ``org.create`` audit row lands in the new organization, in the same commit.
-    """
-    # Lazy: org_service imports this module.
-    from tripl.services import org_service
-
-    if data.org_name is None or data.org_slug is None:  # the schema guarantees both
-        raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
-            detail="org_name and org_slug are required to sign up on this instance",
-        )
-    if not await is_registration_allowed(session, is_first_user=False):
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail=REGISTRATION_CLOSED_MESSAGE,
-        )
-    if not email_can_send:
-        raise HTTPException(
-            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail=EMAIL_DELIVERY_NOT_CONFIGURED_MESSAGE,
-        )
-
-    email = normalize_email(data.email)
-    if await _get_user_by_email(session, email) is not None:
-        raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT,
-            detail="User with this email already exists",
-        )
-
-    password_hash = await asyncio.to_thread(hash_password, data.password)
-    try:
-        user = User(
-            email=email,
-            name=_normalize_name(data.name),
-            password_hash=password_hash,
-            is_platform_admin=False,
-        )
-        session.add(user)
-        await session.flush()
-        try:
-            org = await org_service.create_org(
-                session, creator=user, slug=data.org_slug, name=data.org_name
-            )
-        except org_service.OrgSlugTakenError:
-            await session.rollback()
-            raise HTTPException(
-                status_code=status.HTTP_409_CONFLICT,
-                detail=f"An organization with slug '{data.org_slug}' already exists",
-            ) from None
-
-        session_token = await _create_user_session(session, user.id)
-        verification_token = await email_verification_service.issue_token(session, user)
-        # Commits: the user, the organization, the session, the token and this row.
-        await audit_service.record(
-            session,
-            user=user,
-            action="org.create",
-            target_type="organization",
-            target_id=org.id,
-            target_name=org.slug,
-            payload={"slug": org.slug, "name": org.name, "via": "signup"},
-            organization_id=org.id,
-        )
-    except IntegrityError as exc:
-        # A concurrent sign-up took the address or the slug between the
-        # pre-checks above and this flush/commit.
-        await session.rollback()
-        raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT, detail=_signup_conflict_detail(exc)
-        ) from None
-    await session.refresh(user)
-    return user, session_token, verification_token
-
-
-def _signup_conflict_detail(exc: IntegrityError) -> str:
-    """Name what a unique-constraint failure at hosted sign-up collided with.
-
-    SQLite reports ``UNIQUE constraint failed: organizations.slug``; PostgreSQL
-    names the index (``ix_organizations_slug`` / ``ix_users_email``). Anything
-    unrecognised gets the generic message.
-    """
-    message = str(exc.orig).lower()
-    if "slug" in message:
-        return "This organization URL is already taken"
-    if "email" in message:
-        return "User with this email already exists"
-    return "Organization URL or email is already taken"
 
 
 async def _membership_rows(

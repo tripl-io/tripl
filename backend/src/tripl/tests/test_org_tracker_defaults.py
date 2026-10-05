@@ -40,6 +40,7 @@ from tripl.services.org_tracker_defaults_service import (
     effective_linear,
     inherited_fields,
 )
+from tripl.tests._tenancy import use_multi_tenant
 from tripl.tests.conftest import TestSessionLocal
 from tripl.tests.test_org_settings import _move_to_org, _new_client, _register
 from tripl.worker.tasks import implementation_tickets as impl_tasks
@@ -246,7 +247,7 @@ class Hosted:
 
 @pytest.fixture
 async def hosted(monkeypatch: pytest.MonkeyPatch) -> AsyncIterator[Hosted]:
-    monkeypatch.setattr(settings, "deployment_mode", "hosted")
+    use_multi_tenant(monkeypatch)
     async with TestSessionLocal() as session:
         session.add_all(
             [

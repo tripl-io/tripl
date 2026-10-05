@@ -320,3 +320,7 @@ for _extension in _extensions.extensions():
     for _module in _extension.celery_task_modules():
         importlib.import_module(_module)
     celery_app.conf.beat_schedule.update(_extension.beat_schedule())
+
+from tripl import tenancy as _tenancy  # noqa: E402
+
+_tenancy.check_deployment_mode()

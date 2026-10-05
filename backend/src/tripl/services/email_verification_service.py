@@ -33,8 +33,9 @@ from fastapi import HTTPException, status
 from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from tripl import tenancy
 from tripl.auth_utils import hash_session_token, normalize_email
-from tripl.config import DEPLOYMENT_HOSTED, settings
+from tripl.config import settings
 from tripl.models.email_verification_token import EmailVerificationToken
 from tripl.models.user import User
 from tripl.models.user_session import UserSession
@@ -52,8 +53,8 @@ INVALID_VERIFICATION_MESSAGE = "This verification link is invalid or has expired
 
 
 def verification_required() -> bool:
-    """Whether this instance enforces email verification: hosted only."""
-    return settings.deployment_mode == DEPLOYMENT_HOSTED
+    """Whether this instance enforces email verification: multi-tenant only."""
+    return tenancy.multi_tenant()
 
 
 def is_blocked(user: User) -> bool:

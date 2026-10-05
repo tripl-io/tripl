@@ -15,7 +15,6 @@ from httpx import AsyncClient, Response
 from sqlalchemy import func, select
 
 from tripl.config import REGISTRATION_DISABLED, settings
-from tripl.models.organization import DEFAULT_ORG_ID, Organization, OrganizationMember
 from tripl.models.user import User
 from tripl.services import google_login_service
 from tripl.services.oidc import idp_http
@@ -118,28 +117,6 @@ async def test_an_existing_account_signs_in_without_a_new_one(
     assert await _user_count() == before
     me = await client.get("/api/v1/auth/me")
     assert me.json()["email"] == "test@example.com"
-
-
-async def test_hosted_gives_the_visitor_an_organization_of_their_own(
-    anon_client: AsyncClient, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    monkeypatch.setattr(settings, "deployment_mode", "hosted")
-
-    _landed(await _sign_in(anon_client))
-
-    user = await _user("visitor@gmail.com")
-    assert user is not None and not user.is_platform_admin
-    async with TestSessionLocal() as session:
-        orgs = (
-            await session.scalars(
-                select(Organization)
-                .join(OrganizationMember, OrganizationMember.organization_id == Organization.id)
-                .where(OrganizationMember.user_id == user.id)
-            )
-        ).all()
-    assert len(orgs) == 1
-    assert orgs[0].id != DEFAULT_ORG_ID
-    assert orgs[0].slug.startswith("visitor-")
 
 
 @pytest.mark.parametrize(
