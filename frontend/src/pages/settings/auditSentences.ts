@@ -135,6 +135,13 @@ const ACTION_SENTENCE: Record<string, string> = {
   'platform.license_set': 'Installed the Enterprise license',
   'platform.license_clear': 'Removed the Enterprise license',
   'org.audit_retention.update': 'Changed how long the audit log is kept',
+  // Escalation (Enterprise): the organization's policies and alert routes.
+  'org.escalation_policy.create': 'Created the escalation policy',
+  'org.escalation_policy.update': 'Changed the escalation policy',
+  'org.escalation_policy.delete': 'Deleted the escalation policy',
+  'org.alert_route.create': 'Created the alert route',
+  'org.alert_route.update': 'Changed the alert route',
+  'org.alert_route.delete': 'Deleted the alert route',
 }
 
 export const TARGET_NOUN: Record<string, string> = {

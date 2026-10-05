@@ -168,6 +168,6 @@ the Editions page, and the admonition on its docs pages.
 ## The Enterprise package
 
 Community bundles no extension. Every Enterprise feature (single sign-on per
-organization, SCIM provisioning, the organization-wide audit log, audit export
-and the audit webhook) lives in the separately installed, private Enterprise
+organization, SCIM provisioning, the organization-wide audit log, audit export,
+the audit webhook and alert escalation) lives in the separately installed, private Enterprise
 package, which reaches the core only through the hooks and the registry above.

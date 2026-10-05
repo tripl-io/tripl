@@ -3,6 +3,6 @@
   "position": 5.5,
   "link": {
     "type": "generated-index",
-    "description": "Features of the Enterprise edition: single sign-on and SCIM per organization, the organization audit log with its export and webhook, project health and search across projects, the platform console, and the license key. See Editions for what each edition includes."
+    "description": "Features of the Enterprise edition: single sign-on and SCIM per organization, the organization audit log with its export and webhook, project health and search across projects, alert escalation, the platform console, and the license key. See Editions for what each edition includes."
   }
 }
