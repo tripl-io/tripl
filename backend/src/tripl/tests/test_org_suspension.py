@@ -23,7 +23,6 @@ from fastapi import HTTPException
 from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from tripl.config import DEPLOYMENT_HOSTED, settings
 from tripl.middleware.org_context import OrgRef, bound_org
 from tripl.models.domain_enums import OrganizationStatus
 from tripl.models.organization import DEFAULT_ORG_ID, Organization, OrganizationMember
@@ -44,6 +43,7 @@ from tripl.tests._platform_world import (
     new_client,
     set_org_status,
 )
+from tripl.tests._tenancy import use_multi_tenant
 from tripl.tests.conftest import TestSessionLocal
 from tripl.worker.tasks.health import snapshot_all_projects
 
@@ -133,7 +133,7 @@ async def test_unsuspending_restores_access(world: World) -> None:
 
 @pytest.mark.asyncio
 async def test_a_hosted_members_legacy_paths_are_refused(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setattr(settings, "deployment_mode", DEPLOYMENT_HOSTED)
+    use_multi_tenant(monkeypatch)
     async with TestSessionLocal() as session:
         user = User(email="solo@example.com", name="Solo", password_hash="x")
         session.add(user)
@@ -331,7 +331,7 @@ async def _hosted_user_of(*orgs: tuple[uuid.UUID, str, OrganizationStatus]) -> U
 async def test_the_hosted_fallback_binds_the_single_active_org(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    monkeypatch.setattr(settings, "deployment_mode", DEPLOYMENT_HOSTED)
+    use_multi_tenant(monkeypatch)
     user = await _hosted_user_of(
         (GLOBEX_ID, GLOBEX, OrganizationStatus.suspended),
         (INITECH_ID, "initech", OrganizationStatus.active),
@@ -345,7 +345,7 @@ async def test_the_hosted_fallback_binds_the_single_active_org(
 async def test_the_hosted_fallback_still_needs_an_org_among_several_active(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    monkeypatch.setattr(settings, "deployment_mode", DEPLOYMENT_HOSTED)
+    use_multi_tenant(monkeypatch)
     user = await _hosted_user_of(
         (GLOBEX_ID, GLOBEX, OrganizationStatus.suspended),
         (INITECH_ID, "initech", OrganizationStatus.active),

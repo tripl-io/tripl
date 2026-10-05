@@ -17,8 +17,8 @@ from sqlalchemy import Select, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import Session
 
-from tripl import crypto
-from tripl.config import DEPLOYMENT_SELF_HOSTED, Settings, settings
+from tripl import crypto, tenancy
+from tripl.config import Settings, settings
 from tripl.models.app_setting import AI_SETTINGS_KEY, SERVICE_SETTINGS_KEY, AppSetting
 from tripl.models.organization import DEFAULT_ORG_ID
 from tripl.services._app_settings_fields import (
@@ -184,15 +184,15 @@ def get_service_overrides_sync(session: Session) -> dict[str, Any]:
 def settings_scope_for(org_id: uuid.UUID | None) -> uuid.UUID | None:
     """The ``app_settings`` scope an organization's values live in; ``None`` = operator.
 
-    On a self-hosted instance the default organization IS the operator scope
+    On a single-team instance the default organization IS the operator scope
     (critique #17): its admins editing SMTP there must still change the relay
     that password-reset mail goes through, and nothing about a single-team
     instance changes when organizations arrive. Every other organization — and
-    the default one on a hosted instance — has its own scope.
+    the default one on a multi-tenant instance — has its own scope.
     """
     if org_id is None:
         return None
-    if settings.deployment_mode == DEPLOYMENT_SELF_HOSTED and org_id == DEFAULT_ORG_ID:
+    if not tenancy.multi_tenant() and org_id == DEFAULT_ORG_ID:
         return None
     return org_id
 

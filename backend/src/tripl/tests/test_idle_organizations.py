@@ -16,6 +16,7 @@ from tripl.models.project import Project
 from tripl.models.user import User
 from tripl.models.user_session import UserSession
 from tripl.services import org_idle_service
+from tripl.tests._tenancy import use_multi_tenant
 from tripl.tests.conftest import TestSessionLocal
 from tripl.worker.tasks import org_delete
 
@@ -26,7 +27,7 @@ RECENTLY = NOW - timedelta(days=2)
 
 @pytest.fixture(autouse=True)
 def hosted_with_retention(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setattr(settings, "deployment_mode", "hosted")
+    use_multi_tenant(monkeypatch)
     monkeypatch.setattr(settings, "idle_org_retention_days", 30)
 
 

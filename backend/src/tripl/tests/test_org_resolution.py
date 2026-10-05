@@ -15,7 +15,7 @@ from fastapi import HTTPException
 from httpx import AsyncClient
 from sqlalchemy import delete, select
 
-from tripl.config import DEPLOYMENT_HOSTED, DEPLOYMENT_SELF_HOSTED, settings
+from tripl.config import DEPLOYMENT_SELF_HOSTED, settings
 from tripl.middleware.org_context import OrgRef
 from tripl.models.api_key import ApiKey
 from tripl.models.domain_enums import OrganizationRole
@@ -32,6 +32,7 @@ from tripl.services.org_resolution import (
     ORG_REQUIRED,
     resolve_request_org,
 )
+from tripl.tests._tenancy import use_multi_tenant
 from tripl.tests.conftest import TestSessionLocal
 
 ACME_ID = uuid.UUID("00000000-0000-0000-0000-0000000ac3e1")
@@ -42,7 +43,7 @@ pytestmark = pytest.mark.no_default_org
 
 @pytest.fixture
 def hosted(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setattr(settings, "deployment_mode", DEPLOYMENT_HOSTED)
+    use_multi_tenant(monkeypatch)
 
 
 @pytest.fixture

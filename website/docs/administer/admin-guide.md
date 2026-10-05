@@ -525,84 +525,17 @@ hyphens), and names that the app routes as something else (`settings`, `orgs`,
 
 ### Hosted sign-up and email verification
 
-With `DEPLOYMENT_MODE=hosted` (see
-[Configuration](../run/configuration.md#organizations)) the instance is a
-multi-tenant service, and signing up works differently. A self-hosted instance
-behaves as before: nothing below is enforced there, and every account is
-marked verified when it is created.
+:::info Enterprise
+A multi-tenant instance (`DEPLOYMENT_MODE=hosted`) is part of the
+[Enterprise edition](../editions.md). A Community server with
+`DEPLOYMENT_MODE=hosted` refuses to start.
+:::
 
-**Sign-up creates an organization.** The **Create account** form also asks for
-an **Organization name** and an **Organization URL slug** (derived from the name
-until you edit it, with a preview of the `/o/<slug>` address). The API is
-`POST /api/v1/auth/register` with `org_name` and `org_slug` besides `email`,
-`password` and `name`; on a hosted instance both are required (`422` without
-them), and the slug follows the [organization slug
-rules](#create-an-organization) (`409` when it is taken). The new account is the
-organization's **owner** and joins no other organization, the default one
-included. To join an existing organization instead, ask one of its owners or
-admins for an [invitation](#invite-a-member). On a self-hosted instance
-`org_name` and `org_slug` are ignored and the account joins the default
-organization.
-
-**Registration still applies.** `REGISTRATION_MODE=disabled` refuses every
-sign-up with `403`. Unlike self-hosted, there is no first-account exception, so
-the operator's own account is created the same way as everyone else's.
-
-**The operator's SMTP is required.** Every new address has to be verified, and
-account mail always goes through the operator's relay (never an
-organization's). Without it, sign-up answers `503 Email delivery is not
-configured` before creating anything.
-
-**Addresses are verified.** Right after sign-up the account is sent a link to
-`/verify-email`. It works once and expires after 24 hours; asking for a new one
-(**Resend email** on the **Check your inbox** screen, or
-`POST /api/v1/auth/verify-email/request`) invalidates the earlier unused
-links. The link confirms only in a browser signed in as the account it was
-sent to: opened while signed out, the page asks you to sign in and then brings
-you back to it; opened in another account's session, it is refused like a dead
-link and stays unused. Confirming signs the account out everywhere else and
-keeps only the session that confirmed. Until the address is verified, the app shows only that screen, and every
-API route outside `/api/v1/auth/*` answers `403 Email address not verified`,
-whatever the credential. What remains is signing out, reading your own account
-(`/auth/me`), resending and confirming the link, and previewing an invitation.
-
-An address also counts as verified when:
-
-- a password reset is completed, because the reset link was mailed to that
-  address (a reset also signs the account out everywhere and revokes its API
-  keys);
-- the account was created on a self-hosted instance: every self-hosted account
-  is marked verified at creation, whether by sign-up or invitation;
-- the account existed before email verification was introduced.
-
-On a hosted instance an account created from an invitation link is **not**
-verified by it: the inviter got the raw link in the API response, so redeeming
-it proves nothing. The new account is sent a verification link (a failed send
-is logged; **Resend email** sends another) and must confirm it before it can
-use the app.
-
-On a self-hosted instance nothing is ever blocked, and
-`POST /api/v1/auth/verify-email/request` answers `204` without sending
-anything: the check is enforced only when `DEPLOYMENT_MODE=hosted`.
-
-**Signed-in invitation acceptance needs a verified address.** On a hosted
-instance an existing account accepts an invitation only after verifying its
-address (`403 Verify your email address before accepting an invitation.`); the
-rule that the account's email must equal the invitation's still applies.
-
-**Platform admins are granted on verification.** An account whose address is
-listed in `PLATFORM_ADMIN_EMAILS` becomes a platform admin only when it
-confirms the emailed verification link while signed in as itself. Sign-up,
-invitations and password reset never grant it. To bootstrap a hosted instance,
-set the list, sign up with a listed address, and open the verification link in
-the browser where you are signed in as that account.
-Without working mail, grant it on the server instead with
-[`tripl-admin grant-platform-admin`](../run/configuration.md#tripl-admin).
-
-`GET /api/v1/auth/status` reports `deployment_mode` and
-`email_verification_required` (`true` on a hosted instance), which the sign-in
-page uses to show the organization fields. On a hosted instance it always
-reports `has_users: true`, so it does not reveal whether the instance is empty.
+On a hosted instance each sign-up creates an organization of its own, every
+address must be verified through the operator's relay, and there is no
+first-account exception. Its sign-up and verification rules are documented
+with that edition. A self-hosted instance enforces none of it: every account
+is marked verified when it is created.
 
 ### Rename an organization
 

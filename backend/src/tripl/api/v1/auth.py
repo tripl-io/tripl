@@ -5,9 +5,10 @@ from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Request,
 from pydantic import BaseModel, EmailStr, Field, field_validator
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from tripl import tenancy
 from tripl.api.deps import CurrentUserDep, SessionDep, refuse_on_public_demo
 from tripl.auth_utils import hash_session_token
-from tripl.config import DEPLOYMENT_HOSTED, settings
+from tripl.config import settings
 from tripl.middleware.rate_limit import (
     enforce,
     login_rate_limiter,
@@ -237,7 +238,7 @@ async def get_status(session: SessionDep) -> AuthStatusResponse:
     # A hosted instance has no first-user bootstrap, so it reports ``has_users``
     # true without counting: no first-account note, and an unauthenticated
     # caller cannot learn whether the service is empty.
-    hosted = settings.deployment_mode == DEPLOYMENT_HOSTED
+    hosted = tenancy.multi_tenant()
     has_users = True if hosted else await auth_service.has_any_users(session)
     overrides = await app_settings_service.get_service_overrides(session)
     return AuthStatusResponse(
@@ -282,13 +283,14 @@ async def register(
     is mailed through the operator relay after the commit (a failed send is
     logged; the user can resend) — so 503 up front when that relay cannot send.
     """
-    if settings.deployment_mode != DEPLOYMENT_HOSTED:
+    policy = tenancy.policy()
+    if not policy.multi_tenant:
         user, session_token = await auth_service.register_user(session, data)
         _set_session_cookie(response, session_token)
         return await auth_service.build_auth_user_response(session, user)
 
     email_config, app_base_url = await _operator_mail(session)
-    user, session_token, raw_token = await auth_service.register_hosted_user(
+    user, session_token, raw_token = await policy.register(
         session, data, email_can_send=app_settings_service.email_can_send(email_config)
     )
     _queue_verification_email(

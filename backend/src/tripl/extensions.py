@@ -51,6 +51,7 @@ if TYPE_CHECKING:
     from tripl.models.audit_log import AuditLog
     from tripl.models.domain_enums import OrganizationRole
     from tripl.models.user import User
+    from tripl.tenancy import TenancyPolicy
 
 logger = logging.getLogger(__name__)
 
@@ -177,6 +178,11 @@ class Extension:
         self, session: AsyncSession, entry: AuditLog, org_id: uuid.UUID
     ) -> None:
         """An organization's audit row was added, in the writing transaction."""
+
+    # -- tenancy ---------------------------------------------------------
+    def tenancy(self) -> TenancyPolicy | None:
+        """A multi-tenant service's policy (``tripl.tenancy``); ``None``: one team."""
+        return None
 
     # -- worker ----------------------------------------------------------
     def celery_task_modules(self) -> Sequence[str]:

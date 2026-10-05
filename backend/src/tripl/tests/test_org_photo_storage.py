@@ -68,6 +68,7 @@ from tripl.storage.photo_storage import (
 )
 from tripl.tests._accounts import sign_up
 from tripl.tests._members import add_org_member
+from tripl.tests._tenancy import use_multi_tenant
 from tripl.tests.conftest import TestSessionLocal
 from tripl.tests.test_plan_branches import _seed_plan
 from tripl.worker.tasks import maintenance
@@ -329,7 +330,7 @@ class Hosted:
 
 @pytest.fixture
 async def hosted(monkeypatch: pytest.MonkeyPatch) -> AsyncIterator[Hosted]:
-    monkeypatch.setattr(settings, "deployment_mode", "hosted")
+    use_multi_tenant(monkeypatch)
     # The operator's cap as saved AND as this process runs it (storage
     # overrides are applied at startup).
     monkeypatch.setattr(settings, "photo_max_size_mb", 8)
@@ -566,7 +567,7 @@ async def test_a_photo_is_read_with_the_storage_version_it_was_written_with(
     await _seed_plan(client, slug)
     event_id = await _main_event_id(client, slug)
     # Hosted: the default organization is a tenant with its own scope.
-    monkeypatch.setattr(settings, "deployment_mode", "hosted")
+    use_multi_tenant(monkeypatch)
     await _set_default_org_storage(_gcs_org())
     first = await _upload(client, slug, event_id)
     assert first.status_code == 201, first.text
@@ -609,7 +610,7 @@ async def test_the_csp_keeps_gcs_while_older_photos_are_read_from_it(
     slug = "org-csp-history"
     await _seed_plan(client, slug)
     event_id = await _main_event_id(client, slug)
-    monkeypatch.setattr(settings, "deployment_mode", "hosted")
+    use_multi_tenant(monkeypatch)
     await _set_default_org_storage(_gcs_org())
     uploaded = await _upload(client, slug, event_id)
     assert uploaded.status_code == 201, uploaded.text
@@ -634,7 +635,7 @@ async def test_the_upload_obeys_the_orgs_narrowed_types(
     slug = "org-types"
     await _seed_plan(client, slug)
     event_id = await _main_event_id(client, slug)
-    monkeypatch.setattr(settings, "deployment_mode", "hosted")
+    use_multi_tenant(monkeypatch)
     await _set_default_org_storage({"photo_allowed_mime": "image/jpeg"})
     refused = await _upload(client, slug, event_id)
     assert refused.status_code == 415, refused.text

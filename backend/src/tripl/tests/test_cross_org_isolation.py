@@ -49,7 +49,6 @@ from fastapi.routing import APIRoute
 from httpx import ASGITransport, AsyncClient, Response
 from sqlalchemy import delete, select
 
-from tripl.config import settings
 from tripl.main import app
 from tripl.middleware.org_context import ORG_REWRITE_PREFIXES
 from tripl.models.alert_delivery import AlertDelivery
@@ -63,6 +62,7 @@ from tripl.models.project import Project
 from tripl.tests._accounts import sign_up
 from tripl.tests._incident_summary_seed import SeededIncident, add_item
 from tripl.tests._members import add_member, add_org_member
+from tripl.tests._tenancy import use_multi_tenant
 from tripl.tests.conftest import TestSessionLocal
 from tripl.tests.test_rbac import iter_api_routes
 
@@ -673,7 +673,7 @@ async def _seed_rows(seed: OrgSeed, p: str) -> None:
 async def world(monkeypatch: pytest.MonkeyPatch) -> AsyncIterator[World]:
     # Hosted: a session's legacy path acts in the user's ONLY organization, so
     # B's actors on ``/api/v1/...`` act in B, exactly as a hosted tenant does.
-    monkeypatch.setattr(settings, "deployment_mode", "hosted")
+    use_multi_tenant(monkeypatch)
     async with TestSessionLocal() as session:
         session.add_all(
             [

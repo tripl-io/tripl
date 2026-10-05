@@ -8,14 +8,15 @@ known and before any project slug is resolved. The rules, in order:
 2. An API key belongs to one organization: that is the org. A URL naming a
    different one gets the same 404, so a key is no oracle for other orgs.
 3. A cookie session with an org in the URL must be a member of it, else the
-   same 404 — except the default organization on a self-hosted instance, which
+   same 404 — except the default organization on a single-team instance, which
    every user acts in without a membership row (rule 4), so its org-qualified
    URL answers exactly like the legacy one. Accounts created between the PR1
    migration and this release have no membership row at all.
-4. No org in the URL: a self-hosted instance acts in the default organization
-   (no query, exactly as before organizations existed); a hosted one acts in the
-   user's only organization, and answers 400 "Organization required" when the
-   user has none or several. There is never a fallback.
+4. No org in the URL: the tenancy policy decides (``tenancy.TenancyPolicy.orgless_org``).
+   A single-team instance acts in the default organization (no query, exactly
+   as before organizations existed). A multi-tenant one acts in the user's only
+   organization and answers 400 "Organization required" (``ORG_REQUIRED``) when
+   the user has none or several. There is never a fallback.
 
 Only ``active`` organizations resolve (F20 PR6): one an owner has asked to
 delete is ``deleting`` until the purge job removes it, and answers exactly like
@@ -45,7 +46,7 @@ from fastapi import HTTPException, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from tripl.config import DEPLOYMENT_SELF_HOSTED, settings
+from tripl import tenancy
 from tripl.middleware.org_context import OrgRef
 from tripl.models.domain_enums import OrganizationStatus
 from tripl.models.organization import (
@@ -78,7 +79,7 @@ def suspended_error() -> HTTPException:
     return HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=ORG_SUSPENDED)
 
 
-def _is_suspended(org_status: object) -> bool:
+def is_suspended(org_status: object) -> bool:
     return str(org_status) == OrganizationStatus.suspended.value
 
 
@@ -116,7 +117,7 @@ async def _org_by_slug(session: AsyncSession, slug: str) -> tuple[OrgRef, bool] 
     if row is None:
         return None
     org_id, org_status = row
-    return OrgRef(id=org_id, slug=slug), _is_suspended(org_status)
+    return OrgRef(id=org_id, slug=slug), is_suspended(org_status)
 
 
 async def _org_by_id(session: AsyncSession, org_id: uuid.UUID) -> OrgRef:
@@ -136,7 +137,7 @@ async def _org_by_id(session: AsyncSession, org_id: uuid.UUID) -> OrgRef:
         # of an organization that is being deleted.
         raise _not_found()
     slug, org_status = row
-    if _is_suspended(org_status):
+    if is_suspended(org_status):
         raise suspended_error()
     return OrgRef(id=org_id, slug=slug)
 
@@ -166,8 +167,11 @@ async def _step_in_ref(session: AsyncSession, user: User, org: OrgRef) -> OrgRef
     return OrgRef(id=org.id, slug=org.slug, step_in_user_id=user.id)
 
 
-async def _default_org_for(session: AsyncSession, user: User) -> OrgRef:
-    """The self-hosted default organization; a platform admin's step-in when they hold one.
+async def default_org_for(session: AsyncSession, user: User) -> OrgRef:
+    """The default organization; a platform admin's step-in when they hold one.
+
+    A single-team instance's answer for a URL that names no organization
+    (``tenancy.TenancyPolicy.orgless_org``).
 
     Every other user acts in it without a query, as before organizations
     existed. A platform admin who is not a member and has stepped in reads it
@@ -179,8 +183,8 @@ async def _default_org_for(session: AsyncSession, user: User) -> OrgRef:
     return await _step_in_ref(session, user, default) or default
 
 
-async def _only_org_of(session: AsyncSession, user_id: uuid.UUID) -> OrgRef:
-    """A hosted legacy path's organization: the user's single ACTIVE one.
+async def only_org_of(session: AsyncSession, user_id: uuid.UUID) -> OrgRef:
+    """The user's single ACTIVE organization: a multi-tenant instance's org-less URL.
 
     A suspended membership never counts toward "single": a user of one active
     and one suspended organization acts in the active one. Only a user with no
@@ -194,7 +198,7 @@ async def _only_org_of(session: AsyncSession, user_id: uuid.UUID) -> OrgRef:
             .where(OrganizationMember.user_id == user_id, ORG_IS_VISIBLE)
         )
     ).all()
-    active = [(org_id, slug) for org_id, slug, org_status in rows if not _is_suspended(org_status)]
+    active = [(org_id, slug) for org_id, slug, org_status in rows if not is_suspended(org_status)]
     if len(active) == 1:
         org_id, slug = active[0]
         return OrgRef(id=org_id, slug=slug)
@@ -228,10 +232,10 @@ async def resolve_request_org(
             return path_org
         return await _org_by_id(session, key_org_id)
 
-    self_hosted = settings.deployment_mode == DEPLOYMENT_SELF_HOSTED
+    policy = tenancy.policy()
     if path_org is not None:
-        if self_hosted and path_org.id == DEFAULT_ORG_ID:
-            return await _default_org_for(session, user)
+        if not policy.multi_tenant and path_org.id == DEFAULT_ORG_ID:
+            return await default_org_for(session, user)
         if await _is_member(session, path_org.id, user.id):
             if path_suspended:
                 raise suspended_error()
@@ -241,6 +245,4 @@ async def resolve_request_org(
             raise _not_found()
         return step_in
 
-    if self_hosted:
-        return await _default_org_for(session, user)
-    return await _only_org_of(session, user.id)
+    return await policy.orgless_org(session, user)

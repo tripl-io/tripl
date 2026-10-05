@@ -29,7 +29,6 @@ from __future__ import annotations
 
 import asyncio
 import json
-import re
 import secrets
 import uuid
 from dataclasses import dataclass
@@ -41,8 +40,9 @@ from cryptography.fernet import InvalidToken
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from tripl import tenancy
 from tripl.auth_utils import normalize_email
-from tripl.config import DEPLOYMENT_HOSTED, settings
+from tripl.config import settings
 from tripl.crypto import decrypt_value, encrypt_value
 from tripl.models.domain_enums import OrganizationRole
 from tripl.models.organization import DEFAULT_ORG_ID, OrganizationMember
@@ -51,7 +51,6 @@ from tripl.services import (
     audit_service,
     auth_service,
     email_verification_service,
-    org_service,
 )
 from tripl.services.oidc import accounts as oidc_accounts
 from tripl.services.oidc import flow as oidc_flow
@@ -60,7 +59,6 @@ from tripl.services.oidc.flow import (
     ERR_DENIED,
     ERR_DOMAIN,
     ERR_EMAIL_UNVERIFIED,
-    ERR_FAILED,
     ERR_IDP,
     ERR_STATE,
     ERR_UNAVAILABLE,
@@ -225,7 +223,7 @@ async def callback(
         target_id=user.id,
         target_name=user.email,
         payload={"issuer": GOOGLE_ISSUER},
-        organization_id=await _home_org_id(session, user.id),
+        organization_id=await home_org_id(session, user.id),
     )
     await session.refresh(user)
     # Re-checked: without an encryption key the cookie is only encoded.
@@ -255,17 +253,13 @@ async def sign_in_verified(session: AsyncSession, *, email: str, name: str | Non
     # and with it the PLATFORM_ADMIN_EMAILS grant that verification carries.
     email_verification_service.mark_verified(user)
     email_verification_service.grant_listed_platform_admin(user)
-    if (
-        settings.deployment_mode == DEPLOYMENT_HOSTED
-        and await _home_org_id(session, user.id) is None
-    ):
-        await _create_sandbox_org(session, user)
+    await tenancy.policy().after_verified_sign_in(session, user)
     await session.flush()
     return user
 
 
 async def _create_account(session: AsyncSession, *, email: str, name: str | None) -> User:
-    hosted = settings.deployment_mode == DEPLOYMENT_HOSTED
+    hosted = tenancy.multi_tenant()
     if not hosted:
         await auth_service.acquire_owner_set_xact_lock(session, DEFAULT_ORG_ID)
     is_first_user = not hosted and not await auth_service.has_any_users(session)
@@ -290,7 +284,7 @@ async def _create_account(session: AsyncSession, *, email: str, name: str | None
     return user
 
 
-async def _home_org_id(session: AsyncSession, user_id: uuid.UUID) -> uuid.UUID | None:
+async def home_org_id(session: AsyncSession, user_id: uuid.UUID) -> uuid.UUID | None:
     org_id: uuid.UUID | None = await session.scalar(
         select(OrganizationMember.organization_id)
         .where(OrganizationMember.user_id == user_id)
@@ -298,32 +292,3 @@ async def _home_org_id(session: AsyncSession, user_id: uuid.UUID) -> uuid.UUID |
         .limit(1)
     )
     return org_id
-
-
-_SLUG_JUNK = re.compile(r"[^a-z0-9]+")
-
-
-async def _create_sandbox_org(session: AsyncSession, user: User) -> None:
-    """An organization of the account's own, named after it (hosted). No commit."""
-    base = _SLUG_JUNK.sub("-", user.email.split("@", 1)[0].lower()).strip("-")[:40] or "org"
-    for _ in range(5):
-        slug = f"{base}-{secrets.token_hex(3)}"
-        try:
-            org = await org_service.create_org(
-                session, creator=user, slug=slug, name=f"{user.name or base}'s workspace"
-            )
-        except org_service.OrgSlugTakenError:
-            continue
-        await audit_service.record(
-            session,
-            user=user,
-            action="org.create",
-            target_type="organization",
-            target_id=org.id,
-            target_name=org.slug,
-            payload={"slug": org.slug, "name": org.name, "via": "google_sign_in"},
-            organization_id=org.id,
-            commit=False,
-        )
-        return
-    raise SignInFlowError(ERR_FAILED)
