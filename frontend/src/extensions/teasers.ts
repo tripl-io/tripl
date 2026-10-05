@@ -1,4 +1,4 @@
-import { Activity, Building, FileSearch, History, KeyRound, RefreshCw, ScrollText, Siren, UserCog, Webhook } from 'lucide-react'
+import { Activity, Building, FileSearch, History, KeyRound, RefreshCw, ScrollText, ShieldCheck, Siren, UserCog, Webhook } from 'lucide-react'
 import type { SettingsNavItem } from '@/components/settings/nav'
 import type { ExtensionSettingsSection } from './types'
 
@@ -104,6 +104,19 @@ export const ENTERPRISE_TEASERS: readonly EnterpriseTeaser[] = [
     }),
     summary:
       'When an alert is not acknowledged in time, notify the next destination, member or group, with routes that pick a policy across all projects.',
+  },
+  {
+    group: 'Organization',
+    after: 'org-escalation',
+    item: tagged({
+      id: 'org-governance',
+      label: 'Plan governance',
+      icon: ShieldCheck,
+      path: 'organization/governance',
+      keywords: ['plan rules', 'naming rules', 'policy', 'protected main', 'pii', 'sensitive fields', 'forbidden properties'],
+    }),
+    summary:
+      'Rules every project of the organization follows: naming patterns for events and properties, required and forbidden properties, sensitive fields that need a designated group’s approval, and a protected main that takes changes only through branches. tripl check, plan validation and every merge enforce them.',
   },
   {
     group: 'Organization',

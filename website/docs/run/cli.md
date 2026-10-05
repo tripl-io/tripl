@@ -2221,8 +2221,8 @@ With `--strict`, calls whose status is `dynamic` are listed too.
 Findings use the codes in the guide's
 [findings table](../integrate/tripl-check.md#findings): `unknown_event_type`,
 `unknown_event`, `deprecated_event`, `unknown_field`, `missing_required_field`,
-`value_not_allowed`, `dynamic_value`, `too_dynamic`, `oversize_value` and
-`no_verdict`.
+`value_not_allowed`, `dynamic_value`, `too_dynamic`, `policy_violation`,
+`oversize_value` and `no_verdict`.
 
 **Exit codes.** 0 when there is no error (and, with `--strict`, no warning). 1
 when there is at least one, or when a request failed. 2 on a configuration or

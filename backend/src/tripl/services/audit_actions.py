@@ -295,6 +295,16 @@ WORKSPACE_GROUPS: tuple[tuple[str, tuple[str, ...]], ...] = (
         ),
     ),
     (
+        # Plan governance (Enterprise): an organization's plan policies, the rules
+        # its projects' validation, merges and main edits are held to.
+        "Plan governance",
+        (
+            "org.governance_policy.create",
+            "org.governance_policy.update",
+            "org.governance_policy.delete",
+        ),
+    ),
+    (
         # F20: an organization's OIDC single sign-on — its settings and domains
         # (``org.sso.*``) and the sign-ins through it (``user.sso_*``), all
         # filed in the organization.

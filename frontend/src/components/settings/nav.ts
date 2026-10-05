@@ -119,10 +119,9 @@ export const PROJECT_GROUPS: SettingsNavGroup[] = [
         label: 'Plan rules',
         icon: Shield,
         path: 'project/plan-rules',
-        // Last in the group, tagged: the page only says what is coming and
-        // where approvals live today.
-        tag: 'Soon',
-        keywords: ['naming rules', 'conventions', 'policy'],
+        // Last in the group: the page lists the gates a plan change passes in
+        // this project, and where the organization's own rules are set.
+        keywords: ['naming rules', 'conventions', 'policy', 'merge policy', 'governance'],
       },
     ],
   },

@@ -23,7 +23,10 @@ entry point in the ``tripl.extensions`` group whose object is an
   ``check`` runs when the API and the worker start and refuses startup when it
   raises), and :meth:`Extension.stored_secret_slots` names the encrypted values
   the extension's own tables hold, so re-encrypting every stored secret
-  (``tripl.services.stored_secrets``) reaches them too.
+  (``tripl.services.stored_secrets``) reaches them too;
+* **plan policies** — :meth:`Extension.plan_policy_violations` may add rules
+  of its own to ``POST /plan/validate``, to a branch merge and to writes to
+  the main plan (``tripl.core.plan_policy``).
 
 ORM model modules are a separate entry point group, ``tripl.models``, whose
 values are module paths: ``tripl.models`` imports them while it is itself still
@@ -54,6 +57,7 @@ if TYPE_CHECKING:
     from sqlalchemy.ext.asyncio import AsyncSession
     from starlette.responses import Response
 
+    from tripl.core.plan_policy import PlanPolicyContext, PolicyViolation
     from tripl.crypto import SecretCipher
     from tripl.middleware.org_context import OrgRef
     from tripl.models.audit_log import AuditLog
@@ -226,6 +230,16 @@ class Extension:
         """Encrypted values in the extension's own tables (``tripl.services.stored_secrets``)."""
         return ()
 
+    # -- plan policies ---------------------------------------------------
+    async def plan_policy_violations(
+        self, session: AsyncSession, context: PlanPolicyContext
+    ) -> Sequence[PolicyViolation]:
+        """Rules ``context`` breaks (``tripl.core.plan_policy``); none by default.
+
+        Read-only: asked inside the caller's transaction, it must not write.
+        """
+        return ()
+
     # -- worker ----------------------------------------------------------
     def celery_task_modules(self) -> Sequence[str]:
         """Modules to import so their Celery tasks register."""
@@ -360,6 +374,16 @@ async def claim_ready_demo(
         if project is not None:
             return extension, project
     return None
+
+
+async def plan_policy_violations(
+    session: AsyncSession, context: PlanPolicyContext
+) -> list[PolicyViolation]:
+    """Every extension's violations for ``context``, in load order."""
+    found: list[PolicyViolation] = []
+    for extension in extensions():
+        found.extend(await extension.plan_policy_violations(session, context))
+    return found
 
 
 def error_response(

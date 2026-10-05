@@ -30,7 +30,9 @@ from typing import Any, cast
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from tripl import extensions
 from tripl.core.analyzers._event_generator_variables import VariableIndex
+from tripl.core.plan_policy import PlanPolicyContext, PolicyCall
 from tripl.core.plan_validation import (
     EventContext,
     Finding,
@@ -49,6 +51,7 @@ from tripl.models.event import Event
 from tripl.models.event_field_value import EventFieldValue
 from tripl.models.event_type import EventType
 from tripl.models.field_definition import FieldDefinition
+from tripl.models.project import Project
 from tripl.models.variable import Variable
 from tripl.models.variable_event_value_override import VariableEventValueOverride
 from tripl.schemas.plan_validation import (
@@ -98,6 +101,13 @@ async def validate_plan(
     verdicts = await asyncio.to_thread(
         _check_all, resolutions, snapshot, contexts, strict=data.strict
     )
+    await _add_policy_findings(
+        session,
+        project_id=project_id,
+        branch_id=resolved_branch,
+        resolutions=resolutions,
+        verdicts=verdicts,
+    )
 
     results: list[PlanValidationItemResult] = []
     summary = PlanValidationSummary()
@@ -117,13 +127,81 @@ async def validate_plan(
                 identity=res.identity,
                 findings=[
                     PlanValidationFinding(
-                        code=f.code, severity=f.severity, field=f.field, message=f.message
+                        code=f.code,
+                        severity=f.severity,
+                        field=f.field,
+                        message=f.message,
+                        rule=f.rule,
                     )
                     for f in findings
                 ],
             )
         )
     return PlanValidationResponse(items=results, summary=summary)
+
+
+async def _add_policy_findings(
+    session: AsyncSession,
+    *,
+    project_id: uuid.UUID,
+    branch_id: uuid.UUID | None,
+    resolutions: Sequence[Resolution],
+    verdicts: Sequence[list[Finding]],
+) -> None:
+    """Append the installed extensions' policy violations to each call's findings.
+
+    A violation lands on the call its ``item_ref`` names, as a
+    ``policy_violation`` finding with the rule in ``rule``; one naming no call
+    of this batch is dropped. Nothing is asked when no extension is installed.
+    """
+    if not extensions.extensions():
+        return
+    project = (
+        await session.execute(
+            select(Project.organization_id, Project.slug).where(Project.id == project_id)
+        )
+    ).one_or_none()
+    if project is None:
+        return
+    calls = [
+        PolicyCall(
+            ref=res.item.ref,
+            event_type=res.event_type.name if res.event_type is not None else res.item.event_type,
+            name=res.item.name,
+            identity=res.identity,
+            event_id=res.event.id if res.event is not None else None,
+            field_names=tuple(dict.fromkeys([*res.item.fields, *(res.item.properties or {})])),
+            complete=res.item.complete,
+        )
+        for res in resolutions
+    ]
+    violations = await extensions.plan_policy_violations(
+        session,
+        PlanPolicyContext(
+            phase="validate",
+            organization_id=project.organization_id,
+            project_id=project_id,
+            project_slug=project.slug,
+            branch_id=branch_id,
+            calls=calls,
+        ),
+    )
+    position_by_ref: dict[str, int] = {}
+    for position, res in enumerate(resolutions):
+        position_by_ref.setdefault(res.item.ref, position)
+    for violation in violations:
+        target = position_by_ref.get(violation.item_ref or "")
+        if target is None:
+            continue
+        verdicts[target].append(
+            Finding(
+                code="policy_violation",
+                severity=violation.severity,
+                field=violation.field,
+                message=violation.message,
+                rule=violation.rule,
+            )
+        )
 
 
 def _resolve_all(items: Sequence[ValidationItem], snapshot: PlanSnapshot) -> list[Resolution]:

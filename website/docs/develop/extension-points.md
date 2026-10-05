@@ -74,6 +74,7 @@ no-op.
 | `tenancy()` | a decision differs between one team's instance and a multi-tenant service | Return a `tripl.tenancy.TenancyPolicy` to run the instance as a multi-tenant service, or `None`. The first policy returned wins; without one the instance is a single team's, and `DEPLOYMENT_MODE=hosted` refuses to start. |
 | `secret_cipher()` | the first stored secret is encrypted or decrypted, or the API or worker starts | Return a `tripl.crypto.SecretCipher` (`encrypt`, `decrypt`, `check`) to encrypt every stored secret, or `None`. The first cipher returned wins; without one, secrets are Fernet under `ENCRYPTION_KEY`. `decrypt` raises `InvalidToken` for a value it cannot read; `check` runs when the API and the worker start and refuses startup when it raises. |
 | `stored_secret_slots()` | stored secrets are listed (`tripl.services.stored_secrets`) | Return the `ColumnSecret`s and `JsonSecret`s the extension's own tables hold, so re-encrypting every stored secret reaches them. A `*_encrypted` column no slot lists fails Community's tests. |
+| `plan_policy_violations(session, context)` | `POST /plan/validate` (`context.phase == "validate"`), a branch merge after the project's own gates (`"merge"`), and a write to the main plan (`"direct_edit"`) | Return `tripl.core.plan_policy.PolicyViolation`s. In `validate`, each one names its call by `item_ref` and is reported as a `policy_violation` finding (one naming no call is dropped). In `merge` and `direct_edit`, any `error` violation refuses the request with `409` and `policy_violations`; `warning` ones never block. The context carries the calls, the merge base and branch snapshots with who approved the current content, or just the project and actor. Read-only. |
 | `celery_task_modules()` | the Celery app is configured | Return modules to import so their tasks register. |
 | `beat_schedule()` | the Celery app is configured | Return beat entries to add. |
 
@@ -171,5 +172,5 @@ the Editions page, and the admonition on its docs pages.
 
 Community bundles no extension. Every Enterprise feature (single sign-on per
 organization, SCIM provisioning, the organization-wide audit log, audit export,
-the audit webhook and alert escalation) lives in the separately installed, private Enterprise
+the audit webhook, alert escalation and plan governance) lives in the separately installed, private Enterprise
 package, which reaches the core only through the hooks and the registry above.

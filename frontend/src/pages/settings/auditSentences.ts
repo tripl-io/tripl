@@ -142,6 +142,10 @@ const ACTION_SENTENCE: Record<string, string> = {
   'org.alert_route.create': 'Created the alert route',
   'org.alert_route.update': 'Changed the alert route',
   'org.alert_route.delete': 'Deleted the alert route',
+  // Plan governance (Enterprise): the organization's plan policies.
+  'org.governance_policy.create': 'Created the plan policy',
+  'org.governance_policy.update': 'Changed the plan policy',
+  'org.governance_policy.delete': 'Deleted the plan policy',
 }
 
 export const TARGET_NOUN: Record<string, string> = {

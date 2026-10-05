@@ -133,11 +133,11 @@ describe('SettingsLayout signposting', () => {
     )
   })
 
-  it('tags the unbuilt Plan rules section "Soon" without renaming its link', () => {
+  it('lists Plan rules untagged, now that its gates exist', () => {
     renderSettings('members')
 
     const planRules = screen.getByRole('link', { name: 'Plan rules' })
-    expect(planRules).toHaveTextContent('Soon')
+    expect(planRules).not.toHaveTextContent('Soon')
   })
 
   it('offers no tracking-plan link while no project is bound', () => {

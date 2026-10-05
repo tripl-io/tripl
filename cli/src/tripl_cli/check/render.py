@@ -49,6 +49,7 @@ RULE_TEXT: dict[str, str] = {
     "dynamic_value": "The value is only known at runtime, so it could not be checked.",
     "too_dynamic": "The name has too many runtime parts to look up in the plan.",
     "wrong_type": "A property's value is not of the type the plan gives it.",
+    "policy_violation": "The call breaks a plan rule the server adds (an organization policy).",
     "oversize_value": "A value exceeded the validator's size limits and was sent as null.",
     "no_verdict": "The validator returned no verdict for this item.",
 }
