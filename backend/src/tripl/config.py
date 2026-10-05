@@ -174,6 +174,12 @@ class Settings(BaseSettings):
     # admin: every instance owner when self-hosted, only these addresses when
     # hosted. PLATFORM_ADMIN_EMAILS is comma-separated.
     deployment_mode: DeploymentMode = DEPLOYMENT_SELF_HOSTED
+    # Every request the server makes on a URL or host someone configured
+    # (warehouses, webhooks, identity providers, AI and embedding endpoints)
+    # must reach a public address, resolved once and pinned. Off by default: a
+    # self-hosted operator may point at an internal warehouse on purpose. A
+    # hosted instance has it on whatever this says (``public_hosts_only``).
+    outbound_public_hosts_only: bool = False
     platform_admin_emails: Annotated[list[str], NoDecode] = Field(default_factory=list)
     org_settings_operator_fallback: OrgSettingsOperatorFallback = "all"
 
@@ -439,6 +445,11 @@ class Settings(BaseSettings):
             msg = f"smtp_security must be one of {', '.join(SMTP_SECURITY_MODES)}"
             raise ValueError(msg)
         return normalized
+
+    @property
+    def public_hosts_only(self) -> bool:
+        """Whether outbound requests must reach public addresses only."""
+        return self.outbound_public_hosts_only or self.deployment_mode == DEPLOYMENT_HOSTED
 
     def cors_origins(self) -> list[str]:
         """Resolve effective CORS origin allow-list.

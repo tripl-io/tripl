@@ -80,6 +80,8 @@ x-app-environment: &app-environment
   DEPLOYMENT_MODE: ${DEPLOYMENT_MODE:-}
   PLATFORM_ADMIN_EMAILS: ${PLATFORM_ADMIN_EMAILS:-}
   ORG_SETTINGS_OPERATOR_FALLBACK: ${ORG_SETTINGS_OPERATOR_FALLBACK:-}
+  # Outbound requests to public addresses only (always on with DEPLOYMENT_MODE=hosted).
+  OUTBOUND_PUBLIC_HOSTS_ONLY: ${OUTBOUND_PUBLIC_HOSTS_ONLY:-}
   # Sign in with Google and a public demo instance (website/docs/run/public-demo.md).
   GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-}
   GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET:-}

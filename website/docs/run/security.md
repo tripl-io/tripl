@@ -725,6 +725,24 @@ own flag. Console grants and revocations are audited as
 when it was not (the operator controls the instance), noted in the audit
 payload as `marked_verified: true`.
 
+## Outbound requests {#outbound-requests}
+
+tripl connects to hosts its users configure: warehouses, an organization's
+identity provider and webhooks. By default a self-hosted instance lets them
+point anywhere, internal hosts included, because an operator often runs the
+warehouse next to tripl on purpose. (An organization's own AI and
+search-embedding endpoints are always held to public addresses, in either
+mode.)
+
+With `OUTBOUND_PUBLIC_HOSTS_ONLY=true`, or always with `DEPLOYMENT_MODE=hosted`,
+each such host must resolve to public addresses only. The name is resolved
+right before every connection, and the connection goes to the address that was
+checked, so a name that answers publicly for the check and privately for the
+connection (DNS rebinding) is refused too. Redirects are refused (search
+embeddings included), and a BigQuery key may only exchange tokens with Google. Turn it on when the people
+who configure these hosts must not reach the instance's own network: the
+database, the broker or a cloud metadata endpoint.
+
 ## CORS
 
 The effective allow-list is resolved by `Settings.cors_origins()`:

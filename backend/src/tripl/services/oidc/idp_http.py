@@ -4,13 +4,14 @@ Three of them: the discovery document, the JWKS and the token endpoint. All go
 through :func:`request`, which holds the outbound rules in one place:
 
 * ``https`` only, whatever the deployment mode;
-* on a hosted instance the host must be public (``reject_private_host``), and
-  it is re-resolved right before EVERY request, so a name that pointed
-  somewhere public when the issuer was saved and at a private address now is
-  refused (the pattern of ``llm_service`` / ``embedding_service``). The
-  connection then goes to the very address that was vetted (the TLS name and
-  ``Host`` stay the hostname), so a short-TTL name cannot answer publicly for
-  the check and privately for the connection (DNS rebinding);
+* when outbound hosts must be public (``Settings.public_hosts_only``) the host
+  must be public (``reject_private_host``), and it is re-resolved right before
+  EVERY request, so a name that pointed somewhere public when the issuer was
+  saved and at a private address now is refused (the pattern of
+  ``llm_service`` / ``embedding_service``). The connection then goes to the
+  very address that was vetted (the TLS name and ``Host`` stay the hostname),
+  so a short-TTL name cannot answer publicly for the check and privately for
+  the connection (DNS rebinding);
 * redirects are refused (the shared no-redirect opener), so a public IdP
   answering ``302 -> 169.254.169.254`` cannot lead tripl anywhere;
 * a 10 second timeout per socket operation, a 20 second deadline for the
@@ -36,7 +37,7 @@ from typing import Any
 from urllib.parse import urlencode, urlparse
 
 from tripl.alerting_validation import reject_private_host
-from tripl.config import DEPLOYMENT_HOSTED, settings
+from tripl.config import settings
 from tripl.services import safe_http
 from tripl.services.safe_http import HttpResponse
 
@@ -102,7 +103,7 @@ def check_url(url: str, *, field: str) -> str:
     parsed = urlparse(url)
     if parsed.scheme != "https" or not parsed.hostname:
         raise IdpError("idp_insecure_url", f"{field} must be an https URL")
-    if settings.deployment_mode == DEPLOYMENT_HOSTED:
+    if settings.public_hosts_only:
         try:
             reject_private_host(parsed.hostname, field=field)
         except ValueError as exc:

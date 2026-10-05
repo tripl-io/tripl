@@ -240,10 +240,10 @@ def _hosted_service_account(info: dict[str, object]) -> dict[str, object]:
     refresh, so a tenant's key could otherwise point the server at any host,
     an internal one included. Same rule as an organization's storage key.
     """
-    from tripl.config import DEPLOYMENT_HOSTED, settings
+    from tripl.config import settings
     from tripl.storage.photo_storage import UnsafeServiceAccount, pinned_service_account_info
 
-    if settings.deployment_mode != DEPLOYMENT_HOSTED:
+    if not settings.public_hosts_only:
         return info
     try:
         return pinned_service_account_info(info)
