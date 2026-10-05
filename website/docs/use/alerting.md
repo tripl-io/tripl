@@ -23,7 +23,7 @@ rule editor — see [Narrowing a rule to one scan](#narrowing-a-rule-to-one-scan
 :::note Demo projects are zero-egress
 In a generated demo project the only destination that can exist is the local
 **demo sink**: the API refuses to create a Slack, Telegram, webhook, email, Jira,
-or Linear destination there, and every delivery is rendered and recorded locally
+Linear, PagerDuty or Microsoft Teams destination there, and every delivery is rendered and recorded locally
 rather than sent — the UI labels those rows as simulated, never as a real send.
 That local sink never fails on its own, so the demo deliberately seeds one
 **failed** earlier attempt at the same incident: the failed-delivery state and
@@ -77,11 +77,15 @@ readers).
 | **Email** | Up to 50 recipients, optional From / subject; uses the instance SMTP settings | plain |
 | **Jira** | Base URL + project key + issue type (default `Task`) | plain |
 | **Linear** | API token + team, optional initial state and labels | plain |
+| **PagerDuty** | Events API v2 integration key + severity (default `error`) | plain |
+| **Microsoft Teams** | Workflows / incoming-webhook URL (SSRF-guarded) | plain (Adaptive Card) |
 
 :::note
 **Jira** and **Linear** create **one ticket per delivery** (with a dedup guard so
-the same delivery doesn't open duplicates). The chat channels (Slack, Telegram)
-post a message; **Webhook** POSTs a JSON payload. **MarkdownV2** falls back to
+the same delivery doesn't open duplicates). The chat channels (Slack, Telegram,
+Microsoft Teams) post a message; **Webhook** POSTs a JSON payload; **PagerDuty**
+opens an incident and resolves it when tripl closes it — see
+[PagerDuty](#pagerduty). **MarkdownV2** falls back to
 plain text automatically if a message can't be rendered safely.
 :::
 
@@ -198,7 +202,8 @@ Delivery log still records one row per rule — that is what keeps each rule's
 own template, its Inbox incidents and its Retry working — so a digest of three
 monitors is three rows and one message.
 
-Telegram, webhook, Jira and Linear still send one message (or ticket) per rule.
+Telegram, webhook, Jira, Linear, PagerDuty and Microsoft Teams still send one
+message (or ticket, or event) per rule.
 Telegram already splits a single rule across several messages to fit its
 4096-character ceiling and resumes a partial send per rule, and a Jira or Linear
 ticket is per rule by contract; bundling either would cost more than it buys.
@@ -292,14 +297,16 @@ The result shows inside the dialog, and it reads the same way as a card's.
   port) as the saved one, and a stored webhook header value only when the
   draft's target URL does. Otherwise the test returns `ok: false` with
   `error_kind: config`, and the secret has to be typed again to test the new
-  host.
+  host. A PagerDuty integration key and a Teams URL are lent from the stored
+  destination when left blank, like a Slack webhook URL: PagerDuty's endpoint
+  is fixed, and the Teams URL is itself the secret.
 - **The channel cannot change.** A `destination_id` whose channel is not the
   body's `type` is a **422**; another project's destination id is a **404**,
   never a way to borrow its secrets.
 - **The same refusals apply.** A demo project refuses it with the same
   `ok: false` and `error_kind: policy` (the local demo sink excepted), and the
   webhook and Jira URLs go through the same private-host refusal as a real
-  delivery.
+  delivery, and so does the Microsoft Teams URL.
 - **Nothing is saved.** No destination is created or changed, and no delivery is
   written. The press is audited as `alert_destination.test`, the same action as
   the card's **Test**; its payload has `draft: true` and `target_origin`, the
@@ -310,6 +317,84 @@ line that nothing is wrong and that someone pressed Test. Use rule replay to
 validate *matching*, and confirm the first real delivery in the **Delivery
 log**; a failing webhook or an unverified bot token is the most common transport
 failure.
+
+### PagerDuty {#pagerduty}
+
+A PagerDuty destination sends [Events API v2](https://developer.pagerduty.com/docs/events-api-v2/overview/)
+events to `https://events.pagerduty.com/v2/enqueue`. The endpoint is fixed; the
+**integration key** chooses the PagerDuty service.
+
+**Getting the key.** In PagerDuty open the service that should be paged, then
+**Integrations → Add an integration → Events API V2**, and copy its
+**Integration Key** (32 letters and digits). Paste it into the destination
+dialog and pick a **Severity** — `critical`, `error` (the default), `warning`
+or `info`; every event the destination sends carries it, and PagerDuty's
+urgency rules can key on it. The key is write-only, like every other secret
+here: the API reports `pagerduty_routing_key_set` and never returns it, and no
+error message ever repeats it.
+
+**What is sent.** One `trigger` event per *incident* in a delivery, not one per
+delivery: a delivery that carries three scopes of one rule pages three
+incidents. Each event has
+
+- `dedup_key` `tripl-<incident id>` — the same incident handle the
+  [Inbox](#the-inbox) groups by (one rule × scope × direction). Every
+  later delivery for the same incident reuses it, so PagerDuty updates the open
+  incident instead of opening another. An alert from before incidents were
+  recorded has no handle and is keyed `tripl-delivery-<delivery id>` instead;
+- `payload.summary` — project, rule and scope, at most 1024 characters;
+- `payload.source` `tripl`, `payload.severity` the destination's severity, and
+  `payload.component` the project slug;
+- `payload.custom_details` — the same structured body a
+  [Webhook destination POSTs](#what-a-webhook-destination-posts), with `items`
+  narrowed to that incident's scopes;
+- `links` — the incident in tripl, when the instance has an `APP_BASE_URL`.
+
+Only an HTTP **202** counts as sent; anything else fails the delivery with
+PagerDuty's error in the **Delivery log**. Each accepted event's dedup key is
+recorded on the delivery before the next one is sent, so **Retry** after a
+partial failure pages only what is missing, never the same incident twice.
+
+**Resolve.** PagerDuty is the one channel that hears back from tripl. When an
+incident closes — automatically, on the collection that finds its scope no
+longer firing, or by **Resolve** in the Inbox (one incident or a bulk
+selection) — tripl sends `event_action: "resolve"` with the same `dedup_key` to
+every PagerDuty destination that paged it. It is best effort and happens after
+the close is saved: a failed resolve is logged by the worker and never undoes
+or delays the close, and a close that is rolled back sends nothing. It is sent
+once per incident and destination; a second close of the same incident (an
+Inbox Resolve after the automatic one) sends nothing more. A disabled
+destination and a demo project send no resolve, for the same reasons they send
+no trigger. Acknowledge, Mute and False positive do not resolve the page.
+
+**Test** sends a `trigger` with severity `info`, a summary that says it is a
+test, and a one-off dedup key, then resolves it at once: the integration key is
+proven to route somewhere, and nobody is left paged by it. It still reaches
+whoever is on call for that service for the moment it is open.
+
+### Microsoft Teams {#microsoft-teams}
+
+A Microsoft Teams destination posts an [Adaptive Card](https://adaptivecards.io/)
+to a channel webhook.
+
+**Getting the URL.** In the Teams channel, open **Workflows** and create a flow
+from the template **Post to a channel when a webhook request is received**; it
+gives you an HTTPS URL. A classic **Incoming Webhook** connector URL
+(`…webhook.office.com/…`) works too. Paste it into the destination dialog. The
+URL is the credential — anyone who has it can post to the channel — so it is
+stored encrypted and reported only as `teams_webhook_set`.
+
+The URL is checked like a [Webhook](#what-a-webhook-destination-posts)
+destination's: it must be `https://`, and a host that is or resolves to a
+private or internal address is refused when it is saved and again right before
+every send.
+
+**What is sent.** `{"type": "message", "attachments": [...]}` with one Adaptive
+Card (schema 1.4): the alert's title, a fact list (project, rule, scan,
+destination, alert count), the rendered message as plain text, and an
+**Open in tripl** button to the incident when the instance has an
+`APP_BASE_URL`. Any 2xx answer is success (Workflows answers 202). The message
+format is plain text only: Teams renders neither Slack's nor Telegram's markup.
 
 ### What deleting one would destroy
 

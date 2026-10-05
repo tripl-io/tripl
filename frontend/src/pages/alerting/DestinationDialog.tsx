@@ -9,6 +9,7 @@ import { Checkbox } from '@/components/ui/checkbox'
 import { Dialog, DialogBody, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { NativeSelect } from '@/components/settings/kit'
 import { useDirtySinceOpen, useUnsavedDialogGuard } from '@/hooks/useUnsavedChangesGuard'
 import { FieldError } from '@/components/forms/FieldError'
 import { examplePlaceholder } from '@/components/forms/placeholders'
@@ -18,7 +19,12 @@ import type { AlertDestination } from '@/types'
 
 import { invalidateAlertingConfig } from './alertingCache'
 import { ChannelGlyph, channelLabel } from './channelMeta'
-import { defaultDestinationForm, type DestinationChannel, type DestinationFormState } from './constants'
+import {
+  PAGERDUTY_SEVERITIES,
+  defaultDestinationForm,
+  type DestinationChannel,
+  type DestinationFormState,
+} from './constants'
 import { DeliveryScheduleField } from './DeliveryScheduleField'
 import { resolveScheduleTimezone } from './deliverySchedule'
 import {
@@ -95,6 +101,12 @@ function SecretInput({ label, ...props }: ComponentProps<typeof Input> & { label
   )
 }
 
+/** PagerDuty's four severities, as the select names them. */
+const PAGERDUTY_SEVERITY_OPTIONS = PAGERDUTY_SEVERITIES.map(value => ({
+  value,
+  label: value.charAt(0).toUpperCase() + value.slice(1),
+}))
+
 /** The inputs each channel renders — what a server error may be attached to. */
 const CHANNEL_FIELDS: Record<DestinationFormState['type'], readonly (keyof DestinationFormState)[]> = {
   slack: ['webhook_url'],
@@ -103,6 +115,8 @@ const CHANNEL_FIELDS: Record<DestinationFormState['type'], readonly (keyof Desti
   email: ['email_recipients', 'email_from_address', 'email_subject_template'],
   jira: ['jira_base_url', 'jira_auth_email', 'jira_api_token', 'jira_project_key', 'jira_issue_type'],
   linear: ['linear_api_key', 'linear_team_id', 'linear_state_id', 'linear_label_ids'],
+  pagerduty: ['pagerduty_routing_key', 'pagerduty_severity'],
+  teams: ['teams_webhook_url'],
   demo_sink: [],
 }
 
@@ -229,6 +243,8 @@ export function DestinationDialog({
         ...(secretRequired(existing?.linear_api_key_set) ? ['linear_api_key' as const] : []),
         'linear_team_id' as const,
       ],
+      pagerduty: secretRequired(existing?.pagerduty_routing_key_set) ? ['pagerduty_routing_key' as const] : [],
+      teams: secretRequired(existing?.teams_webhook_set) ? ['teams_webhook_url' as const] : [],
       demo_sink: [],
     } satisfies Record<DestinationFormState['type'], (keyof DestinationFormState)[]>)[form.type],
   ]
@@ -282,7 +298,15 @@ export function DestinationDialog({
 
   /** One write-only credential, by payload field. */
   const secretField = (
-    field: 'webhook_url' | 'bot_token' | 'target_url' | 'webhook_header_value' | 'jira_api_token' | 'linear_api_key',
+    field:
+      | 'webhook_url'
+      | 'bot_token'
+      | 'target_url'
+      | 'webhook_header_value'
+      | 'jira_api_token'
+      | 'linear_api_key'
+      | 'pagerduty_routing_key'
+      | 'teams_webhook_url',
     id: string,
     label: string,
     { placeholder, optional = false }: { placeholder: string; optional?: boolean },
@@ -507,6 +531,54 @@ export function DestinationDialog({
                     Each alert opens a new issue in this Linear team. Create the API key in Linear
                     under Settings → API; the team ID is the team's UUID, shown in that team's
                     settings. Leave State ID empty to use the team's default state.
+                  </p>
+                </div>
+              )}
+
+              {form.type === 'pagerduty' && (
+                <div className="grid gap-3">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                    {secretField('pagerduty_routing_key', 'dest-pagerduty-routing-key', 'Integration key', {
+                      placeholder: existing?.pagerduty_routing_key_set
+                        ? 'Leave empty to keep current key'
+                        : '32-character routing key',
+                    })}
+                    <div className="grid gap-2">
+                      <Label htmlFor="dest-pagerduty-severity">Severity</Label>
+                      <NativeSelect
+                        id="dest-pagerduty-severity"
+                        width="fill"
+                        value={form.pagerduty_severity}
+                        onChange={value => set('pagerduty_severity', value)}
+                        options={PAGERDUTY_SEVERITY_OPTIONS}
+                        {...fieldErrorProps('dest-pagerduty-severity', errorFor('pagerduty_severity'))}
+                      />
+                      <FieldError inputId="dest-pagerduty-severity" message={errorFor('pagerduty_severity')} />
+                    </div>
+                  </div>
+                  {/* Where the key comes from, and the one behaviour no other
+                      channel has: tripl closes the page it opened. */}
+                  <p className="text-body-sm text-fg-tertiary">
+                    In PagerDuty, add an <strong>Events API V2</strong> integration to a service
+                    (Service → Integrations) and paste its integration key. Each incident pages
+                    once and is updated, not duplicated, while it keeps firing; when tripl closes
+                    it — the scope stops firing or someone resolves it in the Inbox — the page is
+                    resolved too.
+                  </p>
+                </div>
+              )}
+
+              {form.type === 'teams' && (
+                <div className="grid gap-2">
+                  {secretField('teams_webhook_url', 'dest-teams-webhook-url', 'Webhook URL', {
+                    placeholder: existing?.teams_webhook_set
+                      ? 'Leave empty to keep current URL'
+                      : examplePlaceholder('https://….webhook.office.com/…'),
+                  })}
+                  <p className="text-body-sm text-fg-tertiary">
+                    In the Teams channel, add a Workflows flow from the template “Post to a channel
+                    when a webhook request is received” (or an Incoming Webhook connector) and
+                    paste the URL it gives you. Alerts arrive as an Adaptive Card.
                   </p>
                 </div>
               )}

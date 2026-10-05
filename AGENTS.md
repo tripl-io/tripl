@@ -47,7 +47,7 @@ Already implemented in code:
 - anomaly detection for project total, event type, event, and metric scopes;
 - schema, distribution, variable-value, and app-version regression detection;
 - reconciliation, coverage, monitoring, search/AI, and audit surfaces;
-- alerting with six destination types, rules, simulation, inbox, retries,
+- alerting with eight destination types, rules, simulation, inbox, retries,
   delivery history, and message templating;
 - workspace/project/instance settings and production hardening.
 
@@ -301,8 +301,8 @@ Analytics and monitoring entities:
 - `ProjectAnomalySettings`: anomaly detector thresholds and scope toggles.
 
 Alerting entities:
-- `AlertDestination`: Slack, Telegram, webhook, email, Jira, or Linear channel
-  config.
+- `AlertDestination`: Slack, Telegram, webhook, email, Jira, Linear, PagerDuty,
+  or Microsoft Teams channel config.
 - `AlertRule`: filters, thresholds, cooldown, include/exclude scope, and message templates.
 - `AlertRuleState`: cooldown/state tracking.
 - `AlertDelivery`: one queued/sent/failed delivery attempt.
@@ -468,6 +468,9 @@ Current alert channel support:
 - Email via SMTP
 - Jira issue
 - Linear issue
+- PagerDuty Events API v2 (trigger per incident; resolve when tripl closes it —
+  `worker/tasks/alerts_pagerduty.py`)
+- Microsoft Teams Adaptive Card (`worker/tasks/alerts_teams.py`)
 
 Current message formats exposed in frontend/backend types:
 - `plain`

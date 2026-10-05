@@ -135,6 +135,9 @@ function makeDestination(overrides: Record<string, unknown> = {}) {
     linear_team_id: null,
     linear_state_id: null,
     linear_label_ids: null,
+    pagerduty_routing_key_set: false,
+    pagerduty_severity: null,
+    teams_webhook_set: false,
     is_local: false,
     // Same reason as the rule counters above: the card's subtitle prints both.
     delivery_count: 0,
@@ -341,7 +344,7 @@ describe('ProjectAlertingTab — guided setup', () => {
     expect(screen.queryByText('No deliveries yet.')).toBeNull()
 
     // ...but every channel type is still addable from the guided flow.
-    for (const label of ['Slack', 'Telegram', 'Webhook', 'Email', 'Jira', 'Linear']) {
+    for (const label of ['Slack', 'Telegram', 'Webhook', 'Email', 'Jira', 'Linear', 'PagerDuty', 'Microsoft Teams']) {
       expect(screen.getByRole('button', { name: label })).toBeInTheDocument()
     }
     // The picker is step 1 itself, not a row of buttons under the steps.
@@ -1537,7 +1540,7 @@ describe('ProjectAlertingTab — demo workspaces are zero-egress', () => {
 
     // The API refuses every external destination on a demo project, so the tab
     // must not offer one — a button here would only walk into a rejection.
-    for (const label of ['Slack', 'Telegram', 'Webhook', 'Email', 'Jira', 'Linear']) {
+    for (const label of ['Slack', 'Telegram', 'Webhook', 'Email', 'Jira', 'Linear', 'PagerDuty', 'Microsoft Teams']) {
       expect(screen.queryByRole('button', { name: label })).toBeNull()
     }
     expect(screen.queryByText('Add another channel')).toBeNull()
@@ -1575,7 +1578,7 @@ describe('ProjectAlertingTab — demo workspaces are zero-egress', () => {
     renderTab('destinations')
 
     expect(await screen.findByText('Add another channel')).toBeInTheDocument()
-    for (const label of ['Slack', 'Telegram', 'Webhook', 'Email', 'Jira', 'Linear']) {
+    for (const label of ['Slack', 'Telegram', 'Webhook', 'Email', 'Jira', 'Linear', 'PagerDuty', 'Microsoft Teams']) {
       expect(screen.getByRole('button', { name: label })).toBeInTheDocument()
     }
     expect(screen.queryByText(/never sent to Slack/i)).toBeNull()
@@ -2102,7 +2105,7 @@ describe('ProjectAlertingTab — viewer role', () => {
     expect(screen.getByText('Pick a channel')).toBeInTheDocument()
     expect(screen.getByText(/the first destination is created by an editor or owner/))
       .toBeInTheDocument()
-    for (const label of ['Slack', 'Telegram', 'Webhook', 'Email', 'Jira', 'Linear']) {
+    for (const label of ['Slack', 'Telegram', 'Webhook', 'Email', 'Jira', 'Linear', 'PagerDuty', 'Microsoft Teams']) {
       expect(screen.queryByRole('button', { name: label })).toBeNull()
     }
   })
@@ -2895,7 +2898,7 @@ describe('ProjectAlertingTab — the destination dialog (#197)', () => {
     renderTab('destinations')
 
     expect(
-      await screen.findByText(/Slack, Telegram, email, webhooks, Jira or Linear/),
+      await screen.findByText(/Slack, Telegram, email, webhooks, Jira, Linear, PagerDuty or Microsoft Teams/),
     ).toBeInTheDocument()
   })
 })

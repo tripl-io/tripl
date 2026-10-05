@@ -123,11 +123,11 @@ synthetic source:
   real seeded signals and render real messages, and rules, the replay simulator,
   deliveries, and the Inbox are all explorable — but delivery is **recorded
   locally and simulated**. Nothing is ever sent to Slack, Telegram, email, a
-  webhook, Jira, or Linear, and the UI labels these as local simulated deliveries
+  webhook, Jira, Linear, PagerDuty, or Microsoft Teams, and the UI labels these as local simulated deliveries
   (never a real send success). A demo project is zero‑egress by construction: the
   API refuses to create any destination on it other than the local sink, so a
   demo can never be pointed at a real channel — connect Slack, Telegram, a
-  webhook, email, Jira, or Linear from a **real** project instead. The local sink
+  webhook, email, Jira, Linear, PagerDuty, or Microsoft Teams from a **real** project instead. The local sink
   itself cannot fail, so the recipe seeds one **failed** earlier attempt at the
   same incident: the failed‑delivery state and the **Retry** action are reachable
   from the Delivery log table, and retrying it re‑dispatches down the normal

@@ -11,6 +11,8 @@ export type AlertDestinationType =
   | 'email'
   | 'jira'
   | 'linear'
+  | 'pagerduty'
+  | 'teams'
   | 'demo_sink'
 export type AlertDeliveryStatus = 'pending' | 'sent' | 'failed'
 export type AlertMessageFormat =
@@ -115,6 +117,11 @@ export interface AlertDestination {
   linear_team_id: string | null
   linear_state_id: string | null
   linear_label_ids: string | null
+  // PagerDuty's routing key and the Teams URL are write-only: the response
+  // says only whether one is on file.
+  pagerduty_routing_key_set: boolean
+  pagerduty_severity: string | null
+  teams_webhook_set: boolean
   // Delivery cadence. `null` means immediate — send after every collection,
   // which is what every destination did before this existed. Otherwise a
   // 5-field cron expression read in `project_timezone`.
@@ -201,6 +208,9 @@ export interface AlertDestinationDraftTestRequest {
   linear_team_id?: string | null
   linear_state_id?: string | null
   linear_label_ids?: string | null
+  pagerduty_routing_key?: string | null
+  pagerduty_severity?: string | null
+  teams_webhook_url?: string | null
 }
 
 export interface SimulatedRuleFiring {

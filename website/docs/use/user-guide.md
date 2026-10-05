@@ -108,7 +108,8 @@ dataset that never leaves the server and is never a real connection. But the
 product is not faked around it: real scans, metric collection, anomaly detection,
 reconciliation, and a continuous runtime clock all run **over** that synthetic
 source. Alert deliveries are recorded to a **local simulated sink** — nothing is
-ever sent to Slack, Telegram, email, a webhook, Jira, or Linear. Delete or reset
+ever sent to Slack, Telegram, email, a webhook, Jira, Linear, PagerDuty, or
+Microsoft Teams. Delete or reset
 it whenever you like; it never touches your real projects.
 
 See **[The demo workspace](./demo-workspace.md)** for exactly what is synthetic,

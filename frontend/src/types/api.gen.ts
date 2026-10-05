@@ -6356,8 +6356,14 @@ export interface components {
             linear_team_id?: string | null;
             /** Name */
             name: string;
+            /** Pagerduty Routing Key */
+            pagerduty_routing_key?: string | null;
+            /** Pagerduty Severity */
+            pagerduty_severity?: string | null;
             /** Target Url */
             target_url?: string | null;
+            /** Teams Webhook Url */
+            teams_webhook_url?: string | null;
             type: components["schemas"]["AlertDestinationType"];
             /** Webhook Header Name */
             webhook_header_name?: string | null;
@@ -6419,8 +6425,14 @@ export interface components {
             linear_team_id?: string | null;
             /** Name */
             name?: string | null;
+            /** Pagerduty Routing Key */
+            pagerduty_routing_key?: string | null;
+            /** Pagerduty Severity */
+            pagerduty_severity?: string | null;
             /** Target Url */
             target_url?: string | null;
+            /** Teams Webhook Url */
+            teams_webhook_url?: string | null;
             type: components["schemas"]["AlertDestinationType"];
             /** Webhook Header Name */
             webhook_header_name?: string | null;
@@ -6493,6 +6505,10 @@ export interface components {
             name: string;
             /** Next Digest At */
             next_digest_at?: string | null;
+            /** Pagerduty Routing Key Set */
+            pagerduty_routing_key_set: boolean;
+            /** Pagerduty Severity */
+            pagerduty_severity: string | null;
             /**
              * Project Id
              * Format: uuid
@@ -6507,6 +6523,8 @@ export interface components {
             rules: components["schemas"]["AlertRuleResponse"][];
             /** Target Url Set */
             target_url_set: boolean;
+            /** Teams Webhook Set */
+            teams_webhook_set: boolean;
             type: components["schemas"]["AlertDestinationType"];
             /**
              * Updated At
@@ -6544,7 +6562,7 @@ export interface components {
          * AlertDestinationType
          * @enum {string}
          */
-        AlertDestinationType: "slack" | "telegram" | "webhook" | "email" | "jira" | "linear" | "demo_sink";
+        AlertDestinationType: "slack" | "telegram" | "webhook" | "email" | "jira" | "linear" | "pagerduty" | "teams" | "demo_sink";
         /** AlertDestinationUpdate */
         AlertDestinationUpdate: {
             /** Bot Token */
@@ -6581,8 +6599,14 @@ export interface components {
             linear_team_id?: string | null;
             /** Name */
             name?: string | null;
+            /** Pagerduty Routing Key */
+            pagerduty_routing_key?: string | null;
+            /** Pagerduty Severity */
+            pagerduty_severity?: string | null;
             /** Target Url */
             target_url?: string | null;
+            /** Teams Webhook Url */
+            teams_webhook_url?: string | null;
             /** Webhook Header Name */
             webhook_header_name?: string | null;
             /** Webhook Header Value */

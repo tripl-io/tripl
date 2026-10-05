@@ -1725,7 +1725,7 @@ on the project settings; the project settings themselves are never changed by
 that feedback. Detection settings only decide what gets **flagged** —
 they never notify anyone by themselves. Notification delivery is a separate,
 fully available layer: route the resulting signals to Slack, Telegram, a webhook,
-email, Jira, or Linear under **Observe › Alerting** (see
+email, Jira, Linear, PagerDuty, or Microsoft Teams under **Observe › Alerting** (see
 [Alerting rules](./alerting.md)).
 
 ### Anomalies

@@ -1265,6 +1265,29 @@
             "title": "Name",
             "type": "string"
           },
+          "pagerduty_routing_key": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pagerduty Routing Key"
+          },
+          "pagerduty_severity": {
+            "anyOf": [
+              {
+                "maxLength": 16,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pagerduty Severity"
+          },
           "target_url": {
             "anyOf": [
               {
@@ -1275,6 +1298,17 @@
               }
             ],
             "title": "Target Url"
+          },
+          "teams_webhook_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Teams Webhook Url"
           },
           "type": {
             "$ref": "#/components/schemas/AlertDestinationType"
@@ -1500,6 +1534,29 @@
             ],
             "title": "Name"
           },
+          "pagerduty_routing_key": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pagerduty Routing Key"
+          },
+          "pagerduty_severity": {
+            "anyOf": [
+              {
+                "maxLength": 16,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pagerduty Severity"
+          },
           "target_url": {
             "anyOf": [
               {
@@ -1510,6 +1567,17 @@
               }
             ],
             "title": "Target Url"
+          },
+          "teams_webhook_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Teams Webhook Url"
           },
           "type": {
             "$ref": "#/components/schemas/AlertDestinationType"
@@ -1761,6 +1829,21 @@
             ],
             "title": "Next Digest At"
           },
+          "pagerduty_routing_key_set": {
+            "title": "Pagerduty Routing Key Set",
+            "type": "boolean"
+          },
+          "pagerduty_severity": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pagerduty Severity"
+          },
           "project_id": {
             "format": "uuid",
             "title": "Project Id",
@@ -1780,6 +1863,10 @@
           },
           "target_url_set": {
             "title": "Target Url Set",
+            "type": "boolean"
+          },
+          "teams_webhook_set": {
+            "title": "Teams Webhook Set",
             "type": "boolean"
           },
           "type": {
@@ -1829,6 +1916,9 @@
           "linear_team_id",
           "linear_state_id",
           "linear_label_ids",
+          "pagerduty_routing_key_set",
+          "pagerduty_severity",
+          "teams_webhook_set",
           "delivery_count",
           "incident_count",
           "rules",
@@ -1918,6 +2008,8 @@
           "email",
           "jira",
           "linear",
+          "pagerduty",
+          "teams",
           "demo_sink"
         ],
         "title": "AlertDestinationType",
@@ -2117,6 +2209,29 @@
             ],
             "title": "Name"
           },
+          "pagerduty_routing_key": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pagerduty Routing Key"
+          },
+          "pagerduty_severity": {
+            "anyOf": [
+              {
+                "maxLength": 16,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pagerduty Severity"
+          },
           "target_url": {
             "anyOf": [
               {
@@ -2127,6 +2242,17 @@
               }
             ],
             "title": "Target Url"
+          },
+          "teams_webhook_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Teams Webhook Url"
           },
           "webhook_header_name": {
             "anyOf": [

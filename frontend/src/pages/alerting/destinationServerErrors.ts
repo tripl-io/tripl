@@ -26,6 +26,9 @@ const SERVER_FIELD_PREFIXES: readonly (readonly [RegExp, FieldKey])[] = [
   [/^Linear api_key\b/i, 'linear_api_key'],
   [/^Linear team_id\b/i, 'linear_team_id'],
   [/^Linear state_id\b/i, 'linear_state_id'],
+  [/^PagerDuty routing_key\b/i, 'pagerduty_routing_key'],
+  [/^PagerDuty severity\b/i, 'pagerduty_severity'],
+  [/^Teams webhook_url\b/i, 'teams_webhook_url'],
   [/^Linear label_ids\b/i, 'linear_label_ids'],
 ]
 

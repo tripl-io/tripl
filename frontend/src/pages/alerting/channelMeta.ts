@@ -1,5 +1,5 @@
 import { createElement } from 'react'
-import { ClipboardList, Globe, Inbox, Mail, MessageSquare, Send, Ticket, type LucideIcon, type LucideProps } from 'lucide-react'
+import { ClipboardList, Globe, Inbox, Mail, MessageSquare, MessagesSquare, Send, Siren, Ticket, type LucideIcon, type LucideProps } from 'lucide-react'
 
 import { CHANNEL_LABELS, channelLabel } from '@/lib/alertChannels'
 import type { AlertDestinationType } from '@/types'
@@ -24,6 +24,10 @@ export const CHANNEL_META: ChannelMeta[] = [
   { channel: 'email', label: CHANNEL_LABELS.email, Icon: Mail },
   { channel: 'jira', label: CHANNEL_LABELS.jira, Icon: Ticket },
   { channel: 'linear', label: CHANNEL_LABELS.linear, Icon: ClipboardList },
+  { channel: 'pagerduty', label: CHANNEL_LABELS.pagerduty, Icon: Siren },
+  // Not MessageSquare: that is Slack's glyph above, and two channels must not
+  // share one.
+  { channel: 'teams', label: CHANNEL_LABELS.teams, Icon: MessagesSquare },
 ]
 
 // The labels live in lib/ so the app shell can name a channel without

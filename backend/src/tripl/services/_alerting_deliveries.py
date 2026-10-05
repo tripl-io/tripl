@@ -60,6 +60,7 @@ from tripl.services._celery_dispatch import dispatch
 from tripl.services._signal_verdict_read import VERDICT_ACTIONS, status_agrees
 from tripl.services._signal_verdict_rows import delete_verdict_rows
 from tripl.services.project_lookup import resolve_project as _get_project
+from tripl.worker.tasks.alerts_pagerduty import queue_pagerduty_resolves_async
 
 logger = logging.getLogger(__name__)
 
@@ -1490,6 +1491,11 @@ async def _apply_inbox_action_to_state(
     elif action == "resolve":
         state.status = "resolved"
         state.muted_until = None
+        # A person closing the incident here closes the page too: PagerDuty
+        # would otherwise keep paging about something tripl calls resolved.
+        # Queued for AFTER the caller's commit, so a decision that rolls back
+        # resolves nothing; a no-op unless this incident ever paged PagerDuty.
+        await queue_pagerduty_resolves_async(session, project_id, [state.correlation_group_id])
     elif action == "mute":
         state.status = "muted"
         state.muted_until = muted_until

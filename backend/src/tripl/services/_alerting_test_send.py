@@ -47,8 +47,10 @@ from tripl.alerting_validation import (
     validate_jira_project_key,
     validate_linear_api_key,
     validate_linear_team_id,
+    validate_pagerduty_routing_key,
     validate_sender_address,
     validate_slack_webhook_url,
+    validate_teams_webhook_url,
     validate_telegram_bot_token,
     validate_telegram_chat_id,
     validate_webhook_target_url,
@@ -142,6 +144,9 @@ class _TestTarget:
     linear_team_id: str | None
     linear_state_id: str | None
     linear_label_ids: str | None
+    pagerduty_routing_key: str | None
+    pagerduty_severity: str | None
+    teams_webhook_url: str | None
     # The project's organization, whose SMTP relay an email test goes through
     # (F20 PR9). ``None`` sends nothing: the send refuses rather than borrow
     # the operator's relay.
@@ -180,6 +185,9 @@ def _build_target(destination: AlertDestination, *, project_name: str) -> _TestT
         linear_team_id=destination.linear_team_id,
         linear_state_id=destination.linear_state_id,
         linear_label_ids=destination.linear_label_ids,
+        pagerduty_routing_key=_decrypt(destination.pagerduty_routing_key_encrypted),
+        pagerduty_severity=destination.pagerduty_severity,
+        teams_webhook_url=_decrypt(destination.teams_webhook_url_encrypted),
     )
 
 
@@ -254,6 +262,11 @@ def _draft_target_origin(
             return _url_origin(draft.target_url)
         if stored is not None:
             return _url_origin(_decrypt(stored.target_url_encrypted))
+    if draft.type == AlertDestinationType.teams:
+        if draft.teams_webhook_url is not None:
+            return _url_origin(draft.teams_webhook_url)
+        if stored is not None:
+            return _url_origin(_decrypt(stored.teams_webhook_url_encrypted))
     return None
 
 
@@ -326,6 +339,15 @@ def _build_draft_target(
         linear_team_id=draft.linear_team_id,
         linear_state_id=draft.linear_state_id,
         linear_label_ids=draft.linear_label_ids,
+        pagerduty_routing_key=secret(
+            draft.pagerduty_routing_key,
+            stored.pagerduty_routing_key_encrypted if stored is not None else None,
+        ),
+        pagerduty_severity=draft.pagerduty_severity,
+        teams_webhook_url=secret(
+            draft.teams_webhook_url,
+            stored.teams_webhook_url_encrypted if stored is not None else None,
+        ),
     )
 
 
@@ -445,6 +467,41 @@ def _send_linear(target: _TestTarget) -> None:
     )
 
 
+def _send_pagerduty(target: _TestTarget) -> None:
+    from tripl.worker.tasks import alerts
+    from tripl.worker.tasks.alerts_pagerduty import (
+        PAGERDUTY_SOURCE,
+        build_test_trigger_and_resolve,
+    )
+
+    routing_key = validate_pagerduty_routing_key(target.pagerduty_routing_key or "")
+    # A test must not leave someone paged: the trigger is resolved straight
+    # away under the same, test-only dedup key. It still reaches the on-call
+    # phone for the moment it is open — that is the only way to prove the key
+    # routes somewhere — and its summary says it is a test.
+    for body in build_test_trigger_and_resolve(
+        routing_key=routing_key,
+        summary=f"{TEST_MESSAGE_SUBJECT}: {target.destination_name} (no alert fired)",
+        component=PAGERDUTY_SOURCE,
+        message=target.message,
+    ):
+        alerts._send_pagerduty_event(body, routing_key=routing_key)
+
+
+def _send_teams(target: _TestTarget) -> None:
+    from tripl.worker.tasks import alerts
+    from tripl.worker.tasks.alerts_channels import _reject_private_target
+    from tripl.worker.tasks.alerts_teams import build_teams_test_message
+
+    url = validate_teams_webhook_url(target.teams_webhook_url or "")
+    # The same DNS-rebinding re-check the real send makes, as for the webhook.
+    _reject_private_target(url, field="Teams webhook_url")
+    alerts._send_teams_message(
+        url,
+        build_teams_test_message(destination_name=target.destination_name, message=target.message),
+    )
+
+
 _SENDERS: dict[AlertDestinationType, Callable[[_TestTarget], None]] = {
     AlertDestinationType.slack: _send_slack,
     AlertDestinationType.telegram: _send_telegram,
@@ -452,6 +509,8 @@ _SENDERS: dict[AlertDestinationType, Callable[[_TestTarget], None]] = {
     AlertDestinationType.email: _send_email,
     AlertDestinationType.jira: _send_jira,
     AlertDestinationType.linear: _send_linear,
+    AlertDestinationType.pagerduty: _send_pagerduty,
+    AlertDestinationType.teams: _send_teams,
 }
 
 
