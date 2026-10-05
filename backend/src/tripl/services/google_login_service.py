@@ -22,7 +22,7 @@ Who signs in, given a Google-verified address:
   ``GOOGLE_ALLOWED_DOMAINS`` (when that lists any). Self-hosted it joins the
   default organization as the password sign-up would; hosted it gets an
   organization of its own, and so does an account left in none (its sandbox
-  was retired as idle, ``org_idle_service``).
+  was retired as idle, the Enterprise idle-organization purge).
 """
 
 from __future__ import annotations

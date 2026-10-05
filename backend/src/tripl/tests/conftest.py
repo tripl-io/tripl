@@ -277,12 +277,6 @@ def _seed_demos_inline(monkeypatch: pytest.MonkeyPatch) -> None:
 
     monkeypatch.setattr(demo_service, "enqueue_demo_seed", _inline)
 
-    # A claim from the demo pool queues a refill; tests refill explicitly.
-    async def _no_refill() -> None:
-        return None
-
-    monkeypatch.setattr(demo_service, "request_pool_refill", _no_refill)
-
 
 @pytest.fixture(autouse=True)
 def _hermetic_dns(monkeypatch: pytest.MonkeyPatch) -> None:

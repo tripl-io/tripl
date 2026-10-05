@@ -113,12 +113,6 @@ celery_app.conf.beat_schedule = {
         # all it costs meanwhile is a slug and some storage.
         "schedule": crontab(minute=17),
     },
-    "retire-idle-organizations": {
-        "task": "tripl.worker.tasks.org_delete.retire_idle_organizations",
-        # Daily: a no-op unless IDLE_ORG_RETENTION_DAYS is set on a hosted
-        # instance (a public demo), where it keeps the database from only growing.
-        "schedule": crontab(minute=41, hour=3),
-    },
     "sync-holiday-calendars": {
         "task": "tripl.worker.tasks.holiday_calendar.sync_holiday_calendars",
         # Daily: keeps each project's holiday planned events one year ahead.
@@ -227,13 +221,6 @@ celery_app.conf.beat_schedule = {
         # per-demo tick is idempotent so an early/overlapping run is a no-op. A
         # no-op entirely when demo_runtime_enabled is false. Independent of the
         # metrics dispatchers (own task + per-project advisory lock).
-        "schedule": crontab(minute="*/5"),
-    },
-    "refill-demo-pool": {
-        "task": "tripl.worker.tasks.demo_provision.refill_demo_pool",
-        # Tops the pre-seeded demo pool up to DEMO_POOL_SIZE and re-seeds
-        # entries past DEMO_POOL_MAX_AGE_HOURS. A claim also queues a refill at
-        # once; this is the backstop. A no-op while the pool size is 0.
         "schedule": crontab(minute="*/5"),
     },
     "send-instant-notification-emails": {
