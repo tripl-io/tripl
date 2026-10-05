@@ -330,6 +330,9 @@ WORKSPACE_GROUPS: tuple[tuple[str, tuple[str, ...]], ...] = (
             "platform.step_in_end",
             "platform.admin_grant",
             "platform.admin_revoke",
+            # The Enterprise license key saved or removed in Settings (platform scope).
+            "platform.license_set",
+            "platform.license_clear",
         ),
     ),
 )
