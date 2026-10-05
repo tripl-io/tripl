@@ -1,6 +1,6 @@
 ---
 title: Alert escalation
-sidebar_position: 2.5
+sidebar_position: 2.6
 ---
 
 # Alert escalation

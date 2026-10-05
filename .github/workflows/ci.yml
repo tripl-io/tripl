@@ -7,6 +7,14 @@ on:
   # Allow the release workflow to run CI as a gate before publishing an image.
   workflow_call:
 
+# A new push to a pull request cancels that pull request's run in flight: only
+# the newest head can merge, and every superseded run spends Actions minutes.
+# main and the release gate get a group of their own per run, so they never
+# cancel each other.
+concurrency:
+  group: ${{ github.event_name == 'pull_request' && format('ci-pr-{0}', github.ref) || format('ci-{0}', github.run_id) }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 jobs:
   backend:
     name: Backend (ruff + mypy + pytest)
