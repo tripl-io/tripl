@@ -24,8 +24,9 @@ test('a platform admin sees more organizations and the console tagged Enterprise
   await expect(
     page.getByRole('heading', { name: 'Organizations is part of Tripl Enterprise' }),
   ).toBeVisible({ timeout: 60_000 })
+  // Settings links carry the organization they were made in (`?org=`).
   await expect(page.getByRole('link', { name: /User accounts/ })).toHaveAttribute(
     'href',
-    '/settings/platform/users',
+    /^\/settings\/platform\/users(\?|$)/,
   )
 })
