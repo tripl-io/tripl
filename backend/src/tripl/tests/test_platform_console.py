@@ -280,9 +280,7 @@ async def test_the_last_platform_admin_cannot_be_revoked(world: World) -> None:
 
 @pytest.mark.asyncio
 async def test_the_audit_filter_lists_the_platform_actions(world: World) -> None:
-    resp = await world.operator.get(f"{API}/audit/actions")
-    assert resp.status_code == 200, resp.text
-    groups = {group["label"]: group["actions"] for group in resp.json()["workspace"]}
+    groups = {group.label: group.actions for group in audit_actions.action_catalog().workspace}
     assert set(groups["Platform"]) == {
         "org.suspend",
         "org.unsuspend",

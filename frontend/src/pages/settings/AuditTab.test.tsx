@@ -18,7 +18,13 @@ const { listMock, getMock, actionsMock } = vi.hoisted(() => ({
 }))
 
 vi.mock('@/api/audit', () => ({
-  auditApi: { list: listMock, get: getMock, actions: actionsMock },
+  projectAuditSource: (slug: string) => ({
+    key: `project:${slug}`,
+    wide: false,
+    list: listMock,
+    get: getMock,
+    actions: actionsMock,
+  }),
 }))
 
 // Rows name the actor from the roster, falling back to the email.
@@ -30,8 +36,7 @@ vi.mock('@/api/users', () => ({
   },
 }))
 
-import { AuditTab, WorkspaceAuditLog } from './AuditTab'
-import { at } from '@/test/at'
+import { AuditLog, AuditTab } from './AuditTab'
 
 // What GET /audit/actions answers. The vocabulary is the backend's now:
 // which actions carry a project is decided where they are recorded, so these
@@ -132,7 +137,20 @@ describe('AuditTab — events in the log', () => {
   })
 })
 
-describe('WorkspaceAuditLog — the instance-wide feed', () => {
+/** An organization-wide log, as the Enterprise edition mounts one. */
+const WIDE_SOURCE = {
+  key: 'org',
+  wide: true,
+  list: (...args: unknown[]) => listMock(...args),
+  get: (...args: unknown[]) => getMock(...args),
+  actions: () => actionsMock(),
+}
+
+function WorkspaceAuditLog() {
+  return <AuditLog source={WIDE_SOURCE} />
+}
+
+describe('AuditLog — an organization-wide source', () => {
   function renderWorkspace() {
     const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
     return render(
@@ -145,16 +163,6 @@ describe('WorkspaceAuditLog — the instance-wide feed', () => {
       </QueryClientProvider>,
     )
   }
-
-  it('asks for every project, by sending no project filter at all', async () => {
-    renderWorkspace()
-
-    await waitFor(() => expect(listMock).toHaveBeenCalled())
-    // Not an empty string, not the current project: absent. The endpoint treats
-    // project_slug as a filter rather than a scope, so omitting it is what makes
-    // this the whole instance.
-    expect(at(listMock.mock.calls, 0)[0].projectSlug).toBeUndefined()
-  })
 
   it('names the project each row belongs to, since rows from all of them sit together', async () => {
     listMock.mockResolvedValue({ items: [auditRow(0)], total: 1 })

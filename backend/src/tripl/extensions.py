@@ -26,10 +26,6 @@ through the extension object.
 Every hook has a no-op default, so an extension overrides only what it needs and
 a server with none behaves exactly as Community. Hooks run in the order the
 extensions are loaded; a gate's first refusal wins.
-
-Until the enterprise features move out of this repository, the code that
-implements them is registered as a bundled extension (:data:`_BUNDLED`), so the
-core reaches it only through these hooks.
 """
 
 from __future__ import annotations
@@ -60,11 +56,6 @@ logger = logging.getLogger(__name__)
 
 EXTENSION_GROUP = "tripl.extensions"
 MODEL_GROUP = "tripl.models"
-
-#: Extensions that ship inside this repository, as ``module:attribute``.
-_BUNDLED: tuple[str, ...] = ("tripl._bundled_enterprise:extension",)
-#: Their ORM model modules (see the module docstring for why they are separate).
-_BUNDLED_MODELS: tuple[str, ...] = ("tripl.models.audit_webhook",)
 
 ErrorKind = Literal["http", "validation", "too_large"]
 
@@ -200,14 +191,8 @@ class Extension:
 _loaded: list[Extension] | None = None
 
 
-def _resolve(spec: str) -> Any:
-    module_name, _, attribute = spec.partition(":")
-    module = importlib.import_module(module_name)
-    return getattr(module, attribute) if attribute else module
-
-
 def _load() -> list[Extension]:
-    found: list[Extension] = [_resolve(spec) for spec in _BUNDLED]
+    found: list[Extension] = []
     for point in sorted(entry_points(group=EXTENSION_GROUP), key=lambda p: p.name):
         found.append(point.load())
     for extension in found:
@@ -240,10 +225,8 @@ def override_extensions(replacement: Sequence[Extension]) -> Iterator[None]:
 
 def import_model_modules() -> None:
     """Import every extension's ORM models, so ``Base.metadata`` has their tables."""
-    modules = list(_BUNDLED_MODELS)
-    modules.extend(point.value for point in entry_points(group=MODEL_GROUP))
-    for name in modules:
-        importlib.import_module(name)
+    for point in entry_points(group=MODEL_GROUP):
+        importlib.import_module(point.value)
 
 
 # -- dispatch helpers the core calls ---------------------------------------

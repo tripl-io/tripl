@@ -236,7 +236,7 @@ async def test_writes_are_audited_on_the_project(client: AsyncClient) -> None:
     await put_doc(client, "audited", "org.md", "x", scope="organization")
     await client.delete(_url("audited", "/file"), params={"scope": "project", "path": "b.md"})
 
-    resp = await client.get("/api/v1/audit", params={"project_slug": "audited", "limit": 50})
+    resp = await client.get("/api/v1/projects/audited/audit", params={"limit": 50})
     assert resp.status_code == 200, resp.text
     actions = [(item["action"], item["target_name"]) for item in resp.json()["items"]]
     for expected in (
@@ -490,9 +490,9 @@ async def test_organization_folder_delete_needs_an_org_admin_and_is_fully_audite
     )
     assert deleted.status_code == 200, deleted.text
     audit = await client.get(
-        "/api/v1/audit", params={"project_slug": "orgfolder", "action": "doc.folder_delete"}
+        "/api/v1/projects/orgfolder/audit", params={"action": "doc.folder_delete"}
     )
-    entry = await client.get(f"/api/v1/audit/{audit.json()['items'][0]['id']}")
+    entry = await client.get(f"/api/v1/projects/orgfolder/audit/{audit.json()['items'][0]['id']}")
     payload = entry.json()["payload"]
     assert payload["deleted"][0] == {
         "path": "team/a.md",

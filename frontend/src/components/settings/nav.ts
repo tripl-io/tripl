@@ -9,7 +9,6 @@ import {
   Ticket,
   Lock,
   Mail,
-  ScrollText,
   Search,
   Server,
   Shield,
@@ -237,19 +236,6 @@ const CORE_WORKSPACE_GROUPS: SettingsNavGroup[] = [
         icon: SlidersHorizontal,
         path: 'organization/limits',
         ownerOnly: true,
-      },
-      // Not a settings form: the organization's audit feed. Its path predates
-      // the Platform group; the actions it exists for — data
-      // sources, member roles, API keys, and a project's own DELETION — belong
-      // to the organization, not to any one project.
-      {
-        id: 'inst-audit',
-        label: 'Audit log',
-        icon: ScrollText,
-        path: 'instance/audit',
-        wide: true,
-        ownerOnly: true,
-        keywords: ['activity', 'who changed', 'log', 'export', 'csv', 'download'],
       },
     ],
   },

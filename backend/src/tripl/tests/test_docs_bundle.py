@@ -199,11 +199,9 @@ async def test_merge_mirror_dry_run_and_errors(client: AsyncClient) -> None:
     changed = await get_doc(client, "mirrored", "change.md")
     assert changed["content"] == "new" and changed["revision"] == 2
 
-    audit = await client.get(
-        "/api/v1/audit", params={"project_slug": "mirrored", "action": "doc.import"}
-    )
+    audit = await client.get("/api/v1/projects/mirrored/audit", params={"action": "doc.import"})
     assert audit.json()["total"] == 1
-    entry = await client.get(f"/api/v1/audit/{audit.json()['items'][0]['id']}")
+    entry = await client.get(f"/api/v1/projects/mirrored/audit/{audit.json()['items'][0]['id']}")
     assert entry.json()["payload"]["deleted"] == [
         {
             "path": "stale.md",

@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom'
 import { keepPreviousData, useQuery } from '@tanstack/react-query'
 import { ArrowUpRight, ChevronDown, ChevronRight, FolderOpen, GitBranch, Lock } from 'lucide-react'
 
-import { auditApi } from '@/api/audit'
+import { projectAuditSource, type AuditSource } from '@/api/audit'
 import { ApiError } from '@/api/client'
 import { EmptyState } from '@/components/empty-state'
 import { ErrorState } from '@/components/error-state'
@@ -47,7 +47,7 @@ const EMAIL_DEBOUNCE_MS = 400
 // reader could reach: past that the card said "narrow the filter to drill into
 // older actions", which means guessing an action type or a date range to audit
 // anything older. `offset` was already carried end to end by
-// api/audit.ts, api/v1/audit.py and audit_service.list_entries; only the buttons
+// api/audit.ts, the audit routes and audit_service.list_entries; only the buttons
 // were missing. 50 matches the sibling delivery log (ProjectAlertingTab.tsx),
 // which got the same treatment.
 const PAGE_SIZE = 50
@@ -65,10 +65,10 @@ const PAGE_SIZE = 50
  * An entry recorded without a payload — a bulk inbox mute files `{}` — still
  * renders nothing here, so an expanded row looks exactly as it did.
  */
-function AuditPayload({ entryId }: { entryId: string }) {
+function AuditPayload({ source, entryId }: { source: AuditSource; entryId: string }) {
   const detailQuery = useQuery({
-    queryKey: auditEntryKey(entryId),
-    queryFn: () => auditApi.get(entryId),
+    queryKey: auditEntryKey(source.key, entryId),
+    queryFn: () => source.get(entryId),
     // An audit entry is frozen history: `audit_service` only ever inserts one,
     // so re-expanding a row has nothing to re-read.
     staleTime: Infinity,
@@ -147,26 +147,24 @@ export function AuditTab({ slug }: { slug: string }) {
       />
     )
   }
-  return <AuditLog slug={slug} />
+  return <ProjectAuditLog slug={slug} />
+}
+
+function ProjectAuditLog({ slug }: { slug: string }) {
+  const source = useMemo(() => projectAuditSource(slug), [slug])
+  return <AuditLog source={source} />
 }
 
 /**
- * The same log with no project bound: every entry on the instance, newest first.
+ * An audit log: one project's history here, the organization's whole log in
+ * the Enterprise edition (`AuditSource.wide`), where a row also names its
+ * project and the action filter offers the actions recorded outside projects.
  *
- * This is where the actions that carry no project finally answer — and where a
- * `project.delete` entry can be read at all, since the project tab lives under
- * /p/:slug and a deleted project has no page to open. The owner
- * gate is the endpoint's own: the whole /audit router requires an interactive
- * owner session, so nothing here re-checks it.
+ * The owner gate is the endpoint's own: every audit route requires an
+ * interactive owner or admin session, so nothing here re-checks it.
  */
-export function WorkspaceAuditLog() {
-  return <AuditLog />
-}
-
-function AuditLog({ slug }: { slug?: string }) {
-  // Absent slug IS the workspace scope — the endpoint treats project_slug as a
-  // filter rather than a scope, so omitting it returns the whole instance.
-  const workspace = slug === undefined
+export function AuditLog({ source }: { source: AuditSource }) {
+  const workspace = source.wide
   // Additive, not alternative: the workspace feed is unfiltered, so a project
   // action can match there too and hiding it would make the filter narrower than
   // the list it filters.
@@ -181,7 +179,7 @@ function AuditLog({ slug }: { slug?: string }) {
   const usersById = useUsersById()
   const actionsQuery = useQuery({
     queryKey: auditActionsKey(),
-    queryFn: auditApi.actions,
+    queryFn: source.actions,
     staleTime: Infinity,
     enabled: isOwner,
   })
@@ -226,7 +224,6 @@ function AuditLog({ slug }: { slug?: string }) {
 
   const queryParams = useMemo(
     () => ({
-      projectSlug: slug,
       action: action || undefined,
       userEmail: emailApplied || undefined,
       since: toIsoOrUndef(sinceDate, false),
@@ -234,16 +231,14 @@ function AuditLog({ slug }: { slug?: string }) {
       limit: PAGE_SIZE,
       offset,
     }),
-    [slug, action, emailApplied, sinceDate, untilDate, offset],
+    [action, emailApplied, sinceDate, untilDate, offset],
   )
 
   const listQuery = useQuery({
-    queryKey: auditKey(queryParams),
-    queryFn: () => auditApi.list(queryParams),
-    // A project view with no slug has nothing to ask about; the workspace view
-    // has no slug BY DESIGN, so the guard has to distinguish the two. Nor is
-    // there anything to ask while the date range is backwards.
-    enabled: (workspace || !!slug) && !rangeInvalid,
+    queryKey: auditKey(source.key, queryParams),
+    queryFn: () => source.list(queryParams),
+    // Nothing to ask while the date range is backwards.
+    enabled: !rangeInvalid,
     placeholderData: keepPreviousData,
     // Rendered in the list card, with a retry.
     meta: SILENT_ERROR_META,
@@ -636,7 +631,7 @@ function AuditLog({ slug }: { slug?: string }) {
                             ) : null}
                           </div>
                         ) : null}
-                        <AuditPayload entryId={entry.id} />
+                        <AuditPayload source={source} entryId={entry.id} />
                       </div>
                     )}
                   </li>

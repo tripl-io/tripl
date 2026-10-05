@@ -1246,7 +1246,7 @@ branch openings are folded together, and a diff is grouped by entity and can be
 filtered. A merge or a branch opening links to its branch's review by id and
 shows the branch's current name; a revision whose branch has since been deleted
 shows the name it was created under, with no link. Distinct from per-event
-history and the workspace audit log.
+history and the project's audit log.
 
 ### Docs catalog {#docs-catalog}
 
@@ -2826,7 +2826,8 @@ sentences lead, the counters follow.
 **Where:** Govern › Audit log — **owners only**; the nav item is hidden from
 everyone else. A record of mutating actions on **this project**, filterable by
 action, user and time range; actions that belong to no project (members, API
-keys, a project's deletion) are in **Settings › Instance › Audit log**. Entries
+keys, a project's deletion) are in the organization-wide audit log, part of the
+[Enterprise edition](../editions.md). Entries
 are grouped under day headers, each reads as a sentence with chips for the
 actor and the object, and an expanded entry shows its payload as labelled values
 with a **Raw JSON** toggle. Each entry also records the
@@ -2919,9 +2920,11 @@ hand the newcomer its predecessor's past.
 
 Which leaves the entries with no project to answer to — a data source connected,
 a member invited or given a role, a workspace API key minted, and a project's own
-deletion, since a deleted project has no page left to open. Those live in
-**Settings → Instance → Audit log**, the owner-only view of every entry on the
-instance with no project filter at all. It is the same log read at a different
+deletion, since a deleted project has no page left to open. Those live in the
+organization-wide audit log, the owner and admin view of every entry in the
+organization with no project filter at all, which is part of the
+[Enterprise edition](../editions.md); in Community, **Settings → Audit log**
+shows it with an **Enterprise** tag. It is the same log read at a different
 scope, so an entry appears in both places when it belongs to a project, and only
 there when it does not.
 

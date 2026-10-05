@@ -6,7 +6,7 @@ import uuid
 from datetime import datetime
 from typing import Any, Final, Literal, cast
 
-from sqlalchemy import desc, func, null, select
+from sqlalchemy import ColumnElement, desc, func, null, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from tripl import extensions
@@ -179,6 +179,31 @@ async def record(
     return entry
 
 
+async def _project_scope(session: AsyncSession, project_slug: str) -> ColumnElement[bool]:
+    """The rows of the project ``project_slug`` names in the bound organization.
+
+    Resolve the slug to a project and filter on the ID. ``project_slug`` on a
+    row is DENORMALIZED — the slug the project answered to when the row was
+    written — so matching the label means a rename splits a trail in two and a
+    slug re-used by a later project makes it inherit its predecessor's history.
+
+    The fallback is the other half of the same idea: when NOTHING live answers
+    to this slug, the label is all there is and no live project can be confused
+    by it. That is what keeps a deleted project's rows reachable — including its
+    ``project.delete`` row, which is born with a NULL project id because it is
+    written after its subject is gone. Callers fence the label fallback to the
+    bound organization: a deleted project's slug names nothing outside it.
+    """
+    owner_id: uuid.UUID | None = await session.scalar(
+        select(Project.id).where(project_slug_clause(project_slug))
+    )
+    return (
+        AuditLog.project_id == owner_id
+        if owner_id is not None
+        else AuditLog.project_slug == project_slug
+    )
+
+
 async def list_entries(
     session: AsyncSession,
     *,
@@ -198,29 +223,7 @@ async def list_entries(
     count_base = select(func.count()).select_from(AuditLog).where(in_org)
 
     if project_slug:
-        # Resolve the slug to a project and filter on the ID. ``project_slug`` on
-        # a row is DENORMALIZED — the slug the project answered to when the row
-        # was written — so matching the label means a rename splits a trail in two
-        # and a slug re-used by a later project makes it inherit its predecessor's
-        # history.
-        #
-        # The fallback is the other half of the same idea: when NOTHING live
-        # answers to this slug, the label is all there is and no live project can
-        # be confused by it. That is what keeps a deleted project's rows reachable
-        # — including its ``project.delete`` row, which is born with a NULL
-        # project id because it is written after its subject is gone. Reaching
-        # those from the UI needs the workspace-wide view, which is why
-        # this ships alongside it.
-        owner_id: uuid.UUID | None = await session.scalar(
-            select(Project.id).where(project_slug_clause(project_slug))
-        )
-        # The label fallback is fenced to the bound organization by ``in_org``:
-        # a deleted project's slug names nothing outside it (critique #8).
-        scope = (
-            AuditLog.project_id == owner_id
-            if owner_id is not None
-            else AuditLog.project_slug == project_slug
-        )
+        scope = await _project_scope(session, project_slug)
         base = base.where(scope)
         count_base = count_base.where(scope)
     if action:
@@ -266,14 +269,20 @@ async def list_entries(
     )
 
 
-async def get_entry(session: AsyncSession, entry_id: uuid.UUID) -> AuditEntryDetailResponse | None:
+async def get_entry(
+    session: AsyncSession, entry_id: uuid.UUID, *, project_slug: str | None = None
+) -> AuditEntryDetailResponse | None:
     """One entry with the payload the list rows deliberately leave out.
 
     ``None`` for an id that is not in the log, so the router can answer 404
-    rather than an empty body — and for another organization's
-    entry, which does not exist for the caller.
+    rather than an empty body — and for another organization's entry, which
+    does not exist for the caller. With ``project_slug``, also for an entry of
+    another project or of none.
     """
-    row = await session.scalar(
-        select(AuditLog).where(AuditLog.id == entry_id, AuditLog.organization_id == owning_org_id())
+    query = select(AuditLog).where(
+        AuditLog.id == entry_id, AuditLog.organization_id == owning_org_id()
     )
+    if project_slug:
+        query = query.where(await _project_scope(session, project_slug))
+    row = await session.scalar(query)
     return AuditEntryDetailResponse.model_validate(row) if row is not None else None

@@ -94,6 +94,7 @@ from tripl.services.demo.builders.alerts import (
 )
 from tripl.services.demo.scenario import DemoContext
 from tripl.services.project_service import demo_data_source_name
+from tripl.tests._audit_feed import org_audit
 from tripl.tests._project_ids import project_id_by_slug
 from tripl.tests.conftest import TestSessionLocal
 
@@ -561,7 +562,7 @@ async def test_the_demo_trail_matches_the_routes_it_imitates(client: AsyncClient
         saw all of them" part of the test rather than an assumption about how
         big the demo happens to be.
         """
-        listed = await client.get(f"/api/v1/audit?project_slug={slug}&action={action}&limit=200")
+        listed = await client.get(f"/api/v1/projects/{slug}/audit?action={action}&limit=200")
         assert listed.status_code == 200, listed.text
         body = listed.json()
         assert len(body["items"]) == body["total"], body["total"]
@@ -574,13 +575,11 @@ async def test_the_demo_trail_matches_the_routes_it_imitates(client: AsyncClient
     # "<event type>.<field>" for the builders' own lookups, not for display.
     assert all("." not in entry["target_name"] for entry in fields), fields
 
-    unscoped = await client.get("/api/v1/audit?action=data_source.create&limit=200")
+    unscoped = await org_audit("data_source.create")
     warehouses = [
-        entry
-        for entry in unscoped.json()["items"]
-        if entry["target_name"] == demo_data_source_name(slug)
+        entry for entry in unscoped if entry["target_name"] == demo_data_source_name(slug)
     ]
-    assert len(warehouses) == 1, unscoped.json()["items"]
+    assert len(warehouses) == 1, unscoped
 
     # The docstring's "one entry per authored object" is now true of the objects
     # the finding enumerated. One query per action, so a missing one is a route
@@ -753,9 +752,7 @@ async def test_the_alerting_trail_is_ordered_by_name_not_by_a_uuid_tiebreak(
     demo_slug = (await client.post("/api/v1/projects/demo")).json()["slug"]
     seeded: list[dict[str, Any]] = []
     for action in ("alert_destination.create", "alert_rule.create"):
-        listed = await client.get(
-            f"/api/v1/audit?project_slug={demo_slug}&action={action}&limit=200"
-        )
+        listed = await client.get(f"/api/v1/projects/{demo_slug}/audit?action={action}&limit=200")
         assert listed.status_code == 200, listed.text
         body = listed.json()
         assert len(body["items"]) == body["total"], body["total"]

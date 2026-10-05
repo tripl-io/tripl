@@ -73,6 +73,15 @@ test('a demo owner copies a colleague link and the colleague accepts into the in
     if (path.endsWith('/overview/kpi-series')) {
       return route.fulfill({ json: { new_events: [] } })
     }
+    // The Overview's plan-health panel renders an object; the catch-all `[]`
+    // below would crash it.
+    if (path.endsWith('/projects/demo-shared/health')) {
+      return route.fulfill({ json: {
+        score: null, grade: null, scored_events: 0, healthy_count: 0, warning_count: 0,
+        unhealthy_count: 0, component_averages: [], worst: [], trend: [], previous_score: null,
+        computed_at: timestamp,
+      } })
+    }
     return route.fulfill({ json: [] })
   })
 

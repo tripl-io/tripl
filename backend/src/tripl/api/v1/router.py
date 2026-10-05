@@ -11,7 +11,6 @@ from tripl.api.v1.ai import router as ai_router
 from tripl.api.v1.alerting import router as alerting_router
 from tripl.api.v1.api_keys import router as api_keys_router
 from tripl.api.v1.app_settings import router as app_settings_router
-from tripl.api.v1.audit import router as audit_router
 from tripl.api.v1.auth import router as auth_router
 from tripl.api.v1.auth_google import router as auth_google_router
 from tripl.api.v1.chart_annotations import router as chart_annotations_router
@@ -51,6 +50,7 @@ from tripl.api.v1.planned_events import router as planned_events_router
 from tripl.api.v1.platform_console import router as platform_console_router
 from tripl.api.v1.platform_settings import router as platform_settings_router
 from tripl.api.v1.project_anomaly_settings import router as project_anomaly_settings_router
+from tripl.api.v1.project_audit import router as project_audit_router
 from tripl.api.v1.project_branch_settings import router as project_branch_settings_router
 from tripl.api.v1.project_members import router as project_members_router
 from tripl.api.v1.project_templates import router as project_templates_router
@@ -79,9 +79,8 @@ def _no_outbound(what: str) -> params.Depends:
     return dependency
 
 
-# Extensions' routers come first, so a core route with a path parameter (the
-# audit feed's ``/audit/{entry_id}``) never claims one of theirs
-# (``/audit/webhook``).
+# Extensions' routers come first, so a core route with a path parameter never
+# claims one of theirs.
 for _extension in extensions.extensions():
     for _mounted in _extension.api_routers():
         _dependencies = list(protected_dependencies) if _mounted.protected else []
@@ -142,7 +141,7 @@ router.include_router(plan_validation_router, dependencies=protected_dependencie
 router.include_router(plan_export_router, dependencies=protected_dependencies)
 router.include_router(reconciliation_router, dependencies=protected_dependencies)
 router.include_router(duplicates_router, dependencies=protected_dependencies)
-router.include_router(audit_router, dependencies=protected_dependencies)
+router.include_router(project_audit_router, dependencies=protected_dependencies)
 router.include_router(users_router, dependencies=protected_dependencies)
 router.include_router(api_keys_router, dependencies=protected_dependencies)
 router.include_router(notifications_router, dependencies=protected_dependencies)

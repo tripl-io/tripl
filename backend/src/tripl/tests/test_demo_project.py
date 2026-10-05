@@ -39,6 +39,7 @@ from tripl.services.demo.builders.alerts import DEMO_PLANNED_EVENT_LABEL
 from tripl.services.demo.builders.variables import DRIFT_OBSERVED_VALUES
 from tripl.services.demo.scenario import DEMO_SEED
 from tripl.services.project_service import demo_data_source_name
+from tripl.tests._audit_feed import org_audit
 from tripl.tests.conftest import TestSessionLocal
 
 
@@ -1190,7 +1191,7 @@ async def test_demo_audit_log_is_not_empty_out_of_the_box(client: AsyncClient) -
     """A fresh demo used to land on "No audit entries yet"."""
     slug = (await client.post("/api/v1/projects/demo")).json()["slug"]
 
-    resp = await client.get(f"/api/v1/audit?project_slug={slug}&limit=200")
+    resp = await client.get(f"/api/v1/projects/{slug}/audit?limit=200")
     assert resp.status_code == 200
     entries = resp.json()["items"]
     assert entries
@@ -1218,7 +1219,7 @@ async def test_demo_audit_trail_covers_the_events_it_authored(client: AsyncClien
     """
     slug = (await client.post("/api/v1/projects/demo")).json()["slug"]
 
-    listed = await client.get(f"/api/v1/audit?project_slug={slug}&limit=200")
+    listed = await client.get(f"/api/v1/projects/{slug}/audit?limit=200")
     assert listed.status_code == 200
     entries = listed.json()["items"]
 
@@ -1281,7 +1282,7 @@ async def test_demo_does_not_scope_the_data_source_entry_to_the_project(
     """
     slug = (await client.post("/api/v1/projects/demo")).json()["slug"]
 
-    listed = await client.get(f"/api/v1/audit?project_slug={slug}&limit=200")
+    listed = await client.get(f"/api/v1/projects/{slug}/audit?limit=200")
     actions = {entry["action"] for entry in listed.json()["items"]}
 
     assert "data_source.create" not in actions
@@ -1293,15 +1294,11 @@ async def test_demo_does_not_scope_the_data_source_entry_to_the_project(
     # Absence alone would also pass if the row had been dropped altogether, which
     # is a different change with a different meaning. It still exists, unscoped —
     # exactly what api/v1/data_sources.py writes.
-    unscoped = await client.get("/api/v1/audit?action=data_source.create&limit=200")
+    unscoped = await org_audit("data_source.create")
     # The name the warehouse builder really gave the row, read from the same
     # helper it used: the audit entry restated a bare "Demo warehouse" literal
     # until it was fixed, naming a source that exists under no such name.
-    rows = [
-        entry
-        for entry in unscoped.json()["items"]
-        if entry["target_name"] == demo_data_source_name(slug)
-    ]
+    rows = [entry for entry in unscoped if entry["target_name"] == demo_data_source_name(slug)]
     assert len(rows) == 1, rows
     assert rows[0]["project_id"] is None
     assert rows[0]["project_slug"] == ""
@@ -1324,14 +1321,14 @@ async def test_resetting_a_demo_does_not_stack_the_previous_trail(client: AsyncC
         return sum(1 for entry in items if entry["action"] == "event.create")
 
     before = creations(
-        (await client.get(f"/api/v1/audit?project_slug={slug}&limit=200")).json()["items"]
+        (await client.get(f"/api/v1/projects/{slug}/audit?limit=200")).json()["items"]
     )
     assert before
 
     reset = await client.post(f"/api/v1/projects/demo/{slug}/reset")
     assert reset.status_code == 200, reset.text
 
-    after = (await client.get(f"/api/v1/audit?project_slug={slug}&limit=200")).json()["items"]
+    after = (await client.get(f"/api/v1/projects/{slug}/audit?limit=200")).json()["items"]
     assert creations(after) == before
 
     # Asserted on the UNFILTERED feed, deliberately, and by COUNT. Since
@@ -1342,7 +1339,7 @@ async def test_resetting_a_demo_does_not_stack_the_previous_trail(client: AsyncC
     # project nulls it (ON DELETE SET NULL, which the suite enforces). What
     # survives the purge is a second full generation of the trail, so counting is
     # what catches it.
-    everything = (await client.get("/api/v1/audit?limit=200")).json()["items"]
+    everything = await org_audit()
     assert creations(everything) == before
     assert all(entry["project_id"] != replaced_id for entry in everything)
 
@@ -1350,11 +1347,9 @@ async def test_resetting_a_demo_does_not_stack_the_previous_trail(client: AsyncC
     # cannot see it — it is found by the warehouse it names instead. Left behind
     # it would outlive the DataSource the same reset destroys, and every reset
     # would add another creation of a warehouse that no longer exists.
-    unscoped = await client.get("/api/v1/audit?action=data_source.create&limit=200")
+    unscoped = await org_audit("data_source.create")
     warehouses = [
-        entry
-        for entry in unscoped.json()["items"]
-        if entry["target_name"] == demo_data_source_name(slug)
+        entry for entry in unscoped if entry["target_name"] == demo_data_source_name(slug)
     ]
     assert len(warehouses) == 1, warehouses
 

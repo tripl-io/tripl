@@ -85,8 +85,6 @@ DROP TABLE IF EXISTS public.organization_group_members CASCADE;
 -- tripl:statement
 -- tripl:statement
 -- tripl:statement
-DROP TABLE IF EXISTS public.org_audit_webhooks CASCADE;
--- tripl:statement
 DROP TABLE IF EXISTS public.notifications CASCADE;
 -- tripl:statement
 DROP TABLE IF EXISTS public.metric_values CASCADE;
@@ -164,8 +162,6 @@ DROP TABLE IF EXISTS public.data_sources CASCADE;
 DROP TABLE IF EXISTS public.coverage_metrics CASCADE;
 -- tripl:statement
 DROP TABLE IF EXISTS public.chart_annotations CASCADE;
--- tripl:statement
-DROP TABLE IF EXISTS public.audit_webhook_outbox CASCADE;
 -- tripl:statement
 DROP TABLE IF EXISTS public.audit_log CASCADE;
 -- tripl:statement

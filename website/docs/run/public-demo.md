@@ -75,9 +75,9 @@ With `PUBLIC_DEMO=true` the server refuses, with `403` and a reason:
 - adding, testing or editing a warehouse connection;
 - creating a project other than a demo one, or another organization;
 - sending invitation email or creating password accounts through invitation links;
-- changing organization settings (AI, SMTP, embeddings), the audit webhook,
-  and issue-tracker integrations (and, on an Enterprise server, single sign-on
-  and SCIM).
+- changing organization settings (AI, SMTP, embeddings) and issue-tracker
+  integrations (and, on an Enterprise server, single sign-on, SCIM and the
+  audit webhook).
 
 AI features are off whatever the instance or organization settings say. The
 app shows a banner saying this is a public demo and does not offer what the

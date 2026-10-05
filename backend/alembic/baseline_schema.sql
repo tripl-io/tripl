@@ -722,18 +722,6 @@ CREATE TABLE public.audit_log (
     organization_id uuid DEFAULT '00000000-0000-0000-0000-00000000d0f1'::uuid
 );
 -- tripl:statement
-CREATE TABLE public.audit_webhook_outbox (
-    id uuid NOT NULL,
-    organization_id uuid NOT NULL,
-    audit_log_id uuid NOT NULL,
-    status character varying(16) DEFAULT 'pending'::character varying NOT NULL,
-    attempts integer DEFAULT 0 NOT NULL,
-    next_attempt_at timestamp with time zone DEFAULT now() NOT NULL,
-    last_error character varying(255),
-    created_at timestamp with time zone DEFAULT now() NOT NULL,
-    sent_at timestamp with time zone
-);
--- tripl:statement
 CREATE TABLE public.chart_annotations (
     id uuid NOT NULL,
     project_id uuid NOT NULL,
@@ -1295,19 +1283,6 @@ CREATE TABLE public.notifications (
     created_at timestamp with time zone DEFAULT now() NOT NULL,
     CONSTRAINT ck_notification_entity_type CHECK (((entity_type)::text = ANY ((ARRAY['event'::character varying, 'event_type'::character varying, 'metric'::character varying, 'branch'::character varying, 'doc'::character varying])::text[]))),
     CONSTRAINT ck_notification_kind CHECK (((kind)::text = ANY ((ARRAY['comment'::character varying, 'reply'::character varying, 'mention'::character varying, 'open_question'::character varying, 'signal'::character varying, 'branch_review_requested'::character varying, 'branch_approved'::character varying, 'branch_merged'::character varying, 'lifecycle'::character varying, 'property_drift'::character varying])::text[])))
-);
--- tripl:statement
-CREATE TABLE public.org_audit_webhooks (
-    id uuid NOT NULL,
-    created_at timestamp with time zone DEFAULT now() NOT NULL,
-    updated_at timestamp with time zone DEFAULT now() NOT NULL,
-    organization_id uuid NOT NULL,
-    url character varying(2048) NOT NULL,
-    secret_encrypted text NOT NULL,
-    enabled boolean DEFAULT true NOT NULL,
-    last_success_at timestamp with time zone,
-    last_error character varying(255),
-    last_error_at timestamp with time zone
 );
 -- tripl:statement
 CREATE TABLE public.organization_group_members (
@@ -1912,9 +1887,6 @@ ALTER TABLE ONLY public.app_settings
 ALTER TABLE ONLY public.audit_log
     ADD CONSTRAINT audit_log_pkey PRIMARY KEY (id);
 -- tripl:statement
-ALTER TABLE ONLY public.audit_webhook_outbox
-    ADD CONSTRAINT audit_webhook_outbox_pkey PRIMARY KEY (id);
--- tripl:statement
 ALTER TABLE ONLY public.chart_annotations
     ADD CONSTRAINT chart_annotations_pkey PRIMARY KEY (id);
 -- tripl:statement
@@ -2031,12 +2003,6 @@ ALTER TABLE ONLY public.metric_values
 -- tripl:statement
 ALTER TABLE ONLY public.notifications
     ADD CONSTRAINT notifications_pkey PRIMARY KEY (id);
--- tripl:statement
-ALTER TABLE ONLY public.org_audit_webhooks
-    ADD CONSTRAINT org_audit_webhooks_organization_id_key UNIQUE (organization_id);
--- tripl:statement
-ALTER TABLE ONLY public.org_audit_webhooks
-    ADD CONSTRAINT org_audit_webhooks_pkey PRIMARY KEY (id);
 -- tripl:statement
 ALTER TABLE ONLY public.organization_group_members
     ADD CONSTRAINT organization_group_members_pkey PRIMARY KEY (id);
@@ -2398,12 +2364,6 @@ CREATE INDEX ix_audit_log_organization_created ON public.audit_log USING btree (
 CREATE INDEX ix_audit_log_project_created ON public.audit_log USING btree (project_id, created_at, id);
 -- tripl:statement
 CREATE INDEX ix_audit_log_project_slug_created ON public.audit_log USING btree (project_slug, created_at, id);
--- tripl:statement
-CREATE INDEX ix_audit_webhook_outbox_audit_log ON public.audit_webhook_outbox USING btree (audit_log_id);
--- tripl:statement
-CREATE INDEX ix_audit_webhook_outbox_org_created ON public.audit_webhook_outbox USING btree (organization_id, created_at);
--- tripl:statement
-CREATE INDEX ix_audit_webhook_outbox_status_next_attempt ON public.audit_webhook_outbox USING btree (status, next_attempt_at);
 -- tripl:statement
 CREATE INDEX ix_chart_annotation_project_bucket ON public.chart_annotations USING btree (project_id, bucket);
 -- tripl:statement
@@ -2804,12 +2764,6 @@ ALTER TABLE ONLY public.audit_log
 ALTER TABLE ONLY public.audit_log
     ADD CONSTRAINT audit_log_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.users(id) ON DELETE SET NULL;
 -- tripl:statement
-ALTER TABLE ONLY public.audit_webhook_outbox
-    ADD CONSTRAINT audit_webhook_outbox_audit_log_id_fkey FOREIGN KEY (audit_log_id) REFERENCES public.audit_log(id) ON DELETE CASCADE;
--- tripl:statement
-ALTER TABLE ONLY public.audit_webhook_outbox
-    ADD CONSTRAINT audit_webhook_outbox_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES public.organizations(id) ON DELETE CASCADE;
--- tripl:statement
 ALTER TABLE ONLY public.chart_annotations
     ADD CONSTRAINT chart_annotations_created_by_user_id_fkey FOREIGN KEY (created_by_user_id) REFERENCES public.users(id) ON DELETE SET NULL;
 -- tripl:statement
@@ -3157,9 +3111,6 @@ ALTER TABLE ONLY public.notifications
 -- tripl:statement
 ALTER TABLE ONLY public.notifications
     ADD CONSTRAINT notifications_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.users(id) ON DELETE CASCADE;
--- tripl:statement
-ALTER TABLE ONLY public.org_audit_webhooks
-    ADD CONSTRAINT org_audit_webhooks_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES public.organizations(id) ON DELETE CASCADE;
 -- tripl:statement
 ALTER TABLE ONLY public.organization_group_members
     ADD CONSTRAINT organization_group_members_group_id_fkey FOREIGN KEY (group_id) REFERENCES public.organization_groups(id) ON DELETE CASCADE;

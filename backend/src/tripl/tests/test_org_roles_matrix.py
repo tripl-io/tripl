@@ -174,8 +174,12 @@ async def test_org_role_by_project_row_matrix(
     )
 
     # Org administration follows the org role alone.
-    audit = await subject.get("/api/v1/audit")
-    assert audit.status_code == (200 if org_role in ("owner", "admin") else 403), audit.text
+    audit = await subject.get("/api/v1/projects/matrix/audit")
+    # A project the subject cannot see is 404, as everywhere; one they can is
+    # still 403 below an admin.
+    assert audit.status_code == (
+        200 if org_role in ("owner", "admin") else 404 if expected is None else 403
+    ), audit.text
 
     # Project deletion: org owner/admin only; a member with a row is refused,
     # one without a row does not see the project at all.
@@ -228,7 +232,7 @@ async def test_platform_admin_without_membership_sees_no_project_but_operates(
 
     assert (await boss.get("/api/v1/projects/private")).status_code == 404
     assert "private" not in {p["slug"] for p in (await boss.get("/api/v1/projects")).json()}
-    assert (await boss.get("/api/v1/audit")).status_code == 403
+    assert (await boss.get("/api/v1/projects/private/audit")).status_code == 404
     assert (await boss.get("/api/v1/users")).status_code == 403
     assert (
         await boss.post("/api/v1/projects", json={"name": "No", "slug": "no-org"})
@@ -305,8 +309,8 @@ async def test_a_role_in_one_org_gives_no_rights_in_another(people: People) -> N
 
     # Admin in acme, plain member in the default org: nothing there.
     assert (await xavier.get("/api/v1/projects/home")).status_code == 404
-    assert (await xavier.get("/api/v1/audit")).status_code == 403
-    assert (await xavier.get(f"/api/v1/orgs/{ACME_SLUG}/audit")).status_code == 200
+    assert (await xavier.get("/api/v1/projects/home/audit")).status_code == 404
+    assert (await xavier.get(f"/api/v1/orgs/{ACME_SLUG}/projects/abroad/audit")).status_code == 200
     abroad = await xavier.get(f"/api/v1/orgs/{ACME_SLUG}/projects/abroad")
     assert abroad.status_code == 200, abroad.text
     assert abroad.json()["my_role"] == "owner"

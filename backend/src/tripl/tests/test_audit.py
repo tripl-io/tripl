@@ -13,6 +13,8 @@ from tripl.models.data_source import DataSource
 from tripl.models.scan_config import ScanConfig
 from tripl.models.shadow_event_candidate import SHADOW_STATUS_NEW, ShadowEventCandidate
 from tripl.services import audit_service
+from tripl.tests._audit_feed import org_audit
+from tripl.tests._members import add_member_by_slug
 from tripl.tests.conftest import TestSessionLocal
 
 
@@ -72,7 +74,7 @@ async def test_audit_records_field_lifecycle(client: AsyncClient) -> None:
     )
     assert delete.status_code == 204
 
-    audit = await client.get("/api/v1/audit?project_slug=audit-fields")
+    audit = await client.get("/api/v1/projects/audit-fields/audit")
     assert audit.status_code == 200
     body = audit.json()
     actions = {entry["action"] for entry in body["items"]}
@@ -87,7 +89,7 @@ async def test_audit_records_field_lifecycle(client: AsyncClient) -> None:
     assert "payload" not in update_entry
 
     # The detail route still reports exactly the fields the client changed.
-    detail = await client.get(f"/api/v1/audit/{update_entry['id']}")
+    detail = await client.get(f"/api/v1/projects/audit-fields/audit/{update_entry['id']}")
     assert detail.status_code == 200
     assert detail.json()["payload"] == {"sensitivity": "pii"}
 
@@ -108,13 +110,11 @@ async def test_audit_redacts_data_source_password(client: AsyncClient) -> None:
     )
     assert resp.status_code == 201
 
-    audit = await client.get("/api/v1/audit?action=data_source.create")
-    assert audit.status_code == 200
-    items = audit.json()["items"]
+    # A data source belongs to no project: its row is in the organization-wide
+    # log only, read here from the table.
+    items = await org_audit("data_source.create", payload=True)
     assert len(items) == 1
-    detail = await client.get(f"/api/v1/audit/{items[0]['id']}")
-    assert detail.status_code == 200
-    payload = detail.json()["payload"]
+    payload = items[0]["payload"]
     assert payload["password"] == "***"
     assert payload["host"] == "localhost"
 
@@ -124,11 +124,13 @@ async def test_audit_filters_by_action_and_project(client: AsyncClient) -> None:
     await _setup_project(client, "audit-a")
     await _setup_project(client, "audit-b")
 
-    by_action = await client.get("/api/v1/audit?action=event_type.create")
+    by_action = await client.get("/api/v1/projects/audit-a/audit?action=event_type.create")
     assert by_action.status_code == 200
-    assert by_action.json()["total"] == 2
+    assert by_action.json()["total"] == 1
+    no_match = await client.get("/api/v1/projects/audit-a/audit?action=data_source.create")
+    assert no_match.json()["total"] == 0
 
-    by_project = await client.get("/api/v1/audit?project_slug=audit-a")
+    by_project = await client.get("/api/v1/projects/audit-a/audit")
     assert by_project.status_code == 200
     slugs = {entry["project_slug"] for entry in by_project.json()["items"]}
     assert slugs == {"audit-a"}
@@ -139,12 +141,12 @@ async def test_audit_filters_by_user_email_substring(client: AsyncClient) -> Non
     await _setup_project(client, "audit-email")
 
     # The conftest client is registered as test@example.com.
-    hit = await client.get("/api/v1/audit?user_email=example.com")
+    hit = await client.get("/api/v1/projects/audit-email/audit?user_email=example.com")
     assert hit.status_code == 200
     assert hit.json()["total"] >= 1
     assert all("example.com" in entry["user_email"].lower() for entry in hit.json()["items"])
 
-    miss = await client.get("/api/v1/audit?user_email=nobody")
+    miss = await client.get("/api/v1/projects/audit-email/audit?user_email=nobody")
     assert miss.status_code == 200
     assert miss.json()["total"] == 0
 
@@ -181,7 +183,7 @@ async def test_audit_covers_meta_field_variable_revision(client: AsyncClient) ->
     )
     assert rev.status_code == 201
 
-    audit = await client.get("/api/v1/audit?project_slug=audit-wide")
+    audit = await client.get("/api/v1/projects/audit-wide/audit")
     actions = {entry["action"] for entry in audit.json()["items"]}
     assert {
         "meta_field.create",
@@ -249,7 +251,7 @@ async def test_audit_detail_is_owner_only(client: AsyncClient) -> None:
     THIS route only, so an ungated get-one would reopen exactly that back door.
     """
     await _setup_project(client, "audit-gate")
-    listed = await client.get("/api/v1/audit?project_slug=audit-gate")
+    listed = await client.get("/api/v1/projects/audit-gate/audit")
     entry_id = listed.json()["items"][0]["id"]
 
     # The conftest client registered first and is therefore the owner; the next
@@ -264,15 +266,46 @@ async def test_audit_detail_is_owner_only(client: AsyncClient) -> None:
         },
     )
     assert register.status_code == 201, register.text
+    # A member of the project, so the refusal is the owner gate's, not a 404.
+    await add_member_by_slug("audit-gate", "audit-editor@example.com", "editor")
 
-    denied = await client.get(f"/api/v1/audit/{entry_id}")
+    denied = await client.get(f"/api/v1/projects/audit-gate/audit/{entry_id}")
     assert denied.status_code == 403
 
 
 @pytest.mark.asyncio
 async def test_audit_detail_reports_an_unknown_id_as_missing(client: AsyncClient) -> None:
-    resp = await client.get(f"/api/v1/audit/{uuid.uuid4()}")
+    await _setup_project(client, "audit-missing")
+    resp = await client.get(f"/api/v1/projects/audit-missing/audit/{uuid.uuid4()}")
     assert resp.status_code == 404
+
+
+@pytest.mark.asyncio
+async def test_audit_detail_of_another_project_is_missing(client: AsyncClient) -> None:
+    """A project's history hands out its own entries only: an id from another
+    project, or from no project, answers 404 like an unknown one."""
+    await _setup_project(client, "audit-mine")
+    await _setup_project(client, "audit-theirs")
+    theirs = (await client.get("/api/v1/projects/audit-theirs/audit")).json()["items"][0]["id"]
+    await client.post(
+        "/api/v1/data-sources",
+        json={
+            "name": "Unscoped",
+            "db_type": "clickhouse",
+            "host": "localhost",
+            "port": 8123,
+            "database_name": "default",
+            "username": "default",
+            "password": "x",
+        },
+    )
+    unscoped = (await org_audit("data_source.create"))[0]["id"]
+
+    for entry_id in (theirs, unscoped):
+        resp = await client.get(f"/api/v1/projects/audit-mine/audit/{entry_id}")
+        assert resp.status_code == 404, entry_id
+    own = await client.get(f"/api/v1/projects/audit-theirs/audit/{theirs}")
+    assert own.status_code == 200
 
 
 # --- branch context on audit rows ----------------------------
@@ -286,7 +319,7 @@ async def _create_branch(client: AsyncClient, slug: str, name: str) -> str:
 
 async def _one_entry(client: AsyncClient, slug: str, action: str) -> dict:
     """The single audit row for ``action`` on ``slug``, as the list renders it."""
-    listed = await client.get(f"/api/v1/audit?project_slug={slug}&action={action}")
+    listed = await client.get(f"/api/v1/projects/{slug}/audit?action={action}")
     assert listed.status_code == 200
     items = listed.json()["items"]
     assert len(items) == 1, items
@@ -313,7 +346,7 @@ async def test_audit_records_the_branch_a_write_was_scoped_to(client: AsyncClien
 
     # Both projections carry it: the issue asks for the list AND the owner-only
     # detail payload, and the detail response inherits the list's fields.
-    detail = await client.get(f"/api/v1/audit/{row['id']}")
+    detail = await client.get(f"/api/v1/projects/audit-branch/audit/{row['id']}")
     assert detail.status_code == 200
     assert detail.json()["branch_id"] == branch_id
     assert detail.json()["branch_name"] == "redesign-checkout"
@@ -440,9 +473,7 @@ async def test_a_malformed_branch_still_answers_400_and_writes_nothing(
 
     assert resp.status_code == 400
     assert resp.json()["detail"] == "Invalid branch id"
-    listed = await client.get(
-        "/api/v1/audit?project_slug=audit-bad-branch&action=meta_field.create"
-    )
+    listed = await client.get("/api/v1/projects/audit-bad-branch/audit?action=meta_field.create")
     assert listed.json()["items"] == []
 
 
@@ -470,9 +501,11 @@ async def _create_event(
 
 async def _payload_of(client: AsyncClient, entry_id: str) -> dict:
     """The owner-only detail payload for one entry — list rows carry none."""
-    detail = await client.get(f"/api/v1/audit/{entry_id}")
-    assert detail.status_code == 200, detail.text
-    return dict(detail.json()["payload"])
+    # Read from the table: the project route serves it too, but a callers' slug
+    # would only restate what the list call above it already scoped.
+    rows = [row for row in await org_audit(payload=True) if row["id"] == entry_id]
+    assert len(rows) == 1, entry_id
+    return dict(rows[0]["payload"])
 
 
 @pytest.mark.asyncio
@@ -833,7 +866,7 @@ async def test_dismissing_a_shadow_event_is_recorded_against_the_candidate(
 
     # Nothing was created, so the create action must stay empty: the two
     # resolutions differ in exactly the way the log says they do.
-    listed = await client.get("/api/v1/audit?project_slug=audit-shadow-dismiss&action=event.create")
+    listed = await client.get("/api/v1/projects/audit-shadow-dismiss/audit?action=event.create")
     assert listed.json()["items"] == []
 
 
@@ -912,15 +945,22 @@ async def test_audit_records_the_life_of_a_project(client: AsyncClient) -> None:
     deleted = await client.delete("/api/v1/projects/life-after")
     assert deleted.status_code == 204, deleted.text
 
+    # Read from the table: once deleted, the project has no page and no history
+    # route of its own (the organization-wide log reads these rows).
+    async def logged(slug: str, action: str) -> dict:
+        rows = [row for row in await org_audit(action) if row["project_slug"] == slug]
+        assert len(rows) == 1, rows
+        return rows[0]
+
     # Filed under the slug the project had AT THE TIME, so the create row keeps
     # the old one — which is why the tab has to resolve a slug rather than match
     # the label.
-    create_row = await _one_entry(client, "life-before", "project.create")
+    create_row = await logged("life-before", "project.create")
     assert create_row["target_type"] == "project"
     assert create_row["target_id"] == project_id
     assert create_row["target_name"] == "Checkout"
 
-    update_row = await _one_entry(client, "life-after", "project.update")
+    update_row = await logged("life-after", "project.update")
     assert update_row["target_id"] == project_id
     # The name AFTER the edit: the row names the project that now exists.
     assert update_row["target_name"] == "Checkout Funnel"
@@ -929,7 +969,7 @@ async def test_audit_records_the_life_of_a_project(client: AsyncClient) -> None:
         "name": "Checkout Funnel",
     }
 
-    delete_row = await _one_entry(client, "life-after", "project.delete")
+    delete_row = await logged("life-after", "project.delete")
     assert delete_row["target_id"] == project_id
     assert delete_row["target_name"] == "Checkout Funnel"
     # No project id — it points at nothing now, and saying so is the honest
@@ -960,7 +1000,7 @@ async def test_audit_records_generating_and_resetting_a_demo(client: AsyncClient
     reset = await client.post(f"/api/v1/projects/demo/{slug}/reset")
     assert reset.status_code == 200, reset.text
 
-    after = (await client.get(f"/api/v1/audit?project_slug={slug}&limit=200")).json()["items"]
+    after = (await client.get(f"/api/v1/projects/{slug}/audit?limit=200")).json()["items"]
     actions = {entry["action"] for entry in after}
     assert "project.reset" in actions
     # The generation row named the project the reset destroyed, so it went with
@@ -988,7 +1028,7 @@ async def test_renaming_a_project_keeps_its_history_together(client: AsyncClient
     assert later.status_code == 201, later.text
 
     listed = await client.get(
-        "/api/v1/audit?project_slug=rename-after&action=event_type.create&limit=200"
+        "/api/v1/projects/rename-after/audit?action=event_type.create&limit=200"
     )
     assert listed.status_code == 200
     # Both: the one authored under the old slug and the one after the rename.
@@ -1006,27 +1046,10 @@ async def test_a_recreated_slug_does_not_inherit_the_previous_trail(client: Asyn
     again = await client.post("/api/v1/projects", json={"name": "Second", "slug": "recycled"})
     assert again.status_code == 201, again.text
 
-    listed = await client.get("/api/v1/audit?project_slug=recycled&limit=200")
+    listed = await client.get("/api/v1/projects/recycled/audit?limit=200")
     actions = [entry["action"] for entry in listed.json()["items"]]
     # Its own creation, and nothing the project before it did.
     assert actions == ["project.create"], actions
-
-
-@pytest.mark.asyncio
-async def test_a_deleted_project_keeps_answering_to_its_freed_slug(client: AsyncClient) -> None:
-    """The other half of the same rule, and the reason it is not simply "filter
-    by id": a deleted project's rows have a NULL project id, so an id-only filter
-    would make them unreachable from every slug.
-
-    While nothing live answers to that slug, the label is all there is and no
-    live project can be confused by it.
-    """
-    await _setup_project(client, "gone-for-good")
-    assert (await client.delete("/api/v1/projects/gone-for-good")).status_code == 204
-
-    listed = await client.get("/api/v1/audit?project_slug=gone-for-good&limit=200")
-    actions = {entry["action"] for entry in listed.json()["items"]}
-    assert {"project.create", "event_type.create", "project.delete"} <= actions, actions
 
 
 def test_the_scan_pipeline_cannot_write_audit_rows() -> None:

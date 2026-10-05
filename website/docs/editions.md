@@ -10,7 +10,7 @@ Tripl comes in two editions built from the same code.
 **Community** is free and open source (AGPL-3.0-or-later). It is the whole
 product for a team: tracking plans, scans of your warehouse, monitoring and
 alerts, docs, the CLI and the MCP server, organizations with roles and groups,
-the audit log, and Sign in with Google.
+each project's audit history, and Sign in with Google.
 
 **Enterprise** adds what larger organizations need to run Tripl under their
 own identity and compliance rules. It ships as a separate private image,
@@ -20,15 +20,15 @@ own identity and compliance rules. It ships as a separate private image,
 |---|:---:|:---:|
 | Tracking plans, scans, monitoring, alerts | ✓ | ✓ |
 | Organizations, roles, groups, API keys | ✓ | ✓ |
-| Audit log | ✓ | ✓ |
+| Project audit history | ✓ | ✓ |
 | Sign in with Google | ✓ | ✓ |
 | Single sign-on per organization (OpenID Connect, SAML 2.0), verified domains, SSO required | | ✓ |
 | Provisioning over SCIM 2.0, groups mapped to roles | | ✓ |
+| Organization-wide audit log, search across projects, export (CSV, NDJSON) | | ✓ |
 | Audit webhook to a SIEM | | ✓ |
 
-Single sign-on per organization and SCIM provisioning are in the Enterprise
-image only. The audit webhook is moving out of the Community code; until it
-has, it still works in Community.
+Every Enterprise feature is in the Enterprise image only: the Community image
+does not contain its code.
 
 A Community instance shows each Enterprise feature in Settings with an
 **Enterprise** tag. Its page says what the feature does.

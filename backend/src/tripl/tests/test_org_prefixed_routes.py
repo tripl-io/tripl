@@ -56,7 +56,7 @@ def _mask(value: Any, swap: dict[str, str], keys: frozenset[str] = _VOLATILE_KEY
         f"/projects/{SLUG}/tracker-config",
         f"/activity/projects/{SLUG}",
         "/activity",
-        "/audit",
+        f"/projects/{SLUG}/audit",
         "/data-sources",
         "/users",
         "/me/notifications/unread-count",

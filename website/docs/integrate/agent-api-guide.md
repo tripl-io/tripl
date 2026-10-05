@@ -35,7 +35,7 @@ Two consequences worth knowing:
 ### Organization-qualified paths {#org-paths}
 
 Every project lives in one organization. Each path under `/api/v1/projects`,
-`/api/v1/activity`, `/api/v1/audit`, `/api/v1/data-sources`, `/api/v1/users` and
+`/api/v1/activity`, `/api/v1/data-sources`, `/api/v1/users` and
 `/api/v1/me` is also reachable with the organization spelled out:
 
 ```text
@@ -92,27 +92,12 @@ Single sign-on per organization (OpenID Connect and SAML, verified domains,
 routes (`/api/v1/orgs/{org}/sso…` and `/api/v1/auth/sso/…`) exist only on an
 Enterprise server.
 
-The audit log leaves tripl two ways (see
-[Exporting the audit log](../administer/admin-guide.md#audit-export) and
-[Audit webhook](../administer/admin-guide.md#audit-webhook)). Neither takes an
-API key: the export is an owner's or admin's browser session, like the audit
-feed, and the webhook an owner's:
-
-| Method and path | Who | What |
-|---|---|---|
-| `GET /api/v1/orgs/{org}/audit/export?format=csv\|json&from=YYYY-MM-DD&to=YYYY-MM-DD&action=` | owner or admin, browser session | A streamed download (`Content-Disposition: attachment`, `audit-<org>-<from>-<to>.<ext>`) of the organization's entries and its projects', ordered by `created_at` then `id`. `csv` is `text/csv` with every cell quoted and formula-like cells (`=`, `+`, `-`, `@`, tab, carriage return) prefixed with `'`; `json` is NDJSON (`application/x-ndjson`), one object per line. Columns: `id`, `created_at`, `org_slug`, `project_slug`, `branch_name`, `user_email`, `action`, `target_type`, `target_id`, `target_name`, `payload`. The range is `from` **included**, `to` **excluded** (both read in UTC; a bare date is midnight), so to include a whole last day send the day after it. `to` must be after `from` and at most 366 days later, else `422`. `action` is optional. Rate-limited (`429`). Audited as `org.audit_export`. |
-| `GET /api/v1/orgs/{org}/audit/webhook` | owner, browser session | Always `200`: `configured`, `url`, `enabled`, `secret_configured` (the secret itself is never returned), `last_success_at`, `last_error`, `last_error_at`. With no webhook, `configured` is `false`, `url` is `""` and `enabled` `false`. |
-| `PUT /api/v1/orgs/{org}/audit/webhook` | owner, browser session | `{"url", "enabled"}`. The URL must be `https`, and on a hosted instance a public address (`422` otherwise). Answers the webhook's fields; the call that creates it also generates the signing secret and returns it once, in `secret`. Rate-limited with `test` (10 a minute, `429`). |
-| `DELETE /api/v1/orgs/{org}/audit/webhook` | owner, browser session | Removes the webhook; nothing more is sent. |
-| `POST /api/v1/orgs/{org}/audit/webhook/rotate-secret` | owner, browser session | The webhook's fields (as `GET`) plus `secret`: a new signing secret, returned once. The old one stops working at once. `404` when there is no webhook. |
-| `POST /api/v1/orgs/{org}/audit/webhook/test` | owner, browser session | Sends a synthetic `audit.webhook_test` event now: `{"ok", "status_code", "error"}`. At most 15 seconds; rate-limited (10 a minute, `429`). |
-| `GET /api/v1/orgs/{org}/audit/webhook/deliveries?status=&limit=` | owner, browser session | Recent deliveries, newest first: `id`, `audit_log_id`, `action`, `status` (`pending`, `sent`, `failed`, `dead`), `attempts`, `next_attempt_at`, `last_error`, `created_at`, `sent_at`. |
-
-Each delivery is a `POST` of one entry as JSON with `X-Tripl-Event-Id` (the
-entry's `id`), `X-Tripl-Timestamp` (Unix seconds) and
-`X-Tripl-Signature: sha256=<hex HMAC-SHA256 of "t=<timestamp>.<raw body>">`
-(the literal `t=`, then the `X-Tripl-Timestamp` value, a dot and the body bytes).
-Webhook changes are audited as `org.audit_webhook.*`, without the secret.
+Audit export (CSV, NDJSON) and the audit webhook are part of the
+[Enterprise edition](../editions.md); their routes
+(`/api/v1/orgs/{org}/audit/export` and `/api/v1/orgs/{org}/audit/webhook…`)
+exist only on an Enterprise server, as does the organization-wide audit log
+(`/api/v1/audit`). A project's own history is in Community: see
+[Project audit history](#project-audit).
 
 A group id of another organization answers `404 Group not found`, like an id
 that does not exist. Every group change is audited (`org.group.create`,
@@ -204,7 +189,7 @@ Scopes:
   remain available even when an endpoint uses `POST` for a complex query body.
   Use this for retrieval, search, and agent context loading.
 - `write`: allowed on mutation endpoints, subject to the roles of the user behind the key. A project write still needs an editing project role (an `editor` membership, or owner/admin of the organization). Minting a `write` key needs membership of the organization.
-- Owner-only security and administration routes (data sources, scan SQL, members, invitations, the audit log) require an interactive session of an organization owner or admin; an API key is `403` on them even when its user is an owner. The one exception is the [metrics replay](#replaying-metrics), which a `write` key of an org owner or admin may call. The instance operator settings (`/settings` fields for security, observability and the server) require a platform admin's session and never take a key.
+- Owner-only security and administration routes (data sources, scan SQL, members, invitations, a project's audit history) require an interactive session of an organization owner or admin; an API key is `403` on them even when its user is an owner. The one exception is the [metrics replay](#replaying-metrics), which a `write` key of an org owner or admin may call. The instance operator settings (`/settings` fields for security, observability and the server) require a platform admin's session and never take a key.
 - A key belongs to the organization it was minted in and acts only there; a URL naming another organization answers `404`. `GET /api/v1/me/api-keys` lists the keys of the organization the request acts in.
 
 Project scope:
@@ -321,6 +306,25 @@ so `POST /api/v1/projects` or a rename to a slug that is already taken in the
 same organization answers `409` even when the caller cannot see the project
 holding it. Another organization may use the same slug. Reserved slugs (`demo`,
 `orgs`, `new`, `settings`, `api`, `p`, `o`, ...) answer `422`.
+
+### Project audit history {#project-audit}
+
+A project's audit history, its **Govern › Audit log** tab. The three
+routes take an organization owner's or admin's browser session; every API key,
+whatever its scope, gets `403`. A project the caller cannot see answers `404`.
+
+| Method and path | What |
+|---|---|
+| `GET /api/v1/projects/{slug}/audit` | The project's entries, newest first: `{"items": [...], "total"}`. Filters: `action`, `user_id`, `user_email`, `since`, `until`; `limit` 1 to 200 (default 50) and `offset`. A row carries no `payload`. |
+| `GET /api/v1/projects/{slug}/audit/actions` | The action catalog for the filter: `{"project": [groups], "workspace": [groups]}`, each group a `label` and its `actions`. |
+| `GET /api/v1/projects/{slug}/audit/{entry_id}` | One entry with its `payload` (secrets are redacted when the entry is written). `404` for an entry of another project, or of none. |
+
+The same routes answer under `/api/v1/orgs/{org}/projects/{slug}/audit…`. A
+renamed project keeps one history, and a deleted project's entries stay
+readable by its last slug while no live project uses it. Entries recorded
+outside any project (data sources, members, API keys, a project's deletion) are
+read in the organization-wide audit log, which is part of the
+[Enterprise edition](../editions.md).
 
 ### Creating a project from a template {#project-templates}
 

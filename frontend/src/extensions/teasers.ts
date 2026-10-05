@@ -1,4 +1,4 @@
-import { KeyRound, RefreshCw, Webhook } from 'lucide-react'
+import { KeyRound, RefreshCw, ScrollText, Webhook } from 'lucide-react'
 import type { SettingsNavItem } from '@/components/settings/nav'
 import type { ExtensionSettingsSection } from './types'
 
@@ -28,8 +28,8 @@ const tagged = (item: Omit<SettingsNavItem, 'tag' | 'ownerOnly'>): SettingsNavIt
 
 /**
  * Every feature that lives in the Enterprise edition. Shown only where no
- * installed extension provides it (`visibleTeasers`): while a feature is still
- * bundled with Community its real page wins and the teaser stays hidden.
+ * installed extension provides it (`visibleTeasers`): in an Enterprise build
+ * the real page wins and the teaser stays hidden.
  */
 export const ENTERPRISE_TEASERS: readonly EnterpriseTeaser[] = [
   {
@@ -58,6 +58,20 @@ export const ENTERPRISE_TEASERS: readonly EnterpriseTeaser[] = [
     summary:
       'Your identity provider adds and removes members over SCIM 2.0, and maps its groups to organization roles.',
   },
+  {
+    group: 'Organization',
+    after: 'org-limits',
+    item: tagged({
+      id: 'inst-audit',
+      label: 'Audit log',
+      icon: ScrollText,
+      path: 'instance/audit',
+      keywords: ['activity', 'who changed', 'log', 'export', 'csv', 'download'],
+    }),
+    summary:
+      "The organization's whole audit log in one place: every project's changes and the actions outside projects (data sources, members and roles, API keys, deleted projects), searchable and exportable as CSV or NDJSON. Each project's own history stays in its settings.",
+  },
+
   {
     group: 'Organization',
     after: 'inst-audit',
