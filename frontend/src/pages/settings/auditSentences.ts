@@ -146,6 +146,15 @@ const ACTION_SENTENCE: Record<string, string> = {
   'org.governance_policy.create': 'Created the plan policy',
   'org.governance_policy.update': 'Changed the plan policy',
   'org.governance_policy.delete': 'Deleted the plan policy',
+  // Access control (Enterprise): custom roles, group grants and team sync.
+  'org.project_role.create': 'Created the custom role',
+  'org.project_role.update': 'Changed the custom role',
+  'org.project_role.delete': 'Deleted the custom role',
+  'org.group_grant.create': 'Gave a group a role in a project',
+  'org.group_grant.update': "Changed a group's role in a project",
+  'org.group_grant.delete': "Removed a group's role in a project",
+  'org.team_sync.update': 'Changed team sync',
+  'org.team_sync.apply': 'Synced groups from the identity provider for',
 }
 
 export const TARGET_NOUN: Record<string, string> = {

@@ -10,7 +10,8 @@ from __future__ import annotations
 import base64
 import hmac
 import logging
-from dataclasses import dataclass
+from collections.abc import Mapping
+from dataclasses import dataclass, field
 from typing import Any
 from urllib.parse import quote
 
@@ -34,6 +35,10 @@ class IdTokenClaims:
     email: str
     email_verified: bool
     name: str | None
+    #: Every claim of the verified id_token, for a caller that reads one more
+    #: (an extension mapping the provider's groups, say). Already checked:
+    #: signature, issuer, audience, expiry and nonce.
+    raw_claims: Mapping[str, Any] = field(default_factory=dict)
 
 
 def exchange_code(
@@ -152,4 +157,5 @@ def verify_id_token(
         # Only a literal JSON ``true`` counts; ``"true"`` does not.
         email_verified=claims.get("email_verified") is True,
         name=(name.strip()[:255] or None) if isinstance(name, str) else None,
+        raw_claims=claims,
     )

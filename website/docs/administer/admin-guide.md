@@ -590,7 +590,9 @@ them. Sharing notes with a group, and routing event-type ownership and alerts
 to one, build on them in later releases. Groups can also be pushed by your
 identity provider over [SCIM](#scim); those are marked **Managed by SCIM**:
 their name and members change, and they are deleted, only through it. Their
-description stays editable here.
+description stays editable here. In the Enterprise edition a group can also
+hold a role in a project, and its members can follow your identity provider's
+groups at sign-in; see [Access control](../enterprise/rbac.md).
 
 Open **Settings › Organization › Groups**. Every member of the organization can
 see the groups and who is in each. Owners and admins can also:

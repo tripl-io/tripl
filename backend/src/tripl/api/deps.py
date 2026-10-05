@@ -29,6 +29,7 @@ from tripl.services import (
     email_verification_service,
     org_service,
     project_access,
+    project_permissions,
     project_service,
 )
 from tripl.services._plan_branch_locks import (
@@ -449,14 +450,44 @@ async def require_project_mutation_access(
     the whole surface at once and keeps future routes closed by default. Routes
     without a ``slug`` (``/projects``, ``/me/...``) are unaffected.
     """
-    if not request.path_params.get("slug"):
+    slug = request.path_params.get("slug")
+    if not slug:
         return
-    if project_access.can_edit(await _project_role(request, session, user)):
+    role = await _project_role(request, session, user)
+    if not project_access.can_edit(role):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Editor access to this project is required",
+        )
+    if role == project_access.OWNER:
+        # An owner or admin of the project's organization holds every permission.
         return
-    raise HTTPException(
-        status_code=status.HTTP_403_FORBIDDEN,
-        detail="Editor access to this project is required",
-    )
+    await _require_project_permission(request, session, user, slug)
+
+
+#: 403 detail when an extension takes a write permission away from an editor.
+PROJECT_PERMISSION_REFUSED = "Your role in this project does not allow this change"
+
+
+async def _require_project_permission(
+    request: Request, session: AsyncSession, user: User, slug: str
+) -> None:
+    """403 when an extension refuses the route's permission to this editor.
+
+    The permission is the route's (``project_permissions.permission_for`` over
+    its path template); with no extension installed nothing is asked and an
+    editor may write everything, as before. The project id comes from the slug,
+    resolved in the bound organization like the membership gate's.
+    """
+    if not extensions.extensions():
+        return
+    route_path = getattr(request.scope.get("route"), "path", "") or ""
+    permission = project_permissions.permission_for(route_path)
+    project_id = await resolve_project_id(session, slug)
+    if await extensions.project_permission_refused(session, user, project_id, permission):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN, detail=PROJECT_PERMISSION_REFUSED
+        )
 
 
 def can_mutate_project(

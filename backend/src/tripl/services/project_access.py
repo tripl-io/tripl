@@ -36,7 +36,14 @@ catalog (F20 PR4: organization roles are the source of truth):
 * inside a request the bound organization fences every answer: a project of
   another organization is ``None`` for everyone, so an id taken from a resource
   (a photo, a comment, a reviewer) cannot reach across organizations.
-  There is no instance-wide role to consult.
+  There is no instance-wide role to consult;
+* an installed extension may grant project roles on top
+  (``Extension.project_grants``, e.g. to an organization group): ``editor`` or
+  ``viewer``, never ``owner``, and only to a member of the project's own
+  organization through a grant row of that same organization. The higher of
+  the grant and the role above wins; a grant never touches an organization
+  role (:func:`org_role_of` does not read grants). With no extension there are
+  no grants and every answer is exactly the four arms above.
 
 Two helpers carry the rule, and every surface goes through one of them:
 :func:`effective_role` (Python, over the rows :func:`_role_rows` reads) and
@@ -62,11 +69,13 @@ from datetime import UTC, datetime
 from typing import Any, Literal
 
 from fastapi import HTTPException, Request, status
-from sqlalchemy import Select, and_, exists, or_, select
+from sqlalchemy import Select, and_, case, exists, false, func, null, or_, select, union_all
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 from sqlalchemy.orm import QueryableAttribute, aliased
 from sqlalchemy.sql.elements import ColumnElement
+from sqlalchemy.sql.selectable import Subquery
 
+from tripl import extensions
 from tripl.middleware.org_context import current_org_id, require_org_id, stepped_in
 from tripl.models.domain_enums import OrganizationRole, OrganizationStatus, ProjectMemberRole
 from tripl.models.organization import Organization, OrganizationMember
@@ -148,8 +157,18 @@ def _granted(role: object | None) -> ProjectRole | None:
     return None
 
 
+_RANK: dict[ProjectRole | None, int] = {None: 0, VIEWER: 1, EDITOR: 2, OWNER: 3}
+
+
+def _higher(a: ProjectRole | None, b: ProjectRole | None) -> ProjectRole | None:
+    return a if _RANK[a] >= _RANK[b] else b
+
+
 def effective_role(
-    org_role: str | None, membership_role: object | None, default_role: object | None
+    org_role: str | None,
+    membership_role: object | None,
+    default_role: object | None,
+    granted: object | None = None,
 ) -> ProjectRole | None:
     """The project role from the caller's org role, membership row and org default.
 
@@ -163,14 +182,22 @@ def effective_role(
     access, even under a wider default); an org member without a row gets the
     default; anyone else gets nothing. :func:`project_member_clause` is the SQL
     twin.
+
+    ``granted`` is an extension's grant (``"editor"``/``"viewer"``, anything
+    else counts for nothing): it lifts the role above to itself, and only for a
+    member of the organization (``org_role`` set), never to ``owner``.
     """
     if is_org_admin_role(org_role):
         return OWNER
     if membership_role is not None:
-        return _granted(membership_role)
+        base = _granted(membership_role)
+    elif org_role is None:
+        base = None
+    else:
+        base = _granted(default_role)
     if org_role is None:
-        return None
-    return _granted(default_role)
+        return base
+    return _higher(base, _granted(granted))
 
 
 def _step_in_role(
@@ -186,13 +213,89 @@ def _step_in_role(
     return role
 
 
-def _role_rows(user_id: uuid.UUID) -> Select[Any]:
-    """``(project id, org role, membership role, project org id, org default)`` per project.
+#: A column of the enclosing query (for fan-out joins) or a plain value.
+_UuidOperand = ColumnElement[uuid.UUID] | QueryableAttribute[uuid.UUID] | uuid.UUID
 
-    For one user. The org role and the default are joined from the PROJECT's
-    organization, never from the request, so an admin of another organization
-    contributes nothing. Feed ``row[1]``, ``row[2]``, ``row[4]`` to
-    :func:`effective_role`.
+
+#: The roles an extension grant may carry. Never ``owner``.
+GRANTABLE_ROLES: tuple[ProjectRole, ...] = (EDITOR, VIEWER)
+_GRANT_COLUMNS = 4
+
+
+def _extension_grants() -> Subquery | None:
+    """Every extension's grant rows as one subquery, ``None`` when there are none.
+
+    Columns, by position: organization id, project id, user id, role
+    (``Extension.project_grants``). A SELECT of another shape is a bug in the
+    extension and raises, so the request fails rather than answering without it.
+    """
+    selects = extensions.project_grants()
+    if not selects:
+        return None
+    for statement in selects:
+        if len(statement.selected_columns) != _GRANT_COLUMNS:
+            raise TypeError("Extension.project_grants must select exactly four columns")
+    combined = selects[0] if len(selects) == 1 else union_all(*selects)
+    return combined.subquery()
+
+
+def _grant_match(
+    grants: Subquery,
+    user_id: _UuidOperand,
+    project_id: _UuidOperand,
+    project_org_id: _UuidOperand,
+) -> list[ColumnElement[bool]]:
+    """A grant row for ``user_id`` in ``project_id`` that counts.
+
+    Only a row of the project's OWN organization, with a grantable role, for a
+    current member of that organization: a grant cannot reach across
+    organizations, outlive an organization membership, or make an owner.
+    """
+    org_col, project_col, user_col, role_col = list(grants.c)[:_GRANT_COLUMNS]
+    # The membership is a join at the same level, never a nested EXISTS: a
+    # subquery two levels down does not correlate with the enclosing query's
+    # columns (``users.id`` in a fan-out) and would match any user.
+    member = aliased(OrganizationMember)
+    return [
+        project_col == project_id,
+        user_col == user_id,
+        org_col == project_org_id,
+        role_col.in_(GRANTABLE_ROLES),
+        member.organization_id == project_org_id,
+        member.user_id == user_id,
+    ]
+
+
+def _grant_column(user_id: uuid.UUID) -> ColumnElement[Any]:
+    """The best extension grant of ``user_id`` in the enclosing query's ``Project``.
+
+    ``1`` for ``editor``, ``2`` for ``viewer``, NULL for none
+    (:func:`_grant_role` reads it back). NULL whenever no extension grants.
+    """
+    grants = _extension_grants()
+    if grants is None:
+        return null()
+    role_col = list(grants.c)[3]
+    return (
+        select(func.min(case((role_col == EDITOR, 1), else_=2)))
+        .where(*_grant_match(grants, user_id, Project.id, Project.organization_id))
+        .scalar_subquery()
+    )
+
+
+def _grant_role(value: object | None) -> ProjectRole | None:
+    return {1: EDITOR, 2: VIEWER}.get(value) if isinstance(value, int) else None
+
+
+def _role_rows(user_id: uuid.UUID, *, with_grants: bool = True) -> Select[Any]:
+    """``(project id, org role, membership role, project org id, org default, grant)``.
+
+    One row per project, for one user. The org role and the default are joined
+    from the PROJECT's organization, never from the request, so an admin of
+    another organization contributes nothing. Feed ``row[1]``, ``row[2]``,
+    ``row[4]`` and ``_grant_role(row[5])`` to :func:`effective_role`
+    (:func:`_row_role`). ``with_grants=False`` leaves the extension grants out
+    (``grant`` is NULL).
     """
     return (
         select(
@@ -201,6 +304,7 @@ def _role_rows(user_id: uuid.UUID) -> Select[Any]:
             ProjectMember.role,
             Project.organization_id,
             Organization.default_project_role,
+            _grant_column(user_id) if with_grants else null(),
         )
         .select_from(Project)
         .join(Organization, Organization.id == Project.organization_id)
@@ -230,16 +334,26 @@ def _in_bound_org(
     return statement if org_id is None else statement.where(Project.organization_id == org_id)
 
 
+def _row_role(row: Any) -> ProjectRole | None:
+    """:func:`effective_role` over one :func:`_role_rows` row (no step-in arm)."""
+    return effective_role(row[1], row[2], row[4], _grant_role(row[5]))
+
+
 async def _member_role(
-    session: AsyncSession, user_id: uuid.UUID, project_id: uuid.UUID, *, fenced: bool
+    session: AsyncSession,
+    user_id: uuid.UUID,
+    project_id: uuid.UUID,
+    *,
+    fenced: bool,
+    with_grants: bool = True,
 ) -> ProjectRole | None:
-    statement = _role_rows(user_id).where(Project.id == project_id)
+    statement = _role_rows(user_id, with_grants=with_grants).where(Project.id == project_id)
     if fenced:
         statement = _in_bound_org(statement)
     row = (await session.execute(statement)).first()
     if row is None:
         return None
-    return _step_in_role(user_id, row[3], effective_role(row[1], row[2], row[4]))
+    return _step_in_role(user_id, row[3], _row_role(row))
 
 
 async def member_role(
@@ -252,6 +366,18 @@ async def member_role(
     (critique #4 — callers pass ids taken from resources).
     """
     return await _member_role(session, user.id, project_id, fenced=True)
+
+
+async def direct_member_role(
+    session: AsyncSession, user: User, project_id: uuid.UUID
+) -> ProjectRole | None:
+    """:func:`member_role` without the extensions' grants.
+
+    The role the organization role, the membership row and the organization
+    default give on their own (and the step-in arm), for an extension that
+    needs to tell its own grants apart from the core's roles.
+    """
+    return await _member_role(session, user.id, project_id, fenced=True, with_grants=False)
 
 
 async def member_roles(
@@ -267,12 +393,10 @@ async def member_roles(
         return {}
     rows = await session.execute(_in_bound_org(_role_rows(user.id).where(Project.id.in_(ids))))
     roles: dict[uuid.UUID, ProjectRole] = {}
-    for project_id, org_role, row_role, project_org_id, default_role in rows.all():
-        role = _step_in_role(
-            user.id, project_org_id, effective_role(org_role, row_role, default_role)
-        )
+    for row in rows.all():
+        role = _step_in_role(user.id, row[3], _row_role(row))
         if role is not None:
-            roles[project_id] = role
+            roles[row[0]] = role
     return roles
 
 
@@ -285,10 +409,6 @@ async def is_project_org_admin(session: AsyncSession, user: User, project_id: uu
     return await member_role(session, user, project_id) == OWNER
 
 
-#: A column of the enclosing query (for fan-out joins) or a plain value.
-_UuidOperand = ColumnElement[uuid.UUID] | QueryableAttribute[uuid.UUID] | uuid.UUID
-
-
 def project_member_clause(
     user_id: _UuidOperand,
     project_id: _UuidOperand,
@@ -298,11 +418,20 @@ def project_member_clause(
     An owner/admin membership of the organization that owns the project; OR a
     ``project_members`` row other than ``none``; OR no row at all, a membership
     of that organization, and an organization ``default_project_role`` other
-    than ``none``. Built on aliases so the subqueries never correlate with a
+    than ``none``; OR an extension grant that counts (:func:`_grant_match`).
+    Built on aliases so the subqueries never correlate with a
     ``project_members``/``projects``/``organizations`` table of the enclosing
     query; the arguments may be columns of that query (for fan-out joins) or
     plain values.
     """
+    grants = _extension_grants()
+    granted: ColumnElement[bool] = false()
+    if grants is not None:
+        grant_project = aliased(Project)
+        granted = exists().where(
+            grant_project.id == project_id,
+            *_grant_match(grants, user_id, grant_project.id, grant_project.organization_id),
+        )
     row = aliased(ProjectMember)
     any_row = aliased(ProjectMember)
     admin = aliased(OrganizationMember)
@@ -332,6 +461,7 @@ def project_member_clause(
                 org_member.user_id == user_id,
             ),
         ),
+        granted,
     )
 
 
@@ -397,7 +527,7 @@ async def member_role_by_slug(session: AsyncSession, user: User, slug: str) -> P
     row = (await session.execute(_role_rows(user.id).where(project_slug_clause(slug)))).first()
     if row is None:
         return None
-    return _step_in_role(user.id, row[3], effective_role(row[1], row[2], row[4]))
+    return _step_in_role(user.id, row[3], _row_role(row))
 
 
 async def require_project_access(
@@ -463,7 +593,7 @@ async def still_member(
         )
         if org_status is None:
             return False
-        if effective_role(row[1], row[2], row[4]) is not None:
+        if _row_role(row) is not None:
             return str(org_status) == OrganizationStatus.active.value
         if not stepped_in(user.id, row[3]) or not user.is_platform_admin:
             return False

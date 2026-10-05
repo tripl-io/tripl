@@ -49,6 +49,7 @@ describe('frontend extensions', () => {
     expect(items.filter((entry) => entry.tag === 'Enterprise').map((entry) => entry.id)).toEqual([
       'org-health',
       'org-project-search',
+      'org-access',
       'org-sso',
       'org-scim',
       'org-escalation',
@@ -89,6 +90,7 @@ describe('Enterprise teasers', () => {
     expect(enterpriseTeasers.map((entry) => entry.item.id)).toEqual([
       'org-health',
       'org-project-search',
+      'org-access',
       'org-sso',
       'org-scim',
       'org-escalation',

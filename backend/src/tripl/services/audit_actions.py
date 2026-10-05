@@ -282,6 +282,23 @@ WORKSPACE_GROUPS: tuple[tuple[str, tuple[str, ...]], ...] = (
         ),
     ),
     (
+        # Access control (Enterprise): custom project roles, a group's role in a
+        # project, and team sync — the identity provider's groups mapped to the
+        # organization's groups at each single sign-on (``apply`` is a sign-in
+        # that changed someone's groups).
+        "Access control",
+        (
+            "org.project_role.create",
+            "org.project_role.update",
+            "org.project_role.delete",
+            "org.group_grant.create",
+            "org.group_grant.update",
+            "org.group_grant.delete",
+            "org.team_sync.update",
+            "org.team_sync.apply",
+        ),
+    ),
+    (
         # Escalation (Enterprise): an organization's escalation policies and the
         # alert routes that pick one per incident across its projects.
         "Escalation",

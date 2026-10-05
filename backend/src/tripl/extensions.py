@@ -10,6 +10,12 @@ entry point in the ``tripl.extensions`` group whose object is an
 * **access gates** — :meth:`Extension.org_session_gate`,
   :meth:`Extension.api_key_use_gate` and :meth:`Extension.api_key_mint_gate`
   may refuse a request by raising :class:`GateRefused`;
+* **project access** — :meth:`Extension.project_grants` adds project roles
+  (``editor`` or ``viewer``, never ``owner``) as SQL rows that
+  ``tripl.services.project_access`` merges with the membership rows, fenced to
+  members of the project's own organization; and
+  :meth:`Extension.project_permission_check` may refuse one write permission
+  (``tripl.services.project_permissions``) to a project editor, never grant one;
 * **lifecycle** — a member leaving an organization, an owner stepping down, a
   removed member invited back, an organization being deleted, an organization
   group changing membership;
@@ -54,6 +60,7 @@ if TYPE_CHECKING:
     import uuid
 
     from fastapi import APIRouter, FastAPI, Request
+    from sqlalchemy import Select
     from sqlalchemy.ext.asyncio import AsyncSession
     from starlette.responses import Response
 
@@ -155,6 +162,42 @@ class Extension:
 
     async def api_key_mint_gate(self, session: AsyncSession, org: OrgRef) -> None:
         """Refuse minting an API key in ``org`` from a session that is not tied to it."""
+
+    # -- project access --------------------------------------------------
+    def project_grants(self) -> Select[Any] | None:
+        """Project roles the extension grants, as SQL; ``None`` grants nothing.
+
+        A SELECT of exactly four columns, in this order: the granting
+        organization's id, the project id, the user id and the role
+        (``"editor"`` or ``"viewer"``). The core reads it as a subquery in
+        every project-access answer (``tripl.services.project_access``) and
+        keeps a row only when its organization is the project's own and the
+        user is a member of that organization. Any other role (``"owner"``
+        included) counts for nothing: a grant never makes anyone an owner, and
+        never changes an organization role. A grant adds to the membership
+        rows: the higher of the two roles wins.
+
+        Called while a query is built, so keep it cheap and free of I/O.
+        """
+        return None
+
+    async def project_permission_check(
+        self,
+        session: AsyncSession,
+        user: User,
+        project_id: uuid.UUID,
+        permission: str,
+    ) -> bool | None:
+        """Whether ``user``, an editor of ``project_id``, may use ``permission``.
+
+        Asked on every write a project editor makes (never for an owner or an
+        admin of the project's organization, and never for a viewer, who is
+        refused before). ``False`` refuses the write with 403; ``True`` and
+        ``None`` leave the decision to the core, so this hook can only take a
+        permission away. ``permission`` is one of
+        ``tripl.services.project_permissions.PERMISSIONS``.
+        """
+        return None
 
     # -- lifecycle -------------------------------------------------------
     async def on_member_removed(
@@ -316,6 +359,31 @@ async def api_key_use_gate(
 async def api_key_mint_gate(session: AsyncSession, org: OrgRef) -> None:
     for extension in extensions():
         await extension.api_key_mint_gate(session, org)
+
+
+def project_grants() -> list[Select[Any]]:
+    """Every extension's project-grant SELECT (``Extension.project_grants``)."""
+    found: list[Select[Any]] = []
+    for extension in extensions():
+        grants = extension.project_grants()
+        if grants is not None:
+            found.append(grants)
+    return found
+
+
+async def project_permission_refused(
+    session: AsyncSession, user: User, project_id: uuid.UUID, permission: str
+) -> bool:
+    """Whether any extension refuses ``permission`` to ``user`` in ``project_id``.
+
+    Only a literal ``False`` refuses; an exception propagates, so a failing
+    extension fails the request rather than letting it through.
+    """
+    for extension in extensions():
+        verdict = await extension.project_permission_check(session, user, project_id, permission)
+        if verdict is False:
+            return True
+    return False
 
 
 async def on_member_removed(

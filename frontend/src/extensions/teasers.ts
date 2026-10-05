@@ -68,6 +68,19 @@ export const ENTERPRISE_TEASERS: readonly EnterpriseTeaser[] = [
   },
   {
     group: 'Organization',
+    after: 'groups',
+    item: tagged({
+      id: 'org-access',
+      label: 'Access control',
+      icon: ShieldCheck,
+      path: 'organization/access',
+      keywords: ['rbac', 'roles', 'custom roles', 'permissions', 'group access', 'team sync', 'idp groups'],
+    }),
+    summary:
+      "Give a group a role in a project, build custom roles that hold only some of an editor's permissions, and keep groups in step with your identity provider's groups at each single sign-on.",
+  },
+  {
+    group: 'Organization',
     after: 'org-trackers',
     item: tagged({
       id: 'org-sso',
