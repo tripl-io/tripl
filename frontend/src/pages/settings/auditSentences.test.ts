@@ -42,6 +42,9 @@ describe('auditSentences', () => {
     expect(actionTone('org.unsuspend')).toBe('success')
     expect(actionTone('platform.step_in')).toBe('warning')
     expect(actionTone('platform.admin_revoke')).toBe('danger')
+    expect(actionSentence('platform.license_set')).toBe('Installed the Enterprise license')
+    expect(actionSentence('platform.license_clear')).toBe('Removed the Enterprise license')
+    expect(actionTone('platform.license_clear')).toBe('danger')
   })
 
   it('tones an action by the suffix of its verb', () => {

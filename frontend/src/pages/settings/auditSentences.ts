@@ -45,6 +45,8 @@ const ACTION_TONE: Record<string, ChipTone> = {
   'platform.step_in_end': 'neutral',
   'platform.admin_grant': 'success',
   'platform.admin_revoke': 'danger',
+  'platform.license_set': 'success',
+  'platform.license_clear': 'danger',
 }
 
 export function actionTone(action: string): ChipTone {
@@ -129,6 +131,8 @@ const ACTION_SENTENCE: Record<string, string> = {
   'platform.step_in_end': 'Ended a read-only step-in',
   'platform.admin_grant': 'Granted platform admin to',
   'platform.admin_revoke': 'Revoked platform admin from',
+  'platform.license_set': 'Installed the Enterprise license',
+  'platform.license_clear': 'Removed the Enterprise license',
 }
 
 export const TARGET_NOUN: Record<string, string> = {

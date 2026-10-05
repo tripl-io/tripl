@@ -693,6 +693,8 @@ of the [Enterprise edition](../editions.md).
 The [platform console](#platform-console)'s six actions have a filter group of
 their own, **Platform**: `org.suspend`, `org.unsuspend`, `platform.step_in`,
 `platform.step_in_end`, `platform.admin_grant` and `platform.admin_revoke`.
+With them are the Enterprise license's `platform.license_set` and
+`platform.license_clear`, which belong to no organization.
 Suspension and a platform admin's [read-only step-in](#platform-console) are
 recorded in the organization's own log; the two grant actions belong to no
 organization (see [Users](#platform-console)).
