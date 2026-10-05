@@ -365,6 +365,12 @@ async def accept_invitation(
 
     On the register rate-limit bucket, so guessing tokens costs the same as
     hammering signup.
+
+    Public demos require an already signed-in, verified account matching the
+    invitation. Anonymous password redemption is refused with 403, without
+    creating an account or sending verification mail. Acceptance grants the
+    member organization role and viewer access to its existing ready demos;
+    existing project grants are preserved. A full demo organization returns 409.
     """
     cookie = request.cookies.get(settings.session_cookie_name)
     signed_in = await auth_service.get_user_by_session_token(session, cookie) if cookie else None
@@ -395,6 +401,11 @@ async def accept_invitation(
         response.status_code = status.HTTP_200_OK
         return await auth_service.build_auth_user_response(session, signed_in)
 
+    if settings.public_demo:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Sign in with Google before accepting a demo invitation.",
+        )
     if data.password is None:
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,

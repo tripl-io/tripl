@@ -7,17 +7,21 @@ from datetime import UTC, datetime, timedelta
 from typing import cast
 
 from fastapi import HTTPException, status
-from sqlalchemy import delete, or_, select
+from sqlalchemy import delete, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from tripl import extensions
 from tripl.auth_utils import hash_password, hash_session_token, normalize_email
+from tripl.config import settings
 from tripl.middleware.org_context import require_org_id
+from tripl.models.audit_log import AuditLog
 from tripl.models.domain_enums import OrganizationRole
 from tripl.models.invitation import Invitation
 from tripl.models.organization import Organization, OrganizationMember
+from tripl.models.project import Project
+from tripl.models.project_member import ProjectMember
 from tripl.models.user import User
-from tripl.services import auth_service, email_verification_service
+from tripl.services import audit_service, auth_service, email_verification_service
 from tripl.services.org_resolution import ORG_IS_ACTIVE
 
 # Long enough that an owner can hand the link over out of band (SMTP is
@@ -27,6 +31,8 @@ INVITATION_TTL_HOURS = 72
 # Same generator and width as session and password-reset tokens: 32 bytes via
 # ``secrets.token_urlsafe`` is ~256 bits, so the link is not guessable.
 INVITATION_TOKEN_BYTES = 32
+DEMO_ORGANIZATION_CAPACITY = 10
+DEMO_INVITATIONS_PER_HOUR = 10
 
 # Deliberately identical for unknown / expired / already-used tokens so a
 # rejected redemption never reveals which of those it hit.
@@ -120,6 +126,14 @@ async def create_invitation(
     password resets supersede each other.
     """
     normalized = normalize_email(email)
+    if settings.public_demo:
+        if OrganizationRole(org_role) != OrganizationRole.member:
+            raise HTTPException(
+                status_code=403, detail="Public demo invitations allow only members."
+            )
+        # Lock both quota dimensions in a stable order, including across orgs.
+        for lock_id in sorted({organization_id, invited_by_user_id}):
+            await auth_service.acquire_owner_set_xact_lock(session, lock_id)
 
     existing_member: uuid.UUID | None = await session.scalar(
         select(OrganizationMember.id)
@@ -133,6 +147,11 @@ async def create_invitation(
                 "That email already has an account in this organization. "
                 "Change their role from Members instead."
             ),
+        )
+
+    if settings.public_demo:
+        await _check_demo_invitation_limits(
+            session, organization_id, invited_by_user_id, normalized
         )
 
     await session.execute(
@@ -155,9 +174,65 @@ async def create_invitation(
         expires_at=_expires_at(),
     )
     session.add(invitation)
+    if settings.public_demo:
+        await session.flush()
+        await audit_service.record(
+            session,
+            user=await session.get(User, invited_by_user_id),
+            action="user.invite",
+            target_type="invitation",
+            target_id=invitation.id,
+            target_name=invitation.email,
+            payload={"role": invitation.org_role, "public_demo": True},
+            organization_id=organization_id,
+            commit=False,
+        )
     await session.commit()
     await session.refresh(invitation)
     return invitation, raw_token
+
+
+async def _check_demo_invitation_limits(
+    session: AsyncSession, org_id: uuid.UUID, inviter_id: uuid.UUID, email: str
+) -> None:
+    """DB-backed rolling mint quotas survive replacement, revocation and restarts."""
+    now = datetime.now(UTC)
+    for dimension in (AuditLog.organization_id == org_id, AuditLog.user_id == inviter_id):
+        count = await session.scalar(
+            select(func.count())
+            .select_from(AuditLog)
+            .where(
+                AuditLog.action == "user.invite",
+                AuditLog.created_at >= now - timedelta(hours=1),
+                dimension,
+            )
+        )
+        if (count or 0) >= DEMO_INVITATIONS_PER_HOUR:
+            raise HTTPException(
+                status_code=429, detail="Public demo invitation limit: 10 per hour."
+            )
+    members = await session.scalar(
+        select(func.count())
+        .select_from(OrganizationMember)
+        .where(
+            OrganizationMember.organization_id == org_id,
+        )
+    )
+    pending = await session.scalar(
+        select(func.count())
+        .select_from(Invitation)
+        .where(
+            Invitation.organization_id == org_id,
+            Invitation.used_at.is_(None),
+            Invitation.expires_at > now,
+            Invitation.email != email,
+        )
+    )
+    if (members or 0) + (pending or 0) >= DEMO_ORGANIZATION_CAPACITY:
+        raise HTTPException(
+            status_code=409,
+            detail="Public demo organizations allow 10 members and pending invitations.",
+        )
 
 
 async def list_pending_invitations(
@@ -206,6 +281,7 @@ async def get_valid_invitation(session: AsyncSession, raw_token: str) -> Invitat
             .join(Organization, Organization.id == Invitation.organization_id)
             # An invitation into an organization being deleted is dead (F20 PR6).
             .where(Invitation.token_hash == _hash_token(raw_token), ORG_IS_ACTIVE)
+            .execution_options(populate_existing=True)
         ),
     )
     if (
@@ -245,6 +321,10 @@ async def redeem_invitation(
     the raw link in the response body, so redeeming it proves nothing about
     who reads the address; the caller mails a verification link.
     """
+    if settings.public_demo:
+        raise HTTPException(
+            status_code=403, detail="Sign in with Google before accepting a demo invitation."
+        )
     invitation = await get_valid_invitation(session, raw_token)
 
     # Re-checked here rather than trusted from mint time: an address can acquire
@@ -306,9 +386,15 @@ async def accept_as_signed_in(session: AsyncSession, *, raw_token: str, user: Us
     once.
     """
     invitation = await get_valid_invitation(session, raw_token)
+    if settings.public_demo:
+        await auth_service.acquire_owner_set_xact_lock(session, invitation.organization_id)
+        # Another acceptance/revocation may have completed while waiting for the lock.
+        invitation = await get_valid_invitation(session, raw_token)
     if normalize_email(user.email) != normalize_email(invitation.email):
         raise InvitationEmailMismatchError
-    if email_verification_service.is_blocked(user):
+    if email_verification_service.is_blocked(user) or (
+        settings.public_demo and user.email_verified_at is None
+    ):
         raise EmailNotVerifiedError
     member_id: uuid.UUID | None = await session.scalar(
         select(OrganizationMember.id).where(
@@ -318,6 +404,18 @@ async def accept_as_signed_in(session: AsyncSession, *, raw_token: str, user: Us
     )
     if member_id is not None:
         raise AlreadyMemberError
+    if settings.public_demo:
+        members = await session.scalar(
+            select(func.count())
+            .select_from(OrganizationMember)
+            .where(
+                OrganizationMember.organization_id == invitation.organization_id,
+            )
+        )
+        if (members or 0) >= DEMO_ORGANIZATION_CAPACITY:
+            raise HTTPException(status_code=409, detail="Public demo organization is full.")
+        # Invitations minted before PUBLIC_DEMO was enabled cannot elevate access.
+        invitation.org_role = OrganizationRole.member.value
     auth_service.add_organization_membership(
         session,
         user,
@@ -326,6 +424,38 @@ async def accept_as_signed_in(session: AsyncSession, *, raw_token: str, user: Us
     )
     # Invited back after a removal: an SSO sign-in may add them again (F20).
     await extensions.on_membership_restored(session, invitation.organization_id, user.id)
+    if settings.public_demo:
+        await _grant_demo_project_access(session, invitation, user)
     invitation.used_at = datetime.now(UTC)
     await session.flush()
     return invitation
+
+
+async def _grant_demo_project_access(
+    session: AsyncSession, invitation: Invitation, user: User
+) -> None:
+    """Grant only ready demos in the invited org; existing project roles win."""
+    projects = await session.scalars(
+        select(Project.id).where(
+            Project.organization_id == invitation.organization_id,
+            Project.is_demo.is_(True),
+            Project.generation_status == "ready",
+            ~select(ProjectMember.id)
+            .where(
+                ProjectMember.project_id == Project.id,
+                ProjectMember.user_id == user.id,
+            )
+            .exists(),
+        )
+    )
+    session.add_all(
+        [
+            ProjectMember(
+                project_id=project_id,
+                user_id=user.id,
+                role="viewer",
+                added_by_user_id=invitation.invited_by_user_id,
+            )
+            for project_id in projects
+        ]
+    )

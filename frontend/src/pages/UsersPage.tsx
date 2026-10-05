@@ -29,6 +29,7 @@ import { invitationsKey, usersKey } from '@/lib/queryKeys'
 import { SILENT_ERROR_META } from '@/lib/errorFeedback'
 import { SAVED_FEEDBACK_MS, useTransientFlag } from './settings-area/projectGeneralFields'
 import { focusFirstInvalid } from '@/components/forms/validation'
+import { usePublicDemo } from '@/lib/deploymentMode'
 
 // The format rule said in words, where `type="email"` + `required` showed the
 // browser's bubble instead.
@@ -77,6 +78,7 @@ const COPIED_RESET_MS = 2000
  * without a word, and the first link was gone for good.
  */
 export function InviteMemberCard({ actorIsOrgOwner }: { actorIsOrgOwner: boolean }) {
+  const publicDemo = usePublicDemo()
   const qc = useQueryClient()
   const [email, setEmail] = useState('')
   const [emailError, setEmailError] = useState<string | null>(null)
@@ -117,7 +119,7 @@ export function InviteMemberCard({ actorIsOrgOwner }: { actorIsOrgOwner: boolean
   const createMut = useMutation({
     // Rendered in the card (role="alert" below), so no toast as well.
     meta: SILENT_ERROR_META,
-    mutationFn: () => invitationsApi.create(email.trim(), role),
+    mutationFn: () => invitationsApi.create(email.trim(), publicDemo ? 'member' : role),
     onSuccess: (created) => {
       setMinted(created)
       setEverCopied(false)
@@ -192,7 +194,7 @@ export function InviteMemberCard({ actorIsOrgOwner }: { actorIsOrgOwner: boolean
       })
       if (!ok) return
     }
-    if (role === 'owner') {
+    if (!publicDemo && role === 'owner') {
       const ok = await confirm({
         title: 'Invite as Owner?',
         message:
@@ -216,7 +218,9 @@ export function InviteMemberCard({ actorIsOrgOwner }: { actorIsOrgOwner: boolean
       {dialog}
       <SCard
         title="Invite a member"
-        description="Creates a single-use link for one address, at the role you pick. They see no project until they are added to one under Project settings › Access."
+        description={publicDemo
+          ? 'Creates a single-use link for a colleague. No email is sent: copy the link and share it yourself. They sign in with Google at this address and receive viewer access to existing demo projects.'
+          : 'Creates a single-use link for one address, at the role you pick. They see no project until they are added to one under Project settings › Access.'}
         footer={
           <div className="flex w-full flex-wrap items-center justify-end gap-2">
             {createMut.isError && (
@@ -268,7 +272,7 @@ export function InviteMemberCard({ actorIsOrgOwner }: { actorIsOrgOwner: boolean
             label="Role"
             htmlFor="invite-role"
             hint={
-              role === 'owner' ? (
+              !publicDemo && role === 'owner' ? (
                 <span id="invite-owner-warning" className="text-warning">
                   {OWNER_POWERS}
                 </span>
@@ -281,11 +285,11 @@ export function InviteMemberCard({ actorIsOrgOwner }: { actorIsOrgOwner: boolean
                 background whatever `background` we hand it. */}
             <NativeSelect
               id="invite-role"
-              value={role}
+              value={publicDemo ? 'member' : role}
               onChange={(next) => setRole(next as Role)}
-              options={grantableRoles(actorIsOrgOwner)}
+              options={publicDemo ? ROLE_OPTIONS.filter((option) => option.value === 'member') : grantableRoles(actorIsOrgOwner)}
               width="fill"
-              aria-describedby={role === 'owner' ? 'invite-owner-warning' : undefined}
+              aria-describedby={!publicDemo && role === 'owner' ? 'invite-owner-warning' : undefined}
             />
           </Field>
         </form>

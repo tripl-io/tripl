@@ -17,15 +17,15 @@ from __future__ import annotations
 
 import uuid
 
-from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, Request, status
+from fastapi import APIRouter, BackgroundTasks, HTTPException, Query, Request, status
 
 from tripl.api.deps import (
     OrgMemberUserDep,
     OwnerUserDep,
     SessionDep,
-    refuse_on_public_demo,
     request_org_role,
 )
+from tripl.config import settings
 from tripl.middleware.org_context import require_org_id
 from tripl.models.domain_enums import OrganizationRole
 from tripl.schemas.auth import UserListItem, UserRoleUpdate
@@ -45,8 +45,6 @@ OWNER_MANAGEMENT_REQUIRED = "Only an owner can manage owners"
     "/invitations",
     response_model=InvitationCreatedResponse,
     status_code=status.HTTP_201_CREATED,
-    # An invitation mails a stranger-chosen address from the operator's relay.
-    dependencies=[Depends(refuse_on_public_demo("send invitations"))],
 )
 async def create_invitation(
     request: Request,
@@ -68,6 +66,11 @@ async def create_invitation(
     SMTP configured the link is also mailed, through the operator's relay (never
     an organization's), after the response.
 
+    On a public demo the link is the only delivery: no mail is prepared or
+    sent. Only the member organization role is allowed, with at most ten
+    members plus unexpired pending invitations (409 when full), and ten mints
+    per rolling hour per organization and inviter (429 when exhausted).
+
     The invitation belongs to the organization the request acts in: the one an
     ``/orgs/{org}/users/invitations`` URL names, else the legacy default.
     """
@@ -83,24 +86,26 @@ async def create_invitation(
         organization_id=require_org_id(),
         invited_by_user_id=current_user.id,
     )
-    await audit_service.record(
-        session,
-        user=current_user,
-        action="user.invite",
-        target_type="invitation",
-        target_id=invitation.id,
-        target_name=invitation.email,
-        payload={"role": OrganizationRole(data.role).value},
-    )
+    if not settings.public_demo:
+        await audit_service.record(
+            session,
+            user=current_user,
+            action="user.invite",
+            target_type="invitation",
+            target_id=invitation.id,
+            target_name=invitation.email,
+            payload={"role": OrganizationRole(data.role).value},
+        )
     accept_path = f"/invite/{raw_token}"
-    mail = await invitation_email.prepare(
-        session,
-        recipient=invitation.email,
-        organization_id=invitation.organization_id,
-        accept_path=accept_path,
-    )
-    if mail is not None:
-        background_tasks.add_task(invitation_email.send, mail)
+    if not settings.public_demo:
+        mail = await invitation_email.prepare(
+            session,
+            recipient=invitation.email,
+            organization_id=invitation.organization_id,
+            accept_path=accept_path,
+        )
+        if mail is not None:
+            background_tasks.add_task(invitation_email.send, mail)
     return InvitationCreatedResponse(
         invitation=InvitationResponse.model_validate(invitation),
         accept_path=accept_path,
