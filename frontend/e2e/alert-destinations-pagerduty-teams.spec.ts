@@ -65,8 +65,8 @@ test('a PagerDuty and a Microsoft Teams destination are added through the dialog
   await teamsDialog.getByRole('button', { name: 'Create' }).click()
   await expect(teamsDialog).toBeHidden()
 
-  await expect(page.getByText('On-call pager')).toBeVisible()
-  await expect(page.getByText('Ops channel')).toBeVisible()
+  await expect(page.getByText('On-call pager').first()).toBeVisible()
+  await expect(page.getByText('Ops channel').first()).toBeVisible()
   expect(posted).toEqual([
     expect.objectContaining({
       type: 'pagerduty',
