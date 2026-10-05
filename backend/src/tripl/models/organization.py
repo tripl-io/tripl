@@ -36,12 +36,6 @@ DEFAULT_ORG_ID = uuid.UUID("00000000-0000-0000-0000-00000000d0f1")
 DEFAULT_ORG_SLUG = "default"
 DEFAULT_ORG_NAME = "Default organization"
 
-#: The service organization pre-seeded demos wait in until a visitor claims one
-#: (``services/demo_pool.py``). Created on first use; it has no human members
-#: and is never retired as idle.
-DEMO_POOL_ORG_ID = uuid.UUID("00000000-0000-0000-0000-00000000d0e0")
-DEMO_POOL_ORG_SLUG = "demo-pool"
-
 
 class _DefaultOrgIdLiteral(ColumnElement[uuid.UUID]):
     """``DEFAULT_ORG_ID`` as a column DDL default, spelled per dialect.

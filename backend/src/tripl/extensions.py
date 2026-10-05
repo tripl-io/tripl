@@ -50,6 +50,7 @@ if TYPE_CHECKING:
     from tripl.middleware.org_context import OrgRef
     from tripl.models.audit_log import AuditLog
     from tripl.models.domain_enums import OrganizationRole
+    from tripl.models.project import Project
     from tripl.models.user import User
     from tripl.tenancy import TenancyPolicy
 
@@ -179,6 +180,25 @@ class Extension:
     ) -> None:
         """An organization's audit row was added, in the writing transaction."""
 
+    # -- demos -----------------------------------------------------------
+    async def claim_ready_demo(
+        self,
+        session: AsyncSession,
+        *,
+        visitor_id: uuid.UUID,
+        organization_id: uuid.UUID,
+        name: str,
+    ) -> Project | None:
+        """A demo seeded ahead of time, moved to ``visitor_id`` in ``organization_id``.
+
+        In the caller's transaction, no commit. ``None``: the visitor's demo is
+        seeded now, as without the extension.
+        """
+        return None
+
+    async def on_ready_demo_claimed(self) -> None:
+        """A ready demo was handed out and committed (refill what is left)."""
+
     # -- tenancy ---------------------------------------------------------
     def tenancy(self) -> TenancyPolicy | None:
         """A multi-tenant service's policy (``tripl.tenancy``); ``None``: one team."""
@@ -305,6 +325,19 @@ async def on_group_change(
 async def on_audit_recorded(session: AsyncSession, entry: AuditLog, org_id: uuid.UUID) -> None:
     for extension in extensions():
         await extension.on_audit_recorded(session, entry, org_id)
+
+
+async def claim_ready_demo(
+    session: AsyncSession, *, visitor_id: uuid.UUID, organization_id: uuid.UUID, name: str
+) -> tuple[Extension, Project] | None:
+    """The first extension's ready demo for the visitor, and that extension."""
+    for extension in extensions():
+        project = await extension.claim_ready_demo(
+            session, visitor_id=visitor_id, organization_id=organization_id, name=name
+        )
+        if project is not None:
+            return extension, project
+    return None
 
 
 def error_response(

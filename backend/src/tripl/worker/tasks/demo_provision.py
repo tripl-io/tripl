@@ -20,14 +20,13 @@ import uuid
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from tripl.middleware.request_id import bound_request_id
-from tripl.services import demo_pool, demo_service
+from tripl.services import demo_service
 from tripl.worker.celery_app import celery_app
 from tripl.worker.db import run_with_async_worker_session
 
 logger = logging.getLogger(__name__)
 
 TASK_NAME = "tripl.worker.tasks.demo_provision.seed_demo_project"
-REFILL_TASK_NAME = "tripl.worker.tasks.demo_provision.refill_demo_pool"
 
 
 @celery_app.task(name=TASK_NAME)  # type: ignore[untyped-decorator]
@@ -47,15 +46,3 @@ def seed_demo_project(project_id: str, request_id: str | None = None) -> str:
         asyncio.run(run_with_async_worker_session(_run))
     logger.info("demo.provision.%s project_id=%s", outcome, project_id)
     return outcome
-
-
-@celery_app.task(name=REFILL_TASK_NAME)  # type: ignore[untyped-decorator]
-def refill_demo_pool() -> dict[str, int]:
-    """Top the pre-seeded demo pool up to its size (``services/demo_pool.py``)."""
-    result: dict[str, int] = {}
-
-    async def _run(session: AsyncSession) -> None:
-        result.update(await demo_pool.refill_demo_pool(session))
-
-    asyncio.run(run_with_async_worker_session(_run))
-    return result

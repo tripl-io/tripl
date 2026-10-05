@@ -5,6 +5,11 @@ sidebar_position: 8
 
 # Running a public demo
 
+:::info Enterprise
+A public demo needs the [Enterprise edition](../editions.md): hosted mode, the
+demo pool and the purge of idle organizations are its package's.
+:::
+
 A public demo is a tripl instance anyone can sign in to and try on generated
 demo projects. Every visitor gets an organization of their own, and nothing
 they do reaches outside the instance. This page lists the settings for one.

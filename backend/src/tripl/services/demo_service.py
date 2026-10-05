@@ -21,7 +21,7 @@ from fastapi import HTTPException
 from sqlalchemy import ColumnElement, and_, delete, or_, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from tripl import cache
+from tripl import cache, extensions
 from tripl.middleware.org_context import OrgRef, bound_org, require_org_id
 from tripl.middleware.request_id import current_request_id
 from tripl.models.audit_log import AuditLog
@@ -33,7 +33,6 @@ from tripl.models.user import User
 from tripl.schemas.project import DemoCancelResponse, ProjectResponse
 from tripl.services import (
     audit_service,
-    demo_pool,
     plan_branch_service,
     project_lookup,
     project_member_service,
@@ -184,15 +183,17 @@ async def create_demo_project(
         )
 
     if created_by is not None and not explicit_slug:
-        claimed = await demo_pool.claim_pooled_demo(
+        # A demo an extension seeded ahead of time (the Enterprise demo pool).
+        ready = await extensions.claim_ready_demo(
             session,
             visitor_id=created_by,
             organization_id=organization_id,
             name=_demo_project_name(live_names),
         )
-        if claimed is not None:
+        if ready is not None:
+            extension, claimed = ready
             await _record_claim(session, claimed, created_by)
-            await request_pool_refill()
+            await extension.on_ready_demo_claimed()
             return await project_service.get_project(session, claimed.slug)
 
     project = _new_demo_project(
@@ -241,21 +242,8 @@ async def create_demo_project(
         raise
 
 
-async def request_pool_refill() -> None:
-    """Queue a pool refill after a claim. Best effort: the beat task is the backstop.
-
-    A module attribute, so tests can replace it.
-    """
-    try:
-        from tripl.worker.tasks.demo_provision import refill_demo_pool
-
-        await dispatch(refill_demo_pool.delay)
-    except Exception:
-        logger.warning("demo.pool.refill_enqueue_failed", exc_info=True)
-
-
 async def _record_claim(session: AsyncSession, project: Project, user_id: uuid.UUID) -> None:
-    """File the visitor's ``project.create`` for a demo handed out from the pool.
+    """File the visitor's ``project.create`` for a ready demo handed out (an extension's pool).
 
     The seed filed one for the pool's throwaway user, which the claim moved to
     the visitor; it is restamped to now, because the visitor generated the demo
