@@ -8,15 +8,14 @@
 * an organization that enters the OPERATOR's own SMTP host does not own that
   relay: the override is still ignored;
 * at save time on a hosted instance, an override is refused unless the
-  organization runs its own relay (even for a verified SSO domain, since send
-  time would ignore it), so save and send apply one rule.
+  organization runs its own relay, since send time would ignore it, so save
+  and send apply one rule.
 """
 
 from __future__ import annotations
 
 import uuid
 from collections.abc import Iterator
-from datetime import UTC, datetime
 from email.message import EmailMessage
 from pathlib import Path
 from typing import Any
@@ -32,7 +31,6 @@ from tripl.config import settings
 from tripl.models import Base
 from tripl.models.alert_destination import AlertDestination
 from tripl.models.app_setting import SERVICE_SETTINGS_KEY, AppSetting
-from tripl.models.org_sso import OrgSsoDomain
 from tripl.models.organization import DEFAULT_ORG_ID, Organization
 from tripl.models.project import Project
 from tripl.services import _alerting_test_send, app_settings_service
@@ -343,18 +341,6 @@ async def _seed_hosted_orgs() -> None:
                 AppSetting(
                     key=SERVICE_SETTINGS_KEY, value=_own_relay(), organization_id=OWN_RELAY_ORG
                 ),
-                OrgSsoDomain(
-                    organization_id=INHERITING_ORG,
-                    domain="globex-verified.example.com",
-                    verification_token="t" * 32,
-                    verified_at=datetime.now(UTC),
-                ),
-                OrgSsoDomain(
-                    organization_id=INHERITING_ORG,
-                    domain="globex-pending.example.com",
-                    verification_token="u" * 32,
-                    verified_at=None,
-                ),
             ]
         )
         await session.commit()
@@ -370,40 +356,6 @@ async def test_hosted_save_refuses_an_unverified_domain_on_the_operator_relay(
             with pytest.raises(HTTPException) as info:
                 await assert_from_override_allowed(session, INHERITING_ORG, value)
             assert info.value.status_code == 422
-
-
-@pytest.mark.asyncio
-async def test_hosted_save_refuses_a_verified_domain_on_the_operator_relay(
-    hosted: None,
-) -> None:
-    """Send time would ignore it (the operator's relay), so the save refuses it too."""
-    await _seed_hosted_orgs()
-    async with TestSessionLocal() as session:
-        with pytest.raises(HTTPException) as info:
-            await assert_from_override_allowed(
-                session, INHERITING_ORG, "Globex Alerts <alerts@Globex-Verified.example.com>"
-            )
-        assert info.value.status_code == 422
-
-
-def test_a_verified_domain_on_the_operator_relay_is_ignored_at_send(
-    hosted: None, sync_factory: sessionmaker[Session], smtp: _CapturingSmtplib
-) -> None:
-    """The send half of the same rule: a verified domain does not unlock the override."""
-    with sync_factory() as session:
-        session.add(
-            OrgSsoDomain(
-                organization_id=INHERITING_ORG,
-                domain="globex-verified.example.com",
-                verification_token="t" * 32,
-                verified_at=datetime.now(UTC),
-            )
-        )
-        session.commit()
-        destination = _email_destination(session, INHERITING_ORG, "globex-verified")
-        destination.email_from_address = "alerts@globex-verified.example.com"
-        _send_resolved(session, destination)
-    assert [msg["From"] for msg in smtp.sent] == [OPERATOR_SENDER]
 
 
 @pytest.mark.asyncio

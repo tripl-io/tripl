@@ -8,7 +8,6 @@ DROP TABLE IF EXISTS public.variable_event_value_overrides CASCADE;
 -- tripl:statement
 DROP TABLE IF EXISTS public.users CASCADE;
 -- tripl:statement
-DROP TABLE IF EXISTS public.user_sso_identities CASCADE;
 -- tripl:statement
 DROP TABLE IF EXISTS public.user_sessions CASCADE;
 -- tripl:statement
@@ -16,11 +15,8 @@ DROP TABLE IF EXISTS public.user_notification_prefs CASCADE;
 -- tripl:statement
 DROP TABLE IF EXISTS public.subscriptions CASCADE;
 -- tripl:statement
-DROP TABLE IF EXISTS public.sso_membership_blocks CASCADE;
 -- tripl:statement
-DROP TABLE IF EXISTS public.sso_login_states CASCADE;
 -- tripl:statement
-DROP TABLE IF EXISTS public.sso_link_tickets CASCADE;
 -- tripl:statement
 DROP TABLE IF EXISTS public.signal_triage CASCADE;
 -- tripl:statement
@@ -28,9 +24,7 @@ DROP TABLE IF EXISTS public.shadow_event_candidates CASCADE;
 -- tripl:statement
 DROP TABLE IF EXISTS public.search_documents CASCADE;
 -- tripl:statement
-DROP TABLE IF EXISTS public.scim_user_links CASCADE;
 -- tripl:statement
-DROP TABLE IF EXISTS public.scim_group_links CASCADE;
 -- tripl:statement
 DROP TABLE IF EXISTS public.schema_drifts CASCADE;
 -- tripl:statement
@@ -42,7 +36,6 @@ DROP TABLE IF EXISTS public.scan_dry_run_jobs CASCADE;
 -- tripl:statement
 DROP TABLE IF EXISTS public.scan_configs CASCADE;
 -- tripl:statement
-DROP TABLE IF EXISTS public.saml_assertion_ids CASCADE;
 -- tripl:statement
 DROP TABLE IF EXISTS public.release_regressions CASCADE;
 -- tripl:statement
@@ -88,13 +81,9 @@ DROP TABLE IF EXISTS public.organization_groups CASCADE;
 -- tripl:statement
 DROP TABLE IF EXISTS public.organization_group_members CASCADE;
 -- tripl:statement
-DROP TABLE IF EXISTS public.org_sso_domains CASCADE;
 -- tripl:statement
-DROP TABLE IF EXISTS public.org_sso_configs CASCADE;
 -- tripl:statement
-DROP TABLE IF EXISTS public.org_scim_tokens CASCADE;
 -- tripl:statement
-DROP TABLE IF EXISTS public.org_scim_configs CASCADE;
 -- tripl:statement
 DROP TABLE IF EXISTS public.org_audit_webhooks CASCADE;
 -- tripl:statement

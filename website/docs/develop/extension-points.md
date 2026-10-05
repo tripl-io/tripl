@@ -154,9 +154,10 @@ the Editions page, and the admonition on its docs pages.
 
 ## The bundled extension
 
-Single sign-on, SCIM provisioning and the audit webhook still live in this
-repository. They are registered as a bundled extension: on the backend
-`tripl._bundled_enterprise`, with its models in the bundled model list; in the
-web app `frontend/src/extensions/bundled`. The core reaches them only through
-the hooks and the registry above. When they move to a separately installed
-package, only those modules and their imports move with them.
+The audit webhook still lives in this repository. It is registered as a
+bundled extension: on the backend `tripl._bundled_enterprise`, with its models
+in the bundled model list; in the web app `frontend/src/extensions/bundled`.
+The core reaches it only through the hooks and the registry above. When it
+moves to a separately installed package, only those modules and their imports
+move with it. Single sign-on per organization and SCIM provisioning have
+already moved to the private Enterprise package, which uses the same hooks.

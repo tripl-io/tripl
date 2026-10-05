@@ -26,8 +26,9 @@ own identity and compliance rules. It ships as a separate private image,
 | Provisioning over SCIM 2.0, groups mapped to roles | | ✓ |
 | Audit webhook to a SIEM | | ✓ |
 
-These Enterprise features are moving out of the Community code. Until each one
-has moved, it still works in Community.
+Single sign-on per organization and SCIM provisioning are in the Enterprise
+image only. The audit webhook is moving out of the Community code; until it
+has, it still works in Community.
 
 A Community instance shows each Enterprise feature in Settings with an
 **Enterprise** tag. Its page says what the feature does.

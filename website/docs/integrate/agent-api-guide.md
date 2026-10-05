@@ -87,27 +87,10 @@ answer as for a slug that does not exist, and always before any `403`.
 | `POST /api/v1/orgs/{org}/groups/{group_id}/members` | owner or admin, browser session | `{"user_id"}`. `201` with the member. `404` when the user is not a member of the organization, `409` when already in the group. |
 | `DELETE /api/v1/orgs/{org}/groups/{group_id}/members/{user_id}` | owner or admin, browser session | `204`; `404` when the user is not in the group. |
 
-Single sign-on (see [the admin guide](../administer/admin-guide.md#single-sign-on))
-is configured by the organization's **owners** only, from a browser session;
-an admin, a member or any API key gets `403`:
-
-| Method and path | Who | What |
-|---|---|---|
-| `GET /api/v1/orgs/{org}/sso` | owner, browser session | `configured`, `protocol` (`oidc` or `saml`), `enabled`, `sso_required`, `login_url` (where members start signing in); for OpenID Connect `issuer`, `client_id`, `client_secret_configured` (the secret itself is never returned), `scopes` and `redirect_uri` (to register at the provider); for SAML `saml_idp_entity_id`, `saml_idp_sso_url`, `saml_idp_certs` (PEM, public), `saml_name_id_format`, `saml_email_attribute`, the read-only `saml_sp_entity_id`, `saml_acs_url` and `saml_metadata_url` (to register at the IdP) and `saml_cert_info` (`[{"fingerprint_sha256", "not_after", "subject"}]`). Fields never set are empty strings (`saml_email_attribute` is `null`). A save that changes the protocol, the SAML entity ID, or replaces every SAML certificate unlinks the members' SSO identities of the old provider (they confirm the link again); the unchanged values a save echoes back are not re-validated. `saml_idp_entity_id` is at most 507 characters. |
-| `PUT /api/v1/orgs/{org}/sso` | owner, browser session | The whole configuration: `{"protocol"?, "issuer", "client_id", "client_secret"?, "scopes"?, "saml_idp_entity_id"?, "saml_idp_sso_url"?, "saml_idp_certs"?, "saml_name_id_format"?, "saml_email_attribute"?, "enabled"?, "sso_required"?}`. `protocol` defaults to `oidc`. The fields of the chosen protocol are required and checked; the other protocol's may be `null`. An omitted `enabled` or `sso_required` is `false`; an omitted or `null` `client_secret` keeps the stored one, which is write-only. `scopes` defaults to `openid email profile` and must include `openid`. For SAML, `saml_idp_sso_url` must be `https`, `saml_idp_certs` holds one or more PEM certificates (several while the IdP rotates its key), `saml_name_id_format` defaults to `urn:oasis:names:tc:SAML:1.1:nameid-format:emailAddress`, and `saml_email_attribute` names the attribute carrying the email when the NameID is not one. `enabled: true` needs a saved provider and at least one verified domain. Turning `sso_required` on revokes the organization's API keys that were not created from a single sign-on session of it, owners' included; `revoked_api_keys` in the response says how many. While it is on, such keys are refused with `403` and new keys are created only from a single sign-on session of the organization (an owner's password session gets `403` too). Audited as `org.sso.*`, without the secret. |
-| `POST /api/v1/orgs/{org}/sso/test` | owner, browser session | OpenID Connect: fetches the issuer's discovery document and checks the issuer and endpoints: `{"ok", "message", "error_code", "authorization_endpoint", "token_endpoint", "jwks_uri", ...}`. SAML: checks that the saved certificates parse and have not expired and that the SSO URL is `https`, without contacting the IdP. A failure's `message` is a fixed text per `error_code`. Rate-limited to 10 a minute, shared with domain verification. |
-| `POST /api/v1/orgs/{org}/sso/saml/metadata-import` | owner, browser session | `{"xml"}`: pasted IdP metadata (an `EntityDescriptor`). Answers `{"saml_idp_entity_id", "saml_idp_sso_url", "saml_idp_certs"}` (the HTTP-Redirect single sign-on location and the signing certificates as PEM) without saving anything; send them with `PUT` to keep them. No URL is fetched. Metadata that does not parse, carries a `DOCTYPE`, or lacks an entity ID, a redirect location or a signing certificate is `422`. |
-| `GET /api/v1/orgs/{org}/sso/domains` | owner, browser session | The claimed domains: `id`, `domain`, `verified`, `verified_at`, `txt_record_name`, `txt_record_value`, `created_at`. |
-| `POST /api/v1/orgs/{org}/sso/domains` | owner, browser session | `{"domain"}`, lowercased. `201` with the domain and the TXT record to publish. A domain another organization has verified is `409`. |
-| `DELETE /api/v1/orgs/{org}/sso/domains/{id}` | owner, browser session | Removes the claim. |
-| `POST /api/v1/orgs/{org}/sso/domains/{id}/verify` | owner, browser session | Looks up the DNS TXT record `_tripl-verification.<domain>` and marks the domain verified when it contains `tripl-verification=<token>`. Rate-limited to 10 a minute, shared with the connection test. |
-
-In an organization with `sso_required`, a request from a browser session that
-did not sign in through the organization's provider answers
-`403 {"detail": "This organization requires single sign-on", "sso_start": "/api/v1/auth/sso/<org>/start"}`
-(organization owners and a platform admin's read-only step-in excepted). An API
-key bound to it works only if it was created from a single sign-on session of
-that organization; any other key is `403`.
+Single sign-on per organization (OpenID Connect and SAML, verified domains,
+"SSO required") is part of the [Enterprise edition](../editions.md); its
+routes (`/api/v1/orgs/{org}/sso…` and `/api/v1/auth/sso/…`) exist only on an
+Enterprise server.
 
 The audit log leaves tripl two ways (see
 [Exporting the audit log](../administer/admin-guide.md#audit-export) and
@@ -139,24 +122,9 @@ organization's identity provider created it, or has written to it, over SCIM.
 Renaming, deleting or changing the members of such a group here answers `409`;
 its description stays editable.
 
-SCIM provisioning (see [the admin guide](../administer/admin-guide.md#scim)) is
-set up by the organization's **owners** only, from a browser session; an admin,
-a member or any API key gets `403`:
-
-| Method and path | Who | What |
-|---|---|---|
-| `GET /api/v1/orgs/{org}/scim/tokens` | owner, browser session | The SCIM tokens, revoked ones included: `id`, `prefix`, `created_at`, `created_by_email`, `last_used_at`, `revoked_at`. The token itself is never returned here. |
-| `POST /api/v1/orgs/{org}/scim/tokens` | owner, browser session | Creates a token: `{"id", "prefix", "token", "created_at"}`. `token` (starting `tripl_scim_`) is shown only in this response. Audited as `org.scim.token_create`. |
-| `DELETE /api/v1/orgs/{org}/scim/tokens/{id}` | owner, browser session | Revokes the token; the identity provider's next request with it is refused. Audited as `org.scim.token_revoke`. |
-| `GET /api/v1/orgs/{org}/scim/config` | owner, browser session | `{"base_url", "admin_group_id", "admin_group_name", "active_tokens"}`: the SCIM base URL to give the identity provider, the group whose members are made admins (`null` for none), and how many unrevoked tokens there are. |
-| `PUT /api/v1/orgs/{org}/scim/config` | owner, browser session | `{"admin_group_id": "<group id>" \| null}`. The group must belong to the organization. |
-
-The SCIM 2.0 protocol itself is served at `/scim/v2/{org}` (outside
-`/api/v1`) for the identity provider: `ServiceProviderConfig`, `ResourceTypes`,
-`Schemas`, `Users` and `Groups`. It takes only
-`Authorization: Bearer tripl_scim_…` of that organization; sessions and API
-keys are refused there, and a SCIM token works nowhere else. Agents and
-scripts should use the `/api/v1` routes above instead.
+SCIM provisioning (`/scim/v2/{org}` and `/api/v1/orgs/{org}/scim/…`) is part
+of the [Enterprise edition](../editions.md) too. On a Community server no group
+is managed by SCIM.
 
 API keys never manage an organization: every write above answers `403` to a
 key, whatever its scope. Invitations into an organization are
@@ -290,13 +258,6 @@ address and answer `429` with `Retry-After` when exceeded.
 | `POST /api/v1/auth/password-reset/request` | anyone | Sends a reset link when the address has an account; the answer does not say whether it does. |
 | `POST /api/v1/auth/password-reset/confirm` | anyone | Sets the new password and marks the address verified. Signs the account out everywhere and revokes all of its API keys; issue new keys afterwards. Never grants platform admin. |
 | `GET /api/v1/auth/invitations/{token}` | anyone | Previews an invitation. |
-| `GET /api/v1/auth/sso/discover?email=` | anyone | `{"orgs": [{"slug", "name", "login_url"}]}`: the organizations with single sign-on turned on whose verified domain the address is at. Rate-limited like `/auth/status`. |
-| `GET /api/v1/auth/sso/{org}/start?next=` | anyone (a browser) | `302` to the organization's identity provider: for SAML, to its SSO URL with an unsigned `SAMLRequest` (HTTP-Redirect binding) and the state as `RelayState`. `next` is where to return afterwards and must be a relative path on this origin (`/…`, not `//…`). Start and callback share a rate limit of 20 a minute per address, apart from password sign-in. |
-| `GET /api/v1/auth/sso/{org}/callback?code=&state=` | the identity provider's redirect | Finishes the sign-in and redirects: into the app with a session, to `/sso/link?ticket=…` when the address belongs to an existing account that has to confirm the link, or to `/auth?sso_error=<code>`: `sso_unavailable`, `invalid_state`, `idp_error`, `idp_denied`, `invalid_token`, `email_missing`, `email_not_verified`, `email_domain_not_allowed`, `membership_removed` (removed from the organization and not invited back), `rate_limited` or `sso_failed`. |
-| `GET /api/v1/auth/sso/{org}/saml/metadata` | anyone | tripl's SAML service-provider metadata (XML): the entity ID (this URL), the ACS URL with the HTTP-POST binding, the email NameID format and `WantAssertionsSigned="true"`. Unsigned; there is no SP certificate. |
-| `POST /api/v1/auth/sso/{org}/saml/acs` | the identity provider's form post (`SAMLResponse`, `RelayState`) | The SAML counterpart of the callback, with the same outcomes and the same `sso_error` codes, plus `saml_invalid` (the response failed a check: issuer, audience, recipient, destination, validity window), `idp_denied` also for a non-`Success` status, `email_missing` also when no email attribute is configured and the NameID format is not `emailAddress`, `saml_signature_invalid` (the assertion is unsigned, signed with SHA-1 or by a certificate not configured), `saml_replay` (the assertion was already used), `saml_unsolicited` (not an answer to a request tripl made: IdP-initiated sign-in is not supported) and `encrypted_assertion_unsupported`. |
-| `GET /api/v1/auth/sso/link?ticket=` | anyone holding the ticket | `{"email", "org_slug", "org_name", "expires_at", "sign_in_required"}`: what confirming would link, without using the ticket; `sign_in_required` is true when this browser must first sign in to the account. `400` when the ticket is not live. |
-| `POST /api/v1/auth/sso/link` | the ticket, from a browser session of the ticket's account | `{"ticket"}`: links the identity provider's account to the existing tripl account, adds the organization membership if missing, marks the address verified and replaces the session with a single sign-on session. Answers `{"next", "user"}`. Without a session of that account: `401` and the ticket stays usable. An account whose address was never verified needs no session and is taken over clean (its password, sessions and API keys are dropped). Single use, 10 minutes; `400` for an unknown, used or expired ticket; `403` for an account removed from the organization; `409` when the organization no longer uses single sign-on. |
 | `POST /api/v1/auth/invitations/{token}/accept` | anyone, or the invited account signed in | Creates the account, or adds the organization to the signed-in account. Self-hosted: the new account is verified at creation. Hosted: the new account is **not** verified by the invitation and is sent a verification link to confirm, and a signed-in account must be verified first (`403`). Never grants platform admin. |
 
 ### Project members

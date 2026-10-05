@@ -1310,56 +1310,6 @@ CREATE TABLE public.org_audit_webhooks (
     last_error_at timestamp with time zone
 );
 -- tripl:statement
-CREATE TABLE public.org_scim_configs (
-    id uuid NOT NULL,
-    created_at timestamp with time zone DEFAULT now() NOT NULL,
-    updated_at timestamp with time zone DEFAULT now() NOT NULL,
-    organization_id uuid NOT NULL,
-    admin_group_id uuid
-);
--- tripl:statement
-CREATE TABLE public.org_scim_tokens (
-    id uuid NOT NULL,
-    created_at timestamp with time zone DEFAULT now() NOT NULL,
-    updated_at timestamp with time zone DEFAULT now() NOT NULL,
-    organization_id uuid NOT NULL,
-    token_hash character varying(64) NOT NULL,
-    prefix character varying(32) NOT NULL,
-    created_by uuid,
-    last_used_at timestamp with time zone,
-    revoked_at timestamp with time zone
-);
--- tripl:statement
-CREATE TABLE public.org_sso_configs (
-    id uuid NOT NULL,
-    created_at timestamp with time zone DEFAULT now() NOT NULL,
-    updated_at timestamp with time zone DEFAULT now() NOT NULL,
-    organization_id uuid NOT NULL,
-    issuer character varying(512),
-    client_id character varying(255),
-    client_secret_encrypted text NOT NULL,
-    scopes character varying(512) DEFAULT 'openid email profile'::character varying NOT NULL,
-    enabled boolean DEFAULT false NOT NULL,
-    sso_required boolean DEFAULT false NOT NULL,
-    protocol character varying(8) DEFAULT 'oidc'::character varying NOT NULL,
-    saml_idp_entity_id character varying(512),
-    saml_idp_sso_url character varying(2048),
-    saml_idp_certs text,
-    saml_name_id_format character varying(255) DEFAULT 'urn:oasis:names:tc:SAML:1.1:nameid-format:emailAddress'::character varying NOT NULL,
-    saml_email_attribute character varying(255),
-    CONSTRAINT ck_org_sso_configs_protocol CHECK (((protocol)::text = ANY ((ARRAY['oidc'::character varying, 'saml'::character varying])::text[])))
-);
--- tripl:statement
-CREATE TABLE public.org_sso_domains (
-    id uuid NOT NULL,
-    created_at timestamp with time zone DEFAULT now() NOT NULL,
-    updated_at timestamp with time zone DEFAULT now() NOT NULL,
-    organization_id uuid NOT NULL,
-    domain character varying(253) NOT NULL,
-    verification_token character varying(64) NOT NULL,
-    verified_at timestamp with time zone
-);
--- tripl:statement
 CREATE TABLE public.organization_group_members (
     id uuid NOT NULL,
     group_id uuid NOT NULL,
@@ -1635,15 +1585,6 @@ CREATE TABLE public.release_regressions (
     id uuid NOT NULL
 );
 -- tripl:statement
-CREATE TABLE public.saml_assertion_ids (
-    id uuid NOT NULL,
-    created_at timestamp with time zone DEFAULT now() NOT NULL,
-    updated_at timestamp with time zone DEFAULT now() NOT NULL,
-    organization_id uuid NOT NULL,
-    assertion_id character varying(255) NOT NULL,
-    expires_at timestamp with time zone NOT NULL
-);
--- tripl:statement
 CREATE TABLE public.scan_configs (
     data_source_id uuid NOT NULL,
     project_id uuid NOT NULL,
@@ -1770,28 +1711,6 @@ CREATE TABLE public.schema_drifts (
     resolved_by uuid
 );
 -- tripl:statement
-CREATE TABLE public.scim_group_links (
-    id uuid NOT NULL,
-    created_at timestamp with time zone DEFAULT now() NOT NULL,
-    updated_at timestamp with time zone DEFAULT now() NOT NULL,
-    organization_id uuid NOT NULL,
-    group_id uuid NOT NULL,
-    external_id character varying(255)
-);
--- tripl:statement
-CREATE TABLE public.scim_user_links (
-    id uuid NOT NULL,
-    created_at timestamp with time zone DEFAULT now() NOT NULL,
-    updated_at timestamp with time zone DEFAULT now() NOT NULL,
-    organization_id uuid NOT NULL,
-    user_id uuid NOT NULL,
-    external_id character varying(255),
-    given_name character varying(255),
-    family_name character varying(255),
-    active boolean DEFAULT true NOT NULL,
-    removed_outside_scim boolean DEFAULT false NOT NULL
-);
--- tripl:statement
 CREATE TABLE public.search_documents (
     project_id uuid NOT NULL,
     branch_id uuid NOT NULL,
@@ -1851,42 +1770,6 @@ CREATE TABLE public.signal_triage (
     CONSTRAINT ck_signal_triage_bucket_matches_action CHECK (((action = 'muted'::public.signal_triage_action) = (bucket IS NULL)))
 );
 -- tripl:statement
-CREATE TABLE public.sso_link_tickets (
-    id uuid NOT NULL,
-    created_at timestamp with time zone DEFAULT now() NOT NULL,
-    updated_at timestamp with time zone DEFAULT now() NOT NULL,
-    ticket_hash character varying(64) NOT NULL,
-    user_id uuid NOT NULL,
-    organization_id uuid NOT NULL,
-    issuer character varying(512) NOT NULL,
-    subject character varying(255) NOT NULL,
-    next_path character varying(2048) NOT NULL,
-    expires_at timestamp with time zone NOT NULL,
-    used_at timestamp with time zone
-);
--- tripl:statement
-CREATE TABLE public.sso_login_states (
-    id uuid NOT NULL,
-    created_at timestamp with time zone DEFAULT now() NOT NULL,
-    updated_at timestamp with time zone DEFAULT now() NOT NULL,
-    organization_id uuid NOT NULL,
-    state_hash character varying(64) NOT NULL,
-    nonce character varying(128) NOT NULL,
-    code_verifier text NOT NULL,
-    next_path character varying(2048) NOT NULL,
-    expires_at timestamp with time zone NOT NULL,
-    used_at timestamp with time zone,
-    request_id character varying(128)
-);
--- tripl:statement
-CREATE TABLE public.sso_membership_blocks (
-    id uuid NOT NULL,
-    created_at timestamp with time zone DEFAULT now() NOT NULL,
-    updated_at timestamp with time zone DEFAULT now() NOT NULL,
-    organization_id uuid NOT NULL,
-    user_id uuid NOT NULL
-);
--- tripl:statement
 CREATE TABLE public.subscriptions (
     id uuid NOT NULL,
     user_id uuid NOT NULL,
@@ -1919,16 +1802,6 @@ CREATE TABLE public.user_sessions (
     auth_method character varying(16) DEFAULT 'password'::character varying NOT NULL,
     sso_organization_id uuid,
     CONSTRAINT ck_user_sessions_auth_method CHECK (((auth_method)::text = ANY ((ARRAY['password'::character varying, 'sso'::character varying])::text[])))
-);
--- tripl:statement
-CREATE TABLE public.user_sso_identities (
-    id uuid NOT NULL,
-    created_at timestamp with time zone DEFAULT now() NOT NULL,
-    updated_at timestamp with time zone DEFAULT now() NOT NULL,
-    user_id uuid NOT NULL,
-    organization_id uuid NOT NULL,
-    issuer character varying(512) NOT NULL,
-    subject character varying(255) NOT NULL
 );
 -- tripl:statement
 CREATE TABLE public.users (
@@ -2165,24 +2038,6 @@ ALTER TABLE ONLY public.org_audit_webhooks
 ALTER TABLE ONLY public.org_audit_webhooks
     ADD CONSTRAINT org_audit_webhooks_pkey PRIMARY KEY (id);
 -- tripl:statement
-ALTER TABLE ONLY public.org_scim_configs
-    ADD CONSTRAINT org_scim_configs_organization_id_key UNIQUE (organization_id);
--- tripl:statement
-ALTER TABLE ONLY public.org_scim_configs
-    ADD CONSTRAINT org_scim_configs_pkey PRIMARY KEY (id);
--- tripl:statement
-ALTER TABLE ONLY public.org_scim_tokens
-    ADD CONSTRAINT org_scim_tokens_pkey PRIMARY KEY (id);
--- tripl:statement
-ALTER TABLE ONLY public.org_sso_configs
-    ADD CONSTRAINT org_sso_configs_organization_id_key UNIQUE (organization_id);
--- tripl:statement
-ALTER TABLE ONLY public.org_sso_configs
-    ADD CONSTRAINT org_sso_configs_pkey PRIMARY KEY (id);
--- tripl:statement
-ALTER TABLE ONLY public.org_sso_domains
-    ADD CONSTRAINT org_sso_domains_pkey PRIMARY KEY (id);
--- tripl:statement
 ALTER TABLE ONLY public.organization_group_members
     ADD CONSTRAINT organization_group_members_pkey PRIMARY KEY (id);
 -- tripl:statement
@@ -2249,9 +2104,6 @@ ALTER TABLE ONLY public.release_comparabilities
 ALTER TABLE ONLY public.release_regressions
     ADD CONSTRAINT release_regressions_pkey PRIMARY KEY (id);
 -- tripl:statement
-ALTER TABLE ONLY public.saml_assertion_ids
-    ADD CONSTRAINT saml_assertion_ids_pkey PRIMARY KEY (id);
--- tripl:statement
 ALTER TABLE ONLY public.scan_configs
     ADD CONSTRAINT scan_configs_pkey PRIMARY KEY (id);
 -- tripl:statement
@@ -2267,12 +2119,6 @@ ALTER TABLE ONLY public.scan_preview_jobs
 ALTER TABLE ONLY public.schema_drifts
     ADD CONSTRAINT schema_drifts_pkey PRIMARY KEY (id);
 -- tripl:statement
-ALTER TABLE ONLY public.scim_group_links
-    ADD CONSTRAINT scim_group_links_pkey PRIMARY KEY (id);
--- tripl:statement
-ALTER TABLE ONLY public.scim_user_links
-    ADD CONSTRAINT scim_user_links_pkey PRIMARY KEY (id);
--- tripl:statement
 ALTER TABLE ONLY public.search_documents
     ADD CONSTRAINT search_documents_pkey PRIMARY KEY (id);
 -- tripl:statement
@@ -2281,15 +2127,6 @@ ALTER TABLE ONLY public.shadow_event_candidates
 -- tripl:statement
 ALTER TABLE ONLY public.signal_triage
     ADD CONSTRAINT signal_triage_pkey PRIMARY KEY (id);
--- tripl:statement
-ALTER TABLE ONLY public.sso_link_tickets
-    ADD CONSTRAINT sso_link_tickets_pkey PRIMARY KEY (id);
--- tripl:statement
-ALTER TABLE ONLY public.sso_login_states
-    ADD CONSTRAINT sso_login_states_pkey PRIMARY KEY (id);
--- tripl:statement
-ALTER TABLE ONLY public.sso_membership_blocks
-    ADD CONSTRAINT sso_membership_blocks_pkey PRIMARY KEY (id);
 -- tripl:statement
 ALTER TABLE ONLY public.subscriptions
     ADD CONSTRAINT subscriptions_pkey PRIMARY KEY (id);
@@ -2405,9 +2242,6 @@ ALTER TABLE ONLY public.metric_value_breakdowns
 ALTER TABLE ONLY public.metric_values
     ADD CONSTRAINT uq_metric_value_def_config_bucket UNIQUE (metric_definition_id, scan_config_id, bucket);
 -- tripl:statement
-ALTER TABLE ONLY public.org_sso_domains
-    ADD CONSTRAINT uq_org_sso_domains_org_domain UNIQUE (organization_id, domain);
--- tripl:statement
 ALTER TABLE ONLY public.organization_group_members
     ADD CONSTRAINT uq_organization_group_member UNIQUE (group_id, user_id);
 -- tripl:statement
@@ -2459,20 +2293,11 @@ ALTER TABLE ONLY public.release_comparabilities
 ALTER TABLE ONLY public.release_regressions
     ADD CONSTRAINT uq_release_regression_scope_version UNIQUE (scan_config_id, scope_type, scope_ref, version);
 -- tripl:statement
-ALTER TABLE ONLY public.saml_assertion_ids
-    ADD CONSTRAINT uq_saml_assertion_ids_org_assertion UNIQUE (organization_id, assertion_id);
--- tripl:statement
 ALTER TABLE ONLY public.scan_configs
     ADD CONSTRAINT uq_scan_config_ds_name UNIQUE (data_source_id, name);
 -- tripl:statement
 ALTER TABLE ONLY public.schema_drifts
     ADD CONSTRAINT uq_schema_drift_event_type_field_kind UNIQUE (event_type_id, field_name, drift_type);
--- tripl:statement
-ALTER TABLE ONLY public.scim_group_links
-    ADD CONSTRAINT uq_scim_group_links_group UNIQUE (group_id);
--- tripl:statement
-ALTER TABLE ONLY public.scim_user_links
-    ADD CONSTRAINT uq_scim_user_links_org_user UNIQUE (organization_id, user_id);
 -- tripl:statement
 ALTER TABLE ONLY public.search_documents
     ADD CONSTRAINT uq_search_document_entity UNIQUE (project_id, branch_id, entity_type, entity_id);
@@ -2483,14 +2308,8 @@ ALTER TABLE ONLY public.shadow_event_candidates
 ALTER TABLE ONLY public.signal_triage
     ADD CONSTRAINT uq_signal_triage_signal UNIQUE (project_id, scan_config_id, scope_type, scope_ref, action, bucket);
 -- tripl:statement
-ALTER TABLE ONLY public.sso_membership_blocks
-    ADD CONSTRAINT uq_sso_membership_blocks_org_user UNIQUE (organization_id, user_id);
--- tripl:statement
 ALTER TABLE ONLY public.subscriptions
     ADD CONSTRAINT uq_subscription_user_entity UNIQUE (user_id, entity_type, entity_id);
--- tripl:statement
-ALTER TABLE ONLY public.user_sso_identities
-    ADD CONSTRAINT uq_user_sso_identities_subject UNIQUE (issuer, subject, organization_id);
 -- tripl:statement
 ALTER TABLE ONLY public.variable_event_value_overrides
     ADD CONSTRAINT uq_variable_event_value_override UNIQUE (variable_id, event_id);
@@ -2512,9 +2331,6 @@ ALTER TABLE ONLY public.user_notification_prefs
 -- tripl:statement
 ALTER TABLE ONLY public.user_sessions
     ADD CONSTRAINT user_sessions_pkey PRIMARY KEY (id);
--- tripl:statement
-ALTER TABLE ONLY public.user_sso_identities
-    ADD CONSTRAINT user_sso_identities_pkey PRIMARY KEY (id);
 -- tripl:statement
 ALTER TABLE ONLY public.users
     ADD CONSTRAINT users_pkey PRIMARY KEY (id);
@@ -2733,12 +2549,6 @@ CREATE INDEX ix_notification_user_read_created ON public.notifications USING btr
 -- tripl:statement
 CREATE INDEX ix_notifications_project_id ON public.notifications USING btree (project_id);
 -- tripl:statement
-CREATE INDEX ix_org_scim_tokens_organization_id ON public.org_scim_tokens USING btree (organization_id);
--- tripl:statement
-CREATE UNIQUE INDEX ix_org_scim_tokens_token_hash ON public.org_scim_tokens USING btree (token_hash);
--- tripl:statement
-CREATE INDEX ix_org_sso_domains_organization_id ON public.org_sso_domains USING btree (organization_id);
--- tripl:statement
 CREATE INDEX ix_organization_group_members_user_id ON public.organization_group_members USING btree (user_id);
 -- tripl:statement
 CREATE INDEX ix_organization_groups_organization_id ON public.organization_groups USING btree (organization_id);
@@ -2787,10 +2597,6 @@ CREATE INDEX ix_release_regression_event ON public.release_regressions USING btr
 -- tripl:statement
 CREATE INDEX ix_release_regression_event_type ON public.release_regressions USING btree (event_type_id);
 -- tripl:statement
-CREATE INDEX ix_saml_assertion_ids_expires_at ON public.saml_assertion_ids USING btree (expires_at);
--- tripl:statement
-CREATE INDEX ix_saml_assertion_ids_organization_id ON public.saml_assertion_ids USING btree (organization_id);
--- tripl:statement
 CREATE INDEX ix_scan_config_project ON public.scan_configs USING btree (project_id);
 -- tripl:statement
 CREATE INDEX ix_scan_dry_run_job_project ON public.scan_dry_run_jobs USING btree (project_id);
@@ -2800,12 +2606,6 @@ CREATE INDEX ix_scan_job_config_created ON public.scan_jobs USING btree (scan_co
 CREATE INDEX ix_scan_preview_job_project ON public.scan_preview_jobs USING btree (project_id);
 -- tripl:statement
 CREATE INDEX ix_schema_drift_event_type_detected ON public.schema_drifts USING btree (event_type_id, detected_at);
--- tripl:statement
-CREATE INDEX ix_scim_group_links_organization_id ON public.scim_group_links USING btree (organization_id);
--- tripl:statement
-CREATE INDEX ix_scim_user_links_organization_id ON public.scim_user_links USING btree (organization_id);
--- tripl:statement
-CREATE INDEX ix_scim_user_links_user_id ON public.scim_user_links USING btree (user_id);
 -- tripl:statement
 CREATE INDEX ix_search_documents_branch_id ON public.search_documents USING btree (branch_id);
 -- tripl:statement
@@ -2827,24 +2627,6 @@ CREATE INDEX ix_shadow_candidate_project_status ON public.shadow_event_candidate
 -- tripl:statement
 CREATE INDEX ix_signal_triage_project_id ON public.signal_triage USING btree (project_id);
 -- tripl:statement
-CREATE INDEX ix_sso_link_tickets_expires_at ON public.sso_link_tickets USING btree (expires_at);
--- tripl:statement
-CREATE INDEX ix_sso_link_tickets_organization_id ON public.sso_link_tickets USING btree (organization_id);
--- tripl:statement
-CREATE UNIQUE INDEX ix_sso_link_tickets_ticket_hash ON public.sso_link_tickets USING btree (ticket_hash);
--- tripl:statement
-CREATE INDEX ix_sso_link_tickets_user_id ON public.sso_link_tickets USING btree (user_id);
--- tripl:statement
-CREATE INDEX ix_sso_login_states_expires_at ON public.sso_login_states USING btree (expires_at);
--- tripl:statement
-CREATE INDEX ix_sso_login_states_organization_id ON public.sso_login_states USING btree (organization_id);
--- tripl:statement
-CREATE UNIQUE INDEX ix_sso_login_states_state_hash ON public.sso_login_states USING btree (state_hash);
--- tripl:statement
-CREATE INDEX ix_sso_membership_blocks_organization_id ON public.sso_membership_blocks USING btree (organization_id);
--- tripl:statement
-CREATE INDEX ix_sso_membership_blocks_user_id ON public.sso_membership_blocks USING btree (user_id);
--- tripl:statement
 CREATE INDEX ix_subscription_entity ON public.subscriptions USING btree (entity_type, entity_id);
 -- tripl:statement
 CREATE INDEX ix_subscriptions_project_id ON public.subscriptions USING btree (project_id);
@@ -2856,10 +2638,6 @@ CREATE UNIQUE INDEX ix_user_sessions_session_token_hash ON public.user_sessions 
 CREATE INDEX ix_user_sessions_sso_organization_id ON public.user_sessions USING btree (sso_organization_id);
 -- tripl:statement
 CREATE INDEX ix_user_sessions_user_id ON public.user_sessions USING btree (user_id);
--- tripl:statement
-CREATE INDEX ix_user_sso_identities_organization_id ON public.user_sso_identities USING btree (organization_id);
--- tripl:statement
-CREATE INDEX ix_user_sso_identities_user_id ON public.user_sso_identities USING btree (user_id);
 -- tripl:statement
 CREATE UNIQUE INDEX ix_users_email ON public.users USING btree (email);
 -- tripl:statement
@@ -2910,8 +2688,6 @@ CREATE UNIQUE INDEX uq_metric_anomaly_metric_scope ON public.metric_anomalies US
 CREATE UNIQUE INDEX uq_metric_value_breakdown_catalog_bucket_value ON public.metric_value_breakdowns USING btree (metric_definition_id, bucket, breakdown_column, breakdown_value, is_other) WHERE (scan_config_id IS NULL);
 -- tripl:statement
 CREATE UNIQUE INDEX uq_metric_value_catalog_bucket ON public.metric_values USING btree (metric_definition_id, bucket) WHERE (scan_config_id IS NULL);
--- tripl:statement
-CREATE UNIQUE INDEX uq_org_sso_domains_verified_domain ON public.org_sso_domains USING btree (domain) WHERE (verified_at IS NOT NULL);
 -- tripl:statement
 CREATE UNIQUE INDEX uq_organization_group_name_ci ON public.organization_groups USING btree (organization_id, lower((name)::text));
 -- tripl:statement
@@ -3385,24 +3161,6 @@ ALTER TABLE ONLY public.notifications
 ALTER TABLE ONLY public.org_audit_webhooks
     ADD CONSTRAINT org_audit_webhooks_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES public.organizations(id) ON DELETE CASCADE;
 -- tripl:statement
-ALTER TABLE ONLY public.org_scim_configs
-    ADD CONSTRAINT org_scim_configs_admin_group_id_fkey FOREIGN KEY (admin_group_id) REFERENCES public.organization_groups(id) ON DELETE SET NULL;
--- tripl:statement
-ALTER TABLE ONLY public.org_scim_configs
-    ADD CONSTRAINT org_scim_configs_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES public.organizations(id) ON DELETE CASCADE;
--- tripl:statement
-ALTER TABLE ONLY public.org_scim_tokens
-    ADD CONSTRAINT org_scim_tokens_created_by_fkey FOREIGN KEY (created_by) REFERENCES public.users(id) ON DELETE SET NULL;
--- tripl:statement
-ALTER TABLE ONLY public.org_scim_tokens
-    ADD CONSTRAINT org_scim_tokens_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES public.organizations(id) ON DELETE CASCADE;
--- tripl:statement
-ALTER TABLE ONLY public.org_sso_configs
-    ADD CONSTRAINT org_sso_configs_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES public.organizations(id) ON DELETE CASCADE;
--- tripl:statement
-ALTER TABLE ONLY public.org_sso_domains
-    ADD CONSTRAINT org_sso_domains_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES public.organizations(id) ON DELETE CASCADE;
--- tripl:statement
 ALTER TABLE ONLY public.organization_group_members
     ADD CONSTRAINT organization_group_members_group_id_fkey FOREIGN KEY (group_id) REFERENCES public.organization_groups(id) ON DELETE CASCADE;
 -- tripl:statement
@@ -3526,9 +3284,6 @@ ALTER TABLE ONLY public.release_regressions
 ALTER TABLE ONLY public.release_regressions
     ADD CONSTRAINT release_regressions_scan_config_id_fkey FOREIGN KEY (scan_config_id) REFERENCES public.scan_configs(id) ON DELETE CASCADE;
 -- tripl:statement
-ALTER TABLE ONLY public.saml_assertion_ids
-    ADD CONSTRAINT saml_assertion_ids_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES public.organizations(id) ON DELETE CASCADE;
--- tripl:statement
 ALTER TABLE ONLY public.scan_configs
     ADD CONSTRAINT scan_configs_data_source_id_fkey FOREIGN KEY (data_source_id) REFERENCES public.data_sources(id) ON DELETE CASCADE;
 -- tripl:statement
@@ -3564,18 +3319,6 @@ ALTER TABLE ONLY public.schema_drifts
 -- tripl:statement
 ALTER TABLE ONLY public.schema_drifts
     ADD CONSTRAINT schema_drifts_scan_config_id_fkey FOREIGN KEY (scan_config_id) REFERENCES public.scan_configs(id) ON DELETE SET NULL;
--- tripl:statement
-ALTER TABLE ONLY public.scim_group_links
-    ADD CONSTRAINT scim_group_links_group_id_fkey FOREIGN KEY (group_id) REFERENCES public.organization_groups(id) ON DELETE CASCADE;
--- tripl:statement
-ALTER TABLE ONLY public.scim_group_links
-    ADD CONSTRAINT scim_group_links_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES public.organizations(id) ON DELETE CASCADE;
--- tripl:statement
-ALTER TABLE ONLY public.scim_user_links
-    ADD CONSTRAINT scim_user_links_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES public.organizations(id) ON DELETE CASCADE;
--- tripl:statement
-ALTER TABLE ONLY public.scim_user_links
-    ADD CONSTRAINT scim_user_links_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.users(id) ON DELETE CASCADE;
 -- tripl:statement
 ALTER TABLE ONLY public.search_documents
     ADD CONSTRAINT search_documents_branch_id_fkey FOREIGN KEY (branch_id) REFERENCES public.plan_branches(id) ON DELETE CASCADE;
@@ -3613,21 +3356,6 @@ ALTER TABLE ONLY public.signal_triage
 ALTER TABLE ONLY public.signal_triage
     ADD CONSTRAINT signal_triage_scan_config_id_fkey FOREIGN KEY (scan_config_id) REFERENCES public.scan_configs(id) ON DELETE CASCADE;
 -- tripl:statement
-ALTER TABLE ONLY public.sso_link_tickets
-    ADD CONSTRAINT sso_link_tickets_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES public.organizations(id) ON DELETE CASCADE;
--- tripl:statement
-ALTER TABLE ONLY public.sso_link_tickets
-    ADD CONSTRAINT sso_link_tickets_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.users(id) ON DELETE CASCADE;
--- tripl:statement
-ALTER TABLE ONLY public.sso_login_states
-    ADD CONSTRAINT sso_login_states_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES public.organizations(id) ON DELETE CASCADE;
--- tripl:statement
-ALTER TABLE ONLY public.sso_membership_blocks
-    ADD CONSTRAINT sso_membership_blocks_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES public.organizations(id) ON DELETE CASCADE;
--- tripl:statement
-ALTER TABLE ONLY public.sso_membership_blocks
-    ADD CONSTRAINT sso_membership_blocks_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.users(id) ON DELETE CASCADE;
--- tripl:statement
 ALTER TABLE ONLY public.subscriptions
     ADD CONSTRAINT subscriptions_project_id_fkey FOREIGN KEY (project_id) REFERENCES public.projects(id) ON DELETE CASCADE;
 -- tripl:statement
@@ -3639,12 +3367,6 @@ ALTER TABLE ONLY public.user_notification_prefs
 -- tripl:statement
 ALTER TABLE ONLY public.user_sessions
     ADD CONSTRAINT user_sessions_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.users(id) ON DELETE CASCADE;
--- tripl:statement
-ALTER TABLE ONLY public.user_sso_identities
-    ADD CONSTRAINT user_sso_identities_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES public.organizations(id) ON DELETE CASCADE;
--- tripl:statement
-ALTER TABLE ONLY public.user_sso_identities
-    ADD CONSTRAINT user_sso_identities_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.users(id) ON DELETE CASCADE;
 -- tripl:statement
 ALTER TABLE ONLY public.variable_event_value_overrides
     ADD CONSTRAINT variable_event_value_overrides_branch_id_fkey FOREIGN KEY (branch_id) REFERENCES public.plan_branches(id) ON DELETE CASCADE;

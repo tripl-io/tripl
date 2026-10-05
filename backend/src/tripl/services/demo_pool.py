@@ -54,7 +54,8 @@ POOL_USER_EMAIL_DOMAIN = "demo-pool.invalid"
 
 # Rows that describe a person or an organization itself rather than the demo:
 # sign-in, membership and identity records. A claim never moves them; the
-# throwaway user's go when it is deleted.
+# throwaway user's go when it is deleted. The SSO and SCIM ones exist only where
+# the Enterprise extension's models are loaded.
 _IDENTITY_TABLES = frozenset(
     {
         "api_keys",

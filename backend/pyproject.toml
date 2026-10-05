@@ -48,8 +48,6 @@ dependencies = [
     # SSO domain verification (F20): the DNS TXT lookup. Already in the lock
     # through email-validator; declared because tripl imports it directly.
     "dnspython>=2.8.0",
-    "signxml>=5.1",
-    "lxml>=6",
     "holidays>=0.105",
 ]
 
@@ -162,7 +160,7 @@ exclude = ["src/tripl/tests/"]
 plugins = ["pydantic.mypy"]
 
 [[tool.mypy.overrides]]
-module = ["celery.*", "statsmodels.*", "google.cloud.*", "opentelemetry.*", "lxml.*"]
+module = ["celery.*", "statsmodels.*", "google.cloud.*", "opentelemetry.*"]
 ignore_missing_imports = true
 
 # Coverage for `pytest --cov=tripl` (CI runs it; see CONTRIBUTING.md, "Coverage").

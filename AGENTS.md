@@ -169,7 +169,7 @@ Top level:
 
 Backend entrypoints:
 - [backend/src/tripl/main.py](backend/src/tripl/main.py): FastAPI app, middleware stack, lifespan, and `/health`.
-- [backend/src/tripl/extensions.py](backend/src/tripl/extensions.py): extension hooks (routers, access gates, lifecycle, audit, worker). SSO, SCIM and the audit webhook are reached only through them, via the bundled `_bundled_enterprise.py` ([extension points](website/docs/develop/extension-points.md)).
+- [backend/src/tripl/extensions.py](backend/src/tripl/extensions.py): extension hooks (routers, access gates, lifecycle, audit, worker). The audit webhook is reached only through them, via the bundled `_bundled_enterprise.py`; single sign-on per organization and SCIM live in the private Enterprise package ([extension points](website/docs/develop/extension-points.md)).
 - [backend/src/tripl/api/v1/router.py](backend/src/tripl/api/v1/router.py): all API router registration.
 - [backend/src/tripl/worker/celery_app.py](backend/src/tripl/worker/celery_app.py): Celery app and beat schedule.
 
@@ -188,7 +188,7 @@ Backend layers:
 
 Frontend layers:
 - `frontend/src/App.tsx`: route table.
-- `frontend/src/extensions/`: frontend extension registry (routes, settings sections, sign-in panels, shell gates). The SSO, SCIM and audit-webhook UI is registered in `extensions/bundled/` and reached only through it ([extension points](website/docs/develop/extension-points.md)).
+- `frontend/src/extensions/`: frontend extension registry (routes, settings sections, sign-in panels, shell gates). The audit-webhook UI is registered in `extensions/bundled/`; `extensions/teasers.ts` shows Enterprise-only features as tagged teasers and reached only through it ([extension points](website/docs/develop/extension-points.md)).
 - `frontend/src/pages`: screen-level UI.
 - `frontend/src/api`: typed HTTP client wrappers.
 - `frontend/src/components`: layout and shared UI.
@@ -238,7 +238,7 @@ Core planning entities:
   named sets of an org's members, `/api/v1/orgs/{org}/groups`. Membership in the
   org is enforced in `services/org_group_service.py`; `org_service.remove_member`
   drops the user's groups. Consumers (F24 sharing, owners, alert routing) resolve
-  groups with `org_group_service.group_member_ids`; SCIM sync is not wired yet.
+  groups with `org_group_service.group_member_ids`; SCIM (Enterprise) maps a group to the admin role through `on_group_change`.
 - `Organization`, `OrganizationMember` (F20): the tenant above projects, with
   org roles `owner` | `admin` | `member`. Projects, data
   sources, API keys and invitations carry a NOT NULL `organization_id`; every row
