@@ -1,4 +1,4 @@
-import { Building, History, KeyRound, RefreshCw, ScrollText, UserCog, Webhook } from 'lucide-react'
+import { Activity, Building, FileSearch, History, KeyRound, RefreshCw, ScrollText, UserCog, Webhook } from 'lucide-react'
 import type { SettingsNavItem } from '@/components/settings/nav'
 import type { ExtensionSettingsSection } from './types'
 
@@ -40,6 +40,32 @@ const platformTagged = (item: Omit<SettingsNavItem, 'tag' | 'platformOnly'>): Se
  * the real page wins and the teaser stays hidden.
  */
 export const ENTERPRISE_TEASERS: readonly EnterpriseTeaser[] = [
+  {
+    group: 'Organization',
+    after: 'org-general',
+    item: tagged({
+      id: 'org-health',
+      label: 'Project health',
+      icon: Activity,
+      path: 'organization/health',
+      keywords: ['dashboard', 'overview', 'incidents', 'failing scans', 'monitors', 'drift', 'coverage', 'trend'],
+    }),
+    summary:
+      "Every project of the organization in one sortable table: failing scans, firing monitors, open incidents and property drifts, plan coverage, and each project's failed scan runs over the last 7 days, with the organization's totals.",
+  },
+  {
+    group: 'Organization',
+    after: 'org-health',
+    item: tagged({
+      id: 'org-project-search',
+      label: 'Search projects',
+      icon: FileSearch,
+      path: 'organization/project-search',
+      keywords: ['find', 'cross-project', 'all projects', 'events', 'metrics'],
+    }),
+    summary:
+      'One search over every project of the organization: events, properties, metrics, scans, alert rules and docs notes, best matches first, each labelled with its project. Only projects the person searching can open are searched.',
+  },
   {
     group: 'Organization',
     after: 'org-trackers',
