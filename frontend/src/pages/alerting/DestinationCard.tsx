@@ -106,6 +106,8 @@ export function DestinationCard({
     || destination.target_url_set
     || destination.jira_api_token_set
     || destination.linear_api_key_set
+    || destination.pagerduty_routing_key_set
+    || destination.teams_webhook_set
   const refusal = testResult && !testResult.ok ? describeTestFailure(testResult.error, testResult) : null
   const testTone = testDestinationMut.isPending
     ? 'pending'
@@ -357,5 +359,8 @@ function destinationConfigFingerprint(destination: AlertDestination): string {
     destination.linear_team_id,
     destination.linear_state_id,
     destination.linear_label_ids,
+    destination.pagerduty_routing_key_set,
+    destination.pagerduty_severity,
+    destination.teams_webhook_set,
   ])
 }

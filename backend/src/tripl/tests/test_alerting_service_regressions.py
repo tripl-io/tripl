@@ -673,6 +673,8 @@ _BOUNDED_AGAINST_ITS_COLUMN: tuple[tuple[Any, str, type[BaseModel], str], ...] =
     (AlertDestination, "jira_base_url", AlertDestinationUpdate, "jira_base_url"),
     (AlertDestination, "linear_label_ids", AlertDestinationCreate, "linear_label_ids"),
     (AlertDestination, "linear_label_ids", AlertDestinationUpdate, "linear_label_ids"),
+    (AlertDestination, "pagerduty_severity", AlertDestinationCreate, "pagerduty_severity"),
+    (AlertDestination, "pagerduty_severity", AlertDestinationUpdate, "pagerduty_severity"),
     (PlanBranch, "name", PlanBranchCreate, "name"),
     (EventTypeRelation, "relation_type", RelationCreate, "relation_type"),
     (DataSource, "username", DataSourceCreate, "username"),

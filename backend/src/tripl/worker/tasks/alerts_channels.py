@@ -168,6 +168,21 @@ def _post_json(
     headers: dict[str, str] | None = None,
 ) -> dict[str, object] | None:
     """POST JSON and return a JSON object response when one is available."""
+    return _post_json_with_status(url, body, headers)[1]
+
+
+def _post_json_with_status(
+    url: str,
+    body: dict[str, object],
+    headers: dict[str, str] | None = None,
+) -> tuple[int, dict[str, object] | None]:
+    """:func:`_post_json`, plus the HTTP status of the 2xx answer.
+
+    For the one channel whose contract names a specific success code: the
+    PagerDuty Events API answers an accepted event with 202, and anything else
+    — a 200 from a proxy that swallowed the request included — is not an
+    event PagerDuty has queued. Every non-2xx still raises, exactly as above.
+    """
     request_headers = {"Content-Type": "application/json"}
     if headers:
         request_headers.update(headers)
@@ -179,15 +194,16 @@ def _post_json(
     )
     try:
         with _REDIRECT_SAFE_OPENER.open(request, timeout=10) as response:
+            status = int(response.status)
             raw = response.read()
         if raw:
             try:
                 parsed = json.loads(raw.decode("utf-8", errors="replace"))
             except json.JSONDecodeError:
-                return None
+                return status, None
             if isinstance(parsed, dict):
-                return parsed
-        return None
+                return status, parsed
+        return status, None
     except urllib.error.HTTPError as exc:
         response_body = ""
         try:

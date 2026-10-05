@@ -20,6 +20,15 @@ _RECIPIENT_LIMIT = 50
 _JIRA_PROJECT_KEY_RE = re.compile(r"^[A-Z][A-Z0-9_]{1,31}$")
 _LINEAR_ID_RE = re.compile(r"^[A-Za-z0-9_-]{1,64}$")
 _LINEAR_LABEL_LIMIT = 20
+# PagerDuty Events API v2 integration ("routing") keys are 32 alphanumeric
+# characters today. The bound is wider than that so a future, longer key format
+# is not refused by us before PagerDuty has had a chance to accept it; the
+# alphabet is what keeps a pasted URL or a quoted key from reaching the body.
+_PAGERDUTY_ROUTING_KEY_RE = re.compile(r"^[A-Za-z0-9]{1,64}$")
+# The four severities the Events API v2 accepts, verbatim. Anything else is a
+# 400 from PagerDuty, so refusing it at save time names the field instead.
+PAGERDUTY_SEVERITIES = ("critical", "error", "warning", "info")
+DEFAULT_PAGERDUTY_SEVERITY = "error"
 
 
 def normalize_required_text(value: str, *, field_name: str) -> str:
@@ -391,6 +400,36 @@ def validate_linear_state_id(value: str | None) -> str | None:
         error_msg="Linear state_id must be an alnum / dash / underscore id",
         optional=True,
     )
+
+
+def validate_pagerduty_routing_key(value: str | None) -> str:
+    """The Events API v2 integration key. A secret: never echoed in an error."""
+    normalized = _require_clean(value, field="PagerDuty routing_key")
+    if not _PAGERDUTY_ROUTING_KEY_RE.fullmatch(normalized):
+        raise ValueError("PagerDuty routing_key must be 1-64 letters and digits")
+    return normalized
+
+
+def validate_pagerduty_severity(value: str | None) -> str | None:
+    """One of PagerDuty's four severities; blank is "not given" (None)."""
+    normalized = normalize_optional_secret(value)
+    if normalized is None:
+        return None
+    lowered = normalized.lower()
+    if lowered not in PAGERDUTY_SEVERITIES:
+        raise ValueError(f"PagerDuty severity must be one of: {', '.join(PAGERDUTY_SEVERITIES)}")
+    return lowered
+
+
+def validate_teams_webhook_url(value: str | None) -> str:
+    """A Teams incoming webhook / Workflows URL, host checked for SSRF.
+
+    No host allowlist, unlike Slack: Microsoft serves these from several
+    domains (``*.webhook.office.com``, ``*.logic.azure.com``,
+    ``*.environment.api.powerplatform.com``) and has moved them before, so the
+    free-form webhook's rule applies instead — https, and never a private host.
+    """
+    return _validate_https_url(value, field="Teams webhook_url", block_private_hosts=True)
 
 
 def _check_linear_id(value: str) -> str:

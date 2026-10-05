@@ -28,6 +28,8 @@ def test_redact_masks_alerting_destination_secrets() -> None:
         "webhook_header_value": "Bearer header-secret",
         "jira_api_token": "jira-token-value",
         "linear_api_key": "lin_api_key_value",
+        "pagerduty_routing_key": "R0UT1NGKEY0123456789abcdefABCDEF",
+        "teams_webhook_url": "https://example.webhook.office.com/webhookb2/secret",
         "name": "Prod Slack",
     }
 
@@ -39,6 +41,8 @@ def test_redact_masks_alerting_destination_secrets() -> None:
     assert redacted["webhook_header_value"] == "***"
     assert redacted["jira_api_token"] == "***"
     assert redacted["linear_api_key"] == "***"
+    assert redacted["pagerduty_routing_key"] == "***"
+    assert redacted["teams_webhook_url"] == "***"
     # Benign fields pass through untouched.
     assert redacted["name"] == "Prod Slack"
 

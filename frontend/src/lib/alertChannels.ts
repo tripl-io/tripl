@@ -10,6 +10,8 @@ export const CHANNEL_LABELS = {
   email: 'Email',
   jira: 'Jira',
   linear: 'Linear',
+  pagerduty: 'PagerDuty',
+  teams: 'Microsoft Teams',
 } as const satisfies Record<string, string>
 
 /**

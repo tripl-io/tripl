@@ -1164,7 +1164,7 @@ export default function ProjectAlertingTab({ slug, focusDeliveryId, focusItemKey
             ? 'Route active anomaly signals through rules and destinations. In a demo workspace every destination is a local sink: deliveries are recorded and rendered here, and none of them leave this instance.'
             // All six channels, not the three the page shipped with: the
             // issue-tracker integrations went unnoticed from here.
-            : 'Route active anomaly signals to Slack, Telegram, email, webhooks, Jira or Linear. Rules are project-level and apply to every scan in the project.'
+            : 'Route active anomaly signals to Slack, Telegram, email, webhooks, Jira, Linear, PagerDuty or Microsoft Teams. Rules are project-level and apply to every scan in the project.'
         }
       />
 

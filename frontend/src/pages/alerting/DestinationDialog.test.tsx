@@ -34,6 +34,9 @@ function makeSlack(overrides: Partial<AlertDestination> = {}): AlertDestination 
     linear_team_id: null,
     linear_state_id: null,
     linear_label_ids: null,
+    pagerduty_routing_key_set: false,
+    pagerduty_severity: null,
+    teams_webhook_set: false,
     is_local: false,
     delivery_count: 0,
     incident_count: 0,
@@ -134,5 +137,47 @@ describe('DestinationDialog — Send test before saving', () => {
       target: { value: 'https://hooks.slack.com/services/T/B/Y' },
     })
     expect(screen.queryByText('Test message reached the channel.')).toBeNull()
+  })
+})
+
+describe('DestinationDialog — PagerDuty and Microsoft Teams', () => {
+  it('collects a PagerDuty integration key and severity', async () => {
+    testDestinationDraft.mockResolvedValue({ ok: true, error: null, sent_at: null })
+    renderDialog({ mode: 'create', type: 'pagerduty', handOffToRule: false })
+
+    expect(screen.getByRole('heading', { name: /New PagerDuty destination/ })).toBeInTheDocument()
+    fireEvent.change(screen.getByLabelText('Name'), { target: { value: 'On-call' } })
+    fireEvent.change(screen.getByLabelText('Integration key'), { target: { value: 'R0UTINGKEY' } })
+    const severity = screen.getByLabelText('Severity')
+    expect(severity).toHaveValue('error')
+    fireEvent.change(severity, { target: { value: 'critical' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Send test' }))
+
+    await screen.findByText('Test message reached the channel.')
+    expect(testDestinationDraft).toHaveBeenCalledWith(
+      'demo',
+      expect.objectContaining({
+        type: 'pagerduty',
+        pagerduty_routing_key: 'R0UTINGKEY',
+        pagerduty_severity: 'critical',
+      }),
+    )
+  })
+
+  it('collects a Teams webhook URL', async () => {
+    testDestinationDraft.mockResolvedValue({ ok: true, error: null, sent_at: null })
+    renderDialog({ mode: 'create', type: 'teams', handOffToRule: false })
+
+    expect(screen.getByRole('heading', { name: /New Microsoft Teams destination/ })).toBeInTheDocument()
+    fireEvent.change(screen.getByLabelText('Webhook URL'), {
+      target: { value: 'https://contoso.webhook.office.com/x' },
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'Send test' }))
+
+    await screen.findByText('Test message reached the channel.')
+    expect(testDestinationDraft).toHaveBeenCalledWith(
+      'demo',
+      expect.objectContaining({ type: 'teams', teams_webhook_url: 'https://contoso.webhook.office.com/x' }),
+    )
   })
 })

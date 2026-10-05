@@ -16,6 +16,7 @@ from sqlalchemy.sql import Select
 
 from tripl.alert_templates import validate_template_configuration
 from tripl.alerting_validation import (
+    DEFAULT_PAGERDUTY_SEVERITY,
     validate_slack_webhook_url,
     validate_telegram_bot_token,
     validate_telegram_chat_id,
@@ -387,6 +388,9 @@ def destination_to_response(
         linear_team_id=destination.linear_team_id,
         linear_state_id=destination.linear_state_id,
         linear_label_ids=destination.linear_label_ids,
+        pagerduty_routing_key_set=bool(destination.pagerduty_routing_key_encrypted),
+        pagerduty_severity=destination.pagerduty_severity,
+        teams_webhook_set=bool(destination.teams_webhook_url_encrypted),
         delivery_schedule_cron=destination.delivery_schedule_cron,
         project_timezone=project_timezone,
         last_digest_at=destination.last_flushed_at,
@@ -466,6 +470,9 @@ _EXTERNAL_CHANNEL_UPDATE_FIELDS = (
     "linear_team_id",
     "linear_state_id",
     "linear_label_ids",
+    "pagerduty_routing_key",
+    "pagerduty_severity",
+    "teams_webhook_url",
 )
 
 
@@ -681,7 +688,7 @@ async def create_destination(
             detail=(
                 "Demo projects cannot send external alerts. Only a local demo_sink "
                 "destination is allowed — create a real project to connect Slack, "
-                "Telegram, a webhook, email, Jira or Linear."
+                "Telegram, a webhook, email, Jira, Linear, PagerDuty or Microsoft Teams."
             ),
         )
     # Where a free-form URL points is decided here rather than in the schema —
@@ -693,6 +700,8 @@ async def create_destination(
         await _assert_public_destination_host(data.target_url, field="Webhook target_url")
     elif data.type == AlertDestinationType.jira:
         await _assert_public_destination_host(data.jira_base_url, field="Jira base_url")
+    elif data.type == AlertDestinationType.teams:
+        await _assert_public_destination_host(data.teams_webhook_url, field="Teams webhook_url")
     # Validate and persist the same channel's fields. Other channel values may
     # be present on the request, but must not become unvalidated stored state.
     if data.type == AlertDestinationType.email:
@@ -705,6 +714,8 @@ async def create_destination(
     email = data.type == AlertDestinationType.email
     jira = data.type == AlertDestinationType.jira
     linear = data.type == AlertDestinationType.linear
+    pagerduty = data.type == AlertDestinationType.pagerduty
+    teams = data.type == AlertDestinationType.teams
     destination = AlertDestination(
         project_id=project.id,
         type=data.type,
@@ -730,6 +741,11 @@ async def create_destination(
         linear_team_id=data.linear_team_id if linear else None,
         linear_state_id=data.linear_state_id if linear else None,
         linear_label_ids=data.linear_label_ids if linear else None,
+        pagerduty_routing_key_encrypted=(
+            _encrypt_secret(data.pagerduty_routing_key) if pagerduty else None
+        ),
+        pagerduty_severity=data.pagerduty_severity if pagerduty else None,
+        teams_webhook_url_encrypted=_encrypt_secret(data.teams_webhook_url) if teams else None,
         delivery_schedule_cron=data.delivery_schedule_cron,
         # A destination born with a cadence adopts the clock immediately, so
         # its first digest is the next real fire rather than a backlog dump.
@@ -817,6 +833,10 @@ async def update_destination(
     elif destination.type == AlertDestinationType.jira:
         await _assert_public_destination_host(
             update_dict.get("jira_base_url"), field="Jira base_url"
+        )
+    elif destination.type == AlertDestinationType.teams:
+        await _assert_public_destination_host(
+            update_dict.get("teams_webhook_url"), field="Teams webhook_url"
         )
     if "name" in update_dict:
         destination.name = update_dict["name"]
@@ -1026,6 +1046,21 @@ async def update_destination(
             destination.linear_state_id = update_dict["linear_state_id"]
         if "linear_label_ids" in update_dict:
             destination.linear_label_ids = update_dict["linear_label_ids"]
+    if destination.type == AlertDestinationType.pagerduty:
+        routing_key = update_dict.get("pagerduty_routing_key")
+        if routing_key is not None:
+            destination.pagerduty_routing_key_encrypted = _encrypt_secret(routing_key)
+        if "pagerduty_severity" in update_dict:
+            # Null is "back to the default", not "no severity": PagerDuty
+            # requires one on every event, so the column never stays empty.
+            destination.pagerduty_severity = (
+                update_dict["pagerduty_severity"] or DEFAULT_PAGERDUTY_SEVERITY
+            )
+    if destination.type == AlertDestinationType.teams:
+        # Shape settled by the field validator; host resolved above, off the loop.
+        teams_url = update_dict.get("teams_webhook_url")
+        if teams_url is not None:
+            destination.teams_webhook_url_encrypted = _encrypt_secret(teams_url)
 
     await session.commit()
     destination = await get_destination(

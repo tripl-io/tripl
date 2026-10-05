@@ -7,8 +7,8 @@ description: Add a destination such as Slack, write an alert rule, replay it aga
 
 # Get a message when the numbers move
 
-**You will:** have tripl tell the right people, in Slack, Telegram, email, a
-webhook, Jira or Linear, when an event drops or spikes beyond what its own
+**You will:** have tripl tell the right people, in Slack, Telegram, Microsoft
+Teams, email, a webhook, Jira, Linear or PagerDuty, when an event drops or spikes beyond what its own
 history says is normal.
 
 **You need:** to be an **editor** of the project, and a
@@ -28,6 +28,8 @@ destination**. Choose the channel and give it what it needs:
 | **Email** | One or more addresses. The instance's mail settings do the sending. |
 | **Webhook** | A URL that receives a JSON payload, and an optional secret header. |
 | **Jira**, **Linear** | The tracker's credentials. Each alert opens an issue. |
+| **PagerDuty** | An Events API v2 integration key. Each incident pages once and is resolved when tripl closes it. |
+| **Microsoft Teams** | A Workflows (or incoming webhook) URL for the channel. |
 
 Make sure the destination is **enabled**, then press **Test** on its card: a test
 message should arrive within seconds.

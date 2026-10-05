@@ -371,7 +371,7 @@ event's monitoring detail.
 A signal only helps if someone hears about it. Open **Observe → Alerting**:
 
 1. **Add a destination** — where alerts go: Slack, Telegram, email, a generic
-   webhook, Jira, or Linear. Mark it **enabled**.
+   webhook, Jira, Linear, PagerDuty, or Microsoft Teams. Mark it **enabled**.
 2. **Create a rule** — which signals are worth interrupting someone for: the
    scope, the direction (spikes, drops, or both), how big a change must be, and
    a **cooldown** so one problem doesn't page you repeatedly.

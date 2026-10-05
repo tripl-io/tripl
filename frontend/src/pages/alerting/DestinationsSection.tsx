@@ -92,7 +92,8 @@ export function DestinationsSection({
   const demoChannelNotice = (
     <p className="text-body-sm text-fg-tertiary">
       This demo is local-only: alerts render to a built-in sink and are never sent to Slack,
-      Telegram, a webhook, email, Jira or Linear. Create a real project to connect a channel.
+      Telegram, a webhook, email, Jira, Linear, PagerDuty or Microsoft Teams. Create a real
+      project to connect a channel.
     </p>
   )
 
@@ -139,7 +140,7 @@ export function DestinationsSection({
             headingLevel={3}
             icon={Webhook}
             title="No alert destinations"
-            description="Connect Slack, Telegram, email, a webhook, Jira or Linear, then attach rules to it."
+            description="Connect Slack, Telegram, email, a webhook, Jira, Linear, PagerDuty or Microsoft Teams, then attach rules to it."
             action={
               isDemo ? (
                 <div className="max-w-sm">{demoChannelNotice}</div>

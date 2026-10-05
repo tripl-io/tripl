@@ -40,6 +40,8 @@ _REDACTED_KEYS = frozenset(
         "webhook_header_value",
         "jira_api_token",
         "linear_api_key",
+        "pagerduty_routing_key",
+        "teams_webhook_url",
     }
 )
 

@@ -123,7 +123,7 @@ export const alertingApi = {
   createDestination: (
     slug: string,
     data: {
-      type: 'slack' | 'telegram' | 'webhook' | 'email' | 'jira' | 'linear'
+      type: 'slack' | 'telegram' | 'webhook' | 'email' | 'jira' | 'linear' | 'pagerduty' | 'teams'
       name: string
       enabled?: boolean
       webhook_url?: string | null
@@ -144,6 +144,9 @@ export const alertingApi = {
       linear_team_id?: string | null
       linear_state_id?: string | null
       linear_label_ids?: string | null
+      pagerduty_routing_key?: string | null
+      pagerduty_severity?: string | null
+      teams_webhook_url?: string | null
       // null means immediate — send after every collection. Otherwise a
       // 5-field cron expression read in the project's timezone.
       delivery_schedule_cron?: string | null
@@ -174,6 +177,9 @@ export const alertingApi = {
       linear_team_id?: string | null
       linear_state_id?: string | null
       linear_label_ids?: string | null
+      pagerduty_routing_key?: string | null
+      pagerduty_severity?: string | null
+      teams_webhook_url?: string | null
       // null means immediate — send after every collection. Otherwise a
       // 5-field cron expression read in the project's timezone.
       delivery_schedule_cron?: string | null

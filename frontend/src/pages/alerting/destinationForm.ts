@@ -1,7 +1,7 @@
 import type { alertingApi } from '@/api/alerting'
 import type { AlertDestination, AlertDestinationDraftTestRequest } from '@/types'
 
-import type { DestinationFormState } from './constants'
+import { DEFAULT_PAGERDUTY_SEVERITY, type DestinationFormState } from './constants'
 
 export type CreateDestinationBody = Parameters<typeof alertingApi.createDestination>[1]
 export type UpdateDestinationBody = Parameters<typeof alertingApi.updateDestination>[2]
@@ -24,6 +24,7 @@ export const DESTINATION_FIELD_MAX_LENGTH = {
   linear_team_id: 64,
   linear_state_id: 64,
   linear_label_ids: 1024,
+  pagerduty_routing_key: 64,
 } as const satisfies Partial<Record<keyof DestinationFormState, number>>
 
 /** The form a stored destination opens the edit dialog with. Secrets start empty: they are write-only. */
@@ -50,6 +51,10 @@ export function destinationToForm(destination: AlertDestination): DestinationFor
     linear_team_id: destination.linear_team_id ?? '',
     linear_state_id: destination.linear_state_id ?? '',
     linear_label_ids: destination.linear_label_ids ?? '',
+    pagerduty_routing_key: '',
+    pagerduty_severity:
+      destination.type === 'pagerduty' ? destination.pagerduty_severity ?? DEFAULT_PAGERDUTY_SEVERITY : '',
+    teams_webhook_url: '',
     delivery_schedule_cron: destination.delivery_schedule_cron ?? '',
   }
 }
@@ -186,6 +191,15 @@ function channelFields(
         linear_state_id: editing ? orNull(form.linear_state_id) : typed(form.linear_state_id),
         linear_label_ids: editing ? orNull(form.linear_label_ids) : typed(form.linear_label_ids),
       }
+    case 'pagerduty':
+      return {
+        pagerduty_routing_key: typed(form.pagerduty_routing_key),
+        // Always sent: the select has no empty option, and the API reads a
+        // null as "back to the default" anyway.
+        pagerduty_severity: form.pagerduty_severity || DEFAULT_PAGERDUTY_SEVERITY,
+      }
+    case 'teams':
+      return { teams_webhook_url: typed(form.teams_webhook_url) }
     case 'demo_sink':
       // A local sink carries no channel configuration at all, and the API
       // refuses any it is sent: name, switch and schedule only.
@@ -250,4 +264,7 @@ export const DESTINATION_FIELD_LABELS: Readonly<Record<string, string>> = {
   linear_team_id: 'Team ID',
   linear_state_id: 'State ID',
   linear_label_ids: 'Label IDs',
+  pagerduty_routing_key: 'Integration key',
+  pagerduty_severity: 'Severity',
+  teams_webhook_url: 'Webhook URL',
 }

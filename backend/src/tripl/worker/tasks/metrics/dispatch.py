@@ -27,6 +27,7 @@ from tripl.models.alert_rule_state import AlertRuleState
 from tripl.models.domain_enums import AnomalyDirection
 from tripl.models.scan_config import ScanConfig
 from tripl.services import app_settings_service
+from tripl.worker.tasks.alerts_pagerduty import queue_pagerduty_resolves
 from tripl.worker.tasks.metrics.alert_payload import (
     _build_alert_scope_names,
     _build_attribution_lines,
@@ -849,10 +850,33 @@ def _prepare_alert_deliveries(
                 (anomaly.scope_type, anomaly.scope_ref) for anomaly in matched_anomalies
             }
 
+            just_closed: list[tuple[str, str]] = []
             for key, existing_state in existing_states.items():
                 if existing_state.is_active and key not in matched_keys:
                     existing_state.is_active = False
                     existing_state.closed_at = now
+                    just_closed.append(key)
+            # The incidents this run ENDED — the transition, not every closed
+            # state, so a scope that stays quiet is resolved once and not on
+            # every collection after. A state carries no direction, so both
+            # directions' handles are offered; only the ones that actually
+            # paged PagerDuty are acted on, after this run commits.
+            if just_closed:
+                queue_pagerduty_resolves(
+                    session,
+                    config.project_id,
+                    [
+                        _correlation_group_id(
+                            scan_config_id=_scope_partition_id(scope_type, config_id=config.id),
+                            rule_id=rule.id,
+                            scope_type=scope_type,
+                            scope_ref=scope_ref,
+                            direction=direction.value,
+                        )
+                        for scope_type, scope_ref in just_closed
+                        for direction in AnomalyDirection
+                    ],
+                )
             # A scope's incident is over once that scope stops firing. Clear its
             # inbox decision now so the NEXT incident on it is not silenced by a
             # stale acknowledge — suppression would otherwise be permanent.

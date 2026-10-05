@@ -24,8 +24,10 @@ from tripl.alerting_validation import (
     validate_jira_project_key,
     validate_linear_api_key,
     validate_linear_team_id,
+    validate_pagerduty_routing_key,
     validate_sender_address,
     validate_slack_webhook_url,
+    validate_teams_webhook_url,
     validate_telegram_bot_token,
     validate_telegram_chat_id,
     validate_webhook_target_url,
@@ -48,6 +50,9 @@ from tripl.worker.tasks.alerts_channels import (
 )
 from tripl.worker.tasks.alerts_channels import (
     _post_json as _channel_post_json,
+)
+from tripl.worker.tasks.alerts_channels import (
+    _post_json_with_status as _channel_post_json_with_status,
 )
 from tripl.worker.tasks.alerts_channels import (
     _send_email_message as _channel_send_email_message,
@@ -83,6 +88,14 @@ from tripl.worker.tasks.alerts_messages import (
     _render_delivery_message,
     split_telegram_messages,
 )
+from tripl.worker.tasks.alerts_pagerduty import (
+    DEDUP_KEYS_SNAPSHOT_KEY,
+    build_trigger_events,
+    recorded_keys,
+    resolve_incidents,
+    send_pagerduty_event,
+)
+from tripl.worker.tasks.alerts_teams import build_teams_card_message
 
 logger = logging.getLogger(__name__)
 
@@ -96,6 +109,7 @@ logger = logging.getLogger(__name__)
 # "unregistered task" in a worker log.
 __all__ = [
     "check_deprecated_sunset_events",
+    "resolve_pagerduty_incidents",
     "send_alert_delivery",
     "send_weekly_plan_digest",
 ]
@@ -290,8 +304,9 @@ def _claim_delivery(session: Session, delivery: AlertDelivery, *, now: datetime)
     ticket paths record the external issue id in a ``payload_snapshot`` commit
     of their own, which stops a sequential RE-RUN from filing a second ticket
     but not a concurrent worker holding the copy of the row it loaded before
-    that commit landed, and Telegram commits once per accepted message
-    (:func:`_record_delivered_items`).
+    that commit landed, Telegram commits once per accepted message
+    (:func:`_record_delivered_items`), and PagerDuty once per accepted event
+    (the dedup keys it has sent, in ``payload_snapshot``).
 
     So the claim is a compare-and-set in its own committed transaction — the
     shape ``alert_flush`` claims a digest window with — and the commit is the
@@ -646,6 +661,24 @@ def _post_json(
     headers: dict[str, str] | None = None,
 ) -> dict[str, object] | None:
     return _channel_post_json(url, body, headers)
+
+
+def _post_json_with_status(
+    url: str,
+    body: dict[str, object],
+    headers: dict[str, str] | None = None,
+) -> tuple[int, dict[str, object] | None]:
+    return _channel_post_json_with_status(url, body, headers)
+
+
+def _send_pagerduty_event(body: dict[str, object], *, routing_key: str) -> None:
+    send_pagerduty_event(_post_json_with_status, body, routing_key=routing_key)
+
+
+def _send_teams_message(webhook_url: str, payload: dict[str, object]) -> None:
+    # Any 2xx is success: the Office 365 connector answers 200 with "1" and a
+    # Workflows trigger 202 with nothing; ``_post_json`` raises on the rest.
+    _post_json(webhook_url, payload)
 
 
 def _send_slack_message(webhook_url: str, text: str, *, message_format: str) -> None:
@@ -1373,6 +1406,71 @@ def send_alert_delivery(self: object, delivery_id: str) -> dict[str, object]:
                 # status=sent commit, so a crash in between can't create a
                 # duplicate ticket on re-run (see the Jira branch above).
                 session.commit()
+        elif destination.type == AlertDestinationType.pagerduty:
+            try:
+                routing_key = validate_pagerduty_routing_key(
+                    _decrypt_secret(destination.pagerduty_routing_key_encrypted)
+                )
+            except ValueError as exc:
+                raise ValueError(
+                    "PagerDuty destination configuration is invalid. Update the routing key."
+                ) from exc
+            events = build_trigger_events(
+                delivery,
+                destination=destination,
+                rule=rule,
+                project=project,
+                routing_key=routing_key,
+                structured_payload=_build_webhook_payload(
+                    delivery,
+                    destination=destination,
+                    rule=rule,
+                    scan_name=scan_config.name,
+                    project=project,
+                    message=text,
+                ),
+            )
+            # One event per incident in the delivery, each committed as it is
+            # accepted — the Jira/Linear idempotency pattern, per event rather
+            # than per delivery because a delivery may page several incidents
+            # and a crash after the second must not re-page the first.
+            already_sent = recorded_keys(payload_snapshot, DEDUP_KEYS_SNAPSHOT_KEY)
+            for dedup_key, event_body in events:
+                if dedup_key in already_sent:
+                    logger.info(
+                        "Skipping PagerDuty event %s for delivery %s: already accepted",
+                        dedup_key,
+                        delivery_id,
+                    )
+                    continue
+                _send_pagerduty_event(event_body, routing_key=routing_key)
+                already_sent = [*already_sent, dedup_key]
+                payload_snapshot = {**payload_snapshot, DEDUP_KEYS_SNAPSHOT_KEY: already_sent}
+                delivery.payload_snapshot = payload_snapshot
+                session.commit()
+        elif destination.type == AlertDestinationType.teams:
+            try:
+                teams_url = validate_teams_webhook_url(
+                    _decrypt_secret(destination.teams_webhook_url_encrypted)
+                )
+            except ValueError as exc:
+                raise ValueError(
+                    "Microsoft Teams destination configuration is invalid. Update the webhook URL."
+                ) from exc
+            # SSRF re-check at send time (DNS-rebinding defense), as for the
+            # generic webhook: the URL is free-form and operator-supplied.
+            _reject_private_target(teams_url, field="Teams webhook_url")
+            _send_teams_message(
+                teams_url,
+                build_teams_card_message(
+                    delivery,
+                    destination=destination,
+                    rule=rule,
+                    scan_name=scan_config.name,
+                    project=project,
+                    message=text,
+                ),
+            )
         elif destination.type == AlertDestinationType.demo_sink:
             # Local, non-sendable sink for generated demo projects.
             # The message is already rendered above and stored in
@@ -1451,5 +1549,36 @@ def send_alert_delivery(self: object, delivery_id: str) -> dict[str, object]:
                 )
         alert_deliveries_total.labels(status=AlertDeliveryStatus.failed.value).inc()
         return {"status": "failed", "delivery_id": delivery_id, "error": str(exc)}
+    finally:
+        session.close()
+
+
+@celery_app.task(  # type: ignore[untyped-decorator]
+    name="tripl.worker.tasks.alerts.resolve_pagerduty_incidents",
+)
+def resolve_pagerduty_incidents(
+    project_id: str, correlation_group_ids: list[str]
+) -> dict[str, object]:
+    """Resolve the PagerDuty incidents tripl just closed; best effort, never raises.
+
+    Published after the commit that closed them, by
+    ``alerts_pagerduty.queue_pagerduty_resolves`` (automatic close in dispatch)
+    and its async twin (Inbox Resolve). See that module for the whole design.
+    """
+    session = _get_sync_session()
+    try:
+        counts = resolve_incidents(
+            session,
+            project_id=uuid.UUID(project_id),
+            group_ids=[uuid.UUID(group_id) for group_id in correlation_group_ids],
+            post_json_with_status=_post_json_with_status,
+            decrypt=_decrypt_secret,
+            assert_egress_allowed=_assert_egress_allowed,
+        )
+        return {"status": "done", **counts}
+    except Exception as exc:  # noqa: BLE001 — the close is committed; this is a courtesy
+        logger.exception("PagerDuty resolve failed for project %s", project_id)
+        session.rollback()
+        return {"status": "failed", "error": str(exc)}
     finally:
         session.close()

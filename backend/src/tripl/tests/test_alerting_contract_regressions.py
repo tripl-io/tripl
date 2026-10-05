@@ -30,6 +30,7 @@ from tripl.worker.tasks import alerts
         ("jira_issue_type", 64),
         ("linear_team_id", 64),
         ("linear_state_id", 64),
+        ("pagerduty_severity", 16),
     ],
 )
 def test_channel_input_rejects_values_wider_than_storage(field: str, length: int) -> None:

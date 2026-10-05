@@ -35,6 +35,9 @@ function makeDestination(overrides: Partial<AlertDestination> = {}): AlertDestin
     linear_team_id: null,
     linear_state_id: null,
     linear_label_ids: null,
+    pagerduty_routing_key_set: false,
+    pagerduty_severity: null,
+    teams_webhook_set: false,
     is_local: false,
     delivery_count: 0,
     incident_count: 0,
@@ -73,6 +76,15 @@ describe('destinationFormToPayload — create', () => {
     ['linear', { linear_api_key: 'lin_api_x', linear_team_id: 'TEAM' }, {
       linear_api_key: 'lin_api_x',
       linear_team_id: 'TEAM',
+    }],
+    // A severity is always sent, so a new destination never relies on the
+    // server's default without saying which one it got.
+    ['pagerduty', { pagerduty_routing_key: 'R0UTINGKEY' }, {
+      pagerduty_routing_key: 'R0UTINGKEY',
+      pagerduty_severity: 'error',
+    }],
+    ['teams', { teams_webhook_url: 'https://contoso.webhook.office.com/x' }, {
+      teams_webhook_url: 'https://contoso.webhook.office.com/x',
     }],
   ]
 
@@ -116,6 +128,26 @@ describe('destinationFormToPayload — create', () => {
 })
 
 describe('destinationFormToPayload — edit', () => {
+  it('keeps a stored PagerDuty key and Teams URL when the secret is left blank', () => {
+    const pagerduty = makeDestination({
+      type: 'pagerduty',
+      pagerduty_routing_key_set: true,
+      pagerduty_severity: 'warning',
+    })
+    const form = destinationToForm(pagerduty)
+    expect(form.pagerduty_severity).toBe('warning')
+    expect(JSON.parse(JSON.stringify(destinationFormToPayload(form, pagerduty)))).toEqual({
+      name: pagerduty.name,
+      enabled: true,
+      delivery_schedule_cron: null,
+      pagerduty_severity: 'warning',
+    })
+
+    const teams = makeDestination({ type: 'teams', teams_webhook_set: true })
+    const teamsBody = destinationFormToPayload(destinationToForm(teams), teams)
+    expect(JSON.parse(JSON.stringify(teamsBody))).not.toHaveProperty('teams_webhook_url')
+  })
+
   it('omits an empty secret, which keeps the stored one', () => {
     const existing = makeDestination({ type: 'slack', webhook_set: true })
     const body = destinationFormToPayload(destinationToForm(existing), existing)

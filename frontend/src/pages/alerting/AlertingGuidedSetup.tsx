@@ -31,6 +31,8 @@ const CHANNEL_HINT: Record<DestinationChannel, string> = {
   email: 'Send to a list of addresses',
   jira: 'Open an issue per alert',
   linear: 'Open an issue per alert',
+  pagerduty: 'Page on-call, resolve on close',
+  teams: 'Post a card to a channel',
 }
 
 type StepState = 'done' | 'current' | 'upcoming'

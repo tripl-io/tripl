@@ -23,6 +23,9 @@ class AlertDestinationType(enum.StrEnum):
     email = "email"
     jira = "jira"
     linear = "linear"
+    # Added via ALTER TYPE migration a7c9e1f3b5d2.
+    pagerduty = "pagerduty"
+    teams = "teams"
     # Local, non-sendable sink for generated demo projects.
     # A ``demo_sink`` destination carries NO credentials and never performs an
     # outbound send: the dispatch worker renders the message and records it
@@ -104,6 +107,15 @@ class AlertDestination(UUIDMixin, TimestampMixin, Base):
     linear_team_id: Mapped[str | None] = mapped_column(String(64), nullable=True)
     linear_state_id: Mapped[str | None] = mapped_column(String(64), nullable=True)
     linear_label_ids: Mapped[str | None] = mapped_column(String(1024), nullable=True)
+    # PagerDuty channel: Events API v2 — the integration ("routing") key is the
+    # only credential and is encrypted; severity is one of critical / error /
+    # warning / info (NULL reads as error). The endpoint is fixed, not stored.
+    pagerduty_routing_key_encrypted: Mapped[str | None] = mapped_column(Text, nullable=True)
+    pagerduty_severity: Mapped[str | None] = mapped_column(String(16), nullable=True)
+    # Microsoft Teams channel: an incoming-webhook or Workflows URL. The URL is
+    # the credential (anyone holding it can post), so it is encrypted like the
+    # Slack webhook.
+    teams_webhook_url_encrypted: Mapped[str | None] = mapped_column(Text, nullable=True)
 
     rules: Mapped[list[AlertRule]] = relationship(
         back_populates="destination",

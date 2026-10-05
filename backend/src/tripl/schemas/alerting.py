@@ -7,6 +7,7 @@ from pydantic import BaseModel, Field, field_serializer, field_validator, model_
 from tripl.alert_templates import percent_delta_of, percent_delta_or_none
 from tripl.alerting_matching import AlertMatchCandidate
 from tripl.alerting_validation import (
+    DEFAULT_PAGERDUTY_SEVERITY,
     _validate_https_url,
     normalize_optional_secret,
     normalize_required_text,
@@ -20,6 +21,8 @@ from tripl.alerting_validation import (
     validate_linear_label_ids,
     validate_linear_state_id,
     validate_linear_team_id,
+    validate_pagerduty_routing_key,
+    validate_pagerduty_severity,
     validate_sender_address,
     validate_slack_webhook_url,
     validate_telegram_bot_token,
@@ -392,6 +395,10 @@ def _validate_webhook_target_url_format(value: str | None) -> str:
     return _validate_https_url(value, field="Webhook target_url", block_private_hosts=False)
 
 
+def _validate_teams_webhook_url_format(value: str | None) -> str:
+    return _validate_https_url(value, field="Teams webhook_url", block_private_hosts=False)
+
+
 def _validate_jira_base_url_format(value: str | None) -> str:
     return _validate_https_url(
         value, field="Jira base_url", strip_trailing_slash=True, block_private_hosts=False
@@ -519,6 +526,15 @@ class AlertDestinationCreate(BaseModel):
     # list that does overflow is now a 422 naming this field instead of an
     # INSERT the database refuses.
     linear_label_ids: str | None = Field(None, max_length=1024)
+    # PagerDuty: the Events API v2 integration key (a secret, stored encrypted)
+    # and the severity every event carries. The key's own validator bounds it at
+    # 64; the severity is one of four words and its column is String(16).
+    pagerduty_routing_key: str | None = None
+    pagerduty_severity: str | None = Field(None, max_length=16)
+    # Microsoft Teams: an incoming-webhook / Workflows URL. Like the generic
+    # webhook's ``target_url`` only its SHAPE is checked here; where it points
+    # is settled in the service (see the long comment above).
+    teams_webhook_url: str | None = None
 
     @field_validator("delivery_schedule_cron")
     @classmethod
@@ -558,6 +574,8 @@ class AlertDestinationCreate(BaseModel):
         "webhook_header_value",
         "jira_api_token",
         "linear_api_key",
+        "pagerduty_routing_key",
+        "teams_webhook_url",
         mode="before",
     )
     @classmethod
@@ -606,6 +624,13 @@ class AlertDestinationCreate(BaseModel):
             self.linear_team_id = validate_linear_team_id(self.linear_team_id)
             self.linear_state_id = validate_linear_state_id(self.linear_state_id)
             self.linear_label_ids = validate_linear_label_ids(self.linear_label_ids)
+        elif self.type == "pagerduty":
+            self.pagerduty_routing_key = validate_pagerduty_routing_key(self.pagerduty_routing_key)
+            self.pagerduty_severity = (
+                validate_pagerduty_severity(self.pagerduty_severity) or DEFAULT_PAGERDUTY_SEVERITY
+            )
+        elif self.type == "teams":
+            self.teams_webhook_url = _validate_teams_webhook_url_format(self.teams_webhook_url)
         elif self.type == "demo_sink":
             # A demo_sink is a local, non-sendable sink: it carries NO
             # credentials or channel configuration and never stores a secret or
@@ -631,6 +656,9 @@ class AlertDestinationCreate(BaseModel):
                     "linear_team_id",
                     "linear_state_id",
                     "linear_label_ids",
+                    "pagerduty_routing_key",
+                    "pagerduty_severity",
+                    "teams_webhook_url",
                 )
                 if getattr(self, name) is not None
             ]
@@ -691,6 +719,11 @@ class AlertDestinationUpdate(BaseModel):
     linear_team_id: str | None = None
     linear_state_id: str | None = None
     linear_label_ids: str | None = Field(None, max_length=1024)
+    # Secrets are ignore-if-None on update, like every other: blank keeps the
+    # stored key / URL. Severity null is "back to the default" (error).
+    pagerduty_routing_key: str | None = None
+    pagerduty_severity: str | None = Field(None, max_length=16)
+    teams_webhook_url: str | None = None
 
     @field_validator("delivery_schedule_cron")
     @classmethod
@@ -845,6 +878,27 @@ class AlertDestinationUpdate(BaseModel):
     def validate_linear_label_ids_update(cls, value: str | None) -> str | None:
         return validate_linear_label_ids(value)
 
+    @field_validator("pagerduty_routing_key", mode="before")
+    @classmethod
+    def validate_pagerduty_routing_key_update(cls, value: str | None) -> str | None:
+        normalized = normalize_optional_secret(value)
+        if normalized is None:
+            return None
+        return validate_pagerduty_routing_key(normalized)
+
+    @field_validator("pagerduty_severity")
+    @classmethod
+    def validate_pagerduty_severity_update(cls, value: str | None) -> str | None:
+        return validate_pagerduty_severity(value)
+
+    @field_validator("teams_webhook_url", mode="before")
+    @classmethod
+    def validate_teams_webhook_url_update(cls, value: str | None) -> str | None:
+        normalized = normalize_optional_secret(value)
+        if normalized is None:
+            return None
+        return _validate_teams_webhook_url_format(normalized)
+
     # Runs before every field validator above, so a null is named and refused
     # before ``update_destination`` can assign it. See ``_reject_explicit_nulls``
     # and ``_DESTINATION_NOT_NULLABLE_ON_UPDATE`` for which fields and why.
@@ -877,6 +931,11 @@ class AlertDestinationResponse(BaseModel):
     linear_team_id: str | None
     linear_state_id: str | None
     linear_label_ids: str | None
+    # The routing key and the Teams URL are write-only secrets, reported only
+    # as "is one on file" — the same contract as ``webhook_set``.
+    pagerduty_routing_key_set: bool
+    pagerduty_severity: str | None
+    teams_webhook_set: bool
     # The delivery cadence, and what the operator needs to trust it: NULL means
     # alerts go out after every collection (immediate). ``last_digest_at`` is
     # the fire instant of the last window flushed, ``next_digest_at`` the next
@@ -958,6 +1017,9 @@ class AlertDestinationDraftTestRequest(BaseModel):
     linear_team_id: str | None = Field(None, max_length=64)
     linear_state_id: str | None = Field(None, max_length=64)
     linear_label_ids: str | None = Field(None, max_length=1024)
+    pagerduty_routing_key: str | None = None
+    pagerduty_severity: str | None = Field(None, max_length=16)
+    teams_webhook_url: str | None = None
 
     @field_validator("type", mode="before")
     @classmethod
@@ -978,6 +1040,8 @@ class AlertDestinationDraftTestRequest(BaseModel):
         "jira_issue_type",
         "linear_api_key",
         "linear_team_id",
+        "pagerduty_routing_key",
+        "teams_webhook_url",
         mode="before",
     )
     @classmethod
@@ -1010,6 +1074,13 @@ class AlertDestinationDraftTestRequest(BaseModel):
     @classmethod
     def validate_label_ids(cls, value: str | None) -> str | None:
         return validate_linear_label_ids(value)
+
+    @field_validator("pagerduty_severity")
+    @classmethod
+    def validate_severity(cls, value: str | None) -> str | None:
+        # Settled here rather than left to the test: it is a closed set, and a
+        # value outside it is a request no send could ever honour.
+        return validate_pagerduty_severity(value)
 
 
 class AlertDestinationTestResponse(BaseModel):

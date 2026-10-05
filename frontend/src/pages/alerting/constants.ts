@@ -11,7 +11,20 @@ import type {
 // User-selectable channels for creating a real destination. The demo-only
 // ``demo_sink`` (a local, non-sendable sink) is intentionally excluded here — it
 // is created by the demo seeder, never through this create UI.
-export type DestinationChannel = 'slack' | 'telegram' | 'webhook' | 'email' | 'jira' | 'linear'
+export type DestinationChannel =
+  | 'slack'
+  | 'telegram'
+  | 'webhook'
+  | 'email'
+  | 'jira'
+  | 'linear'
+  | 'pagerduty'
+  | 'teams'
+
+// The four severities the PagerDuty Events API v2 accepts, in its order.
+// `error` is the default the backend stores when none is chosen.
+export const PAGERDUTY_SEVERITIES = ['critical', 'error', 'warning', 'info'] as const
+export const DEFAULT_PAGERDUTY_SEVERITY = 'error'
 
 export type DestinationFormState = {
   // Any existing destination's type when editing (incl. the read-only
@@ -37,6 +50,9 @@ export type DestinationFormState = {
   linear_team_id: string
   linear_state_id: string
   linear_label_ids: string
+  pagerduty_routing_key: string
+  pagerduty_severity: string
+  teams_webhook_url: string
   // The cadence as a cron string, or '' for immediate. The form edits it
   // through the presets in ./deliverySchedule; this is the value that ships.
   delivery_schedule_cron: string
@@ -270,6 +286,14 @@ export const MESSAGE_FORMAT_OPTIONS: Record<AlertDestinationType, { value: Alert
   linear: [
     { value: 'plain', label: 'Plain text' },
   ],
+  // The routing key's event summary and the Teams card body are both plain
+  // text: neither speaks Slack's or Telegram's markup.
+  pagerduty: [
+    { value: 'plain', label: 'Plain text' },
+  ],
+  teams: [
+    { value: 'plain', label: 'Plain text' },
+  ],
   // Local demo sink renders plain text only (recorded locally, never sent).
   demo_sink: [
     { value: 'plain', label: 'Plain text' },
@@ -326,6 +350,9 @@ export function defaultDestinationForm(type: DestinationChannel): DestinationFor
     linear_team_id: '',
     linear_state_id: '',
     linear_label_ids: '',
+    pagerduty_routing_key: '',
+    pagerduty_severity: type === 'pagerduty' ? DEFAULT_PAGERDUTY_SEVERITY : '',
+    teams_webhook_url: '',
     delivery_schedule_cron: '',
   }
 }

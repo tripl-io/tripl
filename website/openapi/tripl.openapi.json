@@ -24714,6 +24714,40 @@
               }
             ],
             "title": "Linear Label Ids"
+          },
+          "pagerduty_routing_key": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pagerduty Routing Key"
+          },
+          "pagerduty_severity": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 16
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pagerduty Severity"
+          },
+          "teams_webhook_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Teams Webhook Url"
           }
         },
         "type": "object",
@@ -24948,6 +24982,40 @@
               }
             ],
             "title": "Linear Label Ids"
+          },
+          "pagerduty_routing_key": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pagerduty Routing Key"
+          },
+          "pagerduty_severity": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 16
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pagerduty Severity"
+          },
+          "teams_webhook_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Teams Webhook Url"
           }
         },
         "type": "object",
@@ -25132,6 +25200,25 @@
             ],
             "title": "Linear Label Ids"
           },
+          "pagerduty_routing_key_set": {
+            "type": "boolean",
+            "title": "Pagerduty Routing Key Set"
+          },
+          "pagerduty_severity": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pagerduty Severity"
+          },
+          "teams_webhook_set": {
+            "type": "boolean",
+            "title": "Teams Webhook Set"
+          },
           "delivery_schedule_cron": {
             "anyOf": [
               {
@@ -25232,6 +25319,9 @@
           "linear_team_id",
           "linear_state_id",
           "linear_label_ids",
+          "pagerduty_routing_key_set",
+          "pagerduty_severity",
+          "teams_webhook_set",
           "delivery_count",
           "incident_count",
           "rules",
@@ -25321,6 +25411,8 @@
           "email",
           "jira",
           "linear",
+          "pagerduty",
+          "teams",
           "demo_sink"
         ],
         "title": "AlertDestinationType"
@@ -25563,6 +25655,40 @@
               }
             ],
             "title": "Linear Label Ids"
+          },
+          "pagerduty_routing_key": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pagerduty Routing Key"
+          },
+          "pagerduty_severity": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 16
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pagerduty Severity"
+          },
+          "teams_webhook_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Teams Webhook Url"
           }
         },
         "type": "object",
