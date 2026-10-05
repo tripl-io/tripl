@@ -31,6 +31,12 @@ own identity and compliance rules. It ships as a separate private image,
 | Public demo instance (`PUBLIC_DEMO`), a pool of ready demos, purge of idle organizations | | ✓ |
 | Multi-tenant hosted service (`DEPLOYMENT_MODE=hosted`): each sign-up gets its own organization, verified addresses | | ✓ |
 
+The Enterprise features are documented in the **Enterprise** section of these
+docs: [single sign-on and provisioning](./enterprise/sso-and-scim.md), the
+[organization audit log](./enterprise/audit.md) with its export and webhook,
+the [platform console](./enterprise/platform-console.md), and the
+[license key](./enterprise/license.md) an Enterprise instance runs under.
+
 Every Enterprise feature is in the Enterprise image only: the Community image
 does not contain its code.
 
