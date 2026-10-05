@@ -78,7 +78,7 @@ test('a demo owner copies a colleague link and the colleague accepts into the in
 
   await page.goto('/settings/invitations?org=shared-demo')
   await expect(page.getByText(/No email is sent/)).toBeVisible()
-  await page.getByLabel('Email', { exact: true }).fill(colleague.email)
+  await page.getByRole('textbox', { name: 'Email', exact: true }).fill(colleague.email)
   await page.getByRole('button', { name: 'Create invite link' }).click()
   const invite = await page.getByRole('textbox', { name: 'Invite link' }).inputValue()
   await page.getByRole('button', { name: 'Copy', exact: true }).click()
