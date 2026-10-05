@@ -16,7 +16,14 @@ entry point in the ``tripl.extensions`` group whose object is an
 * **audit** — every audit row as it is written, in the writing transaction;
 * **errors** — an extension may answer errors on paths it owns in a format of
   its own (:meth:`Extension.error_response`);
-* **worker** — Celery task modules and beat schedule entries.
+* **worker** — Celery task modules and beat schedule entries;
+* **stored secrets** — :meth:`Extension.secret_cipher` may replace how every
+  stored secret is encrypted (``tripl.crypto``: the first extension returning a
+  cipher wins, none keeps Fernet under ``ENCRYPTION_KEY``; the cipher's
+  ``check`` runs when the API and the worker start and refuses startup when it
+  raises), and :meth:`Extension.stored_secret_slots` names the encrypted values
+  the extension's own tables hold, so re-encrypting every stored secret
+  (``tripl.services.stored_secrets``) reaches them too.
 
 ORM model modules are a separate entry point group, ``tripl.models``, whose
 values are module paths: ``tripl.models`` imports them while it is itself still
@@ -47,11 +54,13 @@ if TYPE_CHECKING:
     from sqlalchemy.ext.asyncio import AsyncSession
     from starlette.responses import Response
 
+    from tripl.crypto import SecretCipher
     from tripl.middleware.org_context import OrgRef
     from tripl.models.audit_log import AuditLog
     from tripl.models.domain_enums import OrganizationRole
     from tripl.models.project import Project
     from tripl.models.user import User
+    from tripl.services.stored_secrets import SecretSlot
     from tripl.tenancy import TenancyPolicy
 
 logger = logging.getLogger(__name__)
@@ -203,6 +212,19 @@ class Extension:
     def tenancy(self) -> TenancyPolicy | None:
         """A multi-tenant service's policy (``tripl.tenancy``); ``None``: one team."""
         return None
+
+    # -- stored secrets --------------------------------------------------
+    def secret_cipher(self) -> SecretCipher | None:
+        """The cipher for every stored secret (``tripl.crypto``); ``None``: the default.
+
+        Asked once per process, at the first secret encrypted or decrypted (or
+        the startup check), so return the same object each time.
+        """
+        return None
+
+    def stored_secret_slots(self) -> Sequence[SecretSlot]:
+        """Encrypted values in the extension's own tables (``tripl.services.stored_secrets``)."""
+        return ()
 
     # -- worker ----------------------------------------------------------
     def celery_task_modules(self) -> Sequence[str]:

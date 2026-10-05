@@ -1,10 +1,12 @@
 import importlib
+import logging
 
 from celery import Celery
 from celery.schedules import crontab
 from celery.signals import beat_init, setup_logging, worker_init, worker_process_init
 
 from tripl.config import settings
+from tripl.crypto import check_cipher
 from tripl.logging_config import configure_logging
 from tripl.observability.metrics import install_celery_instrumentation
 from tripl.observability.tracing import setup_worker_tracing
@@ -261,6 +263,19 @@ def _configure_worker_runtime(**_kwargs: object) -> None:
     setup_worker_tracing()
 
 
+def _check_secret_cipher(**_kwargs: object) -> None:
+    """Refuse to start the worker when an extension's cipher cannot work.
+
+    Celery logs and swallows an ``Exception`` from a signal handler, so the
+    refusal is a ``SystemExit``, which it lets through.
+    """
+    try:
+        check_cipher()
+    except RuntimeError as exc:
+        logging.getLogger(__name__).critical("%s", exc)
+        raise SystemExit(1) from exc
+
+
 def _configure_beat_runtime(**_kwargs: object) -> None:
     """Apply persisted settings and logging when beat starts."""
     apply_startup_service_overrides()
@@ -273,6 +288,7 @@ def _configure_celery_logging(**_kwargs: object) -> None:
 
 
 worker_init.connect(_configure_worker_runtime, weak=False)
+worker_init.connect(_check_secret_cipher, weak=False)
 beat_init.connect(_configure_beat_runtime, weak=False)
 setup_logging.connect(_configure_celery_logging, weak=False)
 

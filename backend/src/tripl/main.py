@@ -27,7 +27,7 @@ from tripl.services.app_settings_service import apply_startup_service_overrides
 # those overrides "take effect on the next deploy", as the settings UI states.
 apply_startup_service_overrides()
 
-from tripl import extensions, tenancy  # noqa: E402
+from tripl import crypto, extensions, tenancy  # noqa: E402
 from tripl.api.v1.router import router as v1_router  # noqa: E402
 from tripl.database import engine  # noqa: E402
 from tripl.logging_config import configure_logging  # noqa: E402
@@ -57,6 +57,9 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     """Startup: re-apply logging config, fail fast on misconfigured production deploys."""
     configure_logging()
     settings.assert_production_ready()
+    # An extension's cipher (a key management service, say) proves itself now
+    # rather than at the first secret a request reads. Default cipher: no-op.
+    crypto.check_cipher()
     logger.info(
         "tripl starting",
         extra={
