@@ -45,9 +45,9 @@ test('a PagerDuty and a Microsoft Teams destination are added through the dialog
   // A route's first visit compiles it on the dev server: give it time.
   await page.getByRole('button', { name: 'PagerDuty', exact: true }).click({ timeout: 60_000 })
   const pagerDialog = page.getByRole('dialog', { name: /New PagerDuty destination/ })
-  await pagerDialog.getByLabel('Name').fill('On-call pager')
-  await pagerDialog.getByLabel('Integration key').fill('R0uT1nGkEy0123456789abcdefABCDEF')
-  await pagerDialog.getByLabel('Severity').selectOption('critical')
+  await pagerDialog.getByLabel('Name', { exact: true }).fill('On-call pager')
+  await pagerDialog.getByLabel('Integration key', { exact: true }).fill('R0uT1nGkEy0123456789abcdefABCDEF')
+  await pagerDialog.getByLabel('Severity', { exact: true }).selectOption('critical')
   await pagerDialog.getByRole('button', { name: 'Create' }).click()
   await expect(pagerDialog).toBeHidden()
 
@@ -60,8 +60,8 @@ test('a PagerDuty and a Microsoft Teams destination are added through the dialog
   await page.getByRole('button', { name: 'Add destination' }).click({ timeout: 60_000 })
   await page.getByRole('menuitem', { name: 'Microsoft Teams', exact: true }).click()
   const teamsDialog = page.getByRole('dialog', { name: /New Microsoft Teams destination/ })
-  await teamsDialog.getByLabel('Name').fill('Ops channel')
-  await teamsDialog.getByLabel('Webhook URL').fill('https://contoso.webhook.office.com/webhookb2/e2e')
+  await teamsDialog.getByLabel('Name', { exact: true }).fill('Ops channel')
+  await teamsDialog.getByLabel('Webhook URL', { exact: true }).fill('https://contoso.webhook.office.com/webhookb2/e2e')
   await teamsDialog.getByRole('button', { name: 'Create' }).click()
   await expect(teamsDialog).toBeHidden()
 
