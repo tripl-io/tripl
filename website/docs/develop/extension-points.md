@@ -107,6 +107,13 @@ server that has no extensions. Routers are mounted when the app is built, so an
 override changes hook dispatch but not the set of routes.
 `backend/src/tripl/tests/test_extensions.py` has examples.
 
+The route audits (cross-organization isolation, the write gate, the owner and
+API-key gates) walk only the routes Community declares, with
+`tripl.tests.test_rbac.iter_api_routes()`, so they pass with an extension
+installed; the OpenAPI snapshot is skipped then, since it is Community's API.
+An extension audits its own routes: `iter_api_routes("<its package>")` lists
+the routes whose handlers live in that package.
+
 ## Frontend extensions
 
 The web app has a matching registry in `frontend/src/extensions`. A frontend
