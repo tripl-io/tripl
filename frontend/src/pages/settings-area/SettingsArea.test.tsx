@@ -8,8 +8,6 @@ import { projectsApi } from '@/api/projects'
 import { usersApi } from '@/api/users'
 import { AuthContext, type AuthContextValue } from '@/components/auth-context'
 import type { Project } from '@/types'
-import { scimApi } from '@/api/scim'
-import { ssoApi } from '@/api/sso'
 import { auditWebhookApi } from '@/api/auditExport'
 import SettingsArea from './SettingsArea'
 import { at } from '@/test/at'
@@ -381,32 +379,28 @@ describe('SettingsArea owner-only sections (#237)', () => {
     expect(screen.getByRole('note')).toHaveTextContent(/Owner role is required/)
   })
 
-  it('keeps Single sign-on from an organization admin: it is an owner\'s alone (F20)', async () => {
+  it('opens Single sign-on as an Enterprise feature: what it does, and where it is', async () => {
     vi.spyOn(projectsApi, 'list').mockResolvedValue(projects)
-    const get = vi.spyOn(ssoApi, 'get')
-    const owner = ownerAuthValue()
-    const admin: AuthContextValue = { ...owner, user: owner.user && { ...owner.user, role: 'admin' } }
 
-    renderArea('organization/sso', '', admin)
+    renderArea('organization/sso', '')
 
     expect(await screen.findByRole('heading', { level: 1, name: 'Single sign-on' })).toBeInTheDocument()
-    expect(screen.getByRole('note')).toHaveTextContent(/Only an organization owner/)
-    expect(get).not.toHaveBeenCalled()
+    expect(
+      screen.getByRole('heading', { name: 'Single sign-on is part of Tripl Enterprise' }),
+    ).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: /Compare editions/ })).toBeInTheDocument()
   })
 
-  it("keeps Provisioning (SCIM) from an organization admin: it is an owner's alone (F20)", async () => {
+  it('keeps an Enterprise feature from someone who is not an owner or admin', async () => {
     vi.spyOn(projectsApi, 'list').mockResolvedValue(projects)
-    const tokens = vi.spyOn(scimApi, 'listTokens')
-    const config = vi.spyOn(scimApi, 'getConfig')
     const owner = ownerAuthValue()
-    const admin: AuthContextValue = { ...owner, user: owner.user && { ...owner.user, role: 'admin' } }
+    const member: AuthContextValue = { ...owner, user: owner.user && { ...owner.user, role: 'member' } }
 
-    renderArea('organization/scim', '', admin)
+    renderArea('organization/scim', '', member)
 
     expect(await screen.findByRole('heading', { level: 1, name: 'Provisioning' })).toBeInTheDocument()
-    expect(screen.getByRole('note')).toHaveTextContent(/Only an organization owner can view or change provisioning/)
-    expect(tokens).not.toHaveBeenCalled()
-    expect(config).not.toHaveBeenCalled()
+    expect(screen.getByRole('note')).toHaveTextContent(/Owner role is required/)
+    expect(screen.queryByText(/part of Tripl Enterprise/)).toBeNull()
   })
 
   it('keeps the Audit webhook from an organization admin: it is an owner\'s alone (F20)', async () => {

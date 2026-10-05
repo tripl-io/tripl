@@ -85,7 +85,7 @@ REDIS_URL: redis://redis:6379/0
 | --- | --- | --- | --- |
 | `ENCRYPTION_KEY` | `""` | **Yes** | Fernet key encrypting data-source and alert-destination secrets at rest. Must be a valid Fernet key. |
 | `SECRET_KEY` | `""` | **Yes** | Application secret keying the HMAC over session tokens. Rotating it invalidates all existing sessions (users re-login once). |
-| `APP_BASE_URL` | `""` | Effectively yes¹ | Public base URL of the deployment. Used to derive CORS origins when `CORS_ALLOW_ORIGINS` is empty, and to build the [single sign-on](../administer/admin-guide.md#single-sign-on) redirect URI (`{APP_BASE_URL}/api/v1/auth/sso/{org}/callback`) registered at an identity provider. |
+| `APP_BASE_URL` | `""` | Effectively yes¹ | Public base URL of the deployment. Used to derive CORS origins when `CORS_ALLOW_ORIGINS` is empty, and to build the redirect URIs registered at an identity provider (Google's, and an Enterprise server's single sign-on). |
 | `SESSION_COOKIE_NAME` | `tripl_session` | No | Name of the session cookie. |
 | `SESSION_TTL_HOURS` | `168` (24×7) | No | Session lifetime in hours. |
 | `SESSION_COOKIE_SECURE` | `false` | **Yes (must be `true`)** | Marks the session cookie `Secure` so it is only sent over HTTPS. |
@@ -175,17 +175,8 @@ cannot be changed in **Settings → Instance**.
 | `PUBLIC_DEMO` | `false` | No | A public demo instance: password sign-up is refused (Google only), and so is everything that would reach outside the instance — new warehouse connections, blank projects, further organizations, invitation email, outbound webhooks, tracker integrations, SSO and SCIM, organization AI/SMTP settings — and AI is off whatever the settings say. Owners and admins may create member-only invitation links, within the [public demo limits](./public-demo.md#share-a-demo-with-colleagues); recipients sign in with Google before accepting. Demo projects keep working. See [Running a public demo](./public-demo.md). |
 | `IDLE_ORG_RETENTION_DAYS` | `0` | No | `hosted` only. Every night, organizations created more than this many days ago, with no member signed in and no demo project opened in that time, are deleted as an owner's delete would, and so are accounts left in no organization that have not signed in in that time (never a platform admin). `0` deletes none. The default organization is never deleted. |
 
-Single sign-on (OpenID Connect or SAML 2.0) has no environment variables: each
-organization's owners configure it in the app (see
-[Single sign-on](../administer/admin-guide.md#single-sign-on)). An OpenID
-Connect client secret is encrypted with `ENCRYPTION_KEY`, and on a hosted
-instance its identity-provider URLs must resolve to public addresses. SAML
-makes no outbound requests; its service-provider entity ID and ACS URL are
-built from `APP_BASE_URL`, so changing that address means updating them at
-every organization's IdP. SAML sign-in needs `APP_BASE_URL` to be an `https`
-address (`http://localhost` excepted): its state cookie is `Secure` and
-`SameSite=None`, which browsers drop over plain http, so every SAML sign-in
-would fail with `invalid_state`.
+Single sign-on per organization (OpenID Connect or SAML 2.0) is part of the
+[Enterprise edition](../editions.md) and has no environment variables.
 
 ### Managing platform admins: `tripl-admin` {#tripl-admin}
 

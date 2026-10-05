@@ -64,11 +64,7 @@ MODEL_GROUP = "tripl.models"
 #: Extensions that ship inside this repository, as ``module:attribute``.
 _BUNDLED: tuple[str, ...] = ("tripl._bundled_enterprise:extension",)
 #: Their ORM model modules (see the module docstring for why they are separate).
-_BUNDLED_MODELS: tuple[str, ...] = (
-    "tripl.models.org_sso",
-    "tripl.models.org_scim",
-    "tripl.models.audit_webhook",
-)
+_BUNDLED_MODELS: tuple[str, ...] = ("tripl.models.audit_webhook",)
 
 ErrorKind = Literal["http", "validation", "too_large"]
 

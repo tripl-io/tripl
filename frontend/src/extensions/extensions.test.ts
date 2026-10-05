@@ -20,7 +20,7 @@ const GROUPS: SettingsNavGroup[] = [
 describe('frontend extensions', () => {
   it('carries the bundled enterprise extension and nothing else by default', () => {
     expect(EXTENSIONS.map((extension) => extension.name)).toEqual(['bundled-enterprise'])
-    expect(extensionRoutes.map((route) => route.path)).toEqual(['/sso/link'])
+    expect(extensionRoutes).toEqual([])
   })
 
   it('places extension items after the item they name, or at the end of their group', () => {
@@ -36,17 +36,23 @@ describe('frontend extensions', () => {
     expect(GROUPS[0]?.items.map((entry) => entry.id)).toEqual(['a', 'b'])
   })
 
-  it('keeps the bundled settings items where the rail always had them', () => {
+  it('keeps the rail order: Enterprise features where their pages would be', () => {
     const organization = WORKSPACE_GROUPS.find((group) => group.label === 'Organization')
-    const ids = organization?.items.map((entry) => entry.id) ?? []
+    const items = organization?.items ?? []
+    const ids = items.map((entry) => entry.id)
     const trackers = ids.indexOf('org-trackers')
     expect(ids.slice(trackers, trackers + 3)).toEqual(['org-trackers', 'org-sso', 'org-scim'])
     expect(ids[ids.indexOf('inst-audit') + 1]).toBe('org-audit-webhook')
+    // Single sign-on and provisioning are Enterprise teasers in this build.
+    expect(items.filter((entry) => entry.tag === 'Enterprise').map((entry) => entry.id)).toEqual([
+      'org-sso',
+      'org-scim',
+    ])
   })
 
   it('finds an extension settings section by its path', () => {
-    expect(extensionSettingsSection('organization/sso')?.access).toBe('orgOwner')
-    expect(extensionSettingsSection('organization/general')).toBeUndefined()
+    expect(extensionSettingsSection('organization/audit-webhook')?.access).toBe('orgOwner')
+    expect(extensionSettingsSection('organization/sso')).toBeUndefined()
   })
 })
 
@@ -63,9 +69,11 @@ describe('Enterprise teasers', () => {
     expect(shown.map((entry) => entry.item.id)).toEqual(['scim'])
   })
 
-  it('hides every teaser while the bundled extension still provides the features', () => {
-    expect(enterpriseTeasers).toEqual([])
-    expect(enterpriseTeaser('organization/sso')).toBeUndefined()
+  it('shows the teasers of features no extension provides, and hides the bundled one', () => {
+    expect(enterpriseTeasers.map((entry) => entry.item.id)).toEqual(['org-sso', 'org-scim'])
+    expect(enterpriseTeaser('organization/sso')?.item.label).toBe('Single sign-on')
+    // The audit webhook is still bundled: its real page, not a teaser.
+    expect(enterpriseTeaser('organization/audit-webhook')).toBeUndefined()
   })
 
   it('tags every teaser Enterprise, for owners and admins only, once each', () => {

@@ -154,16 +154,8 @@ The middleware reads `CONTENT_SECURITY_POLICY`, `SERVE_FRONTEND`, `HSTS_ENABLED`
 | `POST /api/v1/auth/invitations/{token}/accept` | `RATE_LIMIT_REGISTER_PER_HOUR` | 3 / hour |
 | `POST /api/v1/auth/verify-email/request` | Own verification limiter (fixed, not configurable) | 10 / hour |
 | `POST /api/v1/auth/verify-email/confirm` | `RATE_LIMIT_LOGIN_PER_MINUTE` | 5 / minute |
-| `GET /api/v1/auth/sso/discover` | Shared status limiter | 30 / minute |
-| `GET /api/v1/auth/sso/{org}/start` | Own SSO limiter (fixed, not configurable), shared by start, callback and ACS | 20 / minute |
-| `GET /api/v1/auth/sso/{org}/callback` | Own SSO limiter (fixed, not configurable), shared by start, callback and ACS | 20 / minute |
-| `POST /api/v1/auth/sso/{org}/saml/acs` | Own SSO limiter (fixed, not configurable), shared by start, callback and ACS | 20 / minute |
-| `GET /api/v1/auth/google/start` | The same SSO limiter | 20 / minute |
-| `GET /api/v1/auth/google/callback` | The same SSO limiter | 20 / minute |
-| `GET /api/v1/auth/sso/link` | Shared status limiter | 30 / minute |
-| `POST /api/v1/auth/sso/link` | `RATE_LIMIT_LOGIN_PER_MINUTE` | 5 / minute |
-| `/scim/v2/{org}/*` | Own SCIM limiter, keyed per token (not per address) | 600 / minute |
-| `/scim/v2/{org}/*`, failed authentication | Own limiter, keyed per client address; only `401` answers draw on it, then `429` | 30 / minute |
+| `GET /api/v1/auth/google/start` | Own sign-in limiter (fixed, not configurable), shared by start and callback (and, on an Enterprise server, single sign-on) | 20 / minute |
+| `GET /api/v1/auth/google/callback` | The same sign-in limiter | 20 / minute |
 
 The verification-link request has a bucket of its own, so resending a link does
 not use up the login or sign-up quota, and a signed-in caller cannot turn the
@@ -337,69 +329,12 @@ the flag and blocks nothing.
 | Invitations | On a hosted instance, redeeming an invitation into a **new** account does not verify the address: the inviter received the raw link in the API response, so using it proves nothing about who reads that mailbox. The new account is sent a verification link (a failed send is logged) and must confirm it like a sign-up before it can use the app. A signed-in account accepts an invitation only once verified. |
 | Platform admin | Granted only when an account whose address is listed in `PLATFORM_ADMIN_EMAILS` confirms the emailed verification link while signed in as itself. Sign-up, invitations and password reset never grant it, so the grant always follows proof that the person controls both the address and the account. |
 
-### Single sign-on (OIDC)
+### Single sign-on and provisioning
 
-An organization owner can connect the organization to an OpenID Connect
-identity provider (see [Single sign-on](../administer/admin-guide.md#single-sign-on)).
-The controls that matter for security:
+Single sign-on per organization (OpenID Connect, SAML 2.0) and provisioning
+over SCIM 2.0 are part of the [Enterprise edition](../editions.md). Their
+security controls are documented with that edition.
 
-| Property | Behaviour |
-|---|---|
-| Who configures it | Organization **owners** only, from a browser session. Admins, members and API keys get `403`. Every change is audited (`org.sso.*`) without the secret. |
-| Outbound requests | Discovery, key (JWKS) and token requests go only to `https` URLs, follow no redirects, time out after 10 seconds and cap the response size. On a hosted instance a host that resolves to a private, loopback or link-local address is refused, and checked again when the request is made, as for organization mail and AI endpoints; the request then connects to the very address that was checked (TLS and `Host` keep the hostname), so a name that re-resolves between the check and the connection (DNS rebinding) cannot reach an internal address. The owner's connection test answers a fixed text per error code, and it and domain verification are rate-limited. The discovery document's `issuer` must equal the configured issuer, and the token and key endpoints are taken from it. |
-| Domains | Only addresses at a domain the organization proved with a DNS TXT record (`_tripl-verification.<domain>` = `tripl-verification=<token>`) are accepted. A domain can be verified by one organization per instance. |
-| Login state | Each attempt stores a keyed HMAC digest of its `state` (like session tokens), a `nonce` and an encrypted PKCE (S256) verifier. The state is single use, bound to the organization and expires after 10 minutes. The return address (`next`) must be a relative path on the same origin. |
-| ID token | Verified with the provider's published keys: `RS256` or `ES256` only (the algorithm comes from the key, `none` is refused), issuer, audience = client ID, `azp` = client ID whenever present (and required with several audiences), expiry, issued-at with 60 seconds of leeway, and the nonce. The token must carry `email` with `email_verified: true`, at one of the organization's verified domains. |
-| Errors | A failed sign-in returns to `/auth?sso_error=<code>` with a fixed code. The provider's error text is never echoed. |
-| New accounts | Created with a verified address, as organization **members**, never as platform admins. Their password is a scrypt hash of a random secret, so password sign-in takes the same time for them as for any account. |
-| Existing accounts | Never linked or signed in automatically. The browser gets a single-use link request (10 minutes), and confirming it on `/sso/link` needs a **session of that account** (`401` otherwise): the provider's sign-in alone proves nothing about the account, since whoever runs a verified domain's provider can name any of its addresses. Only then is the identity linked, and the proving session is replaced by the single sign-on one. |
-| Unverified accounts | An account whose address was never verified (a hosted sign-up) is not anyone's yet, so the provider's verified address takes it over clean: the password becomes unusable and every session, API key and pending reset or verification token of the account is dropped before linking. Platform admins are never treated this way. |
-| Sessions | A session records how it signed in (`password` or `sso`) and, for single sign-on, which organization. |
-| Requiring SSO | With **Require single sign-on**, a session that did not sign in through the organization's provider gets `403 This organization requires single sign-on` inside it. Organization owners' browser sessions are exempt (break-glass), as is a platform admin's read-only step-in. Turning it on revokes **every** organization API key that was not created from a single sign-on session of the organization, owners' included, and such keys are refused with `403`; new keys need such a session, for owners too. |
-| Removing a member | Also deletes their single sign-on identities for the organization, and signing in through the provider again does not re-add them until they accept a new invitation. |
-| Rate limits | Start and callback share their own bucket (20 a minute per address), apart from password sign-in; an empty bucket redirects to `/auth?sso_error=rate_limited`. Confirming a link is on the login bucket. |
-
-### Single sign-on (SAML 2.0)
-
-An organization can use SAML 2.0 instead of OpenID Connect (see
-[Set up SAML 2.0](../administer/admin-guide.md#saml)). Configuration, domains,
-account resolution (new, existing and unverified accounts), sessions, requiring
-SSO, removing a member and rate limits are exactly as in the table above; what
-differs is how the IdP's answer is verified. XML signatures are checked with
-`signxml` over `lxml` (no `xmlsec1`), and every check fails closed with a
-generic `sso_error` code.
-
-| Property | Behaviour |
-|---|---|
-| Trust | The IdP's signing certificates are configured by the owner (pasted, or read from pasted metadata; tripl never fetches metadata, so there is no outbound request). Several can be configured for key rotation. They are public and stored as they are; there is no SP key, and tripl's authentication requests are unsigned. A new certificate is checked (it parses, has not expired) when it is saved or when SAML is switched on; a stored one that has expired since does not block other changes, such as turning SSO off. |
-| Trust anchor change | Switching the protocol, changing the IdP entity ID, or saving a certificate set that keeps none of the saved certificates deletes the organization's linked identities and pending link tickets of the old provider (the count is in the `org.sso.update` audit entry). Linked members then confirm the link again from their own session, so an owner who points SAML at a key they hold cannot sign in as an already-linked member. |
-| Request binding | Each sign-in stores a random request ID on the single-use, 10-minute login state (the state's digest, as for OpenID Connect). The state goes to the IdP as `RelayState` and is bound to the browser by a cookie scoped to `/api/v1/auth/sso/`, `HttpOnly`, `Secure`, `SameSite=None` (the IdP's POST back is cross-site, so a `Lax` cookie would not be sent). A browser keeps a `Secure` cookie only over https (or on `localhost`), so SAML sign-in needs tripl served over https. The response's `InResponseTo` must equal the stored request ID; IdP-initiated (unsolicited) responses are refused (`saml_unsolicited`). |
-| Parsing | The posted response is capped in size before decoding, and parsed with entity resolution, DTD loading and network access off and huge trees refused. Any `DOCTYPE` is refused, which rules out entity expansion (billion laughs) and external entities (XXE). |
-| Signature | The **assertion** itself must carry a valid enveloped signature by one of the configured certificates; a signature over the response alone is not enough. RSA and ECDSA with SHA-256 or stronger only; SHA-1 is refused. Every later check reads the element the signature verification returned, never the posted document, so a signed assertion moved elsewhere and an unsigned one put in its place (XML signature wrapping) are refused. Exactly one assertion is accepted; encrypted assertions are not supported and are refused (`encrypted_assertion_unsupported`). |
-| Assertion checks | Issuer = the configured IdP entity ID; the response's `Destination`, when present, and the bearer subject confirmation's `Recipient` = tripl's ACS URL; `InResponseTo` on both = the stored request ID; `NotBefore` / `NotOnOrAfter` of the conditions and the subject confirmation, with 120 seconds of clock skew; the audience restriction names tripl's entity ID; the status is `Success`. |
-| Replay | Each accepted assertion ID is stored per organization until it expires; the same assertion a second time is refused (`saml_replay`), and the login state is single use as well. |
-| Email and identity | The email comes from the configured attribute, or from the NameID only when its format is `emailAddress` (a persistent or unspecified NameID is never taken as an email: `email_missing`). It must be at one of the organization's verified domains. The identity is the pair (`saml:` + IdP entity ID, NameID); the prefix means an identity linked over OpenID Connect is never matched by SAML, even with an entity ID equal to the OIDC issuer, and the reverse. The entity ID is at most 507 characters. |
-
-### Provisioning (SCIM 2.0)
-
-An organization owner can let the organization's identity provider create,
-update and deactivate its members and groups over SCIM (see
-[Provisioning](../administer/admin-guide.md#scim)). The controls that matter
-for security:
-
-| Property | Behaviour |
-|---|---|
-| Endpoint | `/scim/v2/{org}`, outside `/api/v1`. It accepts only a SCIM bearer token of that organization: browser sessions (and so CSRF-able requests) and API keys are refused, and a token of another organization gets `404`. A suspended or deleting organization answers `403`/`404` in SCIM's error format. |
-| Tokens | Created and revoked by organization **owners** only, from a browser session (`/api/v1/orgs/{org}/scim/tokens`). A token starts with `tripl_scim_`, is shown once, and is stored only as a keyed HMAC digest, like session tokens; a prefix is kept for display. Revoked tokens are refused at once. A token works only while its creator is an owner of the organization: removing, deactivating or demoting that owner, or their transferring ownership, revokes their tokens (audited with `reason: "creator_no_longer_owner"`), and a token whose creator is no longer an owner is refused in any case. Creation and revocation are audited (`org.scim.token_create`, `org.scim.token_revoke`). |
-| New accounts | Created only for an address at one of the organization's **verified** single sign-on domains; any other address is refused (`400 invalidValue`). The address is marked verified, the password is a scrypt hash of a random secret (unusable, so sign-in is through single sign-on), and the account is never a platform admin. |
-| Existing accounts | Linked only when the address is at a verified domain of the organization, or the account is already a member; any other existing account gets the same `400 invalidValue` as an unknown address, so a token is no oracle for which addresses have accounts and cannot pull a stranger into an organization. A linked account's password and name are not changed on linking, **except** that an account at a verified domain whose address nobody ever confirmed (an unverified hosted sign-up) is taken over as by a verified SSO sign-in: its password is replaced with an unusable one, its sessions and pending reset/verification links are deleted, **all its API keys are revoked**, and its address is marked verified. Later `displayName`/`name.*` updates change the account's name only for an address at a verified domain. `userName` never changes (`400 mutability`). |
-| Visibility | The IdP sees only accounts that are members of the organization or that it provisioned and later deactivated; another organization's users are never listed and answer `404` by id. |
-| Deactivation | `active: false` or `DELETE` removes the organization membership with everything [removing a member](../administer/admin-guide.md#members-and-roles) takes away (organization API keys revoked, project access, group memberships and single sign-on identities dropped). The account is kept. The last owner cannot be deactivated (`409`). A member an owner or admin removed by hand cannot be re-activated or re-created by the IdP (`409 mutability`) until they accept a new invitation; a `PUT` without `active` never re-activates. |
-| Roles | SCIM never grants owner. The optional admin group mapping promotes the group's members to admin and demotes people removed from it to member; owners are never changed by it. |
-| Managed groups | A group the IdP created, or any group the IdP has written to (it sees every group of the organization and matches by name, so a hand-made group with the same name is adopted on its first SCIM write), is managed by SCIM: renaming it, deleting it or changing its members through the groups API gets `409`; only its description stays editable. |
-| Audit | Every SCIM write is recorded in the organization's audit log with no acting user and `via: "scim"` plus the token prefix. |
-| Rate limits | Each token has its own bucket (600 requests a minute). Failed authentications (`401`) draw on a bucket per client address (30 a minute), then answer `429`. |
-| Input limits | `startIndex` is capped at 10⁹; a body nested more than 32 levels deep, or too deeply to parse, is `400 invalidSyntax`; unknown endpoints, unsupported methods and oversized bodies answer in SCIM's error format. |
 ### Audit webhook {#audit-webhook}
 
 An organization owner can have every new audit entry POSTed to an HTTPS

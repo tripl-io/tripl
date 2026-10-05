@@ -77,9 +77,7 @@ def test_bundled_enterprise_extension_is_loaded_by_default() -> None:
 
 
 def test_bundled_models_are_in_the_metadata() -> None:
-    assert {"org_sso_configs", "org_scim_configs", "org_audit_webhooks"} <= set(
-        Base.metadata.tables
-    )
+    assert {"org_audit_webhooks", "audit_webhook_outbox"} <= set(Base.metadata.tables)
 
 
 async def test_no_extension_makes_every_hook_a_no_op() -> None:

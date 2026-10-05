@@ -220,21 +220,6 @@ PATH_ORG_ADMIN_ROUTES = {
 PATH_ORG_OWNER_ROUTES = {
     "DELETE /api/v1/orgs/{org}",
     "POST /api/v1/orgs/{org}/transfer-ownership",
-    # Single sign-on (F20): owners of THAT org only, reads included.
-    "GET /api/v1/orgs/{org}/sso",
-    "PUT /api/v1/orgs/{org}/sso",
-    "POST /api/v1/orgs/{org}/sso/test",
-    "POST /api/v1/orgs/{org}/sso/saml/metadata-import",
-    "GET /api/v1/orgs/{org}/sso/domains",
-    "POST /api/v1/orgs/{org}/sso/domains",
-    "DELETE /api/v1/orgs/{org}/sso/domains/{domain_id}",
-    "POST /api/v1/orgs/{org}/sso/domains/{domain_id}/verify",
-    # SCIM provisioning (F20): its tokens and admin-group mapping, owners only.
-    "GET /api/v1/orgs/{org}/scim/tokens",
-    "POST /api/v1/orgs/{org}/scim/tokens",
-    "DELETE /api/v1/orgs/{org}/scim/tokens/{token_id}",
-    "GET /api/v1/orgs/{org}/scim/config",
-    "PUT /api/v1/orgs/{org}/scim/config",
 }
 
 

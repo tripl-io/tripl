@@ -105,15 +105,6 @@ _PLATFORM_CONSOLE_REASON = (
     "test_platform_console.py and test_platform_step_in.py pin who reaches it"
 )
 
-_SCIM_REASON = (
-    "the SCIM 2.0 service provider (F20): outside /api/v1 and authenticated by a "
-    "SCIM token of the organization the path names ONLY (sessions and API keys "
-    "are 401, so the session/key matrix cannot drive it); a token of another "
-    "organization is 404 and another organization's users and groups are "
-    "invisible, which test_scim.py and test_scim_groups.py pin"
-)
-_SCIM = "/scim/v2/{org}"
-
 #: Every route that is NOT per organization, with the reason. Keyed by path: a
 #: path's methods share the reason.
 PUBLIC_OR_INSTANCE_WIDE: dict[str, str] = {
@@ -133,27 +124,6 @@ PUBLIC_OR_INSTANCE_WIDE: dict[str, str] = {
     f"{API}/auth/verify-email/request": _AUTH_REASON,
     f"{API}/auth/verify-email/confirm": _AUTH_REASON,
     f"{API}/auth/logout": _AUTH_REASON,
-    f"{API}/auth/sso/discover": (
-        "SSO discovery (F20): unauthenticated, answers which organizations sign an "
-        "email domain in; names organizations by their public slug and name only"
-    ),
-    f"{API}/auth/sso/{{org_slug}}/start": (
-        "SSO sign-in (F20): unauthenticated, names the organization as the SUBJECT "
-        "of a sign-in and acts in none; test_org_sso.py pins the flow"
-    ),
-    f"{API}/auth/sso/{{org_slug}}/callback": (
-        "SSO sign-in (F20): the identity provider's redirect back, authorized by a "
-        "single-use state bound to the browser; test_org_sso.py pins the flow"
-    ),
-    f"{API}/auth/sso/{{org_slug}}/saml/acs": (
-        "SAML sign-in (F20): the identity provider's HTTP-POST back, authorized by a "
-        "single-use state bound to the browser and a signed assertion answering its "
-        "AuthnRequest; test_org_saml.py pins the flow"
-    ),
-    f"{API}/auth/sso/{{org_slug}}/saml/metadata": (
-        "SAML SP metadata (F20): unauthenticated and public by nature (tripl's entity "
-        "id and ACS URL for the organization's slug); reads no tenant data"
-    ),
     f"{API}/auth/google/start": (
         "Sign in with Google: the instance's own OAuth client, unauthenticated, "
         "acts in no organization; test_google_sign_in.py pins the flow"
@@ -161,10 +131,6 @@ PUBLIC_OR_INSTANCE_WIDE: dict[str, str] = {
     f"{API}/auth/google/callback": (
         "Sign in with Google: Google's redirect back, authorized by the "
         "encrypted state cookie bound to the browser; test_google_sign_in.py pins the flow"
-    ),
-    f"{API}/auth/sso/link": (
-        "SSO account link (F20): addressed by its secret single-use ticket; confirming "
-        "also needs a session of the ticket's account (checked in the handler)"
     ),
     f"{API}/auth/me": _AUTH_REASON,
     f"{API}/settings": _SETTINGS_REASON,
@@ -187,19 +153,6 @@ PUBLIC_OR_INSTANCE_WIDE: dict[str, str] = {
     f"{API}/platform/step-ins": _PLATFORM_CONSOLE_REASON,
     f"{API}/platform/step-ins/{{step_in_id}}/end": _PLATFORM_CONSOLE_REASON,
     f"{API}/project-templates": "static instance-wide catalog of starter templates",
-    f"{_SCIM}/ServiceProviderConfig": _SCIM_REASON,
-    f"{_SCIM}/ResourceTypes": _SCIM_REASON,
-    f"{_SCIM}/ResourceTypes/{{name}}": _SCIM_REASON,
-    f"{_SCIM}/Schemas": _SCIM_REASON,
-    f"{_SCIM}/Schemas/{{schema_id}}": _SCIM_REASON,
-    f"{_SCIM}/Users": _SCIM_REASON,
-    f"{_SCIM}/Users/{{user_id}}": _SCIM_REASON,
-    f"{_SCIM}/Groups": _SCIM_REASON,
-    f"{_SCIM}/Groups/{{group_id}}": _SCIM_REASON,
-    f"{_SCIM}/{{rest:path}}": (
-        "the SCIM catch-all: every unsupported path under the SCIM base URL answers a "
-        "SCIM 404 without reading anything"
-    ),
     f"{API}/orgs": (
         "the caller's own organizations (an API key: its own one) and creating a new "
         "one (a platform admin self-hosted, any verified session hosted); names no "
@@ -928,14 +881,6 @@ def _body(method: str, path: str, w: World) -> Any:
         f"{API}/orgs/{{org}}/groups": {"name": "probe"},
         f"{API}/orgs/{{org}}/groups/{{group_id}}": {"name": "probe"},
         f"{API}/orgs/{{org}}/groups/{{group_id}}/members": {"user_id": w.a.member_id},
-        f"{API}/orgs/{{org}}/sso": {
-            "issuer": "https://idp.example.com",
-            "client_id": "probe",
-            "client_secret": "probe",
-        },
-        f"{API}/orgs/{{org}}/sso/domains": {"domain": "alpha.example.com"},
-        f"{API}/orgs/{{org}}/sso/saml/metadata-import": {"xml": "<probe/>"},
-        f"{API}/orgs/{{org}}/scim/config": {"admin_group_id": None},
         f"{API}/audit/webhook": {"url": "https://hooks.example.com/probe", "enabled": True},
     }
     return table.get(path, {})

@@ -91,8 +91,8 @@ settings of its own, the mail goes out through the operator's relay and uses
 that relay's configured sender, and the destination's From address is ignored.
 Entering the operator's own SMTP host in your organization's settings does not
 count as your own relay. On a hosted instance a From address can only be saved
-if your organization has its own SMTP relay, even when its domain is one of your
-verified single sign-on domains, because the operator's relay would not use it.
+if your organization has its own SMTP relay, because the operator's relay would
+not use it.
 Otherwise the save fails with a 422 error. On a self-hosted instance the default
 organization uses the operator's settings, so its From address works as it did
 before.
