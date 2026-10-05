@@ -531,6 +531,22 @@ describe('AuthPage sign-in errors and extension panels', () => {
       expect(screen.getByLabelText('Password')).toBeInTheDocument()
     })
 
+    it('offers the instance OpenID Connect provider under its own label', async () => {
+      mockInstance({ oidc_sign_in: true, oidc_button_label: 'Sign in with Okta' })
+      render(
+        <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
+          <MemoryRouter initialEntries={[{ pathname: '/auth', state: { from: { pathname: '/projects' } } }]}>
+            <AuthPage />
+          </MemoryRouter>
+        </QueryClientProvider>,
+      )
+
+      const link = await screen.findByRole('link', { name: 'Sign in with Okta' })
+      expect(link.getAttribute('href')).toBe('/api/v1/auth/oidc/start?next=%2Fprojects')
+      expect(screen.queryByRole('link', { name: 'Continue with Google' })).not.toBeInTheDocument()
+      expect(screen.getByLabelText('Password')).toBeInTheDocument()
+    })
+
     it('shows no Google button without a client', async () => {
       mockInstance({ google_sign_in: false })
       renderAuth()

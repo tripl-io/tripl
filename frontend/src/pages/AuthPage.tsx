@@ -1,9 +1,9 @@
 import { Suspense, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useLocation, useNavigate, useSearchParams } from 'react-router-dom'
-import { ArrowRight, LockKeyhole, Radar, UserPlus } from 'lucide-react'
+import { ArrowRight, LockKeyhole, LogIn, Radar, UserPlus } from 'lucide-react'
 import { authApi } from '@/api/auth'
-import { googleStartUrl, signInErrorMessage } from '@/api/signIn'
+import { googleStartUrl, oidcStartUrl, signInErrorMessage } from '@/api/signIn'
 import { FieldError } from '@/components/forms/FieldError'
 import { REQUIRED_MESSAGE, focusFirstInvalid, invalidAria } from '@/components/forms/validation'
 import { Button } from '@/components/ui/button'
@@ -146,6 +146,8 @@ export default function AuthPage() {
   const registrationClosed =
     statusQuery.data?.registration_enabled === false || statusQuery.data?.public_demo === true
   const googleSignIn = statusQuery.data?.google_sign_in === true
+  const oidcSignIn = statusQuery.data?.oidc_sign_in === true
+  const oidcLabel = statusQuery.data?.oidc_button_label || 'Sign in with OpenID Connect'
   // Same rule: only a definite `false` says so before the request. The
   // form stays usable — the server's answer is the same neutral one either way.
   const emailOff = statusQuery.data?.email_configured === false
@@ -364,16 +366,26 @@ export default function AuthPage() {
               </div>
             )}
 
-            {isAuthTab && googleSignIn && (
+            {isAuthTab && (googleSignIn || oidcSignIn) && (
               <div className="space-y-4">
-                {/* A navigation, not a fetch: the server answers with a
-                    redirect to Google's account chooser. */}
-                <Button asChild size="lg" variant="outline" className="w-full justify-center">
-                  <a href={googleStartUrl(destination)}>
-                    <GoogleMark />
-                    Continue with Google
-                  </a>
-                </Button>
+                {/* Navigations, not fetches: the server answers with a
+                    redirect to the provider. */}
+                {oidcSignIn && (
+                  <Button asChild size="lg" variant="outline" className="w-full justify-center">
+                    <a href={oidcStartUrl(destination)}>
+                      <LogIn aria-hidden="true" />
+                      {oidcLabel}
+                    </a>
+                  </Button>
+                )}
+                {googleSignIn && (
+                  <Button asChild size="lg" variant="outline" className="w-full justify-center">
+                    <a href={googleStartUrl(destination)}>
+                      <GoogleMark />
+                      Continue with Google
+                    </a>
+                  </Button>
+                )}
                 <div className="flex items-center gap-3 text-body-sm text-fg-subtle" aria-hidden="true">
                   <span className="h-px flex-1 bg-border" />
                   or with email

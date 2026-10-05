@@ -14,11 +14,21 @@ export function safeNextPath(next: string | null | undefined): string | null {
   return next
 }
 
-/** The address that begins Sign in with Google, the instance-wide client. */
-export function googleStartUrl(next?: string | null): string {
-  const path = '/api/v1/auth/google/start'
+/** The address that begins signing in through an instance-wide provider. */
+function instanceStartUrl(provider: 'google' | 'oidc', next?: string | null): string {
+  const path = `/api/v1/auth/${provider}/start`
   const safe = safeNextPath(next)
   return safe && safe !== '/' ? `${path}?next=${encodeURIComponent(safe)}` : path
+}
+
+/** The address that begins Sign in with Google, the instance-wide client. */
+export function googleStartUrl(next?: string | null): string {
+  return instanceStartUrl('google', next)
+}
+
+/** The address that begins signing in through the instance's OpenID Connect provider. */
+export function oidcStartUrl(next?: string | null): string {
+  return instanceStartUrl('oidc', next)
 }
 
 /**

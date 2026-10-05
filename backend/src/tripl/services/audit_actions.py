@@ -294,6 +294,8 @@ WORKSPACE_GROUPS: tuple[tuple[str, tuple[str, ...]], ...] = (
             "user.sso_link",
             # Sign in with Google, the instance's own client.
             "user.google_sign_in",
+            # Sign in through the instance's OpenID Connect provider (OIDC_*).
+            "user.oidc_sign_in",
         ),
     ),
     (

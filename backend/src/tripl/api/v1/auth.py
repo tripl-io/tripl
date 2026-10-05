@@ -36,6 +36,7 @@ from tripl.services import (
     email_verification_service,
     google_login_service,
     invitation_service,
+    oidc_login_service,
 )
 
 logger = logging.getLogger(__name__)
@@ -252,6 +253,8 @@ async def get_status(session: SessionDep) -> AuthStatusResponse:
         deployment_mode=settings.deployment_mode,
         email_verification_required=email_verification_service.verification_required(),
         google_sign_in=google_login_service.enabled(),
+        oidc_sign_in=oidc_login_service.enabled(),
+        oidc_button_label=settings.oidc_button_label if oidc_login_service.enabled() else None,
         public_demo=tenancy.public_demo(),
         multi_org=tenancy.policy().multi_org,
     )

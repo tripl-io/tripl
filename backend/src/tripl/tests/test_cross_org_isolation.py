@@ -126,6 +126,14 @@ PUBLIC_OR_INSTANCE_WIDE: dict[str, str] = {
         "Sign in with Google: Google's redirect back, authorized by the "
         "encrypted state cookie bound to the browser; test_google_sign_in.py pins the flow"
     ),
+    f"{API}/auth/oidc/start": (
+        "Sign in through the instance's OpenID Connect provider (OIDC_*), "
+        "unauthenticated, acts in no organization; test_oidc_sign_in.py pins the flow"
+    ),
+    f"{API}/auth/oidc/callback": (
+        "the OpenID Connect provider's redirect back, authorized by the encrypted "
+        "state cookie bound to the browser; test_oidc_sign_in.py pins the flow"
+    ),
     f"{API}/auth/me": _AUTH_REASON,
     f"{API}/settings": _SETTINGS_REASON,
     f"{API}/settings/photo-limits": _SETTINGS_REASON,

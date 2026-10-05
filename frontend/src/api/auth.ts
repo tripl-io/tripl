@@ -35,6 +35,10 @@ export interface AuthStatusResponse {
   /** The operator configured a Google client: the page offers "Continue with
    *  Google". */
   google_sign_in?: boolean
+  /** The operator configured the instance's OpenID Connect provider
+   *  (`OIDC_*`): the page offers a button with `oidc_button_label`. */
+  oidc_sign_in?: boolean
+  oidc_button_label?: string | null
   /** A public demo: no password sign-ups (Google only), and the app refuses
    *  whatever would reach outside the instance. */
   public_demo?: boolean

@@ -699,6 +699,47 @@ Suspension and a platform admin's [read-only step-in](#platform-console) are
 recorded in the organization's own log; the two grant actions belong to no
 organization (see [Users](#platform-console)).
 
+## Signing in through your identity provider {#instance-sign-in}
+
+Besides passwords, the sign-in page can offer two buttons for the whole
+instance, both in Community: **Continue with Google**
+(`GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`), and one for your own OpenID
+Connect provider — Okta, Microsoft Entra ID, Keycloak, Authentik, Auth0 or any
+other — set with the `OIDC_*` variables ([configuration](../run/configuration.md)).
+
+1. At the provider, register a **web** application (confidential client,
+   authorization code flow) with the redirect URI
+   `https://<your host>/api/v1/auth/oidc/callback`.
+2. Set `OIDC_ISSUER`, `OIDC_CLIENT_ID` and `OIDC_CLIENT_SECRET`, and
+   `OIDC_BUTTON_LABEL` for the button's text. Restart the server.
+
+Who signs in:
+
+- **An address the provider verified** (`email_verified` in its id_token)
+  signs in to the tripl account with that address. The provider must verify
+  addresses before vouching for them: whoever it signs in as an address is
+  that account here.
+- **`OIDC_ALLOWED_DOMAINS`** limits sign-in to addresses at those domains,
+  every account included — platform admins too. Set it to your company's
+  domains.
+- **A first sign-in** creates the account where sign-up is open
+  (`REGISTRATION_MODE`), and joins it to the organization as a password
+  sign-up would. `OIDC_AUTO_CREATE_USERS=false` signs in existing accounts
+  only; invite people first.
+
+Each sign-in is audited as `user.oidc_sign_in`. A failed one comes back to the
+sign-in page with the reason.
+
+| Provider | `OIDC_ISSUER` | Notes |
+|---|---|---|
+| Okta | `https://<your org>.okta.com` (or a custom authorization server's issuer, `https://<your org>.okta.com/oauth2/default`) | App integration: OIDC, Web Application, grant type Authorization Code. |
+| Microsoft Entra ID | `https://login.microsoftonline.com/<tenant id>/v2.0` | App registration: Web platform with the redirect URI, a client secret, and the `email` optional claim on the ID token. Entra marks no address verified unless your tenant does; check it signs in before relying on it. |
+| Keycloak | `https://<host>/realms/<realm>` | Client: OpenID Connect, Client authentication on, Standard flow. Turn on **Email verified** for users (or verify them), or they are refused. |
+
+Per-organization single sign-on — each organization with its own provider,
+verified domains, requiring it, SAML 2.0 — and SCIM provisioning are the
+Enterprise edition's (below).
+
 ## Single sign-on (OIDC and SAML) {#single-sign-on}
 
 :::info Enterprise
@@ -710,8 +751,9 @@ provider, using OpenID Connect or SAML 2.0. The organization verifies its email
 domains, and it can require single sign-on for everyone except its owners.
 
 In Community, **Settings → Single sign-on** shows the feature with an
-**Enterprise** tag. Sign in with Google, configured for the whole instance,
-is in Community; see [configuration](../run/configuration.md).
+**Enterprise** tag. Signing in with Google or your own OpenID Connect
+provider for the whole instance is in Community; see
+[Signing in through your identity provider](#instance-sign-in).
 
 ## Provisioning (SCIM 2.0) {#scim}
 
