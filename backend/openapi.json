@@ -4810,6 +4810,11 @@
             "title": "Has Users",
             "type": "boolean"
           },
+          "multi_org": {
+            "default": false,
+            "title": "Multi Org",
+            "type": "boolean"
+          },
           "public_demo": {
             "default": false,
             "title": "Public Demo",

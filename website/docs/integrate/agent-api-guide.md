@@ -207,7 +207,7 @@ address and answer `429` with `Retry-After` when exceeded.
 
 | Method and path | Who | What |
 |---|---|---|
-| `GET /api/v1/auth/status` | anyone | `has_users`, `registration_enabled`, `email_configured`, `deployment_mode` (`self_hosted` or `hosted`) and `email_verification_required` (`true` when hosted). A hosted instance always reports `has_users: true`. |
+| `GET /api/v1/auth/status` | anyone | `has_users`, `registration_enabled`, `email_configured`, `deployment_mode` (`self_hosted` or `hosted`), `email_verification_required` (`true` when hosted), `google_sign_in`, `public_demo` and `multi_org` (`true` where the edition creates more than one organization: Enterprise). A hosted instance always reports `has_users: true`. |
 | `POST /api/v1/auth/register` | anyone, when registration is open | `{"email", "password", "name"?}`, plus `"org_name"` and `"org_slug"`, which a hosted instance requires (`422` without them, `409` when the slug is taken) and a self-hosted one ignores. Hosted: `503 Email delivery is not configured` when the operator cannot send mail; the new account owns a new organization and is sent a verification link. |
 | `POST /api/v1/auth/login` | anyone | Starts a browser session. |
 | `POST /api/v1/auth/logout` | session | `204`. |

@@ -26,7 +26,15 @@ from tripl.models.audit_log import AuditLog
 from tripl.models.organization_group import OrganizationGroup, OrganizationGroupMember
 from tripl.services import org_deletion_service, org_group_service
 from tripl.tests._members import add_org_member
+from tripl.tests._tenancy import use_multi_org
 from tripl.tests.conftest import TestSessionLocal
+
+
+@pytest.fixture(autouse=True)
+def _more_organizations(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Organizations are created over the API here: the Enterprise edition's (``_tenancy``)."""
+    use_multi_org(monkeypatch)
+
 
 PASSWORD = "Password123!"
 API = "/api/v1"

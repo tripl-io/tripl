@@ -7628,6 +7628,11 @@ export interface components {
             /** Has Users */
             has_users: boolean;
             /**
+             * Multi Org
+             * @default false
+             */
+            multi_org: boolean;
+            /**
              * Public Demo
              * @default false
              */

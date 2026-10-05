@@ -9,7 +9,7 @@ Tripl comes in two editions built from the same code.
 
 **Community** is free and open source (AGPL-3.0-or-later). It is the whole
 product for a team: tracking plans, scans of your warehouse, monitoring and
-alerts, docs, the CLI and the MCP server, organizations with roles and groups,
+alerts, docs, the CLI and the MCP server, an organization with roles and groups,
 each project's audit history, and Sign in with Google.
 
 **Enterprise** adds what larger organizations need to run Tripl under their
@@ -19,7 +19,8 @@ own identity and compliance rules. It ships as a separate private image,
 | Feature | Community | Enterprise |
 |---|:---:|:---:|
 | Tracking plans, scans, monitoring, alerts | ✓ | ✓ |
-| Organizations, roles, groups, API keys | ✓ | ✓ |
+| One organization with roles, groups, API keys | ✓ | ✓ |
+| More organizations on one instance, each with its own members and projects | | ✓ |
 | Project audit history | ✓ | ✓ |
 | Sign in with Google | ✓ | ✓ |
 | Single sign-on per organization (OpenID Connect, SAML 2.0), verified domains, SSO required | | ✓ |

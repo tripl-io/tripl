@@ -38,6 +38,10 @@ export interface AuthStatusResponse {
   /** A public demo: no password sign-ups (Google only), and the app refuses
    *  whatever would reach outside the instance. */
   public_demo?: boolean
+  /** The edition creates more than one organization (Enterprise); Community
+   *  runs one. Optional so probes mocked before it still type; absent reads
+   *  as one organization. */
+  multi_org?: boolean
 }
 
 export type DeploymentMode = 'self_hosted' | 'hosted'

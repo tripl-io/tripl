@@ -9,8 +9,8 @@ start (:func:`check_deployment_mode`) rather than run hosted half-way.
 
 Single team: everyone is in the default organization, whose settings are the
 operator's; the first account of an empty instance owns it; sign-up joins it;
-no email verification. What a multi-tenant policy changes is what each member
-documents.
+no email verification; no further organizations are created. What another
+policy changes is what each member documents.
 """
 
 from __future__ import annotations
@@ -28,6 +28,10 @@ if TYPE_CHECKING:
     from tripl.schemas.auth import RegisterRequest
 
 
+#: The refusal of ``POST /orgs`` on a single-team instance.
+MORE_ORGS_ARE_ENTERPRISE = "Creating more organizations is part of tripl Enterprise"
+
+
 class TenancyPolicy:
     """The single-team instance. Subclass to serve many tenants."""
 
@@ -38,6 +42,11 @@ class TenancyPolicy:
     #: server's disk, and a custom From address needs the organization's own
     #: relay.
     multi_tenant: bool = False
+
+    #: More than one organization may be created (``POST /orgs``). A single-team
+    #: instance has its default organization only; organizations it already
+    #: has keep working.
+    multi_org: bool = False
 
     async def orgless_org(self, session: AsyncSession, user: User) -> OrgRef:
         """The organization a request acts in when its URL names none."""
@@ -63,10 +72,22 @@ class TenancyPolicy:
         """
 
     async def require_org_creator(self, request: Request, user: User) -> User:
-        """Who may create an organization (``POST /orgs``): a platform admin."""
+        """Who may create an organization (``POST /orgs``).
+
+        A platform admin, and only where :attr:`multi_org`: on a single-team
+        instance a platform admin is told it is the Enterprise edition's (403
+        :data:`MORE_ORGS_ARE_ENTERPRISE`), anyone else is refused as before.
+        """
+        from fastapi import HTTPException, status
+
         from tripl.api.deps import require_platform_admin
 
-        return await require_platform_admin(request, user)
+        admin = await require_platform_admin(request, user)
+        if not self.multi_org:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN, detail=MORE_ORGS_ARE_ENTERPRISE
+            )
+        return admin
 
 
 _SINGLE_TEAM = TenancyPolicy()

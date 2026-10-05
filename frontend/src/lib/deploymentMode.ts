@@ -44,13 +44,32 @@ export function usePublicDemo(): boolean {
   return isPublicDemoStatus(data)
 }
 
+/** Whether this edition creates more than one organization (Community runs one). */
+export function isMultiOrgStatus(status: AuthStatusResponse | null | undefined): boolean {
+  return status?.multi_org === true
+}
+
 /**
- * May the signed-in user create an organization? A platform admin always may;
+ * May the signed-in user create an organization? Only where the edition
+ * creates more than one (Enterprise); there a platform admin always may, and
  * in hosted mode every signed-in (verified) account may too — `POST /orgs`
  * answers the same. Nobody may on a public demo.
  */
 export function useCanCreateOrg(): boolean {
   const platformAdmin = useIsPlatformAdmin()
   const { data } = useQuery(authStatusQueryOptions())
-  return !isPublicDemoStatus(data) && (platformAdmin || isHostedStatus(data))
+  return (
+    !isPublicDemoStatus(data) && isMultiOrgStatus(data) && (platformAdmin || isHostedStatus(data))
+  )
+}
+
+/**
+ * Would a platform admin create an organization here, were this the
+ * Enterprise edition? Then the app says that it is (a teaser) instead of
+ * offering a form the server refuses. Not before the instance has answered.
+ */
+export function useOrgCreationIsEnterprise(): boolean {
+  const platformAdmin = useIsPlatformAdmin()
+  const { data } = useQuery(authStatusQueryOptions())
+  return platformAdmin && data !== undefined && !isPublicDemoStatus(data) && !isMultiOrgStatus(data)
 }

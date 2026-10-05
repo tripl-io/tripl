@@ -508,8 +508,17 @@ does not exist.
 
 ### Create an organization
 
+:::info Enterprise
+Creating more organizations is part of the [Enterprise edition](../editions.md).
+Community runs one organization, the default one: `POST /api/v1/orgs` answers
+`403 Creating more organizations is part of tripl Enterprise` to a platform
+admin, and **Organization › Details** says so instead of offering the form.
+Organizations an instance already has keep working.
+:::
+
 `POST /api/v1/orgs` with a `name` and a `slug`, from a signed-in browser
-session. Who may call it depends on `DEPLOYMENT_MODE`:
+session. With the Enterprise edition, who may call it depends on
+`DEPLOYMENT_MODE`:
 
 - **self-hosted** — only a **platform admin**;
 - **hosted** — any signed-in user (whose address is verified, like every route

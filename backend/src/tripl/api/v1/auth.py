@@ -253,6 +253,7 @@ async def get_status(session: SessionDep) -> AuthStatusResponse:
         email_verification_required=email_verification_service.verification_required(),
         google_sign_in=google_login_service.enabled(),
         public_demo=settings.public_demo,
+        multi_org=tenancy.policy().multi_org,
     )
 
 
