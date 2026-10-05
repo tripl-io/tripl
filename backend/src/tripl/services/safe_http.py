@@ -2,9 +2,11 @@
 
 The rules every such request shares, in one place:
 
-* on a hosted instance the host must be public (``reject_private_host``) and
-  it is re-resolved right before EVERY request, so a name that pointed
-  somewhere public when it was saved and at a private address now is refused.
+* when outbound hosts must be public (``Settings.public_hosts_only``:
+  ``OUTBOUND_PUBLIC_HOSTS_ONLY``, always on a hosted instance) the host must
+  be public (``reject_private_host``) and it is re-resolved right before
+  EVERY request, so a name that pointed somewhere public when it was saved
+  and at a private address now is refused.
   The connection then goes to the very address that was vetted (the TLS name
   and ``Host`` stay the hostname), so a short-TTL name cannot answer publicly
   for the check and privately for the connection (DNS rebinding);
@@ -20,7 +22,7 @@ The rules every such request shares, in one place:
 * a cap on how much of the response is read; ``max_response_bytes=0`` reads
   none of it (the audit webhook only needs the status).
 
-Self-hosted instances have no private-host rule (an operator may point at an
+Without that setting there is no private-host rule (an operator may point at an
 internal host on purpose) and keep their proxy settings (urllib).
 
 Blocking: call through ``asyncio.to_thread`` from async code. Callers keep
@@ -46,7 +48,7 @@ from typing import Any
 from urllib.parse import urlparse
 
 from tripl.alerting_validation import reject_private_host
-from tripl.config import DEPLOYMENT_HOSTED, settings
+from tripl.config import settings
 from tripl.services.llm_service import _RefuseRedirects
 
 #: Name lookups run here so a slow resolver cannot outlive the deadline (the
@@ -312,7 +314,7 @@ def send(
     ``timeout``) ``TimeoutError``; a private host (hosted)
     :class:`PrivateHostError`.
     """
-    if settings.deployment_mode == DEPLOYMENT_HOSTED:
+    if settings.public_hosts_only:
         return send_pinned(
             method,
             url,
@@ -363,7 +365,7 @@ def check_https_url(url: str, *, field: str, deadline: Deadline | None = None) -
     parsed = urlparse(url)
     if parsed.scheme != "https" or not parsed.hostname:
         raise ValueError(f"{field} must be an https URL")
-    if settings.deployment_mode == DEPLOYMENT_HOSTED:
+    if settings.public_hosts_only:
         try:
             if deadline is None:
                 reject_private_host(parsed.hostname, field=field)

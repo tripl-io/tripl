@@ -113,6 +113,24 @@ def test_self_hosted_keeps_internal_warehouses(captured: dict[str, dict[str, Any
     assert "server_host_name" not in captured["clickhouse"]
 
 
+def test_self_hosted_with_public_hosts_only_refuses_a_private_host(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """``OUTBOUND_PUBLIC_HOSTS_ONLY`` gives a self-hosted instance the hosted guard."""
+    monkeypatch.setattr(settings, "deployment_mode", "self_hosted")
+    monkeypatch.setattr(settings, "outbound_public_hosts_only", True)
+    assert settings.public_hosts_only
+    with pytest.raises(WarehouseCapabilityError, match="private or internal address"):
+        registry.vetted_address(_source("postgres", "10.0.0.5"))
+
+
+def test_self_hosted_without_the_flag_does_not_vet(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(settings, "deployment_mode", "self_hosted")
+    monkeypatch.setattr(settings, "outbound_public_hosts_only", False)
+    assert not settings.public_hosts_only
+    assert registry.vetted_address(_source("postgres", "10.0.0.5")) is None
+
+
 def test_the_refusal_reads_as_a_connection_test_answer(
     hosted: None, monkeypatch: pytest.MonkeyPatch
 ) -> None:

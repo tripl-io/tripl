@@ -10,7 +10,7 @@ from typing import Any, cast
 from urllib.parse import urlparse
 
 from tripl.alerting_validation import reject_private_host
-from tripl.config import DEPLOYMENT_HOSTED, settings
+from tripl.config import settings
 from tripl.services.app_settings_service import AiConfig
 from tripl.services.llm_service import NO_REDIRECT_OPENER
 
@@ -106,13 +106,14 @@ def _host_allowed(cfg: AiConfig) -> bool:
 
 
 def _refuses_redirects(cfg: AiConfig) -> bool:
-    """An organization's endpoint, or any endpoint on a hosted instance.
+    """An organization's endpoint, or any endpoint where outbound requests must
+    reach public hosts only (``Settings.public_hosts_only``).
 
     A 3xx from a public endpoint would otherwise carry the ``Authorization``
     header to wherever it points, past :func:`_host_allowed` (the same reasoning
     as ``llm_service._RefuseRedirects``).
     """
-    return cfg.embedding_host_guard or settings.deployment_mode == DEPLOYMENT_HOSTED
+    return cfg.embedding_host_guard or settings.public_hosts_only
 
 
 def can_embed(config: AiConfig) -> bool:
