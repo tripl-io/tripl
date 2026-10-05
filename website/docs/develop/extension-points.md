@@ -72,6 +72,8 @@ no-op.
 | `on_group_change(session, org_id, group_id, added=, removed=)` | members are added to or removed from an organization group | React to the change, for example by mapping groups to roles. |
 | `on_audit_recorded(session, entry, org_id)` | an organization's audit row is added | Forward it, in the writing transaction. |
 | `tenancy()` | a decision differs between one team's instance and a multi-tenant service | Return a `tripl.tenancy.TenancyPolicy` to run the instance as a multi-tenant service, or `None`. The first policy returned wins; without one the instance is a single team's, and `DEPLOYMENT_MODE=hosted` refuses to start. |
+| `secret_cipher()` | the first stored secret is encrypted or decrypted, or the API or worker starts | Return a `tripl.crypto.SecretCipher` (`encrypt`, `decrypt`, `check`) to encrypt every stored secret, or `None`. The first cipher returned wins; without one, secrets are Fernet under `ENCRYPTION_KEY`. `decrypt` raises `InvalidToken` for a value it cannot read; `check` runs when the API and the worker start and refuses startup when it raises. |
+| `stored_secret_slots()` | stored secrets are listed (`tripl.services.stored_secrets`) | Return the `ColumnSecret`s and `JsonSecret`s the extension's own tables hold, so re-encrypting every stored secret reaches them. A `*_encrypted` column no slot lists fails Community's tests. |
 | `celery_task_modules()` | the Celery app is configured | Return modules to import so their tasks register. |
 | `beat_schedule()` | the Celery app is configured | Return beat entries to add. |
 
@@ -168,6 +170,6 @@ the Editions page, and the admonition on its docs pages.
 ## The Enterprise package
 
 Community bundles no extension. Every Enterprise feature (single sign-on per
-organization, SCIM provisioning, the organization-wide audit log, audit export
-and the audit webhook) lives in the separately installed, private Enterprise
+organization, SCIM provisioning, the organization-wide audit log, audit export,
+the audit webhook and alert escalation) lives in the separately installed, private Enterprise
 package, which reaches the core only through the hooks and the registry above.

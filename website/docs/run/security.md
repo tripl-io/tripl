@@ -33,6 +33,8 @@ Both default to an empty string, and in a non-debug deploy an empty value (or, f
 - **Instance-settings secrets** — `app_settings_service.py` encrypts the fields `ai_api_key`, `search_embedding_api_key`, and `smtp_password` when they are set through the admin settings UI.
 - **Single sign-on** — an organization's OpenID Connect client secret (`org_sso_configs.client_secret_encrypted`) and each sign-in attempt's PKCE code verifier are encrypted with the operator key. SAML 2.0 has no secret: the IdP certificates it stores are public.
 
+`backend/src/tripl/services/stored_secrets.py` lists every stored secret (each `*_encrypted` column and each secret key inside a JSON settings document); a test fails when a new one appears without being listed there. The Enterprise edition can keep them all under a key in your own key management service instead, and re-encrypt them with a command: see [Key management](../enterprise/kms.md).
+
 Behavior of the Fernet layer:
 
 - With a configured key, values round-trip through Fernet.
@@ -97,6 +99,8 @@ If you lose `ENCRYPTION_KEY` and have no backup, the encrypted secrets are unrec
 | CORS origins resolved | Empty → no browser can call the API |
 | CORS not wildcard | Resolves to `*` → credentialed cookie requests break |
 | No dev DB/broker creds | `DATABASE_URL`, `SYNC_DATABASE_URL`, or `RABBITMQ_URL` still contain the dev-default credentials `tripl:tripl` / `guest:guest` |
+
+After these checks, the active secret cipher runs its own check: a no-op for the Fernet key, and for an Enterprise instance under a key management service, a round trip through it ([Key management](../enterprise/kms.md#startup-check)). The worker runs the same check when it starts.
 
 This is a fail-fast guard, not a substitute for the full checklist below. It only inspects configuration values; it cannot verify your TLS, network, or proxy setup.
 

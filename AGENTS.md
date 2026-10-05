@@ -179,7 +179,7 @@ Backend layers:
 - `backend/src/tripl/services`: business logic used by routers.
 - `backend/src/tripl/api/v1`: thin HTTP layer.
 - `backend/src/tripl/middleware`: request-id, security headers, rate limiting.
-- `backend/src/tripl/crypto.py`: Fernet-based at-rest encryption (one source of truth for all callers).
+- `backend/src/tripl/crypto.py`: at-rest encryption of stored secrets (one source of truth for all callers): Fernet under `ENCRYPTION_KEY`, or an extension's cipher (`Extension.secret_cipher`). Every stored secret is listed in `services/stored_secrets.py`; a new `*_encrypted` column or `encrypt_value` caller must be added there.
 - `backend/src/tripl/logging_config.py`: log handler/formatter wiring.
 - `backend/src/tripl/worker/tasks`: async task entrypoints.
 - `backend/src/tripl/core/analyzers`: scan/anomaly analysis logic.

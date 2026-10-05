@@ -282,6 +282,19 @@ WORKSPACE_GROUPS: tuple[tuple[str, tuple[str, ...]], ...] = (
         ),
     ),
     (
+        # Escalation (Enterprise): an organization's escalation policies and the
+        # alert routes that pick one per incident across its projects.
+        "Escalation",
+        (
+            "org.escalation_policy.create",
+            "org.escalation_policy.update",
+            "org.escalation_policy.delete",
+            "org.alert_route.create",
+            "org.alert_route.update",
+            "org.alert_route.delete",
+        ),
+    ),
+    (
         # F20: an organization's OIDC single sign-on — its settings and domains
         # (``org.sso.*``) and the sign-ins through it (``user.sso_*``), all
         # filed in the organization.

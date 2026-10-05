@@ -1593,6 +1593,13 @@ second row for the same scope under a different rule name means two rules are
 watching it and you silenced one of them.
 :::
 
+:::info Enterprise
+In the [Enterprise edition](../editions.md), an incident nobody acknowledges can
+escalate: after a set number of minutes, the next destination, member or group
+is notified. Acknowledging, resolving or muting the incident stops it. See
+[Alert escalation](../enterprise/escalation.md).
+:::
+
 ### Signal verdicts and the incident {#signal-verdicts-and-incidents}
 
 A signal can also be triaged where you investigate it — its Anomalies row or its

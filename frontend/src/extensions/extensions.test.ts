@@ -40,14 +40,18 @@ describe('frontend extensions', () => {
     const organization = WORKSPACE_GROUPS.find((group) => group.label === 'Organization')
     const items = organization?.items ?? []
     const ids = items.map((entry) => entry.id)
+    expect(ids.slice(0, 4)).toEqual(['org-general', 'org-health', 'org-project-search', 'members'])
     const trackers = ids.indexOf('org-trackers')
     expect(ids.slice(trackers, trackers + 3)).toEqual(['org-trackers', 'org-sso', 'org-scim'])
     const limits = ids.indexOf('org-limits')
     expect(ids.slice(limits, limits + 3)).toEqual(['org-limits', 'inst-audit', 'org-audit-webhook'])
     // Every Enterprise feature is a teaser in this build.
     expect(items.filter((entry) => entry.tag === 'Enterprise').map((entry) => entry.id)).toEqual([
+      'org-health',
+      'org-project-search',
       'org-sso',
       'org-scim',
+      'org-escalation',
       'inst-audit',
       'org-audit-webhook',
       'org-audit-retention',
@@ -82,8 +86,11 @@ describe('Enterprise teasers', () => {
 
   it('shows the teaser of every feature no extension provides', () => {
     expect(enterpriseTeasers.map((entry) => entry.item.id)).toEqual([
+      'org-health',
+      'org-project-search',
       'org-sso',
       'org-scim',
+      'org-escalation',
       'inst-audit',
       'org-audit-webhook',
       'org-audit-retention',
@@ -92,6 +99,8 @@ describe('Enterprise teasers', () => {
     ])
     expect(enterpriseTeaser('organization/sso')?.item.label).toBe('Single sign-on')
     expect(enterpriseTeaser('instance/audit')?.item.label).toBe('Audit log')
+    expect(enterpriseTeaser('organization/health')?.item.label).toBe('Project health')
+    expect(enterpriseTeaser('organization/project-search')?.item.label).toBe('Search projects')
   })
 
   it('tags every teaser Enterprise, for owners and admins or platform admins only, once each', () => {

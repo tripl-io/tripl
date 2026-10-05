@@ -1,4 +1,4 @@
-import { Building, History, KeyRound, RefreshCw, ScrollText, UserCog, Webhook } from 'lucide-react'
+import { Activity, Building, FileSearch, History, KeyRound, RefreshCw, ScrollText, Siren, UserCog, Webhook } from 'lucide-react'
 import type { SettingsNavItem } from '@/components/settings/nav'
 import type { ExtensionSettingsSection } from './types'
 
@@ -42,6 +42,32 @@ const platformTagged = (item: Omit<SettingsNavItem, 'tag' | 'platformOnly'>): Se
 export const ENTERPRISE_TEASERS: readonly EnterpriseTeaser[] = [
   {
     group: 'Organization',
+    after: 'org-general',
+    item: tagged({
+      id: 'org-health',
+      label: 'Project health',
+      icon: Activity,
+      path: 'organization/health',
+      keywords: ['dashboard', 'overview', 'incidents', 'failing scans', 'monitors', 'drift', 'coverage', 'trend'],
+    }),
+    summary:
+      "Every project of the organization in one sortable table: failing scans, firing monitors, open incidents and property drifts, plan coverage, and each project's failed scan runs over the last 7 days, with the organization's totals.",
+  },
+  {
+    group: 'Organization',
+    after: 'org-health',
+    item: tagged({
+      id: 'org-project-search',
+      label: 'Search projects',
+      icon: FileSearch,
+      path: 'organization/project-search',
+      keywords: ['find', 'cross-project', 'all projects', 'events', 'metrics'],
+    }),
+    summary:
+      'One search over every project of the organization: events, properties, metrics, scans, alert rules and docs notes, best matches first, each labelled with its project. Only projects the person searching can open are searched.',
+  },
+  {
+    group: 'Organization',
     after: 'org-trackers',
     item: tagged({
       id: 'org-sso',
@@ -65,6 +91,19 @@ export const ENTERPRISE_TEASERS: readonly EnterpriseTeaser[] = [
     }),
     summary:
       'Your identity provider adds and removes members over SCIM 2.0, and maps its groups to organization roles.',
+  },
+  {
+    group: 'Organization',
+    after: 'org-scim',
+    item: tagged({
+      id: 'org-escalation',
+      label: 'Escalation',
+      icon: Siren,
+      path: 'organization/escalation',
+      keywords: ['on-call', 'escalation policy', 'paging', 'routing', 'unacknowledged'],
+    }),
+    summary:
+      'When an alert is not acknowledged in time, notify the next destination, member or group, with routes that pick a policy across all projects.',
   },
   {
     group: 'Organization',

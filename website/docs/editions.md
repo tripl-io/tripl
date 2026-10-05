@@ -29,6 +29,9 @@ own identity and compliance rules. It ships as a separate private image,
 | Organization-wide audit log, search across projects, export (CSV, NDJSON) | | ✓ |
 | Audit webhook to a SIEM | | ✓ |
 | Audit log retention policies, legal hold | | ✓ |
+| Project health across the organization, search across every project | | ✓ |
+| Alert escalation policies and organization-wide alert routes | | ✓ |
+| Stored secrets under your own key management service (AWS KMS, Google Cloud KMS, Azure Key Vault, HashiCorp Vault), key rotation | | ✓ |
 | Platform console: every organization and account, suspension, read-only step-in | | ✓ |
 | Public demo instance (`PUBLIC_DEMO`), a pool of ready demos, purge of idle organizations | | ✓ |
 | Multi-tenant hosted service (`DEPLOYMENT_MODE=hosted`): each sign-up gets its own organization, verified addresses | | ✓ |
@@ -36,7 +39,10 @@ own identity and compliance rules. It ships as a separate private image,
 The Enterprise features are documented in the **Enterprise** section of these
 docs: [single sign-on and provisioning](./enterprise/sso-and-scim.md), the
 [organization audit log](./enterprise/audit.md) with its export and webhook,
-the [platform console](./enterprise/platform-console.md), and the
+[project health and search across projects](./enterprise/org-insights.md),
+[alert escalation](./enterprise/escalation.md), the
+[platform console](./enterprise/platform-console.md),
+[key management](./enterprise/kms.md) for stored secrets, and the
 [license key](./enterprise/license.md) an Enterprise instance runs under.
 
 Every Enterprise feature is in the Enterprise image only: the Community image
