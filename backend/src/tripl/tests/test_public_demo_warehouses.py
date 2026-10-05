@@ -22,6 +22,7 @@ from tripl.core.adapters.errors import WarehouseCapabilityError
 from tripl.models.data_source import DataSource
 from tripl.services.datasource_service import _run_adapter_test
 from tripl.storage.photo_storage import GOOGLE_TOKEN_URI
+from tripl.tests._tenancy import use_public_demo
 
 
 def _source(db_type: str, host: str, port: int = 5432) -> DataSource:
@@ -166,7 +167,7 @@ class TestPublicDemoWarehouses:
     @pytest.fixture(autouse=True)
     def public_demo(self, client: AsyncClient, monkeypatch: pytest.MonkeyPatch) -> None:
         """After ``client`` has signed up: a public demo takes no password sign-ups."""
-        monkeypatch.setattr(settings, "public_demo", True)
+        use_public_demo(monkeypatch)
 
     async def test_no_new_warehouse(self, client: AsyncClient) -> None:
         resp = await client.post(

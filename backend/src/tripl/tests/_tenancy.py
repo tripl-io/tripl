@@ -52,3 +52,39 @@ def use_multi_tenant(monkeypatch: pytest.MonkeyPatch) -> None:
     """Run as a hosted instance: ``DEPLOYMENT_MODE=hosted`` and the stand-in policy."""
     monkeypatch.setattr(settings, "deployment_mode", DEPLOYMENT_HOSTED)
     monkeypatch.setattr(tenancy, "policy", lambda: POLICY)
+
+
+class PublicDemoForTests(tenancy.TenancyPolicy):
+    """A hosted public demo, as the Enterprise edition runs one (``PUBLIC_DEMO``)."""
+
+    multi_tenant = True
+    multi_org = True
+
+    @property
+    def public_demo(self) -> bool:
+        return True
+
+    async def orgless_org(self, session: AsyncSession, user: User) -> OrgRef:
+        return await org_resolution.only_org_of(session, user.id)
+
+
+PUBLIC_DEMO = PublicDemoForTests()
+
+
+def use_public_demo(monkeypatch: pytest.MonkeyPatch, *, hosted: bool = False) -> None:
+    """Run as a public demo (refusals on); ``hosted`` also makes it multi-tenant."""
+    if hosted:
+        monkeypatch.setattr(settings, "deployment_mode", DEPLOYMENT_HOSTED)
+
+    class _SingleTeamDemo(tenancy.TenancyPolicy):
+        @property
+        def public_demo(self) -> bool:
+            return True
+
+    chosen = PUBLIC_DEMO if hosted else _SingleTeamDemo()
+    monkeypatch.setattr(tenancy, "policy", lambda: chosen)
+
+
+def use_single_team(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Back to Community's own policy (no public demo, one organization)."""
+    monkeypatch.setattr(tenancy, "policy", lambda: tenancy.TenancyPolicy())

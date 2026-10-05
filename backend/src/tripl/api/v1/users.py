@@ -19,13 +19,13 @@ import uuid
 
 from fastapi import APIRouter, BackgroundTasks, HTTPException, Query, Request, status
 
+from tripl import tenancy
 from tripl.api.deps import (
     OrgMemberUserDep,
     OwnerUserDep,
     SessionDep,
     request_org_role,
 )
-from tripl.config import settings
 from tripl.middleware.org_context import require_org_id
 from tripl.models.domain_enums import OrganizationRole
 from tripl.schemas.auth import UserListItem, UserRoleUpdate
@@ -86,7 +86,7 @@ async def create_invitation(
         organization_id=require_org_id(),
         invited_by_user_id=current_user.id,
     )
-    if not settings.public_demo:
+    if not tenancy.public_demo():
         await audit_service.record(
             session,
             user=current_user,
@@ -97,7 +97,7 @@ async def create_invitation(
             payload={"role": OrganizationRole(data.role).value},
         )
     accept_path = f"/invite/{raw_token}"
-    if not settings.public_demo:
+    if not tenancy.public_demo():
         mail = await invitation_email.prepare(
             session,
             recipient=invitation.email,

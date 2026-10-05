@@ -6,6 +6,7 @@ from datetime import UTC, datetime
 import pytest
 from httpx import AsyncClient
 
+from tripl.tests._tenancy import use_public_demo
 from tripl.models.alert_delivery import AlertDelivery
 from tripl.models.alert_delivery_item import AlertDeliveryItem
 from tripl.services import llm_service
@@ -96,7 +97,7 @@ def test_a_public_demo_has_no_ai_whatever_the_operator_configured(
     monkeypatch.setattr(llm_service.settings, "ai_enabled", True)
     monkeypatch.setattr(llm_service.settings, "ai_api_key", "sk-test")
     monkeypatch.setattr(llm_service.settings, "search_embeddings_enabled", True)
-    monkeypatch.setattr(llm_service.settings, "public_demo", True)
+    use_public_demo(monkeypatch)
 
     config = env_ai_config()
 

@@ -252,7 +252,7 @@ async def get_status(session: SessionDep) -> AuthStatusResponse:
         deployment_mode=settings.deployment_mode,
         email_verification_required=email_verification_service.verification_required(),
         google_sign_in=google_login_service.enabled(),
-        public_demo=settings.public_demo,
+        public_demo=tenancy.public_demo(),
         multi_org=tenancy.policy().multi_org,
     )
 
@@ -404,7 +404,7 @@ async def accept_invitation(
         response.status_code = status.HTTP_200_OK
         return await auth_service.build_auth_user_response(session, signed_in)
 
-    if settings.public_demo:
+    if tenancy.public_demo():
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Sign in with Google before accepting a demo invitation.",

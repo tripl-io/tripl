@@ -347,7 +347,7 @@ def refuse_on_public_demo(what: str) -> Callable[[], None]:
     """
 
     def refuse() -> None:
-        if settings.public_demo:
+        if tenancy.public_demo():
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail=f"This public demo does not {what}.",
