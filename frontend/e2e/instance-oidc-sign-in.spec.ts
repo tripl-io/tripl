@@ -26,7 +26,7 @@ test('the sign-in page offers the instance OpenID Connect provider and starts it
   await expect(button).toBeVisible({ timeout: 60_000 })
   await expect(page.getByRole('link', { name: 'Continue with Google' })).toHaveCount(0)
   // The password form stays for accounts that have one.
-  await expect(page.getByLabel('Password')).toBeVisible()
+  await expect(page.getByLabel('Password', { exact: true })).toBeVisible()
 
   await button.click()
   await expect(page).toHaveURL(/\/api\/v1\/auth\/oidc\/start$/)
