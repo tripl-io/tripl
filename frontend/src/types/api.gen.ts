@@ -7664,7 +7664,7 @@ export interface components {
          *     ``project`` holds the actions recorded WITH a project — the only ones a
          *     project-scoped query can match. ``workspace`` holds those recorded with no
          *     project (data sources, users, instance settings, a deleted project), which
-         *     only the unfiltered workspace feed can match. An action is in exactly one.
+         *     only the organization-wide feed (Enterprise) can match. An action is in exactly one.
          */
         AuditActionCatalog: {
             /** Project */
@@ -7688,7 +7688,7 @@ export interface components {
          *
          *     ``payload`` is the half of an audit entry that carries warehouse hosts and
          *     ``base_query`` SQL, which is why the whole router is owner-only — see the
-         *     gate write-up in api/v1/audit.py. Secrets are already masked at write time
+         *     gate write-up in api/v1/project_audit.py. Secrets are already masked at write time
          *     by ``audit_service._redact``.
          */
         AuditEntryDetailResponse: {

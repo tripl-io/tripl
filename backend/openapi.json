@@ -4501,7 +4501,7 @@
         "type": "object"
       },
       "AuditActionCatalog": {
-        "description": "Every action the audit log records, grouped for the filter.\n\n``project`` holds the actions recorded WITH a project \u2014 the only ones a\nproject-scoped query can match. ``workspace`` holds those recorded with no\nproject (data sources, users, instance settings, a deleted project), which\nonly the unfiltered workspace feed can match. An action is in exactly one.",
+        "description": "Every action the audit log records, grouped for the filter.\n\n``project`` holds the actions recorded WITH a project \u2014 the only ones a\nproject-scoped query can match. ``workspace`` holds those recorded with no\nproject (data sources, users, instance settings, a deleted project), which\nonly the organization-wide feed (Enterprise) can match. An action is in exactly one.",
         "properties": {
           "project": {
             "items": {
@@ -4548,7 +4548,7 @@
         "type": "object"
       },
       "AuditEntryDetailResponse": {
-        "description": "One entry WITH the request payload that produced it.\n\n``payload`` is the half of an audit entry that carries warehouse hosts and\n``base_query`` SQL, which is why the whole router is owner-only \u2014 see the\ngate write-up in api/v1/audit.py. Secrets are already masked at write time\nby ``audit_service._redact``.",
+        "description": "One entry WITH the request payload that produced it.\n\n``payload`` is the half of an audit entry that carries warehouse hosts and\n``base_query`` SQL, which is why the whole router is owner-only \u2014 see the\ngate write-up in api/v1/project_audit.py. Secrets are already masked at write time\nby ``audit_service._redact``.",
         "properties": {
           "action": {
             "title": "Action",
