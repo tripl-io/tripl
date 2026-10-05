@@ -170,6 +170,7 @@ PLATFORM_SETTINGS_ROUTES = {
     "PATCH /api/v1/platform/settings",
     "POST /api/v1/platform/settings/ai/test",
     "POST /api/v1/platform/settings/email/test",
+    "GET /api/v1/platform/settings/telemetry",
 }
 
 # The platform console's routes are the Enterprise package's.

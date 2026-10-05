@@ -27,12 +27,14 @@ from tripl.schemas.app_settings import (
     ServiceSettingsResponse,
     ServiceSettingsUpdate,
     SettingsTestResponse,
+    TelemetryStatusResponse,
 )
 from tripl.services import (
     _settings_probe,
     app_settings_service,
     audit_service,
     org_settings_service,
+    telemetry_service,
 )
 
 router = APIRouter(prefix="/platform/settings", tags=["platform"])
@@ -90,3 +92,12 @@ async def test_platform_email_settings(
     """Send one probe through the operator's relay: the one account mail uses."""
     config = await app_settings_service.get_operator_email_config(session)
     return await _settings_probe.probe_email(config, payload.recipient or current_user.email)
+
+
+@router.get("/telemetry", response_model=TelemetryStatusResponse)
+async def get_telemetry(
+    session: SessionDep,
+    _current_user: PlatformAdminUserDep,
+) -> TelemetryStatusResponse:
+    """The opt-in usage ping: whether it is sent, where to, and exactly what it last held."""
+    return TelemetryStatusResponse.model_validate(await telemetry_service.status(session))

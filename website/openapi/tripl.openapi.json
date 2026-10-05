@@ -23377,6 +23377,28 @@
           }
         }
       }
+    },
+    "/api/v1/platform/settings/telemetry": {
+      "get": {
+        "tags": [
+          "platform"
+        ],
+        "summary": "Get Telemetry",
+        "description": "The opt-in usage ping: whether it is sent, where to, and exactly what it last held.",
+        "operationId": "get_telemetry_api_v1_platform_settings_telemetry_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TelemetryStatusResponse"
+                }
+              }
+            }
+          }
+        }
+      }
     }
   },
   "components": {
@@ -53725,6 +53747,81 @@
           "columns"
         ],
         "title": "TableSchema"
+      },
+      "TelemetryStatusResponse": {
+        "properties": {
+          "enabled": {
+            "type": "boolean",
+            "title": "Enabled"
+          },
+          "reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reason"
+          },
+          "endpoint": {
+            "type": "string",
+            "title": "Endpoint"
+          },
+          "instance_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Instance Id"
+          },
+          "last_attempt_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Attempt At"
+          },
+          "last_delivered": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Delivered"
+          },
+          "last_payload": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Payload"
+          }
+        },
+        "type": "object",
+        "required": [
+          "enabled",
+          "endpoint"
+        ],
+        "title": "TelemetryStatusResponse",
+        "description": "``GET /platform/settings/telemetry``: the opt-in usage ping, and the last one sent."
       },
       "TestStatus": {
         "type": "string",

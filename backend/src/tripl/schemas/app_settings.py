@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Literal
+from typing import Any, Literal
 from urllib.parse import urlparse
 
 from pydantic import BaseModel, ConfigDict, EmailStr, Field, field_validator
@@ -627,3 +627,17 @@ class OrgTrackerDefaultsUpdate(BaseModel):
 
     jira: OrgJiraDefaultsUpdate | None = None
     linear: OrgLinearDefaultsUpdate | None = None
+
+
+class TelemetryStatusResponse(BaseModel):
+    """``GET /platform/settings/telemetry``: the opt-in usage ping, and the last one sent."""
+
+    enabled: bool
+    #: Why nothing is sent (``disabled``, ``no endpoint``, ``public demo``); null when it is.
+    reason: str | None = None
+    endpoint: str
+    instance_id: str | None = None
+    last_attempt_at: str | None = None
+    last_delivered: bool | None = None
+    #: Exactly what the last ping held (website/docs/run/telemetry.md).
+    last_payload: dict[str, Any] | None = None

@@ -93,6 +93,10 @@ def test_the_generated_env_is_exactly_this(install_dir: Path) -> None:
         "SECRET_KEY=SSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSS\n"
         "POSTGRES_PASSWORD=abababababababababababababababababababababababab\n"
         "RABBITMQ_PASSWORD=abababababababababababababababababababababababab\n"
+        "\n"
+        "# Anonymous usage telemetry: one small ping a day, no names, emails, hosts or\n"
+        "# data. What it holds: https://tripl-io.github.io/tripl/run/telemetry\n"
+        "TELEMETRY_ENABLED=false\n"
     )
 
 
@@ -565,3 +569,16 @@ def test_world_readable_mode_reports_only_loose_modes(install_dir: Path) -> None
     assert files.world_readable_mode(path) == 0o644
     os.chmod(path, 0o600)
     assert files.world_readable_mode(path) is None
+
+
+def test_install_telemetry_writes_it_on_and_only_into_a_new_env() -> None:
+    """``tripl install --telemetry`` asks once: into the .env it creates."""
+    rendered = files.render_env(
+        app_base_url="https://tripl.example.com",
+        image=files.DEFAULT_IMAGE,
+        version="1.2.3",
+        generated_at=datetime(2026, 1, 1, tzinfo=UTC),
+        values={name: "x" * 44 for name in files.REQUIRED_SECRETS},
+        telemetry=True,
+    )
+    assert rendered.endswith("TELEMETRY_ENABLED=true\n")

@@ -430,6 +430,8 @@ export const invitationPreviewKey = (token: string | undefined) =>
   [...orgRoot(), 'invitationPreview', token] as const
 export const apiKeysKey = () => [...orgRoot(), 'api-keys'] as const
 export const serviceSettingsKey = () => [...orgRoot(), 'serviceSettings'] as const
+/** The operator's usage-telemetry status (Settings › Platform › Runtime). */
+export const telemetryStatusKey = () => [...serviceSettingsKey(), 'telemetry'] as const
 /** The built-in AI prompts: fixed per deploy, so outside the settings root. */
 export const aiPromptDefaultsKey = () => [...orgRoot(), 'aiPromptDefaults'] as const
 /** The instance row caps, readable by any signed-in user (scan form hints). */

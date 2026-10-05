@@ -30346,6 +30346,81 @@
         "title": "TableSchema",
         "type": "object"
       },
+      "TelemetryStatusResponse": {
+        "description": "``GET /platform/settings/telemetry``: the opt-in usage ping, and the last one sent.",
+        "properties": {
+          "enabled": {
+            "title": "Enabled",
+            "type": "boolean"
+          },
+          "endpoint": {
+            "title": "Endpoint",
+            "type": "string"
+          },
+          "instance_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Instance Id"
+          },
+          "last_attempt_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Attempt At"
+          },
+          "last_delivered": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Delivered"
+          },
+          "last_payload": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Payload"
+          },
+          "reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reason"
+          }
+        },
+        "required": [
+          "enabled",
+          "endpoint"
+        ],
+        "title": "TelemetryStatusResponse",
+        "type": "object"
+      },
       "TestStatus": {
         "enum": [
           "success",
@@ -34098,6 +34173,28 @@
           }
         },
         "summary": "Test Platform Email Settings",
+        "tags": [
+          "platform"
+        ]
+      }
+    },
+    "/api/v1/platform/settings/telemetry": {
+      "get": {
+        "description": "The opt-in usage ping: whether it is sent, where to, and exactly what it last held.",
+        "operationId": "get_telemetry_api_v1_platform_settings_telemetry_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TelemetryStatusResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Get Telemetry",
         "tags": [
           "platform"
         ]
