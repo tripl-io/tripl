@@ -10,7 +10,7 @@ from collections.abc import Mapping
 from dataclasses import dataclass, fields, replace
 from typing import TYPE_CHECKING, Any
 
-from tripl.config import settings
+from tripl import tenancy
 from tripl.services._app_settings_core import build_service_values
 from tripl.services.ai_defaults import (
     DEFAULT_ALERT_EXPLANATION_SYSTEM_PROMPT,
@@ -97,7 +97,7 @@ def _ai_config_from(
         host_guard=host_guard,
         embedding_host_guard=embedding_host_guard,
     )
-    if settings.public_demo:
+    if tenancy.public_demo():
         # Every call a stranger can trigger would run on the operator's key, so
         # a public demo has no AI whatever the settings say. Demo
         # projects still search semantically from their bundled embedding

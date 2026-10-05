@@ -8,7 +8,6 @@ from fastapi import HTTPException
 from httpx import ASGITransport, AsyncClient
 from sqlalchemy import func, select
 
-from tripl.config import settings
 from tripl.main import app
 from tripl.models.audit_log import AuditLog
 from tripl.models.invitation import Invitation
@@ -17,6 +16,7 @@ from tripl.models.project import Project
 from tripl.models.project_member import ProjectMember
 from tripl.models.user import User
 from tripl.services import invitation_email, invitation_service
+from tripl.tests._tenancy import use_public_demo
 from tripl.tests.conftest import TestSessionLocal
 
 
@@ -29,7 +29,7 @@ def _accept_url(minted):
 
 
 async def test_demo_mints_link_only_and_rejects_privileged_roles(client, monkeypatch):
-    monkeypatch.setattr(settings, "public_demo", True)
+    use_public_demo(monkeypatch)
     prepare = AsyncMock(side_effect=AssertionError("demo must never prepare mail"))
     monkeypatch.setattr(invitation_email, "prepare", prepare)
     minted = await _mint(client)
@@ -47,7 +47,7 @@ async def test_demo_anonymous_acceptance_and_direct_redeem_cannot_create_account
 ):
     minted = await _mint(client)
     assert minted.status_code == 201
-    monkeypatch.setattr(settings, "public_demo", True)
+    use_public_demo(monkeypatch)
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as anon:
         for body in ({}, {"password": "Password123!"}):
             response = await anon.post(_accept_url(minted), json=body)
@@ -110,7 +110,7 @@ async def test_demo_verified_acceptance_grants_only_ready_same_org_demos(
             await session.flush()
             session.add(ProjectMember(project_id=projects[-1].id, user_id=user.id, role="editor"))
             await session.commit()
-        monkeypatch.setattr(settings, "public_demo", True)
+        use_public_demo(monkeypatch)
         minted = await _mint(client)
         assert minted.status_code == 201, minted.text
         refused = await invitee.post(_accept_url(minted), json={})
@@ -156,7 +156,7 @@ async def test_demo_verified_acceptance_grants_only_ready_same_org_demos(
 async def test_demo_capacity_counts_owner_and_live_invites_but_allows_replacement(
     client, monkeypatch
 ):
-    monkeypatch.setattr(settings, "public_demo", True)
+    use_public_demo(monkeypatch)
     for i in range(9):
         response = await _mint(client, f"person{i}@example.com")
         assert response.status_code == 201, response.text
@@ -169,7 +169,7 @@ async def test_demo_capacity_counts_owner_and_live_invites_but_allows_replacemen
 
 
 async def test_demo_mint_quota_survives_replacement_and_revocation(client, monkeypatch):
-    monkeypatch.setattr(settings, "public_demo", True)
+    use_public_demo(monkeypatch)
     for _ in range(10):
         minted = await _mint(client)
         assert minted.status_code == 201, minted.text
@@ -209,7 +209,7 @@ async def test_demo_quota_enforces_each_dimension_independently(client, monkeypa
             ]
         )
         await session.commit()
-    monkeypatch.setattr(settings, "public_demo", True)
+    use_public_demo(monkeypatch)
     refused = await _mint(client)
     assert refused.status_code == 429, refused.text
     async with TestSessionLocal() as session:
@@ -227,12 +227,12 @@ async def test_demo_expired_pending_invitations_do_not_reserve_capacity(client, 
         ):
             audit.created_at = datetime.now(UTC) - timedelta(hours=2)
         await session.commit()
-    monkeypatch.setattr(settings, "public_demo", True)
+    use_public_demo(monkeypatch)
     assert (await _mint(client)).status_code == 201
 
 
 async def test_demo_wrong_signed_in_identity_leaves_invitation_unused(client, monkeypatch):
-    monkeypatch.setattr(settings, "public_demo", True)
+    use_public_demo(monkeypatch)
     minted = await _mint(client)
     assert minted.status_code == 201
     refused = await client.post(_accept_url(minted), json={})

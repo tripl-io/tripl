@@ -12,7 +12,7 @@ from __future__ import annotations
 import pytest
 from httpx import AsyncClient
 
-from tripl.config import settings
+from tripl.tests._tenancy import use_public_demo, use_single_team
 
 API = "/api/v1"
 
@@ -20,7 +20,7 @@ API = "/api/v1"
 @pytest.fixture(autouse=True)
 def public_demo(client: AsyncClient, monkeypatch: pytest.MonkeyPatch) -> None:
     """After ``client`` has signed up: a public demo takes no password sign-ups."""
-    monkeypatch.setattr(settings, "public_demo", True)
+    use_public_demo(monkeypatch)
 
 
 @pytest.mark.parametrize(
@@ -53,16 +53,16 @@ async def test_settings_still_read(client: AsyncClient) -> None:
 async def test_off_the_demo_nothing_changes(
     client: AsyncClient, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    monkeypatch.setattr(settings, "public_demo", False)
+    use_single_team(monkeypatch)
     resp = await client.post(f"{API}/projects", json={"name": "Real one", "slug": "real-one"})
     assert resp.status_code == 201, resp.text
 
 
 async def test_no_issue_tracker(client: AsyncClient, monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setattr(settings, "public_demo", False)
+    use_single_team(monkeypatch)
     created = await client.post(f"{API}/projects", json={"name": "Tracked", "slug": "tracked"})
     assert created.status_code == 201, created.text
-    monkeypatch.setattr(settings, "public_demo", True)
+    use_public_demo(monkeypatch)
 
     resp = await client.patch(f"{API}/projects/tracked/tracker-config", json={})
     assert resp.status_code == 403, resp.text

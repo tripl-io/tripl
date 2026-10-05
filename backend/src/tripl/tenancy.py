@@ -48,6 +48,14 @@ class TenancyPolicy:
     #: has keep working.
     multi_org: bool = False
 
+    #: A public demo: strangers sign in and explore generated demo projects, so
+    #: whatever would reach outside the instance is refused (``api.deps.
+    #: refuse_on_public_demo``) and the app says it is a demo. The Enterprise
+    #: edition's (``PUBLIC_DEMO``); Community never runs one.
+    @property
+    def public_demo(self) -> bool:
+        return False
+
     async def orgless_org(self, session: AsyncSession, user: User) -> OrgRef:
         """The organization a request acts in when its URL names none."""
         from tripl.services import org_resolution
@@ -106,6 +114,11 @@ def policy() -> TenancyPolicy:
 
 def multi_tenant() -> bool:
     return policy().multi_tenant
+
+
+def public_demo() -> bool:
+    """Whether this instance is a public demo (:attr:`TenancyPolicy.public_demo`)."""
+    return policy().public_demo
 
 
 def check_deployment_mode() -> None:

@@ -301,15 +301,6 @@ class Settings(BaseSettings):
     # so this only turns demo self-advancement on or off.
     demo_runtime_enabled: bool = True
 
-    # A public demo instance: strangers sign in and explore generated
-    # demo projects. Only what such a visitor cannot be trusted with is switched
-    # off — connecting a warehouse of their own (the synthetic one the demo
-    # generator adds is all they get), delivering alerts to anything outside the
-    # app, and filing tracker tickets — and the app says it is a demo. Meant for
-    # DEPLOYMENT_MODE=hosted, where every visitor gets an organization of their
-    # own; see website/docs/run/public-demo.md for the whole recipe.
-    public_demo: bool = False
-
     # "Sign in with Google" on the sign-in page: an instance-wide
     # OAuth client, unlike an organization's own SSO. Both set turns the button
     # on; the redirect URI to register at Google is

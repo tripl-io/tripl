@@ -10,9 +10,8 @@ from fastapi import HTTPException, status
 from sqlalchemy import delete, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from tripl import extensions
+from tripl import extensions, tenancy
 from tripl.auth_utils import hash_password, hash_session_token, normalize_email
-from tripl.config import settings
 from tripl.middleware.org_context import require_org_id
 from tripl.models.audit_log import AuditLog
 from tripl.models.domain_enums import OrganizationRole
@@ -126,7 +125,7 @@ async def create_invitation(
     password resets supersede each other.
     """
     normalized = normalize_email(email)
-    if settings.public_demo:
+    if tenancy.public_demo():
         if OrganizationRole(org_role) != OrganizationRole.member:
             raise HTTPException(
                 status_code=403, detail="Public demo invitations allow only members."
@@ -149,7 +148,7 @@ async def create_invitation(
             ),
         )
 
-    if settings.public_demo:
+    if tenancy.public_demo():
         await _check_demo_invitation_limits(
             session, organization_id, invited_by_user_id, normalized
         )
@@ -174,7 +173,7 @@ async def create_invitation(
         expires_at=_expires_at(),
     )
     session.add(invitation)
-    if settings.public_demo:
+    if tenancy.public_demo():
         await session.flush()
         await audit_service.record(
             session,
@@ -321,7 +320,7 @@ async def redeem_invitation(
     the raw link in the response body, so redeeming it proves nothing about
     who reads the address; the caller mails a verification link.
     """
-    if settings.public_demo:
+    if tenancy.public_demo():
         raise HTTPException(
             status_code=403, detail="Sign in with Google before accepting a demo invitation."
         )
@@ -386,14 +385,14 @@ async def accept_as_signed_in(session: AsyncSession, *, raw_token: str, user: Us
     once.
     """
     invitation = await get_valid_invitation(session, raw_token)
-    if settings.public_demo:
+    if tenancy.public_demo():
         await auth_service.acquire_owner_set_xact_lock(session, invitation.organization_id)
         # Another acceptance/revocation may have completed while waiting for the lock.
         invitation = await get_valid_invitation(session, raw_token)
     if normalize_email(user.email) != normalize_email(invitation.email):
         raise InvitationEmailMismatchError
     if email_verification_service.is_blocked(user) or (
-        settings.public_demo and user.email_verified_at is None
+        tenancy.public_demo() and user.email_verified_at is None
     ):
         raise EmailNotVerifiedError
     member_id: uuid.UUID | None = await session.scalar(
@@ -404,7 +403,7 @@ async def accept_as_signed_in(session: AsyncSession, *, raw_token: str, user: Us
     )
     if member_id is not None:
         raise AlreadyMemberError
-    if settings.public_demo:
+    if tenancy.public_demo():
         members = await session.scalar(
             select(func.count())
             .select_from(OrganizationMember)
@@ -424,7 +423,7 @@ async def accept_as_signed_in(session: AsyncSession, *, raw_token: str, user: Us
     )
     # Invited back after a removal: an SSO sign-in may add them again (F20).
     await extensions.on_membership_restored(session, invitation.organization_id, user.id)
-    if settings.public_demo:
+    if tenancy.public_demo():
         await _grant_demo_project_access(session, invitation, user)
     invitation.used_at = datetime.now(UTC)
     await session.flush()

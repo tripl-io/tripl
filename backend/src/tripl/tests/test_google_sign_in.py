@@ -19,6 +19,7 @@ from tripl.models.user import User
 from tripl.services import google_login_service
 from tripl.services.oidc import idp_http
 from tripl.services.oidc.id_tokens import IdTokenClaims
+from tripl.tests._tenancy import use_public_demo
 from tripl.tests.conftest import TestSessionLocal
 
 START = "/api/v1/auth/google/start"
@@ -177,7 +178,7 @@ async def test_without_a_client_there_is_no_google(
 async def test_a_public_demo_signs_up_with_google_only(
     anon_client: AsyncClient, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    monkeypatch.setattr(settings, "public_demo", True)
+    use_public_demo(monkeypatch)
     status = (await anon_client.get("/api/v1/auth/status")).json()
     assert status["google_sign_in"] is True
     assert status["public_demo"] is True
