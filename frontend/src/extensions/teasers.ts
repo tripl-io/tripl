@@ -1,4 +1,4 @@
-import { Building, History, KeyRound, RefreshCw, ScrollText, UserCog, Webhook } from 'lucide-react'
+import { Building, History, KeyRound, RefreshCw, ScrollText, Siren, UserCog, Webhook } from 'lucide-react'
 import type { SettingsNavItem } from '@/components/settings/nav'
 import type { ExtensionSettingsSection } from './types'
 
@@ -65,6 +65,19 @@ export const ENTERPRISE_TEASERS: readonly EnterpriseTeaser[] = [
     }),
     summary:
       'Your identity provider adds and removes members over SCIM 2.0, and maps its groups to organization roles.',
+  },
+  {
+    group: 'Organization',
+    after: 'org-scim',
+    item: tagged({
+      id: 'org-escalation',
+      label: 'Escalation',
+      icon: Siren,
+      path: 'organization/escalation',
+      keywords: ['on-call', 'escalation policy', 'paging', 'routing', 'unacknowledged'],
+    }),
+    summary:
+      'When an alert is not acknowledged in time, notify the next destination, member or group, with routes that pick a policy across all projects.',
   },
   {
     group: 'Organization',
