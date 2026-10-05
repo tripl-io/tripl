@@ -702,7 +702,7 @@ organization (see [Users](#platform-console)).
 ## Single sign-on (OIDC and SAML) {#single-sign-on}
 
 :::info Enterprise
-Single sign-on per organization is part of the [Enterprise edition](../editions.md).
+Single sign-on per organization is part of the [Enterprise edition](../editions.md). See [Single sign-on and provisioning](../enterprise/sso-and-scim.md#single-sign-on).
 :::
 
 With Single sign-on, an organization's members sign in through its own identity
@@ -716,7 +716,7 @@ is in Community; see [configuration](../run/configuration.md).
 ## Provisioning (SCIM 2.0) {#scim}
 
 :::info Enterprise
-Provisioning is part of the [Enterprise edition](../editions.md).
+Provisioning is part of the [Enterprise edition](../editions.md). See [Provisioning (SCIM 2.0)](../enterprise/sso-and-scim.md#scim).
 :::
 
 With Provisioning, your identity provider adds members to the organization,
@@ -726,7 +726,7 @@ provider's groups to organization roles.
 ## Exporting the audit log {#audit-export}
 
 :::info Enterprise
-Audit export is part of the [Enterprise edition](../editions.md).
+Audit export is part of the [Enterprise edition](../editions.md). See [Exporting the audit log](../enterprise/audit.md#audit-export).
 :::
 
 With audit export, an organization's owners and admins download its whole
@@ -736,7 +736,7 @@ for a date range.
 ## Audit webhook {#audit-webhook}
 
 :::info Enterprise
-The audit webhook is part of the [Enterprise edition](../editions.md).
+The audit webhook is part of the [Enterprise edition](../editions.md). See [Audit webhook](../enterprise/audit.md#audit-webhook).
 :::
 
 With the audit webhook, every new audit entry of the organization and its
@@ -746,7 +746,7 @@ or a log pipeline, with retries when the receiver is down.
 ## Platform console
 
 :::info Enterprise
-The platform console is part of the [Enterprise edition](../editions.md).
+The platform console is part of the [Enterprise edition](../editions.md). See [Platform console](../enterprise/platform-console.md).
 :::
 
 The console lists every organization and account on the instance for its

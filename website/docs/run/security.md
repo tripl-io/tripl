@@ -333,12 +333,13 @@ the flag and blocks nothing.
 
 Single sign-on per organization (OpenID Connect, SAML 2.0) and provisioning
 over SCIM 2.0 are part of the [Enterprise edition](../editions.md). Their
-security controls are documented with that edition.
+security controls are in
+[Single sign-on and provisioning](../enterprise/sso-and-scim.md#security-notes).
 
 ### Audit webhook {#audit-webhook}
 
 :::info Enterprise
-The audit webhook is part of the [Enterprise edition](../editions.md).
+The audit webhook is part of the [Enterprise edition](../editions.md). See [its security notes](../enterprise/audit.md#security-audit-webhook).
 :::
 
 It sends every new audit entry, signed, to an HTTPS endpoint. Its security
@@ -378,7 +379,7 @@ Sessions are server-side records (`user_sessions`): each carries an expiry, expi
 
 For non-browser clients, tripl issues personal API keys (`api_key_service.py`). The raw token has the shape `tk_<scope-letter>_<random>` (e.g. `tk_r_…` / `tk_w_…`); only its SHA-256 hash is stored, so a leaked DB dump cannot replay tokens. Keys carry a scope (`read` / `write`), an optional expiry, and an optional project binding. They are presented as `Authorization: Bearer <token>` and are resolved before cookie auth. See the [Agent API Guide](../integrate/agent-api-guide.md).
 
-Creating and revoking keys requires an interactive user session. A Bearer key cannot mint a successor or revoke another key, even when it has write scope and no project binding. In an organization that [requires single sign-on](#single-sign-on-oidc), a key works only if it was created from a single sign-on session of that organization, and creating one needs such a session (owners may create keys from any session).
+Creating and revoking keys requires an interactive user session. A Bearer key cannot mint a successor or revoke another key, even when it has write scope and no project binding. In an organization that [requires single sign-on](../enterprise/sso-and-scim.md#single-sign-on-oidc), a key works only if it was created from a single sign-on session of that organization, and creating one needs such a session (owners may create keys from any session).
 
 ## Roles and access control (RBAC)
 

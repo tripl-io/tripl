@@ -150,6 +150,11 @@ it exists. The feature does not just disappear from Community.
   :::
   ```
 
+  Its full documentation lives in the **Enterprise** section,
+  `website/docs/enterprise/`, whose pages open with the same admonition. Only
+  what an operator of tripl's own services needs (hosted mode, the public demo,
+  issuing license keys) stays in the private repository.
+
 Moving a feature out adds its teaser (when it has a settings page), a row on
 the Editions page, and the admonition on its docs pages.
 
