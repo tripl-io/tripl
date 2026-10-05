@@ -127,6 +127,9 @@ class AuthStatusResponse(BaseModel):
     # A public demo instance (PUBLIC_DEMO): the app says so, signs up with
     # Google only, and hides what it refuses.
     public_demo: bool = False
+    # Whether this edition creates more than one organization
+    # (``tenancy.TenancyPolicy.multi_org``): Community runs one, the default.
+    multi_org: bool = False
 
 
 class OrgMembershipOut(BaseModel):

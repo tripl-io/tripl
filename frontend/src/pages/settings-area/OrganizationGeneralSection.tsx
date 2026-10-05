@@ -12,7 +12,9 @@ import { Button } from '@/components/ui/button'
 import { useConfirm } from '@/hooks/useConfirm'
 import { orgHomePath } from '@/lib/activeOrg'
 import { SILENT_ERROR_META } from '@/lib/errorFeedback'
-import { useCanCreateOrg } from '@/lib/deploymentMode'
+import { useCanCreateOrg, useOrgCreationIsEnterprise } from '@/lib/deploymentMode'
+import { EnterpriseFeature } from '@/components/settings/EnterpriseFeature'
+import { ORG_CREATION_TEASER } from '@/extensions/teasers'
 import { useIsOrgOwner, useIsOwner } from '@/lib/permissions'
 import { orgKey, orgRootKey, orgsKey } from '@/lib/queryKeys'
 import { getErrorMessage } from '@/lib/utils'
@@ -37,13 +39,15 @@ const DEFAULT_ACCESS_HINTS: Readonly<Record<DefaultProjectRole, string>> = {
  * renames it), its slug (read-only: it is in every address, `/o/{slug}/…`, and
  * links already sent must keep working), its default access to projects (F20
  * PR15: what a member gets on a project with no row of theirs; an owner or
- * admin sets it), "Create organization" (a platform
- * admin's, or anyone's in hosted mode), and the danger zone, where an owner deletes it. The default
+ * admin sets it), "Create organization" (where the edition creates more than
+ * one: a platform admin's, or anyone's in hosted mode; Community shows a
+ * platform admin that it is Enterprise's), and the danger zone, where an owner deletes it. The default
  * organization cannot be deleted, so its danger zone is not drawn.
  */
 export default function OrganizationGeneralSection() {
   const { slug } = useActiveOrg()
   const canCreateOrg = useCanCreateOrg()
+  const orgCreationIsEnterprise = useOrgCreationIsEnterprise()
 
   return (
     <div>
@@ -55,6 +59,11 @@ export default function OrganizationGeneralSection() {
         <ReadOnlyNotice className="mb-5">You are not a member of any organization.</ReadOnlyNotice>
       )}
       {canCreateOrg && <CreateOrganizationCard />}
+      {orgCreationIsEnterprise && (
+        <div className="mt-5">
+          <EnterpriseFeature teaser={ORG_CREATION_TEASER} />
+        </div>
+      )}
     </div>
   )
 }

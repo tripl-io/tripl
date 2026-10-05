@@ -263,8 +263,23 @@ describe('Organization › Details', () => {
     expect(screen.queryByRole('button', { name: 'Save default access' })).toBeNull()
   })
 
+  /** The instance answers `/auth/status` with `fields` (multi_org: an Enterprise edition). */
+  function answerStatus(fields: Record<string, unknown>) {
+    const answer = vi.mocked(globalThis.fetch).getMockImplementation()!
+    vi.mocked(globalThis.fetch).mockImplementation((input, init) => {
+      const url = typeof input === 'string' ? input : input instanceof URL ? input.toString() : input.url
+      if (url === '/api/v1/auth/status') {
+        return Promise.resolve(
+          jsonResponse({ has_users: true, registration_enabled: true, email_configured: true, ...fields }),
+        )
+      }
+      return answer(input, init)
+    })
+  }
+
   it('lets a platform admin create an organization and opens it', async () => {
     const calls = mockApi()
+    answerStatus({ multi_org: true })
     renderSection(<OrganizationGeneralSection />, { platformAdmin: true })
 
     const card = (await screen.findByRole('heading', { name: 'Create organization' })).closest('section') ?? document.body
@@ -276,6 +291,16 @@ describe('Organization › Details', () => {
     expect(calls.find((c) => c.method === 'POST' && c.url === '/api/v1/orgs')?.body).toBe(
       JSON.stringify({ name: 'Beta', slug: 'beta' }),
     )
+  })
+
+  it('tells a platform admin that more organizations are Enterprise, where the edition runs one', async () => {
+    mockApi()
+    answerStatus({ multi_org: false })
+    renderSection(<OrganizationGeneralSection />, { platformAdmin: true })
+    expect(
+      await screen.findByRole('heading', { name: 'Creating more organizations is part of Tripl Enterprise' }),
+    ).toBeInTheDocument()
+    expect(screen.queryByRole('heading', { name: 'Create organization' })).toBeNull()
   })
 
   it('hides "Create organization" from everyone but a platform admin', async () => {
@@ -298,6 +323,7 @@ describe('Organization › Details', () => {
             email_configured: true,
             deployment_mode: 'hosted',
             email_verification_required: true,
+            multi_org: true,
           }),
         )
       }

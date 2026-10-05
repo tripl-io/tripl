@@ -468,6 +468,7 @@ async def test_auth_status_reports_whether_registration_is_accepted(
         "email_verification_required": False,
         "google_sign_in": False,
         "public_demo": False,
+        "multi_org": False,
     }
 
     await _register(anon_client, "status-owner@example.com", "Password123!")
@@ -481,4 +482,5 @@ async def test_auth_status_reports_whether_registration_is_accepted(
         "email_verification_required": False,
         "google_sign_in": False,
         "public_demo": False,
+        "multi_org": False,
     }

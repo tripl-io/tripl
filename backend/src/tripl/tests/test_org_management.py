@@ -38,8 +38,16 @@ from tripl.models.project import Project
 from tripl.models.project_member import ProjectMember
 from tripl.services import org_deletion_service, org_service, user_service
 from tripl.tests._members import add_org_member
+from tripl.tests._tenancy import use_multi_org
 from tripl.tests.conftest import TestSessionLocal
 from tripl.worker.tasks import org_delete
+
+
+@pytest.fixture(autouse=True)
+def _more_organizations(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Organizations are created over the API here: the Enterprise edition's (``_tenancy``)."""
+    use_multi_org(monkeypatch)
+
 
 PASSWORD = "Password123!"
 API = "/api/v1"

@@ -30,6 +30,7 @@ function renderSwitcher(
   entry = '/o/acme',
   platformAdmin = false,
   deploymentMode: 'self_hosted' | 'hosted' = 'self_hosted',
+  multiOrg = true,
 ) {
   const auth = authAs('owner')
   const value = auth.user
@@ -43,6 +44,7 @@ function renderSwitcher(
     email_configured: true,
     deployment_mode: deploymentMode,
     email_verification_required: deploymentMode === 'hosted',
+    multi_org: multiOrg,
   })
   return render(
     <QueryClientProvider client={queryClient}>
@@ -93,6 +95,13 @@ describe('OrgSwitcher', () => {
     fireEvent.keyDown(screen.getByRole('button', { name: /Switch organization/ }), { key: 'Enter' })
     expect(await screen.findByText('Create organization')).toBeInTheDocument()
     expect(screen.getByText('Organization settings')).toBeInTheDocument()
+  })
+
+  it('offers no "Create organization" where the edition runs one organization', async () => {
+    renderSwitcher([DEFAULT, ACME], '/o/acme', true, 'self_hosted', false)
+    fireEvent.keyDown(screen.getByRole('button', { name: /Switch organization/ }), { key: 'Enter' })
+    expect(await screen.findByText('Organization settings')).toBeInTheDocument()
+    expect(screen.queryByText('Create organization')).toBeNull()
   })
 
   it('announces the current organization and binds its settings link to it', async () => {

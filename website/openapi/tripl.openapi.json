@@ -28077,6 +28077,11 @@
             "type": "boolean",
             "title": "Public Demo",
             "default": false
+          },
+          "multi_org": {
+            "type": "boolean",
+            "title": "Multi Org",
+            "default": false
           }
         },
         "type": "object",

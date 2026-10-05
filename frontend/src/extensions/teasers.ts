@@ -121,6 +121,23 @@ export const ENTERPRISE_TEASERS: readonly EnterpriseTeaser[] = [
   },
 ]
 
+/**
+ * Creating more organizations: not a page of its own but the card under
+ * Organization › Details, shown to a platform admin where Community runs its
+ * one organization.
+ */
+export const ORG_CREATION_TEASER: EnterpriseTeaser = {
+  group: 'Organization',
+  item: platformTagged({
+    id: 'org-create',
+    label: 'Creating more organizations',
+    icon: Building,
+    path: 'organization/general',
+  }),
+  summary:
+    'Separate organizations on one instance, each with its own members, projects, data sources, API keys and settings: for departments, clients or teams that must not see each other’s work. Community runs one organization.',
+}
+
 /** The teasers no installed extension provides a section for. */
 export function visibleTeasers(
   teasers: readonly EnterpriseTeaser[],

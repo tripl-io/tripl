@@ -7,6 +7,10 @@ organization, no first-account bootstrap, verification required, no local
 photo storage for organizations, a From address needs the organization's own
 relay. Tests of those install this stand-in. Sign-up that creates an
 organization, and who may create one, are the extension's: not here.
+
+Community runs one organization: ``POST /orgs`` is the Enterprise edition's.
+The organization model and its isolation stay in core, so tests that build
+several organizations through the API install :func:`use_multi_org`.
 """
 
 from __future__ import annotations
@@ -21,14 +25,27 @@ from tripl.models.user import User
 from tripl.services import org_resolution
 
 
+class MultiOrgForTests(tenancy.TenancyPolicy):
+    """One team's instance that creates more organizations (as Enterprise does)."""
+
+    multi_org = True
+
+
 class MultiTenantForTests(tenancy.TenancyPolicy):
     multi_tenant = True
+    multi_org = True
 
     async def orgless_org(self, session: AsyncSession, user: User) -> OrgRef:
         return await org_resolution.only_org_of(session, user.id)
 
 
 POLICY = MultiTenantForTests()
+MULTI_ORG = MultiOrgForTests()
+
+
+def use_multi_org(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Let a platform admin create organizations, the deployment mode unchanged."""
+    monkeypatch.setattr(tenancy, "policy", lambda: MULTI_ORG)
 
 
 def use_multi_tenant(monkeypatch: pytest.MonkeyPatch) -> None:

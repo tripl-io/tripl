@@ -20,7 +20,7 @@ from tripl import extensions, tenancy
 from tripl.config import settings
 from tripl.models.email_verification_token import EmailVerificationToken
 from tripl.models.organization import Organization
-from tripl.tests._tenancy import POLICY, use_multi_tenant
+from tripl.tests._tenancy import POLICY, use_multi_org, use_multi_tenant
 from tripl.tests._verification_mail import API, PASSWORD, install_mail_sink, new_client
 from tripl.tests.conftest import TestSessionLocal
 
@@ -70,7 +70,9 @@ async def test_register_joins_the_default_organization_and_is_never_gated(
         ) is None
 
 
-async def test_only_a_platform_admin_creates_organizations(clients: list[AsyncClient]) -> None:
+async def test_more_organizations_are_enterprise(
+    clients: list[AsyncClient], monkeypatch: pytest.MonkeyPatch
+) -> None:
     root, member = clients
     for client, email in ((root, "root@example.com"), (member, "member@example.com")):
         resp = await client.post(
@@ -79,7 +81,17 @@ async def test_only_a_platform_admin_creates_organizations(clients: list[AsyncCl
         assert resp.status_code == 201, resp.text
     refused = await member.post(f"{API}/orgs", json={"slug": "nope", "name": "Nope"})
     assert refused.status_code == 403
+    assert refused.json()["detail"] != tenancy.MORE_ORGS_ARE_ENTERPRISE
+    # The platform admin is told why: one organization is Community's.
+    community = await root.post(f"{API}/orgs", json={"slug": "yes", "name": "Yes"})
+    assert community.status_code == 403
+    assert community.json()["detail"] == tenancy.MORE_ORGS_ARE_ENTERPRISE
+    assert (await root.get(f"{API}/auth/status")).json()["multi_org"] is False
+    # Where the edition creates more (Enterprise), the platform admin may.
+    use_multi_org(monkeypatch)
     assert (await root.post(f"{API}/orgs", json={"slug": "yes", "name": "Yes"})).status_code == 201
+    assert (await member.post(f"{API}/orgs", json={"slug": "no", "name": "No"})).status_code == 403
+    assert (await root.get(f"{API}/auth/status")).json()["multi_org"] is True
 
 
 async def test_verification_is_a_no_op(
