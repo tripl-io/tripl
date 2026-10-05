@@ -144,9 +144,10 @@ class _TestTarget:
     linear_team_id: str | None
     linear_state_id: str | None
     linear_label_ids: str | None
-    pagerduty_routing_key: str | None
-    pagerduty_severity: str | None
-    teams_webhook_url: str | None
+    # Defaulted, like ``organization_id``: a target for another channel has none.
+    pagerduty_routing_key: str | None = None
+    pagerduty_severity: str | None = None
+    teams_webhook_url: str | None = None
     # The project's organization, whose SMTP relay an email test goes through
     # (F20 PR9). ``None`` sends nothing: the send refuses rather than borrow
     # the operator's relay.

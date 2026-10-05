@@ -21,7 +21,8 @@ test('a PagerDuty and a Microsoft Teams destination are added through the dialog
   await signInAsOwner(page)
   const slug = `e2e-pd-teams-${randomUUID().slice(0, 8)}`
   const created = await page.request.post('/api/v1/projects', {
-    data: { name: 'PagerDuty and Teams', slug, description: '' },
+    // Named apart from the channels: the project switcher is a button too.
+    data: { name: 'Destinations e2e', slug, description: '' },
   })
   expect(created.status(), await created.text()).toBe(201)
   const projectId = ((await created.json()) as { id: string }).id
@@ -42,7 +43,7 @@ test('a PagerDuty and a Microsoft Teams destination are added through the dialog
 
   await page.goto(`/p/${slug}/alerting`)
   // A route's first visit compiles it on the dev server: give it time.
-  await page.getByRole('button', { name: 'PagerDuty' }).click({ timeout: 60_000 })
+  await page.getByRole('button', { name: 'PagerDuty', exact: true }).click({ timeout: 60_000 })
   const pagerDialog = page.getByRole('dialog', { name: /New PagerDuty destination/ })
   await pagerDialog.getByLabel('Name').fill('On-call pager')
   await pagerDialog.getByLabel('Integration key').fill('R0uT1nGkEy0123456789abcdefABCDEF')
@@ -57,7 +58,7 @@ test('a PagerDuty and a Microsoft Teams destination are added through the dialog
 
   await page.goto(`/p/${slug}/alerting?section=destinations`)
   await page.getByRole('button', { name: 'Add destination' }).click({ timeout: 60_000 })
-  await page.getByRole('menuitem', { name: 'Microsoft Teams' }).click()
+  await page.getByRole('menuitem', { name: 'Microsoft Teams', exact: true }).click()
   const teamsDialog = page.getByRole('dialog', { name: /New Microsoft Teams destination/ })
   await teamsDialog.getByLabel('Name').fill('Ops channel')
   await teamsDialog.getByLabel('Webhook URL').fill('https://contoso.webhook.office.com/webhookb2/e2e')
