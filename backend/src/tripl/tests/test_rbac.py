@@ -59,8 +59,12 @@ async def _set_role(owner_client: AsyncClient, target_email: str, role: str) -> 
             await session.commit()
 
 
-def iter_api_routes() -> list[tuple[str, APIRoute]]:
-    """Every ``(full_path, APIRoute)`` in the app, including nested routers.
+def iter_api_routes(package: str = "tripl") -> list[tuple[str, APIRoute]]:
+    """Every ``(full_path, APIRoute)`` ``package`` declares, including nested routers.
+
+    Community's route audits cover Community's own routes, so they hold with an
+    extension installed; an extension's package audits its own routes with
+    ``iter_api_routes("<its package>")``.
 
     FastAPI 0.140 wraps each ``include_router`` result in a private
     ``_IncludedRouter`` node instead of copying the child's routes up, so
@@ -85,7 +89,12 @@ def iter_api_routes() -> list[tuple[str, APIRoute]]:
                     walk(included, child_prefix)
 
     walk(app.router, "")
-    return found
+    return [(path, route) for path, route in found if _declared_by(route, package)]
+
+
+def _declared_by(route: APIRoute, package: str) -> bool:
+    module = str(getattr(route.endpoint, "__module__", ""))
+    return module == package or module.startswith(f"{package}.")
 
 
 # Floor for "the walk reached the real API and not just the app-level handlers".

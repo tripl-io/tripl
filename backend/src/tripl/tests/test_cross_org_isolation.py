@@ -165,8 +165,6 @@ UNSEEDED_PARAMS: dict[str, str] = {
     "job_id": "scan, preview and dry-run jobs are Celery jobs",
     "override_id": "anomaly scope overrides are written by the detector",
     "resolution_id": "conflict resolutions need a conflicting branch merge",
-    "domain_id": "SSO domains are owner-only rows the seed does not claim",
-    "token_id": "SCIM tokens are owner-only rows the seed does not mint",
 }
 
 #: Id-less legacy GETs whose REQUIRED query names one of A's rows (see

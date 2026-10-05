@@ -15,6 +15,7 @@ from pathlib import Path
 import pytest
 from httpx import AsyncClient
 
+from tripl import extensions
 from tripl.config import settings
 from tripl.main import app
 
@@ -35,6 +36,9 @@ def _canonical(schema: object) -> str:
 
 
 def test_openapi_snapshot_matches_live_schema() -> None:
+    if extensions.extensions():
+        # The snapshot is Community's API; an extension adds routes of its own.
+        pytest.skip("an extension is installed")
     assert _OPENAPI_SNAPSHOT.exists(), (
         f"Missing OpenAPI snapshot at {_OPENAPI_SNAPSHOT}. Regenerate it:\n{_REGENERATE_HINT}"
     )
