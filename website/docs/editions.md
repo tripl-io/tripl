@@ -26,6 +26,7 @@ own identity and compliance rules. It ships as a separate private image,
 | Provisioning over SCIM 2.0, groups mapped to roles | | ✓ |
 | Organization-wide audit log, search across projects, export (CSV, NDJSON) | | ✓ |
 | Audit webhook to a SIEM | | ✓ |
+| Platform console: every organization and account, suspension, read-only step-in | | ✓ |
 | Multi-tenant hosted service (`DEPLOYMENT_MODE=hosted`): each sign-up gets its own organization, verified addresses | | ✓ |
 
 Every Enterprise feature is in the Enterprise image only: the Community image

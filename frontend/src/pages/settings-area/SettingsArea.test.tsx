@@ -2,7 +2,6 @@ import { fireEvent, render, screen, waitFor, within } from '@testing-library/rea
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { RouterProvider, createMemoryRouter } from 'react-router-dom'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { platformApi } from '@/api/platform'
 import { projectMembersApi } from '@/api/projectMembers'
 import { projectsApi } from '@/api/projects'
 import { usersApi } from '@/api/users'
@@ -427,59 +426,24 @@ describe('SettingsArea owner-only sections (#237)', () => {
   })
 })
 
-describe('SettingsArea platform console (F20)', () => {
+describe('SettingsArea platform console (Enterprise teaser)', () => {
   function platformAdmin(): AuthContextValue {
     const owner = ownerAuthValue()
     return { ...owner, user: owner.user && { ...owner.user, is_platform_admin: true } }
   }
 
-  it('keeps the console from anyone but a platform admin', async () => {
+  it('keeps the console teaser from anyone but a platform admin', async () => {
     vi.spyOn(projectsApi, 'list').mockResolvedValue(projects)
-    const list = vi.spyOn(platformApi, 'listOrgs')
-
     renderArea('platform/orgs')
-
     expect(await screen.findByRole('heading', { level: 1, name: 'Organizations' })).toBeInTheDocument()
     expect(screen.getByRole('note')).toHaveTextContent(/Platform admin is required/)
-    expect(list).not.toHaveBeenCalled()
   })
 
-  it('opens Organizations for a platform admin, lit in the rail', async () => {
+  it('shows a platform admin what the console is, tagged Enterprise', async () => {
     vi.spyOn(projectsApi, 'list').mockResolvedValue(projects)
-    vi.spyOn(platformApi, 'listOrgs').mockResolvedValue({ items: [], total: 0 })
-
     renderArea('platform/orgs', '', platformAdmin())
-
-    expect(await screen.findByText('There are no organizations yet.')).toBeInTheDocument()
-    expect(screen.getByRole('link', { name: 'Organizations' })).toHaveAttribute('aria-current', 'page')
-    expect(screen.getByRole('link', { name: 'User accounts' })).toHaveAttribute(
-      'href',
-      '/settings/platform/users',
-    )
-  })
-
-  it("keeps Organizations lit on one organization's page", async () => {
-    vi.spyOn(projectsApi, 'list').mockResolvedValue(projects)
-    vi.spyOn(platformApi, 'getOrg').mockResolvedValue({
-      id: 'o1',
-      slug: 'acme',
-      name: 'Acme Corp',
-      status: 'active',
-      created_at: '2026-01-01T00:00:00Z',
-      suspended_at: null,
-      suspended_reason: null,
-      member_count: 1,
-      project_count: 1,
-      owner_emails: ['owner@example.com'],
-      members: [{ email: 'owner@example.com', name: 'Olivia', role: 'owner' }],
-      projects: [{ slug: 'web', name: 'Web', created_at: '2026-01-01T00:00:00Z' }],
-    })
-
-    renderArea('platform/orgs/acme', '', platformAdmin())
-
-    expect(await screen.findByRole('heading', { level: 1, name: 'Acme Corp' })).toBeInTheDocument()
-    expect(screen.getByText('Olivia')).toBeInTheDocument()
-    expect(screen.getByText('Web')).toBeInTheDocument()
-    expect(screen.getByRole('link', { name: 'Organizations' })).toHaveAttribute('aria-current', 'page')
+    expect(await screen.findByText(/Every organization on the instance in one list/)).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: 'Organizations is part of Tripl Enterprise' })).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: /User accounts/ })).toHaveAttribute('href', '/settings/platform/users')
   })
 })

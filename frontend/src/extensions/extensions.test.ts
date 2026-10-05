@@ -51,6 +51,13 @@ describe('frontend extensions', () => {
       'inst-audit',
       'org-audit-webhook',
     ])
+    // The platform console leads the Platform group, before Runtime.
+    const platform = WORKSPACE_GROUPS.find((group) => group.label === 'Platform')
+    expect(platform?.items.slice(0, 3).map((entry) => entry.id)).toEqual([
+      'platform-orgs',
+      'platform-users',
+      'runtime',
+    ])
   })
 
   it('finds no extension settings section in a Community build', () => {
@@ -78,19 +85,27 @@ describe('Enterprise teasers', () => {
       'org-scim',
       'inst-audit',
       'org-audit-webhook',
+      'platform-orgs',
+      'platform-users',
     ])
     expect(enterpriseTeaser('organization/sso')?.item.label).toBe('Single sign-on')
     expect(enterpriseTeaser('instance/audit')?.item.label).toBe('Audit log')
   })
 
-  it('tags every teaser Enterprise, for owners and admins only, once each', () => {
+  it('tags every teaser Enterprise, for owners and admins or platform admins only, once each', () => {
     const ids = ENTERPRISE_TEASERS.map((entry) => entry.item.id)
     expect(new Set(ids).size).toBe(ids.length)
     for (const entry of ENTERPRISE_TEASERS) {
       expect(entry.item.tag).toBe('Enterprise')
-      expect(entry.item.ownerOnly).toBe(true)
+      // An organization's feature for its owners and admins; the console for platform admins.
+      expect(entry.group === 'Platform' ? entry.item.platformOnly : entry.item.ownerOnly).toBe(true)
       expect(entry.summary.length).toBeGreaterThan(20)
     }
+  })
+
+  it('places an item before the one it names, ahead of after', () => {
+    const placed = withExtensionItems(GROUPS, [{ ...teaser('x'), before: 'a', after: 'a' }])
+    expect(placed[0]?.items[0]?.id).toBe('x')
   })
 
   it('places a teaser in the rail like an extension item', () => {

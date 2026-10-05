@@ -19,6 +19,8 @@ export interface FrontendExtension {
   authPanels?: readonly ExtensionAuthPanel[]
   /** Screens that replace the app shell when a request inside it is refused. */
   shellGates?: readonly ExtensionShellGate[]
+  /** Banners across the top of the app shell; each renders nothing when it has nothing to say. */
+  shellBanners?: readonly ComponentType[]
 }
 
 export interface ExtensionRoute {
@@ -34,16 +36,29 @@ export interface ExtensionSettingsSection {
   group: string
   /** The id of the item to place it after; appended to the group when absent. */
   after?: string
+  /** The id of the item to place it before; wins over `after`. */
+  before?: string
   /** The rail item. Its `path` is the section's route under /settings. */
   item: SettingsNavItem
   /**
    * Who may open the page: `orgOwner` is an organization owner only (not an
-   * admin); `owner` is an owner or admin. Anyone else sees a read-only notice.
+   * admin); `owner` is an owner or admin; `platform` is a platform admin,
+   * whatever their organization role. Anyone else sees a read-only notice.
    */
-  access: 'orgOwner' | 'owner'
+  access: 'orgOwner' | 'owner' | 'platform'
   /** For `orgOwner`: what the page is and why it is an owner's. */
   deniedReason?: string
-  Component: LazyExoticComponent<ComponentType>
+  /**
+   * The page also answers the paths below its own (`platform/orgs/<slug>`):
+   * the rail lights its item, and the page gets the rest as `subpath`.
+   */
+  subpaths?: boolean
+  Component: LazyExoticComponent<ComponentType<ExtensionSectionProps>>
+}
+
+export interface ExtensionSectionProps {
+  /** What follows the section's own path (`acme` for `platform/orgs/acme`); empty on the page itself. */
+  subpath?: string
 }
 
 export interface ExtensionAuthPanelProps {

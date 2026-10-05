@@ -1,4 +1,4 @@
-import { KeyRound, RefreshCw, ScrollText, Webhook } from 'lucide-react'
+import { Building, KeyRound, RefreshCw, ScrollText, UserCog, Webhook } from 'lucide-react'
 import type { SettingsNavItem } from '@/components/settings/nav'
 import type { ExtensionSettingsSection } from './types'
 
@@ -14,6 +14,7 @@ export const EDITIONS_DOCS_URL = 'https://tripl-io.github.io/tripl/editions'
 export interface EnterpriseTeaser {
   group: string
   after?: string
+  before?: string
   item: SettingsNavItem
   /** One or two sentences: what the feature does for the organization. */
   summary: string
@@ -24,6 +25,13 @@ const tagged = (item: Omit<SettingsNavItem, 'tag' | 'ownerOnly'>): SettingsNavIt
   tag: 'Enterprise',
   // Organization administration: only its owners and admins see the item.
   ownerOnly: true,
+})
+
+const platformTagged = (item: Omit<SettingsNavItem, 'tag' | 'platformOnly'>): SettingsNavItem => ({
+  ...item,
+  tag: 'Enterprise',
+  // The operator's: only platform admins see the item.
+  platformOnly: true,
 })
 
 /**
@@ -84,6 +92,32 @@ export const ENTERPRISE_TEASERS: readonly EnterpriseTeaser[] = [
     }),
     summary:
       "Every entry of the organization's audit log is sent, signed, to your SIEM as it is written.",
+  },
+  {
+    group: 'Platform',
+    before: 'runtime',
+    item: platformTagged({
+      id: 'platform-orgs',
+      label: 'Organizations',
+      icon: Building,
+      path: 'platform/orgs',
+      keywords: ['tenants', 'suspend', 'step in', 'support'],
+    }),
+    summary:
+      'Every organization on the instance in one list: its members and projects, suspending and restoring it, and a time-limited, audited, read-only step-in to help its people.',
+  },
+  {
+    group: 'Platform',
+    before: 'runtime',
+    item: platformTagged({
+      id: 'platform-users',
+      label: 'User accounts',
+      icon: UserCog,
+      path: 'platform/users',
+      keywords: ['accounts', 'platform admin', 'operators'],
+    }),
+    summary:
+      'Every account on the instance, with the organizations it belongs to, and granting or revoking platform admin. Without it, platform admins are managed with the tripl-admin command.',
   },
 ]
 

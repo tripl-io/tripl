@@ -26,10 +26,9 @@ import { DemoBannerPlaceholder } from '@/demo/DemoBannerPlaceholder'
 import { ShellSkeleton } from '@/components/states/skeletons'
 import { ProjectNotFound } from '@/components/states/project-not-found'
 import { OrgSuspendedState } from '@/components/states/org-suspended'
-import { StepInBanner } from '@/components/shell/step-in-banner'
 import { PublicDemoBanner } from '@/components/shell/public-demo-banner'
 import { useActiveOrg } from '@/components/active-org-context'
-import { extensionShellGates } from '@/extensions'
+import { extensionShellBanners, extensionShellGates } from '@/extensions'
 import { orgIsSuspended } from '@/lib/orgStatus'
 import {
   DocumentEntityTitleContext,
@@ -622,8 +621,10 @@ export default function Layout() {
           )}
 
           <div className="flex min-w-0 flex-1 flex-col" inert={drawerActive}>
-            {/* A platform admin's read-only step-in to this organization. */}
-            <StepInBanner />
+            {/* The extensions' banners (a platform admin's read-only step-in). */}
+            {extensionShellBanners.map((Banner, index) => (
+              <Banner key={index} />
+            ))}
             <PublicDemoBanner />
             <TopBar
               title={headerTitle}

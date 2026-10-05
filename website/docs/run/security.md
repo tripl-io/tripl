@@ -654,76 +654,12 @@ in the project's audit log; sending them to a SIEM through the
 
 ### Platform console and read-only step-in
 
-The [platform console](../administer/admin-guide.md#platform-console)
-(`/api/v1/platform/...`) is the operator's view of every organization on the
-instance. It is gated like the platform settings: `require_platform_admin`, a
-browser session only, never an API key. It returns metadata and counts —
-names, slugs, statuses, member and project counts, owners' and members'
-emails, project names — and no project content.
-
-**Suspension.** A suspended organization answers
-`403 This organization is suspended` to every request that acts in it, from a
-session or an API key, whichever path form names it; organization resolution
-refuses it before any route runs, and an open live-update stream in one of its
-projects fails its next membership re-check and closes. It stays in its
-members' `GET /orgs` with its status, so the app can say why. A request that
-names no organization binds the caller's only **active** one; the suspended
-`403` answers only when the caller has no active membership but a suspended
-one. Deleting a suspended organization is refused with the same `403` (the
-deletion request only moves an `active` organization). Scheduled worker jobs
-skip the projects of any organization that is not `active` (suspended, or being
-deleted). The default organization can never be suspended (`409`), in either
-`DEPLOYMENT_MODE`. The one reader a suspension does not stop is a platform
-admin's read-only step-in (below), so an operator can investigate a suspended
-organization. Suspending and unsuspending are audited in the organization.
-
-**Step-in** is the only way the platform-admin flag reaches inside an
-organization, and it is built to be narrow and visible:
-
-- **Read-only by construction.** While a step-in is active the admin resolves
-  in that organization as a `member` with the project role `viewer` on every
-  project, so every role check that needs more (editor, owner or admin) fails
-  as it would for a viewer. On top of that, any request in the organization
-  other than `GET`, `HEAD` and `OPTIONS` is refused with
-  `403 Step-in is read-only`, except the two read-shaped `POST` queries
-  (`/projects/{slug}/anomalies/signals/query` and
-  `/projects/{slug}/events/window-metrics`). There is no write mode.
-- **Justified and bounded.** A reason (1 to 500 characters) is mandatory, and
-  the step-in expires after its TTL (5 to 240 minutes, 60 by default); it can
-  be ended early. Each one is a row in `platform_step_ins`
-  (`user_id`, `organization_id`, `reason`, `created_at`, `expires_at`,
-  `ended_at`), and only an unexpired, un-ended row grants anything. A second
-  step-in by the same admin to the same organization supersedes the first,
-  which ends. An active or a suspended organization can be stepped into; one
-  being deleted cannot.
-- **Session only.** API keys never carry a step-in, so a platform admin's key
-  cannot read an organization it could not read before.
-- **Audited where the owners look.** Start (`platform.step_in`, with the
-  reason, TTL and expiry) and end (`platform.step_in_end`) are written to
-  the **target organization's** audit log with the platform admin as the actor,
-  so the organization's owners and admins see who stepped in, when and why.
-  Natural expiry is recorded as `platform.step_in_end` with `expired: true`,
-  written lazily the first time organization resolution or a step-in listing
-  sees the expired row (a compare-and-set on `ended_at IS NULL` sets `ended_at`
-  and writes the row exactly once). All six console actions (`org.suspend`,
-  `org.unsuspend`, `platform.step_in`, `platform.step_in_end`,
-  `platform.admin_grant`, `platform.admin_revoke`) sit under **Platform** in
-  the Audit tab's action filter.
-- **Visible to the admin.** `GET /auth/me` returns `active_step_ins`, and the
-  app shows a banner with the end time and an **End now** button on every page
-  of that organization.
-
-Owner- and admin-only reads (the audit log itself, data-source connection
-details, scan SQL) stay closed during a step-in, since the effective role is
-`member`.
-
-Granting and revoking the platform-admin flag (console or `tripl-admin`)
-cannot remove the last platform admin, and the console refuses revoking your
-own flag. Console grants and revocations are audited as
-`platform.admin_grant` / `platform.admin_revoke` with no organization.
-`tripl-admin grant-platform-admin` also marks the account's address verified
-when it was not (the operator controls the instance), noted in the audit
-payload as `marked_verified: true`.
+The platform console (every organization and account on the instance,
+suspension, and a platform admin's read-only step-in to an organization) is
+part of the [Enterprise edition](../editions.md). Its security controls are
+documented with that edition. A suspended organization's members get
+`403 This organization is suspended` in every edition: suspension is stored on
+the organization, and only the console sets it.
 
 ## Outbound requests {#outbound-requests}
 

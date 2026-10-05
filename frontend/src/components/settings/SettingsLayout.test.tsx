@@ -624,7 +624,7 @@ describe('SettingsLayout landmarks and headings', () => {
 
 describe('SettingsLayout content width', () => {
   it('gives a table section the wide column and keeps forms narrow', () => {
-    const { container, unmount } = renderSettings('platform/orgs')
+    const { container, unmount } = renderSettings('members')
     expect(container.querySelector('[data-width]')).toHaveAttribute('data-width', 'wide')
     unmount()
 
