@@ -4,7 +4,7 @@ Generated demo projects are already zero-egress (their only alert destination
 is the local ``demo_sink``). On a public demo every other way out is closed: a
 real project (which could gain Slack, webhook or email destinations), an issue
 tracker, the audit webhook, an organization's own SMTP / AI / storage / SSO,
-SCIM, invitations, and more organizations. Reading those settings still works.
+SCIM, and more organizations. Invitations are link-only. Reading those settings still works.
 """
 
 from __future__ import annotations
@@ -33,12 +33,6 @@ def public_demo(client: AsyncClient, monkeypatch: pytest.MonkeyPatch) -> None:
             "create projects other than demo ones",
         ),
         ("post", "/orgs", {"name": "Another", "slug": "another"}, "create more organizations"),
-        (
-            "post",
-            "/users/invitations",
-            {"email": "someone@example.com", "role": "editor"},
-            "send invitations",
-        ),
         ("patch", "/orgs/default/settings", {}, "change organization settings"),
         ("post", "/orgs/default/settings/email/test", {}, "change organization settings"),
         ("put", "/orgs/default/sso", {}, "configure single sign-on"),

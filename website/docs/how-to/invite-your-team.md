@@ -32,9 +32,16 @@ organization, and press **Create invite link**.
 over chat or email. When the instance has email set up, tripl also mails it to
 the address. They open it, choose a password, and they are in.
 
+On a **public demo**, tripl only creates the link and sends no email. Invitations
+always grant **Member**. The colleague signs in with Google using the invited
+address, then returns to the link and accepts it. They keep their own workspace
+and gain **Viewer** access to the inviting organization's existing ready demo
+projects. See [Public demo limits](../run/public-demo.md#share-a-demo-with-colleagues).
+
 ## 2. Give them a project
 
-A new member sees no projects yet. Open the project, then **Project settings →
+A new member normally sees no projects yet; a public-demo invite grants the
+existing demo projects as described above. Open the project, then **Project settings →
 Access**, and add them as an **Editor** or a **Viewer**.
 
 ![Project settings → Access: who can see this project, and in which role](/img/screenshots/project-access.light.webp#gh-light-mode-only)

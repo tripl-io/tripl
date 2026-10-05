@@ -7,7 +7,7 @@ from datetime import UTC, datetime, timedelta
 from typing import Any
 
 import pytest
-from sqlalchemy import select
+from sqlalchemy import select, update
 
 from tripl.config import settings
 from tripl.models.audit_log import AuditLog
@@ -91,6 +91,26 @@ async def test_only_organizations_left_idle_are_retired() -> None:
     assert await _status(abandoned) == "deleting"
     for kept in (signed_in, opened, brand_new):
         assert await _status(kept) == "active"
+
+
+async def test_a_colleague_keeps_an_idle_owners_organization_alive() -> None:
+    org_id = await _org(signed_in=LONG_AGO, opened=LONG_AGO)
+    colleague_id = await _account(org_id=org_id, signed_in=RECENTLY)
+
+    async with TestSessionLocal() as session:
+        assert org_id not in await org_idle_service.retire_idle_organizations(session, now=NOW)
+    assert await _status(org_id) == "active"
+
+    # The same organization becomes eligible only after every member is idle.
+    async with TestSessionLocal() as session:
+        await session.execute(
+            update(UserSession)
+            .where(UserSession.user_id == colleague_id)
+            .values(updated_at=LONG_AGO)
+        )
+        await session.commit()
+        assert org_id in await org_idle_service.retire_idle_organizations(session, now=NOW)
+    assert await _status(org_id) == "deleting"
 
 
 @pytest.mark.parametrize(

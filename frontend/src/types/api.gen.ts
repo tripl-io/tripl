@@ -306,6 +306,12 @@ export interface paths {
          *
          *     On the register rate-limit bucket, so guessing tokens costs the same as
          *     hammering signup.
+         *
+         *     Public demos require an already signed-in, verified account matching the
+         *     invitation. Anonymous password redemption is refused with 403, without
+         *     creating an account or sending verification mail. Acceptance grants the
+         *     member organization role and viewer access to its existing ready demos;
+         *     existing project grants are preserved. A full demo organization returns 409.
          */
         post: operations["accept_invitation_api_v1_auth_invitations__token__accept_post"];
         delete?: never;
@@ -6398,6 +6404,11 @@ export interface paths {
          *     that always works. It appears here and nowhere else. When the operator has
          *     SMTP configured the link is also mailed, through the operator's relay (never
          *     an organization's), after the response.
+         *
+         *     On a public demo the link is the only delivery: no mail is prepared or
+         *     sent. Only the member organization role is allowed, with at most ten
+         *     members plus unexpired pending invitations (409 when full), and ten mints
+         *     per rolling hour per organization and inviter (429 when exhausted).
          *
          *     The invitation belongs to the organization the request acts in: the one an
          *     ``/orgs/{org}/users/invitations`` URL names, else the legacy default.

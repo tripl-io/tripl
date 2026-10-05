@@ -74,13 +74,33 @@ With `PUBLIC_DEMO=true` the server refuses, with `403` and a reason:
 - password sign-up (sign in with Google instead);
 - adding, testing or editing a warehouse connection;
 - creating a project other than a demo one, or another organization;
-- sending invitations;
+- sending invitation email or creating password accounts through invitation links;
 - changing organization settings (AI, SMTP, embeddings), single sign-on, SCIM,
   the audit webhook, and issue-tracker integrations.
 
 AI features are off whatever the instance or organization settings say. The
 app shows a banner saying this is a public demo and does not offer what the
 server refuses.
+
+## Share a demo with colleagues
+
+An organization owner or admin can open **Organization → Invitations**, enter
+a colleague's Google email address, and choose **Create invite link**. Copy the
+link and share it yourself: tripl sends no invitation or verification email on
+a public demo. Links are single-use and expire after 72 hours.
+
+Public-demo invitations grant the **Member** organization role. The colleague
+signs in with Google using the invited address, returns to the link, and accepts
+it. They join the inviting organization while keeping their own workspace, and
+receive **Viewer** access to its existing ready demo projects. The owner can
+change project access under **Project settings → Access**; projects added later
+need their own access grant.
+
+Each organization has room for ten members, including its owner and unexpired
+pending invitations. Each organization and each inviter may create ten links
+per rolling hour. Replacing or revoking a link does not reset that hourly
+allowance. A full organization returns `409`; an exhausted hourly allowance
+returns `429`. Expired or revoked invitations release their reserved places.
 
 ## Cleaning up
 

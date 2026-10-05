@@ -19,6 +19,7 @@ import { invitationPreviewKey } from '@/lib/queryKeys'
 import { AUTH_QUERY_KEY } from '@/components/auth-context'
 import { orgHomePath } from '@/lib/activeOrg'
 import { PasswordInput } from '@/components/ui/password-input'
+import { authStatusQueryOptions, isPublicDemoStatus } from '@/lib/deploymentMode'
 
 /**
  * What each ORGANIZATION role can do, in the words of the Concepts page's Roles
@@ -76,6 +77,8 @@ function joinedOrgSlug(before: AuthUser | null | undefined, after: AuthUser): st
  * own words.
  */
 export default function InvitePage({ signedIn }: { signedIn?: InviteSignedInAccount } = {}) {
+  const authStatusQuery = useQuery(authStatusQueryOptions())
+  const publicDemo = isPublicDemoStatus(authStatusQuery.data)
   const { token = '' } = useParams<{ token: string }>()
   const navigate = useNavigate()
   const queryClient = useQueryClient()
@@ -125,7 +128,9 @@ export default function InvitePage({ signedIn }: { signedIn?: InviteSignedInAcco
   const roleLabel = preview
     ? ROLE_OPTIONS.find((r) => r.value === preview.role)?.label ?? preview.role
     : null
-  const roleBlurb = preview ? ROLE_BLURB[preview.role] : undefined
+  const roleBlurb = publicDemo
+    ? 'receives viewer access to existing demo projects. Use a verified Google account matching the invited email address.'
+    : preview ? ROLE_BLURB[preview.role] : undefined
   // Only the API's invalid-token answer means the link is dead. A network
   // failure, a 5xx or a rate limit says nothing about the link, and telling a
   // valid invitee to ask for a new one sent them away from a working invite.
@@ -256,7 +261,30 @@ export default function InvitePage({ signedIn }: { signedIn?: InviteSignedInAcco
             </div>
           )}
 
-          {preview && !signedIn && (
+          {preview && !signedIn && authStatusQuery.isPending && (
+            <p className="text-body text-fg-tertiary">Checking sign-in options…</p>
+          )}
+
+          {preview && !signedIn && !authStatusQuery.isPending && publicDemo && (
+            <div className="space-y-4">
+              <p className="text-body text-fg-tertiary">
+                You were invited as <strong>{preview.email}</strong>. Sign in with Google using
+                this email address to accept the invitation and receive viewer access to existing demo projects.
+              </p>
+              <Button
+                type="button"
+                size="lg"
+                className="w-full justify-center"
+                onClick={() => void navigate('/auth', {
+                  state: { from: { pathname: `/invite/${token}` } },
+                })}
+              >
+                Sign in with Google
+              </Button>
+            </div>
+          )}
+
+          {preview && !signedIn && !authStatusQuery.isPending && !publicDemo && (
             <>
               <div className="space-y-1">
                 <p className="text-body text-fg-tertiary">
