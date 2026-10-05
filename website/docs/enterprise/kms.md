@@ -78,7 +78,7 @@ Set these on the API and the worker (Compose passes them through):
 | `KMS_AWS_ENDPOINT_URL` | unset | a VPC endpoint |
 | `KMS_AZURE_ALGORITHM` | `RSA-OAEP-256` | `RSA-OAEP-256` or `RSA-OAEP` for a vault's RSA key, `A256KW` for a Managed HSM's AES key |
 | `KMS_AZURE_OTHER_HOSTS` | unset | other vault hosts whose keys may unwrap, comma-separated: a rotation away from a key in another vault |
-| `KMS_VAULT_ADDR` | unset | the Vault server, `https://vault.example.com:8200` |
+| `KMS_VAULT_ADDR` | unset | the Vault server, `https://vault.example.com:8200` (plain `http://` only to localhost) |
 | `KMS_VAULT_TOKEN` | unset | a Vault token |
 | `KMS_VAULT_TOKEN_FILE` | unset | a file holding the token, read again for every request (Vault Agent, a sidecar renewing it) |
 | `KMS_VAULT_MOUNT` | `transit` | the transit engine's mount path |
@@ -166,7 +166,7 @@ is not usable.
 | The service is unreachable or refuses the credentials at startup | The API and the worker do not start; the log says why. |
 | The service becomes unreachable while running | Values whose data key the process already unwrapped keep working, and so does writing new ones (a process keeps its data key past `KMS_DATA_KEY_TTL_SECONDS` until the service answers again). A value that needs a new unwrap fails with an error (a failed connection test, a failed alert delivery, an error on the page that reads it) rather than being treated as missing; it works again once the service is back. |
 | The key is disabled or deleted, or its grant revoked | Values under it cannot be read once processes restart: they behave as an unreadable secret (a connection error; settings fall back to the environment's value) until the key is restored or the secrets are entered again. |
-| A stored value was altered or truncated | It is unreadable, as with a wrong key; nothing else is affected. |
+| A stored value was altered or truncated, or names a provider the instance is not configured for | It is unreadable, as with a wrong key; nothing else is affected. |
 | `ENCRYPTION_KEY` is changed or lost before the rotation finished | Values not yet rotated cannot be read. Run the rotation first, keep the key backed up. |
 | A token names a key in another Azure vault | It is refused before any request: the instance's credential is only presented to the vault of `KMS_KEY_ID` and to `KMS_AZURE_OTHER_HOSTS`. |
 
