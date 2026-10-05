@@ -47,6 +47,7 @@ const ACTION_TONE: Record<string, ChipTone> = {
   'platform.admin_revoke': 'danger',
   'platform.license_set': 'success',
   'platform.license_clear': 'danger',
+  'org.audit_retention.update': 'warning',
 }
 
 export function actionTone(action: string): ChipTone {
@@ -133,6 +134,7 @@ const ACTION_SENTENCE: Record<string, string> = {
   'platform.admin_revoke': 'Revoked platform admin from',
   'platform.license_set': 'Installed the Enterprise license',
   'platform.license_clear': 'Removed the Enterprise license',
+  'org.audit_retention.update': 'Changed how long the audit log is kept',
 }
 
 export const TARGET_NOUN: Record<string, string> = {

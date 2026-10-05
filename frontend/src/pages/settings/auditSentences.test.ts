@@ -45,6 +45,8 @@ describe('auditSentences', () => {
     expect(actionSentence('platform.license_set')).toBe('Installed the Enterprise license')
     expect(actionSentence('platform.license_clear')).toBe('Removed the Enterprise license')
     expect(actionTone('platform.license_clear')).toBe('danger')
+    expect(actionSentence('org.audit_retention.update')).toBe('Changed how long the audit log is kept')
+    expect(actionTone('org.audit_retention.update')).toBe('warning')
   })
 
   it('tones an action by the suffix of its verb', () => {

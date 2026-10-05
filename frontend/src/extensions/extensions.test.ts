@@ -50,6 +50,7 @@ describe('frontend extensions', () => {
       'org-scim',
       'inst-audit',
       'org-audit-webhook',
+      'org-audit-retention',
     ])
     // The platform console leads the Platform group, before Runtime.
     const platform = WORKSPACE_GROUPS.find((group) => group.label === 'Platform')
@@ -85,6 +86,7 @@ describe('Enterprise teasers', () => {
       'org-scim',
       'inst-audit',
       'org-audit-webhook',
+      'org-audit-retention',
       'platform-orgs',
       'platform-users',
     ])

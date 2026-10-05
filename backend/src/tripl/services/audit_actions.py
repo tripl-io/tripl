@@ -268,7 +268,8 @@ WORKSPACE_GROUPS: tuple[tuple[str, tuple[str, ...]], ...] = (
     ),
     (
         # F20: reading the log out — the export (filed when it starts) and the
-        # audit webhook's settings (``org.audit_webhook.*``).
+        # audit webhook's settings (``org.audit_webhook.*``) — and how long it is
+        # kept (``org.audit_retention.update``, Enterprise).
         "Audit log",
         (
             "org.audit_export",
@@ -277,6 +278,7 @@ WORKSPACE_GROUPS: tuple[tuple[str, tuple[str, ...]], ...] = (
             "org.audit_webhook.delete",
             "org.audit_webhook.rotate_secret",
             "org.audit_webhook.test",
+            "org.audit_retention.update",
         ),
     ),
     (

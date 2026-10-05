@@ -179,6 +179,75 @@ Every change to the webhook is recorded in the organization's audit log as
 `org.audit_webhook.*` (creating, changing, deleting, rotating the secret and
 sending a test), never with the secret.
 
+## Audit retention {#audit-retention}
+
+By default an organization keeps its audit log forever. Owners can set how long
+entries are kept; older entries are then deleted once a day. A **legal hold**
+keeps every entry, whatever the retention says, until it is turned off.
+
+Open **Settings → Organization → Audit retention**.
+
+- **Keep entries for.** A number of days between **30** and **3650** (ten
+  years). Leave it blank to keep entries forever, which is the default.
+- **Legal hold.** While it is on, nothing is deleted. Turn it on while a
+  dispute, audit or investigation needs the whole trail; the retention you set
+  applies again once it is off.
+
+When you save a retention that will delete entries, the page asks you to
+confirm first.
+
+### What is deleted, and when
+
+- Once a day, every entry of the organization and its projects whose time is
+  older than the retention is deleted, together with any
+  [audit webhook](#audit-webhook) deliveries still queued for it. Deletion
+  cannot be undone.
+- Only organizations that set a retention are affected. Entries recorded
+  outside any organization (platform-level entries such as
+  `platform.admin_grant`) are never deleted by a retention policy.
+- Turning on legal hold stops a deletion that is already running before its
+  next batch.
+- To keep a copy, [export the audit log](#audit-export) before you shorten the
+  retention, or stream it to your SIEM with the [audit webhook](#audit-webhook).
+  An automatic "export before delete" is not available yet.
+
+### Who can see and change it
+
+| | Owners | Admins | Members | API keys |
+|---|---|---|---|---|
+| Read the policy | yes | yes | no | no |
+| Change the policy | yes | no | no | no |
+
+Both need a browser session; any API key is refused with `403`. A user who is
+not in the organization gets `404`.
+
+Every change is recorded in the audit log as `org.audit_retention.update`,
+with the policy before and after.
+
+### API
+
+| Method | Path | Who |
+|---|---|---|
+| `GET` | `/api/v1/orgs/{org}/audit/retention` | owners and admins, browser session |
+| `PUT` | `/api/v1/orgs/{org}/audit/retention` | owners, browser session |
+
+`GET` answers:
+
+```json
+{
+  "retention_days": 365,
+  "legal_hold": false,
+  "updated_at": "2026-10-05T09:30:00Z",
+  "min_retention_days": 30,
+  "max_retention_days": 3650
+}
+```
+
+`retention_days` is `null` and `updated_at` is `null` when no policy was ever
+saved. `PUT` takes both fields, `{"retention_days": 365, "legal_hold": false}`
+(`retention_days` may be `null`), and answers like `GET`. A retention outside
+30..3650, a missing field or an unknown one is refused with `422`.
+
 ## Security
 
 From the Community security page (`run/security.md`).
@@ -205,6 +274,7 @@ Route gates, from the stricter-surfaces table:
 | `GET /api/v1/audit`, `GET /api/v1/audit/{entry_id}`, `GET /api/v1/audit/actions` | Org owner or admin | The list carries no payload; a payload is read one entry at a time from the detail route, behind the same gate. A payload re-exposes both of the rows above: `data_source.*` payloads carry the connection details blanked on a direct read, and `scan_config.create` payloads carry `base_query`. It is scoped to the request's organization: the list and the detail read only that organization's entries, so one organization's admin never reads another's payloads. Within it, `project_slug` is a filter, not a scope, and **Settings → Instance → Audit log** is the org owner/admin screen that reads it that way: the actions belonging to no project (`data_source.*`, `user.*`, workspace `api_key.*`) answer nowhere else. That filter resolves the slug to a project and matches on its id, so a renamed project keeps one trail and a re-used slug inherits nobody's; while no live project answers to a slug, the denormalized label is matched instead, which is what keeps a deleted project's entries readable. Passwords were always redacted (`audit_service._redact`). |
 | `GET /api/v1/orgs/{org}/audit/export` | Org owner or admin, interactive session (no API key) | The same rows the feed reads, with their payloads, as one file: the organization's entries and its projects', never another organization's or the platform's own. At most 366 days per request, streamed in pages of 1,000 rows, each page read in its own short transaction so a slow download holds no database connection; rate-limited to a few exports a minute. CSV cells starting with `=`, `+`, `-`, `@`, a tab or a carriage return get a leading apostrophe against spreadsheet formula injection. Each export is audited as `org.audit_export`. See [Exporting the audit log](#audit-export). |
 | `/api/v1/orgs/{org}/audit/webhook` and its `rotate-secret`, `test` and `deliveries` routes | Organization **owner**, interactive session | Where the whole audit trail is sent, so an owner's alone, like single sign-on. See [Audit webhook](#audit-webhook). |
+| `GET` / `PUT /api/v1/orgs/{org}/audit/retention` | Read: org owner or admin; change: organization **owner**. Interactive session | How long the trail is kept, and the legal hold that keeps all of it: deleting history is an owner's decision. See [Audit retention](#audit-retention). |
 
 ## API reference
 
