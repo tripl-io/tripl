@@ -179,7 +179,9 @@ services:
   # One-shot schema upgrade; app + workers wait for it to complete.
   migrate:
     image: *app-image
-    command: ["alembic", "upgrade", "head"]
+    # The core's migrations (alembic upgrade head), then each installed
+    # extension's (tripl.migrate).
+    command: ["python", "-m", "tripl.migrate"]
     environment: *app-environment
     depends_on:
       postgres:

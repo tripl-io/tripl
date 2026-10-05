@@ -36,6 +36,22 @@ Extensions are loaded once per process and called in load order: the bundled
 one first, then the installed ones sorted by entry point name. A server that
 finds an entry point whose object is not an `Extension` refuses to start.
 
+## Database migrations
+
+An extension that owns tables keeps its own Alembic history, with its own
+version table, so the core keeps a single migration head. To run it, the
+extension declares a callable taking no arguments in the `tripl.migrations`
+entry point group:
+
+```toml
+[project.entry-points."tripl.migrations"]
+my-extension = "my_package.migrations:upgrade"
+```
+
+The `migrate` one-shot of `compose.yaml` runs `python -m tripl.migrate`. That
+command runs the core's `alembic upgrade head` first, then each extension's
+callable, sorted by entry point name.
+
 ## Hooks
 
 Override only the hooks you need; the base class implements each one as a
