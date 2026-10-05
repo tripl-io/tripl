@@ -73,6 +73,7 @@ MODE_PRIVATE = 0o600
 MODE_PUBLIC = 0o644
 
 CONFIG_DOCS_URL = "https://tripl-io.github.io/tripl/run/configuration"
+TELEMETRY_DOCS_URL = "https://tripl-io.github.io/tripl/run/telemetry"
 
 
 def packaged(name: str) -> str:
@@ -172,6 +173,7 @@ def render_env(
     version: str,
     generated_at: datetime,
     values: Mapping[str, str],
+    telemetry: bool = False,
 ) -> str:
     """The generated ``.env``, in full.
 
@@ -211,6 +213,14 @@ def render_env(
         "# ENCRYPTION_KEY is a Fernet key: 32 random bytes, url-safe base64.",
     ]
     lines.extend(env_line(name, values[name]) for name in REQUIRED_SECRETS)
+    lines.extend(
+        [
+            "",
+            "# Anonymous usage telemetry: one small ping a day, no names, emails, hosts or",
+            f"# data. What it holds: {TELEMETRY_DOCS_URL}",
+            env_line("TELEMETRY_ENABLED", "true" if telemetry else "false"),
+        ]
+    )
     return "\n".join(lines) + "\n"
 
 
@@ -239,6 +249,7 @@ def plan_env(
     version: str,
     generated_at: datetime,
     values: Mapping[str, str],
+    telemetry: bool = False,
 ) -> FileWrite:
     """Create it, append to it, or leave it entirely alone. Never overwrite."""
     path = directory / ENV_NAME
@@ -255,6 +266,7 @@ def plan_env(
                 version=version,
                 generated_at=generated_at,
                 values=values,
+                telemetry=telemetry,
             ),
             keys=tuple(REQUIRED_SETTINGS) + tuple(REQUIRED_SECRETS),
             secret=True,
@@ -357,6 +369,7 @@ def plan_writes(
     generated_at: datetime,
     values: Mapping[str, str],
     force: bool = False,
+    telemetry: bool = False,
 ) -> tuple[FileWrite, ...]:
     """The three files, in the order they are reported and applied."""
     return (
@@ -371,6 +384,7 @@ def plan_writes(
             version=version,
             generated_at=generated_at,
             values=values,
+            telemetry=telemetry,
         ),
     )
 

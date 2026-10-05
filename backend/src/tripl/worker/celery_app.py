@@ -157,6 +157,12 @@ celery_app.conf.beat_schedule = {
         # 7d — so a tighter tick could only rewrite unchanged rows.
         "schedule": crontab(hour=5, minute=45),
     },
+    "send-telemetry": {
+        "task": "tripl.worker.tasks.telemetry.send_telemetry",
+        # Daily: the opt-in usage ping (TELEMETRY_ENABLED); a no-op otherwise.
+        # Its counts are day-scale, so once a day says all there is.
+        "schedule": crontab(hour=7, minute=13),
+    },
     "snapshot-project-health": {
         "task": "tripl.worker.tasks.health.snapshot_project_health",
         # Daily (F15, #268): after the 05:45 lifecycle findings the score reads,
@@ -299,6 +305,7 @@ import tripl.worker.tasks.org_delete  # noqa: F401, E402
 import tripl.worker.tasks.scan  # noqa: F401, E402
 import tripl.worker.tasks.scan_dry_run  # noqa: F401, E402
 import tripl.worker.tasks.search  # noqa: F401, E402
+import tripl.worker.tasks.telemetry  # noqa: F401, E402
 
 # Extensions' tasks and beat entries (tripl.extensions).
 from tripl import extensions as _extensions  # noqa: E402

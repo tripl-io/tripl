@@ -993,6 +993,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/platform/settings/telemetry": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Telemetry
+         * @description The opt-in usage ping: whether it is sent, where to, and exactly what it last held.
+         */
+        get: operations["get_telemetry_api_v1_platform_settings_telemetry_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/project-templates": {
         parameters: {
             query?: never;
@@ -17603,6 +17623,28 @@ export interface components {
             name: string;
         };
         /**
+         * TelemetryStatusResponse
+         * @description ``GET /platform/settings/telemetry``: the opt-in usage ping, and the last one sent.
+         */
+        TelemetryStatusResponse: {
+            /** Enabled */
+            enabled: boolean;
+            /** Endpoint */
+            endpoint: string;
+            /** Instance Id */
+            instance_id?: string | null;
+            /** Last Attempt At */
+            last_attempt_at?: string | null;
+            /** Last Delivered */
+            last_delivered?: boolean | null;
+            /** Last Payload */
+            last_payload?: {
+                [key: string]: unknown;
+            } | null;
+            /** Reason */
+            reason?: string | null;
+        };
+        /**
          * TestStatus
          * @enum {string}
          */
@@ -20024,6 +20066,26 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_telemetry_api_v1_platform_settings_telemetry_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TelemetryStatusResponse"];
                 };
             };
         };

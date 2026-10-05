@@ -145,6 +145,7 @@ PUBLIC_OR_INSTANCE_WIDE: dict[str, str] = {
     f"{API}/platform/settings": _PLATFORM_REASON,
     f"{API}/platform/settings/ai/test": _PLATFORM_REASON,
     f"{API}/platform/settings/email/test": _PLATFORM_REASON,
+    f"{API}/platform/settings/telemetry": _PLATFORM_REASON,
     f"{API}/project-templates": "static instance-wide catalog of starter templates",
     f"{API}/orgs": (
         "the caller's own organizations (an API key: its own one) and creating a new "

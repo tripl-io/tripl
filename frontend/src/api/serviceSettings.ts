@@ -10,6 +10,9 @@ import type {
 /** The built-in AI system prompts, for "Restore default". */
 export type AiPromptDefaults = components['schemas']['AiPromptDefaultsResponse']
 
+/** The opt-in usage ping: on or off, where to, and exactly what it last sent. */
+export type TelemetryStatus = components['schemas']['TelemetryStatusResponse']
+
 /** The row caps a scan falls back to, readable by any member of the organization. */
 export type RowLimitDefaults = components['schemas']['RowLimitDefaultsResponse']
 
@@ -32,6 +35,7 @@ export const serviceSettingsApi = {
     )
   },
   update: (data: ServiceSettingsUpdate) => api.patch<ServiceSettings>('/platform/settings', data),
+  telemetry: () => api.get<TelemetryStatus>('/platform/settings/telemetry'),
   testAi: (prompt?: string) =>
     api.post<SettingsTestResponse>('/platform/settings/ai/test', prompt ? { prompt } : {}),
   // Omitting the recipient mails the signed-in owner — the address they are

@@ -129,6 +129,16 @@ def register(
             "credentials first"
         ),
     )
+    parser.add_argument(
+        "--telemetry",
+        dest="telemetry",
+        action="store_true",
+        help=(
+            "share anonymous usage telemetry: one small ping a day, no names, emails, hosts "
+            "or data (TELEMETRY_ENABLED in the new .env; default: off). Asked once, here: an "
+            "existing .env is never rewritten"
+        ),
+    )
     add_wait_flag(parser)
     parser.add_argument(
         "--no-start",
@@ -365,6 +375,7 @@ def run_install(args: argparse.Namespace, config: Config) -> int:
         generated_at=generated_at,
         values=values,
         force=bool(args.force),
+        telemetry=bool(args.telemetry),
     )
     # What will be TRUE when this finishes, which on a re-run is the existing
     # .env's values - that file is never overwritten. Everything downstream (the

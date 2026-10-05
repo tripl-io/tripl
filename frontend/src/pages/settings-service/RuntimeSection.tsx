@@ -3,6 +3,7 @@ import { Field, SCard, TextInput } from '@/components/settings/kit'
 import { NumberSettingInput, OperatorFields, SourceBadge } from './ServiceSettingsPrimitives'
 import type { EditableSettings, SectionKey } from './serviceSettingsHelpers'
 import { sourceFor } from './serviceSettingsHelpers'
+import { TelemetryCard } from './TelemetryCard'
 
 export function RuntimeSection({
   form,
@@ -65,6 +66,9 @@ export function RuntimeSection({
           />
         </Field>
       </SCard>
+
+      {/* Read from the operator's own route: platform admins only. */}
+      {platformAdmin && <TelemetryCard />}
     </>
   )
 }
