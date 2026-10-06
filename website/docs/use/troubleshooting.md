@@ -636,8 +636,16 @@ out.
 through the inline resolution flow. Every other conflict — other entity kinds,
 and one side deleting what the other edited — is resolved by **Update from
 main**: it brings main's changes into the branch, you choose **Keep this
-branch** or **Take main** for each overlap, and the next merge has nothing left
-to refuse.
+branch** or **Take main** for each overlap — or for a whole entity at once,
+with **Keep this branch for all**, **Take main for all** or **Keep whichever is
+filled in** — and the next merge has nothing left to refuse. A difference in
+catalog position (`order`) alone never blocks a merge: where both sides moved
+an item, main's position is kept.
+
+To see which event and which of its fields block the merge, press **As merged**
+on the event's row in the branch diff: the panel marks each conflicting field,
+and names in its notes the clashes it does not display, such as photos or a
+conflict on the event's type or one of its fields.
 
 ---
 

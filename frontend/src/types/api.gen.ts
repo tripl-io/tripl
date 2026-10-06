@@ -2096,6 +2096,29 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/projects/{slug}/branches/{branch_id}/merge-preview/event": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Merge Preview Event
+         * @description One event as main will hold it after this branch merges ("As merged").
+         *
+         *     Name the event by ``event_id`` (the branch's, the base's or main's id) or
+         *     by ``event_type`` plus ``event_name`` on any side, not both. Read-only.
+         */
+        get: operations["merge_preview_event_api_v1_projects__slug__branches__branch_id__merge_preview_event_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/projects/{slug}/branches/{branch_id}/resolutions": {
         parameters: {
             query?: never;
@@ -2107,6 +2130,26 @@ export interface paths {
         put?: never;
         /** Save Branch Resolution */
         post: operations["save_branch_resolution_api_v1_projects__slug__branches__branch_id__resolutions_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/projects/{slug}/branches/{branch_id}/resolutions/batch": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Save Branch Resolutions
+         * @description Store many conflict choices at once — all of them, or none on a 422.
+         */
+        post: operations["save_branch_resolutions_api_v1_projects__slug__branches__branch_id__resolutions_batch_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -2176,6 +2219,41 @@ export interface paths {
         post?: never;
         /** Remove Reviewer */
         delete: operations["remove_reviewer_api_v1_projects__slug__branches__branch_id__reviewers__user_id__delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/projects/{slug}/branches/{branch_id}/transfer": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Transfer Branch Changes
+         * @description Move or copy rows of this branch's diff onto another open branch.
+         *
+         *     ``move`` applies them on the target and undoes them here; ``copy`` only
+         *     applies them. What a row needs comes along (``carried``, with
+         *     ``needed_by``); a row the target already says is ``skipped``.
+         *     ``dry_run`` makes every write and rolls it back; with it,
+         *     ``target_branch_id`` may be null to preview against a branch cut from main
+         *     now. Refusals write nothing: 400 for a housekeeping row, main, the branch
+         *     itself as target, or a deleted event type, field or meta field
+         *     (``removed_not_transferable``); 422 for a null target without ``dry_run``
+         *     (request validation); 409 for a merged or closed target, a move off a
+         *     merged or closed branch (a copy off a closed one is allowed),
+         *     ``transfer_base_mismatch`` (cut from different main content; the message
+         *     names the branch to update), ``transfer_conflicts`` (every refused row at
+         *     once), ``transfer_constraint_violation`` and ``transfer_retry`` (a
+         *     concurrent write aborted the transaction; worth one more try).
+         */
+        post: operations["transfer_branch_changes_api_v1_projects__slug__branches__branch_id__transfer_post"];
+        delete?: never;
         options?: never;
         head?: never;
         patch?: never;
@@ -7957,6 +8035,102 @@ export interface components {
          * @enum {string}
          */
         BranchStatus: "draft" | "ready_for_review" | "changes_requested" | "approved" | "merged" | "closed";
+        /**
+         * BranchTransferEntryRef
+         * @description One diff row to move or copy, addressed the way ``BranchRevertRequest`` is.
+         *
+         *     No ``field``: a transfer takes the whole row. Either half of a rename
+         *     names the pair; the other half comes along.
+         */
+        BranchTransferEntryRef: {
+            /** Entity Id */
+            entity_id?: string | null;
+            /**
+             * Entity Type
+             * @enum {string}
+             */
+            entity_type: "event_type" | "field_definition" | "event" | "variable" | "meta_field" | "relation";
+            /** Name */
+            name: string;
+            /** Parent */
+            parent?: string | null;
+        };
+        /**
+         * BranchTransferItem
+         * @description One diff row the transfer applies, carries along or skips.
+         *
+         *     ``kind`` is the row's kind on the source; a rename is listed as its two
+         *     halves. ``needed_by`` names the selected row a carried one is needed by.
+         */
+        BranchTransferItem: {
+            /** Entity Id */
+            entity_id?: string | null;
+            /**
+             * Entity Type
+             * @enum {string}
+             */
+            entity_type: "event_type" | "field_definition" | "event" | "variable" | "meta_field" | "relation";
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "added" | "removed" | "changed";
+            /** Name */
+            name: string;
+            /** Needed By */
+            needed_by?: string | null;
+            /** Parent */
+            parent?: string | null;
+        };
+        /**
+         * BranchTransferRequest
+         * @description Move (apply on the target, undo on this branch) or copy (apply only) rows.
+         *
+         *     ``target_branch_id`` null previews against a branch cut from main now —
+         *     the dialog's "New branch…" — and is accepted only with ``dry_run``. A dry
+         *     run makes every write of the real call and rolls them back.
+         */
+        BranchTransferRequest: {
+            /**
+             * Dry Run
+             * @default false
+             */
+            dry_run: boolean;
+            /** Entries */
+            entries: components["schemas"]["BranchTransferEntryRef"][];
+            /**
+             * Mode
+             * @enum {string}
+             */
+            mode: "move" | "copy";
+            /** Target Branch Id */
+            target_branch_id?: string | null;
+        };
+        /** BranchTransferResult */
+        BranchTransferResult: {
+            /** Applied */
+            applied: components["schemas"]["BranchTransferItem"][];
+            /** Carried */
+            carried: components["schemas"]["BranchTransferItem"][];
+            /** Dry Run */
+            dry_run: boolean;
+            /**
+             * Mode
+             * @enum {string}
+             */
+            mode: "move" | "copy";
+            /** Skipped */
+            skipped: components["schemas"]["BranchTransferItem"][];
+            source_diff?: components["schemas"]["PlanBranchDiff"] | null;
+            /** Target Branch Id */
+            target_branch_id: string | null;
+            /** Target Branch Name */
+            target_branch_name: string | null;
+            /** Target Counts */
+            target_counts?: components["schemas"]["EntityChangeCount"][];
+            /** Warnings */
+            warnings?: string[];
+        };
         /** BranchTransitionRequest */
         BranchTransitionRequest: {
             /**
@@ -8252,6 +8426,11 @@ export interface components {
         };
         /** ConflictEntity */
         ConflictEntity: {
+            /**
+             * Added On Both
+             * @default false
+             */
+            added_on_both: boolean;
             /**
              * Entity Type
              * @enum {string}
@@ -10247,6 +10426,34 @@ export interface components {
              */
             title: string;
         };
+        /**
+         * EventFieldObservedValues
+         * @description The values the last observing scan saw for this field, when it saw several.
+         *
+         *     Read from the main-branch row; a branch copy shows its main twin's. Null
+         *     when the field had one value, was never observed varying, or the response
+         *     is a list (only the single-event reads attach it).
+         */
+        EventFieldObservedValues: {
+            /** Distinct Count */
+            distinct_count: number;
+            /**
+             * Observed At
+             * Format: date-time
+             */
+            observed_at: string;
+            /** Other Count */
+            other_count?: number | null;
+            /** Scan Config Id */
+            scan_config_id?: string | null;
+            /** Total Count */
+            total_count?: number | null;
+            /**
+             * Values
+             * @default []
+             */
+            values: components["schemas"]["ObservedFieldValue"][];
+        };
         /** EventFieldValueIn */
         EventFieldValueIn: {
             /**
@@ -10274,6 +10481,7 @@ export interface components {
              * @default false
              */
             is_authored: boolean;
+            observed_values?: components["schemas"]["EventFieldObservedValues"] | null;
             /** Value */
             value: string;
             /**
@@ -12225,6 +12433,139 @@ export interface components {
          * @enum {string}
          */
         MergeResolutionChoice: "ours" | "theirs";
+        /** MergedEventPreview */
+        MergedEventPreview: {
+            /** Attributes */
+            attributes?: components["schemas"]["MergedValue"][];
+            /**
+             * Behind Base
+             * @default false
+             */
+            behind_base: boolean;
+            /**
+             * Blocked
+             * @default false
+             */
+            blocked: boolean;
+            /**
+             * Branch Merge Blocked
+             * @default false
+             */
+            branch_merge_blocked: boolean;
+            /** Event Id */
+            event_id?: string | null;
+            /** Event Type Name */
+            event_type_name: string;
+            /** Field Values */
+            field_values?: components["schemas"]["MergedValue"][];
+            /** Main Event Id */
+            main_event_id?: string | null;
+            /** Meta Values */
+            meta_values?: components["schemas"]["MergedValue"][];
+            /** Name */
+            name: string;
+            /** Notes */
+            notes?: string[];
+            /**
+             * Other Blocking Count
+             * @default 0
+             */
+            other_blocking_count: number;
+            /**
+             * Outcome
+             * @enum {string}
+             */
+            outcome: "added" | "changed" | "unchanged" | "removed" | "skipped";
+            /** Previous Name */
+            previous_name?: string | null;
+            /** Properties */
+            properties?: components["schemas"]["MergedProperty"][];
+            /** Ref Id */
+            ref_id: string;
+            /** Tags */
+            tags?: components["schemas"]["MergedValue"][];
+        };
+        /**
+         * MergedProperty
+         * @description One variable as a property of the event, after the merge.
+         */
+        MergedProperty: {
+            /**
+             * Main Moved
+             * @default false
+             */
+            main_moved: boolean;
+            /** Name */
+            name: string;
+            /**
+             * Override
+             * @default false
+             */
+            override: boolean;
+            /** Previous Required */
+            previous_required?: boolean | null;
+            /**
+             * Required
+             * @default false
+             */
+            required: boolean;
+            /**
+             * State
+             * @enum {string}
+             */
+            state: "added" | "changed" | "unchanged" | "removed" | "conflict";
+            /** Values */
+            values?: components["schemas"]["MergedPropertyValue"][];
+            /**
+             * Variable State
+             * @default unchanged
+             * @enum {string}
+             */
+            variable_state: "added" | "changed" | "unchanged" | "removed" | "conflict";
+            /** Variable Type */
+            variable_type: string;
+        };
+        /** MergedPropertyValue */
+        MergedPropertyValue: {
+            /**
+             * State
+             * @enum {string}
+             */
+            state: "added" | "changed" | "unchanged" | "removed" | "conflict";
+            /** Value */
+            value: string;
+        };
+        /**
+         * MergedValue
+         * @description One attribute, or one member of a collection, as the merge leaves it.
+         *
+         *     ``previous`` is main as it is now. ``value`` is None on a conflict: the
+         *     merge refuses, so there is no merged value, and ``branch_value`` carries
+         *     the branch's side beside ``previous``. ``branch_value`` is also set where
+         *     the merge drops the branch's value (a status the merge does not carry).
+         */
+        MergedValue: {
+            /** Branch Value */
+            branch_value?: unknown;
+            /** Key */
+            key: string;
+            /**
+             * Main Moved
+             * @default false
+             */
+            main_moved: boolean;
+            /** Note */
+            note?: string | null;
+            /** Previous */
+            previous?: unknown;
+            /**
+             * State
+             * @enum {string}
+             */
+            state: "added" | "changed" | "unchanged" | "removed" | "conflict";
+            /** Value */
+            value?: unknown;
+        };
         /** MetaFieldCreate */
         MetaFieldCreate: {
             /**
@@ -13384,6 +13725,15 @@ export interface components {
             prometheus_metrics_enabled?: boolean | null;
             /** Request Id Header */
             request_id_header?: string | null;
+        };
+        /** ObservedFieldValue */
+        ObservedFieldValue: {
+            /** Count */
+            count?: number | null;
+            /** Share */
+            share?: number | null;
+            /** Value */
+            value: string;
         };
         /** OrgAiSettings */
         OrgAiSettings: {
@@ -15685,6 +16035,22 @@ export interface components {
              * Format: uuid
              */
             scan_config_id: string;
+        };
+        /**
+         * ResolutionBatchCreate
+         * @description Many stored choices in one call: a "for all" action in the conflicts list.
+         *
+         *     All or none: one item naming a field no conflict row carries saves
+         *     nothing. The bound is ``UpdateFromMainRequest.resolutions``'s.
+         */
+        ResolutionBatchCreate: {
+            /** Resolutions */
+            resolutions: components["schemas"]["ResolutionCreate"][];
+        };
+        /** ResolutionBatchResponse */
+        ResolutionBatchResponse: {
+            /** Resolutions */
+            resolutions: components["schemas"]["ResolutionResponse"][];
         };
         /** ResolutionCreate */
         ResolutionCreate: {
@@ -22458,6 +22824,42 @@ export interface operations {
             };
         };
     };
+    merge_preview_event_api_v1_projects__slug__branches__branch_id__merge_preview_event_get: {
+        parameters: {
+            query?: {
+                event_id?: string | null;
+                event_type?: string | null;
+                event_name?: string | null;
+            };
+            header?: never;
+            path: {
+                slug: string;
+                branch_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MergedEventPreview"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     save_branch_resolution_api_v1_projects__slug__branches__branch_id__resolutions_post: {
         parameters: {
             query?: never;
@@ -22481,6 +22883,42 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ResolutionResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    save_branch_resolutions_api_v1_projects__slug__branches__branch_id__resolutions_batch_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                slug: string;
+                branch_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ResolutionBatchCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ResolutionBatchResponse"];
                 };
             };
             /** @description Validation Error */
@@ -22616,6 +23054,42 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    transfer_branch_changes_api_v1_projects__slug__branches__branch_id__transfer_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                slug: string;
+                branch_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["BranchTransferRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BranchTransferResult"];
+                };
             };
             /** @description Validation Error */
             422: {

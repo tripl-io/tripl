@@ -20,6 +20,7 @@ import {
   MetaFieldControl,
   ScanMaintenanceNotice,
 } from './eventFormFields'
+import { FieldObservedValues } from './FieldObservedValues'
 import { breakdownChipId, focusBreakdownChip } from './eventFormValues'
 import { currentOrgSlug, projectPath } from '@/lib/navigation'
 
@@ -250,6 +251,15 @@ export function FieldValuesCard({
                   stored={storedFieldValues.get(f.id) ?? null}
                   current={value}
                   onHandBack={required ? undefined : () => onFieldValueChange(f.id, '')}
+                />
+                {/* "It varies", then "Split volume by this field" for how it
+                    varies over time. */}
+                <FieldObservedValues
+                  observed={
+                    event?.field_values.find(fv => fv.field_definition_id === f.id)?.observed_values
+                  }
+                  stored={storedFieldValues.get(f.id) ?? null}
+                  onMain={branchId !== null}
                 />
                 {/* A JSON field is not a warehouse column, so it can never be a
                     breakdown — `breakdownOptions` leaves those out too. */}

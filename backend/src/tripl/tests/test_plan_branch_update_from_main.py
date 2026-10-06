@@ -1776,3 +1776,57 @@ async def test_taking_main_photos_takes_the_uploader_of_a_matched_photo(
             .all()
         )
     assert uploaders == [user_id]
+
+
+@pytest.mark.asyncio
+async def test_the_default_writer_still_resolves_references_by_main_id(
+    client: AsyncClient,
+) -> None:
+    """``apply_update_plan`` without an ``applier`` keeps reading MAIN's rows.
+
+    Moving changes between branches hands the writer another applier; the
+    update's own successor and override links must not notice.
+    """
+    slug = "ufm-default-applier"
+    branch_id = await _seed(client, slug)
+    project_id, main_id = await _ids(slug)
+    main_track = await _one(EventType, main_id, name="track")
+    async with TestSessionLocal() as session:
+        newer = Event(
+            project_id=project_id, branch_id=main_id, event_type_id=main_track.id, name="v2"
+        )
+        session.add(newer)
+        await session.flush()
+        older = Event(
+            project_id=project_id,
+            branch_id=main_id,
+            event_type_id=main_track.id,
+            name="v1",
+            superseded_by_event_id=newer.id,
+        )
+        session.add(older)
+        await session.flush()
+        currency = await session.scalar(
+            select(Variable).where(Variable.branch_id == main_id, Variable.name == "currency")
+        )
+        assert currency is not None
+        session.add(
+            VariableEventValueOverride(
+                project_id=project_id,
+                branch_id=main_id,
+                variable_id=currency.id,
+                event_id=older.id,
+                values=["EUR"],
+                required=False,
+            )
+        )
+        await session.commit()
+
+    resp = await client.post(_url(slug, branch_id), json={})
+    assert resp.status_code == 200, resp.text
+    branch_v1 = await _one(Event, branch_id, name="v1")
+    branch_v2 = await _one(Event, branch_id, name="v2")
+    assert branch_v1.superseded_by_event_id == branch_v2.id
+    branch_currency = await _one(Variable, branch_id, name="currency")
+    override = await _one(VariableEventValueOverride, branch_id, variable_id=branch_currency.id)
+    assert override is not None and override.event_id == branch_v1.id

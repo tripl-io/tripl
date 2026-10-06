@@ -269,6 +269,32 @@ class EventFieldVariableValueResponse(BaseModel):
     model_config = {"from_attributes": True}
 
 
+class ObservedFieldValue(BaseModel):
+    value: str
+    # Summed breakdown-row count; None when the adapter returned no counts.
+    count: int | None = None
+    # ``count / total_count`` over the FULL set, values past the cap included.
+    share: float | None = None
+
+
+class EventFieldObservedValues(BaseModel):
+    """The values the last observing scan saw for this field, when it saw several.
+
+    Read from the main-branch row; a branch copy shows its main twin's. Null
+    when the field had one value, was never observed varying, or the response
+    is a list (only the single-event reads attach it).
+    """
+
+    distinct_count: int
+    total_count: int | None = None
+    # Busiest first, at most 20.
+    values: list[ObservedFieldValue] = []
+    # Rows carried by values past the 20 kept; None when counts are unknown.
+    other_count: int | None = None
+    observed_at: datetime
+    scan_config_id: uuid.UUID | None = None
+
+
 class EventFieldValueResponse(BaseModel):
     id: uuid.UUID
     field_definition_id: uuid.UUID
@@ -280,6 +306,7 @@ class EventFieldValueResponse(BaseModel):
     # the scan still refreshes from one it has permanently stopped touching.
     is_authored: bool = False
     variable_values: list[EventFieldVariableValueResponse] = []
+    observed_values: EventFieldObservedValues | None = None
 
     model_config = {"from_attributes": True}
 

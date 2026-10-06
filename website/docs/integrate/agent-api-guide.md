@@ -412,12 +412,42 @@ Read the response's `renames` list before interpreting those entries. Entities a
 
 Pass the entry's `entity_id` as well: when two entries share a name it is the only thing that says which one you mean, and without it such a name is refused with `409` (`More than one change on this branch is called …`). Omit `field` to revert the whole entity: an addition is deleted, an edit is written back, a deletion is rebuilt with its child rows and, for an event, its `superseded_by` successor. A revert never touches main, needs an open branch and an editor role, and answers with a `409` — rather than a partial write — when the change cannot be undone unambiguously: two entities on the branch answer to the name and nothing records which one the entry is about (`Rename one of them, then revert.`), several rows of the branch's base snapshot answer to it with none of them named by the entry or a copy's origin (`Undo it by hand instead.`), two base events share the name of an event a restored property override points at (`Set the overrides by hand instead.`), two events answer to the `superseded_by` successor being restored, on the branch or in the base, the parent event type is still deleted, or the branch's base snapshot predates a field the entity needs. A restored `superseded_by` whose successor no longer exists on the branch is cleared instead. A merged branch answers `409` `Branch is merged, so its plan is read-only`, and a closed one `Branch is closed — reopen it before reverting changes`.
 
+### Moving or copying changes to another branch
+
+```http
+POST /api/v1/projects/{slug}/branches/{branch_id}/transfer
+```
+
+Takes diff entries of `branch_id` (the source) to another open working branch. `move` applies them on the target and reverts them on the source, exactly as `revert` would; `copy` only applies them. Entries are addressed the way `revert` addresses them, without `field`:
+
+```json
+{
+  "target_branch_id": "9c3e…",
+  "mode": "move",
+  "dry_run": true,
+  "entries": [{ "entity_type": "event", "name": "open", "parent": "screen", "entity_id": "5a1f…" }]
+}
+```
+
+Naming either half of a rename takes both: the server pairs them the way `revert` does (an event by its origin, a variable or event by its `source_name`), not by `renames`. What the entries need comes along and is listed in `carried` with `needed_by`: a new event type, a new or changed field or meta field a value uses, a variable a `${token}` names, a new successor, a new event a variable override names. On a move, so does what the source would otherwise lose when the entries are reverted there (the remaining events of a moved new type, events valued for a moved field or meta field, relations on a moved field, variables overriding a moved event, events using a moved variable's token). An entry the target already holds identically is listed in `skipped`; a move still reverts it on the source. The answer (`BranchTransferResult`) also carries `applied`, `warnings`, `target_counts` and, after a real call, the source's resulting `source_diff`.
+
+`dry_run: true` makes every write — the target's and, on a move, the source's reverts — and rolls them back, so whatever a real call would refuse, the dry run refuses too. With `dry_run`, `target_branch_id` may be `null`: the preview runs against a branch cut from main now, which is not kept; create it with `POST /branches` and call again with its id. A real call is audited twice, `plan_branch.transfer_out` on the source and `plan_branch.transfer_in` on the target; a dry run is not audited.
+
+Refusals write nothing:
+
+- `400` — the target is the source, either branch is main, an entry is housekeeping, or `{removed_not_transferable: true, message}`: a deleted event type, field or meta field (deleting it on the target would cascade into rows only the target has; delete it there directly). A rename of one of those reaches the diff as a deletion plus an addition and is refused the same way.
+- `404` — an unknown branch, or an entry not in the source's diff.
+- `422` — a `null` target without `dry_run` (a request validation error, FastAPI's `{detail: [...]}` array).
+- `409` — a merged or closed target; a move off a merged or closed source or a copy off a merged one (a copy off a closed one is allowed); a branch without a base snapshot; `{transfer_base_mismatch: true, message, behind_branch_ids}` when the two branches were cut from different main content (the message names the branch or branches to update from main; a new-branch preview names the source); `{transfer_conflicts: [...], message}` listing every refused entry at once, each `{entity_type, name, parent, field, reason, message}` with `reason` one of `target_exists` (the name is taken on the target with other content), `target_changed` (the target moved `field` off the base itself), `target_missing` (a parent, field, meta field or successor the entry needs is not on the target), `identity_clash` (two rows would share a name or scan identity), `ambiguous_rename` and `has_discussion` (moving an added event with review comments would delete them; copy it instead); `{transfer_constraint_violation: true, message}`; `{transfer_retry: true, message}` when a concurrent write made the database abort, worth one more try. Any `409` a revert raises (see above) reaches a move's dry run as well.
+
+A transfer leaves review status alone on both branches. Photo changes are copied to the target but stay on the source of a move (a revert cannot undo them; the answer warns).
+
 ### Updating a branch from main
 
 When main changes after a branch is cut, the branch is *behind*: `GET /api/v1/projects/{slug}/branches/{branch_id}/conflicts` answers `behind: true`. Bring main's changes onto the branch with a three-way merge of main INTO the branch rather than recreating it:
 
 1. `GET /api/v1/projects/{slug}/branches/{branch_id}/update-from-main` (any member, read-only) returns `behind`, `updatable`, `blockers`, `main_hash`, `main_changes` (per entity type: `added`, `changed`, `removed`, `renamed`) and `conflicts`: every field both sides changed since the base, for all six entity types, grouped per entity with `name` (the key a choice is stored under), `parent`, `label`, and per field `base`, `ours` (main), `theirs` (the branch), `choice` and `dependents`. A field of `@presence` means one side deleted what the other changed; its values are `"present"` / `"absent"`, and `dependents` counts the branch's own work under an event type that taking main's deletion would also remove.
-2. `POST` the same path (editor) with `{"expected_main_hash": "<main_hash from the preview>", "resolutions": [{"entity_type", "entity_name", "field_name", "choice"}]}`. `choice` names the value to end with: `ours` takes main's, `theirs` keeps the branch's. Inline choices are stored in the same transaction. Choices saved earlier through `POST .../resolutions` count only when `expected_main_hash` is sent, because a stored choice records a side, not the values it was made against.
+2. `POST` the same path (editor) with `{"expected_main_hash": "<main_hash from the preview>", "resolutions": [{"entity_type", "entity_name", "field_name", "choice"}]}`. `choice` names the value to end with: `ours` takes main's, `theirs` keeps the branch's. Inline choices are stored in the same transaction. Choices saved earlier through `POST .../resolutions` count only when `expected_main_hash` is sent, because a stored choice records a side, not the values it was made against. To store many choices before the update (the Conflicts panel's "for all" actions do), `POST .../resolutions/batch` (editor) with `{"resolutions": [ ... ]}` — 1 to 5000 items of the same shape, answered `201` with `{"resolutions": [...]}`, one stored row per `(entity_type, entity_name, field_name)` (a key sent twice keeps its last choice). It is all or none: one item naming a field no conflict row of that type carries answers `422` and stores nothing. No row is ever reported for `order` (catalog position): where both sides moved an item main's position is kept, by the update and by the merge alike, and a stored `order` choice is accepted and ignored.
 
 On success the answer is `200` with `updated`, the branch, `applied` counts and the old and new `base_revision_id`: the branch's base is now main, so its diff shows only its own work and the next merge has nothing to refuse. A branch already level with main answers `200` with `updated: false` and writes nothing. Every refusal is a `409` that writes nothing:
 

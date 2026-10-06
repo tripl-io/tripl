@@ -12,12 +12,21 @@ import type {
   PlanBranchConflictField,
   PlanBranchConflicts,
   PlanBranchSummary,
+  PlanDiffEntityType,
   ResolutionChoice,
 } from '@/types'
 import { DiffValue } from '../DiffValue'
 import { planBranchConflictsKey } from '@/lib/queryKeys'
 import { entityTypeTitle } from './branchDiffModel'
-import { withChoice } from './conflictModel'
+import {
+  type BulkScope,
+  type BulkStrategy,
+  bulkChoices,
+  PRESENCE_FIELD,
+  presenceLeft,
+  withChoice,
+  withChoices,
+} from './conflictModel'
 
 /**
  * The backend's `ours` is main as it is now and `theirs` is this branch
@@ -34,9 +43,15 @@ const CHOSEN_TEXT: Record<ResolutionChoice, string> = {
   ours: "Resolved: main's value",
 }
 
-/** A presence row: one side deleted the entity (or its parent), the other
- * edited or added to it. Its values are "present" / "absent". */
-const PRESENCE_FIELD = '@presence'
+/** The "for all" actions, in the order shown; `filled` leads on an entity
+ * both sides added (`ENTITY_BULK_ORDER_ADDED`). */
+const BULK_LABEL: Record<BulkStrategy, string> = {
+  theirs: 'Keep this branch for all',
+  ours: 'Take main for all',
+  filled: 'Keep whichever is filled in',
+}
+const BULK_ORDER: readonly BulkStrategy[] = ['theirs', 'ours', 'filled']
+const ENTITY_BULK_ORDER_ADDED: readonly BulkStrategy[] = ['filled', 'theirs', 'ours']
 
 interface ConflictListProps {
   entities: PlanBranchConflictEntity[]
@@ -51,6 +66,13 @@ interface ConflictListProps {
   pending?: boolean
   /** A field whose own choice is still being saved (the Conflicts panel). */
   pendingOf?: (entity: PlanBranchConflictEntity, field: PlanBranchConflictField) => boolean
+  /**
+   * A "for all" action, for one entity (`scope`) or the whole list. Value rows
+   * only: deletions stay one choice per row. Omitted for a viewer.
+   */
+  onBulk?: (strategy: BulkStrategy, scope?: BulkScope) => void
+  /** The bulk actions wait: a save they could race is still in flight. */
+  bulkPending?: boolean
 }
 
 /**
@@ -65,6 +87,8 @@ export function ConflictList({
   onResolve,
   pending = false,
   pendingOf,
+  onBulk,
+  bulkPending = false,
 }: ConflictListProps) {
   const groups = new Map<string, { title: string; entities: PlanBranchConflictEntity[] }>()
   for (const entity of entities) {
@@ -82,8 +106,25 @@ export function ConflictList({
       })
     }
   }
+  const deletionsLeft = onBulk ? presenceLeft(entities, choiceOf) : 0
+  const valueRows = (list: readonly PlanBranchConflictEntity[]) =>
+    list.some((entity) => entity.fields.some((field) => field.field !== PRESENCE_FIELD))
   return (
     <div className="space-y-3">
+      {onBulk && entities.length > 1 && valueRows(entities) ? (
+        <BulkActions
+          label="Every conflict"
+          order={BULK_ORDER}
+          disabled={pending || bulkPending}
+          onBulk={(strategy) => onBulk(strategy)}
+        />
+      ) : null}
+      {deletionsLeft > 0 ? (
+        <p className="text-caption text-fg-tertiary" data-testid="deletions-left">
+          {countOf(deletionsLeft, 'deletion', 'deletions')} still{' '}
+          {deletionsLeft === 1 ? 'needs' : 'need'} a choice — a deletion is always picked on its own row.
+        </p>
+      ) : null}
       {[...groups.entries()].map(([groupKey, group]) => (
         <section key={groupKey} className="space-y-2">
           <h3 className="text-caption font-medium text-fg-tertiary">{group.title}</h3>
@@ -98,6 +139,22 @@ export function ConflictList({
                 {entityTypeTitle(entity.entity_type)}{' '}
                 <span className="mono font-medium text-fg">{entity.label || entity.name}</span>
               </div>
+              {entity.added_on_both ? (
+                <p className="mb-1 text-caption text-fg-tertiary">
+                  Added on both sides — main’s copy may have come from a scan.
+                </p>
+              ) : null}
+              {onBulk && valueRows([entity]) ? (
+                <BulkActions
+                  label={`All fields of ${entity.label || entity.name}`}
+                  order={entity.added_on_both ? ENTITY_BULK_ORDER_ADDED : BULK_ORDER}
+                  primary={entity.added_on_both ? 'filled' : undefined}
+                  disabled={pending || bulkPending}
+                  onBulk={(strategy) =>
+                    onBulk(strategy, { entity_type: entity.entity_type, name: entity.name })
+                  }
+                />
+              ) : null}
               <div className="space-y-2">
                 {entity.fields.map((field) => (
                   <ConflictFieldRow
@@ -113,6 +170,40 @@ export function ConflictList({
             </div>
           ))}
         </section>
+      ))}
+    </div>
+  )
+}
+
+/** One row of "for all" actions: a labelled group, so the list's row and each
+ * entity's row read apart for a screen reader (and a test). */
+function BulkActions({
+  label,
+  order,
+  primary,
+  disabled,
+  onBulk,
+}: {
+  label: string
+  order: readonly BulkStrategy[]
+  /** Filled in as the suggested action; the others stay outlined. */
+  primary?: BulkStrategy
+  disabled: boolean
+  onBulk: (strategy: BulkStrategy) => void
+}) {
+  return (
+    <div role="group" aria-label={label} className="mb-2 flex flex-wrap items-center gap-1.5">
+      {order.map((strategy) => (
+        <Button
+          key={strategy}
+          type="button"
+          size="sm"
+          variant={strategy === primary ? 'default' : 'outline'}
+          disabled={disabled}
+          onClick={() => onBulk(strategy)}
+        >
+          {BULK_LABEL[strategy]}
+        </Button>
       ))}
     </div>
   )
@@ -142,10 +233,15 @@ export function ConflictsPanel({ slug, branch }: { slug: string; branch: PlanBra
   // Rows save side by side, but one field waits for its own save: two in
   // flight for the same field race to insert the same row, and the older
   // one's rollback could undo the newer pick.
+  // A single pick's variables are one field, a batch's a list of them: both
+  // share the key prefix, so both hold their fields here and in onSettled.
   const savingFields = useMutationState({
     filters: { mutationKey: resolutionMutationKey, status: 'pending' },
-    select: (mutation) => mutation.state.variables as ResolveVars | undefined,
-  })
+    select: (mutation) => {
+      const vars = mutation.state.variables as ResolveVars | ResolveVars[] | undefined
+      return Array.isArray(vars) ? vars : vars ? [vars] : []
+    },
+  }).flat()
   const resolutionMut = useMutation({
     mutationKey: resolutionMutationKey,
     // Rendered inline below, beside the choice that failed.
@@ -187,6 +283,44 @@ export function ConflictsPanel({ slug, branch }: { slug: string; branch: PlanBra
     },
   })
 
+  // A "for all" action: one request for every pick, shown at the click and
+  // undone field by field on a refusal, like a single pick.
+  const batchMut = useMutation({
+    mutationKey: [...resolutionMutationKey, 'batch'],
+    meta: SILENT_ERROR_META,
+    mutationFn: (picks: ResolveVars[]) =>
+      planBranchesApi.saveResolutions(slug, branch.id, {
+        resolutions: picks.map(({ entity_type, entity_name, field, choice }) => ({
+          entity_type: entity_type as PlanDiffEntityType,
+          entity_name,
+          field_name: field,
+          choice,
+        })),
+      }),
+    onMutate: async (picks) => {
+      await qc.cancelQueries({ queryKey: conflictsKey })
+      const current = qc.getQueryData<PlanBranchConflicts>(conflictsKey)
+      const previous = picks.map((pick) => ({
+        ...pick,
+        choice:
+          current?.entities
+            .find((e) => e.entity_type === pick.entity_type && e.name === pick.entity_name)
+            ?.fields.find((f) => f.field === pick.field)?.choice ?? null,
+      }))
+      if (current) qc.setQueryData(conflictsKey, withChoices(current, picks))
+      return { previous }
+    },
+    onError: (_error, _picks, context) => {
+      const current = qc.getQueryData<PlanBranchConflicts>(conflictsKey)
+      if (current && context) qc.setQueryData(conflictsKey, withChoices(current, context.previous))
+    },
+    onSettled: () => {
+      if (qc.isMutating({ mutationKey: resolutionMutationKey }) === 1) {
+        void qc.invalidateQueries({ queryKey: conflictsKey })
+      }
+    },
+  })
+
   if (!open || !conflicts || conflicts.entities.length === 0) return null
 
   return (
@@ -198,7 +332,9 @@ export function ConflictsPanel({ slug, branch }: { slug: string; branch: PlanBra
       <div className="space-y-3 p-4">
         <p className="text-caption text-fg-tertiary">
           Main and this branch both changed these since the branch was opened. Pick the value to
-          keep for each; Update from main brings the rest of main in with your choices.
+          keep for each, or for a whole entity at once; Update from main brings the rest of main
+          in with your choices. Catalog position is never asked about: where both moved an item,
+          main’s place stands.
         </p>
         <ConflictList
           entities={conflicts.entities}
@@ -206,7 +342,7 @@ export function ConflictsPanel({ slug, branch }: { slug: string; branch: PlanBra
           pendingOf={(entity, field) =>
             savingFields.some(
               (vars) =>
-                vars?.entity_type === entity.entity_type &&
+                vars.entity_type === entity.entity_type &&
                 vars.entity_name === entity.name &&
                 vars.field === field.field,
             )
@@ -222,7 +358,24 @@ export function ConflictsPanel({ slug, branch }: { slug: string; branch: PlanBra
                   })
               : undefined
           }
+          onBulk={
+            canWrite
+              ? (strategy, scope) => {
+                  const picks = bulkChoices(conflicts.entities, strategy, scope)
+                  if (picks.length > 0) batchMut.mutate(picks)
+                }
+              : undefined
+          }
+          // A batch over a field whose own save is in flight would race it
+          // to insert the same row.
+          bulkPending={savingFields.length > 0}
         />
+        {batchMut.isError ? (
+          <p role="alert" className="text-caption text-danger">
+            Could not save {countOf(batchMut.variables?.length ?? 0, 'choice', 'choices')}:{' '}
+            {getErrorMessage(batchMut.error)}
+          </p>
+        ) : null}
         {resolutionMut.isError ? (
           <p role="alert" className="text-caption text-danger">
             {/* Named: other rows keep saving, so "the choice" alone may not be the last one clicked. */}

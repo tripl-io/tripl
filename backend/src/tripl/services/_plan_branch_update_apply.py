@@ -599,8 +599,13 @@ async def apply_update_plan(
     main_payload: dict[str, Any],
     *,
     origins_complete: bool = True,
+    applier: _Applier | None = None,
 ) -> list[EntityChangeCount]:
     """Write the plan onto the branch; commit nothing.
+
+    ``applier`` stands in for the default writer: moving changes between
+    branches (``_plan_branch_transfer_apply``) writes another branch's items,
+    whose ids are that branch's rather than main's. Omitted, the update's own.
 
     In the order that keeps every identity free when it is needed (design §2):
     main's deletions first and flushed — SQLAlchemy saves before it deletes, so
@@ -610,7 +615,8 @@ async def apply_update_plan(
     additions, parents first, then field writes, and last the fields that name
     other rows.
     """
-    applier = _Applier(session, project_id, branch_id, main_payload, origins_complete)
+    if applier is None:
+        applier = _Applier(session, project_id, branch_id, main_payload, origins_complete)
 
     # 1. Deletions, children first.
     for entity_type in ("relation", "event", "field_definition", "meta_field", "variable"):

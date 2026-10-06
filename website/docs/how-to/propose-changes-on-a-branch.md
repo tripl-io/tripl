@@ -59,6 +59,12 @@ attached to it. If `main` changed the same thing differently in the meantime, th
 merge reports a conflict, and **Update from main** on the branch lets you choose,
 change by change, which side to keep.
 
+When you authored an event on the branch and a scan meanwhile created the same
+event on `main`, every field of it is an overlap: your title and tags against
+the scan's description. One click settles them — **Keep whichever is filled
+in** on that event keeps the side that has a value, and yours where both do.
+Its position in the catalog is not asked about: `main`'s stands.
+
 :::caution There is no undo for a merge
 Review is the safety net: it is far easier to spot a mistake in a diff than to
 put it right afterwards. After a merge, a wrong change is fixed by another branch

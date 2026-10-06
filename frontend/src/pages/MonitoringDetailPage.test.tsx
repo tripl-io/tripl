@@ -827,6 +827,8 @@ function installEventDetailFetch(
     }
     if (url.endsWith('/api/v1/projects/demo/meta-fields')) return mockJsonResponse([])
     if (url.endsWith('/api/v1/projects/demo/properties')) return mockJsonResponse([])
+    // The properties grid's variable list, for the field values' tokens.
+    if (url.includes('/api/v1/projects/demo/properties?')) return mockJsonResponse({ items: [], total: 0 })
     if (url.includes('/api/v1/projects/demo/events/event-1/history')) {
       return mockJsonResponse(opts.history ?? [])
     }

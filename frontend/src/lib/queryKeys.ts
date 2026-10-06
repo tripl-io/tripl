@@ -60,6 +60,30 @@ export const planBranchDetailKey = (slug: string, branchId: string) =>
   [...orgRoot(), 'planBranchDetail', slug, branchId] as const
 export const planBranchConflictsKey = (slug: string, branchId: string) =>
   [...orgRoot(), 'planBranchConflicts', slug, branchId] as const
+/** "As merged": one event of a branch as main will hold it after the merge.
+ * Under the branch's own prefix, so one invalidation refreshes every target. */
+export const planBranchTransferPreviewKey = (
+  slug: string,
+  branchId: string,
+  target: string,
+  mode: string,
+  entries: unknown,
+) => [...orgRoot(), 'planBranchTransferPreview', slug, branchId, target, mode, entries] as const
+export const planBranchMergePreviewRootKey = (slug: string, branchId: string) =>
+  [...orgRoot(), 'planBranchMergePreview', slug, branchId] as const
+export const planBranchMergePreviewKey = (
+  slug: string,
+  branchId: string,
+  target: { eventId: string } | { eventType: string; eventName: string } | null,
+) =>
+  [
+    ...planBranchMergePreviewRootKey(slug, branchId),
+    target === null
+      ? null
+      : 'eventId' in target
+        ? { eventId: target.eventId }
+        : { eventType: target.eventType, eventName: target.eventName },
+  ] as const
 /** The "Update from main" dialog's preview. */
 export const planBranchUpdatePreviewKey = (slug: string, branchId: string) =>
   [...orgRoot(), 'planBranchUpdatePreview', slug, branchId] as const

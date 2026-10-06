@@ -21,11 +21,15 @@ import { KIND_META } from './branches/branchMeta'
 export function PlanFieldChangeList({
   changes,
   renderAction,
+  renderItemAction,
 }: {
   changes: PlanFieldChange[]
   /** Optional control shown beside each field's name (e.g. the branch
    * review's per-field Revert). */
   renderAction?: (change: PlanFieldChange) => ReactNode
+  /** Optional control at the end of one collection member's line (the branch
+   * review's "As merged" link on a per-event override). */
+  renderItemAction?: (change: PlanFieldChange, item: PlanValueChange) => ReactNode
 }) {
   return (
     <div className="flex flex-col gap-2">
@@ -45,7 +49,11 @@ export function PlanFieldChangeList({
             // not two dumps of the whole list.
             <div className="flex flex-col gap-1">
               {change.items.map((item) => (
-                <PlanValueChangeRow key={item.key} item={item} />
+                <PlanValueChangeRow
+                  key={item.key}
+                  item={item}
+                  action={renderItemAction?.(change, item)}
+                />
               ))}
             </div>
           ) : (
@@ -67,7 +75,7 @@ const MEMBER_KIND_WORD: Record<PlanDiffKind, string> = {
 }
 
 /** One member of a changed collection: `~ currency  USD → EUR`. */
-function PlanValueChangeRow({ item }: { item: PlanValueChange }) {
+function PlanValueChangeRow({ item, action }: { item: PlanValueChange; action?: ReactNode }) {
   const meta = KIND_META[item.kind]
   return (
     <div className="flex flex-wrap items-baseline gap-1.5 text-caption">
@@ -87,6 +95,7 @@ function PlanValueChangeRow({ item }: { item: PlanValueChange }) {
       ) : (
         <DiffValue value={item.kind === 'added' ? item.after : item.before} tone={meta.tone} />
       )}
+      {action ? <span className="ml-auto shrink-0">{action}</span> : null}
     </div>
   )
 }

@@ -65,6 +65,7 @@ from tripl.services.event_comment_service import (
     events_with_open_questions,
     open_question_counts,
 )
+from tripl.services.event_field_observation_service import attach_event_field_observations
 from tripl.services.lifecycle_service import attach_event_findings, attach_list_warnings
 from tripl.services.plan_branch_service import ensure_main_branch_id, resolve_branch_id
 from tripl.services.project_lookup import resolve_project_id
@@ -1064,6 +1065,7 @@ async def get_event(
     if not event:
         raise HTTPException(status_code=404, detail="Event not found")
     await attach_event_field_variable_values(session, [event])
+    await attach_event_field_observations(session, project_id=project_id, events=[event])
     await attach_main_last_seen(session, project_id=project_id, events=[event])
     await _attach_first_seen(session, project_id=project_id, event=event)
     await attach_event_findings(session, project_id=project_id, event=event)
@@ -1929,6 +1931,7 @@ async def update_event(
     await _queue_embedding_refresh(event_project_id, event_branch_id, ai_config=ai_config)
     await session.refresh(event)
     await attach_event_field_variable_values(session, [event])
+    await attach_event_field_observations(session, project_id=event_project_id, events=[event])
     await _attach_template_warnings(session, event)
     if is_main:
         await cache.delete_prefix(cache.prefix_projects())
@@ -2146,6 +2149,7 @@ async def move_event(
     await session.commit()
     await session.refresh(event)
     await attach_event_field_variable_values(session, [event])
+    await attach_event_field_observations(session, project_id=event.project_id, events=[event])
     return event
 
 

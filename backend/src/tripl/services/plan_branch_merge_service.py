@@ -50,6 +50,7 @@ from tripl.services._celery_dispatch import dispatch
 from tripl.services._event_reference_cleanup import drop_dangling_event_references
 from tripl.services._plan_branch_locks import lock_main_plan_for_merge
 from tripl.services._plan_branch_renames import pair_renames, rekey_in_place
+from tripl.services._plan_branch_sides import require_complete_base
 from tripl.services._plan_merge_slots import merge_slots
 from tripl.services.event_photo_service import (
     PHOTO_KIND_PHOTO,
@@ -59,10 +60,11 @@ from tripl.services.event_photo_service import (
 from tripl.services.event_type_owner_service import load_owner_user_ids
 from tripl.services.plan_branch_conflicts import (
     _ET_CHANGE_KEYS,
-    _detect_merge_conflicts,
     _entity_changed,
     _field_conflicts_event_type,
     _load_resolutions,
+    main_keeps,
+    merge_blocking_conflicts,
 )
 from tripl.services.plan_branch_service import (
     _load_for_branch,
@@ -72,7 +74,6 @@ from tripl.services.plan_branch_service import (
     ensure_main_branch_id,
 )
 from tripl.services.plan_revision_service import (
-    PLAN_SNAPSHOT_VERSION,
     _snapshot_fingerprint,
     build_plan_snapshot,
     plan_snapshot_hash,
@@ -762,6 +763,10 @@ async def _apply_merge(
     value for that field instead of taking the branch's. Defaults to "theirs"
     (branch wins) when no resolution is supplied.
 
+    ``MAIN_WINS_FIELDS`` (catalog ``order``) are the exception on every entity:
+    where main moved the value off the base too, or both sides added the row,
+    main's stays (``main_keeps``); a move on the branch alone still lands.
+
     Returns the ``(storage_backend, storage_key)`` of every uploaded photo the
     photos arm deleted from main, for ``merge_branch`` to release once the merge
     has committed.
@@ -819,6 +824,8 @@ async def _apply_merge(
                     continue
                 if choice == "theirs":
                     setattr(m_et, field, getattr(b_et, field))
+                    continue
+                if main_keeps(field, b_dict, getattr(m_et, field)):
                     continue
                 if b_dict is None:
                     setattr(m_et, field, getattr(b_et, field))
@@ -968,6 +975,9 @@ async def _apply_merge(
             key = (et_name, field_name)
             m_fd = main_fields_by_key.get(key)
             base_fd = base_fields.get(field_name)
+            # Read before a missing row is created below: a field new on the
+            # branch alone takes every value from the branch, its order too.
+            main_existed = m_fd is not None
             if m_fd is None:
                 if base_fd is not None:
                     continue
@@ -975,6 +985,8 @@ async def _apply_merge(
                 session.add(m_fd)
                 main_fields_by_key[key] = m_fd
             for attr in field_attrs:
+                if main_existed and main_keeps(attr, base_fd, getattr(m_fd, attr)):
+                    continue
                 branch_value = getattr(b_fd, attr)
                 if base_fd is None or branch_value != base_fd.get(attr):
                     if attr == "enum_options":
@@ -1024,6 +1036,8 @@ async def _apply_merge(
         if m_mf is not None:
             base_mf = base_mf_by_name.get(name)
             for attr in meta_attrs:
+                if main_keeps(attr, base_mf, getattr(m_mf, attr)):
+                    continue
                 branch_value = getattr(b_mf, attr)
                 if base_mf is None or branch_value != base_mf.get(attr):
                     if attr == "enum_options":
@@ -1366,6 +1380,8 @@ async def _apply_merge(
         landings.append((b_ev, m_ev, base_event))
         branch_event_snapshot = branch_event_snapshot_by_id[str(b_ev.id)]
         for attr in event_attrs:
+            if main_keeps(attr, base_event, getattr(m_ev, attr)):
+                continue
             if base_event is None or branch_event_snapshot.get(attr) != base_event.get(attr):
                 branch_value = getattr(b_ev, attr)
                 if attr == "metric_breakdown_columns":
@@ -2317,32 +2333,21 @@ async def merge_branch(
         base_rev = await session.get(PlanRevision, branch.base_revision_id)
         if base_rev is not None:
             base_payload = with_snapshot_defaults(base_rev.payload or {})
-    if base_payload.get("snapshot_version") != PLAN_SNAPSHOT_VERSION:
-        raise HTTPException(
-            status_code=409,
-            detail={
-                "incomplete_base_snapshot": True,
-                "message": (
-                    "This branch predates the complete merge baseline. "
-                    "Recreate it from current main before merging."
-                ),
-            },
-        )
+    require_complete_base(base_payload)
     main_payload = await build_plan_snapshot(session, project.id, branch_id=main_branch_id)
     branch_payload = await build_plan_snapshot(session, project.id, branch_id=branch.id)
 
-    all_conflicts = _detect_merge_conflicts(
+    # Modify-modify clashes on event_type fields are surfaced via the inline
+    # resolution flow; entity-level adds/removes and conflicts on other entity
+    # kinds stay hard blockers — they aren't covered by v1 resolutions. The
+    # gate is shared with ``merge_blocked_by`` and the merge preview.
+    blocking = merge_blocking_conflicts(
         base_payload,
         main_payload,
         branch_payload,
-        theirs_origins_complete=branch.origin_ids_complete,
+        origins_complete=branch.origin_ids_complete,
     )
     field_conflicts = _field_conflicts_event_type(base_payload, main_payload, branch_payload)
-    # Modify-modify clashes on event_type fields are surfaced via the inline
-    # resolution flow; entity-level adds/removes and conflicts on other entity
-    # kinds stay hard blockers — they aren't covered by v1 resolutions.
-    resolvable = {(c["entity_type"], c["name"]) for c in field_conflicts}
-    blocking = [c for c in all_conflicts if (c["entity_type"], c["name"]) not in resolvable]
     if blocking:
         raise HTTPException(status_code=409, detail={"conflicts": blocking})
 

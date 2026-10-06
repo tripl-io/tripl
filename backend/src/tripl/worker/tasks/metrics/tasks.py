@@ -770,6 +770,10 @@ def collect_metrics(
             analyze_cardinality_fn=analyze_cardinality,
             analyze_cardinality_grouped_fn=analyze_cardinality_grouped,
             generate_events_fn=generate_events,
+            # Only a view the operator declared may replace the per-field value
+            # distributions a manual scan wrote; a fallback window would make
+            # the event page's "Seen with N values" line come and go per tick.
+            record_field_observations=catalog_window_declared,
         )
         gen_results = catalog.gen_results
         single_result = catalog.single_result

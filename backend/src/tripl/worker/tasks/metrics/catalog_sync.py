@@ -156,6 +156,7 @@ class _GenerateEventsFn(Protocol):
         max_events: int = 10000,
         scan_config_id: uuid.UUID | None = None,
         json_path_samples: Mapping[str, Mapping[str, Sequence[str]]] | None = None,
+        record_observations: bool = True,
     ) -> GenerationResult: ...
 
 
@@ -886,7 +887,16 @@ def sync_catalog(
     analyze_cardinality_fn: _AnalyzeCardinalityFn,
     analyze_cardinality_grouped_fn: _AnalyzeCardinalityGroupedFn,
     generate_events_fn: _GenerateEventsFn,
+    record_field_observations: bool = True,
 ) -> CatalogSyncResult:
+    """Sync the catalog from one collection's scan, or load it on a replay.
+
+    ``record_field_observations`` is False when the tick reads the collector's
+    fallback window instead of a declared ``scan_lookback_hours``: a narrow
+    window would replace — or, seeing one value, delete — the per-field value
+    distribution a full scan wrote, and the event page's line would flicker
+    between ticks. A replay never reaches ``generate_events`` at all.
+    """
     out = CatalogSyncResult()
     # Fetched before the generation calls below because both of them consume it,
     # and ONCE for the whole config — the grouped branch included, where every
@@ -1082,6 +1092,7 @@ def sync_catalog(
                 # row is detected but can never be alerted on.
                 scan_config_id=config.id,
                 json_path_samples=json_path_samples,
+                record_observations=record_field_observations,
             )
             out.gen_results[et_name] = result
             logger.info(
@@ -1152,6 +1163,7 @@ def sync_catalog(
             reserved_columns=skip_cols,
             scan_config_id=config.id,
             json_path_samples=json_path_samples,
+            record_observations=record_field_observations,
         )
         logger.info(
             f"Single scan: {out.single_result.events_created} created, "

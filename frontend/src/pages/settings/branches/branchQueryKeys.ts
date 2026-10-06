@@ -21,6 +21,7 @@ import {
   planBranchCountsKey,
   planBranchDetailKey,
   planBranchDiffKey,
+  planBranchMergePreviewRootKey,
   planBranchesKey,
   planBranchTicketsKey,
   planBranchUpdatePreviewKey,
@@ -64,6 +65,8 @@ export function invalidateBranchReview(qc: QueryClient, slug: string, branchId: 
   void qc.invalidateQueries({ queryKey: planBranchTicketsKey(slug, branchId) })
   // The Impact panel is computed from the diff (#257).
   void qc.invalidateQueries({ queryKey: branchImpactKey(slug, branchId) })
+  // An open "As merged" sheet: a revert or an update from main changes it.
+  void qc.invalidateQueries({ queryKey: planBranchMergePreviewRootKey(slug, branchId) })
 }
 
 /**

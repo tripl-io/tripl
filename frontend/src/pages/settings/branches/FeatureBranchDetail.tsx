@@ -1,5 +1,5 @@
-import { useEffect, useId, useMemo, useState } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
+import { useCallback, useEffect, useId, useMemo, useState } from 'react'
+import { Link, useLocation, useNavigate, useSearchParams } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import {
   AlertTriangle,
@@ -17,7 +17,7 @@ import { toast } from 'sonner'
 
 import { branchSettingsApi } from '@/api/branchSettings'
 import { metaFieldsApi } from '@/api/metaFields'
-import { planBranchesApi } from '@/api/planBranches'
+import { planBranchesApi, type BranchTransferMode } from '@/api/planBranches'
 import { useAuth } from '@/components/auth-context'
 import { usePageTitle } from '@/components/shell-chrome-context'
 import { EmptyState } from '@/components/empty-state'
@@ -47,6 +47,7 @@ import {
 } from '@/lib/queryKeys'
 import { getErrorMessage } from '@/lib/utils'
 import type {
+  MergePreviewTarget,
   PlanBranchApproval,
   PlanBranchDiffSummary,
   PlanBranchStatus,
@@ -91,8 +92,14 @@ import { WatchButton } from '@/components/watch-button'
 import { CommentsPanel, ImplementationTicketsPanel } from './BranchSidePanels'
 import { ChangeRow, HousekeepingFold } from './ChangeRow'
 import { ConflictsPanel } from './ConflictsPanel'
+import { MergedEventSheet } from './MergedEventSheet'
+import { paramsWithTarget, targetFromParams } from './mergedEventModel'
 import { BranchImpactPanel } from './BranchImpactPanel'
 import { UpdateFromMainDialog } from './UpdateFromMainDialog'
+import { TransferBar } from './TransferBar'
+import { useTransferSelection } from './useTransferSelection'
+import { TransferChangesDialog } from './TransferChangesDialog'
+import { transferableEntry } from './branchTransferModel'
 import { currentOrgSlug, projectPath } from '@/lib/navigation'
 
 type Confirm = ReturnType<typeof useConfirm>['confirm']
@@ -195,6 +202,37 @@ function FeatureBranchDetail({ slug, branch, diff, diffLoad, confirm }: FeatureB
   // "Update from main": opened from the behind note and, when the merge
   // would refuse, from the merge button.
   const [updateOpen, setUpdateOpen] = useState(false)
+  // "Move/Copy to branch…": the ticked rows and the dialog's mode (null: shut).
+  const transferSelection = useTransferSelection(diff)
+  const [transferMode, setTransferMode] = useState<BranchTransferMode | null>(null)
+  // "As merged": the event the sheet shows lives in the address, so a
+  // `?merged=<event id>` link opens it and Back closes it in one step.
+  const [searchParams, setSearchParams] = useSearchParams()
+  const location = useLocation()
+  const mergedTarget = targetFromParams(searchParams)
+  const openMergedPreview = useCallback(
+    (target: MergePreviewTarget) =>
+      setSearchParams((params) => paramsWithTarget(params, target), {
+        state: { mergedSheet: true },
+      }),
+    [setSearchParams],
+  )
+  // Opened by type and name: once the event's id is known the address names
+  // it by id, in place, so Back still closes the sheet in one step.
+  const resolveMergedPreview = useCallback(
+    (refId: string) =>
+      setSearchParams((params) => paramsWithTarget(params, { eventId: refId }), {
+        replace: true,
+        state: location.state,
+      }),
+    [setSearchParams, location.state],
+  )
+  const closeMergedPreview = useCallback(() => {
+    // Opened from this page: step back over the entry the click pushed. A
+    // pasted link has nothing to step back to, so it is replaced instead.
+    if ((location.state as { mergedSheet?: boolean } | null)?.mergedSheet) navigate(-1)
+    else setSearchParams((params) => paramsWithTarget(params, null), { replace: true })
+  }, [location.state, navigate, setSearchParams])
   // The ticket a branch is named after, linked through the meta field that
   // links event values to the tracker. Main's fields: the
   // template is project-wide and a branch copy carries the same one.
@@ -449,6 +487,9 @@ function FeatureBranchDetail({ slug, branch, diff, diffLoad, confirm }: FeatureB
       ? 'Approved against the branch as it stands now.'
       : null
   const landed = branch.status === 'merged' || branch.status === 'closed'
+  // Rows can be copied off a closed branch (only moved off an open one) and
+  // off nothing merged: its changes are on main already.
+  const canTransfer = canWrite && branch.status !== 'merged'
   // What main's newer changes mean for this branch, from the conflicts answer:
   // nothing, safe, overlapping, or a merge that would refuse.
   const note = landed ? ({ kind: 'none' } as const) : behindNote(conflicts, behind)
@@ -826,6 +867,21 @@ function FeatureBranchDetail({ slug, branch, diff, diffLoad, confirm }: FeatureB
         />
       ) : null}
 
+      {canTransfer ? (
+        <TransferChangesDialog
+          slug={slug}
+          branch={branch}
+          entries={transferSelection.entries}
+          renamePairs={transferSelection.renamePairs}
+          mode={transferMode ?? 'move'}
+          open={transferMode !== null}
+          onOpenChange={(open) => {
+            if (!open) setTransferMode(null)
+          }}
+          onDone={transferSelection.clear}
+        />
+      ) : null}
+
       <ImplementationTicketsPanel slug={slug} branch={branch} mergedAt={mergedAt} />
 
       {/* Straight under the summary, where the "main has moved on" note that
@@ -887,11 +943,23 @@ function FeatureBranchDetail({ slug, branch, diff, diffLoad, confirm }: FeatureB
                   onRevert={canWrite ? handleRevert : undefined}
                   revertBlockedBy={revertBlockedBy.get(entryRowKey(entry))}
                   reverting={revertMut.isPending}
+                  onPreviewMerged={landed ? undefined : openMergedPreview}
+                  selectable={canTransfer && transferableEntry(entry)}
+                  selected={transferSelection.isSelected(entry)}
+                  onToggleSelect={transferSelection.toggle}
                 />
               )
             })}
           </div>
         )}
+        {canTransfer ? (
+          <TransferBar
+            count={transferSelection.count}
+            canMove={!landed}
+            onTransfer={setTransferMode}
+            onClear={transferSelection.clear}
+          />
+        ) : null}
         {diffLoad.status === 'success' && housekeepingEntries.length > 0 ? (
           <HousekeepingFold entries={housekeepingEntries} />
         ) : null}
@@ -904,6 +972,32 @@ function FeatureBranchDetail({ slug, branch, diff, diffLoad, confirm }: FeatureB
           </p>
         ) : null}
       </Panel>
+
+      {!landed ? (
+        <MergedEventSheet
+          slug={slug}
+          branchId={branch.id}
+          target={mergedTarget}
+          onClose={closeMergedPreview}
+          onResolved={resolveMergedPreview}
+          onShowConflicts={() => {
+            closeMergedPreview()
+            // After the sheet's focus trap lets go of the page.
+            window.setTimeout(
+              () => document.getElementById('branch-conflicts')?.scrollIntoView({ block: 'start' }),
+              0,
+            )
+          }}
+          onUpdateFromMain={
+            canUpdateFromMain
+              ? () => {
+                  closeMergedPreview()
+                  setUpdateOpen(true)
+                }
+              : undefined
+          }
+        />
+      ) : null}
 
       {/* What the branch's deletes, deprecations and renames touch downstream
           (#257), under the changes themselves: listed first, one property's 54

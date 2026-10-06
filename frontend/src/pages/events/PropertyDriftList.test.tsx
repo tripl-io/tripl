@@ -3,6 +3,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { MemoryRouter } from 'react-router-dom'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { propertyDriftsApi, type PropertyDrift } from '@/api/propertyDrifts'
+import { branchPropertyEntriesKey } from '@/lib/queryKeys'
 import { PropertyDriftList } from './PropertyDriftList'
 
 vi.mock('@/api/propertyDrifts', () => ({
@@ -35,8 +36,10 @@ function drift(overrides: Partial<PropertyDrift>): PropertyDrift {
   }
 }
 
-function renderList(props: Partial<Parameters<typeof PropertyDriftList>[0]> = {}) {
-  const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+function renderList(
+  props: Partial<Parameters<typeof PropertyDriftList>[0]> = {},
+  queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } }),
+) {
   return render(
     <QueryClientProvider client={queryClient}>
       <MemoryRouter>
@@ -103,6 +106,20 @@ describe('PropertyDriftList (F23)', () => {
     expect(body.action).toBe('snooze')
     const until = Date.parse((body as { snoozed_until: string }).snoozed_until)
     expect(until - Date.now()).toBeGreaterThan(6.9 * 24 * 60 * 60 * 1000)
+  })
+
+  it("refetches main's property list after Accept, so the grid drops the accepted property", async () => {
+    list.mockResolvedValue({ items: [drift({ id: 'd-1' })], total: 1 })
+    act.mockResolvedValue(drift({ id: 'd-1', status: 'accepted' }))
+    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+    const invalidate = vi.spyOn(queryClient, 'invalidateQueries')
+    renderList({}, queryClient)
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Add to list' }))
+    await waitFor(() => expect(act).toHaveBeenCalledWith('demo', 'd-1', { action: 'accept' }))
+    await waitFor(() =>
+      expect(invalidate).toHaveBeenCalledWith({ queryKey: branchPropertyEntriesKey('demo', null) }),
+    )
   })
 
   it('shows the error the server gave', async () => {

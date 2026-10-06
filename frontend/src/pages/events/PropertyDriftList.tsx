@@ -12,6 +12,7 @@ import {
   PROPERTY_DRIFT_KIND_LABEL,
   sortPropertyDrifts,
 } from '@/lib/propertyDrift'
+import { invalidatePropertyEntries } from '@/lib/propertyEntries'
 import {
   activePropertyDriftsKey,
   eventPropertyDriftsKey,
@@ -76,6 +77,9 @@ export function PropertyDriftList({
       // every triage moves the open counts the summary and health score show.
       qc.invalidateQueries({ queryKey: projectVariablesKey(slug) })
       qc.invalidateQueries({ queryKey: projectEventKey(slug) })
+      // The property grid reads the list under its own key; Accept writes
+      // main, so main's side of it is stale too.
+      invalidatePropertyEntries(qc, slug, null)
       qc.invalidateQueries({ queryKey: projectHealthRootKey(slug) })
       qc.invalidateQueries({ queryKey: projectsKey() })
     },

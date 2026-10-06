@@ -3,6 +3,7 @@ import { SensitivityChip } from '@/components/primitives/sensitivity-chip'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { VariableValueContextTrigger } from '@/components/variable-value-contexts'
 import type { Event as TEvent, EventType, FieldDefinition } from '@/types'
+import { FieldObservedValues } from '@/pages/events/FieldObservedValues'
 import { SURFACE_CARD, SURFACE_STYLE } from './surface'
 
 const EV_TH_CLASS = 'h-auto px-[14px] py-2 text-left micro-label text-[var(--fg-subtle)]'
@@ -67,6 +68,9 @@ export function EventFieldsTable({
                         <VariableValueContextTrigger contexts={fv.variable_values} />
                       ) : null}
                     </span>
+                    {/* The stored value is the busiest row's; this says what
+                        else the last scan saw, so it is not read as the only one. */}
+                    <FieldObservedValues observed={fv?.observed_values} compact />
                   </TableCell>
                   {showSensitivity && (
                     <TableCell className={EV_TD_CLASS}><SensitivityChip value={def.sensitivity} /></TableCell>

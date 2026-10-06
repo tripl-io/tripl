@@ -64,6 +64,7 @@ from tripl.services._plan_branch_update_checks import (
     ambiguous_reference_writes,
     identity_clashes,
 )
+from tripl.services.plan_branch_conflicts import MAIN_WINS_FIELDS
 
 
 class _Planner:
@@ -254,13 +255,21 @@ class _Planner:
                 cmv, ctv = _value(cm, f), _value(ct, f)
             # Decided on the comparable forms (references by identity), shown
             # and written from the raw ones.
+            # A main-wins field both sides changed is main's without asking
+            # (``MAIN_WINS_FIELDS``): no row, and main's value is written.
             if with_base:
                 cmv = self._without_kept_losses(slot.entity_type, f, cbv, cmv)
                 take_main = cmv not in (cbv, ctv) and (
-                    ctv == cbv or self._conflict(_row(slot, f, bv, mv, tv)) == "ours"
+                    ctv == cbv
+                    or f in MAIN_WINS_FIELDS
+                    or self._conflict(_row(slot, f, bv, mv, tv)) == "ours"
                 )
             else:
-                take_main = cmv != ctv and self._conflict(_row(slot, f, None, mv, tv)) == "ours"
+                take_main = cmv != ctv and (
+                    f in MAIN_WINS_FIELDS
+                    or self._conflict({**_row(slot, f, None, mv, tv), "added_on_both": True})
+                    == "ours"
+                )
             if take_main and f == "event_value_overrides" and self.kept_branch_ids:
                 keep = self.kept_branch_ids
             if not fates:

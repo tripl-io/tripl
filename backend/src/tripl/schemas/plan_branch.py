@@ -5,11 +5,11 @@ import uuid
 from datetime import datetime
 from typing import Any, Literal
 
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field, field_validator, model_validator
 
 from tripl.models.domain_enums import MergeResolutionChoice
 from tripl.models.plan_branch import BranchKind, BranchStatus
-from tripl.schemas.plan_revision import PlanDiffEntry, PlanEntityType
+from tripl.schemas.plan_revision import DriftKind, PlanDiffEntry, PlanEntityType
 
 BranchTransitionAction = Literal[
     "submit",
@@ -246,6 +246,10 @@ class ConflictEntity(BaseModel):
     parent: str | None = None
     # The entity's own name for display, without its parent.
     label: str = ""
+    # Both sides added it since the base (every row's ``base`` is then None,
+    # though a None base alone can also be an empty base value) — a branch's
+    # authored event whose twin a scan made on main, typically.
+    added_on_both: bool = False
     fields: list[ConflictField]
 
 
@@ -288,7 +292,23 @@ class ResolutionResponse(BaseModel):
     model_config = {"from_attributes": True}
 
 
-# --- "Update from main" ------------------------------------------------
+class ResolutionBatchCreate(BaseModel):
+    """Many stored choices in one call: a "for all" action in the conflicts list.
+
+    All or none: one item naming a field no conflict row carries saves
+    nothing. The bound is ``UpdateFromMainRequest.resolutions``'s.
+    """
+
+    resolutions: list[ResolutionCreate] = Field(min_length=1, max_length=5000)
+
+
+class ResolutionBatchResponse(BaseModel):
+    # One row per (entity_type, entity_name, field_name): a key sent twice
+    # ends with its last choice.
+    resolutions: list[ResolutionResponse]
+
+
+# --- "Updatefrom main" ------------------------------------------------
 
 
 class EntityChangeCount(BaseModel):
@@ -346,3 +366,169 @@ class UpdateFromMainResult(BaseModel):
     applied: list[EntityChangeCount]
     previous_base_revision_id: uuid.UUID | None
     base_revision_id: uuid.UUID | None
+
+
+# --- Move or copy changes to another branch ----------------------------------
+
+
+class BranchTransferEntryRef(BaseModel):
+    """One diff row to move or copy, addressed the way ``BranchRevertRequest`` is.
+
+    No ``field``: a transfer takes the whole row. Either half of a rename
+    names the pair; the other half comes along.
+    """
+
+    entity_type: PlanEntityType
+    name: str
+    parent: str | None = None
+    entity_id: str | None = Field(default=None, max_length=64)
+
+
+class BranchTransferRequest(BaseModel):
+    """Move (apply on the target, undo on this branch) or copy (apply only) rows.
+
+    ``target_branch_id`` null previews against a branch cut from main now —
+    the dialog's "New branch…" — and is accepted only with ``dry_run``. A dry
+    run makes every write of the real call and rolls them back.
+    """
+
+    target_branch_id: uuid.UUID | None = None
+    mode: Literal["move", "copy"]
+    entries: list[BranchTransferEntryRef] = Field(min_length=1, max_length=500)
+    dry_run: bool = False
+
+    @model_validator(mode="after")
+    def _null_target_only_previews(self) -> BranchTransferRequest:
+        if self.target_branch_id is None and not self.dry_run:
+            raise ValueError("target_branch_id is required unless dry_run is true")
+        return self
+
+
+class BranchTransferItem(BaseModel):
+    """One diff row the transfer applies, carries along or skips.
+
+    ``kind`` is the row's kind on the source; a rename is listed as its two
+    halves. ``needed_by`` names the selected row a carried one is needed by.
+    """
+
+    entity_type: PlanEntityType
+    name: str
+    parent: str | None = None
+    entity_id: str | None = None
+    kind: DriftKind
+    needed_by: str | None = None
+
+
+TransferConflictReason = Literal[
+    "target_exists",
+    "target_changed",
+    "target_missing",
+    "identity_clash",
+    "ambiguous_rename",
+    "has_discussion",
+]
+
+
+class BranchTransferConflict(BaseModel):
+    """Why one row cannot be transferred, in words the dialog prints as is.
+
+    ``target_exists``: the target holds the name with other content.
+    ``target_changed``: the target edited the field (``field``) itself.
+    ``target_missing``: something the row needs is not on the target.
+    ``identity_clash``: two rows would share a name or scan identity.
+    ``ambiguous_rename``: the two halves of a rename cannot be told apart.
+    ``has_discussion``: moving would delete review comments.
+    """
+
+    entity_type: PlanEntityType
+    name: str
+    parent: str | None = None
+    field: str | None = None
+    reason: TransferConflictReason
+    message: str
+
+
+class BranchTransferResult(BaseModel):
+    mode: Literal["move", "copy"]
+    dry_run: bool
+    # Null on a preview against a branch cut from main now.
+    target_branch_id: uuid.UUID | None
+    target_branch_name: str | None
+    applied: list[BranchTransferItem]
+    carried: list[BranchTransferItem]
+    skipped: list[BranchTransferItem]
+    warnings: list[str] = Field(default_factory=list)
+    target_counts: list[EntityChangeCount] = Field(default_factory=list)
+    # The source's diff after a real call; null on a dry run.
+    source_diff: PlanBranchDiff | None = None
+
+
+# --- "As merged": one event as main will hold it after the merge ---------
+
+MergedState = Literal["added", "changed", "unchanged", "removed", "conflict"]
+
+
+class MergedValue(BaseModel):
+    """One attribute, or one member of a collection, as the merge leaves it.
+
+    ``previous`` is main as it is now. ``value`` is None on a conflict: the
+    merge refuses, so there is no merged value, and ``branch_value`` carries
+    the branch's side beside ``previous``. ``branch_value`` is also set where
+    the merge drops the branch's value (a status the merge does not carry).
+    """
+
+    key: str
+    value: Any = None
+    previous: Any = None
+    branch_value: Any = None
+    state: MergedState
+    # Main changed this since the branch was cut and the branch did not:
+    # the merged value is main's newer one.
+    main_moved: bool = False
+    note: str | None = None
+
+
+class MergedPropertyValue(BaseModel):
+    value: str
+    state: MergedState
+
+
+class MergedProperty(BaseModel):
+    """One variable as a property of the event, after the merge."""
+
+    name: str
+    variable_type: str
+    required: bool = False
+    previous_required: bool | None = None
+    # The entry documents its own values (an override of the global list).
+    override: bool = False
+    values: list[MergedPropertyValue] = Field(default_factory=list)
+    state: MergedState
+    variable_state: MergedState = "unchanged"
+    main_moved: bool = False
+
+
+class MergedEventPreview(BaseModel):
+    # The branch's row, main's row, and the id a link to this preview uses:
+    # the branch's, else main's, else the base's.
+    event_id: str | None = None
+    main_event_id: str | None = None
+    ref_id: str
+    event_type_name: str
+    name: str
+    previous_name: str | None = None
+    outcome: Literal["added", "changed", "unchanged", "removed", "skipped"]
+    behind_base: bool = False
+    # This event, its type, its fields or one of its properties is in the
+    # merge's blocking list.
+    blocked: bool = False
+    # The merge refuses for some reason: a hard conflict anywhere, or an
+    # event-type field conflict that has no saved choice yet.
+    branch_merge_blocked: bool = False
+    other_blocking_count: int = 0
+    notes: list[str] = Field(default_factory=list)
+    attributes: list[MergedValue] = Field(default_factory=list)
+    field_values: list[MergedValue] = Field(default_factory=list)
+    meta_values: list[MergedValue] = Field(default_factory=list)
+    tags: list[MergedValue] = Field(default_factory=list)
+    properties: list[MergedProperty] = Field(default_factory=list)

@@ -278,11 +278,48 @@ volume, so the highest-count row for an identity is written last and its value
 is the one stored. A rare row cannot overwrite the common case: an event seen
 12,000 times on `home` and three times on `purchase/main` keeps `home`.
 
-Nothing is merged, and nothing warns you in the plan itself — so when a field
-did see more than one value, the **scan report says so**, naming the field and
-how many values it saw (`windbar_tap.screen (3 values)`). Read that as "this
-field varies across the rows behind this event"; the stored value is the
-dominant one, not the only one.
+Nothing is merged into the stored value, but the rest is not thrown away
+either. When a field did see more than one value, the event says so under the
+box on its edit form, and under the value in its page's **Fields** table:
+
+> Seen with 2 values in the scan of Oct 5, 2026: map/main (62%, stored), spot/main (38%)
+
+Read that as "this field varies across the rows behind this event"; the stored
+value is the dominant one, not the only one. The shares are each value's share
+of the scan's rows for the event. The scan report still names the field too
+(`windbar_tap.screen (3 values)`).
+
+How the line is kept:
+
+- **The last scan that observed the event replaces it.** Counts are never added
+  up across scans, because scan windows overlap and a sum would count the same
+  rows twice. The line carries the scan's date.
+- **Only scans that chose their window write it**: a manual scan, or scheduled
+  collection on a scan config with **Limits → Lookback (hours)** set. Scheduled
+  collection without one reads whatever window the collection covers, which can
+  be one hour; it leaves the line as the last full scan wrote it, so the line
+  does not come and go between ticks. A metrics replay never touches it.
+- **A field that stops varying loses the line**: the next scan that sees one
+  value for it removes it.
+- **Archived events keep theirs**, like the rest of what a scan wrote on them,
+  and so does an event a scan did not reach (past its event limit).
+- **At most 20 values are kept**, busiest first. **+N more** opens the kept
+  ones not listed yet; past the 20 the line can only count the rest
+  (*and 5 more not kept*), and the shares still divide every row, not only the
+  kept ones. A value the adapter returned without row counts is listed without a
+  share.
+- **A row with the column empty (NULL) counts as a value**, listed as
+  *(empty)*: the field is absent on that share of the rows, and leaving them
+  out would make the other shares claim rows they do not have.
+- **A value you typed is not marked *stored***: scans no longer maintain it, so
+  the marker would claim a choice the scan did not make.
+- **On a branch**, the line is `main`'s, read through the `main` event the copy
+  came from (*Seen with 2 values on main …*). Nothing is copied into the branch
+  or merged back; it is scan-observed data, like the observed values above.
+
+The line and **Split volume by this field** answer different questions and can
+disagree: the line is one scan's view of the rows, the Breakdowns tab counts
+each collection window since the column was switched on.
 
 Ordering between events is unaffected: identities keep first-appearance order,
 so the sort changes which value survives, never which events exist or in what
@@ -404,6 +441,26 @@ properties that are not on the list yet. The card's header sets the event's own
 **Required at … % presence** threshold, or resets it to the default of 95%.
 Viewers, and anyone editing an event from another branch, see the grid
 read-only. The monitoring page of an event shows the same grid, read-only.
+
+**Properties the field values use.** When the event's saved field values name
+properties through `${name}` that are not on its list, the card lists them
+under **Used in field values**, each with the tokens that named it. **Add**
+puts one on the list and **Add all (N)** adds every one, one after another;
+both add the property as optional unless that block's own **Required** switch
+is on. If a write fails part-way, the card says **Added k of N** and the error,
+and pressing **Add all** again finishes the rest. A token resolves the same way
+the form's hints resolve it, by the property's name, its scan identity or a
+binding, so `${property.spot_id}` names the scan-created `spot_id`. A token that
+names no property is not offered; the form keeps calling it an **Unknown
+property token**. Only the saved values count, so a token typed but not yet
+saved appears after **Save**, and meta values are not read. On main, accepting
+a scan's new-property drift for the event also takes that property off the
+block as soon as the drift goes, since both work from the list. On a plan branch the additions are written to the
+branch's copy of the event, as every other change in the card is. The header
+counts what is missing (**None listed yet · field values use 3**, or **… · 2
+more used in field values**). Read-only, on the monitoring page or for a
+viewer, the card only says how many properties the field values use; the list
+is edited on the event's edit page.
 
 **The event's JSON fields.** A JSON field whose value is one object, such as a
 properties payload, opens as a grid of keys and values. A value cell takes a

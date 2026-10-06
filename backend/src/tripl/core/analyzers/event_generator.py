@@ -29,6 +29,11 @@ from typing import Any
 from sqlalchemy import func, select, text
 from sqlalchemy.orm import Session
 
+from tripl.core.analyzers._event_field_observations import (
+    ValuesSeen,
+    record_field_observations,
+    tally_value,
+)
 from tripl.core.analyzers._event_generator_merge import (
     EventGroupMatch,
     _merge_existing_grouped_events,
@@ -147,6 +152,9 @@ class GenerationResult:
     # contract: the scan task publishes it in ``result_summary`` under
     # ``variable_values_written`` — do not rename.
     variable_values_written: int = 0
+    # EventFieldObservation rows this run inserted or replaced — fields whose
+    # breakdown rows disagreed. Not a pinned key.
+    field_observations_written: int = 0
     value_drifts_detected: int = 0
     property_drifts_detected: int = 0
     columns_analyzed: int = 0
@@ -209,6 +217,7 @@ def generate_events(
     max_events: int = DEFAULT_MAX_EVENTS,
     scan_config_id: uuid.UUID | None = None,
     json_path_samples: Mapping[str, Mapping[str, Sequence[str]]] | None = None,
+    record_observations: bool = True,
 ) -> GenerationResult:
     """Generate events from breakdown analysis.
 
@@ -227,6 +236,11 @@ def generate_events(
     caller's job to fetch them because only the caller has the adapter, and only
     the caller can decide the sampling is affordable this run; omitting it plans
     the same zero-observation contexts as before.
+
+    ``record_observations=False`` leaves every ``EventFieldObservation`` as it
+    is: a scheduled tick reading the collector's fallback window, rather than a
+    lookback the operator declared, must not replace a full scan's distribution
+    with what one narrow window happened to see.
     """
     result = GenerationResult()
     lock_project_catalog(session, project_id)
@@ -319,10 +333,15 @@ def generate_events(
     # actually rewrote. Only those can invalidate an existing variable context.
     rewritten_fields: set[tuple[uuid.UUID, uuid.UUID]] = set()
 
-    # ``(event identity, column)`` -> the distinct values this run saw for it.
-    # More than one means breakdown rows collapsed and all but one value was
-    # discarded; the run summary says so rather than leaving it silent.
-    values_seen: dict[tuple[str, str], set[str]] = {}
+    # ``(event identity, column)`` -> the distinct values this run saw for it,
+    # each with its summed row count. More than one means breakdown rows
+    # collapsed and all but one value was discarded from the event; the run
+    # summary says so, and ``record_field_observations`` keeps the rest.
+    values_seen: ValuesSeen = {}
+    # Event id -> field id -> its ``values_seen`` key, for the events this run
+    # wrote. Archived events and those past the ``max_events`` break stay out,
+    # so their stored observations are left alone.
+    observed_fields: dict[uuid.UUID, dict[uuid.UUID, tuple[str, str]]] = {}
 
     # Every row of an identity carries the union of its JSON keys, and each key
     # its presence rate, instead of the busiest row's keys alone (F23).
@@ -340,6 +359,12 @@ def generate_events(
     for planned in ordered:
         if result.events_created >= max_events:
             result.details.append(f"Reached max_events limit ({max_events})")
+            # No partial tally can reach ``record_field_observations`` from
+            # here: the counter moves only when a row creates an event, so an
+            # identity cut mid-way is one its own first row just created — a
+            # fresh id with no stored row, and a one-value tally that writes
+            # none. Existing events past this row never enter
+            # ``observed_fields``, so theirs are left alone.
             break
 
         event_name = planned.name
@@ -356,7 +381,8 @@ def generate_events(
             for fd_id, col_name, value in planned.field_values
         ]
         for _, col_name, value in field_values:
-            values_seen.setdefault((event_name, col_name), set()).add(value)
+            tally_value(values_seen, (event_name, col_name), value, planned.row_count)
+        field_keys = {fd_id: (event_name, col_name) for fd_id, col_name, _ in field_values}
 
         existing = existing_by_identity.get(event_name)
         if existing is None:
@@ -376,6 +402,7 @@ def generate_events(
             if created:
                 next_event_order += 1
                 rewritten_fields |= _upsert_field_values(event, field_values)
+                observed_fields.setdefault(event.id, {}).update(field_keys)
                 _record_variable_contexts(
                     variable_contexts,
                     event=event,
@@ -407,6 +434,7 @@ def generate_events(
             continue
         # Update field values on existing event
         rewritten_fields |= _upsert_field_values(existing, field_values)
+        observed_fields.setdefault(existing.id, {}).update(field_keys)
         _record_variable_contexts(
             variable_contexts,
             event=existing,
@@ -459,6 +487,16 @@ def generate_events(
         # ``variable_values_event_id_fkey``.
         pending_variable_contexts=variable_contexts,
     )
+    if record_observations:
+        # After the merge pass: it may delete events observed above, and the
+        # helper skips those instead of writing against a missing parent.
+        result.field_observations_written = record_field_observations(
+            session,
+            project_id=project_id,
+            scan_config_id=scan_config_id,
+            observed_fields=observed_fields,
+            values_seen=values_seen,
+        )
     prior_context_values = _preserve_existing_variable_context_values(
         session,
         project_id=project_id,

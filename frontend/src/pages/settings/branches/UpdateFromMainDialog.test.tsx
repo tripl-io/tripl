@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { toast } from 'sonner'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -383,5 +383,57 @@ describe('UpdateFromMainDialog', () => {
     renderDialog({ ...BRANCH, status: 'approved' })
 
     expect(await screen.findByText('Existing approvals will need renewing.')).toBeInTheDocument()
+  })
+
+  it('fills every value row from one bulk action, locally, and sends them with the update', async () => {
+    vi.mocked(planBranchesApi.updateFromMain).mockResolvedValue(result())
+    renderDialog()
+    await screen.findByText('1 left to choose')
+
+    fireEvent.click(
+      within(screen.getByRole('group', { name: 'Every conflict' })).getByRole('button', {
+        name: 'Take main for all',
+      }),
+    )
+
+    expect(screen.queryByText(/left to choose/)).not.toBeInTheDocument()
+    // Nothing is stored ahead of the update: the picks travel with it.
+    expect(planBranchesApi.updateFromMain).not.toHaveBeenCalled()
+    fireEvent.click(updateButton())
+    await waitFor(() =>
+      expect(planBranchesApi.updateFromMain).toHaveBeenCalledWith('demo', 'feat-1', {
+        expected_main_hash: 'hash-1',
+        resolutions: [
+          { entity_type: 'variable', entity_name: 'plan', field_name: 'description', choice: 'ours' },
+          // The deletion keeps its own, stored choice: bulk never makes one.
+          { entity_type: 'event', entity_name: 'checkout.paid', field_name: '@presence', choice: 'theirs' },
+        ],
+      }),
+    )
+  })
+
+  it('leaves a deletion to pick by hand, and says so', async () => {
+    const [plan, paid] = OVERLAPS.entities
+    vi.mocked(planBranchesApi.getUpdatePreview).mockResolvedValue(
+      preview({
+        conflicts: {
+          ...OVERLAPS,
+          entities: [plan!, { ...paid!, fields: paid!.fields.map((f) => ({ ...f, choice: null })) }],
+          unresolved_count: 2,
+        },
+      }),
+    )
+    renderDialog()
+    await screen.findByText('2 left to choose')
+
+    fireEvent.click(
+      within(screen.getByRole('group', { name: 'All fields of plan' })).getByRole('button', {
+        name: 'Keep this branch for all',
+      }),
+    )
+
+    expect(screen.getByText('1 left to choose')).toBeInTheDocument()
+    expect(screen.getByTestId('deletions-left')).toHaveTextContent('1 deletion still needs a choice')
+    expect(updateButton()).toBeDisabled()
   })
 })
