@@ -101,6 +101,10 @@ export interface PlanBranchConflictEntity {
   /** A display name for the row ("checkout.amount"). Absent on responses from
    * an older instance; fall back to `name`. */
   label?: string
+  /** Both sides added it since the branch opened — typically an event authored
+   * here whose twin a scan made on main. Absent on responses from an older
+   * instance (false). */
+  added_on_both?: boolean
   fields: PlanBranchConflictField[]
 }
 
@@ -186,6 +190,16 @@ export interface PlanBranchMergeResolution {
   created_at: string
 }
 
+/** `POST /branches/{id}/resolutions/batch`: 1..5000 choices, all or none. */
+export interface PlanBranchResolutionBatchCreate {
+  resolutions: UpdateFromMainResolution[]
+}
+
+/** One stored row per (entity_type, entity_name, field_name) of the batch. */
+export interface PlanBranchResolutionBatchResponse {
+  resolutions: PlanBranchMergeResolution[]
+}
+
 export interface PlanBranchDetail extends PlanBranchSummary {
   reviewers: PlanBranchReviewer[]
   approvals: PlanBranchApproval[]
@@ -235,6 +249,70 @@ export interface PlanDiffRename {
   removed_name: string
   added_name: string
 }
+
+/** "As merged": one value's place in the event main will hold after the merge.
+ * Mirrors `MergedValue` in `schemas/plan_branch.py`. */
+export type MergedState = 'added' | 'changed' | 'unchanged' | 'removed' | 'conflict'
+
+export interface MergedValue {
+  key: string
+  /** Null on a conflict: the merge refuses, so there is no merged value. */
+  value: unknown
+  /** Main as it is now. */
+  previous: unknown
+  /** The branch's side, set on a conflict or where the merge drops it. */
+  branch_value?: unknown
+  state: MergedState
+  /** Main changed this after the cut and the branch did not. */
+  main_moved?: boolean
+  note?: string | null
+}
+
+export interface MergedPropertyValue {
+  value: string
+  state: MergedState
+}
+
+export interface MergedProperty {
+  name: string
+  variable_type: string
+  required?: boolean
+  previous_required?: boolean | null
+  override?: boolean
+  values?: MergedPropertyValue[]
+  state: MergedState
+  variable_state?: MergedState
+  main_moved?: boolean
+}
+
+export type MergedEventOutcome = 'added' | 'changed' | 'unchanged' | 'removed' | 'skipped'
+
+/** `GET /branches/{id}/merge-preview/event`. */
+export interface MergedEventPreview {
+  event_id?: string | null
+  main_event_id?: string | null
+  /** The id a `?merged=` link names: the branch's, else main's, else the base's. */
+  ref_id: string
+  event_type_name: string
+  name: string
+  previous_name?: string | null
+  outcome: MergedEventOutcome
+  behind_base?: boolean
+  /** This event, its type, its fields or one of its properties blocks the merge. */
+  blocked?: boolean
+  /** The merge refuses for some reason, here or elsewhere. */
+  branch_merge_blocked?: boolean
+  other_blocking_count?: number
+  notes?: string[]
+  attributes?: MergedValue[]
+  field_values?: MergedValue[]
+  meta_values?: MergedValue[]
+  tags?: MergedValue[]
+  properties?: MergedProperty[]
+}
+
+/** Which event the preview is for: by any side's id, or by type and name. */
+export type MergePreviewTarget = { eventId: string } | { eventType: string; eventName: string }
 
 export interface PlanRevisionList {
   items: PlanRevisionSummary[]

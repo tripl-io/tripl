@@ -25,11 +25,13 @@ import {
 import { describeConstraints, schemaMatchesType, summariseType } from '@/lib/propertySchema'
 import { eventKey, eventPropertiesKey } from '@/lib/queryKeys'
 import { getErrorMessage } from '@/lib/utils'
-import type { Variable } from '@/types'
+import type { EventFieldValue, Variable } from '@/types'
 import { variableDetailPath } from '@/pages/settings/variable-detail/variableDetailPath'
 import { invalidValuesFor, valueRuleFor } from '@/pages/settings/variableValueValidation'
+import { referencedProperties, type ReferencedProperty } from './referencedProperties'
 
 const ADD_SUGGESTION_LIMIT = 8
+const NO_FIELD_VALUES: EventFieldValue[] = []
 
 /** The type cell: the schema in a few words, its constraints on hover. */
 function TypeCell({ entry }: { entry: EventPropertyEntry }) {
@@ -167,6 +169,12 @@ function ThresholdControl({
  * schema, whether the event must carry it, the values allowed here, and how
  * often the last scan saw it. Editors change an entry in place; every change
  * saves at once, on the branch being edited, apart from the event form's Save.
+ *
+ * Properties the event's saved field values name through `${…}` but the list
+ * does not carry are offered under "Used in field values", to add one by one
+ * or all at once — the list is otherwise only filled by hand or by accepting a
+ * scan's new-property drifts, and the panel said "none" under field values
+ * that plainly used three.
  */
 export function EventPropertiesGrid({
   slug,
@@ -175,6 +183,7 @@ export function EventPropertiesGrid({
   threshold,
   canWrite,
   projectVariables = [],
+  fieldValues = NO_FIELD_VALUES,
   className,
 }: {
   slug: string
@@ -185,6 +194,9 @@ export function EventPropertiesGrid({
   canWrite: boolean
   /** The project's properties, for "Add property". */
   projectVariables?: Variable[]
+  /** The event's SAVED field values, whose `${…}` tokens name properties to
+   *  offer; a draft typed but not saved is not on the plan yet. */
+  fieldValues?: readonly EventFieldValue[]
   className?: string
 }) {
   const qc = useQueryClient()
@@ -192,6 +204,8 @@ export function EventPropertiesGrid({
   const [editing, setEditing] = useState<{ variableId: string; values: string[] } | null>(null)
   const [addSearch, setAddSearch] = useState('')
   const [addRequired, setAddRequired] = useState(false)
+  // Its own switch, so turning one on does not quietly change the other.
+  const [usedRequired, setUsedRequired] = useState(false)
   const addId = useId()
 
   const query = useQuery({
@@ -205,6 +219,8 @@ export function EventPropertiesGrid({
     meta: SILENT_ERROR_META,
     mutationFn: ({ variableId, patch }: { variableId: string; patch: PropertyEntriesBulkPatch }) =>
       propertyEntriesApi.set(slug, variableId, eventId, patch, branchId),
+    // A later change clears what an earlier "Add all" left on screen.
+    onMutate: () => addAllMut.reset(),
     onSuccess: () => {
       setEditing(null)
       invalidatePropertyEntries(qc, slug, branchId)
@@ -213,12 +229,41 @@ export function EventPropertiesGrid({
   const removeMut = useMutation({
     meta: SILENT_ERROR_META,
     mutationFn: (variableId: string) => propertyEntriesApi.remove(slug, variableId, eventId, branchId),
+    onMutate: () => addAllMut.reset(),
     onSuccess: () => invalidatePropertyEntries(qc, slug, branchId),
   })
-  const pending = setMut.isPending || removeMut.isPending
-  const error = [setMut, removeMut].find((m) => m.isError)?.error
+  // One PUT after another, not an all-or-nothing call: each is idempotent, so a
+  // failure part-way says how far it got and pressing again finishes the rest.
+  const addAllMut = useMutation({
+    meta: SILENT_ERROR_META,
+    mutationFn: async ({ items, required }: { items: ReferencedProperty[]; required: boolean }) => {
+      let added = 0
+      for (const item of items) {
+        try {
+          await propertyEntriesApi.set(slug, item.variableId, eventId, { required }, branchId)
+        } catch (err) {
+          throw new Error(`Added ${added} of ${items.length}: ${getErrorMessage(err)}`, { cause: err })
+        }
+        added += 1
+      }
+    },
+    onMutate: () => {
+      setMut.reset()
+      removeMut.reset()
+    },
+    onSettled: () => invalidatePropertyEntries(qc, slug, branchId),
+  })
+  const pending = setMut.isPending || removeMut.isPending || addAllMut.isPending
+  const error = [setMut, removeMut, addAllMut].find((m) => m.isError)?.error
 
   const onList = useMemo(() => new Set(entries.map((entry) => entry.variable_id)), [entries])
+  // Only against a list that actually loaded: while it is pending or failed
+  // `onList` is empty, every referenced property would look missing, and the
+  // PUT on one already listed would overwrite its `required`.
+  const referenced = useMemo(
+    () => (query.isSuccess ? referencedProperties(fieldValues, projectVariables, onList) : []),
+    [query.isSuccess, fieldValues, projectVariables, onList],
+  )
   const suggestions = useMemo(() => {
     const needle = addSearch.trim().toLowerCase()
     if (!needle) return []
@@ -249,8 +294,12 @@ export function EventPropertiesGrid({
         query.isPending
           ? 'Loading…'
           : entries.length === 0
-            ? 'No properties on this event yet.'
-            : `${entries.length} on this event · ${requiredCount} required`
+            ? referenced.length > 0
+              ? `None listed yet · field values use ${referenced.length}`
+              : 'No properties on this event yet.'
+            : `${entries.length} on this event · ${requiredCount} required${
+              referenced.length > 0 ? ` · ${referenced.length} more used in field values` : ''
+            }`
       }
       right={
         <ThresholdControl
@@ -391,11 +440,63 @@ export function EventPropertiesGrid({
         </Table>
       ) : !query.isPending ? (
         <p className="px-4 py-3 text-body-sm text-fg-tertiary">
-          {canWrite
-            ? 'List the properties this event carries: add them below, or accept the new-property drifts a scan reports.'
-            : 'This event lists no properties yet.'}
+          {referenced.length > 0
+            ? canWrite
+              ? "Not on this event's property list yet: the field values use the properties below. Add them, or accept the new-property drifts a scan reports."
+              : `The field values use ${referenced.length === 1 ? '1 property' : `${referenced.length} properties`} not on this event's property list yet. The list is edited on the event's edit page.`
+            : canWrite
+              ? 'List the properties this event carries: add them below, or accept the new-property drifts a scan reports.'
+              : 'This event lists no properties yet.'}
         </p>
       ) : null}
+      {canWrite && referenced.length > 0 && (
+        <div className="grid gap-2 border-t px-4 py-3">
+          <div className="flex flex-wrap items-center gap-3">
+            <h3 id={`${addId}-used`} className="text-body-sm font-medium">Used in field values</h3>
+            <Button
+              type="button"
+              size="xs"
+              variant="outline"
+              disabled={pending}
+              onClick={() => addAllMut.mutate({ items: referenced, required: usedRequired })}
+            >
+              <Plus className="size-3" aria-hidden="true" />
+              Add all ({referenced.length})
+            </Button>
+            <label className="flex items-center gap-2 text-body-sm">
+              <Switch checked={usedRequired} onCheckedChange={setUsedRequired} aria-label="Add required" />
+              Required
+            </label>
+          </div>
+          <ul className="grid gap-1.5" aria-label="Properties the field values use">
+            {referenced.map((item) => (
+              <li key={item.variableId} className="flex flex-wrap items-center gap-2">
+                <Link
+                  to={variableDetailPath(slug, item.variableId)}
+                  className="mono text-body-sm font-medium hover:underline"
+                >
+                  {item.name}
+                </Link>
+                {item.tokens.map((token) => (
+                  <CodeToken key={token} title={token}>{token}</CodeToken>
+                ))}
+                <Button
+                  type="button"
+                  size="xs"
+                  variant="outline"
+                  className="ml-auto"
+                  aria-label={`Add ${item.name} to this event`}
+                  disabled={pending}
+                  onClick={() => setMut.mutate({ variableId: item.variableId, patch: { required: usedRequired } })}
+                >
+                  <Plus className="size-3" aria-hidden="true" />
+                  Add
+                </Button>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
       {canWrite && (
         <div className="grid gap-2 border-t px-4 py-3">
           <div className="flex flex-wrap items-center gap-3">

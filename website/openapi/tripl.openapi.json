@@ -19525,6 +19525,108 @@
         }
       }
     },
+    "/api/v1/projects/{slug}/branches/{branch_id}/merge-preview/event": {
+      "get": {
+        "tags": [
+          "plan-branches"
+        ],
+        "summary": "Merge Preview Event",
+        "description": "One event as main will hold it after this branch merges (\"As merged\").\n\nName the event by ``event_id`` (the branch's, the base's or main's id) or\nby ``event_type`` plus ``event_name`` on any side, not both. Read-only.",
+        "operationId": "merge_preview_event_api_v1_projects__slug__branches__branch_id__merge_preview_event_get",
+        "parameters": [
+          {
+            "name": "slug",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Slug"
+            }
+          },
+          {
+            "name": "branch_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Branch Id"
+            }
+          },
+          {
+            "name": "event_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Event Id"
+            }
+          },
+          {
+            "name": "event_type",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Event Type"
+            }
+          },
+          {
+            "name": "event_name",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Event Name"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MergedEventPreview"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/projects/{slug}/branches/{branch_id}/revert": {
       "post": {
         "tags": [
@@ -19570,6 +19672,69 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/PlanBranchDiff"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/projects/{slug}/branches/{branch_id}/transfer": {
+      "post": {
+        "tags": [
+          "plan-branches"
+        ],
+        "summary": "Transfer Branch Changes",
+        "description": "Move or copy rows of this branch's diff onto another open branch.\n\n``move`` applies them on the target and undoes them here; ``copy`` only\napplies them. What a row needs comes along (``carried``, with\n``needed_by``); a row the target already says is ``skipped``.\n``dry_run`` makes every write and rolls it back; with it,\n``target_branch_id`` may be null to preview against a branch cut from main\nnow. Refusals write nothing: 400 for a housekeeping row, main, the branch\nitself as target, or a deleted event type, field or meta field\n(``removed_not_transferable``); 422 for a null target without ``dry_run``\n(request validation); 409 for a merged or closed target, a move off a\nmerged or closed branch (a copy off a closed one is allowed),\n``transfer_base_mismatch`` (cut from different main content; the message\nnames the branch to update), ``transfer_conflicts`` (every refused row at\nonce), ``transfer_constraint_violation`` and ``transfer_retry`` (a\nconcurrent write aborted the transaction; worth one more try).",
+        "operationId": "transfer_branch_changes_api_v1_projects__slug__branches__branch_id__transfer_post",
+        "parameters": [
+          {
+            "name": "slug",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Slug"
+            }
+          },
+          {
+            "name": "branch_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Branch Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/BranchTransferRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BranchTransferResult"
                 }
               }
             }
@@ -19736,6 +19901,69 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/UpdateFromMainResult"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/projects/{slug}/branches/{branch_id}/resolutions/batch": {
+      "post": {
+        "tags": [
+          "plan-branches"
+        ],
+        "summary": "Save Branch Resolutions",
+        "description": "Store many conflict choices at once \u2014 all of them, or none on a 422.",
+        "operationId": "save_branch_resolutions_api_v1_projects__slug__branches__branch_id__resolutions_batch_post",
+        "parameters": [
+          {
+            "name": "slug",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Slug"
+            }
+          },
+          {
+            "name": "branch_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Branch Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ResolutionBatchCreate"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ResolutionBatchResponse"
                 }
               }
             }
@@ -28834,6 +29062,266 @@
         "title": "BranchStatus",
         "description": "Review workflow states for a working branch.\n\nThe ``main`` branch is stored with ``merged`` here: the migration that added\nbranches, ``default_branch_id`` and\n``plan_branch_service.ensure_main_branch_id`` all write it so. That status\nsays nothing about main, so code must decide main-ness by ``kind == main``\nBEFORE it reads the status. The read-only refusal of writes to a merged or\nclosed branch (``api.deps.get_branch_id_override``,\n``event_photo_service._get_plan_writable_event``) splits main off first for\nexactly this reason: a write naming main by its id lands on main, and a\nphoto write on a main event is accepted, because both split main off before\nthey look at the status. Were the status read first, main's stored\n``merged`` would refuse them both with a 409 \u2014 which is what this field\nmeans for a WORKING branch and what it must never be allowed to mean here."
       },
+      "BranchTransferEntryRef": {
+        "properties": {
+          "entity_type": {
+            "type": "string",
+            "enum": [
+              "event_type",
+              "field_definition",
+              "event",
+              "variable",
+              "meta_field",
+              "relation"
+            ],
+            "title": "Entity Type"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "parent": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Parent"
+          },
+          "entity_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 64
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Entity Id"
+          }
+        },
+        "type": "object",
+        "required": [
+          "entity_type",
+          "name"
+        ],
+        "title": "BranchTransferEntryRef",
+        "description": "One diff row to move or copy, addressed the way ``BranchRevertRequest`` is.\n\nNo ``field``: a transfer takes the whole row. Either half of a rename\nnames the pair; the other half comes along."
+      },
+      "BranchTransferItem": {
+        "properties": {
+          "entity_type": {
+            "type": "string",
+            "enum": [
+              "event_type",
+              "field_definition",
+              "event",
+              "variable",
+              "meta_field",
+              "relation"
+            ],
+            "title": "Entity Type"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "parent": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Parent"
+          },
+          "entity_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Entity Id"
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "added",
+              "removed",
+              "changed"
+            ],
+            "title": "Kind"
+          },
+          "needed_by": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Needed By"
+          }
+        },
+        "type": "object",
+        "required": [
+          "entity_type",
+          "name",
+          "kind"
+        ],
+        "title": "BranchTransferItem",
+        "description": "One diff row the transfer applies, carries along or skips.\n\n``kind`` is the row's kind on the source; a rename is listed as its two\nhalves. ``needed_by`` names the selected row a carried one is needed by."
+      },
+      "BranchTransferRequest": {
+        "properties": {
+          "target_branch_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Target Branch Id"
+          },
+          "mode": {
+            "type": "string",
+            "enum": [
+              "move",
+              "copy"
+            ],
+            "title": "Mode"
+          },
+          "entries": {
+            "items": {
+              "$ref": "#/components/schemas/BranchTransferEntryRef"
+            },
+            "type": "array",
+            "maxItems": 500,
+            "minItems": 1,
+            "title": "Entries"
+          },
+          "dry_run": {
+            "type": "boolean",
+            "title": "Dry Run",
+            "default": false
+          }
+        },
+        "type": "object",
+        "required": [
+          "mode",
+          "entries"
+        ],
+        "title": "BranchTransferRequest",
+        "description": "Move (apply on the target, undo on this branch) or copy (apply only) rows.\n\n``target_branch_id`` null previews against a branch cut from main now \u2014\nthe dialog's \"New branch\u2026\" \u2014 and is accepted only with ``dry_run``. A dry\nrun makes every write of the real call and rolls them back."
+      },
+      "BranchTransferResult": {
+        "properties": {
+          "mode": {
+            "type": "string",
+            "enum": [
+              "move",
+              "copy"
+            ],
+            "title": "Mode"
+          },
+          "dry_run": {
+            "type": "boolean",
+            "title": "Dry Run"
+          },
+          "target_branch_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Target Branch Id"
+          },
+          "target_branch_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Target Branch Name"
+          },
+          "applied": {
+            "items": {
+              "$ref": "#/components/schemas/BranchTransferItem"
+            },
+            "type": "array",
+            "title": "Applied"
+          },
+          "carried": {
+            "items": {
+              "$ref": "#/components/schemas/BranchTransferItem"
+            },
+            "type": "array",
+            "title": "Carried"
+          },
+          "skipped": {
+            "items": {
+              "$ref": "#/components/schemas/BranchTransferItem"
+            },
+            "type": "array",
+            "title": "Skipped"
+          },
+          "warnings": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Warnings"
+          },
+          "target_counts": {
+            "items": {
+              "$ref": "#/components/schemas/EntityChangeCount"
+            },
+            "type": "array",
+            "title": "Target Counts"
+          },
+          "source_diff": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PlanBranchDiff"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "type": "object",
+        "required": [
+          "mode",
+          "dry_run",
+          "target_branch_id",
+          "target_branch_name",
+          "applied",
+          "carried",
+          "skipped"
+        ],
+        "title": "BranchTransferResult"
+      },
       "BranchTransitionRequest": {
         "properties": {
           "action": {
@@ -29603,6 +30091,11 @@
             "type": "string",
             "title": "Label",
             "default": ""
+          },
+          "added_on_both": {
+            "type": "boolean",
+            "title": "Added On Both",
+            "default": false
           },
           "fields": {
             "items": {
@@ -34296,6 +34789,68 @@
         ],
         "title": "EventCreate"
       },
+      "EventFieldObservedValues": {
+        "properties": {
+          "distinct_count": {
+            "type": "integer",
+            "title": "Distinct Count"
+          },
+          "total_count": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Total Count"
+          },
+          "values": {
+            "items": {
+              "$ref": "#/components/schemas/ObservedFieldValue"
+            },
+            "type": "array",
+            "title": "Values",
+            "default": []
+          },
+          "other_count": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Other Count"
+          },
+          "observed_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Observed At"
+          },
+          "scan_config_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Scan Config Id"
+          }
+        },
+        "type": "object",
+        "required": [
+          "distinct_count",
+          "observed_at"
+        ],
+        "title": "EventFieldObservedValues",
+        "description": "The values the last observing scan saw for this field, when it saw several.\n\nRead from the main-branch row; a branch copy shows its main twin's. Null\nwhen the field had one value, was never observed varying, or the response\nis a list (only the single-event reads attach it)."
+      },
       "EventFieldValueIn": {
         "properties": {
           "field_definition_id": {
@@ -34344,6 +34899,16 @@
             "type": "array",
             "title": "Variable Values",
             "default": []
+          },
+          "observed_values": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/EventFieldObservedValues"
+              },
+              {
+                "type": "null"
+              }
+            ]
           }
         },
         "type": "object",
@@ -39388,6 +39953,288 @@
         ],
         "title": "MergeResolutionChoice"
       },
+      "MergedEventPreview": {
+        "properties": {
+          "event_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Event Id"
+          },
+          "main_event_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Main Event Id"
+          },
+          "ref_id": {
+            "type": "string",
+            "title": "Ref Id"
+          },
+          "event_type_name": {
+            "type": "string",
+            "title": "Event Type Name"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "previous_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Previous Name"
+          },
+          "outcome": {
+            "type": "string",
+            "enum": [
+              "added",
+              "changed",
+              "unchanged",
+              "removed",
+              "skipped"
+            ],
+            "title": "Outcome"
+          },
+          "behind_base": {
+            "type": "boolean",
+            "title": "Behind Base",
+            "default": false
+          },
+          "blocked": {
+            "type": "boolean",
+            "title": "Blocked",
+            "default": false
+          },
+          "branch_merge_blocked": {
+            "type": "boolean",
+            "title": "Branch Merge Blocked",
+            "default": false
+          },
+          "other_blocking_count": {
+            "type": "integer",
+            "title": "Other Blocking Count",
+            "default": 0
+          },
+          "notes": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Notes"
+          },
+          "attributes": {
+            "items": {
+              "$ref": "#/components/schemas/MergedValue"
+            },
+            "type": "array",
+            "title": "Attributes"
+          },
+          "field_values": {
+            "items": {
+              "$ref": "#/components/schemas/MergedValue"
+            },
+            "type": "array",
+            "title": "Field Values"
+          },
+          "meta_values": {
+            "items": {
+              "$ref": "#/components/schemas/MergedValue"
+            },
+            "type": "array",
+            "title": "Meta Values"
+          },
+          "tags": {
+            "items": {
+              "$ref": "#/components/schemas/MergedValue"
+            },
+            "type": "array",
+            "title": "Tags"
+          },
+          "properties": {
+            "items": {
+              "$ref": "#/components/schemas/MergedProperty"
+            },
+            "type": "array",
+            "title": "Properties"
+          }
+        },
+        "type": "object",
+        "required": [
+          "ref_id",
+          "event_type_name",
+          "name",
+          "outcome"
+        ],
+        "title": "MergedEventPreview"
+      },
+      "MergedProperty": {
+        "properties": {
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "variable_type": {
+            "type": "string",
+            "title": "Variable Type"
+          },
+          "required": {
+            "type": "boolean",
+            "title": "Required",
+            "default": false
+          },
+          "previous_required": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Previous Required"
+          },
+          "override": {
+            "type": "boolean",
+            "title": "Override",
+            "default": false
+          },
+          "values": {
+            "items": {
+              "$ref": "#/components/schemas/MergedPropertyValue"
+            },
+            "type": "array",
+            "title": "Values"
+          },
+          "state": {
+            "type": "string",
+            "enum": [
+              "added",
+              "changed",
+              "unchanged",
+              "removed",
+              "conflict"
+            ],
+            "title": "State"
+          },
+          "variable_state": {
+            "type": "string",
+            "enum": [
+              "added",
+              "changed",
+              "unchanged",
+              "removed",
+              "conflict"
+            ],
+            "title": "Variable State",
+            "default": "unchanged"
+          },
+          "main_moved": {
+            "type": "boolean",
+            "title": "Main Moved",
+            "default": false
+          }
+        },
+        "type": "object",
+        "required": [
+          "name",
+          "variable_type",
+          "state"
+        ],
+        "title": "MergedProperty",
+        "description": "One variable as a property of the event, after the merge."
+      },
+      "MergedPropertyValue": {
+        "properties": {
+          "value": {
+            "type": "string",
+            "title": "Value"
+          },
+          "state": {
+            "type": "string",
+            "enum": [
+              "added",
+              "changed",
+              "unchanged",
+              "removed",
+              "conflict"
+            ],
+            "title": "State"
+          }
+        },
+        "type": "object",
+        "required": [
+          "value",
+          "state"
+        ],
+        "title": "MergedPropertyValue"
+      },
+      "MergedValue": {
+        "properties": {
+          "key": {
+            "type": "string",
+            "title": "Key"
+          },
+          "value": {
+            "title": "Value"
+          },
+          "previous": {
+            "title": "Previous"
+          },
+          "branch_value": {
+            "title": "Branch Value"
+          },
+          "state": {
+            "type": "string",
+            "enum": [
+              "added",
+              "changed",
+              "unchanged",
+              "removed",
+              "conflict"
+            ],
+            "title": "State"
+          },
+          "main_moved": {
+            "type": "boolean",
+            "title": "Main Moved",
+            "default": false
+          },
+          "note": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Note"
+          }
+        },
+        "type": "object",
+        "required": [
+          "key",
+          "state"
+        ],
+        "title": "MergedValue",
+        "description": "One attribute, or one member of a collection, as the merge leaves it.\n\n``previous`` is main as it is now. ``value`` is None on a conflict: the\nmerge refuses, so there is no merged value, and ``branch_value`` carries\nthe branch's side beside ``previous``. ``branch_value`` is also set where\nthe merge drops the branch's value (a status the merge does not carry)."
+      },
       "MetaFieldCreate": {
         "properties": {
           "name": {
@@ -42811,6 +43658,41 @@
         },
         "type": "object",
         "title": "ObservabilitySettingsUpdate"
+      },
+      "ObservedFieldValue": {
+        "properties": {
+          "value": {
+            "type": "string",
+            "title": "Value"
+          },
+          "count": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Count"
+          },
+          "share": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Share"
+          }
+        },
+        "type": "object",
+        "required": [
+          "value"
+        ],
+        "title": "ObservedFieldValue"
       },
       "OrgAiSettings": {
         "properties": {
@@ -48484,6 +49366,41 @@
           "items"
         ],
         "title": "ReleaseRegressionsResponse"
+      },
+      "ResolutionBatchCreate": {
+        "properties": {
+          "resolutions": {
+            "items": {
+              "$ref": "#/components/schemas/ResolutionCreate"
+            },
+            "type": "array",
+            "maxItems": 5000,
+            "minItems": 1,
+            "title": "Resolutions"
+          }
+        },
+        "type": "object",
+        "required": [
+          "resolutions"
+        ],
+        "title": "ResolutionBatchCreate",
+        "description": "Many stored choices in one call: a \"for all\" action in the conflicts list.\n\nAll or none: one item naming a field no conflict row carries saves\nnothing. The bound is ``UpdateFromMainRequest.resolutions``'s."
+      },
+      "ResolutionBatchResponse": {
+        "properties": {
+          "resolutions": {
+            "items": {
+              "$ref": "#/components/schemas/ResolutionResponse"
+            },
+            "type": "array",
+            "title": "Resolutions"
+          }
+        },
+        "type": "object",
+        "required": [
+          "resolutions"
+        ],
+        "title": "ResolutionBatchResponse"
       },
       "ResolutionCreate": {
         "properties": {

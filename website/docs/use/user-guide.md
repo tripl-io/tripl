@@ -422,9 +422,16 @@ entities only, amber when main also changed something the branch changed.
 touching your own. The dialog lists what main brings per entity type, then
 every overlap — a field, event, property, meta field, relation or event type
 that both sides changed — with two choices each: **Keep this branch** or
-**Take main**. When one side deleted something the other side edited, the
+**Take main**. To decide a whole entity at once — or the whole list — use
+**Keep this branch for all**, **Take main for all** or **Keep whichever is
+filled in**, which keeps the side that has a value and this branch's where
+both do; these replace choices you already made in their scope. When one side deleted something the other side edited, the
 choice is between keeping it and deleting it (or restoring it); taking main's
-deletion of an event type also removes what the branch added or edited under it. The
+deletion of an event type also removes what the branch added or edited under it.
+Deletions are always picked one by one, never by the "for all" actions.
+Catalog position is never asked about: when both sides moved an item, main's
+position is kept — so a re-sort made on the branch is lost for items main also
+moved — and a move made on one side only always lands. The
 update runs once every overlap has a choice, and afterwards the branch counts
 from main as it is now: kept values stay in the diff as branch changes, taken
 values leave it. Approvals given before the update need renewing. A branch
@@ -479,6 +486,20 @@ panel on the branch detail shows the ticket key as a link that opens the issue
 in the tracker, and a chip that flips from `Open` to `Done` once the background poll
 sees it closed. Branches that opened no ticket show no panel.
 
+### See an event as it will be after merge
+
+The diff lists a branch's work field by field, and a property change sits on the
+property's row rather than the event's. To read one event whole, press **As
+merged** on its row, or beside the event's item in a property's per-event
+changes. A side panel shows the event as `main` will hold it after the merge:
+what the branch changed, marked against `main` as it is now; what `main` changed
+since you cut the branch, kept and marked "changed on main since this branch";
+and its properties with their documented values. Anything both sides changed is
+a **Conflict** — the merge will refuse the whole branch until you run **Update
+from main** and choose. The panel's link (`?merged=…`) can be shared, and Back
+closes it. See [Feature reference](feature-reference.md#tracking-plan-branches--merges)
+for the details.
+
 ### Undo one change on a branch
 
 A branch is not all-or-nothing. Expand any row in the diff and press **Revert**
@@ -503,6 +524,74 @@ name or several answer to the successor it would restore, is refused. If the
 plan already held those events when the branch was opened, undo the change by
 hand: renaming one on the branch does not help. Renaming (or removing) one
 helps only when the branch itself added the duplicate.
+
+### Move or copy changes to another branch
+
+When review splits a task in two, the changes that belong to the new task do
+not have to be authored again. On the branch's page, tick the rows in
+**Changes** and choose **Move to branch…** or **Copy to branch…**:
+
+- **Move** puts the changes on the branch you pick and undoes them here, exactly
+  as **Revert** on each row would.
+- **Copy** puts them on the branch you pick and leaves this branch as it is.
+
+Pick an open branch, or **New branch…** to cut one from main with a name and a
+description. The dialog previews the transfer before anything is written — it
+makes every write and throws them away — and lists:
+
+- **Will move / Will copy**: the rows you ticked. A rename shows in the
+  Changes list as one row or as two (a removal and an addition); ticking
+  either half ticks the other, this list names both halves, and the dialog
+  and the confirmation count it as one change.
+- **Also carried**: what those rows cannot land without, each with the row that
+  needs it. An event brings the new event type it belongs to, the new or edited
+  field and meta field its values use, the new property its `${token}` names
+  and the new event it is superseded by. A move also takes what this branch
+  would otherwise lose when the rows are undone here: the remaining new events
+  of a moved event type, the events valued for a moved field, the relations on
+  a moved field, the properties documenting values for a moved event and the
+  events using a moved property's token.
+- **Skipped (already on target)**: rows the other branch already says the
+  same. A move still takes them off this branch.
+
+The transfer refuses rather than guesses, and names every row it refuses at
+once. Fix the other branch and try again:
+
+- **The other branch edited the same field.** Undo that edit there, or leave
+  the row out.
+- **The name is already taken there** with different content. Rename or remove
+  it there, or make the two the same.
+- **Something the row needs is missing there** (its event type, a field, a
+  meta field, a successor), usually because the other branch deleted it. Add it
+  back there, or include the row that adds it.
+- **A deleted event type, field or meta field.** Deleting one on the other
+  branch would also delete every event, value or relation that uses it there,
+  including ones only that branch has. Delete it on that branch directly. For
+  the same reason, renaming an event type, field or meta field (which the list
+  shows as a deletion plus an addition) cannot be transferred.
+- **An added event with review comments cannot be moved**: undoing it here
+  would delete the comments, since main has no copy of the event to keep them
+  on. Copy it instead (the comments stay here), or resolve and delete them
+  first.
+- **The two branches were cut from different versions of main.** The message
+  names the branch that is behind: run **Update from main** on it (the link
+  opens it), then try again. A new branch is always cut from main as it is now,
+  so a branch opened before main last changed has to be updated before its
+  rows can move to a new one.
+
+A few things to know:
+
+- A transfer does not reset review status on either branch. Approvals given
+  before it go stale like after any other edit.
+- Photos are copied to the other branch, but a move cannot take a photo change
+  off this branch: undoing a change does not restore photos. Remove them here
+  by hand if they should go. For the same reason, a moved deletion of an event
+  that had photos brings the event back here without them.
+- With **New branch…**, the branch is created when you confirm, and then the
+  rows move. If main changed in that moment the transfer is refused and the new
+  branch stays empty and selected; delete it if you do not need it.
+- Copying a new event or property to two branches makes the second one to
+  merge conflict by name with the first.
 
 ### Branch best practices
 

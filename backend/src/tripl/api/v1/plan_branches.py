@@ -1,6 +1,6 @@
 import uuid
 
-from fastapi import APIRouter
+from fastapi import APIRouter, HTTPException
 
 from tripl.api.deps import EditorUserDep, SessionDep
 from tripl.schemas.plan_branch import (
@@ -10,24 +10,33 @@ from tripl.schemas.plan_branch import (
     BranchRevertRequest,
     BranchReviewerCreate,
     BranchReviewerResponse,
+    BranchTransferItem,
+    BranchTransferRequest,
+    BranchTransferResult,
     BranchTransitionRequest,
+    MergedEventPreview,
     PlanBranchCreate,
     PlanBranchDetailResponse,
     PlanBranchDiff,
     PlanBranchList,
     PlanBranchResponse,
+    ResolutionBatchCreate,
+    ResolutionBatchResponse,
     ResolutionCreate,
     ResolutionResponse,
     UpdateFromMainPreview,
     UpdateFromMainRequest,
     UpdateFromMainResult,
 )
+from tripl.schemas.text_filters import FreeTextFilter
 from tripl.services import (
     audit_service,
     plan_branch_conflicts,
+    plan_branch_merge_preview_service,
     plan_branch_merge_service,
     plan_branch_revert_service,
     plan_branch_service,
+    plan_branch_transfer_service,
     plan_branch_update_service,
 )
 
@@ -226,6 +235,38 @@ async def diff_branch(session: SessionDep, slug: str, branch_id: uuid.UUID) -> P
     return await plan_branch_service.diff_branch(session, slug, branch_id)
 
 
+@router.get("/{branch_id}/merge-preview/event", response_model=MergedEventPreview)
+async def merge_preview_event(
+    session: SessionDep,
+    slug: str,
+    branch_id: uuid.UUID,
+    event_id: uuid.UUID | None = None,
+    # FreeTextFilter: both are matched against snapshot names, never bound
+    # into SQL, but a NUL in either reaches the 404 message.
+    event_type: FreeTextFilter | None = None,
+    event_name: FreeTextFilter | None = None,
+) -> MergedEventPreview:
+    """One event as main will hold it after this branch merges ("As merged").
+
+    Name the event by ``event_id`` (the branch's, the base's or main's id) or
+    by ``event_type`` plus ``event_name`` on any side, not both. Read-only.
+    """
+    by_key = event_type is not None or event_name is not None
+    if (event_id is None) == (not by_key) or (by_key and not (event_type and event_name)):
+        raise HTTPException(
+            status_code=422,
+            detail="Give either event_id, or both event_type and event_name.",
+        )
+    return await plan_branch_merge_preview_service.merge_preview_event(
+        session,
+        slug,
+        branch_id,
+        event_id=event_id,
+        event_type=event_type,
+        event_name=event_name,
+    )
+
+
 @router.post("/{branch_id}/revert", response_model=PlanBranchDiff)
 async def revert_branch_change(
     session: SessionDep,
@@ -251,6 +292,78 @@ async def revert_branch_change(
         },
     )
     return diff
+
+
+@router.post("/{branch_id}/transfer", response_model=BranchTransferResult)
+async def transfer_branch_changes(
+    session: SessionDep,
+    current_user: EditorUserDep,
+    slug: str,
+    branch_id: uuid.UUID,
+    data: BranchTransferRequest,
+) -> BranchTransferResult:
+    """Move or copy rows of this branch's diff onto another open branch.
+
+    ``move`` applies them on the target and undoes them here; ``copy`` only
+    applies them. What a row needs comes along (``carried``, with
+    ``needed_by``); a row the target already says is ``skipped``.
+    ``dry_run`` makes every write and rolls it back; with it,
+    ``target_branch_id`` may be null to preview against a branch cut from main
+    now. Refusals write nothing: 400 for a housekeeping row, main, the branch
+    itself as target, or a deleted event type, field or meta field
+    (``removed_not_transferable``); 422 for a null target without ``dry_run``
+    (request validation); 409 for a merged or closed target, a move off a
+    merged or closed branch (a copy off a closed one is allowed),
+    ``transfer_base_mismatch`` (cut from different main content; the message
+    names the branch to update), ``transfer_conflicts`` (every refused row at
+    once), ``transfer_constraint_violation`` and ``transfer_retry`` (a
+    concurrent write aborted the transaction; worth one more try).
+    """
+    outcome = await plan_branch_transfer_service.transfer_changes(
+        session, slug, branch_id, data, user_id=current_user.id
+    )
+    result = outcome.result
+    if not result.dry_run and result.target_branch_id is not None:
+        payload = {
+            "mode": result.mode,
+            "source_branch_id": str(branch_id),
+            "target_branch_id": str(result.target_branch_id),
+            "entries": [_audit_item(item) for item in result.applied],
+            "carried": [_audit_item(item) for item in result.carried],
+            "skipped": [_audit_item(item) for item in result.skipped],
+        }
+        # Both rows in one commit: the first is left pending, the second lands it.
+        await audit_service.record(
+            session,
+            user=current_user,
+            action="plan_branch.transfer_out",
+            target_type="plan_branch",
+            target_id=branch_id,
+            target_name=outcome.source_name,
+            project_slug=slug,
+            payload={**payload, "other_branch_name": result.target_branch_name},
+            commit=False,
+        )
+        await audit_service.record(
+            session,
+            user=current_user,
+            action="plan_branch.transfer_in",
+            target_type="plan_branch",
+            target_id=result.target_branch_id,
+            target_name=result.target_branch_name or "",
+            project_slug=slug,
+            payload={**payload, "other_branch_name": outcome.source_name},
+        )
+    return result
+
+
+def _audit_item(item: BranchTransferItem) -> dict[str, str | None]:
+    return {
+        "entity_type": item.entity_type,
+        "name": item.name,
+        "parent": item.parent,
+        "kind": item.kind,
+    }
 
 
 @router.get("/{branch_id}/conflicts", response_model=BranchConflictsResponse)
@@ -320,6 +433,35 @@ async def update_from_main(
             },
         )
     return result
+
+
+@router.post(
+    "/{branch_id}/resolutions/batch", response_model=ResolutionBatchResponse, status_code=201
+)
+async def save_branch_resolutions(
+    session: SessionDep,
+    current_user: EditorUserDep,
+    slug: str,
+    branch_id: uuid.UUID,
+    data: ResolutionBatchCreate,
+) -> ResolutionBatchResponse:
+    """Store many conflict choices at once — all of them, or none on a 422."""
+    resolutions = await plan_branch_conflicts.save_resolutions(
+        session, slug, branch_id, data.resolutions, user_id=current_user.id
+    )
+    await audit_service.record(
+        session,
+        user=current_user,
+        action="plan_branch.resolution_batch_save",
+        target_type="plan_branch",
+        target_id=branch_id,
+        project_slug=slug,
+        payload={
+            "count": len(resolutions),
+            "entity_count": len({(r.entity_type, r.entity_name) for r in resolutions}),
+        },
+    )
+    return ResolutionBatchResponse(resolutions=resolutions)
 
 
 @router.post("/{branch_id}/resolutions", response_model=ResolutionResponse, status_code=201)

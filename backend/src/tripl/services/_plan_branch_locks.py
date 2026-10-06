@@ -43,6 +43,23 @@ deadlock. No plan write found in the audit inserts rows pointing at a branch
 other than its own, and PostgreSQL would abort one side with 40P01 rather than
 hang if one ever did.
 
+Moving or copying changes between branches (``plan_branch_transfer_service``)
+is the one plan write that holds TWO branch rows. It takes both ``FOR NO KEY
+UPDATE`` (:func:`hold_branches_for_transfer`), in ascending id order, and
+updates neither. Not ``FOR SHARE`` like an ordinary write: two transfers in
+opposite directions (A→B and B→A) would both get their shared locks, then each
+write the target's entity rows and revert the source's, in opposite order,
+and deadlock on those rows. ``NO KEY UPDATE`` conflicts with itself, so
+transfers touching a common branch run one after the other; it conflicts with
+``FOR SHARE`` too, so an ordinary write to either branch waits for the
+transfer (or the transfer for it), and it does not conflict with the ``FOR KEY
+SHARE`` its own inserts take. A merge takes ``FOR UPDATE`` on its own branch,
+then main, and never a second working branch; a transfer never locks main.
+So no cycle exists: the transfer holds only working-branch rows, taken in a
+fixed order, and waits for nothing else while holding them. Anything new that
+takes a working branch's row while holding another one must take them in the
+same order.
+
 PostgreSQL only, like ``_lock_branch_for_merge`` and
 ``demo_runtime._acquire_project_xact_lock``: SQLite (the unit suite) has one
 writer at a time and no row locks, so the lock clause is left off there. The
@@ -60,6 +77,7 @@ from tripl.models.plan_branch import BranchKind, PlanBranch
 
 __all__ = [
     "hold_branch_for_plan_write",
+    "hold_branches_for_transfer",
     "hold_main_plan_for_write",
     "lock_main_plan_for_merge",
     "locks_rows",
@@ -97,6 +115,31 @@ async def hold_branch_for_plan_write(
         stmt = stmt.with_for_update(read=True)
     branch: PlanBranch | None = await session.scalar(stmt)
     return branch
+
+
+async def hold_branches_for_transfer(
+    session: AsyncSession, branch_ids: list[uuid.UUID]
+) -> dict[uuid.UUID, PlanBranch]:
+    """Re-read the branch rows a transfer touches, each ``FOR NO KEY UPDATE``.
+
+    One at a time in ascending id order, so two transfers sharing a branch
+    queue on the same first row instead of each holding one the other wants
+    (see the DEADLOCK AUDIT above). Returns the rows found, keyed by id, as
+    they stand once every lock is granted.
+    """
+    found: dict[uuid.UUID, PlanBranch] = {}
+    for branch_id in sorted(set(branch_ids)):
+        stmt = (
+            select(PlanBranch)
+            .where(PlanBranch.id == branch_id)
+            .execution_options(populate_existing=True)
+        )
+        if locks_rows(session):
+            stmt = stmt.with_for_update(key_share=True)
+        branch = await session.scalar(stmt)
+        if branch is not None:
+            found[branch_id] = branch
+    return found
 
 
 async def hold_main_plan_for_write(session: AsyncSession, project_id: uuid.UUID) -> None:

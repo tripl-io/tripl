@@ -1,20 +1,89 @@
 import { api } from './client'
 import type {
+  EntityChangeCount,
   ImplementationTicket,
+  MergedEventPreview,
+  MergePreviewTarget,
   PlanBranchComment,
   PlanBranchConflicts,
   PlanBranchDetail,
   PlanBranchDiffSummary,
   PlanBranchMergeResolution,
+  PlanBranchResolutionBatchCreate,
+  PlanBranchResolutionBatchResponse,
   PlanBranchReviewer,
   PlanBranchSummary,
   PlanBranchTransitionAction,
   PlanDiffEntityType,
+  PlanDiffKind,
   ResolutionChoice,
   UpdateFromMainPreview,
   UpdateFromMainRequest,
   UpdateFromMainResult,
 } from '../types'
+
+// --- Move or copy changes to another branch ---------------------------------
+// Hand-written mirrors of the Pydantic schemas in backend/src/tripl/schemas/
+// plan_branch.py (`BranchTransfer*`); reconciled with api.gen.ts on regeneration.
+
+export type BranchTransferMode = 'move' | 'copy'
+
+/** One diff row, addressed the way a revert addresses it (no `field`). */
+export interface BranchTransferEntryRef {
+  entity_type: PlanDiffEntityType
+  name: string
+  parent?: string | null
+  entity_id?: string | null
+}
+
+export interface BranchTransferRequest {
+  /** Null previews against a branch cut from main now; only with `dry_run`. */
+  target_branch_id: string | null
+  mode: BranchTransferMode
+  entries: BranchTransferEntryRef[]
+  dry_run?: boolean
+}
+
+export interface BranchTransferItem {
+  entity_type: PlanDiffEntityType
+  name: string
+  parent: string | null
+  entity_id: string | null
+  kind: PlanDiffKind
+  /** The selected row a carried one is needed by. */
+  needed_by: string | null
+}
+
+export type BranchTransferConflictReason =
+  | 'target_exists'
+  | 'target_changed'
+  | 'target_missing'
+  | 'identity_clash'
+  | 'ambiguous_rename'
+  | 'has_discussion'
+
+/** One refused row, as the 409 `transfer_conflicts` lists it. */
+export interface BranchTransferConflict {
+  entity_type: PlanDiffEntityType
+  name: string
+  parent: string | null
+  field: string | null
+  reason: BranchTransferConflictReason
+  message: string
+}
+
+export interface BranchTransferResult {
+  mode: BranchTransferMode
+  dry_run: boolean
+  target_branch_id: string | null
+  target_branch_name: string | null
+  applied: BranchTransferItem[]
+  carried: BranchTransferItem[]
+  skipped: BranchTransferItem[]
+  warnings: string[]
+  target_counts: EntityChangeCount[]
+  source_diff: PlanBranchDiffSummary | null
+}
 
 /**
  * A branch row as `GET /branches` returns it. `ahead` / `behind_base` are filled
@@ -96,6 +165,19 @@ export const planBranchesApi = {
       `/projects/${slug}/branches/${branchId}/diff`,
     ),
 
+  /** One event as main will hold it after this branch merges ("As merged").
+   * Read-only; answers 409 with a `{message}` detail where the merge itself
+   * would refuse (an old base), on a landed branch, or for a namesake. */
+  mergePreview: (slug: string, branchId: string, target: MergePreviewTarget) => {
+    const query =
+      'eventId' in target
+        ? `event_id=${encodeURIComponent(target.eventId)}`
+        : `event_type=${encodeURIComponent(target.eventType)}&event_name=${encodeURIComponent(target.eventName)}`
+    return api.get<MergedEventPreview>(
+      `/projects/${slug}/branches/${branchId}/merge-preview/event?${query}`,
+    )
+  },
+
   merge: (slug: string, branchId: string) =>
     api.post<PlanBranchDetail>(
       `/projects/${slug}/branches/${branchId}/merge`,
@@ -120,6 +202,16 @@ export const planBranchesApi = {
     api.post<PlanBranchDiffSummary>(
       `/projects/${slug}/branches/${branchId}/revert`,
       data,
+    ),
+
+  /** Move or copy rows of this branch's diff onto another open branch.
+   * `dry_run` makes every write and rolls it back. Refuses with 409
+   * `{transfer_conflicts, message}`, `{transfer_base_mismatch, message,
+   * behind_branch_ids}` or `{transfer_constraint_violation, message}`. */
+  transfer: (slug: string, branchId: string, body: BranchTransferRequest) =>
+    api.post<BranchTransferResult>(
+      `/projects/${slug}/branches/${branchId}/transfer`,
+      body,
     ),
 
   getConflicts: (slug: string, branchId: string) =>
@@ -155,6 +247,13 @@ export const planBranchesApi = {
   ) =>
     api.post<PlanBranchMergeResolution>(
       `/projects/${slug}/branches/${branchId}/resolutions`,
+      data,
+    ),
+
+  /** Many choices in one call (a "for all" action); one bad item saves none. */
+  saveResolutions: (slug: string, branchId: string, data: PlanBranchResolutionBatchCreate) =>
+    api.post<PlanBranchResolutionBatchResponse>(
+      `/projects/${slug}/branches/${branchId}/resolutions/batch`,
       data,
     ),
 

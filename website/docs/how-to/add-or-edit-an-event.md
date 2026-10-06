@@ -39,6 +39,14 @@ its life.
 Press **Save**. Adding several similar events? **Save and add another** keeps the
 form filled in, so you change only what differs.
 
+**Start from an existing event.** On an event's edit form, press **Duplicate**.
+A new event opens on the same branch, filled in from that one: type, name,
+title, description, owner, tags, breakdown columns, field values and meta
+values. Change the name, or under a scan naming rule a field the name is built
+from, before you save; the form will not create a second event with the same
+identity. The copy starts as *Draft*. Its property list and discussion start
+empty.
+
 You do not have to move an event to *Live* yourself. The first time a scan sees
 data for an event that is *Ready for Dev* or *Implemented* (with its required
 fields filled in), tripl marks it *Live* and records when it first arrived.

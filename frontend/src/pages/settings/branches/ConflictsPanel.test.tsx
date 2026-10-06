@@ -11,9 +11,11 @@ vi.mock('@/api/planBranches', () => ({
   planBranchesApi: {
     getConflicts: vi.fn(),
     saveResolution: vi.fn(),
+    saveResolutions: vi.fn(),
   },
 }))
-vi.mock('@/lib/permissions', () => ({ useCanWriteProject: () => true }))
+const permissions = vi.hoisted(() => ({ canWrite: true }))
+vi.mock('@/lib/permissions', () => ({ useCanWriteProject: () => permissions.canWrite }))
 
 const BRANCH: PlanBranchSummary = {
   id: 'feat-1',
@@ -59,7 +61,10 @@ function card(name: string) {
   return screen.getByText(name).closest('.rounded-card') as HTMLElement
 }
 
-afterEach(() => vi.resetAllMocks())
+afterEach(() => {
+  vi.resetAllMocks()
+  permissions.canWrite = true
+})
 
 describe('withChoice', () => {
   it('sets one field and recounts, leaving the input untouched', () => {
@@ -131,5 +136,147 @@ describe('ConflictsPanel', () => {
     fireEvent.click(within(card('home')).getByRole('button', { name: 'Take main' }))
 
     await waitFor(() => expect(planBranchesApi.getConflicts).toHaveBeenCalledTimes(2))
+  })
+})
+
+/** Two value rows each on two events — one both sides added — and a deletion. */
+const BULK: PlanBranchConflicts = {
+  entities: [
+    {
+      entity_type: 'event',
+      name: 'home',
+      parent: 'screen_view',
+      label: 'home',
+      added_on_both: true,
+      fields: [
+        { field: 'title', base: null, ours: '', theirs: 'Home', choice: null, dependents: 0 },
+        { field: 'description', base: null, ours: 'main', theirs: '', choice: null, dependents: 0 },
+      ],
+    },
+    {
+      entity_type: 'event',
+      name: 'paywall',
+      parent: 'screen_view',
+      label: 'paywall',
+      fields: [
+        { field: 'title', base: 'a', ours: 'b', theirs: 'c', choice: null, dependents: 0 },
+        { field: 'tags', base: [], ours: ['x'], theirs: ['y'], choice: null, dependents: 0 },
+      ],
+    },
+    {
+      entity_type: 'event',
+      name: 'legacy',
+      parent: 'screen_view',
+      label: 'legacy',
+      fields: [
+        {
+          field: '@presence',
+          base: 'present',
+          ours: 'absent',
+          theirs: 'present',
+          choice: null,
+          dependents: 0,
+        },
+      ],
+    },
+  ],
+  unresolved_count: 5,
+  behind: true,
+  overlap_count: 3,
+  merge_blocked: true,
+}
+
+const everyConflict = () => within(screen.getByRole('group', { name: 'Every conflict' }))
+
+describe('ConflictsPanel bulk choices', () => {
+  it('settles the whole list in one request, at the click, and leaves deletions alone', async () => {
+    vi.mocked(planBranchesApi.getConflicts).mockResolvedValue(BULK)
+    vi.mocked(planBranchesApi.saveResolutions).mockReturnValue(new Promise(() => {}))
+    renderPanel()
+    await screen.findByText('5 unresolved')
+    expect(screen.getByTestId('deletions-left')).toHaveTextContent('1 deletion still needs a choice')
+
+    fireEvent.click(everyConflict().getByRole('button', { name: 'Keep whichever is filled in' }))
+
+    expect(await screen.findByText('1 unresolved')).toBeInTheDocument()
+    expect(planBranchesApi.saveResolutions).toHaveBeenCalledTimes(1)
+    expect(planBranchesApi.saveResolutions).toHaveBeenCalledWith('acme', 'feat-1', {
+      resolutions: [
+        { entity_type: 'event', entity_name: 'home', field_name: 'title', choice: 'theirs' },
+        { entity_type: 'event', entity_name: 'home', field_name: 'description', choice: 'ours' },
+        { entity_type: 'event', entity_name: 'paywall', field_name: 'title', choice: 'theirs' },
+        { entity_type: 'event', entity_name: 'paywall', field_name: 'tags', choice: 'theirs' },
+      ],
+    })
+    expect(planBranchesApi.saveResolution).not.toHaveBeenCalled()
+    // The batched rows wait for their save; the deletion is still the user's.
+    // Each card carries its own bulk row beside the per-field picks. On the
+    // batched card the other side of each saving pick waits (title went to
+    // the branch, so its "Take main" is off); the deletion's own pick (the
+    // last one on its card) is still free.
+    const homeTakeMain = within(card('home')).getAllByRole('button', { name: 'Take main' })
+    expect(homeTakeMain.some((button) => button.hasAttribute('disabled'))).toBe(true)
+    expect(within(card('legacy')).getAllByRole('button', { name: 'Take main' }).at(-1)).toBeEnabled()
+  })
+
+  it('touches only its own entity, and suggests "filled in" where both sides added it', async () => {
+    vi.mocked(planBranchesApi.getConflicts).mockResolvedValue(BULK)
+    vi.mocked(planBranchesApi.saveResolutions).mockReturnValue(new Promise(() => {}))
+    renderPanel()
+    await screen.findByText('5 unresolved')
+
+    const homeActions = within(screen.getByRole('group', { name: 'All fields of home' }))
+    const [first] = homeActions.getAllByRole('button')
+    expect(first).toHaveTextContent('Keep whichever is filled in')
+    expect(within(card('home')).getByText(/Added on both sides/)).toBeInTheDocument()
+    expect(within(card('paywall')).queryByText(/Added on both sides/)).not.toBeInTheDocument()
+
+    fireEvent.click(homeActions.getByRole('button', { name: 'Take main for all' }))
+
+    expect(await screen.findByText('3 unresolved')).toBeInTheDocument()
+    const [, , data] = vi.mocked(planBranchesApi.saveResolutions).mock.calls[0]!
+    expect(data.resolutions.map((r) => [r.entity_name, r.field_name, r.choice])).toEqual([
+      ['home', 'title', 'ours'],
+      ['home', 'description', 'ours'],
+    ])
+  })
+
+  it('puts back only the batched fields when the batch fails, and says how many', async () => {
+    vi.mocked(planBranchesApi.getConflicts).mockResolvedValue(BULK)
+    vi.mocked(planBranchesApi.saveResolution).mockReturnValue(new Promise(() => {}))
+    let fail: (error: Error) => void = () => {}
+    vi.mocked(planBranchesApi.saveResolutions).mockReturnValue(
+      new Promise((_resolve, reject) => {
+        fail = reject
+      }),
+    )
+    renderPanel()
+    await screen.findByText('5 unresolved')
+
+    fireEvent.click(
+      within(screen.getByRole('group', { name: 'All fields of paywall' })).getByRole('button', {
+        name: 'Keep this branch for all',
+      }),
+    )
+    await screen.findByText('3 unresolved')
+    // A single pick elsewhere while the batch is out.
+    fireEvent.click(within(card('legacy')).getByRole('button', { name: 'Keep this branch' }))
+    await screen.findByText('2 unresolved')
+    fail(new Error('boom'))
+
+    expect(await screen.findByRole('alert')).toHaveTextContent('Could not save 2 choices: boom')
+    await waitFor(() => expect(screen.getByText('4 unresolved')).toBeInTheDocument())
+    expect(within(card('legacy')).getByText("Resolved: this branch's value")).toBeInTheDocument()
+  })
+
+  it('shows a viewer no bulk actions', async () => {
+    permissions.canWrite = false
+    vi.mocked(planBranchesApi.getConflicts).mockResolvedValue(BULK)
+    renderPanel()
+    await screen.findByText('5 unresolved')
+
+    expect(screen.queryByRole('group', { name: 'Every conflict' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Take main for all' })).not.toBeInTheDocument()
+    expect(screen.queryByTestId('deletions-left')).not.toBeInTheDocument()
   })
 })

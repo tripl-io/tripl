@@ -23,6 +23,7 @@ from tripl.models.duplicate_dismissal import DuplicateDismissal
 from tripl.models.email_verification_token import EmailVerificationToken
 from tripl.models.event import Event
 from tripl.models.event_change import EventChange
+from tripl.models.event_field_observation import EventFieldObservation
 from tripl.models.event_field_value import EventFieldValue
 from tripl.models.event_meta_value import EventMetaValue
 from tripl.models.event_metric import EventMetric
@@ -111,6 +112,7 @@ __all__ = [
     "MetaFieldDefinition",
     "Event",
     "EventChange",
+    "EventFieldObservation",
     "EventFieldValue",
     "EventMetaValue",
     "EventTag",

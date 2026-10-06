@@ -652,7 +652,7 @@ describe('BranchesTab', () => {
 
     renderTab('feat-1')
 
-    fireEvent.click(await screen.findByRole('button', { name: /purchase/i }))
+    fireEvent.click(await screen.findByRole('button', { name: /purchase/i, expanded: false }))
 
     // Each changed member is named and shown with its own before → after …
     expect(await screen.findByText('currency')).toBeInTheDocument()
@@ -692,7 +692,7 @@ describe('BranchesTab', () => {
 
     renderTab('feat-1')
 
-    fireEvent.click(await screen.findByRole('button', { name: /purchase/i }))
+    fireEvent.click(await screen.findByRole('button', { name: /purchase/i, expanded: false }))
     fireEvent.click(await screen.findByRole('button', { name: /Revert description/i }))
 
     // Reverting is destructive to branch work, so it waits for consent.
@@ -740,7 +740,7 @@ describe('BranchesTab', () => {
 
     renderTab('feat-1')
 
-    fireEvent.click(await screen.findByRole('button', { name: /legacy_event/i }))
+    fireEvent.click(await screen.findByRole('button', { name: /legacy_event/i, expanded: false }))
 
     // The row links to the copy that survives on main — the branch has none.
     expect(await screen.findByRole('link', { name: /Open on main/i })).toHaveAttribute(
@@ -831,7 +831,7 @@ describe('BranchesTab', () => {
 
     renderTab('feat-1')
 
-    fireEvent.click(await screen.findByRole('button', { name: /se_spot_forecast_profile_confirm/i }))
+    fireEvent.click(await screen.findByRole('button', { name: /se_spot_forecast_profile_confirm/i, expanded: false }))
 
     const table = await screen.findByRole('table')
     expect(within(table).getByRole('columnheader', { name: 'Field' })).toBeInTheDocument()
@@ -989,7 +989,7 @@ describe('BranchesTab', () => {
 
     renderTab('feat-merged')
 
-    await screen.findByRole('button', { name: /checkout_started/i })
+    await screen.findByRole('button', { name: /checkout_started/i, expanded: false })
     expect(screen.queryByRole('link', { name: /^Edit / })).not.toBeInTheDocument()
   })
 
@@ -1017,7 +1017,7 @@ describe('BranchesTab', () => {
 
     renderTab('feat-1')
 
-    fireEvent.click(await screen.findByRole('button', { name: /checkout_started/i }))
+    fireEvent.click(await screen.findByRole('button', { name: /checkout_started/i, expanded: false }))
 
     const link = await screen.findByRole('link', { name: /Open event/i })
     // The event lives on the branch, so the link opens it there.
@@ -2464,7 +2464,7 @@ describe('BranchesTab review flows', () => {
 
     renderTab('feat-1')
 
-    fireEvent.click(await screen.findByRole('button', { name: /purchase/ }))
+    fireEvent.click(await screen.findByRole('button', { name: /purchase/, expanded: false }))
     expect(screen.getByText('before:')).toBeInTheDocument()
     expect(screen.getByText('after:')).toBeInTheDocument()
     expect(screen.getByText('USD')).toBeInTheDocument()
@@ -2614,7 +2614,7 @@ describe('BranchesTab review flows', () => {
 
     renderTab('feat-1')
 
-    fireEvent.click(await screen.findByRole('button', { name: /purchase/ }))
+    fireEvent.click(await screen.findByRole('button', { name: /purchase/, expanded: false }))
     fireEvent.click(screen.getByRole('button', { name: 'Revert title' }))
     fireEvent.click(await screen.findByRole('button', { name: 'Revert' }))
 
@@ -2767,7 +2767,7 @@ describe('BranchesTab review flows', () => {
 
     renderTab('feat-1')
 
-    fireEvent.click(await screen.findByRole('button', { name: /purchase/ }))
+    fireEvent.click(await screen.findByRole('button', { name: /purchase/, expanded: false }))
     expect(screen.getByText('web').closest('del')).not.toBeNull()
     expect(screen.getByText('mobile').closest('ins')).not.toBeNull()
     // The shared words are not marked on either side.

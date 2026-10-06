@@ -634,7 +634,27 @@ or create a normal anomaly delivery.
 1. A branch snapshots plan objects and records review approvals against a plan
    hash; edits make older approvals stale.
 2. Merge policy and event-type owner gates are checked before the three-way
-   merge applies changes to `main`.
+   merge applies changes to `main`. `MAIN_WINS_FIELDS`
+   (`plan_branch_conflicts.py`, today only catalog `order`) are never a
+   conflict: where both sides changed one, main's value stands. The merge's
+   detection (`_conflict_set`, `_event_type_add_remove_conflicts`,
+   `_field_conflicts_event_type`), the three-way plan behind the conflicts list
+   and "Update from main" (`_Planner._evaluate`) and the merge's apply
+   (`_apply_merge`, through `main_keeps`) all read the set, so they agree.
+   `order` stays in the change keys all the same: "Update from main" writes
+   main's reorders onto the branch only for fields it compares, a main-only
+   reorder still makes a branch behind, and an event-type reorder on the branch
+   still asks its owner (even when main's position will win). A deletion against
+   a reorder is still a presence conflict.
+   The merge's gate lives in one place: `merge_blocking_conflicts` (the
+   conflicts `merge_branch` refuses with `409`, which `merge_blocked_by` and the
+   "As merged" preview read too), with `conflicting_fields` naming which keys
+   of a row clash and `require_complete_base` (`_plan_branch_sides.py`) the
+   merge's refusal of an old base. `_plan_merge_preview.py` is a pure projection
+   of one event through `_apply_merge`'s apply rules (`merge_slots` pairing,
+   whole-key takes, the status rank, the successor through the landings, the
+   variables' `pair_renames`); a parity test merges a previewed branch and
+   compares `main` with the preview, so the two cannot drift apart unnoticed.
 3. Search is reindexed after merge. If a project tracker is enabled, creating a
    Jira or Linear implementation ticket is best-effort and cannot roll back the merge.
 4. A periodic worker polls open tickets; a done issue (Jira's Done category, a
@@ -650,6 +670,39 @@ or create a normal anomaly delivery.
    deprecated event; `include_lifecycle` rules alert on the open ones. Every
    scan run offers them as project-global alert candidates (no scan config),
    deduplicated project-wide, one alert per finding episode.
+
+#### Moving changes between branches
+
+`plan_branch_transfer_service.transfer_changes` (`POST
+/branches/{id}/transfer`) moves or copies diff rows of one working branch onto
+another, built from two writers that already exist:
+
+- The target side is "Update from main"'s writer: `apply_update_plan` takes an
+  optional `applier`, and `_TransferApplier` (`_plan_branch_transfer_apply.py`)
+  feeds it the SOURCE's snapshot items. The default writer resolves successors,
+  overrides and value contexts through main's rows by the items' ids;
+  `_TransferApplier.branch_event_for` maps a source row id instead (the row it
+  just created, else the target copy of the same main row). Every created event
+  or relation gets the MAIN origin of the row it copies (`origin_id`, `None` for
+  one the source added), never the source row's id, which main never held and a
+  merge would read as main having deleted it.
+- The source side of a move is the revert (`apply_revert_entry`), row by row,
+  children before parents; a moved rename is undone through the revert's rename
+  arm, then the row's other edits through one more diff.
+- What to write is planned on snapshots first (`_plan_branch_transfer_deps.py`,
+  pure): the closure of what the selection needs (and, on a move, what the
+  source would lose), each row as an `Op`, a skip, or a refusal checked against
+  the source's base snapshot. The two branches must have been cut from the same
+  main content, so that base is the target's too. Deleted event types, fields
+  and meta fields are refused (their delete cascades into target-only rows), and
+  so is moving an added event that carries review comments.
+- One transaction. Both branch rows are held `FOR NO KEY UPDATE` in ascending
+  id order (`hold_branches_for_transfer`): the first plan write holding two
+  branch rows, serialised against any other transfer touching either branch so
+  two in opposite directions cannot deadlock on each other's entity rows (the
+  DEADLOCK AUDIT in `_plan_branch_locks.py`). A dry run makes the same writes
+  and rolls back; against a branch not yet created it cuts a throwaway branch
+  from main inside the transaction.
 
 ### Search flow
 

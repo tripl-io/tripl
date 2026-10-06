@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import uuid
-from collections.abc import Callable
+from collections.abc import Callable, Mapping
 from typing import Any
 
 from fastapi import HTTPException
@@ -105,6 +105,36 @@ _MF_CHANGE_KEYS = (
 )
 _REL_CHANGE_KEYS = ("relation_type", "description")
 
+MAIN_WINS_FIELDS: frozenset[str] = frozenset({"order"})
+"""Fields no one is asked about: where both sides changed one, main's stands.
+
+``order`` is catalog position — cosmetic, and left out of the plan diff for
+that reason. A move made on one side only still lands either way. It stays in
+the change keys above all the same: "Update from main" writes main's reorders
+onto the branch only for fields it compares, a main-only reorder is still what
+makes a branch behind, and an event-type reorder on the branch still asks its
+owner. Every place that would otherwise turn a both-sides change of one of
+these into a conflict — the merge's detection, the three-way plan, the merge's
+apply — reads this set, so the conflicts list, the update and the merge agree.
+"""
+
+
+def main_keeps(field: str, base_item: Mapping[str, Any] | None, main_value: Any) -> bool:
+    """Whether the merge keeps main's ``field`` where the branch changed it too.
+
+    ``base_item`` is the entity as the base had it, ``None`` where both sides
+    added it. Only ``MAIN_WINS_FIELDS`` are kept, and only where main moved
+    the value off the base as well: a move made on the branch alone lands.
+    """
+    if field not in MAIN_WINS_FIELDS:
+        return False
+    return base_item is None or main_value != base_item.get(field)
+
+
+def _decided_keys(change_keys: tuple[str, ...] | list[str]) -> list[str]:
+    """The change keys a both-sides edit can conflict on: all but main-wins."""
+    return [key for key in change_keys if key not in MAIN_WINS_FIELDS]
+
 
 def _flatten_fields(payload: dict[str, Any]) -> list[dict[str, Any]]:
     out: list[dict[str, Any]] = []
@@ -162,6 +192,27 @@ def _entities_equal(
     return all(comparable_field(a, f) == comparable_field(b, f) for f in fields)
 
 
+def conflicting_fields(
+    base_item: dict[str, Any],
+    ours_item: dict[str, Any],
+    theirs_item: dict[str, Any],
+    change_keys: tuple[str, ...] | list[str],
+) -> list[str]:
+    """The keys both sides moved off the base to two different values.
+
+    The same-field test of ``_conflict_set`` for a row all three sides hold,
+    key by key, so a caller can say WHICH keys of an entity clash (the merge
+    preview does). ``MAIN_WINS_FIELDS`` never clash: main's value stands.
+    """
+    return [
+        field
+        for field in _decided_keys(change_keys)
+        if comparable_field(ours_item, field) != comparable_field(base_item, field)
+        and comparable_field(theirs_item, field) != comparable_field(base_item, field)
+        and comparable_field(ours_item, field) != comparable_field(theirs_item, field)
+    ]
+
+
 def _conflict_set(
     *,
     entity_type: str,
@@ -193,19 +244,16 @@ def _conflict_set(
         o = ours_by.get(key)
         t = theirs_by.get(key)
         if b is not None and o is not None and t is not None:
-            same_field_conflict = any(
-                comparable_field(o, field) != comparable_field(b, field)
-                and comparable_field(t, field) != comparable_field(b, field)
-                and comparable_field(o, field) != comparable_field(t, field)
-                for field in change_keys
-            )
-            if same_field_conflict:
+            if conflicting_fields(b, o, t, change_keys):
                 display = name_fn(o)
                 conflicts.append({"entity_type": entity_type, "name": display})
             continue
         ours_changed = _entity_changed(b, o, change_keys)
         theirs_changed = _entity_changed(b, t, change_keys)
-        if ours_changed and theirs_changed and not _entities_equal(o, t, change_keys):
+        # Added on both sides, the two copies need agree only where a choice
+        # would be asked; a deletion against an edit keeps every key.
+        compared = _decided_keys(change_keys) if b is None else change_keys
+        if ours_changed and theirs_changed and not _entities_equal(o, t, compared):
             display = name_fn(o or t or b or {})
             conflicts.append({"entity_type": entity_type, "name": display})
     return conflicts
@@ -298,7 +346,8 @@ def _event_type_add_remove_conflicts(
             theirs_changed = (
                 theirs_changed or _event_type_dependency_state(theirs, name) != base_deps
             )
-        if ours_changed and theirs_changed and not _entities_equal(o, t, _ET_CHANGE_KEYS):
+        compared = _decided_keys(_ET_CHANGE_KEYS) if b is None else _ET_CHANGE_KEYS
+        if ours_changed and theirs_changed and not _entities_equal(o, t, compared):
             conflicts.append({"entity_type": "event_type", "name": name})
     return conflicts
 
@@ -574,7 +623,7 @@ def _field_conflicts_event_type(
         # entity-level _detect_merge_conflicts path. Skip here.
         if b is None or o is None or t is None:
             continue
-        for field in _ET_CHANGE_KEYS:
+        for field in _decided_keys(_ET_CHANGE_KEYS):
             bv = b.get(field)
             ov = o.get(field)
             tv = t.get(field)
@@ -643,20 +692,33 @@ def merge_blocked_by(
     *,
     origins_complete: bool,
 ) -> bool:
-    """Whether ``merge_branch`` would refuse on a conflict no inline choice settles.
+    """Whether ``merge_branch`` would refuse on a conflict no inline choice settles."""
+    return bool(merge_blocking_conflicts(base, main, branch, origins_complete=origins_complete))
 
-    The merge's own test, in the merge's own words: every entity-level conflict
-    that is not an event-type field conflict the resolutions cover.
+
+def merge_blocking_conflicts(
+    base: dict[str, Any],
+    main: dict[str, Any],
+    branch: dict[str, Any],
+    *,
+    origins_complete: bool,
+) -> list[dict[str, Any]]:
+    """The conflicts ``merge_branch`` refuses with 409 ``{conflicts: ...}``.
+
+    The merge's own gate, in one place for the merge, ``merge_blocked_by`` and
+    the merge preview: every entity-level conflict that is not an event-type
+    field conflict, which the inline resolutions settle instead.
     """
     resolvable = {
         (row["entity_type"], row["name"]) for row in _field_conflicts_event_type(base, main, branch)
     }
-    return any(
-        (conflict["entity_type"], conflict["name"]) not in resolvable
+    return [
+        conflict
         for conflict in _detect_merge_conflicts(
             base, main, branch, theirs_origins_complete=origins_complete
         )
-    )
+        if (conflict["entity_type"], conflict["name"]) not in resolvable
+    ]
 
 
 def conflicts_response(
@@ -679,6 +741,7 @@ def conflicts_response(
                 name=row["name"],
                 parent=row.get("parent"),
                 label=row.get("label") or row["name"],
+                added_on_both=bool(row.get("added_on_both")),
                 fields=[],
             )
             by_entity[entity_key] = entity
@@ -831,6 +894,69 @@ async def save_resolution(
     await session.commit()
     await session.refresh(resolution)
     return ResolutionResponse.model_validate(resolution)
+
+
+async def save_resolutions(
+    session: AsyncSession,
+    slug: str,
+    branch_id: uuid.UUID,
+    items: list[ResolutionCreate],
+    user_id: uuid.UUID | None,
+) -> list[ResolutionResponse]:
+    """Store many choices at once, all or none.
+
+    Every item is validated before anything is written, so one bad field name
+    saves nothing. A key named twice keeps its last choice, and one row per
+    key is returned. The batch costs a fixed number of queries whatever its
+    size: one SELECT loads the stored rows the batch names, one flush writes
+    the inserts and updates, and one SELECT after the commit reads the rows
+    back with their timestamps.
+    """
+    project = await _resolve_project(session, slug)
+    branch = await _get_branch(session, project.id, branch_id)
+    _reject_main(branch)
+    for data in items:
+        validate_resolution(data)
+    picks: dict[tuple[str, str, str], ResolutionCreate] = {}
+    for data in items:
+        picks[(data.entity_type, data.entity_name, data.field_name)] = data
+    if not picks:
+        return []
+    names = {name for _, name, _ in picks}
+    stored = await session.scalars(
+        select(PlanBranchMergeResolution).where(
+            PlanBranchMergeResolution.branch_id == branch.id,
+            PlanBranchMergeResolution.entity_name.in_(names),
+        )
+    )
+    existing = {(row.entity_type, row.entity_name, row.field_name): row for row in stored}
+    saved: dict[tuple[str, str, str], PlanBranchMergeResolution] = {}
+    for key, data in picks.items():
+        row = existing.get(key)
+        if row is None:
+            row = PlanBranchMergeResolution(
+                branch_id=branch.id,
+                entity_type=data.entity_type,
+                entity_name=data.entity_name,
+                field_name=data.field_name,
+                choice=data.choice,
+                resolved_by=user_id,
+            )
+            session.add(row)
+        else:
+            row.choice = data.choice
+            row.resolved_by = user_id
+        saved[key] = row
+    await session.flush()
+    ids = [row.id for row in saved.values()]
+    await session.commit()
+    fresh = await session.scalars(
+        select(PlanBranchMergeResolution)
+        .where(PlanBranchMergeResolution.id.in_(ids))
+        .execution_options(populate_existing=True)
+    )
+    by_id = {row.id: row for row in fresh}
+    return [ResolutionResponse.model_validate(by_id[row_id]) for row_id in ids]
 
 
 async def delete_resolution(

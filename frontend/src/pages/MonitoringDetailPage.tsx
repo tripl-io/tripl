@@ -10,6 +10,7 @@ import { metaFieldsApi } from '@/api/metaFields'
 import { eventMetricsApi } from '@/api/eventMetrics'
 import { metricsCatalogApi } from '@/api/metricsCatalog'
 import { scansApi } from '@/api/scans'
+import { variablesApi } from '@/api/variables'
 import { SignalsHeldNotice } from '@/components/source-freshness/signals-held-notice'
 import { isHoldingSignals } from '@/lib/sourceFreshness'
 import { PageContainer } from '@/components/primitives/page-container'
@@ -53,9 +54,10 @@ import {
   metricDefinitionKey,
   monitoringSeriesRangeKey,
   scanConfigKey,
+  variablesKey,
 } from '@/lib/queryKeys'
 import { useAdaptiveRefetchInterval } from '@/realtime/streamContext'
-import type { EventType, FieldDefinition, MetaFieldDefinition } from '@/types'
+import type { EventType, FieldDefinition, MetaFieldDefinition, Variable } from '@/types'
 import { BreakdownsTab } from './monitoring/BreakdownsTab'
 import { DistributionTab, type DistributionScope } from './monitoring/DistributionTab'
 import { EventDetailHero, EventDetailSkeleton } from './monitoring/event/EventDetailHero'
@@ -86,6 +88,7 @@ import { usePageTitle } from '@/components/shell-chrome-context'
 // Stable empty reference so `metaFieldsQuery.data ?? EMPTY_META_FIELDS`
 // doesn't mint a new array each render and bust the memoized lookup map.
 const EMPTY_META_FIELDS: MetaFieldDefinition[] = []
+const EMPTY_VARIABLES: Variable[] = []
 
 /**
  * One page, four scopes: an event, an event type, a scan's project total, and a
@@ -181,6 +184,16 @@ export default function MonitoringDetailPage() {
     enabled: scope === 'event' && !!slug,
   })
   const metaFields = metaFieldsQuery.data ?? EMPTY_META_FIELDS
+
+  // Secondary as well: the properties grid resolves the field values' `${…}`
+  // tokens with them, the same way the edit page does (and from the same
+  // cache), so both pages count the same properties the list is missing.
+  const variablesQuery = useQuery({
+    queryKey: variablesKey(slug, branchId),
+    queryFn: () => variablesApi.list(slug!, branchId),
+    enabled: scope === 'event' && !!slug,
+    meta: SILENT_ERROR_META,
+  })
 
   // Catalog metric definition (header / color / version-column) — only the
   // `metric` scope; the other scopes derive their title from event(-type) data.
@@ -709,6 +722,8 @@ export default function MonitoringDetailPage() {
           eventId={event.id}
           threshold={event.required_presence_threshold ?? null}
           canWrite={false}
+          projectVariables={variablesQuery.data ?? EMPTY_VARIABLES}
+          fieldValues={event.field_values}
         />
       )}
 

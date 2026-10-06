@@ -1644,6 +1644,56 @@ async def recreate_from_snapshot(
     )
 
 
+# --- the revert's addressing, shared with moving changes between branches ----
+#
+# A move undoes each moved row on the source exactly as "Undo" on that row
+# would. These wrappers expose the revert's own steps; ``revert_change`` keeps
+# calling the private ones and behaves as before.
+
+
+def find_diff_entry(diff: PlanBranchDiff, data: BranchRevertRequest) -> PlanDiffEntry:
+    """The diff entry ``data`` names: 404 when gone, 409 when ambiguous."""
+    return _find_entry(diff, data)
+
+
+async def base_payload_for(session: AsyncSession, branch: PlanBranch) -> dict[str, Any]:
+    """The branch's base snapshot, defaults filled; 409 when it has none."""
+    return await _base_payload(session, branch)
+
+
+async def apply_revert_entry(
+    session: AsyncSession,
+    project_id: uuid.UUID,
+    branch_id: uuid.UUID,
+    data: BranchRevertRequest,
+    entry: PlanDiffEntry,
+    base_payload: dict[str, Any],
+) -> None:
+    """Undo one diff entry on the branch, committing nothing."""
+    await _apply_revert(session, project_id, branch_id, data, entry, base_payload)
+
+
+async def row_renamed_from(
+    session: AsyncSession,
+    project_id: uuid.UUID,
+    branch_id: uuid.UUID,
+    data: BranchRevertRequest,
+    base_payload: dict[str, Any],
+) -> Any | None:
+    """The branch row a ``removed`` entry was renamed into, or None.
+
+    The revert's own branch-only rule (``_row_renamed_from``), with the base
+    row found the way reverting the removal finds it.
+    """
+    base_item = _base_item(
+        base_payload,
+        data,
+        base_id=data.entity_id,
+        claimed=await _origins_on_branch(session, project_id, branch_id, data),
+    )
+    return await _row_renamed_from(session, project_id, branch_id, data, base_item, base_payload)
+
+
 async def delete_branch_entity(
     session: AsyncSession, *, project_id: uuid.UUID, entity_type: str, entity: Any
 ) -> None:

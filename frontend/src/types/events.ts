@@ -35,6 +35,31 @@ export interface EventFieldValue {
    */
   is_authored?: boolean
   variable_values?: EventFieldVariableValue[]
+  /** The values the last observing scan saw when this field's rows disagreed.
+   *  Only the single-event reads attach it; null in lists and when the field
+   *  had one value. A branch copy carries its main twin's. */
+  observed_values?: EventFieldObservedValues | null
+}
+
+/** Mirrors `ObservedFieldValue` in backend/src/tripl/schemas/event.py. */
+export interface ObservedFieldValue {
+  value: string
+  /** Summed breakdown-row count; null when the adapter returned no counts. */
+  count: number | null
+  /** `count / total_count` over the full set, values past the cap included. */
+  share: number | null
+}
+
+/** Mirrors `EventFieldObservedValues` in backend/src/tripl/schemas/event.py. */
+export interface EventFieldObservedValues {
+  distinct_count: number
+  total_count: number | null
+  /** Busiest first, at most 20. */
+  values: ObservedFieldValue[]
+  /** Rows carried by the values past the 20 kept; null when counts are unknown. */
+  other_count: number | null
+  observed_at: string
+  scan_config_id: string | null
 }
 
 export interface EventMetaValue {

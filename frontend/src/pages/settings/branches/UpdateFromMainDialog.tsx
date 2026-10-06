@@ -41,6 +41,7 @@ import {
   updateBlockedMessage,
 } from './branchDiffModel'
 import { invalidateBranchUpdated } from './branchQueryKeys'
+import { type BulkScope, type BulkStrategy, bulkChoices } from './conflictModel'
 import { ConflictList } from './ConflictsPanel'
 
 interface UpdateFromMainDialogProps {
@@ -178,6 +179,18 @@ function UpdateFromMainBody({
   const pick = (key: string, choice: ResolutionChoice) => {
     setChoices((prev) => new Map(prev).set(key, choice))
   }
+  // Local, like a single pick: the choices go with the update's one POST.
+  const pickAll = (strategy: BulkStrategy, scope?: BulkScope) => {
+    setChoices((prev) => {
+      const next = new Map(prev)
+      for (const entity of entities) {
+        for (const item of bulkChoices([entity], strategy, scope)) {
+          next.set(conflictChoiceKey(entity, item.field), item.choice)
+        }
+      }
+      return next
+    })
+  }
 
   const data = preview.data
   const behind = data?.behind === true
@@ -274,6 +287,7 @@ function UpdateFromMainBody({
                   onResolve={(entity, field, choice) =>
                     pick(conflictChoiceKey(entity, field.field), choice)
                   }
+                  onBulk={pickAll}
                 />
               </section>
             ) : null}

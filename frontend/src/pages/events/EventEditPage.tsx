@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { Link, Navigate, useLocation, useNavigate, useParams } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import { toast } from 'sonner'
-import type { EventMutationResponse, EventType, MetaFieldDefinition, Variable } from '@/types'
+import type { EventFieldValue, EventMutationResponse, EventType, MetaFieldDefinition, Variable } from '@/types'
 import { eventCommentsApi } from '@/api/eventComments'
 import { eventsApi } from '@/api/events'
 import { eventTypesApi } from '@/api/eventTypes'
@@ -15,7 +15,7 @@ import { CommentThread } from '@/components/comment-thread'
 import { EntityBranchBanner } from '@/components/EntityBranchBanner'
 import { ErrorState } from '@/components/error-state'
 import { PageContainer } from '@/components/primitives/page-container'
-import { PageSkeleton, QueryErrorState } from '@/components/states'
+import { isNotFoundError, PageSkeleton, QueryErrorState } from '@/components/states'
 import { Button } from '@/components/ui/button'
 import { useCanWriteProject } from '@/lib/permissions'
 import {
@@ -29,6 +29,13 @@ import {
 import { getErrorMessage } from '@/lib/utils'
 import { rememberCreatedEvents } from './createdEventsHandoff'
 import { DraftDiscussionNote } from './DraftDiscussionNote'
+import { DuplicateNotice } from './DuplicateNotice'
+import {
+  DUPLICATE_FROM_PARAM,
+  duplicateHref,
+  duplicateSeed,
+  withoutDuplicateFrom,
+} from './duplicateEvent'
 import { EventForm } from './EventFormView'
 import { EventHealthCard } from './EventHealthCard'
 import { EventPropertiesGrid } from './EventPropertiesGrid'
@@ -39,6 +46,7 @@ import { currentOrgSlug, projectPath } from '@/lib/navigation'
 const EMPTY_EVENT_TYPES: EventType[] = []
 const EMPTY_META_FIELDS: MetaFieldDefinition[] = []
 const EMPTY_VARIABLES: Variable[] = []
+const EMPTY_FIELD_VALUES: EventFieldValue[] = []
 
 /**
  * Page-based route wrapper: loads the data EventForm needs (event types, meta
@@ -55,6 +63,13 @@ export default function EventEditPage() {
   const branchLink = useBranchLinkProps()
   const canWrite = useCanWriteProject()
   const isNew = !eventId
+  // Duplicate (`?from=<id>` on the create route): a new event filled in from
+  // an existing one. A query parameter, so a reload or a pasted link rebuilds
+  // the same prefill from the server.
+  const fromId = isNew ? new URLSearchParams(location.search).get(DUPLICATE_FROM_PARAM) : null
+  // The rest of the query string, `?branch=` included, without `from`: what
+  // the list and a blank create form keep.
+  const searchWithoutFrom = withoutDuplicateFrom(location.search)
   const listPath = !tab || tab === 'all' ? projectPath(currentOrgSlug(), slug, '/events') : projectPath(currentOrgSlug(), slug, `/events/${tab}`)
 
   // Reviewing a branch and fixing three of its events used to cost three round
@@ -70,7 +85,7 @@ export default function EventEditPage() {
     }
     // With the query string: the list's filters and the `?branch=` EventsPage
     // carries here on purpose, which a cold-opened link otherwise lost.
-    navigate(`${listPath}${location.search}`)
+    navigate(`${listPath}${searchWithoutFrom}`)
   }
 
   // A question raised while the event is being authored. It cannot be a comment
@@ -125,6 +140,32 @@ export default function EventEditPage() {
     queryFn: () => eventsApi.get(slug!, eventId!, branchId),
     enabled: !!slug && !!eventId && canWrite,
   })
+  // The event a duplicate starts from. The same cache entry its edit page
+  // read, so pressing Duplicate there costs no request.
+  const sourceQuery = useQuery({
+    queryKey: eventKey(slug, branchId, fromId),
+    queryFn: () => eventsApi.get(slug!, fromId!, branchId),
+    enabled: !!slug && !!fromId && canWrite,
+  })
+  // A lenient read on a branch can answer with a main event, whose type, field
+  // and meta-field ids are main's: the copy follows them by name, through
+  // main's own lists. Only asked for when the active lists lack the type.
+  const sourceTypeId = sourceQuery.data?.event_type_id
+  const sourceIsForeign =
+    !!sourceTypeId
+    && branchId !== null
+    && !!eventTypesQuery.data
+    && !eventTypesQuery.data.some(et => et.id === sourceTypeId)
+  const mainEventTypesQuery = useQuery({
+    queryKey: eventTypesKey(slug, null),
+    queryFn: () => eventTypesApi.list(slug!, null),
+    enabled: !!slug && sourceIsForeign,
+  })
+  const mainMetaFieldsQuery = useQuery({
+    queryKey: metaFieldsKey(slug, null),
+    queryFn: () => metaFieldsApi.list(slug!, null),
+    enabled: !!slug && sourceIsForeign,
+  })
   // The event's property list, for the drift list's type changes (F23); the
   // grid reads the same cached query.
   const eventPropertyIds = useEventPropertyIds(slug, branchId, eventId)
@@ -154,7 +195,7 @@ export default function EventEditPage() {
     return (
       <Navigate
         replace
-        to={isNew ? `${listPath}${location.search}` : projectPath(currentOrgSlug(), slug, `/monitoring/event/${eventId}${location.search}`)}
+        to={isNew ? `${listPath}${searchWithoutFrom}` : projectPath(currentOrgSlug(), slug, `/monitoring/event/${eventId}${location.search}`)}
       />
     )
   }
@@ -170,6 +211,29 @@ export default function EventEditPage() {
           notFound={{ title: 'Event not found', back: { to: listPath, label: 'Back to Events' } }}
           onRetry={() => void eventQuery.refetch()}
         />
+      </PageContainer>
+    )
+  }
+
+  // The source of a duplicate: never a silent fall-back to a blank form, which
+  // would look like the copy and lose every value of it.
+  const blankEventLink = (
+    <Button asChild variant="outline">
+      <Link to={`${projectPath(currentOrgSlug(), slug, `/events/${tab ?? 'all'}/new`)}${searchWithoutFrom}`}>
+        Start a blank event
+      </Link>
+    </Button>
+  )
+  if (sourceQuery.error) {
+    return (
+      <PageContainer width="narrow">
+        <ErrorState
+          error={sourceQuery.error}
+          title="Could not load the event to duplicate"
+          // A deleted source is not worth a retry; a failed request is.
+          onRetry={isNotFoundError(sourceQuery.error) ? undefined : () => void sourceQuery.refetch()}
+        />
+        <div className="mt-4">{blankEventLink}</div>
       </PageContainer>
     )
   }
@@ -200,6 +264,10 @@ export default function EventEditPage() {
     || metaFieldsQuery.isLoading
     || variablesQuery.isLoading
     || (!isNew && eventQuery.isLoading)
+    // The form seeds its state once, on mount, and takes its unsaved-changes
+    // baseline from that first render: it must not mount before the source.
+    || (!!fromId && sourceQuery.isLoading)
+    || (sourceIsForeign && (mainEventTypesQuery.isLoading || mainMetaFieldsQuery.isLoading))
     // The branch lock below reads the branch list; rendering before it lands
     // showed an editable form with Save live until the list arrived.
     || (!!rowBranchId && branchesQuery.isPending)
@@ -262,6 +330,44 @@ export default function EventEditPage() {
   }
 
   const eventTypesData = eventTypesQuery.data ?? EMPTY_EVENT_TYPES
+  const metaFieldsData = metaFieldsQuery.data ?? EMPTY_META_FIELDS
+  const duplicate = fromId && sourceQuery.data
+    ? duplicateSeed(sourceQuery.data, {
+        eventTypes: eventTypesData,
+        metaFields: metaFieldsData,
+        ...(sourceIsForeign
+          ? {
+              sourceEventTypes: mainEventTypesQuery.data ?? EMPTY_EVENT_TYPES,
+              sourceMetaFields: mainMetaFieldsQuery.data ?? EMPTY_META_FIELDS,
+            }
+          : {}),
+      })
+    : undefined
+  if (fromId && sourceQuery.data && duplicate === null) {
+    return (
+      <PageContainer width="narrow">
+        <ErrorState
+          title="This event's type does not exist on this plan"
+          error={
+            new Error(
+              `${sourceQuery.data.name} is a ${sourceQuery.data.event_type?.display_name ?? 'type'} event, and this plan has no such type to copy it into.`,
+            )
+          }
+        />
+        <div className="mt-4">{blankEventLink}</div>
+      </PageContainer>
+    )
+  }
+  // Duplicate is offered from an event this plan can save: a locked row read
+  // leniently from elsewhere carries ids the active branch does not have.
+  const onDuplicate = eventId && !branchMismatch
+    ? () => navigate(duplicateHref(projectPath(currentOrgSlug(), slug, `/events/${tab ?? 'all'}/new`), location.search, eventId))
+    : undefined
+  // Both routes render this page at the same spot, and the duplicate's source
+  // id IS the edit page's event id — so the key names the mode too. Without
+  // it Duplicate kept the edit form's state (status, sunset, the edits just
+  // discarded) under a "New event" title.
+  const formKey = fromId ? `duplicate:${fromId}` : eventId ? `edit:${eventId}` : 'new'
   // On a scoped event-type tab, pre-select that type when creating a new event.
   const defaultEventTypeId = isNew && tab && tab !== 'all'
     ? eventTypesData.find(et => et.name === tab)?.id
@@ -270,14 +376,17 @@ export default function EventEditPage() {
   return (
     <div className="h-full overflow-y-auto">
       <EventForm
+        key={formKey}
         slug={slug}
         eventTypes={eventTypesData}
-        metaFields={metaFieldsQuery.data ?? EMPTY_META_FIELDS}
+        metaFields={metaFieldsData}
         projectVariables={variablesQuery.data ?? EMPTY_VARIABLES}
         event={eventQuery.data ?? null}
         defaultEventTypeId={defaultEventTypeId}
         onClose={goBack}
         onCreated={onCreated}
+        duplicate={duplicate ?? undefined}
+        onDuplicate={onDuplicate}
         hasOtherUnsavedInput={draftNote.trim() !== ''}
         lockedReason={
           !branchMismatch
@@ -323,6 +432,11 @@ export default function EventEditPage() {
                     : projectPath(currentOrgSlug(), slug, `/events/${tab}`)
               }
             />
+          ) : duplicate ? (
+            <DuplicateNotice
+              duplicate={duplicate}
+              sourceHref={`${projectPath(currentOrgSlug(), slug, `/events/${tab ?? 'all'}/${duplicate.source.id}/edit`)}${searchWithoutFrom}`}
+            />
           ) : undefined
         }
         beforeActions={
@@ -351,6 +465,10 @@ export default function EventEditPage() {
               threshold={eventQuery.data?.required_presence_threshold ?? null}
               canWrite={canWrite && !branchMismatch}
               projectVariables={variablesQuery.data ?? EMPTY_VARIABLES}
+              // The saved values, refreshed by Save. Not under a mismatch: the
+              // field values are the other branch's and the variables this
+              // one's, whose ids could never match the event's list.
+              fieldValues={branchMismatch ? EMPTY_FIELD_VALUES : (eventQuery.data?.field_values ?? EMPTY_FIELD_VALUES)}
             />
             {/* Property drift (F23.5b): detected against main, and Accept edits main. */}
             {branchId === null && (

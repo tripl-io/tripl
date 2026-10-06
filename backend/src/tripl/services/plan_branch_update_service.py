@@ -24,7 +24,7 @@ from __future__ import annotations
 import logging
 import uuid
 from collections import Counter
-from typing import Any, NamedTuple
+from typing import NamedTuple
 
 from fastapi import HTTPException
 from sqlalchemy import delete
@@ -32,7 +32,6 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from tripl import cache
-from tripl.models.plan_branch import PlanBranch
 from tripl.models.plan_branch_merge_resolution import PlanBranchMergeResolution
 from tripl.models.plan_revision import PlanRevision, PlanRevisionKind
 from tripl.schemas.plan_branch import (
@@ -44,6 +43,7 @@ from tripl.schemas.plan_branch import (
     UpdateFromMainResult,
 )
 from tripl.services._plan_branch_locks import lock_main_plan_for_merge
+from tripl.services._plan_branch_sides import base_is_complete, read_sides
 from tripl.services._plan_branch_three_way import plan_three_way
 from tripl.services._plan_branch_three_way_model import ENTITY_TYPES, ThreeWay
 from tripl.services._plan_branch_update_apply import apply_update_plan
@@ -63,12 +63,7 @@ from tripl.services.plan_branch_service import (
     _to_detail,
     ensure_main_branch_id,
 )
-from tripl.services.plan_revision_service import (
-    PLAN_SNAPSHOT_VERSION,
-    build_plan_snapshot,
-    plan_snapshot_hash,
-    with_snapshot_defaults,
-)
+from tripl.services.plan_revision_service import plan_snapshot_hash
 
 logger = logging.getLogger(__name__)
 
@@ -80,12 +75,6 @@ class UpdateOutcome(NamedTuple):
     result: UpdateFromMainResult
     # How many conflict rows each choice settled, for the audit record.
     resolution_counts: dict[str, int]
-
-
-class _Sides(NamedTuple):
-    base: dict[str, Any] | None
-    main: dict[str, Any]
-    branch: dict[str, Any]
 
 
 def _counts_list(counts: dict[str, dict[str, int]]) -> list[EntityChangeCount]:
@@ -107,32 +96,12 @@ def _worker_reindexes(session: AsyncSession) -> bool:
     return session.bind.dialect.name == "postgresql"
 
 
-def base_is_complete(base: dict[str, Any] | None) -> bool:
-    """Whether the base is a snapshot an update can read three ways."""
-    return base is not None and base.get("snapshot_version") == PLAN_SNAPSHOT_VERSION
-
-
 def _blockers(plan: ThreeWay) -> list[UpdateBlocker]:
     return [UpdateBlocker.model_validate(blocker) for blocker in plan.blockers]
 
 
 def _main_moved(plan: ThreeWay) -> bool:
     return any(any(counts.values()) for counts in plan.main_changes.values())
-
-
-async def _read_sides(
-    session: AsyncSession, project_id: uuid.UUID, branch: PlanBranch, main_branch_id: uuid.UUID
-) -> _Sides:
-    base: dict[str, Any] | None = None
-    if branch.base_revision_id is not None:
-        revision = await session.get(PlanRevision, branch.base_revision_id)
-        if revision is not None:
-            base = with_snapshot_defaults(revision.payload or {})
-    return _Sides(
-        base=base,
-        main=await build_plan_snapshot(session, project_id, branch_id=main_branch_id),
-        branch=await build_plan_snapshot(session, project_id, branch_id=branch.id),
-    )
 
 
 async def preview_update(
@@ -143,7 +112,7 @@ async def preview_update(
     branch = await _get_branch(session, project.id, branch_id)
     _reject_main(branch)
     main_branch_id = await ensure_main_branch_id(session, project.id)
-    sides = await _read_sides(session, project.id, branch, main_branch_id)
+    sides = await read_sides(session, project.id, branch, main_branch_id)
     main_hash = plan_snapshot_hash(sides.main)
     if sides.base is None or not base_is_complete(sides.base):
         # POST refuses such a base outright, so the preview says so up front
@@ -215,7 +184,7 @@ async def update_from_main(
     main_branch_id = await ensure_main_branch_id(session, project_id)
     # The merge's lock order: the branch above, main here, both to the commit.
     await lock_main_plan_for_merge(session, main_branch_id)
-    sides = await _read_sides(session, project_id, branch, main_branch_id)
+    sides = await read_sides(session, project_id, branch, main_branch_id)
     base = sides.base
     if base is None or not base_is_complete(base):
         raise HTTPException(

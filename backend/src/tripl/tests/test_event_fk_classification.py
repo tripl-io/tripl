@@ -153,6 +153,16 @@ DELIBERATELY_CASCADES: dict[tuple[str, str], str] = {
         "were buffered for the same rule. DELETE: same CASCADE, and the right answer for the same "
         "reason — a digest must not name an event that no longer exists."
     ),
+    ("event_field_observations", "event_id"): (
+        "The values the last observing scan saw for a field whose breakdown rows disagreed. "
+        "MERGE: the FK is ondelete CASCADE, so the source's rows die with session.delete(source) "
+        "in _merge_event_into_group, and the survivor's distribution is rebuilt by the next "
+        "generate_events run that observes it — record_field_observations runs after the merge "
+        "pass and skips events it deleted. Combining two distributions would also have to fold "
+        "on uq_event_field_observation, for counts taken over different rows. DELETE: same "
+        "CASCADE, so nothing goes into DELETE_PATH_COLUMNS — an observation of a deleted event "
+        "has no page to show it on."
+    ),
     ("event_field_values", "event_id"): (
         "_create_group_event_from_source already wrote the target's own values with the rule "
         "overrides applied; the source's are redundant and would collide on "

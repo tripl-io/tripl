@@ -191,6 +191,28 @@ event is added to that branch and reaches main when the branch merges. Back on
 the Events list after a create — one event or a pasted batch — the list scrolls
 to the new rows and marks each **New** for a few seconds.
 
+To start from an event that already exists, press **Duplicate** on its edit
+form (beside **Cancel**). It opens **New event** filled in from that event, on
+the same branch: the event type, name, title, description, owner, tags, metric
+breakdown columns, every field value (`${property}` tokens exactly as written)
+and every meta value. The required presence threshold is copied too, and the
+notice under the title says so, because the form has no control for it. Status
+starts as *Draft*. The sunset date, the successor, the property list and the
+**Discussion** are not copied. Copied field values are authored on the new
+event, so scans do not overwrite them. A value that no field on the active plan
+can hold (a field the type no longer has, or text a scan stored in a number
+field) is left out and listed in the notice. The copy cannot be created under
+the source's identity: on a type without a scan naming rule, the copied name
+blocks **Create event** until you change it; under a rule, a field the name is
+built from has to change. If you have unsaved edits when you press
+**Duplicate**, you are asked once whether to discard them. The address carries
+the source as `?from=<event id>`, so a reload or a shared link opens the same
+prefill. After **Create event** you return to the page you came from, normally
+the source's edit form. **Duplicate** is not offered on an event that is shown
+read-only because it lives on another plan. On a branch named after a ticket,
+a copied value in the linking meta field is kept as copied, even when it names
+another ticket; the branch's key is filled in only when the source had none.
+
 A **viewer** who opens an event's edit address is taken to the event's page
 (its monitoring detail), where the spec and the **Discussion** are readable; the
 **New event** and **Add many events** addresses take a viewer to the list. A main
@@ -199,6 +221,16 @@ shown read-only, with a **Switch to …** button in place of **Save**.
 **Add many events** sets **Owner** and **Tags** once for every row, and for a
 type it cannot fill in bulk offers **Add one at a time** and **Edit &lt;type&gt;
 fields**.
+
+Below the form, the event's **Properties** card is its property list: each
+property's type, **Required** switch, allowed values and presence rate, changed
+in place and saved at once. When the saved field values name properties through
+`${…}` that the list does not carry, the card lists them under **Used in field
+values**, with **Add** for one and **Add all (N)** for every one (optional
+unless that block's **Required** switch is on); a token that names no property
+is not offered. On the monitoring page the card is read-only and only says how
+many properties the field values use. See
+[An event's property list](./variables-and-templates.md#an-events-property-list).
 
 The **app version column** is deliberately absent from the breakdown picker, and
 adding it by hand is refused: app versions are already collected as their own
@@ -491,6 +523,20 @@ event's breakdowns are chosen. Once the column is on, the line reads **Split by
 this field** with a check and points back to that toggle; once collection has
 data for it, **See every value this field takes** opens the event's
 **Breakdowns** tab on that column, with a series and a count per value.
+
+**Seen with N values.** When the scan rows behind one event disagree on a field
+— one structured event fired on several screens — the field keeps the busiest
+row's value, and a line under the box (just above **Split volume by this field**)
+names what else the scan saw: *Seen with 2 values in the scan of Oct 5, 2026:
+map/main (62%, stored), spot/main (38%)*. The first three are listed, **+N more**
+opens the rest of the 20 kept (N counts only those; past the cap the line adds
+*and 5 more not kept*), rows with the column empty are listed as *(empty)*, and
+*stored* marks the value the scan chose (a value you typed is not marked). The
+event page's **Fields** table shows the
+same line, shorter, under the value. It is one scan's snapshot, dated — for
+counts over time, use the Breakdowns tab. See
+[the other store](variables-and-templates.md#the-other-store-an-events-own-field-value)
+for when the line is written, replaced and removed.
 
 ### Event discussion
 
@@ -910,7 +956,19 @@ A viewer gets no **Edit** on change rows. Conflicts cover every entity type
 (event types, fields, events, properties, meta fields, relations), grouped by
 type and parent, offer **Take main** and **Keep this branch**, and list the
 values in the order **Was → Main now → This branch**; a row where one side
-deleted what the other edited says so in words instead. The note that main has
+deleted what the other edited says so in words instead. Each entity also offers
+**Keep this branch for all**, **Take main for all** and **Keep whichever is
+filled in**, and with more than one entity listed the same three cover the
+whole list; each is one request (`POST .../resolutions/batch`), and it
+overwrites choices already made in its scope. "Filled in" takes main's value
+only where this branch's is empty (empty text, no value, an empty list) and
+main's is not, and this branch's otherwise — both filled included. Deletions are
+never set by these: they stay one choice per row, and the list says how many
+still need one. An entity both sides added since the branch opened (an event
+authored here whose twin a scan made on main, typically) says "Added on both
+sides" and puts **Keep whichever is filled in** first. Catalog position
+(`order`) is never a conflict: where both sides moved an item, main's position
+is kept, and a move made on one side only always lands. The note that main has
 moved on since the branch was cut is neutral ("safe to merge") when main
 changed other entities only, and amber — linking to the conflicts — when an
 entity the branch changed also changed on main or the merge would refuse. It
@@ -975,7 +1033,8 @@ that rename: the deleted property goes, and the renamed one keeps its id, its sc
 and its observed values. When the deleted property has no scan identity, or `main` changed
 it after the branch was cut, the merge cannot tell the rename from an edit of that property
 and answers `409`; rename one of them and merge again. A branch
-copy of an event reads its metrics, **last seen** and discussion through the
+copy of an event reads its metrics, **last seen**, discussion and each field's
+**Seen with N values** line through the
 `main` event it was copied from (for an event created on the branch, the `main`
 event with the same type name and identity), so the branch shows what the live
 plan collected rather than blanks. Removals that are the machine's doing — a scan-minted property still
@@ -1005,6 +1064,52 @@ revert restores from and which never changes, renaming on the branch does not
 help: undo that change by hand. When the duplicate is the branch's own (the
 base held at most one such row), rename or remove it on the branch, then revert.
 A successor that no longer exists on the branch is cleared instead.
+
+**Move to branch…** / **Copy to branch…** take the ticked rows of a branch's
+diff to another open branch, existing or cut from main in the same dialog. A
+move applies them there and reverts them here; a copy only applies them. Both
+halves of a rename go together, and what the rows need comes along (a new event
+type, field or meta field, a `${token}`'s new property, a successor; on a move,
+also what this branch would lose). A dry run previews every write before
+confirm. It refuses, naming each row: a field the other branch edited too, a
+name taken there with other content, a parent missing there, a deleted event
+type, field or meta field (delete it there directly), moving an added event
+that has review comments (copy it instead), and branches cut from different
+versions of main (the message names the branch to update from main). Copy works
+from a closed branch; nothing transfers off a merged one. Review status is left
+as it is on both branches. See
+[Move or copy changes to another branch](user-guide.md#move-or-copy-changes-to-another-branch).
+
+**As merged** shows one event as `main` will hold it once the branch merges:
+its attributes, field values, meta values, tags and properties together, in a
+side panel titled "Event after merge: &lt;name&gt;". It opens from **As merged**
+on an event's diff row, and from **As merged** beside each per-event item of a
+property row's `event_value_overrides` change, so an event whose only change is
+a property is reachable too. Each value is labelled **Added**, **Changed**,
+**Removed**, **Unchanged** or **Conflict** as well as coloured; "before" is
+`main` as it is now, shown struck through beside a changed value. A field
+`main` edited after the branch was cut, which the branch left alone, shows
+`main`'s newer value with "changed on main since this branch". A field or a
+whole collection that both sides changed (an event's field values, say, even
+when each side edited a different member) is a conflict: both sides are shown,
+and the panel says the branch cannot merge until it is updated from `main`, as
+the merge itself refuses all of the branch while any conflict stands. An event
+`main` deleted while the branch changed it (or the reverse) shows every value
+as a conflict, with `main`'s side and the branch's side; an event both sides
+added under one name marks only the values the two copies disagree on. A
+property whose variable conflicts only on another attribute (its description,
+say) keeps its values as they will land, is marked "variable conflicts with
+main", and the notes name the clashing attribute. A clean
+event on a branch blocked elsewhere says how many other conflicts hold up the
+whole merge. A status move to `archived`, or to an earlier status than `main`'s,
+is not carried to `main` and is shown as such; catalog order and photos are not
+displayed, but a photo clash, an order change and a type or field conflict are
+named in the panel's notes. The panel's address is the page's with
+`?merged=<event id>`, so a link opens it and Back closes it. It is not offered on
+a merged or closed branch, and for a branch older than the complete merge
+baseline it shows the merge's own refusal instead
+(`GET /projects/{slug}/branches/{branch_id}/merge-preview/event`, by `event_id`
+or by `event_type` and `event_name`; read-only, open to viewers).
 
 The branch policy can require a minimum number of **distinct approvals** and can
 forbid self-approval. Approval hashes include event values, tags, photos (the

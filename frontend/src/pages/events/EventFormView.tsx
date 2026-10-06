@@ -45,7 +45,7 @@ import { useDuplicateCheck } from '@/components/duplicates/useDuplicateCheck'
 import { validateJsonWithVars } from './jsonTemplate'
 import { applyEventNameFormat, nameFormatBaseColumns } from './utils'
 import { EvField, EvInput, EvTextarea, SelectControl, SurfCard } from './eventFormLayout'
-import { CheckCircle2, ChevronLeft, Loader2, Plus, Save, Sparkles } from 'lucide-react'
+import { CheckCircle2, ChevronLeft, Copy, Loader2, Plus, Save, Sparkles } from 'lucide-react'
 import { branchTicket } from '@/lib/branchTicket'
 import {
   branchEventIdentityProbesKey,
@@ -79,9 +79,14 @@ import {
 } from './eventNameConvention'
 import { SuccessorPicker } from './SuccessorPicker'
 import { FieldValuesCard, MetaFieldsCard, TagsBreakdownsCard } from './EventFormCards'
+import type { EventDuplicate } from './duplicateEvent'
 import { currentOrgSlug, projectPath } from '@/lib/navigation'
 
 const NO_CREATED: CreatedIdentity[] = []
+
+/** The scan naming rule of one of `eventTypes`, by id. */
+const nameFormatOf = (eventTypes: readonly EventType[], eventTypeId: string): string | null =>
+  eventTypes.find(et => et.id === eventTypeId)?.event_name_format ?? null
 const NO_DUPLICATE_CANDIDATES: DuplicateCandidate[] = []
 
 export function EventForm({
@@ -98,6 +103,8 @@ export function EventForm({
   banner,
   lockedReason,
   lockedAction,
+  duplicate,
+  onDuplicate,
 }: {
   slug: string
   eventTypes: EventType[]
@@ -130,6 +137,17 @@ export function EventForm({
    */
   lockedReason?: ReactNode
   lockedAction?: ReactNode
+  /**
+   * A new event started from an existing one (Duplicate): the form opens
+   * filled in from `seed`, still a CREATE form — `event` stays null, so every
+   * "editing a saved row" branch below keeps its meaning. Read once, by the
+   * state initializers: the page keys the form on the route so a new source
+   * remounts it.
+   */
+  duplicate?: EventDuplicate
+  /** The edit form's Duplicate action. A plain navigation: the router blocker
+   *  asks once about unsaved edits, the way Cancel does. */
+  onDuplicate?: () => void
 }) {
   const qc = useQueryClient()
   const branchId = useActiveBranchId()
@@ -145,31 +163,46 @@ export function EventForm({
   const { confirm, dialog: confirmDialog } = useConfirm()
   const formRef = useRef<HTMLFormElement>(null)
   const isNew = !event
+  // Never set together with `event`: a duplicate is a new event. Held as the
+  // form opened, like every value seeded from it: the page rebuilds the object
+  // on each render, and a new one must not re-run what depends on it.
+  const [seed] = useState(() => (event ? undefined : duplicate?.seed))
+  const [duplicateOf] = useState(() => (event ? undefined : duplicate?.source))
   const [etId, setEtId] = useState(
     // Preselect the only event type so a fresh form shows its fields at once.
-    event?.event_type_id ?? defaultEventTypeId ?? (eventTypes.length === 1 ? (eventTypes[0]?.id ?? '') : ''),
+    event?.event_type_id
+      ?? seed?.eventTypeId
+      ?? defaultEventTypeId
+      ?? (eventTypes.length === 1 ? (eventTypes[0]?.id ?? '') : ''),
   )
-  const [name, setName] = useState(event?.name ?? '')
-  const [title, setTitle] = useState(event?.title ?? '')
-  const [description, setDescription] = useState(event?.description ?? '')
+  const [name, setName] = useState(event?.name ?? seed?.name ?? '')
+  const [title, setTitle] = useState(event?.title ?? seed?.title ?? '')
+  const [description, setDescription] = useState(event?.description ?? seed?.description ?? '')
+  // A duplicate starts as Draft: the source's Live or Implemented would claim
+  // data the new event does not have. Its sunset date and successor are the
+  // source's lifecycle, and stay behind with it.
   const [status, setStatus] = useState(event?.status ?? 'draft')
-  const [ownerId, setOwnerId] = useState(event?.owner_id ?? '')
+  const [ownerId, setOwnerId] = useState(event?.owner_id ?? seed?.ownerId ?? '')
   const [sunsetAt, setSunsetAt] = useState(() => sunsetInputValue(event?.sunset_at))
   const [supersededBy, setSupersededBy] = useState(event?.superseded_by_event_id ?? '')
   const [metricBreakdownColumns, setMetricBreakdownColumns] = useState(
-    () => normalizeMetricBreakdownColumns(event?.metric_breakdown_columns ?? []),
+    () => normalizeMetricBreakdownColumns(event?.metric_breakdown_columns ?? seed?.metricBreakdownColumns ?? []),
   )
-  const [tags, setTags] = useState<string[]>(event?.tags?.map(t => t.name) ?? [])
+  const [tags, setTags] = useState<string[]>(event?.tags?.map(t => t.name) ?? seed?.tags ?? [])
   const [tagInput, setTagInput] = useState('')
   const [breakdownInput, setBreakdownInput] = useState('')
   const [fieldValues, setFieldValues] = useState<Record<string, string>>(() =>
-    event ? Object.fromEntries(event.field_values.map(fv => [fv.field_definition_id, fv.value])) : {},
+    event
+      ? Object.fromEntries(event.field_values.map(fv => [fv.field_definition_id, fv.value]))
+      // Copied as stored, `${token}` values included; they are authored on the
+      // new event, which has no scan behind it yet.
+      : { ...seed?.fieldValues },
   )
   // A list per field, even where only one value is allowed: a field with
   // `allow_multiple` carries several rows, and one shape for
   // both keeps every read site from having to ask which kind it is holding.
   const [metaValues, setMetaValues] = useState<Record<string, string[]>>(() => {
-    if (!event) return {}
+    if (!event) return seed ? { ...seed.metaValues } : {}
     const grouped: Record<string, string[]> = {}
     for (const mv of event.meta_values) {
       ;(grouped[mv.meta_field_definition_id] ??= []).push(mv.value)
@@ -222,14 +255,18 @@ export function EventForm({
   // What the prefill wrote, so the unsaved-changes check below does not count
   // the form's own suggestion as the author's input.
   const [prefilledTicket, setPrefilledTicket] = useState<{ fieldId: string; key: string } | null>(null)
+  // A duplicate that copied a key for this field keeps it, and the form makes
+  // no suggestion of its own: the copied value is the starting point, and
+  // marking it as prefilled would read the untouched form as edited.
+  const seedHasTicket = !!(seed && ticket && ticket.field.id in seed.metaValues)
   useEffect(() => {
-    if (!isNew || !ticket || ticketPrefilled.current) return
+    if (!isNew || !ticket || seedHasTicket || ticketPrefilled.current) return
     ticketPrefilled.current = true
     setMetaValues(prev =>
       ticket.field.id in prev ? prev : { ...prev, [ticket.field.id]: [ticket.key] },
     )
     setPrefilledTicket({ fieldId: ticket.field.id, key: ticket.key })
-  }, [isNew, ticket])
+  }, [isNew, seedHasTicket, ticket])
 
   const selectedEt = eventTypes.find(e => e.id === etId)
   const sortedFields = useMemo(
@@ -303,6 +340,24 @@ export function EventForm({
   const [justCreated, setJustCreated] = useState<string | null>(null)
   // Every event this form has created, for the identity check below.
   const [createdHere, setCreatedHere] = useState<CreatedIdentity[]>(NO_CREATED)
+  // The identity the probe already knows is taken: what this form created,
+  // plus — on a duplicate — the source, which the copied values recompose
+  // under a scan rule. The source is NOT in `createdHere`: this form did not
+  // create it, and the "has just created" block must not claim it did.
+  const knownIdentities = useMemo(
+    () =>
+      duplicateOf
+        ? [
+            ...createdHere,
+            {
+              id: duplicateOf.id,
+              name: nameFormatOf(eventTypes, duplicateOf.eventTypeId) ? duplicateOf.identity : duplicateOf.name,
+              eventTypeId: duplicateOf.eventTypeId,
+            },
+          ]
+        : createdHere,
+    [createdHere, duplicateOf, eventTypes],
+  )
 
   // Warehouse columns worth offering as a breakdown, in the order a reader
   // would look for them. Three sources, and the first two are what the docs have
@@ -406,7 +461,7 @@ export function EventForm({
     eventTypeId: etId,
     completedName: generatedName ? completedName : typedName || null,
     enabled: isNew,
-    createdHere,
+    createdHere: knownIdentities,
   })
   // Under a scan rule the composed name IS the scan identity, and the server
   // refuses a second holder (409): a hard block, as before. Without one the
@@ -417,7 +472,18 @@ export function EventForm({
   const repeatsCreated =
     typedName !== ''
     && createdHere.some(item => item.name === typedName && item.eventTypeId === etId)
-  const namesake = !generatedName && !repeatsCreated ? identityTaken : null
+  // A duplicate prefills the source's name on a type without a rule. Saving it
+  // unchanged makes a byte-identical second event, so it blocks the same way.
+  const repeatsSource =
+    !!duplicateOf
+    && !repeatsCreated
+    && typedName !== ''
+    && typedName === duplicateOf.name
+    && etId === duplicateOf.eventTypeId
+  const namesake = !generatedName && !repeatsCreated && !repeatsSource ? identityTaken : null
+  // Under a rule, the copied values compose the source's own identity until a
+  // naming field changes; the block below says so instead of "open it instead".
+  const identityIsSource = !!duplicateOf && identityTaken?.id === duplicateOf.id
 
   // The convention this type's own events follow, read off a few of them:
   // the placeholder shows one, and a name in another style is pointed
@@ -466,8 +532,10 @@ export function EventForm({
   const duplicateExclude = useMemo(() => {
     const ids = new Set(createdHere.map(item => item.id))
     if (identityTaken) ids.add(identityTaken.id)
+    // The event being duplicated is named by the notice already.
+    if (duplicateOf) ids.add(duplicateOf.id)
     return ids
-  }, [createdHere, identityTaken])
+  }, [createdHere, identityTaken, duplicateOf])
   // "Mark as replacement": `EventCreate` takes no successor (a new event has
   // no predecessor to name), so the marked event is retired AFTER the create —
   // deprecated, with the new event as its successor, through the ordinary
@@ -666,7 +734,19 @@ export function EventForm({
             },
             branchId,
           )
-        : eventsApi.create(slug, payload, branchId)
+        : eventsApi.create(
+            slug,
+            {
+              ...payload,
+              // A duplicate inherits the source's presence threshold (F23).
+              // Create only: on an update the properties grid owns it, and
+              // sending it from here would overwrite what the grid saved.
+              ...(seed?.requiredPresenceThreshold != null
+                ? { required_presence_threshold: seed.requiredPresenceThreshold }
+                : {}),
+            },
+            branchId,
+          )
     },
     onSuccess: async (_data, { closeAfterSave, snapshot }) => {
       // The draft is saved: nothing below may be stopped by the leave guard,
@@ -765,6 +845,7 @@ export function EventForm({
     || (generatedName?.missing.length ?? 0) > 0
     || identityBlocks
     || repeatsCreated
+    || repeatsSource
     || invalidJsonFieldLabels.length > 0
     || invalidNumberFieldLabels.length > 0
 
@@ -952,6 +1033,12 @@ export function EventForm({
                       This event type names its events from the scan rule, so “{name.trim()}” is not used.
                     </p>
                   )}
+                  {repeatsSource && duplicateOf && (
+                    <p className="mt-1 text-body-sm text-(--danger)">
+                      This is the name of {duplicateOf.name}, the event you are duplicating. Change
+                      the name before saving.
+                    </p>
+                  )}
                   {repeatsCreated && (
                     <p className="mt-1 text-body-sm text-(--danger)">
                       This form has just created “{typedName}”. Change at least the name before
@@ -998,7 +1085,13 @@ export function EventForm({
                       Other {typeLabel} events look like “{nameConvention.example}”.
                     </p>
                   )}
-                  {identityBlocks && identityTaken && (
+                  {identityBlocks && identityTaken && identityIsSource && (
+                    <p className="mt-1 text-body-sm text-(--danger)" role="alert">
+                      These values name {identityTaken.name}, the event you are duplicating.
+                      Change a field the name is built from before saving.
+                    </p>
+                  )}
+                  {identityBlocks && identityTaken && !identityIsSource && (
                     <p className="mt-1 text-body-sm text-(--danger)" role="alert">
                       An event already answers to this name and would take every scan update:{' '}
                       <Link
@@ -1262,6 +1355,14 @@ export function EventForm({
             {editable ? 'Cancel' : 'Close'}
           </Button>
           {canWrite && lockedAction}
+          {editable && !isNew && onDuplicate && (
+            // type="button": the form's submit is Save. No requestLeave here —
+            // it is a navigation, so the router blocker asks once on its own.
+            <Button type="button" variant="ghost" onClick={onDuplicate}>
+              <Copy aria-hidden="true" />
+              Duplicate
+            </Button>
+          )}
           {editable && isNew && (
             <Button
               type="button"

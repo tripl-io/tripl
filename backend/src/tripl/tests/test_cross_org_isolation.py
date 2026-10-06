@@ -864,6 +864,16 @@ def _body(method: str, path: str, w: World) -> Any:
             "field_name": "description",
             "choice": "ours",
         },
+        f"{p}/branches/{{branch_id}}/resolutions/batch": {
+            "resolutions": [
+                {
+                    "entity_type": "event",
+                    "entity_name": f"{MARKER}_purchase",
+                    "field_name": "description",
+                    "choice": "ours",
+                }
+            ]
+        },
         f"{p}/subscriptions/{{entity_type}}/{{entity_id}}": (
             {"muted": True} if method == "PATCH" else {}
         ),

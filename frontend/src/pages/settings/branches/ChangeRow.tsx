@@ -1,13 +1,14 @@
 import { Fragment, useId, useState, type ReactNode } from 'react'
 import { Link } from 'react-router-dom'
-import { AlertTriangle, ArrowUpRight, ChevronRight, Pencil, Undo2 } from 'lucide-react'
+import { AlertTriangle, ArrowUpRight, ChevronRight, Eye, Pencil, Undo2 } from 'lucide-react'
 
 import { Chip } from '@/components/primitives/chip'
+import { Checkbox } from '@/components/ui/checkbox'
 import { ScenarioCoachMark } from '@/demo/ScenarioCoachMark'
 import { useDemoScenarioActions } from '@/demo/demoScenarioContext'
 import { SCENARIO_SEEDED } from '@/demo/scenarioModel'
 import { useBranchLinkProps } from '@/hooks/useBranch'
-import type { PlanDiffEntry, PlanDiffKind } from '@/types'
+import type { MergePreviewTarget, PlanDiffEntry, PlanDiffKind } from '@/types'
 import { DiffValue } from '../DiffValue'
 import { PlanFieldChangeList } from '../PlanFieldChangeList'
 import { changeSummary, housekeepingLine, housekeepingReason } from './branchDiffModel'
@@ -21,6 +22,7 @@ import {
   isEmptyStateValue,
   stateKeyLabel,
 } from './branchMeta'
+import { previewTargetForEntry, previewTargetsForOverrides } from './mergedEventModel'
 
 // Row actions get a 40px hit area on touch screens; the 11px links
 // were well under any tap target.
@@ -57,6 +59,15 @@ interface ChangeRowProps {
    */
   revertBlockedBy?: PlanDiffEntry[]
   reverting: boolean
+  /** Opens "As merged" for an event: from an event row, or from one per-event
+   * override item of a variable row. Omitted on a merged or closed branch,
+   * where main already holds the answer. */
+  onPreviewMerged?: (target: MergePreviewTarget) => void
+  /** Offers a checkbox for "Move/Copy to branch…": a writer's row on a branch
+   * that has not landed. */
+  selectable?: boolean
+  selected?: boolean
+  onToggleSelect?: (entry: PlanDiffEntry) => void
 }
 
 export function ChangeRow({
@@ -69,6 +80,10 @@ export function ChangeRow({
   onRevert,
   revertBlockedBy,
   reverting,
+  onPreviewMerged,
+  selectable = false,
+  selected = false,
+  onToggleSelect,
 }: ChangeRowProps) {
   const [open, setOpen] = useState(false)
   // For a modification the change is the point; the entity's whole state is
@@ -107,6 +122,10 @@ export function ChangeRow({
     : null
   const editLink = editPath ? branchLink(editPath, branchId) : null
   const blocked = revertBlockedBy && revertBlockedBy.length > 0 ? revertBlockedBy : null
+  const previewTarget = onPreviewMerged
+    ? previewTargetForEntry(entry, renamedTo ? renamedEntityId : null)
+    : null
+  const overrideTargets = onPreviewMerged ? previewTargetsForOverrides(entry) : null
 
   return (
     <div
@@ -121,6 +140,17 @@ export function ChangeRow({
           performing the very click it saves. The coach mark still wraps the
           toggle alone, because expanding is what completes the demo step. */}
       <div className="flex items-stretch">
+      {selectable && onToggleSelect ? (
+        // Beside the toggle, not inside it: a control inside a button is
+        // invalid markup, and ticking must not expand the row.
+        <span className="flex shrink-0 items-center pl-4">
+          <Checkbox
+            checked={selected}
+            onCheckedChange={() => onToggleSelect(entry)}
+            aria-label={`Select ${renamedTo ? `${entry.name} → ${renamedTo}` : entry.name}`}
+          />
+        </span>
+      ) : null}
       <ScenarioCoachMark
         step="branches/review-diff"
         // The seeded diff carries exactly one modified event; only its row coaches.
@@ -192,6 +222,17 @@ export function ChangeRow({
           <Pencil className="size-3" aria-hidden="true" />
           Edit
         </Link>
+      ) : null}
+      {previewTarget && onPreviewMerged ? (
+        <button
+          type="button"
+          onClick={() => onPreviewMerged(previewTarget)}
+          aria-label={`As merged: ${renamedTo ?? entry.name}`}
+          className={`flex shrink-0 items-center gap-1 pl-1 pr-4 text-caption transition-colors hover:underline pointer-coarse:min-w-10 ${ROW_ACTION_TOUCH} text-accent`}
+        >
+          <Eye className="size-3" aria-hidden="true" />
+          As merged
+        </button>
       ) : null}
       </div>
       {warnings.length > 0 ? (
@@ -280,6 +321,27 @@ export function ChangeRow({
                           Revert
                         </button>
                       )
+                    : undefined
+                }
+                renderItemAction={
+                  overrideTargets && overrideTargets.size > 0 && onPreviewMerged
+                    ? (change, item) => {
+                        const target =
+                          change.field === 'event_value_overrides'
+                            ? overrideTargets.get(item.key)
+                            : undefined
+                        return target ? (
+                          <button
+                            type="button"
+                            onClick={() => onPreviewMerged(target)}
+                            aria-label={`As merged: ${item.key}`}
+                            className={`flex items-center gap-1 text-caption hover:underline ${ROW_ACTION_TOUCH} text-accent`}
+                          >
+                            <Eye className="size-3" aria-hidden="true" />
+                            As merged
+                          </button>
+                        ) : null
+                      }
                     : undefined
                 }
               />
