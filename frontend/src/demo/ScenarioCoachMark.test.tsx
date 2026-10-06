@@ -474,6 +474,30 @@ describe('ScenarioCoachMark — a row control has no free side', () => {
     expect(runButton()).toHaveAttribute('data-coach-target', 'live-loop/run-scan')
   })
 
+  it('keeps its clicks from the row it sits in', () => {
+    // The card is portalled, and React bubbles a portal's events through the
+    // component tree: a click on Collapse reached the scan row's onClick and
+    // opened the scan.
+    const onRow = vi.fn()
+    renderMark(
+      <table>
+        <tbody>
+          <tr onClick={onRow}>
+            <td>
+              <ScenarioCoachMark step="live-loop/run-scan">
+                <button type="button">Run scan</button>
+              </ScenarioCoachMark>
+            </td>
+          </tr>
+        </tbody>
+      </table>,
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'Collapse demo hint' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Expand demo hint' }))
+    expect(onRow).not.toHaveBeenCalled()
+  })
+
   it('still opens as a normal popover when the anchor is not inside a table', () => {
     renderMark(
       <ScenarioCoachMark step="live-loop/run-scan">

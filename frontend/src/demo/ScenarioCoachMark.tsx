@@ -379,6 +379,9 @@ export function ScenarioCoachMark({
           // control it is describing, nor scope focus to itself.
           onOpenAutoFocus={(event) => event.preventDefault()}
           onCloseAutoFocus={(event) => event.preventDefault()}
+          // Portalled too, so its clicks would reach a clickable ancestor of
+          // the anchor (see the docked card).
+          onClick={(event) => event.stopPropagation()}
           className="w-64 max-w-[calc(100vw-16px)] rounded-lg border p-3 shadow-sm motion-reduce:animate-none"
           style={{ background: 'var(--bg-elevated)', borderColor: 'var(--accent)' }}
         >
@@ -484,7 +487,11 @@ function DockedCoachCard({ anchor, children }: { anchor: HTMLElement; children: 
   const side = column === 'left' ? 'sm:left-4 sm:right-auto' : 'sm:left-auto sm:right-4'
 
   return createPortal(
+    // A portal still bubbles through the React tree: a click on the card's own
+    // buttons reached the scan row's onClick and opened the scan. The card's
+    // clicks are its own.
     <div
+      onClick={(event) => event.stopPropagation()}
       role="note"
       aria-label="Demo hint"
       data-coach-docked="true"

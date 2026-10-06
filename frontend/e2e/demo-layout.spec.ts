@@ -167,9 +167,12 @@ for (const [name, viewport] of [
     // Its own buttons take the clicks, not something stacked over them.
     await card.getByRole('button', { name: 'Hide hints' }).click({ trial: true })
     if ((await card.getAttribute('data-coach-docked')) === 'true') {
+      const url = page.url()
       await card.getByRole('button', { name: 'Collapse demo hint' }).click()
       await card.getByRole('button', { name: 'Expand demo hint' }).click()
       await expect(card.getByRole('button', { name: 'Collapse demo hint' })).toBeVisible()
+      // The card sits in a clickable row; its clicks used to open the scan.
+      expect(page.url()).toBe(url)
       // A phone always gets a bottom sheet.
       if (viewport === PHONE) await expect(card).toHaveAttribute('data-coach-edge', 'bottom')
     }
