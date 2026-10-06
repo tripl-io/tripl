@@ -41,7 +41,7 @@ dependencies = [
     # dependency added here is forced onto every MCP-server install too. Config
     # parsing uses stdlib tomllib and argument parsing stdlib argparse for
     # exactly that reason — no click, no rich, no tomli.
-    # Upper bound for the same reason `mcp<2` carries one: a published wheel
+    # Upper bound for the same reason tripl-mcp bounds `mcp` below its next major: a published wheel
     # ships constraints, not the lockfile, so an unbounded floor lets a
     # consumer resolve a future major that moved the API out from under us.
     "httpx>=0.27.0,<1",

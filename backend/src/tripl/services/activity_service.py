@@ -94,7 +94,7 @@ class _ProjectScope:
     slug: str | None
     project_ids: set[uuid.UUID] | None
 
-    def apply[S: Select[Any]](self, stmt: S) -> S:
+    def apply[S: Select[*tuple[Any, ...]]](self, stmt: S) -> S:
         """Narrow a statement that already joins ``Project``."""
         if self.slug is not None:
             stmt = stmt.where(project_slug_clause(self.slug))

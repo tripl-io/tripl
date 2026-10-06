@@ -16,6 +16,7 @@ import {
   type InboxDirection,
   type InboxFilterState,
 } from './inboxFilters'
+import { useNow } from '@/hooks/useNow'
 
 // The app's one filter-bar idiom: search, then "{Label}: {value}"
 // chips that apply instantly, then "Clear filters". It replaces a labelled
@@ -102,10 +103,11 @@ export function InboxFilterBar({
   }, [debouncedScope, scopeDraft, value, onChange])
 
   const active = hasActiveInboxFilters(value) || status !== defaultStatus
-  // Read once per render rather than memoized: it is one Date and a subtraction,
-  // and a memo keyed on nothing would freeze the boundary at mount — on a page
-  // that is left open for days, which is the whole reason the inbox refetches.
-  const earliest = earliestReachableDay(new Date())
+  // A clock that ticks, not a memo keyed on nothing: that would freeze the
+  // boundary at mount, on a page that is left open for days, which is the
+  // whole reason the inbox refetches.
+  const now = useNow(60_000)
+  const earliest = earliestReachableDay(new Date(now))
 
   return (
     <FilterBar

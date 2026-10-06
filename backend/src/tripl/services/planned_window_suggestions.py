@@ -147,13 +147,13 @@ async def suggest_recurring_windows(
     ).all()
 
     runs: dict[tuple[str, str, int, int], _Run] = defaultdict(_Run)
-    for scope_type, scope_ref, raw_bucket, note, direction in verdicts:
+    for scope_type, scope_ref, raw_bucket, note, raw_direction in verdicts:
         if raw_bucket is None or str(scope_type) not in _PLANNABLE:
             continue
         bucket = _as_utc(raw_bucket)
         run = runs[(str(scope_type), scope_ref, bucket.weekday(), bucket.hour)]
         run.buckets.append(bucket)
-        run.directions.add(str(direction) if direction is not None else None)
+        run.directions.add(str(raw_direction) if raw_direction is not None else None)
         if note and (run.note_at is None or bucket > run.note_at):
             run.note, run.note_at = note, bucket
 

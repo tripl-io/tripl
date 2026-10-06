@@ -55,12 +55,12 @@ class MetricGrid:
     scan_config_id: uuid.UUID | None
 
 
-MetricGridRow = Row[tuple[uuid.UUID, uuid.UUID, str | None, uuid.UUID | None]]
+MetricGridRow = Row[uuid.UUID, uuid.UUID, str | None, uuid.UUID | None]
 
 
 def metric_grid_stmt(
     *criteria: ColumnExpressionArgument[bool],
-) -> Select[tuple[uuid.UUID, uuid.UUID, str | None, uuid.UUID | None]]:
+) -> Select[uuid.UUID, uuid.UUID, str | None, uuid.UUID | None]:
     """Select ``(metric id, project id, effective interval, source scan)`` per metric.
 
     ``criteria`` are ``MetricDefinition`` predicates — one metric

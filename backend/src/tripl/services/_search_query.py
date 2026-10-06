@@ -220,6 +220,8 @@ def _doc_filter_params(exclude_doc_ids: Sequence[uuid.UUID]) -> dict[str, object
 
 
 def _is_postgres(session: AsyncSession) -> bool:
+    # Every session comes from a sessionmaker bound to an engine.
+    assert session.bind is not None
     return session.bind.dialect.name == "postgresql"
 
 

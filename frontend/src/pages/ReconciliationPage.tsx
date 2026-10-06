@@ -1,6 +1,7 @@
 import { PageContainer } from '@/components/primitives/page-container'
 import { PageHeader } from '@/components/primitives/page-header'
-import { TermHint, TERM_HINTS } from '@/components/term-hint'
+import { TermHint } from '@/components/term-hint'
+import { TERM_HINTS } from '@/lib/termHints'
 import { Fragment, useState } from 'react'
 import { Panel } from '@/components/settings/kit'
 import { Link, useParams } from 'react-router-dom'

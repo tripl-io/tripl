@@ -104,9 +104,9 @@ def tool_schemas() -> dict[str, dict[str, Any]]:
 
     Built from ``build_server()`` rather than from the annotations, because the
     annotation is not the artefact under test: what an agent is held to is the
-    JSON schema FastMCP derives from it.
+    JSON schema MCPServer derives from it.
     """
-    return {tool.name: dict(tool.inputSchema) for tool in asyncio.run(build_server().list_tools())}
+    return {tool.name: dict(tool.input_schema) for tool in asyncio.run(build_server().list_tools())}
 
 
 def test_every_wrapped_endpoint_exists_in_openapi(
@@ -167,7 +167,7 @@ def test_list_events_exposes_every_filter_the_shared_builder_accepts() -> None:
 
     from tripl_mcp.tools import events as tool
 
-    # ``ctx`` is FastMCP's, ``slug`` is positional on both, and ``branch_id`` is
+    # ``ctx`` is MCPServer's, ``slug`` is positional on both, and ``branch_id`` is
     # this surface's spelling of the builder's ``branch`` - the one rename, and
     # the reason this compares names rather than signatures.
     accepted = set(inspect.signature(builder.list_events).parameters) - {"slug"}
@@ -193,7 +193,7 @@ def _resolve(openapi: dict[str, Any], schema: Any) -> dict[str, Any]:
             break
         prefix, _, name = schema["$ref"].rpartition("/")
         # The POINTER PREFIX is checked, not discarded. This helper is handed
-        # FastMCP-generated tool schemas as well as the document's own, and
+        # MCPServer-generated tool schemas as well as the document's own, and
         # pydantic emits ``#/$defs/X``. Taking only the last segment would resolve
         # such a ref into the BACKEND's components, so a parameter typed as a real
         # StrEnum rather than a Literal would have both sides of the comparison
@@ -485,7 +485,7 @@ def test_write_tools_are_not_marked_read_only() -> None:
     for tool in tools:
         assert tool.annotations is not None, f"{tool.name} lacks annotations"
         expected_read_only = tool.name not in write_tools
-        assert tool.annotations.readOnlyHint is expected_read_only, tool.name
+        assert tool.annotations.read_only_hint is expected_read_only, tool.name
 
 
 DOCS_PATH = Path(__file__).resolve().parents[2] / "website" / "docs" / "integrate" / "mcp-server.md"

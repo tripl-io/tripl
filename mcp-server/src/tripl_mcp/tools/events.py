@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from mcp.server.fastmcp import Context, FastMCP
+from mcp.server.mcpserver import Context, MCPServer
 from tripl_cli.api import events, page_items, page_total, send
 
 from tripl_mcp.enums import EventOrderBy, EventStatus, as_strings
@@ -21,7 +21,7 @@ from tripl_mcp.tools._common import (
 
 async def list_events(
     slug: str,
-    ctx: Context,  # type: ignore[type-arg]
+    ctx: Context,
     search: str | None = None,
     status: list[EventStatus] | None = None,
     tag: str | None = None,
@@ -75,7 +75,7 @@ async def list_events(
 async def get_event(
     slug: str,
     event_id: str,
-    ctx: Context,  # type: ignore[type-arg]
+    ctx: Context,
     branch_id: str | None = None,
 ) -> Any:
     client = client_for(ctx)
@@ -85,7 +85,7 @@ async def get_event(
 async def get_event_properties(
     slug: str,
     event_id: str,
-    ctx: Context,  # type: ignore[type-arg]
+    ctx: Context,
     branch_id: str | None = None,
 ) -> Any:
     client = client_for(ctx)
@@ -97,7 +97,7 @@ async def create_event(
     branch_id: str | None,
     event_type_id: str,
     name: str,
-    ctx: Context,  # type: ignore[type-arg]
+    ctx: Context,
     description: str | None = None,
     title: str | None = None,
     status: EventStatus | None = None,
@@ -128,7 +128,7 @@ async def update_event(
     event_id: str,
     branch_id: str | None,
     patch: dict[str, Any],
-    ctx: Context,  # type: ignore[type-arg]
+    ctx: Context,
 ) -> Any:
     require_branch_id(branch_id)
     client = client_for(ctx)
@@ -137,7 +137,7 @@ async def update_event(
     return with_mutation_warnings(data)
 
 
-def register(mcp: FastMCP) -> None:
+def register(mcp: MCPServer) -> None:
     mcp.tool(
         name="list_events",
         annotations=READ_ONLY,

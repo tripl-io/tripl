@@ -289,7 +289,7 @@ services:
     # The image ENTRYPOINT is already `tripl-mcp`, so command holds flags only.
     # --host 0.0.0.0 is required for the published port to be reachable.
     command: ["--transport", "streamable-http", "--host", "0.0.0.0", "--port", "8765"]
-    # A TCP connect, not an HTTP GET: FastMCP's /mcp endpoint rejects a bare GET,
+    # A TCP connect, not an HTTP GET: the MCP SDK's /mcp endpoint rejects a bare GET,
     # so an HTTP probe would report a healthy server as unhealthy. Without this
     # the sidecar could only be depended on with service_started, which says
     # nothing about whether it is listening.

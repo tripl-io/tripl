@@ -395,6 +395,8 @@ async def reindex_after_write(
             )
         )
     ).all()
+    # Every session comes from a sessionmaker bound to an engine.
+    assert session.bind is not None
     is_postgres = session.bind.dialect.name == "postgresql"
     for other_id, other_slug, other_branch_id in rows:
         if not is_postgres:

@@ -23,12 +23,12 @@ from typing import Any
 from mcp.types import ToolAnnotations
 from tripl_cli.api import page_items, page_total
 
-READ_ONLY = ToolAnnotations(readOnlyHint=True)
-WRITE = ToolAnnotations(readOnlyHint=False, destructiveHint=False, idempotentHint=False)
-WRITE_UPDATE = ToolAnnotations(readOnlyHint=False, destructiveHint=True, idempotentHint=False)
+READ_ONLY = ToolAnnotations(read_only_hint=True)
+WRITE = ToolAnnotations(read_only_hint=False, destructive_hint=False, idempotent_hint=False)
+WRITE_UPDATE = ToolAnnotations(read_only_hint=False, destructive_hint=True, idempotent_hint=False)
 # A whole-content replace keyed by path: it overwrites what was there, and
 # sending the same content twice changes nothing the second time (no revision).
-WRITE_REPLACE = ToolAnnotations(readOnlyHint=False, destructiveHint=True, idempotentHint=True)
+WRITE_REPLACE = ToolAnnotations(read_only_hint=False, destructive_hint=True, idempotent_hint=True)
 
 EVENT_LIST_FIELDS = (
     "id",

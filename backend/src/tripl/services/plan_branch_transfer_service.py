@@ -426,7 +426,11 @@ async def _discussion_conflicts(
     ).all()
     discussed: set[uuid.UUID] = set()
     for event_id, photo_id in rows:
-        owner = event_id if event_id is not None else photo_event.get(photo_id)
+        # Exactly one anchor is set, so ``photo_id`` is there when ``event_id``
+        # is not; its check only tells the type checker so.
+        owner: uuid.UUID | None = event_id
+        if owner is None and photo_id is not None:
+            owner = photo_event.get(photo_id)
         if owner is not None:
             discussed.add(owner)
     out: list[dict[str, Any]] = []

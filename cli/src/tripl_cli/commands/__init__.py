@@ -37,7 +37,7 @@ MIN_TIMEOUT_SECONDS = 0.1
 MAX_TIMEOUT_SECONDS = 600.0
 
 # What every command's `run` looks like. Note the divergence from
-# tripl_mcp.runtime's module-global singleton: that exists because FastMCP owns
+# tripl_mcp.runtime's module-global singleton: that exists because MCPServer owns
 # the call stack and there is nowhere else to put the resolved config. A CLI
 # owns its own main(), so a mutable global here would be a regression rather
 # than consistency — the config is threaded through as an argument.

@@ -86,7 +86,7 @@ def qualify_project_path(org_slug: str, path: str) -> str:
     return path
 
 
-def _slugs_stmt(project_ids: Iterable[uuid.UUID]) -> Select[tuple[uuid.UUID, str, str]]:
+def _slugs_stmt(project_ids: Iterable[uuid.UUID]) -> Select[uuid.UUID, str, str]:
     return (
         select(Project.id, Organization.slug, Project.slug)
         .join(Organization, Organization.id == Project.organization_id)

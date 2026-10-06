@@ -48,7 +48,7 @@ _DELETE_BATCH = 1000
 async def _variable_ids_with_rows(
     session: AsyncSession,
     column: InstrumentedAttribute[uuid.UUID],
-    scoped_variable_ids: Select[tuple[uuid.UUID]],
+    scoped_variable_ids: Select[uuid.UUID],
 ) -> set[uuid.UUID]:
     """Which of the branch's variables have at least one row on *column*.
 

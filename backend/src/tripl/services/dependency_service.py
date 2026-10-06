@@ -367,9 +367,7 @@ def _as_uuid(raw: str | None) -> uuid.UUID | None:
         return None
 
 
-async def _scalar_id(
-    session: AsyncSession, statement: Select[tuple[uuid.UUID]]
-) -> uuid.UUID | None:
+async def _scalar_id(session: AsyncSession, statement: Select[uuid.UUID]) -> uuid.UUID | None:
     found: uuid.UUID | None = await session.scalar(statement)
     return found
 

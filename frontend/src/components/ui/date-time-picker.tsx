@@ -6,6 +6,7 @@ import { Input } from "@/components/ui/input"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { formatDate } from "@/lib/datetime"
 import { cn } from "@/lib/utils"
+import { useNow } from "@/hooks/useNow"
 
 /*
  * A date + time picker in the design system's own controls: a button that opens
@@ -111,7 +112,7 @@ function CalendarGrid({
   min?: string
   max?: string
 }) {
-  const today = new Date()
+  const today = new Date(useNow(60_000))
   const monthLabel = focused.toLocaleDateString(undefined, { month: "long", year: "numeric" })
   // Set by a key press, so the effect below moves DOM focus only when the
   // keyboard moved the roving day — not on the popover's first render.
@@ -255,7 +256,8 @@ export function DateTimePicker({
   const { date, time } = splitValue(value)
   const selected = parseDateKey(date)
   const [open, setOpen] = React.useState(false)
-  const [focused, setFocused] = React.useState<Date>(() => selected ?? new Date())
+  const now = useNow(60_000)
+  const [focused, setFocused] = React.useState<Date>(() => selected ?? new Date(now))
   const focusRef = React.useRef<HTMLButtonElement | null>(null)
 
   const onOpenChange = (next: boolean) => {

@@ -25,7 +25,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from mcp.server.fastmcp import Context, FastMCP
+from mcp.server.mcpserver import Context, MCPServer
 from tripl_cli.api import docs, page_items, page_total, search, send
 
 from tripl_mcp.enums import DocAudience, DocScope
@@ -49,7 +49,7 @@ _AUDIENCE_MATCHES: dict[str, tuple[str, ...]] = {
 
 async def list_docs(
     slug: str,
-    ctx: Context,  # type: ignore[type-arg]
+    ctx: Context,
     scope: DocScope | None = None,
     audience: DocAudience | None = None,
 ) -> dict[str, Any]:
@@ -69,7 +69,7 @@ async def read_doc(
     slug: str,
     scope: DocScope,
     path: str,
-    ctx: Context,  # type: ignore[type-arg]
+    ctx: Context,
     lang: str | None = None,
 ) -> Any:
     client = client_for(ctx)
@@ -79,7 +79,7 @@ async def read_doc(
 async def search_docs(
     slug: str,
     q: str,
-    ctx: Context,  # type: ignore[type-arg]
+    ctx: Context,
     scope: DocScope | None = None,
     limit: int | None = None,
 ) -> dict[str, Any]:
@@ -100,7 +100,7 @@ async def write_doc(
     scope: DocScope,
     path: str,
     content: str,
-    ctx: Context,  # type: ignore[type-arg]
+    ctx: Context,
     base_revision: int | None = None,
     message: str | None = None,
 ) -> Any:
@@ -133,7 +133,7 @@ def with_link_warnings(data: Any) -> Any:
     return data
 
 
-def register(mcp: FastMCP) -> None:
+def register(mcp: MCPServer) -> None:
     mcp.tool(
         name="list_docs",
         annotations=READ_ONLY,

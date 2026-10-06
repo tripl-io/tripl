@@ -188,7 +188,7 @@ async def _property_contract_expectations(
         )
     listing_rows: list[ListingRow] = []
     for chunk in chunked(list(events)):
-        result = await session.execute(
+        override_result = await session.execute(
             select(
                 VariableEventValueOverride.variable_id,
                 VariableEventValueOverride.event_id,
@@ -198,16 +198,16 @@ async def _property_contract_expectations(
         )
         listing_rows.extend(
             (variable_id, event_id, bool(required), values)
-            for variable_id, event_id, required, values in result.all()
+            for variable_id, event_id, required, values in override_result.all()
         )
     variables: list[Variable] = []
     for chunk in chunked(list({row[0] for row in listing_rows})):
-        result = await session.execute(
+        variable_result = await session.execute(
             select(Variable).where(
                 Variable.id.in_(list(chunk)), Variable.excluded_from_scans.is_(False)
             )
         )
-        variables.extend(result.scalars().all())
+        variables.extend(variable_result.scalars().all())
     by_type = typed_properties_by_type(
         events=events, listing_rows=listing_rows, variables=variables
     )
@@ -288,13 +288,13 @@ async def load_facts(
 
     lifecycle: dict[uuid.UUID, set[str]] = defaultdict(set)
     for chunk in chunked(event_ids):
-        result = await session.execute(
+        lifecycle_result = await session.execute(
             select(LifecycleFinding.event_id, LifecycleFinding.kind).where(
                 LifecycleFinding.event_id.in_(list(chunk)),
                 LifecycleFinding.resolved_at.is_(None),
             )
         )
-        for event_id, kind in result.all():
+        for event_id, kind in lifecycle_result.all():
             lifecycle[event_id].add(_enum_value(kind))
 
     expectations = _contract_expectations(
@@ -334,7 +334,7 @@ async def load_facts(
 
     value_drifts: dict[uuid.UUID, int] = {}
     for chunk in chunked(event_ids):
-        result = await session.execute(
+        drift_result = await session.execute(
             select(VariableValueDrift.event_id, func.count(VariableValueDrift.id))
             .where(
                 VariableValueDrift.project_id == project_id,
@@ -345,7 +345,7 @@ async def load_facts(
             )
             .group_by(VariableValueDrift.event_id)
         )
-        value_drifts.update({event_id: int(count) for event_id, count in result.all()})
+        value_drifts.update({event_id: int(count) for event_id, count in drift_result.all()})
 
     distribution_rows = await session.execute(
         select(
@@ -444,7 +444,9 @@ async def load_facts(
 # --------------------------------------------------------------------------- #
 
 
-def _scored_population(project_id: uuid.UUID, main_branch_id: uuid.UUID) -> Select[Any]:
+def _scored_population(
+    project_id: uuid.UUID, main_branch_id: uuid.UUID
+) -> Select[*tuple[Any, ...]]:
     return select(*_ROW_COLUMNS).where(
         Event.project_id == project_id,
         Event.branch_id == main_branch_id,
@@ -695,7 +697,7 @@ async def project_health(
 
 
 async def health_sorted_ids(
-    session: AsyncSession, project_id: uuid.UUID, id_query: Select[Any]
+    session: AsyncSession, project_id: uuid.UUID, id_query: Select[*tuple[Any, ...]]
 ) -> list[uuid.UUID]:
     """Ids of ``id_query`` (selecting ``Event.id, Event.name``) least healthy first.
 

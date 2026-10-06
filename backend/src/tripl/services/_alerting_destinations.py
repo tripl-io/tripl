@@ -124,7 +124,7 @@ async def _refresh_main_search_index(
     )
 
 
-def _destination_query(project_id: uuid.UUID) -> Select[tuple[AlertDestination]]:
+def _destination_query(project_id: uuid.UUID) -> Select[AlertDestination]:
     return (
         select(AlertDestination)
         .where(AlertDestination.project_id == project_id)

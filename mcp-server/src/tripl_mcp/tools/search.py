@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from mcp.server.fastmcp import Context, FastMCP
+from mcp.server.mcpserver import Context, MCPServer
 from tripl_cli.api import page_items, page_total, search, send
 
 from tripl_mcp.enums import SearchEntityType, as_strings
@@ -15,7 +15,7 @@ from tripl_mcp.tools._common import READ_ONLY, SEARCH_RESULT_FIELDS, trim
 async def search_plan(
     slug: str,
     q: str,
-    ctx: Context,  # type: ignore[type-arg]
+    ctx: Context,
     types: list[SearchEntityType] | None = None,
     limit: int | None = None,
     branch_id: str | None = None,
@@ -48,7 +48,7 @@ async def search_plan(
     }
 
 
-def register(mcp: FastMCP) -> None:
+def register(mcp: MCPServer) -> None:
     mcp.tool(
         name="search_plan",
         annotations=READ_ONLY,

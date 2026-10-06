@@ -40,7 +40,7 @@ from tripl.services.project_lookup import resolve_project_id
 _RelatedEvent = aliased(Event)
 
 
-def _finding_query() -> Select[tuple[LifecycleFinding, str, str]]:
+def _finding_query() -> Select[LifecycleFinding, str, str]:
     # The related name is an OUTER join, so it reads None when there is none.
     return (
         select(LifecycleFinding, Event.name, _RelatedEvent.name)

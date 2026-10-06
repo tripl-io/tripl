@@ -325,6 +325,8 @@ async def _resolve_scope_scan_config_id(
     if metric_row is not None:
         candidates.append((metric_row[0], metric_row[1]))
     if anomaly_row is not None:
+        # The inner join on ``ScanConfig`` drops anomalies without a scan config.
+        assert anomaly_row[0] is not None
         candidates.append((anomaly_row[0], anomaly_row[1]))
     if not candidates:
         return await _get_default_scan_config_id(session, project_id)
@@ -1913,6 +1915,8 @@ async def get_platform_presence(
     platforms: set[str] = set()
     by_event: dict[uuid.UUID, tuple[str, set[str]]] = {}
     for event_id, platform_value, event_name in rows.all():
+        # The query filters ``event_id IS NOT NULL``.
+        assert event_id is not None
         platforms.add(platform_value)
         _name, present = by_event.setdefault(event_id, (event_name, set()))
         present.add(platform_value)
@@ -2433,10 +2437,10 @@ async def get_events_window_metrics(
         if time_to is not None:
             metric_query = metric_query.where(EventMetric.bucket < time_to)
 
-        for event_id, scan_config_id, bucket, count in (await session.execute(metric_query)).all():
+        for event_id, metric_scan_id, bucket, count in (await session.execute(metric_query)).all():
             if event_id is None:
                 continue
-            if latest_scan_by_event.get(event_id) != scan_config_id:
+            if latest_scan_by_event.get(event_id) != metric_scan_id:
                 continue
             metric_rows_by_event.setdefault(event_id, []).append((bucket, int(count)))
 

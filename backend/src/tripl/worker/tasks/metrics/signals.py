@@ -188,7 +188,7 @@ def _emission_lag(interval: timedelta | None, settling_delay: timedelta) -> time
 def _latest_anomaly_per_scope(
     *criteria: ColumnElement[bool],
     join_event: bool = False,
-) -> Select[tuple[MetricAnomaly]]:
+) -> Select[MetricAnomaly]:
     """The newest ``MetricAnomaly`` per ``(scope_type, scope_ref)`` among ``criteria``.
 
     Picked in SQL with ``ROW_NUMBER() OVER (PARTITION BY scope_type, scope_ref

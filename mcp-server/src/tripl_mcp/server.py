@@ -1,6 +1,6 @@
 """tripl MCP server entry point.
 
-Runs FastMCP over stdio (env-configured credentials) or streamable-http
+Runs the MCP server over stdio (env-configured credentials) or streamable-http
 (per-request ``Authorization: Bearer`` pass-through, never stored).
 """
 
@@ -12,7 +12,7 @@ import sys
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 
-from mcp.server.fastmcp import FastMCP
+from mcp.server.mcpserver import MCPServer
 from tripl_cli.client import DEFAULT_TIMEOUT_SECONDS, create_http_client
 
 from tripl_mcp import USER_AGENT, __version__
@@ -44,7 +44,7 @@ INSTRUCTIONS = (
 
 @asynccontextmanager
 async def server_lifespan(
-    _: FastMCP[RuntimeLifespan],
+    _: MCPServer[RuntimeLifespan],
 ) -> AsyncIterator[RuntimeLifespan]:
     runtime = get_runtime()
     if runtime.transport != TRANSPORT_STDIO:
@@ -61,8 +61,8 @@ async def server_lifespan(
         yield RuntimeLifespan(stdio_http_client=http_client)
 
 
-def build_server() -> FastMCP[RuntimeLifespan]:
-    mcp: FastMCP[RuntimeLifespan] = FastMCP(
+def build_server() -> MCPServer[RuntimeLifespan]:
+    mcp: MCPServer[RuntimeLifespan] = MCPServer(
         name="tripl", instructions=INSTRUCTIONS, lifespan=server_lifespan
     )
     register_all(mcp)
@@ -103,9 +103,8 @@ def main() -> None:
 
     mcp = build_server()
     if args.transport == TRANSPORT_STREAMABLE_HTTP:
-        mcp.settings.host = args.host
-        mcp.settings.port = args.port
-        mcp.run(transport="streamable-http")
+        # mcp 2 takes the bind address at run(), not on settings.
+        mcp.run(transport="streamable-http", host=args.host, port=args.port)
     else:
         mcp.run(transport="stdio")
 

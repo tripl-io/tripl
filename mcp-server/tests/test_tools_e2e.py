@@ -1,4 +1,4 @@
-"""End-to-end through FastMCP: in-memory MCP session + respx-mocked tripl API."""
+"""End-to-end through MCPServer: in-memory MCP session + respx-mocked tripl API."""
 
 from __future__ import annotations
 
@@ -8,7 +8,7 @@ from typing import Any
 import httpx
 import pytest
 import respx
-from mcp.shared.memory import create_connected_server_and_client_session
+from mcp import Client
 
 from tests.conftest import API_BASE
 from tripl_mcp import server as server_module
@@ -17,12 +17,12 @@ from tripl_mcp.server import build_server
 
 
 async def call_tool(name: str, arguments: dict[str, Any]) -> tuple[bool, str]:
-    """Call one tool over an in-memory client/server session pair."""
+    """Call one tool through an in-memory client of the server."""
     mcp = build_server()
-    async with create_connected_server_and_client_session(mcp._mcp_server) as client_session:
+    async with Client(mcp) as client_session:
         result = await client_session.call_tool(name, arguments)
     text = "\n".join(block.text for block in result.content if hasattr(block, "text"))
-    return bool(result.isError), text
+    return bool(result.is_error), text
 
 
 @respx.mock
@@ -50,12 +50,12 @@ async def test_stdio_lifespan_reuses_one_http_client(
     )
 
     mcp = build_server()
-    async with create_connected_server_and_client_session(mcp._mcp_server) as client_session:
+    async with Client(mcp) as client_session:
         first = await client_session.call_tool("list_projects", {})
         second = await client_session.call_tool("list_projects", {})
 
-        assert not first.isError
-        assert not second.isError
+        assert not first.is_error
+        assert not second.is_error
         assert len(clients) == 1
         assert not clients[0].is_closed
         assert route.call_count == 2
@@ -63,12 +63,10 @@ async def test_stdio_lifespan_reuses_one_http_client(
     assert clients[0].is_closed
 
     second_server = build_server()
-    async with create_connected_server_and_client_session(
-        second_server._mcp_server
-    ) as client_session:
+    async with Client(second_server) as client_session:
         result = await client_session.call_tool("list_projects", {})
 
-        assert not result.isError
+        assert not result.is_error
         assert len(clients) == 2
         assert clients[1] is not clients[0]
         assert not clients[1].is_closed
@@ -501,7 +499,7 @@ async def test_list_event_types_is_branch_scoped_and_trimmed(stdio_runtime: Runt
 
     assert not is_error
     assert "branch=br-7" in str(route.calls.last.request.url)
-    # FastMCP emits one content block per list element, so a single-item list
+    # MCPServer emits one content block per list element, so a single-item list
     # arrives as that item's JSON.
     event_type = json.loads(text)
     assert event_type["field_count"] == 2

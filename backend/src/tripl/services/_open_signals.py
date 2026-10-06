@@ -104,7 +104,7 @@ def _latest_anomalies_stmt(
     project_ids: Sequence[uuid.UUID],
     scope_types: Sequence[str],
     scope_refs: Sequence[str] | None,
-) -> Select[_AnomalyRow]:
+) -> Select[*_AnomalyRow]:
     filters = [
         ScanConfig.project_id.in_(list(project_ids)),
         MetricAnomaly.scope_type.in_(list(scope_types)),
@@ -153,7 +153,7 @@ async def _latest_anomalies(
     event_refs: Sequence[str] | None,
 ) -> list[_AnomalyRow]:
     """Latest anomaly per scope, newest bucket first within each project."""
-    statements: list[Select[_AnomalyRow]] = []
+    statements: list[Select[*_AnomalyRow]] = []
     if event_refs is None:
         statements.append(_latest_anomalies_stmt(project_ids, scope_types, None))
     else:
@@ -179,7 +179,7 @@ async def _latest_anomalies(
     return rows
 
 
-def _type_rows_branch(scan_ids: Sequence[uuid.UUID], scope_type: str) -> Select[Any]:
+def _type_rows_branch(scan_ids: Sequence[uuid.UUID], scope_type: str) -> Select[*tuple[Any, ...]]:
     """Newest per-type row per scope: keyed by scan (project_total) or by type."""
     project_total = scope_type == SCOPE_PROJECT_TOTAL
     ref = EventMetric.scan_config_id if project_total else EventMetric.event_type_id
@@ -206,7 +206,7 @@ def _type_rows_branch(scan_ids: Sequence[uuid.UUID], scope_type: str) -> Select[
 
 def _event_rows_branch(
     scan_ids: Sequence[uuid.UUID], event_ids: Sequence[uuid.UUID] | None
-) -> Select[Any]:
+) -> Select[*tuple[Any, ...]]:
     filters = [EventMetric.scan_config_id.in_(list(scan_ids)), EventMetric.event_id.is_not(None)]
     if event_ids is not None:
         filters.append(EventMetric.event_id.in_(list(event_ids)))
@@ -237,7 +237,7 @@ async def _latest_metric_buckets(
     event_filters: list[Sequence[uuid.UUID] | None] = []
     if SCOPE_EVENT in scope_types:
         event_filters = [None] if event_ids is None else list(chunked(event_ids))
-    statements: list[list[Select[Any]]] = [
+    statements: list[list[Select[*tuple[Any, ...]]]] = [
         (type_branches if index == 0 else []) + [_event_rows_branch(scan_ids, chunk)]
         for index, chunk in enumerate(event_filters)
     ] or ([type_branches] if type_branches else [])
@@ -380,7 +380,7 @@ async def open_counted_scan_signals(
     ]
 
 
-def _open_property_drifts_stmt(now: datetime) -> Select[Any]:
+def _open_property_drifts_stmt(now: datetime) -> Select[*tuple[Any, ...]]:
     return (
         select(PropertyDrift.project_id, PropertyDrift.event_id, func.count(PropertyDrift.id))
         .join(Variable, Variable.id == PropertyDrift.variable_id)

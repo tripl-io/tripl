@@ -2,12 +2,12 @@
 
 from __future__ import annotations
 
-from mcp.server.fastmcp import FastMCP
+from mcp.server.mcpserver import MCPServer
 
 from tripl_mcp.tools import branches, docs, events, monitoring, plan, scans, search
 
 
-def register_all(mcp: FastMCP) -> None:
+def register_all(mcp: MCPServer) -> None:
     search.register(mcp)
     events.register(mcp)
     plan.register(mcp)

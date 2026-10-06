@@ -737,6 +737,8 @@ async def list_event_properties(
         )
         .group_by(VariableValue.variable_id)
     ):
+        # MAX over rows filtered to a non-NULL ``presence_rate`` is never NULL.
+        assert rate is not None
         presence[variable_id] = rate
     return [
         EventPropertyResponse(

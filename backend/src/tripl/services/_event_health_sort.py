@@ -34,7 +34,7 @@ from tripl.services import event_health_service
 HEALTH_SORT_CACHE_TTL_SECONDS = 60
 
 
-def _filter_digest(session: AsyncSession, id_query: Select[Any]) -> str:
+def _filter_digest(session: AsyncSession, id_query: Select[*tuple[Any, ...]]) -> str:
     """A stable hash of the filtered id query's SQL and its bound parameters."""
     compiled = id_query.compile(dialect=session.get_bind().dialect)
     params = sorted((name, repr(value)) for name, value in compiled.params.items())
@@ -42,7 +42,7 @@ def _filter_digest(session: AsyncSession, id_query: Select[Any]) -> str:
 
 
 async def _ordered_ids(
-    session: AsyncSession, project_id: uuid.UUID, id_query: Select[Any], *, fresh: bool
+    session: AsyncSession, project_id: uuid.UUID, id_query: Select[*tuple[Any, ...]], *, fresh: bool
 ) -> list[uuid.UUID]:
     key = cache.key_health_sort(project_id, _filter_digest(session, id_query))
     if not fresh:
@@ -62,7 +62,7 @@ async def _ordered_ids(
 async def order_page_by_health(
     session: AsyncSession,
     project_id: uuid.UUID,
-    filtered_query: Select[Any],
+    filtered_query: Select[*tuple[Any, ...]],
     offset: int,
     limit: int,
 ) -> list[Event]:

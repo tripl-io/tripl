@@ -4,7 +4,7 @@ A tool parameter annotated ``str`` generates a JSON schema with no ``enum``, so
 an agent choosing ``order_by="newest"`` learns it was wrong from a 422 the route
 answers: a wasted round trip, and an error it has to parse instead of a value
 its own tool schema would never have let it emit. Annotated as a ``Literal`` the
-constraint reaches the schema — FastMCP builds the schema with Pydantic, which
+constraint reaches the schema — MCPServer builds the schema with Pydantic, which
 renders a ``Literal`` as ``{"type": "string", "enum": [...]}`` and a
 ``list[Literal]`` as an array whose ``items`` carry the same — so the client
 rejects the bad value locally, before any request.

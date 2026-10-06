@@ -623,7 +623,10 @@ async def _blob_keys_of(session: AsyncSession, event_ids: Sequence[uuid.UUID]) -
             EventPhoto.storage_key.is_not(None),
         )
     )
-    return {(str(backend), key, config_id) for backend, key, config_id in rows.all()}
+    # The query already drops NULL keys; the guard only tells the type checker so.
+    return {
+        (str(backend), key, config_id) for backend, key, config_id in rows.all() if key is not None
+    }
 
 
 async def _event_thread_twins(
