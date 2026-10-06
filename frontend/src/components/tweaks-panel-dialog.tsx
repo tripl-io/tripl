@@ -13,7 +13,7 @@ import { SegmentedControl, type SegmentedOption } from '@/components/ui/segmente
 // No colour values here: each swatch carries its accent's class, so it paints
 // `--accent` exactly as that accent resolves in the current theme. Hard-coded
 // dark tones used to preview colours the light theme never shows,
-// and drifted from index.css whenever a hue moved.
+// and drifted from styles/tokens.css whenever a hue moved.
 const ACCENTS: { id: Accent; label: string }[] = [
   { id: 'teal', label: 'Teal' },
   { id: 'violet', label: 'Violet' },

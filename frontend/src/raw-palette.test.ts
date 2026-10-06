@@ -9,7 +9,7 @@ import { describe, expect, it } from 'vitest'
  *
  * A status chip written as `bg-amber-500/15 text-amber-700` has two problems
  * `src/theme-contrast.test.ts` cannot see, because that test only reads
- * `index.css`:
+ * `styles/tokens.css`:
  *
  *  1. A light shade with no `dark:` twin. Measured on the tinted fill over the
  *     dark surface scale, `text-*-700` lands at 2.7–2.9:1 — below AA. Both

@@ -7,7 +7,7 @@ import { initialsOf } from './initials'
  * The ONE avatar: the app sidebar, the settings rail, Users, Profile and the
  * event-type owner list all render this. The background is always
  * `--avatar-bg`, whose lightness is pinned so white initials clear AA in both
- * themes (index.css, theme-contrast.test.ts). Hashing a hue per person, or a
+ * themes (styles/tokens.css, theme-contrast.test.ts). Hashing a hue per person, or a
  * lighter hand-picked blue, broke that floor and showed one account in two
  * colours on the same screen.
  *

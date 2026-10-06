@@ -7,6 +7,8 @@
   "tsconfig": "tsconfig.dssync.json",
   "entry": "./frontend/.ds-entry.tsx",
   "cssEntry": ".ds-styles.css",
+  "tokensPkg": "..",
+  "tokensGlob": "src/styles/tokens.css",
   "extraFonts": ["../.design-sync/fonts/fonts.css"],
   "readmeHeader": ".design-sync/conventions.md",
   "buildCmd": ".ds-sync/node_modules/.bin/tailwindcss -i .design-sync/tw-input.css -o frontend/.ds-styles.css",
