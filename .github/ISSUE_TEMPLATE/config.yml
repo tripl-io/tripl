@@ -4,5 +4,5 @@ contact_links:
     url: https://github.com/tripl-io/tripl/security/advisories/new
     about: Report it privately, not as a public issue.
   - name: Documentation
-    url: https://tripl-io.github.io/tripl/
+    url: https://docs.tripl.io/
     about: Setup, concepts, and guides.

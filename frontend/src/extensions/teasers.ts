@@ -3,7 +3,7 @@ import type { SettingsNavItem } from '@/components/settings/nav'
 import type { ExtensionSettingsSection } from './types'
 
 /** Where the docs say what each edition has. */
-export const EDITIONS_DOCS_URL = 'https://tripl-io.github.io/tripl/editions'
+export const EDITIONS_DOCS_URL = 'https://docs.tripl.io/editions'
 
 /**
  * A feature of the Enterprise edition, as Community shows it: a rail item

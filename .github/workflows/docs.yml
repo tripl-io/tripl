@@ -1,10 +1,12 @@
 name: Docs
 
 # Build the Docusaurus site in website/ and publish it to GitHub Pages
-# (https://tripl-io.github.io/tripl/). Runs when docs sources change on main,
+# (https://docs.tripl.io/). Runs when docs sources change on main,
 # on release tags, and on manual dispatch. A pull request that touches them
 # builds the site without publishing it. One-time setup: in repo Settings ->
-# Pages, set Source = "GitHub Actions".
+# Pages, set Source = "GitHub Actions" and the custom domain docs.tripl.io
+# (DNS: CNAME docs -> tripl-io.github.io, not proxied). website/static/CNAME
+# carries the same name; the old tripl-io.github.io/tripl/ URLs redirect.
 on:
   pull_request:
     paths:

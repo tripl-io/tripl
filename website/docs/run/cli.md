@@ -2777,7 +2777,7 @@ this project deploys.
 # Docker Compose reads this file to INTERPOLATE compose.yaml. The containers receive
 # only the variables compose.yaml lists in its environment map, so a variable added
 # here that compose.yaml does not mention reaches nothing. Every tunable is listed at
-# https://tripl-io.github.io/tripl/run/configuration
+# https://docs.tripl.io/run/configuration
 #
 # This file holds live secrets: mode 600, and it must stay out of version control.
 # Back up ENCRYPTION_KEY separately from the database - warehouse and alert-

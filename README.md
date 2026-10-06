@@ -7,7 +7,7 @@
 <p align="center"><strong>Keep your product analytics honest.</strong></p>
 
 <p align="center">
-  <a href="https://tripl-io.github.io/tripl/">Docs</a> ·
+  <a href="https://docs.tripl.io/">Docs</a> ·
   <a href="website/docs/quick-start.md">Quick start</a> ·
   <a href="website/docs/use/demo-workspace.md">Try the demo</a>
 </p>
@@ -116,7 +116,7 @@ cutting a release is one command, `bin/release.sh` (see the
 
 ## Documentation
 
-📖 The full documentation lives at **[tripl-io.github.io/tripl](https://tripl-io.github.io/tripl/)**
+📖 The full documentation lives at **[docs.tripl.io/](https://docs.tripl.io/)**
 (sources under [`website/docs/`](website/docs)). Good places to start:
 
 - **[Quick Start](website/docs/quick-start.md)** — from `docker compose up` to

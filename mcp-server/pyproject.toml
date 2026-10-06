@@ -67,8 +67,8 @@ dependencies = [
 ]
 
 [project.urls]
-Homepage = "https://tripl-io.github.io/tripl/"
-Documentation = "https://tripl-io.github.io/tripl/integrate/mcp-server"
+Homepage = "https://docs.tripl.io/"
+Documentation = "https://docs.tripl.io/integrate/mcp-server"
 Repository = "https://github.com/tripl-io/tripl"
 Issues = "https://github.com/tripl-io/tripl/issues"
 

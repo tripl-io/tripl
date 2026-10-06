@@ -111,7 +111,7 @@ export function WorkspaceWelcome({
           project runs on a schedule.
         </span>
         <a
-          href="https://tripl-io.github.io/tripl/"
+          href="https://docs.tripl.io/"
           target="_blank"
           rel="noreferrer"
           className="inline-flex items-center gap-1 font-medium hover:underline text-accent"

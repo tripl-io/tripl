@@ -358,7 +358,7 @@ release. `title`, `summary` and `message` are prose. **Assert on `code` and
 Full reference — every check, every finding code with its `evidence` keys, every
 `watch` event token and the JSON Lines envelope, and what an operator should
 actually do about each one:
-<https://tripl-io.github.io/tripl/run/cli> (source:
+<https://docs.tripl.io/run/cli> (source:
 [`website/docs/run/cli.md`](../website/docs/run/cli.md)).
 
 ## Configuration

@@ -73,7 +73,7 @@ def test_the_generated_env_is_exactly_this(install_dir: Path) -> None:
         "# Docker Compose reads this file to INTERPOLATE compose.yaml. The containers receive\n"
         "# only the variables compose.yaml lists in its environment map, so a variable added\n"
         "# here that compose.yaml does not mention reaches nothing. Every tunable is listed at\n"
-        "# https://tripl-io.github.io/tripl/run/configuration\n"
+        "# https://docs.tripl.io/run/configuration\n"
         "#\n"
         "# This file holds live secrets: mode 600, and it must stay out of version control.\n"
         "# Back up ENCRYPTION_KEY separately from the database - warehouse and alert-\n"
@@ -95,7 +95,7 @@ def test_the_generated_env_is_exactly_this(install_dir: Path) -> None:
         "RABBITMQ_PASSWORD=abababababababababababababababababababababababab\n"
         "\n"
         "# Anonymous usage telemetry: one small ping a day, no names, emails, hosts or\n"
-        "# data. What it holds: https://tripl-io.github.io/tripl/run/telemetry\n"
+        "# data. What it holds: https://docs.tripl.io/run/telemetry\n"
         "TELEMETRY_ENABLED=false\n"
     )
 
