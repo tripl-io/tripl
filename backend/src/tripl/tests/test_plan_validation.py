@@ -587,6 +587,7 @@ async def test_validate_route_verdicts_and_summary(client: AsyncClient) -> None:
             "severity": "error",
             "field": "action",
             "message": "'car' is not an allowed value of variable ${item_kind} (hat)",
+            "rule": None,
         }
     ]
     assert items[4]["status"] == "ok"

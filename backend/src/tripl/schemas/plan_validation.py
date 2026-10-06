@@ -30,6 +30,7 @@ PlanValidationCode = Literal[
     "dynamic_value",
     "too_dynamic",
     "wrong_type",
+    "policy_violation",
 ]
 
 
@@ -65,6 +66,9 @@ class PlanValidationFinding(BaseModel):
     severity: Literal["error", "warning", "info"]
     field: str | None = None
     message: str
+    # Set on a ``policy_violation`` finding: the installed extension's rule the
+    # call breaks (``naming.event``, say). Community reports no such findings.
+    rule: str | None = None
 
 
 class PlanValidationItemResult(BaseModel):

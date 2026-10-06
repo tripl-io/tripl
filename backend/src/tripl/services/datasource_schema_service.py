@@ -5,6 +5,7 @@ import uuid
 from fastapi import HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from tripl import extensions
 from tripl.models.data_source import DataSource
 from tripl.models.user import User
 from tripl.schemas.data_source_schema import (
@@ -12,7 +13,7 @@ from tripl.schemas.data_source_schema import (
     DataSourceSchemaResponse,
     TableSchema,
 )
-from tripl.services import project_access
+from tripl.services import project_access, project_permissions
 from tripl.services.data_source_scope import scanning_project_ids_for
 from tripl.services.datasource_service import _fetch_data_source
 
@@ -32,7 +33,8 @@ async def authorize_schema_access(session: AsyncSession, ds_id: uuid.UUID, user:
     (``data_source_scope``): a project that scans it, or — when nobody scans it
     — any project. Plain org membership is not enough: a member who only views
     projects must not open a live connection to the warehouse and read its
-    catalog.
+    catalog. Nor may an editor an installed extension took ``data_sources.manage``
+    away from in that project (``Extension.project_permission_check``).
     """
     source = await _fetch_data_source(session, ds_id)
     if source.project_id is None:
@@ -43,14 +45,28 @@ async def authorize_schema_access(session: AsyncSession, ds_id: uuid.UUID, user:
             session, user, source.organization_id
         )
         roles = await project_access.member_roles(session, user, candidates)
-        if not any(project_access.can_edit(role) for role in roles.values()):
-            raise HTTPException(status_code=403, detail="No access to this data source's schema")
-        return
+        for project_id, project_role in roles.items():
+            if await _may_read_catalog(session, user, project_id, project_role):
+                return
+        raise HTTPException(status_code=403, detail="No access to this data source's schema")
     role = await project_access.member_role(session, user, source.project_id)
     if role is None:
         raise HTTPException(status_code=404, detail="Data source not found")
-    if not project_access.can_edit(role):
+    if not await _may_read_catalog(session, user, source.project_id, role):
         raise HTTPException(status_code=403, detail="No access to this project's data source")
+
+
+async def _may_read_catalog(
+    session: AsyncSession, user: User, project_id: uuid.UUID, role: str | None
+) -> bool:
+    """An editing role in ``project_id`` that no extension narrowed below data sources."""
+    if not project_access.can_edit(role):
+        return False
+    if role == project_access.OWNER:
+        return True
+    return not await extensions.project_permission_refused(
+        session, user, project_id, project_permissions.DATA_SOURCES_MANAGE
+    )
 
 
 def _run_schema_introspection(ds: DataSource) -> DataSourceSchemaResponse:

@@ -50,6 +50,12 @@ describe('auditSentences', () => {
     expect(actionSentence('org.escalation_policy.create')).toBe('Created the escalation policy')
     expect(actionSentence('org.alert_route.delete')).toBe('Deleted the alert route')
     expect(actionTone('org.alert_route.delete')).toBe('danger')
+    expect(actionSentence('org.governance_policy.create')).toBe('Created the plan policy')
+    expect(actionSentence('org.governance_policy.update')).toBe('Changed the plan policy')
+    expect(actionTone('org.governance_policy.delete')).toBe('danger')
+    expect(actionSentence('org.group_grant.create')).toBe('Gave a group a role in a project')
+    expect(actionSentence('org.team_sync.apply')).toBe('Synced groups from the identity provider for')
+    expect(actionTone('org.project_role.delete')).toBe('danger')
   })
 
   it('tones an action by the suffix of its verb', () => {

@@ -1,4 +1,4 @@
-import { Activity, Building, FileSearch, History, KeyRound, RefreshCw, ScrollText, Siren, UserCog, Webhook } from 'lucide-react'
+import { Activity, Building, FileSearch, History, KeyRound, RefreshCw, ScrollText, ShieldCheck, Siren, UserCog, Webhook } from 'lucide-react'
 import type { SettingsNavItem } from '@/components/settings/nav'
 import type { ExtensionSettingsSection } from './types'
 
@@ -68,6 +68,19 @@ export const ENTERPRISE_TEASERS: readonly EnterpriseTeaser[] = [
   },
   {
     group: 'Organization',
+    after: 'groups',
+    item: tagged({
+      id: 'org-access',
+      label: 'Access control',
+      icon: ShieldCheck,
+      path: 'organization/access',
+      keywords: ['rbac', 'roles', 'custom roles', 'permissions', 'group access', 'team sync', 'idp groups'],
+    }),
+    summary:
+      "Give a group a role in a project, build custom roles that hold only some of an editor's permissions, and keep groups in step with your identity provider's groups at each single sign-on.",
+  },
+  {
+    group: 'Organization',
     after: 'org-trackers',
     item: tagged({
       id: 'org-sso',
@@ -104,6 +117,19 @@ export const ENTERPRISE_TEASERS: readonly EnterpriseTeaser[] = [
     }),
     summary:
       'When an alert is not acknowledged in time, notify the next destination, member or group, with routes that pick a policy across all projects.',
+  },
+  {
+    group: 'Organization',
+    after: 'org-escalation',
+    item: tagged({
+      id: 'org-governance',
+      label: 'Plan governance',
+      icon: ShieldCheck,
+      path: 'organization/governance',
+      keywords: ['plan rules', 'naming rules', 'policy', 'protected main', 'pii', 'sensitive fields', 'forbidden properties'],
+    }),
+    summary:
+      'Rules every project of the organization follows: naming patterns for events and properties, required and forbidden properties, sensitive fields that need a designated group’s approval, and a protected main that takes changes only through branches. tripl check, plan validation and every merge enforce them.',
   },
   {
     group: 'Organization',

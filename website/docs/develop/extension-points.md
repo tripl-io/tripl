@@ -65,6 +65,8 @@ no-op.
 | `org_session_gate(request, session, user, org, role=)` | a browser session acts in an organization | Raise `GateRefused` to refuse it. |
 | `api_key_use_gate(request, session, user, org_id, api_key)` | an API key authenticates | Raise `GateRefused` to refuse it. |
 | `api_key_mint_gate(session, org)` | a browser session creates an API key | Raise `GateRefused` to refuse it. |
+| `project_grants()` | any project-access answer is computed (`tripl.services.project_access`): a project's detail, the project list, the membership and write gates, notification and alert fan-outs | Return a SQL `SELECT` of four columns, in order: organization id, project id, user id, role (`editor` or `viewer`), or `None`. A row counts only when its organization is the project's own and the user is a member of that organization; any other role, `owner` included, counts for nothing. The higher of the grant and the user's own project role wins. A grant never changes an organization role. Called while a query is built: no I/O. |
+| `project_permission_check(session, user, project_id, permission)` | an editor (not an owner or admin of the project's organization) writes in a project | Return `False` to refuse the write with `403`; `True` or `None` leave it to the core, so the hook can take a permission away but never grant one. `permission` is one of `tripl.services.project_permissions.PERMISSIONS` (`plan.edit`, `plan.merge`, `comments.write`, `docs.edit`, `metrics.manage`, `alerts.manage`, `data_sources.manage`, `settings.manage`), mapped from the route; an unmapped route asks for `settings.manage`. An exception fails the request. |
 | `on_member_removed(session, org_id, user_id, by_admin=)` | a member leaves an organization or is removed | Clean up the extension's rows. Return counts by name; they are added to the removal's audit entry. |
 | `on_owner_demoted(session, org_id, user_id)` | an owner stops being an owner | Revoke owner-only credentials. |
 | `on_membership_restored(session, org_id, user_id)` | a removed member joins again through an invitation | Lift blocks set on removal. |
@@ -74,6 +76,7 @@ no-op.
 | `tenancy()` | a decision differs between one team's instance and a multi-tenant service | Return a `tripl.tenancy.TenancyPolicy` to run the instance as a multi-tenant service, or `None`. The first policy returned wins; without one the instance is a single team's, and `DEPLOYMENT_MODE=hosted` refuses to start. |
 | `secret_cipher()` | the first stored secret is encrypted or decrypted, or the API or worker starts | Return a `tripl.crypto.SecretCipher` (`encrypt`, `decrypt`, `check`) to encrypt every stored secret, or `None`. The first cipher returned wins; without one, secrets are Fernet under `ENCRYPTION_KEY`. `decrypt` raises `InvalidToken` for a value it cannot read; `check` runs when the API and the worker start and refuses startup when it raises. |
 | `stored_secret_slots()` | stored secrets are listed (`tripl.services.stored_secrets`) | Return the `ColumnSecret`s and `JsonSecret`s the extension's own tables hold, so re-encrypting every stored secret reaches them. A `*_encrypted` column no slot lists fails Community's tests. |
+| `plan_policy_violations(session, context)` | `POST /plan/validate` (`context.phase == "validate"`), a branch merge after the project's own gates (`"merge"`), and a write to the main plan (`"direct_edit"`) | Return `tripl.core.plan_policy.PolicyViolation`s. In `validate`, each one names its call by `item_ref` and is reported as a `policy_violation` finding (one naming no call is dropped). In `merge` and `direct_edit`, any `error` violation refuses the request with `409` and `policy_violations`; `warning` ones never block. The context carries the calls, the merge base and branch snapshots with who approved the current content, or just the project and actor. Read-only. |
 | `celery_task_modules()` | the Celery app is configured | Return modules to import so their tasks register. |
 | `beat_schedule()` | the Celery app is configured | Return beat entries to add. |
 
@@ -171,5 +174,5 @@ the Editions page, and the admonition on its docs pages.
 
 Community bundles no extension. Every Enterprise feature (single sign-on per
 organization, SCIM provisioning, the organization-wide audit log, audit export,
-the audit webhook and alert escalation) lives in the separately installed, private Enterprise
+the audit webhook, alert escalation, plan governance and access control) lives in the separately installed, private Enterprise
 package, which reaches the core only through the hooks and the registry above.

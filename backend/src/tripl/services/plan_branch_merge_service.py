@@ -14,7 +14,8 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import lazyload, selectinload
 
-from tripl import cache
+from tripl import cache, extensions
+from tripl.core.plan_policy import PlanPolicyContext, blocking, refusal_detail
 from tripl.models.event import Event
 from tripl.models.event import EventStatus as _ES
 from tripl.models.event import event_status_rank as _rank
@@ -32,6 +33,7 @@ from tripl.models.plan_branch import BranchStatus, PlanBranch
 from tripl.models.plan_branch_approval import PlanBranchApproval
 from tripl.models.plan_branch_reviewer import PlanBranchReviewer
 from tripl.models.plan_revision import PlanRevision, PlanRevisionKind
+from tripl.models.project import Project
 from tripl.models.project_tracker_config import ProjectTrackerConfig
 from tripl.models.subscription import Subscription
 from tripl.models.user import User
@@ -1940,6 +1942,47 @@ async def _check_owner_approvals(
         )
 
 
+async def _check_plan_policies(
+    session: AsyncSession,
+    *,
+    project: Project,
+    branch: PlanBranch,
+    user_id: uuid.UUID,
+    base_payload: dict[str, Any],
+    branch_payload: dict[str, Any],
+    current_plan_hash: str,
+) -> None:
+    """Block the merge on an installed extension's blocking plan policy.
+
+    Asked after the project's own gates passed, with who approved the branch's
+    CURRENT content (a stale approval clears nothing here either). Without an
+    extension nothing is asked and nothing is loaded.
+    """
+    if not extensions.extensions():
+        return
+    approver_ids, _stale = await _load_fresh_approver_ids(
+        session, branch_id=branch.id, current_plan_hash=current_plan_hash
+    )
+    violations = await extensions.plan_policy_violations(
+        session,
+        PlanPolicyContext(
+            phase="merge",
+            organization_id=project.organization_id,
+            project_id=project.id,
+            project_slug=project.slug,
+            branch_id=branch.id,
+            actor_id=user_id,
+            base_snapshot=base_payload,
+            branch_snapshot=branch_payload,
+            author_id=branch.created_by,
+            approver_ids=frozenset(approver_ids),
+        ),
+    )
+    refused = blocking(violations)
+    if refused:
+        raise HTTPException(status_code=409, detail=refusal_detail(refused))
+
+
 async def assign_owner_reviewers_for_branch(
     session: AsyncSession,
     *,
@@ -2336,6 +2379,16 @@ async def merge_branch(
         project_id=project.id,
         main_branch_id=main_branch_id,
         branch_id=branch.id,
+        base_payload=base_payload,
+        branch_payload=branch_payload,
+        current_plan_hash=current_plan_hash,
+    )
+
+    await _check_plan_policies(
+        session,
+        project=project,
+        branch=branch,
+        user_id=user_id,
         base_payload=base_payload,
         branch_payload=branch_payload,
         current_plan_hash=current_plan_hash,

@@ -224,6 +224,17 @@ describe('describeBranchActionError', () => {
     expect(describeBranchActionError(conflict({ other: true, message: 'Do this.' }))).toBe('Do this.')
     expect(describeBranchActionError(new Error('boom'))).toBe('boom')
   })
+
+  it("reads an extension's plan-policy refusal through its own message", () => {
+    expect(
+      describeBranchActionError(
+        conflict({
+          message: 'Blocked by 1 plan rule: Event names must be snake_case.',
+          policy_violations: [{ rule: 'naming.event', message: 'Event names must be snake_case.' }],
+        }),
+      ),
+    ).toBe('Blocked by 1 plan rule: Event names must be snake_case.')
+  })
 })
 
 describe('describeBranchActionError', () => {

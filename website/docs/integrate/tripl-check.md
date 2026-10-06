@@ -328,6 +328,7 @@ message text.
 | `value_not_allowed` | error | A literal value is outside what the plan allows: the field's enum options, the documented values of the property the field refers to, or the field's contract regex or min/max. |
 | `dynamic_value` | info or warning, and only with `--strict` | A value the scanner could not read, or an event name that is only partly known. It is listed so you can see what was not checked. The validator reports it as `info`; the CLI adds a `warning` for a value the validator did not already note. |
 | `too_dynamic` | info | The identity has more than 10 holes, too many to match against the plan. The call is not matched to an event. |
+| `policy_violation` | error or warning | The call breaks a plan rule an installed extension adds, for example an organization's [plan governance](../enterprise/governance.md) policy in the Enterprise edition. `rule` names the rule (`naming.event`, `forbidden_field`, …). Community reports none. |
 | `oversize_value` | warning | A name, event type, field or property was over the validator's size limits. The CLI sent the value as `null` (or dropped the key) instead of failing the batch. Raised by the CLI. |
 | `no_verdict` | error | The CLI sent the item but the validator returned no verdict for it. Raised by the CLI, never by the server. |
 

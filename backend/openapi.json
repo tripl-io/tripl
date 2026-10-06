@@ -21764,7 +21764,8 @@
               "value_not_allowed",
               "dynamic_value",
               "too_dynamic",
-              "wrong_type"
+              "wrong_type",
+              "policy_violation"
             ],
             "title": "Code",
             "type": "string"
@@ -21783,6 +21784,17 @@
           "message": {
             "title": "Message",
             "type": "string"
+          },
+          "rule": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Rule"
           },
           "severity": {
             "enum": [

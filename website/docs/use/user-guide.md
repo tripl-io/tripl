@@ -449,9 +449,10 @@ from one of them. Changing only its fields or events does not.
 Owners can make review stricter under **Plan → Plan branches → Merge policy**:
 require several distinct approvals and block authors from approving their own
 branch. Approvals are tied to the reviewed plan hash, so any later content edit
-makes them stale and requires review again. The separate **Settings → Project →
-Plan rules** page only describes guardrails that are not built yet; it has no
-controls and enforces nothing.
+makes them stale and requires review again. **Settings → Project → Plan rules**
+lists these gates in one place. Organization-wide rules (naming, forbidden
+properties, sensitive fields, a protected main) are [plan
+governance](../enterprise/governance.md), an Enterprise feature.
 
 Optionally configure the **Implementation tracker** from Plan branches, in
 **Jira** or **Linear** (a switch on the settings page picks one; Linear needs a

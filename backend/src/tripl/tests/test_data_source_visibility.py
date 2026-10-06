@@ -13,8 +13,10 @@ import pytest_asyncio
 from httpx import ASGITransport, AsyncClient
 
 from tripl.api.v1 import data_sources as data_sources_router
+from tripl.extensions import Extension, override_extensions
 from tripl.main import app
 from tripl.schemas.data_source_schema import DataSourceSchemaResponse
+from tripl.services import project_permissions
 from tripl.tests._members import add_member_by_slug
 
 PASSWORD = "Password123!"
@@ -226,6 +228,29 @@ async def test_editor_keeps_schema_access_but_not_stats(stand, monkeypatch) -> N
 
     stats = await editor.get(f"/api/v1/data-sources/{ds_id}/stats")
     assert stats.status_code == 403
+
+
+@pytest.mark.asyncio
+async def test_an_editor_an_extension_narrowed_gets_no_schema(stand, monkeypatch) -> None:
+    """``Extension.project_permission_check`` refusing ``data_sources.manage``
+    takes the catalog away from that editor too, and the owner keeps it."""
+    owner, editor, _viewer, ds_id = stand
+
+    class _NoDataSources(Extension):
+        async def project_permission_check(self, session, user, project_id, permission):  # type: ignore[no-untyped-def]
+            return False if permission == project_permissions.DATA_SOURCES_MANAGE else None
+
+    async def _fake_schema(_session, _ds_id):
+        return DataSourceSchemaResponse(tables=[])
+
+    monkeypatch.setattr(
+        data_sources_router.datasource_schema_service, "get_schema_tables", _fake_schema
+    )
+    with override_extensions([_NoDataSources()]):
+        refused = await editor.get(f"/api/v1/data-sources/{ds_id}/schema")
+        kept = await owner.get(f"/api/v1/data-sources/{ds_id}/schema")
+    assert refused.status_code == 403, refused.text
+    assert kept.status_code == 200, kept.text
 
 
 @pytest.mark.asyncio

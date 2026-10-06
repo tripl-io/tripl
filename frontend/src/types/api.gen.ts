@@ -14334,11 +14334,13 @@ export interface components {
              * Code
              * @enum {string}
              */
-            code: "unknown_event_type" | "unknown_event" | "deprecated_event" | "unknown_field" | "missing_required_field" | "value_not_allowed" | "dynamic_value" | "too_dynamic" | "wrong_type";
+            code: "unknown_event_type" | "unknown_event" | "deprecated_event" | "unknown_field" | "missing_required_field" | "value_not_allowed" | "dynamic_value" | "too_dynamic" | "wrong_type" | "policy_violation";
             /** Field */
             field?: string | null;
             /** Message */
             message: string;
+            /** Rule */
+            rule?: string | null;
             /**
              * Severity
              * @enum {string}

@@ -9,6 +9,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from tripl import extensions, tenancy
 from tripl.config import settings
+from tripl.core.plan_policy import PlanPolicyContext, blocking, refusal_detail
 from tripl.database import get_session
 from tripl.middleware.branch_context import bound_branch
 from tripl.middleware.org_context import (
@@ -28,6 +29,7 @@ from tripl.services import (
     email_verification_service,
     org_service,
     project_access,
+    project_permissions,
     project_service,
 )
 from tripl.services._plan_branch_locks import (
@@ -448,14 +450,44 @@ async def require_project_mutation_access(
     the whole surface at once and keeps future routes closed by default. Routes
     without a ``slug`` (``/projects``, ``/me/...``) are unaffected.
     """
-    if not request.path_params.get("slug"):
+    slug = request.path_params.get("slug")
+    if not slug:
         return
-    if project_access.can_edit(await _project_role(request, session, user)):
+    role = await _project_role(request, session, user)
+    if not project_access.can_edit(role):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Editor access to this project is required",
+        )
+    if role == project_access.OWNER:
+        # An owner or admin of the project's organization holds every permission.
         return
-    raise HTTPException(
-        status_code=status.HTTP_403_FORBIDDEN,
-        detail="Editor access to this project is required",
-    )
+    await _require_project_permission(request, session, user, slug)
+
+
+#: 403 detail when an extension takes a write permission away from an editor.
+PROJECT_PERMISSION_REFUSED = "Your role in this project does not allow this change"
+
+
+async def _require_project_permission(
+    request: Request, session: AsyncSession, user: User, slug: str
+) -> None:
+    """403 when an extension refuses the route's permission to this editor.
+
+    The permission is the route's (``project_permissions.permission_for`` over
+    its path template); with no extension installed nothing is asked and an
+    editor may write everything, as before. The project id comes from the slug,
+    resolved in the bound organization like the membership gate's.
+    """
+    if not extensions.extensions():
+        return
+    route_path = getattr(request.scope.get("route"), "path", "") or ""
+    permission = project_permissions.permission_for(route_path)
+    project_id = await resolve_project_id(session, slug)
+    if await extensions.project_permission_refused(session, user, project_id, permission):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN, detail=PROJECT_PERMISSION_REFUSED
+        )
 
 
 def can_mutate_project(
@@ -972,25 +1004,92 @@ async def _refuse_writes_to_a_read_only_branch(
     raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=detail)
 
 
-async def _hold_main_for_a_plan_write(request: Request, session: AsyncSession) -> None:
-    """Hold main's branch row for a write to main.
+async def _hold_main_for_a_plan_write(request: Request, session: AsyncSession, user: User) -> None:
+    """Hold main's branch row for a write to main, and ask the plan policies.
 
     A merge takes main's row before it reads main for its conflict check, so a
     main edit arriving mid-merge waits and applies on top of the merged plan,
     and a merge arriving mid-edit waits and then sees the edit, as a conflict
     where it clashes with the branch. Without a ``slug`` there is no project,
     and so no main, to hold.
+
+    This is also the one place a write to the main plan is seen as such, so the
+    installed extensions' ``direct_edit`` policies are asked here (a protected
+    main, say): see :func:`_refuse_a_main_write_a_policy_blocks`.
     """
     slug = request.path_params.get("slug")
-    # ``locks_rows`` first: off PostgreSQL the lock is a no-op, so the id lookup
-    # would only cost a query per plan write.
-    if slug and _writes_the_plan(request) and locks_rows(session):
-        # The lock is keyed by the project's id within the request's
-        # organization (F20 PR3). An unknown slug has no main to hold; the
-        # route's own lookup answers its 404.
-        project_id = await session.scalar(select(Project.id).where(project_slug_clause(slug)))
-        if project_id is not None:
-            await hold_main_plan_for_write(session, project_id)
+    if not slug or not _writes_the_plan(request):
+        return
+    # ``locks_rows`` first: off PostgreSQL the lock is a no-op, so the lookup
+    # would only cost a query per plan write when no extension asks either.
+    hold = locks_rows(session)
+    ask = bool(extensions.extensions())
+    if not (hold or ask):
+        return
+    # The lock is keyed by the project's id within the request's organization
+    # (F20 PR3). An unknown slug has no main to hold; the route's own lookup
+    # answers its 404.
+    project = (
+        await session.execute(
+            select(Project.id, Project.organization_id, Project.slug).where(
+                project_slug_clause(slug)
+            )
+        )
+    ).one_or_none()
+    if project is None:
+        return
+    if hold:
+        await hold_main_plan_for_write(session, project.id)
+    if ask:
+        await _refuse_a_main_write_a_policy_blocks(
+            request,
+            session,
+            user,
+            organization_id=project.organization_id,
+            project_id=project.id,
+            project_slug=project.slug,
+        )
+
+
+async def _refuse_a_main_write_a_policy_blocks(
+    request: Request,
+    session: AsyncSession,
+    user: User,
+    *,
+    organization_id: uuid.UUID,
+    project_id: uuid.UUID,
+    project_slug: str,
+) -> None:
+    """409 ``policy_violations`` when an extension's policy blocks this main write.
+
+    Authorization answers first, as for the read-only branch refusal: the
+    route's own write gates are replayed before the 409, so a caller who may
+    not write at all gets the gate's 403, not an instruction to use a branch.
+    """
+    violations = blocking(
+        await extensions.plan_policy_violations(
+            session,
+            PlanPolicyContext(
+                phase="direct_edit",
+                organization_id=organization_id,
+                project_id=project_id,
+                project_slug=project_slug,
+                actor_id=user.id,
+            ),
+        )
+    )
+    if not violations:
+        return
+    dependant = getattr(request.scope.get("route"), "dependant", None)
+    if dependant is not None:
+        for gate in _write_gates_in(dependant):
+            await _WRITE_GATE_REPLAYS[gate](request, session, user)
+    detail = refusal_detail(violations)
+    raise extensions.GateRefused(
+        detail["message"],
+        extra={"policy_violations": detail["policy_violations"]},
+        status_code=status.HTTP_409_CONFLICT,
+    )
 
 
 async def get_branch_id_override(
@@ -1036,7 +1135,7 @@ async def get_branch_id_override(
     if not branch:
         # Unbound rather than bound-to-None: a route with no ``?branch=`` is
         # main, which is what the contextvar's default already says.
-        await _hold_main_for_a_plan_write(request, session)
+        await _hold_main_for_a_plan_write(request, session, user)
         yield None
         return
     try:
@@ -1082,7 +1181,7 @@ async def get_branch_id_override(
         # deleted from the live plan.
         # Normalising here, in the one place that resolves ``?branch=``, makes
         # the request exactly what it is with no ``?branch=`` at all.
-        await _hold_main_for_a_plan_write(request, session)
+        await _hold_main_for_a_plan_write(request, session, user)
         yield None
         return
     if _writes_the_plan(request):

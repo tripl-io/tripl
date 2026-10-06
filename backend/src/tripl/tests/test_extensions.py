@@ -89,6 +89,11 @@ async def test_no_extension_makes_every_hook_a_no_op() -> None:
         await extensions.on_org_deleting(None, org_id)  # type: ignore[arg-type]
         await extensions.on_group_change(None, org_id, uuid.uuid4(), added=[user_id])  # type: ignore[arg-type]
         assert extensions.error_response("/api/v1/x", "http", 404, "Not Found") is None
+        assert extensions.project_grants() == []
+        assert not await extensions.project_permission_refused(None, None, org_id, "plan.edit")  # type: ignore[arg-type]
+    # The base class grants nothing and refuses nothing.
+    assert Extension().project_grants() is None
+    assert await Extension().project_permission_check(None, None, org_id, "plan.edit") is None  # type: ignore[arg-type]
 
 
 async def test_lifecycle_hooks_reach_every_extension_in_order() -> None:

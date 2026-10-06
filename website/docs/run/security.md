@@ -412,6 +412,15 @@ computed against the project's **own** organization, and every project lookup is
 fenced to the organization the request acts in, so an id taken from a resource
 (a comment, a photo, a reviewer) cannot reach across organizations either.
 
+An installed extension may add project roles on top (the Enterprise edition's
+[group roles in projects](../enterprise/rbac.md)) through one hook in the same
+module, so every gate and list sees them. Such a grant is only ever `editor` or
+`viewer`, never `owner`; it counts only for a current member of the project's
+own organization, through a grant of that same organization; and it never
+changes an organization role. An extension may also take single write
+permissions away from an editor, never add one. Without an extension there are
+no grants, and a test pins that the answers are exactly the ones above.
+
 ### Organization isolation
 
 Organizations are isolated by application code and by database constraints;

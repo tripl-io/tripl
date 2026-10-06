@@ -67,6 +67,7 @@ CODE_VALUE_NOT_ALLOWED: Final = "value_not_allowed"
 CODE_DYNAMIC_VALUE: Final = "dynamic_value"
 CODE_TOO_DYNAMIC: Final = "too_dynamic"
 CODE_WRONG_TYPE: Final = "wrong_type"
+CODE_POLICY_VIOLATION: Final = "policy_violation"
 
 #: The most ``${...}`` holes one query identity may carry. Every hole is a lazy
 #: ``(.*?)`` group, and a pattern with many of them backtracks badly against a
@@ -83,6 +84,7 @@ FindingCode = Literal[
     "dynamic_value",
     "too_dynamic",
     "wrong_type",
+    "policy_violation",
 ]
 
 STATUS_DEPRECATED: Final = "deprecated"
@@ -101,6 +103,8 @@ class Finding:
     severity: Severity
     field: str | None
     message: str
+    # The extension rule a ``policy_violation`` finding reports (``core.plan_policy``).
+    rule: str | None = None
 
 
 @dataclass(frozen=True)

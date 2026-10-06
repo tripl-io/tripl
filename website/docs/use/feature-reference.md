@@ -1142,13 +1142,17 @@ editors who can make the change.
 ### Plan rules
 
 **Where:** Workspace settings › Project › **Plan rules** (in the full-takeover
-Settings area, route `/settings/project/plan-rules`). Not built yet: the page is
-a single **Coming later** card that lists the planned naming, governance and PII
-rules. It has no controls, because no backend contract exists for any of them,
-and its rail entry carries a **Soon** tag.
-The working branch-review controls live under **Plan → Plan branches → Merge
-policy** (`min_approvals`, `block_self_approval`). Scan **Event name format** is
-the working naming rule for scan-targeted event types.
+Settings area, route `/settings/project/plan-rules`). The page lists the gates a
+plan change passes in the project, each configured where it lives: approvals
+under **Plan → Plan branches → Merge policy** (`min_approvals`,
+`block_self_approval`), event type **owners**, and required fields and contracts,
+which `tripl check` reports. It has no controls of its own. Scan **Event name
+format** is the working naming rule for scan-targeted event types.
+
+Rules set once for every project of the organization (naming patterns, required
+and forbidden properties, approval of sensitive fields, a protected main) are
+[plan governance](../enterprise/governance.md), in the Enterprise edition; the
+page says so in Community and links to them in Enterprise.
 
 ### New project & templates {#project-templates}
 

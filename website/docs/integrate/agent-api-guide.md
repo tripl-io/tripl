@@ -2098,8 +2098,10 @@ findings. `summary` counts items by status. The finding codes are:
 | `value_not_allowed` | error | A literal value is outside the field's enum options, outside the documented `allowed_values` of the property the field refers to, or fails the field's contract regex or min/max. |
 | `dynamic_value` | info | Only with `"strict": true`: a field was sent as `null` or with a hole, or the identity has holes. |
 | `too_dynamic` | info | The identity has more than 10 holes, too many to match. |
+| `policy_violation` | error, or warning | The call breaks a rule of an installed extension (an Enterprise [plan governance](../enterprise/governance.md) policy). `rule` names it. Community reports none. |
 
-An `info` finding never changes an item's `status`.
+An `info` finding never changes an item's `status`. Every finding also carries
+`rule`: the extension rule of a `policy_violation`, `null` for every other code.
 
 `field` names the plan field a finding is about, or is `null` for findings about
 the whole item. `message` is prose and may change. Select on `code`.
