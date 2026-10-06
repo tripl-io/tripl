@@ -9,6 +9,8 @@ the same body but DOES overwrite ``required``, which is why the panel offers
 nothing until the list has loaded.
 """
 
+import json
+
 import pytest
 from httpx import AsyncClient
 
@@ -105,7 +107,8 @@ async def test_a_branch_copy_carries_the_tokens_and_bindings_under_its_own_ids(
     main_event = await _event_on(client, slug, None)
     branch_event = await _event_on(client, slug, branch_id)
     assert branch_event["id"] != main_event["id"]
-    assert [fv["value"] for fv in branch_event["field_values"]] == [VALUE]
+    # A JSON value is stored normalised, so compare it as JSON.
+    assert [json.loads(fv["value"]) for fv in branch_event["field_values"]] == [json.loads(VALUE)]
     assert await _properties(client, slug, branch_event["id"], branch_id) == []
 
     main_vars = await _variables_on(client, slug, None)

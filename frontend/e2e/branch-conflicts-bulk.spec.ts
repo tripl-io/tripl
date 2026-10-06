@@ -88,7 +88,8 @@ test('one click settles a scanned twin, and the update keeps main’s position',
   await page.goto(`/p/${slug}/branches/${branchId}`)
   const actions = page.getByRole('group', { name: 'All fields of starting_place', exact: true })
   await expect(actions).toBeVisible({ timeout: 60_000 })
-  const card = page.locator('.rounded-card').filter({ has: actions })
+  // The entity's own card, not the Conflicts panel around it (also a rounded card).
+  const card = page.locator('div.rounded-card').filter({ has: actions })
   await expect(card).toContainText('Added on both sides')
   // Position is main's without asking: no row for it.
   await expect(card.getByText('order', { exact: true })).toHaveCount(0)

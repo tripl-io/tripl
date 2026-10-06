@@ -210,8 +210,13 @@ describe('ConflictsPanel bulk choices', () => {
     })
     expect(planBranchesApi.saveResolution).not.toHaveBeenCalled()
     // The batched rows wait for their save; the deletion is still the user's.
-    expect(within(card('home')).getByRole('button', { name: 'Take main' })).toBeDisabled()
-    expect(within(card('legacy')).getByRole('button', { name: 'Take main' })).toBeEnabled()
+    // Each card carries its own bulk row beside the per-field picks. On the
+    // batched card the other side of each saving pick waits (title went to
+    // the branch, so its "Take main" is off); the deletion's own pick (the
+    // last one on its card) is still free.
+    const homeTakeMain = within(card('home')).getAllByRole('button', { name: 'Take main' })
+    expect(homeTakeMain.some((button) => button.hasAttribute('disabled'))).toBe(true)
+    expect(within(card('legacy')).getAllByRole('button', { name: 'Take main' }).at(-1)).toBeEnabled()
   })
 
   it('touches only its own entity, and suggests "filled in" where both sides added it', async () => {

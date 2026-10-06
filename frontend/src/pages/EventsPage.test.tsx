@@ -171,6 +171,10 @@ describe('EventsPage', () => {
       if (url.endsWith('/api/v1/projects/demo/meta-fields')) return mockJsonResponse([])
       if (url.includes('/api/v1/projects/demo/properties')) return mockJsonResponse({ items: [], total: 0 })
       if (url.endsWith('/api/v1/projects/demo/events/tags')) return mockJsonResponse([])
+      // The editor the redirect lands on reads these two as lists.
+      if (/\/users(\?|$)/.test(url)) return mockJsonResponse([])
+      if (/\/events\/[^/?]+\/properties/.test(url)) return mockJsonResponse([])
+      if (/\/events\/ev-1(\?|$)/.test(url)) return mockJsonResponse(makeEvent({ id: 'ev-1' }))
       if (url.includes('/api/v1/projects/demo/events')) return mockJsonResponse({ items: [], total: 0 })
       return mockJsonResponse({})
     })
@@ -1127,6 +1131,9 @@ function mockCatalogFetch({
     if (url.includes('/api/v1/projects/demo/properties')) return mockJsonResponse({ items: [], total: 0 })
     if (url.endsWith('/api/v1/projects/demo/events/tags')) return mockJsonResponse([])
     if (url.endsWith('/api/v1/users')) return mockJsonResponse([])
+    // An event's own property list, read by the editor an event link opens.
+    if (/\/events\/[^/?]+\/properties/.test(url)) return mockJsonResponse([])
+    if (/\/events\/ev-1(\?|$)/.test(url)) return mockJsonResponse(makeEvent({ id: 'ev-1' }))
     if (url.endsWith('/api/v1/projects/demo/events/window-metrics') && init?.method === 'POST') {
       return mockJsonResponse([])
     }

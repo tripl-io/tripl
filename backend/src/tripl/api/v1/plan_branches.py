@@ -28,6 +28,7 @@ from tripl.schemas.plan_branch import (
     UpdateFromMainRequest,
     UpdateFromMainResult,
 )
+from tripl.schemas.text_filters import FreeTextFilter
 from tripl.services import (
     audit_service,
     plan_branch_conflicts,
@@ -240,8 +241,10 @@ async def merge_preview_event(
     slug: str,
     branch_id: uuid.UUID,
     event_id: uuid.UUID | None = None,
-    event_type: str | None = None,
-    event_name: str | None = None,
+    # FreeTextFilter: both are matched against snapshot names, never bound
+    # into SQL, but a NUL in either reaches the 404 message.
+    event_type: FreeTextFilter | None = None,
+    event_name: FreeTextFilter | None = None,
 ) -> MergedEventPreview:
     """One event as main will hold it after this branch merges ("As merged").
 
