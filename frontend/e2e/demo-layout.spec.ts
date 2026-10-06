@@ -188,15 +188,14 @@ for (const theme of ['light', 'dark'] as const) {
     const page = await openDemo(browser, DESKTOP, theme)
     const banner = page.locator('[data-demo-banner]')
     // Soft, so one run reports (and with the label writes) every shot.
-    // The freshness stamp is the one line that reads the clock.
-    const shot: PageAssertionsToHaveScreenshotOptions = {
-      animations: 'disabled',
-      caret: 'hide',
-      maxDiffPixelRatio: 0.01,
-      mask: [banner.getByText(/^(freshly seeded|updated )/)],
-    }
+    const shot: PageAssertionsToHaveScreenshotOptions = { animations: 'disabled', caret: 'hide', maxDiffPixelRatio: 0.01 }
 
-    await expect.soft(banner).toHaveScreenshot(`banner-${theme}.png`, shot)
+    // The freshness stamp is the one line that reads the clock. A mask paints
+    // over its spot in every screenshot, the tour's included, so only here.
+    await expect.soft(banner).toHaveScreenshot(`banner-${theme}.png`, {
+      ...shot,
+      mask: [banner.getByText(/^(freshly seeded|updated )/)],
+    })
 
     const tour = await openTour(page)
     await expect.soft(tour).toHaveScreenshot(`tour-${theme}.png`, shot)
