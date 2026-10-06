@@ -24,6 +24,11 @@ COPY mcp-server/pyproject.toml mcp-server/uv.lock mcp-server/README.md ./
 COPY mcp-server/src ./src
 RUN uv sync --frozen --no-dev
 
+# Third-party license notices for the venv and the Debian packages, in
+# /app/licenses (README.md is the index).
+RUN --mount=type=bind,source=backend/scripts/third_party_licenses.py,target=/tmp/third_party_licenses.py \
+    .venv/bin/python /tmp/third_party_licenses.py --out /app/licenses
+
 ENV PATH="/app/mcp-server/.venv/bin:$PATH"
 
 # Drop privileges, matching backend/Dockerfile and the root Dockerfile. The
