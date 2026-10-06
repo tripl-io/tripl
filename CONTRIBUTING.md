@@ -321,6 +321,15 @@ browser, an arm64 Linux host for one. A failure leaves a trace, screenshot and
 video under `frontend/test-results/` (`bunx playwright show-trace <zip>`).
 CI runs the same tests in the `E2E` job.
 
+Layout is asserted here, not in unit tests: jsdom lays nothing out, so a unit
+test can only check class names, which a refactor breaks and a real regression
+passes. `e2e/demo-layout.spec.ts` measures boxes at 1440 and 375 px and
+compares screenshots (`toHaveScreenshot`) of the demo bar, the tour and the
+coach card in light and dark. The baselines under
+`e2e/<spec>.ts-snapshots/` are Linux Chromium's and come from CI: a missing or
+changed one fails the `E2E` job, and its `playwright-report` artifact holds the
+`-actual.png` to commit in its place once the change is intended.
+
 The typed API client is generated from the backend's OpenAPI schema. If you
 change request/response contracts, regenerate it:
 

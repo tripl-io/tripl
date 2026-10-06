@@ -194,21 +194,6 @@ describe('DemoBanner', () => {
     expect(pill).toHaveAttribute('aria-expanded', 'false')
   })
 
-  it('wraps the phone panel instead of pushing its actions off-screen (#251)', () => {
-    renderBanner()
-
-    // Both inner groups were `shrink-0` on one line: at 390 the panel content
-    // came to 462px in a 364px panel. They wrap below `lg` and hold the line
-    // only from there.
-    const actions = manageTrigger().parentElement
-    expect(actions).toContainElement(screen.getByRole('button', { name: /tour & chapters/i }))
-    expect(actions).toHaveClass('flex-wrap', 'lg:flex-nowrap', 'lg:shrink-0')
-    expect(actions).not.toHaveClass('shrink-0')
-    const info = screen.getByText('Demo workspace').parentElement
-    expect(info).toHaveClass('flex-wrap', 'lg:flex-nowrap')
-    expect(info).not.toHaveClass('shrink-0')
-  })
-
   it('keeps Reset and Delete behind one menu, out of the tab order (#238)', async () => {
     renderBanner()
 
