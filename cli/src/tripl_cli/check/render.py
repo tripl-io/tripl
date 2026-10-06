@@ -34,7 +34,7 @@ from tripl_cli.render import plural
 SARIF_VERSION = "2.1.0"
 SARIF_SCHEMA = "https://json.schemastore.org/sarif-2.1.0.json"
 SARIF_ROOT_BASE = "%SRCROOT%"
-INFORMATION_URI = "https://tripl-io.github.io/tripl/run/cli"
+INFORMATION_URI = "https://docs.tripl.io/run/cli"
 
 # What each finding code means, for SARIF's rule table and the human legend.
 # A code the validator returns that is not listed here still renders; it just

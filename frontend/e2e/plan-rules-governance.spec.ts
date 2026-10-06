@@ -30,7 +30,7 @@ test('Plan rules lists the project gates and the organization rules are an Enter
   await expect(page.getByText('Organization rules are part of Tripl Enterprise.', { exact: true })).toBeVisible()
   await expect(page.getByRole('link', { name: 'Compare editions', exact: true })).toHaveAttribute(
     'href',
-    'https://tripl-io.github.io/tripl/editions',
+    'https://docs.tripl.io/editions',
   )
   await expect(page.getByText('Not built yet', { exact: true })).toHaveCount(0)
   await expect(page.getByText('Coming later', { exact: true })).toHaveCount(0)

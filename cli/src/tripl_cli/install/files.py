@@ -72,8 +72,8 @@ ENV_NAME = ".env"
 MODE_PRIVATE = 0o600
 MODE_PUBLIC = 0o644
 
-CONFIG_DOCS_URL = "https://tripl-io.github.io/tripl/run/configuration"
-TELEMETRY_DOCS_URL = "https://tripl-io.github.io/tripl/run/telemetry"
+CONFIG_DOCS_URL = "https://docs.tripl.io/run/configuration"
+TELEMETRY_DOCS_URL = "https://docs.tripl.io/run/telemetry"
 
 
 def packaged(name: str) -> str:

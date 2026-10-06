@@ -43,7 +43,7 @@ describe('Project · Plan rules', () => {
     expect(screen.getByText('Organization rules are part of Tripl Enterprise.')).toBeInTheDocument()
     expect(screen.getByRole('link', { name: /Compare editions/ })).toHaveAttribute(
       'href',
-      'https://tripl-io.github.io/tripl/editions',
+      'https://docs.tripl.io/editions',
     )
   })
 

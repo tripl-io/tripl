@@ -2,14 +2,14 @@ import {themes as prismThemes} from 'prism-react-renderer';
 import type {Config} from '@docusaurus/types';
 import type * as Preset from '@docusaurus/preset-classic';
 
-// Project site published at https://tripl-io.github.io/tripl/
+// Project site published at https://docs.tripl.io/
 const config: Config = {
   title: 'tripl',
   tagline: 'Keep your product analytics honest.',
   favicon: 'img/logo.svg',
 
-  url: 'https://tripl-io.github.io',
-  baseUrl: '/tripl/',
+  url: 'https://docs.tripl.io',
+  baseUrl: '/',
 
   organizationName: 'tripl-io',
   projectName: 'tripl',

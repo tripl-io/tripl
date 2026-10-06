@@ -43,5 +43,5 @@ Out of scope:
 - missing hardening headers that have no demonstrated impact;
 - volumetric denial of service.
 
-[Security & secrets](https://tripl-io.github.io/tripl/run/security) describes
+[Security & secrets](https://docs.tripl.io/run/security) describes
 how a deployment is meant to be hardened.

@@ -1,7 +1,7 @@
 # tripl documentation site
 
 Built with [Docusaurus](https://docusaurus.io/). Published to GitHub Pages at
-https://tripl-io.github.io/tripl/ by `.github/workflows/docs.yml`.
+https://docs.tripl.io/ by `.github/workflows/docs.yml`.
 
 ## Local development
 
