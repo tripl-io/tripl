@@ -465,9 +465,7 @@ def project_member_clause(
     )
 
 
-def members_among_stmt(
-    project_id: uuid.UUID, user_ids: Collection[uuid.UUID]
-) -> Select[tuple[uuid.UUID]]:
+def members_among_stmt(project_id: uuid.UUID, user_ids: Collection[uuid.UUID]) -> Select[uuid.UUID]:
     """The ids among ``user_ids`` with a role in ``project_id`` (existing users only).
 
     Shared by :func:`members_among` and ``notification_service``'s sync twin so

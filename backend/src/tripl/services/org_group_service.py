@@ -121,7 +121,7 @@ async def _member_counts(
             .group_by(OrganizationGroupMember.group_id)
         )
     ).all()
-    return {cast(uuid.UUID, gid): int(count) for gid, count in rows}
+    return {gid: int(count) for gid, count in rows}
 
 
 def _response(group: OrganizationGroup, member_count: int) -> OrgGroupResponse:

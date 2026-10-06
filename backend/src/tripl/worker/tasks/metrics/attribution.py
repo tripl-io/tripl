@@ -40,7 +40,7 @@ from collections.abc import Sequence
 from datetime import UTC, datetime, timedelta
 from typing import Any
 
-from sqlalchemy import delete, select
+from sqlalchemy import Select, delete, select
 from sqlalchemy import func as sa_func
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.dialects.sqlite import insert as sqlite_insert
@@ -190,7 +190,10 @@ def _load_breakdown_slices(
     ]
     if owner is not None:
         group.append(owner)
-    query = select(*group, sa_func.sum(EventMetricBreakdown.count)).where(*base).group_by(*group)
+    # The owner column is optional, so the row arity varies: type it open-ended.
+    query: Select[*tuple[Any, ...]] = (
+        select(*group, sa_func.sum(EventMetricBreakdown.count)).where(*base).group_by(*group)
+    )
 
     result: dict[str, _BreakdownSlice] = {}
     for row in session.execute(query).all():
@@ -257,6 +260,10 @@ def _load_scope_totals(
     for owner_id, bucket, count in session.execute(
         select(owner, EventMetric.bucket, EventMetric.count).where(*base, *filters)
     ).all():
+        # ``owner.in_(...)`` never matches a NULL owner; skipping one here is
+        # what the ``ref_of`` miss below would do anyway.
+        if owner_id is None:
+            continue
         ref = ref_of.get(owner_id)
         if ref is None:
             continue

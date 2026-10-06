@@ -3,7 +3,8 @@ import { MemoryRouter } from 'react-router-dom'
 import { describe, expect, it } from 'vitest'
 import { TooltipProvider } from '@/components/ui/tooltip'
 import { termAnchor } from '@/lib/glossary'
-import { TERM_HINTS, TermHint } from './term-hint'
+import { TermHint } from './term-hint'
+import { TERM_HINTS } from '@/lib/termHints'
 
 describe('TermHint', () => {
   it('links the term to its row in the Concepts glossary', () => {

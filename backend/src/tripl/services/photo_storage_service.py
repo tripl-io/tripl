@@ -192,7 +192,7 @@ def forget_cached_versions() -> None:
     _VERSIONS.clear()
 
 
-def _version_query(config: StorageConfig) -> Select[tuple[uuid.UUID]]:
+def _version_query(config: StorageConfig) -> Select[uuid.UUID]:
     return select(PhotoStorageConfig.id).where(
         PhotoStorageConfig.organization_id == config.owner_org_id,
         PhotoStorageConfig.config_hash == config.fingerprint(),

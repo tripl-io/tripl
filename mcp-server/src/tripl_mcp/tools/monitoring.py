@@ -14,7 +14,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from mcp.server.fastmcp import Context, FastMCP
+from mcp.server.mcpserver import Context, MCPServer
 from tripl_cli.api import monitoring, send
 
 from tripl_mcp.runtime import client_for
@@ -23,7 +23,7 @@ from tripl_mcp.tools._common import READ_ONLY, summarize_collection
 
 async def monitors_summary(
     slug: str,
-    ctx: Context,  # type: ignore[type-arg]
+    ctx: Context,
 ) -> dict[str, Any]:
     client = client_for(ctx)
     summary = await send(client, monitoring.get_monitors_summary(slug))
@@ -36,7 +36,7 @@ async def monitors_summary(
 
 async def reconciliation_status(
     slug: str,
-    ctx: Context,  # type: ignore[type-arg]
+    ctx: Context,
 ) -> dict[str, Any]:
     client = client_for(ctx)
     coverage = await send(client, monitoring.get_coverage(slug))
@@ -49,7 +49,7 @@ async def reconciliation_status(
     }
 
 
-def register(mcp: FastMCP) -> None:
+def register(mcp: MCPServer) -> None:
     mcp.tool(
         name="monitors_summary",
         annotations=READ_ONLY,

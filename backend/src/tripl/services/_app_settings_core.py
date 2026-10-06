@@ -140,7 +140,7 @@ def build_service_values(overrides: dict[str, Any]) -> dict[str, Any]:
     return values
 
 
-def _operator_setting(key: str) -> Select[tuple[AppSetting]]:
+def _operator_setting(key: str) -> Select[AppSetting]:
     """The OPERATOR-scope row for ``key`` — the only scope anything reads today.
 
     ``app_settings`` is unique per scope, not per key (F20): an organization may
@@ -197,7 +197,7 @@ def settings_scope_for(org_id: uuid.UUID | None) -> uuid.UUID | None:
     return org_id
 
 
-def _org_setting(key: str, org_id: uuid.UUID) -> Select[tuple[AppSetting]]:
+def _org_setting(key: str, org_id: uuid.UUID) -> Select[AppSetting]:
     return select(AppSetting).where(AppSetting.key == key, AppSetting.organization_id == org_id)
 
 

@@ -85,6 +85,8 @@ async def list_property_events(
         )
         .group_by(VariableValue.event_id)
     ):
+        # MAX over rows filtered to a non-NULL ``presence_rate`` is never NULL.
+        assert rate is not None
         presence[event_id] = rate
     global_values = list(variable.allowed_values or [])
     return [
@@ -259,7 +261,7 @@ async def bulk_delete_property_events(
 
 def property_event_ids(
     project_id: uuid.UUID, branch_id: uuid.UUID | None, ref: str
-) -> Select[tuple[uuid.UUID]]:
+) -> Select[uuid.UUID]:
     """Ids of the events whose property list carries the property ``ref`` names.
 
     ``ref`` is the variable's id or its name; both are read on the branch, since

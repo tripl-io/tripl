@@ -134,7 +134,7 @@ def _target_of(scope: OwnedScope) -> _Target:
     return _Target(event_type_id, None if event_type_id is not None else event_id, None)
 
 
-_Resolution = Generator[Select[Any], list[Any], list[list[OwnerContact]]]
+_Resolution = Generator[Select[*tuple[Any, ...]], list[Any], list[list[OwnerContact]]]
 
 
 def _resolution(project_id: uuid.UUID, scopes: Sequence[OwnedScope]) -> _Resolution:

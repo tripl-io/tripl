@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from mcp.server.fastmcp import Context, FastMCP
+from mcp.server.mcpserver import Context, MCPServer
 from tripl_cli.api import scans, send
 
 from tripl_mcp.runtime import client_for
@@ -13,7 +13,7 @@ from tripl_mcp.tools._common import READ_ONLY, WRITE, summarize_collection
 
 async def list_scans(
     slug: str,
-    ctx: Context,  # type: ignore[type-arg]
+    ctx: Context,
 ) -> Any:
     client = client_for(ctx)
     data = await send(client, scans.list_configs(slug))
@@ -25,7 +25,7 @@ async def list_scans(
 async def get_scan(
     slug: str,
     scan_id: str,
-    ctx: Context,  # type: ignore[type-arg]
+    ctx: Context,
 ) -> Any:
     client = client_for(ctx)
     return await send(client, scans.get_config(slug, scan_id))
@@ -34,7 +34,7 @@ async def get_scan(
 async def trigger_scan(
     slug: str,
     scan_id: str,
-    ctx: Context,  # type: ignore[type-arg]
+    ctx: Context,
 ) -> Any:
     client = client_for(ctx)
     return await send(client, scans.run(slug, scan_id))
@@ -43,7 +43,7 @@ async def trigger_scan(
 async def get_scan_status(
     slug: str,
     scan_id: str,
-    ctx: Context,  # type: ignore[type-arg]
+    ctx: Context,
     job_id: str | None = None,
 ) -> Any:
     client = client_for(ctx)
@@ -56,7 +56,7 @@ async def get_scan_status(
     return summarize_collection(jobs)
 
 
-def register(mcp: FastMCP) -> None:
+def register(mcp: MCPServer) -> None:
     mcp.tool(
         name="list_scans",
         annotations=READ_ONLY,

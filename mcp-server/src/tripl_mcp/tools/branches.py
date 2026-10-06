@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from mcp.server.fastmcp import Context, FastMCP
+from mcp.server.mcpserver import Context, MCPServer
 from tripl_cli.api import branches, send
 
 from tripl_mcp.runtime import client_for
@@ -13,7 +13,7 @@ from tripl_mcp.tools._common import READ_ONLY
 
 async def list_branches(
     slug: str,
-    ctx: Context,  # type: ignore[type-arg]
+    ctx: Context,
 ) -> Any:
     client = client_for(ctx)
     return await send(client, branches.list_branches(slug))
@@ -22,13 +22,13 @@ async def list_branches(
 async def get_branch_diff(
     slug: str,
     branch_id: str,
-    ctx: Context,  # type: ignore[type-arg]
+    ctx: Context,
 ) -> Any:
     client = client_for(ctx)
     return await send(client, branches.get_diff(slug, branch_id))
 
 
-def register(mcp: FastMCP) -> None:
+def register(mcp: MCPServer) -> None:
     mcp.tool(
         name="list_branches",
         annotations=READ_ONLY,

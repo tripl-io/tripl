@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from mcp.server.fastmcp import Context, FastMCP
+from mcp.server.mcpserver import Context, MCPServer
 from tripl_cli.api import event_types, projects, send, variables
 
 from tripl_mcp.runtime import client_for
@@ -18,7 +18,7 @@ from tripl_mcp.tools._common import (
 
 async def list_event_types(
     slug: str,
-    ctx: Context,  # type: ignore[type-arg]
+    ctx: Context,
     branch_id: str | None = None,
 ) -> Any:
     """List a project's event types on ``branch_id`` (default: main).
@@ -56,7 +56,7 @@ def _event_type_summary(item: Any) -> Any:
 async def get_event_type_fields(
     slug: str,
     event_type_id: str,
-    ctx: Context,  # type: ignore[type-arg]
+    ctx: Context,
     branch_id: str | None = None,
 ) -> dict[str, Any]:
     """DETAIL + FIELDS, merged into one object with the fields under ``fields``.
@@ -89,7 +89,7 @@ async def get_event_type_fields(
 
 async def list_variables(
     slug: str,
-    ctx: Context,  # type: ignore[type-arg]
+    ctx: Context,
     branch_id: str | None = None,
     offset: int = 0,
     limit: int = 200,
@@ -109,7 +109,7 @@ async def list_variables(
 async def get_variable_values(
     slug: str,
     variable_id: str,
-    ctx: Context,  # type: ignore[type-arg]
+    ctx: Context,
     branch_id: str | None = None,
 ) -> dict[str, Any]:
     """VALUES + EVENT_OVERRIDES, because an override REPLACES the global list.
@@ -128,13 +128,13 @@ async def get_variable_values(
 
 
 async def list_projects(
-    ctx: Context,  # type: ignore[type-arg]
+    ctx: Context,
 ) -> Any:
     client = client_for(ctx)
     return await send(client, projects.list_projects())
 
 
-def register(mcp: FastMCP) -> None:
+def register(mcp: MCPServer) -> None:
     mcp.tool(
         name="list_event_types",
         annotations=READ_ONLY,

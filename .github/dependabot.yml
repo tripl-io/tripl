@@ -24,7 +24,10 @@ updates:
     ignore:
       # jsdom 30.1 breaks reopening a Radix menu by keyboard in a later test of
       # the same file (the trigger ignores Enter), so frontend/package.json pins
-      # 30.0.1. Drop this once a newer jsdom passes the menu tests.
+      # 30.0.1. 30.1.2 is worse: under vitest 5 no jsdom worker starts at all
+      # ("'addEventListener' called on an object that is not a valid instance
+      # of EventTarget"), and the run still reports green on the node-only
+      # files. Drop this once a newer jsdom passes the menu tests.
       - dependency-name: jsdom
         versions: ["30.1.x"]
 

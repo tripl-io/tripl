@@ -44,7 +44,7 @@ class AdminChange:
     changed: bool
 
 
-def admin_ids_for_update() -> Select[tuple[uuid.UUID]]:
+def admin_ids_for_update() -> Select[uuid.UUID]:
     # FOR UPDATE on every admin row serializes concurrent revokes: the second
     # waits, then re-reads the set without the admin the first one revoked, so
     # two admins revoking each other cannot leave the instance without one.

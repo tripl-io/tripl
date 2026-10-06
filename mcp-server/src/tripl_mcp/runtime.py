@@ -17,7 +17,7 @@ from dataclasses import dataclass
 from typing import Any
 
 import httpx
-from mcp.server.fastmcp.exceptions import ToolError
+from mcp.server.mcpserver.exceptions import ToolError
 from tripl_cli.api import branches, send
 from tripl_cli.client import TriplClient
 from tripl_cli.errors import TriplError
@@ -42,7 +42,7 @@ class Runtime:
 
 @dataclass(frozen=True)
 class RuntimeLifespan:
-    """Resources owned by one FastMCP server lifespan."""
+    """Resources owned by one MCPServer server lifespan."""
 
     stdio_http_client: httpx.AsyncClient | None = None
 
@@ -134,7 +134,7 @@ def client_for(ctx: Any) -> TriplClient:
             lifespan = ctx.request_context.lifespan_context
         except (AttributeError, ValueError) as exc:
             raise ToolError(
-                "The stdio HTTP client is unavailable outside the FastMCP server lifespan."
+                "The stdio HTTP client is unavailable outside the MCPServer server lifespan."
             ) from exc
         http_client = getattr(lifespan, "stdio_http_client", None)
         if not isinstance(http_client, httpx.AsyncClient):

@@ -30,6 +30,7 @@ import { chartAnnotationsKey } from '@/lib/queryKeys'
 import { getErrorMessage } from '@/lib/utils'
 import type { ChartAnnotation } from '@/types'
 import type { useChartAnnotations } from './useChartAnnotations'
+import { useNow } from '@/hooks/useNow'
 
 export function AnnotationsCard({
   slug,
@@ -124,7 +125,9 @@ export function AnnotationsCard({
     })
     if (ok) deleteMut.mutate(annotation.id)
   }
-  const offset = formatUtcOffset(new Date())
+  // Re-read each minute, so a page left open across a DST change says so.
+  const now = useNow(60_000)
+  const offset = formatUtcOffset(new Date(now))
   // A viewer with nothing annotated has no body to show: the header says it
   // all, and an empty padded body would read as a missing list.
   const hasBody = canWrite || createMut.isError || query.isError || annotations.length > 0

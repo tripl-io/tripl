@@ -777,7 +777,9 @@ def _scope_max_counts(
         .where(*filters)
         .group_by(metric_column)
     ).all()
-    return {scope_id: float(max_count) for scope_id, max_count in rows}
+    # ``metric_column.is_not(None)`` above already drops NULL scope ids; the
+    # guard only tells the type checker so.
+    return {scope_id: float(max_count) for scope_id, max_count in rows if scope_id is not None}
 
 
 def _breakdown_scope_max_counts(
@@ -830,9 +832,12 @@ def _breakdown_scope_max_counts(
             EventMetricBreakdown.is_other,
         )
     ).all()
+    # ``id_column.is_not(None)`` above already drops NULL scope ids; the guard
+    # only tells the type checker so.
     return {
         (scope_id, column, value, bool(is_other)): float(max_count)
         for scope_id, column, value, is_other, max_count in rows
+        if scope_id is not None
     }
 
 

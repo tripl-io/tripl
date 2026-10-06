@@ -25,12 +25,12 @@ from tripl.models.organization import Organization
 from tripl.models.project import Project
 
 
-def active_org_ids() -> Select[tuple[uuid.UUID]]:
+def active_org_ids() -> Select[uuid.UUID]:
     """``SELECT id FROM organizations WHERE status = 'active'``, for ``IN``."""
     return select(Organization.id).where(Organization.status == OrganizationStatus.active.value)
 
 
-def active_org_project_ids() -> Select[tuple[uuid.UUID]]:
+def active_org_project_ids() -> Select[uuid.UUID]:
     """The ids of every project of an ``active`` organization, for ``IN``."""
     return select(Project.id).where(Project.organization_id.in_(active_org_ids()))
 

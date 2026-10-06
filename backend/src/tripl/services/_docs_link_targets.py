@@ -76,18 +76,18 @@ class _NameKind:
     """How one name-stored kind is looked up: its rows, and where each one opens."""
 
     #: ``select(id, name, label, detail)`` over the rows the project may link to.
-    rows: Callable[[Project, uuid.UUID], Select[Any]]
+    rows: Callable[[Project, uuid.UUID], Select[*tuple[Any, ...]]]
     #: The page of one row, from its id (org-qualified project path or app path).
     route: Callable[[str, str, uuid.UUID], str]
 
 
-def _variable_rows(project: Project, branch_id: uuid.UUID) -> Select[Any]:
+def _variable_rows(project: Project, branch_id: uuid.UUID) -> Select[*tuple[Any, ...]]:
     return select(Variable.id, Variable.name, Variable.name, Variable.variable_type).where(
         Variable.project_id == project.id, Variable.branch_id == branch_id
     )
 
 
-def _metric_rows(project: Project, _branch_id: uuid.UUID) -> Select[Any]:
+def _metric_rows(project: Project, _branch_id: uuid.UUID) -> Select[*tuple[Any, ...]]:
     return select(
         MetricDefinition.id,
         MetricDefinition.name,
@@ -96,13 +96,13 @@ def _metric_rows(project: Project, _branch_id: uuid.UUID) -> Select[Any]:
     ).where(MetricDefinition.project_id == project.id)
 
 
-def _branch_rows(project: Project, _branch_id: uuid.UUID) -> Select[Any]:
+def _branch_rows(project: Project, _branch_id: uuid.UUID) -> Select[*tuple[Any, ...]]:
     return select(PlanBranch.id, PlanBranch.name, PlanBranch.name, PlanBranch.kind).where(
         PlanBranch.project_id == project.id
     )
 
 
-def _scan_rows(project: Project, _branch_id: uuid.UUID) -> Select[Any]:
+def _scan_rows(project: Project, _branch_id: uuid.UUID) -> Select[*tuple[Any, ...]]:
     return (
         select(ScanConfig.id, ScanConfig.name, ScanConfig.name, DataSource.name)
         .join(DataSource, DataSource.id == ScanConfig.data_source_id)
@@ -110,7 +110,7 @@ def _scan_rows(project: Project, _branch_id: uuid.UUID) -> Select[Any]:
     )
 
 
-def _data_source_rows(project: Project, _branch_id: uuid.UUID) -> Select[Any]:
+def _data_source_rows(project: Project, _branch_id: uuid.UUID) -> Select[*tuple[Any, ...]]:
     return select(DataSource.id, DataSource.name, DataSource.name, DataSource.db_type).where(
         usable_by_project_clause(project.id, project.organization_id)
     )

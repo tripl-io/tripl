@@ -93,7 +93,7 @@ async def load_from_database() -> dict[uuid.UUID, str]:
         return found
 
 
-def _orgs_with_gcs_photos() -> Select[tuple[uuid.UUID]]:
+def _orgs_with_gcs_photos() -> Select[uuid.UUID]:
     """Organizations with a GCS storage version that a photo row still references."""
     return (
         select(PhotoStorageConfig.organization_id)

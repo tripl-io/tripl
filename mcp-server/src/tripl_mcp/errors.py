@@ -13,14 +13,14 @@ six tools/ modules.
 
 from __future__ import annotations
 
-from mcp.server.fastmcp.exceptions import ToolError
+from mcp.server.mcpserver.exceptions import ToolError
 from tripl_cli.errors import TriplAPIError, TriplConnectionError, TriplError
 
 
 def to_tool_error(exc: TriplError) -> ToolError:
     """Wrap a shared-client failure as a ToolError with tripl-mcp's guidance.
 
-    FastMCP re-wraps whatever a tool raises into an ``isError`` result carrying
+    MCPServer re-wraps whatever a tool raises into an ``isError`` result carrying
     ``str(exc)``, so the exception CLASS never reaches the agent — only this
     text does. That is what makes converting the type here cheap and adding the
     hint here worthwhile.

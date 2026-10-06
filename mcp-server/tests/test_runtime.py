@@ -9,9 +9,9 @@ from typing import Any, cast
 import httpx
 import pytest
 import respx
-from mcp.server.fastmcp import Context
-from mcp.server.fastmcp.exceptions import ToolError
-from mcp.shared.context import RequestContext
+from mcp.server.context import ServerRequestContext
+from mcp.server.mcpserver import Context
+from mcp.server.mcpserver.exceptions import ToolError
 from starlette.requests import Request
 from tripl_cli.client import TriplClient
 
@@ -100,11 +100,11 @@ class TestResolveApiKey:
 
     def test_http_forwards_bearer_from_real_fastmcp_context(self, http_runtime: Runtime) -> None:
         """Drift guard: exercise the ctx.request_context.request.headers path
-        against the REAL FastMCP/mcp/starlette classes instead of stubs, so an
+        against the REAL MCPServer/mcp/starlette classes instead of stubs, so an
         mcp dependency bump that moves the request attribute fails this test
         instead of silently breaking http-mode credential forwarding."""
         # Arrange: the exact object shape the streamable-http transport builds —
-        # a starlette Request placed at RequestContext.request.
+        # a starlette Request placed at ServerRequestContext.request.
         request = Request(
             {
                 "type": "http",
@@ -114,14 +114,15 @@ class TestResolveApiKey:
                 "headers": [(b"authorization", b"Bearer tk_r_real")],
             }
         )
-        request_context: RequestContext[Any, None, Request] = RequestContext(
-            request_id=1,
-            meta=None,
+        request_context: ServerRequestContext[None, Request] = ServerRequestContext(
             session=cast(Any, None),
             lifespan_context=None,
+            protocol_version="2025-06-18",
+            method="tools/call",
+            request_id=1,
             request=request,
         )
-        ctx: Context[Any, None, Request] = Context(request_context=request_context)
+        ctx: Context[None] = Context(request_context=request_context)
 
         # Act / Assert
         assert resolve_api_key(ctx) == "tk_r_real"

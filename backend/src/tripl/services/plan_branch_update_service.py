@@ -93,6 +93,8 @@ _INCOMPLETE_BASE_MESSAGE = (
 
 def _worker_reindexes(session: AsyncSession) -> bool:
     """A worker serves this database: PostgreSQL, never the SQLite of the tests."""
+    # Every session comes from a sessionmaker bound to an engine.
+    assert session.bind is not None
     return session.bind.dialect.name == "postgresql"
 
 

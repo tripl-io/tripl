@@ -33,6 +33,7 @@ import {
 import { getErrorMessage } from '@/lib/utils'
 import type { PlannedEvent } from '@/types'
 import type { usePlannedEvents } from './usePlannedEvents'
+import { useNow } from '@/hooks/useNow'
 
 type DirectionChoice = 'either' | 'spike' | 'drop'
 
@@ -123,7 +124,9 @@ export function PlannedEventsCard({
     if (ok) deleteMut.mutate(event.id)
   }
 
-  const offset = formatUtcOffset(new Date())
+  // Re-read each minute, so a page left open across a DST change says so.
+  const now = useNow(60_000)
+  const offset = formatUtcOffset(new Date(now))
   const hasBody = canWrite || createMut.isError || query.isError || events.length > 0
   const canSubmit = windowValid && label.trim().length > 0 && !createMut.isPending
 

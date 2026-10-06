@@ -9,7 +9,6 @@ at least one of its owners. Owners are never deep-copied onto working branches
 from __future__ import annotations
 
 import uuid
-from typing import cast
 
 from fastapi import HTTPException
 from sqlalchemy import select
@@ -51,7 +50,7 @@ async def _resolve_main_event_type(
             status_code=400,
             detail="Owners can be managed only on the live (main) event type",
         )
-    return cast(EventType, et)
+    return et
 
 
 async def _serialize(owner: EventTypeOwner, user: User) -> EventTypeOwnerResponse:

@@ -19,7 +19,8 @@ import { FirstScanEmptyState } from "./scans/FirstScanEmptyState"
 import { runPillStatus } from "./scans/scanRunStatus"
 import { scanModeOf } from "./scans/scanMode"
 import { PageHeader } from '@/components/primitives/page-header'
-import { TermHint, TERM_HINTS } from '@/components/term-hint'
+import { TermHint } from '@/components/term-hint'
+import { TERM_HINTS } from '@/lib/termHints'
 import { PageContainer } from '@/components/primitives/page-container'
 import { MiniStat, MiniStatStrip } from '@/components/primitives/mini-stat'
 import { INTERVAL_LABEL, formatCount } from "./scans/scanLayoutConstants"
