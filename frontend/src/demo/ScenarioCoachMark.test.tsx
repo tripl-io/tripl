@@ -495,6 +495,7 @@ describe('ScenarioCoachMark — a row control has no free side', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'Collapse demo hint' }))
     fireEvent.click(screen.getByRole('button', { name: 'Expand demo hint' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Hide hints' }))
     expect(onRow).not.toHaveBeenCalled()
   })
 
