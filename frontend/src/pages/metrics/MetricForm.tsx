@@ -427,7 +427,8 @@ export function MetricForm({
    * Selecting a warehouse re-renders starter SQL for it.
    *
    * The starter query is dialect-specific — `toStartOfInterval` on ClickHouse,
-   * `date_bin` on PostgreSQL, `TIMESTAMP_TRUNC` on BigQuery — so SQL seeded before a
+   * `date_bin` on PostgreSQL, `TIMESTAMP_TRUNC` on BigQuery, `date_trunc` on
+   * Databricks — so SQL seeded before a
    * source was picked (or picked for a *different* source) simply cannot run on this
    * one. It regenerates ONLY while the SQL is still pristine template output, so a
    * hand-written query is NEVER silently clobbered.

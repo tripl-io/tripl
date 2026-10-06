@@ -31,8 +31,8 @@ That comparison is the whole job tripl does.
 **A written-down tracking plan, checked continuously against the events really
 landing in your warehouse, with a message when the two stop agreeing.**
 
-It reads the analytics data you already have — ClickHouse, BigQuery or
-PostgreSQL. There's no SDK to ship, no re-instrumentation, and nothing your app
+It reads the analytics data you already have — ClickHouse, BigQuery,
+Databricks or PostgreSQL. There's no SDK to ship, no re-instrumentation, and nothing your app
 has to send anywhere new. If your events already land in a warehouse, tripl can
 start telling you the truth about them this week.
 

@@ -16,6 +16,9 @@ The suites in this package close that hole by making CI actually run the SQL:
   asserts exact computed values from a typed, table-less fixture.
 * ``test_bigquery_pipeline_value_conformance`` — the production scan, replay,
   catalog-metric and anomaly worker paths against real BigQuery plus PostgreSQL.
+* ``test_databricks_value_conformance`` — a real Databricks SQL warehouse, run
+  by hand with credentials (no CI job has one); asserts exact computed values
+  from a typed, table-less fixture.
 
 The contract they all measure against is :mod:`tripl.core.bucketing`.
 """

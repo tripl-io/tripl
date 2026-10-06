@@ -25,6 +25,10 @@ describe('starterSql', () => {
     expect(starterSql('daily-active-users', 'bigquery')).toContain(
       "TIMESTAMP_TRUNC(created_at, DAY, 'UTC')",
     )
+    // Spark's string-first form; the connection pins the session zone to UTC.
+    expect(starterSql('daily-active-users', 'databricks')).toContain(
+      "date_trunc('DAY', created_at)",
+    )
   })
 
   it('buckets the event-volume template hourly, per dialect', () => {
@@ -33,6 +37,7 @@ describe('starterSql', () => {
     expect(starterSql('event-volume', 'bigquery')).toContain(
       "TIMESTAMP_TRUNC(created_at, HOUR, 'UTC')",
     )
+    expect(starterSql('event-volume', 'databricks')).toContain("date_trunc('HOUR', created_at)")
   })
 
   it('never emits date_trunc() for BigQuery', () => {
@@ -77,11 +82,11 @@ describe('starterSql', () => {
 
   it('renders a genuinely different query per engine family', () => {
     const rendered = new Set(
-      (['clickhouse', 'postgres', 'bigquery'] as DbType[]).map(db =>
+      (['clickhouse', 'postgres', 'bigquery', 'databricks'] as DbType[]).map(db =>
         starterSql('daily-active-users', db),
       ),
     )
-    expect(rendered.size).toBe(3)
+    expect(rendered.size).toBe(4)
   })
 })
 

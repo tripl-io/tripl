@@ -4,7 +4,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Chip } from '@/components/primitives/chip'
-import { useId, useRef, useState, type ChangeEvent } from 'react'
+import { useId, useRef, useState, type ChangeEvent, type ReactNode } from 'react'
 import { FieldError } from '@/components/forms/FieldError'
 import { examplePlaceholder } from '@/components/forms/placeholders'
 import { invalidAria } from '@/components/forms/validation'
@@ -82,7 +82,12 @@ export function ConnectionCoreFields({
 }: ConnectionCoreFieldsProps) {
   const isEdit = mode === 'edit'
   const secretErrorId = useId()
-  const secretName = dbType === 'bigquery' ? 'Service account key' : 'Password'
+  const secretName =
+    dbType === 'bigquery'
+      ? 'Service account key'
+      : dbType === 'databricks'
+        ? 'Access token or OAuth secret'
+        : 'Password'
   const keyError = missing.secret ?? secretError
 
   // Three states, three different sentences.
@@ -184,6 +189,16 @@ export function ConnectionCoreFields({
             )}
           </div>
         </>
+      ) : dbType === 'databricks' ? (
+        <DatabricksCoreFields
+          idPrefix={idPrefix}
+          value={value}
+          onChange={onChange}
+          isEdit={isEdit}
+          secretSet={secretSet}
+          secretStatus={secretStatus}
+          missing={missing}
+        />
       ) : (
         <>
           {/* One column on phones: in a 375px dialog five columns left Port
@@ -291,6 +306,101 @@ export function ConnectionCoreFields({
           <p className={HELP_CLASS}>{JSON_PATH_DISCOVERY_HELP}</p>
         </div>
       )}
+    </>
+  )
+}
+
+interface DatabricksCoreFieldsProps {
+  idPrefix: string
+  value: ConnectionCoreForm
+  onChange: (patch: Partial<ConnectionCoreForm>) => void
+  isEdit: boolean
+  secretSet: boolean
+  secretStatus: ReactNode
+  missing: CoreMissing
+}
+
+/**
+ * Databricks: a workspace hostname, a catalog, and a token. The port is always
+ * 443 (HTTPS) and is not shown. The username box carries a service principal's
+ * OAuth client ID and is only read when Authentication below is OAuth M2M; with a
+ * personal access token it stays empty.
+ */
+function DatabricksCoreFields({
+  idPrefix,
+  value,
+  onChange,
+  isEdit,
+  secretSet,
+  secretStatus,
+  missing,
+}: DatabricksCoreFieldsProps) {
+  return (
+    <>
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+        <div className={FIELD_COL_CLASS}>
+          <Label htmlFor={`${idPrefix}-server-hostname`}>Server hostname</Label>
+          <Input
+            id={`${idPrefix}-server-hostname`}
+            value={value.host}
+            onChange={(e) => onChange({ host: e.target.value })}
+            aria-required
+            placeholder={examplePlaceholder('dbc-a1b2c3d4-e5f6.cloud.databricks.com')}
+            {...invalidAria(`${idPrefix}-server-hostname`, missing.host)}
+          />
+          <FieldError inputId={`${idPrefix}-server-hostname`} message={missing.host} />
+          <p className={HELP_CLASS}>
+            From the SQL warehouse’s Connection details tab, without https://.
+          </p>
+        </div>
+        <div className={FIELD_COL_CLASS}>
+          <Label htmlFor={`${idPrefix}-catalog`}>Catalog</Label>
+          <Input
+            id={`${idPrefix}-catalog`}
+            value={value.databaseName}
+            onChange={(e) => onChange({ databaseName: e.target.value })}
+            aria-required
+            placeholder={examplePlaceholder('main')}
+            {...invalidAria(`${idPrefix}-catalog`, missing.databaseName)}
+          />
+          <FieldError inputId={`${idPrefix}-catalog`} message={missing.databaseName} />
+          <p className={HELP_CLASS}>The Unity Catalog catalog that queries and browsing use.</p>
+        </div>
+      </div>
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+        <div className={FIELD_COL_CLASS}>
+          <Label htmlFor={`${idPrefix}-client-id`}>OAuth client ID</Label>
+          <Input
+            id={`${idPrefix}-client-id`}
+            value={value.username}
+            onChange={(e) => onChange({ username: e.target.value })}
+            placeholder="Service principal only"
+            {...SECRET_INPUT_PROPS}
+          />
+          <p className={HELP_CLASS}>
+            Only for OAuth machine-to-machine. Leave empty with an access token.
+          </p>
+        </div>
+        <div className={FIELD_COL_CLASS}>
+          <Label htmlFor={`${idPrefix}-token`}>Access token or OAuth secret</Label>
+          <Input
+            id={`${idPrefix}-token`}
+            type="password"
+            value={value.secret}
+            onChange={(e) => onChange({ secret: e.target.value })}
+            aria-required={!isEdit || undefined}
+            placeholder={
+              !isEdit ? 'dapi…' : secretSet ? 'Leave empty to keep' : 'No token stored'
+            }
+            {...invalidAria(`${idPrefix}-token`, missing.secret)}
+            {...PASSWORD_INPUT_PROPS}
+          />
+          <FieldError inputId={`${idPrefix}-token`} message={missing.secret} />
+          {secretStatus ?? (
+            <p className={HELP_CLASS}>Stored encrypted and never shown again.</p>
+          )}
+        </div>
+      </div>
     </>
   )
 }

@@ -49,6 +49,7 @@ dependencies = [
     # through email-validator; declared because tripl imports it directly.
     "dnspython>=2.8.0",
     "holidays>=0.105",
+    "databricks-sql-connector>=4.6.0",
 ]
 
 [project.scripts]
@@ -106,6 +107,9 @@ markers = [
     # conformance job excludes this marker and keeps using the emulator analyzer.
     "bigquery_value: executes value assertions against real BigQuery",
     "bigquery_pipeline: executes the full worker pipeline against real BigQuery",
+    # Real Databricks values need a credentialed run against a SQL warehouse; no CI
+    # job has one, so the conformance job excludes this marker too.
+    "databricks_value: executes value assertions against a real Databricks SQL warehouse",
     # The search relevance harness (src/tripl/tests/relevance/). The suite runs on
     # SQLite, so the PRODUCTION ranking SQL — ts_rank_cd, the trigram/boost tiers,
     # merge_results, and the tripl_search text-search configuration — is executed

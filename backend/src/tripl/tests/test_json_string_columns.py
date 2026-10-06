@@ -240,7 +240,7 @@ class TestApi:
         ds = await _data_source(client, "postgres")
         resp = await client.post(f"/api/v1/projects/{project['slug']}/scans", json=_body(ds))
         assert resp.status_code == 422
-        assert "ClickHouse and BigQuery data sources only" in resp.text
+        assert "ClickHouse, BigQuery and Databricks data sources only" in resp.text
 
         plain = await client.post(
             f"/api/v1/projects/{project['slug']}/scans",
@@ -496,7 +496,7 @@ def test_bigquery_breakdown_and_property_extraction_read_the_parsed_column() -> 
 
 def test_engines_without_the_parse_refuse_it() -> None:
     postgres = object.__new__(PostgresAdapter)
-    with pytest.raises(WarehouseCapabilityError, match="only ClickHouse and BigQuery"):
+    with pytest.raises(WarehouseCapabilityError, match="only ClickHouse, BigQuery and Databricks"):
         postgres.json_string_source("SELECT 1", ["props"])
     with pytest.raises(WarehouseCapabilityError, match="Parse as JSON"):
         resolve_json_string_source(SyntheticAdapter(), "SELECT * FROM events", ["props"])

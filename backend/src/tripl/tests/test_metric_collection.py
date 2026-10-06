@@ -1670,6 +1670,7 @@ def test_invalid_numeric_literal_is_rejected_for_number_column() -> None:
         (SqlDialect.clickhouse, "(`order` = 'o1')"),
         (SqlDialect.postgres, "(\"order\" = 'o1')"),
         (SqlDialect.bigquery, "(`order` = 'o1')"),
+        (SqlDialect.databricks, "(`order` = 'o1')"),
     ],
 )
 def test_condition_quotes_reserved_identifier_per_dialect(
@@ -1696,6 +1697,7 @@ def test_condition_quotes_reserved_identifier_per_dialect(
         (SqlDialect.clickhouse, "(`user_id` = 'u\\' OR 1=1 --')"),
         (SqlDialect.postgres, "(\"user_id\" = 'u'' OR 1=1 --')"),
         (SqlDialect.bigquery, "(`user_id` = 'u\\' OR 1=1 --')"),
+        (SqlDialect.databricks, "(`user_id` = 'u\\' OR 1=1 --')"),
     ],
 )
 def test_condition_escapes_string_values_per_dialect(dialect: SqlDialect, expected: str) -> None:
@@ -1741,6 +1743,7 @@ def test_condition_value_cannot_break_out_of_its_string(dialect: SqlDialect) -> 
         ),
         (SqlDialect.postgres, "(\"ts\" > TIMESTAMPTZ '2026-01-01 00:00:00.000000+00:00')"),
         (SqlDialect.bigquery, "(`ts` > TIMESTAMP '2026-01-01 00:00:00.000000+00:00')"),
+        (SqlDialect.databricks, "(`ts` > TIMESTAMP '2026-01-01 00:00:00.000000+00:00')"),
     ],
 )
 def test_condition_on_time_column_emits_typed_utc_literal(

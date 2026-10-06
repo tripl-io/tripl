@@ -30262,6 +30262,57 @@
             ],
             "title": "Search Path"
           },
+          "http_path": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Http Path"
+          },
+          "auth_type": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "pat",
+                  "oauth_m2m"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Auth Type"
+          },
+          "schema_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Schema Name"
+          },
+          "schema_allowlist": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Schema Allowlist"
+          },
           "sslkey_set": {
             "type": "boolean",
             "title": "Sslkey Set",
@@ -30350,6 +30401,7 @@
           "clickhouse",
           "postgres",
           "bigquery",
+          "databricks",
           "synthetic"
         ],
         "title": "DBType"
@@ -30432,6 +30484,9 @@
               },
               {
                 "$ref": "#/components/schemas/BigQuerySettings"
+              },
+              {
+                "$ref": "#/components/schemas/DatabricksSettings"
               },
               {
                 "$ref": "#/components/schemas/SyntheticSettings"
@@ -30554,6 +30609,9 @@
               },
               {
                 "$ref": "#/components/schemas/BigQuerySettings"
+              },
+              {
+                "$ref": "#/components/schemas/DatabricksSettings"
               },
               {
                 "$ref": "#/components/schemas/SyntheticSettings"
@@ -30985,6 +31043,9 @@
                 "$ref": "#/components/schemas/BigQuerySettings"
               },
               {
+                "$ref": "#/components/schemas/DatabricksSettings"
+              },
+              {
                 "$ref": "#/components/schemas/SyntheticSettings"
               },
               {
@@ -30996,6 +31057,64 @@
         },
         "type": "object",
         "title": "DataSourceUpdate"
+      },
+      "DatabricksSettings": {
+        "properties": {
+          "http_path": {
+            "type": "string",
+            "maxLength": 500,
+            "minLength": 1,
+            "title": "Http Path"
+          },
+          "auth_type": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "pat",
+                  "oauth_m2m"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Auth Type"
+          },
+          "schema_name": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 255
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Schema Name"
+          },
+          "schema_allowlist": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Schema Allowlist"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "http_path"
+        ],
+        "title": "DatabricksSettings",
+        "description": "Databricks SQL warehouse connection: where the warehouse is, and what to browse.\n\n``host`` is the workspace hostname and ``database_name`` the default catalog;\nthese are the settings that have no column of their own."
       },
       "DeadEventArchiveRequest": {
         "properties": {

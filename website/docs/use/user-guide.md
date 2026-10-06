@@ -156,8 +156,8 @@ needs.
 ### Add a data source
 
 1. Open **Data sources** from the workspace settings area.
-2. Add a connection for your warehouse — **ClickHouse**, **BigQuery**, or
-   **PostgreSQL** — and fill in the connection details:
+2. Add a connection for your warehouse — **ClickHouse**, **BigQuery**,
+   **Databricks**, or **PostgreSQL** — and fill in the connection details:
    - **ClickHouse**: host, port (8123), database, username, password. Optionally
      pick a **JSON path discovery** mode for `JSON`-typed columns.
    - **PostgreSQL**: host, port (5432), database, username, password. **Version 14
@@ -168,7 +168,13 @@ needs.
      key pasted into the form. Optionally set the dataset **location**, a **max
      billed bytes** cost guard (100 GiB by default), and a **dataset allowlist**
      for the schema browser.
-3. Every warehouse — BigQuery included — accepts a **query timeout in seconds**
+   - **Databricks**: server hostname, catalog, the SQL warehouse's **HTTP path**,
+     and an access token — or, with **OAuth machine-to-machine**, a service
+     principal's client ID and secret. Optionally set a **default schema** and a
+     **schema allowlist** for the schema browser. Only SQL warehouses are
+     supported; see [Connect your warehouse](../how-to/connect-your-warehouse.md#databricks)
+     for the grants it needs.
+3. Every warehouse — BigQuery and Databricks included — accepts a **query timeout in seconds**
    (300 by default).
 4. Save, then click **Test** on the connection card.
 
@@ -177,12 +183,14 @@ needs.
 
 tripl only ever *reads* from the warehouse; it never writes to it.
 
-:::info The three warehouses are not interchangeable
+:::info The warehouses are not interchangeable
 They support the same features, but not with the same guarantees. ClickHouse and
 PostgreSQL are verified by **executing** tripl's generated SQL against real
 servers in CI; BigQuery's SQL is verified as *valid* by Google's own ZetaSQL
 analyzer, but its computed **values** have never been executed against real
-BigQuery. There are also real differences in supported time-column types, nested
+BigQuery. Databricks' SQL is checked only against a mocked driver in CI; it
+follows the same contract, but neither its validity nor its values are proven
+by an executing test. There are also real differences in supported time-column types, nested
 JSON behavior, TLS defaults and minimum versions.
 
 Before you commit to a warehouse, read the

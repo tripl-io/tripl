@@ -120,11 +120,13 @@ function connectionErrors(
   mode: 'create' | 'edit',
 ): ConnectionErrors {
   const pem: PemErrors = {}
-  const all = connectionSettingsErrors(dbType, settings)
+  const all = connectionSettingsErrors(dbType, settings, REQUIRED_MESSAGE)
   for (const field of ['sslrootcert', 'sslcert', 'sslkey'] as const) {
     const error = all[field]
     if (error && settings[field] !== baseline[field]) pem[field] = error
   }
+  // Not baseline-gated: without it there is no warehouse to connect to at all.
+  if (all.httpPath) pem.httpPath = all.httpPath
   return {
     secret: connectionCoreSecretError(dbType, core),
     pem,
@@ -882,16 +884,23 @@ function DataSourceCard({
   // host:port/database summary would print a meaningless ":8123". It is a
   // project and a dataset.
   const isBigQuery = ds.db_type === 'bigquery'
+  // Databricks is always port 443, so the summary is the workspace and catalog.
+  const isDatabricks = ds.db_type === 'databricks'
   // Non-owners get the connection redacted server-side, so
   // host/port/database_name arrive blank and this summary would render as a
   // bare ":0/". Keyed off the payload rather than the viewer's
   // role on purpose: the response is the ground truth for what we were allowed
   // to see, so this stays correct if the redaction rule changes.
   const connectionRedacted = !ds.host
-  const connectionLabel = isBigQuery
-    ? `${ds.host}/${ds.database_name}`
-    : `${ds.host}:${ds.port}/${ds.database_name}`
-  const secretLabel = isBigQuery ? 'Service account key set' : 'Password set'
+  const connectionLabel =
+    isBigQuery || isDatabricks
+      ? `${ds.host}/${ds.database_name}`
+      : `${ds.host}:${ds.port}/${ds.database_name}`
+  const secretLabel = isBigQuery
+    ? 'Service account key set'
+    : isDatabricks
+      ? 'Token set'
+      : 'Password set'
 
   return (
     // A card in the page, on the page's surface: --bg-elevated is for

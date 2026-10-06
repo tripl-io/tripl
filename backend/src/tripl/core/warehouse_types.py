@@ -90,12 +90,16 @@ def classify_complex(type_name: str) -> ComplexKind | None:
     name = _normalize(type_name)
     if _is_array(name):
         return None
-    if name.startswith(("json", "object(")):
-        # Covers CH `JSON`/`Object('json')`, BQ `JSON`, PG `json`/`jsonb`.
+    if name.startswith(("json", "object(")) or name == "variant":
+        # Covers CH `JSON`/`Object('json')`, BQ `JSON`, PG `json`/`jsonb`, and the
+        # Databricks `variant` document. Exact for `variant`: ClickHouse's
+        # `Variant(T1, T2)` is a tagged union of scalars, not a document.
         return ComplexKind.json
     if name.startswith(("record", "struct", "tuple(")):
+        # `struct<...>` is how Databricks spells a STRUCT.
         return ComplexKind.struct
-    if name.startswith("map("):
+    if name.startswith(("map(", "map<")):
+        # ClickHouse `Map(K, V)`, Databricks `map<k,v>`.
         return ComplexKind.map
     return None
 
@@ -109,8 +113,8 @@ def is_string_type(type_name: str) -> bool:
     """Whether a column holds plain text a scan may be asked to parse as JSON.
 
     ClickHouse ``String`` / ``FixedString(N)`` (under any ``Nullable`` /
-    ``LowCardinality`` wrapper) and BigQuery ``STRING``: the two dialects whose
-    adapters implement ``json_string_source`` (F23.9, #306).
+    ``LowCardinality`` wrapper) and BigQuery / Databricks ``STRING``: the dialects
+    whose adapters implement ``json_string_source`` (F23.9, #306).
     """
     name = _normalize(type_name)
     return name == "string" or name.startswith("fixedstring(")

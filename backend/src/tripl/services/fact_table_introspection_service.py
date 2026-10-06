@@ -80,6 +80,8 @@ _TIMESTAMP_PREFIXES: tuple[str, ...] = ("datetime", "timestamp", "date", "time")
 # ``INT64``/``FLOAT64``/``NUMERIC``/``BIGNUMERIC``.
 _NUMBER_PREFIXES: tuple[str, ...] = (
     "int",
+    # Databricks ``tinyint`` (its ``smallint``/``bigint`` are listed below).
+    "tinyint",
     "uint",
     "float",
     "double",

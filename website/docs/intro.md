@@ -14,7 +14,7 @@ track, checks it against what your apps are *actually* sending, and gets a
 heads-up the moment the numbers start to look wrong.
 
 tripl works with the analytics data you already have. It connects to your
-existing data warehouse — **ClickHouse**, **BigQuery**, or **PostgreSQL** — and
+existing data warehouse — **ClickHouse**, **BigQuery**, **Databricks**, or **PostgreSQL** — and
 reads the events that are already landing there. There's no new SDK to ship and
 nothing to re-instrument.
 

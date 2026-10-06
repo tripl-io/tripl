@@ -161,7 +161,7 @@ export interface ScanConfig {
   event_name_column?: string | null
   properties_column?: string | null
   /**
-   * String (ClickHouse) / STRING (BigQuery) columns every read of the source
+   * String (ClickHouse) / STRING (BigQuery, Databricks) columns every read of the source
    * parses as JSON (F23.9), so their keys become properties like a JSON
    * column's. Optional so hand-built configs (tests, older fixtures) parse none.
    */

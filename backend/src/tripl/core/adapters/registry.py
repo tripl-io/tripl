@@ -12,6 +12,7 @@ from tripl.schemas.data_source import (
     SSLKEY_STORAGE_KEY,
     BigQuerySettings,
     ClickHouseSettings,
+    DatabricksSettings,
     PostgresSettings,
 )
 
@@ -180,6 +181,34 @@ def _build_bigquery(ds: DataSource, password: str) -> BaseAdapter:
     )
 
 
+def _build_databricks(ds: DataSource, password: str) -> BaseAdapter:
+    from tripl.core.adapters.databricks import DatabricksAdapter
+    from tripl.core.adapters.databricks_auth import check_workspace_host
+
+    settings = DatabricksSettings.model_validate(_stored_settings(ds))
+    # The outbound rule, in two halves. The address check is the one every
+    # warehouse gets, but its answer cannot be handed to the driver: the
+    # connector opens its own urllib3 pools from the hostname, with no hook for
+    # an address to dial while keeping the TLS name, so it resolves the name
+    # again. The domain check is what makes that second lookup trustworthy — see
+    # ``check_workspace_host``.
+    check_workspace_host(ds.host)
+    vetted_address(ds)
+
+    return DatabricksAdapter(
+        host=ds.host,
+        port=443,
+        database=ds.database_name,
+        username=ds.username,
+        password=password,
+        http_path=settings.http_path,
+        auth_type=settings.auth_type or "pat",
+        schema=settings.schema_name,
+        schema_allowlist=settings.schema_allowlist,
+        timeout_seconds=_effective_timeout_seconds(ds),
+    )
+
+
 def _build_synthetic(ds: DataSource, password: str) -> BaseAdapter:
     # The synthetic warehouse is local and in-memory: host/port/credentials are
     # ignored entirely (no socket is ever opened). A per-source seed derived from
@@ -197,4 +226,5 @@ def _build_synthetic(ds: DataSource, password: str) -> BaseAdapter:
 register_adapter("clickhouse", _build_clickhouse)
 register_adapter("postgres", _build_postgres)
 register_adapter("bigquery", _build_bigquery)
+register_adapter("databricks", _build_databricks)
 register_adapter("synthetic", _build_synthetic)

@@ -2966,9 +2966,9 @@ from the unauthenticated `/auth/status`:
 This instance has no accounts yet. Open https://tripl.example.com and create the
 first one - it becomes the owner.
 Then, signed in as that owner:
-  Settings -> Data sources   connect ClickHouse, BigQuery or PostgreSQL. Owner-only,
-                             and only from a browser session: an API key cannot reach
-                             this endpoint whatever its scope.
+  Settings -> Data sources   connect ClickHouse, BigQuery, Databricks or PostgreSQL.
+                             Owner-only, and only from a browser session: an API key
+                             cannot reach this endpoint whatever its scope.
   Settings -> API keys       create a tk_r_ key for the CLI.
 Then: tripl doctor --url https://tripl.example.com
 ```

@@ -164,7 +164,7 @@ describe('JsonStringColumnsPicker', () => {
     rerender(
       <JsonStringColumnsPicker preview={preview} selected={['payload']} dbType="postgres" stale={false} onToggle={() => {}} />,
     )
-    expect(screen.getByRole('alert')).toHaveTextContent(/Only ClickHouse and BigQuery/)
+    expect(screen.getByRole('alert')).toHaveTextContent(/Only ClickHouse, BigQuery and Databricks/)
   })
 })
 

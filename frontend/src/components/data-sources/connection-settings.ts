@@ -1,9 +1,11 @@
 import type {
   ConnectionSettings,
   ConnectionSettingsResponse,
+  DatabricksAuthType,
   DbType,
   PostgresSslMode,
 } from '@/types'
+import { REQUIRED_MESSAGE } from '@/components/forms/validation'
 import { INPUT_INVALID_CLASS, INPUT_PLACEHOLDER_CLASS, INPUT_TEXT_CLASS } from '@/components/settings/input-style'
 
 // Form state for the typed, per-warehouse connection settings. Kept as strings
@@ -22,6 +24,11 @@ export interface ConnectionSettingsForm {
   sslkey: string
   clearSslkey: boolean
   searchPath: string
+  // Databricks
+  httpPath: string
+  authType: DatabricksAuthType
+  schemaName: string
+  schemaAllowlist: string
 }
 
 export const EMPTY_CONNECTION_SETTINGS_FORM: ConnectionSettingsForm = {
@@ -34,6 +41,36 @@ export const EMPTY_CONNECTION_SETTINGS_FORM: ConnectionSettingsForm = {
   sslkey: '',
   clearSslkey: false,
   searchPath: '',
+  httpPath: '',
+  authType: 'pat',
+  schemaName: '',
+  schemaAllowlist: '',
+}
+
+export const DATABRICKS_AUTH_OPTIONS: { value: DatabricksAuthType; label: string }[] = [
+  { value: 'pat', label: 'Access token (personal or service principal)' },
+  { value: 'oauth_m2m', label: 'OAuth machine-to-machine (service principal)' },
+]
+
+// Mirrors MAX_DATABRICKS_SCHEMA_ALLOWLIST in backend/src/tripl/schemas/data_source.py.
+// The browse is one information_schema query whatever the count, so the cap is
+// about the statement's size, not its cost.
+export const MAX_DATABRICKS_SCHEMA_ALLOWLIST = 50
+
+// Mirrors _DBX_HTTP_PATH_RE on the backend: a path, not a URL.
+const DATABRICKS_HTTP_PATH_RE = /^\/[A-Za-z0-9_\-./?=&]{1,499}$/
+
+/** Why `value` is not a SQL warehouse HTTP path, or null when it is. */
+export function httpPathError(value: string, requiredMessage: string): string | null {
+  const trimmed = value.trim()
+  if (!trimmed) return requiredMessage
+  if (/^https?:\/\//i.test(trimmed)) {
+    return 'Paste only the path, starting at /sql/…, not the whole URL.'
+  }
+  if (!DATABRICKS_HTTP_PATH_RE.test(trimmed)) {
+    return 'This is not an HTTP path. It looks like /sql/1.0/warehouses/1234abcd.'
+  }
+  return null
 }
 
 // '' lets the backend resolve a host-aware default: 'require' for remote hosts,
@@ -141,10 +178,25 @@ export function pemError(value: string, kind: PemKind): string | null {
 }
 
 export type PemField = 'sslrootcert' | 'sslcert' | 'sslkey'
-export type PemErrors = Partial<Record<PemField, string>>
+/**
+ * Inline errors for the settings fields, by field: the Postgres PEM blocks, and
+ * the Databricks HTTP path (the one required setting any warehouse has).
+ */
+export type PemErrors = Partial<Record<PemField | 'httpPath', string>>
 
-/** Inline PEM errors for the Postgres TLS fields; empty for other warehouses. */
-export function connectionSettingsErrors(dbType: DbType, form: ConnectionSettingsForm): PemErrors {
+/**
+ * Inline errors for the settings fields: the Postgres PEM blocks, and the
+ * Databricks HTTP path. Empty for other warehouses.
+ */
+export function connectionSettingsErrors(
+  dbType: DbType,
+  form: ConnectionSettingsForm,
+  requiredMessage = REQUIRED_MESSAGE,
+): PemErrors {
+  if (dbType === 'databricks') {
+    const httpPath = httpPathError(form.httpPath, requiredMessage)
+    return httpPath ? { httpPath } : {}
+  }
   if (dbType !== 'postgres') return {}
   const errors: PemErrors = {}
   const root = pemError(form.sslrootcert, 'certificate')
@@ -198,6 +250,16 @@ export function buildConnectionSettings(
     }
   }
 
+  if (dbType === 'databricks') {
+    const schemas = parseAllowlist(form.schemaAllowlist)
+    return {
+      http_path: form.httpPath.trim(),
+      auth_type: form.authType,
+      schema_name: nullable(form.schemaName),
+      schema_allowlist: schemas.length > 0 ? schemas : null,
+    }
+  }
+
   if (dbType === 'postgres') {
     const sslkey = form.sslkey.trim()
     return {
@@ -229,5 +291,9 @@ export function connectionSettingsToForm(
     sslkey: '',
     clearSslkey: false,
     searchPath: settings.search_path ?? '',
+    httpPath: settings.http_path ?? '',
+    authType: settings.auth_type ?? 'pat',
+    schemaName: settings.schema_name ?? '',
+    schemaAllowlist: (settings.schema_allowlist ?? []).join(', '),
   }
 }

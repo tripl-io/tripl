@@ -40,6 +40,29 @@ def test_bigquery_batch_sql_uses_native_time_type(
     assert "TIMESTAMP_BUCKET" not in sql
 
 
+def test_saved_databricks_native_type_is_required_for_disclosure() -> None:
+    """Databricks types its window literal from the native type too (DATE,
+    TIMESTAMP_NTZ, TIMESTAMP), so a fact table saved without it is refused."""
+    data_source = DataSource(name="DBX", db_type="databricks")
+    fact_table = FactTable(
+        name="orders",
+        display_name="Orders",
+        sql="SELECT occurred_at FROM main.sales.orders",
+        timestamp_column="occurred_at",
+        columns=[{"name": "occurred_at", "type": "timestamp"}],
+    )
+
+    with pytest.raises(ValueError, match="Re-preview and save"):
+        metric_preview_service._saved_fact_column_types(fact_table, data_source)
+
+    fact_table.columns = [
+        {"name": "occurred_at", "type": "timestamp", "native_type": "timestamp_ntz"}
+    ]
+    assert metric_preview_service._saved_fact_column_types(fact_table, data_source) == {
+        "occurred_at": "timestamp_ntz"
+    }
+
+
 def test_saved_bigquery_native_type_is_required_for_disclosure() -> None:
     data_source = DataSource(name="BQ", db_type="bigquery")
     fact_table = FactTable(

@@ -12,6 +12,9 @@ import type { DataSource, DbType, JsonPathDiscovery } from '@/types'
  *   - `secret`       → the service-account JSON for BigQuery, a password elsewhere
  *   - `port`/`username` → meaningless for BigQuery (`BigQueryAdapter.__init__`
  *     deletes both), so they are neither shown nor sent for it.
+ *   - Databricks: `host` is the workspace hostname, `databaseName` the catalog,
+ *     `secret` an access token (or an OAuth secret) and `username` a service
+ *     principal's OAuth client ID. The port is always 443 and is not shown.
  *
  * `secret` is write-only. The API never returns a password or a service-account
  * key (only the `password_set` boolean), so it always starts empty on edit and
@@ -61,6 +64,9 @@ export function parseTimeoutSeconds(value: string): number | null {
   return Number.isFinite(parsed) ? parsed : null
 }
 
+/** Databricks SQL warehouses are reached over HTTPS only. */
+export const DATABRICKS_PORT = 443
+
 interface CoreCreatePayload {
   host: string
   port: number
@@ -92,7 +98,7 @@ export function buildCoreCreatePayload(
 ): CoreCreatePayload {
   return {
     host: form.host,
-    port: form.port,
+    port: dbType === 'databricks' ? DATABRICKS_PORT : form.port,
     database_name: form.databaseName,
     username: form.username,
     password: form.secret,
@@ -127,7 +133,7 @@ export function buildCoreUpdatePayload(
 
   return {
     host: form.host,
-    port: form.port,
+    port: dbType === 'databricks' ? DATABRICKS_PORT : form.port,
     database_name: form.databaseName,
     username: form.username,
     ...(form.secret ? { password: form.secret } : {}),
@@ -173,8 +179,8 @@ export type CoreMissing = Partial<Record<'host' | 'port' | 'databaseName' | 'sec
  * and Test connection used to send the empty draft and come back with the
  * backend's "host: String should have at least 1 character".
  *
- * BigQuery has no port, and its key is required only on create: on edit an
- * empty key field keeps the stored one.
+ * BigQuery and Databricks have no port box, and their key or token is required
+ * only on create: on edit an empty field keeps the stored one.
  */
 export function connectionCoreMissing(
   dbType: DbType,
@@ -185,7 +191,8 @@ export function connectionCoreMissing(
   const missing: CoreMissing = {}
   if (!form.host.trim()) missing.host = message
   if (!form.databaseName.trim()) missing.databaseName = message
-  if (dbType === 'bigquery') {
+  if (dbType === 'bigquery' || dbType === 'databricks') {
+    // Neither has a port box; both need their credential up front.
     if (mode === 'create' && !form.secret.trim()) missing.secret = message
   } else if (!form.port) {
     missing.port = message
@@ -237,9 +244,11 @@ export function serverCoreErrors(
   for (const item of items) {
     const last = item.loc[item.loc.length - 1]
     const mapped = typeof last === 'string' ? API_FIELD_TO_CORE[last] : undefined
-    // Only controls the type actually shows: BigQuery has no port, and only
-    // its key field (not the password box) renders an inline error.
-    const shown = dbType === 'bigquery' ? mapped !== 'port' : mapped !== 'secret'
+    // Only controls the type actually shows: BigQuery and Databricks have no
+    // port, and only their key or token field (not the password box) renders an
+    // inline error.
+    const shown =
+      dbType === 'bigquery' || dbType === 'databricks' ? mapped !== 'port' : mapped !== 'secret'
     const key = shown ? mapped : undefined
     if (key && !fields[key]) {
       fields[key] = EMPTY_VALUE_TYPES.has(item.type) ? requiredMessage : item.msg
