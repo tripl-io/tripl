@@ -881,7 +881,20 @@ jobs:
 
       - name: Run the e2e tests
         working-directory: frontend
+        env:
+          # The `update-snapshots` label: write the missing and changed
+          # screenshot baselines (uploaded below) instead of failing on them.
+          E2E_UPDATE_SNAPSHOTS: ${{ contains(github.event.pull_request.labels.*.name, 'update-snapshots') }}
         run: bun run test:e2e
+
+      - name: Upload the screenshot baselines
+        if: ${{ always() && contains(github.event.pull_request.labels.*.name, 'update-snapshots') }}
+        uses: actions/upload-artifact@v7
+        with:
+          name: e2e-snapshots
+          path: frontend/e2e/*-snapshots
+          if-no-files-found: ignore
+          retention-days: 7
 
       - name: Stack logs
         if: ${{ failure() }}

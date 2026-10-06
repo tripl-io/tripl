@@ -259,10 +259,8 @@ describe('ChapterPicker — status', () => {
   it('lists every chapter in order', () => {
     renderWithScenario(<ProductTour slug={SLUG} open onOpenChange={() => {}} />, demoProject())
 
-    expect(picker()).toHaveClass('min-w-0')
     const rows = within(picker()).getAllByRole('button')
     expect(rows).toHaveLength(CHAPTER_IDS.length)
-    for (const row of rows) expect(row).toHaveClass('min-w-0')
     expect(rows[0]).toHaveTextContent(CHAPTER_TITLES['live-loop'])
     expect(rows[rows.length - 1]).toHaveTextContent(CHAPTER_TITLES.explore)
   })

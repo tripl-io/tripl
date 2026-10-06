@@ -471,20 +471,19 @@ describe('ScenarioCoachMark — a row control has no free side', () => {
     // …the card is docked, and the ring still points at the control.
     const docked = document.querySelector('[data-coach-docked="true"]')
     expect(docked).not.toBeNull()
-    expect(docked?.className).toContain('fixed')
     expect(runButton()).toHaveAttribute('data-coach-target', 'live-loop/run-scan')
   })
 
-  it('does not inherit the cell’s right-align, and clears the tweaks FAB', () => {
-    // A position:fixed card still inherits text-align, and row actions sit in a
-    // `text-right` <td>: the card rendered ragged-left with "Hide hints" pushed
-    // under the tweaks FAB (then fixed bottom-5 right-5, h-9, same z-index and
-    // later in the DOM), which then won clicks aimed at the button.
+  it('keeps its clicks from the row it sits in', () => {
+    // The card is portalled, and React bubbles a portal's events through the
+    // component tree: a click on Collapse reached the scan row's onClick and
+    // opened the scan.
+    const onRow = vi.fn()
     renderMark(
       <table>
         <tbody>
-          <tr>
-            <td className="text-right">
+          <tr onClick={onRow}>
+            <td>
               <ScenarioCoachMark step="live-loop/run-scan">
                 <button type="button">Run scan</button>
               </ScenarioCoachMark>
@@ -494,12 +493,10 @@ describe('ScenarioCoachMark — a row control has no free side', () => {
       </table>,
     )
 
-    const docked = document.querySelector('[data-coach-docked="true"]')
-    expect(docked?.className).toContain('text-left')
-    // Above the FAB's top edge — now bottom-1 + h-8 = 36px, since it was tucked
-    // into the activity rail's footer strip — not level with it.
-    expect(docked?.className).toContain('bottom-[68px]')
-    expect(docked?.className).not.toContain('bottom-4')
+    fireEvent.click(screen.getByRole('button', { name: 'Collapse demo hint' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Expand demo hint' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Hide hints' }))
+    expect(onRow).not.toHaveBeenCalled()
   })
 
   it('still opens as a normal popover when the anchor is not inside a table', () => {

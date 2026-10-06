@@ -500,7 +500,12 @@ function DockedCoachCard({ anchor, children }: { anchor: HTMLElement; children: 
     >
       <button
         type="button"
-        onClick={() => setCollapsed((value) => !value)}
+        onClick={(event) => {
+          // A portal still bubbles through the React tree: this click reached
+          // the scan row's onClick and opened the scan.
+          event.stopPropagation()
+          setCollapsed((value) => !value)
+        }}
         aria-expanded={!collapsed}
         aria-label={collapsed ? 'Expand demo hint' : 'Collapse demo hint'}
         className="absolute right-1.5 top-1.5 flex h-7 w-7 items-center justify-center rounded-sm transition-colors hover:bg-[var(--surface-hover)] text-fg-secondary"
@@ -550,7 +555,11 @@ function CoachCard({
       </p>
       <button
         type="button"
-        onClick={onMute}
+        onClick={(event) => {
+          // Portalled beside its anchor: not a click on the row it sits in.
+          event.stopPropagation()
+          onMute()
+        }}
         className="mt-2 rounded-sm px-1.5 py-0.5 text-caption font-medium transition-colors hover:bg-[var(--surface-hover)] group-data-[collapsed=true]/coach:hidden text-fg-secondary"
       >
         Hide hints
