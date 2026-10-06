@@ -594,7 +594,12 @@ no stacked `;`, no comment markers, no DDL/DML/`UNION` — each of those three
 checked **outside** string and quoted-identifier literals, so a value such as
 `'Delete Account'` is data rather than a rejected keyword. A keyword or `;` after
 a literal that closed is still caught, and an unterminated literal is scanned as
-if it were code.
+if it were code. So is everything after a literal that holds a backslash:
+ClickHouse, BigQuery and Databricks read `\'` as an escaped quote and PostgreSQL
+does not, so where such a literal ends depends on the engine. Calls that leave
+the warehouse from inside a `SELECT` — Databricks' `http_request`,
+`read_files`, `ai_query` and `remote_query`, the streaming readers, and
+`java_method` / `reflect` — are refused as well.
 
 The gate is an accident guard, not the write barrier. It is a keyword blocklist,
 so it stops only writes spelled with one of those words — not a write reached
