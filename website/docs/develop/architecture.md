@@ -123,7 +123,7 @@ Locally, all of the above (except the warehouses) run under Docker Compose:
 
 - **Celery** app with a **RabbitMQ** broker.
 - **Warehouse adapters** (`core/adapters`) provide a common interface over
-  **ClickHouse**, **BigQuery**, and **PostgreSQL** source databases. A common
+  **ClickHouse**, **BigQuery**, **Databricks**, and **PostgreSQL** source databases. A common
   interface is not the same as identical behavior, and it is emphatically not the
   same as an equally *verified* behavior:
   - **ClickHouse and PostgreSQL are executed** in CI. The `conformance` job stands
@@ -141,6 +141,10 @@ Locally, all of the above (except the warehouses) run under Docker Compose:
     also drives scan, replay, catalog metrics, batched collection, and anomaly
     recalculation against real BigQuery while keeping PostgreSQL as the application
     database. Pull requests retain the credential-free analyzer gate.
+  - **Databricks is checked against a mocked driver only.** Its adapter runs
+    through the same shared parity suites as the other three, which pin the SQL
+    it sends and how it reads rows back; no Databricks warehouse, emulator or
+    analyzer runs in CI, so neither SQL validity nor values are proven.
 
   The gates live in `backend/src/tripl/tests/conformance/`. See the
   **[warehouse capability matrix](warehouse-parity.md)** for the per-capability
@@ -265,7 +269,7 @@ Locally, all of the above (except the warehouses) run under Docker Compose:
   watermark, so without that floor a metric that can never collect would be
   re-dispatched on every 300 s tick.
 - **Aggregations.** Adapter `_aggregate_value_sql` builds the per-kind SQL for
-  ClickHouse / BigQuery / PostgreSQL; `core/adapters/measure_validator` checks the
+  ClickHouse / BigQuery / Databricks / PostgreSQL; `core/adapters/measure_validator` checks the
   measure/distinct column against the source's real columns before it reaches a
   query. Fact row filters persist in metric `config` as named `row_filters`,
   free-text `filter_sql`, and structured `conditions`; collection compiles them

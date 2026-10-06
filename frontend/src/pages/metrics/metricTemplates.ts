@@ -51,7 +51,13 @@ export interface MetricTemplateSeed {
 export type SqlTemplateId = 'daily-active-users' | 'event-volume'
 
 /** Every warehouse a starter template can be rendered for. */
-export const DB_TYPES: readonly DbType[] = ['clickhouse', 'postgres', 'bigquery', 'synthetic']
+export const DB_TYPES: readonly DbType[] = [
+  'clickhouse',
+  'postgres',
+  'bigquery',
+  'databricks',
+  'synthetic',
+]
 
 /**
  * The per-dialect time-bucket expression, mirroring each backend adapter's
@@ -73,6 +79,10 @@ function bucketExpression(db: DbType | undefined, unit: 'day' | 'hour'): string 
       return `date_bin(INTERVAL '1 ${unit}', created_at, TIMESTAMPTZ '1970-01-01 00:00:00+00:00')`
     case 'bigquery':
       return `TIMESTAMP_TRUNC(created_at, ${unit.toUpperCase()}, 'UTC')`
+    // Databricks: Spark's string-first date_trunc. The connection pins the
+    // session time zone to UTC, so this truncates in UTC like the others.
+    case 'databricks':
+      return `date_trunc('${unit.toUpperCase()}', created_at)`
     // ClickHouse, the synthetic demo warehouse (which mimics ClickHouse
     // semantics), and "no source picked yet" all use the ClickHouse form. The
     // moment a source is selected the SQL is re-rendered for it, so an

@@ -8488,12 +8488,20 @@ export interface components {
          *     only the fields that apply to the source's ``db_type`` are ever populated.
          */
         ConnectionSettingsResponse: {
+            /** Auth Type */
+            auth_type?: ("pat" | "oauth_m2m") | null;
             /** Dataset Allowlist */
             dataset_allowlist?: string[] | null;
+            /** Http Path */
+            http_path?: string | null;
             /** Location */
             location?: string | null;
             /** Maximum Bytes Billed */
             maximum_bytes_billed?: number | null;
+            /** Schema Allowlist */
+            schema_allowlist?: string[] | null;
+            /** Schema Name */
+            schema_name?: string | null;
             /** Search Path */
             search_path?: string | null;
             /** Sslcert */
@@ -8541,7 +8549,7 @@ export interface components {
          * DBType
          * @enum {string}
          */
-        DBType: "clickhouse" | "postgres" | "bigquery" | "synthetic";
+        DBType: "clickhouse" | "postgres" | "bigquery" | "databricks" | "synthetic";
         /**
          * DataSourceConnectionTest
          * @description An unsaved data-source config to test a connection with.
@@ -8553,7 +8561,7 @@ export interface components {
          */
         DataSourceConnectionTest: {
             /** Connection Settings */
-            connection_settings?: components["schemas"]["ClickHouseSettings"] | components["schemas"]["PostgresSettings"] | components["schemas"]["BigQuerySettings"] | components["schemas"]["SyntheticSettings"] | null;
+            connection_settings?: components["schemas"]["ClickHouseSettings"] | components["schemas"]["PostgresSettings"] | components["schemas"]["BigQuerySettings"] | components["schemas"]["DatabricksSettings"] | components["schemas"]["SyntheticSettings"] | null;
             /** Database Name */
             database_name: string;
             db_type: components["schemas"]["DBType"];
@@ -8599,7 +8607,7 @@ export interface components {
         /** DataSourceCreate */
         DataSourceCreate: {
             /** Connection Settings */
-            connection_settings?: components["schemas"]["ClickHouseSettings"] | components["schemas"]["PostgresSettings"] | components["schemas"]["BigQuerySettings"] | components["schemas"]["SyntheticSettings"] | null;
+            connection_settings?: components["schemas"]["ClickHouseSettings"] | components["schemas"]["PostgresSettings"] | components["schemas"]["BigQuerySettings"] | components["schemas"]["DatabricksSettings"] | components["schemas"]["SyntheticSettings"] | null;
             /** Database Name */
             database_name: string;
             db_type: components["schemas"]["DBType"];
@@ -8746,7 +8754,7 @@ export interface components {
         /** DataSourceUpdate */
         DataSourceUpdate: {
             /** Connection Settings */
-            connection_settings?: components["schemas"]["ClickHouseSettings"] | components["schemas"]["PostgresSettings"] | components["schemas"]["BigQuerySettings"] | components["schemas"]["SyntheticSettings"] | null;
+            connection_settings?: components["schemas"]["ClickHouseSettings"] | components["schemas"]["PostgresSettings"] | components["schemas"]["BigQuerySettings"] | components["schemas"]["DatabricksSettings"] | components["schemas"]["SyntheticSettings"] | null;
             /** Database Name */
             database_name?: string | null;
             db_type?: components["schemas"]["DBType"] | null;
@@ -8764,6 +8772,23 @@ export interface components {
             timeout_seconds?: number | null;
             /** Username */
             username?: string | null;
+        };
+        /**
+         * DatabricksSettings
+         * @description Databricks SQL warehouse connection: where the warehouse is, and what to browse.
+         *
+         *     ``host`` is the workspace hostname and ``database_name`` the default catalog;
+         *     these are the settings that have no column of their own.
+         */
+        DatabricksSettings: {
+            /** Auth Type */
+            auth_type?: ("pat" | "oauth_m2m") | null;
+            /** Http Path */
+            http_path: string;
+            /** Schema Allowlist */
+            schema_allowlist?: string[] | null;
+            /** Schema Name */
+            schema_name?: string | null;
         };
         /**
          * DeadEventArchiveRequest

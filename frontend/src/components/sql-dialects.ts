@@ -4,7 +4,7 @@ import type { DbType } from '@/types/dataSources'
 
 /**
  * Per-engine CodeMirror SQL dialects driving keyword highlighting and the
- * autocomplete word list. lang-sql ships no ClickHouse/BigQuery dialect, so we
+ * autocomplete word list. lang-sql ships no ClickHouse/BigQuery/Databricks dialect, so we
  * define lightweight ones from curated keyword/function/type lists.
  *
  * Casing rule (lang-sql stores completion labels verbatim but tokenises
@@ -12,7 +12,8 @@ import type { DbType } from '@/types/dataSources'
  * listed in their exact camelCase form — completion then inserts them verbatim
  * (their syntax colouring is skipped, an acceptable trade for correct text).
  * BigQuery is case-INSENSITIVE, so its functions/types are listed lower-case,
- * which both inserts validly and still colours. Postgres uses lang-sql's own,
+ * which both inserts validly and still colours; so is Databricks (Spark SQL).
+ * Postgres uses lang-sql's own,
  * already-complete dialect.
  */
 
@@ -64,10 +65,33 @@ const BigQueryDialect = SQLDialect.define({
   identifierQuotes: '`',
 })
 
+const DATABRICKS_FUNCTIONS =
+  'count count_if sum avg min max approx_count_distinct collect_list collect_set ' +
+  'array_agg string_agg any_value bool_and bool_or date_trunc date_add date_sub datediff ' +
+  'timestampadd timestampdiff from_utc_timestamp to_utc_timestamp to_timestamp to_date ' +
+  'unix_seconds timestamp_seconds current_date current_timestamp extract try_cast cast ' +
+  'coalesce ifnull nullif nvl if lower upper length substring split regexp_extract rlike ' +
+  'get_json_object from_json to_json parse_json try_parse_json schema_of_variant ' +
+  'variant_get try_variant_get map_keys element_at try_element_at explode size ' +
+  'row_number rank dense_rank lag lead first_value last_value ntile percentile_approx ' +
+  'round floor ceil abs'
+const DATABRICKS_TYPES =
+  'tinyint smallint int bigint float double decimal boolean string binary date timestamp ' +
+  'timestamp_ntz interval array map struct variant'
+
+const DatabricksDialect = SQLDialect.define({
+  keywords: `${COMMON_KEYWORDS} qualify rlike regexp lateral view pivot unpivot tablesample`,
+  builtin: DATABRICKS_FUNCTIONS,
+  types: DATABRICKS_TYPES,
+  identifierQuotes: '`',
+  backslashEscapes: true,
+})
+
 const HIGHLIGHT_DIALECT: Record<DbType, SQLDialect> = {
   postgres: PostgreSQL,
   clickhouse: ClickHouseDialect,
   bigquery: BigQueryDialect,
+  databricks: DatabricksDialect,
   // The local demo synthetic source mimics ClickHouse semantics, so reuse its
   // dialect for highlighting/autocomplete of the (rarely-edited) demo SQL.
   synthetic: ClickHouseDialect,
@@ -82,6 +106,7 @@ const FORMAT_LANGUAGE: Record<DbType, SqlLanguage> = {
   postgres: 'postgresql',
   clickhouse: 'clickhouse',
   bigquery: 'bigquery',
+  databricks: 'spark',
   synthetic: 'clickhouse',
 }
 

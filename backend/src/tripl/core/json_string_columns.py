@@ -1,7 +1,7 @@
 """Opt-in: read String columns as JSON (F23.9, #306).
 
 Many event tables keep their properties as JSON *text* in a plain String
-(ClickHouse) or STRING (BigQuery) column. A scan config lists such columns in
+(ClickHouse) or STRING (BigQuery, Databricks) column. A scan config lists such columns in
 ``json_string_columns``, and every warehouse read of the scan's source goes
 through :func:`scan_source_query`, which hands the adapter's
 ``json_string_source`` wrapper back instead of the bare ``base_query``. In that
@@ -35,7 +35,7 @@ from tripl.core.warehouse_types import is_string_type
 logger = logging.getLogger(__name__)
 
 #: The data source types whose adapters implement ``json_string_source``.
-JSON_STRING_DB_TYPES = frozenset({"clickhouse", "bigquery"})
+JSON_STRING_DB_TYPES = frozenset({"clickhouse", "bigquery", "databricks"})
 
 #: How many columns one scan may parse. Each is one parse per row read, and a
 #: scan rarely has more than one properties column; the cap keeps a config from
@@ -124,7 +124,7 @@ def check_json_string_db_type(db_type: str, json_string_columns: Sequence[str]) 
     if json_string_columns and str(db_type) not in JSON_STRING_DB_TYPES:
         msg = (
             "Parsing String columns as JSON (json_string_columns) is supported on "
-            "ClickHouse and BigQuery data sources only"
+            "ClickHouse, BigQuery and Databricks data sources only"
         )
         raise ValueError(msg)
 
@@ -154,8 +154,8 @@ def resolve_json_string_source(
         return cache[key]
     if not getattr(adapter, "supports_json_string_columns", False):
         msg = (
-            "This data source cannot parse String columns as JSON; only ClickHouse and "
-            "BigQuery can. Clear the scan's 'Parse as JSON' columns."
+            "This data source cannot parse String columns as JSON; only ClickHouse, "
+            "BigQuery and Databricks can. Clear the scan's 'Parse as JSON' columns."
         )
         raise WarehouseCapabilityError(msg)
     raw_types = {column.name: column.type_name for column in adapter.get_columns(base_query)}

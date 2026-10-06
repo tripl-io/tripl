@@ -1,12 +1,14 @@
 // 'synthetic' is a local, in-memory demo warehouse. It is a valid db_type on the
 // wire (demo sources report it) but is intentionally NOT user-selectable, so it
 // is excluded from DB_TYPE_OPTIONS below.
-export type DbType = 'clickhouse' | 'postgres' | 'bigquery' | 'synthetic'
+export type DbType = 'clickhouse' | 'postgres' | 'bigquery' | 'databricks' | 'synthetic'
 
 export const DB_TYPE_OPTIONS: { value: DbType; label: string; defaultPort: number }[] = [
   { value: 'clickhouse', label: 'ClickHouse', defaultPort: 8123 },
   { value: 'postgres', label: 'PostgreSQL', defaultPort: 5432 },
   { value: 'bigquery', label: 'BigQuery', defaultPort: 0 },
+  // Always HTTPS on 443; the form does not show a port for it.
+  { value: 'databricks', label: 'Databricks', defaultPort: 443 },
 ]
 
 export type DataSourceTestStatus = 'success' | 'failed'
@@ -46,8 +48,23 @@ export interface PostgresConnectionSettings {
   search_path?: string | null
 }
 
+// 'pat' (default): a personal or service-principal access token in the password.
+// 'oauth_m2m': a service principal's OAuth client ID (username) and secret (password).
+export type DatabricksAuthType = 'pat' | 'oauth_m2m'
+
+export interface DatabricksConnectionSettings {
+  // Required: the SQL warehouse's HTTP path, e.g. /sql/1.0/warehouses/1234abcd.
+  http_path: string
+  auth_type?: DatabricksAuthType | null
+  schema_name?: string | null
+  schema_allowlist?: string[] | null
+}
+
 // ClickHouse and the synthetic warehouse have no connection settings of their own.
-export type ConnectionSettings = BigQueryConnectionSettings | PostgresConnectionSettings
+export type ConnectionSettings =
+  | BigQueryConnectionSettings
+  | PostgresConnectionSettings
+  | DatabricksConnectionSettings
 
 // Read side: the union flattened, with the private key replaced by a boolean.
 // Only the fields applicable to the source's db_type are ever populated.
@@ -60,6 +77,11 @@ export interface ConnectionSettingsResponse {
   sslcert: string | null
   search_path: string | null
   sslkey_set: boolean
+  // Databricks (absent from older servers' responses).
+  http_path?: string | null
+  auth_type?: DatabricksAuthType | null
+  schema_name?: string | null
+  schema_allowlist?: string[] | null
 }
 
 export interface DataSource {

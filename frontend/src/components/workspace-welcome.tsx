@@ -40,7 +40,7 @@ export function WorkspaceWelcome({
         </p>
         <p className="m-0 text-body-sm text-fg-tertiary">
           No new SDK to ship and nothing to re-instrument — tripl connects to the data warehouse
-          you already have (ClickHouse, BigQuery, or PostgreSQL) and only ever reads from it.
+          you already have (ClickHouse, BigQuery, Databricks, or PostgreSQL) and only ever reads from it.
         </p>
       </div>
 

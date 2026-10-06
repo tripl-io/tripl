@@ -74,12 +74,12 @@ export function scalarColumnNames(
 }
 
 /** The data source types whose scans can parse a text column as JSON. */
-export const JSON_STRING_DB_TYPES: readonly string[] = ['clickhouse', 'bigquery']
+export const JSON_STRING_DB_TYPES: readonly string[] = ['clickhouse', 'bigquery', 'databricks']
 
 /**
  * Whether a warehouse type names plain text: ClickHouse `String` /
  * `FixedString(N)` under any `Nullable` / `LowCardinality` wrapper, BigQuery
- * `STRING`. Mirrors `core.warehouse_types.is_string_type`.
+ * `STRING`, Databricks `string`. Mirrors `core.warehouse_types.is_string_type`.
  */
 export function isTextColumnType(typeName: string): boolean {
   let name = typeName.trim()

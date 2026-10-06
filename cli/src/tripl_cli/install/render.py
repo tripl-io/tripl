@@ -280,9 +280,9 @@ def render_upgrade_failure(directory: Path, target: str, backup: Path | None) ->
 # guide already uses and it cannot rot when a SPA route changes.
 
 _OWNER_ONLY_NOTE = (
-    "  Settings -> Data sources   connect ClickHouse, BigQuery or PostgreSQL. Owner-only,\n"
-    "                             and only from a browser session: an API key cannot reach\n"
-    "                             this endpoint whatever its scope.\n"
+    "  Settings -> Data sources   connect ClickHouse, BigQuery, Databricks or PostgreSQL.\n"
+    "                             Owner-only, and only from a browser session: an API key\n"
+    "                             cannot reach this endpoint whatever its scope.\n"
     "  Settings -> API keys       create a tk_r_ key for the CLI."
 )
 

@@ -564,6 +564,47 @@ class TestConnectionSettings:
         assert settings["maximum_bytes_billed"] is None
         assert settings["dataset_allowlist"] is None
 
+    async def test_databricks_settings_round_trip(self, client: AsyncClient):
+        create = await _create(
+            client,
+            db_type="databricks",
+            host="dbc-a1b2c3d4-e5f6.cloud.databricks.com",
+            port=443,
+            database_name="main",
+            password="dapi-token",
+            connection_settings={
+                "http_path": "/sql/1.0/warehouses/abc123",
+                "auth_type": "pat",
+                "schema_name": "analytics",
+                "schema_allowlist": ["analytics", "marts"],
+            },
+        )
+        assert create.status_code == 201, create.text
+        settings = create.json()["connection_settings"]
+        assert settings["http_path"] == "/sql/1.0/warehouses/abc123"
+        assert settings["auth_type"] == "pat"
+        assert settings["schema_name"] == "analytics"
+        assert settings["schema_allowlist"] == ["analytics", "marts"]
+        assert "dapi-token" not in create.text
+
+        # A PATCH that drops the HTTP path would leave a source nothing can reach.
+        updated = await client.patch(
+            f"/api/v1/data-sources/{create.json()['id']}",
+            json={"connection_settings": {"schema_name": "marts"}},
+        )
+        assert updated.status_code == 422, updated.text
+
+    async def test_databricks_without_an_http_path_is_rejected(self, client: AsyncClient):
+        resp = await _create(
+            client,
+            db_type="databricks",
+            host="dbc-a1b2c3d4-e5f6.cloud.databricks.com",
+            port=443,
+            database_name="main",
+        )
+        assert resp.status_code == 422, resp.text
+        assert "http_path" in resp.text
+
     async def test_postgres_settings_round_trip(self, client: AsyncClient):
         create = await _create(
             client,
@@ -602,6 +643,13 @@ class TestConnectionSettings:
             ("bigquery", "gcp-project", {"sslmode": "require"}, "bigquery"),
             # ClickHouse has no connection settings at all.
             ("clickhouse", "localhost", {"location": "EU"}, "clickhouse"),
+            # A BigQuery setting on a Databricks source.
+            (
+                "databricks",
+                "dbc-a1b2c3d4-e5f6.cloud.databricks.com",
+                {"location": "EU"},
+                "databricks",
+            ),
         ],
     )
     async def test_inapplicable_settings_are_rejected_not_ignored(

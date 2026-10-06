@@ -28,6 +28,7 @@ def test_registry_lists_known_adapters() -> None:
     assert "clickhouse" in db_types
     assert "postgres" in db_types
     assert "bigquery" in db_types
+    assert "databricks" in db_types
 
 
 def test_build_adapter_rejects_unknown_db_type() -> None:

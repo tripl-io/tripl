@@ -36,7 +36,7 @@ function buildSqlNamespace(tables: readonly TableSchema[]): SQLNamespace {
 
 /**
  * Shared SQL editor: CodeMirror with dialect-aware syntax highlighting and
- * keyword/function completion (ClickHouse / BigQuery / Postgres), schema-aware
+ * keyword/function completion (ClickHouse / BigQuery / Databricks / Postgres), schema-aware
  * table+column autocomplete, a one-click dialect-correct Format button, and a
  * collapsible table/column picker that inserts names at the cursor. Editable on
  * four surfaces — the scans base query, the SQL metric query, the fact-table

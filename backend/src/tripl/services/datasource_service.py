@@ -259,6 +259,23 @@ def _validated_settings(db_type: str, raw: object) -> BaseModel | None:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
 
 
+def _require_databricks_warehouse(db_type: str, stored: dict[str, Any] | None) -> None:
+    """A Databricks source is unusable without its warehouse's HTTP path: say so on save.
+
+    The settings model already requires ``http_path`` whenever settings are sent;
+    this covers the request that sends none at all, which would otherwise store a
+    source every connection to fails.
+    """
+    if db_type == DBType.databricks.value and not (stored or {}).get("http_path"):
+        raise HTTPException(
+            status_code=422,
+            detail=(
+                "A Databricks data source needs connection_settings.http_path, the SQL "
+                "warehouse's HTTP path (e.g. /sql/1.0/warehouses/1234abcd)."
+            ),
+        )
+
+
 def _settings_to_storage(
     settings: BaseModel | None, *, previous: dict[str, Any] | None
 ) -> dict[str, Any] | None:
@@ -304,6 +321,8 @@ async def create_data_source(session: AsyncSession, data: DataSourceCreate) -> D
 
     raw_settings = data.model_dump(exclude_unset=True).get("connection_settings")
     settings = _validated_settings(data.db_type.value, raw_settings)
+    stored_settings = _settings_to_storage(settings, previous=None)
+    _require_databricks_warehouse(data.db_type.value, stored_settings)
 
     ds = DataSource(
         # The bound organization, where every data-source route looks it up.
@@ -317,7 +336,7 @@ async def create_data_source(session: AsyncSession, data: DataSourceCreate) -> D
         password_encrypted=encrypt_value(data.password),
         timeout_seconds=data.timeout_seconds,
         json_path_discovery=data.json_path_discovery,
-        extra_params=_settings_to_storage(settings, previous=None),
+        extra_params=stored_settings,
     )
     session.add(ds)
     await session.commit()
@@ -361,6 +380,9 @@ async def update_data_source(
 
     for key, value in update_dict.items():
         setattr(ds, key, value)
+    _require_databricks_warehouse(
+        str(ds.db_type), ds.extra_params if isinstance(ds.extra_params, dict) else None
+    )
 
     new_name = update_dict.get("name")
     try:
@@ -676,6 +698,8 @@ async def test_unsaved_connection(
         )
     raw_settings = data.model_dump(exclude_unset=True).get("connection_settings")
     settings = _validated_settings(data.db_type.value, raw_settings)
+    stored_settings = _settings_to_storage(settings, previous=None)
+    _require_databricks_warehouse(data.db_type.value, stored_settings)
     ds = DataSource(
         name=data.name,
         db_type=data.db_type,
@@ -686,7 +710,7 @@ async def test_unsaved_connection(
         password_encrypted=encrypt_value(data.password),
         timeout_seconds=data.timeout_seconds,
         json_path_discovery=data.json_path_discovery,
-        extra_params=_settings_to_storage(settings, previous=None),
+        extra_params=stored_settings,
     )
     success, message = await asyncio.to_thread(_run_adapter_test, ds)
     return DataSourceConnectionTestResponse(

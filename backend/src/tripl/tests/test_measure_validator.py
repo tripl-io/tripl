@@ -367,6 +367,9 @@ def test_quote_sql_literal_renders_safe_literals(
         # literals ("concatenated string literals must be separated by whitespace")
         # -- verified against ZetaSQL. GoogleSQL escapes with a backslash.
         (SqlDialect.bigquery, "'O\\'Reilly'"),
+        # Databricks: Spark reads backslash escapes and joins adjacent literals,
+        # so 'O''Reilly' would silently become OReilly. Backslash form, as BigQuery.
+        (SqlDialect.databricks, "'O\\'Reilly'"),
         # ClickHouse accepts both; it gets the backslash form its adapter already uses.
         (SqlDialect.clickhouse, "'O\\'Reilly'"),
     ],
@@ -404,7 +407,9 @@ def test_quote_sql_string_literal_keeps_numeric_text_quoted(dialect: SqlDialect)
     assert quote_sql_string_literal("3", dialect) == "'3'"
 
 
-@pytest.mark.parametrize("dialect", [SqlDialect.bigquery, SqlDialect.clickhouse])
+@pytest.mark.parametrize(
+    "dialect", [SqlDialect.bigquery, SqlDialect.clickhouse, SqlDialect.databricks]
+)
 def test_quote_sql_string_literal_doubles_backslash_first(dialect: SqlDialect) -> None:
     """Backslash is escaped BEFORE the quote, so a trailing one cannot escape the close."""
     assert quote_sql_string_literal("a\\", dialect) == "'a\\\\'"
@@ -416,7 +421,9 @@ def test_quote_sql_string_literal_leaves_backslash_alone_on_postgres() -> None:
     assert quote_sql_string_literal("a\\b", SqlDialect.postgres) == "'a\\b'"
 
 
-@pytest.mark.parametrize("dialect", [SqlDialect.bigquery, SqlDialect.clickhouse])
+@pytest.mark.parametrize(
+    "dialect", [SqlDialect.bigquery, SqlDialect.clickhouse, SqlDialect.databricks]
+)
 def test_quote_sql_string_literal_escapes_newlines(dialect: SqlDialect) -> None:
     """A raw newline in a single-quoted BigQuery literal is an "Unclosed string literal"."""
     assert quote_sql_string_literal("a\nb", dialect) == "'a\\nb'"
@@ -431,6 +438,7 @@ def test_quote_sql_string_literal_escapes_newlines(dialect: SqlDialect) -> None:
         ("clickhouse", SqlDialect.clickhouse),
         ("postgres", SqlDialect.postgres),
         ("bigquery", SqlDialect.bigquery),
+        ("databricks", SqlDialect.databricks),
         # The synthetic demo warehouse mimics ClickHouse semantics.
         ("synthetic", SqlDialect.clickhouse),
     ],
@@ -454,6 +462,7 @@ def test_dialect_for_db_type_rejects_unknown() -> None:
     [
         (SqlDialect.clickhouse, "`order`"),
         (SqlDialect.bigquery, "`order`"),
+        (SqlDialect.databricks, "`order`"),
         (SqlDialect.postgres, '"order"'),
     ],
 )
@@ -468,6 +477,7 @@ def test_quote_identifier_quotes_reserved_word_per_dialect(
     [
         (SqlDialect.clickhouse, "`t`.`col`"),
         (SqlDialect.bigquery, "`t`.`col`"),
+        (SqlDialect.databricks, "`t`.`col`"),
         (SqlDialect.postgres, '"t"."col"'),
     ],
 )
@@ -529,6 +539,12 @@ def test_parse_utc_timestamp_normalizes_offset_to_utc() -> None:
         # ("Invalid DATETIME literal"), so its literal must not carry one.
         (SqlDialect.bigquery, TimeKind.datetime, "DATETIME '2026-01-01 00:00:00.000000'"),
         (SqlDialect.bigquery, TimeKind.date, "DATE '2026-01-01'"),
+        (
+            SqlDialect.databricks,
+            TimeKind.timestamp,
+            "TIMESTAMP '2026-01-01 00:00:00.000000+00:00'",
+        ),
+        (SqlDialect.databricks, TimeKind.date, "DATE '2026-01-01'"),
     ],
 )
 def test_quote_timestamp_literal_pins_utc_per_dialect(
@@ -582,9 +598,11 @@ def test_lint_flags_date_trunc_string_form_on_bigquery() -> None:
     assert "TIMESTAMP_TRUNC" in message
 
 
-@pytest.mark.parametrize("dialect", [SqlDialect.clickhouse, SqlDialect.postgres])
+@pytest.mark.parametrize(
+    "dialect", [SqlDialect.clickhouse, SqlDialect.postgres, SqlDialect.databricks]
+)
 def test_lint_accepts_date_trunc_string_form_where_it_exists(dialect: SqlDialect) -> None:
-    """date_trunc('day', ts) is REAL on ClickHouse and PostgreSQL: never flag it."""
+    """date_trunc('day', ts) is REAL on ClickHouse, PostgreSQL and Databricks: never flag it."""
     assert lint_dialect_sql("SELECT date_trunc('day', created_at) FROM events", dialect) is None
 
 
@@ -604,6 +622,12 @@ def test_lint_does_not_flag_countif_on_bigquery() -> None:
         ("SELECT toStartOfInterval(ts, INTERVAL 1 DAY) FROM t", SqlDialect.postgres, "date_bin"),
         ("SELECT toStartOfInterval(ts, INTERVAL 1 DAY) FROM t", SqlDialect.bigquery, "BigQuery"),
         ("SELECT date_bin(INTERVAL '1 day', ts, now()) FROM t", SqlDialect.bigquery, "BigQuery"),
+        (
+            "SELECT toStartOfInterval(ts, INTERVAL 1 DAY) FROM t",
+            SqlDialect.databricks,
+            "date_trunc",
+        ),
+        ("SELECT TIMESTAMP_TRUNC(ts, DAY) FROM t", SqlDialect.databricks, "date_trunc"),
         (
             "SELECT date_bin(INTERVAL '1 day', ts, now()) FROM t",
             SqlDialect.clickhouse,
@@ -639,6 +663,11 @@ def test_lint_flags_cross_dialect_functions(sql: str, dialect: SqlDialect, needl
             "SELECT TIMESTAMP_TRUNC(created_at, DAY, 'UTC') AS bucket, count(*) AS value "
             "FROM events GROUP BY 1 ORDER BY 1",
             SqlDialect.bigquery,
+        ),
+        (
+            "SELECT date_trunc('DAY', created_at) AS bucket, count(*) AS value "
+            "FROM events GROUP BY 1 ORDER BY 1",
+            SqlDialect.databricks,
         ),
     ],
 )
@@ -705,3 +734,50 @@ def test_validate_select_sql_safety_strips_trailing_semicolon() -> None:
 def test_validate_select_sql_safety_rejects_unsafe(sql: str) -> None:
     with pytest.raises(ValueError):
         validate_select_sql_safety(sql)
+
+
+# ``\'`` is an escaped quote on ClickHouse, BigQuery and Databricks and a
+# backslash plus the closing quote on PostgreSQL. The masker used to read only
+# the doubling rule, so the tail after such a literal was masked as data while
+# the backslash engines ran it as code.
+@pytest.mark.parametrize(
+    "sql",
+    [
+        "SELECT 'x\\'' ; DROP TABLE t ; SELECT 'y'",
+        "SELECT 'x\\'' UNION ALL SELECT secret FROM vault WHERE 'y' = 'y'",
+    ],
+)
+def test_select_gate_scans_past_a_backslash_escaped_quote(sql: str) -> None:
+    with pytest.raises(ValueError):
+        validate_select_sql_safety(sql)
+
+
+def test_fragment_gate_scans_past_a_backslash_escaped_quote() -> None:
+    with pytest.raises(ValueError, match="SELECT"):
+        validate_sql_fragment("col = 'a\\'' OR col IN (SELECT s FROM secrets) OR col = 'b'")
+
+
+@pytest.mark.parametrize(
+    "fragment",
+    ["path = 'C:\\temp'", "name = 'O''Brien'", "event_name IN ('Delete Account')"],
+)
+def test_fragment_gate_still_accepts_plain_literals(fragment: str) -> None:
+    assert validate_sql_fragment(fragment) == fragment
+
+
+@pytest.mark.parametrize(
+    "sql",
+    [
+        "SELECT * FROM read_files('s3://other-bucket/')",
+        "SELECT http_request(conn => 'x', method => 'GET', path => '/') AS r",
+        "SELECT ai_query ('endpoint', payload) FROM events",
+    ],
+)
+def test_select_gate_refuses_functions_that_leave_the_warehouse(sql: str) -> None:
+    with pytest.raises(ValueError, match="disallowed keyword"):
+        validate_select_sql_safety(sql)
+
+
+def test_a_column_named_like_a_refused_function_still_passes() -> None:
+    assert validate_select_sql_safety("SELECT read_files FROM t") == "SELECT read_files FROM t"
+    assert validate_sql_fragment("reflect = 1") == "reflect = 1"

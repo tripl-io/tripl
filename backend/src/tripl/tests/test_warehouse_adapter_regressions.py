@@ -45,6 +45,8 @@ from tripl.core.adapters.base import (
 )
 from tripl.core.adapters.bigquery import BigQueryAdapter
 from tripl.core.adapters.clickhouse import ClickHouseAdapter
+from tripl.core.adapters.databricks import DatabricksAdapter
+from tripl.core.adapters.databricks_sql import Params
 from tripl.core.adapters.measure_validator import dialect_for_db_type
 from tripl.core.adapters.postgres import _FINITE_NUMBER_RE, PostgresAdapter
 from tripl.core.adapters.synthetic import SyntheticAdapter, SyntheticCapabilityError
@@ -421,6 +423,14 @@ def test_every_sql_engine_records_a_refused_regex() -> None:
     bigquery._contract_regex_support = {expectation.regex: False}  # type: ignore[dict-item]
     assert bigquery._contract_fragments(expectation, index=0) is None
     assert bigquery.take_skipped_field_contracts() == [expectation]
+
+    databricks = object.__new__(DatabricksAdapter)
+    databricks._allowed_columns = {"sku"}
+    databricks._column_types = {"sku": "string"}
+    databricks._struct_paths = {}
+    databricks._contract_regex_support = {expectation.regex: False}  # type: ignore[dict-item]
+    assert databricks._contract_bad_condition(expectation, Params()) is None
+    assert databricks.take_skipped_field_contracts() == [expectation]
 
 
 def test_bigquery_records_a_contract_on_a_repeated_column() -> None:

@@ -29,6 +29,7 @@ import pytest
 
 from tripl.core.adapters.bigquery import BigQueryAdapter
 from tripl.core.adapters.clickhouse import ClickHouseAdapter
+from tripl.core.adapters.databricks import DatabricksAdapter
 from tripl.core.adapters.errors import WarehouseCapabilityError
 from tripl.core.adapters.postgres import PostgresAdapter
 from tripl.core.adapters.synthetic import SyntheticAdapter
@@ -572,6 +573,30 @@ def test_bigquery_date_column_rejects_sub_day_intervals(code: str) -> None:
         _bigquery(time_type="DATE")._bucket_expression(_COL, code)
 
 
+def _databricks(time_type: str = "timestamp") -> DatabricksAdapter:
+    adapter = object.__new__(DatabricksAdapter)
+    adapter._allowed_columns = {_COL}
+    adapter._column_types = {_COL: time_type}
+    adapter._struct_paths = {}
+    return adapter
+
+
+@pytest.mark.parametrize("code", ["15m", "1h", "6h"])
+def test_databricks_date_column_rejects_sub_day_intervals(code: str) -> None:
+    """Same refusal as BigQuery's, for the same reason."""
+    with pytest.raises(WarehouseCapabilityError, match="no time-of-day"):
+        _databricks(time_type="date")._bucket_expression(_COL, code)
+
+
+@pytest.mark.parametrize("time_type", ["timestamp", "timestamp_ntz", "date"])
+def test_databricks_buckets_every_time_family_through_one_timestamp_cast(time_type: str) -> None:
+    """One spelling for TIMESTAMP, TIMESTAMP_NTZ and DATE: the column is cast to
+    TIMESTAMP, which the session's UTC time zone reads as a UTC wall clock."""
+    assert _databricks(time_type)._bucket_expression(_COL, "1d") == (
+        "date_trunc('DAY', CAST(`time` AS TIMESTAMP))"
+    )
+
+
 @pytest.mark.parametrize("code", CODES)
 def test_every_adapter_states_its_week_and_epoch_anchor_explicitly(code: str) -> None:
     """No adapter may rely on its dialect's default bucket origin.
@@ -583,12 +608,19 @@ def test_every_adapter_states_its_week_and_epoch_anchor_explicitly(code: str) ->
     ch = _clickhouse()._bucket_expression(_COL, code)
     pg = _postgres()._bucket_expression(_COL, code)
     bq = _bigquery()._bucket_expression(_COL, code)
+    dbx = _databricks()._bucket_expression(_COL, code)
 
     if code == "1w":
         assert "toMonday" in ch
         assert "1970-01-05" in pg  # WEEK_ORIGIN, the first Monday
         assert "WEEK(MONDAY)" in bq
+        # Spark's date_trunc('WEEK') is documented as the Monday of the week.
+        assert dbx.startswith("date_trunc('WEEK', ")
     else:
         assert "'UTC'" in ch  # bucket in UTC, not the column's zone
         assert "1970-01-01" in pg  # EPOCH origin, stated
         assert "1970-01-01" in bq
+        # Databricks: a multi-unit width is counted from the epoch (unix_seconds);
+        # a one-unit width truncates to the calendar unit, which is the same grid
+        # because an hour and a day divide the UTC day evenly.
+        assert "unix_seconds(" in dbx or dbx.startswith(("date_trunc('HOUR'", "date_trunc('DAY'"))

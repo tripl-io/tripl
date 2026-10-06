@@ -80,6 +80,7 @@ def test_string_condition_keeps_numeric_value_as_text() -> None:
         # literal, so the quoter doubles it — both engines still see `\%`.
         (SqlDialect.clickhouse, "'%100\\\\%%'"),
         (SqlDialect.bigquery, "'%100\\\\%%'"),
+        (SqlDialect.databricks, "'%100\\\\%%'"),
     ],
 )
 def test_contains_escapes_like_wildcards(dialect: SqlDialect, expected: str) -> None:

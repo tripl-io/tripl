@@ -89,6 +89,28 @@ _FORBIDDEN_SQL_RE = re.compile(
     re.IGNORECASE,
 )
 
+# Functions that reach outside the warehouse from inside a plain SELECT, on the
+# credential's rights: Databricks' outbound HTTP through a Unity Catalog
+# connection, reads of arbitrary storage paths and model calls, and the JVM
+# reflection pair. Matched only as a CALL (name, optional space, ``(``), so a
+# column that merely shares the name is untouched. Same caveat as above: the
+# credential's grants are the barrier, this closes the obvious door.
+_FORBIDDEN_SQL_FUNCTIONS: tuple[str, ...] = (
+    "http_request",
+    "read_files",
+    "read_kafka",
+    "read_kinesis",
+    "read_pubsub",
+    "ai_query",
+    "remote_query",
+    "java_method",
+    "reflect",
+)
+_FORBIDDEN_FUNCTION_RE = re.compile(
+    r"\b(" + "|".join(_FORBIDDEN_SQL_FUNCTIONS) + r")\s*\(",
+    re.IGNORECASE,
+)
+
 # Fragment-only forbidden set: everything ``validate_select_sql_safety`` rejects
 # PLUS ``select`` and ``with``. A stored row filter is a boolean WHERE expression
 # that must never embed a query, so a correlated subquery (``user_id IN (SELECT
@@ -119,6 +141,7 @@ class SqlDialect(StrEnum):
     clickhouse = "clickhouse"
     postgres = "postgres"
     bigquery = "bigquery"
+    databricks = "databricks"
 
 
 #: ``DataSource.db_type`` -> dialect. The synthetic demo warehouse mimics ClickHouse
@@ -128,13 +151,16 @@ _DB_TYPE_DIALECT: dict[str, SqlDialect] = {
     "clickhouse": SqlDialect.clickhouse,
     "postgres": SqlDialect.postgres,
     "bigquery": SqlDialect.bigquery,
+    "databricks": SqlDialect.databricks,
     "synthetic": SqlDialect.clickhouse,
 }
 
-#: ClickHouse and BigQuery back-tick identifiers; PostgreSQL double-quotes them.
+#: ClickHouse, BigQuery and Databricks back-tick identifiers; PostgreSQL
+#: double-quotes them (a double-quoted token is a STRING literal on Databricks).
 _IDENTIFIER_QUOTE: dict[SqlDialect, str] = {
     SqlDialect.clickhouse: "`",
     SqlDialect.bigquery: "`",
+    SqlDialect.databricks: "`",
     SqlDialect.postgres: '"',
 }
 
@@ -167,6 +193,7 @@ _POSTGRES_BUCKET_HINT = (
     "for a PostgreSQL source."
 )
 _BIGQUERY_BUCKET_HINT = "Use TIMESTAMP_TRUNC(<time column>, DAY, 'UTC') for a BigQuery source."
+_DATABRICKS_BUCKET_HINT = "Use date_trunc('DAY', <time column>) for a Databricks source."
 
 #: Per-dialect "this cannot run here" rules, each verified against a live engine so a
 #: valid query is never flagged. Ordered most-specific first.
@@ -191,6 +218,38 @@ _DIALECT_RULES: dict[SqlDialect, tuple[tuple[re.Pattern[str], str], ...]] = {
             _fn_re("parseDateTime64BestEffort"),
             "parseDateTime64BestEffort is a ClickHouse function and does not exist on "
             "BigQuery. Use a typed literal such as TIMESTAMP '2026-01-01 00:00:00+00:00'.",
+        ),
+    ),
+    SqlDialect.databricks: (
+        (
+            _fn_re("toStartOfInterval"),
+            "toStartOfInterval is a ClickHouse function and does not exist on Databricks. "
+            f"{_DATABRICKS_BUCKET_HINT}",
+        ),
+        (
+            _fn_re("date_bin"),
+            "date_bin is a PostgreSQL function and does not exist on Databricks. "
+            f"{_DATABRICKS_BUCKET_HINT}",
+        ),
+        (
+            _fn_re("TIMESTAMP_TRUNC"),
+            "TIMESTAMP_TRUNC is a BigQuery function and does not exist on Databricks. "
+            f"{_DATABRICKS_BUCKET_HINT}",
+        ),
+        (
+            _fn_re("TIMESTAMP_BUCKET"),
+            "TIMESTAMP_BUCKET is a BigQuery function and does not exist on Databricks. "
+            f"{_DATABRICKS_BUCKET_HINT}",
+        ),
+        (
+            _fn_re("countIf"),
+            "countIf is a ClickHouse function and does not exist on Databricks. Use "
+            "count_if(<condition>).",
+        ),
+        (
+            _fn_re("parseDateTime64BestEffort"),
+            "parseDateTime64BestEffort is a ClickHouse function and does not exist on "
+            "Databricks. Use a typed literal such as TIMESTAMP '2026-01-01 00:00:00+00:00'.",
         ),
     ),
     SqlDialect.postgres: (
@@ -326,12 +385,17 @@ def _mask_quoted_spans(sql: str) -> str:
     same delimiters, and the same rule that a doubled delimiter is an escape that
     keeps the span open.
 
-    An UNTERMINATED span is deliberately left unmasked and scanned raw. That is
-    the safe direction in both readings: nothing can be hidden behind a quote that
-    never closes, and the doubling-only escape rule misreads the backslash form
-    ClickHouse and BigQuery allow (``'O\\'Brien'``) as "closed, then a new open
-    span" — leaving that tail raw keeps rejecting whatever follows it, exactly as
-    the gate does today, instead of trusting it.
+    An UNTERMINATED span is deliberately left unmasked and scanned raw: nothing
+    can be hidden behind a quote that never closes.
+
+    A BACKSLASH inside a span stops the masking there, and everything from that
+    span on is scanned raw. The engines disagree about it: ClickHouse, BigQuery
+    and Databricks read ``\\'`` as an escaped quote, PostgreSQL reads a backslash
+    followed by the closing quote. Each reading can end the span where the other
+    does not, so the text after it may be code for one of them. Under the
+    doubling rule alone, ``'x\\'' ; DROP TABLE t ; SELECT 'y'`` was masked whole
+    while the backslash engines ran ``; DROP TABLE t ;`` as code. A value holding
+    both a backslash and a keyword is now refused, which is the safe direction.
 
     The gate is dialect-agnostic, so the doubled-delimiter rule has to be right
     for a dialect that does NOT have it (BigQuery reads ``'a''b'`` as two adjacent
@@ -353,7 +417,11 @@ def _mask_quoted_spans(sql: str) -> str:
         start = i
         i += 1
         closed = False
+        ambiguous = False
         while i < length:
+            if sql[i] == "\\":
+                ambiguous = True
+                break
             if sql[i] != quote:
                 i += 1
                 continue
@@ -362,6 +430,9 @@ def _mask_quoted_spans(sql: str) -> str:
                 continue
             closed = True
             i += 1
+            break
+        if ambiguous:
+            # Where this span ends depends on the engine; scan the rest raw.
             break
         if closed:
             # i - 1 is the closing delimiter; blank strictly between the pair.
@@ -459,6 +530,8 @@ def quote_sql_string_literal(text: str, dialect: SqlDialect) -> str:
       escaped too.
     * **ClickHouse** accepts both forms; it is given the backslash form so it
       matches its own adapter's ``_quote_string``.
+    * **Databricks** escapes with a backslash, like BigQuery (its parser reads
+      ``\\`` escapes in every string literal), so it gets the same form.
 
     So the previously-shared ``''`` escaping meant ANY structured filter value
     containing an apostrophe was a hard BigQuery parse error — raised inside a
@@ -571,6 +644,12 @@ def quote_timestamp_literal(value: datetime, dialect: SqlDialect, *, kind: TimeK
         return f"parseDateTime64BestEffort('{format_utc_literal(moment)}', 6, 'UTC')"
     if dialect is SqlDialect.postgres:
         return f"TIMESTAMPTZ '{format_utc_literal(moment)}'"
+    if dialect is SqlDialect.databricks:
+        # A TIMESTAMP_NTZ column classifies as ``timestamp`` and compares against
+        # this literal as the same UTC wall clock: the adapter pins the session to UTC.
+        if kind is TimeKind.date:
+            return f"DATE '{moment.strftime(_BQ_DATE_LITERAL_FMT)}'"
+        return f"TIMESTAMP '{format_utc_literal(moment)}'"
     if kind is TimeKind.datetime:
         return f"DATETIME '{moment.strftime(_BQ_DATETIME_LITERAL_FMT)}'"
     if kind is TimeKind.date:
@@ -656,7 +735,7 @@ def validate_sql_fragment(text: str) -> str:
     if ";" in masked:
         msg = "Filter must not contain ';' separators"
         raise ValueError(msg)
-    forbidden = _FORBIDDEN_FRAGMENT_RE.search(masked)
+    forbidden = _FORBIDDEN_FRAGMENT_RE.search(masked) or _FORBIDDEN_FUNCTION_RE.search(masked)
     if forbidden is not None:
         msg = f"Filter must be read-only; disallowed keyword: {forbidden.group(1).upper()}"
         raise ValueError(msg)
@@ -779,7 +858,9 @@ def validate_select_sql_safety(sql: str) -> str:
         msg = "Metric SQL must be a single read-only SELECT statement"
         raise ValueError(msg)
 
-    forbidden = _FORBIDDEN_SQL_RE.search(masked_without_trailing)
+    forbidden = _FORBIDDEN_SQL_RE.search(masked_without_trailing) or (
+        _FORBIDDEN_FUNCTION_RE.search(masked_without_trailing)
+    )
     if forbidden is not None:
         msg = f"Metric SQL must be read-only; disallowed keyword: {forbidden.group(1).upper()}"
         raise ValueError(msg)

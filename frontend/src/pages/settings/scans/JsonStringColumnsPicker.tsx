@@ -8,7 +8,7 @@ import { JSON_STRING_DB_TYPES, textColumnNames } from './scanSetupPreset'
  * reads them as JSON columns — their keys become properties, in the custom
  * setup and as the Event + properties preset's properties column alike.
  *
- * ClickHouse and BigQuery only: the row is left out for any other source,
+ * ClickHouse, BigQuery and Databricks only: the row is left out for any other source,
  * unless a column is ticked already, so a saved setting can still be cleared.
  */
 export function JsonStringColumnsPicker({
@@ -44,7 +44,7 @@ export function JsonStringColumnsPicker({
       >
         {!supported && (
           <p className="m-0 text-body-sm text-danger" role="alert">
-            Only ClickHouse and BigQuery sources can parse text as JSON. Untick the columns
+            Only ClickHouse, BigQuery and Databricks sources can parse text as JSON. Untick the columns
             below to save this scan.
           </p>
         )}

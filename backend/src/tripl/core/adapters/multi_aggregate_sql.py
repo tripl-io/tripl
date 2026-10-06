@@ -57,6 +57,15 @@ def compile_time_bucketed_multi_aggregate_sql(
         bigquery._column_types = dict(column_types)
         bigquery._allowed_columns = set(column_types)
         adapter = bigquery
+    elif db_type == "databricks":
+        from tripl.core.adapters.databricks import DatabricksAdapter
+
+        databricks = object.__new__(DatabricksAdapter)
+        # Databricks' window literal follows the time column's declared type
+        # (TIMESTAMP / TIMESTAMP_NTZ / DATE), like BigQuery's.
+        databricks._column_types = dict(column_types)
+        databricks._allowed_columns = set(column_types)
+        adapter = databricks
     else:
         msg = f"Generated batch SQL is unavailable for data source type {db_type!r}"
         raise ValueError(msg)

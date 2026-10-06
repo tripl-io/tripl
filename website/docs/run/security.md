@@ -594,7 +594,12 @@ no stacked `;`, no comment markers, no DDL/DML/`UNION` — each of those three
 checked **outside** string and quoted-identifier literals, so a value such as
 `'Delete Account'` is data rather than a rejected keyword. A keyword or `;` after
 a literal that closed is still caught, and an unterminated literal is scanned as
-if it were code.
+if it were code. So is everything after a literal that holds a backslash:
+ClickHouse, BigQuery and Databricks read `\'` as an escaped quote and PostgreSQL
+does not, so where such a literal ends depends on the engine. Calls that leave
+the warehouse from inside a `SELECT` — Databricks' `http_request`,
+`read_files`, `ai_query` and `remote_query`, the streaming readers, and
+`java_method` / `reflect` — are refused as well.
 
 The gate is an accident guard, not the write barrier. It is a keyword blocklist,
 so it stops only writes spelled with one of those words — not a write reached
@@ -692,6 +697,24 @@ connection (DNS rebinding) is refused too. Redirects are refused (search
 embeddings included), and a BigQuery key may only exchange tokens with Google. Turn it on when the people
 who configure these hosts must not reach the instance's own network: the
 database, the broker or a cloud metadata endpoint.
+
+**Databricks is the exception to "the connection goes to the address that was
+checked".** The Databricks SQL connector opens its own HTTPS connection pools
+from the hostname and has no way to be told which address to dial while keeping
+the name for TLS, so tripl cannot pin it. The workspace host is still resolved
+and vetted right before the connection is opened, but the driver then resolves
+it again: a name with a short TTL could answer publicly for the check and
+privately for the connection. To close that gap, with the setting on a
+Databricks host must also be a Databricks workspace hostname — under
+`cloud.databricks.com`, `gcp.databricks.com`, `azuredatabricks.net`,
+`cloud.databricks.us`, `databricks.azure.us` or `databricks.azure.cn` — whose
+DNS answers Databricks controls, not whoever configured the source. This is the
+same reasoning that limits a BigQuery key to Google's token endpoint. A
+private-link workspace or a proxy in front of one therefore needs the setting
+off. The OAuth machine-to-machine token request (service principal
+authentication) goes through the same vetted, pinned, redirect-refusing client
+as webhooks; cloud fetch, which would download results from cloud storage URLs
+the warehouse hands back, is switched off.
 
 ## CORS
 

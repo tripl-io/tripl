@@ -154,6 +154,10 @@ async def test_non_owners_get_the_connection_redacted(stand, actor: str) -> None
             "sslcert": None,
             "search_path": None,
             "sslkey_set": False,
+            "http_path": None,
+            "auth_type": None,
+            "schema_name": None,
+            "schema_allowlist": None,
         }
         # No hostname or credential leaks anywhere else in the payload.
         assert "internal.example.com" not in resp.text

@@ -6545,6 +6545,21 @@
       "ConnectionSettingsResponse": {
         "description": "Read side of the connection settings: the union, flattened, secrets removed.\n\nApplicability is enforced on write, so the response can be one flat object;\nonly the fields that apply to the source's ``db_type`` are ever populated.",
         "properties": {
+          "auth_type": {
+            "anyOf": [
+              {
+                "enum": [
+                  "pat",
+                  "oauth_m2m"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Auth Type"
+          },
           "dataset_allowlist": {
             "anyOf": [
               {
@@ -6558,6 +6573,17 @@
               }
             ],
             "title": "Dataset Allowlist"
+          },
+          "http_path": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Http Path"
           },
           "location": {
             "anyOf": [
@@ -6580,6 +6606,31 @@
               }
             ],
             "title": "Maximum Bytes Billed"
+          },
+          "schema_allowlist": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Schema Allowlist"
+          },
+          "schema_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Schema Name"
           },
           "search_path": {
             "anyOf": [
@@ -6719,6 +6770,7 @@
           "clickhouse",
           "postgres",
           "bigquery",
+          "databricks",
           "synthetic"
         ],
         "title": "DBType",
@@ -6737,6 +6789,9 @@
               },
               {
                 "$ref": "#/components/schemas/BigQuerySettings"
+              },
+              {
+                "$ref": "#/components/schemas/DatabricksSettings"
               },
               {
                 "$ref": "#/components/schemas/SyntheticSettings"
@@ -6858,6 +6913,9 @@
               },
               {
                 "$ref": "#/components/schemas/BigQuerySettings"
+              },
+              {
+                "$ref": "#/components/schemas/DatabricksSettings"
               },
               {
                 "$ref": "#/components/schemas/SyntheticSettings"
@@ -7243,6 +7301,9 @@
                 "$ref": "#/components/schemas/BigQuerySettings"
               },
               {
+                "$ref": "#/components/schemas/DatabricksSettings"
+              },
+              {
                 "$ref": "#/components/schemas/SyntheticSettings"
               },
               {
@@ -7365,6 +7426,64 @@
           }
         },
         "title": "DataSourceUpdate",
+        "type": "object"
+      },
+      "DatabricksSettings": {
+        "additionalProperties": false,
+        "description": "Databricks SQL warehouse connection: where the warehouse is, and what to browse.\n\n``host`` is the workspace hostname and ``database_name`` the default catalog;\nthese are the settings that have no column of their own.",
+        "properties": {
+          "auth_type": {
+            "anyOf": [
+              {
+                "enum": [
+                  "pat",
+                  "oauth_m2m"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Auth Type"
+          },
+          "http_path": {
+            "maxLength": 500,
+            "minLength": 1,
+            "title": "Http Path",
+            "type": "string"
+          },
+          "schema_allowlist": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Schema Allowlist"
+          },
+          "schema_name": {
+            "anyOf": [
+              {
+                "maxLength": 255,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Schema Name"
+          }
+        },
+        "required": [
+          "http_path"
+        ],
+        "title": "DatabricksSettings",
         "type": "object"
       },
       "DeadEventArchiveRequest": {

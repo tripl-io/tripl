@@ -545,6 +545,7 @@ to every curated message rather than leaving each raise site to remember it:
 | **PostgreSQL** | TLS negotiation or unreachable host. Non-local hosts default to **`sslmode=require`**, so a remote server with no TLS fails loudly rather than silently falling back to plaintext; localhost defaults to `prefer`. | Confirm host/port reachable from the worker container; check the server's TLS settings. A remote server that genuinely has no TLS needs `sslmode` set explicitly to `prefer`/`disable` on the data source. |
 | **ClickHouse** | Wrong host/port/secure flag, or a probe query that returns no rows. | Verify connection params; *"Connection probe returned no rows"* means it connected but the probe was empty — check the query/permissions. |
 | **BigQuery** | Missing project id or invalid service-account JSON. The probe names which of the two it is — see the verbatim messages below. | Set the project id in the host field and paste valid service-account JSON. |
+| **Databricks** | Wrong HTTP path, an expired or revoked token, a stopped warehouse still starting, or a service principal without `CAN USE` on the warehouse. | Copy the server hostname and HTTP path again from the warehouse's **Connection details**; issue a new token; with OAuth, check the client ID is in **OAuth client ID** and **Authentication** says OAuth. A serverless warehouse that was stopped can need a longer timeout for its first query. |
 
 **A configuration problem tripl can name is shown in full.** Those messages hold
 no host, port or credential, and generalizing them away would send you to
@@ -555,6 +556,12 @@ re-check settings that are all correct, so they follow the prefix unchanged:
   required"*
 - *"Connection test failed: BigQuery: invalid service-account JSON: …"* (with
   the position of the syntax error, never the contents of the key)
+- *"Connection test failed: Databricks: the SQL warehouse HTTP path is required
+  …"*
+- *"Connection test failed: Databricks: OAuth machine-to-machine sign-in needs
+  the service principal's client ID in the username field"*
+- *"Connection test failed: Databricks: the OAuth token request was refused
+  (HTTP 401). …"*
 - *"Connection test failed: PostgreSQL 13.23 is too old for tripl: every
   time-bucket query uses date_bin(), which was added in PostgreSQL 14. Upgrade
   the server to 14 or newer."*

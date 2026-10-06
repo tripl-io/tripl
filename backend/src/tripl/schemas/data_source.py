@@ -92,7 +92,22 @@ DEFAULT_BIGQUERY_MAXIMUM_BYTES_BILLED = 100 * 1024**3
 # nothing said so.
 MAX_SCHEMA_DATASETS = 20
 
+# How many extra schemas one Databricks schema browse may span. A browse is a single
+# ``information_schema.columns`` statement whatever the count, so this bounds the
+# IN list and the autocomplete payload rather than a number of billed jobs.
+MAX_DATABRICKS_SCHEMA_ALLOWLIST = 50
+
+# Databricks authentication: a personal access token, or a service principal's
+# OAuth client ID (``username``) and secret (``password``) exchanged for a token.
+DatabricksAuthType = Literal["pat", "oauth_m2m"]
+
 _BQ_LOCATION_RE = re.compile(r"^[A-Za-z0-9-]{2,40}$")
+# A SQL warehouse's HTTP path (``/sql/1.0/warehouses/<id>``), or a cluster's
+# (``/sql/protocolv1/o/<org>/<cluster>``). Path characters only: no scheme, host,
+# whitespace or quote can ride in it.
+_DBX_HTTP_PATH_RE = re.compile(r"^/[A-Za-z0-9_\-./?=&]{1,499}$")
+# A Unity Catalog schema name as the browse and the session default accept it.
+_DBX_SCHEMA_RE = re.compile(r"^[A-Za-z0-9_-]{1,255}$")
 _BQ_DATASET_RE = re.compile(r"^[A-Za-z0-9_]{1,1024}$")
 # A comma-separated list of plain SQL identifiers. Interpolated into
 # ``SET search_path`` by the adapter, so anything that is not an identifier list
@@ -245,16 +260,82 @@ class BigQuerySettings(_ConnectionSettingsBase):
         return cleaned or None
 
 
+class DatabricksSettings(_ConnectionSettingsBase):
+    """Databricks SQL warehouse connection: where the warehouse is, and what to browse.
+
+    ``host`` is the workspace hostname and ``database_name`` the default catalog;
+    these are the settings that have no column of their own.
+    """
+
+    # Required: without it there is no warehouse to send a statement to.
+    http_path: str = Field(min_length=1, max_length=500)
+    # Unset reads as "pat".
+    auth_type: DatabricksAuthType | None = None
+    # The default schema unqualified names resolve in. Unset = "default".
+    schema_name: str | None = Field(default=None, max_length=255)
+    # Further schemas of the same catalog the schema browser lists.
+    schema_allowlist: list[str] | None = None
+
+    @field_validator("http_path")
+    @classmethod
+    def _check_http_path(cls, value: str) -> str:
+        trimmed = value.strip()
+        if not _DBX_HTTP_PATH_RE.match(trimmed):
+            raise ValueError(
+                "http_path must be the warehouse's HTTP path, e.g. /sql/1.0/warehouses/1234abcd"
+            )
+        return trimmed
+
+    @field_validator("schema_name")
+    @classmethod
+    def _check_schema_name(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+        trimmed = value.strip()
+        if not trimmed:
+            return None
+        if not _DBX_SCHEMA_RE.match(trimmed):
+            raise ValueError(f"schema_name {trimmed!r} is not a valid schema name")
+        return trimmed
+
+    @field_validator("schema_allowlist")
+    @classmethod
+    def _check_schemas(cls, value: list[str] | None) -> list[str] | None:
+        if value is None:
+            return None
+        cleaned: list[str] = []
+        for raw in value:
+            schema = raw.strip()
+            if not schema:
+                continue
+            if not _DBX_SCHEMA_RE.match(schema):
+                raise ValueError(f"schema_allowlist entry {schema!r} is not a valid schema name")
+            if schema not in cleaned:
+                cleaned.append(schema)
+        if len(cleaned) > MAX_DATABRICKS_SCHEMA_ALLOWLIST:
+            raise ValueError(
+                f"schema_allowlist accepts at most {MAX_DATABRICKS_SCHEMA_ALLOWLIST} schemas"
+            )
+        return cleaned or None
+
+
 # The write-side union. Every member forbids extras, so a key that belongs to no
 # warehouse at all is rejected by FastAPI before the service is reached; the
 # service then checks the parsed settings against the row's db_type (a BigQuery
 # key on a PostgreSQL source is a 422, not a silent drop).
-ConnectionSettings = ClickHouseSettings | PostgresSettings | BigQuerySettings | SyntheticSettings
+ConnectionSettings = (
+    ClickHouseSettings
+    | PostgresSettings
+    | BigQuerySettings
+    | DatabricksSettings
+    | SyntheticSettings
+)
 
 CONNECTION_SETTINGS_MODELS: dict[str, type[_ConnectionSettingsBase]] = {
     DBType.clickhouse.value: ClickHouseSettings,
     DBType.postgres.value: PostgresSettings,
     DBType.bigquery.value: BigQuerySettings,
+    DBType.databricks.value: DatabricksSettings,
     DBType.synthetic.value: SyntheticSettings,
 }
 
@@ -335,6 +416,11 @@ class ConnectionSettingsResponse(BaseModel):
     sslrootcert: str | None = None
     sslcert: str | None = None
     search_path: str | None = None
+    # Databricks
+    http_path: str | None = None
+    auth_type: DatabricksAuthType | None = None
+    schema_name: str | None = None
+    schema_allowlist: list[str] | None = None
     # The private key itself is never returned — only whether one is stored.
     sslkey_set: bool = False
 

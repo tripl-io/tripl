@@ -5,7 +5,7 @@ title: Warehouse capability matrix
 # Warehouse capability matrix
 
 tripl talks to a warehouse through one interface — `BaseAdapter` — and offers
-ClickHouse, BigQuery and PostgreSQL as external sources. Offering them is not the
+ClickHouse, BigQuery, Databricks and PostgreSQL as external sources. Offering them is not the
 same as guaranteeing they behave identically.
 
 This page is the honest version. It states, per capability and per warehouse,
@@ -40,6 +40,7 @@ requests remain credential-free and stop at ZetaSQL analysis.
 | **ClickHouse** | **EXECUTED.** A real `clickhouse-server:26.8` container runs the SQL the adapter generates and the results are compared against the reference implementation. | SQL validity **and** computed values: bucket timestamps, counts, aggregates, nested paths, contract counts. | — |
 | **PostgreSQL** | **EXECUTED.** A real `postgres:18` container runs the SQL the adapter generates and the results are compared against the reference implementation. | SQL validity **and** computed values, exactly as ClickHouse. | — |
 | **BigQuery** | **ANALYZED on every PR; values executed on trusted releases.** The emulator's real ZetaSQL analyzer checks every generated statement. A credentialed job runs for `vX.Y.Z` tags when explicitly enabled. | SQL validity plus exact adapter values; the release gate also compares scan/replay event series, fact and composition metrics, batched collection, idempotency and anomalies against the shared reference while using real PostgreSQL for application state. | Credentialed checks run only on release tags to bound quota usage. |
+| **Databricks** | **MOCKED only.** `test_databricks_adapter.py` and the shared parity suites drive the real adapter against a fake DB-API driver and assert the SQL it sends and how it decodes what comes back. No warehouse, emulator or analyzer runs in CI. A credentialed value suite against a real SQL warehouse (`conformance/test_databricks_value_conformance.py`, marker `databricks_value`) is run by hand. | The adapter honours the same contract as the others *as text*: top-N folding and tie-break, conditional-aggregate NULL rules, one-scan field contracts, bound parameters, UTC literals. | Neither that Databricks accepts the SQL nor the values it computes. Until a live check has run, treat every Databricks cell below as believed, not proven. |
 | synthetic | In-memory fixture, not a warehouse. | Nothing about a real warehouse. | — |
 
 **Why emulator values are never used.** The emulator's *analyzer* is Google's;
@@ -137,8 +138,9 @@ dialect default already agrees:
 | ClickHouse | `toDateTime(toMonday(col, 'UTC'), 'UTC')` — ClickHouse is the one whose default already agrees: `toStartOfInterval(col, INTERVAL 1 WEEK)` is Monday-anchored at `1970-01-05`, *not* off the epoch Thursday. `toMonday` is used for a different reason — the week form of `toStartOfInterval` returns a **Date**, so a `1w` bucket would come back as `datetime.date` while every other interval yields `datetime.datetime` | **executed** |
 | PostgreSQL | `date_bin('7 days', col, TIMESTAMPTZ '1970-01-05 00:00:00+00:00')` — anchored at the first Monday, not the epoch | **executed** |
 | BigQuery | `TIMESTAMP_TRUNC(col, WEEK(MONDAY), 'UTC')` / `DATETIME_TRUNC(col, WEEK(MONDAY))` / `DATE_TRUNC(col, WEEK(MONDAY))` by declared time type | **executed on real BigQuery** for all three time families |
+| Databricks | `date_trunc('WEEK', CAST(col AS TIMESTAMP))` — Databricks documents `WEEK` truncation as the Monday of the week. `15m`/`6h` use `timestamp_seconds(floor(unix_seconds(t) / w) * w)` off the epoch; `1h`/`1d` use `date_trunc`, the same grid because they divide the UTC day. The session time zone is pinned to UTC | **not executed** (mocked) |
 
-`floor_to_bucket(value, code)` in `core/bucketing.py` is the definition all three
+`floor_to_bucket(value, code)` in `core/bucketing.py` is the definition all of them
 are measured against.
 
 The same origins govern the **window**, not only the bucket. `_floor_to_interval`
@@ -165,6 +167,7 @@ cannot be placed in a window at all.
 | --- | --- | --- | --- |
 | ClickHouse | `DateTime`, `DateTime64`, `Date`, `Date32` | — | n/a |
 | BigQuery | `TIMESTAMP`, `DATETIME`, `DATE` | `TIME` | **Not guaranteed** — the adapter raises an actionable error naming the column and its type, but only where the column's time kind is first needed: a bucket expression or a window predicate. A scan preview builds a window predicate only when the config carries a lookback window, so a scan saved without one first fails on a run. See caveat [7] |
+| Databricks | `TIMESTAMP`, `TIMESTAMP_NTZ`, `DATE` | anything else (`INTERVAL`, arrays) | **Not guaranteed** — like BigQuery, refused with an actionable error where the time kind is first needed. A `DATE` column refuses `15m`/`1h`/`6h` |
 | PostgreSQL | `timestamp`, `timestamptz`, `date` | `time`, `timetz`, and any array (`timestamptz[]`) | **No** — classified as unsupported, but not acted on. See caveat [7] |
 
 Notes that bite in practice:
@@ -192,9 +195,9 @@ activated on PostgreSQL at all.
 
 | Kind | Meaning | Dialect spellings |
 | --- | --- | --- |
-| `json` | Schemaless document; paths are discovered *from the data* | CH `JSON` / `Object('json')`, BQ `JSON`, PG `json` / `jsonb` |
-| `struct` | Fixed nested schema; paths come from the *declared schema* | BQ `RECORD` / `STRUCT`, CH `Tuple(…)` |
-| `map` | Key/value container | CH `Map(…)` |
+| `json` | Schemaless document; paths are discovered *from the data* | CH `JSON` / `Object('json')`, BQ `JSON`, PG `json` / `jsonb`, Databricks `VARIANT` |
+| `struct` | Fixed nested schema; paths come from the *declared schema* | BQ `RECORD` / `STRUCT`, CH `Tuple(…)`, Databricks `STRUCT<…>` |
+| `map` | Key/value container | CH `Map(…)`, Databricks `MAP<…>` |
 
 Path rules:
 
@@ -301,42 +304,42 @@ capped at 65,000 rows per table), and raises `SyntheticCapabilityError` rather
 than fabricating an answer it cannot honestly compute. It is included because it must satisfy the same contract, not because it
 is a shipping warehouse.
 
-| Capability | Adapter surface | ClickHouse | BigQuery | PostgreSQL | synthetic |
-| --- | --- | --- | --- | --- | --- |
-| Connection test | `test_connection` | full | full | full [7] | full [10] |
-| Schema browse (autocomplete) | `get_schema_tables` | full | **bounded [1]** | full | full |
-| Preview rows (time-windowed) | `get_preview_rows` | full | full | full | full |
-| JSON path discovery (preview probe) | `get_json_path_samples` | **bounded [4]** | **bounded [4]** | **bounded [4]** | bounded [4] |
-| Nested path enumeration (scan) | `get_full_breakdown` | **full (JSON), shape-only for `Map`/`Tuple` [8]** | **bounded [5]** | **top-level only [6]** | full |
-| Nested value extraction (selected paths) | all bucketed methods | full (JSON), none for `Tuple`/`Map` [8] | full (JSON + STRUCT [5]) | full (JSON) | full |
-| Scan run / full breakdown | `get_full_breakdown` | full | full | full | full |
-| Scan replay (chunked) | bucketed methods | full | full | full | full |
-| Event generation | bucketed methods | full | full | full | full |
-| Variables and bindings | derived from scan output | full | full | full | full |
-| Event metrics (bucketed counts) | `get_time_bucketed_counts` | full | full | full | full |
-| Event metric breakdowns (single) | `get_time_bucketed_breakdown_counts` | full | full | full | full |
-| Event metric breakdowns (multi) | `…_breakdown_counts_multi` | full | full | full | full |
-| Top-N + `Other` folding (ranked once over the caller's whole window, not per chunk) | `values_limit` on breakdown methods, `top_n_ranking_window` | full | full | full | full |
-| SQL metrics (free-text) | `get_preview_rows` | full [9] | full [9] | full [9] | bounded [10] |
-| SQL metric starter templates | frontend `metricTemplates.ts` | full | full | full | n/a |
-| Dialect pre-flight lint (metric preview and metric save [9]) | `lint_dialect_sql` | full | full | full | full |
-| Fact metrics (aggregate) | `get_time_bucketed_aggregate` | full | full | full | full |
-| Fact metric breakdowns | `get_time_bucketed_aggregate_breakdown` | full | full | full | full |
-| Fact ratio metrics (one scan) | `get_time_bucketed_multi_aggregate` | full | full | full | full |
-| Fact ratio breakdowns | `…_multi_aggregate_breakdown` | full | full | full | full |
-| Structured fact filters | `AggregateSpec.filter_sql` | full | full | full | bounded [10] |
-| Schema drift | derived from scan output | full | full | full | full |
-| Value / distribution drift | derived from scan output | full | full | full | full |
-| Properties as breakdowns, drift fields and contracts (`<json_column>.<path>`, F23) | `_field_value_expression` / `_field_operand` | full: JSON subcolumn; one `Map` key and named `Tuple` element by hand only, not execution-verified [8] | full: `JSON_VALUE` (JSON), declared STRUCT field | full: `#>>` (`json`/`jsonb`) | **none** — no JSON columns; a property breakdown raises `SyntheticCapabilityError` [10] |
-| Text columns parsed as JSON (`json_string_columns`, F23.9) | `json_string_source`, resolved once per adapter by `core.json_string_columns` | full: `SELECT * REPLACE (CAST(if(isValidJSON(s) AND JSONType(s) = 'Object', s, '{}'), 'JSON') AS c)` — needs the `JSON` type (25.x) | full: `SELECT * REPLACE (IF(JSON_TYPE(SAFE.PARSE_JSON(c, wide_number_mode => 'round')) = 'object', …, NULL) AS c)` | **none** — no non-failing text→`jsonb` cast before PG 16; the API refuses the setting (`422`) and the adapter raises `WarehouseCapabilityError` | **none** — refused like PostgreSQL |
-| **Field contracts** (required/enum/regex/range) | `validate_field_contracts` | **full** | **full** (warehouse-side, full window) | **full** (warehouse-side, full window; range compares in exact decimal, see "PostgreSQL range contracts compare exactly") | bounded [10] |
-| Anomaly detection | none (post-hoc) | full [11] | full [11] | full [11] | full [11] |
-| Alerts | none (post-hoc) | full [11] | full [11] | full [11] | full [11] |
-| Query timeout | data source `timeout_seconds` | full | full [2] | full | **n/a — accepted and ignored [10]** |
-| In-flight query cancellation | adapter | **bounded [12]** | **bounded [12]** | **bounded [12]** | bounded [12] |
-| Cost / billed-bytes guard | `maximum_bytes_billed` | n/a | full [3] | n/a | n/a |
-| TLS enforcement | connection settings | full (HTTPS port) | full (Google TLS) | full [13] | n/a |
-| Executable SQL conformance | `tests/conformance/` | **executed** | **release-gated execution; analyzed on PRs** | **executed** | n/a |
+| Capability | Adapter surface | ClickHouse | BigQuery | Databricks | PostgreSQL | synthetic |
+| --- | --- | --- | --- | --- | --- | --- |
+| Connection test | `test_connection` | full | full | full | full [7] | full [10] |
+| Schema browse (autocomplete) | `get_schema_tables` | full | **bounded [1]** | **bounded [14]** | full | full |
+| Preview rows (time-windowed) | `get_preview_rows` | full | full | full | full | full |
+| JSON path discovery (preview probe) | `get_json_path_samples` | **bounded [4]** | **bounded [4]** | **bounded [4]** | **bounded [4]** | bounded [4] |
+| Nested path enumeration (scan) | `get_full_breakdown` | **full (JSON), shape-only for `Map`/`Tuple` [8]** | **bounded [5]** | **top-level only [14]** | **top-level only [6]** | full |
+| Nested value extraction (selected paths) | all bucketed methods | full (JSON), none for `Tuple`/`Map` [8] | full (JSON + STRUCT [5]) | full (`VARIANT` + STRUCT + one `MAP` level [14]) | full (JSON) | full |
+| Scan run / full breakdown | `get_full_breakdown` | full | full | full | full | full |
+| Scan replay (chunked) | bucketed methods | full | full | full | full | full |
+| Event generation | bucketed methods | full | full | full | full | full |
+| Variables and bindings | derived from scan output | full | full | full | full | full |
+| Event metrics (bucketed counts) | `get_time_bucketed_counts` | full | full | full | full | full |
+| Event metric breakdowns (single) | `get_time_bucketed_breakdown_counts` | full | full | full | full | full |
+| Event metric breakdowns (multi) | `…_breakdown_counts_multi` | full | full | full | full | full |
+| Top-N + `Other` folding (ranked once over the caller's whole window, not per chunk) | `values_limit` on breakdown methods, `top_n_ranking_window` | full | full | full | full | full |
+| SQL metrics (free-text) | `get_preview_rows` | full [9] | full [9] | full [9] | full [9] | bounded [10] |
+| SQL metric starter templates | frontend `metricTemplates.ts` | full | full | full | full | n/a |
+| Dialect pre-flight lint (metric preview and metric save [9]) | `lint_dialect_sql` | full | full | full | full | full |
+| Fact metrics (aggregate) | `get_time_bucketed_aggregate` | full | full | full | full | full |
+| Fact metric breakdowns | `get_time_bucketed_aggregate_breakdown` | full | full | full | full | full |
+| Fact ratio metrics (one scan) | `get_time_bucketed_multi_aggregate` | full | full | full | full | full |
+| Fact ratio breakdowns | `…_multi_aggregate_breakdown` | full | full | full | full | full |
+| Structured fact filters | `AggregateSpec.filter_sql` | full | full | full | full | bounded [10] |
+| Schema drift | derived from scan output | full | full | full | full | full |
+| Value / distribution drift | derived from scan output | full | full | full | full | full |
+| Properties as breakdowns, drift fields and contracts (`<json_column>.<path>`, F23) | `_field_value_expression` / `_field_operand` | full: JSON subcolumn; one `Map` key and named `Tuple` element by hand only, not execution-verified [8] | full: `JSON_VALUE` (JSON), declared STRUCT field | full: `` `c`:['a']['b'] `` (`VARIANT`), declared STRUCT field, one `MAP` key | full: `#>>` (`json`/`jsonb`) | **none** — no JSON columns; a property breakdown raises `SyntheticCapabilityError` [10] |
+| Text columns parsed as JSON (`json_string_columns`, F23.9) | `json_string_source`, resolved once per adapter by `core.json_string_columns` | full: `SELECT * REPLACE (CAST(if(isValidJSON(s) AND JSONType(s) = 'Object', s, '{}'), 'JSON') AS c)` — needs the `JSON` type (25.x) | full: `SELECT * REPLACE (IF(JSON_TYPE(SAFE.PARSE_JSON(c, wide_number_mode => 'round')) = 'object', …, NULL) AS c)` | full: `CASE WHEN startswith(schema_of_variant(try_parse_json(c)), 'OBJECT') THEN try_parse_json(c) END` — needs `VARIANT` (Databricks SQL, DBR 15.3+) | **none** — no non-failing text→`jsonb` cast before PG 16; the API refuses the setting (`422`) and the adapter raises `WarehouseCapabilityError` | **none** — refused like PostgreSQL |
+| **Field contracts** (required/enum/regex/range) | `validate_field_contracts` | **full** | **full** (warehouse-side, full window) | **full** (warehouse-side, full window, one scan; Java regex, see "Regex contracts") | **full** (warehouse-side, full window; range compares in exact decimal, see "PostgreSQL range contracts compare exactly") | bounded [10] |
+| Anomaly detection | none (post-hoc) | full [11] | full [11] | full [11] | full [11] | full [11] |
+| Alerts | none (post-hoc) | full [11] | full [11] | full [11] | full [11] | full [11] |
+| Query timeout | data source `timeout_seconds` | full | full [2] | full [14] | full | **n/a — accepted and ignored [10]** |
+| In-flight query cancellation | adapter | **bounded [12]** | **bounded [12]** | **bounded [12]** | **bounded [12]** | bounded [12] |
+| Cost / billed-bytes guard | `maximum_bytes_billed` | n/a | full [3] | n/a | n/a | n/a |
+| TLS enforcement | connection settings | full (HTTPS port) | full (Google TLS) | full (HTTPS 443, certificate verified) | full [13] | n/a |
+| Executable SQL conformance | `tests/conformance/` | **executed** | **release-gated execution; analyzed on PRs** | **by hand only, with credentials; mocked in CI [14]** | **executed** | n/a |
 
 ---
 
@@ -593,6 +596,31 @@ and a stripped connection is then indistinguishable from a healthy one.
 be *authenticated* as well, choose `verify-full` and supply the CA. Do not read
 "we support TLS" as "your connection is verified".
 
+**[14] Databricks: what is bounded, and what is only believed.**
+
+- **Not executed.** Every Databricks statement is checked against a mocked
+  driver only (see [proven versus believed](#read-this-first-proven-versus-believed)).
+  What a live check must exercise is listed in `test_databricks_adapter.py`'s
+  module docstring; `conformance/test_databricks_value_conformance.py` runs the
+  value half of it against the shared reference when given credentials
+  (`TRIPL_CONF_DBX_HOST`, `TRIPL_CONF_DBX_HTTP_PATH`, `TRIPL_CONF_DBX_TOKEN`).
+- **Schema browse** is one `information_schema.columns` query over the source's
+  catalog, covering the default schema plus the **schema allowlist**, capped at
+  50,000 column rows and 30 seconds. Other catalogs are not browsed; qualify
+  them by hand.
+- **Scan-time shapes are top-level only**, the trade PostgreSQL makes [6]: a
+  `VARIANT` document groups on `json_object_keys(to_json(col))`, a `MAP` on its
+  key set, a `STRUCT` on its declared paths. Nested paths are still discovered
+  for the picker (from sampled rows [4]) and any of them can be extracted.
+- **Nested values:** a `VARIANT` path compiles to `` `col`:['a']['b'] ``; a
+  `STRUCT` path to `` `col`.`a`.`b` `` and only for fields the type declares; a
+  `MAP` has one level of keys (`try_element_at(col, 'k')`). Fields under an
+  `ARRAY<STRUCT<…>>` are listed but cannot be addressed.
+- **Timeout:** the data source's timeout is sent as the session's
+  `STATEMENT_TIMEOUT` (the warehouse cancels on its own), used as the driver's
+  socket timeout, and enforced by the adapter, which cancels the running
+  statement from a timer when it runs over.
+
 ---
 
 ## Setup requirements and permissions
@@ -628,12 +656,25 @@ be *authenticated* as well, choose `verify-full` and supply the CA. Do not read
 | **Max billed bytes** | Cost guard, default **100 GiB** per query. BigQuery refuses a query estimated to exceed it. |
 | **Dataset allowlist** | Comma-separated datasets the schema browser may list, in addition to the default dataset. Empty means the default dataset only. Up to **19** datasets: a browse covers 20 in total and the default dataset takes one slot — see caveat [1]. |
 
+### Databricks
+
+| | |
+| --- | --- |
+| Compute | A **SQL warehouse** (serverless, pro or classic) in a Unity Catalog workspace. All-purpose clusters are not supported. |
+| Credentials | **Server hostname** (the host field), **catalog** (the database field), the warehouse's **HTTP path**, and either a **personal access token** (or a service principal's token) or a service principal's **OAuth client ID and secret** (OAuth machine-to-machine). The port is always 443. |
+| Privileges | `CAN USE` on the SQL warehouse; `USE CATALOG` on the catalog, `USE SCHEMA` on each schema, `SELECT` on the scanned tables. tripl never writes, and its SQL gate refuses every write or DDL statement (`INSERT`, `MERGE`, `COPY INTO`, `CREATE`/`ALTER`/`DROP`, `OPTIMIZE`, `VACUUM`, `SET`, `USE`, …). |
+| Source-specific settings | **HTTP path** (required), **Authentication** (`pat` or `oauth_m2m`), **default schema** (empty means `default`), **schema allowlist** (at most 50). |
+| Session | tripl sets `TIMEZONE=UTC` and `STATEMENT_TIMEOUT` on every session, turns off cloud fetch and the driver's telemetry, and binds every data or analyst value as a named parameter (`:p0`). |
+| Driver | `databricks-sql-connector`, without `pyarrow`: results arrive as rows over the Thrift protocol, and complex values (`STRUCT`, `MAP`, `ARRAY`, `VARIANT`) as JSON text. |
+| Outbound guard | With `OUTBOUND_PUBLIC_HOSTS_ONLY`, the host must be a Databricks workspace hostname, because the driver cannot be pinned to the vetted address. See [Security](../run/security.md). |
+
 ### Every warehouse
 
-**Timeout (seconds)** applies to all three real source types, BigQuery included,
-and defaults to **300s**. It bounds the connect handshake and the query itself
+**Timeout (seconds)** applies to all four real source types, BigQuery and
+Databricks included, and defaults to **300s**. It bounds the connect handshake and the query itself
 (`send_receive_timeout` on ClickHouse, `statement_timeout` on PostgreSQL,
-a result deadline plus `job_timeout_ms` on BigQuery). The synthetic source
+a result deadline plus `job_timeout_ms` on BigQuery, `STATEMENT_TIMEOUT` plus a
+client-side cancel on Databricks). The synthetic source
 accepts the setting and ignores it — there is no wall clock to guard over an
 in-memory fixture (caveat [10]).
 
@@ -662,6 +703,11 @@ SELECT * FROM analytics.events
 SELECT * FROM events
 -- ...or qualify it explicitly:
 SELECT * FROM `my-gcp-project.analytics.events`
+
+-- Databricks  (bare name resolves in the default schema of the source's catalog)
+SELECT * FROM events
+-- ...or qualify it with catalog.schema.table:
+SELECT * FROM main.analytics.events
 ```
 
 ### Time buckets in a SQL metric
@@ -692,6 +738,13 @@ SELECT TIMESTAMP_TRUNC(created_at, DAY, 'UTC') AS bucket,
 FROM events
 GROUP BY 1
 ORDER BY 1
+
+-- Databricks  (the session time zone is UTC, so this truncates in UTC)
+SELECT date_trunc('DAY', created_at) AS bucket,
+       count(DISTINCT user_id) AS value
+FROM events
+GROUP BY 1
+ORDER BY 1
 ```
 
 The **New metric** screen renders exactly these, per selected data source, and
@@ -713,6 +766,9 @@ date_bin(INTERVAL '7 days', created_at, TIMESTAMPTZ '1970-01-05 00:00:00+00:00')
 
 -- BigQuery
 TIMESTAMP_TRUNC(created_at, WEEK(MONDAY), 'UTC')
+
+-- Databricks  (WEEK truncates to the Monday)
+date_trunc('WEEK', created_at)
 ```
 
 ### Fact tables and measure columns
@@ -741,6 +797,8 @@ tripl compiles it per dialect:
 | PostgreSQL | a `jsonb` path traversal over `payload` |
 | BigQuery (`JSON` column) | ``JSON_QUERY(`payload`, '$.user.address.city')`` |
 | BigQuery (`STRUCT` column) | `` `payload`.`user`.`address`.`city` `` — dotted field access, and only for paths the schema declares |
+| Databricks (`VARIANT` column) | `` `payload`:['user']['address']['city'] `` |
+| Databricks (`STRUCT` column) | `` `payload`.`user`.`address`.`city` `` — only for fields the type declares; a `MAP` column takes one key |
 
 Path parts must be identifier-safe (`[a-zA-Z_][a-zA-Z0-9_]*`). A part that is not
 is **rejected, not escaped** — the path is interpolated into SQL, so the allowlist
@@ -753,6 +811,7 @@ is a security boundary, not a convenience.
 | ClickHouse | `DateTime`, `DateTime64`, `Date`, `Date32` | — |
 | PostgreSQL | `timestamptz` (best), `timestamp`, `date` | `time`, `timetz` |
 | BigQuery | `TIMESTAMP` (best), `DATETIME`, `DATE` | `TIME`; and **no sub-day interval on a `DATE` column** |
+| Databricks | `TIMESTAMP` (best), `TIMESTAMP_NTZ`, `DATE` | **no sub-day interval on a `DATE` column** |
 
 ---
 
@@ -915,12 +974,12 @@ The observable result is deliberately identical on both warehouses: one group pe
 distinct array value (order-sensitive on both), surfaced to callers as a list.
 The JSON text is an implementation detail of the SQL, not of the row contract.
 
-### Regex contracts use three different regex engines
+### Regex contracts use four different regex engines
 
 `regex_violation` compiles the stored pattern with PostgreSQL's `~` (POSIX ARE),
-ClickHouse's `match()` (RE2), BigQuery's `REGEXP_CONTAINS` (RE2), and Python's
-`re.search` in the fallback. All four are **unanchored partial matches**, and all
-four agree on ordinary patterns — literals, character classes, anchors, `|`,
+ClickHouse's `match()` (RE2), BigQuery's `REGEXP_CONTAINS` (RE2), Databricks'
+`RLIKE` (Java `java.util.regex`), and Python's `re.search` in the fallback. All
+five are **unanchored partial matches**, and all five agree on ordinary patterns — literals, character classes, anchors, `|`,
 quantifiers, `\d` / `\w` / `\s`. They do not agree on everything, and tripl does
 not pretend otherwise. Two divergences worth knowing, and they point in opposite
 directions:
@@ -929,11 +988,14 @@ directions:
   `\b` pattern matches nothing on PostgreSQL.
 - Lookaround (`(?=`, `(?!`, `(?<=`, `(?<!`) and backreferences are valid in
   PostgreSQL's ARE and in Python but are rejected by **RE2**, so those patterns
-  fail on ClickHouse and BigQuery instead.
+  fail on ClickHouse and BigQuery instead. Java accepts them.
+- Python's named group `(?P<name>…)` is refused by Java (which spells it
+  `(?<name>…)`) and by POSIX ARE, so it fails on Databricks and PostgreSQL.
 
 A pattern the engine refuses costs exactly that one expectation. Before the
 statement is built, tripl offers the pattern to the engine itself (`SELECT
-match('', …)` on ClickHouse, `SELECT REGEXP_CONTAINS('', …)` on BigQuery); a
+match('', …)` on ClickHouse, `SELECT REGEXP_CONTAINS('', …)` on BigQuery,
+`SELECT '' RLIKE :p0` on Databricks); a
 refusal drops that expectation, and every other contract in the scan is still
 evaluated. The engine is asked rather than screened against a "portable subset",
 because a static screen would have to reject the lookahead a PostgreSQL-only

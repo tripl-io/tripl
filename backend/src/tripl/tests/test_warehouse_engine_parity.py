@@ -52,6 +52,7 @@ from tripl.core.adapters.base import (
 )
 from tripl.core.adapters.bigquery import BigQueryAdapter
 from tripl.core.adapters.clickhouse import ClickHouseAdapter
+from tripl.core.adapters.databricks import DatabricksAdapter
 from tripl.core.adapters.postgres import PostgresAdapter
 from tripl.core.adapters.synthetic import SyntheticAdapter
 from tripl.models.domain_enums import MetricAggregation
@@ -145,6 +146,71 @@ class _BQClient:
         return _BQJob()
 
 
+class _DBXCursor:
+    """Records each statement with its bound values written back in.
+
+    The adapter sends every analyst value as a named parameter (``:p0``), so the
+    statement text alone never carries one. Several assertions below look for a
+    value in the SQL; inlining it here keeps them engine-blind. The inlining is
+    the fake's, never the adapter's.
+    """
+
+    def __init__(self, conn: _DBXConn) -> None:
+        self._conn = conn
+        self.description: list[tuple[object, ...]] = []
+
+    def execute(self, sql: str, parameters: dict[str, str] | None = None) -> None:
+        for name in sorted(parameters or {}, key=len, reverse=True):
+            value = (parameters or {})[name].replace("'", "\\'")
+            sql = sql.replace(f":{name}", f"'{value}'")
+        self._conn.sql.append(sql)
+        if self._conn.refusing:
+            _refuse_like_a_regex_library(sql, self._conn.refused, self._conn.offline)
+
+    def fetchall(self) -> list[tuple[object, ...]]:
+        if self._conn.seed_first:
+            return list(_TOP_VALUE_ROWS) if len(self._conn.sql) == 1 else []
+        return list(self._conn.rows or [])
+
+    def cancel(self) -> None:
+        return None
+
+    def close(self) -> None:
+        return None
+
+
+class _DBXConn:
+    def __init__(
+        self, *, refusing: bool = False, refused: str | None = None, offline: bool = False
+    ) -> None:
+        self.sql: list[str] = []
+        self.rows: list[tuple[object, ...]] | None = None
+        self.refusing = refusing
+        self.refused = refused
+        self.offline = offline
+        # Answer the top-values pre-query (the first statement), as _seeded does.
+        self.seed_first = False
+
+    def cursor(self) -> _DBXCursor:
+        return _DBXCursor(self)
+
+
+def _dbx_adapter(conn: _DBXConn) -> DatabricksAdapter:
+    adapter = object.__new__(DatabricksAdapter)
+    adapter._conn = conn
+    adapter._allowed_columns = set(_ALLOWED)
+    # Seeded so no DESCRIBE probe lands at sql[0], as for BigQuery.
+    adapter._column_types = {"time": "timestamp", "event_name": "string", "amount": "double"}
+    adapter._struct_paths = {}
+    adapter._catalog = "main"
+    return adapter
+
+
+def _dbx() -> tuple[BaseAdapter, list[str]]:
+    conn = _DBXConn()
+    return _dbx_adapter(conn), conn.sql
+
+
 def _ch() -> tuple[BaseAdapter, list[str]]:
     client = _CHClient()
     adapter = object.__new__(ClickHouseAdapter)
@@ -181,6 +247,7 @@ _SQL_ENGINES: dict[str, Callable[[], tuple[BaseAdapter, list[str]]]] = {
     "clickhouse": _ch,
     "postgres": _pg,
     "bigquery": _bq,
+    "databricks": _dbx,
 }
 
 
@@ -236,6 +303,7 @@ _TIE_BREAK = {
     "clickhouse": "ORDER BY _breakdown_column, _cnt DESC, _breakdown_value ",
     "postgres": 'ORDER BY _cnt DESC, _breakdown_value COLLATE "C") AS rn ',
     "bigquery": "ORDER BY _cnt DESC, _breakdown_value) AS rn ",
+    "databricks": "ORDER BY _cnt DESC, _breakdown_value) AS rn ",
 }
 
 # How each dialect cuts the list. ``values_limit=3`` must ask for 2, because
@@ -244,6 +312,7 @@ _CUT_AT_TWO = {
     "clickhouse": "LIMIT 2 BY _breakdown_column",
     "postgres": "WHERE rn <= 2",
     "bigquery": "WHERE rn <= 2",
+    "databricks": "WHERE rn <= 2",
 }
 
 
@@ -579,6 +648,7 @@ _RAW_BREAKDOWN_TERM = {
     "clickhouse": "`event_name`",
     "postgres": '"event_name"',
     "bigquery": "`event_name`",
+    "databricks": "`event_name`",
 }
 
 # The top-values pre-query returns ``(column, value)`` pairs in all three
@@ -655,6 +725,11 @@ def _seeded(engine: str) -> tuple[BaseAdapter, list[str]]:
         pg_conn = _SeededPGConn()
         adapter._conn = pg_conn
         return adapter, pg_conn.sql
+    if engine == "databricks":
+        dbx_conn = _DBXConn()
+        dbx_conn.seed_first = True
+        adapter._conn = dbx_conn
+        return adapter, dbx_conn.sql
     bq_client = _SeededBQClient()
     adapter._client = bq_client
     return adapter, bq_client.sql
@@ -1082,6 +1157,10 @@ _DISTINCT_GATE = {
         "CASE WHEN COUNTIF(amount > 0) = 0 "
         "THEN NULL ELSE count(DISTINCT IF(amount > 0, `event_name`, NULL)) END"
     ),
+    "databricks": (
+        "CASE WHEN count_if(amount > 0) = 0 "
+        "THEN NULL ELSE count(DISTINCT IF(amount > 0, `event_name`, NULL)) END"
+    ),
 }
 
 # The row-presence probe alone: a COUNT OF ROWS compared to zero. The ``= 0``
@@ -1092,6 +1171,7 @@ _ROW_PRESENCE_PROBE = {
     "clickhouse": "countIf(amount > 0) = 0",
     "postgres": "count(*) FILTER (WHERE amount > 0) = 0",
     "bigquery": "COUNTIF(amount > 0) = 0",
+    "databricks": "count_if(amount > 0) = 0",
 }
 
 # The plain filtered count keeps the compact spelling: its filtered value IS the
@@ -1100,6 +1180,7 @@ _PLAIN_COUNT = {
     "clickhouse": "if(countIf(amount > 0) = 0, NULL, countIf(amount > 0)) AS `c`",
     "postgres": 'NULLIF(count(*) FILTER (WHERE amount > 0), 0) AS "c"',
     "bigquery": "NULLIF(count(CASE WHEN amount > 0 THEN 1 END), 0) AS `c`",
+    "databricks": "NULLIF(count_if(amount > 0), 0) AS `c`",
 }
 
 # An unfiltered spec is unconditional and must stay exactly what the
@@ -1108,6 +1189,7 @@ _UNFILTERED_DISTINCT = {
     "clickhouse": "count(DISTINCT `event_name`) AS `u`",
     "postgres": 'count(DISTINCT "event_name") AS "u"',
     "bigquery": "count(DISTINCT `event_name`) AS `u`",
+    "databricks": "count(DISTINCT `event_name`) AS `u`",
 }
 
 # A filtered sum, where the engines legitimately differ and the difference is
@@ -1120,6 +1202,7 @@ _FILTERED_SUM = {
     "clickhouse": "if(countIf(amount > 0) = 0, NULL, sumIf(`amount`, amount > 0)) AS `s`",
     "postgres": 'sum("amount") FILTER (WHERE amount > 0) AS "s"',
     "bigquery": "sum(CASE WHEN amount > 0 THEN `amount` END) AS `s`",
+    "databricks": "sum(CASE WHEN amount > 0 THEN `amount` END) AS `s`",
 }
 
 
@@ -1356,12 +1439,19 @@ def _ch_contracts() -> tuple[BaseAdapter, _ContractCHClient]:
     return adapter, client
 
 
-# The two engines this issue moved. BigQuery is covered separately below: it was
+def _dbx_contracts() -> tuple[BaseAdapter, _DBXConn]:
+    conn = _DBXConn()
+    return _dbx_adapter(conn), conn
+
+
+# The two engines this issue moved (and Databricks, which was born single-pass and
+# judges in Python like them). BigQuery is covered separately below: it was
 # already single-pass, and it is the documented exception on where the verdict is
 # applied, so lumping it in here would assert the wrong thing about it.
 _CONTRACT_ENGINES: dict[str, Callable[[], tuple[BaseAdapter, object]]] = {
     "clickhouse": _ch_contracts,
     "postgres": _pg_contracts,
+    "databricks": _dbx_contracts,
 }
 
 _CONTRACTS = [
@@ -1392,6 +1482,7 @@ _COUNTED_ROW: tuple[object, ...] = (1, 10, "buy", 2, 11, "<NULL>", 5, 10, "99")
 _CONTRACT_WINDOW = {
     "clickhouse": "`time` >= parseDateTime64BestEffort(",
     "postgres": '"time" >= TIMESTAMPTZ ',
+    "databricks": "`time` >= TIMESTAMP '",
 }
 
 # What those counts mean, judged once. The third contract is the interesting one:
@@ -1711,6 +1802,7 @@ _RANGE_COMPILED = {
     "clickhouse": "toFloat64OrNull",
     "postgres": "::numeric",
     "bigquery": "SAFE_CAST",
+    "databricks": "try_cast",
 }
 
 # A numeric literal for infinity or NaN, however spelled. ``\b`` keeps it off
@@ -2043,6 +2135,8 @@ _REFUSED_BY = {
     "clickhouse": "^(?!test_)",
     "bigquery": "^(?!test_)",
     "postgres": "(?P<sku>x)",
+    # Java's java.util.regex (RLIKE) spells a named group (?<name>), not (?P<name>).
+    "databricks": "(?P<sku>x)",
 }
 
 # Portable in all three dialects and in Python: literals, a character class, an
@@ -2057,6 +2151,8 @@ _PROBE_SQL = {
     "clickhouse": "SELECT match('', '{pattern}')",
     "postgres": "SELECT '' ~ '{pattern}'",
     "bigquery": "SELECT REGEXP_CONTAINS('', '{pattern}')",
+    # Bound as :p0 by the adapter; the fake writes the value back in.
+    "databricks": "SELECT '' RLIKE '{pattern}'",
 }
 
 
@@ -2165,10 +2261,18 @@ def _bq_refusing(
     return adapter, client.sql
 
 
+def _dbx_refusing(
+    refused: str | None = None, *, offline: bool = False
+) -> tuple[BaseAdapter, list[str]]:
+    conn = _DBXConn(refusing=True, refused=refused, offline=offline)
+    return _dbx_adapter(conn), conn.sql
+
+
 _REFUSING_ENGINES: dict[str, Callable[..., tuple[BaseAdapter, list[str]]]] = {
     "clickhouse": _ch_refusing,
     "postgres": _pg_refusing,
     "bigquery": _bq_refusing,
+    "databricks": _dbx_refusing,
 }
 
 

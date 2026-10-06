@@ -1,12 +1,14 @@
 import type { ReactNode } from 'react'
-import type { DbType, PostgresSslMode } from '@/types'
+import type { DatabricksAuthType, DbType, PostgresSslMode } from '@/types'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import {
+  DATABRICKS_AUTH_OPTIONS,
   DEFAULT_MAX_BILLED_BYTES_LABEL,
   ERROR_CLASS,
   FIELD_COL_CLASS,
   HELP_CLASS,
+  MAX_DATABRICKS_SCHEMA_ALLOWLIST,
   MAX_DATASET_ALLOWLIST,
   MAX_SCHEMA_DATASETS,
   SECRET_INPUT_PROPS,
@@ -18,6 +20,8 @@ import {
   type PemField,
 } from './connection-settings'
 import { examplePlaceholder } from '@/components/forms/placeholders'
+import { FieldError } from '@/components/forms/FieldError'
+import { invalidAria } from '@/components/forms/validation'
 
 // Instructions, not a PEM header that reads as content already pasted in.
 const PEM_CERT_PLACEHOLDER = 'Paste the PEM block, from -----BEGIN CERTIFICATE-----'
@@ -106,6 +110,75 @@ export function ConnectionSettingsFields({
             Comma-separated datasets the schema browser may list. Empty means the default dataset
             only. At most {MAX_DATASET_ALLOWLIST} — a browse covers {MAX_SCHEMA_DATASETS} datasets
             and the default dataset takes one of them.
+          </p>
+        </div>
+      </>
+    )
+  }
+
+  if (dbType === 'databricks') {
+    const httpPathId = `${idPrefix}-http-path`
+    return (
+      <>
+        <div className={FIELD_COL_CLASS}>
+          <Label htmlFor={httpPathId}>HTTP path</Label>
+          <Input
+            id={httpPathId}
+            value={value.httpPath}
+            onChange={(e) => onChange({ httpPath: e.target.value })}
+            aria-required
+            placeholder={examplePlaceholder('/sql/1.0/warehouses/1234abcd')}
+            {...invalidAria(httpPathId, pemErrors.httpPath)}
+          />
+          <FieldError inputId={httpPathId} message={pemErrors.httpPath} />
+          <p className={HELP_CLASS}>
+            The SQL warehouse’s HTTP path, from its Connection details tab. tripl only uses SQL
+            warehouses, not all-purpose clusters.
+          </p>
+        </div>
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+          <div className={FIELD_COL_CLASS}>
+            <Label htmlFor={`${idPrefix}-auth-type`}>Authentication</Label>
+            <select
+              id={`${idPrefix}-auth-type`}
+              value={value.authType}
+              onChange={(e) => onChange({ authType: e.target.value as DatabricksAuthType })}
+              className={SELECT_CLASS}
+            >
+              {DATABRICKS_AUTH_OPTIONS.map((opt) => (
+                <option key={opt.value} value={opt.value}>
+                  {opt.label}
+                </option>
+              ))}
+            </select>
+            <p className={HELP_CLASS}>
+              OAuth uses the client ID and secret above and fetches short-lived tokens itself.
+            </p>
+          </div>
+          <div className={FIELD_COL_CLASS}>
+            <Label htmlFor={`${idPrefix}-schema-name`}>Default schema</Label>
+            <Input
+              id={`${idPrefix}-schema-name`}
+              value={value.schemaName}
+              onChange={(e) => onChange({ schemaName: e.target.value })}
+              placeholder={examplePlaceholder('default')}
+            />
+            <p className={HELP_CLASS}>
+              Where unqualified table names resolve. Empty means the catalog’s default schema.
+            </p>
+          </div>
+        </div>
+        <div className={FIELD_COL_CLASS}>
+          <Label htmlFor={`${idPrefix}-schema-allowlist`}>Schema allowlist</Label>
+          <Input
+            id={`${idPrefix}-schema-allowlist`}
+            value={value.schemaAllowlist}
+            onChange={(e) => onChange({ schemaAllowlist: e.target.value })}
+            placeholder={examplePlaceholder('analytics, marts')}
+          />
+          <p className={HELP_CLASS}>
+            Comma-separated schemas of the catalog the schema browser may list. Empty means the
+            default schema only. At most {MAX_DATABRICKS_SCHEMA_ALLOWLIST}.
           </p>
         </div>
       </>

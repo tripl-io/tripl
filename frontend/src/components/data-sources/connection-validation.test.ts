@@ -2,6 +2,9 @@ import { describe, expect, it } from 'vitest'
 import type { DataSource } from '@/types'
 import {
   EMPTY_CONNECTION_CORE_FORM,
+  buildCoreCreatePayload,
+  buildCoreUpdatePayload,
+  connectionCoreMissing,
   coreConnectionChanged,
   dataSourceToCoreForm,
   serverCoreErrors,
@@ -9,7 +12,10 @@ import {
 } from './connection-core'
 import {
   EMPTY_CONNECTION_SETTINGS_FORM,
+  buildConnectionSettings,
   connectionSettingsErrors,
+  connectionSettingsToForm,
+  httpPathError,
   pemError,
 } from './connection-settings'
 
@@ -158,5 +164,76 @@ describe('serverCoreErrors', () => {
       rest: 'Connection refused',
     })
     expect(serverCoreErrors(null, 'clickhouse', 'Required')).toEqual({ fields: {}, rest: null })
+  })
+})
+
+describe('Databricks', () => {
+  const form = {
+    ...EMPTY_CONNECTION_SETTINGS_FORM,
+    httpPath: ' /sql/1.0/warehouses/abc123 ',
+    authType: 'oauth_m2m' as const,
+    schemaName: 'analytics',
+    schemaAllowlist: 'analytics, marts',
+  }
+
+  it('requires an HTTP path and refuses a whole URL', () => {
+    expect(httpPathError('', 'Required')).toBe('Required')
+    expect(httpPathError('https://dbc.cloud.databricks.com/sql/1.0/warehouses/x', 'Required')).toMatch(
+      /only the path/,
+    )
+    expect(httpPathError('sql/1.0/warehouses/x', 'Required')).toMatch(/not an HTTP path/)
+    expect(httpPathError('/sql/1.0/warehouses/abc123', 'Required')).toBeNull()
+    expect(connectionSettingsErrors('databricks', EMPTY_CONNECTION_SETTINGS_FORM, 'Required')).toEqual({
+      httpPath: 'Required',
+    })
+    expect(connectionSettingsErrors('databricks', form)).toEqual({})
+    // Another warehouse never asks for one.
+    expect(connectionSettingsErrors('clickhouse', EMPTY_CONNECTION_SETTINGS_FORM)).toEqual({})
+  })
+
+  it('sends only its own settings, trimmed, and reads them back', () => {
+    const settings = buildConnectionSettings('databricks', form)
+    expect(settings).toEqual({
+      http_path: '/sql/1.0/warehouses/abc123',
+      auth_type: 'oauth_m2m',
+      schema_name: 'analytics',
+      schema_allowlist: ['analytics', 'marts'],
+    })
+    const back = connectionSettingsToForm({
+      location: null,
+      maximum_bytes_billed: null,
+      dataset_allowlist: null,
+      sslmode: null,
+      sslrootcert: null,
+      sslcert: null,
+      search_path: null,
+      sslkey_set: false,
+      http_path: '/sql/1.0/warehouses/abc123',
+      auth_type: 'oauth_m2m',
+      schema_name: 'analytics',
+      schema_allowlist: ['analytics', 'marts'],
+    })
+    expect(back).toMatchObject({ ...form, httpPath: '/sql/1.0/warehouses/abc123' })
+  })
+
+  it('always connects on 443 and needs its token on create only', () => {
+    const core = { ...EMPTY_CONNECTION_CORE_FORM, host: 'dbc.cloud.databricks.com', databaseName: 'main' }
+    expect(buildCoreCreatePayload('databricks', core).port).toBe(443)
+    expect(buildCoreUpdatePayload('databricks', { ...core, port: 8123 }).port).toBe(443)
+    expect(connectionCoreMissing('databricks', { ...core, port: 0 }, 'create', 'Required')).toEqual({
+      secret: 'Required',
+    })
+    expect(connectionCoreMissing('databricks', { ...core, port: 0 }, 'edit', 'Required')).toEqual({})
+  })
+
+  it('pins a refused token under its field, and never a port', () => {
+    const apiError = (fields: { loc: (string | number)[]; msg: string; type: string }[]) =>
+      Object.assign(new Error('raw'), { fields })
+    const port = { loc: ['body', 'port'], msg: 'Bad port', type: 'value_error' }
+    const password = { loc: ['body', 'password'], msg: 'Bad token', type: 'value_error' }
+    expect(serverCoreErrors(apiError([port, password]), 'databricks', 'Required')).toEqual({
+      fields: { secret: 'Bad token' },
+      rest: 'port: Bad port',
+    })
   })
 })

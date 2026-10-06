@@ -730,6 +730,71 @@ describe('DataSourcesPage', () => {
     expect(postPayload).not.toHaveProperty('json_path_discovery')
   })
 
+  it('creates a Databricks source only once its HTTP path is filled in', async () => {
+    let postPayload: Record<string, unknown> | undefined
+
+    vi.spyOn(globalThis, 'fetch').mockImplementation((input: RequestInfo | URL, init?: RequestInit) => {
+      const url =
+        typeof input === 'string'
+          ? input
+          : input instanceof URL
+            ? input.toString()
+            : input.url
+
+      if (url.endsWith('/api/v1/data-sources') && !init?.method) {
+        return Promise.resolve(jsonResponse([DATA_SOURCE]))
+      }
+
+      if (url.endsWith('/api/v1/data-sources') && init?.method === 'POST') {
+        postPayload = JSON.parse(String(init.body)) as Record<string, unknown>
+        return Promise.resolve(jsonResponse(DATA_SOURCE))
+      }
+
+      return Promise.reject(new Error(`Unexpected request: ${url}`))
+    })
+
+    renderDataSourcesPage('/settings/data-sources', 'owner')
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Add connection' }))
+    fireEvent.change(await screen.findByLabelText('Type'), { target: { value: 'databricks' } })
+
+    // Its own vocabulary; no port, no database, no ClickHouse discovery knob.
+    expect(screen.queryByLabelText('Port')).not.toBeInTheDocument()
+    expect(screen.queryByLabelText('Database')).not.toBeInTheDocument()
+    expect(screen.queryByLabelText('JSON path discovery')).not.toBeInTheDocument()
+
+    fireEvent.change(screen.getByLabelText('Name'), { target: { value: 'Lakehouse' } })
+    fireEvent.change(screen.getByLabelText('Server hostname'), {
+      target: { value: 'dbc-a1b2c3d4-e5f6.cloud.databricks.com' },
+    })
+    fireEvent.change(screen.getByLabelText('Catalog'), { target: { value: 'main' } })
+    fireEvent.change(screen.getByLabelText('Access token or OAuth secret'), {
+      target: { value: 'dapi-token' },
+    })
+
+    fireEvent.click(screen.getByRole('button', { name: 'Create' }))
+    await waitFor(() => {
+      expect(screen.getByLabelText('HTTP path')).toHaveAttribute('aria-invalid', 'true')
+    })
+    expect(postPayload).toBeUndefined()
+
+    fireEvent.change(screen.getByLabelText('HTTP path'), {
+      target: { value: '/sql/1.0/warehouses/abc123' },
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'Create' }))
+
+    await waitFor(() => {
+      expect(postPayload).toBeDefined()
+    })
+    expect(postPayload).toMatchObject({
+      db_type: 'databricks',
+      port: 443,
+      database_name: 'main',
+      connection_settings: { http_path: '/sql/1.0/warehouses/abc123', auth_type: 'pat' },
+    })
+    expect(postPayload).not.toHaveProperty('json_path_discovery')
+  })
+
   it('edits a BigQuery source as project / dataset / key — never as host, port or username', async () => {
     vi.spyOn(globalThis, 'fetch').mockImplementation(listFetchMock([BIGQUERY_SOURCE]))
 

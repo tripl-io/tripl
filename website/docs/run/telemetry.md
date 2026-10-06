@@ -32,7 +32,7 @@ else:
 | `version` | `"0.2.3"` | The server's version. |
 | `edition` | `"community"` | `community` or `enterprise`. |
 | `deployment_mode` | `"self_hosted"` | `self_hosted` or `hosted`. |
-| `warehouse_engines` | `["clickhouse"]` | Which engines your data sources use; never their hosts or names. |
+| `warehouse_engines` | `["clickhouse"]` | Which engines your data sources use (`bigquery`, `clickhouse`, `databricks`, `postgres`, `synthetic`); never their hosts or names. |
 | `projects` | `"1-10"` | How many projects, as a range: `0`, `1-10`, `11-100`, `101-1000` or `1000+`. |
 | `event_types` | `"11-100"` | How many event types, as a range. |
 | `users` | `"1-10"` | How many accounts, as a range. |
