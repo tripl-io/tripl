@@ -6,21 +6,25 @@ sidebar_position: 3
 # Release Process
 
 This page is for **maintainers** cutting a release. tripl ships as **one image**
-that serves the JSON API and the built SPA in a single process. Releases are
-driven entirely by **git tags**: bump the version, push a `vX.Y.Z` tag, and
-GitHub Actions runs CI, builds a multi-arch image, pushes it to GHCR, and cuts a
-GitHub Release.
+that serves the JSON API and the built SPA in a single process, plus the MCP
+server image and two Python packages, the operator CLI (`tripl`) and the MCP
+server (`tripl-mcp`). **All of them share one version.** Releases are driven
+entirely by **git tags**: `bin/release.sh` bumps the version everywhere and
+pushes three tags, and each tag starts its own workflow.
 
 ```
-bin/release.sh        git tag vX.Y.Z        .github/workflows/release.yml
-  bump version  ───▶   push to origin  ───▶   CI gate ─▶ buildx (amd64 + arm64)
-                                                       ├─▶ push ghcr.io/.../tripl:X.Y.Z, :X.Y, :latest
-                                                       └─▶ GitHub Release
+bin/release.sh ─▶ vX.Y.Z      ─▶ release.yml      CI gate ─▶ buildx (amd64 + arm64)
+                                                          ├─▶ ghcr.io/.../tripl and tripl-mcp :X.Y.Z, :X.Y, :latest
+                                                          └─▶ GitHub Release
+               ─▶ cli-vX.Y.Z  ─▶ publish-cli.yml  `tripl` to PyPI
+               ─▶ mcp-vX.Y.Z  ─▶ publish-mcp.yml  `tripl-mcp` to PyPI (once `tripl` X.Y.Z is there)
 ```
 
-The **git tag is the single source of truth** for the version.
-`backend/pyproject.toml` and `frontend/package.json` are kept in sync by the
-release script, not the other way around.
+The **git tags are the single source of truth** for the version.
+`backend/pyproject.toml`, `frontend/package.json`, `cli/pyproject.toml`,
+`mcp-server/pyproject.toml` and their `uv.lock` files are kept in sync by the
+release script, not the other way around. The Enterprise image takes the same
+version from its own repository.
 
 ## Versioning & tags
 
@@ -47,6 +51,7 @@ bin/release.sh major     # 0.1.0 -> 1.0.0   (breaking changes)
 bin/release.sh 1.4.0     # set an explicit version
 bin/release.sh -n patch  # dry-run: print the plan, change nothing
 bin/release.sh -y minor  # skip the confirmation prompt
+bin/release.sh --no-wait minor  # do not wait for PyPI; print the mcp-v command
 ```
 
 What [`bin/release.sh`](https://github.com/tripl-io/tripl/blob/main/bin/release.sh)
@@ -54,21 +59,32 @@ does:
 
 1. Reads the current version from `backend/pyproject.toml` (the `[project]`
    `version` line).
-2. Computes the new version and writes it to **both**
-   `backend/pyproject.toml` and `frontend/package.json`.
-3. Commits `chore(release): vX.Y.Z` (skipped if the files are already at the
-   target version — it then just tags the current `HEAD`).
-4. Creates an **annotated** tag `vX.Y.Z` and pushes the branch **and** the tag
-   to `origin`.
+2. Computes the new version and writes it to `backend/pyproject.toml`,
+   `frontend/package.json`, `cli/pyproject.toml` and
+   `mcp-server/pyproject.toml`, and sets `tripl-mcp`'s requirement on `tripl`
+   to the new version's series (`>=X.Y.Z,<X.(Y+1)` while the major is 0).
+3. Refreshes `uv.lock` in `backend/`, `cli/` and `mcp-server/`: each records
+   its project's own version, and the CI and publish workflows run `uv
+   --locked`. `mcp-server` resolves `tripl` from `../cli`, so this needs no
+   published CLI.
+4. Commits `chore(release): vX.Y.Z` (skipped if every file is already at the
+   target version — it then just tags the current `HEAD`). An explicit version
+   equal to the service's current one still brings the CLI and the MCP server
+   up to it.
+5. Creates **annotated** tags `vX.Y.Z`, `cli-vX.Y.Z` and `mcp-vX.Y.Z`, and
+   pushes the branch, `vX.Y.Z` and `cli-vX.Y.Z` to `origin`.
+6. Waits (up to 30 minutes) for `tripl` X.Y.Z on PyPI, then pushes
+   `mcp-vX.Y.Z`. If it is not there yet, or with `--no-wait`, it prints the
+   `git push origin mcp-vX.Y.Z` to run later.
 
 It runs from the repo root regardless of where you invoke it, and requires GNU
-`sed`.
+`sed`, `curl` and `uv`.
 
 :::warning Preconditions
 The script **refuses to run** if the working tree is dirty (uncommitted or
-staged changes) or if the tag already exists. It **warns** (but does not stop)
-if you are not on `main`. Unless you pass `-n`/`--dry-run` or `-y`/`--yes`, it
-prompts for confirmation before pushing.
+staged changes) or if any of the three tags already exists. It **warns** (but
+does not stop) if you are not on `main`. Unless you pass `-n`/`--dry-run` or
+`-y`/`--yes`, it prompts for confirmation before pushing.
 :::
 
 Use `-n` first if you are unsure — it prints exactly which version it would set
@@ -118,23 +134,16 @@ public under *Packages → tripl → Package settings* if you want anonymous pul
 
 ## The two Python packages
 
-The service is not the only thing this repository releases. Two Python
-distributions ship to PyPI on **their own tags**, and they version independently
-of the service and of each other — a service release does not imply a CLI
-release, and neither forces a version bump on the other.
+Two Python distributions ship to PyPI, each on its own tag, with the service's
+version: `bin/release.sh` bumps and tags them together with the service.
 
 | Distribution | Tag | Workflow | What it is |
 |---|---|---|---|
 | `tripl` | `cli-v*` | [`publish-cli.yml`](https://github.com/tripl-io/tripl/blob/main/.github/workflows/publish-cli.yml) | The [operator CLI](./cli.md) — `install`, `upgrade`, `doctor`, `status`, `watch`, `scans`, `drifts` |
 | `tripl-mcp` | `mcp-v*` | [`publish-mcp.yml`](https://github.com/tripl-io/tripl/blob/main/.github/workflows/publish-mcp.yml) | The [MCP server](../integrate/mcp-server.md) for LLM agents |
 
-`bin/release.sh` does **not** touch either: it versions the service. Release a
-package by bumping its own `pyproject.toml` and pushing the matching tag.
-
-```bash
-# after bumping cli/pyproject.toml to the new version
-git tag -a cli-v<version> -m "tripl <version>" && git push origin cli-v<version>
-```
+The tags stay separate so that a failed publish can be re-run for one artifact
+without touching the others.
 
 Both workflows gate before they publish: lint, type-check and the full test
 suite (repeated from `ci.yml` on purpose, so a release is never the first time
@@ -164,7 +173,8 @@ a clean virtualenv, so a wheel whose dependency cannot resolve is caught before
 upload instead of by the first person to install it. The 0.2.0 release hit this
 for real — `tripl-mcp` had begun importing `page_items` / `page_total`, which the
 published `tripl` 0.1.0 does not export, so the mcp job failed until `tripl`
-0.2.0 was on the index. Raise the floor and release `cli-v*` first.
+0.2.0 was on the index. `bin/release.sh` therefore pushes `mcp-v*` only once
+`tripl` of the same version is on PyPI.
 :::
 
 ### Authentication: Trusted Publishing
