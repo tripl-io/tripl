@@ -26,8 +26,9 @@ export default defineConfig({
   retries: process.env.CI ? 1 : 0,
   // A screenshot with no baseline fails in CI rather than becoming one (the
   // retry would then pass against it). Baselines are Linux Chromium's, made in
-  // CI: the failed run's report carries the `-actual.png` to commit.
-  updateSnapshots: process.env.CI ? 'none' : 'missing',
+  // CI on purpose: E2E_UPDATE_SNAPSHOTS (the `update-snapshots` pull request
+  // label) writes the missing and changed ones, and the job uploads them.
+  updateSnapshots: process.env.E2E_UPDATE_SNAPSHOTS === 'true' ? 'changed' : process.env.CI ? 'none' : 'missing',
   reporter: process.env.CI ? [['list'], ['html', { open: 'never' }]] : 'list',
   use: {
     baseURL,

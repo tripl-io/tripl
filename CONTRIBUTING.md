@@ -327,8 +327,11 @@ passes. `e2e/demo-layout.spec.ts` measures boxes at 1440 and 375 px and
 compares screenshots (`toHaveScreenshot`) of the demo bar, the tour and the
 coach card in light and dark. The baselines under
 `e2e/<spec>.ts-snapshots/` are Linux Chromium's and come from CI: a missing or
-changed one fails the `E2E` job, and its `playwright-report` artifact holds the
-`-actual.png` to commit in its place once the change is intended.
+changed one fails the `E2E` job (the report's diff shows what moved). Once the
+change is intended, put the `update-snapshots` label on the pull request and
+push: that run writes the baselines instead of failing and uploads them as the
+`e2e-snapshots` artifact, to commit under `frontend/e2e/`. Take the label off
+before merging.
 
 The typed API client is generated from the backend's OpenAPI schema. If you
 change request/response contracts, regenerate it:

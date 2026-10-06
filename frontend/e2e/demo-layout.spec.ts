@@ -29,8 +29,6 @@ type Box = { x: number; y: number; width: number; height: number }
 let session: Awaited<ReturnType<BrowserContext['storageState']>>
 let slug: string
 
-test.describe.configure({ mode: 'serial' })
-
 test.beforeAll(async ({ browser }) => {
   const context = await browser.newContext({ viewport: DESKTOP })
   const page = await context.newPage()
@@ -189,6 +187,7 @@ for (const theme of ['light', 'dark'] as const) {
   test(`the demo bar, tour and coach card look as they did (${theme})`, async ({ browser }) => {
     const page = await openDemo(browser, DESKTOP, theme)
     const banner = page.locator('[data-demo-banner]')
+    // Soft, so one run reports (and with the label writes) every shot.
     // The freshness stamp is the one line that reads the clock.
     const shot: PageAssertionsToHaveScreenshotOptions = {
       animations: 'disabled',
@@ -197,14 +196,14 @@ for (const theme of ['light', 'dark'] as const) {
       mask: [banner.getByText(/^(freshly seeded|updated )/)],
     }
 
-    await expect(banner).toHaveScreenshot(`banner-${theme}.png`, shot)
+    await expect.soft(banner).toHaveScreenshot(`banner-${theme}.png`, shot)
 
     const tour = await openTour(page)
-    await expect(tour).toHaveScreenshot(`tour-${theme}.png`, shot)
+    await expect.soft(tour).toHaveScreenshot(`tour-${theme}.png`, shot)
 
     const card = await startFirstChapter(page, tour)
-    await expect(banner.getByRole('region', { name: 'Demo scenario' })).toHaveScreenshot(`strip-${theme}.png`, shot)
-    await expect(card).toHaveScreenshot(`coach-card-${theme}.png`, shot)
+    await expect.soft(banner.getByRole('region', { name: 'Demo scenario' })).toHaveScreenshot(`strip-${theme}.png`, shot)
+    await expect.soft(card).toHaveScreenshot(`coach-card-${theme}.png`, shot)
     await page.context().close()
   })
 }
