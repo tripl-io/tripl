@@ -203,6 +203,22 @@ curl -fsS https://tripl.example.com/health
 
 The interactive API reference is served at `/docs` (and `/api/v1/*` for the API itself). API routes take precedence over the SPA fallback, so `/health`, `/docs`, and `/metrics` keep their meaning even though the same process serves the frontend.
 
+## Third-party licenses
+
+Both published images carry the licenses of the software they are built from,
+in `/app/licenses`. `README.md` there is the index: every Python package in
+the venv, every package the web application is built from, and the Debian
+packages of the base image, each with its license and the path of its
+license file. To read it without starting the stack:
+
+```bash
+docker run --rm --entrypoint cat ghcr.io/tripl-io/tripl:latest /app/licenses/README.md
+```
+
+`os-packages.tsv` lists the Debian packages with their source packages and
+versions; their copyright files stay in `/usr/share/doc/<package>/copyright`,
+and their source is on [sources.debian.org](https://sources.debian.org/).
+
 ## Connecting a warehouse
 
 tripl reads from your existing warehouse — it never writes to it. You connect a warehouse **from the UI** after the stack is up, not via environment variables:

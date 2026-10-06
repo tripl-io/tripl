@@ -20,6 +20,9 @@ RUN --mount=type=cache,id=bun,target=/root/.bun/install/cache \
     bun install --frozen-lockfile
 COPY frontend/ ./
 RUN bun run build
+# The license files of what the bundle is built from; the runtime stage indexes
+# them together with the Python and OS packages.
+RUN bun scripts/third-party-licenses.mjs /app/licenses
 
 # ---- backend deps + source ----
 FROM ghcr.io/astral-sh/uv:python3.14-trixie-slim AS backend-base
@@ -42,6 +45,13 @@ COPY --from=backend-base /app/alembic.ini /app/alembic.ini
 COPY --from=backend-base /app/alembic /app/alembic
 # Bake the built SPA in and point the app at it; app.frontend() serves it.
 COPY --from=frontend-build /app/dist /app/frontend_dist
+
+# Third-party license notices: /app/licenses/README.md indexes the Python
+# packages, the web application's and the Debian packages, with every license
+# file next to it. Generated last, from what this image actually contains.
+COPY --from=frontend-build /app/licenses /app/licenses
+RUN --mount=type=bind,source=backend/scripts/third_party_licenses.py,target=/tmp/third_party_licenses.py \
+    /app/.venv/bin/python /tmp/third_party_licenses.py --out /app/licenses
 
 ENV PATH="/app/.venv/bin:$PATH"
 ENV UVICORN_WORKERS=4

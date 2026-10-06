@@ -955,6 +955,8 @@ jobs:
             backend/pyproject.toml backend/uv.lock backend/.python-version \
             frontend/package.json frontend/bun.lock frontend/bunfig.toml \
             cli/pyproject.toml mcp-server/pyproject.toml mcp-server/uv.lock \
+            backend/scripts/third_party_licenses.py \
+            frontend/scripts/third-party-licenses.mjs \
             .github/workflows/ci.yml)
           if [ -n "$changed" ]; then
             echo "images=true" >> "$GITHUB_OUTPUT"
@@ -990,9 +992,27 @@ jobs:
           target: runtime
           platforms: linux/amd64
           push: false
+          load: true
+          tags: tripl:ci
           cache-from: type=gha
           cache-to: type=gha,mode=max
           provenance: false
+
+      # The image must carry its third-party notices, and they must have found
+      # the license files: an empty table means the generator broke quietly.
+      # psycopg is checked by name because its LGPL is the one notice with a
+      # duty attached.
+      - name: Check the app image's license notices
+        run: |
+          docker run --rm --entrypoint sh tripl:ci -c '
+            set -e
+            test -s /app/licenses/README.md
+            test -s /app/licenses/os-packages.tsv
+            test -s /app/licenses/frontend/index.json
+            ls /app/licenses/python/psycopg-*/ | grep -qi license
+            grep -q "## Web application" /app/licenses/README.md
+            echo "$(ls /app/licenses/python | wc -l) Python, $(grep -c "\"name\"" /app/licenses/frontend/index.json) frontend package notices"
+          '
 
       - name: Build the MCP image
         uses: docker/build-push-action@v7
