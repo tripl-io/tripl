@@ -329,7 +329,8 @@ describe('EventForm template authoring', () => {
       'w-full',
       'truncate',
     )
-    expect(within(selectedSuggestion).getByText('control · treatment · holdout')).toHaveClass(
+    // All four: cutting at three read as the whole list.
+    expect(within(selectedSuggestion).getByText('control · treatment · holdout · overflow')).toHaveClass(
       'w-full',
       'truncate',
     )

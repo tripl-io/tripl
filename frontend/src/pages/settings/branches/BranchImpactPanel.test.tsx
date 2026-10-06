@@ -59,6 +59,11 @@ describe('BranchImpactPanel (#257)', () => {
     // A change that touches nothing is not listed.
     expect(screen.queryByText('plan')).toBeNull()
     expect(screen.getByRole('link', { name: 'Checkout rate' })).toBeInTheDocument()
+    // The dependents fold under the change's line until asked for: one
+    // property's 54 events used to push the branch's changes off the screen.
+    const fold = screen.getByText('checkout:completed').closest('details')
+    expect(fold).not.toBeNull()
+    expect(fold).not.toHaveAttribute('open')
     expect(screen.getByText(/nothing here blocks it/)).toBeInTheDocument()
     expect(dependenciesApi.branchImpact).toHaveBeenCalledWith('demo', 'b-1', expect.anything())
   })

@@ -142,6 +142,9 @@ place without being renamed, deprecated or archived (a field's type changed, an
 event's breakdown columns changed) is listed as a **change**. Additions are left
 out: nothing can depend on something that did not exist yet.
 
+The panel sits below the branch's **Changes**, so the changes come first. Each
+change is one line with its counts; open it to see the objects it touches.
+
 The panel is a review aid for the branch's reviewers and author. Like the rest
 of this feature it warns and never blocks: a branch with impact items can still
 be approved and merged.

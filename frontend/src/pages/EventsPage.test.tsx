@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react'
-import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { TooltipProvider } from '@/components/ui/tooltip'
 import { MemoryRouter, Route, Routes, useLocation } from 'react-router-dom'
@@ -1076,9 +1076,12 @@ function mockCatalogFetch({
   events,
   listGate,
   withFieldlessType = false,
+  listFor,
 }: {
   events: ReturnType<typeof makeEvent>[]
   listGate?: Promise<void>
+  /** The list a request gets, when it depends on the request's filters. */
+  listFor?: (url: string) => { events: ReturnType<typeof makeEvent>[]; gate?: Promise<void> }
   /** Adds a second type without the `screen` field, so on the All tab
    *  `screen` is a type-specific column that starts hidden. */
   withFieldlessType?: boolean
@@ -1152,8 +1155,9 @@ function mockCatalogFetch({
     }
     if (url.includes('/api/v1/projects/demo/events')) {
       listUrls.push(url)
-      if (listGate) await listGate
-      return mockJsonResponse({ items: events, total: events.length })
+      const list = listFor ? listFor(url) : { events, gate: listGate }
+      if (list.gate) await list.gate
+      return mockJsonResponse({ items: list.events, total: list.events.length })
     }
     return mockJsonResponse({})
   })
@@ -1244,6 +1248,34 @@ describe('EventsPage current view', () => {
 
     expect(await screen.findByText('Loading events…')).toBeInTheDocument()
     expect(screen.queryByText('No events yet')).not.toBeInTheDocument()
+
+    releaseList()
+    expect(await screen.findByText('checkout_view')).toBeInTheDocument()
+  })
+
+  it('keeps the search box, and its focus, while clearing a search that matched nothing', async () => {
+    let releaseList = () => {}
+    const listGate = new Promise<void>((resolve) => {
+      releaseList = resolve
+    })
+    const event = screenEvent('event-1', 'checkout_view', 'checkout')
+    mockCatalogFetch({
+      events: [],
+      listFor: (url) => (url.includes('search=') ? { events: [] } : { events: [event], gate: listGate }),
+    })
+
+    renderEventsPage(['/p/demo/events?q=zzz'])
+
+    const search = await screen.findByRole('searchbox', { name: 'Search events' })
+    await waitFor(() => expect(screen.queryByText('Loading events…')).not.toBeInTheDocument())
+    act(() => search.focus())
+    fireEvent.change(search, { target: { value: '' } })
+
+    // The unfiltered page is still on its way: the empty search result on
+    // screen meanwhile is not an empty project, so the page keeps its toolbar.
+    await act(() => new Promise((resolve) => setTimeout(resolve, 500)))
+    expect(screen.queryByRole('link', { name: 'Import from a scan' })).not.toBeInTheDocument()
+    expect(screen.getByRole('searchbox', { name: 'Search events' })).toHaveFocus()
 
     releaseList()
     expect(await screen.findByText('checkout_view')).toBeInTheDocument()

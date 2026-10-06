@@ -7,6 +7,8 @@ import { filterVariableSuggestions, type VariableSuggestion } from './variableSu
 
 export type { VariableSuggestion }
 
+const VALUE_PREVIEW_LIMIT = 6
+
 export function SuggestionRow({ suggestion }: { suggestion: VariableSuggestion }) {
   const bindings = suggestion.bindings ?? []
   const values = suggestion.allowed_values ?? []
@@ -29,7 +31,12 @@ export function SuggestionRow({ suggestion }: { suggestion: VariableSuggestion }
           <span className={`w-full truncate font-mono text-micro ${detailClassName}`}>{bindings.join(' · ')}</span>
         )}
         {values.length > 0 && (
-          <span className={`w-full truncate font-mono text-micro ${detailClassName}`}>{values.slice(0, 3).join(' · ')}</span>
+          // Every value, or a count of the rest: a bare first three read as the
+          // whole list.
+          <span title={values.join(' · ')} className={`w-full truncate font-mono text-micro ${detailClassName}`}>
+            {values.slice(0, VALUE_PREVIEW_LIMIT).join(' · ')}
+            {values.length > VALUE_PREVIEW_LIMIT && ` · +${values.length - VALUE_PREVIEW_LIMIT} more`}
+          </span>
         )}
       </span>
     </>

@@ -589,7 +589,9 @@ function FeatureBranchDetail({ slug, branch, diff, diffLoad, confirm }: FeatureB
                   </Link>
                 </Button>
                 {canWrite && (
-                  <Button asChild variant="ghost" size="sm" className="max-sm:flex-1">
+                  // Filled: it is what a branch is opened for, and as a ghost
+                  // beside "Go to events" analysts could not find it.
+                  <Button asChild size="sm" className="max-sm:flex-1">
                     <Link
                       {...branchLink(projectPath(currentOrgSlug(), slug, '/events/all/new'), branch.id)}
                       aria-label="New event on this branch"
@@ -832,14 +834,6 @@ function FeatureBranchDetail({ slug, branch, diff, diffLoad, confirm }: FeatureB
         <ConflictsPanel slug={slug} branch={branch} />
       </div>
 
-      {/* What the branch's deletes, deprecations and renames touch downstream
-          (#257), next to the conflicts. Warn only; it never gates the merge. */}
-      {!landed && (
-        <div id="branch-impact" className="scroll-mt-4">
-          <BranchImpactPanel slug={slug} branchId={branch.id} />
-        </div>
-      )}
-
       <Panel
         title="Changes"
         subtitle={
@@ -910,6 +904,16 @@ function FeatureBranchDetail({ slug, branch, diff, diffLoad, confirm }: FeatureB
           </p>
         ) : null}
       </Panel>
+
+      {/* What the branch's deletes, deprecations and renames touch downstream
+          (#257), under the changes themselves: listed first, one property's 54
+          dependents pushed the changes off the screen. Warn only; it never
+          gates the merge. */}
+      {!landed && (
+        <div id="branch-impact" className="scroll-mt-4">
+          <BranchImpactPanel slug={slug} branchId={branch.id} />
+        </div>
+      )}
 
       <CommentsPanel slug={slug} branchId={branch.id} usersById={usersById} />
     </div>

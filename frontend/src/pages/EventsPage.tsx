@@ -667,8 +667,18 @@ function EventsListPage({ lockType, embedded = false }: EventsPageProps) {
   // Only on the "all" tab: an empty Review queue, Archived tab or type tab is an
   // empty slice of a populated project, and collapsing there took away saved
   // views, columns, sort, export and "Add many events".
+  // Only for an unfiltered page that has arrived: clearing a search that
+  // matched nothing keeps that empty page on screen, through the debounce and
+  // the refetch, and reading it as an empty project swapped the toolbar out and
+  // took focus from the search box (the next "c" then opened a new event).
   const hasNoEvents =
-    activeTab === 'all' && eventsQuery.isSuccess && total === 0 && !hasActiveFilters && !search
+    activeTab === 'all' &&
+    eventsQuery.isSuccess &&
+    !eventsQuery.isPlaceholderData &&
+    total === 0 &&
+    !hasActiveFilters &&
+    !search &&
+    !debouncedSearch
 
   // Editing is a full page, not an inline Sheet. The "New event" action toggles
   // showForm, which is redirected here to the dedicated new route (row edits

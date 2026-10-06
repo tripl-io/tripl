@@ -57,7 +57,8 @@ project, then the surfaces under it (**Observe › Alerting › Rules** opens th
 Alerting page and then its Rules tab). A nav group (Plan, Observe, Govern) is
 not a page, so its crumb stays plain text. While the pages read a
 plan branch, a **branch strip** under the top bar names the branch and its
-status and offers the way back to main. The top bar's **Activity** button opens
+status, offers **New event** on that branch (to editors, until it is merged or
+closed), and the way back to main. The top bar's **Activity** button opens
 and closes the activity rail. The **Search or jump** palette also finds every
 settings section by what it holds ("timezone", "api key", "dark mode") and
 offers create actions. Collapsed to an icon rail, the
@@ -1133,7 +1134,9 @@ that can break something (deleted, deprecated or archived, renamed, or otherwise
 edited events, event types, fields and properties) and lists, for each change,
 the downstream objects it touches with the same count summary. A rename is shown
 once, using the same pairing as the diff; an in-place edit (a field's type, an
-event's breakdown columns) is shown as a **change**. The panel informs review; it does not stop an approval or a
+event's breakdown columns) is shown as a **change**. The panel sits under the
+branch's **Changes**, one line per change with its dependents folded under it
+until opened. The panel informs review; it does not stop an approval or a
 merge.
 
 Viewers see **Used by** and the Impact panel; the warnings appear only for the
