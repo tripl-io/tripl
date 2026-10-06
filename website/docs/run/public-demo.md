@@ -22,7 +22,9 @@ delivering alerts outside the app, filing tracker tickets, AI.
 On a public demo an invitation is a link only (no email) and always grants
 **Member**. The colleague signs in with Google using the invited address, then
 opens the link and accepts it. They keep their own workspace and gain
-**Viewer** access to the inviting organization's ready demo projects.
+**Viewer** access to the inviting organization's demo projects: those ready when
+they accept, and each demo generated in that organization later. A project role
+they already had is kept.
 
 Every edition can generate a demo project for a team to try tripl on
 (**Generate demo project**); that is not a public demo.

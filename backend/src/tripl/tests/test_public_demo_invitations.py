@@ -8,6 +8,7 @@ from fastapi import HTTPException
 from httpx import ASGITransport, AsyncClient
 from sqlalchemy import func, select
 
+from tripl import extensions
 from tripl.main import app
 from tripl.models.audit_log import AuditLog
 from tripl.models.invitation import Invitation
@@ -15,7 +16,7 @@ from tripl.models.organization import DEFAULT_ORG_ID, Organization, Organization
 from tripl.models.project import Project
 from tripl.models.project_member import ProjectMember
 from tripl.models.user import User
-from tripl.services import invitation_email, invitation_service
+from tripl.services import auth_service, demo_service, invitation_email, invitation_service
 from tripl.tests._tenancy import use_public_demo
 from tripl.tests.conftest import TestSessionLocal
 
@@ -239,3 +240,131 @@ async def test_demo_wrong_signed_in_identity_leaves_invitation_unused(client, mo
     assert refused.status_code == 403
     async with TestSessionLocal() as session:
         assert (await session.scalar(select(Invitation))).used_at is None
+
+
+async def _add_org_member(email: str, role: str) -> User:
+    async with TestSessionLocal() as session:
+        user = User(email=email, password_hash="unused")
+        session.add(user)
+        await session.flush()
+        session.add(OrganizationMember(organization_id=DEFAULT_ORG_ID, user_id=user.id, role=role))
+        await session.commit()
+        return user
+
+
+async def _project_roles(slug: str) -> dict[str, str]:
+    async with TestSessionLocal() as session:
+        rows = await session.execute(
+            select(User.email, ProjectMember.role)
+            .join(ProjectMember, ProjectMember.user_id == User.id)
+            .join(Project, Project.id == ProjectMember.project_id)
+            .where(Project.slug == slug)
+        )
+        return {email: str(getattr(role, "value", role)) for email, role in rows.all()}
+
+
+async def _skip_seed(*_args, **_kwargs) -> None:
+    """Stands in for the ~10 s seed: only the promotion is under test."""
+
+
+@pytest.mark.parametrize("public_demo", [True, False], ids=["public-demo", "self-hosted"])
+async def test_a_demo_generated_after_acceptance_is_shared_with_colleagues(
+    client, monkeypatch, public_demo
+):
+    # The colleague accepted before this demo existed, so acceptance could not
+    # grant it; the promotion to ready must. Off a public demo, project access
+    # stays explicit and the new demo is the creator's alone.
+    await _add_org_member("colleague@example.com", "member")
+    await _add_org_member("admin@example.com", "admin")
+    monkeypatch.setattr(demo_service, "_seed_demo_content", _skip_seed)
+    if public_demo:
+        use_public_demo(monkeypatch)
+    created = await client.post("/api/v1/projects/demo")
+    assert created.status_code == 202, created.text
+    roles = await _project_roles(created.json()["slug"])
+    assert roles.pop("colleague@example.com", None) == ("viewer" if public_demo else None)
+    # The admin sees every project as an org admin; no row is written for them.
+    assert "admin@example.com" not in roles
+    assert set(roles.values()) == {"editor"}  # the creator's own membership
+
+
+async def test_a_claimed_pool_demo_is_shared_with_colleagues(client, monkeypatch):
+    colleague = await _add_org_member("colleague@example.com", "member")
+    async with TestSessionLocal() as session:
+        pooled = Project(name="Pooled", slug="pooled", organization_id=DEFAULT_ORG_ID, is_demo=True)
+        session.add(pooled)
+        await session.commit()
+        pooled_id = pooled.id
+
+    class _Pool:
+        async def on_ready_demo_claimed(self) -> None:
+            return None
+
+    async def claim(session, **_kwargs):
+        return _Pool(), await session.get(Project, pooled_id)
+
+    monkeypatch.setattr(extensions, "claim_ready_demo", claim)
+    use_public_demo(monkeypatch)
+    created = await client.post("/api/v1/projects/demo")
+    assert created.status_code == 202, created.text
+    assert created.json()["slug"] == "pooled"
+    async with TestSessionLocal() as session:
+        role = await session.scalar(
+            select(ProjectMember.role).where(
+                ProjectMember.project_id == pooled_id, ProjectMember.user_id == colleague.id
+            )
+        )
+    assert str(getattr(role, "value", role)) == "viewer"
+
+
+async def test_a_colleague_keeps_an_existing_role_on_a_new_demo(monkeypatch):
+    # Existing project roles win, as at acceptance: a row (even "none") is kept.
+    colleague = await _add_org_member("colleague@example.com", "member")
+    async with TestSessionLocal() as session:
+        project = Project(
+            name="Demo", slug="demo-kept", organization_id=DEFAULT_ORG_ID, is_demo=True
+        )
+        session.add(project)
+        await session.flush()
+        session.add(ProjectMember(project_id=project.id, user_id=colleague.id, role="none"))
+        await session.commit()
+        use_public_demo(monkeypatch)
+        await invitation_service.share_demo_with_colleagues(session, project)
+        await session.commit()
+        roles = list(
+            await session.scalars(
+                select(ProjectMember.role).where(ProjectMember.project_id == project.id)
+            )
+        )
+    assert [str(getattr(role, "value", role)) for role in roles] == ["none"]
+
+
+@pytest.mark.parametrize("public_demo", [True, False], ids=["public-demo", "self-hosted"])
+async def test_every_mint_files_exactly_one_audit_row(client, monkeypatch, public_demo):
+    # One writer for ``user.invite`` (the service, in the mint's transaction),
+    # whichever mode: the demo quota counts these rows.
+    if public_demo:
+        use_public_demo(monkeypatch)
+    minted = await _mint(client)
+    assert minted.status_code == 201, minted.text
+    async with TestSessionLocal() as session:
+        rows = list(
+            await session.scalars(
+                select(AuditLog).where(AuditLog.action == invitation_service.INVITE_AUDIT_ACTION)
+            )
+        )
+    assert len(rows) == 1
+    [row] = rows
+    assert str(row.target_id) == minted.json()["invitation"]["id"]
+    assert row.target_name == "invited@example.com"
+    assert row.organization_id == DEFAULT_ORG_ID
+    expected = {"role": "member", "public_demo": True} if public_demo else {"role": "member"}
+    assert row.payload == expected
+
+
+def test_the_inviter_mint_lock_has_its_own_key_space():
+    # The same UUID as an organization and as an inviter must not share a lock.
+    some_id = DEFAULT_ORG_ID
+    assert invitation_service.demo_mint_lock_key(some_id) != auth_service.owner_set_lock_key(
+        some_id
+    )

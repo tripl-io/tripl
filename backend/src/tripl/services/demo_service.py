@@ -33,6 +33,7 @@ from tripl.models.user import User
 from tripl.schemas.project import DemoCancelResponse, ProjectResponse
 from tripl.services import (
     audit_service,
+    invitation_service,
     plan_branch_service,
     project_lookup,
     project_member_service,
@@ -192,6 +193,8 @@ async def create_demo_project(
         )
         if ready is not None:
             extension, claimed = ready
+            # Committed by ``_record_claim`` with the claim's audit restamp.
+            await invitation_service.share_demo_with_colleagues(session, claimed)
             await _record_claim(session, claimed, created_by)
             await extension.on_ready_demo_claimed()
             return await project_service.get_project(session, claimed.slug)
@@ -385,6 +388,8 @@ async def _seed_and_promote(
     ready.generation_stage = None
     ready.generation_error = None
     ready.demo_seeded_at = now
+    # Colleagues invited into this organization (public demo) see it too.
+    await invitation_service.share_demo_with_colleagues(session, ready)
     # A demo is a project, and generating one is a person's decision — so it
     # files the same action a hand-made project does. The recipe's own
     # backfilled rows are the ones marked ``demo_seed``; this one is not.
