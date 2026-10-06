@@ -11,7 +11,7 @@ import { expect, generateDemo, test } from './fixtures'
 /**
  * The demo's layout, in a real browser: what unit tests could only assert as
  * class names (`min-w-0`, `overflow-x-hidden`, `bottom-[68px]`). The tour, a
- * chapter and the coach card it docks must fit the screen at desktop and phone
+ * chapter and its coach card must fit the screen at desktop and phone
  * widths with no sideways scroll, and the banner, the scenario strip, the tour
  * and the coach card are compared with their screenshots in light and dark.
  *
@@ -53,9 +53,8 @@ async function openDemo(browser: Browser, viewport: typeof DESKTOP, theme: Theme
   await context.addInitScript(`localStorage.setItem('tripl-ui-theme', ${JSON.stringify(theme)})`)
   const page = await context.newPage()
   await page.goto(`/p/${slug}/overview`)
-  await expect(page.locator('[data-demo-banner]').getByText('Demo workspace', { exact: true })).toBeVisible({
-    timeout: 60_000,
-  })
+  // On a phone the banner is a pill until it is opened: wait for any of it.
+  await expect(page.locator('[data-demo-banner]').getByRole('button').filter({ visible: true }).first()).toBeVisible({ timeout: 60_000 })
   return page
 }
 
@@ -74,15 +73,30 @@ async function openTour(page: Page): Promise<Locator> {
   return tour
 }
 
-/** Start the first chapter from the tour; it lands on Scans with its card docked. */
+/**
+ * Start the first chapter from the tour and wait for its coach card to settle.
+ * The chapter lands on Scans and may go on to the scan it coaches; the card is
+ * docked to the viewport while its Run button sits in a table row, and a
+ * popover beside it on the scan's own page.
+ */
 async function startFirstChapter(page: Page, tour: Locator): Promise<Locator> {
   await tour.getByRole('list', { name: 'Scenario chapters' }).getByRole('button').first().click()
-  await expect(page).toHaveURL(/\/scans$/, { timeout: 60_000 })
-  // Run sits in a table cell, so the card docks to the viewport instead of
-  // opening over the rows.
-  const card = page.locator('[data-coach-docked="true"]')
-  await expect(card).toBeVisible({ timeout: 60_000 })
-  await expect(card).toContainText('Run a scan to pull fresh volume from the demo warehouse.')
+  await expect(page).toHaveURL(/\/scans(\/[0-9a-f-]+)?$/, { timeout: 60_000 })
+  const card = page.getByRole('note', { name: 'Demo hint' })
+  await expect(card).toContainText('Run a scan to pull fresh volume from the demo warehouse.', { timeout: 60_000 })
+  // Settled: the same page and the same box twice, a second apart.
+  let last = ''
+  await expect
+    .poll(
+      async () => {
+        const now = JSON.stringify([page.url(), await card.getAttribute('data-coach-docked'), await card.boundingBox()])
+        const same = now === last
+        last = now
+        return same
+      },
+      { intervals: [1_000], timeout: 30_000 },
+    )
+    .toBe(true)
   return card
 }
 
@@ -148,20 +162,21 @@ for (const [name, viewport] of [
     const card = await startFirstChapter(page, tour)
     await expectInsideViewport(page, card, 'the coach card')
     await expectNoSidewaysPageScroll(page)
-    // Fixed to the viewport, the card still inherits the cell's right-align.
+    // Docked or not, it does not take a table cell's right-align.
     expect(await card.evaluate((el) => el.ownerDocument.defaultView?.getComputedStyle(el).textAlign)).toBe('left')
-    // Its own controls take the clicks, not something stacked over them.
-    await card.getByRole('button', { name: 'Collapse demo hint' }).click()
-    await card.getByRole('button', { name: 'Expand demo hint' }).click()
-    await expect(card.getByRole('button', { name: 'Collapse demo hint' })).toBeVisible()
-
+    // Its own buttons take the clicks, not something stacked over them.
+    await card.getByRole('button', { name: 'Hide hints' }).click({ trial: true })
+    if ((await card.getAttribute('data-coach-docked')) === 'true') {
+      await card.getByRole('button', { name: 'Collapse demo hint' }).click()
+      await card.getByRole('button', { name: 'Expand demo hint' }).click()
+      await expect(card.getByRole('button', { name: 'Collapse demo hint' })).toBeVisible()
+      // A phone always gets a bottom sheet.
+      if (viewport === PHONE) await expect(card).toHaveAttribute('data-coach-edge', 'bottom')
+    }
     if (viewport === DESKTOP) {
       // Clear of the sidebar's Appearance button, where the tweaks FAB was.
       const appearance = page.getByRole('button', { name: 'Appearance' })
       expect(overlaps(await boxOf(card, 'the coach card'), await boxOf(appearance, 'Appearance'))).toBe(false)
-    } else {
-      // A phone always gets a bottom sheet.
-      await expect(card).toHaveAttribute('data-coach-edge', 'bottom')
     }
     await page.context().close()
   })
