@@ -10,7 +10,10 @@
 # nginx) remain as an alternative deploy.
 
 # ---- frontend build -> dist/ ----
-FROM oven/bun:1.4.2-slim AS frontend-build
+# On the build machine's own platform: dist/ is static files, the same for
+# every target, so a multi-arch build compiles the SPA once instead of again
+# under QEMU for arm64 (that emulated `bun run build` was most of a release).
+FROM --platform=$BUILDPLATFORM oven/bun:1.4.2-slim AS frontend-build
 WORKDIR /app
 COPY frontend/package.json frontend/bun.lock frontend/bunfig.toml ./
 RUN --mount=type=cache,id=bun,target=/root/.bun/install/cache \
