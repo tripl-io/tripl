@@ -86,16 +86,7 @@ async def create_invitation(
         organization_id=require_org_id(),
         invited_by_user_id=current_user.id,
     )
-    if not tenancy.public_demo():
-        await audit_service.record(
-            session,
-            user=current_user,
-            action="user.invite",
-            target_type="invitation",
-            target_id=invitation.id,
-            target_name=invitation.email,
-            payload={"role": OrganizationRole(data.role).value},
-        )
+    # The service files the ``user.invite`` audit row in the mint's transaction.
     accept_path = f"/invite/{raw_token}"
     if not tenancy.public_demo():
         mail = await invitation_email.prepare(

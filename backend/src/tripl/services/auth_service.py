@@ -157,8 +157,21 @@ async def acquire_owner_set_xact_lock(session: AsyncSession, org_id: uuid.UUID) 
     guards the demotion side in ``user_service.update_org_role``, where two
     concurrent demotions of an organization's last two owners would otherwise
     each see the other as the survivor and leave it with none. One invariant per
-    organization, one lock per organization; a caller only ever holds one, so
-    the locks cannot deadlock against each other.
+    organization, one lock per organization.
+
+    Lock order, which is what keeps these locks deadlock-free:
+
+    * a transaction holds at most ONE owner-set lock;
+    * while holding it, the only advisory lock it may still take is the
+      public-demo inviter mint lock (``invitation_service.acquire_demo_mint_locks``),
+      and that one is a leaf: nothing is acquired while holding it.
+
+    Taking an owner-set lock while already holding some other lock is allowed
+    (a demo's promotion takes it at the end of a seed that took search-index
+    locks, ``invitation_service.share_demo_with_colleagues``): no holder of an
+    owner-set lock ever waits for anything but a mint lock, so no cycle can
+    form. A new path that needs two organizations' locks at once must define a
+    global order first (sort by key) and say so here.
 
     PostgreSQL-only, same idiom as
     ``demo_runtime._acquire_project_xact_lock``: SQLite (tests) has no advisory

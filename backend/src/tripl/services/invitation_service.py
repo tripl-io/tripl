@@ -1,13 +1,14 @@
 from __future__ import annotations
 
 import asyncio
+import hashlib
 import secrets
 import uuid
 from datetime import UTC, datetime, timedelta
 from typing import cast
 
 from fastapi import HTTPException, status
-from sqlalchemy import delete, func, or_, select
+from sqlalchemy import delete, func, or_, select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from tripl import extensions, tenancy
@@ -32,6 +33,13 @@ INVITATION_TTL_HOURS = 72
 INVITATION_TOKEN_BYTES = 32
 DEMO_ORGANIZATION_CAPACITY = 10
 DEMO_INVITATIONS_PER_HOUR = 10
+# The audit action every mint files (:func:`create_invitation`, its one writer).
+# The public-demo hourly quota counts these rows, see
+# :func:`_check_demo_invitation_limits` for why the audit log is that ledger.
+INVITE_AUDIT_ACTION = "user.invite"
+# Tag of the per-inviter mint-quota advisory lock: its own key space, so an
+# inviter's key can never be an organization's owner-set key.
+_DEMO_MINT_LOCK_TAG = b"trplinv1"
 
 # Deliberately identical for unknown / expired / already-used tokens so a
 # rejected redemption never reveals which of those it hit.
@@ -130,9 +138,7 @@ async def create_invitation(
             raise HTTPException(
                 status_code=403, detail="Public demo invitations allow only members."
             )
-        # Lock both quota dimensions in a stable order, including across orgs.
-        for lock_id in sorted({organization_id, invited_by_user_id}):
-            await auth_service.acquire_owner_set_xact_lock(session, lock_id)
+        await acquire_demo_mint_locks(session, organization_id, invited_by_user_id)
 
     existing_member: uuid.UUID | None = await session.scalar(
         select(OrganizationMember.id)
@@ -173,35 +179,86 @@ async def create_invitation(
         expires_at=_expires_at(),
     )
     session.add(invitation)
+    await session.flush()
+    # The one place a mint is audited, in the mint's own transaction: the
+    # public-demo quota counts these rows under the locks taken above, so the
+    # row must be durable exactly when the invitation is.
+    payload: dict[str, object] = {"role": invitation.org_role}
     if tenancy.public_demo():
-        await session.flush()
-        await audit_service.record(
-            session,
-            user=await session.get(User, invited_by_user_id),
-            action="user.invite",
-            target_type="invitation",
-            target_id=invitation.id,
-            target_name=invitation.email,
-            payload={"role": invitation.org_role, "public_demo": True},
-            organization_id=organization_id,
-            commit=False,
-        )
+        payload["public_demo"] = True
+    await audit_service.record(
+        session,
+        user=await session.get(User, invited_by_user_id),
+        action=INVITE_AUDIT_ACTION,
+        target_type="invitation",
+        target_id=invitation.id,
+        target_name=invitation.email,
+        payload=payload,
+        organization_id=organization_id,
+        commit=False,
+    )
     await session.commit()
     await session.refresh(invitation)
     return invitation, raw_token
 
 
+def demo_mint_lock_key(inviter_id: uuid.UUID) -> int:
+    """The signed 64-bit advisory-lock key guarding ``inviter_id``'s mint quota."""
+    digest = hashlib.blake2b(_DEMO_MINT_LOCK_TAG + inviter_id.bytes, digest_size=8).digest()
+    return int.from_bytes(digest, "big", signed=True)
+
+
+async def acquire_demo_mint_locks(
+    session: AsyncSession, organization_id: uuid.UUID, inviter_id: uuid.UUID
+) -> None:
+    """Serialise public-demo mints on both quota dimensions, in the global lock order.
+
+    The quota is per organization AND per inviter (an inviter can mint into
+    several organizations), so a mint holds two locks until it commits:
+
+    1. the organization's owner-set lock
+       (:func:`auth_service.acquire_owner_set_xact_lock`), which acceptance
+       (:func:`accept_as_signed_in`) also takes, so capacity is checked and
+       consumed under one lock;
+    2. then the inviter's mint lock (:func:`demo_mint_lock_key`, its own key
+       space). It is a leaf: nothing is acquired while it is held.
+
+    Always in that order. Every other path holds at most one owner-set lock and
+    no mint lock, so two mints, or a mint and any owner-set change, can wait on
+    each other but never in a cycle. See the lock-order note on
+    :func:`auth_service.acquire_owner_set_xact_lock`.
+
+    PostgreSQL-only like the owner-set lock: a no-op on SQLite (tests).
+    """
+    await auth_service.acquire_owner_set_xact_lock(session, organization_id)
+    if session.get_bind().dialect.name != "postgresql":
+        return
+    await session.execute(
+        text("SELECT pg_advisory_xact_lock(:key)"), {"key": demo_mint_lock_key(inviter_id)}
+    )
+
+
 async def _check_demo_invitation_limits(
     session: AsyncSession, org_id: uuid.UUID, inviter_id: uuid.UUID, email: str
 ) -> None:
-    """DB-backed rolling mint quotas survive replacement, revocation and restarts."""
+    """DB-backed rolling mint quotas survive replacement, revocation and restarts.
+
+    The quota counts mints, and the ledger of mints is the ``user.invite`` audit
+    trail (:data:`INVITE_AUDIT_ACTION`), written by :func:`create_invitation` in
+    the mint's transaction. The ``invitations`` table cannot be that ledger:
+    a revocation and a re-invite of the same address hard-delete their rows, so
+    counting it would let revoke-and-mint loops through without limit. Audit
+    rows are append-only and outlive the invitation. Callers hold
+    :func:`acquire_demo_mint_locks`, so the count and the row it guards cannot
+    interleave with a concurrent mint on either dimension.
+    """
     now = datetime.now(UTC)
     for dimension in (AuditLog.organization_id == org_id, AuditLog.user_id == inviter_id):
         count = await session.scalar(
             select(func.count())
             .select_from(AuditLog)
             .where(
-                AuditLog.action == "user.invite",
+                AuditLog.action == INVITE_AUDIT_ACTION,
                 AuditLog.created_at >= now - timedelta(hours=1),
                 dimension,
             )
@@ -433,7 +490,12 @@ async def accept_as_signed_in(session: AsyncSession, *, raw_token: str, user: Us
 async def _grant_demo_project_access(
     session: AsyncSession, invitation: Invitation, user: User
 ) -> None:
-    """Grant only ready demos in the invited org; existing project roles win."""
+    """Grant only ready demos in the invited org; existing project roles win.
+
+    The demos that become ready LATER are shared by
+    :func:`share_demo_with_colleagues`, so between them a colleague sees every
+    demo of the organization whatever the order of acceptance and generation.
+    """
     projects = await session.scalars(
         select(Project.id).where(
             Project.organization_id == invitation.organization_id,
@@ -458,3 +520,50 @@ async def _grant_demo_project_access(
             for project_id in projects
         ]
     )
+
+
+async def share_demo_with_colleagues(session: AsyncSession, project: Project) -> None:
+    """Public demo: give the organization's colleagues viewer access to a demo just made ready.
+
+    Acceptance (:func:`_grant_demo_project_access`) shares the demos that are
+    ready at that moment; this is the other half, called where a demo becomes
+    ready in an organization (a seed promoted, or a pooled demo claimed into
+    it), so a demo generated after a colleague joined is shared too.
+
+    The colleagues are the organization's ``member``-role members: on a public
+    demo that role is reached only by accepting an invitation, and an owner or
+    admin sees every project already. A member who has a row for this project
+    keeps it (existing project roles win, as at acceptance). Off a public demo
+    this does nothing: there project access stays an explicit decision.
+
+    Takes the organization's owner-set lock, the one acceptance holds, so an
+    acceptance racing the promotion either sees the demo ready or is seen here
+    as a member; it cannot miss both. Does NOT commit.
+    """
+    if not tenancy.public_demo() or not project.is_demo:
+        return
+    await auth_service.acquire_owner_set_xact_lock(session, project.organization_id)
+    colleagues = await session.scalars(
+        select(OrganizationMember.user_id).where(
+            OrganizationMember.organization_id == project.organization_id,
+            OrganizationMember.role == OrganizationRole.member.value,
+            ~select(ProjectMember.id)
+            .where(
+                ProjectMember.project_id == project.id,
+                ProjectMember.user_id == OrganizationMember.user_id,
+            )
+            .exists(),
+        )
+    )
+    session.add_all(
+        [
+            ProjectMember(
+                project_id=project.id,
+                user_id=user_id,
+                role="viewer",
+                added_by_user_id=project.created_by_user_id,
+            )
+            for user_id in colleagues
+        ]
+    )
+    await session.flush()
