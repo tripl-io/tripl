@@ -223,6 +223,18 @@ function FilterSearch({
   onValueChange: (value: string) => void
 }) {
   const ref = React.useRef<HTMLInputElement>(null)
+  // The box keeps its own text. Callers mostly hold the search in the URL, and
+  // a router update lands after the keystroke: a box bound straight to it lost
+  // characters typed quickly and threw the caret to the end. While the box has
+  // focus it is the source of truth; a change from outside (Clear filters, a
+  // saved view, Back) reaches it once focus is elsewhere.
+  const [draft, setDraft] = React.useState(value)
+  const [focused, setFocused] = React.useState(false)
+  const [seen, setSeen] = React.useState(value)
+  if (value !== seen) {
+    setSeen(value)
+    if (!focused) setDraft(value)
+  }
   React.useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.key !== "/" || event.ctrlKey || event.metaKey || event.altKey) return
@@ -245,10 +257,21 @@ function FilterSearch({
         type="search"
         aria-label={`Search ${things}`}
         placeholder={`Search ${things}…`}
-        value={value}
-        onChange={event => onValueChange(event.target.value)}
         className="h-7 pl-8"
         {...props}
+        value={draft}
+        onChange={event => {
+          setDraft(event.target.value)
+          onValueChange(event.target.value)
+        }}
+        onFocus={event => {
+          setFocused(true)
+          props.onFocus?.(event)
+        }}
+        onBlur={event => {
+          setFocused(false)
+          props.onBlur?.(event)
+        }}
       />
     </div>
   )

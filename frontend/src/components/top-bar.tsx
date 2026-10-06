@@ -1,7 +1,7 @@
 import { Suspense, useState, type ReactNode } from 'react'
 import { Link } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
-import { Activity, Bell, ChevronRight, GitBranch, Loader2, Menu, Search } from 'lucide-react'
+import { Activity, Bell, ChevronRight, GitBranch, Loader2, Menu, Plus, Search } from 'lucide-react'
 import { planBranchesApi } from '@/api/planBranches'
 import { useBranchContext } from '@/hooks/useBranch'
 import { requestPageLeave } from '@/hooks/useUnsavedChangesGuard'
@@ -29,6 +29,7 @@ import { planBranchesKey, projectsQueryOptions } from '@/lib/queryKeys'
 // The branch pages' own status words, so the strip cannot drift from them.
 import { STATUS_LABEL } from '@/lib/branchStatus'
 import { currentOrgSlug, projectPath } from '@/lib/navigation'
+import { useCanWriteProject } from '@/lib/permissions'
 
 type TopBarProps = {
   title: string
@@ -170,6 +171,7 @@ export function TopBar({
  */
 export function BranchStrip({ slug }: { slug: string | undefined }) {
   const { branchId, setBranchId } = useBranchContext()
+  const canWrite = useCanWriteProject()
   const branchesQuery = useQuery({
     // The switcher's key: the list is already cached, so no second request.
     queryKey: planBranchesKey(slug),
@@ -204,6 +206,19 @@ export function BranchStrip({ slug }: { slug: string | undefined }) {
         )}
       </span>
       <div className="flex-1" />
+      {/* Creating an event is what a branch is opened for; it used to sit only
+          on the branch's own page, as a quiet ghost button. A landed branch
+          refuses writes. */}
+      {canWrite && branch && branch.status !== 'merged' && branch.status !== 'closed' && (
+        <Link
+          to={`${projectPath(currentOrgSlug(), slug, '/events/all/new')}?branch=${encodeURIComponent(branchId)}`}
+          aria-label="New event on this branch"
+          className="inline-flex shrink-0 items-center gap-1 font-medium underline-offset-2 hover:underline text-fg"
+        >
+          <Plus className="size-3.5" aria-hidden="true" />
+          New event
+        </Link>
+      )}
       <Link
         to={projectPath(currentOrgSlug(), slug, `/branches/${branchId}`)}
         className="hidden shrink-0 font-medium underline-offset-2 hover:underline sm:inline text-fg"

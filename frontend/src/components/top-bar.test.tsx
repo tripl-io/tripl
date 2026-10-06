@@ -721,6 +721,11 @@ describe('BranchStrip (#243)', () => {
       'href',
       '/p/demo/branches/b-1',
     )
+    // Creating on the branch is one click from any page.
+    expect(screen.getByRole('link', { name: 'New event on this branch' })).toHaveAttribute(
+      'href',
+      '/p/demo/events/all/new?branch=b-1',
+    )
     fireEvent.click(screen.getByRole('button', { name: 'Back to main' }))
     expect(setBranchId).toHaveBeenCalledWith(null)
   })

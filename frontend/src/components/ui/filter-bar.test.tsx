@@ -1,4 +1,5 @@
-import { fireEvent, render, screen, within } from '@testing-library/react'
+import { act, fireEvent, render, screen, within } from '@testing-library/react'
+import { useState } from 'react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { FilterBar, FilterSearch, FilterSelect } from './filter-bar'
 
@@ -133,5 +134,45 @@ describe('FilterBar below 640px', () => {
     renderBar({ status: 'live' })
     expect(screen.getByRole('combobox', { name: 'Status filter: live' })).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: /^Filters/ })).toBeNull()
+  })
+})
+
+describe('FilterSearch', () => {
+  /** A caller whose value lags the keystroke, like one held in the URL. */
+  function Lagging({ onValue }: { onValue: (value: string) => void }) {
+    const [value, setValue] = useState('')
+    return (
+      <FilterSearch
+        things="events"
+        value={value}
+        onValueChange={(next) => {
+          onValue(next)
+          setTimeout(() => setValue(next), 50)
+        }}
+      />
+    )
+  }
+
+  it('keeps what is typed while the caller catches up', async () => {
+    const onValue = vi.fn()
+    render(<Lagging onValue={onValue} />)
+    const search = screen.getByRole('searchbox', { name: 'Search events' })
+    act(() => search.focus())
+    fireEvent.change(search, { target: { value: 'a' } })
+    fireEvent.change(search, { target: { value: 'au' } })
+    expect(search).toHaveValue('au')
+    // The echo of "a" arrives after "au" was typed, and must not undo it.
+    await act(() => new Promise((resolve) => setTimeout(resolve, 80)))
+    expect(search).toHaveValue('au')
+    expect(onValue).toHaveBeenLastCalledWith('au')
+  })
+
+  it('takes a value set from outside once focus is elsewhere', () => {
+    const { rerender } = render(<FilterSearch things="events" value="sign" onValueChange={() => {}} />)
+    const search = screen.getByRole('searchbox', { name: 'Search events' })
+    expect(search).toHaveValue('sign')
+    // "Clear filters" has focus, not the box.
+    rerender(<FilterSearch things="events" value="" onValueChange={() => {}} />)
+    expect(search).toHaveValue('')
   })
 })

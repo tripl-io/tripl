@@ -59,6 +59,15 @@ describe('VariableInput suggestions', () => {
     expect(input).toHaveValue('${price}')
   })
 
+  it('says how many documented values the preview leaves out', () => {
+    const values = ['0', '1', '2', '3', '4', '5', '6', '7']
+    render(<Controlled variables={[{ name: 'rank', allowed_values: values }]} />)
+    fireEvent.change(screen.getByRole('combobox'), { target: { value: '$ra' } })
+
+    const preview = within(screen.getByRole('option', { name: /\$\{rank\}/ })).getByTitle(values.join(' · '))
+    expect(preview).toHaveTextContent('0 · 1 · 2 · 3 · 4 · 5 · +2 more')
+  })
+
   it('is no combobox on a date input, which cannot take a token', () => {
     render(<Controlled variables={MANY} type="date" />)
     expect(screen.queryByRole('combobox')).toBeNull()

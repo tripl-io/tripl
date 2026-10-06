@@ -86,24 +86,29 @@ export function BranchImpactPanel({ slug, branchId }: { slug: string; branchId: 
           relations and properties that use them.
         </p>
       ) : (
-        <ul className="m-0 flex list-none flex-col gap-4 p-0" aria-label="Changes with downstream impact">
+        <ul className="m-0 flex list-none flex-col gap-2 p-0" aria-label="Changes with downstream impact">
           {touching.map((item) => (
             <li key={`${item.change.kind}:${item.change.id}:${item.change.change}`}>
-              <p className="m-0 mb-2 text-body-sm">
-                <span className="mono font-medium text-fg">{changedName(item)}</span>{' '}
-                <span className="text-fg-muted">
-                  {dependencyKindLabel(item.change.kind)} {impactChangeLabel(item.change.change)}:
-                </span>{' '}
-                <span className="text-fg">{item.summary || summarizeEdges(item.affected)}</span>
-              </p>
-              <div className="pl-3">
-                <UsedByList
-                  slug={slug}
-                  edges={item.affected}
-                  headingLevel={4}
-                  linkBranchId={linkBranchFor(item, branchId)}
-                />
-              </div>
+              {/* Closed until asked for: one property used by 54 events listed
+                  every one of them and pushed the branch's changes off the
+                  screen. */}
+              <details>
+                <summary className="cursor-pointer text-body-sm marker:text-fg-tertiary">
+                  <span className="mono font-medium text-fg">{changedName(item)}</span>{' '}
+                  <span className="text-fg-muted">
+                    {dependencyKindLabel(item.change.kind)} {impactChangeLabel(item.change.change)}:
+                  </span>{' '}
+                  <span className="text-fg">{item.summary || summarizeEdges(item.affected)}</span>
+                </summary>
+                <div className="mt-2 pl-3">
+                  <UsedByList
+                    slug={slug}
+                    edges={item.affected}
+                    headingLevel={4}
+                    linkBranchId={linkBranchFor(item, branchId)}
+                  />
+                </div>
+              </details>
             </li>
           ))}
         </ul>
