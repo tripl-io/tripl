@@ -5,7 +5,7 @@ import { dirname, resolve } from 'node:path'
 import { describe, expect, it } from 'vitest'
 
 /**
- * Guards the WCAG AA floor for the text tokens in `index.css`,
+ * Guards the WCAG AA floor for the text tokens in `styles/tokens.css`,
  * extended to the status tones.
  *
  * `--fg-subtle` and `--fg-faint` are not decoration: they carry activity
@@ -72,7 +72,7 @@ type Rgb = readonly [number, number, number]
 // Read the shipped stylesheet directly: `?raw` goes through the Tailwind
 // plugin, which rewrites the file, so the token declarations would be gone.
 const css = readFileSync(
-  resolve(dirname(fileURLToPath(import.meta.url)), 'index.css'),
+  resolve(dirname(fileURLToPath(import.meta.url)), 'styles/tokens.css'),
   'utf8',
 )
 
@@ -83,9 +83,9 @@ const css = readFileSync(
  */
 function block(selector: string): string {
   const start = css.indexOf(`${selector} {`)
-  if (start < 0) throw new Error(`no ${selector} block in index.css`)
+  if (start < 0) throw new Error(`no ${selector} block in styles/tokens.css`)
   const end = css.indexOf('}', start)
-  if (end < 0) throw new Error(`unterminated ${selector} block in index.css`)
+  if (end < 0) throw new Error(`unterminated ${selector} block in styles/tokens.css`)
   return css.slice(start, end)
 }
 

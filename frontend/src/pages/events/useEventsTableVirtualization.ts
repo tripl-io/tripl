@@ -9,7 +9,7 @@ import { PHONE_CARD_HEIGHT_ESTIMATE, PHONE_CARD_QUERY } from './eventsPhoneCard'
 const VIRTUAL_THRESHOLD = 100
 
 /**
- * `--row-h` per density class (index.css). The estimate has to follow the
+ * `--row-h` per density class (styles/tokens.css). The estimate has to follow the
  * density the theme applies: a fixed 36px was 30% too tall under the default
  * compact density, so the spacers mis-mapped the scrollbar and the next-page
  * trigger fired early. Rows are still measured once rendered — an

@@ -91,7 +91,7 @@ export const PHONE_DROPPED_CELL = 'max-md:hidden'
 
 /**
  * A full-width row that is not an event (loading, empty state). `h-auto!`: the
- * block row kept the desktop `--row-h` from index.css, and the card's
+ * block row kept the desktop `--row-h` from styles/tokens.css, and the card's
  * `overflow-hidden` clipped "No events yet" to a 28px strip.
  */
 export const PHONE_FULL_ROW = 'max-md:block max-md:h-auto! max-md:[&>td]:block'
