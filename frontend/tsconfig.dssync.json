@@ -1,8 +1,21 @@
 {
   "compilerOptions": {
     "paths": {
-      "@/types": ["./src/types/index.ts"],
-      "@/*": ["./src/*"]
+      "@/types": [
+        "./src/types/index.ts"
+      ],
+      "@/components/states": [
+        "./src/components/states/index.ts"
+      ],
+      "@/extensions": [
+        "./src/extensions/index.ts"
+      ],
+      "@tripl/extensions": [
+        "./src/extensions/none.ts"
+      ],
+      "@/*": [
+        "./src/*"
+      ]
     }
   }
 }
