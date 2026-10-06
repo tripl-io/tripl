@@ -129,7 +129,7 @@ export default function InvitePage({ signedIn }: { signedIn?: InviteSignedInAcco
     ? ROLE_OPTIONS.find((r) => r.value === preview.role)?.label ?? preview.role
     : null
   const roleBlurb = publicDemo
-    ? 'receives viewer access to existing demo projects. Use a verified Google account matching the invited email address.'
+    ? 'receives viewer access to the demo projects of this workspace, including ones generated later. Use a verified Google account matching the invited email address.'
     : preview ? ROLE_BLURB[preview.role] : undefined
   // Only the API's invalid-token answer means the link is dead. A network
   // failure, a 5xx or a rate limit says nothing about the link, and telling a
@@ -269,7 +269,7 @@ export default function InvitePage({ signedIn }: { signedIn?: InviteSignedInAcco
             <div className="space-y-4">
               <p className="text-body text-fg-tertiary">
                 You were invited as <strong>{preview.email}</strong>. Sign in with Google using
-                this email address to accept the invitation and receive viewer access to existing demo projects.
+                this email address to accept the invitation and receive viewer access to the demo projects of this workspace, including ones generated later.
               </p>
               <Button
                 type="button"

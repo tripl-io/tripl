@@ -219,7 +219,7 @@ export function InviteMemberCard({ actorIsOrgOwner }: { actorIsOrgOwner: boolean
       <SCard
         title="Invite a member"
         description={publicDemo
-          ? 'Creates a single-use link for a colleague. No email is sent: copy the link and share it yourself. They sign in with Google at this address and receive viewer access to existing demo projects.'
+          ? 'Creates a single-use link for a colleague. No email is sent: copy the link and share it yourself. They sign in with Google at this address and receive viewer access to the demo projects of this workspace, including ones generated later.'
           : 'Creates a single-use link for one address, at the role you pick. They see no project until they are added to one under Project settings › Access.'}
         footer={
           <div className="flex w-full flex-wrap items-center justify-end gap-2">
