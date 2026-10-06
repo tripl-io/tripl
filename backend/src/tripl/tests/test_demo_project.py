@@ -37,6 +37,11 @@ from tripl.services.demo import DemoContext, noise, seed_demo_content
 from tripl.services.demo.builders import plan
 from tripl.services.demo.builders.alerts import DEMO_PLANNED_EVENT_LABEL
 from tripl.services.demo.builders.variables import DRIFT_OBSERVED_VALUES
+from tripl.services.demo.builders.warehouse import (
+    WEEKLY_PROMO_EVENT_NAME,
+    WEEKLY_PROMO_MULTIPLIER,
+    weekly_promo_buckets,
+)
 from tripl.services.demo.scenario import DEMO_SEED
 from tripl.services.project_service import demo_data_source_name
 from tripl.tests._audit_feed import org_audit
@@ -326,11 +331,31 @@ async def test_demo_project_seeds_enabled_anomaly_settings(client: AsyncClient) 
     assert settings.detect_project_total is True
 
 
+# The seed clock decides which hour of the week every series starts on, and with
+# it where the weekly promo's sends land. At Monday 22:00 UTC the promo hour is
+# the trough of Paywall View's week, so the oldest send's usual volume (319) sits
+# below every stored count (the send itself is stored at 3x, and the later
+# same-hour buckets carry more upward drift). CI hit that hour once
+# (tripl-lcg5); pinning the clock keeps the test off the wall clock and keeps
+# that case covered. The second clock is an ordinary midweek afternoon.
+_TROUGH_PROMO_CLOCK = datetime(2026, 10, 5, 22, tzinfo=UTC)
+_MIDWEEK_CLOCK = datetime(2026, 10, 7, 14, tzinfo=UTC)
+
+
 @pytest.mark.asyncio
-async def test_demo_project_anomalies_match_seeded_series(client: AsyncClient) -> None:
+@pytest.mark.parametrize("clock", [_TROUGH_PROMO_CLOCK, _MIDWEEK_CLOCK], ids=["trough", "midweek"])
+async def test_demo_project_anomalies_match_seeded_series(
+    client: AsyncClient, monkeypatch: pytest.MonkeyPatch, clock: datetime
+) -> None:
     # Every seeded MetricAnomaly must be reproducible from the visible EventMetric
-    # series: the detector ran over exactly the stored counts, so an anomaly's
-    # bucket must exist in the series and its actual/expected must be drawn from it.
+    # series. Two kinds are seeded at event scope: what the real detector found
+    # over exactly the stored counts, and the weekly promo's past sends that
+    # someone marked expected (hand-written, scored against the volume the hour
+    # would have had without the promo). Each kind is checked against its own
+    # derivation; the promo's ``expected`` is NOT bounded by the series, since
+    # the series only ever stores the promo-lifted count for that hour.
+    monkeypatch.setattr(demo_service, "_demo_clock", lambda: clock)
+    promo_buckets = set(weekly_promo_buckets(clock - timedelta(hours=1)))
     resp = await client.post("/api/v1/projects/demo")
     assert resp.status_code == 202
     slug = resp.json()["slug"]
@@ -354,10 +379,44 @@ async def test_demo_project_anomalies_match_seeded_series(client: AsyncClient) -
         # genuine anomalies (one visible spike per scope), not hundreds.
         assert 0 < len(all_anomalies) <= 12, len(all_anomalies)
 
+        # The plan has a main and a feature branch, each with its own row.
+        promo_event_ids = set(
+            (
+                await session.execute(
+                    select(Event.id).where(
+                        Event.project_id == project_id, Event.name == WEEKLY_PROMO_EVENT_NAME
+                    )
+                )
+            )
+            .scalars()
+            .all()
+        )
         event_anomalies = [a for a in all_anomalies if a.scope_type == SCOPE_EVENT]
-        assert event_anomalies, "expected at least one event-scope anomaly"
+        promo_verdicts = [
+            a
+            for a in event_anomalies
+            if a.event_id in promo_event_ids and a.bucket.replace(tzinfo=UTC) in promo_buckets
+        ]
+        detected = [a for a in event_anomalies if a not in promo_verdicts]
+        assert detected, "expected at least one detector event-scope anomaly"
+        assert len(promo_verdicts) == len(promo_buckets)
 
-        for anomaly in event_anomalies:
+        for anomaly in promo_verdicts:
+            stored = (
+                await session.execute(
+                    select(EventMetric.count).where(
+                        EventMetric.scan_config_id == scan_config_id,
+                        EventMetric.event_id == anomaly.event_id,
+                        EventMetric.bucket == anomaly.bucket,
+                    )
+                )
+            ).scalar_one()
+            # The stored count is the promo-lifted one; expected is its usual.
+            assert anomaly.actual_count == float(stored)
+            assert anomaly.expected_count * WEEKLY_PROMO_MULTIPLIER == float(stored)
+            assert anomaly.direction == "spike"
+
+        for anomaly in detected:
             assert anomaly.event_id is not None
             # The anomaly bucket exists in the event's stored series.
             metric = (
