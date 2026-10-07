@@ -9,6 +9,8 @@ from datetime import datetime
 from typing import Any, override
 
 import clickhouse_connect
+from clickhouse_connect.datatypes.registry import get_from_name
+from clickhouse_connect.driver.exceptions import DatabaseError
 
 from tripl.core.adapters.base import (
     FIELD_CONTRACT_EXPECTATIONS_PER_QUERY,
@@ -53,6 +55,15 @@ _SCHEMA_ROW_LIMIT = 50000
 _SYSTEM_DATABASES = ("system", "information_schema", "INFORMATION_SCHEMA")
 
 logger = logging.getLogger(__name__)
+
+
+def _normalized_type_name(server_type: str) -> str:
+    """A server type string as clickhouse-connect names it; unchanged if unparsable."""
+    try:
+        return str(get_from_name(server_type).name)
+    except Exception:
+        return server_type
+
 
 _IDENTIFIER_RE = re.compile(r"^[a-zA-Z_][a-zA-Z0-9_.]*$")
 _IDENTIFIER_PART_RE = re.compile(r"^[a-zA-Z_][a-zA-Z0-9_]*$")
@@ -126,22 +137,59 @@ class ClickHouseAdapter(BaseAdapter):
         return bool(first_row is not None and first_row[0] == 1)
 
     def get_columns(self, base_query: str) -> list[ColumnInfo]:
-        result = self._client.query(f"SELECT * FROM ({base_query}) AS _src LIMIT 0")
-        columns: list[ColumnInfo] = []
-        for name, type_info in zip(result.column_names, result.column_types, strict=False):
-            # clickhouse-connect type objects render their object repr under
-            # str() (e.g. "<...Float32 object at 0x...>"); their `.name` is the
-            # real ClickHouse type ("Float32", "Nullable(Float32)"). Use it so
-            # type-based logic (numeric measure detection, JSON inference) works.
-            type_name = getattr(type_info, "name", None) or str(type_info)
-            is_nullable = "Nullable" in type_name
-            columns.append(ColumnInfo(name=name, type_name=type_name, is_nullable=is_nullable))
+        """The base query's columns, from ``DESCRIBE`` — the query itself never runs.
+
+        ``SELECT * ... LIMIT 0`` used to answer this, and on a Distributed table
+        that is not free: every shard still starts reading. Measured on a
+        production cluster: 290k rows and 500 MiB per call, 6-11 s on average and
+        up to 46 s, against 7 ms for ``DESCRIBE`` on the same query. Every scan
+        and every scheduled tick introspects first, so that was pure latency.
+
+        ``DESCRIBE`` needs the same grants (it analyzes the subquery, which checks
+        SELECT on what it reads) and is allowed under ``readonly=1``. A server
+        that refuses it anyway falls back to the old query, once per call.
+        """
+        try:
+            described = self._describe_columns(base_query)
+        except DatabaseError:
+            logger.warning(
+                "ClickHouse: DESCRIBE of the base query failed; introspecting with LIMIT 0",
+                exc_info=True,
+            )
+            described = self._limit_zero_columns(base_query)
+        columns = [
+            ColumnInfo(name=name, type_name=type_name, is_nullable="Nullable" in type_name)
+            for name, type_name in described
+        ]
         self._allowed_columns = {c.name for c in columns}
         # Kept alongside the allowlist because the nested-shape SQL is type-directed:
         # ClickHouse has one path/shape function per nested family and none of them
         # accepts another family's argument.
         self._column_types = {c.name: c.type_name for c in columns}
         return columns
+
+    def _describe_columns(self, base_query: str) -> list[tuple[str, str]]:
+        """``(name, type)`` per column of ``base_query``, via ``DESCRIBE TABLE``.
+
+        The type string goes through clickhouse-connect's own parser so it reads
+        exactly as the ``LIMIT 0`` path's ``type_info.name`` did: the server
+        prints ``JSON(max_dynamic_paths=128)`` and ``Tuple(a String)``, the
+        library ``JSON(max_dynamic_paths = 128)`` and ``Tuple(`a` String)``, and
+        type-directed code downstream must not see the difference.
+        """
+        result = self._client.query(f"DESCRIBE TABLE ({base_query})")
+        return [(str(row[0]), _normalized_type_name(str(row[1]))) for row in result.result_rows]
+
+    def _limit_zero_columns(self, base_query: str) -> list[tuple[str, str]]:
+        result = self._client.query(f"SELECT * FROM ({base_query}) AS _src LIMIT 0")
+        # clickhouse-connect type objects render their object repr under str()
+        # (e.g. "<...Float32 object at 0x...>"); their `.name` is the real
+        # ClickHouse type ("Float32", "Nullable(Float32)"). Use it so type-based
+        # logic (numeric measure detection, JSON inference) works.
+        return [
+            (name, getattr(type_info, "name", None) or str(type_info))
+            for name, type_info in zip(result.column_names, result.column_types, strict=False)
+        ]
 
     def get_schema_tables(self) -> list[SchemaTable]:
         # Introspect every non-system database, not just the connection's current

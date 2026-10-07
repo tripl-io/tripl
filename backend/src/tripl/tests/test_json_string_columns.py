@@ -313,7 +313,7 @@ class _CHResult:
 
 
 class _CHClient:
-    """Answers ``LIMIT 0`` introspection: ``props`` is String, or JSON once parsed."""
+    """Answers ``DESCRIBE`` introspection: ``props`` is String, or JSON once parsed."""
 
     def __init__(self, discovered: list[str] | None = None) -> None:
         self.sql: list[str] = []
@@ -321,11 +321,11 @@ class _CHClient:
 
     def query(self, sql: str) -> _CHResult:
         self.sql.append(sql)
-        if sql.endswith("LIMIT 0"):
+        if sql.startswith("DESCRIBE TABLE ("):
             props = "JSON" if "_json_src" in sql else "Nullable(String)"
+            types = {"ts": "DateTime", "event_type": "String", "props": props, "n": "Int64"}
             return _CHResult(
-                ["ts", "event_type", "props", "n"],
-                [_CHType("DateTime"), _CHType("String"), _CHType(props), _CHType("Int64")],
+                result_rows=[(name, t, "", "", "", "", "") for name, t in types.items()]
             )
         if "SELECT _path" in sql:
             return _CHResult(["_path"], [], [(path,) for path in self.discovered])

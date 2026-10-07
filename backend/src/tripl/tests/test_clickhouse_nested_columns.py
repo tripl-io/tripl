@@ -36,6 +36,7 @@ from datetime import datetime
 from typing import Any
 
 import pytest
+from clickhouse_connect.driver.exceptions import DatabaseError
 
 from tripl.core.adapters.base import AggregateSpec
 from tripl.core.adapters.clickhouse import ClickHouseAdapter
@@ -253,21 +254,20 @@ def test_get_columns_records_the_declared_type_of_every_column() -> None:
     exist at all, so this is red on revert at the first assertion.
     """
 
-    class _TypeInfo:
-        def __init__(self, name: str) -> None:
-            self.name = name
-
     class _SchemaResult(_Result):
-        column_names = list(_COLUMN_TYPES)
-        column_types = [_TypeInfo(t) for t in _COLUMN_TYPES.values()]
+        # DESCRIBE answers one row per column, (name, type, ...); the server
+        # prints types unnormalized and the adapter parses them back.
+        result_rows = [
+            (name, type_name.replace("`", ""), "", "", "", "", "")
+            for name, type_name in _COLUMN_TYPES.items()
+        ]
 
     class _SchemaClient(_Client):
         def query(self, sql: str, **_kwargs: object) -> _Result:
             self.sql.append(sql)
-            # Only the LIMIT 0 introspection needs a schema; the read that follows
-            # needs rows, and there are none. The read's own limit is 100000, so
-            # this discriminator cannot match it.
-            return _SchemaResult() if "LIMIT 0" in sql else _Result()
+            # Only the DESCRIBE introspection needs a schema; the read that
+            # follows needs rows, and there are none.
+            return _SchemaResult() if sql.startswith("DESCRIBE TABLE (") else _Result()
 
     client = _SchemaClient()
     adapter = object.__new__(ClickHouseAdapter)
@@ -275,6 +275,7 @@ def test_get_columns_records_the_declared_type_of_every_column() -> None:
 
     columns = adapter.get_columns(_BASE)
 
+    assert client.sql[0] == f"DESCRIBE TABLE ({_BASE})"
     assert adapter._column_types == _COLUMN_TYPES
     assert [c.name for c in columns] == list(_COLUMN_TYPES)
 
@@ -283,6 +284,43 @@ def test_get_columns_records_the_declared_type_of_every_column() -> None:
     assert _MAP_SHAPE in read_sql
     assert _TUPLE_SHAPE in read_sql
     assert _JSON_SHAPE in read_sql
+
+
+def test_get_columns_falls_back_to_limit_zero_when_describe_is_refused() -> None:
+    """A server that refuses ``DESCRIBE`` still gets introspected, the old way.
+
+    ``DESCRIBE`` needs no grant ``LIMIT 0`` does not, but an install that refuses it
+    for any reason must not lose its scans: the adapter retries with the query it
+    always used and reads the types off clickhouse-connect's type objects.
+    """
+
+    class _TypeInfo:
+        def __init__(self, name: str) -> None:
+            self.name = name
+
+    class _LimitZeroResult(_Result):
+        column_names = ["time", "props"]
+        column_types = [_TypeInfo("DateTime"), _TypeInfo("Map(String, String)")]
+
+    class _NoDescribeClient(_Client):
+        def query(self, sql: str, **_kwargs: object) -> _Result:
+            self.sql.append(sql)
+            if sql.startswith("DESCRIBE"):
+                raise DatabaseError("Code: 497. Not enough privileges. (ACCESS_DENIED)")
+            return _LimitZeroResult()
+
+    client = _NoDescribeClient()
+    adapter = object.__new__(ClickHouseAdapter)
+    adapter._client = client
+
+    columns = adapter.get_columns(_BASE)
+
+    assert client.sql == [f"DESCRIBE TABLE ({_BASE})", f"SELECT * FROM ({_BASE}) AS _src LIMIT 0"]
+    assert [(c.name, c.type_name) for c in columns] == [
+        ("time", "DateTime"),
+        ("props", "Map(String, String)"),
+    ]
+    assert adapter._column_types == {"time": "DateTime", "props": "Map(String, String)"}
 
 
 def test_json_path_discovery_skips_map_and_tuple_columns() -> None:
