@@ -136,6 +136,16 @@ function visibleBox(element: Element | null | undefined): Box | null {
 const FLOATING_LAYERS =
   '[role="dialog"], [role="alertdialog"], [role="menu"], [role="listbox"], [data-sonner-toast]'
 
+/** The rings on screen: the controls the visitor is being asked to press. */
+function ringBoxes(): Box[] {
+  const boxes: Box[] = []
+  for (const ring of document.querySelectorAll('.coach-ring')) {
+    const box = visibleBox(ring)
+    if (box) boxes.push(box)
+  }
+  return boxes
+}
+
 function floatingLayerBoxes(self: Element | null): Box[] {
   const boxes: Box[] = []
   for (const layer of document.querySelectorAll(FLOATING_LAYERS)) {
@@ -327,16 +337,19 @@ export function DemoGuide({
     const tight = cardAt === null && narrow === null
     setSqueezed(tight)
     const folded = muted || minimised || (tight && !openAnyway)
+    // Wherever else it lands, never on a ringed control while a corner
+    // leaves it free (chooseCorner).
+    const rings = ringBoxes()
     let next: Layout
     if (folded) {
       const size = { width: FACE_SIZE_PX, height: FACE_SIZE_PX }
-      const corner = chooseCorner(frame, size, avoidBoxes, order)
+      const corner = chooseCorner(frame, size, avoidBoxes, order, rings)
       next = { corner, box: cornerBox(corner, frame, size), mode: 'face' }
     } else if (cardAt === null && narrow) {
       const box = cornerBox(narrow.corner, screenFrame(), narrow.size)
       next = { corner: narrow.corner, box, mode: 'narrow' }
     } else {
-      const corner = cardAt ?? chooseCorner(frame, card, avoidBoxes, order)
+      const corner = cardAt ?? chooseCorner(frame, card, avoidBoxes, order, rings)
       next = { corner, box: cornerBox(corner, frame, card), mode: 'card' }
     }
     setLayout((prev) =>

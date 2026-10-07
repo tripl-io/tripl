@@ -86,6 +86,18 @@ describe('chooseCorner', () => {
   it('keeps to the order when every corner is covered alike', () => {
     expect(chooseCorner(FRAME, CARD, [EVERYTHING])).toBe('bottom-right')
   })
+
+  it("never sits on a ringed control while another corner leaves it free", () => {
+    // A dialog over everything, its Create ringed in the bottom-right: the
+    // card opened over it took that corner, and Create with it.
+    expect(chooseCorner(FRAME, CARD, [EVERYTHING], undefined, [BOTTOM_RIGHT_CONTROL])).toBe('bottom-left')
+  })
+
+  it('settles for a ringed control only when every corner holds one', () => {
+    const rings = [box(0, 700, 1000, 30), box(0, 100, 1000, 30)]
+
+    expect(chooseCorner(FRAME, CARD, [EVERYTHING], undefined, rings)).toBe('bottom-right')
+  })
 })
 
 describe('pickCorner', () => {
