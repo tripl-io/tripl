@@ -4,6 +4,7 @@ import type {
   DatabricksAuthType,
   DbType,
   PostgresSslMode,
+  SnowflakeAuthType,
 } from '@/types'
 import { REQUIRED_MESSAGE } from '@/components/forms/validation'
 import { INPUT_INVALID_CLASS, INPUT_PLACEHOLDER_CLASS, INPUT_TEXT_CLASS } from '@/components/settings/input-style'
@@ -24,11 +25,15 @@ export interface ConnectionSettingsForm {
   sslkey: string
   clearSslkey: boolean
   searchPath: string
-  // Databricks
+  // Databricks (schemaName and schemaAllowlist are Snowflake's too)
   httpPath: string
   authType: DatabricksAuthType
   schemaName: string
   schemaAllowlist: string
+  // Snowflake
+  warehouse: string
+  role: string
+  snowflakeAuthType: SnowflakeAuthType
 }
 
 export const EMPTY_CONNECTION_SETTINGS_FORM: ConnectionSettingsForm = {
@@ -45,12 +50,36 @@ export const EMPTY_CONNECTION_SETTINGS_FORM: ConnectionSettingsForm = {
   authType: 'pat',
   schemaName: '',
   schemaAllowlist: '',
+  warehouse: '',
+  role: '',
+  snowflakeAuthType: 'password',
 }
 
 export const DATABRICKS_AUTH_OPTIONS: { value: DatabricksAuthType; label: string }[] = [
   { value: 'pat', label: 'Access token (personal or service principal)' },
   { value: 'oauth_m2m', label: 'OAuth machine-to-machine (service principal)' },
 ]
+
+export const SNOWFLAKE_AUTH_OPTIONS: { value: SnowflakeAuthType; label: string }[] = [
+  { value: 'password', label: 'Password' },
+  { value: 'key_pair', label: 'Key pair (private key in the secret field)' },
+]
+
+// Mirrors MAX_SNOWFLAKE_SCHEMA_ALLOWLIST in backend/src/tripl/schemas/data_source.py.
+export const MAX_SNOWFLAKE_SCHEMA_ALLOWLIST = 50
+
+// Mirrors _SF_OBJECT_RE on the backend: a warehouse, role or schema name.
+const SNOWFLAKE_OBJECT_RE = /^[A-Za-z0-9_$-]{1,255}$/
+
+/** Why `value` is not a Snowflake warehouse name, or null when it is. */
+export function snowflakeWarehouseError(value: string, requiredMessage: string): string | null {
+  const trimmed = value.trim()
+  if (!trimmed) return requiredMessage
+  if (!SNOWFLAKE_OBJECT_RE.test(trimmed)) {
+    return 'Use the warehouse name only: letters, digits, _ and $, like COMPUTE_WH.'
+  }
+  return null
+}
 
 // Mirrors MAX_DATABRICKS_SCHEMA_ALLOWLIST in backend/src/tripl/schemas/data_source.py.
 // The browse is one information_schema query whatever the count, so the cap is
@@ -180,13 +209,13 @@ export function pemError(value: string, kind: PemKind): string | null {
 export type PemField = 'sslrootcert' | 'sslcert' | 'sslkey'
 /**
  * Inline errors for the settings fields, by field: the Postgres PEM blocks, and
- * the Databricks HTTP path (the one required setting any warehouse has).
+ * the Databricks HTTP path and the Snowflake warehouse (the required settings).
  */
-export type PemErrors = Partial<Record<PemField | 'httpPath', string>>
+export type PemErrors = Partial<Record<PemField | 'httpPath' | 'warehouse', string>>
 
 /**
- * Inline errors for the settings fields: the Postgres PEM blocks, and the
- * Databricks HTTP path. Empty for other warehouses.
+ * Inline errors for the settings fields: the Postgres PEM blocks, the
+ * Databricks HTTP path and the Snowflake warehouse. Empty for other warehouses.
  */
 export function connectionSettingsErrors(
   dbType: DbType,
@@ -196,6 +225,10 @@ export function connectionSettingsErrors(
   if (dbType === 'databricks') {
     const httpPath = httpPathError(form.httpPath, requiredMessage)
     return httpPath ? { httpPath } : {}
+  }
+  if (dbType === 'snowflake') {
+    const warehouse = snowflakeWarehouseError(form.warehouse, requiredMessage)
+    return warehouse ? { warehouse } : {}
   }
   if (dbType !== 'postgres') return {}
   const errors: PemErrors = {}
@@ -260,6 +293,17 @@ export function buildConnectionSettings(
     }
   }
 
+  if (dbType === 'snowflake') {
+    const schemas = parseAllowlist(form.schemaAllowlist)
+    return {
+      warehouse: form.warehouse.trim(),
+      auth_type: form.snowflakeAuthType,
+      role: nullable(form.role),
+      schema_name: nullable(form.schemaName),
+      schema_allowlist: schemas.length > 0 ? schemas : null,
+    }
+  }
+
   if (dbType === 'postgres') {
     const sslkey = form.sslkey.trim()
     return {
@@ -292,8 +336,14 @@ export function connectionSettingsToForm(
     clearSslkey: false,
     searchPath: settings.search_path ?? '',
     httpPath: settings.http_path ?? '',
-    authType: settings.auth_type ?? 'pat',
+    authType:
+      settings.auth_type === 'pat' || settings.auth_type === 'oauth_m2m'
+        ? settings.auth_type
+        : 'pat',
     schemaName: settings.schema_name ?? '',
     schemaAllowlist: (settings.schema_allowlist ?? []).join(', '),
+    warehouse: settings.warehouse ?? '',
+    role: settings.role ?? '',
+    snowflakeAuthType: settings.auth_type === 'key_pair' ? 'key_pair' : 'password',
   }
 }

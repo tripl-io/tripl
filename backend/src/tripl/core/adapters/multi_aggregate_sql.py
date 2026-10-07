@@ -66,6 +66,15 @@ def compile_time_bucketed_multi_aggregate_sql(
         databricks._column_types = dict(column_types)
         databricks._allowed_columns = set(column_types)
         adapter = databricks
+    elif db_type == "snowflake":
+        from tripl.core.adapters.snowflake import SnowflakeAdapter
+
+        snowflake = object.__new__(SnowflakeAdapter)
+        # Snowflake's window literal and bucket follow the time column's declared
+        # type too (TIMESTAMP_NTZ / TIMESTAMP_LTZ / TIMESTAMP_TZ / DATE).
+        snowflake._column_types = dict(column_types)
+        snowflake._allowed_columns = set(column_types)
+        adapter = snowflake
     else:
         msg = f"Generated batch SQL is unavailable for data source type {db_type!r}"
         raise ValueError(msg)

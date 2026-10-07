@@ -41,6 +41,7 @@ requests remain credential-free and stop at ZetaSQL analysis.
 | **PostgreSQL** | **EXECUTED.** A real `postgres:18` container runs the SQL the adapter generates and the results are compared against the reference implementation. | SQL validity **and** computed values, exactly as ClickHouse. | — |
 | **BigQuery** | **ANALYZED on every PR; values executed on trusted releases.** The emulator's real ZetaSQL analyzer checks every generated statement. A credentialed job runs for `vX.Y.Z` tags when explicitly enabled. | SQL validity plus exact adapter values; the release gate also compares scan/replay event series, fact and composition metrics, batched collection, idempotency and anomalies against the shared reference while using real PostgreSQL for application state. | Credentialed checks run only on release tags to bound quota usage. |
 | **Databricks** | **Mocked on every PR, executed on release tags.** `test_databricks_adapter.py` and the shared parity suites drive the real adapter against a fake DB-API driver and assert the SQL it sends and how it decodes what comes back. The credentialed value suite (`conformance/test_databricks_value_conformance.py`, marker `databricks_value`) runs against a real SQL warehouse in `databricks-value-conformance.yml` on stable release tags, and passed by hand against a Free Edition warehouse when the connector shipped. | Everything the value suite covers: bucket counts on every interval over TIMESTAMP, TIMESTAMP_NTZ and DATE, half-open windows, sums and breakdowns, multi-aggregates, top-N folding, VARIANT and STRUCT paths, JSON in STRING columns, field-contract counts. | That a pull request keeps Databricks working: between release tags the evidence is the mocked SQL. Cells the value suite does not reach stay believed. |
+| **Snowflake** | **Mocked on every PR; values executed on release tags once an account is configured.** `test_snowflake_adapter.py` and the shared parity suites drive the real adapter against a fake DB-API driver and assert the SQL it sends and how it decodes what comes back. The credentialed value suite (`conformance/test_snowflake_value_conformance.py`, marker `snowflake_value`) runs against a real account in `snowflake-value-conformance.yml` on stable release tags when `SNOWFLAKE_VALUE_CONFORMANCE_ENABLED` is set. It has not yet been run against a live account. | Today: the SQL shape and the result decoding. Once the value suite has run: bucket counts on every interval over TIMESTAMP_TZ, TIMESTAMP_NTZ, TIMESTAMP_LTZ and DATE, half-open windows, sums and breakdowns, multi-aggregates, top-N folding, VARIANT paths, JSON in STRING columns, field-contract counts. | That Snowflake accepts the SQL or computes the reference values: until the value suite passes against a real account, every Snowflake cell is believed, not proven. |
 | synthetic | In-memory fixture, not a warehouse. | Nothing about a real warehouse. | — |
 
 **Why emulator values are never used.** The emulator's *analyzer* is Google's;
@@ -145,6 +146,7 @@ dialect default already agrees:
 | PostgreSQL | `date_bin('7 days', col, TIMESTAMPTZ '1970-01-05 00:00:00+00:00')` — anchored at the first Monday, not the epoch | **executed** |
 | BigQuery | `TIMESTAMP_TRUNC(col, WEEK(MONDAY), 'UTC')` / `DATETIME_TRUNC(col, WEEK(MONDAY))` / `DATE_TRUNC(col, WEEK(MONDAY))` by declared time type | **executed on real BigQuery** for all three time families |
 | Databricks | `date_trunc('WEEK', CAST(col AS TIMESTAMP))` — Databricks documents `WEEK` truncation as the Monday of the week. `15m`/`6h` use `timestamp_seconds(floor(unix_seconds(t) / w) * w)` off the epoch; `1h`/`1d` use `date_trunc`, the same grid because they divide the UTC day. The session time zone is pinned to UTC | **not executed** (mocked) |
+| Snowflake | Weeks, `15m` and `6h` floor `DATE_PART(EPOCH_SECOND, t)` onto a grid anchored at the epoch (at `WEEK_ORIGIN`, a Monday, for weeks), so the session's `WEEK_START` cannot move a bucket; `1h`/`1d` use `DATE_TRUNC`. `TIMESTAMP_TZ`/`TIMESTAMP_LTZ` are converted to the UTC wall clock first, because `DATE_TRUNC` on a `TIMESTAMP_TZ` truncates in the value's own offset. The session time zone is pinned to UTC | **not executed** (mocked) |
 
 `floor_to_bucket(value, code)` in `core/bucketing.py` is the definition all of them
 are measured against.
@@ -174,6 +176,7 @@ cannot be placed in a window at all.
 | ClickHouse | `DateTime`, `DateTime64`, `Date`, `Date32` | — | n/a |
 | BigQuery | `TIMESTAMP`, `DATETIME`, `DATE` | `TIME` | **Not guaranteed** — the adapter raises an actionable error naming the column and its type, but only where the column's time kind is first needed: a bucket expression or a window predicate. A scan preview builds a window predicate only when the config carries a lookback window, so a scan saved without one first fails on a run. See caveat [7] |
 | Databricks | `TIMESTAMP`, `TIMESTAMP_NTZ`, `DATE` | anything else (`INTERVAL`, arrays) | **Not guaranteed** — like BigQuery, refused with an actionable error where the time kind is first needed. A `DATE` column refuses `15m`/`1h`/`6h` |
+| Snowflake | `TIMESTAMP_TZ`, `TIMESTAMP_LTZ`, `TIMESTAMP_NTZ`, `DATE` | `TIME`, anything else | **Not guaranteed** — refused with an actionable error where the time kind is first needed. A `DATE` column refuses `15m`/`1h`/`6h` |
 | PostgreSQL | `timestamp`, `timestamptz`, `date` | `time`, `timetz`, and any array (`timestamptz[]`) | **No** — classified as unsupported, but not acted on. See caveat [7] |
 
 Notes that bite in practice:
@@ -818,6 +821,7 @@ is a security boundary, not a convenience.
 | PostgreSQL | `timestamptz` (best), `timestamp`, `date` | `time`, `timetz` |
 | BigQuery | `TIMESTAMP` (best), `DATETIME`, `DATE` | `TIME`; and **no sub-day interval on a `DATE` column** |
 | Databricks | `TIMESTAMP` (best), `TIMESTAMP_NTZ`, `DATE` | **no sub-day interval on a `DATE` column** |
+| Snowflake | `TIMESTAMP_TZ` or `TIMESTAMP_LTZ` (best), `TIMESTAMP_NTZ` (read as UTC), `DATE` | **no sub-day interval on a `DATE` column** |
 
 ---
 

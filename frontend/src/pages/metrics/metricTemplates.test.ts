@@ -29,6 +29,9 @@ describe('starterSql', () => {
     expect(starterSql('daily-active-users', 'databricks')).toContain(
       "date_trunc('DAY', created_at)",
     )
+    expect(starterSql('daily-active-users', 'snowflake')).toContain(
+      "DATE_TRUNC('DAY', created_at)",
+    )
   })
 
   it('buckets the event-volume template hourly, per dialect', () => {
@@ -38,6 +41,7 @@ describe('starterSql', () => {
       "TIMESTAMP_TRUNC(created_at, HOUR, 'UTC')",
     )
     expect(starterSql('event-volume', 'databricks')).toContain("date_trunc('HOUR', created_at)")
+    expect(starterSql('event-volume', 'snowflake')).toContain("DATE_TRUNC('HOUR', created_at)")
   })
 
   it('never emits date_trunc() for BigQuery', () => {
@@ -82,11 +86,11 @@ describe('starterSql', () => {
 
   it('renders a genuinely different query per engine family', () => {
     const rendered = new Set(
-      (['clickhouse', 'postgres', 'bigquery', 'databricks'] as DbType[]).map(db =>
+      (['clickhouse', 'postgres', 'bigquery', 'databricks', 'snowflake'] as DbType[]).map(db =>
         starterSql('daily-active-users', db),
       ),
     )
-    expect(rendered.size).toBe(4)
+    expect(rendered.size).toBe(5)
   })
 })
 

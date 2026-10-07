@@ -29,6 +29,7 @@ class DBType(enum.StrEnum):
     postgres = "postgres"
     bigquery = "bigquery"
     databricks = "databricks"
+    snowflake = "snowflake"
     # Local, in-memory synthetic warehouse. Created ONLY by the demo seeder (never
     # by the user-facing create path) and always scoped to a demo project. Its
     # adapter serves a bounded, deterministic dataset with no network/filesystem
@@ -87,7 +88,7 @@ class DataSource(UUIDMixin, TimestampMixin, Base):
     # (preview) query uses — "all" (JSONAllPaths, every path incl. shared data) or
     # "dynamic" (JSONDynamicPaths, only the important typed subcolumn paths, much
     # faster). NULL falls back to the adapter default ("dynamic"). Ignored by
-    # Postgres/BigQuery/Databricks. Does not affect scan-time value extraction.
+    # Postgres/BigQuery/Databricks/Snowflake. Does not affect scan-time value extraction.
     json_path_discovery: Mapped[str | None] = mapped_column(String(16), nullable=True, default=None)
     extra_params: Mapped[dict[str, object] | None] = mapped_column(sa.JSON, nullable=True)
 

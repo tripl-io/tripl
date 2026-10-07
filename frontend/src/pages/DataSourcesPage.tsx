@@ -127,6 +127,7 @@ function connectionErrors(
   }
   // Not baseline-gated: without it there is no warehouse to connect to at all.
   if (all.httpPath) pem.httpPath = all.httpPath
+  if (all.warehouse) pem.warehouse = all.warehouse
   return {
     secret: connectionCoreSecretError(dbType, core),
     pem,
@@ -884,8 +885,10 @@ function DataSourceCard({
   // host:port/database summary would print a meaningless ":8123". It is a
   // project and a dataset.
   const isBigQuery = ds.db_type === 'bigquery'
-  // Databricks is always port 443, so the summary is the workspace and catalog.
+  // Databricks and Snowflake are always port 443, so the summary is the
+  // workspace (account) and catalog (database).
   const isDatabricks = ds.db_type === 'databricks'
+  const isSnowflake = ds.db_type === 'snowflake'
   // Non-owners get the connection redacted server-side, so
   // host/port/database_name arrive blank and this summary would render as a
   // bare ":0/". Keyed off the payload rather than the viewer's
@@ -893,14 +896,16 @@ function DataSourceCard({
   // to see, so this stays correct if the redaction rule changes.
   const connectionRedacted = !ds.host
   const connectionLabel =
-    isBigQuery || isDatabricks
+    isBigQuery || isDatabricks || isSnowflake
       ? `${ds.host}/${ds.database_name}`
       : `${ds.host}:${ds.port}/${ds.database_name}`
   const secretLabel = isBigQuery
     ? 'Service account key set'
     : isDatabricks
       ? 'Token set'
-      : 'Password set'
+      : isSnowflake
+        ? 'Password or key set'
+        : 'Password set'
 
   return (
     // A card in the page, on the page's surface: --bg-elevated is for

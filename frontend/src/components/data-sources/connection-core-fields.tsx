@@ -87,7 +87,9 @@ export function ConnectionCoreFields({
       ? 'Service account key'
       : dbType === 'databricks'
         ? 'Access token or OAuth secret'
-        : 'Password'
+        : dbType === 'snowflake'
+          ? 'Password or private key'
+          : 'Password'
   const keyError = missing.secret ?? secretError
 
   // Three states, three different sentences.
@@ -191,6 +193,16 @@ export function ConnectionCoreFields({
         </>
       ) : dbType === 'databricks' ? (
         <DatabricksCoreFields
+          idPrefix={idPrefix}
+          value={value}
+          onChange={onChange}
+          isEdit={isEdit}
+          secretSet={secretSet}
+          secretStatus={secretStatus}
+          missing={missing}
+        />
+      ) : dbType === 'snowflake' ? (
+        <SnowflakeCoreFields
           idPrefix={idPrefix}
           value={value}
           onChange={onChange}
@@ -398,6 +410,91 @@ function DatabricksCoreFields({
           <FieldError inputId={`${idPrefix}-token`} message={missing.secret} />
           {secretStatus ?? (
             <p className={HELP_CLASS}>Stored encrypted and never shown again.</p>
+          )}
+        </div>
+      </div>
+    </>
+  )
+}
+
+/**
+ * Snowflake: an account identifier, a database, a user and its password or
+ * private key. The port is always 443 (HTTPS) and is not shown; whether the
+ * secret is a password or a key is the Authentication setting below.
+ */
+function SnowflakeCoreFields({
+  idPrefix,
+  value,
+  onChange,
+  isEdit,
+  secretSet,
+  secretStatus,
+  missing,
+}: DatabricksCoreFieldsProps) {
+  return (
+    <>
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+        <div className={FIELD_COL_CLASS}>
+          <Label htmlFor={`${idPrefix}-account`}>Account identifier</Label>
+          <Input
+            id={`${idPrefix}-account`}
+            value={value.host}
+            onChange={(e) => onChange({ host: e.target.value })}
+            aria-required
+            placeholder={examplePlaceholder('myorg-myaccount')}
+            {...invalidAria(`${idPrefix}-account`, missing.host)}
+          />
+          <FieldError inputId={`${idPrefix}-account`} message={missing.host} />
+          <p className={HELP_CLASS}>
+            Organization and account name (or the account locator with its region), from
+            Account details in Snowsight.
+          </p>
+        </div>
+        <div className={FIELD_COL_CLASS}>
+          <Label htmlFor={`${idPrefix}-sf-database`}>Database</Label>
+          <Input
+            id={`${idPrefix}-sf-database`}
+            value={value.databaseName}
+            onChange={(e) => onChange({ databaseName: e.target.value })}
+            aria-required
+            placeholder={examplePlaceholder('ANALYTICS')}
+            {...invalidAria(`${idPrefix}-sf-database`, missing.databaseName)}
+          />
+          <FieldError inputId={`${idPrefix}-sf-database`} message={missing.databaseName} />
+          <p className={HELP_CLASS}>The database that queries and browsing use.</p>
+        </div>
+      </div>
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+        <div className={FIELD_COL_CLASS}>
+          <Label htmlFor={`${idPrefix}-sf-user`}>User</Label>
+          <Input
+            id={`${idPrefix}-sf-user`}
+            value={value.username}
+            onChange={(e) => onChange({ username: e.target.value })}
+            placeholder={examplePlaceholder('TRIPL_READER')}
+            {...SECRET_INPUT_PROPS}
+          />
+        </div>
+        <div className={FIELD_COL_CLASS}>
+          <Label htmlFor={`${idPrefix}-sf-secret`}>Password or private key</Label>
+          <Input
+            id={`${idPrefix}-sf-secret`}
+            type="password"
+            value={value.secret}
+            onChange={(e) => onChange({ secret: e.target.value })}
+            aria-required={!isEdit || undefined}
+            placeholder={
+              !isEdit ? 'Password' : secretSet ? 'Leave empty to keep' : 'No secret stored'
+            }
+            {...invalidAria(`${idPrefix}-sf-secret`, missing.secret)}
+            {...PASSWORD_INPUT_PROPS}
+          />
+          <FieldError inputId={`${idPrefix}-sf-secret`} message={missing.secret} />
+          {secretStatus ?? (
+            <p className={HELP_CLASS}>
+              For key-pair sign-in, paste the unencrypted PKCS#8 PEM key. Stored encrypted and
+              never shown again.
+            </p>
           )}
         </div>
       </div>

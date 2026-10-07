@@ -439,6 +439,7 @@ def test_quote_sql_string_literal_escapes_newlines(dialect: SqlDialect) -> None:
         ("postgres", SqlDialect.postgres),
         ("bigquery", SqlDialect.bigquery),
         ("databricks", SqlDialect.databricks),
+        ("snowflake", SqlDialect.snowflake),
         # The synthetic demo warehouse mimics ClickHouse semantics.
         ("synthetic", SqlDialect.clickhouse),
     ],
@@ -464,6 +465,7 @@ def test_dialect_for_db_type_rejects_unknown() -> None:
         (SqlDialect.bigquery, "`order`"),
         (SqlDialect.databricks, "`order`"),
         (SqlDialect.postgres, '"order"'),
+        (SqlDialect.snowflake, '"order"'),
     ],
 )
 def test_quote_identifier_quotes_reserved_word_per_dialect(

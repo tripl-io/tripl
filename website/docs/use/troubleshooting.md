@@ -545,6 +545,7 @@ to every curated message rather than leaving each raise site to remember it:
 | **PostgreSQL** | TLS negotiation or unreachable host. Non-local hosts default to **`sslmode=require`**, so a remote server with no TLS fails loudly rather than silently falling back to plaintext; localhost defaults to `prefer`. | Confirm host/port reachable from the worker container; check the server's TLS settings. A remote server that genuinely has no TLS needs `sslmode` set explicitly to `prefer`/`disable` on the data source. |
 | **ClickHouse** | Wrong host/port/secure flag, or a probe query that returns no rows. | Verify connection params; *"Connection probe returned no rows"* means it connected but the probe was empty — check the query/permissions. |
 | **BigQuery** | Missing project id or invalid service-account JSON. The probe names which of the two it is — see the verbatim messages below. | Set the project id in the host field and paste valid service-account JSON. |
+| **Snowflake** | A wrong account identifier, a warehouse the role cannot use, a role the user was not granted, or a private key that does not match the user's `RSA_PUBLIC_KEY`. | Copy the account identifier again from **Account details**; `GRANT USAGE ON WAREHOUSE` to the role; leave **Role** empty to use the user's default; paste the whole unencrypted PKCS#8 key and pick **Key pair** under **Authentication**. A suspended warehouse needs a few seconds to resume for its first query. |
 | **Databricks** | Wrong HTTP path, an expired or revoked token, a stopped warehouse still starting, or a service principal without `CAN USE` on the warehouse. | Copy the server hostname and HTTP path again from the warehouse's **Connection details**; issue a new token; with OAuth, check the client ID is in **OAuth client ID** and **Authentication** says OAuth. A serverless warehouse that was stopped can need a longer timeout for its first query. |
 
 **A configuration problem tripl can name is shown in full.** Those messages hold
@@ -562,6 +563,10 @@ re-check settings that are all correct, so they follow the prefix unchanged:
   the service principal's client ID in the username field"*
 - *"Connection test failed: Databricks: the OAuth token request was refused
   (HTTP 401). …"*
+- *"Connection test failed: Snowflake: the host must be the account identifier
+  …"*
+- *"Connection test failed: Snowflake: key-pair sign-in needs the user's private
+  key in PEM form …"*
 - *"Connection test failed: PostgreSQL 13.23 is too old for tripl: every
   time-bucket query uses date_bin(), which was added in PostgreSQL 14. Upgrade
   the server to 14 or newer."*

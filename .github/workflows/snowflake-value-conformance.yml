@@ -1,0 +1,113 @@
+name: Snowflake release conformance
+
+# The value contract against a real Snowflake account, on stable release tags
+# only, like the BigQuery and Databricks ones: a pull request from a fork gets no
+# secrets, and the warehouse bills per second it runs. Off until the repository
+# variable SNOWFLAKE_VALUE_CONFORMANCE_ENABLED is "true"; once on, a missing
+# credential fails the run instead of skipping it.
+#
+# The user signs in with a key pair: SNOWFLAKE_PRIVATE_KEY holds its unencrypted
+# PKCS#8 PEM key. It needs USAGE on SNOWFLAKE_WAREHOUSE and nothing else — the
+# fixture is a table-less UNION ALL, so no table is read or created.
+
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: snowflake-value-conformance
+  cancel-in-progress: false
+
+jobs:
+  credentials:
+    name: Validate credential configuration
+    runs-on: ubuntu-latest
+    outputs:
+      enabled: ${{ steps.probe.outputs.enabled }}
+    env:
+      SNOWFLAKE_VALUE_CONFORMANCE_ENABLED: ${{ vars.SNOWFLAKE_VALUE_CONFORMANCE_ENABLED }}
+      SNOWFLAKE_PRIVATE_KEY: ${{ secrets.SNOWFLAKE_PRIVATE_KEY }}
+      SNOWFLAKE_ACCOUNT: ${{ vars.SNOWFLAKE_ACCOUNT }}
+      SNOWFLAKE_USER: ${{ vars.SNOWFLAKE_USER }}
+      SNOWFLAKE_WAREHOUSE: ${{ vars.SNOWFLAKE_WAREHOUSE }}
+    steps:
+      - id: probe
+        name: Detect configured Snowflake account
+        shell: bash
+        run: |
+          if [ "$GITHUB_EVENT_NAME" = "push" ] && [[ ! "$GITHUB_REF_NAME" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "enabled=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::Snowflake conformance runs only for stable vX.Y.Z tags; skipping $GITHUB_REF_NAME."
+          elif [ "$SNOWFLAKE_VALUE_CONFORMANCE_ENABLED" != "true" ]; then
+            echo "enabled=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::Snowflake value conformance is intentionally disabled."
+          elif [ -n "$SNOWFLAKE_PRIVATE_KEY" ] && [ -n "$SNOWFLAKE_ACCOUNT" ] && [ -n "$SNOWFLAKE_USER" ] && [ -n "$SNOWFLAKE_WAREHOUSE" ]; then
+            echo "enabled=true" >> "$GITHUB_OUTPUT"
+            echo "Snowflake value conformance is enabled."
+          else
+            echo "::error::SNOWFLAKE_VALUE_CONFORMANCE_ENABLED=true requires the SNOWFLAKE_PRIVATE_KEY secret and the SNOWFLAKE_ACCOUNT, SNOWFLAKE_USER and SNOWFLAKE_WAREHOUSE variables."
+            exit 1
+          fi
+
+  values:
+    name: Real Snowflake values
+    needs: credentials
+    if: needs.credentials.outputs.enabled == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0
+        with:
+          enable-cache: true
+
+      - name: Install dependencies
+        run: uv sync --extra dev
+
+      - name: Execute real Snowflake value contract
+        env:
+          # Step-scoped: the key never reaches checkout, dependency setup,
+          # caches, artifacts, or a file on disk.
+          TRIPL_CONF_SF_PRIVATE_KEY: ${{ secrets.SNOWFLAKE_PRIVATE_KEY }}
+          TRIPL_CONF_SF_ACCOUNT: ${{ vars.SNOWFLAKE_ACCOUNT }}
+          TRIPL_CONF_SF_USER: ${{ vars.SNOWFLAKE_USER }}
+          TRIPL_CONF_SF_WAREHOUSE: ${{ vars.SNOWFLAKE_WAREHOUSE }}
+          TRIPL_CONF_SF_DATABASE: ${{ vars.SNOWFLAKE_DATABASE }}
+          TRIPL_SF_VALUE_REQUIRED: "1"
+        run: |
+          uv run pytest -q -m snowflake_value \
+            --junitxml=snowflake-value-conformance.xml \
+            src/tripl/tests/conformance/test_snowflake_value_conformance.py
+
+      - name: Prove the credentialed gate ran without skips
+        if: always()
+        run: |
+          python3 - <<'PY'
+          import sys, xml.etree.ElementTree as ET
+          try:
+              root = ET.parse("snowflake-value-conformance.xml").getroot()
+          except (OSError, ET.ParseError) as exc:
+              sys.exit(f"::error::no Snowflake JUnit report: {exc}. The gate did not run.")
+          tests = errors = failures = skipped = 0
+          for suite in root.iter("testsuite"):
+              tests += int(suite.get("tests", 0))
+              errors += int(suite.get("errors", 0))
+              failures += int(suite.get("failures", 0))
+              skipped += int(suite.get("skipped", 0))
+          print(f"Snowflake conformance: {tests} collected, {failures} failed, {errors} errored, {skipped} skipped")
+          if tests == 0:
+              sys.exit("::error::0 Snowflake conformance tests ran.")
+          if skipped:
+              sys.exit(f"::error::{skipped} Snowflake conformance test(s) skipped.")
+          if failures or errors:
+              sys.exit(f"::error::{failures} failed / {errors} errored Snowflake conformance test(s).")
+          PY

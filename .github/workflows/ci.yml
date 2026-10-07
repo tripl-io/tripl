@@ -265,7 +265,7 @@ jobs:
           TRIPL_CONF_BQ_EMULATOR_URL: http://localhost:9050
           TRIPL_CONF_BQ_PROJECT: tripl-test
         run: |
-          uv run pytest -q -m "conformance and not bigquery_value and not bigquery_pipeline and not databricks_value" \
+          uv run pytest -q -m "conformance and not bigquery_value and not bigquery_pipeline and not databricks_value and not snowflake_value" \
             --junitxml=conformance.xml \
             src/tripl/tests/conformance
 

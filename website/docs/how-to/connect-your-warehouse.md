@@ -1,7 +1,7 @@
 ---
 title: Connect your warehouse
 sidebar_position: 2
-description: Add a read-only connection to ClickHouse, BigQuery, Databricks or PostgreSQL and check that tripl can reach it.
+description: Add a read-only connection to ClickHouse, BigQuery, Databricks, Snowflake or PostgreSQL and check that tripl can reach it.
 ---
 
 # Connect your warehouse
@@ -35,6 +35,7 @@ Press **Add connection**, give it a name your team will recognise, and pick the
 | **PostgreSQL** | Host, port (5432), database, username, password. Version 14 or newer. |
 | **BigQuery** | GCP project ID, a default dataset, and a service-account JSON key pasted into the form. |
 | **Databricks** | Server hostname, catalog, the SQL warehouse's HTTP path, and an access token (or a service principal's OAuth client ID and secret). See [Databricks](#databricks) below. |
+| **Snowflake** | Account identifier, database, user, the virtual warehouse, and a password or the user's private key. See [Snowflake](#snowflake) below. |
 
 ![The New data source dialog for ClickHouse](/img/screenshots/data-source-add.light.webp#gh-light-mode-only)
 ![The New data source dialog for ClickHouse](/img/screenshots/data-source-add.dark.webp#gh-dark-mode-only)
@@ -97,6 +98,65 @@ A stopped serverless warehouse starts on the first query, which can take a few
 seconds; set the timeout with that in mind. Queries tripl runs are billed as
 warehouse time like any other.
 
+### Snowflake
+
+tripl runs its queries on a Snowflake **virtual warehouse** you name, as a user
+you create for it.
+
+1. **Find the account identifier.** In Snowsight, open the account menu →
+   **Account** → **View account details** and copy the **Account identifier**
+   (`myorg-myaccount`). The account locator with its region
+   (`xy12345.eu-central-1.aws`) and the full
+   `myorg-myaccount.snowflakecomputing.com` hostname work too.
+2. **Create a read-only role and user.** Key-pair sign-in is recommended: it
+   needs no password and is what Snowflake asks service users to use.
+
+   ```sql
+   CREATE ROLE tripl_reader;
+   GRANT USAGE ON WAREHOUSE compute_wh TO ROLE tripl_reader;
+   GRANT USAGE ON DATABASE analytics TO ROLE tripl_reader;
+   GRANT USAGE ON SCHEMA analytics.events TO ROLE tripl_reader;
+   GRANT SELECT ON ALL TABLES IN SCHEMA analytics.events TO ROLE tripl_reader;
+   GRANT SELECT ON FUTURE TABLES IN SCHEMA analytics.events TO ROLE tripl_reader;
+
+   CREATE USER tripl_reader TYPE = SERVICE DEFAULT_ROLE = tripl_reader
+     RSA_PUBLIC_KEY = 'MIIBIjANBgkqh...';
+   GRANT ROLE tripl_reader TO USER tripl_reader;
+   ```
+
+   Make the key pair with
+   `openssl genrsa 2048 | openssl pkcs8 -topk8 -inform PEM -out rsa_key.p8 -nocrypt`
+   and `openssl rsa -in rsa_key.p8 -pubout`; the public key goes into
+   `RSA_PUBLIC_KEY` without its `-----BEGIN`/`-----END` lines. Encrypted private
+   keys are not supported.
+
+   tripl only ever sends `SELECT` statements (and asks Snowflake to describe a
+   query without running it); its SQL gate refuses every other statement, and
+   `SYSTEM$` functions, before they reach the warehouse.
+3. **Fill in the form.**
+
+   | Field | What goes in it |
+   | --- | --- |
+   | **Account identifier** | From step 1. |
+   | **Database** | The database queries and the schema browser use, for example `ANALYTICS`. |
+   | **User** | The user from step 2. |
+   | **Password or private key** | The password, or, for key-pair sign-in, the whole PEM private key (`-----BEGIN PRIVATE KEY-----` …). |
+   | **Warehouse** | The virtual warehouse queries run on. Required. An X-Small one is enough. |
+   | **Role** | The role to use. Empty means the user's default role. |
+   | **Authentication** | **Password** or **Key pair**. |
+   | **Default schema** | Where unqualified table names resolve. Empty means `PUBLIC`. |
+   | **Schema allowlist** | Other schemas of the database the schema browser may list, comma-separated. |
+   | **Timeout (seconds)** | The per-statement budget. tripl sets it as `STATEMENT_TIMEOUT_IN_SECONDS` and also cancels the statement itself when it runs over. |
+
+   The port is always 443. Every session runs with its time zone set to UTC, so
+   buckets and windows line up with the other warehouses, and its queries carry
+   the query tag `tripl`.
+
+Snowflake upper-cases unquoted names, so a column written `event_name` in the
+base query comes back as `EVENT_NAME`, and that is how scans and metrics refer to
+it. A suspended warehouse resumes on the first query; queries tripl runs are
+billed as warehouse time like any other, so let the warehouse auto-suspend.
+
 ## 3. Check it stays healthy
 
 The new card shows the result of the last test: **Healthy** in green, a warning
@@ -112,6 +172,6 @@ A connection does nothing on its own. Next,
 reads from it.
 
 **More detail:** the [User Guide](../use/user-guide.md#connect-point-tripl-at-your-warehouse)
-covers TLS modes, BigQuery cost guards, Databricks settings and query timeouts, and the
+covers TLS modes, BigQuery cost guards, Databricks and Snowflake settings and query timeouts, and the
 [warehouse capability matrix](../develop/warehouse-parity.md) says what each
 warehouse supports and how well it is tested.

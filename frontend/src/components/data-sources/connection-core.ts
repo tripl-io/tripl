@@ -15,6 +15,9 @@ import type { DataSource, DbType, JsonPathDiscovery } from '@/types'
  *   - Databricks: `host` is the workspace hostname, `databaseName` the catalog,
  *     `secret` an access token (or an OAuth secret) and `username` a service
  *     principal's OAuth client ID. The port is always 443 and is not shown.
+ *   - Snowflake: `host` is the account identifier, `databaseName` the
+ *     database, `username` the user and `secret` its password or, for key-pair
+ *     sign-in, its PEM private key. The port is always 443 and is not shown.
  *
  * `secret` is write-only. The API never returns a password or a service-account
  * key (only the `password_set` boolean), so it always starts empty on edit and
@@ -67,6 +70,11 @@ export function parseTimeoutSeconds(value: string): number | null {
 /** Databricks SQL warehouses are reached over HTTPS only. */
 export const DATABRICKS_PORT = 443
 
+/** The warehouses reached over HTTPS on 443 only, with no port box. */
+export function isHttpsOnly(dbType: DbType): boolean {
+  return dbType === 'databricks' || dbType === 'snowflake'
+}
+
 interface CoreCreatePayload {
   host: string
   port: number
@@ -98,7 +106,7 @@ export function buildCoreCreatePayload(
 ): CoreCreatePayload {
   return {
     host: form.host,
-    port: dbType === 'databricks' ? DATABRICKS_PORT : form.port,
+    port: isHttpsOnly(dbType) ? DATABRICKS_PORT : form.port,
     database_name: form.databaseName,
     username: form.username,
     password: form.secret,
@@ -133,7 +141,7 @@ export function buildCoreUpdatePayload(
 
   return {
     host: form.host,
-    port: dbType === 'databricks' ? DATABRICKS_PORT : form.port,
+    port: isHttpsOnly(dbType) ? DATABRICKS_PORT : form.port,
     database_name: form.databaseName,
     username: form.username,
     ...(form.secret ? { password: form.secret } : {}),
@@ -191,8 +199,8 @@ export function connectionCoreMissing(
   const missing: CoreMissing = {}
   if (!form.host.trim()) missing.host = message
   if (!form.databaseName.trim()) missing.databaseName = message
-  if (dbType === 'bigquery' || dbType === 'databricks') {
-    // Neither has a port box; both need their credential up front.
+  if (dbType === 'bigquery' || isHttpsOnly(dbType)) {
+    // None has a port box; all need their credential up front.
     if (mode === 'create' && !form.secret.trim()) missing.secret = message
   } else if (!form.port) {
     missing.port = message
@@ -248,7 +256,7 @@ export function serverCoreErrors(
     // port, and only their key or token field (not the password box) renders an
     // inline error.
     const shown =
-      dbType === 'bigquery' || dbType === 'databricks' ? mapped !== 'port' : mapped !== 'secret'
+      dbType === 'bigquery' || isHttpsOnly(dbType) ? mapped !== 'port' : mapped !== 'secret'
     const key = shown ? mapped : undefined
     if (key && !fields[key]) {
       fields[key] = EMPTY_VALUE_TYPES.has(item.type) ? requiredMessage : item.msg

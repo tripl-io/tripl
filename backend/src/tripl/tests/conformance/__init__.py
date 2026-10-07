@@ -19,6 +19,8 @@ The suites in this package close that hole by making CI actually run the SQL:
 * ``test_databricks_value_conformance`` — a real Databricks SQL warehouse, run
   by hand with credentials (no CI job has one); asserts exact computed values
   from a typed, table-less fixture.
+* ``test_snowflake_value_conformance`` — a real Snowflake account, on release
+  tags when one is configured, or by hand; the same table-less approach.
 
 The contract they all measure against is :mod:`tripl.core.bucketing`.
 """

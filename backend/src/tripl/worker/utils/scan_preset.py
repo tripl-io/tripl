@@ -58,7 +58,7 @@ def preset_column_problem(config: ScanConfig, columns: list[ColumnInfo]) -> str 
     # config did not ask to parse, and the message says how to ask.
     if not _is_json_type(column.type_name):
         hint = (
-            " or tick 'Parse as JSON' for it (ClickHouse, BigQuery and Databricks)"
+            " or tick 'Parse as JSON' for it (ClickHouse, BigQuery, Databricks and Snowflake)"
             if is_string_type(column.type_name)
             else ""
         )

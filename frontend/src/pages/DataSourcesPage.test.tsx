@@ -795,6 +795,71 @@ describe('DataSourcesPage', () => {
     expect(postPayload).not.toHaveProperty('json_path_discovery')
   })
 
+  it('creates a Snowflake source only once its warehouse is filled in', async () => {
+    let postPayload: Record<string, unknown> | undefined
+
+    vi.spyOn(globalThis, 'fetch').mockImplementation((input: RequestInfo | URL, init?: RequestInit) => {
+      const url =
+        typeof input === 'string'
+          ? input
+          : input instanceof URL
+            ? input.toString()
+            : input.url
+
+      if (url.endsWith('/api/v1/data-sources') && !init?.method) {
+        return Promise.resolve(jsonResponse([DATA_SOURCE]))
+      }
+
+      if (url.endsWith('/api/v1/data-sources') && init?.method === 'POST') {
+        postPayload = JSON.parse(String(init.body)) as Record<string, unknown>
+        return Promise.resolve(jsonResponse(DATA_SOURCE))
+      }
+
+      return Promise.reject(new Error(`Unexpected request: ${url}`))
+    })
+
+    renderDataSourcesPage('/settings/data-sources', 'owner')
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Add connection' }))
+    fireEvent.change(await screen.findByLabelText('Type'), { target: { value: 'snowflake' } })
+
+    // Its own vocabulary; no port, no ClickHouse discovery knob.
+    expect(screen.queryByLabelText('Port')).not.toBeInTheDocument()
+    expect(screen.queryByLabelText('JSON path discovery')).not.toBeInTheDocument()
+
+    fireEvent.change(screen.getByLabelText('Name'), { target: { value: 'Snowflake' } })
+    fireEvent.change(screen.getByLabelText('Account identifier'), {
+      target: { value: 'myorg-myaccount' },
+    })
+    fireEvent.change(screen.getByLabelText('Database'), { target: { value: 'ANALYTICS' } })
+    fireEvent.change(screen.getByLabelText('User'), { target: { value: 'TRIPL' } })
+    fireEvent.change(screen.getByLabelText('Password or private key'), {
+      target: { value: 'hunter2' },
+    })
+
+    fireEvent.click(screen.getByRole('button', { name: 'Create' }))
+    await waitFor(() => {
+      expect(screen.getByLabelText('Warehouse')).toHaveAttribute('aria-invalid', 'true')
+    })
+    expect(postPayload).toBeUndefined()
+
+    fireEvent.change(screen.getByLabelText('Warehouse'), { target: { value: 'COMPUTE_WH' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Create' }))
+
+    await waitFor(() => {
+      expect(postPayload).toBeDefined()
+    })
+    expect(postPayload).toMatchObject({
+      db_type: 'snowflake',
+      port: 443,
+      host: 'myorg-myaccount',
+      database_name: 'ANALYTICS',
+      username: 'TRIPL',
+      connection_settings: { warehouse: 'COMPUTE_WH', auth_type: 'password' },
+    })
+    expect(postPayload).not.toHaveProperty('json_path_discovery')
+  })
+
   it('edits a BigQuery source as project / dataset / key — never as host, port or username', async () => {
     vi.spyOn(globalThis, 'fetch').mockImplementation(listFetchMock([BIGQUERY_SOURCE]))
 

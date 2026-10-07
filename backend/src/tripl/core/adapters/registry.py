@@ -14,6 +14,7 @@ from tripl.schemas.data_source import (
     ClickHouseSettings,
     DatabricksSettings,
     PostgresSettings,
+    SnowflakeSettings,
 )
 
 AdapterFactory = Callable[[DataSource, str], BaseAdapter]
@@ -209,6 +210,53 @@ def _build_databricks(ds: DataSource, password: str) -> BaseAdapter:
     )
 
 
+def _build_snowflake(ds: DataSource, password: str) -> BaseAdapter:
+    from tripl.core.adapters.snowflake import SnowflakeAdapter
+    from tripl.core.adapters.snowflake_sql import resolve_host
+
+    settings = SnowflakeSettings.model_validate(_stored_settings(ds))
+    # The outbound rule. ``resolve_host`` turns whatever the host field holds into
+    # a ``*.snowflakecomputing.com`` name, so the driver can only ever reach a name
+    # Snowflake's DNS answers for (the half Databricks gets from
+    # ``check_workspace_host``); the address check then refuses one that resolves
+    # privately, which is what a PrivateLink account does. Like the Databricks
+    # driver, the connector opens its own connection pools from the hostname.
+    target = resolve_host(ds.host)
+    _vet_hostname(target.hostname, 443)
+
+    return SnowflakeAdapter(
+        host=target.hostname,
+        port=443,
+        database=ds.database_name,
+        username=ds.username,
+        password=password,
+        account=target.account,
+        warehouse=settings.warehouse,
+        auth_type=settings.auth_type or "password",
+        role=settings.role,
+        schema=settings.schema_name,
+        schema_allowlist=settings.schema_allowlist,
+        timeout_seconds=_effective_timeout_seconds(ds),
+    )
+
+
+def _vet_hostname(hostname: str, port: int) -> None:
+    """:func:`vetted_address` for a hostname the factory derived itself."""
+    from tripl.config import settings
+    from tripl.core.adapters.errors import WarehouseCapabilityError
+    from tripl.services.safe_http import PrivateHostError, public_address
+
+    if not settings.public_hosts_only:
+        return
+    try:
+        public_address(hostname, port, field="host")
+    except PrivateHostError:
+        raise WarehouseCapabilityError(
+            "this instance only connects to warehouses on the public internet, "
+            "and the host resolves to a private or internal address."
+        ) from None
+
+
 def _build_synthetic(ds: DataSource, password: str) -> BaseAdapter:
     # The synthetic warehouse is local and in-memory: host/port/credentials are
     # ignored entirely (no socket is ever opened). A per-source seed derived from
@@ -227,4 +275,5 @@ register_adapter("clickhouse", _build_clickhouse)
 register_adapter("postgres", _build_postgres)
 register_adapter("bigquery", _build_bigquery)
 register_adapter("databricks", _build_databricks)
+register_adapter("snowflake", _build_snowflake)
 register_adapter("synthetic", _build_synthetic)

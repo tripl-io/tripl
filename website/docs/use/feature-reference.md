@@ -2509,7 +2509,7 @@ raise a signal or send an alert. See
 **Name**, **Data source**, **Base query** (used as a subquery), the **Load
 preview** button, **How events are stored** (the
 [Event + properties](#event-properties-setup) setup or **Custom**),
-[**Parse as JSON**](#parse-as-json) (ClickHouse, BigQuery and Databricks sources), then either
+[**Parse as JSON**](#parse-as-json) (ClickHouse, BigQuery, Databricks and Snowflake sources), then either
 **Event column**, **Properties column** and **Event type**, or **Event type**
 and **Event type column**, **Time column**
 (required in Catalog + monitoring, an optional run bound in Catalog only), — in
@@ -2588,7 +2588,7 @@ conflicting `event_name_format`, a non-empty `json_value_paths`, an
 #### Parse as JSON {#parse-as-json}
 
 Some tables keep the properties as JSON *text* in a plain column: `String` on
-ClickHouse, `STRING` on BigQuery and Databricks. Tick such a column under **Parse as JSON**
+ClickHouse, `STRING` on BigQuery, Databricks and Snowflake. Tick such a column under **Parse as JSON**
 (it lists the preview's text columns) and the scan reads it as a JSON column,
 in both setups:
 
@@ -2609,10 +2609,10 @@ column, or a plain breakdown or drift field (pick one of its properties
 instead). After ticking or unticking a column, **Reload preview** to see it
 read the new way; the pickers count a ticked column as JSON straight away.
 
-Only ClickHouse, BigQuery and Databricks sources can parse text: the scan wraps
+Only ClickHouse, BigQuery, Databricks and Snowflake sources can parse text: the scan wraps
 the base query and parses the column once per row it reads (ClickHouse
 `isValidJSON`/`JSONType` guarding a cast to `JSON`, BigQuery
-`SAFE.PARSE_JSON`, Databricks `try_parse_json` into a `VARIANT`), so the rows a run reads are bounded exactly as before.
+`SAFE.PARSE_JSON`, Databricks `try_parse_json` into a `VARIANT`, Snowflake `TRY_PARSE_JSON`), so the rows a run reads are bounded exactly as before.
 ClickHouse needs a server with the `JSON` type (25.x). PostgreSQL is not
 supported. Through the API, send `json_string_columns: ["<column>", …]` (at
 most 5 plain column names) on `POST`/`PATCH /projects/<slug>/scans`, the
@@ -3264,7 +3264,7 @@ documents indexed and whether embeddings were queued.
 
 **Where:** Workspace settings › Data sources (owner only). Supported types and
 default ports: **ClickHouse** (8123), **PostgreSQL** (5432, **version 14+
-required**), **BigQuery** (project/dataset based), and **Databricks** (443;
+required**), **BigQuery** (project/dataset based), **Snowflake** (443; account identifier, database and virtual warehouse), and **Databricks** (443;
 workspace hostname, catalog and SQL warehouse HTTP path). Create, edit, and delete
 sources; **Test connection** (the new-source dialog can test the connection
 before you create it, and nothing is stored by that test; a new source is tested
@@ -3281,7 +3281,8 @@ confirmation says how many scans and scan runs are removed with it, naming the
 scans when there are three or fewer: *1 scan (Demo scan) and its 42 runs will be
 removed with it.* The dialog checks secrets before saving: a BigQuery key must
 be valid JSON with `"type": "service_account"` (paste it or **load the key
-file**), a Databricks HTTP path is required and must be a path (`/sql/1.0/warehouses/…`),
+file**), a Databricks HTTP path is required and must be a path (`/sql/1.0/warehouses/…`), a
+Snowflake warehouse is required,
 not a URL, and PostgreSQL certificates and keys must be PEM blocks
 (`-----BEGIN …-----` to `-----END …-----`), not file paths. Credential fields
 are excluded from browser autofill, password managers and spell check.
@@ -3296,6 +3297,7 @@ connection settings, shown only for the warehouse they apply to:
 | PostgreSQL | SSL mode, CA certificate, client certificate, client private key (PEM content; the key is stored encrypted and never returned), search path |
 | BigQuery | Location, max billed bytes (cost guard, default 100 GiB), dataset allowlist (schema-browse scope) |
 | Databricks | HTTP path (required), authentication (access token or OAuth machine-to-machine), default schema, schema allowlist (schema-browse scope) |
+| Snowflake | Warehouse (required), authentication (password or key pair), role, default schema, schema allowlist (schema-browse scope) |
 
 :::info Not interchangeable — read the capability matrix
 The warehouses expose the same features but not the same guarantees.

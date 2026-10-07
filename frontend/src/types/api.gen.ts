@@ -8489,7 +8489,7 @@ export interface components {
          */
         ConnectionSettingsResponse: {
             /** Auth Type */
-            auth_type?: ("pat" | "oauth_m2m") | null;
+            auth_type?: ("pat" | "oauth_m2m") | ("password" | "key_pair") | null;
             /** Dataset Allowlist */
             dataset_allowlist?: string[] | null;
             /** Http Path */
@@ -8498,6 +8498,8 @@ export interface components {
             location?: string | null;
             /** Maximum Bytes Billed */
             maximum_bytes_billed?: number | null;
+            /** Role */
+            role?: string | null;
             /** Schema Allowlist */
             schema_allowlist?: string[] | null;
             /** Schema Name */
@@ -8515,6 +8517,8 @@ export interface components {
             sslmode?: ("disable" | "allow" | "prefer" | "require" | "verify-ca" | "verify-full") | null;
             /** Sslrootcert */
             sslrootcert?: string | null;
+            /** Warehouse */
+            warehouse?: string | null;
         };
         /** CoverageBucket */
         CoverageBucket: {
@@ -8549,7 +8553,7 @@ export interface components {
          * DBType
          * @enum {string}
          */
-        DBType: "clickhouse" | "postgres" | "bigquery" | "databricks" | "synthetic";
+        DBType: "clickhouse" | "postgres" | "bigquery" | "databricks" | "snowflake" | "synthetic";
         /**
          * DataSourceConnectionTest
          * @description An unsaved data-source config to test a connection with.
@@ -8561,7 +8565,7 @@ export interface components {
          */
         DataSourceConnectionTest: {
             /** Connection Settings */
-            connection_settings?: components["schemas"]["ClickHouseSettings"] | components["schemas"]["PostgresSettings"] | components["schemas"]["BigQuerySettings"] | components["schemas"]["DatabricksSettings"] | components["schemas"]["SyntheticSettings"] | null;
+            connection_settings?: components["schemas"]["ClickHouseSettings"] | components["schemas"]["PostgresSettings"] | components["schemas"]["BigQuerySettings"] | components["schemas"]["DatabricksSettings"] | components["schemas"]["SnowflakeSettings"] | components["schemas"]["SyntheticSettings"] | null;
             /** Database Name */
             database_name: string;
             db_type: components["schemas"]["DBType"];
@@ -8607,7 +8611,7 @@ export interface components {
         /** DataSourceCreate */
         DataSourceCreate: {
             /** Connection Settings */
-            connection_settings?: components["schemas"]["ClickHouseSettings"] | components["schemas"]["PostgresSettings"] | components["schemas"]["BigQuerySettings"] | components["schemas"]["DatabricksSettings"] | components["schemas"]["SyntheticSettings"] | null;
+            connection_settings?: components["schemas"]["ClickHouseSettings"] | components["schemas"]["PostgresSettings"] | components["schemas"]["BigQuerySettings"] | components["schemas"]["DatabricksSettings"] | components["schemas"]["SnowflakeSettings"] | components["schemas"]["SyntheticSettings"] | null;
             /** Database Name */
             database_name: string;
             db_type: components["schemas"]["DBType"];
@@ -8754,7 +8758,7 @@ export interface components {
         /** DataSourceUpdate */
         DataSourceUpdate: {
             /** Connection Settings */
-            connection_settings?: components["schemas"]["ClickHouseSettings"] | components["schemas"]["PostgresSettings"] | components["schemas"]["BigQuerySettings"] | components["schemas"]["DatabricksSettings"] | components["schemas"]["SyntheticSettings"] | null;
+            connection_settings?: components["schemas"]["ClickHouseSettings"] | components["schemas"]["PostgresSettings"] | components["schemas"]["BigQuerySettings"] | components["schemas"]["DatabricksSettings"] | components["schemas"]["SnowflakeSettings"] | components["schemas"]["SyntheticSettings"] | null;
             /** Database Name */
             database_name?: string | null;
             db_type?: components["schemas"]["DBType"] | null;
@@ -17793,6 +17797,25 @@ export interface components {
             scope_type: components["schemas"]["MetricScopeType"];
             /** Window From */
             window_from?: string | null;
+        };
+        /**
+         * SnowflakeSettings
+         * @description Snowflake connection: the virtual warehouse to run on, and what to browse.
+         *
+         *     ``host`` is the account identifier, ``database_name`` the database and
+         *     ``username`` the user; these are the settings that have no column of their own.
+         */
+        SnowflakeSettings: {
+            /** Auth Type */
+            auth_type?: ("password" | "key_pair") | null;
+            /** Role */
+            role?: string | null;
+            /** Schema Allowlist */
+            schema_allowlist?: string[] | null;
+            /** Schema Name */
+            schema_name?: string | null;
+            /** Warehouse */
+            warehouse: string;
         };
         /**
          * SourceFreshness

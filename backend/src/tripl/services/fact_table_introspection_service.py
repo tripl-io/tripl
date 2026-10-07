@@ -92,6 +92,8 @@ _NUMBER_PREFIXES: tuple[str, ...] = (
     "smallint",
     "bigint",
     "money",
+    # Snowflake ``NUMBER(p,s)`` (its FLOAT is covered above).
+    "number",
 )
 
 # Exact (post-normalization) tokens that share a numeric prefix but are NOT

@@ -101,6 +101,14 @@ MAX_DATABRICKS_SCHEMA_ALLOWLIST = 50
 # OAuth client ID (``username``) and secret (``password``) exchanged for a token.
 DatabricksAuthType = Literal["pat", "oauth_m2m"]
 
+# Snowflake authentication: the user's password, or key-pair sign-in with the
+# user's PEM private key in the ``password`` slot.
+SnowflakeAuthType = Literal["password", "key_pair"]
+
+# How many extra schemas one Snowflake schema browse may span: one
+# ``INFORMATION_SCHEMA.COLUMNS`` statement whatever the count, like Databricks.
+MAX_SNOWFLAKE_SCHEMA_ALLOWLIST = 50
+
 _BQ_LOCATION_RE = re.compile(r"^[A-Za-z0-9-]{2,40}$")
 # A SQL warehouse's HTTP path (``/sql/1.0/warehouses/<id>``), or a cluster's
 # (``/sql/protocolv1/o/<org>/<cluster>``). Path characters only: no scheme, host,
@@ -109,6 +117,10 @@ _DBX_HTTP_PATH_RE = re.compile(r"^/[A-Za-z0-9_\-./?=&]{1,499}$")
 # A Unity Catalog schema name as the browse and the session default accept it.
 _DBX_SCHEMA_RE = re.compile(r"^[A-Za-z0-9_-]{1,255}$")
 _BQ_DATASET_RE = re.compile(r"^[A-Za-z0-9_]{1,1024}$")
+# A Snowflake warehouse, role or schema name. Letters, digits, ``_``, ``$`` and
+# ``-``: what an unquoted identifier allows, plus the hyphen an account's own
+# object names sometimes carry (sent as data, never spliced into SQL unquoted).
+_SF_OBJECT_RE = re.compile(r"^[A-Za-z0-9_$-]{1,255}$")
 # A comma-separated list of plain SQL identifiers. Interpolated into
 # ``SET search_path`` by the adapter, so anything that is not an identifier list
 # (quotes, semicolons, whitespace tricks) must not get through.
@@ -319,6 +331,70 @@ class DatabricksSettings(_ConnectionSettingsBase):
         return cleaned or None
 
 
+def _snowflake_object(value: str | None, *, label: str) -> str | None:
+    if value is None:
+        return None
+    trimmed = value.strip()
+    if not trimmed:
+        return None
+    if not _SF_OBJECT_RE.match(trimmed):
+        raise ValueError(f"{label} {trimmed!r} is not a valid Snowflake object name")
+    return trimmed
+
+
+class SnowflakeSettings(_ConnectionSettingsBase):
+    """Snowflake connection: the virtual warehouse to run on, and what to browse.
+
+    ``host`` is the account identifier, ``database_name`` the database and
+    ``username`` the user; these are the settings that have no column of their own.
+    """
+
+    # Required: without a warehouse no statement can run.
+    warehouse: str = Field(min_length=1, max_length=255)
+    # Unset reads as "password".
+    auth_type: SnowflakeAuthType | None = None
+    # Unset uses the user's default role.
+    role: str | None = Field(default=None, max_length=255)
+    # The default schema unqualified names resolve in. Unset = PUBLIC.
+    schema_name: str | None = Field(default=None, max_length=255)
+    # Further schemas of the same database the schema browser lists.
+    schema_allowlist: list[str] | None = None
+
+    @field_validator("warehouse")
+    @classmethod
+    def _check_warehouse(cls, value: str) -> str:
+        checked = _snowflake_object(value, label="warehouse")
+        if checked is None:
+            raise ValueError("warehouse is required")
+        return checked
+
+    @field_validator("role")
+    @classmethod
+    def _check_role(cls, value: str | None) -> str | None:
+        return _snowflake_object(value, label="role")
+
+    @field_validator("schema_name")
+    @classmethod
+    def _check_schema_name(cls, value: str | None) -> str | None:
+        return _snowflake_object(value, label="schema_name")
+
+    @field_validator("schema_allowlist")
+    @classmethod
+    def _check_schemas(cls, value: list[str] | None) -> list[str] | None:
+        if value is None:
+            return None
+        cleaned: list[str] = []
+        for raw in value:
+            schema = _snowflake_object(raw, label="schema_allowlist entry")
+            if schema is not None and schema not in cleaned:
+                cleaned.append(schema)
+        if len(cleaned) > MAX_SNOWFLAKE_SCHEMA_ALLOWLIST:
+            raise ValueError(
+                f"schema_allowlist accepts at most {MAX_SNOWFLAKE_SCHEMA_ALLOWLIST} schemas"
+            )
+        return cleaned or None
+
+
 # The write-side union. Every member forbids extras, so a key that belongs to no
 # warehouse at all is rejected by FastAPI before the service is reached; the
 # service then checks the parsed settings against the row's db_type (a BigQuery
@@ -328,6 +404,7 @@ ConnectionSettings = (
     | PostgresSettings
     | BigQuerySettings
     | DatabricksSettings
+    | SnowflakeSettings
     | SyntheticSettings
 )
 
@@ -336,6 +413,7 @@ CONNECTION_SETTINGS_MODELS: dict[str, type[_ConnectionSettingsBase]] = {
     DBType.postgres.value: PostgresSettings,
     DBType.bigquery.value: BigQuerySettings,
     DBType.databricks.value: DatabricksSettings,
+    DBType.snowflake.value: SnowflakeSettings,
     DBType.synthetic.value: SyntheticSettings,
 }
 
@@ -416,11 +494,15 @@ class ConnectionSettingsResponse(BaseModel):
     sslrootcert: str | None = None
     sslcert: str | None = None
     search_path: str | None = None
-    # Databricks
+    # Databricks (``auth_type``, ``schema_name`` and ``schema_allowlist`` are
+    # Snowflake's too)
     http_path: str | None = None
-    auth_type: DatabricksAuthType | None = None
+    auth_type: DatabricksAuthType | SnowflakeAuthType | None = None
     schema_name: str | None = None
     schema_allowlist: list[str] | None = None
+    # Snowflake
+    warehouse: str | None = None
+    role: str | None = None
     # The private key itself is never returned — only whether one is stored.
     sslkey_set: bool = False
 

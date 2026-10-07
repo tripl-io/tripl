@@ -296,13 +296,14 @@ def _escape_like_wildcards(text: str) -> str:
     wrong rows. ``like`` / ``not_like`` deliberately do NOT come through here:
     there the pattern is the point.
 
-    The escape character is a backslash and no ``ESCAPE`` clause is emitted,
+    The escape character is a backslash, and no ``ESCAPE`` clause is emitted (but on Snowflake)
     because all three dialects converge on it once their own literal quoting has
     run: ``quote_sql_string_literal`` doubles backslashes for ClickHouse and
     BigQuery and leaves them alone for PostgreSQL (``standard_conforming_strings``),
     so a pattern of ``\\%`` here reaches every engine as the value ``\\%`` — an
-    escaped percent, which is LIKE's default reading in all three. Backslash is
-    doubled FIRST so a value containing one cannot escape the escape.
+    escaped percent, which is LIKE's default reading in all three. Snowflake has
+    no default escape character, so its LIKE names the backslash explicitly.
+    Backslash is doubled FIRST so a value containing one cannot escape the escape.
     """
     return text.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
 
@@ -449,7 +450,10 @@ def _resolve_condition_fragment(
         except ValueError as exc:
             msg = f"fact operand condition value is invalid: {exc}"
             raise ScanError(msg) from exc
-        return f"{quoted} {keyword} {literal}"
+        # Snowflake's LIKE has no default escape character; name the backslash
+        # every other engine reads by default (the literal ``'\\'`` is one).
+        escape = " ESCAPE '\\\\'" if dialect is SqlDialect.snowflake else ""
+        return f"{quoted} {keyword} {literal}{escape}"
 
     msg = f"fact operand condition has unsupported operator {operator!r}"
     raise ScanError(msg)

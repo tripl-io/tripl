@@ -260,11 +260,11 @@ def _validated_settings(db_type: str, raw: object) -> BaseModel | None:
 
 
 def _require_databricks_warehouse(db_type: str, stored: dict[str, Any] | None) -> None:
-    """A Databricks source is unusable without its warehouse's HTTP path: say so on save.
+    """A Databricks or Snowflake source is unusable without its warehouse: say so on save.
 
-    The settings model already requires ``http_path`` whenever settings are sent;
-    this covers the request that sends none at all, which would otherwise store a
-    source every connection to fails.
+    The settings models already require ``http_path`` / ``warehouse`` whenever
+    settings are sent; this covers the request that sends none at all, which
+    would otherwise store a source every connection to fails.
     """
     if db_type == DBType.databricks.value and not (stored or {}).get("http_path"):
         raise HTTPException(
@@ -272,6 +272,14 @@ def _require_databricks_warehouse(db_type: str, stored: dict[str, Any] | None) -
             detail=(
                 "A Databricks data source needs connection_settings.http_path, the SQL "
                 "warehouse's HTTP path (e.g. /sql/1.0/warehouses/1234abcd)."
+            ),
+        )
+    if db_type == DBType.snowflake.value and not (stored or {}).get("warehouse"):
+        raise HTTPException(
+            status_code=422,
+            detail=(
+                "A Snowflake data source needs connection_settings.warehouse, the "
+                "virtual warehouse its queries run on (e.g. COMPUTE_WH)."
             ),
         )
 

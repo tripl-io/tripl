@@ -6555,6 +6555,13 @@
                 "type": "string"
               },
               {
+                "enum": [
+                  "password",
+                  "key_pair"
+                ],
+                "type": "string"
+              },
+              {
                 "type": "null"
               }
             ],
@@ -6606,6 +6613,17 @@
               }
             ],
             "title": "Maximum Bytes Billed"
+          },
+          "role": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Role"
           },
           "schema_allowlist": {
             "anyOf": [
@@ -6688,6 +6706,17 @@
               }
             ],
             "title": "Sslrootcert"
+          },
+          "warehouse": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Warehouse"
           }
         },
         "title": "ConnectionSettingsResponse",
@@ -6771,6 +6800,7 @@
           "postgres",
           "bigquery",
           "databricks",
+          "snowflake",
           "synthetic"
         ],
         "title": "DBType",
@@ -6792,6 +6822,9 @@
               },
               {
                 "$ref": "#/components/schemas/DatabricksSettings"
+              },
+              {
+                "$ref": "#/components/schemas/SnowflakeSettings"
               },
               {
                 "$ref": "#/components/schemas/SyntheticSettings"
@@ -6916,6 +6949,9 @@
               },
               {
                 "$ref": "#/components/schemas/DatabricksSettings"
+              },
+              {
+                "$ref": "#/components/schemas/SnowflakeSettings"
               },
               {
                 "$ref": "#/components/schemas/SyntheticSettings"
@@ -7302,6 +7338,9 @@
               },
               {
                 "$ref": "#/components/schemas/DatabricksSettings"
+              },
+              {
+                "$ref": "#/components/schemas/SnowflakeSettings"
               },
               {
                 "$ref": "#/components/schemas/SyntheticSettings"
@@ -30630,6 +30669,76 @@
           "percent_delta"
         ],
         "title": "SimulatedRuleFiring",
+        "type": "object"
+      },
+      "SnowflakeSettings": {
+        "additionalProperties": false,
+        "description": "Snowflake connection: the virtual warehouse to run on, and what to browse.\n\n``host`` is the account identifier, ``database_name`` the database and\n``username`` the user; these are the settings that have no column of their own.",
+        "properties": {
+          "auth_type": {
+            "anyOf": [
+              {
+                "enum": [
+                  "password",
+                  "key_pair"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Auth Type"
+          },
+          "role": {
+            "anyOf": [
+              {
+                "maxLength": 255,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Role"
+          },
+          "schema_allowlist": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Schema Allowlist"
+          },
+          "schema_name": {
+            "anyOf": [
+              {
+                "maxLength": 255,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Schema Name"
+          },
+          "warehouse": {
+            "maxLength": 255,
+            "minLength": 1,
+            "title": "Warehouse",
+            "type": "string"
+          }
+        },
+        "required": [
+          "warehouse"
+        ],
+        "title": "SnowflakeSettings",
         "type": "object"
       },
       "SourceFreshness": {

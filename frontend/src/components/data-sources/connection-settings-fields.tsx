@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react'
-import type { DatabricksAuthType, DbType, PostgresSslMode } from '@/types'
+import type { DatabricksAuthType, DbType, PostgresSslMode, SnowflakeAuthType } from '@/types'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import {
@@ -11,8 +11,10 @@ import {
   MAX_DATABRICKS_SCHEMA_ALLOWLIST,
   MAX_DATASET_ALLOWLIST,
   MAX_SCHEMA_DATASETS,
+  MAX_SNOWFLAKE_SCHEMA_ALLOWLIST,
   SECRET_INPUT_PROPS,
   SELECT_CLASS,
+  SNOWFLAKE_AUTH_OPTIONS,
   SSL_MODE_OPTIONS,
   TEXTAREA_CLASS,
   type ConnectionSettingsForm,
@@ -179,6 +181,88 @@ export function ConnectionSettingsFields({
           <p className={HELP_CLASS}>
             Comma-separated schemas of the catalog the schema browser may list. Empty means the
             default schema only. At most {MAX_DATABRICKS_SCHEMA_ALLOWLIST}.
+          </p>
+        </div>
+      </>
+    )
+  }
+
+  if (dbType === 'snowflake') {
+    const warehouseId = `${idPrefix}-warehouse`
+    return (
+      <>
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+          <div className={FIELD_COL_CLASS}>
+            <Label htmlFor={warehouseId}>Warehouse</Label>
+            <Input
+              id={warehouseId}
+              value={value.warehouse}
+              onChange={(e) => onChange({ warehouse: e.target.value })}
+              aria-required
+              placeholder={examplePlaceholder('COMPUTE_WH')}
+              {...invalidAria(warehouseId, pemErrors.warehouse)}
+            />
+            <FieldError inputId={warehouseId} message={pemErrors.warehouse} />
+            <p className={HELP_CLASS}>
+              The virtual warehouse tripl’s queries run on. A small one is enough.
+            </p>
+          </div>
+          <div className={FIELD_COL_CLASS}>
+            <Label htmlFor={`${idPrefix}-role`}>Role</Label>
+            <Input
+              id={`${idPrefix}-role`}
+              value={value.role}
+              onChange={(e) => onChange({ role: e.target.value })}
+              placeholder={examplePlaceholder('TRIPL_READER')}
+            />
+            <p className={HELP_CLASS}>Empty means the user’s default role.</p>
+          </div>
+        </div>
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+          <div className={FIELD_COL_CLASS}>
+            <Label htmlFor={`${idPrefix}-sf-auth-type`}>Authentication</Label>
+            <select
+              id={`${idPrefix}-sf-auth-type`}
+              value={value.snowflakeAuthType}
+              onChange={(e) =>
+                onChange({ snowflakeAuthType: e.target.value as SnowflakeAuthType })
+              }
+              className={SELECT_CLASS}
+            >
+              {SNOWFLAKE_AUTH_OPTIONS.map((opt) => (
+                <option key={opt.value} value={opt.value}>
+                  {opt.label}
+                </option>
+              ))}
+            </select>
+            <p className={HELP_CLASS}>
+              Key pair reads the private key from the secret field above.
+            </p>
+          </div>
+          <div className={FIELD_COL_CLASS}>
+            <Label htmlFor={`${idPrefix}-sf-schema-name`}>Default schema</Label>
+            <Input
+              id={`${idPrefix}-sf-schema-name`}
+              value={value.schemaName}
+              onChange={(e) => onChange({ schemaName: e.target.value })}
+              placeholder={examplePlaceholder('PUBLIC')}
+            />
+            <p className={HELP_CLASS}>
+              Where unqualified table names resolve. Empty means PUBLIC.
+            </p>
+          </div>
+        </div>
+        <div className={FIELD_COL_CLASS}>
+          <Label htmlFor={`${idPrefix}-sf-schema-allowlist`}>Schema allowlist</Label>
+          <Input
+            id={`${idPrefix}-sf-schema-allowlist`}
+            value={value.schemaAllowlist}
+            onChange={(e) => onChange({ schemaAllowlist: e.target.value })}
+            placeholder={examplePlaceholder('EVENTS, MARTS')}
+          />
+          <p className={HELP_CLASS}>
+            Comma-separated schemas of the database the schema browser may list. Empty means the
+            default schema only. At most {MAX_SNOWFLAKE_SCHEMA_ALLOWLIST}.
           </p>
         </div>
       </>
