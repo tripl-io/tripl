@@ -549,7 +549,10 @@ describe('DemoGuideHost — when the coached control is nowhere on screen', () =
     })
     advance(MISSING_TARGET_DELAY_MS * 2)
 
-    expect(ring()).not.toBeNull()
+    expect(screen.getByRole('button', { name: 'Create' })).toHaveAttribute(
+      'data-coach-target',
+      'alerting/create-rule@then',
+    )
     expect(missingLine()).toBeNull()
   })
 

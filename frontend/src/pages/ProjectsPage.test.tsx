@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { MemoryRouter, Route, Routes, useLocation } from 'react-router-dom'
 import { afterEach, describe, expect, it, vi } from 'vitest'
@@ -1282,6 +1282,13 @@ describe('ProjectsPage on a public demo', () => {
     return { creates: () => creates }
   }
 
+  /** A moment for the status probe to land and a deferred start to fire, inside act. */
+  async function settleAWhile() {
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 50))
+    })
+  }
+
   it('starts a newcomer\'s demo without waiting for a click', async () => {
     const { creates } = mockEmptyPublicDemo()
 
@@ -1301,7 +1308,7 @@ describe('ProjectsPage on a public demo', () => {
 
     expect(await screen.findByRole('button', { name: /Generate demo project/i })).toBeEnabled()
     // Long enough for the deferred start to have fired, had it been armed.
-    await new Promise((resolve) => setTimeout(resolve, 50))
+    await settleAWhile()
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
     expect(creates()).toBe(0)
   })
@@ -1312,7 +1319,7 @@ describe('ProjectsPage on a public demo', () => {
     renderProjectsPage('member')
 
     expect(await screen.findByRole('button', { name: /Generate demo project/i })).toBeEnabled()
-    await new Promise((resolve) => setTimeout(resolve, 50))
+    await settleAWhile()
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
     expect(creates()).toBe(0)
   })
