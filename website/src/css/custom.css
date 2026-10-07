@@ -45,3 +45,87 @@
 [data-theme='dark'] .markdown img[src*='#gh-dark-mode-only'] {
   box-shadow: 0 6px 24px rgba(0, 0, 0, 0.45);
 }
+
+/* Cookie banner (src/clientModules/consent.ts). Reject and Accept look the
+   same on purpose: neither is the "easy" one. */
+.tripl-consent {
+  position: fixed;
+  z-index: 300;
+  right: 16px;
+  bottom: 16px;
+  left: 16px;
+  display: flex;
+  align-items: center;
+  gap: 16px 24px;
+  max-width: 720px;
+  margin-inline: auto;
+  padding: 16px 18px;
+  border: 1px solid var(--ifm-color-emphasis-300);
+  border-radius: 12px;
+  background: var(--ifm-background-surface-color);
+  box-shadow: 0 24px 60px -12px rgba(16, 32, 48, 0.22), 0 2px 6px rgba(0, 0, 0, 0.05);
+  color: var(--ifm-color-emphasis-800);
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+.tripl-consent[hidden] {
+  display: none;
+}
+
+.tripl-consent p {
+  margin: 0;
+}
+
+.tripl-consent__actions {
+  display: flex;
+  flex-shrink: 0;
+  gap: 8px;
+}
+
+.tripl-consent__btn {
+  min-width: 88px;
+  min-height: 38px;
+  padding: 0 16px;
+  border: 1px solid var(--ifm-color-emphasis-400);
+  border-radius: 7px;
+  background: var(--ifm-background-color);
+  color: var(--ifm-font-color-base);
+  font: 600 14px/1 var(--ifm-font-family-base);
+  cursor: pointer;
+}
+
+.tripl-consent__btn:hover {
+  background: var(--ifm-color-emphasis-100);
+}
+
+@media (max-width: 600px) {
+  .tripl-consent {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .tripl-consent__btn {
+    flex: 1;
+  }
+}
+
+/* The footer's "Cookie settings" link: shown only where the banner runs. */
+.tripl-consent-open {
+  display: none;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--ifm-footer-link-color);
+  font: inherit;
+  cursor: pointer;
+}
+
+[data-tripl-consent='on'] .tripl-consent-open {
+  display: inline;
+}
+
+.tripl-consent-open:hover {
+  color: var(--ifm-footer-link-hover-color);
+  text-decoration: underline;
+}

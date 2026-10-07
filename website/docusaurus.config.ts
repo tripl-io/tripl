@@ -24,6 +24,9 @@ const config: Config = {
 
   i18n: {defaultLocale: 'en', locales: ['en']},
 
+  // Cookie banner and Google Tag Manager, on docs.tripl.io only.
+  clientModules: ['./src/clientModules/consent.ts'],
+
   presets: [
     [
       'classic',
@@ -51,7 +54,9 @@ const config: Config = {
   themeConfig: {
     navbar: {
       title: 'tripl',
-      logo: {alt: 'tripl', src: 'img/logo.svg'},
+      // The logo and title lead to the product site; "Docs" in the navbar
+      // stays the way back to the documentation's front page.
+      logo: {alt: 'tripl', src: 'img/logo.svg', href: 'https://tripl.io', target: '_self'},
       items: [
         {type: 'docSidebar', sidebarId: 'docsSidebar', position: 'left', label: 'Docs'},
         {to: '/integrate/api/', label: 'API', position: 'left'},
@@ -60,7 +65,13 @@ const config: Config = {
     },
     footer: {
       style: 'dark',
-      links: [],
+      links: [
+        {label: 'tripl.io', href: 'https://tripl.io'},
+        {label: 'Privacy', href: 'https://tripl.io/privacy/'},
+        {
+          html: '<button type="button" class="footer__link-item tripl-consent-open" data-consent-open>Cookie settings</button>',
+        },
+      ],
       copyright: `Copyright © ${new Date().getFullYear()} tripl. Licensed under AGPL-3.0-or-later.`,
     },
     prism: {theme: prismThemes.github, darkTheme: prismThemes.dracula},
