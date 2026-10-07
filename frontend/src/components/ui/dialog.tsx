@@ -1,6 +1,7 @@
 import * as React from "react"
 import * as DialogPrimitive from "@radix-ui/react-dialog"
 import { X } from "lucide-react"
+import { keepOpenForDemoGuide } from "@/components/ui/demo-guide-layer"
 import { cn } from "@/lib/utils"
 
 const Dialog = DialogPrimitive.Root
@@ -40,13 +41,7 @@ function DialogContent({
         data-slot="dialog-content"
         // The demo guide sits above dialogs and coaches the one that is open:
         // minimising it or hiding hints must not close that dialog.
-        onInteractOutside={(event) => {
-          if (event.target instanceof Element && event.target.closest("[data-demo-guide]")) {
-            event.preventDefault()
-            return
-          }
-          onInteractOutside?.(event)
-        }}
+        onInteractOutside={keepOpenForDemoGuide(onInteractOutside)}
         className={cn(
           // Inset 1rem from the screen edge with rounded corners on phones too;
           // full-bleed square dialogs put content against the glass.

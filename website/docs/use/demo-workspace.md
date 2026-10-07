@@ -210,13 +210,17 @@ The demo offers two guides, and they do different jobs.
   dialog or a menu, covers the control. When the control opens a menu or a
   dialog of its own, the ring moves on to what you click next in it — **Collect
   now** in the metric's menu, **Replay** in the rule's, **Create** in the new
-  rule, **Accept** on the schema drift, the `${product_id}` suggestion — and back
-  to the control if you close it.
+  rule, **Accept** on the schema drift, the `${product_id}` suggestion under
+  **Product ID** — and back to the control if you close it. Once you have made
+  that second click, the ring waits for the answer instead of asking for the
+  menu again, and comes back only if the request fails.
 
   The **demo guide** — a small card with a friendly face, in a corner of the
   window — says what the step is for and what to do next. It takes the emptiest
-  corner that covers neither the control nor an open dialog or menu, and stays
-  there until something needs that corner. When a large dialog leaves no corner
+  corner that covers neither the control nor an open dialog, menu or
+  notification, and stays there until something needs that corner. Pressing the
+  guide's own buttons never closes the dialog, menu or suggestion list it is
+  coaching. When a large dialog leaves no corner
   of the page free, a narrower card takes the edge of the screen beside the
   dialog, so the step stays readable while you work in it; only when there is no
   room even for that does it fold into a round button showing the step number —
@@ -265,7 +269,8 @@ The demo offers two guides, and they do different jobs.
 
   Dismiss it at any point — including after finishing. The welcome panel is a
   single row, so the Overview leads with the product rather than with
-  onboarding: **Start: &lt;chapter&gt;** (or **Continue: &lt;chapter&gt;** once you
+  onboarding: a line saying how many short chapters there are and that the
+  guide points at every click, **Start: &lt;chapter&gt;** (or **Continue: &lt;chapter&gt;** once you
   have begun), **Browse chapters**, which opens the *Tour &amp; chapters* dialog
   — **Hands-on chapters** first, then the **Quick overview** stepper — and
   **Create a real project** (not on a public demo, where there is none to

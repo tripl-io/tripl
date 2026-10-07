@@ -1381,7 +1381,7 @@ function MetricRowMenu({ metric, slug, existingNames, isCoachTarget }: MetricRow
       {/* One row carries the collect mark, so the coaching reads as an example
           rather than a per-row instruction. Anchoring the trigger (not the menu)
           keeps the mark visible while the menu is still closed. */}
-      <ScenarioCoachMark step="live-loop/collect-metric" when={isCoachTarget}>
+      <ScenarioCoachMark step="live-loop/collect-metric" when={isCoachTarget} busy={collectMut.isPending}>
         <DropdownMenuTrigger asChild>
           <button
             type="button"

@@ -1,6 +1,7 @@
 import * as React from "react"
 import * as DropdownMenuPrimitive from "@radix-ui/react-dropdown-menu"
 import { Check, Circle } from "lucide-react"
+import { keepOpenForDemoGuide } from "@/components/ui/demo-guide-layer"
 import { cn } from "@/lib/utils"
 
 // No sub-menus: nothing used them, and the SubContent had no Portal, so it
@@ -13,6 +14,7 @@ const DropdownMenuRadioGroup = DropdownMenuPrimitive.RadioGroup
 function DropdownMenuContent({
   className,
   sideOffset = 4,
+  onInteractOutside,
   ...props
 }: React.ComponentProps<typeof DropdownMenuPrimitive.Content>) {
   return (
@@ -20,6 +22,9 @@ function DropdownMenuContent({
       <DropdownMenuPrimitive.Content
         data-slot="dropdown-menu-content"
         sideOffset={sideOffset}
+        // The demo guide coaches the item in an open menu: pressing the guide
+        // must not shut it (demo-guide-layer.ts).
+        onInteractOutside={keepOpenForDemoGuide(onInteractOutside)}
         className={cn(
           "bg-popover text-popover-foreground data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 z-(--z-popover) max-h-[var(--radix-dropdown-menu-content-available-height)] min-w-[8rem] overflow-x-hidden overflow-y-auto rounded-control border p-1 shadow-md",
           className

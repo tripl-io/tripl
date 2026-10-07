@@ -62,6 +62,20 @@ export function useDeferredFlag(value: boolean, delayMs: number): boolean {
 }
 
 /**
+ * True while `value` is, and for `delayMs` after it turns false: lowered late,
+ * never raised late.
+ */
+export function useLingeringFlag(value: boolean, delayMs: number): boolean {
+  const [held, setHeld] = useState(value)
+  useEffect(() => {
+    // Timers both ways, as in useDeferredFlag: never a sync set in the effect.
+    const timer = window.setTimeout(() => setHeld(value), value ? 0 : delayMs)
+    return () => window.clearTimeout(timer)
+  }, [value, delayMs])
+  return value || held
+}
+
+/**
  * First visit: the Overview's welcome panel already offers every chapter, and
  * banner + strip + panel stacked three demo blocks above the page title.
  * Until the user engages, the panel stands in for the coaching there instead

@@ -304,6 +304,7 @@ export function FieldValuesCard({
                   value={value}
                   onChange={v => onFieldValueChange(f.id, v)}
                   variables={variables}
+                  coached={f.name === SCENARIO_SEEDED.editedFieldName}
                 />
               </div>
             </ScenarioCoachMark>

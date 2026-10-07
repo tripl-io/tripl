@@ -34,6 +34,7 @@ import { clippedAxes, clippingAncestors, visibleFrame } from './coachGeometry'
 import { DemoGuide } from './DemoGuide'
 import {
   entryPresenceKey,
+  followUpPresenceKey,
   useCoachPresence,
   useDemoScenario,
   useDemoScenarioActions,
@@ -194,9 +195,13 @@ export function DemoGuideHost() {
     (slug !== undefined && stepCompletedByPath(slug, step.id, path))
   // On the step's surface, yet no mark: the control is filtered out or not
   // rendered at all. A step that names a tab is on its surface only on that
-  // tab. Steps without an on-surface control expect no mark.
+  // tab. Steps without an on-surface control expect no mark. The step's
+  // second gesture counts as its control: the rule dialog opened from the
+  // empty list's own button has Create ringed and no "Add rule" behind it, and
+  // the guide called the control it was ringing invisible.
+  const followUpPresent = present.has(followUpPresenceKey(step.id))
   const targetMissing = useDeferredFlag(
-    wanted && step.coach !== undefined && onSurface,
+    wanted && step.coach !== undefined && onSurface && !followUpPresent,
     MISSING_TARGET_DELAY_MS,
   )
 

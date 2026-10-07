@@ -536,6 +536,23 @@ describe('DemoGuideHost — when the coached control is nowhere on screen', () =
     expect(takeMeThere()).toHaveAttribute('href', `/p/${SLUG}/alerting?section=monitors`)
   })
 
+  it("stays quiet about it while the step's second gesture is ringed", () => {
+    // The rule dialog opened from the empty list's own button: its Create is
+    // ringed, with no "Add rule" behind it to carry the step's own mark.
+    const createMark = (
+      <ScenarioCoachMark step="alerting/create-rule" followUp tag="Name it, then click here">
+        <button type="button">Create</button>
+      </ScenarioCoachMark>
+    )
+    renderHost(chapterState('alerting', 'alerting/create-rule'), `/p/${SLUG}/alerting?section=monitors`, {
+      mark: createMark,
+    })
+    advance(MISSING_TARGET_DELAY_MS * 2)
+
+    expect(ring()).not.toBeNull()
+    expect(missingLine()).toBeNull()
+  })
+
   it('Hide hints silences the fallback along with the marks', () => {
     renderHost(liveLoopState('live-loop/run-scan'), SCANS_ROUTE, { mark: runScanMark })
 

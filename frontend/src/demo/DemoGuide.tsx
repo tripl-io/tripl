@@ -20,6 +20,7 @@ import { useCallback, useEffect, useLayoutEffect, useRef, useState, type ReactNo
 import { createPortal } from 'react-dom'
 import { Minus, MousePointerClick } from 'lucide-react'
 import { MAIN_CONTENT_ID } from '@/components/landmarks'
+import { cn } from '@/lib/utils'
 import { clippingAncestors, visibleFrame } from './coachGeometry'
 import { GuideMascot } from './GuideMascot'
 import {
@@ -127,8 +128,13 @@ function visibleBox(element: Element | null | undefined): Box | null {
  * Open dialogs, menus, popovers and listboxes. The guide sits above them — a
  * step's control may live in one — so it must not sit ON them: a menu that
  * opened down into the guide's corner had its items covered.
+ *
+ * Toasts too, from the other side: they sit above the guide, in the corner it
+ * prefers, and one held open under the pointer hid the card's "Start the
+ * chapter" for as long as the visitor kept reaching for it.
  */
-const FLOATING_LAYERS = '[role="dialog"], [role="alertdialog"], [role="menu"], [role="listbox"]'
+const FLOATING_LAYERS =
+  '[role="dialog"], [role="alertdialog"], [role="menu"], [role="listbox"], [data-sonner-toast]'
 
 function floatingLayerBoxes(self: Element | null): Box[] {
   const boxes: Box[] = []
@@ -263,6 +269,15 @@ export function DemoGuide({
   const [openAnyway, setOpenAnyway] = useState(false)
   const [phone, setPhone] = useState(isPhone)
   const [layout, setLayout] = useState<Layout | null>(null)
+  // A move between corners glides; the first placement does not. Measuring
+  // reads the card's height, which fixes the unplaced 0,0 as the start of a
+  // transition, so every new step's card flew in across the sidebar.
+  const [placed, setPlaced] = useState(false)
+  useEffect(() => {
+    if (!layout || placed) return
+    const frame = requestAnimationFrame(() => setPlaced(true))
+    return () => cancelAnimationFrame(frame)
+  }, [layout, placed])
   // The open card's height, kept while it is folded: it decides whether the
   // card would fit again.
   const cardHeight = useRef(ESTIMATED_HEIGHT_PX)
@@ -414,7 +429,10 @@ export function DemoGuide({
       // Above dialogs: a step whose control is inside one stays coached. The
       // shared Dialog ignores clicks on the guide, so using it never closes
       // the dialog it is coaching.
-      className="fixed z-(--z-guide) motion-safe:transition-[top,left] motion-safe:duration-200"
+      className={cn(
+        'fixed z-(--z-guide)',
+        placed && 'motion-safe:transition-[top,left] motion-safe:duration-200',
+      )}
       style={{
         top: box?.top ?? 0,
         left: box?.left ?? 0,

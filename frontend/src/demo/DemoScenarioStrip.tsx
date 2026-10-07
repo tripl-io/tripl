@@ -24,6 +24,7 @@ import { Dot } from '@/components/primitives/dot'
 import { Button } from '@/components/ui/button'
 import {
   entryPresenceKey,
+  followUpPresenceKey,
   useCoachPresence,
   useDemoScenario,
   useDemoScenarioActions,
@@ -306,10 +307,13 @@ export function DemoScenarioStrip() {
   const location = useLocation()
   const welcomeStandsIn = useWelcomeStandsIn()
 
-  // A mark on the step's control — or on the way back to it — means the user
-  // is where the step happens: the branch detail opens from the list on the
-  // same page, at an address the link does not name.
-  const markPresent = present.has(step.id) || present.has(entryPresenceKey(step.id))
+  // A mark on the step's control — on the way back to it, or on its second
+  // gesture — means the user is where the step happens: the branch detail
+  // opens from the list on the same page, at an address the link does not name.
+  const markPresent =
+    present.has(step.id) ||
+    present.has(entryPresenceKey(step.id)) ||
+    present.has(followUpPresenceKey(step.id))
   const showLink = !isOnStepPage(location, step.to) && !markPresent
 
   if (welcomeStandsIn) return null

@@ -667,6 +667,37 @@ describe('ScenarioCoachMark — the guide keeps to a corner, off its control', (
     expect(guide()).toHaveAttribute('data-guide-corner', 'bottom-left')
   })
 
+  it('keeps clear of a toast', () => {
+    // Toasts sit above the guide, in the corner it prefers: one held open under
+    // the pointer hid the card's buttons for as long as it was hovered.
+    stubRects((element) =>
+      element.hasAttribute('data-sonner-toast')
+        ? { top: 700, left: 660, width: 356, height: 60 }
+        : IN_VIEWPORT_RECT,
+    )
+    renderMark(
+      <>
+        {runScanMark}
+        <ol>
+          <li data-sonner-toast="">"Active Sessions" collected</li>
+        </ol>
+      </>,
+    )
+
+    expect(guide()).toHaveAttribute('data-guide-corner', 'bottom-left')
+  })
+
+  it("lands in its first corner, and glides only when it moves on from there", async () => {
+    // Measuring fixed the unplaced 0,0 as a transition's start, and every new
+    // step's card flew in across the sidebar.
+    stubAnchorRect(IN_VIEWPORT_RECT)
+    renderMark(runScanMark)
+
+    expect(guide()).toHaveAttribute('data-guide-corner', 'bottom-right')
+    expect(guide()?.className).not.toMatch(/transition/)
+    await waitFor(() => expect(guide()?.className).toMatch(/transition-\[top,left\]/))
+  })
+
   it('takes a narrower card beside a dialog too wide to leave the column a corner', () => {
     // 480px wide and nearly as tall as the screen: no corner of the column
     // clears it, 256px of the screen does on either side. The step moved into
@@ -1317,7 +1348,7 @@ describe("ScenarioCoachMark — the step's second gesture", () => {
     expect(within(at(notes(), 0)).getByText(COLLECT_INSTRUCTION)).toBeInTheDocument()
   })
 
-  it('hands the ring back when what it opened closes', () => {
+  it('hands the ring back a moment after what it opened closes', async () => {
     stubAnchorRect(IN_VIEWPORT_RECT)
     writeScenarioState(SLUG, collectMetricState())
     const { rerender } = renderMark(
@@ -1329,6 +1360,30 @@ describe("ScenarioCoachMark — the step's second gesture", () => {
     expect(tag()).toHaveTextContent('Then click here')
 
     rerender(menuMark)
+
+    // Not at once: picking the item closes the menu before the answer moves
+    // the step on, and the ⋮ used to flash "Open this menu" in between.
+    expect(tag()).toBeNull()
+    await waitFor(() => expect(tag()).toHaveTextContent('Open this menu'), { timeout: 3000 })
+  })
+
+  it("stands down while the step's request is in flight, and takes the ring back if it fails", () => {
+    stubAnchorRect(IN_VIEWPORT_RECT)
+    writeScenarioState(SLUG, collectMetricState())
+    const menuMarkWhile = (busy: boolean) => (
+      <ScenarioCoachMark step="live-loop/collect-metric" busy={busy}>
+        <button type="button">Actions for Signups</button>
+      </ScenarioCoachMark>
+    )
+    const { rerender } = renderMark(menuMarkWhile(true))
+
+    // The collect is being answered: nothing asks for the menu again, and
+    // the guide keeps the step's words.
+    expect(ring()).toBeNull()
+    expect(tag()).toBeNull()
+    expect(notes()).toHaveLength(1)
+
+    rerender(menuMarkWhile(false))
 
     expect(tag()).toHaveTextContent('Open this menu')
   })
