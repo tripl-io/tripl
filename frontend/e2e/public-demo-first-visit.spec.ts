@@ -49,7 +49,8 @@ test('a newcomer to the public demo gets their demo without looking for the butt
   // the sign-in card promised is already being made.
   await page.goto('/')
   await expect(page.getByRole('heading', { name: 'Generating demo workspace' })).toBeVisible()
-  expect(creates).toBe(1)
+  // The route handler counts in this process, a hop behind the page.
+  await expect.poll(() => creates).toBe(1)
 
   // Back later, on a workspace still empty (the create was abandoned): the
   // button is theirs to press, and nothing starts by itself again.
