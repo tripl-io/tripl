@@ -79,6 +79,11 @@ function guideFrame(phone: boolean): GuideFrame {
   return { left, right: Math.max(right, left), top: topClearance(), bottom }
 }
 
+/** The open card's width: on a phone, the screen's less a gutter each side. */
+function cardWidth(phone: boolean): number {
+  return phone ? window.innerWidth - 2 * PHONE_GAP_PX : GUIDE_WIDTH_PX
+}
+
 function sameBox(a: Box, b: Box): boolean {
   return a.top === b.top && a.left === b.left && a.right === b.right && a.bottom === b.bottom
 }
@@ -230,10 +235,7 @@ export function DemoGuide({
     const target = visibleBox(avoid)
     const avoidBoxes = [...(target ? [target] : []), ...floatingLayerBoxes(element)]
     const order = onPhone ? PHONE_CORNERS : CORNER_ORDER
-    const card = {
-      width: onPhone ? frame.right - frame.left : GUIDE_WIDTH_PX,
-      height: cardHeight.current,
-    }
+    const card = { width: cardWidth(onPhone), height: cardHeight.current }
     // The card keeps its corner while that stays clear: a guide that hopped
     // to the emptiest corner on every scroll would be chased round the screen.
     const held = heldCorner.current
@@ -335,7 +337,10 @@ export function DemoGuide({
       style={{
         top: box?.top ?? 0,
         left: box?.left ?? 0,
-        width: small ? undefined : phone && box ? box.right - box.left : GUIDE_WIDTH_PX,
+        // The card's own width, never its last box's: just unfolded, that box
+        // is still the face's, and a card measured that narrow is too tall for
+        // any corner, so it folded straight back.
+        width: small ? undefined : cardWidth(phone),
         // A Radix modal turns pointer events off on <body>; the guide lives in
         // <body>, so it turns them back on for itself.
         pointerEvents: 'auto',

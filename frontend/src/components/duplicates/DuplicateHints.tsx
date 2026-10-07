@@ -63,7 +63,7 @@ export function DuplicateHints({
   return (
     <div className={compact ? 'mt-0.5 space-y-0.5 text-caption' : 'mt-1 space-y-1 text-body-sm'} data-testid="duplicate-hints">
       {replacement ? (
-        <p className="m-0 text-fg-secondary">
+        <p className="text-fg-secondary">
           Replaces “{replacement.name}”: once this event is created, that one is deprecated with
           this one as its successor.{' '}
           {onClearReplacement && (
@@ -76,7 +76,7 @@ export function DuplicateHints({
         matches.map(match => (
           // Plain text: the caller's one DuplicateLiveRegion announces the
           // count, so each row is not a live region of its own.
-          <p key={match.event_id} className="m-0 flex items-start gap-1.5 text-warning">
+          <p key={match.event_id} className="flex items-start gap-1.5 text-warning">
             <AlertTriangle className="mt-[3px] size-3.5 shrink-0" aria-hidden="true" />
             <span>
               Looks like <span className="font-medium">{match.name}</span> (
@@ -110,13 +110,13 @@ export function DuplicateHints({
         ))
       )}
       {shownIssues.map(issue => (
-        <p key={issue.code} className="m-0 flex items-start gap-1.5 text-fg-tertiary">
+        <p key={issue.code} className="flex items-start gap-1.5 text-fg-tertiary">
           <Lightbulb className="mt-[3px] size-3.5 shrink-0" aria-hidden="true" />
           <span>{issue.message}</span>
         </p>
       ))}
       {suggestion && (
-        <p className="m-0 text-fg-tertiary">
+        <p className="text-fg-tertiary">
           Suggested: <span className="mono text-fg">{suggestion}</span>
           {onUseSuggestion && (
             <>

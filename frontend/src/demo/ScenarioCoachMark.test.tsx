@@ -159,6 +159,20 @@ function stubPhone() {
   )
 }
 
+/**
+ * The open guide's height by the width it is given, as a browser lays it out:
+ * squeezed to the face's 56px, the card wraps a word a line and stands taller
+ * than the screen. jsdom lays nothing out, so every offsetHeight is 0.
+ */
+function stubGuideHeight() {
+  vi.spyOn(HTMLElement.prototype, 'offsetHeight', 'get').mockImplementation(function (
+    this: HTMLElement,
+  ) {
+    if (!this.hasAttribute('data-demo-guide')) return 0
+    return Number.parseFloat(this.style.width) < 100 ? 2 * window.innerHeight : 180
+  })
+}
+
 /** Something drawn over the middle of every control: a dialog, a menu. */
 function stubCoveringLayer(): () => void {
   const layer = document.createElement('div')
@@ -781,6 +795,23 @@ describe('ScenarioCoachMark — minimising the guide', () => {
 
     expect(screen.getByRole('button', { name: 'Minimise the demo guide' })).toBeInTheDocument()
     expect(guide()).not.toHaveAttribute('data-minimised')
+  })
+
+  it('opens again at full width when its face is tapped on a phone', () => {
+    // Unfolded, the card took the width of the box it last held — the face's
+    // — and measured a word a line: too tall for any corner, it folded
+    // straight back, and the tap on the face did nothing.
+    stubAnchorRect(IN_VIEWPORT_RECT)
+    stubPhone()
+    stubGuideHeight()
+    renderMark(runScanMark)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Minimise the demo guide' }))
+    fireEvent.click(screen.getByRole('button', { name: faceName }))
+
+    expect(screen.getByRole('button', { name: 'Minimise the demo guide' })).toBeInTheDocument()
+    expect(guide()).not.toHaveAttribute('data-minimised')
+    expect(guide()?.style.width).toBe(`${window.innerWidth - 24}px`)
   })
 
   it('stays folded for the step across pages, and opens again for the next one', () => {
