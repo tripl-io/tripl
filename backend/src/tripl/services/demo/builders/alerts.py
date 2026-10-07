@@ -30,6 +30,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from tripl.alert_templates import DEMO_SINK_LOCAL_NOTICE
+from tripl.core.adapters.synthetic_traffic import REFERENCE_RELEASE, version_label
 from tripl.models.alert_correlation_state import AlertCorrelationState
 from tripl.models.alert_delivery import AlertDelivery, AlertDeliveryStatus
 from tripl.models.alert_delivery_item import AlertDeliveryItem
@@ -56,6 +57,7 @@ from tripl.models.project import Project
 from tripl.models.signal_triage import SignalTriage
 from tripl.schemas.alerting import SimulatedRuleFiring
 from tripl.services.alerting_rendering import render_firings_message
+from tripl.services.demo.breakdowns import APP_VERSION_COLUMN
 from tripl.services.demo.builders.warehouse import (
     SPIKE_ANNOTATION_LABEL,
     SPIKE_EVENT_NAME,
@@ -67,6 +69,7 @@ from tripl.services.project_links import project_org_slugs
 from tripl.services.release_annotations import (
     RELEASE_ANNOTATION_COLOR,
     release_annotation_label,
+    releases_to_annotate,
 )
 
 # Deterministic namespace so the seeded inbox correlation-group id is stable for
@@ -78,14 +81,15 @@ _DISABLED_EXTERNAL_NAME = "Slack (disabled — connect a webhook to enable)"
 _FIRING_RULE_NAME = "Spike & drift watch (demo)"
 _HEALTHY_RULE_NAME = "Weekly release health (quiet)"
 
-# The demo's one automatic release marker: the newest version the synthetic
-# warehouse carries, rolled out a few days back. Seeded rather than derived,
-# because the synthetic dataset spreads its versions evenly from its first hour,
-# so the worker's gate sees them all live at once and — correctly — marks none.
-# Labelled through the worker's own helper, so a real scan of the demo can never
-# add a second "Release 1.4.0" (the release label is unique per project).
-DEMO_RELEASE_VERSION = "1.4.0"
-DEMO_RELEASE_AGE = timedelta(days=6)
+# The demo's one automatic release marker: the release its traffic model rolls
+# out six days before the seed clock (``synthetic_traffic.REFERENCE_RELEASE``).
+# Placed by the worker's own rule (``releases_to_annotate``) over the seeded
+# per-version series, so it sits at the hour that release crossed the activation
+# gate, and labelled through the worker's own helper, so a real scan of the demo
+# can never add a second "Release 1.4.0" (the release label is unique per
+# project). The older versions already carry traffic in the first seeded hour,
+# so the rule marks none of them.
+DEMO_RELEASE_VERSION = version_label(REFERENCE_RELEASE)
 
 # Seeded catalog-metric spike: scored against the median of the whole stored
 # series, over the most recent complete buckets, so the signal is on-grid and
@@ -344,24 +348,40 @@ async def build_alerts(session: AsyncSession, ctx: DemoContext) -> None:
             created_by_user_id=ctx.created_by,
         )
     )
-    session.add(
-        ChartAnnotation(
-            project_id=ctx.project_id,
-            scope_type=None,
-            scope_ref=None,
-            bucket=(ctx.now - DEMO_RELEASE_AGE).replace(minute=0, second=0, microsecond=0),
-            label=release_annotation_label(DEMO_RELEASE_VERSION),
-            description=(
-                f"App version {DEMO_RELEASE_VERSION} reached its active share of traffic "
-                "(app_version)."
-            ),
-            color=RELEASE_ANNOTATION_COLOR,
-            source=ChartAnnotationSource.release.value,
-            created_by_user_id=None,
+    for version, bucket in _seeded_releases(ctx):
+        session.add(
+            ChartAnnotation(
+                project_id=ctx.project_id,
+                scope_type=None,
+                scope_ref=None,
+                bucket=bucket,
+                label=release_annotation_label(version),
+                description=(
+                    f"App version {version} reached its active share of traffic "
+                    f"({APP_VERSION_COLUMN})."
+                ),
+                color=RELEASE_ANNOTATION_COLOR,
+                source=ChartAnnotationSource.release.value,
+                created_by_user_id=None,
+            )
         )
-    )
 
     await session.flush()
+
+
+def _seeded_releases(ctx: DemoContext) -> list[tuple[str, datetime]]:
+    """The release markers a scan would draw over the seeded version series.
+
+    The worker's own rule over the event-level per-version traffic the warehouse
+    builder stored, oldest first. On the demo's traffic that is
+    ``DEMO_RELEASE_VERSION`` alone, at the hour it crossed the activation gate.
+    """
+    totals: dict[datetime, int] = {}
+    for series in ctx.version_traffic.values():
+        for bucket, count in series.items():
+            totals[bucket] = totals.get(bucket, 0) + count
+    releases = releases_to_annotate(ctx.version_traffic, totals)
+    return sorted(releases.items(), key=lambda item: item[1])
 
 
 def _delivery_item(

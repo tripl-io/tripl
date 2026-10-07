@@ -19,6 +19,8 @@ from datetime import datetime
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from tripl.core.adapters.synthetic_traffic import DemoTraffic
+
 # Bumped to "2": the scenario expanded (meta values, event-type
 # relation/owner, authored variable override, event change history, figma spec,
 # and a feature-branch journey), so demos seeded under recipe "1" are semantically
@@ -92,6 +94,19 @@ class DemoContext:
     # The weekly promo's past sends, ``(bucket, actual, usual)``, for the alerts
     # builder to record as anomalies people marked expected (#271).
     weekly_promo_points: list[tuple[datetime, int, int]] = field(default_factory=list)
+    # Event-level traffic per app version per bucket, as stored by the warehouse
+    # builder: the series a scan's release-marker pass reads, so the alerts
+    # builder can place the release marker exactly where a scan would.
+    version_traffic: dict[str, dict[datetime, int]] = field(default_factory=dict)
+
+    @property
+    def traffic(self) -> DemoTraffic:
+        """The demo's synthetic traffic: volume, app-version and platform mix.
+
+        Anchored on the seed clock, and stored on the demo's synthetic source so
+        the runtime tick and a scheduled collection continue the same traffic.
+        """
+        return DemoTraffic(anchor=self.now, seed=self.seed)
 
 
 Builder = Callable[[AsyncSession, DemoContext], Awaitable[None]]

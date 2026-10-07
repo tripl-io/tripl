@@ -260,14 +260,18 @@ def _vet_hostname(hostname: str, port: int) -> None:
 def _build_synthetic(ds: DataSource, password: str) -> BaseAdapter:
     # The synthetic warehouse is local and in-memory: host/port/credentials are
     # ignored entirely (no socket is ever opened). A per-source seed derived from
-    # the DataSource id keeps each demo project's data stable-but-distinct.
+    # the DataSource id keeps each demo project's data stable-but-distinct. A
+    # demo's source also names its seeded spike and its traffic model, so the
+    # newest hours a scheduled collection re-reads are the ones the demo stored.
     from tripl.core.adapters.synthetic import SyntheticAdapter, _digest_int, stored_spike
+    from tripl.core.adapters.synthetic_traffic import stored_traffic
 
     seed = _digest_int("synthetic", str(ds.id)) % (2**31)
     return SyntheticAdapter(
         seed=seed,
         timeout_seconds=_effective_timeout_seconds(ds),
         spike=stored_spike(ds.extra_params),
+        traffic=stored_traffic(ds.extra_params),
     )
 
 

@@ -37,6 +37,19 @@ executed, and what is intentionally unavailable.
   weekly sends of a *Weekly promo email* lift **Paywall View** at the same hour,
   each marked *expected*, so the Annotations page suggests planning the next
   ones.
+- **The platform and app-version split.** Every event's volume is split by
+  platform and by app version over the whole seeded history, so the **By
+  version** tab and the platform breakdowns cover the same days as the volume
+  chart. The app ships a release every two weeks: a new version runs at a
+  fraction of a percent as an internal beta for a few days, then takes over
+  along an S-curve — about half of the traffic within four days — while the
+  version before it fades and older ones keep a long tail. **1.4.0** started
+  rolling out six days before the demo was generated and carries the demo's one
+  *Release 1.4.0* marker, at the hour it reached 5% of traffic; the next
+  release follows two weeks later if the demo keeps running. Each event keeps a
+  steady platform mix of its own, except the `screen_view` events, which move
+  towards web over the last eight days — the shift the seeded distribution-drift
+  signals on `screen_view.platform` report.
 
 ## What is really executed (the same code paths as a real project)
 
@@ -61,7 +74,11 @@ synthetic source:
   active demo fresh over time (new buckets, jobs and signals), with retention caps
   so it never grows without bound. The runtime adds ordinary traffic only, so
   the seeded *Injected demo spike* chart marker is removed together with the
-  anomaly it explains once both age past the retention window. The synthetic
+  anomaly it explains once both age past the retention window. Each new hour
+  continues the seeded platform and app-version split from the same model, and
+  the synthetic warehouse serves the newest hours with exactly that split and
+  volume, so a scheduled collection that re-reads them writes back what the
+  demo already shows. The synthetic
   warehouse serves that spike hour too, and the demo scores its newest hour
   with no ingestion-settling delay (the synthetic source delivers every hour
   complete), so the scheduled collection that re-reads the hour detects the

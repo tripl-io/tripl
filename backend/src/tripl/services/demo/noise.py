@@ -4,6 +4,12 @@ Pure functions only — no DB, no I/O. Every value the demo seeds is derived fro
 ``(clock, seed)`` through these helpers, so re-running the recipe with the same
 clock and seed produces an identical data shape.
 
+The hourly volume shape and the platform-drift curve live in
+:mod:`tripl.core.adapters.synthetic_traffic`, beside the version and platform
+mix, because the synthetic warehouse has to serve the same traffic the seeder
+stores and ``core`` does not import ``services``. They are re-exported here
+under the names the builders have always used.
+
 Determinism note: per-series noise is derived with :func:`derive_seed` (SHA-256)
 rather than the Python builtin ``hash()``. ``hash()`` is salted per-process for
 ``str``/``bytes`` (PYTHONHASHSEED), so keying noise off ``hash(str)`` would make
@@ -12,29 +18,26 @@ the seeded metrics/anomalies/drift non-reproducible across runs.
 
 from __future__ import annotations
 
-import hashlib
 import math
 from datetime import datetime, timedelta
 
+from tripl.core.adapters import synthetic_traffic
 from tripl.core.adapters.synthetic import SPIKE_MULTIPLIER
 from tripl.core.analyzers.anomaly_detector import AnomalyDetectionSettings
 
-# Wall-clock length of the seeded hourly history. The seasonal (hour-of-week)
-# phase baseline in the anomaly detector needs 3 full weekly cycles = 504 hourly
-# buckets BEFORE the evaluation window, or ``detect_anomalies`` silently degrades
-# to the seasonality-blind rolling fallback. 23 days = 552 buckets gives 504 of
-# history plus a 48h evaluation window, and the newest bucket sits one hour before
-# ``now`` so the signal stays inside the Wave-1 freshness horizon
-# (``LATEST_SCAN_STALE_INTERVALS`` = 3 intervals).
-DEMO_HISTORY_DAYS = 23
+# Wall-clock length of the seeded hourly history (23 days: three weekly cycles
+# for the detector's phase baseline plus the 48h evaluation window — see
+# ``synthetic_traffic.DEMO_HISTORY_DAYS``).
+DEMO_HISTORY_DAYS = synthetic_traffic.DEMO_HISTORY_DAYS
 DEMO_EVAL_WINDOW_HOURS = 48
 # The synthetic source reproduces the spike at the same multiple, so it owns it.
 DEMO_SPIKE_MULTIPLIER = SPIKE_MULTIPLIER
 
 # Distribution-drift showcase: the platform mix drifts only over the final
 # ``DEMO_DRIFT_SPAN_DAYS`` days so the real PSI climbs a stable -> minor ->
-# significant ladder against the window-start baseline.
-DEMO_DRIFT_SPAN_DAYS = 8
+# significant ladder against the window-start baseline. The stored platform
+# breakdowns drift along the same curve (``synthetic_traffic``).
+DEMO_DRIFT_SPAN_DAYS = synthetic_traffic.DRIFT_SPAN_DAYS
 DEMO_DRIFT_DAILY_TOTAL = 48000
 
 # Anomaly-detector settings mirrored from the ProjectAnomalySettings row seeded by
@@ -48,17 +51,9 @@ DEMO_ANOMALY_SETTINGS = AnomalyDetectionSettings(
     min_expected_count=10,
 )
 
-
-def derive_seed(seed: int, key: str) -> int:
-    """Derive a stable 32-bit noise seed from the scenario seed and a semantic key.
-
-    Uses SHA-256 (not builtin ``hash``) so the value is reproducible across
-    processes regardless of PYTHONHASHSEED. ``key`` is a stable semantic label
-    (e.g. an event name), never a random uuid, so the same event always maps to
-    the same noise across reseeds.
-    """
-    digest = hashlib.sha256(f"{seed}:{key}".encode()).digest()
-    return int.from_bytes(digest[:4], "big")
+# The volume shape the seeder, the runtime tick and the synthetic warehouse share.
+derive_seed = synthetic_traffic.derive_seed
+hourly_volume = synthetic_traffic.hourly_volume
 
 
 def hour_buckets(now: datetime, days: int) -> list[datetime]:
@@ -84,37 +79,10 @@ def sinusoidal_count(base: int, bucket: datetime, noise_seed: int) -> int:
     return max(1, round(raw))
 
 
-def hourly_volume(
-    base: int, bucket: datetime, idx: int, noise_seed: int, total_buckets: int
-) -> int:
-    """Deterministic hourly volume: daily + gentle weekly shape, a phase-consistent
-    texture, and a slow upward drift.
-
-    The texture depends only on ``(noise_seed, weekday, hour)`` — never on the week
-    — so the same hour-of-week repeats identically across cycles. That keeps the
-    detector's seasonal phase baseline tight (near-zero robust scale), so the
-    injected spike is the only deviation that clears the sigma gate and the demo
-    yields a small, reproducible set of anomalies instead of noise-driven false
-    positives. The drift stays well under the detector's 15% trend-shift gate.
-    """
-    hour = bucket.hour
-    weekday = bucket.weekday()
-    daily = math.sin((hour - 2) * math.pi / 12)
-    weekly = 0.08 * math.sin(weekday * math.pi / 3.5)
-    texture = ((noise_seed * 31 + weekday * 7 + hour * 13) % 15 - 7) / 100.0
-    drift = 0.04 * (idx / max(total_buckets - 1, 1))
-    raw = base * (1 + 0.35 * daily + weekly + texture + drift)
-    return max(1, round(raw))
-
-
 def platform_shares(progress: float) -> dict[str, float]:
     """Platform mix at ``progress`` (0 = drift start, 1 = now). Web share rises
     while iOS falls, so the distribution genuinely drifts over the window."""
-    clamped = min(max(progress, 0.0), 1.0)
-    web = 0.12 + 0.24 * clamped
-    ios = 0.55 - 0.18 * clamped
-    android = max(0.01, 1.0 - web - ios)
-    return {"ios": ios, "android": android, "web": web}
+    return synthetic_traffic.drift_platform_shares(progress)
 
 
 def shares_to_counts(shares: dict[str, float], total: int) -> dict[str, int]:
@@ -124,4 +92,4 @@ def shares_to_counts(shares: dict[str, float], total: int) -> dict[str, int]:
 def drift_span_progress(days_before_now: float) -> float:
     """Fraction into the drift ramp for a bucket ``days_before_now`` old. The mix
     only starts drifting ``DEMO_DRIFT_SPAN_DAYS`` before now."""
-    return min(max((DEMO_DRIFT_SPAN_DAYS - days_before_now) / DEMO_DRIFT_SPAN_DAYS, 0.0), 1.0)
+    return synthetic_traffic.drift_progress(days_before_now)

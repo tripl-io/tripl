@@ -6,8 +6,9 @@ Exercises ``advance_demos`` against an isolated SQLite engine with an explicit
 so these tests prove correctness comes from the DB unique constraints + idempotent
 insert-if-absent, with the advisory lock a production-only optimisation.
 
-Covers: two complete ticks (fresh beyond the 3h horizon), concurrency/idempotency
-(no duplicate buckets; savepoint-safe after a simulated partial write), retention
+Covers: two complete ticks (fresh beyond the 3h horizon), the platform and
+app-version split each appended hour carries, concurrency/idempotency (no
+duplicate buckets; savepoint-safe after a simulated partial write), retention
 caps, pause/resume, and the feature flag off (no-op; never touches non-demo).
 """
 
@@ -23,6 +24,7 @@ from sqlalchemy import create_engine, func, select
 from sqlalchemy.exc import OperationalError
 from sqlalchemy.orm import Session, sessionmaker
 
+from tripl.core.adapters.synthetic_traffic import DemoTraffic, stored_traffic
 from tripl.models import Base
 from tripl.models.data_source import DataSource
 from tripl.models.domain_enums import (
@@ -32,6 +34,7 @@ from tripl.models.domain_enums import (
 )
 from tripl.models.event import Event
 from tripl.models.event_metric import EventMetric
+from tripl.models.event_metric_breakdown import EventMetricBreakdown
 from tripl.models.event_type import EventType
 from tripl.models.metric_definition import MetricDefinition
 from tripl.models.metric_value import MetricValue
@@ -41,6 +44,12 @@ from tripl.models.project_anomaly_settings import ProjectAnomalySettings
 from tripl.models.scan_config import ScanConfig
 from tripl.models.scan_job import ScanJob, ScanJobStatus
 from tripl.services.demo import noise
+from tripl.services.demo.breakdowns import (
+    APP_VERSION_COLUMN,
+    PLATFORM_COLUMN,
+    EventVolume,
+    breakdown_rows,
+)
 from tripl.services.demo.scenario import DEMO_SEED
 from tripl.worker.tasks import demo_runtime
 
@@ -354,6 +363,89 @@ def test_tick_appends_coverage_and_conversion_values(
         assert coverage and coverage >= 1, "coverage rows appended for new buckets"
         conv_values = session.execute(select(func.count()).select_from(MetricValue)).scalar()
         assert conv_values and conv_values > 48, "conversion values appended for new buckets"
+
+
+def test_tick_continues_the_seeded_platform_and_version_split(
+    factory: sessionmaker[Session], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Each appended hour carries every event's platform and app-version split from
+    the traffic model the demo was seeded with — the rows the seeder writes for an
+    hour — so the version charts run on past the seed clock instead of stopping
+    there. A source seeded before it named that model is stamped with it, so the
+    next scheduled collection serves the same split."""
+    seed_now = _floor(datetime.now(UTC)) - timedelta(days=1)
+    with factory() as session:
+        seeded = _seed_demo(session, seed_now=seed_now, history_hours=48)
+        scan_config = session.get(ScanConfig, seeded.scan_config_id)
+        assert scan_config is not None
+        scan_config.platform_column = PLATFORM_COLUMN
+        scan_config.app_version_column = APP_VERSION_COLUMN
+        data_source_id = scan_config.data_source_id
+        session.commit()
+
+    # Appends the three hours from the seed clock on.
+    _run_tick(factory, monkeypatch, seed_now + timedelta(hours=3))
+
+    traffic = DemoTraffic(anchor=seed_now, seed=DEMO_SEED)
+    bases = {name: base for name, _type_name, base in (_HOME, _BUY)}
+    with factory() as session:
+        source = session.get(DataSource, data_source_id)
+        assert source is not None
+        assert stored_traffic(source.extra_params) == traffic
+
+        type_names = dict(
+            session.execute(
+                select(EventType.id, EventType.name).where(
+                    EventType.project_id == seeded.project_id
+                )
+            ).all()
+        )
+        events = session.execute(
+            select(Event.id, Event.event_type_id, Event.name).where(
+                Event.project_id == seeded.project_id
+            )
+        ).all()
+        expected: dict[tuple[object, ...], object] = {}
+        for hours in range(3):
+            bucket = seed_now + hours * _HOUR
+            volumes = [
+                EventVolume(
+                    event_id=event_id,
+                    event_type_id=event_type_id,
+                    name=name,
+                    event_type=type_names[event_type_id],
+                    base=bases[name],
+                    count=traffic.volume(bases[name], name, bucket),
+                )
+                for event_id, event_type_id, name in events
+            ]
+            for row in breakdown_rows(
+                traffic, bucket, volumes, scan_config_id=seeded.scan_config_id
+            ):
+                key = (
+                    row["event_id"],
+                    row["event_type_id"],
+                    _naive(bucket),
+                    row["breakdown_column"],
+                    row["breakdown_value"],
+                )
+                expected[key] = row["count"]
+        stored = {
+            (event_id, event_type_id, _naive(bucket), column, value): count
+            for event_id, event_type_id, bucket, column, value, count in session.execute(
+                select(
+                    EventMetricBreakdown.event_id,
+                    EventMetricBreakdown.event_type_id,
+                    EventMetricBreakdown.bucket,
+                    EventMetricBreakdown.breakdown_column,
+                    EventMetricBreakdown.breakdown_value,
+                    EventMetricBreakdown.count,
+                ).where(EventMetricBreakdown.scan_config_id == seeded.scan_config_id)
+            ).all()
+        }
+
+    assert {key[3] for key in stored} == {PLATFORM_COLUMN, APP_VERSION_COLUMN}
+    assert stored == expected
 
 
 # ── Concurrency / idempotency ────────────────────────────────────────────────

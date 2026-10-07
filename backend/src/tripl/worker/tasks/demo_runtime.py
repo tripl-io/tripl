@@ -18,12 +18,17 @@ in shape from what a live warehouse scan would have produced.
 
 Determinism
 -----------
-Every appended value is derived from the SAME deterministic helpers the warehouse
-builder uses (:mod:`tripl.services.demo.noise`): per-event noise from
-``derive_seed(DEMO_SEED, event_name)`` and volume from ``hourly_volume``. The
-bucket index grid is anchored to ``demo_seeded_at`` (immutable), so an appended
-bucket continues the seeded series' slow upward drift exactly. No spike is
-injected on appended buckets — the seeded spike stays in history until pruned.
+Every appended value is derived from the SAME traffic model the warehouse builder
+seeds from (:class:`~tripl.core.adapters.synthetic_traffic.DemoTraffic`): volume
+from ``hourly_volume`` with per-event noise from ``derive_seed(seed,
+event_name)``, and the platform and app-version split of every event from
+:func:`tripl.services.demo.breakdowns.breakdown_rows`. The model is anchored to
+the demo's seed clock, stored on its synthetic source (``demo_seeded_at`` and
+``DEMO_SEED`` for a demo seeded before the source carried it), so an appended
+bucket continues the seeded series' slow upward drift and its release train
+exactly, and holds what a scheduled collection of the same hour writes back. No
+spike is injected on appended buckets — the seeded spike stays in history until
+pruned.
 
 Idempotency & concurrency
 -------------------------
@@ -56,14 +61,16 @@ import logging
 import math
 import uuid
 from datetime import UTC, datetime, timedelta
+from typing import NamedTuple
 
-from sqlalchemy import delete, select, text
+from sqlalchemy import delete, insert, select, text
 from sqlalchemy import func as sa_func
 from sqlalchemy.exc import DBAPIError, IntegrityError, OperationalError
 from sqlalchemy.orm import Session
 
 from tripl import cache, realtime
 from tripl.config import settings
+from tripl.core.adapters.synthetic_traffic import DemoTraffic, stored_traffic, traffic_params
 from tripl.core.analyzers.anomaly_detector import (
     SCOPE_EVENT,
     SCOPE_EVENT_TYPE,
@@ -73,6 +80,7 @@ from tripl.core.analyzers.anomaly_detector import (
 )
 from tripl.models.chart_annotation import ChartAnnotation
 from tripl.models.coverage_metric import CoverageMetric
+from tripl.models.data_source import DataSource, DBType
 from tripl.models.distribution_drift import DistributionDrift
 from tripl.models.domain_enums import ProjectGenerationStatus
 from tripl.models.event import Event
@@ -89,12 +97,15 @@ from tripl.models.scan_job import ScanJob, ScanJobStatus
 from tripl.models.schema_drift import SchemaDrift
 from tripl.services.active_org_scope import project_in_active_org
 from tripl.services.demo import noise
+from tripl.services.demo.breakdowns import (
+    APP_VERSION_COLUMN,
+    PLATFORM_COLUMN,
+    EventVolume,
+    breakdown_rows,
+)
 from tripl.services.demo.builders.alerts import DEMO_PLANNED_EVENT_LABEL
 from tripl.services.demo.builders.plan import event_specs
-from tripl.services.demo.builders.warehouse import (
-    SPIKE_ANNOTATION_LABEL,
-    SPIKE_EVENT_NAME,
-)
+from tripl.services.demo.builders.warehouse import SPIKE_ANNOTATION_LABEL
 from tripl.services.demo.scenario import DEMO_SEED
 from tripl.services.planned_event_service import retag_planned_anomalies
 from tripl.services.source_freshness import (
@@ -130,8 +141,6 @@ DEMO_ADVANCE_MAX_RETRIES = 3
 # every tick prunes anything older, capping per-demo DB growth. Kept >= the
 # detector's seasonal need (3 weekly cycles + 48h eval) so detection keeps working.
 DEMO_RETENTION_DAYS = noise.DEMO_HISTORY_DAYS
-# Bucket index grid width used by ``hourly_volume`` — the seeded series' total.
-_TOTAL_BUCKETS = noise.DEMO_HISTORY_DAYS * 24
 _HOUR = timedelta(hours=1)
 # Coverage match rate mirrored from the governance builder so appended coverage
 # reconciles with the seeded rows.
@@ -140,6 +149,17 @@ _COVERAGE_MATCH_RATE = 0.94
 _CONVERSION_METRIC_NAME = "purchase_conversion"
 # Direction withheld while the demo source is late (#269), as in ``metrics.detect``.
 _HELD_DIRECTION = "drop"
+
+
+class _Series(NamedTuple):
+    """One seeded per-event series the tick advances."""
+
+    event_id: uuid.UUID
+    event_type_id: uuid.UUID
+    base: int
+    name: str
+    # The event type's NAME, which decides whether the platform mix drifts.
+    event_type: str
 
 
 def _aware(dt: datetime) -> datetime:
@@ -259,14 +279,13 @@ def _advance_demo(session: Session, project_id: uuid.UUID, slug: str, now: datet
         return
 
     scan_config_id = scan_config.id
-    seeded_at = _aware(project.demo_seeded_at)
-    grid_start = _floor_hour(seeded_at) - timedelta(days=noise.DEMO_HISTORY_DAYS)
+    traffic = _demo_traffic(session, scan_config, _aware(project.demo_seeded_at))
     roster = _load_series_roster(session, scan_config_id, now)
 
     new_buckets = _pending_buckets(session, scan_config_id, now)
     written = 0
     if roster and new_buckets:
-        written = _append_buckets(session, scan_config_id, roster, new_buckets, grid_start, now)
+        written = _append_buckets(session, scan_config, roster, new_buckets, traffic)
 
     # Source freshness facts (#269), stamped the way a live collection stamps
     # them: the tick IS the demo's collection. The newest appended bucket moves
@@ -313,15 +332,36 @@ def _acquire_project_xact_lock(session: Session, project_id: uuid.UUID) -> None:
     session.execute(text("SELECT pg_advisory_xact_lock(:key)"), {"key": key})
 
 
+def _demo_traffic(session: Session, scan_config: ScanConfig, seeded_at: datetime) -> DemoTraffic:
+    """The traffic model the demo was seeded from, which its synthetic source serves.
+
+    Read off the source, where the seeder stores it. A demo seeded before the
+    source carried it gets the model it was seeded with all along — the seed
+    clock and the default scenario seed — stamped on its source here, so the
+    next scheduled collection serves the same platform and app-version split the
+    tick appends instead of an even one.
+    """
+    source = session.get(DataSource, scan_config.data_source_id)
+    traffic = stored_traffic(source.extra_params) if source is not None else None
+    if traffic is not None:
+        return traffic
+    traffic = DemoTraffic(anchor=seeded_at, seed=DEMO_SEED)
+    if source is not None and source.db_type == DBType.synthetic:
+        stored = source.extra_params if isinstance(source.extra_params, dict) else {}
+        # A new dict, so the JSON column registers the change.
+        source.extra_params = {**stored, **traffic_params(traffic)}
+    return traffic
+
+
 def _load_series_roster(
     session: Session, scan_config_id: uuid.UUID, now: datetime
-) -> list[tuple[uuid.UUID, uuid.UUID, int, str]]:
-    """The per-event series to advance: ``(event_id, event_type_id, base, name)``.
+) -> list[_Series]:
+    """The per-event series to advance.
 
     Derived from the EXISTING seeded per-event ``EventMetric`` rows joined back to
     their events, so the tick advances exactly the series that were seeded (correct
     ids, no branch-copy duplicates) and reuses each event's authored ``base``
-    volume from :func:`event_specs`.
+    volume and event type from :func:`event_specs`.
     """
     specs_by_name = {spec.name: spec for spec in event_specs(now)}
     rows = session.execute(
@@ -330,11 +370,11 @@ def _load_series_roster(
         .where(EventMetric.scan_config_id == scan_config_id)
         .distinct()
     ).all()
-    roster: list[tuple[uuid.UUID, uuid.UUID, int, str]] = []
+    roster: list[_Series] = []
     for event_id, name, event_type_id in rows:
         spec = specs_by_name.get(name)
         if spec is not None:
-            roster.append((event_id, event_type_id, spec.base, name))
+            roster.append(_Series(event_id, event_type_id, spec.base, name, spec.event_type))
     return roster
 
 
@@ -362,11 +402,10 @@ def _pending_buckets(session: Session, scan_config_id: uuid.UUID, now: datetime)
 
 def _append_buckets(
     session: Session,
-    scan_config_id: uuid.UUID,
-    roster: list[tuple[uuid.UUID, uuid.UUID, int, str]],
+    scan_config: ScanConfig,
+    roster: list[_Series],
     new_buckets: list[datetime],
-    grid_start: datetime,
-    now: datetime,
+    traffic: DemoTraffic,
 ) -> int:
     """Insert-if-absent every new bucket's rows; return how many buckets were written.
 
@@ -374,6 +413,7 @@ def _append_buckets(
     concurrent tick (or a re-run) rolls back just that bucket and is skipped,
     leaving one logical result.
     """
+    scan_config_id = scan_config.id
     # Cheap pre-check: skip buckets already fully written (common on a same-clock
     # re-run) before paying for a savepoint.
     existing = {
@@ -397,8 +437,13 @@ def _append_buckets(
         )
         .limit(1)
     ).scalar_one_or_none()
-    spike_event_id = next(
-        (eid for eid, _etid, _base, name in roster if name == SPIKE_EVENT_NAME), None
+    # The splits the scan stores: a column the demo scan no longer designates (a
+    # user cleared or repointed it) gets no rows, as a collection would write none.
+    columns = _BreakdownColumns(
+        platform=PLATFORM_COLUMN if scan_config.platform_column == PLATFORM_COLUMN else None,
+        version=(
+            APP_VERSION_COLUMN if scan_config.app_version_column == APP_VERSION_COLUMN else None
+        ),
     )
 
     written = 0
@@ -412,9 +457,8 @@ def _append_buckets(
                     scan_config_id,
                     roster,
                     bucket,
-                    grid_start,
-                    now,
-                    spike_event_id=spike_event_id,
+                    traffic,
+                    columns=columns,
                     conversion_metric_id=conversion_metric_id,
                 )
                 session.flush()
@@ -425,37 +469,49 @@ def _append_buckets(
     return written
 
 
+class _BreakdownColumns(NamedTuple):
+    """The breakdown columns the tick writes, ``None`` for one it leaves out."""
+
+    platform: str | None
+    version: str | None
+
+
 def _build_bucket_rows(
     session: Session,
     scan_config_id: uuid.UUID,
-    roster: list[tuple[uuid.UUID, uuid.UUID, int, str]],
+    roster: list[_Series],
     bucket: datetime,
-    grid_start: datetime,
-    now: datetime,
+    traffic: DemoTraffic,
     *,
-    spike_event_id: uuid.UUID | None,
+    columns: _BreakdownColumns,
     conversion_metric_id: uuid.UUID | None,
 ) -> None:
     """Add one bucket's rows: per-event + per-type EventMetric, breakdown, coverage."""
-    idx = round((bucket - grid_start).total_seconds() / 3600.0)
     per_type_total: dict[uuid.UUID, int] = {}
-    home_count = 0
+    volumes: list[EventVolume] = []
 
-    for event_id, event_type_id, base, name in roster:
-        noise_seed = noise.derive_seed(DEMO_SEED, name) % 997
-        count = noise.hourly_volume(base, bucket, idx, noise_seed, _TOTAL_BUCKETS)
+    for series in roster:
+        count = traffic.volume(series.base, series.name, bucket)
         session.add(
             EventMetric(
                 scan_config_id=scan_config_id,
-                event_id=event_id,
+                event_id=series.event_id,
                 event_type_id=None,
                 bucket=bucket,
                 count=count,
             )
         )
-        per_type_total[event_type_id] = per_type_total.get(event_type_id, 0) + count
-        if event_id == spike_event_id:
-            home_count = count
+        per_type_total[series.event_type_id] = per_type_total.get(series.event_type_id, 0) + count
+        volumes.append(
+            EventVolume(
+                event_id=series.event_id,
+                event_type_id=series.event_type_id,
+                name=series.name,
+                event_type=series.event_type,
+                base=series.base,
+                count=count,
+            )
+        )
 
     for event_type_id, total in per_type_total.items():
         session.add(
@@ -468,8 +524,18 @@ def _build_bucket_rows(
             )
         )
 
-    if spike_event_id is not None and home_count:
-        _build_breakdown_rows(session, scan_config_id, spike_event_id, bucket, home_count, now)
+    # Every event's platform and app-version split, continuing the seeded
+    # history (same model, same anchor), with the per-type rollups.
+    rows = breakdown_rows(
+        traffic,
+        bucket,
+        volumes,
+        scan_config_id=scan_config_id,
+        platform_column=columns.platform,
+        version_column=columns.version,
+    )
+    if rows:
+        session.execute(insert(EventMetricBreakdown), rows)
 
     matched = sum(per_type_total.values())
     if matched:
@@ -496,37 +562,12 @@ def _build_bucket_rows(
         )
 
 
-def _build_breakdown_rows(
-    session: Session,
-    scan_config_id: uuid.UUID,
-    spike_event_id: uuid.UUID,
-    bucket: datetime,
-    total_count: int,
-    now: datetime,
-) -> None:
-    """Platform split for the spike event, matching the warehouse builder's drift."""
-    days_before = (now - bucket).total_seconds() / 86400.0
-    shares = noise.platform_shares(noise.drift_span_progress(days_before))
-    for platform, count in noise.shares_to_counts(shares, total_count).items():
-        session.add(
-            EventMetricBreakdown(
-                scan_config_id=scan_config_id,
-                event_id=spike_event_id,
-                bucket=bucket,
-                breakdown_column="platform",
-                breakdown_value=platform,
-                is_other=False,
-                count=max(1, count),
-            )
-        )
-
-
 def _record_scan_job(
     session: Session,
     scan_config_id: uuid.UUID,
     now: datetime,
     buckets_written: int,
-    roster: list[tuple[uuid.UUID, uuid.UUID, int, str]],
+    roster: list[_Series],
 ) -> None:
     """Record a completed ScanJob reflecting THIS tick's real execution.
 
@@ -534,7 +575,7 @@ def _record_scan_job(
     scan history keeps growing (and reads healthy: the latest job is a success).
     """
     started = now - timedelta(seconds=8)
-    event_types = len({etid for _eid, etid, _base, _name in roster})
+    event_types = len({series.event_type_id for series in roster})
     session.add(
         ScanJob(
             scan_config_id=scan_config_id,
@@ -549,7 +590,7 @@ def _record_scan_job(
                 "events_merged": len(roster),
                 "variables_created": 0,
                 "columns_analyzed": 10,
-                "scan_rows_processed": buckets_written * sum(b for _e, _t, b, _n in roster),
+                "scan_rows_processed": buckets_written * sum(series.base for series in roster),
                 "buckets_appended": buckets_written,
                 "demo_runtime_tick": True,
             },
