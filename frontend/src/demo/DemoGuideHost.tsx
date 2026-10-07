@@ -7,20 +7,26 @@
  * the sidebar"), a control filtered out of view. Visitors stood there not
  * knowing where to click. The host fills those moments with the same guide —
  * what the step is, the gesture, the way there (a link to the step's page and
- * a ring on its item in the sidebar) — and, on the page with the control
+ * a ring on its item in the sidebar, or on the page's own tab when the step
+ * lives in another section of this page) — and, on the page with the control
  * nowhere to be seen, why.
+ *
+ * It also keeps the guide on the page where testers lost it: with hints
+ * hidden, the guide's face stays in its corner and brings them back; once a
+ * chapter lands, the guide says so and offers the next one, where the strip
+ * alone used to — scrolled away above the page.
  *
  * Mounted by the shell beside the demo banner, for demo projects. It renders
  * nothing while a mark for the step is on screen (its own, or the way back to
- * it), while hints are muted, while no chapter runs, and while the Overview's
- * welcome panel stands in for the coaching.
+ * it), while no chapter runs, and while the Overview's welcome panel stands in
+ * for the coaching.
  */
 
 import { useContext, useEffect, useState } from 'react'
 import { Link, useLocation, useParams } from 'react-router-dom'
 import { ArrowRight } from 'lucide-react'
 import { ActiveProjectContext } from '@/components/active-project-context'
-import { SIDEBAR_ID } from '@/components/landmarks'
+import { MAIN_CONTENT_ID, SIDEBAR_ID } from '@/components/landmarks'
 import { Button } from '@/components/ui/button'
 import { useCanManageProject, useCanWriteProject } from '@/lib/permissions'
 import { CoachBeacon } from './CoachBeacon'
@@ -32,7 +38,8 @@ import {
   useDemoScenario,
   useDemoScenarioActions,
 } from './demoScenarioContext'
-import { stepCompletedByPath } from './scenarioModel'
+import { EndOfDemoLink } from './EndOfDemoLink'
+import { CHAPTER_BLURBS, stepCompletedByPath } from './scenarioModel'
 import {
   isOnStepPage,
   isOnStepSurface,
@@ -74,6 +81,12 @@ function hrefPath(link: Element): string {
   return (link.getAttribute('href') ?? '').split(/[?#]/)[0]?.replace(/\/$/, '') ?? ''
 }
 
+/** Laid out somewhere on the screen — a closed drawer keeps its items off it. */
+function onScreen(element: Element): boolean {
+  const rect = element.getBoundingClientRect()
+  return rect.width > 0 && rect.right > 0 && rect.left < window.innerWidth
+}
+
 /**
  * The sidebar's link to the step's page, or to the section the page is in —
  * the longest link that leads there. None while the user is already in that
@@ -98,13 +111,62 @@ function sidebarLinkFor(path: string, pathname: string): HTMLElement | null {
   if (pathname === section || pathname.startsWith(`${section}/`)) return null
   // A closed drawer (a phone, a narrow window) keeps its items in the DOM,
   // off the screen: nothing there to point at.
-  const rect = best.getBoundingClientRect()
-  return rect.width > 0 && rect.right > 0 && rect.left < window.innerWidth ? best : null
+  return onScreen(best) ? best : null
+}
+
+/**
+ * The page's own tab that opens the step's section — Alerting's Rules for
+ * `?section=monitors` — while the user is on the step's page at another one.
+ * The sidebar has nothing to point at there (the user is on its item), and
+ * "Open its page first" read as a riddle on the very page. Tabs carry their
+ * value on the DOM (`ui/tabs`), matched rather than their label.
+ */
+function sectionTabFor(to: string, search: string): HTMLElement | null {
+  const content = document.getElementById(MAIN_CONTENT_ID)
+  if (!content) return null
+  const current = new URLSearchParams(search)
+  const wanted = [...new URLSearchParams(to.split('?')[1] ?? '')]
+    .filter(([key, value]) => current.get(key) !== value)
+    .map(([, value]) => value)
+  if (wanted.length === 0) return null
+  for (const tab of content.querySelectorAll<HTMLElement>('[role="tab"][data-tab-value]')) {
+    if (wanted.includes(tab.dataset.tabValue ?? '') && onScreen(tab)) return tab
+  }
+  return null
+}
+
+/**
+ * `sectionTabFor`, kept current while `to` is set: the tab strip renders with
+ * the page's data, often after the guide has spoken.
+ */
+function useSectionTab(to: string | null, search: string): HTMLElement | null {
+  const [tab, setTab] = useState<HTMLElement | null>(null)
+  useEffect(() => {
+    let frame = 0
+    const find = () => {
+      frame = 0
+      setTab(to === null ? null : sectionTabFor(to, search))
+    }
+    const schedule = () => {
+      if (frame === 0) frame = requestAnimationFrame(find)
+    }
+    schedule()
+    const content = to === null ? null : document.getElementById(MAIN_CONTENT_ID)
+    const observer =
+      content && typeof MutationObserver !== 'undefined' ? new MutationObserver(schedule) : null
+    if (content) observer?.observe(content, { childList: true, subtree: true })
+    return () => {
+      cancelAnimationFrame(frame)
+      observer?.disconnect()
+    }
+  }, [to, search])
+  return tab
 }
 
 export function DemoGuideHost() {
-  const { active, activeChapter, chapters, step, steps, hintsMuted } = useDemoScenario()
-  const { muteHints } = useDemoScenarioActions()
+  const { active, state, activeChapter, chapters, nextChapter, step, steps, hintsMuted } =
+    useDemoScenario()
+  const { muteHints, unmuteHints, startChapter } = useDemoScenarioActions()
   const { present } = useCoachPresence()
   const location = useLocation()
   const { slug } = useParams()
@@ -116,6 +178,10 @@ export function DemoGuideHost() {
   const wanted =
     active && activeChapter !== null && !hintsMuted && !markPresent && !welcomeStandsIn
   const shown = useDeferredFlag(wanted, GUIDE_DELAY_MS)
+  // Landed and not yet put away: the strip offers the next chapter, and so
+  // does the guide, where the user is looking.
+  const completed =
+    !active && activeChapter !== null && state.chapters[activeChapter]?.status === 'completed'
 
   const path = stepPath(step.to)
   const onStepPage = isOnStepPage(location, step.to)
@@ -154,17 +220,80 @@ export function DemoGuideHost() {
     return () => cancelAnimationFrame(frame)
   }, [pointSidebar, path, location.pathname])
 
-  if (!shown || !activeChapter) return null
+  // On the step's page at another of its sections: the way there is a tab.
+  const onStepPath = location.pathname.replace(/\/$/, '') === path.replace(/\/$/, '')
+  const sectionTab = useSectionTab(
+    shown && step.coach !== undefined && onStepPath && !onSurface ? step.to : null,
+    location.search,
+  )
+
+  if (welcomeStandsIn || !activeChapter) return null
 
   const position = steps.findIndex((candidate) => candidate.id === step.id) + 1
   const chapterTitle = chapters.find((chapter) => chapter.id === activeChapter)?.title
+
+  // Hints hidden: the face alone, in its corner, and a click on it brings
+  // them back. The strip's "Show hints" sat above the page, scrolled away.
+  if (hintsMuted && (active || completed)) {
+    return (
+      <DemoGuide
+        key="muted"
+        stepKey={step.id}
+        position={position}
+        total={steps.length}
+        chapter={chapterTitle}
+        complete={completed}
+        title={completed ? (chapterTitle ?? '') : step.title}
+        instruction={completed ? '' : step.instruction}
+        onUnmute={unmuteHints}
+      />
+    )
+  }
+
+  if (completed) {
+    const stepKey = `${activeChapter}@complete`
+    return (
+      <DemoGuide
+        key={stepKey}
+        stepKey={stepKey}
+        position={steps.length}
+        total={steps.length}
+        chapter={chapterTitle}
+        complete
+        title={nextChapter ? `Next: ${nextChapter.title}` : 'You have walked the whole product'}
+        instruction={
+          nextChapter ? CHAPTER_BLURBS[nextChapter.id] : 'Point it at your own warehouse next.'
+        }
+        action={
+          nextChapter ? (
+            <Button asChild size="xs">
+              {/* Started on click, before the Link navigates, so the user
+                  lands on the chapter's surface with its first step live. */}
+              <Link to={nextChapter.to} onClick={() => startChapter(nextChapter.id)}>
+                Start the chapter
+                <ArrowRight className="size-3" aria-hidden="true" />
+              </Link>
+            </Button>
+          ) : (
+            <EndOfDemoLink />
+          )
+        }
+        onMute={muteHints}
+      />
+    )
+  }
+
+  if (!shown) return null
+
   // Off the step's page, the first gesture is getting there; a visit step's
   // own gesture already is ("Click Properties in the sidebar").
   const cue =
     step.coach !== undefined && !onSurface
-      ? sidebarLink && pointSidebar
-        ? 'Open its page first — the highlighted sidebar item, or Take me there.'
-        : 'Open its page first: click Take me there.'
+      ? sectionTab
+        ? 'Open the highlighted tab first, or click Take me there.'
+        : sidebarLink && pointSidebar
+          ? 'Open its page first — the highlighted sidebar item, or Take me there.'
+          : 'Open its page first: click Take me there.'
       : step.cue
   const note = targetMissing
     ? !canEdit
@@ -179,6 +308,9 @@ export function DemoGuideHost() {
       {sidebarLink && pointSidebar && (
         <CoachBeacon anchor={sidebarLink} side="right" align="center" />
       )}
+      {sectionTab && (
+        <CoachBeacon anchor={sectionTab} tag="Open this tab" side="bottom" align="center" />
+      )}
       <DemoGuide
         // Folding is a choice about one step: the next one opens unfolded.
         key={step.id}
@@ -190,6 +322,7 @@ export function DemoGuideHost() {
         instruction={step.instruction}
         cue={cue}
         note={note}
+        avoid={sectionTab}
         action={
           hasPage && !onStepPage ? (
             <Button asChild size="xs">

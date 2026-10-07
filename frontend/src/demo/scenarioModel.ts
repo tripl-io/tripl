@@ -558,6 +558,8 @@ export const SCENARIO_SEEDED = {
   changedEventName: 'Buy Button Click',
   shadowCandidateName: 'app_heartbeat_v1',
   schemaDriftEventName: 'Purchase Completed',
+  /** Its open type change (number → String), the drift the step accepts. */
+  schemaDriftFieldName: 'amount',
   firingRuleName: 'Spike & drift watch (demo)',
 } as const
 
@@ -699,7 +701,9 @@ export function buildChapterSteps(
           entry: 'variables/inspect-values',
           to: `${base}/variables`,
           ctaLabel: 'Open Properties',
-          coach: { side: 'top', align: 'start', emphasis: 'ring', tag: 'Accept is here' },
+          // The ring is on Accept itself (VariableDriftSection), so the
+          // default "Click here" names it.
+          coach: { side: 'top', align: 'start', emphasis: 'ring' },
         },
       ]
     case 'branches':

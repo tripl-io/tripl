@@ -1415,13 +1415,22 @@ function MetricRowMenu({ metric, slug, existingNames, isCoachTarget }: MetricRow
         >
           <Copy className="h-3.5 w-3.5 shrink-0 text-fg-tertiary" /> Duplicate as draft
         </DropdownMenuItem>
-        <DropdownMenuItem
-          className="text-body-sm"
-          disabled={busy}
-          onSelect={() => collectMut.mutate()}
+        {/* The collect step's second gesture, once its menu is open. */}
+        <ScenarioCoachMark
+          step="live-loop/collect-metric"
+          followUp
+          when={isCoachTarget}
+          tag="Then click here"
+          side="left"
         >
-          <RefreshCw className="h-3.5 w-3.5 shrink-0 text-fg-tertiary" /> Collect now
-        </DropdownMenuItem>
+          <DropdownMenuItem
+            className="text-body-sm"
+            disabled={busy}
+            onSelect={() => collectMut.mutate()}
+          >
+            <RefreshCw className="h-3.5 w-3.5 shrink-0 text-fg-tertiary" /> Collect now
+          </DropdownMenuItem>
+        </ScenarioCoachMark>
         <DropdownMenuItem
           className="text-body-sm"
           disabled={busy}

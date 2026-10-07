@@ -2,7 +2,10 @@ import { fireEvent, render, screen, waitFor, within } from '@testing-library/rea
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { MemoryRouter, Route, Routes, useLocation, useParams } from 'react-router-dom'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import type { MonitoringSignal, ScanConfig } from '@/types'
+import type { MonitoringSignal, Project, ScanConfig } from '@/types'
+import { DemoScenarioProvider } from '@/demo/DemoScenarioProvider'
+import { writeScenarioState } from '@/demo/scenarioModel'
+import { chapterState } from '@/demo/scenarioTestState'
 import AnomaliesPage from './AnomaliesPage'
 import { PageHeader } from '@/components/primitives/page-header'
 
@@ -1071,5 +1074,38 @@ describe('AnomaliesPage — drop signals held while a source is late (F16, #269)
 
     await waitFor(() => expect(sourceFreshnessApi.list).toHaveBeenCalled())
     expect(screen.queryByText(/drop signals held/)).toBeNull()
+  })
+})
+
+describe('AnomaliesPage — coached demo scenario', () => {
+  afterEach(() => {
+    window.localStorage.clear()
+  })
+
+  it("rings the seeded spike's row for the explore chapter", async () => {
+    // The row's label reads "Event · Home Screen View": the step matched the
+    // label against the bare name, found no row, and the chapter stuck.
+    writeScenarioState('demo', chapterState('explore', 'explore/visit-anomaly'))
+    vi.mocked(eventMetricsApi.getActiveSignals).mockResolvedValue([
+      makeSignal({ scope_type: 'event', scope_ref: 'ev-other', event_id: 'ev-other', scope_name: 'Paywall View' }),
+      makeSignal({ scope_type: 'event', scope_ref: 'ev-home', event_id: 'ev-home', scope_name: 'Home Screen View' }),
+    ])
+    const project = { id: 'p-1', name: 'Demo', slug: 'demo', is_demo: true, generation_status: 'ready' } as Project
+    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+    render(
+      <QueryClientProvider client={queryClient}>
+        <MemoryRouter initialEntries={['/p/demo/anomalies']}>
+          <DemoScenarioProvider project={project}>
+            <Routes>
+              <Route path="/p/:slug/anomalies" element={<AnomaliesPage />} />
+            </Routes>
+          </DemoScenarioProvider>
+        </MemoryRouter>
+      </QueryClientProvider>,
+    )
+
+    const coached = await screen.findByText(rowLabel('Spike on Event · Home Screen View'))
+    await waitFor(() => expect(coached).toHaveAttribute('data-coach-target', 'explore/visit-anomaly'))
+    expect(screen.getByText(rowLabel('Spike on Event · Paywall View'))).not.toHaveAttribute('data-coach-target')
   })
 })

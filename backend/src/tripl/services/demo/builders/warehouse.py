@@ -1,14 +1,18 @@
 """Warehouse builder: the synthetic scan surface and its metric series.
 
 Seeds the (never-queried) DataSource scoped to the demo project, a ScanConfig,
-the per-event and per-type ``EventMetric`` series, and the ``EventMetricBreakdown``
-platform split. Volumes come from the deterministic :mod:`demo.noise` helpers, so
-the shape is reproducible for a given ``(clock, seed)``.
+the per-event and per-type ``EventMetric`` series, and their
+``EventMetricBreakdown`` platform and app-version split over the whole seeded
+window. Everything comes from the demo's deterministic traffic model
+(:class:`~tripl.core.adapters.synthetic_traffic.DemoTraffic`, see
+``ctx.traffic``), so the shape is reproducible for a given ``(clock, seed)`` and
+the runtime tick and the synthetic source continue it.
 
 Shares series with the monitoring builder through the context (``home_series`` and
 ``type_bucket_counts``) so the real detector runs over exactly the stored counts,
-and publishes ``spike_bucket`` so the alerts builder's spike marker names the
-bucket the spike was actually written into.
+publishes ``spike_bucket`` so the alerts builder's spike marker names the bucket
+the spike was actually written into, and ``version_traffic`` so its release
+marker sits where a scan would put it.
 """
 
 from __future__ import annotations
@@ -26,12 +30,19 @@ from tripl.core.adapters.synthetic import (
     SPIKE_PLATFORM_SPLIT,
     SYNTHETIC_EVENT_NAMES,
 )
+from tripl.core.adapters.synthetic_traffic import traffic_params
 from tripl.models.data_source import DataSource, TestStatus
 from tripl.models.event_metric import EventMetric
 from tripl.models.event_metric_breakdown import EventMetricBreakdown
 from tripl.models.project import Project
 from tripl.models.scan_config import ScanConfig
 from tripl.services.demo import noise
+from tripl.services.demo.breakdowns import (
+    APP_VERSION_COLUMN,
+    PLATFORM_COLUMN,
+    EventVolume,
+    breakdown_rows,
+)
 from tripl.services.demo.builders.plan import event_specs
 from tripl.services.demo.scenario import DemoContext
 from tripl.services.project_service import demo_data_source_name
@@ -124,8 +135,8 @@ def _synthetic_event_group_rules() -> list[dict[str, object]]:
 async def build_warehouse(session: AsyncSession, ctx: DemoContext) -> None:
     await _build_data_source(session, ctx)
     await _build_scan_config(session, ctx)
-    await _build_event_metrics(session, ctx)
-    await _build_breakdown(session, ctx)
+    volumes = await _build_event_metrics(session, ctx)
+    await _build_breakdown(session, ctx, volumes)
 
 
 async def _build_data_source(session: AsyncSession, ctx: DemoContext) -> None:
@@ -157,13 +168,16 @@ async def _build_data_source(session: AsyncSession, ctx: DemoContext) -> None:
         last_test_status=TestStatus.success,
         last_test_at=ctx.now,
         last_test_message="Synthetic warehouse (demo)",
-        # The hour ``_build_event_metrics`` injects the spike into. The scheduled
-        # collection re-reads the newest hours and rewrites them, so the synthetic
-        # source has to serve the same spike or the first collection after
-        # generation erases the demo's one seeded signal.
+        # The hour ``_build_event_metrics`` injects the spike into, and the seed
+        # clock and seed of the demo's traffic. The scheduled collection re-reads
+        # the newest hours and rewrites them, so the synthetic source has to serve
+        # the same spike, volumes and platform / app-version split, or the first
+        # collection after generation erases the demo's one seeded signal and
+        # writes a different mix over the newest hours.
         extra_params={
             SPIKE_EVENT_KEY: SPIKE_EVENT_NAME,
             SPIKE_HOUR_KEY: _newest_seeded_bucket(ctx.now).isoformat(),
+            **traffic_params(ctx.traffic),
         },
     )
     session.add(data_source)
@@ -227,8 +241,8 @@ async def _build_scan_config(session: AsyncSession, ctx: DemoContext) -> None:
         # dataset carries both columns), so the presence matrix, per-platform
         # volume, version adoption, and release-regression features are live —
         # they go inert only if these columns are cleared.
-        platform_column="platform",
-        app_version_column="app_version",
+        platform_column=PLATFORM_COLUMN,
+        app_version_column=APP_VERSION_COLUMN,
         # Fresh by default (#269): ``last_event_at`` is the newest bucket
         # ``_build_event_metrics`` seeds (the hour before ``now``'s hour) and the
         # "collection" is the seed itself, just now. Unset, the demo would read
@@ -245,14 +259,18 @@ async def _build_scan_config(session: AsyncSession, ctx: DemoContext) -> None:
     ctx.scan_config_id = scan_config.id
 
 
-async def _build_event_metrics(session: AsyncSession, ctx: DemoContext) -> None:
+async def _build_event_metrics(
+    session: AsyncSession, ctx: DemoContext
+) -> dict[datetime, list[EventVolume]]:
+    """Write the volume series; return each hour's stored volumes for the breakdown."""
+    traffic = ctx.traffic
     buckets = noise.hour_buckets(ctx.now, days=noise.DEMO_HISTORY_DAYS)
-    total_buckets = len(buckets)
     spike_bucket = buckets[-1]  # newest full hour, ~1h before now (fresh signal)
     promo_buckets = set(weekly_promo_buckets(spike_bucket))
 
     type_bucket_counts: dict[tuple[uuid.UUID, datetime], int] = {}
     home_series: dict[datetime, int] = {}
+    volumes: dict[datetime, list[EventVolume]] = {}
 
     # Built as plain dicts and inserted in one executemany rather than one ORM
     # instance per row. 18 events x 552 hourly buckets plus the per-type
@@ -264,25 +282,38 @@ async def _build_event_metrics(session: AsyncSession, ctx: DemoContext) -> None:
     for spec in event_specs(ctx.now):
         event_id = ctx.event_ids[spec.name]
         et_id = ctx.event_type_ids[spec.event_type]
-        # Deterministic per-event noise keyed off the STABLE event name, not a
-        # random uuid — reproducible across reseeds and processes.
-        noise_seed = noise.derive_seed(ctx.seed, spec.name) % 997
         is_spike = spec.name == SPIKE_EVENT_NAME
         # The dead example has no volume after it was last seen, which with a
         # 45-day age is the whole seeded history.
         dead_after = (
             ctx.now - timedelta(days=DEAD_EVENT_AGE_DAYS) if spec.name == DEAD_EVENT_NAME else None
         )
-        for idx, bucket in enumerate(buckets):
+        for bucket in buckets:
             if dead_after is not None and bucket > dead_after:
                 continue
-            count = noise.hourly_volume(spec.base, bucket, idx, noise_seed, total_buckets)
+            # Deterministic per-event noise keyed off the STABLE event name, not
+            # a random uuid — reproducible across reseeds and processes.
+            usual = traffic.volume(spec.base, spec.name, bucket)
+            count = usual
+            excess_shares: dict[str, float] | None = None
             if is_spike and bucket == spike_bucket:
                 count *= noise.DEMO_SPIKE_MULTIPLIER
+                excess_shares = _SPIKE_PLATFORM_SPLIT
             if spec.name == WEEKLY_PROMO_EVENT_NAME and bucket in promo_buckets:
-                usual = count
                 count *= WEEKLY_PROMO_MULTIPLIER
                 ctx.weekly_promo_points.append((bucket, count, usual))
+            volumes.setdefault(bucket, []).append(
+                EventVolume(
+                    event_id=event_id,
+                    event_type_id=et_id,
+                    name=spec.name,
+                    event_type=spec.event_type,
+                    base=spec.base,
+                    count=count,
+                    excess=count - usual,
+                    excess_shares=excess_shares,
+                )
+            )
             event_rows.append(
                 {
                     "scan_config_id": ctx.scan_config_id,
@@ -319,94 +350,58 @@ async def _build_event_metrics(session: AsyncSession, ctx: DemoContext) -> None:
     # and once the demo runtime appended the ``now`` hour for real it labelled an
     # ordinary hour sitting right after the spike.
     ctx.spike_bucket = spike_bucket
+    return volumes
 
 
 # Who the injected spike comes from (F02, #255): almost all of the excess is
 # iOS, so the signal's "Why" panel has a clear story to tell ("85% of the spike
 # comes from platform = ios"). The ordinary part of the spike bucket keeps the
-# drifting mix every other bucket has.
+# mix every other bucket has.
 # The synthetic source serves the spike with the same mix (``SPIKE_PLATFORM_SPLIT``).
 _SPIKE_PLATFORM_SPLIT = SPIKE_PLATFORM_SPLIT
 
 
-def _platform_counts(
-    total: int, shares: dict[str, float], *, spike_excess: int = 0
-) -> dict[str, int]:
-    """``total`` split by ``shares``, with ``spike_excess`` of it split by the
-    spike's own mix instead."""
-    counts = noise.shares_to_counts(shares, total - spike_excess)
-    if spike_excess > 0:
-        for platform, extra in noise.shares_to_counts(_SPIKE_PLATFORM_SPLIT, spike_excess).items():
-            counts[platform] = counts.get(platform, 0) + extra
-    return counts
+async def _build_breakdown(
+    session: AsyncSession, ctx: DemoContext, volumes: dict[datetime, list[EventVolume]]
+) -> None:
+    """Platform and app-version split of every seeded hour, per event and per type.
 
-
-async def _build_breakdown(session: AsyncSession, ctx: DemoContext) -> None:
-    """Platform split over the drift span, hourly: Home Screen View's own rows
-    and the ``screen_view`` event-type rollup it belongs to.
-
-    Bucket totals reuse the stored series so the split sums to the volume chart;
-    the mix drifts (web up, iOS down) to match the seeded distribution-drift
-    badges. The injected spike's excess is split by ``_SPIKE_PLATFORM_SPLIT`` in
-    both, so the event, event-type and project-total signals it trips all have
-    a platform attribution.
+    Over the whole seeded window and for every event with volume, so the
+    version-adoption and platform charts cover the same days as the volume
+    chart. Each hour splits the stored count (``breakdown_rows``), so the split
+    sums to the volume chart; the runtime tick and the synthetic source split
+    the hours after the seed the same way. Versions roll out on the release
+    train of ``DemoTraffic.version_shares``; the platform mix is steady per
+    event, except that ``screen_view`` drifts towards web over the last
+    ``noise.DEMO_DRIFT_SPAN_DAYS``, the movement the seeded distribution-drift
+    badges report. The injected spike's excess is split by
+    ``_SPIKE_PLATFORM_SPLIT``, so the event, event-type and project-total
+    signals it trips all have a platform attribution.
     """
-    buckets = noise.hour_buckets(ctx.now, days=noise.DEMO_HISTORY_DAYS)
-    total_buckets = len(buckets)
-    spike_event_id = ctx.event_ids[SPIKE_EVENT_NAME]
-    screen_view_type_id = ctx.event_type_ids["screen_view"]
-    fallback_seed = noise.derive_seed(ctx.seed, SPIKE_EVENT_NAME) % 997
-
-    breakdown_buckets = noise.hour_buckets(ctx.now, days=noise.DEMO_DRIFT_SPAN_DAYS)
-    breakdown_rows: list[dict[str, object]] = []
-    for idx, bucket in enumerate(breakdown_buckets):
-        total_count = ctx.home_series.get(
-            bucket,
-            noise.hourly_volume(1800, bucket, idx, fallback_seed, total_buckets),
-        )
-        spike_excess = (
-            total_count - total_count // noise.DEMO_SPIKE_MULTIPLIER
-            if ctx.spike_bucket is not None and bucket == ctx.spike_bucket
-            else 0
-        )
-        days_before = (ctx.now - bucket).total_seconds() / 86400.0
-        shares = noise.platform_shares(noise.drift_span_progress(days_before))
-        home_counts = _platform_counts(total_count, shares, spike_excess=spike_excess)
-        breakdown_rows.extend(
-            {
-                "scan_config_id": ctx.scan_config_id,
-                "event_id": spike_event_id,
-                "event_type_id": None,
-                "bucket": bucket,
-                "breakdown_column": "platform",
-                "breakdown_value": platform,
-                "is_other": False,
-                "count": max(1, count),
-            }
-            for platform, count in home_counts.items()
-        )
-        # The rollup: Home's split plus the rest of screen_view at the plain mix.
-        type_total = ctx.type_bucket_counts.get((screen_view_type_id, bucket))
-        if type_total is None:
-            continue
-        rest_counts = noise.shares_to_counts(shares, max(type_total - total_count, 0))
-        breakdown_rows.extend(
-            {
-                "scan_config_id": ctx.scan_config_id,
-                "event_id": None,
-                "event_type_id": screen_view_type_id,
-                "bucket": bucket,
-                "breakdown_column": "platform",
-                "breakdown_value": platform,
-                "is_other": False,
-                "count": max(1, count + rest_counts.get(platform, 0)),
-            }
-            for platform, count in home_counts.items()
-        )
+    scan_config_id = ctx.scan_config_id
+    if scan_config_id is None:
+        return
+    traffic = ctx.traffic
+    rows: list[dict[str, object]] = []
+    version_traffic: dict[str, dict[datetime, int]] = {}
+    for bucket, hour_volumes in sorted(volumes.items()):
+        hour_rows = breakdown_rows(traffic, bucket, hour_volumes, scan_config_id=scan_config_id)
+        rows.extend(hour_rows)
+        for row in hour_rows:
+            count = row["count"]
+            if (
+                row["breakdown_column"] != APP_VERSION_COLUMN
+                or row["event_id"] is None
+                or not isinstance(count, int)
+            ):
+                continue
+            series = version_traffic.setdefault(str(row["breakdown_value"]), {})
+            series[bucket] = series.get(bucket, 0) + count
     # Same executemany treatment as the volume rows above. The ORM's bulk insert
     # groups CONSECUTIVE rows by which columns are NULL, so the event rows
     # (event_type_id NULL) and the rollup rows (event_id NULL) go in as two
     # contiguous runs; interleaved, it issued one INSERT per bucket.
-    breakdown_rows.sort(key=lambda row: row["event_id"] is None)
-    if breakdown_rows:
-        await session.execute(insert(EventMetricBreakdown), breakdown_rows)
+    rows.sort(key=lambda row: row["event_id"] is None)
+    if rows:
+        await session.execute(insert(EventMetricBreakdown), rows)
+    ctx.version_traffic = version_traffic

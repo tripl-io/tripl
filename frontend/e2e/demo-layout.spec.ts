@@ -192,6 +192,16 @@ for (const [name, viewport] of [
     await expect(guide.getByRole('button', { name: 'Minimise the demo guide' })).toBeVisible()
     // The coached Run sits in a clickable row; a click on the old card opened the scan.
     expect(page.url()).toBe(url)
+    // Hidden hints leave the guide's face in its corner: the way back to them,
+    // where testers used to scroll up to the strip to find one.
+    await guide.getByRole('button', { name: 'Hide hints' }).click()
+    const face = page.locator('[data-demo-guide][data-guide-mode="face"]')
+    await expect(face).toBeVisible()
+    await expect(page.locator('.coach-ring')).toHaveCount(0)
+    await expectInsideViewport(page, face, 'the hidden hints’ face')
+    await face.getByRole('button', { name: /^Show demo hints/ }).click()
+    await expect(guide).toContainText(RUN_SCAN_INSTRUCTION)
+    await expect(page.locator('.coach-ring')).toBeVisible()
     if (viewport === PHONE) {
       // A phone gets the screen's width, less a 12px gutter on each side.
       const width = (await boxOf(guide, 'the demo guide')).width

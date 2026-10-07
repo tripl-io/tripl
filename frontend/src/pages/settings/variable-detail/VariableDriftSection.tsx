@@ -142,8 +142,6 @@ export function VariableDriftSection({
                 {canWrite && (
                   <ScenarioCoachMark
                     step="variables/see-drift"
-                    // The action group is the useful target; anchoring the
-                    // whole row makes the callout cover the form above it.
                     // Only an ACTIVE row: a collapsed one — snoozed or
                     // resolved — offers nothing but the button that puts it
                     // back on the open list.
@@ -157,9 +155,18 @@ export function VariableDriftSection({
                     <div className="flex shrink-0 flex-wrap gap-1">
                       {state === 'active' ? (
                         <>
-                          <Button type="button" size="sm" variant="outline" className={actionClass} disabled={driftActionMut.isPending} onClick={() => driftActionMut.mutate({ driftId: drift.id, action: 'accept', scope: 'global' })}>
-                            Accept
-                          </Button>
+                          {/* The step's ring is on Accept itself: around the
+                              whole group, it left four buttons to answer
+                              "Accept is here". */}
+                          <ScenarioCoachMark
+                            step="variables/see-drift"
+                            followUp
+                            when={driftIndex === 0 && variable.name === SCENARIO_SEEDED.driftVariableName}
+                          >
+                            <Button type="button" size="sm" variant="outline" className={actionClass} disabled={driftActionMut.isPending} onClick={() => driftActionMut.mutate({ driftId: drift.id, action: 'accept', scope: 'global' })}>
+                              Accept
+                            </Button>
+                          </ScenarioCoachMark>
                           <Button type="button" size="sm" variant="outline" className={actionClass} disabled={driftActionMut.isPending} onClick={() => driftActionMut.mutate({ driftId: drift.id, action: 'accept', scope: 'event' })}>
                             Accept for event
                           </Button>

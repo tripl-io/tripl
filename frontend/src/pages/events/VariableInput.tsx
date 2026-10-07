@@ -1,5 +1,7 @@
 import { type RefObject, useCallback, useEffect, useId, useMemo, useRef, useState } from 'react'
 import { AnchoredListbox } from '@/components/ui/anchored-listbox'
+import { ScenarioCoachMark } from '@/demo/ScenarioCoachMark'
+import { SCENARIO_SEEDED } from '@/demo/scenarioModel'
 import { cn } from '@/lib/utils'
 import { useEvDescribedBy } from './evFieldContext'
 import { TEXT_INPUT_CLASS } from './eventFormLayout'
@@ -77,18 +79,28 @@ export function SuggestionListbox({
   return (
     <AnchoredListbox id={id} open={open} anchorRef={anchorRef} onDismiss={onDismiss} ariaLabel="Properties">
       {suggestions.map((v, i) => (
-        <button
+        // The demo's set-token step ends on this option, which the ring on
+        // the field left for the visitor to find in the list.
+        <ScenarioCoachMark
           key={v.name}
-          id={`${id}-opt-${i}`}
-          type="button"
-          role="option"
-          tabIndex={-1}
-          aria-selected={i === highlightIdx}
-          onMouseDown={e => { e.preventDefault(); onPick(v.name) }}
-          className={`flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-body-sm ${i === highlightIdx ? 'bg-surface-hover text-foreground' : 'text-popover-foreground hover:bg-surface-hover'}`}
+          step="edit-event/set-token"
+          followUp
+          when={`\${${v.name}}` === SCENARIO_SEEDED.editedFieldToken}
+          tag="Then pick this"
+          side="right"
         >
-          <SuggestionRow suggestion={v} />
-        </button>
+          <button
+            id={`${id}-opt-${i}`}
+            type="button"
+            role="option"
+            tabIndex={-1}
+            aria-selected={i === highlightIdx}
+            onMouseDown={e => { e.preventDefault(); onPick(v.name) }}
+            className={`flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-body-sm ${i === highlightIdx ? 'bg-surface-hover text-foreground' : 'text-popover-foreground hover:bg-surface-hover'}`}
+          >
+            <SuggestionRow suggestion={v} />
+          </button>
+        </ScenarioCoachMark>
       ))}
     </AnchoredListbox>
   )

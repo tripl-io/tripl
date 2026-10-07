@@ -37,6 +37,19 @@ executed, and what is intentionally unavailable.
   weekly sends of a *Weekly promo email* lift **Paywall View** at the same hour,
   each marked *expected*, so the Annotations page suggests planning the next
   ones.
+- **The platform and app-version split.** Every event's volume is split by
+  platform and by app version over the whole seeded history, so the **By
+  version** tab and the platform breakdowns cover the same days as the volume
+  chart. The app ships a release every two weeks: a new version runs at a
+  fraction of a percent as an internal beta for a few days, then takes over
+  along an S-curve — about half of the traffic within four days — while the
+  version before it fades and older ones keep a long tail. **1.4.0** started
+  rolling out six days before the demo was generated and carries the demo's one
+  *Release 1.4.0* marker, at the hour it reached 5% of traffic; the next
+  release follows two weeks later if the demo keeps running. Each event keeps a
+  steady platform mix of its own, except the `screen_view` events, which move
+  towards web over the last eight days — the shift the seeded distribution-drift
+  signals on `screen_view.platform` report.
 
 ## What is really executed (the same code paths as a real project)
 
@@ -61,7 +74,11 @@ synthetic source:
   active demo fresh over time (new buckets, jobs and signals), with retention caps
   so it never grows without bound. The runtime adds ordinary traffic only, so
   the seeded *Injected demo spike* chart marker is removed together with the
-  anomaly it explains once both age past the retention window. The synthetic
+  anomaly it explains once both age past the retention window. Each new hour
+  continues the seeded platform and app-version split from the same model, and
+  the synthetic warehouse serves the newest hours with exactly that split and
+  volume, so a scheduled collection that re-reads them writes back what the
+  demo already shows. The synthetic
   warehouse serves that spike hour too, and the demo scores its newest hour
   with no ingestion-settling delay (the synthetic source delivers every hour
   complete), so the scheduled collection that re-reads the hour detects the
@@ -190,20 +207,29 @@ The demo offers two guides, and they do different jobs.
   wears a pulsing ring and a small tag pointing at it, such as **Click here**,
   **Type here** or **Open this menu**. The ring is clipped to what can be seen of
   the control, and the ring and tag step aside while something else, such as a
-  dialog or a menu, covers the control.
+  dialog or a menu, covers the control. When the control opens a menu or a
+  dialog of its own, the ring moves on to what you click next in it — **Collect
+  now** in the metric's menu, **Replay** in the rule's, **Create** in the new
+  rule, **Accept** on the schema drift, the `${product_id}` suggestion — and back
+  to the control if you close it.
 
   The **demo guide** — a small card with a friendly face, in a corner of the
   window — says what the step is for and what to do next. It takes the emptiest
   corner that covers neither the control nor an open dialog or menu, and stays
-  there until something needs that corner. When no corner is free (a large
-  dialog, say), it folds into a round button showing the step number; click it to
-  read the step. You can minimise the card yourself at any time. On a phone it
+  there until something needs that corner. When a large dialog leaves no corner
+  of the page free, a narrower card takes the edge of the screen beside the
+  dialog, so the step stays readable while you work in it; only when there is no
+  room even for that does it fold into a round button showing the step number —
+  click it to read the step. You can minimise the card yourself at any time. On
+  a phone it
   spans the width of the screen, at the bottom, or at the top while the control
   is down there. The page gets room underneath the card, so nothing ends up
   stuck behind it.
 
   When the control is not on the page you are on, the guide says where it is:
-  it rings the sidebar item that leads there and offers **Take me there**. If
+  it rings the sidebar item that leads there — or, when the step lives in another
+  section of the page you are on (Alerting's **Rules**), the tab that opens it —
+  and offers **Take me there**. If
   you leave a step halfway (closing the event editor, for instance), the ring
   moves to the way back (the event's edit button). When the control should be on
   the page and is not, the guide says so, and adds that resetting the demo
@@ -212,9 +238,16 @@ The demo offers two guides, and they do different jobs.
 
   Screen readers hear the step's instruction as the control's description.
   **Hide hints** — on the guide, or in the strip — quiets the ring, the tag and
-  the guide for the rest of the browser session on that project; **Show hints**
-  in the strip brings them back. All of it is demo-only and never appears in a
-  real project.
+  the guide for the rest of the browser session on that project. The guide's
+  face stays in its corner: click it, or **Show hints** in the strip, to bring
+  them back. All of it is demo-only and never appears in a real project.
+
+  When a chapter is complete, the guide says so and offers the next one —
+  **Start the chapter** takes you to its first page with its first step live.
+  After the last chapter it points out of the demo: **Create a real project** on
+  your own instance, or **Run tripl yourself**, the
+  [Quick Start](../quick-start.md), on a public demo, which has no projects of
+  your own to create. The strip offers the same.
 
   The chapters follow **your** actions, not the demo's. The runtime clock is
   producing real scans and collections of its own in the background, so a step
@@ -235,7 +268,8 @@ The demo offers two guides, and they do different jobs.
   onboarding: **Start: &lt;chapter&gt;** (or **Continue: &lt;chapter&gt;** once you
   have begun), **Browse chapters**, which opens the *Tour &amp; chapters* dialog
   — **Hands-on chapters** first, then the **Quick overview** stepper — and
-  **Create a real project**. Dismissing the panel outright (the **✕**) hides it
+  **Create a real project** (not on a public demo, where there is none to
+  create). Dismissing the panel outright (the **✕**) hides it
   for that project and offers **Undo** for a few seconds. After that, the demo
   bar's **Tour &amp; chapters** button — present on every demo surface, for
   everyone — opens the same dialog, and the tour offers **Show the welcome panel

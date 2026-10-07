@@ -24,6 +24,7 @@ import { useDemoScenario, useDemoScenarioActions } from './demoScenarioContext'
 import { ProductTour } from './ProductTour'
 import type { ChapterListEntry } from './scenarioModel'
 import { setWelcomeDismissed, useWelcomeDismissed } from './welcomeDismissal'
+import { usePublicDemo } from '@/lib/deploymentMode'
 import { workspacePath } from '@/lib/navigation'
 
 export function DemoWelcomePanel({ project }: { project: Project }) {
@@ -32,6 +33,7 @@ export function DemoWelcomePanel({ project }: { project: Project }) {
   const { available, chapters, state } = useDemoScenario()
   const { startChapter } = useDemoScenarioActions()
   const dismissed = useWelcomeDismissed(project.slug)
+  const publicDemo = usePublicDemo()
 
   if (dismissed) return null
 
@@ -97,10 +99,13 @@ export function DemoWelcomePanel({ project }: { project: Project }) {
         {/* The demo never pointed at the real product, so the funnel it is
             the front of ended in a dead stop. The dashboard is
             where "New project — start empty and connect your own warehouse"
-            lives. */}
-        <Button asChild size="xs" variant="ghost">
-          <Link to={workspacePath()}>Create a real project</Link>
-        </Button>
+            lives. Not on a public demo: the server refuses a blank project
+            there, and the link led nowhere. */}
+        {!publicDemo && (
+          <Button asChild size="xs" variant="ghost">
+            <Link to={workspacePath()}>Create a real project</Link>
+          </Button>
+        )}
         {/* A 36px target, pulled into the row's padding so the row
             stays one line high. */}
         <button

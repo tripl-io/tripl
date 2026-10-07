@@ -25,7 +25,9 @@ from sqlalchemy.orm import Session, sessionmaker
 from sqlalchemy.sql.dml import Insert
 
 from tripl.core.adapters.base import ColumnInfo
+from tripl.core.adapters.synthetic_traffic import REFERENCE_RELEASE, DemoTraffic
 from tripl.core.analyzers.event_generator import GenerationResult
+from tripl.core.bucketing import to_utc
 from tripl.models import Base
 from tripl.models.chart_annotation import ChartAnnotation
 from tripl.models.data_source import DataSource
@@ -35,6 +37,7 @@ from tripl.models.event_metric_breakdown import EventMetricBreakdown
 from tripl.models.event_type import EventType
 from tripl.models.project import Project
 from tripl.models.scan_config import ScanConfig
+from tripl.services.demo import DEMO_SEED
 from tripl.services.demo.builders.alerts import DEMO_RELEASE_VERSION
 from tripl.services.demo_service import create_demo_project
 from tripl.services.release_annotations import (
@@ -593,6 +596,10 @@ async def test_demo_shows_exactly_one_release_annotation() -> None:
         created = await create_demo_project(session)
         project = await session.scalar(select(Project).where(Project.slug == created.slug))
         assert project is not None
+        # The column, not the attribute: the seed ran on a session of its own.
+        seeded_at = await session.scalar(
+            select(Project.demo_seeded_at).where(Project.id == project.id)
+        )
         releases = (
             (
                 await session.execute(
@@ -608,3 +615,8 @@ async def test_demo_shows_exactly_one_release_annotation() -> None:
 
     assert [row.label for row in releases] == [release_annotation_label(DEMO_RELEASE_VERSION)]
     assert releases[0].scope_type is None
+    # Where a scan puts it: the hour the release crossed the activation gate, on
+    # the first day of its rollout — not a fixed age before the seed clock.
+    assert seeded_at is not None
+    rollout = DemoTraffic(anchor=seeded_at, seed=DEMO_SEED).rollout_start(REFERENCE_RELEASE)
+    assert rollout < to_utc(releases[0].bucket) < rollout + timedelta(days=1)

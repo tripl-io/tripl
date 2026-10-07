@@ -78,6 +78,9 @@ function TabsTrigger({
   return (
     <TabsPrimitive.Trigger
       data-slot="tabs-trigger"
+      // The tab's value on the DOM: the demo guide rings the tab that opens a
+      // step's section (`?section=monitors` → Rules) by it.
+      data-tab-value={props.value}
       className={cn(
         variant === "segmented"
           ? [segmentedItemVariants({ size }), SEGMENTED_ACTIVE]

@@ -22,7 +22,14 @@ const SRC = resolve(dirname(fileURLToPath(import.meta.url)), '..')
 
 // Components that pass `ref` through to a DOM node (React 19: `ref` is a prop,
 // and each of these spreads its props onto the element or a Radix primitive).
-const REF_FORWARDING = new Set(['Button', 'IconButton', 'Link', 'TableRow', 'DropdownMenuTrigger'])
+const REF_FORWARDING = new Set([
+  'Button',
+  'IconButton',
+  'Link',
+  'TableRow',
+  'DropdownMenuTrigger',
+  'DropdownMenuItem',
+])
 
 function tsxFiles(dir: string): string[] {
   return readdirSync(dir).flatMap((name) => {

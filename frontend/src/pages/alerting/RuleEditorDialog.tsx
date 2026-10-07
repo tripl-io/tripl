@@ -10,6 +10,7 @@ import { Dialog, DialogBody, DialogContent, DialogFooter, DialogHeader, DialogTi
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { ScenarioCoachMark } from "@/demo/ScenarioCoachMark"
 import { useDirtySinceOpen, useUnsavedDialogGuard } from "@/hooks/useUnsavedChangesGuard"
 import { FieldError } from "@/components/forms/FieldError"
 import { REQUIRED_MESSAGE, focusFirstInvalid } from "@/components/forms/validation"
@@ -819,9 +820,18 @@ export function RuleEditorDialog({
           )}
           <DialogFooter>
             <Button type="button" variant="outline" onClick={requestClose}>Cancel</Button>
-            <Button type="submit" disabled={isPending}>
-              {isEditing ? 'Save' : 'Create'}
-            </Button>
+            {/* The demo's create-rule step goes on in here: its ring was on
+                Add rule, under this dialog now. */}
+            <ScenarioCoachMark
+              step="alerting/create-rule"
+              followUp
+              when={!isEditing}
+              tag="Name it, then click here"
+            >
+              <Button type="submit" disabled={isPending}>
+                {isEditing ? 'Save' : 'Create'}
+              </Button>
+            </ScenarioCoachMark>
           </DialogFooter>
         </form>
       </DialogContent>

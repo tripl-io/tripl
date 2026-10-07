@@ -335,11 +335,14 @@ export default function AnomaliesPage() {
   const sorted = [...filtered].sort(compareSignalsByMagnitude)
   // The demo scenario's anomaly step points at one row: the first seeded spike
   // that opens a drilldown. The coach mark itself stays quiet outside a demo.
+  // Matched on the event's own name, never on the row's label: the label
+  // became "Event · Home Screen View", the step silently lost its row, and
+  // the explore chapter stuck on "isn't visible".
   const coachedSignal = sorted.find(
     (signal) =>
       signal.direction !== 'drop' &&
-      isLinkableScope(signal) &&
-      signalScopeLabel(signal) === SCENARIO_SEEDED.anomalyEventName,
+      signal.scope_type === 'event' &&
+      signal.scope_name === SCENARIO_SEEDED.anomalyEventName,
   )
   // What "Show hidden" would bring back into THIS view: hidden signals that pass
   // the magnitude level and scan facet. Counting the whole list offered rows the

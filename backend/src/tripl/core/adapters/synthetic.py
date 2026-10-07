@@ -38,6 +38,14 @@ Design
   reading a near-empty warehouse and stamping a spurious drop.
   Older hours stay at a small "sample" scale so the 30-day dataset (preview,
   active-sessions history) stays comfortably within the row budget.
+* A generated demo's source also carries the demo's own traffic model
+  (:func:`~tripl.core.adapters.synthetic_traffic.stored_traffic`). Built with
+  it, the ongoing hours serve EXACTLY what the demo stored for them — each
+  event's volume and its platform and app-version split — and every row's
+  platform and version follow the model's mix, so the scheduled collection that
+  rewrites the newest hours writes back what is already there. Without one (any
+  other synthetic source, every test that builds the adapter directly) the
+  dataset is exactly what it always was.
 * Every abstract method aggregates the in-memory rows in Python according to the
   STRUCTURED params it receives (time window, regular/breakdown columns,
   aggregation + measure, ``AggregateSpec`` list, top-N ``values_limit``). It does
@@ -70,6 +78,7 @@ from __future__ import annotations
 import hashlib
 import math
 import re
+from collections.abc import Mapping
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from typing import NamedTuple
@@ -83,6 +92,7 @@ from tripl.core.adapters.base import (
 )
 from tripl.core.adapters.errors import WarehouseCapabilityError
 from tripl.core.adapters.measure_validator import coerce_aggregation, requires_measure
+from tripl.core.adapters.synthetic_traffic import DemoTraffic
 from tripl.core.bucketing import floor_to_bucket, to_utc
 from tripl.json_paths import is_property_field
 from tripl.models.domain_enums import MetricAggregation
@@ -925,6 +935,7 @@ def _ongoing_hour_rows(
     session_span: int,
     day_ordinal: int,
     spike: SyntheticSpike | None = None,
+    traffic: DemoTraffic | None = None,
 ) -> list[dict[str, object]]:
     """One ongoing-window hour: each event at its seeded ``ongoing_base`` volume.
 
@@ -933,15 +944,33 @@ def _ongoing_hour_rows(
     ``SPIKE_PLATFORM_SPLIT``. The scheduled collection re-reads the newest hours
     and rewrites them, so a warehouse without the spike erased the demo's seeded
     signal at the first top of the hour after the demo was generated.
+
+    With the demo's ``traffic`` the hour is the demo's own: see
+    :func:`_traffic_event_rows`.
     """
     out: list[dict[str, object]] = []
     for event_def in _EVENT_DEFS:
         if event_def.retired:
             continue
         event_name = event_def.event_name
+        spiked = spike is not None and spike.event_name == event_name and spike.hour == bucket
+        if traffic is not None:
+            out.extend(
+                _traffic_event_rows(
+                    seed,
+                    bucket,
+                    epoch_hour,
+                    session_span,
+                    day_ordinal,
+                    event_def,
+                    traffic,
+                    spiked=spiked,
+                )
+            )
+            continue
         count = _ongoing_hourly_count(seed, event_def.ongoing_base, event_name, bucket)
         total = count
-        if spike is not None and spike.event_name == event_name and spike.hour == bucket:
+        if spiked:
             total = count * SPIKE_MULTIPLIER
         for k in range(total):
             occ = (epoch_hour, event_name, k)
@@ -952,19 +981,112 @@ def _ongoing_hour_rows(
     return out
 
 
-def _sampled_hour_rows(
-    seed: int, bucket: datetime, epoch_hour: int, session_span: int, day_ordinal: int
+def _traffic_event_rows(
+    seed: int,
+    bucket: datetime,
+    epoch_hour: int,
+    session_span: int,
+    day_ordinal: int,
+    event_def: SyntheticEventDef,
+    traffic: DemoTraffic,
+    *,
+    spiked: bool,
 ) -> list[dict[str, object]]:
-    """One older-history hour: a small sampled scatter across the event roster."""
+    """One event's rows in one ongoing hour of a demo's own traffic.
+
+    The volume the demo stored for the hour, exactly, and exactly its platform
+    and app-version split — the counts ``services.demo.breakdowns`` writes for
+    the seeder and the runtime tick — so a collection that rewrites the hour
+    writes back what is already there. Before, every row drew its version and
+    platform uniformly, and each collection overwrote the newest hours with
+    three versions at a third each against a history that had none.
+    """
+    event_name = event_def.event_name
+    count = traffic.volume(event_def.ongoing_base, event_name, bucket)
+    excess = count * (SPIKE_MULTIPLIER - 1) if spiked else 0
+    platforms = traffic.platform_counts(
+        bucket,
+        event_name=event_name,
+        event_type=event_def.event_type,
+        base=event_def.ongoing_base,
+        count=count,
+        excess=excess,
+        excess_shares=SPIKE_PLATFORM_SPLIT if spiked else None,
+    )
+    versions = traffic.version_counts(bucket, event_name=event_name, count=count + excess)
+    platform_of = _spread(platforms, seed, "traffic_platform", epoch_hour, event_name)
+    version_of = _spread(versions, seed, "traffic_version", epoch_hour, event_name)
+    out: list[dict[str, object]] = []
+    for k in range(count + excess):
+        occ = (epoch_hour, event_name, k)
+        row = _event_row(seed, bucket, event_def, session_span, day_ordinal, *occ)
+        row["platform"] = platform_of[k]
+        row["app_version"] = version_of[k]
+        out.append(row)
+    return out
+
+
+def _spread(counts: Mapping[str, int], *key: object) -> list[str]:
+    """``counts`` as one value per row, interleaved in a deterministic order.
+
+    A stride through the grouped values rather than a shuffle: the counts stay
+    exact, no row needs a digest of its own, and a preview page is not one
+    platform's run of rows.
+    """
+    values = [value for value, count in counts.items() for _ in range(count)]
+    total = len(values)
+    if total < 2:
+        return values
+    stride = max(1, round(total * 0.618))
+    while math.gcd(stride, total) != 1:
+        stride += 1
+    offset = _digest_int(*key) % total
+    return [values[(offset + k * stride) % total] for k in range(total)]
+
+
+def _pick_share(shares: Mapping[str, float], *key: object) -> str:
+    """One value drawn from ``shares`` by a digest of ``key``."""
+    roll = (_digest_int(*key) % 1_000_000) / 1_000_000 * math.fsum(shares.values())
+    chosen = ""
+    for value, share in shares.items():
+        chosen = value
+        if roll < share:
+            break
+        roll -= share
+    return chosen
+
+
+def _sampled_hour_rows(
+    seed: int,
+    bucket: datetime,
+    epoch_hour: int,
+    session_span: int,
+    day_ordinal: int,
+    traffic: DemoTraffic | None = None,
+) -> list[dict[str, object]]:
+    """One older-history hour: a small sampled scatter across the event roster.
+
+    With the demo's ``traffic``, each row's platform and app version are drawn
+    from the demo's mix for that hour instead of evenly, so a preview of older
+    rows shows the versions the demo's charts do.
+    """
     out: list[dict[str, object]] = []
     n_events = 3 + _digest_int(seed, "ev_count", epoch_hour) % 6
+    version_shares = traffic.version_shares(bucket) if traffic is not None else None
     for j in range(n_events):
         event_def = _EVENT_DEFS[_digest_int(seed, "ev_def", epoch_hour, j) % len(_EVENT_DEFS)]
         # Skipped rather than re-drawn from a shorter roster, so every other
         # identity keeps exactly the rows it had before it was retired.
         if event_def.retired:
             continue
-        out.append(_event_row(seed, bucket, event_def, session_span, day_ordinal, epoch_hour, j))
+        row = _event_row(seed, bucket, event_def, session_span, day_ordinal, epoch_hour, j)
+        if traffic is not None and version_shares is not None:
+            platform_shares = traffic.platform_shares(
+                bucket, event_name=event_def.event_name, event_type=event_def.event_type
+            )
+            row["platform"] = _pick_share(platform_shares, seed, "sample_plat", epoch_hour, j)
+            row["app_version"] = _pick_share(version_shares, seed, "sample_ver", epoch_hour, j)
+        out.append(row)
     return out
 
 
@@ -999,6 +1121,7 @@ def _generate_events(
     history_days: int,
     max_rows: int,
     spike: SyntheticSpike | None = None,
+    traffic: DemoTraffic | None = None,
 ) -> list[dict[str, object]]:
     """Deterministic hourly events over the last ``history_days`` before ``anchor``.
 
@@ -1011,6 +1134,11 @@ def _generate_events(
     part a live scan reads back, so spending the row budget on the old sampled
     tail and clipping the newest hours would read as a volume drop on every
     series — the exact failure the ongoing window exists to prevent.
+
+    With a demo's ``traffic`` the ongoing hours are the demo's stored hours, and
+    those keep the stored series' slow upward drift: a demo left running for
+    many months outgrows the budget. Then it is the OLDEST ongoing hours that go,
+    whole, never a slice of the newest.
     """
     start = anchor - timedelta(days=history_days)
     total_hours = history_days * 24
@@ -1027,15 +1155,24 @@ def _generate_events(
         bucket = start + timedelta(hours=offset)
         return bucket, _epoch_hour(bucket), bucket.date().toordinal()
 
-    ongoing: list[dict[str, object]] = []
+    ongoing_hours: list[list[dict[str, object]]] = []
     for hour in range(ongoing_start_hour, total_hours):
         bucket, epoch_hour, day_ordinal = hour_keys(hour)
-        ongoing.extend(
+        ongoing_hours.append(
             _ongoing_hour_rows(
-                seed, bucket, epoch_hour, _session_span(seed, day_ordinal), day_ordinal, spike
+                seed,
+                bucket,
+                epoch_hour,
+                _session_span(seed, day_ordinal),
+                day_ordinal,
+                spike,
+                traffic,
             )
         )
-    ongoing = ongoing[:max_rows]
+    if traffic is None:
+        ongoing = [row for rows in ongoing_hours for row in rows][:max_rows]
+    else:
+        ongoing = _newest_hours_within(ongoing_hours, max_rows)
 
     older: list[dict[str, object]] = []
     older_budget = max_rows - len(ongoing)
@@ -1045,10 +1182,24 @@ def _generate_events(
             break
         bucket, epoch_hour, day_ordinal = hour_keys(hour)
         hour_rows = _sampled_hour_rows(
-            seed, bucket, epoch_hour, _session_span(seed, day_ordinal), day_ordinal
+            seed, bucket, epoch_hour, _session_span(seed, day_ordinal), day_ordinal, traffic
         )
         older.extend(hour_rows[:remaining])
     return older + ongoing
+
+
+def _newest_hours_within(
+    hours: list[list[dict[str, object]]], max_rows: int
+) -> list[dict[str, object]]:
+    """The newest whole hours of ``hours`` (oldest first) that fit in ``max_rows``."""
+    kept: list[list[dict[str, object]]] = []
+    budget = max_rows
+    for rows in reversed(hours):
+        if len(rows) > budget:
+            break
+        kept.append(rows)
+        budget -= len(rows)
+    return [row for rows in reversed(kept) for row in rows]
 
 
 def _generate_orders(
@@ -1114,6 +1265,7 @@ class SyntheticAdapter(BaseAdapter):
         timeout_seconds: int | None = None,
         max_rows: int = SYNTHETIC_MAX_ROWS,
         spike: SyntheticSpike | None = None,
+        traffic: DemoTraffic | None = None,
     ) -> None:
         self._seed = seed
         self._history_days = history_days
@@ -1143,7 +1295,7 @@ class SyntheticAdapter(BaseAdapter):
         # anchor for exactness (a midnight anchor floors identically either way).
         base = to_utc(anchor) if anchor is not None else datetime.now(UTC)
         self._anchor = base.replace(minute=0, second=0, microsecond=0)
-        self._events = _generate_events(seed, self._anchor, history_days, max_rows, spike)
+        self._events = _generate_events(seed, self._anchor, history_days, max_rows, spike, traffic)
         self._orders = _generate_orders(seed, self._anchor, history_days, max_rows)
         self._enforce_budget("events", self._events)
         self._enforce_budget("orders", self._orders)

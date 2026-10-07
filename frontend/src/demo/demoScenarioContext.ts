@@ -146,6 +146,14 @@ export function entryPresenceKey(step: ScenarioStepId): string {
   return `${step}@entry`
 }
 
+/**
+ * The presence key of a mark on `step`'s second gesture — the menu item or
+ * the dialog's button its control opens (`ScenarioCoachMark`'s `followUp`).
+ */
+export function followUpPresenceKey(step: ScenarioStepId): string {
+  return `${step}@then`
+}
+
 export const INERT_COACH_PRESENCE: CoachPresence = {
   present: new Set<string>(),
   report: () => {},

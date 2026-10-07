@@ -8,7 +8,7 @@
  * whether a watch is in flight, and why live-loop went backwards. When a
  * chapter lands it offers the next one in order, beside Restart and a
  * per-chapter Dismiss — and when there is no next one, the way out of the demo
- * into a real project.
+ * (EndOfDemoLink): a real project, or on a public demo the quick start.
  *
  * What to do on the page is the demo guide's to say — beside the coach mark
  * on the step's control (ScenarioCoachMark), or, with no mark on screen, from
@@ -18,7 +18,7 @@
 
 import type { ReactNode } from 'react'
 import { Link, useLocation } from 'react-router-dom'
-import { ArrowRight, Eye, EyeOff, Plus, RotateCcw, X } from 'lucide-react'
+import { ArrowRight, Eye, EyeOff, RotateCcw, X } from 'lucide-react'
 import { Chip } from '@/components/primitives/chip'
 import { Dot } from '@/components/primitives/dot'
 import { Button } from '@/components/ui/button'
@@ -37,8 +37,8 @@ import {
   type ScenarioHint,
   type ScenarioStep,
 } from './scenarioModel'
+import { EndOfDemoLink } from './EndOfDemoLink'
 import { isOnStepPage, useWelcomeStandsIn } from './stepLocation'
-import { workspacePath } from '@/lib/navigation'
 
 const REGION_LABEL = 'Demo scenario'
 
@@ -263,16 +263,8 @@ function CompletedStrip({
           </Button>
         ) : (
           /* The moment of highest intent used to end in Restart + Dismiss, with
-             nothing in the whole demo pointing at the real product.
-             The dashboard, not Data sources: creating the project comes first,
-             and a demo-scoped link straight to the global connection page was
-             deliberately removed. */
-          <Button asChild size="xs">
-            <Link to={workspacePath()}>
-              <Plus className="h-3 w-3" />
-              Create a real project
-            </Link>
-          </Button>
+             nothing in the whole demo pointing at the real product. */
+          <EndOfDemoLink />
         )}
         <Button type="button" variant="outline" size="xs" onClick={onRestart} title="Restart chapter">
           <RotateCcw className="h-3 w-3" aria-hidden="true" />

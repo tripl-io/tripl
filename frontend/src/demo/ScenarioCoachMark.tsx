@@ -16,6 +16,10 @@
  * not on screen (the user left the editor, or reloaded the list), the entry's
  * mark points at the way back in, with the step's own words.
  *
+ * A mark can also be a step's second gesture (`followUp`): the menu item or
+ * the dialog's button the step's control opens. It rings that control while
+ * it is on screen, and the step's own ring stands down meanwhile.
+ *
  * Coaching is a hint, never a dialog. It never takes focus from the control
  * it points at, never traps it, and cannot be broken by Escape or a click
  * elsewhere — the scenario is not something the user can accidentally cancel.
@@ -50,6 +54,7 @@ import { clippedAxes, clippingAncestors, visibleFrame } from './coachGeometry'
 import { DemoGuide } from './DemoGuide'
 import {
   entryPresenceKey,
+  followUpPresenceKey,
   useCoachPresence,
   useDemoScenario,
   useDemoScenarioActions,
@@ -65,6 +70,16 @@ interface ScenarioCoachMarkProps {
   step: ScenarioStepId
   /** Extra page-local condition — e.g. only the scan config the scenario is watching. */
   when?: boolean
+  /**
+   * The step's second gesture, on a control its first one opens: the item in
+   * the menu, the Create in the dialog. Testers found the ring stopping at
+   * the first click — on a menu now open, or under the dialog it opened. A
+   * follow-up rings its own control while that is on screen, and the step's
+   * ring stands down meanwhile; the guide stays with the step's own mark.
+   */
+  followUp?: boolean
+  /** The tag on the control, in place of the step's own. */
+  tag?: string
   /** Overrides for the step's own placement of the tag (`ScenarioStep.coach`). Rarely needed. */
   side?: CoachSide
   align?: CoachAlign
@@ -119,6 +134,8 @@ function mergeRefs(...refs: Array<Ref<HTMLElement> | undefined>): RefCallback<HT
 export function ScenarioCoachMark({
   step,
   when = true,
+  followUp = false,
+  tag,
   side,
   align,
   emphasis,
@@ -132,10 +149,18 @@ export function ScenarioCoachMark({
 
   // The mark coaches its own step, or — as the way back — the step whose
   // surface its control opens, while that step's own control is not on screen.
+  // A follow-up only ever coaches its own step.
   const own = activeStep.id === step
-  const asEntry = !own && activeStep.entry === step && !present.has(activeStep.id)
+  const asEntry =
+    !followUp && !own && activeStep.entry === step && !present.has(activeStep.id)
   const coaching = active && !hintsMuted && when && (own || asEntry)
-  const presenceKey = own ? step : entryPresenceKey(activeStep.id)
+  const presenceKey = followUp
+    ? followUpPresenceKey(step)
+    : own
+      ? step
+      : entryPresenceKey(activeStep.id)
+  // The step's second gesture is on screen: its ring is there, not here.
+  const handedOn = !followUp && own && present.has(followUpPresenceKey(step))
 
   // The anchor is state, not a ref: the beacon and the scroll effect must
   // re-run when the element appears, and a ref mutation would not tell them.
@@ -197,7 +222,8 @@ export function ScenarioCoachMark({
   // commit, and takes it back when the mark goes quiet. Re-run on `children`
   // so a descendant that re-mounts gets it again.
   useLayoutEffect(() => {
-    if (!speaking || !anchorEl) return
+    // A follow-up holds no guide, so no instruction to point at.
+    if (!speaking || !anchorEl || followUp) return
     const target = describedDescendant(anchorEl)
     if (!target || describedByIds(target).includes(instructionId)) return
     target.setAttribute('aria-describedby', [...describedByIds(target), instructionId].join(' '))
@@ -206,7 +232,7 @@ export function ScenarioCoachMark({
       if (rest.length > 0) target.setAttribute('aria-describedby', rest.join(' '))
       else target.removeAttribute('aria-describedby')
     }
-  }, [speaking, anchorEl, instructionId, children])
+  }, [speaking, anchorEl, instructionId, children, followUp])
 
   // Bring an anchor into view once per step when it is not fully visible:
   // coaching towards a control below the fold is coaching towards nothing.
@@ -279,11 +305,12 @@ export function ScenarioCoachMark({
     : visible
       ? {
           ref: anchorRef,
-          'data-coach-target': step,
+          'data-coach-target': followUp ? followUpPresenceKey(step) : step,
           // Described only while the guide holding the instruction is up.
-          'aria-describedby': speaking
-            ? [ownDescribedBy, instructionId].filter(Boolean).join(' ')
-            : ownDescribedBy,
+          'aria-describedby':
+            speaking && !followUp
+              ? [ownDescribedBy, instructionId].filter(Boolean).join(' ')
+              : ownDescribedBy,
         }
       : // Keep the ref on a hidden anchor, so the measurement above can see it
         // come back.
@@ -300,17 +327,17 @@ export function ScenarioCoachMark({
       ) : (
         <AnchorWrapper anchorRef={anchorRef}>{children}</AnchorWrapper>
       )}
-      {visible && anchorEl && (
+      {visible && anchorEl && !handedOn && (
         <CoachBeacon
           anchor={anchorEl}
-          tag={coach?.tag}
+          tag={tag ?? coach?.tag}
           side={side ?? coach?.side}
           align={align ?? coach?.align}
           ring={ringed}
           onCoveredChange={setCovered}
         />
       )}
-      {speaking && anchorEl && (
+      {speaking && anchorEl && !followUp && (
         <>
           <DemoGuide
             // Folding is a choice about one step: the next one opens unfolded.

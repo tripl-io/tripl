@@ -667,6 +667,30 @@ describe('ScenarioCoachMark — the guide keeps to a corner, off its control', (
     expect(guide()).toHaveAttribute('data-guide-corner', 'bottom-left')
   })
 
+  it('takes a narrower card beside a dialog too wide to leave the column a corner', () => {
+    // 480px wide and nearly as tall as the screen: no corner of the column
+    // clears it, 256px of the screen does on either side. The step moved into
+    // the dialog, and folding to the face took its words away just then.
+    stubRects((element) =>
+      element.getAttribute('role') === 'dialog'
+        ? { top: 38, left: 272, width: 480, height: 691 }
+        : IN_VIEWPORT_RECT,
+    )
+    renderMark(
+      <>
+        {runScanMark}
+        <div role="dialog" aria-label="Edit product_id">
+          Product ID
+        </div>
+      </>,
+    )
+
+    expect(guide()).toHaveAttribute('data-guide-mode', 'narrow')
+    expect(guide()).toHaveAttribute('data-guide-corner', 'bottom-right')
+    expect(guide()?.style.width).toBe('240px')
+    expect(within(screen.getByRole('note', { name: 'Demo hint' })).getByText(RUN_SCAN_INSTRUCTION)).toBeInTheDocument()
+  })
+
   it('steps aside to its face when no corner is clear, and opens when asked', () => {
     // A dialog as big as the screen: every corner of it would cover the dialog.
     stubRects((element) =>
@@ -1249,5 +1273,92 @@ describe('ScenarioCoachMark — clipped by its scroll container', () => {
     await nextFrame()
 
     expect(scrollSpy).toHaveBeenCalledWith({ behavior: 'smooth', block: 'center', inline: 'nearest' })
+  })
+})
+
+describe("ScenarioCoachMark — the step's second gesture", () => {
+  // The collect step's ring is on the ⋮ menu; the menu's Collect now is the
+  // gesture after it, which testers were left to find.
+  const menuMark = (
+    <ScenarioCoachMark step="live-loop/collect-metric">
+      <button type="button">Actions for Signups</button>
+    </ScenarioCoachMark>
+  )
+  const collectNowMark = (
+    <ScenarioCoachMark step="live-loop/collect-metric" followUp tag="Then click here" side="left">
+      <button type="button">Collect now</button>
+    </ScenarioCoachMark>
+  )
+  const notes = () => screen.getAllByRole('note', { name: 'Demo hint' })
+
+  it('rings the control the first gesture opened, and the first ring stands down', () => {
+    stubAnchorRect(IN_VIEWPORT_RECT)
+    writeScenarioState(SLUG, collectMetricState())
+    const { rerender } = renderMark(menuMark)
+    expect(tag()).toHaveTextContent('Open this menu')
+
+    // The menu opens.
+    rerender(
+      <>
+        {menuMark}
+        {collectNowMark}
+      </>,
+    )
+
+    expect(document.querySelectorAll('.coach-ring')).toHaveLength(1)
+    expect(tag()).toHaveTextContent('Then click here')
+    expect(tag()).toHaveAttribute('data-coach-tag', 'left')
+    expect(screen.getByRole('button', { name: 'Collect now' })).toHaveAttribute(
+      'data-coach-target',
+      'live-loop/collect-metric@then',
+    )
+    // One guide, the step's own, still saying the whole gesture.
+    expect(notes()).toHaveLength(1)
+    expect(within(at(notes(), 0)).getByText(COLLECT_INSTRUCTION)).toBeInTheDocument()
+  })
+
+  it('hands the ring back when what it opened closes', () => {
+    stubAnchorRect(IN_VIEWPORT_RECT)
+    writeScenarioState(SLUG, collectMetricState())
+    const { rerender } = renderMark(
+      <>
+        {menuMark}
+        {collectNowMark}
+      </>,
+    )
+    expect(tag()).toHaveTextContent('Then click here')
+
+    rerender(menuMark)
+
+    expect(tag()).toHaveTextContent('Open this menu')
+  })
+
+  it("holds no description of its own: the instruction is in the step mark's guide", () => {
+    stubAnchorRect(IN_VIEWPORT_RECT)
+    writeScenarioState(SLUG, collectMetricState())
+    renderMark(
+      <>
+        {menuMark}
+        {collectNowMark}
+      </>,
+    )
+
+    expect(screen.getByRole('button', { name: 'Collect now' })).not.toHaveAttribute(
+      'aria-describedby',
+    )
+    expect(screen.getByRole('button', { name: 'Actions for Signups' })).toHaveAccessibleDescription(
+      COLLECT_INSTRUCTION,
+    )
+  })
+
+  it('stays out of the way on any other step', () => {
+    stubAnchorRect(IN_VIEWPORT_RECT)
+    renderMark(collectNowMark)
+
+    expect(ring()).toBeNull()
+    expect(tag()).toBeNull()
+    expect(screen.getByRole('button', { name: 'Collect now' })).not.toHaveAttribute(
+      'data-coach-target',
+    )
   })
 })

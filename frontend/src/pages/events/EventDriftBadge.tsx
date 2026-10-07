@@ -4,7 +4,9 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { GitCompare } from 'lucide-react'
 
 import { eventTypesApi } from '@/api/eventTypes'
+import { ScenarioCoachMark } from '@/demo/ScenarioCoachMark'
 import { useDemoScenarioActions } from '@/demo/demoScenarioContext'
+import { SCENARIO_SEEDED } from '@/demo/scenarioModel'
 import { Button } from '@/components/ui/button'
 import { ErrorState } from '@/components/error-state'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
@@ -37,6 +39,7 @@ export function EventDriftBadge({
   eventTypeId,
   count,
   typeLabel,
+  coached = false,
 }: {
   slug: string
   eventTypeId: string
@@ -44,6 +47,8 @@ export function EventDriftBadge({
   /** The type's display name, shown on the badge when several types' badges
    *  sit side by side and the count alone cannot say whose it is. */
   typeLabel?: string
+  /** The demo's review-drift step points at this badge; its Accept is the second gesture. */
+  coached?: boolean
 }) {
   const [open, setOpen] = useState(false)
   const qc = useQueryClient()
@@ -179,14 +184,26 @@ export function EventDriftBadge({
                     <div className="mt-1 flex flex-wrap gap-1">
                       {drift.status === 'open' || drift.status === 'snoozed' ? (
                         <>
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            disabled={actionMut.isPending}
-                            onClick={() => actionMut.mutate({ driftId: drift.id, action: 'accept' })}
+                          <ScenarioCoachMark
+                            step="reconcile/review-drift"
+                            followUp
+                            when={
+                              coached &&
+                              drift.field_name === SCENARIO_SEEDED.schemaDriftFieldName &&
+                              drift.drift_type === 'type_changed'
+                            }
+                            tag="Then click here"
+                            side="left"
                           >
-                            Accept
-                          </Button>
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              disabled={actionMut.isPending}
+                              onClick={() => actionMut.mutate({ driftId: drift.id, action: 'accept' })}
+                            >
+                              Accept
+                            </Button>
+                          </ScenarioCoachMark>
                           <Button
                             size="sm"
                             variant="outline"
