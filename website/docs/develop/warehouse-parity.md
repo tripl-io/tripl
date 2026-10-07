@@ -40,7 +40,7 @@ requests remain credential-free and stop at ZetaSQL analysis.
 | **ClickHouse** | **EXECUTED.** A real `clickhouse-server:26.8` container runs the SQL the adapter generates and the results are compared against the reference implementation. | SQL validity **and** computed values: bucket timestamps, counts, aggregates, nested paths, contract counts. | — |
 | **PostgreSQL** | **EXECUTED.** A real `postgres:18` container runs the SQL the adapter generates and the results are compared against the reference implementation. | SQL validity **and** computed values, exactly as ClickHouse. | — |
 | **BigQuery** | **ANALYZED on every PR; values executed on trusted releases.** The emulator's real ZetaSQL analyzer checks every generated statement. A credentialed job runs for `vX.Y.Z` tags when explicitly enabled. | SQL validity plus exact adapter values; the release gate also compares scan/replay event series, fact and composition metrics, batched collection, idempotency and anomalies against the shared reference while using real PostgreSQL for application state. | Credentialed checks run only on release tags to bound quota usage. |
-| **Databricks** | **MOCKED only.** `test_databricks_adapter.py` and the shared parity suites drive the real adapter against a fake DB-API driver and assert the SQL it sends and how it decodes what comes back. No warehouse, emulator or analyzer runs in CI. A credentialed value suite against a real SQL warehouse (`conformance/test_databricks_value_conformance.py`, marker `databricks_value`) is run by hand. | The adapter honours the same contract as the others *as text*: top-N folding and tie-break, conditional-aggregate NULL rules, one-scan field contracts, bound parameters, UTC literals. | Neither that Databricks accepts the SQL nor the values it computes. Until a live check has run, treat every Databricks cell below as believed, not proven. |
+| **Databricks** | **Mocked on every PR, executed on release tags.** `test_databricks_adapter.py` and the shared parity suites drive the real adapter against a fake DB-API driver and assert the SQL it sends and how it decodes what comes back. The credentialed value suite (`conformance/test_databricks_value_conformance.py`, marker `databricks_value`) runs against a real SQL warehouse in `databricks-value-conformance.yml` on stable release tags, and passed by hand against a Free Edition warehouse when the connector shipped. | Everything the value suite covers: bucket counts on every interval over TIMESTAMP, TIMESTAMP_NTZ and DATE, half-open windows, sums and breakdowns, multi-aggregates, top-N folding, VARIANT and STRUCT paths, JSON in STRING columns, field-contract counts. | That a pull request keeps Databricks working: between release tags the evidence is the mocked SQL. Cells the value suite does not reach stay believed. |
 | synthetic | In-memory fixture, not a warehouse. | Nothing about a real warehouse. | — |
 
 **Why emulator values are never used.** The emulator's *analyzer* is Google's;
@@ -73,6 +73,12 @@ keeps worker state in an ephemeral PostgreSQL service, caps each query, and fail
 any selected test skips. `BQ_VALUE_CONFORMANCE_ENABLED=true`
 also makes missing project/credentials a hard configuration error instead of a
 green no-op.
+
+Databricks has the same shape in `databricks-value-conformance.yml`: stable
+`vX.Y.Z` tags (or a manual run), the `DBX_TOKEN` secret with the `DBX_HOST` and
+`DBX_HTTP_PATH` variables (`DBX_CATALOG` defaults to `workspace`), switched on by
+`DBX_VALUE_CONFORMANCE_ENABLED=true`, and a failure on any skip. Its fixtures are
+table-less too, so the token needs only to run statements on the warehouse.
 
 The CI job is `conformance` in `.github/workflows/ci.yml`. It fails if a
 conformance test **skips** — a gate that quietly skips because a warehouse was
@@ -339,7 +345,7 @@ is a shipping warehouse.
 | In-flight query cancellation | adapter | **bounded [12]** | **bounded [12]** | **bounded [12]** | **bounded [12]** | bounded [12] |
 | Cost / billed-bytes guard | `maximum_bytes_billed` | n/a | full [3] | n/a | n/a | n/a |
 | TLS enforcement | connection settings | full (HTTPS port) | full (Google TLS) | full (HTTPS 443, certificate verified) | full [13] | n/a |
-| Executable SQL conformance | `tests/conformance/` | **executed** | **release-gated execution; analyzed on PRs** | **by hand only, with credentials; mocked in CI [14]** | **executed** | n/a |
+| Executable SQL conformance | `tests/conformance/` | **executed** | **release-gated execution; analyzed on PRs** | **release-gated execution; mocked on PRs [14]** | **executed** | n/a |
 
 ---
 
