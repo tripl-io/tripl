@@ -117,6 +117,11 @@
   --z-drawer: 41;        /* off-canvas drawers / rails */
   --z-modal: 50;         /* dialog overlays and content */
   --z-popover: 50;       /* menus, selects, popovers, tooltips, listboxes */
+  /* The demo's coaching sits over dialogs: a step whose control lives in one
+     (the value-drift row) must stay pointed at. A ring whose control is
+     covered by a dialog hides itself instead. */
+  --z-coach-ring: 51;    /* the beacon around the control to use */
+  --z-guide: 55;         /* the demo guide */
   --z-skip-link: 100;
 
   /* shadcn mapping — keeps existing UI kit working */

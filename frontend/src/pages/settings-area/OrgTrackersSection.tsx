@@ -107,7 +107,7 @@ function OrgTrackersForm({ org }: { org: string }) {
 
   return (
     <div className="min-w-0 space-y-5">
-      <p className="m-0 text-body-sm text-fg-tertiary">
+      <p className="text-body-sm text-fg-tertiary">
         A project&rsquo;s own tracker settings win field by field; these fill in what it leaves
         empty. Each project still turns its tracker on itself. Organization: this
         organization&rsquo;s value. No badge: not set, so projects need their own.

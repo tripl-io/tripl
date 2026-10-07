@@ -17,6 +17,14 @@ generated demo projects. Every visitor gets an organization of their own, and
 whatever would reach outside the instance is refused: connecting a warehouse,
 delivering alerts outside the app, filing tracker tickets, AI.
 
+## Signing in
+
+The sign-in page of a public demo offers **Continue with Google** and nothing
+else: no email and password form, no single sign-on panels, no sign-up tabs.
+The operator's own accounts still have passwords; they sign in at
+`/auth?mode=password`, which shows the full form. The address is not linked from
+anywhere in the app.
+
 ## Share a demo with colleagues
 
 On a public demo an invitation is a link only (no email) and always grants

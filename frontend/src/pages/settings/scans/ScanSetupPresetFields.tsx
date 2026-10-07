@@ -224,11 +224,11 @@ export function EventPropertiesPreview({ summary }: { summary: ScanPreviewEventP
   }
   return (
     <div data-testid="event-properties-preview" className="space-y-3">
-      <p className="m-0 text-body-sm text-fg-secondary">
+      <p className="text-body-sm text-fg-secondary">
         In {countOf(summary.sample_rows, 'sample row', 'sample rows')}:{' '}
         {countOf(summary.events.length, 'event', 'events')}. A sample — the check below reads the whole lookback window.
       </p>
-      <ul className="m-0 list-none space-y-2 p-0">
+      <ul className="list-none space-y-2 p-0">
         {summary.events.map(event => (
           <li key={event.name} className="rounded-md border border-border-subtle px-3 py-2">
             <div className="flex items-baseline gap-2">

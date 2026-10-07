@@ -31,8 +31,8 @@ export function OrgSuspendedState({
         style={{ borderColor: 'var(--border)', background: 'var(--surface)' }}
       >
         <CirclePause aria-hidden="true" className="size-5 text-fg-tertiary" />
-        <h1 className="m-0 text-heading font-semibold">This organization is suspended</h1>
-        <p className="m-0 text-body" style={{ color: 'var(--fg-muted)' }}>
+        <h1 className="text-heading font-semibold">This organization is suspended</h1>
+        <p className="text-body" style={{ color: 'var(--fg-muted)' }}>
           <strong>{orgName}</strong> has been suspended by the platform operator. Its projects and
           data are kept, but nobody can use them until it is reinstated. Contact the operator of
           this instance to find out more.

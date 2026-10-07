@@ -13,13 +13,14 @@ session whose address is unverified is refused everywhere except
 ``/api/v1/auth/*`` (``api.deps.get_current_user``). Self-hosted instances keep
 working exactly as before.
 
-On a hosted instance, confirming a verification link for an address listed in
-``PLATFORM_ADMIN_EMAILS`` is what grants ``is_platform_admin``
-(:func:`grant_listed_platform_admin`, called from :func:`confirm` ONLY): sign-up,
-invitation redemption and password reset never do. A reset link or an
+On a hosted instance, the address owner's own proof is what grants
+``is_platform_admin`` to an address listed in ``PLATFORM_ADMIN_EMAILS``
+(:func:`grant_listed_platform_admin`): a verification link confirmed from a
+session of the same account (:func:`confirm`), or a sign-in through an identity
+provider that vouches for the address (``instance_login.sign_in_verified``).
+Sign-up, invitation redemption and password reset never do. A reset link or an
 invitation link can reach someone other than the address owner (an inviter
-receives the raw invitation link), so only the verification link, redeemed from
-a session of the same account, is trusted with that grant.
+receives the raw invitation link), so neither is trusted with that grant.
 """
 
 from __future__ import annotations
@@ -74,9 +75,9 @@ def build_verification_link(app_base_url: str, raw_token: str) -> str:
 def mark_verified(user: User, *, now: datetime | None = None) -> bool:
     """Record that ``user`` owns their address, if not already recorded. No flush.
 
-    Grants nothing else: ``PLATFORM_ADMIN_EMAILS`` is honoured only by
-    :func:`confirm` (see :func:`grant_listed_platform_admin`). Returns whether
-    the account changed from unverified to verified.
+    Grants nothing else: ``PLATFORM_ADMIN_EMAILS`` is honoured only where the
+    address owner proved the address (see :func:`grant_listed_platform_admin`).
+    Returns whether the account changed from unverified to verified.
     """
     if user.email_verified_at is not None:
         return False
@@ -87,9 +88,11 @@ def mark_verified(user: User, *, now: datetime | None = None) -> bool:
 def grant_listed_platform_admin(user: User) -> bool:
     """On a hosted instance, make ``user`` a platform admin if its address is listed.
 
-    Called ONLY from :func:`confirm`, i.e. once the address owner redeemed a
-    verification link from a session of this very account. Returns whether the
-    flag changed.
+    Called only where the address owner proved the address: from
+    :func:`confirm`, once a verification link was redeemed from a session of
+    this very account, and from ``instance_login.sign_in_verified``, once an
+    identity provider vouched for it (``email_verified``). Never from sign-up,
+    invitation redemption or password reset. Returns whether the flag changed.
     """
     if not verification_required() or user.is_platform_admin:
         return False

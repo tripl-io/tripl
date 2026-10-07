@@ -49,6 +49,8 @@ import { Sparkline, SparklineSkeleton } from '@/components/primitives/sparkline'
 import { VERDICT_OPTIONS, needsVerdict } from '@/lib/signalVerdict'
 import type { MonitoringSignal, SignalSeries, SignalVerdictKind } from '@/types'
 import { scansKey } from '@/lib/queryKeys'
+import { ScenarioCoachMark } from '@/demo/ScenarioCoachMark'
+import { SCENARIO_SEEDED } from '@/demo/scenarioModel'
 import { SignalActions } from './anomalies/SignalActions'
 import { countHiddenSignals, signalIncidentId, triageStatusLabel } from './anomalies/signalTriage'
 
@@ -331,6 +333,14 @@ export default function AnomaliesPage() {
       ? byMagnitude
       : byMagnitude.filter((s) => facetKey(s.scan_config_id) === activeScanId)
   const sorted = [...filtered].sort(compareSignalsByMagnitude)
+  // The demo scenario's anomaly step points at one row: the first seeded spike
+  // that opens a drilldown. The coach mark itself stays quiet outside a demo.
+  const coachedSignal = sorted.find(
+    (signal) =>
+      signal.direction !== 'drop' &&
+      isLinkableScope(signal) &&
+      signalScopeLabel(signal) === SCENARIO_SEEDED.anomalyEventName,
+  )
   // What "Show hidden" would bring back into THIS view: hidden signals that pass
   // the magnitude level and scan facet. Counting the whole list offered rows the
   // filters would then keep out. `hiddenTotal` (unfiltered) still decides
@@ -681,6 +691,7 @@ export default function AnomaliesPage() {
                         signal={signal}
                         series={seriesQuery.byKey.get(signalSeriesLookupKey(signal))}
                         seriesPending={seriesQuery.isPending}
+                        coached={signal === coachedSignal}
                       />
                     ))}
                   </div>
@@ -732,11 +743,14 @@ function AnomalyRow({
   signal,
   series,
   seriesPending,
+  coached = false,
 }: {
   slug?: string
   signal: MonitoringSignal
   series: SignalSeries | undefined
   seriesPending: boolean
+  /** The row the demo scenario's anomaly step points at. */
+  coached?: boolean
 }) {
   const sparkline = signalSparkline(series)
   const label = signalScopeLabel(signal)
@@ -778,13 +792,15 @@ function AnomalyRow({
         <Dot tone={signalDirectionTone(signal.direction)} size={7} />
         <DirIcon aria-hidden="true" className="h-3.5 w-3.5 shrink-0" style={{ color: severityColor }} />
         {href ? (
-          <Link
-            to={href}
-            data-anomaly-label=""
-            className={`${textClass} no-underline outline-none after:absolute after:inset-0 after:rounded-sm focus-visible:after:ring-2 focus-visible:after:ring-inset focus-visible:after:ring-[var(--accent)] text-fg`}
-          >
-            {text}
-          </Link>
+          <ScenarioCoachMark step="explore/visit-anomaly" when={coached}>
+            <Link
+              to={href}
+              data-anomaly-label=""
+              className={`${textClass} no-underline outline-none after:absolute after:inset-0 after:rounded-sm focus-visible:after:ring-2 focus-visible:after:ring-inset focus-visible:after:ring-[var(--accent)] text-fg`}
+            >
+              {text}
+            </Link>
+          </ScenarioCoachMark>
         ) : (
           <span data-anomaly-label="" className={`${textClass} text-fg`}>
             {text}

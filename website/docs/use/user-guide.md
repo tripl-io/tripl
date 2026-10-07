@@ -122,7 +122,8 @@ hands-on lessons, one per product area: run the live loop
 (scan → metric → chart), edit an event, properties & value drift, review a
 branch, reconcile the plan, route an alert, and a closing explore chapter. A
 strip under the demo banner tracks which chapter and step you are on and links
-to the next action, and a callout rings the button that performs it. Chapters
+to the next action, a ring and a small tag mark the button that performs it,
+and the demo guide in a corner of the window says what to do. Chapters
 advance on **your** actions only: the demo's background clock is running scans
 and collections of its own, and those never tick a chapter forward. Dismiss or
 restart any chapter whenever you like. (Prefer to read first? **Take the

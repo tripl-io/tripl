@@ -70,37 +70,43 @@ describe('the chapter/step id contract', () => {
 })
 
 describe('scenario chapter browser contracts', () => {
-  it('places the chart coach above its row so it does not cover the catalog below', () => {
-    const seeChart = buildChapterSteps(SLUG, 'live-loop', initialScenarioState()).find(
-      step => step.id === 'live-loop/see-chart',
-    )
+  const ALL_STEPS = CHAPTER_IDS.flatMap(chapter =>
+    buildChapterSteps(SLUG, chapter, initialScenarioState()),
+  )
 
-    expect(seeChart?.coach).toEqual({ side: 'top', align: 'start', emphasis: 'ring' })
+  it('names the exact gesture for every step', () => {
+    // Visitors read an instruction and still could not tell which control it
+    // meant — a ⋮ menu, a pencil — so the guide names it.
+    for (const step of ALL_STEPS) expect(step.cue, step.id).toBeTruthy()
   })
 
-  it('opens the run-scan coach away from the header note it would otherwise cover', () => {
-    // The scan header's Run now is right-aligned with the causal note — "metric
-    // points … are collected on that schedule, not by Run now" — running 620px
-    // out to its left. `align: 'end'` opened the card back across that note and
-    // cut it mid-word, hiding the one clause that qualifies the button the card
-    // is pointing at.
-    const runScan = buildChapterSteps(SLUG, 'live-loop', initialScenarioState()).find(
-      step => step.id === 'live-loop/run-scan',
-    )
-
-    expect(runScan?.coach).toEqual({ side: 'bottom', align: 'start', emphasis: 'ring' })
+  it('keeps every beacon tag short enough to sit beside its control', () => {
+    for (const step of ALL_STEPS) {
+      if (step.coach?.tag !== undefined) {
+        expect(step.coach.tag.length, step.id).toBeLessThanOrEqual(16)
+      }
+    }
   })
 
-  it.each([
-    ['variables', 'variables/see-drift', { side: 'bottom', align: 'end', emphasis: 'ring' }],
-    ['branches', 'branches/review-diff', { side: 'bottom', align: 'start', emphasis: 'ring' }],
-    ['reconcile', 'reconcile/accept-shadow', { side: 'bottom', align: 'end', emphasis: 'ring' }],
-  ] as const)('keeps the %s action coach clear of nearby content', (chapter, stepId, placement) => {
-    const step = buildChapterSteps(SLUG, chapter, initialScenarioState()).find(
-      candidate => candidate.id === stepId,
+  it('leads back to a surface only through an earlier coached step of the same chapter', () => {
+    for (const chapter of CHAPTER_IDS) {
+      const steps = buildChapterSteps(SLUG, chapter, initialScenarioState())
+      steps.forEach((step, index) => {
+        if (!step.entry) return
+        const entryIndex = steps.findIndex(candidate => candidate.id === step.entry)
+        expect(entryIndex, step.id).toBeGreaterThanOrEqual(0)
+        expect(entryIndex, step.id).toBeLessThan(index)
+        expect(steps[entryIndex]?.coach, step.id).toBeDefined()
+      })
+    }
+  })
+
+  it('brings the drift row back through the pencil that opens its dialog', () => {
+    const seeDrift = buildChapterSteps(SLUG, 'variables', initialScenarioState()).find(
+      step => step.id === 'variables/see-drift',
     )
 
-    expect(step?.coach).toEqual(placement)
+    expect(seeDrift?.entry).toBe('variables/inspect-values')
   })
 
   it('edits the seeded product field to a documented value without changing the anomaly target', () => {
@@ -114,14 +120,14 @@ describe('scenario chapter browser contracts', () => {
     expect(SCENARIO_SEEDED.anomalyEventName).toBe('Home Screen View')
     expect(editSteps[0].instruction).toContain('Trial Started')
     expect(editSteps[1]).toMatchObject({
-      title: 'Enter a sample Product ID',
+      title: 'Try a documented value',
       instruction:
-        'Replace the current Product ID value with prod_monthly. The guide advances automatically — do not save yet.',
+        'Type prod_monthly into Product ID — one of the documented values listed under the field. The guide moves on by itself; do not save yet.',
     })
     expect(editSteps[2]).toMatchObject({
-      title: 'Restore the property template',
+      title: 'Switch to the property',
       instruction:
-        'Replace prod_monthly: type $ in Product ID, choose ${product_id}, then follow the guide to Save.',
+        'Now put the property back: a property such as ${product_id} stands for every documented value at once.',
     })
     expect(at(exploreSteps, 1).instruction).toContain('Home Screen View')
   })

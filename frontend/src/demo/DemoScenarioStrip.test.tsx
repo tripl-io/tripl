@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { act, fireEvent, render, screen } from '@testing-library/react'
+import type { ReactNode } from 'react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { MemoryRouter, Route, Routes } from 'react-router-dom'
 import { metricsCatalogApi } from '@/api/metricsCatalog'
@@ -22,9 +23,6 @@ import {
 import { chapterState, liveLoopState } from './scenarioTestState'
 import { setWelcomeDismissed } from './welcomeDismissal'
 import { at } from '@/test/at'
-import { ActiveProjectContext } from '@/components/active-project-context'
-import { AuthContext } from '@/components/auth-context'
-import { personaAuth, type Persona } from '@/test/persona'
 
 const SLUG = 'acme'
 const POLL_MS = 10_000
@@ -136,7 +134,7 @@ describe('DemoScenarioStrip — the active chapter', () => {
 
     expect(screen.getByText(CHAPTER_TITLES['edit-event'])).toBeInTheDocument()
     expect(screen.getByText('Step 2 of 4')).toBeInTheDocument()
-    expect(screen.getByText('Enter a sample Product ID')).toBeInTheDocument()
+    expect(screen.getByText('Try a documented value')).toBeInTheDocument()
   })
 
   it('points a step on another tab of the same page at that tab', () => {
@@ -260,180 +258,6 @@ describe('DemoScenarioStrip — dismissal and completion', () => {
   })
 })
 
-describe('DemoScenarioStrip — when the coached control is nowhere on screen', () => {
-  const SCANS_ROUTE = `/p/${SLUG}/scans`
-  const MISSING_COPY =
-    "The highlighted control isn't visible — it may be filtered out, below the fold, or already handled."
-  const missingLine = () => screen.queryByText(MISSING_COPY)
-
-  beforeEach(() => {
-    vi.useFakeTimers()
-  })
-
-  afterEach(() => {
-    vi.useRealTimers()
-  })
-
-  /** The strip plus a live coach mark for run-scan, inside one real provider. */
-  function renderStripWithMark(route: string) {
-    writeScenarioState(SLUG, liveLoopState('live-loop/run-scan'))
-    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
-    return render(
-      <QueryClientProvider client={client}>
-        <MemoryRouter initialEntries={[route]}>
-          <DemoScenarioProvider project={demoProject()} pollIntervalMs={POLL_MS}>
-            <DemoScenarioStrip />
-            <ScenarioCoachMark step="live-loop/run-scan">
-              <button type="button">Run scan</button>
-            </ScenarioCoachMark>
-          </DemoScenarioProvider>
-        </MemoryRouter>
-      </QueryClientProvider>,
-    )
-  }
-
-  it('says nothing at first, then flags the missing control after the grace period', () => {
-    renderStrip(liveLoopState('live-loop/run-scan'), demoProject(), SCANS_ROUTE)
-
-    expect(missingLine()).toBeNull()
-
-    // Just short of the delay: still quiet — route transitions must not flicker.
-    act(() => {
-      vi.advanceTimersByTime(999)
-    })
-    expect(missingLine()).toBeNull()
-
-    act(() => {
-      vi.advanceTimersByTime(1)
-    })
-    expect(missingLine()).not.toBeNull()
-    // Already on Scans: no "Open Scans" that goes nowhere (#251).
-    expect(screen.queryByRole('link', { name: /Open Scans/ })).toBeNull()
-  })
-
-  /** The strip on the step's surface for a signed-in `role` on this demo. */
-  function renderStripAs(role: Persona) {
-    writeScenarioState(SLUG, liveLoopState('live-loop/run-scan'))
-    // A viewer is an organization member whose row in this demo is `viewer`:
-    // the server answers the project to them as read-only.
-    const project = demoProject({
-      created_by_user_id: 'someone-else',
-      ...(role === 'viewer' ? { my_role: 'viewer' as const, can_mutate: false } : {}),
-    })
-    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
-    return render(
-      <QueryClientProvider client={client}>
-        <AuthContext.Provider value={personaAuth(role)}>
-          <ActiveProjectContext.Provider value={project}>
-            <MemoryRouter initialEntries={[SCANS_ROUTE]}>
-              <DemoScenarioProvider project={project} pollIntervalMs={POLL_MS}>
-                <DemoScenarioStrip />
-              </DemoScenarioProvider>
-            </MemoryRouter>
-          </ActiveProjectContext.Provider>
-        </AuthContext.Provider>
-      </QueryClientProvider>,
-    )
-  }
-
-  it('offers the reset only to whoever can reset the demo (#251)', () => {
-    renderStripAs('owner')
-    act(() => {
-      vi.advanceTimersByTime(1000)
-    })
-    expect(
-      screen.getByText(`${MISSING_COPY} Resetting the demo project restores every guided example.`),
-    ).toBeInTheDocument()
-  })
-
-  it('tells a viewer the step needs edit access instead of pointing at a hidden control (#251)', () => {
-    renderStripAs('viewer')
-    act(() => {
-      vi.advanceTimersByTime(1000)
-    })
-    expect(missingLine()).toBeNull()
-    expect(screen.getByText(/This step needs edit access/)).toBeInTheDocument()
-    expect(screen.queryByText(/Resetting the demo project/)).toBeNull()
-  })
-
-  it('stays quiet away from the step surface, where a mark is not expected', () => {
-    renderStrip(liveLoopState('live-loop/run-scan'), demoProject(), `/p/${SLUG}/overview`)
-
-    act(() => {
-      vi.advanceTimersByTime(2000)
-    })
-
-    expect(missingLine()).toBeNull()
-    // Off the step's page the link still goes somewhere.
-    expect(cta(/Open Scans/)).toHaveAttribute('href', `/p/${SLUG}/scans`)
-  })
-
-  it('stays quiet on another tab of the step page, where the link leads to the control', () => {
-    renderStrip(chapterState('alerting', 'alerting/create-rule'), demoProject(), `/p/${SLUG}/alerting`)
-
-    act(() => {
-      vi.advanceTimersByTime(2000)
-    })
-
-    expect(missingLine()).toBeNull()
-    expect(cta(/Open Rules/)).toHaveAttribute('href', `/p/${SLUG}/alerting?section=monitors`)
-  })
-
-  it('expects no mark on a deep-link step with no on-surface anchor', () => {
-    renderStrip(
-      chapterState('variables', 'variables/open-variables'),
-      demoProject(),
-      // Not the variables route: arriving there would complete the step.
-      `/p/${SLUG}/overview`,
-    )
-
-    act(() => {
-      vi.advanceTimersByTime(2000)
-    })
-
-    expect(missingLine()).toBeNull()
-  })
-
-  it('stays quiet while a coach mark for the step is actually mounted', () => {
-    renderStripWithMark(SCANS_ROUTE)
-
-    act(() => {
-      vi.advanceTimersByTime(2000)
-    })
-
-    expect(missingLine()).toBeNull()
-  })
-
-  it('Hide hints silences the fallback along with the marks', () => {
-    renderStripWithMark(SCANS_ROUTE)
-
-    // Muting unmounts the mark, so presence empties — but the muted scenario
-    // must not start warning about a control it was told to stop pointing at.
-    fireEvent.click(screen.getByRole('button', { name: 'Hide hints' }))
-    act(() => {
-      vi.advanceTimersByTime(2000)
-    })
-
-    expect(missingLine()).toBeNull()
-  })
-
-  it('Show hints puts the marks back without restarting the chapter', () => {
-    // "Hide hints" is the coach card's only control, and it used to be a
-    // one-way door: nothing turned the marks back on short of a reload.
-    renderStripWithMark(SCANS_ROUTE)
-
-    fireEvent.click(screen.getByRole('button', { name: 'Hide hints' }))
-    expect(screen.queryByRole('button', { name: 'Hide hints' })).toBeNull()
-
-    fireEvent.click(screen.getByRole('button', { name: 'Show hints' }))
-
-    expect(screen.getByRole('button', { name: 'Hide hints' })).toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: 'Show hints' })).toBeNull()
-    // Un-muting is not a restart: the chapter is still exactly where it was.
-    expect(readScenarioState(SLUG).chapters['live-loop']?.step).toBe('live-loop/run-scan')
-  })
-})
-
 describe('DemoScenarioStrip — projects with no scenario', () => {
   it('renders nothing for a project that is not a demo', () => {
     renderStrip(liveLoopState('live-loop/run-scan'), demoProject({ is_demo: false }))
@@ -467,8 +291,20 @@ describe('DemoScenarioStrip — projects with no scenario', () => {
 })
 
 describe('DemoScenarioStrip — hints and the welcome panel', () => {
+  const runScanMark = (
+    <ScenarioCoachMark step="live-loop/run-scan">
+      <button type="button">Run scan</button>
+    </ScenarioCoachMark>
+  )
+  /** The pencil on the event's row: the way back to the editor's steps. */
+  const pencilMark = (
+    <ScenarioCoachMark step="edit-event/open-editor">
+      <button type="button">Edit Trial Started</button>
+    </ScenarioCoachMark>
+  )
+
   /** The strip under a real `/p/:slug/*` route, as it is in the app shell. */
-  function renderRoutedStrip(state: ScenarioState, route: string, withMark = false) {
+  function renderRoutedStrip(state: ScenarioState, route: string, mark?: ReactNode) {
     writeScenarioState(SLUG, state)
     const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
     return render(
@@ -481,11 +317,7 @@ describe('DemoScenarioStrip — hints and the welcome panel', () => {
                 element={
                   <>
                     <DemoScenarioStrip />
-                    {withMark && (
-                      <ScenarioCoachMark step="live-loop/run-scan">
-                        <button type="button">Run scan</button>
-                      </ScenarioCoachMark>
-                    )}
+                    {mark}
                   </>
                 }
               />
@@ -497,21 +329,66 @@ describe('DemoScenarioStrip — hints and the welcome panel', () => {
   }
 
   it('offers "Hide hints" in the strip, in the normal tab order', () => {
-    renderRoutedStrip(liveLoopState('live-loop/run-scan'), `/p/${SLUG}/scans`, true)
+    renderRoutedStrip(liveLoopState('live-loop/run-scan'), `/p/${SLUG}/scans`, runScanMark)
     expect(screen.getByRole('button', { name: 'Hide hints' })).toBeInTheDocument()
 
     fireEvent.click(screen.getByRole('button', { name: 'Hide hints on the page' }))
 
-    // The card's own copy is gone with the mark, and the strip offers the way back.
+    // The guide's own copy is gone with the mark, and the strip offers the way back.
     expect(screen.queryByRole('button', { name: 'Hide hints' })).toBeNull()
     expect(screen.getByRole('button', { name: 'Show hints' })).toBeInTheDocument()
     expect(strip()).not.toBeNull()
   })
 
-  it('offers no "Hide hints" for a step with no on-surface mark', () => {
+  it('Show hints puts the marks back without restarting the chapter', () => {
+    // "Hide hints" used to be a one-way door: nothing turned the marks back on
+    // short of a reload.
+    renderRoutedStrip(liveLoopState('live-loop/run-scan'), `/p/${SLUG}/scans`, runScanMark)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Hide hints' }))
+    expect(screen.queryByRole('button', { name: 'Hide hints' })).toBeNull()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Show hints' }))
+
+    expect(screen.getByRole('button', { name: 'Hide hints' })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Show hints' })).toBeNull()
+    // Un-muting is not a restart: the chapter is still exactly where it was.
+    expect(readScenarioState(SLUG).chapters['live-loop']?.step).toBe('live-loop/run-scan')
+  })
+
+  it('offers "Hide hints" on a step with no mark of its own: the guide speaks on every step', () => {
     renderRoutedStrip(chapterState('variables', 'variables/open-variables'), `/p/${SLUG}/scans`)
 
-    expect(screen.queryByRole('button', { name: 'Hide hints on the page' })).toBeNull()
+    expect(screen.getByRole('button', { name: 'Hide hints on the page' })).toBeInTheDocument()
+  })
+
+  it("drops the step's link while its mark is on screen", () => {
+    // The mark says the user is where the step happens, whatever the address.
+    const withMark = renderRoutedStrip(
+      liveLoopState('live-loop/run-scan'),
+      `/p/${SLUG}/events`,
+      runScanMark,
+    )
+    expect(screen.queryByRole('link', { name: /Open Scans/ })).toBeNull()
+    withMark.unmount()
+
+    renderRoutedStrip(liveLoopState('live-loop/run-scan'), `/p/${SLUG}/events`)
+    expect(cta(/Open Scans/)).toHaveAttribute('href', `/p/${SLUG}/scans`)
+  })
+
+  it("drops the step's link while the way back to it is on screen", () => {
+    // The editor opens from the list on the same page, at an address the link
+    // does not name.
+    const withMark = renderRoutedStrip(
+      chapterState('edit-event', 'edit-event/set-value'),
+      `/p/${SLUG}/scans`,
+      pencilMark,
+    )
+    expect(screen.queryByRole('link', { name: /Open Events/ })).toBeNull()
+    withMark.unmount()
+
+    renderRoutedStrip(chapterState('edit-event', 'edit-event/set-value'), `/p/${SLUG}/scans`)
+    expect(cta(/Open Events/)).toHaveAttribute('href', `/p/${SLUG}/events`)
   })
 
   it('gives way to the welcome panel on a first visit to the Overview', () => {

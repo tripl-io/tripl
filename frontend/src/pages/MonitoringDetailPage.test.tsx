@@ -2664,7 +2664,7 @@ describe('MonitoringDetailPage catalog-metric drilldown', () => {
       )
     }
 
-    const callouts = () => document.querySelectorAll('[data-slot="popover-content"]')
+    const callouts = () => document.querySelectorAll('[data-demo-guide]')
     const collectButton = async () => {
       const button = await screen.findByRole('button', { name: /Collect now/ })
       await waitFor(() => expect(button).toBeEnabled())

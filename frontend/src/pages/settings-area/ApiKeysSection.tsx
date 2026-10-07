@@ -574,7 +574,7 @@ export default function ApiKeysSection() {
                 Couldn’t reach the clipboard. The key above is selected — press Ctrl/⌘+C to copy it.
               </p>
             )}
-            <p className="m-0 text-caption text-fg-tertiary">
+            <p className="text-caption text-fg-tertiary">
               Send it as <code className="mono">Authorization: Bearer &lt;key&gt;</code>.
             </p>
           </div>

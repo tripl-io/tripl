@@ -211,7 +211,7 @@ export default function MonitorDetailPage() {
       />
 
       {muteError instanceof Error && (
-        <p role="alert" className="m-0 text-caption text-danger">
+        <p role="alert" className="text-caption text-danger">
           {muteError.message}
         </p>
       )}

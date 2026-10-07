@@ -17,7 +17,7 @@ describe('DemoBannerPlaceholder (#251)', () => {
     expect(bar).toHaveClass('border')
     expect(bar).not.toHaveClass('h-11')
     expect(bar?.firstElementChild).toHaveClass('h-11')
-    // Marked like the real banner, so a docked coach card clears it (#251).
+    // Marked like the real banner, so the demo guide in a top corner clears it (#251).
     expect(box).toHaveAttribute('data-demo-banner')
     expect(screen.queryByRole('button')).toBeNull()
   })

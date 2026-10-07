@@ -35,7 +35,8 @@ live loop**.
 ![The demo project's Overview, with the demo banner and the welcome panel](/img/screenshots/demo-welcome.dark.webp#gh-dark-mode-only)
 
 A chapter is a short hands-on lesson. A strip under the banner names the next
-step and a callout highlights the button to press. The first chapter runs the
+step, a ring and a small tag mark the button to press, and the demo guide in a
+corner of the window says what to do and where to go. The first chapter runs the
 loop the whole product is built on: run a scan, watch it land, collect a metric,
 see the chart move. **Browse chapters** lists the others: editing an event,
 properties and value drift, reviewing a branch, reconciling the plan, routing an

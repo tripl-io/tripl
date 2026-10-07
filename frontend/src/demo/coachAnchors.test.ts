@@ -9,7 +9,7 @@ import { describe, expect, it } from 'vitest'
  *
  * `ScenarioCoachMark` clones a ref onto its single child and coaches only once
  * that ref reports a laid-out box. A child component that drops the ref leaves
- * the mark measuring nothing: no ring, no card, and the demo strip tells the user
+ * the mark measuring nothing: no ring, no tag, and the demo guide tells the user
  * "the highlighted control isn't visible" while they are looking at it. Two
  * chapters shipped that way — the branch comment thread and the rule actions
  * menu — and a newcomer following the guide could not finish either.

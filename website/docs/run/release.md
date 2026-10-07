@@ -132,6 +132,22 @@ The first push to a brand-new GHCR package creates it as **private**. Make it
 public under *Packages → tripl → Package settings* if you want anonymous pulls.
 :::
 
+## Preview images
+
+Every commit on `main` that passes CI is also published, by `preview.yml`, as
+`ghcr.io/tripl-io/tripl:preview` (moves with `main`) and
+`:preview-<commit>` (the first 12 characters of the commit). They are
+linux/amd64 only and are not releases: no `latest`, no GitHub Release, nothing
+on PyPI. Do not run them in production. An older commit whose CI finishes after
+a newer one's never takes `preview` back.
+
+The Enterprise edition builds its own preview on this image, and that is what
+the public demo runs. Once the image is out, `preview.yml` asks the Enterprise
+repository to build it. That takes `ENTERPRISE_DISPATCH_TOKEN` in the `preview`
+environment (open to `main` only): a fine-grained token whose only permission is
+*Actions: read and write* on the Enterprise repository. Without it, the step
+says so and the Enterprise preview picks the image up on its own next run.
+
 ## The two Python packages
 
 Two Python distributions ship to PyPI, each on its own tag, with the service's

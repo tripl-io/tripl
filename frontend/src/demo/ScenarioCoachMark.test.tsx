@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { useEffect, type Ref } from 'react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { MemoryRouter } from 'react-router-dom'
@@ -9,7 +9,13 @@ import type { MetricDefinitionDetailResponse, Project, ScanJob } from '@/types'
 import { DemoScenarioProvider } from './DemoScenarioProvider'
 import { useDemoScenario, useDemoScenarioActions } from './demoScenarioContext'
 import { ScenarioCoachMark } from './ScenarioCoachMark'
-import { buildChapterSteps, initialScenarioState, writeScenarioState } from './scenarioModel'
+import {
+  CHAPTER_TITLES,
+  buildChapterSteps,
+  initialScenarioState,
+  writeScenarioState,
+  type ScenarioStep,
+} from './scenarioModel'
 import { chapterState, liveLoopState } from './scenarioTestState'
 import { at } from '@/test/at'
 
@@ -17,8 +23,16 @@ const SLUG = 'acme'
 const POLL_MS = 10
 
 const STEPS = buildChapterSteps(SLUG, 'live-loop', initialScenarioState())
-const RUN_SCAN_INSTRUCTION = STEPS[0].instruction
-const COLLECT_INSTRUCTION = at(STEPS, 2).instruction
+const RUN_SCAN = STEPS[0]
+const COLLECT = at(STEPS, 2)
+const RUN_SCAN_INSTRUCTION = RUN_SCAN.instruction
+const COLLECT_INSTRUCTION = COLLECT.instruction
+
+/** A step's gesture, failing loudly if the model dropped it. */
+function cueOf(step: ScenarioStep): string {
+  if (!step.cue) throw new Error(`${step.id} has no cue`)
+  return step.cue
+}
 
 function demoProject(overrides: Partial<Project> = {}): Project {
   return {
@@ -83,12 +97,32 @@ function renderMark(ui: React.ReactElement, project: Project | undefined = demoP
 }
 
 const runButton = () => screen.getByRole('button', { name: 'Run scan' })
-const callout = () => document.querySelector('[data-slot="popover-content"]')
+/** The demo guide: portalled to <body>, in a corner of the page. */
+const guide = () => document.querySelector<HTMLElement>('[data-demo-guide]')
 const ring = () => document.querySelector('.coach-ring')
+/** The tag on the control itself, naming the gesture ("Click here"). */
+const tag = () => document.querySelector('[data-coach-tag]')
+const faceName = `Show the demo guide — step 1 of ${STEPS.length}: ${RUN_SCAN.title}`
 
-/** jsdom lays nothing out, so anchor geometry is stubbed per test. */
-function stubAnchorRect(rect: { top: number; left: number; width: number; height: number }) {
-  const domRect = {
+/**
+ * One animation frame, inside act: the scroll to an off-screen anchor waits a
+ * frame, and the guide and the ring re-measure on one.
+ */
+async function nextFrame() {
+  await act(async () => {
+    await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()))
+  })
+}
+
+interface Rect {
+  top: number
+  left: number
+  width: number
+  height: number
+}
+
+function domRect(rect: Rect): DOMRect {
+  return {
     ...rect,
     right: rect.left + rect.width,
     bottom: rect.top + rect.height,
@@ -96,11 +130,62 @@ function stubAnchorRect(rect: { top: number; left: number; width: number; height
     y: rect.top,
     toJSON: () => ({}),
   } as DOMRect
-  vi.spyOn(Element.prototype, 'getBoundingClientRect').mockReturnValue(domRect)
 }
 
+/** jsdom lays nothing out, so anchor geometry is stubbed per test. */
+function stubAnchorRect(rect: Rect) {
+  vi.spyOn(Element.prototype, 'getBoundingClientRect').mockReturnValue(domRect(rect))
+}
+
+/** Every element's box by `rectOf`, for a test that needs more than the anchor. */
+function stubRects(rectOf: (element: Element) => Rect) {
+  vi.spyOn(Element.prototype, 'getBoundingClientRect').mockImplementation(function (
+    this: Element,
+  ) {
+    return domRect(rectOf(this))
+  })
+}
+
+/** A phone: below `sm`, where the guide spans the screen. */
+function stubPhone() {
+  vi.stubGlobal(
+    'matchMedia',
+    vi.fn((query: string) => ({
+      matches: query === '(max-width: 639px)',
+      media: query,
+      addEventListener: () => {},
+      removeEventListener: () => {},
+    })),
+  )
+}
+
+/** Something drawn over the middle of every control: a dialog, a menu. */
+function stubCoveringLayer(): () => void {
+  const layer = document.createElement('div')
+  document.body.appendChild(layer)
+  // jsdom has no hit-testing of its own; the beacon asks this one.
+  Object.defineProperty(document, 'elementFromPoint', {
+    configurable: true,
+    value: () => layer,
+  })
+  return () => {
+    delete (document as { elementFromPoint?: unknown }).elementFromPoint
+    layer.remove()
+  }
+}
+
+// jsdom's viewport is 1024×768: the guide's corners sit 16px in from the
+// content column's edges, the top ones under the 56px top bar.
 const IN_VIEWPORT_RECT = { top: 100, left: 100, width: 120, height: 30 }
 const BELOW_FOLD_RECT = { top: 5000, left: 100, width: 120, height: 30 }
+/** A row across the bottom of the screen: both lower corners would sit on it. */
+const BOTTOM_ROW_RECT = { top: window.innerHeight - 100, left: 0, width: window.innerWidth, height: 30 }
+
+const runScanMark = (
+  <ScenarioCoachMark step="live-loop/run-scan">
+    <button type="button">Run scan</button>
+  </ScenarioCoachMark>
+)
 
 beforeEach(() => {
   vi.spyOn(scansApi, 'getJob').mockResolvedValue(scanJob('running'))
@@ -114,7 +199,7 @@ afterEach(() => {
 })
 
 describe('ScenarioCoachMark — when it stays out of the way', () => {
-  it('renders children untouched and mounts no popover when the step is not the active one', () => {
+  it('renders children untouched and mounts no guide when the step is not the active one', () => {
     writeScenarioState(SLUG, collectMetricState())
     renderMark(
       <ScenarioCoachMark step="live-loop/run-scan">
@@ -123,11 +208,11 @@ describe('ScenarioCoachMark — when it stays out of the way', () => {
     )
 
     expect(runButton()).toBeInTheDocument()
-    expect(callout()).toBeNull()
+    expect(guide()).toBeNull()
     expect(screen.queryByText(RUN_SCAN_INSTRUCTION)).not.toBeInTheDocument()
   })
 
-  it('mounts no popover for a project that is not a demo', () => {
+  it('mounts no guide for a project that is not a demo', () => {
     renderMark(
       <ScenarioCoachMark step="live-loop/run-scan">
         <button type="button">Run scan</button>
@@ -136,7 +221,7 @@ describe('ScenarioCoachMark — when it stays out of the way', () => {
     )
 
     expect(runButton()).toBeInTheDocument()
-    expect(callout()).toBeNull()
+    expect(guide()).toBeNull()
   })
 
   it('is suppressed by when={false} even on the active step', () => {
@@ -147,36 +232,41 @@ describe('ScenarioCoachMark — when it stays out of the way', () => {
     )
 
     expect(runButton()).toBeInTheDocument()
-    expect(callout()).toBeNull()
+    expect(guide()).toBeNull()
     expect(screen.queryByText(RUN_SCAN_INSTRUCTION)).not.toBeInTheDocument()
   })
 })
 
 describe('ScenarioCoachMark — on the active step', () => {
-  it('anchors a callout carrying the step instruction and its place in the chain', () => {
+  it('shows the guide with the step, its place in the chain and its chapter', () => {
     renderMark(
       <ScenarioCoachMark step="live-loop/run-scan">
         <button type="button">Run scan</button>
       </ScenarioCoachMark>,
     )
 
-    expect(screen.getByText(RUN_SCAN_INSTRUCTION)).toBeInTheDocument()
-    expect(screen.getByText(`Step 1 of ${STEPS.length}`)).toBeInTheDocument()
+    const note = screen.getByRole('note', { name: 'Demo hint' })
+    expect(within(note).getByText(RUN_SCAN.title)).toBeInTheDocument()
+    expect(within(note).getByText(RUN_SCAN_INSTRUCTION)).toBeInTheDocument()
+    expect(note).toHaveTextContent(`Step 1 of ${STEPS.length} · ${CHAPTER_TITLES['live-loop']}`)
     expect(runButton()).toBeInTheDocument()
   })
 
-  it('uses an opaque elevated surface so nearby page text cannot bleed through', () => {
-    renderMark(
-      <ScenarioCoachMark step="live-loop/run-scan">
-        <button type="button">Run scan</button>
-      </ScenarioCoachMark>,
-    )
+  it('names the exact gesture under the instruction', () => {
+    // Visitors read the instruction and still could not tell which control it
+    // meant; the cue names it the way the page labels it.
+    renderMark(runScanMark)
 
-    expect(callout()?.getAttribute('style')).toContain('background: var(--bg-elevated)')
-    expect(callout()?.getAttribute('style')).toContain('border-color: var(--accent)')
-    expect(callout()?.querySelector('svg')?.getAttribute('style')).toContain(
-      'fill: var(--bg-elevated)',
-    )
+    const note = screen.getByRole('note', { name: 'Demo hint' })
+    expect(within(note).getByText(cueOf(RUN_SCAN))).toBeInTheDocument()
+  })
+
+  it('sits on an opaque elevated surface so nearby page text cannot bleed through', () => {
+    renderMark(runScanMark)
+
+    const card = guide()?.firstElementChild
+    expect(card).toHaveClass('bg-bg-elevated')
+    expect(card?.getAttribute('style')).toContain('border-color: var(--accent)')
   })
 
   it('counts a later step from the scenario chain rather than a fixed length', () => {
@@ -198,10 +288,10 @@ describe('ScenarioCoachMark — on the active step', () => {
       </ScenarioCoachMark>,
     )
 
-    const content = callout()
-    expect(content).not.toBeNull()
-    // Opening must not move focus into the hint, nor scope it there.
-    expect(content?.contains(document.activeElement)).toBe(false)
+    const shown = guide()
+    expect(shown).not.toBeNull()
+    // Opening must not move focus into the guide, nor scope it there.
+    expect(shown?.contains(document.activeElement)).toBe(false)
 
     runButton().focus()
     expect(document.activeElement).toBe(runButton())
@@ -242,6 +332,46 @@ describe('ScenarioCoachMark — emphasizing the click target', () => {
     expect(ring()).toHaveAttribute('aria-hidden')
   })
 
+  it('names the gesture on the control itself: "Click here" unless the step says otherwise', () => {
+    // A ring alone read as decoration: visitors could not tell it was the
+    // control the step meant.
+    stubAnchorRect(IN_VIEWPORT_RECT)
+    renderMark(runScanMark)
+
+    expect(tag()).toHaveTextContent('Click here')
+    // Decoration for assistive technology: the instruction describes the control.
+    expect(tag()).toHaveAttribute('aria-hidden')
+    // On the side the step's placement names.
+    expect(tag()).toHaveAttribute('data-coach-tag', 'bottom')
+  })
+
+  it("prints the step's own tag, and its own gesture in the guide", () => {
+    stubAnchorRect(IN_VIEWPORT_RECT)
+    writeScenarioState(SLUG, collectMetricState())
+    renderMark(
+      <ScenarioCoachMark step="live-loop/collect-metric">
+        <button type="button">Actions for Signups</button>
+      </ScenarioCoachMark>,
+    )
+
+    expect(tag()).toHaveTextContent('Open this menu')
+    expect(
+      within(screen.getByRole('note', { name: 'Demo hint' })).getByText(cueOf(COLLECT)),
+    ).toBeInTheDocument()
+  })
+
+  it('draws only the tag when the mark asks for no ring', () => {
+    stubAnchorRect(IN_VIEWPORT_RECT)
+    renderMark(
+      <ScenarioCoachMark step="live-loop/run-scan" emphasis="none">
+        <button type="button">Run scan</button>
+      </ScenarioCoachMark>,
+    )
+
+    expect(ring()).toBeNull()
+    expect(tag()).not.toBeNull()
+  })
+
   it('draws no ring when the mark is not visible', () => {
     stubAnchorRect(IN_VIEWPORT_RECT)
     writeScenarioState(SLUG, collectMetricState())
@@ -252,6 +382,7 @@ describe('ScenarioCoachMark — emphasizing the click target', () => {
     )
 
     expect(ring()).toBeNull()
+    expect(tag()).toBeNull()
   })
 
   it('draws no ring for an anchor with no layout (0x0 rect)', () => {
@@ -262,11 +393,12 @@ describe('ScenarioCoachMark — emphasizing the click target', () => {
       </ScenarioCoachMark>,
     )
 
-    expect(callout()).not.toBeNull()
+    expect(guide()).not.toBeNull()
     expect(ring()).toBeNull()
+    expect(tag()).toBeNull()
   })
 
-  it('does not scroll towards an anchor with no layout', () => {
+  it('does not scroll towards an anchor with no layout', async () => {
     // jsdom's default rect is 0x0: nothing sensible to scroll to.
     const scrollSpy = vi.spyOn(Element.prototype, 'scrollIntoView').mockImplementation(() => {})
     renderMark(
@@ -274,6 +406,7 @@ describe('ScenarioCoachMark — emphasizing the click target', () => {
         <button type="button">Run scan</button>
       </ScenarioCoachMark>,
     )
+    await nextFrame()
 
     expect(scrollSpy).not.toHaveBeenCalled()
   })
@@ -294,7 +427,7 @@ describe('ScenarioCoachMark — emphasizing the click target', () => {
       )
 
       expect(runButton()).toBeInTheDocument()
-      expect(callout()).toBeNull()
+      expect(guide()).toBeNull()
       expect(ring()).toBeNull()
       expect(runButton()).not.toHaveAttribute('data-coach-target')
     } finally {
@@ -323,16 +456,16 @@ describe('ScenarioCoachMark — emphasizing the click target', () => {
     const anchor = () => screen.getByText('Run scan')
     try {
       const view = renderMark(section(false))
-      expect(callout()).not.toBeNull()
+      expect(guide()).not.toBeNull()
 
       // The render that collapses the section still sees it laid out.
       view.rerender(section(true))
-      expect(callout()).toBeNull()
+      expect(guide()).toBeNull()
       expect(anchor()).not.toHaveAttribute('data-coach-target')
 
       // And the render that reveals it again still saw it hidden.
       view.rerender(section(false))
-      expect(callout()).not.toBeNull()
+      expect(guide()).not.toBeNull()
       expect(anchor()).toHaveAttribute('data-coach-target', 'live-loop/run-scan')
     } finally {
       if (original) Element.prototype.checkVisibility = original
@@ -340,7 +473,7 @@ describe('ScenarioCoachMark — emphasizing the click target', () => {
     }
   })
 
-  it('Hide hints removes the ring through the same gate as the card', () => {
+  it('Hide hints removes the ring through the same gate as the guide', () => {
     stubAnchorRect(IN_VIEWPORT_RECT)
     renderMark(
       <ScenarioCoachMark step="live-loop/run-scan">
@@ -352,12 +485,13 @@ describe('ScenarioCoachMark — emphasizing the click target', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Hide hints' }))
 
     expect(ring()).toBeNull()
-    expect(callout()).toBeNull()
+    expect(tag()).toBeNull()
+    expect(guide()).toBeNull()
   })
 })
 
 describe('ScenarioCoachMark — scrolling an off-screen anchor into view', () => {
-  it('scrolls the anchor into view once when it sits fully outside the viewport', () => {
+  it('scrolls the anchor into view once, a frame later, when it sits outside the viewport', async () => {
     stubAnchorRect(BELOW_FOLD_RECT)
     const scrollSpy = vi.spyOn(Element.prototype, 'scrollIntoView').mockImplementation(() => {})
 
@@ -367,6 +501,10 @@ describe('ScenarioCoachMark — scrolling an off-screen anchor into view', () =>
       </ScenarioCoachMark>,
     )
 
+    // Not at once: a way back that stands down on the same commit must not
+    // have moved the page first.
+    expect(scrollSpy).not.toHaveBeenCalled()
+    await nextFrame()
     expect(scrollSpy).toHaveBeenCalledTimes(1)
     expect(scrollSpy).toHaveBeenCalledWith({ behavior: 'smooth', block: 'center', inline: 'nearest' })
 
@@ -381,11 +519,12 @@ describe('ScenarioCoachMark — scrolling an off-screen anchor into view', () =>
         <button type="button">Run scan</button>
       </ScenarioCoachMark>,
     )
+    await nextFrame()
 
     expect(scrollSpy).toHaveBeenCalledTimes(1)
   })
 
-  it('does not scroll when the anchor is already inside the viewport', () => {
+  it('does not scroll when the anchor is already inside the viewport', async () => {
     stubAnchorRect(IN_VIEWPORT_RECT)
     const scrollSpy = vi.spyOn(Element.prototype, 'scrollIntoView').mockImplementation(() => {})
 
@@ -394,16 +533,20 @@ describe('ScenarioCoachMark — scrolling an off-screen anchor into view', () =>
         <button type="button">Run scan</button>
       </ScenarioCoachMark>,
     )
+    await nextFrame()
 
     expect(scrollSpy).not.toHaveBeenCalled()
   })
 
-  it('uses an instant scroll when the user prefers reduced motion', () => {
+  it('uses an instant scroll when the user prefers reduced motion', async () => {
     stubAnchorRect(BELOW_FOLD_RECT)
     const scrollSpy = vi.spyOn(Element.prototype, 'scrollIntoView').mockImplementation(() => {})
     vi.stubGlobal(
       'matchMedia',
-      vi.fn().mockReturnValue({ matches: true, media: '(prefers-reduced-motion: reduce)' }),
+      vi.fn((query: string) => ({
+        matches: query === '(prefers-reduced-motion: reduce)',
+        media: query,
+      })),
     )
 
     renderMark(
@@ -411,6 +554,7 @@ describe('ScenarioCoachMark — scrolling an off-screen anchor into view', () =>
         <button type="button">Run scan</button>
       </ScenarioCoachMark>,
     )
+    await nextFrame()
 
     expect(scrollSpy).toHaveBeenCalledTimes(1)
     expect(scrollSpy).toHaveBeenCalledWith({ behavior: 'auto', block: 'center', inline: 'nearest' })
@@ -436,78 +580,13 @@ describe('ScenarioCoachMark — hiding the hints', () => {
 
     // Both marks go quiet — the mute is scenario state, not per-mark state.
     expect(screen.queryByText(RUN_SCAN_INSTRUCTION)).not.toBeInTheDocument()
-    expect(callout()).toBeNull()
+    expect(guide()).toBeNull()
     expect(runButton()).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Run scan again' })).toBeInTheDocument()
 
     // Muted, not dismissed: the strip carries on coaching.
     expect(screen.getByTestId('muted').textContent).toBe('true')
     expect(screen.getByTestId('active').textContent).toBe('true')
-  })
-})
-
-describe('ScenarioCoachMark — a row control has no free side', () => {
-  it('docks the card clear of the grid instead of opening over the rows it explains', () => {
-    // Anchored to a row action, every side Radix can pick lands on the table
-    // body: it only flips to avoid the VIEWPORT edge, not the content beneath.
-    renderMark(
-      <table>
-        <tbody>
-          <tr>
-            <td>Trial Started</td>
-            <td>
-              <ScenarioCoachMark step="live-loop/run-scan">
-                <button type="button">Run scan</button>
-              </ScenarioCoachMark>
-            </td>
-          </tr>
-        </tbody>
-      </table>,
-    )
-
-    expect(screen.getByText(RUN_SCAN_INSTRUCTION)).toBeInTheDocument()
-    // No popover over the rows…
-    expect(callout()).toBeNull()
-    // …the card is docked, and the ring still points at the control.
-    const docked = document.querySelector('[data-coach-docked="true"]')
-    expect(docked).not.toBeNull()
-    expect(runButton()).toHaveAttribute('data-coach-target', 'live-loop/run-scan')
-  })
-
-  it('keeps its clicks from the row it sits in', () => {
-    // The card is portalled, and React bubbles a portal's events through the
-    // component tree: a click on Collapse reached the scan row's onClick and
-    // opened the scan.
-    const onRow = vi.fn()
-    renderMark(
-      <table>
-        <tbody>
-          <tr onClick={onRow}>
-            <td>
-              <ScenarioCoachMark step="live-loop/run-scan">
-                <button type="button">Run scan</button>
-              </ScenarioCoachMark>
-            </td>
-          </tr>
-        </tbody>
-      </table>,
-    )
-
-    fireEvent.click(screen.getByRole('button', { name: 'Collapse demo hint' }))
-    fireEvent.click(screen.getByRole('button', { name: 'Expand demo hint' }))
-    fireEvent.click(screen.getByRole('button', { name: 'Hide hints' }))
-    expect(onRow).not.toHaveBeenCalled()
-  })
-
-  it('still opens as a normal popover when the anchor is not inside a table', () => {
-    renderMark(
-      <ScenarioCoachMark step="live-loop/run-scan">
-        <button type="button">Run scan</button>
-      </ScenarioCoachMark>,
-    )
-
-    expect(callout()).not.toBeNull()
-    expect(document.querySelector('[data-coach-docked="true"]')).toBeNull()
   })
 })
 
@@ -525,8 +604,233 @@ const rowMark = (
   </table>
 )
 
+describe('ScenarioCoachMark — the guide keeps to a corner, off its control', () => {
+  it('takes the first corner clear of the control it points at, measured before it shows', () => {
+    stubAnchorRect(IN_VIEWPORT_RECT)
+    renderMark(runScanMark)
+
+    expect(guide()).toHaveAttribute('data-guide-corner', 'bottom-right')
+    // Unmeasured, it would have painted at the screen's corner for a frame.
+    expect(guide()?.style.visibility).toBe('visible')
+    expect(guide()?.style.width).toBe('336px')
+  })
+
+  it('moves to the next corner when the control sits in the first', () => {
+    stubAnchorRect({
+      top: window.innerHeight - 100,
+      left: window.innerWidth - 200,
+      width: 120,
+      height: 30,
+    })
+    renderMark(runScanMark)
+
+    expect(guide()).toHaveAttribute('data-guide-corner', 'bottom-left')
+  })
+
+  it('goes to the top when a row across the bottom takes both lower corners', () => {
+    stubAnchorRect(BOTTOM_ROW_RECT)
+    renderMark(rowMark)
+
+    expect(guide()).toHaveAttribute('data-guide-corner', 'top-right')
+    // Just under the top bar.
+    expect(guide()?.style.top).toBe('56px')
+  })
+
+  it('keeps clear of an open menu', () => {
+    // A menu that opened down into the guide's corner had its items covered.
+    stubRects((element) =>
+      element.getAttribute('role') === 'menu'
+        ? { top: 560, left: 640, width: 240, height: 160 }
+        : IN_VIEWPORT_RECT,
+    )
+    renderMark(
+      <>
+        {runScanMark}
+        <div role="menu">Collect now</div>
+      </>,
+    )
+
+    expect(guide()).toHaveAttribute('data-guide-corner', 'bottom-left')
+  })
+
+  it('steps aside to its face when no corner is clear, and opens when asked', () => {
+    // A dialog as big as the screen: every corner of it would cover the dialog.
+    stubRects((element) =>
+      element.getAttribute('role') === 'dialog'
+        ? { top: 0, left: 0, width: window.innerWidth, height: window.innerHeight }
+        : IN_VIEWPORT_RECT,
+    )
+    renderMark(
+      <>
+        {runScanMark}
+        <div role="dialog" aria-label="Edit event">
+          Product ID
+        </div>
+      </>,
+    )
+
+    const face = screen.getByRole('button', { name: faceName })
+    expect(face).toHaveAttribute('aria-expanded', 'false')
+    expect(guide()).toHaveAttribute('data-minimised', 'true')
+
+    fireEvent.click(face)
+
+    // Asked for, it opens over the dialog after all.
+    expect(screen.getByRole('button', { name: 'Minimise the demo guide' })).toBeInTheDocument()
+    expect(guide()).not.toHaveAttribute('data-minimised')
+  })
+
+  it('keeps a top corner under the demo banner, clear of its controls (#251)', () => {
+    // The card used to sit at a fixed top-14, exactly over the banner's hide
+    // hints / dismiss / tour / Reset / Delete: the controls that put it away.
+    const banner = document.createElement('div')
+    banner.setAttribute('data-demo-banner', '')
+    document.body.appendChild(banner)
+    stubRects((element) =>
+      element === banner
+        ? { top: 56, left: 0, width: window.innerWidth, height: 46 }
+        : BOTTOM_ROW_RECT,
+    )
+    try {
+      renderMark(rowMark)
+
+      expect(guide()).toHaveAttribute('data-guide-corner', 'top-right')
+      // Banner bottom (102) plus the 8px gap.
+      expect(guide()?.style.top).toBe('110px')
+    } finally {
+      banner.remove()
+    }
+  })
+
+  it('follows the banner when it grows or lands late (#251)', async () => {
+    // Opening the phone pill, the strip's chunk landing and a failure line all
+    // move the banner's bottom edge without a resize or a scroll; on a hard
+    // load the banner is not there at all when the guide mounts.
+    let bannerHeight = 46
+    const banner = document.createElement('div')
+    banner.setAttribute('data-demo-banner', '')
+    stubRects((element) =>
+      element === banner
+        ? { top: 56, left: 0, width: window.innerWidth, height: bannerHeight }
+        : BOTTOM_ROW_RECT,
+    )
+    try {
+      renderMark(rowMark)
+      // No banner yet: just under the top bar.
+      expect(guide()?.style.top).toBe('56px')
+
+      // The banner lands: the guide moves under it.
+      document.body.appendChild(banner)
+      await waitFor(() => expect(guide()?.style.top).toBe('110px'))
+
+      // It grows (the pill opens): the guide follows.
+      bannerHeight = 120
+      banner.setAttribute('data-open', '')
+      await waitFor(() => expect(guide()?.style.top).toBe('184px'))
+      // Let the re-measure its own move set off land inside act.
+      await nextFrame()
+    } finally {
+      banner.remove()
+    }
+  })
+
+  it('spans the screen on a phone, below a control high on the page', () => {
+    stubAnchorRect(IN_VIEWPORT_RECT)
+    stubPhone()
+    renderMark(runScanMark)
+
+    expect(guide()).toHaveAttribute('data-guide-corner', 'bottom-left')
+    // The screen's width, less a 12px gutter on each side.
+    expect(guide()?.style.width).toBe(`${window.innerWidth - 24}px`)
+  })
+
+  it('takes the top on a phone when the control is low on the screen', () => {
+    stubAnchorRect({ top: window.innerHeight - 60, left: 100, width: 120, height: 30 })
+    stubPhone()
+    renderMark(rowMark)
+
+    expect(guide()).toHaveAttribute('data-guide-corner', 'top-left')
+    expect(guide()?.style.top).toBe('56px')
+  })
+
+  it('is portalled to <body>, never left as a <div> inside <tbody>', () => {
+    renderMark(rowMark)
+
+    expect(guide()?.parentElement).toBe(document.body)
+    expect(document.querySelector('tbody div')).toBeNull()
+  })
+})
+
+describe('ScenarioCoachMark — minimising the guide', () => {
+  it('folds to its face, so it never has to cover a tap target for good', () => {
+    renderMark(rowMark)
+
+    const minimise = screen.getByRole('button', { name: 'Minimise the demo guide' })
+    expect(minimise).toHaveAttribute('aria-expanded', 'true')
+    fireEvent.click(minimise)
+
+    const face = screen.getByRole('button', { name: faceName })
+    expect(face).toHaveAttribute('aria-expanded', 'false')
+    expect(guide()).toHaveAttribute('data-minimised', 'true')
+    // Still in the tree, so the anchor's description keeps resolving.
+    expect(runButton()).toHaveAccessibleDescription(RUN_SCAN_INSTRUCTION)
+    // Minimising is not muting: the scenario and the hints carry on.
+    expect(screen.getByTestId('muted').textContent).toBe('false')
+
+    fireEvent.click(face)
+
+    expect(screen.getByRole('button', { name: 'Minimise the demo guide' })).toBeInTheDocument()
+    expect(guide()).not.toHaveAttribute('data-minimised')
+  })
+
+  it('stays folded for the step across pages, and opens again for the next one', () => {
+    const first = renderMark(runScanMark)
+    fireEvent.click(screen.getByRole('button', { name: 'Minimise the demo guide' }))
+    first.unmount()
+
+    // Another page coaching the same step: still folded.
+    const second = renderMark(runScanMark)
+    expect(guide()).toHaveAttribute('data-minimised', 'true')
+    second.unmount()
+
+    writeScenarioState(SLUG, collectMetricState())
+    renderMark(
+      <ScenarioCoachMark step="live-loop/collect-metric">
+        <button type="button">Collect now</button>
+      </ScenarioCoachMark>,
+    )
+    expect(guide()).not.toHaveAttribute('data-minimised')
+    expect(screen.getByText(COLLECT_INSTRUCTION)).toBeInTheDocument()
+  })
+
+  it('keeps its clicks from the row it sits in', () => {
+    // The guide is portalled, and React bubbles a portal's events through the
+    // component tree: a click on the old card's Collapse reached the scan
+    // row's onClick and opened the scan.
+    const onRow = vi.fn()
+    renderMark(
+      <table>
+        <tbody>
+          <tr onClick={onRow}>
+            <td>
+              <ScenarioCoachMark step="live-loop/run-scan">
+                <button type="button">Run scan</button>
+              </ScenarioCoachMark>
+            </td>
+          </tr>
+        </tbody>
+      </table>,
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'Minimise the demo guide' }))
+    fireEvent.click(screen.getByRole('button', { name: faceName }))
+    fireEvent.click(screen.getByRole('button', { name: 'Hide hints' }))
+    expect(onRow).not.toHaveBeenCalled()
+  })
+})
+
 describe('ScenarioCoachMark — the anchor is never remounted', () => {
-  it('mounts a docked anchor once, so focus and local state survive docking', () => {
+  it('mounts the anchor once, so focus and local state survive the guide', () => {
     let mounts = 0
     // React 19 passes `ref` as a plain prop, so the mark's clone reaches the button.
     function CountingButton({ ref }: { ref?: Ref<HTMLButtonElement> }) {
@@ -554,7 +858,7 @@ describe('ScenarioCoachMark — the anchor is never remounted', () => {
       </table>,
     )
 
-    expect(document.querySelector('[data-coach-docked="true"]')).not.toBeNull()
+    expect(guide()).not.toBeNull()
     expect(mounts).toBe(1)
   })
 
@@ -579,14 +883,14 @@ describe('ScenarioCoachMark — the anchor is never remounted', () => {
       </ScenarioCoachMark>,
     )
     const button = screen.getByRole('button', { name: 'Review diff' })
-    expect(callout()).not.toBeNull()
+    expect(guide()).not.toBeNull()
     button.focus()
 
     fireEvent.click(button)
 
     // The step moved on, so the mark stopped coaching — without swapping the
     // tree around the control (the old bare-children return remounted it).
-    expect(callout()).toBeNull()
+    expect(guide()).toBeNull()
     expect(button).not.toHaveAttribute('data-coach-target')
     expect(screen.getByRole('button', { name: 'Review diff' })).toBe(button)
     expect(mounts).toBe(1)
@@ -624,7 +928,7 @@ describe('ScenarioCoachMark — the anchor is never remounted', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'Hide hints' }))
 
-    expect(document.querySelector('[data-coach-docked="true"]')).toBeNull()
+    expect(guide()).toBeNull()
     expect(runButton()).toBe(button)
     expect(mounts).toBe(1)
     expect(document.activeElement).toBe(button)
@@ -653,205 +957,6 @@ describe('ScenarioCoachMark — the anchor is never remounted', () => {
       if (original) Element.prototype.checkVisibility = original
       else delete (Element.prototype as { checkVisibility?: unknown }).checkVisibility
     }
-  })
-})
-
-describe('ScenarioCoachMark — the docked card', () => {
-  it('is portalled to <body>, never left as a <div> inside <tbody>', () => {
-    renderMark(rowMark)
-
-    const docked = document.querySelector('[data-coach-docked="true"]')
-    expect(docked?.parentElement).toBe(document.body)
-    expect(document.querySelector('tbody div')).toBeNull()
-  })
-
-  it('docks at the top when its anchor is in the lower half of the viewport', () => {
-    stubAnchorRect({ top: window.innerHeight - 60, left: 100, width: 120, height: 30 })
-    renderMark(rowMark)
-
-    const docked = document.querySelector('[data-coach-docked="true"]')
-    expect(docked).toHaveAttribute('data-coach-edge', 'top')
-  })
-
-  it('docks at the bottom when its anchor is in the upper half', () => {
-    stubAnchorRect(IN_VIEWPORT_RECT)
-    renderMark(rowMark)
-
-    const docked = document.querySelector('[data-coach-docked="true"]')
-    expect(docked).toHaveAttribute('data-coach-edge', 'bottom')
-  })
-
-  // a control at the left of a table got its card at the far right.
-  it('sits on the side of the screen its anchor is on', () => {
-    stubAnchorRect({ top: 100, left: 20, width: 120, height: 30 })
-    const left = renderMark(rowMark)
-    expect(document.querySelector('[data-coach-docked="true"]')).toHaveAttribute(
-      'data-coach-side',
-      'left',
-    )
-    left.unmount()
-
-    stubAnchorRect({ top: 100, left: window.innerWidth - 140, width: 120, height: 30 })
-    renderMark(rowMark)
-    expect(document.querySelector('[data-coach-docked="true"]')).toHaveAttribute(
-      'data-coach-side',
-      'right',
-    )
-  })
-
-  it('docks under the demo banner, not on its controls (#251)', () => {
-    // The card used to sit at a fixed top-14, exactly over the banner's hide
-    // hints / dismiss / tour / Reset / Delete: the controls that put it away.
-    const banner = document.createElement('div')
-    banner.setAttribute('data-demo-banner', '')
-    document.body.appendChild(banner)
-    const box = (top: number, height: number) =>
-      ({
-        top,
-        left: 0,
-        width: 100,
-        height,
-        right: 100,
-        bottom: top + height,
-        x: 0,
-        y: top,
-        toJSON: () => ({}),
-      }) as DOMRect
-    vi.spyOn(Element.prototype, 'getBoundingClientRect').mockImplementation(function (
-      this: Element,
-    ) {
-      // The banner under the top bar; the row near the bottom of the screen.
-      return this === banner ? box(56, 46) : box(window.innerHeight - 60, 30)
-    })
-    try {
-      renderMark(rowMark)
-
-      const docked = document.querySelector<HTMLElement>('[data-coach-docked="true"]')
-      expect(docked).toHaveAttribute('data-coach-edge', 'top')
-      // Banner bottom (102) plus the 8px gap.
-      expect(docked?.style.top).toBe('110px')
-    } finally {
-      banner.remove()
-    }
-  })
-
-  it('docks every mark on a phone, clear of the page title (#251)', () => {
-    stubAnchorRect(IN_VIEWPORT_RECT)
-    vi.stubGlobal(
-      'matchMedia',
-      vi.fn((query: string) => ({
-        matches: query === '(max-width: 639px)',
-        media: query,
-        addEventListener: () => {},
-        removeEventListener: () => {},
-      })),
-    )
-
-    // A plain button, not a table row: from `sm` up it gets the anchored card.
-    renderMark(
-      <ScenarioCoachMark step="live-loop/run-scan">
-        <button type="button">Run scan</button>
-      </ScenarioCoachMark>,
-    )
-
-    expect(callout()).toBeNull()
-    const docked = document.querySelector('[data-coach-docked="true"]')
-    // The anchor is in the upper half, near the title: the card takes the bottom.
-    expect(docked).toHaveAttribute('data-coach-edge', 'bottom')
-  })
-
-  it('stays a bottom sheet on a phone when the anchor is low on the screen (#251)', () => {
-    // Docked at the top, the full-width card sat on the page title and its
-    // Overview / Configuration tabs whenever the row's Run button was low.
-    stubAnchorRect({ top: window.innerHeight - 60, left: 100, width: 120, height: 30 })
-    vi.stubGlobal(
-      'matchMedia',
-      vi.fn((query: string) => ({
-        matches: query === '(max-width: 639px)',
-        media: query,
-        addEventListener: () => {},
-        removeEventListener: () => {},
-      })),
-    )
-
-    renderMark(rowMark)
-
-    const docked = document.querySelector<HTMLElement>('[data-coach-docked="true"]')
-    expect(docked).toHaveAttribute('data-coach-edge', 'bottom')
-    expect(docked?.style.top).toBe('')
-  })
-
-  it('follows the banner when it grows or lands late (#251)', async () => {
-    // Opening the phone pill, the strip's chunk landing and a failure line all
-    // move the banner's bottom edge without a resize or a scroll; on a hard
-    // load the banner is not there at all when the card mounts.
-    const resizeCallbacks: Array<() => void> = []
-    vi.stubGlobal(
-      'ResizeObserver',
-      class {
-        constructor(callback: () => void) {
-          resizeCallbacks.push(callback)
-        }
-        observe() {}
-        unobserve() {}
-        disconnect() {}
-      },
-    )
-    let bannerHeight = 46
-    const banner = document.createElement('div')
-    banner.setAttribute('data-demo-banner', '')
-    const box = (top: number, height: number) =>
-      ({
-        top,
-        left: 0,
-        width: 100,
-        height,
-        right: 100,
-        bottom: top + height,
-        x: 0,
-        y: top,
-        toJSON: () => ({}),
-      }) as DOMRect
-    vi.spyOn(Element.prototype, 'getBoundingClientRect').mockImplementation(function (
-      this: Element,
-    ) {
-      return this === banner ? box(56, bannerHeight) : box(window.innerHeight - 60, 30)
-    })
-    try {
-      renderMark(rowMark)
-      const docked = () => document.querySelector<HTMLElement>('[data-coach-docked="true"]')
-      // No banner yet: just under the top bar.
-      expect(docked()?.style.top).toBe('56px')
-
-      // The banner lands: the card moves under it.
-      document.body.appendChild(banner)
-      await waitFor(() => expect(docked()?.style.top).toBe('110px'))
-
-      // It grows (the pill opens): the card follows.
-      bannerHeight = 120
-      act(() => {
-        for (const callback of resizeCallbacks) callback()
-      })
-      await waitFor(() => expect(docked()?.style.top).toBe('184px'))
-    } finally {
-      banner.remove()
-    }
-  })
-
-  it('collapses to its step line, so it never has to cover a tap target for good', () => {
-    renderMark(rowMark)
-
-    const collapse = screen.getByRole('button', { name: 'Collapse demo hint' })
-    expect(collapse).toHaveAttribute('aria-expanded', 'true')
-    fireEvent.click(collapse)
-
-    const expand = screen.getByRole('button', { name: 'Expand demo hint' })
-    expect(expand).toHaveAttribute('aria-expanded', 'false')
-    expect(screen.getByText(`Step 1 of ${STEPS.length}`)).toBeInTheDocument()
-    // Still in the tree, so the anchor's description keeps resolving.
-    expect(screen.getByText(RUN_SCAN_INSTRUCTION)).toBeInTheDocument()
-    // Collapsing is not muting: the scenario and the hints carry on.
-    expect(screen.getByTestId('muted').textContent).toBe('false')
   })
 })
 
@@ -925,6 +1030,126 @@ describe('ScenarioCoachMark — tied to its control', () => {
   })
 })
 
+describe('ScenarioCoachMark — the way back to a step', () => {
+  // set-value's field lives in the editor the pencil on the event's row opens.
+  const EDIT_STEPS = buildChapterSteps(SLUG, 'edit-event', initialScenarioState())
+  const OPEN_EDITOR = EDIT_STEPS[0]
+  const SET_VALUE = at(EDIT_STEPS, 1)
+  const pencilMark = (
+    <ScenarioCoachMark step="edit-event/open-editor">
+      <button type="button">Edit Trial Started</button>
+    </ScenarioCoachMark>
+  )
+  const productIdMark = (
+    <ScenarioCoachMark step="edit-event/set-value">
+      <input aria-label="Product ID" />
+    </ScenarioCoachMark>
+  )
+  const pencil = () => screen.getByRole('button', { name: 'Edit Trial Started' })
+
+  beforeEach(() => {
+    writeScenarioState(SLUG, chapterState('edit-event', 'edit-event/set-value'))
+  })
+
+  it("points at the pencil with the active step's words while its field is not on screen", () => {
+    stubAnchorRect(IN_VIEWPORT_RECT)
+    renderMark(pencilMark)
+
+    const note = screen.getByRole('note', { name: 'Demo hint' })
+    expect(within(note).getByText(SET_VALUE.title)).toBeInTheDocument()
+    expect(within(note).getByText(SET_VALUE.instruction)).toBeInTheDocument()
+    expect(note).toHaveTextContent(`Step 2 of ${EDIT_STEPS.length}`)
+    // The gesture and the tag are the pencil's own: that is what to do here.
+    expect(within(note).getByText(cueOf(OPEN_EDITOR))).toBeInTheDocument()
+    expect(tag()).toHaveTextContent('Click here')
+    expect(pencil()).toHaveAttribute('data-coach-target', 'edit-event/open-editor')
+    expect(pencil()).toHaveAccessibleDescription(SET_VALUE.instruction)
+  })
+
+  it("stands down once the step's own control is on screen", () => {
+    stubAnchorRect(IN_VIEWPORT_RECT)
+    renderMark(
+      <>
+        {pencilMark}
+        {productIdMark}
+      </>,
+    )
+
+    expect(screen.getAllByRole('note', { name: 'Demo hint' })).toHaveLength(1)
+    expect(document.querySelectorAll('[data-coach-tag]')).toHaveLength(1)
+    expect(tag()).toHaveTextContent('Type here')
+    expect(pencil()).not.toHaveAttribute('data-coach-target')
+    expect(screen.getByLabelText('Product ID')).toHaveAttribute(
+      'data-coach-target',
+      'edit-event/set-value',
+    )
+  })
+
+  it('stands down once what it opens covers it', () => {
+    // The editor dialog over the list: the pencil has done its job, and the
+    // guide host says what is missing rather than sending the user round to
+    // the same pencil again.
+    stubAnchorRect(IN_VIEWPORT_RECT)
+    const restore = stubCoveringLayer()
+    try {
+      renderMark(pencilMark)
+
+      expect(guide()).toBeNull()
+      expect(ring()).toBeNull()
+      expect(pencil()).not.toHaveAttribute('aria-describedby')
+    } finally {
+      restore()
+    }
+  })
+
+  it('keeps speaking on its own step while something covers the control', () => {
+    // Only the way back stands down: the ring goes, the guide stays.
+    writeScenarioState(SLUG, liveLoopState('live-loop/run-scan'))
+    stubAnchorRect(IN_VIEWPORT_RECT)
+    const restore = stubCoveringLayer()
+    try {
+      renderMark(runScanMark)
+
+      expect(screen.getByRole('note', { name: 'Demo hint' })).toBeInTheDocument()
+      expect(ring()).toBeNull()
+    } finally {
+      restore()
+    }
+  })
+
+  it('scrolls to the way back when it is all there is on the page', async () => {
+    stubAnchorRect(BELOW_FOLD_RECT)
+    const scrollSpy = vi.spyOn(Element.prototype, 'scrollIntoView').mockImplementation(() => {})
+
+    renderMark(pencilMark)
+    await nextFrame()
+
+    expect(scrollSpy).toHaveBeenCalledTimes(1)
+  })
+
+  it('never scrolls to a way back that stands down on the commit it shows on', async () => {
+    // The list beside what it opens — the branch list beside the branch — puts
+    // both marks on screen at once, and the page jumped to the pencil far
+    // below while the field it opens sat in view.
+    stubRects((element) =>
+      element instanceof HTMLButtonElement && element.textContent === 'Edit Trial Started'
+        ? BELOW_FOLD_RECT
+        : IN_VIEWPORT_RECT,
+    )
+    const scrollSpy = vi.spyOn(Element.prototype, 'scrollIntoView').mockImplementation(() => {})
+
+    renderMark(
+      <>
+        {pencilMark}
+        {productIdMark}
+      </>,
+    )
+    await nextFrame()
+
+    expect(scrollSpy).not.toHaveBeenCalled()
+  })
+})
+
 describe('ScenarioCoachMark — clipped by its scroll container', () => {
   function clippedMark() {
     return (
@@ -957,37 +1182,40 @@ describe('ScenarioCoachMark — clipped by its scroll container', () => {
     stubClippedLayout()
     renderMark(clippedMark())
 
-    expect(callout()).not.toBeNull()
+    expect(guide()).not.toBeNull()
     expect(ring()).toBeNull()
   })
 
-  it('scrolls an anchor that its container clips, even inside the window', () => {
+  it('scrolls an anchor that its container clips, even inside the window', async () => {
     const scrollSpy = vi.spyOn(Element.prototype, 'scrollIntoView').mockImplementation(() => {})
     stubClippedLayout()
 
     renderMark(clippedMark())
+    await nextFrame()
 
     expect(scrollSpy).toHaveBeenCalledTimes(1)
     // Clipped only sideways: the page does not also jump vertically.
     expect(scrollSpy).toHaveBeenCalledWith({ behavior: 'smooth', block: 'nearest', inline: 'nearest' })
   })
 
-  it('does not scroll an anchor wider than its container that is already in view', () => {
+  it('does not scroll an anchor wider than its container that is already in view', async () => {
     // A table row on a phone, wider than its overflow-x-auto wrapper: it can
     // never fit, and it was centred vertically on every step regardless.
     const scrollSpy = vi.spyOn(Element.prototype, 'scrollIntoView').mockImplementation(() => {})
     stubClippedLayout({ x: 0, y: 100, width: 800, height: 30 })
 
     renderMark(clippedMark())
+    await nextFrame()
 
     expect(scrollSpy).not.toHaveBeenCalled()
   })
 
-  it('centres an anchor its container clips vertically', () => {
+  it('centres an anchor its container clips vertically', async () => {
     const scrollSpy = vi.spyOn(Element.prototype, 'scrollIntoView').mockImplementation(() => {})
     stubClippedLayout({ x: 50, y: 500, width: 120, height: 30 })
 
     renderMark(clippedMark())
+    await nextFrame()
 
     expect(scrollSpy).toHaveBeenCalledWith({ behavior: 'smooth', block: 'center', inline: 'nearest' })
   })

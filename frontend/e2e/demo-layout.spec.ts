@@ -11,9 +11,9 @@ import { expect, generateDemo, test } from './fixtures'
 /**
  * The demo's layout, in a real browser: what unit tests could only assert as
  * class names (`min-w-0`, `overflow-x-hidden`, `bottom-[68px]`). The tour, a
- * chapter and its coach card must fit the screen at desktop and phone
+ * chapter and its demo guide must fit the screen at desktop and phone
  * widths with no sideways scroll, and the banner, the scenario strip, the tour
- * and the coach card are compared with their screenshots in light and dark.
+ * and the guide are compared with their screenshots in light and dark.
  *
  * One demo serves the whole file: generating it runs the worker for most of a
  * minute. The chapter progress and the theme live in the browser's storage, so
@@ -71,23 +71,33 @@ async function openTour(page: Page): Promise<Locator> {
   return tour
 }
 
+const RUN_SCAN_INSTRUCTION = 'Run a scan to pull fresh volume from the demo warehouse.'
+
+/** The control the first chapter's coach mark rings: Run, on the list or on the scan. */
+function coachTarget(page: Page): Locator {
+  return page.locator('[data-coach-target="live-loop/run-scan"]').first()
+}
+
 /**
- * Start the first chapter from the tour and wait for its coach card to settle.
- * The chapter lands on Scans and may go on to the scan it coaches; the card is
- * docked to the viewport while its Run button sits in a table row, and a
- * popover beside it on the scan's own page.
+ * Start the first chapter from the tour and wait for its demo guide to settle.
+ * The chapter lands on Scans and may go on to the scan it coaches. The guide
+ * waited for is the coach mark's, beside the ring on Run: until the page's
+ * rows land, the guide host speaks for the step with the same words.
  */
 async function startFirstChapter(page: Page, tour: Locator): Promise<Locator> {
   await tour.getByRole('list', { name: 'Scenario chapters' }).getByRole('button').first().click()
   await expect(page).toHaveURL(/\/scans(\/[0-9a-f-]+)?$/, { timeout: 60_000 })
-  const card = page.getByRole('note', { name: 'Demo hint' })
-  await expect(card).toContainText('Run a scan to pull fresh volume from the demo warehouse.', { timeout: 60_000 })
-  // Settled: the same page and the same box twice, a second apart.
+  await expect(coachTarget(page)).toBeVisible({ timeout: 60_000 })
+  // One guide: the host keeps quiet while a mark speaks.
+  const guide = page.locator('[data-demo-guide]')
+  await expect(guide).toHaveCount(1)
+  await expect(guide).toContainText(RUN_SCAN_INSTRUCTION)
+  // Settled: the same page, corner and box twice, a second apart.
   let last = ''
   await expect
     .poll(
       async () => {
-        const now = JSON.stringify([page.url(), await card.getAttribute('data-coach-docked'), await card.boundingBox()])
+        const now = JSON.stringify([page.url(), await guide.getAttribute('data-guide-corner'), await guide.boundingBox()])
         const same = now === last
         last = now
         return same
@@ -95,7 +105,7 @@ async function startFirstChapter(page: Page, tour: Locator): Promise<Locator> {
       { intervals: [1_000], timeout: 30_000 },
     )
     .toBe(true)
-  return card
+  return guide
 }
 
 async function boxOf(locator: Locator, what: string): Promise<Box> {
@@ -132,7 +142,7 @@ for (const [name, viewport] of [
   ['desktop', DESKTOP],
   ['phone', PHONE],
 ] as const) {
-  test(`the tour, a chapter and its coach card fit the screen (${name}, ${viewport.width}px)`, async ({
+  test(`the tour, a chapter and its demo guide fit the screen (${name}, ${viewport.width}px)`, async ({
     browser,
   }) => {
     const page = await openDemo(browser, viewport)
@@ -157,34 +167,50 @@ for (const [name, viewport] of [
       expect(box.x + box.width, 'a chapter row runs past the tour').toBeLessThanOrEqual(tourBox.x + tourBox.width)
     }
 
-    const card = await startFirstChapter(page, tour)
-    await expectInsideViewport(page, card, 'the coach card')
+    const guide = await startFirstChapter(page, tour)
+    await expectInsideViewport(page, guide, 'the demo guide')
     await expectNoSidewaysPageScroll(page)
-    // Docked or not, it does not take a table cell's right-align.
-    expect(await card.evaluate((el) => el.ownerDocument.defaultView?.getComputedStyle(el).textAlign)).toBe('left')
+    // In a corner, off the control it points at…
+    expect(
+      overlaps(await boxOf(guide, 'the demo guide'), await boxOf(coachTarget(page), 'the coached control')),
+      'the guide covers the control it coaches',
+    ).toBe(false)
+    // …which carries the ring, and the tag saying what to do there.
+    await expect(page.locator('.coach-ring')).toBeVisible()
+    await expect(page.locator('[data-coach-tag]')).toHaveText('Click here')
+    // Its text does not take a table cell's right-align.
+    expect(
+      await guide
+        .getByText(RUN_SCAN_INSTRUCTION)
+        .evaluate((el) => el.ownerDocument.defaultView?.getComputedStyle(el).textAlign),
+    ).toBe('left')
     // Its own buttons take the clicks, not something stacked over them.
-    await card.getByRole('button', { name: 'Hide hints' }).click({ trial: true })
-    if ((await card.getAttribute('data-coach-docked')) === 'true') {
-      const url = page.url()
-      await card.getByRole('button', { name: 'Collapse demo hint' }).click()
-      await card.getByRole('button', { name: 'Expand demo hint' }).click()
-      await expect(card.getByRole('button', { name: 'Collapse demo hint' })).toBeVisible()
-      // The card sits in a clickable row; its clicks used to open the scan.
-      expect(page.url()).toBe(url)
-      // A phone always gets a bottom sheet.
-      if (viewport === PHONE) await expect(card).toHaveAttribute('data-coach-edge', 'bottom')
+    await guide.getByRole('button', { name: 'Hide hints' }).click({ trial: true })
+    const url = page.url()
+    await guide.getByRole('button', { name: 'Minimise the demo guide' }).click()
+    await guide.getByRole('button', { name: /^Show the demo guide/ }).click()
+    await expect(guide.getByRole('button', { name: 'Minimise the demo guide' })).toBeVisible()
+    // The coached Run sits in a clickable row; a click on the old card opened the scan.
+    expect(page.url()).toBe(url)
+    if (viewport === PHONE) {
+      // A phone gets the screen's width, less a 12px gutter on each side.
+      const width = (await boxOf(guide, 'the demo guide')).width
+      expect(Math.abs(width - (viewport.width - 24)), 'the guide is not the width of the screen').toBeLessThanOrEqual(1)
     }
     if (viewport === DESKTOP) {
-      // Clear of the sidebar's Appearance button, where the tweaks FAB was.
+      const guideBox = await boxOf(guide, 'the demo guide')
+      // Clear of the sidebar's Appearance button, where the tweaks FAB was…
       const appearance = page.getByRole('button', { name: 'Appearance' })
-      expect(overlaps(await boxOf(card, 'the coach card'), await boxOf(appearance, 'Appearance'))).toBe(false)
+      expect(overlaps(guideBox, await boxOf(appearance, 'Appearance'))).toBe(false)
+      // …and of the banner, whose controls put the coaching away (#251).
+      expect(overlaps(guideBox, await boxOf(page.locator('[data-demo-banner]'), 'the banner'))).toBe(false)
     }
     await page.context().close()
   })
 }
 
 for (const theme of ['light', 'dark'] as const) {
-  test(`the demo bar, tour and coach card look as they did (${theme})`, async ({ browser }) => {
+  test(`the demo bar, tour and demo guide look as they did (${theme})`, async ({ browser }) => {
     const page = await openDemo(browser, DESKTOP, theme)
     const banner = page.locator('[data-demo-banner]')
     // Soft, so one run reports (and with the label writes) every shot.
@@ -200,9 +226,10 @@ for (const theme of ['light', 'dark'] as const) {
     const tour = await openTour(page)
     await expect.soft(tour).toHaveScreenshot(`tour-${theme}.png`, shot)
 
-    const card = await startFirstChapter(page, tour)
+    const guide = await startFirstChapter(page, tour)
     await expect.soft(banner.getByRole('region', { name: 'Demo scenario' })).toHaveScreenshot(`strip-${theme}.png`, shot)
-    await expect.soft(card).toHaveScreenshot(`coach-card-${theme}.png`, shot)
+    // The name is the coach card's, which the guide replaced.
+    await expect.soft(guide).toHaveScreenshot(`coach-card-${theme}.png`, shot)
     await page.context().close()
   })
 }

@@ -22,6 +22,7 @@ import { TooltipProvider } from './components/ui/tooltip.tsx'
 import { surfaceMutationError, surfaceQueryError } from './lib/errorFeedback.ts'
 import { shouldRetryQuery } from './lib/queryRetry.ts'
 import { migrateLegacyOrgStorage } from './lib/activeOrg.ts'
+import { authStatusQueryOptions } from './lib/deploymentMode.ts'
 
 // Once per browser: per-project state saved before organizations existed moves
 // under the default organization, where those projects live (F20 PR7).
@@ -45,6 +46,11 @@ const queryClient = new QueryClient({
     },
   },
 })
+
+// The instance's sign-in options, asked for before anything renders: the
+// sign-in page picks between its full form and the public demo's Google-only
+// card from them, and waiting for its own chunk to ask showed the form first.
+void queryClient.prefetchQuery(authStatusQueryOptions())
 
 /**
  * A DATA router, so `useBlocker` exists — and one catch-all route, so nothing
