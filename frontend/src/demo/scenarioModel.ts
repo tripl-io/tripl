@@ -701,7 +701,9 @@ export function buildChapterSteps(
           entry: 'variables/inspect-values',
           to: `${base}/variables`,
           ctaLabel: 'Open Properties',
-          coach: { side: 'top', align: 'start', emphasis: 'ring', tag: 'Accept is here' },
+          // The ring is on Accept itself (VariableDriftSection), so the
+          // default "Click here" names it.
+          coach: { side: 'top', align: 'start', emphasis: 'ring' },
         },
       ]
     case 'branches':
