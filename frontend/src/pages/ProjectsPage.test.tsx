@@ -1256,6 +1256,68 @@ describe('ProjectsPage', () => {
   })
 })
 
+describe('ProjectsPage on a public demo', () => {
+  /** An empty workspace on a public demo; returns the demo creates it sent. */
+  function mockEmptyPublicDemo(): { creates: () => number } {
+    let creates = 0
+    vi.spyOn(globalThis, 'fetch').mockImplementation((input: RequestInfo | URL, init?: RequestInit) => {
+      const url = typeof input === 'string' ? input : input instanceof URL ? input.toString() : input.url
+      const method = (init?.method ?? 'GET').toUpperCase()
+      if (url.endsWith('/api/v1/auth/status')) {
+        return Promise.resolve(jsonResponse({
+          has_users: true, registration_enabled: false, public_demo: true,
+          deployment_mode: 'hosted', google_sign_in: true,
+        }))
+      }
+      if (url.endsWith('/api/v1/projects/demo') && method === 'POST') {
+        creates += 1
+        // Never settles: the page stays in its provisioning state.
+        return new Promise<Response>(() => {})
+      }
+      if (url.endsWith('/api/v1/projects') || url.endsWith('/api/v1/data-sources')) {
+        return Promise.resolve(jsonResponse([]))
+      }
+      return Promise.reject(new Error(`Unexpected request: ${url}`))
+    })
+    return { creates: () => creates }
+  }
+
+  it('starts a newcomer\'s demo without waiting for a click', async () => {
+    const { creates } = mockEmptyPublicDemo()
+
+    renderProjectsPage('owner')
+
+    // The sign-in card promised a demo of their own: the create is under way,
+    // and the dialog says so.
+    expect(await screen.findByRole('dialog')).toHaveTextContent('Generating demo workspace')
+    expect(creates()).toBe(1)
+  })
+
+  it('starts it once: a visitor back on an empty workspace has the button', async () => {
+    localStorage.setItem('tripl-demo-autostarted:owner-1', '1')
+    const { creates } = mockEmptyPublicDemo()
+
+    renderProjectsPage('owner')
+
+    expect(await screen.findByRole('button', { name: /Generate demo project/i })).toBeEnabled()
+    // Long enough for the deferred start to have fired, had it been armed.
+    await new Promise((resolve) => setTimeout(resolve, 50))
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+    expect(creates()).toBe(0)
+  })
+
+  it('leaves a workspace that is not theirs to its owner', async () => {
+    const { creates } = mockEmptyPublicDemo()
+
+    renderProjectsPage('member')
+
+    expect(await screen.findByRole('button', { name: /Generate demo project/i })).toBeEnabled()
+    await new Promise((resolve) => setTimeout(resolve, 50))
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+    expect(creates()).toBe(0)
+  })
+})
+
 describe('ProjectsPage ?new=1 (#238)', () => {
   it('opens the create dialog when the switcher sends the user here to create one', async () => {
     vi.spyOn(globalThis, 'fetch').mockImplementation((input: RequestInfo | URL) => {

@@ -19,6 +19,7 @@ import {
   demoGenerationWarning,
   ownedDemoCount,
 } from '@/demo/demoGenerationGuard'
+import { useAutoStartDemo } from '@/demo/autoStartDemo'
 import { useDemoProvisioning } from '@/demo/useDemoProvisioning'
 import { forgetDemoLocalState, sweepOrphanedDemoLocalState } from '@/demo/demoLocalState'
 import { useConfirm } from '@/hooks/useConfirm'
@@ -35,7 +36,7 @@ import {
   Sparkles,
 } from 'lucide-react'
 import { dataSourcesKey, projectKey, projectsKey, projectsQueryOptions } from '@/lib/queryKeys'
-import { canWrite, isOwner as isOwnerRole } from '@/lib/permissions'
+import { canWrite, isOwner as isOwnerRole, useIsOrgOwner } from '@/lib/permissions'
 import { usePublicDemo } from '@/lib/deploymentMode'
 import { AttentionStat, ProjectCard } from './ProjectsPageCards'
 import { CreateProjectDialog } from './ProjectsPageCreateDialog'
@@ -45,6 +46,7 @@ export default function MainPage() {
   const queryClient = useQueryClient()
   const { user } = useAuth()
   const publicDemo = usePublicDemo()
+  const ownsWorkspace = useIsOrgOwner()
   // `?new=1` opens the create dialog on arrival: the sidebar project
   // switcher's "New project" item lands here (#238).
   const [searchParams, setSearchParams] = useSearchParams()
@@ -176,6 +178,16 @@ export default function MainPage() {
   // exists. Loading and error states render exactly as before.
   const isEmptyWorkspace =
     !projectsQuery.isLoading && !projectsQuery.isError && projects.length === 0
+  // A public demo's newcomer signed in for a demo of their own: in the empty
+  // workspace that is theirs, the create starts by itself, once
+  // (autoStartDemo.ts). Never on a list still being re-read — an empty one
+  // cached before an invitation was accepted is not an empty workspace.
+  useAutoStartDemo(
+    publicDemo && ownsWorkspace && isEmptyWorkspace && !projectsQuery.isFetching
+      && provisioning.status === 'idle',
+    user?.id,
+    provisioning.start,
+  )
 
   return (
     <PageContainer>

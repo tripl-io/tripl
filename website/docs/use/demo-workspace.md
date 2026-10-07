@@ -287,6 +287,10 @@ The demo offers two guides, and they do different jobs.
   dialog narrates the *expected* phases (the server reports only the final
   result, not the stage it is on), says so when a create runs well past that,
   and stops waiting after 90 seconds.
+  On a public demo a newcomer does not have to find the button: signing in to
+  an empty workspace of their own starts the create, once per account in that
+  browser. After a cancel, or with every demo deleted, the button waits for
+  them instead.
   A failure says what is actually known: the server's own failure was rolled
   back and can be retried; a demo limit or a refusal says why and offers no
   retry; a lost connection or a timeout may still have created the demo, so
