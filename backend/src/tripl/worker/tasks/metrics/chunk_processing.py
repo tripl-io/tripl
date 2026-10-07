@@ -52,6 +52,7 @@ from tripl.worker.tasks.metrics.metric_rows import (
     _upsert_event_metric_breakdown_rows,
     _upsert_shadow_event_candidates,
 )
+from tripl.worker.tasks.metrics.shared_breakdown import TickRows
 
 logger = logging.getLogger(__name__)
 
@@ -280,23 +281,34 @@ def process_chunk(
     chunk_from: datetime,
     chunk_to: datetime,
     upsert_event_metrics_rows_fn: _UpsertMetricsFn,
+    prefetched: TickRows | None = None,
 ) -> ChunkStats:
+    """Collect one chunk. ``prefetched`` is this chunk's bucketed rows when the
+    tick already read them for the catalog (``shared_breakdown``); the
+    warehouse is then not queried again."""
     stats = ChunkStats()
     if config.time_column is None:
         msg = "ScanConfig time_column is required for metrics collection"
         raise ValueError(msg)
 
-    _col_names, json_value_names, rows = adapter.get_time_bucketed_counts(
-        scan_source_query(adapter, config),
-        config.time_column,
-        interval_code,
-        regular_cols,
-        json_cols,
-        json_value_path_map,
-        chunk_from,
-        chunk_to,
-        limit=metrics_row_limit + 1,
-    )
+    if (
+        prefetched is not None
+        and prefetched.time_from == chunk_from
+        and prefetched.time_to == chunk_to
+    ):
+        json_value_names, rows = prefetched.json_value_names, list(prefetched.rows)
+    else:
+        _col_names, json_value_names, rows = adapter.get_time_bucketed_counts(
+            scan_source_query(adapter, config),
+            config.time_column,
+            interval_code,
+            regular_cols,
+            json_cols,
+            json_value_path_map,
+            chunk_from,
+            chunk_to,
+            limit=metrics_row_limit + 1,
+        )
     query_truncated = len(rows) > metrics_row_limit
     rows = rows[:metrics_row_limit]
     stats.rows_scanned = len(rows)

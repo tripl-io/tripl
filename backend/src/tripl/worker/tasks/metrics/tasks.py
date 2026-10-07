@@ -92,6 +92,11 @@ from tripl.worker.tasks.metrics.metric_rows import (
 )
 from tripl.worker.tasks.metrics.regression import _recalculate_release_regressions
 from tripl.worker.tasks.metrics.release_annotations import _sync_release_annotations
+from tripl.worker.tasks.metrics.shared_breakdown import (
+    PrefetchedBreakdownAdapter,
+    TickRows,
+    prefetch_tick_rows,
+)
 from tripl.worker.tasks.metrics.signals import (
     _get_visible_signal_scope_keys,
 )
@@ -752,11 +757,43 @@ def collect_metrics(
         if catalog_scan_window is None and config.time_column:
             catalog_scan_window = (time_from_dt, time_to_dt)
 
+        # One warehouse read for both phases when the catalog window IS the one
+        # collection chunk: the catalog's breakdown is then the chunk's bucketed
+        # rows summed over the bucket (``shared_breakdown``). That is the
+        # catalog's fallback window, i.e. every config without a declared
+        # ``scan_lookback_hours``. A declared lookback, a multi-chunk window or a
+        # replay keeps the two reads, unchanged.
+        tick_rows: TickRows | None = None
+        catalog_adapter: Any = adapter
+        if (
+            not is_replay
+            and config.time_column
+            and len(chunks) == 1
+            and catalog_scan_window == chunks[0]
+        ):
+            tick_rows = prefetch_tick_rows(
+                adapter,
+                base_query=scan_source_query(adapter, config),
+                time_column=config.time_column,
+                interval_code=interval_spec.code,
+                regular_columns=[c.name for c in columns if not _is_json_type(c.type_name)],
+                json_columns=[c.name for c in columns if _is_json_type(c.type_name)],
+                json_value_paths=json_value_path_map,
+                time_from=chunks[0][0],
+                time_to=chunks[0][1],
+                metrics_row_limit=metrics_row_limit,
+            )
+            # A truncated read cannot stand in for the catalog's breakdown: the
+            # catalog then queries as before, and the chunk below still raises
+            # its row-limit error on these rows.
+            if len(tick_rows.rows) <= metrics_row_limit:
+                catalog_adapter = PrefetchedBreakdownAdapter(adapter, tick_rows)
+
         # ---- PHASE 1: Sync events via exact scan pipeline ----
 
         catalog = sync_catalog(
             session,
-            adapter=adapter,
+            adapter=catalog_adapter,
             config=config,
             columns=columns,
             skip_cols=skip_cols,
@@ -1063,6 +1100,7 @@ def collect_metrics(
                     chunk_from=chunk_from,
                     chunk_to=chunk_to,
                     upsert_event_metrics_rows_fn=_upsert_event_metrics_rows,
+                    prefetched=tick_rows,
                 )
                 query_rows_scanned += chunk_stats.rows_scanned
                 metrics_deleted += chunk_stats.metrics_deleted

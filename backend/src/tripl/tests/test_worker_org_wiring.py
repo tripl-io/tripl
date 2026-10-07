@@ -221,10 +221,24 @@ def _scan_config(session: Session, project: Project, **extra: Any) -> ScanConfig
 
 
 class _Adapter:
-    """A warehouse that connects and names its columns; nothing else is asked of it."""
+    """A warehouse that connects, names its columns and holds no rows.
+
+    ``get_time_bucketed_counts`` is the scheduled tick's one shared read
+    (``shared_breakdown``); it records the limit it was handed and answers
+    nothing.
+    """
+
+    def __init__(self) -> None:
+        self.bucketed_limits: list[int] = []
 
     def test_connection(self) -> bool:
         return True
+
+    def get_time_bucketed_counts(
+        self, *_args: object, limit: int, **_kwargs: object
+    ) -> tuple[list[str], list[str], list[tuple[object, ...]]]:
+        self.bucketed_limits.append(limit)
+        return [], [], []
 
     def get_columns(self, base_query: str) -> list[ColumnInfo]:
         return [
@@ -308,8 +322,9 @@ def test_collect_metrics_uses_the_projects_organization_row_limits(
         raise _Halt
 
     window = (datetime(2026, 1, 1, 10, tzinfo=UTC), datetime(2026, 1, 1, 12, tzinfo=UTC), False)
+    adapter = _Adapter()
     monkeypatch.setattr(metrics_tasks, "_get_sync_session", worker_db)
-    monkeypatch.setattr(metrics_tasks, "_build_adapter", lambda ds: _Adapter())
+    monkeypatch.setattr(metrics_tasks, "_build_adapter", lambda ds: adapter)
     monkeypatch.setattr(metrics_tasks, "_resolve_collection_window", lambda *a, **k: window)
     monkeypatch.setattr(
         metrics_tasks, "_widen_for_held_buckets", lambda *a, time_from, **k: time_from
@@ -320,6 +335,9 @@ def test_collect_metrics_uses_the_projects_organization_row_limits(
         metrics_tasks.collect_metrics.run(str(config_id))
 
     assert seen == [expected]
+    # The tick's shared read (no declared lookback: the catalog window is the one
+    # chunk) is bounded by the organization's metrics limit too.
+    assert adapter.bucketed_limits == [expected[1] + 1]
 
 
 # ── alert digests: the relay handed to the mail sender ──────────────────────
