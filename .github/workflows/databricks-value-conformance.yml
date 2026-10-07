@@ -1,0 +1,107 @@
+name: Databricks release conformance
+
+# The value contract against a real Databricks SQL warehouse, on stable
+# release tags only, like the BigQuery one: a pull request from a fork gets no
+# secrets, and the warehouse bills per query. Off until the repository variable
+# DBX_VALUE_CONFORMANCE_ENABLED is "true"; once on, a missing credential fails
+# the run instead of skipping it.
+
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: databricks-value-conformance
+  cancel-in-progress: false
+
+jobs:
+  credentials:
+    name: Validate credential configuration
+    runs-on: ubuntu-latest
+    outputs:
+      enabled: ${{ steps.probe.outputs.enabled }}
+    env:
+      DBX_VALUE_CONFORMANCE_ENABLED: ${{ vars.DBX_VALUE_CONFORMANCE_ENABLED }}
+      DBX_TOKEN: ${{ secrets.DBX_TOKEN }}
+      DBX_HOST: ${{ vars.DBX_HOST }}
+      DBX_HTTP_PATH: ${{ vars.DBX_HTTP_PATH }}
+    steps:
+      - id: probe
+        name: Detect configured Databricks warehouse
+        shell: bash
+        run: |
+          if [ "$GITHUB_EVENT_NAME" = "push" ] && [[ ! "$GITHUB_REF_NAME" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "enabled=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::Databricks conformance runs only for stable vX.Y.Z tags; skipping $GITHUB_REF_NAME."
+          elif [ "$DBX_VALUE_CONFORMANCE_ENABLED" != "true" ]; then
+            echo "enabled=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::Databricks value conformance is intentionally disabled."
+          elif [ -n "$DBX_TOKEN" ] && [ -n "$DBX_HOST" ] && [ -n "$DBX_HTTP_PATH" ]; then
+            echo "enabled=true" >> "$GITHUB_OUTPUT"
+            echo "Databricks value conformance is enabled."
+          else
+            echo "::error::DBX_VALUE_CONFORMANCE_ENABLED=true requires the DBX_TOKEN secret and the DBX_HOST and DBX_HTTP_PATH variables."
+            exit 1
+          fi
+
+  values:
+    name: Real Databricks values
+    needs: credentials
+    if: needs.credentials.outputs.enabled == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0
+        with:
+          enable-cache: true
+
+      - name: Install dependencies
+        run: uv sync --extra dev
+
+      - name: Execute real Databricks value contract
+        env:
+          # Step-scoped: the token never reaches checkout, dependency setup,
+          # caches, artifacts, or a file on disk.
+          TRIPL_CONF_DBX_TOKEN: ${{ secrets.DBX_TOKEN }}
+          TRIPL_CONF_DBX_HOST: ${{ vars.DBX_HOST }}
+          TRIPL_CONF_DBX_HTTP_PATH: ${{ vars.DBX_HTTP_PATH }}
+          TRIPL_CONF_DBX_CATALOG: ${{ vars.DBX_CATALOG || 'workspace' }}
+          TRIPL_DBX_VALUE_REQUIRED: "1"
+        run: |
+          uv run pytest -q -m databricks_value \
+            --junitxml=databricks-value-conformance.xml \
+            src/tripl/tests/conformance/test_databricks_value_conformance.py
+
+      - name: Prove the credentialed gate ran without skips
+        if: always()
+        run: |
+          python3 - <<'PY'
+          import sys, xml.etree.ElementTree as ET
+          try:
+              root = ET.parse("databricks-value-conformance.xml").getroot()
+          except (OSError, ET.ParseError) as exc:
+              sys.exit(f"::error::no Databricks JUnit report: {exc}. The gate did not run.")
+          tests = errors = failures = skipped = 0
+          for suite in root.iter("testsuite"):
+              tests += int(suite.get("tests", 0))
+              errors += int(suite.get("errors", 0))
+              failures += int(suite.get("failures", 0))
+              skipped += int(suite.get("skipped", 0))
+          print(f"Databricks conformance: {tests} collected, {failures} failed, {errors} errored, {skipped} skipped")
+          if tests == 0:
+              sys.exit("::error::0 Databricks conformance tests ran.")
+          if skipped:
+              sys.exit(f"::error::{skipped} Databricks conformance test(s) skipped.")
+          if failures or errors:
+              sys.exit(f"::error::{failures} failed / {errors} errored Databricks conformance test(s).")
+          PY
