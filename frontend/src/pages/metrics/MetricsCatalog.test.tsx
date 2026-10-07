@@ -155,7 +155,7 @@ async function openRowMenu(displayName: string) {
   fireEvent.keyDown(trigger, { key: 'Enter' })
 }
 
-const callouts = () => document.querySelectorAll('[data-slot="popover-content"]')
+const callouts = () => document.querySelectorAll('[data-demo-guide]')
 
 // Radix drives the dropdown through pointer-capture APIs jsdom omits.
 beforeAll(() => {

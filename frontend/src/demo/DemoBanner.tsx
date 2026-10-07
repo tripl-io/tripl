@@ -410,7 +410,7 @@ export function DemoBanner({
         id={panelId}
         className={cn('rounded-lg border lg:mt-0 lg:block', expanded ? 'mt-2' : 'hidden', 'bg-warning-soft border-warning')}
       >
-        <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5 px-3 py-1.5 lg:min-h-11 lg:flex-nowrap">
+        <div className="@container/banner flex flex-wrap items-center gap-x-3 gap-y-1.5 px-3 py-1.5 lg:min-h-11 lg:flex-nowrap">
           {/* Both groups wrap below `lg` (#251): held to one line, the
               phone panel's content came to 462px in a 364px panel — the
               freshness cut, Reset half-shown, the owner's Delete off-screen. */}
@@ -565,18 +565,22 @@ export function DemoBanner({
 }
 
 /**
- * Hidden from `lg` to `2xl` while the scenario strip shares the row: the one
- * width band where a single line cannot hold every label. Everywhere
- * else — the phone panel, which wraps, a wide screen, or a row with no
- * scenario in it — there is room, and it shows. `sr-only`, so a name it
- * carries stays a name.
+ * Hidden on the one-line bar (from `lg`) while the scenario strip shares a
+ * row narrower than 1700px: a single line cannot hold every label below that.
+ * Everywhere else — the phone panel, which wraps, a row that wide, or a row
+ * with no scenario in it — there is room, and it shows. `sr-only`, so a name
+ * it carries stays a name.
+ *
+ * The row's own width, not the screen's: with the activity rail open beside
+ * the page, a 1920px screen left the row 1312px, the screen-wide `2xl` brought
+ * every label back, and the strip's step title ran into its own controls.
  */
 const LABEL_WHEN_ROOMY =
-  'lg:group-has-[[data-demo-scenario]]/demo:sr-only 2xl:group-has-[[data-demo-scenario]]/demo:not-sr-only'
+  'lg:@max-[1700px]/banner:group-has-[[data-demo-scenario]]/demo:sr-only'
 
 /** The same band for details that name nothing: taken out of the row there. */
 const DETAIL_WHEN_ROOMY =
-  'lg:group-has-[[data-demo-scenario]]/demo:hidden 2xl:group-has-[[data-demo-scenario]]/demo:inline-flex'
+  'lg:@max-[1700px]/banner:group-has-[[data-demo-scenario]]/demo:hidden'
 
 /**
  * A button label that gives way to its icon where the row is shared,

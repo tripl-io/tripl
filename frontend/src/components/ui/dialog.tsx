@@ -28,6 +28,7 @@ function DialogContent({
   className,
   children,
   showCloseButton = true,
+  onInteractOutside,
   ...props
 }: React.ComponentProps<typeof DialogPrimitive.Content> & {
   showCloseButton?: boolean
@@ -37,6 +38,15 @@ function DialogContent({
       <DialogOverlay />
       <DialogPrimitive.Content
         data-slot="dialog-content"
+        // The demo guide sits above dialogs and coaches the one that is open:
+        // minimising it or hiding hints must not close that dialog.
+        onInteractOutside={(event) => {
+          if (event.target instanceof Element && event.target.closest("[data-demo-guide]")) {
+            event.preventDefault()
+            return
+          }
+          onInteractOutside?.(event)
+        }}
         className={cn(
           // Inset 1rem from the screen edge with rounded corners on phones too;
           // full-bleed square dialogs put content against the glass.

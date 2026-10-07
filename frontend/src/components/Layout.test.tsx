@@ -80,6 +80,12 @@ vi.mock('@/demo/DemoScenarioStrip', () => ({
   DemoScenarioStrip: () => <button type="button">Dismiss</button>,
 }))
 
+// Portalled to <body>, so it puts nothing between the skip link and the page;
+// stood in for so its chunk lands as fast as the rest of the demo chrome.
+vi.mock('@/demo/DemoGuideHost', () => ({
+  DemoGuideHost: () => null,
+}))
+
 vi.mock('@/demo/LazyDemoScenarioProvider', () => ({
   LazyDemoScenarioProvider: ({ children }: { children: ReactNode }) => <>{children}</>,
 }))

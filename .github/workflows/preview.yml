@@ -1,0 +1,126 @@
+name: Preview
+
+# Every main that passes CI is published as ghcr.io/tripl-io/tripl:preview
+# (moves with main) and :preview-<12 hex of the commit> (fixed), linux/amd64
+# only. Not a release: no :latest, no GitHub Release, nothing on PyPI. The
+# Enterprise edition builds its preview on this image, and that preview is what
+# the public demo runs: once the image is out, the `enterprise` job asks the
+# Enterprise repository to build on it (docs: run/release.md, "Preview images").
+on:
+  workflow_run:
+    workflows: [CI]
+    types: [completed]
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+# One at a time, never cancelled halfway through a push; a newer main waiting
+# for its turn replaces an older one that is still waiting.
+concurrency:
+  group: preview
+  cancel-in-progress: false
+
+jobs:
+  image:
+    name: Image (preview)
+    # A push to main that passed CI here, or a manual run on main. Not a pull
+    # request's CI, whatever its branch is called.
+    if: >-
+      (github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main') ||
+      (github.event.workflow_run.conclusion == 'success' &&
+       github.event.workflow_run.event == 'push' &&
+       github.event.workflow_run.head_repository.full_name == github.repository)
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    outputs:
+      sha: ${{ steps.commit.outputs.sha }}
+      moved: ${{ steps.commit.outputs.moved }}
+    steps:
+      # The commit CI passed, not whatever main is by the time this starts; the
+      # whole history, to tell whether :preview already holds a newer one.
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event.workflow_run.head_sha || github.sha }}
+          fetch-depth: 0
+      - uses: docker/setup-buildx-action@v4
+      - uses: docker/login-action@v4
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      # CI runs on main are not cancelled by newer pushes, so two can finish
+      # out of order: an older commit never takes :preview back.
+      - name: Commit
+        id: commit
+        env:
+          IMAGE: ghcr.io/${{ github.repository }}
+        run: |
+          sha="$(git rev-parse HEAD)"
+          echo "sha=$sha" >> "$GITHUB_OUTPUT"
+          echo "tag=preview-${sha:0:12}" >> "$GITHUB_OUTPUT"
+          current="$(docker buildx imagetools inspect "$IMAGE:preview" --format '{{json .Image}}' 2>/dev/null \
+            | jq -r '(if has("config") then . else .["linux/amd64"] end).config.Labels["org.opencontainers.image.revision"] // empty' || true)"
+          if [ -n "$current" ] && [ "$current" != "$sha" ] && git merge-base --is-ancestor "$sha" "$current" 2>/dev/null; then
+            echo "::notice:::preview already holds $current, which is newer than $sha; nothing to publish"
+            echo "moved=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "moved=true" >> "$GITHUB_OUTPUT"
+          fi
+      - name: Compute image tags & labels
+        if: steps.commit.outputs.moved == 'true'
+        id: meta
+        uses: docker/metadata-action@v6
+        with:
+          images: ghcr.io/${{ github.repository }}
+          flavor: latest=false
+          tags: |
+            type=raw,value=preview
+            type=raw,value=${{ steps.commit.outputs.tag }}
+          # The revision is the commit checked out, not the workflow's (on a
+          # workflow_run, main's newest): the Enterprise preview reads it to
+          # build its frontend from the same source. `context: git` would read
+          # it, but cannot from the detached HEAD a commit checkout leaves.
+          labels: |
+            org.opencontainers.image.revision=${{ steps.commit.outputs.sha }}
+      - name: Build & push (linux/amd64)
+        if: steps.commit.outputs.moved == 'true'
+        uses: docker/build-push-action@v7
+        with:
+          context: .
+          file: ./Dockerfile
+          target: runtime
+          platforms: linux/amd64
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          # Its own cache scope, so a preview on every merge never evicts the
+          # release build's layers; it still reads them.
+          cache-from: |
+            type=gha,scope=preview
+            type=gha
+          cache-to: type=gha,scope=preview,mode=max
+          provenance: false
+
+  enterprise:
+    name: Enterprise preview
+    needs: image
+    if: needs.image.outputs.moved == 'true'
+    runs-on: ubuntu-latest
+    # The token lives in this environment, which only main reaches.
+    environment: preview
+    steps:
+      - name: Ask tripl-enterprise to build its preview on this image
+        env:
+          # A fine-grained token that may only run Actions in tripl-enterprise.
+          GH_TOKEN: ${{ secrets.ENTERPRISE_DISPATCH_TOKEN }}
+          SHA: ${{ needs.image.outputs.sha }}
+        run: |
+          if [ -z "$GH_TOKEN" ]; then
+            echo "::notice::ENTERPRISE_DISPATCH_TOKEN is not set; the Enterprise preview picks this image up on its next run"
+            exit 0
+          fi
+          gh workflow run preview.yml --repo tripl-io/tripl-enterprise --ref main -f community_sha="$SHA"

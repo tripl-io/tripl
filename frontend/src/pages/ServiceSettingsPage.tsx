@@ -284,7 +284,7 @@ export default function ServiceSettingsSection({
       {section !== 'system' && (
         // The badge legend and the fallback rule, once, above the fields
         // rather than inside the sticky bar.
-        <p className="m-0 text-body-sm text-fg-tertiary">
+        <p className="text-body-sm text-fg-tertiary">
           {SOURCE_LEGEND}
         </p>
       )}

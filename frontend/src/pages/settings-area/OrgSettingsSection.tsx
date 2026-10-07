@@ -162,7 +162,7 @@ function OrgSettingsForm({ org, section }: { org: string; section: OrgSection })
   return (
     <div className="min-w-0 space-y-5">
       {settings.scope === 'operator' ? (
-        <p role="note" className="m-0 text-body-sm text-fg-tertiary">
+        <p role="note" className="text-body-sm text-fg-tertiary">
           On this self-hosted instance these are the platform&rsquo;s own settings: account mail
           (sign-up, password reset, invitations) uses the same relay, and any other organization
           inherits them.
@@ -171,24 +171,24 @@ function OrgSettingsForm({ org, section }: { org: string; section: OrgSection })
         section !== 'limits' &&
         section !== 'storage' &&
         settings.operator_fallback === 'none' && (
-          <p role="note" className="m-0 text-body-sm text-fg-tertiary">
+          <p role="note" className="text-body-sm text-fg-tertiary">
             {FALLBACK_NONE_NOTES[section]}
           </p>
         )
       )}
       {section === 'email' && settings.scope === 'organization' && (
-        <p className="m-0 text-body-sm text-fg-tertiary">
+        <p className="text-body-sm text-fg-tertiary">
           Sign-up, password-reset and invitation mail always go through the platform&rsquo;s relay.
         </p>
       )}
       {section === 'search' && (
-        <p className="m-0 text-body-sm text-fg-tertiary">
+        <p className="text-body-sm text-fg-tertiary">
           Changing the model or endpoint re-embeds this organization&rsquo;s projects, and no one
           else&rsquo;s. Semantic results fill back in as the reindex runs; keyword search keeps
           working meanwhile.
         </p>
       )}
-      <p className="m-0 text-body-sm text-fg-tertiary">{ORG_SOURCE_LEGEND}</p>
+      <p className="text-body-sm text-fg-tertiary">{ORG_SOURCE_LEGEND}</p>
       <SettingsSaveBar
         note="Takes effect for this organization as soon as it is saved."
         warning={

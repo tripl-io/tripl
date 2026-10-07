@@ -215,7 +215,7 @@ function ScopeOverridesCard({ slug, canWrite }: { slug: string; canWrite: boolea
     >
       {dialog}
       <div className="space-y-4 p-4">
-        <p className="m-0 text-body-sm text-fg-tertiary">
+        <p className="text-body-sm text-fg-tertiary">
           Marking an alert a <strong>false positive</strong> makes the detector stricter on that
           scope alone — permanently. These overrides replace the sigma threshold and min expected
           count above for the scopes listed. Removing one puts that scope back on the project
@@ -457,7 +457,7 @@ export function MonitoringTab({ slug }: { slug: string }) {
       {!settings.anomaly_detection_enabled && (
         <p
           role="status"
-          className="m-0 flex items-start gap-2 rounded-card border px-3 py-2.5 text-body-sm border-warning bg-warning-soft"
+          className="flex items-start gap-2 rounded-card border px-3 py-2.5 text-body-sm border-warning bg-warning-soft"
         >
           <TriangleAlert aria-hidden="true" className="mt-0.5 size-3.5 shrink-0 text-warning" />
           {DETECTION_OFF_MESSAGE}
@@ -651,7 +651,7 @@ export function MonitoringTab({ slug }: { slug: string }) {
               </SettingField>
             </SettingGroup>
 
-            <p className="m-0 text-caption text-fg-tertiary">
+            <p className="text-caption text-fg-tertiary">
               Changes apply from the next metrics collection. Chart markers appear only when a
               scope&apos;s latest bucket is anomalous.
             </p>

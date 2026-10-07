@@ -86,8 +86,9 @@ synthetic source, and a background clock keeps it fresh.
 
 **Run the coached chapters.** The welcome panel's **Start: Run the live loop**
 opens the first of the chapters — short hands-on lessons, one per product area,
-each coached by a strip under the demo banner and a callout that rings the exact
-button to press. **Browse chapters** lists them all. **Run the live loop** is the
+each coached by a strip under the demo banner, a ring and a small tag on the
+exact button to press, and the demo guide in a corner of the window.
+**Browse chapters** lists them all. **Run the live loop** is the
 product's core loop end to end:
 
 1. **Run a scan** — press **Run now** on any scan.

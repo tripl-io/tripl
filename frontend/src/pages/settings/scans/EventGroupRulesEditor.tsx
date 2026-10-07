@@ -150,7 +150,7 @@ export function EventGroupRulesEditor({
         <p className="text-body-sm text-fg-tertiary">No group rule matches “{filter}”.</p>
       )}
       {visible.length > 0 && (
-        <ul className="m-0 list-none divide-y overflow-hidden rounded-control border bg-background p-0">
+        <ul className="list-none divide-y overflow-hidden rounded-control border bg-background p-0">
           {visible.map(({ rule, index: ruleIndex }) => {
             const open = openUids.has(rule._uid)
             const Chevron = open ? ChevronDown : ChevronRight

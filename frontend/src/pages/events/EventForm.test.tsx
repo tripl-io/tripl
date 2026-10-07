@@ -920,7 +920,7 @@ describe('EventForm — coached demo scenario', () => {
     expect(coachTarget).toContainElement(productId)
     expect(
       screen.getByText(
-        'Replace the current Product ID value with prod_monthly. The guide advances automatically — do not save yet.',
+        'Type prod_monthly into Product ID — one of the documented values listed under the field. The guide moves on by itself; do not save yet.',
       ),
     ).toBeInTheDocument()
     fireEvent.change(productId, { target: { value: 'prod_monthly' } })
@@ -930,7 +930,7 @@ describe('EventForm — coached demo scenario', () => {
     )
     expect(
       screen.getByText(
-        'Replace prod_monthly: type $ in Product ID, choose ${product_id}, then follow the guide to Save.',
+        'Now put the property back: a property such as ${product_id} stands for every documented value at once.',
       ),
     ).toBeInTheDocument()
 
@@ -954,7 +954,11 @@ describe('EventForm — coached demo scenario', () => {
     await waitFor(() =>
       expect(readScenarioState(SLUG).chapters['edit-event']?.step).toBe('edit-event/set-token'),
     )
-    expect(screen.getByText(/type \$ in Product ID/)).toBeInTheDocument()
+    expect(
+      screen.getByText(
+        'Now put the property back: a property such as ${product_id} stands for every documented value at once.',
+      ),
+    ).toBeInTheDocument()
   })
 
   it("completes the edit-event chapter's save step through the real save mutation", async () => {

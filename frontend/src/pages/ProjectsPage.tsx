@@ -200,7 +200,13 @@ export default function MainPage() {
         // One name for this page wherever it is named — the sidebar, the
         // top bar, the tab and the palette all say "All projects".
         title="All projects"
-        description="See which tracking plans are filling out, which projects still need review, and how much scan and alerting coverage exists across the workspace."
+        // Not over the welcome hero: it describes a portfolio that does not
+        // exist yet, and the hero says what tripl is right under it.
+        description={
+          isEmptyWorkspace
+            ? undefined
+            : 'See which tracking plans are filling out, which projects still need review, and how much scan and alerting coverage exists across the workspace.'
+        }
         actions={
           canCreateProject && !isEmptyWorkspace ? (
             <div className="flex flex-col items-end gap-1">

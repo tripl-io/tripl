@@ -482,17 +482,34 @@ export function scenarioReducer(state: ScenarioState, event: ScenarioEvent): Sce
  * hardcoding side/align at each call site.
  */
 export interface ScenarioCoachPlacement {
+  /** The side of the anchor the beacon's tag sits on. */
   side: 'top' | 'right' | 'bottom' | 'left'
   align: 'start' | 'center' | 'end'
-  /** 'ring' draws the pulsing beacon around the anchor; 'none' keeps only the card. */
+  /** 'ring' draws the pulsing beacon around the anchor; 'none' keeps only the guide. */
   emphasis: 'ring' | 'none'
+  /** The beacon's tag, on the control itself: what to do there. "Click here" when absent. */
+  tag?: string
 }
 
 export interface ScenarioStep {
   id: ScenarioStepId
   title: string
-  /** What to do next, in one line. Shown in the strip and in the coach mark. */
+  /** What to do next, in one line. Shown in the strip and in the demo guide. */
   instruction: string
+  /**
+   * The exact gesture, naming the control the way the page labels it ("Click
+   * Run now"). The guide prints it under the instruction, beside the ring:
+   * visitors read an instruction and still could not tell which control it
+   * meant — a ⋮ menu, a pencil — so the guide names it.
+   */
+  cue?: string
+  /**
+   * The step whose control leads back to this step's surface. Shown, with
+   * this step's guide, whenever this step's own control is not on screen: the
+   * drift row lives in a dialog the pencil opens, and a reload or a closed
+   * dialog left the visitor told only that the control "isn't visible".
+   */
+  entry?: ScenarioStepId
   /** Where the action lives. Deep links follow the persisted artifacts. */
   to: string
   ctaLabel: string
@@ -564,6 +581,7 @@ export function buildChapterSteps(
           id: 'live-loop/run-scan',
           title: 'Run a scan',
           instruction: 'Run a scan to pull fresh volume from the demo warehouse.',
+          cue: 'Click Run now.',
           to: scans,
           ctaLabel: 'Open Scans',
           // Read only by the scan header (ScanConfigDetailView), where Run now is
@@ -580,22 +598,25 @@ export function buildChapterSteps(
           id: 'live-loop/watch-scan',
           title: 'Watch it land',
           instruction: 'Your scan is running. Watch it complete and see what it changed.',
+          cue: 'Nothing to click — the highlighted run turns green in a few seconds.',
           to: scan ? `${scans}/${scan.scanConfigId}` : scans,
           ctaLabel: 'Open the run',
-          coach: { side: 'top', align: 'start', emphasis: 'ring' },
+          coach: { side: 'top', align: 'start', emphasis: 'ring', tag: 'Watch' },
         },
         {
           id: 'live-loop/collect-metric',
           title: 'Collect a metric',
           instruction: 'Pick a metric and collect it now — the same worker a real project uses.',
+          cue: 'Open the ⋮ menu on a metric and choose Collect now.',
           to: `${base}/metrics`,
           ctaLabel: 'Open Metrics',
-          coach: { side: 'bottom', align: 'end', emphasis: 'ring' },
+          coach: { side: 'left', align: 'center', emphasis: 'ring', tag: 'Open this menu' },
         },
         {
           id: 'live-loop/see-chart',
           title: 'See the chart move',
           instruction: 'Open the metric to see the series your collection just recomputed.',
+          cue: 'Click the highlighted metric name.',
           to: metric ? getMetricMonitoringPath(slug, metric.metricId) : `${base}/metrics`,
           ctaLabel: 'Open the chart',
           coach: { side: 'top', align: 'start', emphasis: 'ring' },
@@ -613,30 +634,37 @@ export function buildChapterSteps(
           id: 'edit-event/open-editor',
           title: 'Open an event',
           instruction: `Open ${SCENARIO_SEEDED.editedEventName} in the events catalog to edit it.`,
+          cue: `Click the pencil next to ${SCENARIO_SEEDED.editedEventName}.`,
           to: `${base}/events`,
           ctaLabel: 'Open Events',
-          coach: { side: 'bottom', align: 'start', emphasis: 'ring' },
+          coach: { side: 'right', align: 'center', emphasis: 'ring' },
         },
         {
           id: 'edit-event/set-value',
-          title: 'Enter a sample Product ID',
-          instruction: `Replace the current Product ID value with ${SCENARIO_SEEDED.editedFieldValue}. The guide advances automatically — do not save yet.`,
+          title: 'Try a documented value',
+          instruction: `Type ${SCENARIO_SEEDED.editedFieldValue} into Product ID — one of the documented values listed under the field. The guide moves on by itself; do not save yet.`,
+          cue: `Select the text in Product ID and type ${SCENARIO_SEEDED.editedFieldValue}.`,
+          entry: 'edit-event/open-editor',
           to: editor,
           ctaLabel: editorCta,
-          coach: { side: 'right', align: 'center', emphasis: 'ring' },
+          coach: { side: 'top', align: 'start', emphasis: 'ring', tag: 'Type here' },
         },
         {
           id: 'edit-event/set-token',
-          title: 'Restore the property template',
-          instruction: `Replace ${SCENARIO_SEEDED.editedFieldValue}: type $ in Product ID, choose ${SCENARIO_SEEDED.editedFieldToken}, then follow the guide to Save.`,
+          title: 'Switch to the property',
+          instruction: `Now put the property back: a property such as ${SCENARIO_SEEDED.editedFieldToken} stands for every documented value at once.`,
+          cue: `Clear Product ID, type $ and pick ${SCENARIO_SEEDED.editedFieldToken}.`,
+          entry: 'edit-event/open-editor',
           to: editor,
           ctaLabel: editorCta,
-          coach: { side: 'right', align: 'center', emphasis: 'ring' },
+          coach: { side: 'top', align: 'start', emphasis: 'ring', tag: 'Type $ here' },
         },
         {
           id: 'edit-event/save',
           title: 'Save the event',
           instruction: 'Save the event — the tracking plan updates immediately.',
+          cue: 'Click Save event.',
+          entry: 'edit-event/open-editor',
           to: editor,
           ctaLabel: editorCta,
           coach: { side: 'top', align: 'end', emphasis: 'ring' },
@@ -649,6 +677,7 @@ export function buildChapterSteps(
           id: 'variables/open-variables',
           title: 'Open Properties',
           instruction: 'Open the Properties settings — the templating layer behind field values.',
+          cue: 'Click Properties in the sidebar.',
           to: `${base}/variables`,
           ctaLabel: 'Open Properties',
         },
@@ -656,6 +685,7 @@ export function buildChapterSteps(
           id: 'variables/inspect-values',
           title: 'Inspect product_id',
           instruction: `Open ${SCENARIO_SEEDED.driftVariableName} to compare observed values against the documented list.`,
+          cue: `Click the pencil on the ${SCENARIO_SEEDED.driftVariableName} row.`,
           to: `${base}/variables`,
           ctaLabel: 'Open Properties',
           coach: { side: 'left', align: 'center', emphasis: 'ring' },
@@ -665,9 +695,11 @@ export function buildChapterSteps(
           title: 'Review the value drift',
           instruction:
             'A scan saw prod_weekly outside the documented values — review the drift row.',
+          cue: 'Click Accept on the drift row — it adds prod_weekly to the documented list.',
+          entry: 'variables/inspect-values',
           to: `${base}/variables`,
           ctaLabel: 'Open Properties',
-          coach: { side: 'bottom', align: 'end', emphasis: 'ring' },
+          coach: { side: 'top', align: 'start', emphasis: 'ring', tag: 'Accept is here' },
         },
       ]
     case 'branches':
@@ -676,6 +708,7 @@ export function buildChapterSteps(
           id: 'branches/open-branches',
           title: 'Open Branches',
           instruction: 'Open plan branches — version control for the tracking plan.',
+          cue: 'Click Plan branches in the sidebar.',
           to: `${base}/branches`,
           ctaLabel: 'Open Branches',
         },
@@ -683,6 +716,7 @@ export function buildChapterSteps(
           id: 'branches/open-branch',
           title: 'Open the feature branch',
           instruction: `Open ${SCENARIO_SEEDED.branchName} to review its pending change.`,
+          cue: `Click ${SCENARIO_SEEDED.branchName} in the branch list.`,
           to: `${base}/branches`,
           ctaLabel: 'Open Branches',
           coach: { side: 'right', align: 'center', emphasis: 'ring' },
@@ -691,17 +725,21 @@ export function buildChapterSteps(
           id: 'branches/review-diff',
           title: 'Review the diff',
           instruction: `Expand the change to ${SCENARIO_SEEDED.changedEventName} — one modified event, before and after.`,
+          cue: `Click the ${SCENARIO_SEEDED.changedEventName} row under Changes.`,
+          entry: 'branches/open-branch',
           to: `${base}/branches`,
           ctaLabel: 'Open Branches',
-          coach: { side: 'bottom', align: 'start', emphasis: 'ring' },
+          coach: { side: 'top', align: 'start', emphasis: 'ring' },
         },
         {
           id: 'branches/comment',
           title: 'Leave a comment',
           instruction: 'Post a review comment (or approve) — merging stays your call.',
+          cue: 'Write a line in the comment box and click Comment.',
+          entry: 'branches/open-branch',
           to: `${base}/branches`,
           ctaLabel: 'Open Branches',
-          coach: { side: 'top', align: 'end', emphasis: 'ring' },
+          coach: { side: 'top', align: 'start', emphasis: 'ring', tag: 'Comment here' },
         },
       ]
     case 'reconcile':
@@ -710,6 +748,7 @@ export function buildChapterSteps(
           id: 'reconcile/open-reconciliation',
           title: 'Open Reconciliation',
           instruction: 'Open Reconciliation — what the warehouse sees vs what the plan says.',
+          cue: 'Click Reconciliation in the sidebar.',
           to: `${base}/reconciliation`,
           ctaLabel: 'Open Reconciliation',
         },
@@ -717,6 +756,7 @@ export function buildChapterSteps(
           id: 'reconcile/accept-shadow',
           title: 'Accept a shadow event',
           instruction: `Accept ${SCENARIO_SEEDED.shadowCandidateName} — warehouse traffic with no planned event.`,
+          cue: `Click Accept on the ${SCENARIO_SEEDED.shadowCandidateName} row in the Shadow events inbox.`,
           to: `${base}/reconciliation`,
           ctaLabel: 'Open Reconciliation',
           coach: { side: 'bottom', align: 'end', emphasis: 'ring' },
@@ -725,9 +765,10 @@ export function buildChapterSteps(
           id: 'reconcile/review-drift',
           title: 'Resolve a schema drift',
           instruction: `Open the schema-drift badge beside the Events heading and accept the amount type change on ${SCENARIO_SEEDED.schemaDriftEventName}.`,
+          cue: 'Click the amber schema-drift badge, then Accept under amount.',
           to: `${base}/events`,
           ctaLabel: 'Open Events',
-          coach: { side: 'bottom', align: 'start', emphasis: 'ring' },
+          coach: { side: 'right', align: 'center', emphasis: 'ring' },
         },
       ]
     case 'alerting':
@@ -736,6 +777,7 @@ export function buildChapterSteps(
           id: 'alerting/open-alerting',
           title: 'Open Alerting',
           instruction: 'Open alerting — destinations, rules and the local demo sink.',
+          cue: 'Click Alerting in the sidebar.',
           to: `${base}/alerting`,
           ctaLabel: 'Open Alerting',
         },
@@ -744,6 +786,7 @@ export function buildChapterSteps(
           title: 'Create a rule',
           instruction:
             'Add a rule on the local demo sink — deliveries render locally, nothing is sent.',
+          cue: 'Click Add rule, give it any name and press Create.',
           to: `${base}/alerting?section=monitors`,
           ctaLabel: 'Open Rules',
           coach: { side: 'left', align: 'center', emphasis: 'ring' },
@@ -752,9 +795,10 @@ export function buildChapterSteps(
           id: 'alerting/simulate',
           title: 'Simulate a firing',
           instruction: `Replay ${SCENARIO_SEEDED.firingRuleName} to preview a delivery over real anomalies.`,
+          cue: `Open the ⋯ menu on ${SCENARIO_SEEDED.firingRuleName} and choose Replay.`,
           to: `${base}/alerting?section=monitors`,
           ctaLabel: 'Open Rules',
-          coach: { side: 'left', align: 'center', emphasis: 'ring' },
+          coach: { side: 'left', align: 'center', emphasis: 'ring', tag: 'Open this menu' },
         },
       ]
     case 'explore':
@@ -763,6 +807,7 @@ export function buildChapterSteps(
           id: 'explore/visit-coverage',
           title: 'Check coverage',
           instruction: 'Open Coverage — which platforms and event types actually report.',
+          cue: 'Click Coverage in the sidebar.',
           to: `${base}/coverage`,
           ctaLabel: 'Open Coverage',
         },
@@ -770,14 +815,17 @@ export function buildChapterSteps(
           id: 'explore/visit-anomaly',
           title: 'Drill into the spike',
           instruction: `Open Anomalies and drill into the ${SCENARIO_SEEDED.anomalyEventName} spike.`,
+          cue: `Click the ${SCENARIO_SEEDED.anomalyEventName} spike to open its chart.`,
           to: `${base}/anomalies`,
           ctaLabel: 'Open Anomalies',
+          coach: { side: 'top', align: 'start', emphasis: 'ring' },
         },
         {
           id: 'explore/use-search',
           title: 'Search by meaning',
           instruction:
             'Press Ctrl K (or ⌘K) and try "purchase funnel" or "money back" — search matches meaning, not just names.',
+          cue: 'Press Ctrl K (⌘K on a Mac), or click Search in the sidebar.',
           to: `${base}/overview`,
           ctaLabel: 'Open Overview',
         },

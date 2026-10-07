@@ -60,7 +60,7 @@ export default function PlanRulesSection({ slug }: { slug?: string } = {}) {
         >
           <div className="space-y-2 px-4 py-[15px] text-body-sm leading-[1.5] text-fg-secondary">
             {governance ? (
-              <p className="m-0">
+              <p>
                 They apply to this project too, and are set in{' '}
                 <Link to={settingsPath(`/settings/${GOVERNANCE_SECTION_PATH}`)} className={linkClass}>
                   Organization › {governance.item.label}
@@ -69,13 +69,13 @@ export default function PlanRulesSection({ slug }: { slug?: string } = {}) {
               </p>
             ) : (
               <>
-                <p className="m-0 flex items-center gap-2">
+                <p className="flex items-center gap-2">
                   <Chip tone="accent" size="sm">
                     Enterprise
                   </Chip>
                   <span>Organization rules are part of Tripl Enterprise.</span>
                 </p>
-                <p className="m-0">
+                <p>
                   This instance runs the Community edition, which keeps the per-project gates above.
                 </p>
                 <a

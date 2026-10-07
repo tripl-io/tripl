@@ -18,7 +18,7 @@ import { CommandPaletteProvider } from '@/components/command-palette'
 import { ActiveProjectContext } from '@/components/active-project-context'
 import { ErrorBoundary, RouteErrorBoundary } from '@/components/error-boundary'
 import { ErrorState } from '@/components/error-state'
-import { MAIN_CONTENT_ID } from '@/components/landmarks'
+import { MAIN_CONTENT_ID, SIDEBAR_ID } from '@/components/landmarks'
 import { BranchStrip, TopBar } from '@/components/top-bar'
 import { TweaksPanelProvider } from '@/components/tweaks-panel'
 import { LazyDemoScenarioProvider } from '@/demo/LazyDemoScenarioProvider'
@@ -52,6 +52,9 @@ const DemoBanner = lazyWithReload(() =>
 )
 const DemoScenarioStrip = lazyWithReload(() =>
   import('@/demo/DemoScenarioStrip').then((m) => ({ default: m.DemoScenarioStrip })),
+)
+const DemoGuideHost = lazyWithReload(() =>
+  import('@/demo/DemoGuideHost').then((m) => ({ default: m.DemoGuideHost })),
 )
 // The way back to the Get-started checklist (#250). It only renders on a
 // URL tagged `?onboarding=…`, so its chunk is fetched for those alone.
@@ -102,9 +105,6 @@ const ACTIVITY_INLINE_QUERY = `(min-width: ${ACTIVITY_INLINE_MIN_WIDTH}px)`
 // Pinned from 768px it left a tablet ~528px of page. Mirrors the
 // `lg:` utilities on the sidebar wrapper, the backdrop and the hamburger.
 const NAV_PERSISTENT_QUERY = '(min-width: 1024px)'
-
-/** The drawer's id, for the hamburger's `aria-controls`. */
-const SIDEBAR_ID = 'app-sidebar'
 
 /**
  * Subscribe to a CSS media query. Uses `useSyncExternalStore` so the value is
@@ -670,6 +670,17 @@ export default function Layout() {
                       </Suspense>
                     </ErrorBoundary>
                   )}
+                  {/* The demo guide, for the moments no coach mark speaks: a
+                      step whose control is on another page, or not on screen.
+                      Portalled, so where it sits here does not matter; its own
+                      boundary, so a failure costs the guide and nothing else. */}
+                  {project?.is_demo && !railSuppressed && (
+                    <ErrorBoundary fallback={() => null}>
+                      <Suspense fallback={null}>
+                        <DemoGuideHost />
+                      </Suspense>
+                    </ErrorBoundary>
+                  )}
                   {/* The skip link's landmark — and it starts HERE, below the
                       demo chrome, not around it. Both blocks above are shell
                       furniture, and on a demo project they put six controls
@@ -689,8 +700,11 @@ export default function Layout() {
 
                       This element's box is ALSO the content column — the page
                       gutter is padding on the parent, so this box starts and
-                      ends exactly where the cards do. ScenarioCoachMark bounds
-                      its popovers to it and depends on that.
+                      ends exactly where the cards do. The demo guide takes a
+                      corner of it and depends on that; while the guide sits
+                      in a bottom corner, the column ends with as much room as
+                      the guide takes (`--demo-guide-clearance`), so a page's
+                      last rows can always be scrolled out from under it.
 
                       `scroll-mt-*` mirrors that parent padding because jumping
                       to a fragment scrolls its top flush to the viewport: with
@@ -701,7 +715,7 @@ export default function Layout() {
                     id={MAIN_CONTENT_ID}
                     ref={mainRef}
                     tabIndex={-1}
-                    className="scroll-mt-3 focus:outline-none sm:scroll-mt-5 lg:scroll-mt-8"
+                    className="scroll-mt-3 pb-[var(--demo-guide-clearance,0px)] focus:outline-none sm:scroll-mt-5 lg:scroll-mt-8"
                   >
                     {projectsQuery.isError && (
                       <div className="mb-6">

@@ -24,29 +24,32 @@ export function WorkspaceWelcome({
   onGenerateDemo,
   onCreateProject,
 }: WorkspaceWelcomeProps) {
+  // Gaps, not `space-y-*`: Tailwind v4 emits the space utilities at zero
+  // specificity, so the children's `m-0` cancelled them and the hero's lines
+  // and the cards' text sat flush against each other.
   return (
-    <section className="space-y-8 py-4">
-      <div className="mx-auto flex max-w-2xl flex-col items-center space-y-3 text-center">
+    <section className="flex flex-col gap-10 py-6">
+      <div className="mx-auto flex max-w-2xl flex-col items-center gap-4 text-center">
         <Chip tone="accent" size="sm">
           Tracking plan operations
         </Chip>
         <h2 className="m-0 text-display font-semibold leading-tight tracking-[-0.02em]">
           Keep your product analytics honest
         </h2>
-        <p className="m-0 text-body leading-relaxed text-fg-secondary">
+        <p className="m-0 text-lead text-fg-secondary">
           tripl is the single place where your team writes down what you <em>intend</em> to track,
           checks it against what your apps are <em>actually</em> sending, and gets a heads-up the
           moment the numbers start to look wrong.
         </p>
-        <p className="m-0 text-body-sm text-fg-tertiary">
+        <p className="m-0 max-w-xl text-body-sm text-fg-tertiary">
           No new SDK to ship and nothing to re-instrument — tripl connects to the data warehouse
           you already have (ClickHouse, BigQuery, Databricks, Snowflake, or PostgreSQL) and only ever reads from it.
         </p>
       </div>
 
       {canCreateProject ? (
-        <div className="mx-auto flex max-w-2xl flex-col justify-center gap-x-8 gap-y-4 sm:flex-row sm:items-start">
-          <div className="flex flex-col gap-1.5 sm:items-center sm:text-center">
+        <div className="mx-auto flex max-w-2xl flex-col justify-center gap-x-10 gap-y-5 sm:flex-row sm:items-start">
+          <div className="flex flex-col gap-2 sm:items-center sm:text-center">
             {/* Empty-state CTAs take the large control size. */}
             <Button size="lg" onClick={onGenerateDemo} disabled={isProvisioningDemo}>
               <Sparkles className="size-3.5" aria-hidden="true" />
@@ -58,7 +61,7 @@ export function WorkspaceWelcome({
             </p>
           </div>
           {onCreateProject && (
-            <div className="flex flex-col gap-1.5 sm:items-center sm:text-center">
+            <div className="flex flex-col gap-2 sm:items-center sm:text-center">
               <Button size="lg" variant="outline" onClick={onCreateProject}>
                 <Plus className="h-3.5 w-3.5" />
                 New project
@@ -78,10 +81,10 @@ export function WorkspaceWelcome({
         </p>
       )}
 
-      <div className="grid gap-3 lg:grid-cols-3">
+      <div className="grid gap-4 lg:grid-cols-3">
         {WELCOME_PILLARS.map((pillar) => (
           <Card key={pillar.id}>
-            <CardContent className="space-y-2">
+            <CardContent className="flex flex-col gap-3">
               <div className="flex items-center gap-2.5">
                 <div
                   className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-accent-soft text-accent"
@@ -94,10 +97,12 @@ export function WorkspaceWelcome({
                   {pillar.eyebrow}
                 </p>
               </div>
-              <h3 className="m-0 text-body font-semibold tracking-tight">{pillar.title}</h3>
-              <p className="m-0 text-body-sm leading-[1.5] text-fg-secondary">
-                {pillar.description}
-              </p>
+              <div className="flex flex-col gap-1.5">
+                <h3 className="m-0 text-heading font-semibold tracking-tight">{pillar.title}</h3>
+                <p className="m-0 text-body-sm leading-[1.55] text-fg-secondary">
+                  {pillar.description}
+                </p>
+              </div>
             </CardContent>
           </Card>
         ))}

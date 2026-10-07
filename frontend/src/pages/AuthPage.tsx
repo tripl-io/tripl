@@ -18,7 +18,8 @@ import { PASSWORD_MIN_LENGTH, PASSWORD_POLICY_HINT } from '@/lib/passwordPolicy'
 import { SLUG_ERROR, foldSlug, isValidSlug } from '@/lib/slug'
 import type { AuthUser } from '@/types'
 import { SILENT_ERROR_META } from '@/lib/errorFeedback'
-import { authStatusKey, projectsKey } from '@/lib/queryKeys'
+import { projectsKey } from '@/lib/queryKeys'
+import { authStatusQueryOptions } from '@/lib/deploymentMode'
 import { AUTH_QUERY_KEY } from '@/components/auth-context'
 import { extensionAuthPanels } from '@/extensions'
 
@@ -44,6 +45,12 @@ const CARD_COPY: Record<CoreMode, { title: string; description: string }> = {
     title: 'Choose a new password',
     description: 'Set a new password to finish resetting your account.',
   },
+}
+
+/** Sign-in on the public demo, where Google is the only way in. */
+const DEMO_CARD_COPY = {
+  title: 'Try the tripl demo',
+  description: 'Sign in with Google and get a demo workspace of your own.',
 }
 
 // Just enough to catch a missing @ before the server's 422 would; the backend
@@ -132,11 +139,10 @@ export default function AuthPage() {
   const destination = postLoginDestination(location.state)
 
   // Unauthenticated instance probe: drives the "first account becomes owner"
-  // note and whether a sign-up form is worth offering at all.
-  const statusQuery = useQuery({
-    queryKey: authStatusKey(),
-    queryFn: authApi.status,
-  })
+  // note and whether a sign-up form is worth offering at all. Fetched at boot
+  // (main.tsx), so the public demo's Google-only card is usually decided
+  // before this page first paints.
+  const statusQuery = useQuery(authStatusQueryOptions())
   const isFreshInstance = statusQuery.data?.has_users === false
   // Only a definite `false` closes the door in the UI. While the probe is in
   // flight (or if it failed) we keep offering sign-up — the server is the real
@@ -154,6 +160,14 @@ export default function AuthPage() {
   // Hosted mode (F20): sign-up creates an organization, and the new account
   // verifies its address before it can use the app.
   const hosted = statusQuery.data?.deployment_mode === 'hosted'
+  // The public demo signs visitors in with Google and nothing else. The email
+  // form, single sign-on and "Forgot your password?" were all for accounts a
+  // visitor does not have, and the closed-sign-up note sent them to ask an
+  // owner who does not exist. Its operators still sign in with a password, at
+  // /auth?mode=password. A demo without Google configured keeps the form —
+  // there would be no way in at all.
+  const publicDemo = statusQuery.data?.public_demo === true
+  const googleOnly = publicDemo && googleSignIn && searchParams.get('mode') !== 'password'
   // A live reset token always forces reset mode: a reset link must show the reset
   // form even when /auth was ALREADY mounted (same route, new ?reset_token=, no
   // remount). Deriving `mode` — rather than syncing it in an effect — means the
@@ -222,7 +236,8 @@ export default function AuthPage() {
   const panel = mode.startsWith('panel:')
     ? extensionAuthPanels.find((candidate) => `panel:${candidate.id}` === mode)
     : undefined
-  const { title: cardTitle, description: cardDescription } = panel ?? CARD_COPY[mode as CoreMode]
+  const { title: cardTitle, description: cardDescription } =
+    panel ?? (googleOnly && mode === 'login' ? DEMO_CARD_COPY : CARD_COPY[mode as CoreMode])
 
   const submitted = submittedMode === mode
   // Register enforces the shared policy; login stays lenient so pre-policy
@@ -282,8 +297,9 @@ export default function AuthPage() {
               Operate the tracking plan before the data drifts.
             </h1>
             <p className="max-w-xl text-heading leading-7 text-fg-muted">
-              Sign in to manage catalog coverage, scan production data, review anomalies,
-              and route alerts without losing the operational context of the workspace.
+              {publicDemo
+                ? 'Walk a ready-made workspace — a tracking plan, live scans, anomalies and alerts on a synthetic warehouse — with a guide that shows you where to click.'
+                : 'Sign in to manage catalog coverage, scan production data, review anomalies, and route alerts without losing the operational context of the workspace.'}
             </p>
           </div>
           <div className="hidden gap-4 sm:grid sm:grid-cols-3">
@@ -366,7 +382,23 @@ export default function AuthPage() {
               </div>
             )}
 
-            {isAuthTab && (googleSignIn || oidcSignIn) && (
+            {googleOnly && isAuthTab && (
+              <div className="space-y-4">
+                <Button asChild size="lg" variant="outline" className="w-full justify-center">
+                  <a href={googleStartUrl(destination)}>
+                    <GoogleMark />
+                    Continue with Google
+                  </a>
+                </Button>
+                <p className="text-body leading-6 text-fg-subtle">
+                  You get a generated project on a synthetic warehouse, and a guide
+                  that shows you around. Nothing of yours is connected, and a
+                  workspace nobody opens for a while is deleted.
+                </p>
+              </div>
+            )}
+
+            {!googleOnly && isAuthTab && (googleSignIn || oidcSignIn) && (
               <div className="space-y-4">
                 {/* Navigations, not fetches: the server answers with a
                     redirect to the provider. */}
@@ -394,7 +426,7 @@ export default function AuthPage() {
               </div>
             )}
 
-            {isAuthTab && (
+            {isAuthTab && !googleOnly && (
               <form
                 className="space-y-4"
                 // Validated here, not by the browser's one-field-at-a-time
@@ -547,7 +579,7 @@ export default function AuthPage() {
               </form>
             )}
 
-            {mode === 'login' && extensionAuthPanels.length > 0 && (
+            {mode === 'login' && !googleOnly && extensionAuthPanels.length > 0 && (
               <div className="space-y-4">
                 <div className="flex items-center gap-3 text-body-sm text-fg-subtle" aria-hidden="true">
                   <span className="h-px flex-1 bg-border" />
@@ -753,7 +785,8 @@ export default function AuthPage() {
                 </form>
               ))}
 
-            {mode === 'login' && registrationClosed && (
+            {/* Not on the public demo: sign-up there is open, through Google. */}
+            {mode === 'login' && registrationClosed && !publicDemo && (
               <p
                 role="status"
                 className="rounded-lg border border-border bg-bg-sunken px-3 py-2 text-body leading-6 text-fg-muted"
@@ -763,7 +796,7 @@ export default function AuthPage() {
               </p>
             )}
 
-            {mode === 'login' && (
+            {mode === 'login' && !googleOnly && (
               <div className="space-y-2 text-body leading-6 text-fg-subtle">
                 <p>Use the same account across catalog, monitoring, and alerting workflows.</p>
                 <button

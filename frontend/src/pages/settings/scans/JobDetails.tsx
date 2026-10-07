@@ -154,7 +154,7 @@ export function JobDetails({
           {/* The diagnosis, then what to do about it (#247). */}
           {nextStep && (
             <div className="mt-2 space-y-2 text-foreground">
-              <p className="m-0">{nextStep.text}</p>
+              <p>{nextStep.text}</p>
               {nextStep.actions.length > 0 && (
                 <div className="flex flex-wrap gap-2">
                   {nextStep.actions.map(action => (

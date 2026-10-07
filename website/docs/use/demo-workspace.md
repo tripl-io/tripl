@@ -179,24 +179,42 @@ The demo offers two guides, and they do different jobs.
   merging stays your call), **Reconcile the plan**, **Route an alert** (against
   the local demo sink), and **Explore the rest**.
 
-  A strip joined to the bottom of the demo banner — one bar, not two cards — tracks which chapter and step you are on and
-  links to where the next action lives (the link hides when you are already on
-  that page); a callout points at — and visibly
-  rings — the exact button or input that performs it. Callouts use an opaque
-  raised surface anchored beside the control they ring, and flip to stay inside
-  the viewport. A control inside a data table has no free side — every direction
-  the callout could open on is more table — so those callouts keep the ring on
-  the control and dock the card to the edge of the window instead (the bottom,
-  or the top when the control is in the lower half, on the control's side of the
-  window; full width on a phone), and
-  the rows stay readable. A docked card collapses to its step line with its
-  chevron. The ring is clipped to what can be seen of the control, so it never
-  floats over the page when the control scrolls out of a table. On a phone the
-  coach card always docks at the bottom of the screen. Screen readers
-  hear the step's instruction as the control's description. **Hide hints** — on
-  the callout, or in the strip — quiets the callouts for the rest of the browser
-  session on that project; **Show hints** in the strip brings them back. Both
-  are demo-only and never appear in a real project.
+  A strip joined to the bottom of the demo banner — one bar, not two cards —
+  tracks which chapter and step you are on and links to where the next action
+  lives. The link hides when you are already on that page, or when the control
+  is already on it. When the bar is narrow (the activity panel open beside the
+  page), its buttons drop to icons, then the progress dashes, the instruction and
+  the chapter name go, so the step title stays readable.
+
+  On the page, the step's control — the exact button or input that performs it —
+  wears a pulsing ring and a small tag pointing at it, such as **Click here**,
+  **Type here** or **Open this menu**. The ring is clipped to what can be seen of
+  the control, and the ring and tag step aside while something else, such as a
+  dialog or a menu, covers the control.
+
+  The **demo guide** — a small card with a friendly face, in a corner of the
+  window — says what the step is for and what to do next. It takes the emptiest
+  corner that covers neither the control nor an open dialog or menu, and stays
+  there until something needs that corner. When no corner is free (a large
+  dialog, say), it folds into a round button showing the step number; click it to
+  read the step. You can minimise the card yourself at any time. On a phone it
+  spans the width of the screen, at the bottom, or at the top while the control
+  is down there. The page gets room underneath the card, so nothing ends up
+  stuck behind it.
+
+  When the control is not on the page you are on, the guide says where it is:
+  it rings the sidebar item that leads there and offers **Take me there**. If
+  you leave a step halfway (closing the event editor, for instance), the ring
+  moves to the way back (the event's edit button). When the control should be on
+  the page and is not, the guide says so, and adds that resetting the demo
+  project restores every guided example if you are allowed to reset it; a viewer
+  is told the step needs edit access instead.
+
+  Screen readers hear the step's instruction as the control's description.
+  **Hide hints** — on the guide, or in the strip — quiets the ring, the tag and
+  the guide for the rest of the browser session on that project; **Show hints**
+  in the strip brings them back. All of it is demo-only and never appears in a
+  real project.
 
   The chapters follow **your** actions, not the demo's. The runtime clock is
   producing real scans and collections of its own in the background, so a step

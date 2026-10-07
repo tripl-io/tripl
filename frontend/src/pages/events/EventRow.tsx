@@ -293,12 +293,14 @@ export const EventRow = memo(function EventRow({
   // The edit affordance is dimmed until the row is hovered, but the row the
   // coached scenario points at shows it at full strength while the edit-event
   // chapter's mark is on it (context bypasses the memo, and outside a demo the
-  // inert context never matches).
+  // inert context never matches) — on the step that opens the editor, and on
+  // the editor's own steps, whose way back in it is.
   const { active: scenarioActive, step: scenarioStep, hintsMuted } = useDemoScenario()
   const coachEdit =
     scenarioActive &&
     !hintsMuted &&
-    scenarioStep.id === 'edit-event/open-editor' &&
+    (scenarioStep.id === 'edit-event/open-editor' ||
+      scenarioStep.entry === 'edit-event/open-editor') &&
     ev.name === SCENARIO_SEEDED.editedEventName
 
   return (

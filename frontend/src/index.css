@@ -380,17 +380,55 @@
 @keyframes pulse-dot { 0%, 100% { opacity: 1; transform: scale(1); } 50% { opacity: 0.5; transform: scale(1.25); } }
 .pulse-dot { animation: pulse-dot 1.8s ease-in-out infinite; }
 
-/* The coach mark's beacon: a soft ring that breathes outward around the exact
-   control the demo scenario wants clicked. */
+/* The coach mark's beacon: a solid ring around the exact control the demo
+   scenario wants used, with a glow that breathes outward from it. The glow
+   alone read as decoration on the dark theme — visitors could not tell which
+   control was meant — so the ring itself is solid now. */
 @keyframes coach-ring {
-  from { box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 45%, transparent); }
-  to { box-shadow: 0 0 0 8px color-mix(in srgb, var(--accent) 12%, transparent); }
+  from {
+    box-shadow:
+      0 0 0 2px var(--accent),
+      0 0 0 4px color-mix(in srgb, var(--accent) 50%, transparent);
+  }
+  to {
+    box-shadow:
+      0 0 0 2px var(--accent),
+      0 0 0 14px color-mix(in srgb, var(--accent) 0%, transparent);
+  }
 }
 .coach-ring {
   pointer-events: none;
   border-radius: var(--radius-control);
-  animation: coach-ring 1.8s ease-in-out infinite;
+  animation: coach-ring 1.6s ease-out infinite;
 }
+
+/* The beacon's tag ("Click here") nudges towards the control it names; the
+   beacon sets the direction per side. */
+@keyframes coach-tag-nudge {
+  0%, 100% { transform: translate(0, 0); }
+  50% { transform: translate(var(--coach-tag-dx, 0), var(--coach-tag-dy, 0)); }
+}
+.coach-tag {
+  pointer-events: none;
+  animation: coach-tag-nudge 1.6s ease-in-out infinite;
+}
+
+/* The demo guide's mascot: it blinks and breathes, slowly enough to stay out
+   of the way of the page. */
+@keyframes guide-blink {
+  0%, 93%, 100% { transform: scaleY(1); }
+  96% { transform: scaleY(0.12); }
+}
+@keyframes guide-bob {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-2.5px); }
+}
+.guide-eyes {
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: guide-blink 5s ease-in-out infinite;
+}
+.guide-body { animation: guide-bob 3.2s ease-in-out infinite; }
 
 /* The pulse says "still running". Reduced motion means it must say so without
    moving: the dot stays, the animation goes. The coach ring
@@ -399,8 +437,11 @@
   .pulse-dot { animation: none; }
   .coach-ring {
     animation: none;
-    box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 45%, transparent);
+    box-shadow:
+      0 0 0 2px var(--accent),
+      0 0 0 6px color-mix(in srgb, var(--accent) 35%, transparent);
   }
+  .coach-tag, .guide-eyes, .guide-body { animation: none; }
 }
 
 /* ── Scrollbar ─────────────────────────────────────────────────────────── */

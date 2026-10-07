@@ -128,17 +128,26 @@ export const INERT_ACTIONS: DemoScenarioActions = {
 
 /**
  * Which steps currently have a visible coach mark mounted somewhere on the
- * page. The strip reads this to notice when the control it is coaching towards
- * is not actually on screen (filtered out, other tab, below a collapsed
- * section) and to say so instead of pointing at nothing.
+ * page. The strip and the guide host read this to notice when the control the
+ * step is coaching towards is not actually on screen (filtered out, other
+ * tab, below a collapsed section) and to say so instead of pointing at
+ * nothing.
+ *
+ * Keyed by step id, or by `entryPresenceKey(step)` for a mark pointing at the
+ * way back to a step's surface (`ScenarioStep.entry`).
  */
 export interface CoachPresence {
-  present: ReadonlySet<ScenarioStepId>
-  report: (step: ScenarioStepId, mounted: boolean) => void
+  present: ReadonlySet<string>
+  report: (key: string, mounted: boolean) => void
+}
+
+/** The presence key of a mark coaching as the way back to `step`'s surface. */
+export function entryPresenceKey(step: ScenarioStepId): string {
+  return `${step}@entry`
 }
 
 export const INERT_COACH_PRESENCE: CoachPresence = {
-  present: new Set<ScenarioStepId>(),
+  present: new Set<string>(),
   report: () => {},
 }
 
@@ -181,14 +190,14 @@ export function isCoachableDemo(project: Project | undefined): boolean {
 export function useCoachPresenceState(): CoachPresence {
   // Which steps have a visible coach mark mounted right now. A Set, not a
   // counter: marks for one step live on one surface and unmount together.
-  const [presentSteps, setPresentSteps] = useState<ReadonlySet<ScenarioStepId>>(() => new Set())
+  const [presentSteps, setPresentSteps] = useState<ReadonlySet<string>>(() => new Set())
 
-  const report = useCallback((step: ScenarioStepId, mounted: boolean) => {
+  const report = useCallback((key: string, mounted: boolean) => {
     setPresentSteps((prev) => {
-      if (prev.has(step) === mounted) return prev
+      if (prev.has(key) === mounted) return prev
       const next = new Set(prev)
-      if (mounted) next.add(step)
-      else next.delete(step)
+      if (mounted) next.add(key)
+      else next.delete(key)
       return next
     })
   }, [])
