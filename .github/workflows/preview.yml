@@ -75,14 +75,17 @@ jobs:
         id: meta
         uses: docker/metadata-action@v6
         with:
-          # The revision label is the checked-out commit, which the Enterprise
-          # preview reads to build its frontend from the same source.
-          context: git
           images: ghcr.io/${{ github.repository }}
           flavor: latest=false
           tags: |
             type=raw,value=preview
             type=raw,value=${{ steps.commit.outputs.tag }}
+          # The revision is the commit checked out, not the workflow's (on a
+          # workflow_run, main's newest): the Enterprise preview reads it to
+          # build its frontend from the same source. `context: git` would read
+          # it, but cannot from the detached HEAD a commit checkout leaves.
+          labels: |
+            org.opencontainers.image.revision=${{ steps.commit.outputs.sha }}
       - name: Build & push (linux/amd64)
         if: steps.commit.outputs.moved == 'true'
         uses: docker/build-push-action@v7
