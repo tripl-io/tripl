@@ -3,7 +3,7 @@ name = "tripl-mcp"
 # 0.2.2: new Docs-note and typed-property tools, which import modules only
 # `tripl` 0.2.2 has; the dependency floor below moved with it. The version
 # range that dependency pins is declared once, below; it is not repeated here.
-version = "0.3.0"
+version = "0.3.1"
 description = "Standalone MCP server exposing a curated agent toolset over the tripl REST API"
 readme = "README.md"
 requires-python = ">=3.12"
@@ -62,7 +62,7 @@ dependencies = [
     # wheel carries this plain constraint alone (verified against the built
     # artifact, not assumed) and a consumer of the release resolves it from the
     # index.
-    "tripl>=0.3.0,<0.4",
+    "tripl>=0.3.1,<0.4",
 ]
 
 [project.urls]

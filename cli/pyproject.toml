@@ -3,7 +3,7 @@ name = "tripl"
 # 0.2.3: the installer's compose file runs RabbitMQ's healthcheck as the
 # rabbitmq user (gosu), so a first `tripl install` no longer races the Erlang
 # cookie. Versioned with the service release; tripl-mcp is unchanged.
-version = "0.3.0"
+version = "0.3.1"
 description = "Operator CLI for a tripl tracking-plan instance: diagnostics, health and live monitoring"
 readme = "README.md"
 requires-python = ">=3.12"

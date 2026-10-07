@@ -1008,7 +1008,7 @@ wheels = [
 
 [[package]]
 name = "tripl"
-version = "0.3.0"
+version = "0.3.1"
 source = { directory = "../cli" }
 dependencies = [
     { name = "httpx" },
@@ -1028,7 +1028,7 @@ dev = [
 
 [[package]]
 name = "tripl-mcp"
-version = "0.3.0"
+version = "0.3.1"
 source = { editable = "." }
 dependencies = [
     { name = "httpx" },
