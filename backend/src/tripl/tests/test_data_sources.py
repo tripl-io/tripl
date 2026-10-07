@@ -605,6 +605,46 @@ class TestConnectionSettings:
         assert resp.status_code == 422, resp.text
         assert "http_path" in resp.text
 
+    async def test_snowflake_settings_round_trip(self, client: AsyncClient):
+        create = await _create(
+            client,
+            db_type="snowflake",
+            host="myorg-myaccount",
+            port=443,
+            database_name="ANALYTICS",
+            username="TRIPL",
+            password="hunter2",
+            connection_settings={
+                "warehouse": "COMPUTE_WH",
+                "auth_type": "password",
+                "role": "ANALYST",
+                "schema_name": "EVENTS",
+                "schema_allowlist": ["MARTS"],
+            },
+        )
+        assert create.status_code == 201, create.text
+        settings = create.json()["connection_settings"]
+        assert settings["warehouse"] == "COMPUTE_WH"
+        assert settings["auth_type"] == "password"
+        assert settings["role"] == "ANALYST"
+        assert settings["schema_name"] == "EVENTS"
+        assert settings["schema_allowlist"] == ["MARTS"]
+        assert "hunter2" not in create.text
+
+        # A PATCH that drops the warehouse would leave a source nothing can run on.
+        updated = await client.patch(
+            f"/api/v1/data-sources/{create.json()['id']}",
+            json={"connection_settings": {"schema_name": "MARTS"}},
+        )
+        assert updated.status_code == 422, updated.text
+
+    async def test_snowflake_without_a_warehouse_is_rejected(self, client: AsyncClient):
+        resp = await _create(
+            client, db_type="snowflake", host="myorg-myaccount", port=443, database_name="DB"
+        )
+        assert resp.status_code == 422, resp.text
+        assert "warehouse" in resp.text
+
     async def test_postgres_settings_round_trip(self, client: AsyncClient):
         create = await _create(
             client,
@@ -649,6 +689,13 @@ class TestConnectionSettings:
                 "dbc-a1b2c3d4-e5f6.cloud.databricks.com",
                 {"location": "EU"},
                 "databricks",
+            ),
+            # A Databricks setting on a Snowflake source.
+            (
+                "snowflake",
+                "myorg-myaccount",
+                {"http_path": "/sql/1.0/warehouses/x"},
+                "snowflake",
             ),
         ],
     )

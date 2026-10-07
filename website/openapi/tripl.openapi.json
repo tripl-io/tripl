@@ -30283,6 +30283,13 @@
                 ]
               },
               {
+                "type": "string",
+                "enum": [
+                  "password",
+                  "key_pair"
+                ]
+              },
+              {
                 "type": "null"
               }
             ],
@@ -30312,6 +30319,28 @@
               }
             ],
             "title": "Schema Allowlist"
+          },
+          "warehouse": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Warehouse"
+          },
+          "role": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Role"
           },
           "sslkey_set": {
             "type": "boolean",
@@ -30402,6 +30431,7 @@
           "postgres",
           "bigquery",
           "databricks",
+          "snowflake",
           "synthetic"
         ],
         "title": "DBType"
@@ -30487,6 +30517,9 @@
               },
               {
                 "$ref": "#/components/schemas/DatabricksSettings"
+              },
+              {
+                "$ref": "#/components/schemas/SnowflakeSettings"
               },
               {
                 "$ref": "#/components/schemas/SyntheticSettings"
@@ -30612,6 +30645,9 @@
               },
               {
                 "$ref": "#/components/schemas/DatabricksSettings"
+              },
+              {
+                "$ref": "#/components/schemas/SnowflakeSettings"
               },
               {
                 "$ref": "#/components/schemas/SyntheticSettings"
@@ -31044,6 +31080,9 @@
               },
               {
                 "$ref": "#/components/schemas/DatabricksSettings"
+              },
+              {
+                "$ref": "#/components/schemas/SnowflakeSettings"
               },
               {
                 "$ref": "#/components/schemas/SyntheticSettings"
@@ -54261,6 +54300,76 @@
         ],
         "title": "SimulatedRuleFiring",
         "description": "One virtual delivery the rule would have triggered during the window."
+      },
+      "SnowflakeSettings": {
+        "properties": {
+          "warehouse": {
+            "type": "string",
+            "maxLength": 255,
+            "minLength": 1,
+            "title": "Warehouse"
+          },
+          "auth_type": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "password",
+                  "key_pair"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Auth Type"
+          },
+          "role": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 255
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Role"
+          },
+          "schema_name": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 255
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Schema Name"
+          },
+          "schema_allowlist": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Schema Allowlist"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "warehouse"
+        ],
+        "title": "SnowflakeSettings",
+        "description": "Snowflake connection: the virtual warehouse to run on, and what to browse.\n\n``host`` is the account identifier, ``database_name`` the database and\n``username`` the user; these are the settings that have no column of their own."
       },
       "SourceFreshness": {
         "properties": {

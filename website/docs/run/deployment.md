@@ -24,7 +24,7 @@ For tuning individual settings (logging, rate limits, metrics, AI/search feature
 - **Files on the deploy host:** `compose.yaml`, your `.env`, and the `infra/rabbitmq/` directory (the RabbitMQ service mounts `infra/rabbitmq/rabbitmq.conf`). `tripl install` writes all three; place them by hand only on the "Without the CLI" path. The `rabbitmq.conf` is not optional — Docker's answer to a missing bind-mount source is to create a *directory* there, after which RabbitMQ fails to start with an error naming neither tripl nor the mount.
 - **[`uv`](https://docs.astral.sh/uv/getting-started/installation/) on the deploy host — only if you take the CLI path.** `uvx tripl install` fetches the CLI from PyPI at run time and brings its own Python, so `uv` is the whole prerequisite; `pip install tripl` needs Python 3.12+ instead. The **"Without the CLI"** paths below need neither, only Docker.
 - **Outbound access to GHCR** (`ghcr.io`) to pull the image. If the package is private you must `docker login ghcr.io` first; see [Registry access](#registry-access).
-- **A data warehouse to monitor** — ClickHouse, BigQuery, Databricks, or PostgreSQL. This is connected from the UI after the stack is up, not via environment variables (see [Connecting a warehouse](#connecting-a-warehouse)).
+- **A data warehouse to monitor** — ClickHouse, BigQuery, Databricks, Snowflake, or PostgreSQL. This is connected from the UI after the stack is up, not via environment variables (see [Connecting a warehouse](#connecting-a-warehouse)).
 
 ### Rough resource sizing
 
@@ -225,7 +225,7 @@ tripl reads from your existing warehouse — it never writes to it. You connect 
 
 1. Open the app at your `APP_BASE_URL` and create the first account on the sign-in page. It becomes the owner — see [Roles & permissions](../administer/admin-guide.md#roles--permissions).
 2. Optionally click **Generate demo project** to explore with synthetic data and no warehouse at all.
-3. Go to **Settings → Data sources** (under the Workspace group) and add a data source: **ClickHouse**, **BigQuery**, **Databricks**, or **PostgreSQL**. The credentials you enter are encrypted at rest with `ENCRYPTION_KEY`.
+3. Go to **Settings → Data sources** (under the Workspace group) and add a data source: **ClickHouse**, **BigQuery**, **Databricks**, **Snowflake**, or **PostgreSQL**. The credentials you enter are encrypted at rest with `ENCRYPTION_KEY`.
 4. Create a read-only `tk_r_` key under **Settings → API keys** if you want [`tripl doctor`](./cli.md#tripl-doctor) in a cron job. Until that key exists `doctor` cannot run at all: it demands a URL *and* a key before it opens a socket, even though `/health` needs neither.
 
 :::note Step 3 is browser-only by construction, not for want of a CLI

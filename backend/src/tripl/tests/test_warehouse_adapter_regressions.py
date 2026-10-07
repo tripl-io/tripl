@@ -49,6 +49,8 @@ from tripl.core.adapters.databricks import DatabricksAdapter
 from tripl.core.adapters.databricks_sql import Params
 from tripl.core.adapters.measure_validator import dialect_for_db_type
 from tripl.core.adapters.postgres import _FINITE_NUMBER_RE, PostgresAdapter
+from tripl.core.adapters.snowflake import SnowflakeAdapter
+from tripl.core.adapters.snowflake_sql import Params as SnowflakeParams
 from tripl.core.adapters.synthetic import SyntheticAdapter, SyntheticCapabilityError
 from tripl.core.bucketing import stored_bucket
 from tripl.models.domain_enums import MetricAggregation as MA
@@ -431,6 +433,13 @@ def test_every_sql_engine_records_a_refused_regex() -> None:
     databricks._contract_regex_support = {expectation.regex: False}  # type: ignore[dict-item]
     assert databricks._contract_bad_condition(expectation, Params()) is None
     assert databricks.take_skipped_field_contracts() == [expectation]
+
+    snowflake = object.__new__(SnowflakeAdapter)
+    snowflake._allowed_columns = {"sku"}
+    snowflake._column_types = {"sku": "STRING"}
+    snowflake._contract_regex_support = {expectation.regex: False}  # type: ignore[dict-item]
+    assert snowflake._contract_bad_condition(expectation, SnowflakeParams()) is None
+    assert snowflake.take_skipped_field_contracts() == [expectation]
 
 
 def test_bigquery_records_a_contract_on_a_repeated_column() -> None:

@@ -81,6 +81,9 @@ def test_string_condition_keeps_numeric_value_as_text() -> None:
         (SqlDialect.clickhouse, "'%100\\\\%%'"),
         (SqlDialect.bigquery, "'%100\\\\%%'"),
         (SqlDialect.databricks, "'%100\\\\%%'"),
+        # Snowflake reads the literal like Databricks, but its LIKE has no default
+        # escape character, so the backslash is named.
+        (SqlDialect.snowflake, "'%100\\\\%%' ESCAPE '\\\\'"),
     ],
 )
 def test_contains_escapes_like_wildcards(dialect: SqlDialect, expected: str) -> None:

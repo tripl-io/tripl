@@ -1,7 +1,13 @@
 // 'synthetic' is a local, in-memory demo warehouse. It is a valid db_type on the
 // wire (demo sources report it) but is intentionally NOT user-selectable, so it
 // is excluded from DB_TYPE_OPTIONS below.
-export type DbType = 'clickhouse' | 'postgres' | 'bigquery' | 'databricks' | 'synthetic'
+export type DbType =
+  | 'clickhouse'
+  | 'postgres'
+  | 'bigquery'
+  | 'databricks'
+  | 'snowflake'
+  | 'synthetic'
 
 export const DB_TYPE_OPTIONS: { value: DbType; label: string; defaultPort: number }[] = [
   { value: 'clickhouse', label: 'ClickHouse', defaultPort: 8123 },
@@ -9,6 +15,8 @@ export const DB_TYPE_OPTIONS: { value: DbType; label: string; defaultPort: numbe
   { value: 'bigquery', label: 'BigQuery', defaultPort: 0 },
   // Always HTTPS on 443; the form does not show a port for it.
   { value: 'databricks', label: 'Databricks', defaultPort: 443 },
+  // Always HTTPS on 443, like Databricks.
+  { value: 'snowflake', label: 'Snowflake', defaultPort: 443 },
 ]
 
 export type DataSourceTestStatus = 'success' | 'failed'
@@ -60,11 +68,25 @@ export interface DatabricksConnectionSettings {
   schema_allowlist?: string[] | null
 }
 
+// 'password' (default): the user's password. 'key_pair': the user's PEM private
+// key in the password slot.
+export type SnowflakeAuthType = 'password' | 'key_pair'
+
+export interface SnowflakeConnectionSettings {
+  // Required: the virtual warehouse queries run on, e.g. COMPUTE_WH.
+  warehouse: string
+  auth_type?: SnowflakeAuthType | null
+  role?: string | null
+  schema_name?: string | null
+  schema_allowlist?: string[] | null
+}
+
 // ClickHouse and the synthetic warehouse have no connection settings of their own.
 export type ConnectionSettings =
   | BigQueryConnectionSettings
   | PostgresConnectionSettings
   | DatabricksConnectionSettings
+  | SnowflakeConnectionSettings
 
 // Read side: the union flattened, with the private key replaced by a boolean.
 // Only the fields applicable to the source's db_type are ever populated.
@@ -77,11 +99,15 @@ export interface ConnectionSettingsResponse {
   sslcert: string | null
   search_path: string | null
   sslkey_set: boolean
-  // Databricks (absent from older servers' responses).
+  // Databricks (absent from older servers' responses). `auth_type`,
+  // `schema_name` and `schema_allowlist` are Snowflake's too.
   http_path?: string | null
-  auth_type?: DatabricksAuthType | null
+  auth_type?: DatabricksAuthType | SnowflakeAuthType | null
   schema_name?: string | null
   schema_allowlist?: string[] | null
+  // Snowflake
+  warehouse?: string | null
+  role?: string | null
 }
 
 export interface DataSource {

@@ -90,9 +90,10 @@ def classify_complex(type_name: str) -> ComplexKind | None:
     name = _normalize(type_name)
     if _is_array(name):
         return None
-    if name.startswith(("json", "object(")) or name == "variant":
+    if name.startswith(("json", "object(")) or name in ("variant", "object"):
         # Covers CH `JSON`/`Object('json')`, BQ `JSON`, PG `json`/`jsonb`, and the
-        # Databricks `variant` document. Exact for `variant`: ClickHouse's
+        # Databricks/Snowflake `variant` document and Snowflake's semi-structured
+        # `object`. Exact for `variant` and `object`: ClickHouse's
         # `Variant(T1, T2)` is a tagged union of scalars, not a document.
         return ComplexKind.json
     if name.startswith(("record", "struct", "tuple(")):
@@ -113,7 +114,8 @@ def is_string_type(type_name: str) -> bool:
     """Whether a column holds plain text a scan may be asked to parse as JSON.
 
     ClickHouse ``String`` / ``FixedString(N)`` (under any ``Nullable`` /
-    ``LowCardinality`` wrapper) and BigQuery / Databricks ``STRING``: the dialects
+    ``LowCardinality`` wrapper) and BigQuery / Databricks / Snowflake ``STRING`` (the
+    Snowflake adapter reports its text columns under that name): the dialects
     whose adapters implement ``json_string_source`` (F23.9, #306).
     """
     name = _normalize(type_name)

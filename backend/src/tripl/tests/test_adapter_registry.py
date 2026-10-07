@@ -29,10 +29,11 @@ def test_registry_lists_known_adapters() -> None:
     assert "postgres" in db_types
     assert "bigquery" in db_types
     assert "databricks" in db_types
+    assert "snowflake" in db_types
 
 
 def test_build_adapter_rejects_unknown_db_type() -> None:
-    ds = _make_ds("snowflake")
+    ds = _make_ds("oracle")
     with pytest.raises(ValueError, match="Unsupported db_type"):
         build_adapter(ds)
 

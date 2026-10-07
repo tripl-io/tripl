@@ -4,7 +4,7 @@ import type { DbType } from '@/types/dataSources'
 
 /**
  * Per-engine CodeMirror SQL dialects driving keyword highlighting and the
- * autocomplete word list. lang-sql ships no ClickHouse/BigQuery/Databricks dialect, so we
+ * autocomplete word list. lang-sql ships no ClickHouse/BigQuery/Databricks/Snowflake dialect, so we
  * define lightweight ones from curated keyword/function/type lists.
  *
  * Casing rule (lang-sql stores completion labels verbatim but tokenises
@@ -12,7 +12,8 @@ import type { DbType } from '@/types/dataSources'
  * listed in their exact camelCase form — completion then inserts them verbatim
  * (their syntax colouring is skipped, an acceptable trade for correct text).
  * BigQuery is case-INSENSITIVE, so its functions/types are listed lower-case,
- * which both inserts validly and still colours; so is Databricks (Spark SQL).
+ * which both inserts validly and still colours; so are Databricks (Spark SQL)
+ * and Snowflake.
  * Postgres uses lang-sql's own,
  * already-complete dialect.
  */
@@ -87,11 +88,35 @@ const DatabricksDialect = SQLDialect.define({
   backslashEscapes: true,
 })
 
+const SNOWFLAKE_FUNCTIONS =
+  'count count_if sum avg min max approx_count_distinct array_agg listagg any_value ' +
+  'booland_agg boolor_agg date_trunc time_slice dateadd datediff timestampadd ' +
+  'timestampdiff date_part convert_timezone to_timestamp to_timestamp_ntz to_timestamp_tz ' +
+  'to_timestamp_ltz to_date current_date current_timestamp extract try_cast cast ' +
+  'try_to_double try_to_number coalesce ifnull nullif nvl iff lower upper length substr ' +
+  'split regexp_like regexp_instr regexp_substr parse_json try_parse_json to_json ' +
+  'object_keys get get_path flatten is_object is_array typeof array_size array_sort ' +
+  'array_construct row_number rank dense_rank lag lead first_value last_value ntile ' +
+  'percentile_cont round floor ceil abs'
+const SNOWFLAKE_TYPES =
+  'number decimal numeric int integer bigint smallint float double real boolean string ' +
+  'varchar text binary date time timestamp timestamp_ntz timestamp_ltz timestamp_tz ' +
+  'variant object array'
+
+const SnowflakeDialect = SQLDialect.define({
+  keywords: `${COMMON_KEYWORDS} qualify lateral flatten pivot unpivot sample`,
+  builtin: SNOWFLAKE_FUNCTIONS,
+  types: SNOWFLAKE_TYPES,
+  identifierQuotes: '"',
+  backslashEscapes: true,
+})
+
 const HIGHLIGHT_DIALECT: Record<DbType, SQLDialect> = {
   postgres: PostgreSQL,
   clickhouse: ClickHouseDialect,
   bigquery: BigQueryDialect,
   databricks: DatabricksDialect,
+  snowflake: SnowflakeDialect,
   // The local demo synthetic source mimics ClickHouse semantics, so reuse its
   // dialect for highlighting/autocomplete of the (rarely-edited) demo SQL.
   synthetic: ClickHouseDialect,
@@ -107,6 +132,7 @@ const FORMAT_LANGUAGE: Record<DbType, SqlLanguage> = {
   clickhouse: 'clickhouse',
   bigquery: 'bigquery',
   databricks: 'spark',
+  snowflake: 'snowflake',
   synthetic: 'clickhouse',
 }
 

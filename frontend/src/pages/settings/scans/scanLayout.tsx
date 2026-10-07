@@ -11,6 +11,7 @@ const DB_HUE: Record<DbType, string> = {
   postgres: 'oklch(0.62 0.12 240)',
   bigquery: 'oklch(0.62 0.16 290)',
   databricks: 'oklch(0.6 0.19 30)',
+  snowflake: 'oklch(0.66 0.13 220)',
   // Local demo synthetic warehouse — a distinct teal so it never reads as a
   // real engine.
   synthetic: 'oklch(0.62 0.13 175)',

@@ -157,7 +157,7 @@ needs.
 
 1. Open **Data sources** from the workspace settings area.
 2. Add a connection for your warehouse — **ClickHouse**, **BigQuery**,
-   **Databricks**, or **PostgreSQL** — and fill in the connection details:
+   **Databricks**, **Snowflake**, or **PostgreSQL** — and fill in the connection details:
    - **ClickHouse**: host, port (8123), database, username, password. Optionally
      pick a **JSON path discovery** mode for `JSON`-typed columns.
    - **PostgreSQL**: host, port (5432), database, username, password. **Version 14
@@ -174,7 +174,11 @@ needs.
      **schema allowlist** for the schema browser. Only SQL warehouses are
      supported; see [Connect your warehouse](../how-to/connect-your-warehouse.md#databricks)
      for the grants it needs.
-3. Every warehouse — BigQuery and Databricks included — accepts a **query timeout in seconds**
+   - **Snowflake**: account identifier, database, user, the **virtual warehouse**
+     queries run on, and a password — or, with **Key pair**, the user's PEM
+     private key. Optionally set a **role**, a **default schema** and a **schema
+     allowlist**; see [Connect your warehouse](../how-to/connect-your-warehouse.md#snowflake).
+3. Every warehouse — BigQuery, Databricks and Snowflake included — accepts a **query timeout in seconds**
    (300 by default).
 4. Save, then click **Test** on the connection card.
 
@@ -188,9 +192,9 @@ They support the same features, but not with the same guarantees. ClickHouse and
 PostgreSQL are verified by **executing** tripl's generated SQL against real
 servers in CI; BigQuery's SQL is verified as *valid* by Google's own ZetaSQL
 analyzer, but its computed **values** have never been executed against real
-BigQuery. Databricks' SQL is checked only against a mocked driver in CI; it
-follows the same contract, but neither its validity nor its values are proven
-by an executing test. There are also real differences in supported time-column types, nested
+BigQuery. Databricks' and Snowflake's SQL is checked only against a mocked
+driver on pull requests; both have a credentialed value suite for release tags,
+which Snowflake has not yet passed against a real account. There are also real differences in supported time-column types, nested
 JSON behavior, TLS defaults and minimum versions.
 
 Before you commit to a warehouse, read the

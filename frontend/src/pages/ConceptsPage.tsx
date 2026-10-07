@@ -241,7 +241,7 @@ const AREAS: readonly Area[] = [
       {
         term: 'Data sources',
         definition:
-          'The warehouse connections (ClickHouse, Postgres, BigQuery, Databricks…) scans and metrics query. They are shared across the workspace and set up in Settings.',
+          'The warehouse connections (ClickHouse, Postgres, BigQuery, Databricks, Snowflake…) scans and metrics query. They are shared across the workspace and set up in Settings.',
         path: '/settings/data-sources',
         workspace: true,
       },

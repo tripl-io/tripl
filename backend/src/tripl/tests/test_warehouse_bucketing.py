@@ -32,6 +32,7 @@ from tripl.core.adapters.clickhouse import ClickHouseAdapter
 from tripl.core.adapters.databricks import DatabricksAdapter
 from tripl.core.adapters.errors import WarehouseCapabilityError
 from tripl.core.adapters.postgres import PostgresAdapter
+from tripl.core.adapters.snowflake import SnowflakeAdapter
 from tripl.core.adapters.synthetic import SyntheticAdapter
 from tripl.core.bucketing import (
     EPOCH,
@@ -597,6 +598,20 @@ def test_databricks_buckets_every_time_family_through_one_timestamp_cast(time_ty
     )
 
 
+def _snowflake(time_type: str = "TIMESTAMP_NTZ") -> SnowflakeAdapter:
+    adapter = object.__new__(SnowflakeAdapter)
+    adapter._allowed_columns = {_COL}
+    adapter._column_types = {_COL: time_type}
+    return adapter
+
+
+@pytest.mark.parametrize("code", ["15m", "1h", "6h"])
+def test_snowflake_date_column_rejects_sub_day_intervals(code: str) -> None:
+    """Same refusal as BigQuery's, for the same reason."""
+    with pytest.raises(WarehouseCapabilityError, match="no time-of-day"):
+        _snowflake(time_type="DATE")._bucket_expression(_COL, code)
+
+
 @pytest.mark.parametrize("code", CODES)
 def test_every_adapter_states_its_week_and_epoch_anchor_explicitly(code: str) -> None:
     """No adapter may rely on its dialect's default bucket origin.
@@ -609,6 +624,7 @@ def test_every_adapter_states_its_week_and_epoch_anchor_explicitly(code: str) ->
     pg = _postgres()._bucket_expression(_COL, code)
     bq = _bigquery()._bucket_expression(_COL, code)
     dbx = _databricks()._bucket_expression(_COL, code)
+    sf = _snowflake()._bucket_expression(_COL, code)
 
     if code == "1w":
         assert "toMonday" in ch
@@ -616,6 +632,9 @@ def test_every_adapter_states_its_week_and_epoch_anchor_explicitly(code: str) ->
         assert "WEEK(MONDAY)" in bq
         # Spark's date_trunc('WEEK') is documented as the Monday of the week.
         assert dbx.startswith("date_trunc('WEEK', ")
+        # Snowflake's DATE_TRUNC('WEEK') follows the session's WEEK_START, so the
+        # week is floored on a grid anchored at WEEK_ORIGIN (a Monday) instead.
+        assert f"- {int(WEEK_ORIGIN.timestamp())})" in sf
     else:
         assert "'UTC'" in ch  # bucket in UTC, not the column's zone
         assert "1970-01-01" in pg  # EPOCH origin, stated
@@ -624,3 +643,5 @@ def test_every_adapter_states_its_week_and_epoch_anchor_explicitly(code: str) ->
         # a one-unit width truncates to the calendar unit, which is the same grid
         # because an hour and a day divide the UTC day evenly.
         assert "unix_seconds(" in dbx or dbx.startswith(("date_trunc('HOUR'", "date_trunc('DAY'"))
+        # Snowflake: the same split, over DATE_PART(EPOCH_SECOND, ...).
+        assert "EPOCH_SECOND" in sf or sf.startswith(("DATE_TRUNC('HOUR'", "DATE_TRUNC('DAY'"))

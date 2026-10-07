@@ -716,6 +716,19 @@ authentication) goes through the same vetted, pinned, redirect-refusing client
 as webhooks; cloud fetch, which would download results from cloud storage URLs
 the warehouse hands back, is switched off.
 
+**Snowflake follows the same reasoning, by construction.** Its connector also
+opens its own connection pools from the hostname. Whatever the host field holds
+— an account identifier or a hostname — tripl turns it into a name under
+`snowflakecomputing.com` (or `snowflakecomputing.cn`) and refuses anything else,
+so the driver only ever reaches a name whose DNS Snowflake controls; with the
+setting on, that name is also resolved and refused when it answers privately,
+which is what a PrivateLink account does. Unlike Databricks, Snowflake has no
+switch to keep large results inline: a result set larger than a few megabytes is
+downloaded in chunks from the presigned cloud-storage URLs Snowflake's own
+service hands back. Those URLs come from the account, not from anyone who
+configured the source, but they are a second set of hosts tripl does not vet.
+tripl's scans return aggregates, so they rarely reach that size.
+
 ## CORS
 
 The effective allow-list is resolved by `Settings.cors_origins()`:

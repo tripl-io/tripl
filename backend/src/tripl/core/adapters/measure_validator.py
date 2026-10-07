@@ -92,9 +92,11 @@ _FORBIDDEN_SQL_RE = re.compile(
 # Functions that reach outside the warehouse from inside a plain SELECT, on the
 # credential's rights: Databricks' outbound HTTP through a Unity Catalog
 # connection, reads of arbitrary storage paths and model calls, and the JVM
-# reflection pair. Matched only as a CALL (name, optional space, ``(``), so a
-# column that merely shares the name is untouched. Same caveat as above: the
-# credential's grants are the barrier, this closes the obvious door.
+# reflection pair; Snowflake's ``SYSTEM$`` functions (some of which cancel
+# queries or change account state), Cortex and ``AI_*`` model calls. Matched only
+# as a CALL (name, optional space, ``(``), so a column that merely shares the name
+# is untouched. Same caveat as above: the credential's grants are the barrier,
+# this closes the obvious door.
 _FORBIDDEN_SQL_FUNCTIONS: tuple[str, ...] = (
     "http_request",
     "read_files",
@@ -106,8 +108,11 @@ _FORBIDDEN_SQL_FUNCTIONS: tuple[str, ...] = (
     "java_method",
     "reflect",
 )
+#: Whole families, as patterns: ``SYSTEM$CANCEL_ALL_QUERIES``,
+#: ``SNOWFLAKE.CORTEX.COMPLETE``, ``AI_COMPLETE``.
+_FORBIDDEN_SQL_FUNCTION_PATTERNS: tuple[str, ...] = (r"system\$\w+", r"cortex\.\w+", r"ai_\w+")
 _FORBIDDEN_FUNCTION_RE = re.compile(
-    r"\b(" + "|".join(_FORBIDDEN_SQL_FUNCTIONS) + r")\s*\(",
+    r"\b(" + "|".join((*_FORBIDDEN_SQL_FUNCTIONS, *_FORBIDDEN_SQL_FUNCTION_PATTERNS)) + r")\s*\(",
     re.IGNORECASE,
 )
 
@@ -142,6 +147,7 @@ class SqlDialect(StrEnum):
     postgres = "postgres"
     bigquery = "bigquery"
     databricks = "databricks"
+    snowflake = "snowflake"
 
 
 #: ``DataSource.db_type`` -> dialect. The synthetic demo warehouse mimics ClickHouse
@@ -152,16 +158,19 @@ _DB_TYPE_DIALECT: dict[str, SqlDialect] = {
     "postgres": SqlDialect.postgres,
     "bigquery": SqlDialect.bigquery,
     "databricks": SqlDialect.databricks,
+    "snowflake": SqlDialect.snowflake,
     "synthetic": SqlDialect.clickhouse,
 }
 
-#: ClickHouse, BigQuery and Databricks back-tick identifiers; PostgreSQL
-#: double-quotes them (a double-quoted token is a STRING literal on Databricks).
+#: ClickHouse, BigQuery and Databricks back-tick identifiers; PostgreSQL and
+#: Snowflake double-quote them (a double-quoted token is a STRING literal on
+#: Databricks, and a back-quote is a syntax error on Snowflake).
 _IDENTIFIER_QUOTE: dict[SqlDialect, str] = {
     SqlDialect.clickhouse: "`",
     SqlDialect.bigquery: "`",
     SqlDialect.databricks: "`",
     SqlDialect.postgres: '"',
+    SqlDialect.snowflake: '"',
 }
 
 #: A value must LOOK like a date/timestamp before we try to parse it as one, so a
@@ -194,6 +203,10 @@ _POSTGRES_BUCKET_HINT = (
 )
 _BIGQUERY_BUCKET_HINT = "Use TIMESTAMP_TRUNC(<time column>, DAY, 'UTC') for a BigQuery source."
 _DATABRICKS_BUCKET_HINT = "Use date_trunc('DAY', <time column>) for a Databricks source."
+_SNOWFLAKE_BUCKET_HINT = (
+    "Use DATE_TRUNC('DAY', <time column>) or TIME_SLICE(<time column>, 1, 'DAY') "
+    "for a Snowflake source."
+)
 
 #: Per-dialect "this cannot run here" rules, each verified against a live engine so a
 #: valid query is never flagged. Ordered most-specific first.
@@ -250,6 +263,43 @@ _DIALECT_RULES: dict[SqlDialect, tuple[tuple[re.Pattern[str], str], ...]] = {
             _fn_re("parseDateTime64BestEffort"),
             "parseDateTime64BestEffort is a ClickHouse function and does not exist on "
             "Databricks. Use a typed literal such as TIMESTAMP '2026-01-01 00:00:00+00:00'.",
+        ),
+    ),
+    SqlDialect.snowflake: (
+        (
+            _fn_re("toStartOfInterval"),
+            "toStartOfInterval is a ClickHouse function and does not exist on Snowflake. "
+            f"{_SNOWFLAKE_BUCKET_HINT}",
+        ),
+        (
+            _fn_re("date_bin"),
+            "date_bin is a PostgreSQL function and does not exist on Snowflake. "
+            f"{_SNOWFLAKE_BUCKET_HINT}",
+        ),
+        (
+            _fn_re("TIMESTAMP_TRUNC"),
+            "TIMESTAMP_TRUNC is a BigQuery function and does not exist on Snowflake. "
+            f"{_SNOWFLAKE_BUCKET_HINT}",
+        ),
+        (
+            _fn_re("TIMESTAMP_BUCKET"),
+            "TIMESTAMP_BUCKET is a BigQuery function and does not exist on Snowflake. "
+            f"{_SNOWFLAKE_BUCKET_HINT}",
+        ),
+        (
+            _fn_re("countIf"),
+            "countIf is a ClickHouse function and does not exist on Snowflake. Use "
+            "COUNT_IF(<condition>).",
+        ),
+        (
+            _fn_re("parseDateTime64BestEffort"),
+            "parseDateTime64BestEffort is a ClickHouse function and does not exist on "
+            "Snowflake. Use a typed value such as "
+            "'2026-01-01 00:00:00 +00:00'::TIMESTAMP_TZ.",
+        ),
+        (
+            _BACKTICK_RE,
+            'Snowflake does not accept back-quoted identifiers. Use double quotes: "my column".',
         ),
     ),
     SqlDialect.postgres: (
@@ -532,6 +582,8 @@ def quote_sql_string_literal(text: str, dialect: SqlDialect) -> str:
       matches its own adapter's ``_quote_string``.
     * **Databricks** escapes with a backslash, like BigQuery (its parser reads
       ``\\`` escapes in every string literal), so it gets the same form.
+    * **Snowflake** reads backslash escapes in single-quoted literals too (and
+      accepts ``''``), so it gets the backslash form as well.
 
     So the previously-shared ``''`` escaping meant ANY structured filter value
     containing an apostrophe was a hard BigQuery parse error — raised inside a
@@ -644,6 +696,14 @@ def quote_timestamp_literal(value: datetime, dialect: SqlDialect, *, kind: TimeK
         return f"parseDateTime64BestEffort('{format_utc_literal(moment)}', 6, 'UTC')"
     if dialect is SqlDialect.postgres:
         return f"TIMESTAMPTZ '{format_utc_literal(moment)}'"
+    if dialect is SqlDialect.snowflake:
+        # TIMESTAMP_TZ at +00:00 names the instant whatever the column's family:
+        # an NTZ column is compared in the session zone, which the adapter pins to
+        # UTC, so its wall clock is read as UTC.
+        if kind is TimeKind.date:
+            return f"TO_DATE('{moment.strftime(_BQ_DATE_LITERAL_FMT)}', 'YYYY-MM-DD')"
+        stamp = moment.strftime(_BQ_DATETIME_LITERAL_FMT)
+        return f"TO_TIMESTAMP_TZ('{stamp} +00:00', 'YYYY-MM-DD HH24:MI:SS.FF6 TZH:TZM')"
     if dialect is SqlDialect.databricks:
         # A TIMESTAMP_NTZ column classifies as ``timestamp`` and compares against
         # this literal as the same UTC wall clock: the adapter pins the session to UTC.

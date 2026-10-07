@@ -19,7 +19,7 @@ This guide takes you from nothing to a working tripl setup:
    [wire up your first alert](#step-8--set-up-your-first-alert).
 
 Steps 1–3 need nothing but Docker and take about fifteen minutes. Steps 4–8 need
-read access to a warehouse (**ClickHouse**, **BigQuery**, **Databricks**, or **PostgreSQL**)
+read access to a warehouse (**ClickHouse**, **BigQuery**, **Databricks**, **Snowflake**, or **PostgreSQL**)
 where analytics events already land; budget half an hour the first time.
 
 If a term is unfamiliar along the way, [Concepts](./use/concepts.md) defines
@@ -158,6 +158,9 @@ See **[Project templates](./use/project-templates.md)**.
    - **Databricks** — server hostname, catalog, the SQL warehouse's HTTP path,
      and an access token (or a service principal's OAuth client ID and secret).
      See [Connect your warehouse](./how-to/connect-your-warehouse.md#databricks).
+   - **Snowflake** — account identifier, database, user, the virtual warehouse,
+     and a password or the user's private key. See
+     [Connect your warehouse](./how-to/connect-your-warehouse.md#snowflake).
 3. Save, then click **Test** on the connection card and wait for it to go
    green.
 

@@ -235,15 +235,24 @@ def _run_preview_query(
             adapter.close()
 
 
+#: Dialects whose generated window literal depends on the time column's native type.
+_NATIVE_TIME_TYPE_ENGINES = {
+    "bigquery": "BigQuery",
+    "databricks": "Databricks",
+    "snowflake": "Snowflake",
+}
+
+
 def _saved_fact_column_types(fact_table: FactTable, data_source: DataSource) -> dict[str, str]:
     """Return the saved native type map used for side-effect-free SQL disclosure.
 
     The normalized ``type`` remains the form/validation contract. ``native_type``
     is captured by Fact table -> Preview columns and is required where a dialect
     generates different SQL for members of the same normalized family. Existing
-    BigQuery and Databricks tables without that snapshot must be re-previewed
-    rather than being shown a plausible but non-executable TIMESTAMP guess for
-    DATETIME/DATE (BigQuery) or TIMESTAMP_NTZ/DATE (Databricks).
+    BigQuery, Databricks and Snowflake tables without that snapshot must be
+    re-previewed rather than being shown a plausible but non-executable TIMESTAMP
+    guess for DATETIME/DATE (BigQuery), TIMESTAMP_NTZ/DATE (Databricks) or
+    TIMESTAMP_NTZ/TIMESTAMP_TZ/DATE (Snowflake).
     """
     columns = [column for column in (fact_table.columns or []) if isinstance(column, Mapping)]
     column_types = {
@@ -261,13 +270,13 @@ def _saved_fact_column_types(fact_table: FactTable, data_source: DataSource) -> 
             "its columns have not been recorded yet."
         )
         raise ValueError(msg)
-    if str(data_source.db_type) in {"bigquery", "databricks"}:
+    if str(data_source.db_type) in _NATIVE_TIME_TYPE_ENGINES:
         timestamp_column = next(
             (column for column in columns if column.get("name") == fact_table.timestamp_column),
             None,
         )
         if timestamp_column is None or not timestamp_column.get("native_type"):
-            engine = "BigQuery" if str(data_source.db_type) == "bigquery" else "Databricks"
+            engine = _NATIVE_TIME_TYPE_ENGINES[str(data_source.db_type)]
             msg = (
                 f"Re-preview and save this {engine} fact table before viewing generated SQL; "
                 "its native timestamp type has not been recorded yet."

@@ -17,6 +17,7 @@ import {
   connectionSettingsToForm,
   httpPathError,
   pemError,
+  snowflakeWarehouseError,
 } from './connection-settings'
 
 const CERT = '-----BEGIN CERTIFICATE-----\nMIIB\n-----END CERTIFICATE-----'
@@ -235,5 +236,63 @@ describe('Databricks', () => {
       fields: { secret: 'Bad token' },
       rest: 'port: Bad port',
     })
+  })
+})
+
+describe('Snowflake', () => {
+  const form = {
+    ...EMPTY_CONNECTION_SETTINGS_FORM,
+    warehouse: ' COMPUTE_WH ',
+    role: 'ANALYST',
+    snowflakeAuthType: 'key_pair' as const,
+    schemaName: 'EVENTS',
+    schemaAllowlist: 'EVENTS, MARTS',
+  }
+
+  it('requires a warehouse name', () => {
+    expect(snowflakeWarehouseError('', 'Required')).toBe('Required')
+    expect(snowflakeWarehouseError('WH; DROP', 'Required')).toMatch(/warehouse name only/)
+    expect(snowflakeWarehouseError('COMPUTE_WH', 'Required')).toBeNull()
+    expect(connectionSettingsErrors('snowflake', EMPTY_CONNECTION_SETTINGS_FORM, 'Required')).toEqual({
+      warehouse: 'Required',
+    })
+    expect(connectionSettingsErrors('snowflake', form)).toEqual({})
+  })
+
+  it('sends only its own settings, trimmed, and reads them back', () => {
+    expect(buildConnectionSettings('snowflake', form)).toEqual({
+      warehouse: 'COMPUTE_WH',
+      auth_type: 'key_pair',
+      role: 'ANALYST',
+      schema_name: 'EVENTS',
+      schema_allowlist: ['EVENTS', 'MARTS'],
+    })
+    const back = connectionSettingsToForm({
+      location: null,
+      maximum_bytes_billed: null,
+      dataset_allowlist: null,
+      sslmode: null,
+      sslrootcert: null,
+      sslcert: null,
+      search_path: null,
+      sslkey_set: false,
+      auth_type: 'key_pair',
+      schema_name: 'EVENTS',
+      schema_allowlist: ['EVENTS', 'MARTS'],
+      warehouse: 'COMPUTE_WH',
+      role: 'ANALYST',
+    })
+    // Snowflake's auth type never leaks into the Databricks select.
+    expect(back).toMatchObject({ ...form, warehouse: 'COMPUTE_WH', authType: 'pat' })
+  })
+
+  it('always connects on 443 and needs its secret on create only', () => {
+    const core = { ...EMPTY_CONNECTION_CORE_FORM, host: 'myorg-myaccount', databaseName: 'DB' }
+    expect(buildCoreCreatePayload('snowflake', core).port).toBe(443)
+    expect(buildCoreUpdatePayload('snowflake', { ...core, port: 8123 }).port).toBe(443)
+    expect(connectionCoreMissing('snowflake', { ...core, port: 0 }, 'create', 'Required')).toEqual({
+      secret: 'Required',
+    })
+    expect(connectionCoreMissing('snowflake', { ...core, port: 0 }, 'edit', 'Required')).toEqual({})
   })
 })
