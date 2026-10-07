@@ -80,9 +80,14 @@ export function DemoWelcomePanel({ project }: { project: Project }) {
         </h2>
       </div>
       {/* No "Local synthetic data" badge here: the demo banner right above
-          already carries it on every surface. */}
+          already carries it on every surface. With the chapters on offer, the
+          line says what Start begins rather than repeating that banner: a
+          newcomer read "Start: Run the live loop" with nothing to say what a
+          chapter was. */}
       <p className="hidden min-w-0 text-caption md:block text-fg-secondary">
-        Everything runs on a local, synthetic warehouse — nothing outside is touched.
+        {next
+          ? `${chapters.length} short chapters show tripl at work — the guide points at every click.`
+          : 'Everything runs on a local, synthetic warehouse — nothing outside is touched.'}
       </p>
 
       <div className="ml-auto flex flex-wrap items-center gap-1.5">

@@ -877,7 +877,7 @@ describe('EventForm — coached demo scenario', () => {
     generation_status: 'ready',
   } as unknown as Project
 
-  function renderCoachedEditEvent(event: TEvent = EDIT_EVENT) {
+  function renderCoachedEditEvent(event: TEvent = EDIT_EVENT, eventType: EventType = EDIT_EVENT_TYPE) {
     return render(
       createElement(
         QueryClientProvider,
@@ -890,7 +890,7 @@ describe('EventForm — coached demo scenario', () => {
             { project: demoProject, pollIntervalMs: 10_000, children: null },
             createElement(EventForm, {
               slug: SLUG,
-              eventTypes: [EDIT_EVENT_TYPE],
+              eventTypes: [eventType],
               metaFields: [],
               projectVariables: [PRODUCT_ID_VARIABLE],
               event,
@@ -942,6 +942,38 @@ describe('EventForm — coached demo scenario', () => {
       expect(screen.getByLabelText('Product ID')).toHaveValue('${product_id}')
     })
     expect(screen.getByText('Save the event — the tracking plan updates immediately.')).toBeInTheDocument()
+  })
+
+  it('rings the token in the list under Product ID only, not under another field', async () => {
+    writeScenarioState(SLUG, chapterState('edit-event', 'edit-event/set-token'))
+    const [productIdField] = EDIT_EVENT_TYPE.field_definitions
+    const withPlan = {
+      ...EDIT_EVENT_TYPE,
+      field_definitions: [
+        productIdField,
+        { ...productIdField, id: 'field-plan', name: 'plan', display_name: 'Plan', order: 1 },
+      ],
+    } as unknown as EventType
+    renderCoachedEditEvent(
+      {
+        ...EDIT_EVENT,
+        field_values: [{ field_definition_id: 'field-product-id', value: 'prod_monthly' }],
+      } as TEvent,
+      withPlan,
+    )
+
+    // Every field's list offers the same property; a ring on it under Plan
+    // sent the token into the wrong field, and the step never completed.
+    fireEvent.change(screen.getByLabelText('Plan'), { target: { value: '$' } })
+    const underPlan = await screen.findByRole('option', { name: /\$\{product_id\}/ })
+    expect(underPlan).not.toHaveAttribute('data-coach-target')
+
+    fireEvent.mouseDown(document.body)
+    fireEvent.change(screen.getByLabelText('Product ID'), { target: { value: '$' } })
+    expect(await screen.findByRole('option', { name: /\$\{product_id\}/ })).toHaveAttribute(
+      'data-coach-target',
+      'edit-event/set-token@then',
+    )
   })
 
   it('catches up when the rendered Product ID already satisfies the active step', async () => {

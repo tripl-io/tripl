@@ -1,5 +1,6 @@
 import { type RefObject, useCallback, useEffect, useId, useMemo, useRef, useState } from 'react'
 import { AnchoredListbox } from '@/components/ui/anchored-listbox'
+import { isInDemoGuide } from '@/components/ui/demo-guide-layer'
 import { ScenarioCoachMark } from '@/demo/ScenarioCoachMark'
 import { SCENARIO_SEEDED } from '@/demo/scenarioModel'
 import { cn } from '@/lib/utils'
@@ -61,6 +62,7 @@ export function SuggestionListbox({
   suggestions,
   highlightIdx,
   onPick,
+  coached = false,
 }: {
   id: string
   open: boolean
@@ -69,6 +71,12 @@ export function SuggestionListbox({
   suggestions: VariableSuggestion[]
   highlightIdx: number
   onPick: (name: string) => void
+  /**
+   * The list belongs to the field the demo's set-token step coaches. Every
+   * field's list offers the same properties, and a ring on the option in
+   * another field's list sent the token into the wrong field.
+   */
+  coached?: boolean
 }) {
   useEffect(() => {
     if (!open) return
@@ -85,7 +93,7 @@ export function SuggestionListbox({
           key={v.name}
           step="edit-event/set-token"
           followUp
-          when={`\${${v.name}}` === SCENARIO_SEEDED.editedFieldToken}
+          when={coached && `\${${v.name}}` === SCENARIO_SEEDED.editedFieldToken}
           tag="Then pick this"
           side="right"
         >
@@ -123,6 +131,7 @@ export function VariableInput({
   invalid,
   describedBy: ownDescribedBy,
   ariaLabel,
+  coached,
 }: {
   id?: string
   value: string
@@ -139,6 +148,8 @@ export function VariableInput({
   describedBy?: string
   /** For a control with no <label> of its own (a JSON grid cell). */
   ariaLabel?: string
+  /** The demo's set-token step coaches this field (see SuggestionListbox). */
+  coached?: boolean
 }) {
   const uid = useId()
   const listboxId = `variable-listbox-${uid}`
@@ -162,6 +173,8 @@ export function VariableInput({
       const target = e.target as Node
       // The list is portalled, so a press on it (its scrollbar) is outside the wrapper.
       if (document.getElementById(listboxId)?.contains(target)) return
+      // So is the demo guide, which may be coaching an option in it.
+      if (isInDemoGuide(target)) return
       if (wrapperRef.current && !wrapperRef.current.contains(target)) setShowMenu(false)
     }
     document.addEventListener('mousedown', handler)
@@ -258,6 +271,7 @@ export function VariableInput({
         suggestions={filtered}
         highlightIdx={highlightIdx}
         onPick={insert}
+        coached={coached}
       />
     </div>
   )

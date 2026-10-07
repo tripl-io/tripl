@@ -238,6 +238,8 @@ type FieldValueControlProps = {
    * by the form, not by a browser bubble.
    */
   invalid?: boolean
+  /** The demo's set-token step coaches this field (VariableInput's `coached`). */
+  coached?: boolean
 }
 
 export function FieldValueControl({
@@ -248,6 +250,7 @@ export function FieldValueControl({
   inputId,
   requiredOverride,
   invalid: flagged = false,
+  coached,
 }: FieldValueControlProps) {
   const required = requiredOverride ?? field.is_required
   if (field.field_type === 'boolean') {
@@ -299,6 +302,7 @@ export function FieldValueControl({
           inputMode="decimal"
           invalid={invalid || flagged}
           describedBy={invalid ? errorId : undefined}
+          coached={coached}
         />
         {/* Red, not amber: a value that is neither a number nor a token
             blocks Save. */}
@@ -325,6 +329,7 @@ export function FieldValueControl({
       ariaRequired={required}
       invalid={flagged}
       type={field.field_type === 'url' ? 'url' : 'text'}
+      coached={coached}
     />
   )
 }

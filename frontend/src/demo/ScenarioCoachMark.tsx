@@ -60,6 +60,10 @@ import {
   useDemoScenarioActions,
 } from './demoScenarioContext'
 import type { ScenarioStepId } from './scenarioModel'
+import { useLingeringFlag } from './stepLocation'
+
+/** How long a step's ring waits after its second gesture leaves the screen. */
+const HAND_BACK_DELAY_MS = 1500
 
 interface ScenarioCoachMarkProps {
   /**
@@ -78,6 +82,13 @@ interface ScenarioCoachMarkProps {
    * ring stands down meanwhile; the guide stays with the step's own mark.
    */
   followUp?: boolean
+  /**
+   * The step's request is in flight: its second gesture was made, in a menu
+   * that has closed since. The ring stands down until the answer moves the
+   * step on, or a failure hands it back — on the demo a collect answers in
+   * seconds, and the ring went back to ask for the menu meanwhile.
+   */
+  busy?: boolean
   /** The tag on the control, in place of the step's own. */
   tag?: string
   /** Overrides for the step's own placement of the tag (`ScenarioStep.coach`). Rarely needed. */
@@ -135,6 +146,7 @@ export function ScenarioCoachMark({
   step,
   when = true,
   followUp = false,
+  busy = false,
   tag,
   side,
   align,
@@ -159,8 +171,15 @@ export function ScenarioCoachMark({
     : own
       ? step
       : entryPresenceKey(activeStep.id)
-  // The step's second gesture is on screen: its ring is there, not here.
-  const handedOn = !followUp && own && present.has(followUpPresenceKey(step))
+  // The step's second gesture is on screen: its ring is there, not here. Held
+  // a moment after it goes, because picking the item closes its menu (and
+  // Create closes its dialog) before the answer moves the step on: rung back
+  // at once, the control that opened it flashed "Open this menu" meanwhile.
+  const followUpLately = useLingeringFlag(
+    !followUp && own && present.has(followUpPresenceKey(step)),
+    HAND_BACK_DELAY_MS,
+  )
+  const handedOn = followUpLately || (busy && !followUp && own)
 
   // The anchor is state, not a ref: the beacon and the scroll effect must
   // re-run when the element appears, and a ref mutation would not tell them.

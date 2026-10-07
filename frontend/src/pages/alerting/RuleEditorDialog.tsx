@@ -821,12 +821,15 @@ export function RuleEditorDialog({
           <DialogFooter>
             <Button type="button" variant="outline" onClick={requestClose}>Cancel</Button>
             {/* The demo's create-rule step goes on in here: its ring was on
-                Add rule, under this dialog now. */}
+                Add rule, under this dialog now. The tag hangs below the
+                footer: on the step's own side, the left, it covered Cancel. */}
             <ScenarioCoachMark
               step="alerting/create-rule"
               followUp
               when={!isEditing}
               tag="Name it, then click here"
+              side="bottom"
+              align="end"
             >
               <Button type="submit" disabled={isPending}>
                 {isEditing ? 'Save' : 'Create'}
