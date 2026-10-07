@@ -54,7 +54,9 @@ const config: Config = {
   themeConfig: {
     navbar: {
       title: 'tripl',
-      logo: {alt: 'tripl', src: 'img/logo.svg'},
+      // The logo and title lead to the product site; "Docs" in the navbar
+      // stays the way back to the documentation's front page.
+      logo: {alt: 'tripl', src: 'img/logo.svg', href: 'https://tripl.io', target: '_self'},
       items: [
         {type: 'docSidebar', sidebarId: 'docsSidebar', position: 'left', label: 'Docs'},
         {to: '/integrate/api/', label: 'API', position: 'left'},
