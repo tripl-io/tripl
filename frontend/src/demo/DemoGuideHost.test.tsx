@@ -7,14 +7,17 @@ import { metricsCatalogApi } from '@/api/metricsCatalog'
 import { scansApi } from '@/api/scans'
 import { ActiveProjectContext } from '@/components/active-project-context'
 import { AuthContext } from '@/components/auth-context'
-import { SIDEBAR_ID } from '@/components/landmarks'
+import { MAIN_CONTENT_ID, SIDEBAR_ID } from '@/components/landmarks'
+import { authStatusKey } from '@/lib/queryKeys'
 import type { MetricDefinitionDetailResponse, Project, ScanJob } from '@/types'
 import { at } from '@/test/at'
 import { personaAuth, type Persona } from '@/test/persona'
 import { DemoGuideHost } from './DemoGuideHost'
 import { DemoScenarioProvider } from './DemoScenarioProvider'
+import { QUICK_START_URL } from './EndOfDemoLink'
 import { ScenarioCoachMark } from './ScenarioCoachMark'
 import {
+  CHAPTER_IDS,
   CHAPTER_TITLES,
   buildChapterSteps,
   initialScenarioState,
@@ -107,10 +110,16 @@ interface HostOptions {
   shell?: ReactNode
   /** Signed in as this role; with no session at all when absent. */
   persona?: Persona
+  /** The instance is a public demo. */
+  publicDemo?: boolean
 }
 
 /** The host under a real `/p/:slug/*` route, as the app shell mounts it. */
-function renderHost(state: ScenarioState, route: string, { mark, shell, persona }: HostOptions = {}) {
+function renderHost(
+  state: ScenarioState,
+  route: string,
+  { mark, shell, persona, publicDemo = false }: HostOptions = {},
+) {
   writeScenarioState(SLUG, state)
   // A viewer is an organization member whose row in this demo is `viewer`:
   // the server answers the project to them as read-only.
@@ -123,6 +132,13 @@ function renderHost(state: ScenarioState, route: string, { mark, shell, persona 
         },
   )
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+  if (publicDemo) {
+    client.setQueryData(authStatusKey(), {
+      has_users: true,
+      registration_enabled: false,
+      public_demo: true,
+    })
+  }
   const tree = (
     <QueryClientProvider client={client}>
       <MemoryRouter initialEntries={[route]}>
@@ -325,12 +341,116 @@ describe('DemoGuideHost — a step with no mark on screen', () => {
     expect(guide()).toBeNull()
   })
 
-  it('goes quiet on its own Hide hints, and stays quiet', () => {
+  it('folds to its face on its own Hide hints, and the face brings them back', () => {
     renderHost(liveLoopState('live-loop/run-scan'), EVENTS_ROUTE)
     advance(GUIDE_DELAY_MS)
 
     fireEvent.click(screen.getByRole('button', { name: 'Hide hints' }))
     advance(MISSING_TARGET_DELAY_MS * 2)
+
+    // Quiet, but still in its corner: with nothing left on the page, testers
+    // scrolled up to the strip to find the hints again.
+    expect(guide()).toHaveAttribute('data-guide-mode', 'face')
+    expect(screen.queryByRole('button', { name: 'Hide hints' })).toBeNull()
+    expect(takeMeThere()).toBeNull()
+
+    fireEvent.click(
+      screen.getByRole('button', {
+        name: `Show demo hints — step 1 of ${LIVE_LOOP.length}: ${RUN_SCAN.title}`,
+      }),
+    )
+    advance(GUIDE_DELAY_MS)
+
+    expect(guide()).toHaveAttribute('data-guide-mode', 'card')
+    expect(takeMeThere()).toHaveAttribute('href', SCANS_ROUTE)
+  })
+
+  it("rings the page's own tab when the step lives in another of its sections", () => {
+    // On Alerting's Inbox, the rule step's Rules is a tab away: the sidebar
+    // has nothing to point at, and "Open its page first" read as a riddle.
+    stubRects((element) =>
+      element.id === MAIN_CONTENT_ID
+        ? { top: 0, left: 0, width: 1024, height: 768 }
+        : element.getAttribute('data-tab-value') === 'monitors'
+          ? { top: 120, left: 400, width: 80, height: 32 }
+          : { top: 120, left: 300, width: 80, height: 32 },
+    )
+    renderHost(chapterState('alerting', 'alerting/create-rule'), `/p/${SLUG}/alerting`, {
+      shell: (
+        <main id={MAIN_CONTENT_ID}>
+          <div role="tablist" aria-label="Alerting sections">
+            <button type="button" role="tab" data-tab-value="inbox">
+              Inbox
+            </button>
+            <button type="button" role="tab" data-tab-value="monitors">
+              Rules
+            </button>
+          </div>
+        </main>
+      ),
+    })
+
+    advance(GUIDE_DELAY_MS)
+    // Found a frame after the guide shows.
+    advance(FRAME_MS)
+
+    const note = screen.getByRole('note', { name: 'Demo hint' })
+    expect(
+      within(note).getByText('Open the highlighted tab first, or click Take me there.'),
+    ).toBeInTheDocument()
+    expect(tag()).toHaveTextContent('Open this tab')
+    expect(tag()).toHaveAttribute('data-coach-tag', 'bottom')
+    // Around Rules, not the Inbox the user is on.
+    expect((ring() as HTMLElement).style.left).toBe('398px')
+    expect(takeMeThere()).toHaveAttribute('href', `/p/${SLUG}/alerting?section=monitors`)
+  })
+})
+
+/** Every chapter landed, the last one still on screen. */
+function everyChapterLanded(): ScenarioState {
+  const chapters: ScenarioState['chapters'] = {}
+  for (const id of CHAPTER_IDS) {
+    const steps = stepsOf(id)
+    chapters[id] = { status: 'completed', step: at(steps, steps.length - 1).id }
+  }
+  return { v: 3, activeChapter: 'explore', chapters }
+}
+
+describe('DemoGuideHost — a chapter that has landed', () => {
+  it('says so, and offers the next chapter where the user is looking', () => {
+    // The strip offered it alone, scrolled away above the page.
+    renderHost(liveLoopState('live-loop/see-chart', { status: 'completed' }), EVENTS_ROUTE)
+
+    const note = screen.getByRole('note', { name: 'Demo hint' })
+    expect(note).toHaveTextContent(`Chapter complete · ${CHAPTER_TITLES['live-loop']}`)
+    expect(within(note).getByText(`Next: ${CHAPTER_TITLES['edit-event']}`)).toBeInTheDocument()
+    expect(within(note).getByRole('link', { name: /Start the chapter/ })).toHaveAttribute(
+      'href',
+      EVENTS_ROUTE,
+    )
+  })
+
+  it('ends a public demo on the quick start, never on a project it cannot make', () => {
+    renderHost(everyChapterLanded(), EVENTS_ROUTE, { publicDemo: true })
+
+    const note = screen.getByRole('note', { name: 'Demo hint' })
+    expect(within(note).getByRole('link', { name: /Run tripl yourself/ })).toHaveAttribute(
+      'href',
+      QUICK_START_URL,
+    )
+    expect(screen.queryByRole('link', { name: /Create a real project/ })).toBeNull()
+  })
+
+  it("ends a demo on an instance of one's own in a real project", () => {
+    renderHost(everyChapterLanded(), EVENTS_ROUTE)
+
+    const note = screen.getByRole('note', { name: 'Demo hint' })
+    expect(within(note).getByRole('link', { name: /Create a real project/ })).toBeInTheDocument()
+  })
+
+  it('says nothing once the landed chapter is put away', () => {
+    renderHost(liveLoopState('live-loop/see-chart', { status: 'dismissed' }), EVENTS_ROUTE)
+    advance(GUIDE_DELAY_MS)
 
     expect(guide()).toBeNull()
   })
@@ -424,7 +544,9 @@ describe('DemoGuideHost — when the coached control is nowhere on screen', () =
     fireEvent.click(screen.getByRole('button', { name: 'Hide hints' }))
     advance(MISSING_TARGET_DELAY_MS * 2)
 
-    expect(guide()).toBeNull()
+    // The guide's face alone, the way back to the hints.
+    expect(guide()).toHaveAttribute('data-guide-mode', 'face')
+    expect(ring()).toBeNull()
     expect(missingLine()).toBeNull()
   })
 })

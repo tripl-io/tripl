@@ -1066,10 +1066,20 @@ function RuleActionsMenu({
         </IconButton>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" sideOffset={6} className="w-56">
-        <DropdownMenuItem onSelect={onReplay} aria-label={`Replay ${ruleName}`}>
-          <History aria-hidden="true" />
-          Replay
-        </DropdownMenuItem>
+        {/* The simulate step's second gesture: its ring is on this menu's
+            trigger, and the item it opens onto was left for the visitor to find. */}
+        <ScenarioCoachMark
+          step="alerting/simulate"
+          followUp
+          when={ruleName === SCENARIO_SEEDED.firingRuleName}
+          tag="Then click here"
+          side="left"
+        >
+          <DropdownMenuItem onSelect={onReplay} aria-label={`Replay ${ruleName}`}>
+            <History aria-hidden="true" />
+            Replay
+          </DropdownMenuItem>
+        </ScenarioCoachMark>
         <DropdownMenuSeparator />
         {muted ? (
           <DropdownMenuItem

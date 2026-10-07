@@ -102,6 +102,29 @@ export function pickCorner(
 }
 
 /**
+ * A card for beside a dialog too wide to leave the column a corner: the
+ * widest of `widths` that fits a corner of `frame` (the whole screen — the
+ * dialog's backdrop already covers the sidebar) clear of `avoid`. Testers
+ * saw the guide fold to its face whenever a dialog opened, the step's words
+ * gone just when the step moved into the dialog. Null when not even the
+ * narrowest card fits.
+ */
+export function pickNarrowCorner(
+  frame: GuideFrame,
+  widths: readonly number[],
+  heightAt: (width: number) => number,
+  avoid: readonly Box[],
+  order: readonly GuideCorner[] = CORNER_ORDER,
+): { corner: GuideCorner; size: GuideSize } | null {
+  for (const width of widths) {
+    const size = { width, height: heightAt(width) }
+    const corner = pickCorner(frame, size, avoid, [], order)
+    if (corner) return { corner, size }
+  }
+  return null
+}
+
+/**
  * The first corner that keeps clear of everything in `avoid`; when every
  * corner touches something (a dialog as big as the screen), the one that
  * covers least of it.

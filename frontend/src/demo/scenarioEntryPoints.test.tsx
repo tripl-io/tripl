@@ -17,6 +17,7 @@ import { metricsCatalogApi } from '@/api/metricsCatalog'
 import { scansApi } from '@/api/scans'
 import type { MetricDefinitionDetailResponse, Project, ScanJob } from '@/types'
 import { DemoScenarioProvider } from './DemoScenarioProvider'
+import { authStatusKey } from '@/lib/queryKeys'
 import { DemoWelcomePanel } from './DemoWelcomePanel'
 import { ProductTour } from './ProductTour'
 import {
@@ -68,8 +69,19 @@ function LocationProbe() {
   return <span data-testid="path">{location.pathname}</span>
 }
 
-function renderWithScenario(ui: ReactNode, project: Project | undefined) {
+function renderWithScenario(
+  ui: ReactNode,
+  project: Project | undefined,
+  { publicDemo = false }: { publicDemo?: boolean } = {},
+) {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+  if (publicDemo) {
+    client.setQueryData(authStatusKey(), {
+      has_users: true,
+      registration_enabled: false,
+      public_demo: true,
+    })
+  }
   return render(
     <QueryClientProvider client={client}>
       <MemoryRouter initialEntries={[`/p/${SLUG}/overview`]}>
@@ -160,6 +172,14 @@ describe('DemoWelcomePanel — how much of the Overview it occupies', () => {
       'href',
       '/workspace',
     )
+  })
+
+  it('offers no real project on a public demo, where the server refuses one', () => {
+    renderWithScenario(<DemoWelcomePanel project={demoProject()} />, demoProject(), {
+      publicDemo: true,
+    })
+
+    expect(screen.queryByRole('link', { name: /Create a real project/ })).toBeNull()
   })
 })
 

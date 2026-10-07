@@ -100,6 +100,7 @@ export function EventTypeDriftBadges({
               eventTypeId={drift.eventTypeId}
               count={drift.count}
               typeLabel={namesType ? undefined : drift.label}
+              coached={!!drift.coach}
             />
           </span>
         </ScenarioCoachMark>

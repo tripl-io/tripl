@@ -5,9 +5,11 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { MemoryRouter, Route, Routes } from 'react-router-dom'
 import { metricsCatalogApi } from '@/api/metricsCatalog'
 import { scansApi } from '@/api/scans'
+import { authStatusKey } from '@/lib/queryKeys'
 import type { MetricDefinitionDetailResponse, Project, ScanJob } from '@/types'
 import { DemoScenarioProvider } from './DemoScenarioProvider'
 import { DemoScenarioStrip } from './DemoScenarioStrip'
+import { QUICK_START_URL } from './EndOfDemoLink'
 import { ScenarioCoachMark } from './ScenarioCoachMark'
 import {
   CHAPTER_IDS,
@@ -75,9 +77,17 @@ function renderStrip(
   state: ScenarioState | null,
   project: Project = demoProject(),
   route = `/p/${SLUG}/overview`,
+  { publicDemo = false }: { publicDemo?: boolean } = {},
 ) {
   if (state) writeScenarioState(SLUG, state)
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+  if (publicDemo) {
+    client.setQueryData(authStatusKey(), {
+      has_users: true,
+      registration_enabled: false,
+      public_demo: true,
+    })
+  }
   return render(
     <QueryClientProvider client={client}>
       <MemoryRouter initialEntries={[route]}>
@@ -255,6 +265,17 @@ describe('DemoScenarioStrip — dismissal and completion', () => {
     expect(screen.queryByRole('link', { name: /^Next: / })).toBeNull()
     // Restarting the walk is still there beside it.
     expect(screen.getByRole('button', { name: /Restart chapter/ })).toBeInTheDocument()
+  })
+
+  it('ends a public demo on the quick start: there is no real project to make there', () => {
+    // The server refuses blank projects on a public demo, and testers found
+    // "Create a real project" leading nowhere.
+    renderStrip(everyChapterCompleted(), demoProject(), `/p/${SLUG}/overview`, {
+      publicDemo: true,
+    })
+
+    expect(cta(/Run tripl yourself/)).toHaveAttribute('href', QUICK_START_URL)
+    expect(screen.queryByRole('link', { name: /Create a real project/ })).toBeNull()
   })
 })
 

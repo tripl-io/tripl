@@ -558,6 +558,8 @@ export const SCENARIO_SEEDED = {
   changedEventName: 'Buy Button Click',
   shadowCandidateName: 'app_heartbeat_v1',
   schemaDriftEventName: 'Purchase Completed',
+  /** Its open type change (number → String), the drift the step accepts. */
+  schemaDriftFieldName: 'amount',
   firingRuleName: 'Spike & drift watch (demo)',
 } as const
 

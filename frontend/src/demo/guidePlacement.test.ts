@@ -5,6 +5,7 @@ import {
   cornerBox,
   coveredArea,
   pickCorner,
+  pickNarrowCorner,
   type Box,
   type GuideCorner,
   type GuideFrame,
@@ -133,5 +134,35 @@ describe('pickCorner', () => {
 
     expect(pickCorner(FRAME, CARD, [TOP_ROW], busy)).toBe('bottom-right')
     expect(pickCorner(FRAME, CARD, [TOP_ROW], busy, ['bottom-left', 'bottom-right'])).toBe('bottom-left')
+  })
+})
+
+describe('pickNarrowCorner', () => {
+  /** A 1440×900 screen, less its edge gap. */
+  const SCREEN: GuideFrame = { left: 16, right: 1424, top: 16, bottom: 884 }
+  /** Taller as it narrows: the same words wrap onto more lines. */
+  const heightAt = (width: number) => Math.round((176 * 336) / width)
+  const WIDTHS = [336, 288, 240]
+
+  it('takes the widest card that clears a dialog', () => {
+    // A 768px dialog leaves 336px either side: room for the middle width.
+    const dialog = box(336, 45, 768, 810)
+
+    expect(pickNarrowCorner(SCREEN, WIDTHS, heightAt, [dialog])).toEqual({
+      corner: 'bottom-right',
+      size: { width: 288, height: heightAt(288) },
+    })
+  })
+
+  it('narrows to the last width beside the widest dialog', () => {
+    // 896px wide: 272px either side, room for 240 and its margin.
+    const dialog = box(272, 45, 896, 810)
+
+    expect(pickNarrowCorner(SCREEN, WIDTHS, heightAt, [dialog])?.size.width).toBe(240)
+  })
+
+  it('is null when the dialog leaves no room even for the narrowest card', () => {
+    // A phone-sized window's dialog: the whole screen.
+    expect(pickNarrowCorner(SCREEN, WIDTHS, heightAt, [box(0, 0, 1440, 900)])).toBeNull()
   })
 })

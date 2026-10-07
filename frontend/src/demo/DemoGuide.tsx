@@ -10,14 +10,17 @@
  * coaching (`guidePlacement`), and moves when the control moves.
  *
  * A hint, never a dialog: it takes no focus, traps nothing, and Escape or a
- * click elsewhere cannot dismiss it. It minimises to its face, and "Hide
- * hints" quiets the coaching for the session, as before.
+ * click elsewhere cannot dismiss it. It minimises to its face; "Hide hints"
+ * quiets the coaching for the session and leaves the face, which brings it
+ * back. Beside a dialog too wide to leave the column a corner, it narrows
+ * rather than folding away.
  */
 
 import { useCallback, useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
 import { Minus, MousePointerClick } from 'lucide-react'
 import { MAIN_CONTENT_ID } from '@/components/landmarks'
+import { clippingAncestors, visibleFrame } from './coachGeometry'
 import { GuideMascot } from './GuideMascot'
 import {
   CORNER_ORDER,
@@ -25,6 +28,7 @@ import {
   cornerBox,
   coveredArea,
   pickCorner,
+  pickNarrowCorner,
   type Box,
   type GuideCorner,
   type GuideFrame,
@@ -33,6 +37,8 @@ import {
 
 /** The guide's width from `sm` up; below it the guide spans the screen. */
 const GUIDE_WIDTH_PX = 336
+/** Narrower cards, for beside a dialog too wide to leave the column a corner. */
+const NARROW_WIDTHS_PX: readonly number[] = [GUIDE_WIDTH_PX, 288, 240]
 /** Before the guide has been measured. */
 const ESTIMATED_HEIGHT_PX = 176
 /** The folded guide: its face, in a round button. */
@@ -53,16 +59,37 @@ function isPhone(): boolean {
 }
 
 /**
- * Where a guide in a top corner may start: under the top bar, and under the
- * demo banner while that is on screen — the banner holds the controls that put
- * the coaching away (hide, dismiss, the tour), which a guide must not cover.
- * Never past the upper third.
+ * Where a guide in a top corner may start: under the shell's bars, and under
+ * the demo banner while that is on screen — the banner holds the controls that
+ * put the coaching away (hide, dismiss, the tour), which a guide must not
+ * cover. Never past the upper third.
+ *
+ * The bars are read, not assumed: the page scrolls in a pane below them, and
+ * the pane's top is where they end. A fixed 56px put the guide over the bars
+ * once the banner had scrolled away. 56px stays the floor, for a layout that
+ * cannot be read.
  */
 function topClearance(): number {
+  const main = document.getElementById(MAIN_CONTENT_ID)
+  const pane = main ? visibleFrame(clippingAncestors(main)) : null
+  const bars = Math.max(TOP_BAR_CLEARANCE_PX, pane ? pane.top + 8 : 0)
   const banner = document.querySelector('[data-demo-banner]')
-  if (!banner) return TOP_BAR_CLEARANCE_PX
+  if (!banner) return Math.round(bars)
   const below = banner.getBoundingClientRect().bottom + 8
-  return Math.round(Math.max(TOP_BAR_CLEARANCE_PX, Math.min(below, window.innerHeight / 3)))
+  return Math.round(Math.max(bars, Math.min(below, window.innerHeight / 3)))
+}
+
+/**
+ * The whole screen, less its edge gap: where a narrow card may go beside a
+ * dialog, whose backdrop already covers the sidebar and the bars.
+ */
+function screenFrame(): GuideFrame {
+  return {
+    left: EDGE_GAP_PX,
+    right: window.innerWidth - EDGE_GAP_PX,
+    top: EDGE_GAP_PX,
+    bottom: window.innerHeight - EDGE_GAP_PX,
+  }
 }
 
 /** The content column — the guide never sits on the sidebar or the activity rail. */
@@ -145,9 +172,16 @@ function busyBoxes(self: Element | null): WeightedBox[] {
   return boxes
 }
 
+/**
+ * How the guide shows: the card in a corner of the column, a narrower card
+ * beside a wide dialog, or folded to its face.
+ */
+type GuideMode = 'card' | 'narrow' | 'face'
+
 interface Layout {
   corner: GuideCorner
   box: Box
+  mode: GuideMode
 }
 
 /**
@@ -181,6 +215,8 @@ export interface DemoGuideProps {
   total: number
   /** The chapter, printed beside the step count. */
   chapter?: string
+  /** The chapter has landed: "Chapter complete" in place of the step count. */
+  complete?: boolean
   title: string
   instruction: string
   /** Set when a control elsewhere is described by the instruction. */
@@ -194,6 +230,12 @@ export interface DemoGuideProps {
   /** Said when the step's control cannot be pointed at here. */
   note?: string
   onMute?: () => void
+  /**
+   * Hints are hidden: the guide is only its face, and a click on it brings
+   * the hints back. With nothing left on the page, testers had to scroll up
+   * to the strip to find the way back.
+   */
+  onUnmute?: () => void
 }
 
 export function DemoGuide({
@@ -201,6 +243,7 @@ export function DemoGuide({
   position,
   total,
   chapter,
+  complete = false,
   title,
   instruction,
   instructionId,
@@ -209,11 +252,13 @@ export function DemoGuide({
   action,
   note,
   onMute,
+  onUnmute,
 }: DemoGuideProps) {
   const ref = useRef<HTMLDivElement | null>(null)
+  const muted = onUnmute !== undefined
   const [minimised, setMinimised] = useState(() => readMinimised(stepKey))
-  // No corner left for the card — a dialog as big as the screen — so the
-  // guide steps aside to its face, unless the user opened it anyway.
+  // No room left for a card — a dialog as big as the screen — so the guide
+  // steps aside to its face, unless the user opened it anyway.
   const [squeezed, setSqueezed] = useState(false)
   const [openAnyway, setOpenAnyway] = useState(false)
   const [phone, setPhone] = useState(isPhone)
@@ -221,16 +266,21 @@ export function DemoGuide({
   // The open card's height, kept while it is folded: it decides whether the
   // card would fit again.
   const cardHeight = useRef(ESTIMATED_HEIGHT_PX)
+  // A narrow card's, by its width: the same words wrap onto more lines.
+  const narrowHeight = useRef<{ width: number; height: number } | null>(null)
   const heldCorner = useRef<GuideCorner | null>(null)
-  const small = minimised || (squeezed && !openAnyway)
+  const small = muted || minimised || (squeezed && !openAnyway)
 
   const measure = useCallback(() => {
     const onPhone = isPhone()
     setPhone(onPhone)
     const frame = guideFrame(onPhone)
     const element = ref.current
-    if (element && element.dataset.minimised !== 'true' && element.offsetHeight > 0) {
-      cardHeight.current = element.offsetHeight
+    if (element && element.offsetHeight > 0) {
+      if (element.dataset.guideMode === 'card') cardHeight.current = element.offsetHeight
+      if (element.dataset.guideMode === 'narrow') {
+        narrowHeight.current = { width: element.offsetWidth, height: element.offsetHeight }
+      }
     }
     const target = visibleBox(avoid)
     const avoidBoxes = [...(target ? [target] : []), ...floatingLayerBoxes(element)]
@@ -244,18 +294,42 @@ export function DemoGuide({
         ? held
         : pickCorner(frame, card, avoidBoxes, busyBoxes(element), order)
     heldCorner.current = cardAt
-    const tight = cardAt === null
+    // No corner of the column: a dialog too wide to leave one. The screen's
+    // own edges beside it may still hold a narrower card — the step moved
+    // into the dialog, and folding to the face took its words away just then.
+    const narrow =
+      cardAt === null && !onPhone
+        ? pickNarrowCorner(
+            screenFrame(),
+            NARROW_WIDTHS_PX,
+            (width) =>
+              narrowHeight.current?.width === width
+                ? narrowHeight.current.height
+                : Math.ceil((cardHeight.current * GUIDE_WIDTH_PX) / width),
+            avoidBoxes,
+          )
+        : null
+    const tight = cardAt === null && narrow === null
     setSqueezed(tight)
-    const folded = minimised || (tight && !openAnyway)
-    const size = folded ? { width: FACE_SIZE_PX, height: FACE_SIZE_PX } : card
-    const corner = folded
-      ? chooseCorner(frame, size, avoidBoxes, order)
-      : (cardAt ?? chooseCorner(frame, card, avoidBoxes, order))
-    const box = cornerBox(corner, frame, size)
+    const folded = muted || minimised || (tight && !openAnyway)
+    let next: Layout
+    if (folded) {
+      const size = { width: FACE_SIZE_PX, height: FACE_SIZE_PX }
+      const corner = chooseCorner(frame, size, avoidBoxes, order)
+      next = { corner, box: cornerBox(corner, frame, size), mode: 'face' }
+    } else if (cardAt === null && narrow) {
+      const box = cornerBox(narrow.corner, screenFrame(), narrow.size)
+      next = { corner: narrow.corner, box, mode: 'narrow' }
+    } else {
+      const corner = cardAt ?? chooseCorner(frame, card, avoidBoxes, order)
+      next = { corner, box: cornerBox(corner, frame, card), mode: 'card' }
+    }
     setLayout((prev) =>
-      prev && prev.corner === corner && sameBox(prev.box, box) ? prev : { corner, box },
+      prev && prev.corner === next.corner && prev.mode === next.mode && sameBox(prev.box, next.box)
+        ? prev
+        : next,
     )
-  }, [avoid, minimised, openAnyway])
+  }, [avoid, minimised, muted, openAnyway])
 
   // Placed before paint, so it never shows in a corner it is about to leave.
   useLayoutEffect(() => {
@@ -299,7 +373,9 @@ export function DemoGuide({
   // (Layout's `<main>`), so a page's last rows can always be scrolled out
   // from under it.
   useEffect(() => {
-    if (!layout || !layout.corner.startsWith('bottom')) return
+    // Not for a narrow card: it sits beside a dialog, over a page nobody is
+    // scrolling meanwhile.
+    if (!layout || layout.mode === 'narrow' || !layout.corner.startsWith('bottom')) return
     const root = document.documentElement
     root.style.setProperty(CLEARANCE_VAR, `${Math.ceil(window.innerHeight - layout.box.top)}px`)
     return () => {
@@ -322,6 +398,10 @@ export function DemoGuide({
   }
 
   const box = layout?.box
+  // What is on screen, which the next measurement reads back: the layout
+  // lags a render behind a fold or an unfold.
+  const mode: GuideMode = small ? 'face' : layout?.mode === 'narrow' ? 'narrow' : 'card'
+  const progress = complete ? 'Chapter complete' : `Step ${position} of ${total}`
   return createPortal(
     <div
       ref={ref}
@@ -329,6 +409,7 @@ export function DemoGuide({
       aria-label="Demo hint"
       data-demo-guide=""
       data-guide-corner={layout?.corner}
+      data-guide-mode={mode}
       data-minimised={small ? 'true' : undefined}
       // Above dialogs: a step whose control is inside one stays coached. The
       // shared Dialog ignores clicks on the guide, so using it never closes
@@ -339,8 +420,14 @@ export function DemoGuide({
         left: box?.left ?? 0,
         // The card's own width, never its last box's: just unfolded, that box
         // is still the face's, and a card measured that narrow is too tall for
-        // any corner, so it folded straight back.
-        width: small ? undefined : cardWidth(phone),
+        // any corner, so it folded straight back. A narrow card's box is its
+        // own width.
+        width:
+          mode === 'face'
+            ? undefined
+            : mode === 'narrow' && box
+              ? box.right - box.left
+              : cardWidth(phone),
         // A Radix modal turns pointer events off on <body>; the guide lives in
         // <body>, so it turns them back on for itself.
         pointerEvents: 'auto',
@@ -355,19 +442,25 @@ export function DemoGuide({
             // A portal still bubbles through the React tree: this click must
             // not reach the row the coached control sits in.
             event.stopPropagation()
-            unfold()
+            if (onUnmute) onUnmute()
+            else unfold()
           }}
           aria-expanded={false}
-          aria-label={`Show the demo guide — step ${position} of ${total}: ${title}`}
+          aria-label={
+            muted
+              ? `Show demo hints — ${progress.toLowerCase()}: ${title}`
+              : `Show the demo guide — ${progress.toLowerCase()}: ${title}`
+          }
+          title={muted ? 'Show hints' : undefined}
           className="relative flex size-14 items-center justify-center rounded-full border shadow-lg transition-colors hover:bg-[var(--surface-hover)] bg-bg-elevated"
-          style={{ borderColor: 'var(--accent)' }}
+          style={{ borderColor: muted ? 'var(--border)' : 'var(--accent)' }}
         >
           <GuideMascot size={38} />
           <span
             aria-hidden="true"
             className="absolute -top-1 -right-1 rounded-full px-1.5 py-px text-caption font-semibold tabular-nums bg-accent-solid text-accent-solid-fg"
           >
-            {position}/{total}
+            {complete ? '✓' : `${position}/${total}`}
           </span>
           {/* Kept for the control the instruction describes. */}
           <span id={instructionId} className="sr-only">
@@ -384,9 +477,7 @@ export function DemoGuide({
           </div>
           <div className="min-w-0 flex-1 space-y-1.5">
             <p className="micro-label text-fg-tertiary">
-              <span>
-                Step {position} of {total}
-              </span>
+              <span>{progress}</span>
               {chapter && <span className="normal-case tracking-normal"> · {chapter}</span>}
             </p>
             <p className="text-body-sm font-semibold text-fg">{title}</p>
