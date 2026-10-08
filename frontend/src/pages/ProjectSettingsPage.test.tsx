@@ -7,6 +7,7 @@ import { PROJECT_SURFACES_MOVED_FROM_SETTINGS } from '@/lib/navigation'
 import ProjectSettingsPage from './ProjectSettingsPage'
 import ProjectScansPage from './ProjectScansPage'
 import { at } from '@/test/at'
+import { pickDate } from '@/test/pickers'
 
 // CodeMirror needs real layout measurement that jsdom can't provide and
 // tokenizes SQL across many spans. Stub it with a plain textarea that exposes
@@ -668,20 +669,22 @@ describe('ProjectSettingsPage', () => {
     // Replay lives in the scan page header, not the danger zone (#247).
     fireEvent.click(await screen.findByRole('button', { name: /Replay a period/ }))
 
-    const inputs = document.querySelectorAll('input[type="datetime-local"]')
-    expect(inputs).toHaveLength(2)
-    fireEvent.change(at(inputs, 0), { target: { value: '2026-04-01T00:00' } })
-    fireEvent.change(at(inputs, 1), { target: { value: '2026-04-02T00:00' } })
+    // The app's date-time pickers, picked the way a user does. Days of the
+    // month they open on: jsdom closes a popover nested in a Dialog when its
+    // month buttons are clicked (a real browser does not).
+    const now = new Date()
+    const day = (n: number) =>
+      `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(n).padStart(2, '0')}`
+    await pickDate('From', day(1), '00:00')
+    await pickDate('To', day(2), '00:00')
 
-    // A real Dialog: the inputs above are in its portal, which
-    // document.querySelectorAll still reaches.
     fireEvent.click(screen.getByRole('button', { name: /Replay period/i }))
 
     await waitFor(() => {
       expect(replayBodies).toEqual([
         {
-          time_from: new Date('2026-04-01T00:00').toISOString(),
-          time_to: new Date('2026-04-02T00:00').toISOString(),
+          time_from: new Date(`${day(1)}T00:00`).toISOString(),
+          time_to: new Date(`${day(2)}T00:00`).toISOString(),
         },
       ])
     })
