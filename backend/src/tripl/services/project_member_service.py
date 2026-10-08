@@ -23,12 +23,13 @@ import uuid
 from dataclasses import dataclass
 
 from fastapi import HTTPException
-from sqlalchemy import delete, select
+from sqlalchemy import and_, delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from tripl.models.domain_enums import ProjectMemberRole
 from tripl.models.event_type import EventType
 from tripl.models.event_type_owner import EventTypeOwner
+from tripl.models.organization import OrganizationMember
 from tripl.models.plan_branch import PlanBranch
 from tripl.models.plan_branch_reviewer import PlanBranchReviewer
 from tripl.models.project import Project
@@ -106,9 +107,22 @@ async def _get_member_or_404(
 
 
 async def list_members(session: AsyncSession, project_id: uuid.UUID) -> list[ProjectMemberResponse]:
+    """The project's membership rows, for members of its organization only.
+
+    A row held by anyone else grants nothing (``project_access``), and listing
+    it would show a stranger's name and email on the project's Access page.
+    """
     rows = await session.execute(
         select(ProjectMember, User)
         .join(User, ProjectMember.user_id == User.id)
+        .join(Project, Project.id == ProjectMember.project_id)
+        .join(
+            OrganizationMember,
+            and_(
+                OrganizationMember.organization_id == Project.organization_id,
+                OrganizationMember.user_id == ProjectMember.user_id,
+            ),
+        )
         .where(ProjectMember.project_id == project_id)
         .order_by(ProjectMember.created_at.asc(), User.email.asc())
     )

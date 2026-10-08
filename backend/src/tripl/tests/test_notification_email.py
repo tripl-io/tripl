@@ -23,6 +23,7 @@ from sqlalchemy.orm import Session, sessionmaker
 from tripl.config import SMTP_SECURITY_STARTTLS
 from tripl.models import Base
 from tripl.models.notification import Notification
+from tripl.models.organization import DEFAULT_ORG_ID, Organization, OrganizationMember
 from tripl.models.project import Project
 from tripl.models.project_member import ProjectMember
 from tripl.models.user import User
@@ -125,6 +126,10 @@ def _world(session: Session) -> World:
     ivan = _user(session, "ivan@example.com", "Ivan")  # weekly, mention emails off
     gone = _user(session, "gone@example.com", "Gone")  # instant, but no longer a member
     for member in (anna, oleg, ivan):
+        # A row counts only for a member of the project's organization.
+        session.add(
+            OrganizationMember(organization_id=DEFAULT_ORG_ID, user_id=member, role="member")
+        )
         session.add(ProjectMember(project_id=project.id, user_id=member, role="editor"))
         session.add(ProjectMember(project_id=demo.id, user_id=member, role="editor"))
     _prefs(session, anna, "instant")
@@ -355,8 +360,6 @@ def test_digest_mails_each_organization_through_its_own_relay(
     """One user, rows in two organizations: one digest per organization, each
     through that organization's relay; an organization with no relay leaves its
     rows unsent (and unstamped) while the other's go out (F20 PR9)."""
-    from tripl.models.organization import DEFAULT_ORG_ID, Organization
-
     other_org = uuid.uuid4()
     relays: dict[uuid.UUID, str] = {DEFAULT_ORG_ID: "default-relay.example.com", other_org: ""}
     monkeypatch.setattr(
@@ -372,6 +375,9 @@ def test_digest_mails_each_organization_through_its_own_relay(
             id=uuid.uuid4(), name="Elsewhere", slug="elsewhere", organization_id=other_org
         )
         session.add(elsewhere)
+        session.add(
+            OrganizationMember(organization_id=other_org, user_id=world.oleg, role="member")
+        )
         session.add(ProjectMember(project_id=elsewhere.id, user_id=world.oleg, role="editor"))
         session.commit()
         here = _note(session, world.oleg, world.project_id, title="Here")

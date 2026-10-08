@@ -37,9 +37,12 @@ async def add_member(
     """Make ``user_id`` a member of ``project_id`` with ``role`` (upsert).
 
     Idempotent: an existing row (a creator, say) has its role replaced rather
-    than tripping ``uq_project_member``.
+    than tripping ``uq_project_member``. A row counts only for a member of the
+    project's organization, so a user outside it joins it as a plain member
+    first; a role they already hold there is left alone.
     """
     member_role = ProjectMemberRole(role)
+    await _join_projects_org(session, project_id, user_id)
     existing = await session.scalar(
         select(ProjectMember).where(
             ProjectMember.project_id == project_id,
@@ -57,6 +60,26 @@ async def add_member(
     else:
         await session.flush()
     return member
+
+
+async def _join_projects_org(
+    session: AsyncSession, project_id: uuid.UUID, user_id: uuid.UUID
+) -> None:
+    """A plain member of the project's organization, unless they hold a role there."""
+    org_id = await session.scalar(select(Project.organization_id).where(Project.id == project_id))
+    assert org_id is not None, f"no project {project_id}"
+    held = await session.scalar(
+        select(OrganizationMember.role).where(
+            OrganizationMember.organization_id == org_id,
+            OrganizationMember.user_id == user_id,
+        )
+    )
+    if held is None:
+        session.add(
+            OrganizationMember(
+                organization_id=org_id, user_id=user_id, role=OrganizationRole.member.value
+            )
+        )
 
 
 async def add_org_member(

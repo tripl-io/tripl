@@ -49,6 +49,7 @@ from tripl.models.event_type import EventType
 from tripl.models.event_type_owner import EventTypeOwner
 from tripl.models.metric_anomaly import MetricAnomaly
 from tripl.models.metric_definition import MetricDefinition
+from tripl.models.organization import DEFAULT_ORG_ID, OrganizationMember
 from tripl.models.project import Project
 from tripl.models.project_member import ProjectMember
 from tripl.models.scan_config import ScanConfig
@@ -150,6 +151,10 @@ def _build_world(
     stranger = _user(session, f"stranger@{email_domain}", "Stranger")
     nomail = _user(session, f"no-address-{uuid.uuid4().hex[:8]}", "Nomail")
     for member in (anna, oleg, nomail):
+        # A row counts only for a member of the project's organization.
+        session.add(
+            OrganizationMember(organization_id=DEFAULT_ORG_ID, user_id=member, role="member")
+        )
         session.add(ProjectMember(project_id=project.id, user_id=member, role="editor"))
     # ``stranger`` owns the type but is not (or no longer) a member.
     for owner in (anna, stranger, nomail):

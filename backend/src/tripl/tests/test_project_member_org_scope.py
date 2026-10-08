@@ -6,7 +6,9 @@
   keeps their per-project grants (they still reach the project without the
   row); a plain member loses them;
 * the member manager is project role ``owner`` (org owner/admin) or the
-  project's creator, never an org role borrowed from another organization.
+  project's creator, never an org role borrowed from another organization;
+* a membership row held by someone outside the project's organization grants
+  nothing and is not listed.
 """
 
 from __future__ import annotations
@@ -191,6 +193,67 @@ async def test_an_admin_of_another_org_loses_grants_like_anyone_else() -> None:
     await _remove(project_id, user_id)
 
     assert not await _still_owns(type_id, user_id)
+
+
+# ── a row outside the project's organization ────────────────────────────────
+
+
+async def _stray_row(project_id: uuid.UUID, user_id: uuid.UUID) -> None:
+    """A membership row ``add_member`` would refuse: what a project moved to
+    another organization, or a removal that missed a row, leaves behind."""
+    async with TestSessionLocal() as session:
+        session.add(
+            ProjectMember(
+                project_id=project_id, user_id=user_id, role=ProjectMemberRole.editor.value
+            )
+        )
+        await session.commit()
+
+
+async def test_a_row_held_outside_the_projects_org_grants_nothing() -> None:
+    org_a, org_b = await _org(), await _org()
+    project_id = await _project(org_a)
+    # An owner of another organization, and someone in no organization at all.
+    foreigner = await _user(org_b, OrganizationRole.owner)
+    homeless = await _user(None, None)
+    colleague = await _user(org_a, OrganizationRole.member)
+    for user_id in (foreigner, homeless):
+        await _stray_row(project_id, user_id)
+    await _add(project_id, colleague)
+
+    async with TestSessionLocal() as session:
+        for user_id in (foreigner, homeless):
+            assert (
+                await project_access._member_role(session, user_id, project_id, fenced=False)
+                is None
+            )
+        assert (
+            await project_access._member_role(session, colleague, project_id, fenced=False)
+            == project_access.EDITOR
+        )
+        # The SQL twin, as the fan-outs and lists ask it.
+        assert await project_access.members_among(
+            session, project_id, [foreigner, homeless, colleague]
+        ) == {colleague}
+        for user_id in (foreigner, homeless):
+            user = await session.get(User, user_id)
+            assert user is not None
+            assert project_id not in await project_access.member_project_ids(session, user, org_a)
+
+
+async def test_a_row_held_outside_the_projects_org_is_not_listed() -> None:
+    org_a, org_b = await _org(), await _org()
+    project_id = await _project(org_a)
+    foreigner = await _user(org_b, OrganizationRole.member)
+    colleague = await _user(org_a, OrganizationRole.member)
+    await _stray_row(project_id, foreigner)
+    await _add(project_id, colleague)
+
+    async with TestSessionLocal() as session:
+        listed = await project_member_service.list_members(session, project_id)
+
+    # Project settings > Access shows no stranger's name or email.
+    assert [member.user_id for member in listed] == [colleague]
 
 
 # ── who manages members ─────────────────────────────────────────────────────

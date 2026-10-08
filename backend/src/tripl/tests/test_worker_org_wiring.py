@@ -51,7 +51,7 @@ from tripl.models.data_source import DataSource
 from tripl.models.event_type import EventType
 from tripl.models.event_type_owner import EventTypeOwner
 from tripl.models.incident_summary import IncidentSummary
-from tripl.models.organization import DEFAULT_ORG_ID, Organization
+from tripl.models.organization import DEFAULT_ORG_ID, Organization, OrganizationMember
 from tripl.models.project import Project
 from tripl.models.project_member import ProjectMember
 from tripl.models.scan_config import ScanConfig
@@ -422,6 +422,8 @@ def test_notify_owners_worker_uses_the_projects_organization_relay(
         )
         session.add_all([owner, event_type])
         session.flush()
+        # A row counts only for a member of the project's organization.
+        session.add(OrganizationMember(organization_id=ALPHA_ID, user_id=owner.id, role="member"))
         session.add(ProjectMember(project_id=project.id, user_id=owner.id, role="editor"))
         session.add(EventTypeOwner(event_type_id=event_type.id, user_id=owner.id))
         destination = AlertDestination(
