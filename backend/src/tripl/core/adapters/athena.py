@@ -39,29 +39,52 @@ DEFAULT_ATHENA_CATALOG = "AwsDataCatalog"
 DEFAULT_ATHENA_WORKGROUP = "primary"
 
 
+#: How often a deadline that passed before the query had an id looks again.
+_DEADLINE_RECHECK_SECONDS = 0.25
+
+
 class _Deadline:
-    """Stop a running Athena query when the deadline passes."""
+    """Stop a running Athena query when the deadline passes.
+
+    The cursor has no query id until ``StartQueryExecution`` returns, which a
+    slow or retried call can delay past the deadline. A deadline that passes
+    first keeps looking until the id appears and stops the query then: given up
+    on, the query would run on, billed, up to the workgroup's own limit.
+    """
 
     def __init__(self, cursor: Any, seconds: float | None) -> None:
         self._cursor = cursor
         self.fired = False
+        self._done = False
+        self._lock = threading.Lock()
         self._timer: threading.Timer | None = None
         if seconds is not None:
-            self._timer = threading.Timer(seconds, self._stop)
-            self._timer.daemon = True
-            self._timer.start()
+            self._arm(seconds)
+
+    def _arm(self, seconds: float) -> None:
+        timer = threading.Timer(seconds, self._stop)
+        timer.daemon = True
+        self._timer = timer
+        timer.start()
 
     def _stop(self) -> None:
-        self.fired = True
+        with self._lock:
+            if self._done:
+                return
+            self.fired = True
+            if not getattr(self._cursor, "query_id", None):
+                self._arm(_DEADLINE_RECHECK_SECONDS)
+                return
         try:
-            if getattr(self._cursor, "query_id", None):
-                self._cursor.cancel()
+            self._cursor.cancel()
         except Exception:
             logger.warning("Athena: could not stop a query past its deadline", exc_info=True)
 
     def cancel(self) -> None:
-        if self._timer is not None:
-            self._timer.cancel()
+        with self._lock:
+            self._done = True
+            if self._timer is not None:
+                self._timer.cancel()
 
 
 class AthenaAdapter(TrinoAdapter):
@@ -147,10 +170,12 @@ class AthenaAdapter(TrinoAdapter):
         guard = _Deadline(cursor, deadline)
         try:
             cursor.execute(sql)
-        except Exception as exc:
+        except BaseException as exc:
+            # BaseException too: a worker's soft time limit or a shutdown must
+            # not leave the timer to fire on a closed cursor.
             guard.cancel()
             self._close_cursor(cursor)
-            if guard.fired and deadline is not None:
+            if isinstance(exc, Exception) and guard.fired and deadline is not None:
                 raise self._timeout_error(deadline, exc) from exc
             raise
         return cursor, guard

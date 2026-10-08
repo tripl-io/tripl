@@ -41,6 +41,9 @@ class FakeCursor:
     def execute(self, sql: str, parameters: object = None) -> FakeCursor:
         assert parameters is None, "no parameters: pyathena must never %-format a base query"
         self._conn.sql.append(sql)
+        if self._conn.submit_delay:
+            # A slow StartQueryExecution: no query id until it returns.
+            threading.Event().wait(self._conn.submit_delay)
         self.query_id = f"q{len(self._conn.sql)}"
         if self._conn.hang:
             if self._stopped.wait(5):
@@ -70,6 +73,7 @@ class FakeConnection:
         self.answers: list[tuple[list[tuple[str, str]], list[tuple[object, ...]]]] = []
         self.cancelled: list[str | None] = []
         self.hang = False
+        self.submit_delay = 0.0
 
     def cursor(self) -> FakeCursor:
         return FakeCursor(self)
@@ -174,6 +178,35 @@ def test_a_query_past_its_deadline_is_stopped_and_reported(monkeypatch: pytest.M
     with pytest.raises(TimeoutError, match="Athena: query exceeded the 0.2s timeout"):
         adapter._run("SELECT 1")
     assert driver.conn.cancelled == ["q1"]
+
+
+def test_a_deadline_before_the_query_has_an_id_stops_it_once_it_has_one(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    adapter, driver = _build(monkeypatch)
+    adapter._timeout_seconds = 0.1
+    driver.conn.submit_delay = 0.5
+    driver.conn.hang = True
+    with pytest.raises(TimeoutError, match="Athena: query exceeded the 0.1s timeout"):
+        adapter._run("SELECT 1")
+    assert driver.conn.cancelled == ["q1"]
+
+
+def test_an_interrupt_during_execute_stops_the_timer(monkeypatch: pytest.MonkeyPatch) -> None:
+    adapter, driver = _build(monkeypatch)
+    adapter._timeout_seconds = 0.2
+    closed: list[FakeCursor] = []
+
+    def interrupted(cursor: FakeCursor, sql: str, parameters: object = None) -> None:
+        closed.append(cursor)
+        raise KeyboardInterrupt
+
+    monkeypatch.setattr(FakeCursor, "execute", interrupted)
+    with pytest.raises(KeyboardInterrupt):
+        adapter._run("SELECT 1")
+    assert closed[0].closed
+    threading.Event().wait(0.4)
+    assert driver.conn.cancelled == []
 
 
 def test_other_errors_pass_through_and_stop_nothing(monkeypatch: pytest.MonkeyPatch) -> None:
