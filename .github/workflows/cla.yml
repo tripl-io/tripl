@@ -35,6 +35,10 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
+          # A signature binds the CLA.md text as it was when signed. v1.1 replaced
+          # v1.0 in place because nobody had signed yet; a substantive change
+          # after the first signature needs a new path here (signatures/cla-v2.json),
+          # so every contributor signs the new text.
           path-to-signatures: signatures/cla.json
           path-to-document: https://github.com/tripl-io/tripl/blob/main/CLA.md
           branch: cla-signatures
