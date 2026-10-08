@@ -300,6 +300,11 @@ bunx playwright install chromium   # once
 bun run test:e2e                   # against http://127.0.0.1:5173
 ```
 
+`e2e/critical-flows.spec.ts` is the smoke suite: sign-up and sign-in through
+the forms, creating a project, a scan run by the worker, and an anomaly in the
+alert inbox — the path a new team walks on day one, and the one every other
+spec assumes.
+
 **A new feature ships with an end-to-end test.** A pull request that adds
 user-facing functionality — a page, a card, a flow, a new kind of object a
 person creates or acts on — adds a spec under `frontend/e2e/` that walks it in
