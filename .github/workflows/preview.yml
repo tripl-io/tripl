@@ -33,6 +33,9 @@ jobs:
        github.event.workflow_run.event == 'push' &&
        github.event.workflow_run.head_repository.full_name == github.repository)
     runs-on: ubuntu-latest
+    # A stalled step would otherwise hold the preview, and every run queued
+    # behind it, for the six hours a job may take.
+    timeout-minutes: 60
     permissions:
       contents: read
       packages: write
@@ -86,8 +89,15 @@ jobs:
           # it, but cannot from the detached HEAD a commit checkout leaves.
           labels: |
             org.opencontainers.image.revision=${{ steps.commit.outputs.sha }}
+      # A layer read from the Actions cache can stall with no timeout of its
+      # own: on 2026-10-08 one held the Enterprise preview for 24 minutes,
+      # until it was cancelled by hand. The build has 15 minutes (it takes one
+      # or two); one that fails or runs out of them is built once more, below.
       - name: Build & push (linux/amd64)
+        id: build
         if: steps.commit.outputs.moved == 'true'
+        timeout-minutes: 15
+        continue-on-error: true
         uses: docker/build-push-action@v7
         with:
           context: .
@@ -104,12 +114,32 @@ jobs:
             type=gha
           cache-to: type=gha,scope=preview,mode=max
           provenance: false
+      # A builder of its own, so nothing the stalled one still holds is waited
+      # on again; and no cache, which is what stalled.
+      - name: A fresh builder for the second build
+        if: steps.commit.outputs.moved == 'true' && steps.build.outcome != 'success'
+        uses: docker/setup-buildx-action@v4
+      - name: Build & push (linux/amd64), again without the cache
+        if: steps.commit.outputs.moved == 'true' && steps.build.outcome != 'success'
+        timeout-minutes: 30
+        uses: docker/build-push-action@v7
+        with:
+          context: .
+          file: ./Dockerfile
+          target: runtime
+          platforms: linux/amd64
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          provenance: false
 
   enterprise:
     name: Enterprise preview
     needs: image
     if: needs.image.outputs.moved == 'true'
     runs-on: ubuntu-latest
+    # One request; anything longer is a stall.
+    timeout-minutes: 10
     # The token lives in this environment, which only main reaches.
     environment: preview
     steps:
