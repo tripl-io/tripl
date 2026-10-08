@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { MemoryRouter } from 'react-router-dom'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -37,6 +37,7 @@ vi.mock('@/api/users', () => ({
 }))
 
 import { AuditLog, AuditTab } from './AuditTab'
+import { pickDate } from '@/test/pickers'
 
 // What GET /audit/actions answers. The vocabulary is the backend's now:
 // which actions carry a project is decided where they are recorded, so these
@@ -183,18 +184,15 @@ describe('AuditLog — an organization-wide source', () => {
 })
 
 describe('AuditTab — date filters', () => {
-  it('labels the date filters without a format hint the control contradicts', () => {
+  it('filters with the app calendar, not a native date field', () => {
     renderTab()
 
-    // The native <input type="date"> renders and parses in the BROWSER's locale
-    // (mm/dd/yyyy on a US profile), so a hard-coded "(YYYY-MM-DD)" told the user
-    // one format while the widget showed another.
+    // The native <input type="date"> rendered in the BROWSER's locale and
+    // theme (mm/dd/yyyy on a US profile), unlike every other date in the app.
     expect(screen.queryByText('(YYYY-MM-DD)')).toBeNull()
-
-    // The fields themselves are unchanged — still native date pickers, still
-    // labelled From/To.
-    expect(screen.getByLabelText('From')).toHaveAttribute('type', 'date')
-    expect(screen.getByLabelText('To')).toHaveAttribute('type', 'date')
+    expect(document.querySelector('input[type="date"]')).toBeNull()
+    expect(screen.getByLabelText('From')).toHaveAccessibleName('From: none picked')
+    expect(screen.getByLabelText('To')).toHaveAccessibleName('To: none picked')
   })
 })
 
@@ -444,21 +442,23 @@ describe('AuditTab — rows and filters', () => {
     expect(document.getElementById(controlled as string)).not.toBeNull()
   })
 
-  it('refuses a backwards date range instead of reporting no matches', async () => {
+  it('offers no day before From for To, so a backwards range cannot be picked', async () => {
     renderTab()
     await waitFor(() => expect(listMock).toHaveBeenCalledTimes(1))
 
-    fireEvent.change(screen.getByLabelText('From'), { target: { value: '2026-08-20' } })
-    fireEvent.change(screen.getByLabelText('To'), { target: { value: '2026-08-10' } })
+    await pickDate('From', '2026-08-20')
+    await waitFor(() => expect(screen.queryByRole('grid')).toBeNull())
+    expect(screen.getByLabelText('From')).toHaveAttribute('data-value', '2026-08-20')
 
-    expect(await screen.findByRole('alert')).toHaveTextContent(/before “From”/)
-    expect(screen.getByLabelText('To')).toHaveAttribute('aria-invalid', 'true')
-    // Said once, by the alert; the filter bar's live count stays quiet.
-    expect(screen.queryByText(/match the filter|range is backwards/)).toBeNull()
-    // The From change alone is a valid range and asked once; the backwards one
-    // is never sent.
-    await waitFor(() => expect(listMock).toHaveBeenCalledTimes(2))
-    expect(listMock.mock.calls.every(([params]) => params.until === undefined)).toBe(true)
+    // Open To on August, where From's day sits.
+    await pickDate('To', '2026-08-25')
+    fireEvent.click(screen.getByLabelText('To'))
+    const grid = await screen.findByRole('grid', { name: 'August 2026' })
+    expect(within(grid).getByRole('button', { name: 'Monday, August 10, 2026' })).toBeDisabled()
+    expect(within(grid).getByRole('button', { name: 'Thursday, August 20, 2026' })).toBeEnabled()
+    expect(screen.queryByRole('alert')).toBeNull()
+    await waitFor(() => expect(listMock).toHaveBeenCalledTimes(3))
+    expect(listMock.mock.calls.some(([params]) => params.until !== undefined)).toBe(true)
   })
 
   it('applies the email filter after a pause, without Enter', async () => {

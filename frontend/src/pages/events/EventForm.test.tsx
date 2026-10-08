@@ -15,6 +15,7 @@ import { chapterState } from '@/demo/scenarioTestState'
 import { toast } from 'sonner'
 import { EventForm } from './EventForm'
 import { expectNoAxeViolations } from '@/test/axe'
+import { pickDate } from '@/test/pickers'
 
 vi.mock('@/api/events', () => ({
   eventsApi: {
@@ -1802,7 +1803,7 @@ describe('EventForm sunset date zone', () => {
 
     // The picker shows local wall time — the zone the detail page formats in —
     // not the UTC wall time a slice of the ISO string gave.
-    expect(screen.getByLabelText('Sunset date')).toHaveValue('2026-10-01T18:00')
+    expect(screen.getByLabelText('Sunset date')).toHaveAttribute('data-value', '2026-10-01T18:00')
 
     fireEvent.click(screen.getByRole('button', { name: /Save event/i }))
     await waitFor(() =>
@@ -1819,7 +1820,7 @@ describe('EventForm sunset date zone', () => {
     vi.mocked(eventsApi.update).mockResolvedValue({} as never)
     renderForm({ ...EXISTING_EVENT, status: 'deprecated' } as unknown as TEvent)
 
-    fireEvent.change(screen.getByLabelText('Sunset date'), { target: { value: '2026-12-31T09:00' } })
+    await pickDate('Sunset date', '2026-12-31', '09:00')
     fireEvent.click(screen.getByRole('button', { name: /Save event/i }))
 
     // 09:00 in Tokyo is midnight UTC.
