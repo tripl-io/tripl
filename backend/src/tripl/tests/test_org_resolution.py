@@ -238,12 +238,13 @@ async def test_hosted_multi_org_cookie_user_needs_the_org_in_the_path(
     assert settings_resp.status_code != 400, settings_resp.text
 
 
-async def test_self_hosted_default_org_path_works_without_a_membership_row(
+async def test_self_hosted_default_org_path_resolves_without_a_membership_row(
     client: AsyncClient, self_hosted: None
 ) -> None:
     # Resolution binds the default org without a membership row (migration
     # c9e1a3b5d7f9 gave every older account one); what the account may then do
-    # is its roles' business: its creator row still reaches the project.
+    # is its roles' business, and a project row counts only for a member of the
+    # project's organization: the creator row left behind reaches nothing.
     assert (
         await client.post("/api/v1/projects", json={"name": "Nm", "slug": "nm"})
     ).status_code == 201
@@ -253,9 +254,11 @@ async def test_self_hosted_default_org_path_works_without_a_membership_row(
         )
         await session.commit()
 
-    for path in ("/api/v1/orgs/default/projects", "/api/v1/orgs/default/projects/nm"):
-        resp = await client.get(path)
-        assert resp.status_code == 200, (path, resp.text)
+    listed = await client.get("/api/v1/orgs/default/projects")
+    assert listed.status_code == 200, listed.text
+    assert "nm" not in {project["slug"] for project in listed.json()}
+    detail = await client.get("/api/v1/orgs/default/projects/nm")
+    assert detail.status_code == 404, detail.text
 
 
 async def test_another_orgs_project_is_not_reachable_through_the_org_path(
