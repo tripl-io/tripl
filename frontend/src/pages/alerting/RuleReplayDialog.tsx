@@ -26,7 +26,7 @@ import { Chip } from '@/components/primitives/chip'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import type { AlertMessageFormat, AlertRule, AlertRuleSimulateResponse, ScanConfig } from '@/types'
 import { getErrorMessage } from '@/lib/utils'
-import { formatIncidentCount, scopeKindLabel } from '@/lib/alertStatus'
+import { formatIncidentCount, scopeHasDirection, scopeKindLabel } from '@/lib/alertStatus'
 import { APP_LOCALE } from '@/lib/format'
 import { formatPercentDelta } from '@/lib/percentDelta'
 import { formatCooldown } from './constants'
@@ -649,8 +649,17 @@ export function RuleReplayDialog({
                                 : (scans.find(scan => scan.id === firing.scan_config_id)?.name
                                   ?? `Scan ${firing.scan_config_id.slice(0, 8)}`)}
                             </TableCell>
+                            {/* A drift has no direction and no relative change:
+                                its row says "spike" only so the rule's Spikes
+                                toggle gates it, and its Δ% compares row counts.
+                                What drifted is under the scope name, and the
+                                scope cell's hover holds the whole sent line. */}
                             <TableCell className="py-1.5">
-                              <Chip variant="outline" size="xs">{firing.direction}</Chip>
+                              {scopeHasDirection(firing.scope_type) ? (
+                                <Chip variant="outline" size="xs">{firing.direction}</Chip>
+                              ) : (
+                                <span className="text-fg-tertiary" title="A drift has no direction">—</span>
+                              )}
                             </TableCell>
                             {/* Both columns through the same formatter: rounding
                                 only the baseline would leave "5780" beside
@@ -664,7 +673,9 @@ export function RuleReplayDialog({
                               {formatIncidentCount(firing.expected_count)}
                             </TableCell>
                             <TableCell className="whitespace-nowrap py-1.5 pr-3 text-right tnum">
-                              {formatPercentDelta(firing.percent_delta, firing.expected_count)}
+                              {scopeHasDirection(firing.scope_type)
+                                ? formatPercentDelta(firing.percent_delta, firing.expected_count)
+                                : <span className="text-fg-tertiary" title="A drift has no relative change">—</span>}
                             </TableCell>
                           </TableRow>
                         ))}

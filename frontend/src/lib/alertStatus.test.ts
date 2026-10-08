@@ -15,6 +15,7 @@ import {
   isHandledInboxStatus,
   muteConfirmMessage,
   priorDecisionLabel,
+  scopeHasDirection,
   stripValueErrorPrefix,
 } from './alertStatus'
 
@@ -194,6 +195,22 @@ describe('what fired, on the card', () => {
       priorDecisionLabel(makeGroup({ status: 'resolved', acted_at: '2026-07-30T12:00:00Z' })),
     ).toBeNull()
     expect(priorDecisionLabel(makeGroup({ acted_at: null }))).toBeNull()
+  })
+})
+
+describe('which signals have a direction', () => {
+  it('gives volume, metric, release, freshness and lifecycle signals one', () => {
+    for (const scope of [
+      'project_total', 'event_type', 'event', 'metric', 'release_regression', 'source_freshness', 'lifecycle',
+    ] as const) {
+      expect(scopeHasDirection(scope), scope).toBe(true)
+    }
+  })
+
+  it('gives the drifts none', () => {
+    for (const scope of ['schema', 'distribution', 'variable_value_drift', 'property_drift'] as const) {
+      expect(scopeHasDirection(scope), scope).toBe(false)
+    }
   })
 })
 
