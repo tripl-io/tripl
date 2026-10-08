@@ -30,6 +30,9 @@ class DBType(enum.StrEnum):
     bigquery = "bigquery"
     databricks = "databricks"
     snowflake = "snowflake"
+    # PostgreSQL-protocol warehouses; see core/adapters/greenplum.py and redshift.py.
+    greenplum = "greenplum"
+    redshift = "redshift"
     # Local, in-memory synthetic warehouse. Created ONLY by the demo seeder (never
     # by the user-facing create path) and always scoped to a demo project. Its
     # adapter serves a bounded, deterministic dataset with no network/filesystem

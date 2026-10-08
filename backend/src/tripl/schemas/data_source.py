@@ -411,6 +411,9 @@ ConnectionSettings = (
 CONNECTION_SETTINGS_MODELS: dict[str, type[_ConnectionSettingsBase]] = {
     DBType.clickhouse.value: ClickHouseSettings,
     DBType.postgres.value: PostgresSettings,
+    # Same libpq connection (TLS material, search_path) as PostgreSQL.
+    DBType.greenplum.value: PostgresSettings,
+    DBType.redshift.value: PostgresSettings,
     DBType.bigquery.value: BigQuerySettings,
     DBType.databricks.value: DatabricksSettings,
     DBType.snowflake.value: SnowflakeSettings,

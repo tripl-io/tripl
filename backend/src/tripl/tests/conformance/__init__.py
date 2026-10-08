@@ -21,6 +21,11 @@ The suites in this package close that hole by making CI actually run the SQL:
   from a typed, table-less fixture.
 * ``test_snowflake_value_conformance`` — a real Snowflake account, on release
   tags when one is configured, or by hand; the same table-less approach.
+* ``test_redshift_value_conformance`` — real Amazon Redshift (Serverless or a
+  cluster), on release tags once configured, or by hand; same table-less approach.
+
+The PostgreSQL gates also run against Greenplum 6 and 7 (``TRIPL_CONF_PG_ENGINE=
+greenplum``), through ``GreenplumAdapter``.
 
 The contract they all measure against is :mod:`tripl.core.bucketing`.
 """

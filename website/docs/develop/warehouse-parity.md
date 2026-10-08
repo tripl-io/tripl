@@ -42,6 +42,8 @@ requests remain credential-free and stop at ZetaSQL analysis.
 | **BigQuery** | **ANALYZED on every PR; values executed on trusted releases.** The emulator's real ZetaSQL analyzer checks every generated statement. A credentialed job runs for `vX.Y.Z` tags when explicitly enabled. | SQL validity plus exact adapter values; the release gate also compares scan/replay event series, fact and composition metrics, batched collection, idempotency and anomalies against the shared reference while using real PostgreSQL for application state. | Credentialed checks run only on release tags to bound quota usage. |
 | **Databricks** | **Mocked on every PR, executed on release tags.** `test_databricks_adapter.py` and the shared parity suites drive the real adapter against a fake DB-API driver and assert the SQL it sends and how it decodes what comes back. The credentialed value suite (`conformance/test_databricks_value_conformance.py`, marker `databricks_value`) runs against a real SQL warehouse in `databricks-value-conformance.yml` on stable release tags, and passed by hand against a Free Edition warehouse when the connector shipped. | Everything the value suite covers: bucket counts on every interval over TIMESTAMP, TIMESTAMP_NTZ and DATE, half-open windows, sums and breakdowns, multi-aggregates, top-N folding, VARIANT and STRUCT paths, JSON in STRING columns, field-contract counts. | That a pull request keeps Databricks working: between release tags the evidence is the mocked SQL. Cells the value suite does not reach stay believed. |
 | **Snowflake** | **Mocked on every PR; values executed on release tags once an account is configured.** `test_snowflake_adapter.py` and the shared parity suites drive the real adapter against a fake DB-API driver and assert the SQL it sends and how it decodes what comes back. The credentialed value suite (`conformance/test_snowflake_value_conformance.py`, marker `snowflake_value`) runs against a real account in `snowflake-value-conformance.yml` on stable release tags when `SNOWFLAKE_VALUE_CONFORMANCE_ENABLED` is set. It has not yet been run against a live account. | Today: the SQL shape and the result decoding. Once the value suite has run: bucket counts on every interval over TIMESTAMP_TZ, TIMESTAMP_NTZ, TIMESTAMP_LTZ and DATE, half-open windows, sums and breakdowns, multi-aggregates, top-N folding, VARIANT paths, JSON in STRING columns, field-contract counts. | That Snowflake accepts the SQL or computes the reference values: until the value suite passes against a real account, every Snowflake cell is believed, not proven. |
+| **Greenplum** | **EXECUTED.** The PostgreSQL gates (`test_postgres_conformance.py`, `test_postgres_field_contracts_conformance.py`) run again through `GreenplumAdapter` against real Greenplum **6.27** and **7.1** containers (`woblerr/greenplum`), in the `greenplum` CI job. | SQL validity **and** computed values, as PostgreSQL, on both major versions. | The pipeline gate (it keeps tripl's own schema in the same database) and the forks (Cloudberry, Greengage, WarehousePG), which share Greenplum's SQL but are not run. |
+| **Amazon Redshift** | **Mocked on every PR; values executed on release tags once an endpoint is configured.** `test_greenplum_redshift_adapters.py` and the shared parity suites assert the SQL `RedshiftAdapter` sends. The credentialed value suite (`conformance/test_redshift_value_conformance.py`, marker `redshift_value`) runs against a real Serverless workgroup or cluster in `redshift-value-conformance.yml` on stable release tags when `REDSHIFT_VALUE_CONFORMANCE_ENABLED` is set. It has not yet been run against a live endpoint. | Today: the SQL shape. Once the value suite has run: bucket counts on every interval over `timestamptz` and `timestamp`, half-open windows, sums and breakdowns, multi-aggregates with CASE-folded filters, top-N folding, field-contract counts, literal quoting. | That Redshift accepts the SQL or computes the reference values: until the value suite passes against a real endpoint, every Redshift cell is believed, not proven. No JSON: Redshift sources do not support JSON columns. |
 | synthetic | In-memory fixture, not a warehouse. | Nothing about a real warehouse. | — |
 
 **Why emulator values are never used.** The emulator's *analyzer* is Google's;
@@ -144,6 +146,7 @@ dialect default already agrees:
 | --- | --- | --- |
 | ClickHouse | `toDateTime(toMonday(col, 'UTC'), 'UTC')` — ClickHouse is the one whose default already agrees: `toStartOfInterval(col, INTERVAL 1 WEEK)` is Monday-anchored at `1970-01-05`, *not* off the epoch Thursday. `toMonday` is used for a different reason — the week form of `toStartOfInterval` returns a **Date**, so a `1w` bucket would come back as `datetime.date` while every other interval yields `datetime.datetime` | **executed** |
 | PostgreSQL | `date_bin('7 days', col, TIMESTAMPTZ '1970-01-05 00:00:00+00:00')` — anchored at the first Monday, not the epoch | **executed** |
+| Greenplum, Redshift | No `date_bin` (Greenplum is PostgreSQL 9.4 / 12, Redshift 8.0), so every interval is epoch arithmetic: `origin + floor((date_part('epoch', t) - origin_seconds) / w) * w * INTERVAL '1 second'`, with the origin at the epoch, or at `WEEK_ORIGIN` (a Monday) for weeks — the grid `date_bin` draws. The session time zone is pinned to UTC, so a `timestamp` column's wall clock reads as UTC | Greenplum **executed** (6 and 7); Redshift **not executed** (mocked) |
 | BigQuery | `TIMESTAMP_TRUNC(col, WEEK(MONDAY), 'UTC')` / `DATETIME_TRUNC(col, WEEK(MONDAY))` / `DATE_TRUNC(col, WEEK(MONDAY))` by declared time type | **executed on real BigQuery** for all three time families |
 | Databricks | `date_trunc('WEEK', CAST(col AS TIMESTAMP))` — Databricks documents `WEEK` truncation as the Monday of the week. `15m`/`6h` use `timestamp_seconds(floor(unix_seconds(t) / w) * w)` off the epoch; `1h`/`1d` use `date_trunc`, the same grid because they divide the UTC day. The session time zone is pinned to UTC | **not executed** (mocked) |
 | Snowflake | Weeks, `15m` and `6h` floor `DATE_PART(EPOCH_SECOND, t)` onto a grid anchored at the epoch (at `WEEK_ORIGIN`, a Monday, for weeks), so the session's `WEEK_START` cannot move a bucket; `1h`/`1d` use `DATE_TRUNC`. `TIMESTAMP_TZ`/`TIMESTAMP_LTZ` are converted to the UTC wall clock first, because `DATE_TRUNC` on a `TIMESTAMP_TZ` truncates in the value's own offset. The session time zone is pinned to UTC | **not executed** (mocked) |
@@ -178,6 +181,7 @@ cannot be placed in a window at all.
 | Databricks | `TIMESTAMP`, `TIMESTAMP_NTZ`, `DATE` | anything else (`INTERVAL`, arrays) | **Not guaranteed** — like BigQuery, refused with an actionable error where the time kind is first needed. A `DATE` column refuses `15m`/`1h`/`6h` |
 | Snowflake | `TIMESTAMP_TZ`, `TIMESTAMP_LTZ`, `TIMESTAMP_NTZ`, `DATE` | `TIME`, anything else | **Not guaranteed** — refused with an actionable error where the time kind is first needed. A `DATE` column refuses `15m`/`1h`/`6h` |
 | PostgreSQL | `timestamp`, `timestamptz`, `date` | `time`, `timetz`, and any array (`timestamptz[]`) | **No** — classified as unsupported, but not acted on. See caveat [7] |
+| Greenplum, Redshift | As PostgreSQL | As PostgreSQL | As PostgreSQL |
 
 Notes that bite in practice:
 
@@ -654,6 +658,28 @@ be *authenticated* as well, choose `verify-full` and supply the CA. Do not read
 | Privileges | `CONNECT` on the database, `USAGE` on the schemas, `SELECT` on the scanned tables. A read-only role is the right choice. |
 | Source-specific settings | **SSL mode** (unset → `require` for remote hosts, `prefer` for localhost — see caveat [13]), **CA certificate**, **client certificate**, **client private key** (all PEM *content*, not paths; the key is stored encrypted and never returned), **search path** (comma-separated plain identifiers). |
 | Session | tripl pins `timezone=UTC`, `standard_conforming_strings=on`, `default_transaction_read_only=on`, and a `statement_timeout` derived from the source's timeout, on every connection. `standard_conforming_strings` is what makes tripl's own quote-doubling sound — under the legacy `off` a backslash escapes the closing quote and a value ending in one closes the literal early. `default_transaction_read_only` is defence in depth *behind* the read-only role, not a substitute for it: it is `USERSET`, so SQL that can `SET` it off undoes it. |
+
+### Greenplum
+
+| | |
+| --- | --- |
+| Minimum version | **Greenplum 6** (PostgreSQL 9.4), enforced at connection test. Greenplum 7 (PostgreSQL 12) and the Cloudberry, Greengage and WarehousePG forks connect the same way. Verified against **6.27.1** and **7.1.0**. |
+| Default port | 5432 (the coordinator) |
+| Credentials, privileges, settings, session | Exactly as PostgreSQL: the same connection settings and the same session pins. |
+| Differences from PostgreSQL | Buckets by epoch arithmetic instead of `date_bin` (see the week table above). Greenplum 6's regex engine has no lookbehind, so a regex contract using it is skipped there (per expectation, like any pattern an engine refuses). `gp_toolkit` and Greenplum's other catalog schemas are left out of the schema browser. |
+
+### Amazon Redshift
+
+| | |
+| --- | --- |
+| Compute | A **Serverless workgroup** or a **provisioned cluster**, over its PostgreSQL-protocol endpoint. |
+| Default port | 5439 |
+| Credentials | host (the endpoint), port, database, username, password — a database user, not IAM. |
+| Privileges | `USAGE` on the schemas, `SELECT` on the scanned tables. **Redshift has no read-only session switch**, so these privileges are the only write barrier: grant nothing more. |
+| Source-specific settings | As PostgreSQL: SSL mode, CA / client certificate, search path. |
+| Session | tripl sets `timezone` to UTC, `statement_timeout` and the search path with `SET` after connecting (Redshift takes no startup options). Redshift reads a backslash in a string literal as an escape and has no `standard_conforming_strings`, so tripl doubles backslashes as well as quotes in every literal it writes. |
+| Differences from PostgreSQL | No `date_bin` (epoch arithmetic instead), no aggregate `FILTER (WHERE …)` (conditions fold into `CASE`), values compared as `varchar(65535)` rather than `text` (which Redshift caps at 256 characters), range contracts compare in `double precision` (Redshift's `numeric` holds 38 digits) behind a guard that admits only numbers it can hold, top-N ties break on Redshift's default byte collation. The schema browser reads `svv_columns`, so external (Spectrum) tables and late-binding views are listed. |
+| JSON | **Not supported.** A `SUPER` column is an opaque value: no path discovery, no properties, no Parse as JSON. |
 
 ### BigQuery
 

@@ -76,8 +76,21 @@ def test_the_range_comparison_never_touches_double_precision() -> None:
 
     assert "::double precision" not in condition
     assert "::numeric" in condition
-    assert "'Infinity'::numeric" in condition
-    assert "'-Infinity'::numeric" in condition
+    # An infinity is decided from the bounds, never cast: 'Infinity'::numeric
+    # needs PostgreSQL 14, and Greenplum shares this SQL.
+    assert "Infinity'::" not in condition
+
+
+def test_an_infinity_is_in_range_only_on_the_unbounded_side() -> None:
+    """+inf meets any min and exceeds any max; -inf the reverse."""
+    both = _range_condition(min_value=0.0, max_value=50.0)
+    assert "inf(inity)?$' THEN FALSE" in both
+    min_only = _range_condition(min_value=0.0)
+    assert "~* '^[+]?inf(inity)?$' THEN TRUE" in min_only
+    assert "~* '^[-]inf(inity)?$' THEN FALSE" in min_only
+    max_only = _range_condition(max_value=50.0)
+    assert "~* '^[+]?inf(inity)?$' THEN FALSE" in max_only
+    assert "~* '^[-]inf(inity)?$' THEN TRUE" in max_only
 
 
 def test_both_bounds_are_compared_as_numeric() -> None:

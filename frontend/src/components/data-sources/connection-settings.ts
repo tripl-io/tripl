@@ -13,6 +13,12 @@ import { INPUT_INVALID_CLASS, INPUT_PLACEHOLDER_CLASS, INPUT_TEXT_CLASS } from '
 // (what inputs produce) and converted to the API shape by
 // `buildConnectionSettings`, which only ever emits the settings that apply to
 // the selected warehouse — the backend rejects the rest with a 422.
+
+/** PostgreSQL and the engines that connect over its protocol take its settings. */
+export function usesPostgresSettings(dbType: DbType): boolean {
+  return dbType === 'postgres' || dbType === 'greenplum' || dbType === 'redshift'
+}
+
 export interface ConnectionSettingsForm {
   // BigQuery
   location: string
@@ -230,7 +236,7 @@ export function connectionSettingsErrors(
     const warehouse = snowflakeWarehouseError(form.warehouse, requiredMessage)
     return warehouse ? { warehouse } : {}
   }
-  if (dbType !== 'postgres') return {}
+  if (!usesPostgresSettings(dbType)) return {}
   const errors: PemErrors = {}
   const root = pemError(form.sslrootcert, 'certificate')
   if (root) errors.sslrootcert = root
@@ -304,7 +310,7 @@ export function buildConnectionSettings(
     }
   }
 
-  if (dbType === 'postgres') {
+  if (usesPostgresSettings(dbType)) {
     const sslkey = form.sslkey.trim()
     return {
       sslmode: form.sslmode === '' ? null : form.sslmode,

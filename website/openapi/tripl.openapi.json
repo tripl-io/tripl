@@ -30432,6 +30432,8 @@
           "bigquery",
           "databricks",
           "snowflake",
+          "greenplum",
+          "redshift",
           "synthetic"
         ],
         "title": "DBType"

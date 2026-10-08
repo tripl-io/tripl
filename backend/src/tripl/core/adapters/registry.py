@@ -1,11 +1,14 @@
 from __future__ import annotations
 
 from collections.abc import Callable
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from tripl.core.adapters.base import BaseAdapter
 from tripl.crypto import decrypt_value
 from tripl.models.data_source import DataSource
+
+if TYPE_CHECKING:
+    from tripl.core.adapters.postgres import PostgresAdapter
 from tripl.schemas.data_source import (
     DEFAULT_BIGQUERY_MAXIMUM_BYTES_BILLED,
     DEFAULT_TIMEOUT_SECONDS,
@@ -134,9 +137,28 @@ def _build_clickhouse(ds: DataSource, password: str) -> BaseAdapter:
 def _build_postgres(ds: DataSource, password: str) -> BaseAdapter:
     from tripl.core.adapters.postgres import PostgresAdapter
 
+    return _build_libpq(PostgresAdapter, ds, password)
+
+
+def _build_greenplum(ds: DataSource, password: str) -> BaseAdapter:
+    from tripl.core.adapters.greenplum import GreenplumAdapter
+
+    return _build_libpq(GreenplumAdapter, ds, password)
+
+
+def _build_redshift(ds: DataSource, password: str) -> BaseAdapter:
+    from tripl.core.adapters.redshift import RedshiftAdapter
+
+    return _build_libpq(RedshiftAdapter, ds, password)
+
+
+def _build_libpq(
+    adapter_class: type[PostgresAdapter], ds: DataSource, password: str
+) -> BaseAdapter:
+    """A PostgreSQL-protocol adapter: PostgreSQL, Greenplum or Redshift."""
     settings = PostgresSettings.model_validate(_stored_settings(ds))
 
-    return PostgresAdapter(
+    return adapter_class(
         host=ds.host,
         # libpq connects to hostaddr and keeps host for TLS verification.
         hostaddr=vetted_address(ds),
@@ -277,6 +299,8 @@ def _build_synthetic(ds: DataSource, password: str) -> BaseAdapter:
 
 register_adapter("clickhouse", _build_clickhouse)
 register_adapter("postgres", _build_postgres)
+register_adapter("greenplum", _build_greenplum)
+register_adapter("redshift", _build_redshift)
 register_adapter("bigquery", _build_bigquery)
 register_adapter("databricks", _build_databricks)
 register_adapter("snowflake", _build_snowflake)

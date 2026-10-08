@@ -8553,7 +8553,7 @@ export interface components {
          * DBType
          * @enum {string}
          */
-        DBType: "clickhouse" | "postgres" | "bigquery" | "databricks" | "snowflake" | "synthetic";
+        DBType: "clickhouse" | "postgres" | "bigquery" | "databricks" | "snowflake" | "greenplum" | "redshift" | "synthetic";
         /**
          * DataSourceConnectionTest
          * @description An unsaved data-source config to test a connection with.

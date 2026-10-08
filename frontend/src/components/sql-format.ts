@@ -3,6 +3,7 @@ import {
   clickhouse,
   formatDialect,
   postgresql,
+  redshift,
   snowflake,
   spark,
   sql,
@@ -27,6 +28,7 @@ const DIALECTS: Partial<Record<SqlLanguage, DialectOptions>> = {
   // is the nearest it ships.
   spark,
   snowflake,
+  redshift,
   sql,
 }
 

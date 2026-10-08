@@ -265,7 +265,7 @@ jobs:
           TRIPL_CONF_BQ_EMULATOR_URL: http://localhost:9050
           TRIPL_CONF_BQ_PROJECT: tripl-test
         run: |
-          uv run pytest -q -m "conformance and not bigquery_value and not bigquery_pipeline and not databricks_value and not snowflake_value" \
+          uv run pytest -q -m "conformance and not bigquery_value and not bigquery_pipeline and not databricks_value and not snowflake_value and not redshift_value" \
             --junitxml=conformance.xml \
             src/tripl/tests/conformance
 
@@ -316,6 +316,107 @@ jobs:
   # the field for the next measured fault (write the case first, fix it second, delete
   # the marker as the proof), and because pytest reports an xfail as a skip in the JUnit
   # XML — so the check has to tell the two apart before it can trust a skip count.
+  greenplum:
+    # The PostgreSQL gates, executed again on Greenplum through GreenplumAdapter.
+    # Greenplum 6 is PostgreSQL 9.4 and Greenplum 7 is PostgreSQL 12, so both
+    # lack date_bin and 'Infinity'::numeric: these are what prove the dialect
+    # seams of PostgresAdapter hold on a real MPP server. The pipeline gate is not
+    # run here — it also keeps tripl's own schema in this database, and that
+    # schema is PostgreSQL's, not a warehouse's.
+    name: Warehouse conformance (Greenplum ${{ matrix.version }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # woblerr/greenplum: single-node coordinator + segments, multi-arch.
+          # Pinned by digest, like every other conformance warehouse.
+          - version: "6.27.1"
+            image: woblerr/greenplum:6.27.1@sha256:f27652e7ecd5bdf21d4d10b54889e91abf37c7a24859ed8043d2782b3216a60e
+          - version: "7.1.0"
+            image: woblerr/greenplum:7.1.0@sha256:3b3a54fe3784e4031f22a143bb8e4f630d35eacbd51b2bdb04dd786c9eab7784
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v10.2.0
+        with:
+          enable-cache: true
+
+      - name: Start Greenplum
+        # Not a service container: the image initialises the cluster and then
+        # RESTARTS it, so a health check passes once and the server goes away
+        # again. The wait below asks for consecutive successful logins instead.
+        run: |
+          docker run -d --name greenplum -p 5432:5432 \
+            -e GREENPLUM_PASSWORD=tripl -e GREENPLUM_DATABASE_NAME=tripl_conformance \
+            "${{ matrix.image }}"
+
+      - name: Install dependencies
+        run: uv sync --extra dev
+
+      - name: Wait for Greenplum
+        run: |
+          streak=0
+          for i in $(seq 1 120); do
+            if uv run python -c "import psycopg; psycopg.connect(host='localhost', port=5432, dbname='tripl_conformance', user='gpadmin', password='tripl', connect_timeout=3).execute('SELECT 1')" >/dev/null 2>&1; then
+              streak=$((streak + 1))
+            else
+              streak=0
+            fi
+            echo "attempt $i: consecutive logins=$streak"
+            if [ "$streak" -ge 3 ]; then exit 0; fi
+            sleep 3
+          done
+          echo "::error::Greenplum never became reachable"
+          docker logs greenplum 2>&1 | tail -50 || true
+          exit 1
+
+      - name: Conformance gates on Greenplum
+        env:
+          TRIPL_CONFORMANCE_REQUIRED: "1"
+          TRIPL_CONF_PG_ENGINE: greenplum
+          TRIPL_CONF_PG_HOST: localhost
+          TRIPL_CONF_PG_PORT: "5432"
+          TRIPL_CONF_PG_DB: tripl_conformance
+          TRIPL_CONF_PG_USER: gpadmin
+          TRIPL_CONF_PG_PASSWORD: tripl
+        # The deselected test cuts a sample at "the last inserted row", which a
+        # single heap has and an MPP scan does not; it skips itself here too.
+        run: |
+          uv run pytest -q --junitxml=greenplum-conformance.xml \
+            --deselect src/tripl/tests/conformance/test_postgres_field_contracts_conformance.py::test_a_violation_past_the_sampling_limit_is_invisible_to_the_fallback \
+            src/tripl/tests/conformance/test_postgres_conformance.py \
+            src/tripl/tests/conformance/test_postgres_field_contracts_conformance.py
+
+      - name: Prove the Greenplum gates actually ran
+        if: always()
+        run: |
+          python3 - <<'PY'
+          import sys, xml.etree.ElementTree as ET
+          try:
+              root = ET.parse("greenplum-conformance.xml").getroot()
+          except (OSError, ET.ParseError) as exc:
+              sys.exit(f"::error::no Greenplum JUnit report: {exc}. The gates did not run.")
+          tests = errors = failures = skipped = 0
+          for suite in root.iter("testsuite"):
+              tests += int(suite.get("tests", 0))
+              errors += int(suite.get("errors", 0))
+              failures += int(suite.get("failures", 0))
+              skipped += int(suite.get("skipped", 0))
+          print(f"Greenplum conformance: {tests} collected, {failures} failed, {errors} errored, {skipped} skipped")
+          if tests == 0:
+              sys.exit("::error::0 Greenplum conformance tests ran.")
+          if skipped:
+              sys.exit(f"::error::{skipped} Greenplum conformance test(s) skipped.")
+          if failures or errors:
+              sys.exit(f"::error::{failures} failed / {errors} errored Greenplum conformance test(s).")
+          PY
+
   relevance:
     name: Search relevance harness (postgres)
     runs-on: ubuntu-latest

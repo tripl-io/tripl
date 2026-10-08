@@ -1,7 +1,7 @@
 ---
 title: Connect your warehouse
 sidebar_position: 2
-description: Add a read-only connection to ClickHouse, BigQuery, Databricks, Snowflake or PostgreSQL and check that tripl can reach it.
+description: Add a read-only connection to ClickHouse, BigQuery, Databricks, Snowflake, Redshift, Greenplum or PostgreSQL and check that tripl can reach it.
 ---
 
 # Connect your warehouse
@@ -36,6 +36,8 @@ Press **Add connection**, give it a name your team will recognise, and pick the
 | **BigQuery** | GCP project ID, a default dataset, and a service-account JSON key pasted into the form. |
 | **Databricks** | Server hostname, catalog, the SQL warehouse's HTTP path, and an access token (or a service principal's OAuth client ID and secret). See [Databricks](#databricks) below. |
 | **Snowflake** | Account identifier, database, user, the virtual warehouse, and a password or the user's private key. See [Snowflake](#snowflake) below. |
+| **Amazon Redshift** | Endpoint host, port (5439), database, username, password. Serverless and provisioned clusters. No JSON columns. See [Amazon Redshift](#amazon-redshift) below. |
+| **Greenplum** | Coordinator host, port (5432), database, username, password. Greenplum 6 or 7, and the Cloudberry, Greengage and WarehousePG forks. See [Greenplum](#greenplum) below. |
 
 ![The New data source dialog for ClickHouse](/img/screenshots/data-source-add.light.webp#gh-light-mode-only)
 ![The New data source dialog for ClickHouse](/img/screenshots/data-source-add.dark.webp#gh-dark-mode-only)
@@ -156,6 +158,61 @@ Snowflake upper-cases unquoted names, so a column written `event_name` in the
 base query comes back as `EVENT_NAME`, and that is how scans and metrics refer to
 it. A suspended warehouse resumes on the first query; queries tripl runs are
 billed as warehouse time like any other, so let the warehouse auto-suspend.
+
+### Amazon Redshift
+
+tripl connects to a Redshift **Serverless workgroup** or a **provisioned
+cluster** over Redshift's PostgreSQL-compatible endpoint, with a database user
+and password.
+
+1. **Find the endpoint.** For Serverless, open the workgroup and copy its
+   **Endpoint** (`wg.123456789012.eu-west-1.redshift-serverless.amazonaws.com`);
+   for a cluster, the cluster's **Endpoint**. Put the host part in **Host** and
+   the port (5439 unless you changed it) in **Port**. The endpoint must be
+   reachable from tripl: publicly accessible, or in a network tripl can route to,
+   with the security group allowing the port.
+2. **Create a read-only user.**
+
+   ```sql
+   CREATE USER tripl_reader PASSWORD '...';
+   GRANT USAGE ON SCHEMA analytics TO tripl_reader;
+   GRANT SELECT ON ALL TABLES IN SCHEMA analytics TO tripl_reader;
+   ALTER DEFAULT PRIVILEGES IN SCHEMA analytics GRANT SELECT ON TABLES TO tripl_reader;
+   ```
+
+3. **Fill in the form** like PostgreSQL's: host, port, database (`dev` by
+   default), username, password. **SSL mode** defaults to `require` for a remote
+   host; **Search path** names the schemas unqualified table names resolve in.
+
+Every session runs with its time zone set to UTC. Redshift has no read-only
+session switch like PostgreSQL's, so the user's own privileges are what keep
+tripl from writing — grant `SELECT` and nothing more.
+
+:::note Redshift sources have no JSON columns
+A `SUPER` column is read as an opaque value: tripl does not list its paths,
+track its properties or parse a text column as JSON on Redshift. Scans, metrics,
+breakdowns and field contracts on ordinary columns work as on PostgreSQL.
+:::
+
+### Greenplum
+
+tripl connects to the Greenplum **coordinator** (master) like any PostgreSQL
+server. Greenplum 6 and 7 are supported, and so are the forks built on them —
+Apache Cloudberry, Greengage and WarehousePG.
+
+Fill in the form like PostgreSQL's: host, port (5432), database, username,
+password, and optionally **SSL mode** and **Search path**. A read-only role is
+enough:
+
+```sql
+CREATE ROLE tripl_reader LOGIN PASSWORD '...';
+GRANT USAGE ON SCHEMA analytics TO tripl_reader;
+GRANT SELECT ON ALL TABLES IN SCHEMA analytics TO tripl_reader;
+```
+
+Every session runs in UTC and read-only, exactly as on PostgreSQL. Greenplum 6
+is built on PostgreSQL 9.4, so a regex field contract that uses lookbehind
+(`(?<=...)`) is not evaluated there; the contracts beside it still run.
 
 ## 3. Check it stays healthy
 

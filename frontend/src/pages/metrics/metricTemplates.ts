@@ -57,6 +57,8 @@ export const DB_TYPES: readonly DbType[] = [
   'bigquery',
   'databricks',
   'snowflake',
+  'greenplum',
+  'redshift',
   'synthetic',
 ]
 
@@ -88,6 +90,11 @@ function bucketExpression(db: DbType | undefined, unit: 'day' | 'hour'): string 
     // session TIMEZONE to UTC.
     case 'snowflake':
       return `DATE_TRUNC('${unit.toUpperCase()}', created_at)`
+    // Greenplum (PostgreSQL 9.4 / 12) and Redshift predate date_bin; the
+    // connection pins the session time zone to UTC, so date_trunc truncates in UTC.
+    case 'greenplum':
+    case 'redshift':
+      return `date_trunc('${unit}', created_at)`
     // ClickHouse, the synthetic demo warehouse (which mimics ClickHouse
     // semantics), and "no source picked yet" all use the ClickHouse form. The
     // moment a source is selected the SQL is re-rendered for it, so an

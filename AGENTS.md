@@ -11,7 +11,7 @@ Use it to:
 - define event types, fields, relations, meta fields, and reusable variables;
 - store concrete catalog events with lifecycle, review, ownership, media, and
   change history;
-- connect external analytics DBs — ClickHouse, BigQuery, Databricks, Snowflake, or PostgreSQL;
+- connect external analytics DBs — ClickHouse, BigQuery, Databricks, Snowflake, Redshift, Greenplum, or PostgreSQL;
 - run scan jobs that infer events and variables from real data;
 - collect time-bucketed event and user-defined business metrics;
 - detect anomalies, schema/distribution/value drift, and release regressions;
@@ -40,7 +40,7 @@ Already implemented in code:
   implementation tickets;
 - typed variables with documented values, source bindings, per-event overrides,
   drift review, and scan exclusion;
-- ClickHouse, BigQuery, Databricks, Snowflake, and PostgreSQL data sources and scan configs;
+- ClickHouse, BigQuery, Databricks, Snowflake, Redshift, Greenplum, and PostgreSQL data sources and scan configs;
 - async scan pipeline via Celery + RabbitMQ;
 - auto-generated events/variables from cardinality and JSON-path analysis;
 - event metrics plus a SQL/fact/event-composition metrics catalog;
@@ -91,7 +91,7 @@ published image via [compose.yaml](compose.yaml); see [website/docs/run/release.
 - `frontend`
 
 Important runtime facts:
-- Warehouses (ClickHouse, BigQuery, Databricks, Snowflake, PostgreSQL) are external. The repo does not run them in Compose.
+- Warehouses (ClickHouse, BigQuery, Databricks, Snowflake, Redshift, Greenplum, PostgreSQL) are external. The repo does not run them in Compose.
 - `api` runs `alembic upgrade head` before `uvicorn`.
 - Celery beat schedules event/catalog metric due-checks every 5 minutes (300s),
   implementation-ticket sync every 5 minutes, and stranded embedding recovery
@@ -183,7 +183,7 @@ Backend layers:
 - `backend/src/tripl/logging_config.py`: log handler/formatter wiring.
 - `backend/src/tripl/worker/tasks`: async task entrypoints.
 - `backend/src/tripl/core/analyzers`: scan/anomaly analysis logic.
-- `backend/src/tripl/core/adapters`: analytics DB (warehouse) adapters — ClickHouse, BigQuery, Databricks, Snowflake, PostgreSQL.
+- `backend/src/tripl/core/adapters`: analytics DB (warehouse) adapters — ClickHouse, BigQuery, Databricks, Snowflake, PostgreSQL (with its Greenplum and Redshift dialect subclasses in `greenplum.py` / `redshift.py`).
 - `backend/src/tripl/tests`: backend tests.
 
 Frontend layers:
@@ -286,7 +286,7 @@ Catalog entities:
 - `EventPhoto`, `EventPhotoComment`: images/Figma specs and threaded discussion.
 
 Analytics and monitoring entities:
-- `DataSource`: external analytics DB connection — ClickHouse, BigQuery, Databricks, Snowflake, or PostgreSQL.
+- `DataSource`: external analytics DB connection — ClickHouse, BigQuery, Databricks, Snowflake, Redshift, Greenplum, or PostgreSQL.
 - `ScanConfig`: saved scan definition. Important fields include `base_query`,
   event/time/name mapping, JSON paths, grouping rules, breakdown/drift columns,
   row/lookback/replay limits, app-version/platform roles, and interval.
@@ -422,7 +422,7 @@ Scan flow:
 1. A `ScanConfig` points to a `DataSource` and query.
 2. API creates a `ScanJob`.
 3. Celery task `tripl.worker.tasks.scan.run_scan` executes.
-4. Adapter connects to the configured warehouse (ClickHouse, BigQuery, Databricks, Snowflake, or PostgreSQL).
+4. Adapter connects to the configured warehouse (ClickHouse, BigQuery, Databricks, Snowflake, Redshift, Greenplum, or PostgreSQL).
 5. Cardinality/JSON-path analysis decides low-cardinality vs variable-like
    fields; bindings and name/group rules resolve stable identities.
 6. Event generation creates or updates plan objects without overwriting authored
@@ -597,7 +597,7 @@ Project-specific expectations:
 Operational assumptions to preserve unless intentionally changing them:
 - RabbitMQ is the Celery broker.
 - PostgreSQL is the system of record for catalog, metrics, anomalies, and alert deliveries.
-- Warehouses (ClickHouse, BigQuery, Databricks, Snowflake, PostgreSQL) are read from external data sources and are not the app database.
+- Warehouses (ClickHouse, BigQuery, Databricks, Snowflake, Redshift, Greenplum, PostgreSQL) are read from external data sources and are not the app database.
 - API, worker, and beat should all be runnable together via Compose.
 
 ## Commands

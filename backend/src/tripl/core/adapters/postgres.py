@@ -59,9 +59,10 @@ def _truncate_sql(sql: str) -> str:
     return sql[:_SQL_LOG_MAX_CHARS] + ("..." if len(sql) > _SQL_LOG_MAX_CHARS else "")
 
 
-# date_bin() — which every bucket expression depends on — was added in PostgreSQL
-# 14. libpq reports the server version as MMmmmm (140005 == 14.5), so this is the
-# integer floor of a supported server.
+# date_bin() — which every PostgreSQL bucket expression depends on — was added in
+# PostgreSQL 14. libpq reports the server version as MMmmmm (140005 == 14.5), so
+# this is the integer floor of a supported server. The dialect subclasses that
+# bucket without date_bin (``greenplum``, ``redshift``) set their own floor.
 _MIN_SERVER_VERSION = 140000
 
 _IDENTIFIER_RE = re.compile(r"^[a-zA-Z_][a-zA-Z0-9_.]*$")
@@ -333,6 +334,30 @@ _JSON_LEAF_WALK = (
 )
 
 
+def epoch_bucket_expression(time_sql: str, interval_code: str) -> str:
+    """``floor_to_bucket`` in epoch arithmetic, for servers without ``date_bin``.
+
+    The same grid ``date_bin`` draws: whole multiples of the interval measured from
+    ``EPOCH``, or from ``WEEK_ORIGIN`` for a week. ``date_part('epoch', ...)`` reads
+    a ``timestamp`` column's wall clock as UTC — the session timezone, which every
+    adapter of this family pins — so naive and aware columns land on the same grid.
+    The offset is floored, not truncated, so an instant before the origin falls into
+    the bucket that starts before it, as ``floor_to_bucket`` says.
+
+    Every interval is a whole number of seconds (``IntervalUnit`` stops at a week),
+    which is what lets the bucket be an integer count of seconds after the origin.
+    """
+    spec = get_interval(interval_code)
+    origin = WEEK_ORIGIN if spec.unit is IntervalUnit.week else EPOCH
+    width = int(spec.delta.total_seconds())
+    origin_seconds = int(origin.timestamp())
+    offset = f"date_part('epoch', {time_sql}) - {origin_seconds}"
+    return (
+        f"(TIMESTAMPTZ '{format_utc_literal(origin)}' + "
+        f"CAST(floor(({offset}) / {width}) * {width} AS BIGINT) * INTERVAL '1 second')"
+    )
+
+
 class PostgresAdapter(BaseAdapter):
     """Postgres-backed warehouse adapter mirroring the ClickHouse semantics.
 
@@ -388,6 +413,31 @@ class PostgresAdapter(BaseAdapter):
     #: keeps ``close()`` safe on an adapter built with ``object.__new__`` (the unit
     #: tests do that to exercise SQL generation without a server).
     _tls_dir: str | None = None
+
+    # --- dialect seams -------------------------------------------------------
+    # Greenplum and Redshift speak this wire protocol and most of this SQL; what
+    # differs is collected here and in the methods marked "dialect seam", so a
+    # subclass overrides a named difference instead of copying a query.
+
+    #: The engine's name in user-facing errors.
+    engine_label = "PostgreSQL"
+    #: libpq's packed ``server_version`` floor, checked by ``test_connection``.
+    min_server_version = _MIN_SERVER_VERSION
+    #: Why ``min_server_version`` is the floor, and what to upgrade to, for the
+    #: refusal message.
+    min_server_version_reason = "every time-bucket query uses date_bin(), which was added in"
+    min_server_upgrade_target = "14"
+    #: Schemas never offered for autocomplete.
+    system_schemas: tuple[str, ...] = _SYSTEM_SCHEMAS
+    #: The unbounded text type every value is rendered as for comparison.
+    text_type = "text"
+    #: The domain a range contract compares in, and the guard a value must match
+    #: before it is cast there (see ``_contract_bad_condition``).
+    contract_number_type = "numeric"
+    contract_number_re = _FINITE_NUMBER_RE
+    #: Whether the session settings go in libpq's startup ``options``; when not,
+    #: they are applied with ``SET`` right after the connection opens.
+    session_settings_at_startup = True
 
     def __init__(
         self,
@@ -454,18 +504,12 @@ class PostgresAdapter(BaseAdapter):
         # `ClickHouseAdapter.get_schema_tables`. Nothing of ours is affected — every
         # statement this adapter issues is a SELECT (grep `cur.execute` in this
         # file) and none of them writes a temp table.
-        option_parts = [
-            "-c timezone=UTC",
-            "-c standard_conforming_strings=on",
-            "-c default_transaction_read_only=on",
-        ]
-        if connect_timeout is not None:
-            option_parts.append(f"-c statement_timeout={connect_timeout * 1000}")
-        if search_path is not None:
-            # Validated to a bare identifier list, so it can neither inject SQL nor
-            # smuggle whitespace into the space-separated options string.
-            option_parts.append(f"-c search_path={_validated_search_path(search_path)}")
-        options = " ".join(option_parts)
+        session_settings = self._session_settings(connect_timeout, search_path)
+        options = (
+            " ".join(f"-c {name}={value}" for name, value in session_settings)
+            if self.session_settings_at_startup
+            else None
+        )
 
         mode = _resolve_sslmode(host, sslmode)
         tls = _materialize_tls_files(
@@ -490,6 +534,7 @@ class PostgresAdapter(BaseAdapter):
                 password=password or "",
                 autocommit=True,
                 connect_timeout=connect_timeout,
+                # None (settings applied below instead) is dropped from the conninfo.
                 options=options,
                 sslmode=mode,
                 # libpq reads the certificate material from disk; a None is dropped
@@ -498,12 +543,47 @@ class PostgresAdapter(BaseAdapter):
                 sslcert=tls.paths.get("sslcert"),
                 sslkey=tls.paths.get("sslkey"),
             )
+            if not self.session_settings_at_startup:
+                try:
+                    with self._conn.cursor() as cur:
+                        for name, value in session_settings:
+                            cur.execute(f"SET {name} TO {value}")
+                except BaseException:
+                    # An open session missing a pin must not be kept either.
+                    self._conn.close()
+                    raise
         except BaseException:
             # A refused connection must not leave a private key on disk.
             self._remove_tls_files()
             raise
         self._allowed_columns: set[str] = set()
         self._type_names: dict[int, str] = {}
+
+    def server_name(self, server_version: int) -> str:
+        """How the refusal message names the server: ``PostgreSQL 13.23``."""
+        return f"{self.engine_label} {_format_server_version(server_version)}"
+
+    def _session_settings(
+        self, statement_timeout_seconds: int | None, search_path: str | None
+    ) -> list[tuple[str, str]]:
+        """Dialect seam: the session settings pinned before the first query.
+
+        Each value is a bare token — the validated search path included — so it
+        is safe both in the space-separated startup ``options`` and after ``SET``.
+        See ``__init__`` for why each one is pinned.
+        """
+        settings = [
+            ("timezone", "UTC"),
+            ("standard_conforming_strings", "on"),
+            ("default_transaction_read_only", "on"),
+        ]
+        if statement_timeout_seconds is not None:
+            settings.append(("statement_timeout", str(statement_timeout_seconds * 1000)))
+        if search_path is not None:
+            # Validated to a bare identifier list, so it can neither inject SQL nor
+            # smuggle whitespace into the space-separated options string.
+            settings.append(("search_path", _validated_search_path(search_path)))
+        return settings
 
     def _remove_tls_files(self) -> None:
         if self._tls_dir is None:
@@ -529,12 +609,12 @@ class PostgresAdapter(BaseAdapter):
         costs no extra round trip.
         """
         server_version = self._conn.info.server_version
-        if server_version < _MIN_SERVER_VERSION:
-            minimum = _MIN_SERVER_VERSION // 10000
+        if server_version < self.min_server_version:
+            minimum = _format_server_version(self.min_server_version).removesuffix(".0")
             msg = (
-                f"PostgreSQL {_format_server_version(server_version)} is too old for tripl: "
-                f"every time-bucket query uses date_bin(), which was added in PostgreSQL "
-                f"{minimum}. Upgrade the server to {minimum} or newer."
+                f"{self.server_name(server_version)} is too old for tripl: "
+                f"{self.min_server_version_reason} PostgreSQL {minimum}. "
+                f"Upgrade the server to {self.min_server_upgrade_target} or newer."
             )
             raise WarehouseCapabilityError(msg)
         with self._conn.cursor() as cur:
@@ -600,14 +680,7 @@ class PostgresAdapter(BaseAdapter):
         # `table_schema = current_schema()` is computed server-side so the
         # "bare vs qualified" decision tracks the connection's default schema
         # (the first existing entry of search_path, typically `public`).
-        excluded = ", ".join(f"'{name}'" for name in _SYSTEM_SCHEMAS)
-        sql = (
-            "SELECT table_schema, table_name, column_name, data_type, "
-            "(table_schema = current_schema()) AS is_current_schema "
-            "FROM information_schema.columns "
-            f"WHERE table_schema NOT IN ({excluded}) "
-            f"ORDER BY table_schema, table_name, ordinal_position LIMIT {_SCHEMA_ROW_LIMIT}"
-        )
+        sql = self._schema_columns_sql()
         logger.debug("PG schema introspection query: %s", _truncate_sql(sql))
         with self._conn.cursor() as cur:
             cur.execute(sql)
@@ -627,6 +700,18 @@ class PostgresAdapter(BaseAdapter):
         return [
             SchemaTable(name=table, columns=columns) for table, columns in columns_by_table.items()
         ]
+
+    def _schema_columns_sql(self) -> str:
+        """Dialect seam: one row per user column, ``(schema, table, column, type,
+        is_current_schema)``, ordered by schema, table and position."""
+        excluded = ", ".join(self._quote_string(name) for name in self.system_schemas)
+        return (
+            "SELECT table_schema, table_name, column_name, data_type, "
+            "(table_schema = current_schema()) AS is_current_schema "
+            "FROM information_schema.columns "
+            f"WHERE table_schema NOT IN ({excluded}) "
+            f"ORDER BY table_schema, table_name, ordinal_position LIMIT {_SCHEMA_ROW_LIMIT}"
+        )
 
     def get_preview_rows(
         self,
@@ -656,7 +741,7 @@ class PostgresAdapter(BaseAdapter):
         return column
 
     def _bucket_expression(self, time_column: str, interval_code: str) -> str:
-        """Translate an interval code into PostgreSQL bucket SQL.
+        """Dialect seam: translate an interval code into PostgreSQL bucket SQL.
 
         Must agree with ``tripl.core.bucketing.floor_to_bucket``. ``date_bin``
         measures from whatever origin it is handed, so the origin is what encodes
@@ -691,7 +776,7 @@ class PostgresAdapter(BaseAdapter):
         return expr
 
     def _string_value_expression(self, column: str) -> str:
-        return f"COALESCE({_quote_ident(self._validate_column(column))}::text, '')"
+        return f"COALESCE({_quote_ident(self._validate_column(column))}::{self.text_type}, '')"
 
     def _property_value_expression(self, column: str, path: str) -> str:
         """One property (a JSON path of a json/jsonb column) as nullable text.
@@ -736,7 +821,27 @@ class PostgresAdapter(BaseAdapter):
         return field
 
     def _quote_string(self, value: str) -> str:
+        """Dialect seam: a string literal. Doubling the quote is the whole escape
+        only because ``standard_conforming_strings`` is pinned on (``__init__``)."""
         return "'" + value.replace("'", "''") + "'"
+
+    def _count_where(self, condition: str) -> str:
+        """Dialect seam: the number of rows matching ``condition``."""
+        return f"count(*) FILTER (WHERE {condition})"
+
+    def _aggregate_where(
+        self, aggregation: MetricAggregation, measure_sql: str | None, condition: str
+    ) -> str:
+        """Dialect seam: ``aggregation`` over only the rows matching ``condition``.
+
+        ``FILTER (WHERE ...)`` applies to ``count(*)`` and ``count(DISTINCT m)``
+        alike, so no aggregate needs the ``CASE`` folding a dialect without it does.
+        """
+        return f"{build_aggregate_sql(aggregation, measure_sql)} FILTER (WHERE {condition})"
+
+    def _byte_ordered(self, expression: str) -> str:
+        """Dialect seam: ``expression`` sorted in byte (code-point) order."""
+        return f'{expression} COLLATE "C"'
 
     def _time_window_condition(
         self,
@@ -975,7 +1080,7 @@ class PostgresAdapter(BaseAdapter):
         quoted = self._contract_operand(expectation, self._field_operand)
         if quoted is None:
             return None
-        value_expr = f"COALESCE({quoted}::text, '')"
+        value_expr = f"COALESCE({quoted}::{self.text_type}, '')"
         present = f"{quoted} IS NOT NULL"
 
         if expectation.drift_type == "required_null_violation":
@@ -1026,15 +1131,11 @@ class PostgresAdapter(BaseAdapter):
             # section of BaseAdapter and in warehouse-parity.md rather than closed:
             # comparing as float8 means casting numeric to float8, which raises
             # 22003 on exactly the overflow and underflow this branch removes.
-            # 'Infinity'::numeric needs PostgreSQL 14, which test_connection()
-            # already refuses to go below for date_bin (_MIN_SERVER_VERSION).
-            numeric_expr = (
-                f"CASE WHEN {value_expr} ~ '{_FINITE_NUMBER_RE}' "
-                f"THEN {value_expr}::numeric "
-                f"WHEN {value_expr} ~* '{_POSITIVE_INF_RE}' THEN 'Infinity'::numeric "
-                f"WHEN {value_expr} ~* '{_NEGATIVE_INF_RE}' THEN '-Infinity'::numeric "
-                "END"
-            )
+            #
+            # The domain and its guard are a dialect seam (`contract_number_type`,
+            # `contract_number_re`): Redshift's numeric holds 38 digits, so it
+            # compares in a magnitude-guarded float8 instead.
+            number_type = self.contract_number_type
             bounds: list[str] = []
             # The bound is cast too. An unadorned decimal constant is already
             # `numeric` to PostgreSQL — only an integer-looking one starts life as
@@ -1052,10 +1153,28 @@ class PostgresAdapter(BaseAdapter):
             # emitted a literal GoogleSQL cannot parse. One helper, one rule, and
             # the decision to skip such an expectation now precedes the call.
             if expectation.min_value is not None:
-                bounds.append(f">= {contract_bound_literal(expectation.min_value)}::numeric")
+                bounds.append(f">= {contract_bound_literal(expectation.min_value)}::{number_type}")
             if expectation.max_value is not None:
-                bounds.append(f"<= {contract_bound_literal(expectation.max_value)}::numeric")
-            in_range = " AND ".join(f"({numeric_expr}) {bound}" for bound in bounds)
+                bounds.append(f"<= {contract_bound_literal(expectation.max_value)}::{number_type}")
+            finite_in_range = " AND ".join(
+                f"{value_expr}::{number_type} {bound}" for bound in bounds
+            )
+            # An infinity is never cast: its verdict is known here, from which
+            # bounds exist (the bounds themselves are finite — a non-finite one
+            # makes the expectation inert). +inf is above every max and meets
+            # every min; -inf the reverse. Casting it would need 'Infinity' in
+            # the numeric domain, which only PostgreSQL 14+ has.
+            positive_inf_in_range = "TRUE" if expectation.max_value is None else "FALSE"
+            negative_inf_in_range = "TRUE" if expectation.min_value is None else "FALSE"
+            in_range = (
+                f"CASE WHEN {value_expr} ~ {self._quote_string(self.contract_number_re)} "
+                f"THEN {finite_in_range} "
+                f"WHEN {value_expr} ~* {self._quote_string(_POSITIVE_INF_RE)} "
+                f"THEN {positive_inf_in_range} "
+                f"WHEN {value_expr} ~* {self._quote_string(_NEGATIVE_INF_RE)} "
+                f"THEN {negative_inf_in_range} "
+                "END"
+            )
             # COALESCE(..., TRUE) is what turns "did not parse" into BAD: an
             # unparseable value leaves the comparison NULL, and NULL would
             # otherwise be dropped by the aggregate FILTER rather than counted.
@@ -1063,7 +1182,7 @@ class PostgresAdapter(BaseAdapter):
             # Python and ClickHouse make every NaN comparison false, so letting it
             # reach the comparison is the one way these three disagree.
             return (
-                f"{present} AND NOT ({value_expr} ~* '{_NAN_RE}') "
+                f"{present} AND NOT ({value_expr} ~* {self._quote_string(_NAN_RE)}) "
                 f"AND COALESCE(NOT ({in_range}), TRUE)"
             )
         return None
@@ -1086,19 +1205,20 @@ class PostgresAdapter(BaseAdapter):
         and the comparison are ``field_contract_verdict``'s job.
         """
         quoted = self._field_operand(expectation.field_name)
-        value_expr = f"COALESCE({quoted}::text, '')"
+        value_expr = f"COALESCE({quoted}::{self.text_type}, '')"
         is_required = expectation.drift_type == "required_null_violation"
         # required_null counts NULLs in the denominator (a NULL is the thing being
         # measured); every other drift type measures only the non-null population.
-        total_expr = "count(*)" if is_required else f"count(*) FILTER (WHERE {quoted} IS NOT NULL)"
+        total_expr = "count(*)" if is_required else self._count_where(f"{quoted} IS NOT NULL")
         # One sample value, like ClickHouse's anyIf — min() rather than an arbitrary
         # pick so the sample is deterministic, and because it needs O(1) memory even
         # when millions of rows are bad (array_agg would materialize all of them).
-        sample_source = "'<NULL>'::text" if is_required else value_expr
+        sample_source = f"'<NULL>'::{self.text_type}" if is_required else value_expr
+        sample_expr = self._aggregate_where(MetricAggregation.min, sample_source, bad_condition)
         return (
-            f"count(*) FILTER (WHERE {bad_condition}) AS _bad_{int(index)}, "
+            f"{self._count_where(bad_condition)} AS _bad_{int(index)}, "
             f"{total_expr} AS _total_{int(index)}, "
-            f"min({sample_source}) FILTER (WHERE {bad_condition}) AS _sample_{int(index)}"
+            f"{sample_expr} AS _sample_{int(index)}"
         )
 
     @override
@@ -1227,12 +1347,14 @@ class PostgresAdapter(BaseAdapter):
                 json_value_names.append(full_path)
         select_parts.append("count(*) AS _cnt")
 
-        group_by = ", ".join(group_parts) if group_parts else "()"
+        # No grouping column is one group over every row: an ungrouped aggregate,
+        # spelled without the `GROUP BY ()` Redshift does not parse.
+        group_by = f"GROUP BY {', '.join(group_parts)} " if group_parts else ""
         where_clause = self._time_window_where_clause(time_column, time_from, time_to)
         sql = (
             f"SELECT {', '.join(select_parts)} "
             f"FROM ({base_query}) AS _src{where_clause} "
-            f"GROUP BY {group_by} "
+            f"{group_by}"
             f"ORDER BY _cnt DESC "
             f"LIMIT {int(limit)}"
         )
@@ -1545,15 +1667,17 @@ class PostgresAdapter(BaseAdapter):
           rows as a gap, while ClickHouse — gating on ``countIf(cond)``, a row
           count — kept the bucket and stored the 0.
         """
-        base = self._aggregate_value_sql(spec.aggregation, spec.column)
         if not spec.filter_sql:
-            return base
-        filtered = f"{base} FILTER (WHERE {spec.filter_sql})"
+            return self._aggregate_value_sql(spec.aggregation, spec.column)
         agg = coerce_aggregation(spec.aggregation)
+        measure_sql: str | None = None
+        if spec.column is not None:
+            measure_sql = _quote_ident(validate_measure_column(spec.column, self._allowed_columns))
+        filtered = self._aggregate_where(agg, measure_sql, spec.filter_sql)
         if agg is MetricAggregation.count:
             return f"NULLIF({filtered}, 0)"
         if agg is MetricAggregation.count_distinct:
-            matching_rows = f"count(*) FILTER (WHERE {spec.filter_sql})"
+            matching_rows = self._count_where(spec.filter_sql)
             return f"CASE WHEN {matching_rows} = 0 THEN NULL ELSE {filtered} END"
         return filtered
 
@@ -1756,7 +1880,7 @@ class PostgresAdapter(BaseAdapter):
             # byte order, which over UTF-8 is the code-point order the other
             # three adapters rank by, and it ships with every server.
             "ROW_NUMBER() OVER (PARTITION BY _breakdown_column "
-            'ORDER BY _cnt DESC, _breakdown_value COLLATE "C") AS rn '
+            f"ORDER BY _cnt DESC, {self._byte_ordered('_breakdown_value')}) AS rn "
             "FROM ("
             "SELECT "
             f"CASE {label_branches} ELSE '' END AS _breakdown_column, "
@@ -1872,7 +1996,9 @@ class PostgresAdapter(BaseAdapter):
             prepared_parts.append(f"{is_other_expr} AS {_quote_ident(other_alias)}")
             grouping_check = f"GROUPING({_quote_ident(value_alias)}) = 0"
             label_when.append(f"WHEN {grouping_check} THEN {self._quote_string(column)}")
-            value_when.append(f"WHEN {grouping_check} THEN {_quote_ident(value_alias)}::text")
+            value_when.append(
+                f"WHEN {grouping_check} THEN {_quote_ident(value_alias)}::{self.text_type}"
+            )
             other_when.append(f"WHEN {grouping_check} THEN {_quote_ident(other_alias)}")
             grouping_sets.append(
                 "("

@@ -142,7 +142,7 @@ def test_a_malformed_value_is_bad_but_a_nan_is_not() -> None:
     # fallback calls NaN in-range. Postgres sorts NaN ABOVE every float, so a NaN
     # reaching the comparison would read as "over max". It is excluded instead.
     assert "~* '^[+-]?nan$'" in sql
-    assert "'Infinity'::numeric" in sql
+    assert "Infinity'::" not in sql
     # And nothing in this statement is float8 any more: float8's input function
     # raises 22003 on BOTH overflow ('1e400') and underflow-to-zero ('1e-400'),
     # which the syntax-only guard admitted, and numeric compares exact decimals
