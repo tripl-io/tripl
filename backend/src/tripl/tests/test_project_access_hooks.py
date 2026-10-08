@@ -161,9 +161,9 @@ def test_effective_role_with_a_grant_takes_the_higher_role_for_members_only() ->
     # Never an owner, whatever the grant says.
     assert effective("member", None, "none", "owner") is None
     assert effective("member", "viewer", "none", "owner") == "viewer"
-    # A non-member gets nothing from a grant.
+    # A non-member gets nothing from a grant, nor from a row.
     assert effective(None, None, "editor", "editor") is None
-    assert effective(None, "viewer", "none", "editor") == "viewer"
+    assert effective(None, "viewer", "none", "editor") is None
     # An org admin is owner either way.
     assert effective("admin", None, "none", "viewer") == "owner"
 

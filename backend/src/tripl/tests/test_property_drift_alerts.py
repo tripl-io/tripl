@@ -45,6 +45,7 @@ from tripl.models.data_source import DataSource
 from tripl.models.event import Event, EventStatus
 from tripl.models.event_type import EventType
 from tripl.models.notification import Notification
+from tripl.models.organization import OrganizationMember
 from tripl.models.project import Project
 from tripl.models.project_member import ProjectMember
 from tripl.models.property_drift import PropertyDrift, PropertyDriftKind
@@ -428,6 +429,12 @@ def test_watchers_of_the_event_hear_once_per_drift(factory: sessionmaker[Session
         anna = User(id=uuid.uuid4(), email="anna@example.com", name="Anna", password_hash="x")
         session.add(anna)
         session.flush()
+        # A row counts only for a member of the project's organization.
+        session.add(
+            OrganizationMember(
+                organization_id=world["project"].organization_id, user_id=anna.id, role="member"
+            )
+        )
         session.add(ProjectMember(project_id=world["project"].id, user_id=anna.id, role="editor"))
         session.add(
             Subscription(

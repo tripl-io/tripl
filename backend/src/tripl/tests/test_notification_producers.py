@@ -39,6 +39,7 @@ from tripl.models.event_type import EventType
 from tripl.models.metric_anomaly import MetricAnomaly
 from tripl.models.metric_definition import MetricDefinition
 from tripl.models.notification import Notification
+from tripl.models.organization import DEFAULT_ORG_ID, OrganizationMember
 from tripl.models.plan_branch_reviewer import PlanBranchReviewer
 from tripl.models.project import Project
 from tripl.models.project_member import ProjectMember
@@ -148,6 +149,10 @@ def _world(session: Session) -> World:
     gone = _user(session, "gone@example.com", "Gone")
     mia = _user(session, "mia@example.com", "Mia")
     for member in (anna, oleg, ivan, mia):
+        # A row counts only for a member of the project's organization.
+        session.add(
+            OrganizationMember(organization_id=DEFAULT_ORG_ID, user_id=member, role="member")
+        )
         session.add(ProjectMember(project_id=project.id, user_id=member, role="editor"))
     metric = MetricDefinition(
         id=uuid.uuid4(),

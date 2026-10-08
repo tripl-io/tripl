@@ -200,7 +200,9 @@ async def test_effective_role_is_pure_and_ignores_rows_for_org_admins() -> None:
     assert project_access.effective_role("member", None, "none") is None
     assert project_access.effective_role("member", None, "viewer") == "viewer"
     assert project_access.effective_role("member", None, "editor") == "editor"
-    assert project_access.effective_role(None, "editor", "none") == "editor"
+    # A row of someone outside the project's organization counts for nothing.
+    assert project_access.effective_role(None, "editor", "none") is None
+    assert project_access.effective_role(None, "viewer", "editor") is None
     assert project_access.effective_role(None, None, "editor") is None
     assert project_access.effective_role(None, None, "none") is None
     assert project_access.is_org_admin_role("admin")

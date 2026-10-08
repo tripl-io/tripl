@@ -106,7 +106,11 @@ async def _build_scan_history(session: AsyncSession, ctx: DemoContext) -> None:
             "events_merged": matched_events,
             "variables_created": 0,
             "columns_analyzed": len(SCAN_COLUMNS),
-            "scan_rows_processed": rows,
+            # Warehouse rows, so the counter a real catalog run puts them in.
+            # ``scan_rows_processed`` is the distinct column combinations its
+            # GROUP BY returned, which the scan page prints as "combos": these
+            # runs read "31,402 combos" beside a Run now's "28,160 rows".
+            "catalog_rows_scanned": rows,
             "scan_window_from": window_from.isoformat(),
             "scan_window_to": window_to.isoformat(),
             "details": [],

@@ -287,6 +287,42 @@ describe('RuleReplayDialog threshold overrides', () => {
     expect(within(table).getByText('0.12')).toBeInTheDocument()
     expect(within(table).queryByText('0')).toBeNull()
   })
+
+  it('gives a drift no direction and no Δ%, where a volume row keeps both', async () => {
+    // A distribution drift rides as a "spike" so the Spikes toggle gates it,
+    // and its Δ% compares the two windows' row counts: equal counts read as
+    // "spike 0.0%" on the demo tour.
+    vi.spyOn(alertingApi, 'simulateRule').mockResolvedValue({
+      ...RESULT,
+      firings: [
+        RESULT.firings[0]!,
+        {
+          ...RESULT.firings[0]!,
+          anomaly_id: 'drift-1',
+          scope_type: 'distribution',
+          scope_ref: 'screen_view:platform',
+          scope_name: 'Screen View.platform',
+          drift_field: 'platform',
+          drift_type: 'distribution_shift',
+          actual_count: 1200,
+          expected_count: 1200,
+          absolute_delta: 0,
+          percent_delta: 0,
+        },
+      ],
+    })
+    renderDialog()
+
+    const drift = (await screen.findByText('Screen View.platform')).closest('tr') as HTMLTableRowElement
+    expect(within(drift).queryByText('spike')).toBeNull()
+    expect(within(drift).queryByText(/%/)).toBeNull()
+    expect(within(drift).getByTitle('A drift has no direction')).toHaveTextContent('—')
+    expect(within(drift).getByTitle('A drift has no relative change')).toHaveTextContent('—')
+
+    const volume = screen.getByText(LONG_SCOPE).closest('tr') as HTMLTableRowElement
+    expect(within(volume).getByText('spike')).toBeInTheDocument()
+    expect(within(volume).getByText('63.8%')).toBeInTheDocument()
+  })
 })
 
 describe('RuleReplayDialog cooldown override bounds', () => {

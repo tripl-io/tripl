@@ -120,6 +120,27 @@ export function scopeKindLabel(scopeType: MetricScopeType): string {
 }
 
 /**
+ * The drift kinds: a change of shape, with no rise or fall to report.
+ *
+ * Their rows still say `direction: 'spike'` — filed there so a rule's Spikes
+ * toggle gates every drift the same way (`alerting_property_drift`) — and
+ * carry a `percent_delta` that compares two windows' row counts, or none at
+ * all, rather than the drift's size. Read as a direction and a delta, a
+ * replayed distribution drift said "spike 0.0%".
+ */
+const DIRECTIONLESS_SCOPES: ReadonlySet<MetricScopeType> = new Set<MetricScopeType>([
+  'schema',
+  'distribution',
+  'variable_value_drift',
+  'property_drift',
+])
+
+/** Whether a signal of this kind has a direction and a relative change to show. */
+export function scopeHasDirection(scopeType: MetricScopeType): boolean {
+  return !DIRECTIONLESS_SCOPES.has(scopeType)
+}
+
+/**
  * "drop · release regression" — the one line that answers "why did the same
  * alert come back for a different reason?".
  *

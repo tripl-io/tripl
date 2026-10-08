@@ -1040,6 +1040,13 @@ Each firing also reports its scan. The preview table shows that scan's name,
 or **Project-wide** when the anomaly has no scan, so similarly named scopes
 from different scans remain distinguishable.
 
+A drift row (schema, distribution, variable-value or property drift) shows
+**—** under **Dir** and **Δ%**. A drift changes shape rather than rising or
+falling. It is filed under *spike* only so that a rule's **Spikes** toggle gates
+every drift the same way, and its stored percentage compares the two windows'
+row counts, not the drift. The line under the scope name says what drifted, and
+hovering the scope shows the whole line the message would carry.
+
 **Every scope a rule can fire on is replayed**, the opt-in ones included: volume
 anomalies, catalog metrics, schema drift, distribution drift, **variable-value
 drift** and **release regressions**. If you had switched those last two on and a

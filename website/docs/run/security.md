@@ -505,6 +505,12 @@ was removed from the project gets `404` like any other non-member.
 - **The membership row is authoritative.** Nothing caps it from outside. When
   organizations arrived, the upgrade capped every former instance viewer's rows
   at `viewer` once, so no one gained write access.
+- **A row counts only for a member of the project's organization.** Adding a
+  member refuses anyone outside it, and leaving the organization deletes the
+  rows. A row that outlives both (a project moved to another organization, say)
+  grants nothing: its holder gets `404` like any other non-member, receives no
+  notifications or alert emails from the project, and is not listed on the
+  project's **Access** settings page.
 - **The gate runs before anything else.** `require_project_membership` is
   mounted with `get_current_user` on every authenticated router
   (`api/v1/router.py`), so it answers ahead of the route's own gates, parameter

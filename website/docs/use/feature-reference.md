@@ -3228,8 +3228,10 @@ series therefore stays visible: its newest reportable anomaly already starts
 more than a week back, because the current week is still settling.
 A completed `scan` item summarizes what
 the run produced — new events, metric points, **new** signals, and how much it
-read: **N column combinations** for a catalog run, **N rows scanned** for a
-metrics run; every figure on the card is that run's delta, not a project total — and
+read: **N rows scanned** for a metrics run, and for a catalog run that reports
+the warehouse rows behind its column combinations (the figure the scan's run
+list shows), **N column combinations** for an older catalog run that reports
+only those; every figure on the card is that run's delta, not a project total — and
 reads "no new events discovered" when a run on an established catalog finds
 nothing new (which is normal, not a failure) rather than a bare "0 events".
 The signal figure is that run's own scan and nothing else: it compares the

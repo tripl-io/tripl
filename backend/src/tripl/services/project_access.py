@@ -11,12 +11,16 @@ catalog (F20 PR4: organization roles are the source of truth):
   organization, with no membership row. The organization is always joined from
   the project row, never taken from the caller, so an admin of one organization
   holds nothing in another (critique #4);
-* anyone else with a ``project_members`` row holds exactly the role it says
-  (``editor`` or ``viewer``), and a ``none`` row is no access at all. The row is
-  authoritative, below the organization default as well as above it: a member
-  opted out with ``none``, or held to ``viewer`` under an ``editor`` default,
-  stays there. Migration ``c9e1a3b5d7f9`` capped the rows of the former
-  instance viewers once;
+* any other member of that organization with a ``project_members`` row holds
+  exactly the role it says (``editor`` or ``viewer``), and a ``none`` row is no
+  access at all. The row is authoritative, below the organization default as
+  well as above it: a member opted out with ``none``, or held to ``viewer``
+  under an ``editor`` default, stays there. A row held by someone who is not a
+  member of the project's organization counts for nothing: adding a member
+  refuses one, and removing a member drops their rows, but a row that outlived
+  either (a project moved to another organization, say) must not let a
+  stranger in, or list them on the project. Migration ``c9e1a3b5d7f9`` capped
+  the rows of the former instance viewers once;
 * an organization ``member`` with no row gets the organization's
   ``default_project_role`` (``none``, ``viewer`` or ``editor``; F20). ``none``
   — the default — keeps projects invisible to members without a row. Someone
@@ -178,25 +182,21 @@ def effective_role(
     ``ProjectMemberRole`` or its string value), ``None`` for no row.
     ``default_role`` is that organization's ``default_project_role``.
 
-    In order: an org owner/admin is ``owner``; a row decides (``none`` is no
-    access, even under a wider default); an org member without a row gets the
-    default; anyone else gets nothing. :func:`project_member_clause` is the SQL
+    In order: someone who is not a member of the organization gets nothing,
+    whatever row or grant they hold; an org owner/admin is ``owner``; a row
+    decides (``none`` is no access, even under a wider default); an org member
+    without a row gets the default. :func:`project_member_clause` is the SQL
     twin.
 
     ``granted`` is an extension's grant (``"editor"``/``"viewer"``, anything
-    else counts for nothing): it lifts the role above to itself, and only for a
-    member of the organization (``org_role`` set), never to ``owner``.
+    else counts for nothing): it lifts the role above to itself, never to
+    ``owner``.
     """
+    if org_role is None:
+        return None
     if is_org_admin_role(org_role):
         return OWNER
-    if membership_role is not None:
-        base = _granted(membership_role)
-    elif org_role is None:
-        base = None
-    else:
-        base = _granted(default_role)
-    if org_role is None:
-        return base
+    base = _granted(membership_role if membership_role is not None else default_role)
     return _higher(base, _granted(granted))
 
 
@@ -416,9 +416,11 @@ def project_member_clause(
     """SQL: ``user_id`` holds a role in ``project_id``; :func:`effective_role`'s twin.
 
     An owner/admin membership of the organization that owns the project; OR a
-    ``project_members`` row other than ``none``; OR no row at all, a membership
-    of that organization, and an organization ``default_project_role`` other
-    than ``none``; OR an extension grant that counts (:func:`_grant_match`).
+    ``project_members`` row other than ``none`` held by a member of that
+    organization; OR no row at all, a membership of that organization, and an
+    organization ``default_project_role`` other than ``none``; OR an extension
+    grant that counts (:func:`_grant_match`). Every arm needs a membership of
+    the project's organization, as :func:`effective_role` does.
     Built on aliases so the subqueries never correlate with a
     ``project_members``/``projects``/``organizations`` table of the enclosing
     query; the arguments may be columns of that query (for fan-out joins) or
@@ -436,7 +438,9 @@ def project_member_clause(
     any_row = aliased(ProjectMember)
     admin = aliased(OrganizationMember)
     org_member = aliased(OrganizationMember)
+    row_member = aliased(OrganizationMember)
     admin_project = aliased(Project)
+    row_project = aliased(Project)
     project = aliased(Project)
     org = aliased(Organization)
     return or_(
@@ -446,10 +450,17 @@ def project_member_clause(
             admin.user_id == user_id,
             admin.role.in_(sorted(ORG_ADMIN_ROLES)),
         ),
+        # The membership is a join at the same level, as in _grant_match: a
+        # nested EXISTS would not correlate with a fan-out's ``users.id``.
         exists().where(
             row.project_id == project_id,
             row.user_id == user_id,
             row.role != NO_ACCESS,
+            # Tied to the row, not to the arguments again: with plain values
+            # for both arguments the tables would be left unjoined.
+            row_project.id == row.project_id,
+            row_member.organization_id == row_project.organization_id,
+            row_member.user_id == row.user_id,
         ),
         and_(
             ~exists().where(any_row.project_id == project_id, any_row.user_id == user_id),
@@ -482,8 +493,8 @@ async def members_among(
     """The subset of ``user_ids`` that has a role in ``project_id``.
 
     :func:`member_role` for many users in one query: owners and admins of the
-    project's organization (no row needed), anyone holding a membership row
-    other than ``none``, and the organization's members without a row when its
+    project's organization (no row needed), its members holding a membership
+    row other than ``none``, and its members without a row when its
     ``default_project_role`` grants access.
     A deleted user drops out. Used to ignore per-project grants (event type
     ownership, reviewer assignments) that outlived their holder's membership.
