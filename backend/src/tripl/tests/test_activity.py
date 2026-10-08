@@ -563,6 +563,19 @@ class TestScanJobDetail:
         )
         assert both == "12345 rows scanned"
 
+    def test_catalog_run_with_warehouse_rows_reads_as_its_scan_page_does(self):
+        """A newer catalog run reports the warehouse rows behind its breakdown
+        too. The scan page, its run list and the run report lead with those
+        ("28,160 rows"), so the feed must not say "153 column combinations"
+        for the same run."""
+        detail = _scan_job_detail(
+            "completed",
+            {"scan_rows_processed": 153, "catalog_rows_scanned": 28160},
+            None,
+        )
+        assert detail == "28160 rows scanned"
+        assert "combination" not in detail
+
     def test_non_zero_events_and_signals_are_summarised(self):
         detail = _scan_job_detail(
             "completed",

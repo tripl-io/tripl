@@ -831,16 +831,19 @@ async def test_seeded_scan_history_runs_are_internally_consistent() -> None:
         window_from = datetime.fromisoformat(str(summary["scan_window_from"]))
         window_to = datetime.fromisoformat(str(summary["scan_window_to"]))
         windows.add((str(summary["scan_window_from"]), str(summary["scan_window_to"])))
-        rows_seen.add(int(summary["scan_rows_processed"]))
+        rows_seen.add(int(summary["catalog_rows_scanned"]))
 
         # A run can only have scanned a window that had already closed. (SQLite
         # hands datetimes back naive; the recipe stores UTC.)
         started_at = job.started_at.replace(tzinfo=window_to.tzinfo)
         assert window_to <= started_at, (window_to, started_at)
         assert window_to - window_from == timedelta(hours=1)
-        # And it reports the volume the seeded warehouse holds for that hour.
+        # And it reports the volume the seeded warehouse holds for that hour, as
+        # warehouse rows: in ``scan_rows_processed`` the scan page would print
+        # those rows as distinct column combinations ("combos").
         bucket = next(key for key in seeded_hour_totals if _same_instant(key, window_from))
-        assert int(summary["scan_rows_processed"]) == seeded_hour_totals[bucket]
+        assert int(summary["catalog_rows_scanned"]) == seeded_hour_totals[bucket]
+        assert "scan_rows_processed" not in summary
 
     assert len(windows) == len(jobs), "each run must report its own window"
     assert len(rows_seen) == len(jobs), "each run must report its own row count"

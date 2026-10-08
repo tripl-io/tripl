@@ -849,12 +849,14 @@ against a number on another page. The activity feed's "N new signals" on a scan
 card is the same delta.
 
 **Two runs both say "Scanned" but the numbers look unrelated.**
-Because they count different populations. A catalog run reports the distinct
-column combinations the warehouse grouped for it ("153 combos"), not warehouse
-rows, bounded by **Row cap per run**; a metrics run reports the warehouse rows
-read across every metrics chunk, bounded by **Row cap per metrics run**. Hover
-the figure — the stat card and every cell in the run table carry a title naming
-the population and its cap.
+Because they count different populations under different caps. A catalog run
+reports the warehouse rows behind the column combinations it read back
+("28,160 rows"), bounded by **Row cap per run**; a catalog run from before that
+counter existed reports only the distinct combinations the warehouse grouped
+for it ("153 combos"). A metrics run reports the warehouse rows read across
+every metrics chunk, bounded by **Row cap per metrics run**. Hover the figure —
+the stat card and every cell in the run table carry a title naming the
+population and its cap.
 
 **Do I need to run scans on a schedule to get metrics?**
 **Yes** — the schedule is what makes a scan a monitoring scan. A scan with no

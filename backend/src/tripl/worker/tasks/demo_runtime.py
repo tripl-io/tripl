@@ -590,7 +590,9 @@ def _record_scan_job(
                 "events_merged": len(roster),
                 "variables_created": 0,
                 "columns_analyzed": 10,
-                "scan_rows_processed": buckets_written * sum(series.base for series in roster),
+                # Warehouse rows: a catalog run's ``catalog_rows_scanned``, not
+                # its ``scan_rows_processed`` (column combinations).
+                "catalog_rows_scanned": buckets_written * sum(series.base for series in roster),
                 "buckets_appended": buckets_written,
                 "demo_runtime_tick": True,
             },
