@@ -135,7 +135,9 @@ async def test_demo_verified_acceptance_grants_only_ready_same_org_demos(
                     .where(ProjectMember.user_id == user.id)
                 )
             ).all()
-            assert set(grants) == {("ready", "viewer"), ("existing", "editor")}
+            # The "existing" row was held while the invitee was outside the
+            # organization: joining drops it, and the demo grant gives viewer.
+            assert set(grants) == {("ready", "viewer"), ("existing", "viewer")}
             assert (
                 await session.scalar(
                     select(OrganizationMember.role).where(

@@ -240,7 +240,8 @@ async def add_member(
     # The creator clause alone is not enough: a creator who left holds no role.
     actor = await session.get(User, added_by) if added_by is not None else None
     if actor is not None:
-        actor_role = await project_access.member_role(session, actor, project.id)
+        # Unfenced: the endpoint resolved ``project`` in the request's organization.
+        actor_role = await project_access._member_role(session, actor.id, project.id, fenced=False)
         if actor_role is None or not is_member_manager(actor_role, actor, project):
             raise HTTPException(status_code=403, detail=MEMBER_MANAGER_REQUIRED)
     user = await session.get(User, user_id)
