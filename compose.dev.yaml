@@ -68,6 +68,10 @@ services:
 
   postgres:
     image: pgvector/pgvector:0.8.7-pg18-trixie
+    # tini as PID 1. A healthcheck probe that times out is killed and its orphan
+    # reaped by PID 1; the postmaster, as PID 1, reads that as a crashed child and
+    # restarts the whole cluster.
+    init: true
     environment:
       POSTGRES_USER: tripl
       POSTGRES_PASSWORD: tripl
@@ -170,7 +174,9 @@ services:
 
   celery-worker:
     build: *backend-build
-    command: ["celery", "-A", "tripl.worker.celery_app", "worker", "--loglevel=info"]
+    # One fork per core by default: eight ~250 MB forks overrun the 1 GB limit
+    # below and the kernel kills them mid-task.
+    command: ["sh", "-c", "exec celery -A tripl.worker.celery_app worker --loglevel=info --concurrency=$${CELERY_WORKER_CONCURRENCY:-2}"]
     environment: *backend-environment
     volumes:
       - prometheus-multiproc:/app/var/prometheus

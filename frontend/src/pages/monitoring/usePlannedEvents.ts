@@ -20,7 +20,7 @@ export function usePlannedEvents({
   scope: MonitoringScope
   scopeId: string
   rangeDays: number
-  timeRange: { from: string; to: string }
+  timeRange: { from: string; to?: string }
 }) {
   return useQuery({
     queryKey: plannedEventsRangeKey(slug, scope, scopeId, rangeDays),
@@ -28,8 +28,10 @@ export function usePlannedEvents({
       plannedEventsApi.list(slug!, {
         scope_type: scope,
         scope_ref: scopeId,
+        // No upper bound: a window planned after the chart's range (next
+        // month's sale) is what the card is for, and it vanished on Add. The
+        // chart skips windows it has no bucket for yet.
         from: timeRange.from,
-        to: timeRange.to,
       }),
     enabled: !!slug && !!scopeId,
     placeholderData: keepPreviousData,

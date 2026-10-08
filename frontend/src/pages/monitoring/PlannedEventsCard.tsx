@@ -147,67 +147,75 @@ export function PlannedEventsCard({
       {hasBody && (
         <CardContent className="space-y-3">
           {canWrite && (
-            <form
-              className="flex flex-wrap items-start gap-2"
-              onSubmit={event => {
-                event.preventDefault()
-                if (!canSubmit) return
-                createMut.mutate()
-              }}
-            >
-              <div className="flex flex-col gap-0.5">
-                <DateTimePicker
-                  id="planned-event-start"
-                  label="Starts"
-                  value={startsAt}
-                  onChange={setStartsAt}
-                  aria-describedby="planned-event-time-hint"
-                />
-                <span id="planned-event-time-hint" className="text-micro text-fg-tertiary">
+            <div className="space-y-1">
+              <form
+                className="flex flex-wrap items-end gap-2"
+                onSubmit={event => {
+                  event.preventDefault()
+                  if (!canSubmit) return
+                  createMut.mutate()
+                }}
+              >
+                <div className="flex flex-col gap-0.5">
+                  {/* Visible captions: the two pickers look alike otherwise. */}
+                  <Label htmlFor="planned-event-start" className="text-micro text-fg-tertiary">Starts</Label>
+                  <DateTimePicker
+                    id="planned-event-start"
+                    label="Starts"
+                    value={startsAt}
+                    onChange={setStartsAt}
+                    aria-describedby="planned-event-time-hint"
+                  />
+                </div>
+                <div className="flex flex-col gap-0.5">
+                  <Label htmlFor="planned-event-end" className="text-micro text-fg-tertiary">Ends</Label>
+                  <DateTimePicker
+                    id="planned-event-end"
+                    label="Ends"
+                    value={endsAt}
+                    onChange={setEndsAt}
+                    aria-describedby="planned-event-time-hint"
+                  />
+                </div>
+                <div className="flex flex-col gap-0.5">
+                  <Label htmlFor="planned-event-label" className="sr-only">Planned event label</Label>
+                  <Input
+                    id="planned-event-label"
+                    placeholder="Label (e.g. Black Friday sale)"
+                    value={label}
+                    maxLength={PLANNED_EVENT_LABEL_MAX}
+                    onChange={event => setLabel(event.target.value)}
+                    className={`w-[240px] max-w-full ${INPUT_TEXT_CLASS}`}
+                  />
+                </div>
+                <Select value={direction} onValueChange={(value: DirectionChoice) => setDirection(value)}>
+                  <SelectTrigger className="w-[150px]" aria-label="Expected direction">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {DIRECTION_OPTIONS.map(option => (
+                      <SelectItem key={option.value} value={option.value}>
+                        {option.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <Button type="submit" variant="outline" disabled={!canSubmit} aria-label="Add planned event">
+                  Add
+                </Button>
+              </form>
+              {/* Under the row, not under one field, so the fields stay aligned. */}
+              <p className="text-micro">
+                <span id="planned-event-time-hint" className="text-fg-tertiary">
                   Local time ({offset})
                 </span>
-              </div>
-              <div className="flex flex-col gap-0.5">
-                <DateTimePicker
-                  id="planned-event-end"
-                  label="Ends"
-                  value={endsAt}
-                  onChange={setEndsAt}
-                  aria-describedby="planned-event-time-hint"
-                />
                 {!windowValid && (
-                  <span role="alert" className="text-micro text-destructive">
+                  <span role="alert" className="ml-2 text-destructive">
                     Ends after it starts
                   </span>
                 )}
-              </div>
-              <div className="flex flex-col gap-0.5">
-                <Label htmlFor="planned-event-label" className="sr-only">Planned event label</Label>
-                <Input
-                  id="planned-event-label"
-                  placeholder="Label (e.g. Black Friday sale)"
-                  value={label}
-                  maxLength={PLANNED_EVENT_LABEL_MAX}
-                  onChange={event => setLabel(event.target.value)}
-                  className={`w-[240px] max-w-full ${INPUT_TEXT_CLASS}`}
-                />
-              </div>
-              <Select value={direction} onValueChange={(value: DirectionChoice) => setDirection(value)}>
-                <SelectTrigger className="w-[150px]" aria-label="Expected direction">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {DIRECTION_OPTIONS.map(option => (
-                    <SelectItem key={option.value} value={option.value}>
-                      {option.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              <Button type="submit" variant="outline" disabled={!canSubmit} aria-label="Add planned event">
-                Add
-              </Button>
-            </form>
+              </p>
+            </div>
           )}
           {createMut.isError && (
             <p role="alert" className="text-body-sm text-destructive">

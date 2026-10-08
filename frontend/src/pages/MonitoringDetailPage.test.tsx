@@ -2120,9 +2120,11 @@ describe('MonitoringDetailPage catalog-metric drilldown', () => {
     renderMetricDetail()
 
     await screen.findByTestId('metrics-chart')
-    fireEvent.change(screen.getByLabelText('Date and time, time'), {
+    fireEvent.click(screen.getByRole('button', { name: /^Date and time: / }))
+    fireEvent.change(await screen.findByLabelText('Date and time, time'), {
       target: { value: '10:00' },
     })
+    fireEvent.click(screen.getByRole('button', { name: 'Done' }))
     fireEvent.change(screen.getByPlaceholderText('Label (e.g. v1.4 deploy)'), {
       target: { value: 'campaign launch' },
     })
@@ -2552,10 +2554,8 @@ describe('MonitoringDetailPage catalog-metric drilldown', () => {
     await screen.findByTestId('metrics-chart')
     // The design-system picker, not a native datetime-local input,
     // prefilled with now, so "we just deployed" is one field away.
-    expect(screen.getByRole('group', { name: 'Date and time' })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: /^Date and time, date: / })).not.toHaveTextContent('Pick a date')
-    expect((screen.getByLabelText('Date and time, time') as HTMLInputElement).value).toMatch(
-      /^\d{2}:\d{2}$/,
+    expect(screen.getByRole('button', { name: /^Date and time: / })).toHaveTextContent(
+      /^\w{3} \d{1,2}, \d{4}, \d{1,2}:\d{2} [AP]M$/,
     )
     expect(document.querySelector('input[type="datetime-local"]')).toBeNull()
     expect(screen.getByText(/Your local time \(UTC/)).toBeInTheDocument()

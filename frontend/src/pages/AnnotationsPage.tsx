@@ -185,7 +185,7 @@ export default function AnnotationsPage() {
         ) : (
           <ul className="divide-y divide-border text-body-sm" data-testid="planned-events-list">
             {planned.map(row => (
-              <li key={row.id} className="flex items-center justify-between gap-2 py-2">
+              <li key={row.id} className="flex items-center justify-between gap-2 px-4 py-2">
                 <div className="flex min-w-0 flex-wrap items-center gap-2">
                   <span className="text-fg-tertiary">
                     {formatTimestamp(row.starts_at)} – {formatTimestamp(row.ends_at)}
@@ -247,7 +247,7 @@ export default function AnnotationsPage() {
               const automatic = isAutomaticAnnotation(row)
               const url = safeAnnotationUrl(row.url)
               return (
-                <li key={row.id} className="flex items-center justify-between gap-2 py-2">
+                <li key={row.id} className="flex items-center justify-between gap-2 px-4 py-2">
                   <div className="flex min-w-0 flex-wrap items-center gap-2">
                     <span
                       aria-hidden="true"
