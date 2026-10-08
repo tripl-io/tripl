@@ -80,6 +80,16 @@ export type SettingsNavItem = {
    * cut off behind a horizontal scroll on a wide screen.
    */
   wide?: boolean
+  /**
+   * A section a public demo refuses: the server answers every change on it
+   * with `403` there, because the change would reach outside the instance
+   * (mail, AI, trackers, sign-in) or set what the demo keeps fixed (limits).
+   * On a public demo the rail and both palettes leave it out, as the app leaves
+   * out the demo's other refused actions, and its address says the demo does
+   * not offer it. An extension sets it on the page of a router it marks
+   * `outbound`.
+   */
+  refusedOnPublicDemo?: boolean
 }
 
 export type SettingsNavGroup = {
@@ -190,13 +200,15 @@ const CORE_WORKSPACE_GROUPS: SettingsNavGroup[] = [
       // The organization's own settings (F20 PR9-PR12): its mail relay, AI
       // provider, search embeddings, photo storage and row caps, each inheriting the
       // platform's value until it sets one; and the tracker defaults its
-      // projects fall back to.
+      // projects fall back to. A public demo refuses every change to them
+      // ("change organization settings").
       {
         id: 'org-email',
         label: 'Email',
         icon: Mail,
         path: 'organization/email',
         ownerOnly: true,
+        refusedOnPublicDemo: true,
       },
       {
         id: 'org-ai',
@@ -204,6 +216,7 @@ const CORE_WORKSPACE_GROUPS: SettingsNavGroup[] = [
         icon: Sparkles,
         path: 'organization/ai',
         ownerOnly: true,
+        refusedOnPublicDemo: true,
       },
       {
         id: 'org-search',
@@ -211,6 +224,7 @@ const CORE_WORKSPACE_GROUPS: SettingsNavGroup[] = [
         icon: Search,
         path: 'organization/search',
         ownerOnly: true,
+        refusedOnPublicDemo: true,
       },
       {
         // "Photos", not "Storage": the Platform group's "Storage" is the
@@ -220,6 +234,7 @@ const CORE_WORKSPACE_GROUPS: SettingsNavGroup[] = [
         icon: Archive,
         path: 'organization/storage',
         ownerOnly: true,
+        refusedOnPublicDemo: true,
       },
       {
         id: 'org-trackers',
@@ -227,6 +242,7 @@ const CORE_WORKSPACE_GROUPS: SettingsNavGroup[] = [
         icon: Ticket,
         path: 'organization/trackers',
         ownerOnly: true,
+        refusedOnPublicDemo: true,
       },
       {
         id: 'org-limits',
@@ -234,6 +250,7 @@ const CORE_WORKSPACE_GROUPS: SettingsNavGroup[] = [
         icon: SlidersHorizontal,
         path: 'organization/limits',
         ownerOnly: true,
+        refusedOnPublicDemo: true,
       },
     ],
   },
@@ -399,24 +416,28 @@ export function sectionPathForUrl(pathname: string): string | null {
  * pick-a-project states.
  */
 export function sectionLabel(path: string): string | undefined {
-  for (const groups of Object.values(SETTINGS_NAV)) {
-    for (const group of groups) {
-      const item = group.items.find((candidate) => candidate.path === path)
-      if (item) return item.label
-    }
-  }
-  return undefined
+  return itemForPath(path)?.label
 }
 
 /** Whether the section at `path` takes the wide content column (`wide`). */
 export function sectionIsWide(path: string): boolean {
+  return itemForPath(path)?.wide === true
+}
+
+/** Whether a public demo refuses the section at `path` (`refusedOnPublicDemo`). */
+export function sectionRefusedOnPublicDemo(path: string): boolean {
+  return itemForPath(path)?.refusedOnPublicDemo === true
+}
+
+/** The rail item at a section path, in either context. */
+function itemForPath(path: string): SettingsNavItem | undefined {
   for (const groups of Object.values(SETTINGS_NAV)) {
     for (const group of groups) {
       const item = group.items.find((candidate) => candidate.path === path)
-      if (item) return item.wide === true
+      if (item) return item
     }
   }
-  return false
+  return undefined
 }
 
 /**
@@ -439,13 +460,16 @@ export function contextForPath(path: string): SettingsContext {
  *
  * `isOwner` is an owner or admin of the organization; `isPlatformAdmin` the
  * operator flag. A platform-only section needs the flag; an org-scoped instance
- * section takes either; any other owner-only section takes the org role.
+ * section takes either; any other owner-only section takes the org role. On a
+ * public demo (`publicDemo`) a section the demo refuses is nobody's.
  */
 export function itemVisible(
-  item: Pick<SettingsNavItem, 'ownerOnly' | 'settingsAdmin' | 'platformOnly'>,
+  item: Pick<SettingsNavItem, 'ownerOnly' | 'settingsAdmin' | 'platformOnly' | 'refusedOnPublicDemo'>,
   isOwner: boolean,
   isPlatformAdmin = false,
+  publicDemo = false,
 ): boolean {
+  if (publicDemo && item.refusedOnPublicDemo) return false
   if (item.platformOnly) return isPlatformAdmin
   if (!item.ownerOnly) return true
   return isOwner || (item.settingsAdmin === true && isPlatformAdmin)
@@ -456,11 +480,12 @@ export function visibleGroups(
   ctx: SettingsContext,
   isOwner: boolean,
   isPlatformAdmin = false,
+  publicDemo = false,
 ): SettingsNavGroup[] {
   return SETTINGS_NAV[ctx]
     .map((group) => ({
       ...group,
-      items: group.items.filter((item) => itemVisible(item, isOwner, isPlatformAdmin)),
+      items: group.items.filter((item) => itemVisible(item, isOwner, isPlatformAdmin, publicDemo)),
     }))
     .filter((group) => group.items.length > 0)
 }
@@ -470,9 +495,13 @@ export function visibleGroups(
  * The settings nav no longer splits project vs workspace behind a segmented
  * toggle — all config lives under a single scrollable rail.
  */
-export function visibleGroupsAll(isOwner: boolean, isPlatformAdmin = false): SettingsNavGroup[] {
+export function visibleGroupsAll(
+  isOwner: boolean,
+  isPlatformAdmin = false,
+  publicDemo = false,
+): SettingsNavGroup[] {
   return [
-    ...visibleGroups('project', isOwner, isPlatformAdmin),
-    ...visibleGroups('workspace', isOwner, isPlatformAdmin),
+    ...visibleGroups('project', isOwner, isPlatformAdmin, publicDemo),
+    ...visibleGroups('workspace', isOwner, isPlatformAdmin, publicDemo),
   ]
 }

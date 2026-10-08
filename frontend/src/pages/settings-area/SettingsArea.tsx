@@ -2,14 +2,17 @@ import { Suspense, useEffect, useState } from 'react'
 import { lazyWithReload } from '@/lib/lazyWithReload'
 import { Link, Navigate, useParams, useSearchParams } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
+import { ExternalLink } from 'lucide-react'
 import { projectsQueryOptions } from '@/lib/queryKeys'
+import { usePublicDemoAnswer } from '@/lib/deploymentMode'
+import { QUICK_START_URL } from '@/demo/EndOfDemoLink'
 import { projectHomePath, workspacePath } from '@/lib/navigation'
 import { OnboardingReturnBar } from '@/components/onboarding-return-bar'
 import { useAuth } from '@/components/auth-context'
 import { ErrorState } from '@/components/error-state'
 import { SCard, SHeader } from '@/components/settings/kit'
 import { SettingsLayout } from '@/components/settings/SettingsLayout'
-import { SETTINGS_STORAGE_KEY, sectionLabel } from '@/components/settings/nav'
+import { SETTINGS_STORAGE_KEY, sectionLabel, sectionRefusedOnPublicDemo } from '@/components/settings/nav'
 import { ReadOnlyNotice, SectionSkeleton } from '@/components/states'
 import { LEAVE_CONFIRMED } from '@/components/settings/unsaved-changes'
 import type { Project } from '@/types'
@@ -117,6 +120,9 @@ export default function SettingsArea({ section }: { section: string }) {
   // Single sign-on is an OWNER's alone (F20), not an admin's.
   const isOrgOwner = activeOrgRole(auth.user) === 'owner'
   const platformAdmin = isPlatformAdmin(auth.user)
+  // Undefined until the instance answers: a section a public demo refuses
+  // waits for it rather than flashing its form there.
+  const publicDemo = usePublicDemoAnswer()
   const [pickedSlug, setPickedSlug] = useState<string | null>(null)
   const [searchParams, setSearchParams] = useSearchParams()
   const slug = useSettingsSlug(pickedSlug)
@@ -174,6 +180,7 @@ export default function SettingsArea({ section }: { section: string }) {
       projectName={projectName}
       projectSlug={slug}
       projects={projects}
+      publicDemo={publicDemo === true}
     >
       {/* The projects list is silent app-wide (lib/queryKeys.ts): inside the
           app shell Layout reports its failure. These routes mount outside
@@ -202,6 +209,7 @@ export default function SettingsArea({ section }: { section: string }) {
           isOwner,
           isOrgOwner,
           platformAdmin,
+          publicDemo,
           projects,
           projectsStatus: projectsQuery.status,
           onPickProject: pickProject,
@@ -246,6 +254,7 @@ function renderSection({
   isOwner,
   isOrgOwner,
   platformAdmin,
+  publicDemo,
   projects,
   projectsStatus,
   onPickProject,
@@ -258,6 +267,8 @@ function renderSection({
   isOwner: boolean
   isOrgOwner: boolean
   platformAdmin: boolean
+  /** Undefined until the instance has answered. */
+  publicDemo: boolean | undefined
   projects: Project[]
   projectsStatus: 'pending' | 'error' | 'success'
   onPickProject: (slug: string) => void
@@ -265,6 +276,13 @@ function renderSection({
   projectsError: unknown
   onRetryProjects: () => void
 }) {
+  // A section a public demo refuses, opened by its address: the rail does not
+  // list it there, and its form would only gather changes the server turns
+  // away. Whoever's role would open it, the demo does not.
+  if (sectionRefusedOnPublicDemo(railPathFor(section))) {
+    if (publicDemo === undefined) return <SectionFallback section={railPathFor(section)} />
+    if (publicDemo) return <NotOnPublicDemo section={railPathFor(section)} />
+  }
   if (section === 'organization/general') return <OrganizationGeneralSection />
   if (section === 'organization/groups') return <OrgGroupsSection />
   if (section === 'members') return <MembersSection />
@@ -447,6 +465,38 @@ function PlatformOnly({ section }: { section: string }) {
       >
         Platform admin is required to view or change platform settings: they configure the server
         itself and the defaults every organization inherits.
+      </ReadOnlyNotice>
+    </div>
+  )
+}
+
+/**
+ * A section a public demo refuses (`refusedOnPublicDemo`): its mail, AI,
+ * trackers, sign-in and limits stay as the demo runs them. The page names
+ * itself, says so, and points to where the settings are real: tripl run on
+ * one's own.
+ */
+function NotOnPublicDemo({ section }: { section: string }) {
+  return (
+    <div>
+      <StateHeader section={section} />
+      <ReadOnlyNotice
+        action={
+          <a
+            href={QUICK_START_URL}
+            target="_blank"
+            rel="noreferrer"
+            // It leaves the app, so it says so, as the demo's last chapter does.
+            aria-label="Run tripl yourself (opens in a new tab)"
+            className="inline-flex items-center gap-1 text-body-sm font-medium text-accent no-underline hover:underline"
+          >
+            Run tripl yourself
+            <ExternalLink className="size-3" aria-hidden="true" />
+          </a>
+        }
+      >
+        This public demo runs with these settings fixed, so it does not offer this page. Run tripl
+        yourself to set them for your team.
       </ReadOnlyNotice>
     </div>
   )

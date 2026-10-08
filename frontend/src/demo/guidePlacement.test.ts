@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import {
   AVOID_MARGIN,
+  NARROW_WIDTHS_PX,
   chooseCorner,
   cornerBox,
   coveredArea,
@@ -176,5 +177,26 @@ describe('pickNarrowCorner', () => {
   it('is null when the dialog leaves no room even for the narrowest card', () => {
     // A phone-sized window's dialog: the whole screen.
     expect(pickNarrowCorner(SCREEN, WIDTHS, heightAt, [box(0, 0, 1440, 900)])).toBeNull()
+  })
+
+  describe("the guide's own widths on a 1280×800 screen", () => {
+    const LAPTOP: GuideFrame = { left: 16, right: 1264, top: 16, bottom: 784 }
+
+    it('stay beside the 768px rule editor', () => {
+      // 256px either side, less the edge gap and the margin: 232.
+      const dialog = box(256, 40, 768, 720)
+
+      expect(pickNarrowCorner(LAPTOP, NARROW_WIDTHS_PX, heightAt, [dialog])?.size.width).toBe(208)
+    })
+
+    it('stay beside an 896px dialog: a property, a rule replay', () => {
+      // 192px either side, less the edge gap and the margin: 168, exactly.
+      const dialog = box(192, 40, 896, 720)
+
+      expect(pickNarrowCorner(LAPTOP, NARROW_WIDTHS_PX, heightAt, [dialog])).toEqual({
+        corner: 'bottom-right',
+        size: { width: 168, height: heightAt(168) },
+      })
+    })
   })
 })

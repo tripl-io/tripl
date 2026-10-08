@@ -412,6 +412,32 @@ describe('CommandPalette', () => {
     }
   })
 
+  it('does not offer on a public demo the organization settings the demo refuses', async () => {
+    // A public demo answers every change to the organization's own mail, AI,
+    // search, photos, trackers and limits with 403; the settings rail does not
+    // list them there, and the palette built from its model may not either.
+    vi.spyOn(globalThis, 'fetch').mockImplementation(async (input) => {
+      const url = String(input)
+      if (url.endsWith('/api/v1/auth/status')) {
+        return mockJsonResponse({ has_users: true, registration_enabled: false, public_demo: true })
+      }
+      if (url.endsWith('/api/v1/projects')) return mockJsonResponse([demoProject()])
+      if (url.endsWith('/api/v1/projects/demo/event-types')) return mockJsonResponse([])
+      throw new Error(`Unhandled fetch: ${url}`)
+    })
+
+    renderHarness('/p/demo/events')
+    fireEvent.click(screen.getByTestId('open-palette'))
+    await screen.findByText('Demo')
+
+    // The rest of the organization's settings stay.
+    expect(screen.getByText('Invitations')).toBeInTheDocument()
+    await waitFor(() => expect(screen.queryByText('Email')).toBeNull())
+    for (const label of ['AI', 'Photos', 'Trackers', 'Limits']) {
+      expect(screen.queryByText(label), `public demo offered "${label}"`).toBeNull()
+    }
+  })
+
   it('toggles via ⌘K keyboard shortcut', async () => {
     vi.spyOn(globalThis, 'fetch').mockImplementation(async (input) => {
       const url = String(input)

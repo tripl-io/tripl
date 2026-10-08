@@ -69,6 +69,7 @@ import {
 } from '@/lib/queryKeys'
 import { SILENT_ERROR_META } from '@/lib/errorFeedback'
 import { canWrite, isOwner as isOwnerRole, isPlatformAdmin as isPlatformAdminUser } from '@/lib/permissions'
+import { usePublicDemo } from '@/lib/deploymentMode'
 
 
 /**
@@ -569,6 +570,7 @@ export default function CommandPalette({
 
   const isOwner = isOwnerRole(auth.user?.role)
   const isPlatformAdmin = isPlatformAdminUser(auth.user)
+  const publicDemo = usePublicDemo()
   const canEdit = canWrite(auth.user?.role)
 
   // Workspace destinations: the portfolio, then every settings section the
@@ -580,8 +582,9 @@ export default function CommandPalette({
   const settingsRows: PaletteRow[] = [...WORKSPACE_GROUPS, ...PROJECT_GROUPS].flatMap(group =>
     group.items
       // The settings rail's own visibility rule: a Platform section is the
-      // platform admin's alone, whatever the caller's organization role.
-      .filter(item => itemVisible(item, isOwner, isPlatformAdmin))
+      // platform admin's alone, whatever the caller's organization role, and a
+      // section a public demo refuses is nobody's there.
+      .filter(item => itemVisible(item, isOwner, isPlatformAdmin, publicDemo))
       // Project sections are bound to a project by the address;
       // with none open there is nothing for them to configure.
       .filter(item => !item.path.startsWith('project/') || !!activeProject)

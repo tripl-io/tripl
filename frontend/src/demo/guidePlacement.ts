@@ -45,6 +45,17 @@ export interface GuideSize {
 /** How far the guide keeps from a control it must not cover. */
 export const AVOID_MARGIN = 8
 
+/** The guide's width from `sm` up; below it the guide spans the screen. */
+export const GUIDE_WIDTH_PX = 336
+
+/**
+ * Narrower cards, for beside a dialog too wide to leave the column a corner.
+ * At 1280px the 768px rule editor leaves room for 208, and an 896px dialog
+ * (a property, a rule's replay) for 168: with 240 the narrowest, the guide
+ * folded to its face in both just as the step moved into them.
+ */
+export const NARROW_WIDTHS_PX: readonly number[] = [GUIDE_WIDTH_PX, 288, 240, 208, 168]
+
 /** Something on the page the guide would rather not sit on, by how much it matters. */
 export interface WeightedBox {
   box: Box
