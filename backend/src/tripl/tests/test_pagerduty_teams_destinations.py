@@ -470,7 +470,6 @@ def test_a_rerun_after_a_partial_send_pages_only_what_is_missing(
     assert first_key not in {body["dedup_key"] for _, body in retried}
 
 
-@pytest.mark.parametrize("failure", ["status", "raise"])
 def test_a_drift_s_summary_names_its_kind_not_a_spike() -> None:
     """A drift's row says "spike" only so a rule's Spikes toggle gates it."""
     rule = AlertRule(name="Drift watch")
@@ -496,6 +495,7 @@ def test_a_drift_s_summary_names_its_kind_not_a_spike() -> None:
     )
 
 
+@pytest.mark.parametrize("failure", ["status", "raise"])
 def test_a_refused_event_fails_without_echoing_the_routing_key(
     sync_session_factory: sessionmaker[Session], monkeypatch: pytest.MonkeyPatch, failure: str
 ) -> None:
