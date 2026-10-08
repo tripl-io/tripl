@@ -609,7 +609,7 @@ checked **outside** string and quoted-identifier literals, so a value such as
 a literal that closed is still caught, and an unterminated literal is scanned as
 if it were code. So is everything after a literal that holds a backslash:
 ClickHouse, BigQuery and Databricks read `\'` as an escaped quote and PostgreSQL
-does not, so where such a literal ends depends on the engine. Calls that leave
+and Trino do not, so where such a literal ends depends on the engine. Calls that leave
 the warehouse from inside a `SELECT` — Databricks' `http_request`,
 `read_files`, `ai_query` and `remote_query`, the streaming readers, and
 `java_method` / `reflect` — are refused as well.
@@ -619,7 +619,8 @@ so it stops only writes spelled with one of those words — not a write reached
 through a function call (`setval`, `lo_create`), a lock clause (`FOR SHARE`) or
 session mutation (`set_config`). The barrier is the warehouse credential's own
 privileges (and, on PostgreSQL, `default_transaction_read_only=on` pinned on the
-connection; Greenplum gets the same pin, Redshift has no such setting, so there the privileges alone).
+connection; Greenplum gets the same pin, Redshift has no such setting, so there the privileges alone;
+Trino and Athena have none either).
 
 It also places **no limit on which tables are read**. There is no table
 allowlist: a statement that passes is read-only and single, not narrow. Combined
@@ -741,6 +742,33 @@ downloaded in chunks from the presigned cloud-storage URLs Snowflake's own
 service hands back. Those URLs come from the account, not from anyone who
 configured the source, but they are a second set of hosts tripl does not vet.
 tripl's scans return aggregates, so they rarely reach that size.
+
+**Trino is pinned like a webhook.** A coordinator can sit on any domain, so
+there is no domain rule to lean on; instead the vetted address is pinned. Every
+request the Trino client makes — the statement and each result page the
+coordinator points it to — goes to the address that was checked, with the
+configured name kept for TLS verification and the `Host` header. A result page
+on any other host or port is refused, and so are redirects. A password is sent
+only over HTTPS.
+
+**Athena is reached by region, never by host.** Its host field takes an AWS
+region (or `athena.<region>.amazonaws.com`) and nothing else; the driver
+(`boto3`) is pointed at that region's own Athena endpoint, so no setting can
+send the signed requests, or the access key's signature, to another host. With
+the setting on, the endpoint is also resolved and refused when it answers
+privately, which is what an interface VPC endpoint with private DNS does.
+Results are read through the Athena API; Athena itself writes each result to
+the workgroup's S3 result location, so the key needs write access to that
+bucket and nowhere else.
+
+**Values in Trino and Athena SQL are literals, not bound parameters.** The
+Trino client renders a bound parameter into an `EXECUTE … USING` literal on
+the client side anyway, and Athena's execution parameters take literal text,
+so tripl writes the literal itself: every value is a single-quoted string with
+each `'` doubled (Trino's string literals have no backslash escapes), every
+identifier is double-quoted with each `"` doubled, a JSON path is built only
+from identifier-safe segments, and a timestamp is formatted from a parsed
+`datetime`. Nothing user-supplied reaches the statement any other way.
 
 ## CORS
 

@@ -30434,6 +30434,8 @@
           "snowflake",
           "greenplum",
           "redshift",
+          "trino",
+          "athena",
           "synthetic"
         ],
         "title": "DBType"

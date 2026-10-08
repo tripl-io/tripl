@@ -158,7 +158,8 @@ needs.
 
 1. Open **Data sources** from the workspace settings area.
 2. Add a connection for your warehouse — **ClickHouse**, **BigQuery**,
-   **Databricks**, **Snowflake**, **Amazon Redshift**, **Greenplum**, or **PostgreSQL** — and fill in the connection details:
+   **Databricks**, **Snowflake**, **Amazon Redshift**, **Greenplum**, **Trino**,
+   **Amazon Athena**, or **PostgreSQL** — and fill in the connection details:
    - **ClickHouse**: host, port (8123), database, username, password. Optionally
      pick a **JSON path discovery** mode for `JSON`-typed columns.
    - **PostgreSQL**: host, port (5432), database, username, password. **Version 14
@@ -186,7 +187,16 @@ needs.
    - **Greenplum**: the coordinator's host, port (5432), database, username,
      password, and the same optional settings as PostgreSQL. Greenplum 6 or 7,
      including the Cloudberry, Greengage and WarehousePG forks.
-3. Every warehouse — BigQuery, Databricks and Snowflake included — accepts a **query timeout in seconds**
+   - **Trino** (and Starburst): the coordinator's host and port (443), the
+     **catalog** in the database field, a user name, and a password when the
+     coordinator asks for one (sent only over HTTPS). Optionally pick the
+     **scheme** (`https` by default), a **default schema** and a **schema
+     allowlist**; see [Connect your warehouse](../how-to/connect-your-warehouse.md#trino).
+   - **Amazon Athena**: the **AWS region**, the Glue **database**, and an
+     **access key ID** and **secret access key**. Optionally a **workgroup**
+     (`primary` by default), a **query result location** in S3, a **catalog**
+     and a schema allowlist; see [Connect your warehouse](../how-to/connect-your-warehouse.md#amazon-athena).
+3. Every warehouse — BigQuery, Databricks, Snowflake, Trino and Athena included — accepts a **query timeout in seconds**
    (300 by default).
 4. Save, then click **Test** on the connection card.
 

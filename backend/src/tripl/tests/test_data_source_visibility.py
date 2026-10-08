@@ -160,6 +160,10 @@ async def test_non_owners_get_the_connection_redacted(stand, actor: str) -> None
             "schema_allowlist": None,
             "warehouse": None,
             "role": None,
+            "http_scheme": None,
+            "work_group": None,
+            "s3_output_location": None,
+            "catalog_name": None,
         }
         # No hostname or credential leaks anywhere else in the payload.
         assert "internal.example.com" not in resp.text

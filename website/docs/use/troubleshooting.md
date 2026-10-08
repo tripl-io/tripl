@@ -546,6 +546,8 @@ to every curated message rather than leaving each raise site to remember it:
 | **ClickHouse** | Wrong host/port/secure flag, or a probe query that returns no rows. | Verify connection params; *"Connection probe returned no rows"* means it connected but the probe was empty — check the query/permissions. |
 | **BigQuery** | Missing project id or invalid service-account JSON. The probe names which of the two it is — see the verbatim messages below. | Set the project id in the host field and paste valid service-account JSON. |
 | **Snowflake** | A wrong account identifier, a warehouse the role cannot use, a role the user was not granted, or a private key that does not match the user's `RSA_PUBLIC_KEY`. | Copy the account identifier again from **Account details**; `GRANT USAGE ON WAREHOUSE` to the role; leave **Role** empty to use the user's default; paste the whole unencrypted PKCS#8 key and pick **Key pair** under **Authentication**. A suspended warehouse needs a few seconds to resume for its first query. |
+| **Trino** | The wrong scheme (`https` against a plain-HTTP coordinator, or the reverse), a catalog the user cannot see, or a password on a coordinator without authentication. | Match **Scheme** to the coordinator's listener and its port; check the catalog with `SHOW CATALOGS`; leave the password empty when the coordinator has no authentication. |
+| **Athena** | A region without the Glue database, a key without the Athena, Glue or S3 permissions, or a workgroup with no query result location. | Put the region the database lives in under **AWS region**; grant the policy in [Connect your warehouse](../how-to/connect-your-warehouse.md#amazon-athena); set **Query result location** or configure one on the workgroup. |
 | **Databricks** | Wrong HTTP path, an expired or revoked token, a stopped warehouse still starting, or a service principal without `CAN USE` on the warehouse. | Copy the server hostname and HTTP path again from the warehouse's **Connection details**; issue a new token; with OAuth, check the client ID is in **OAuth client ID** and **Authentication** says OAuth. A serverless warehouse that was stopped can need a longer timeout for its first query. |
 
 **A configuration problem tripl can name is shown in full.** Those messages hold
@@ -575,6 +577,9 @@ re-check settings that are all correct, so they follow the prefix unchanged:
   PostgreSQL 9.4. Upgrade the server to Greenplum 6 or newer."*
 - *"Redshift data sources do not support JSON columns …"* — a scan or metric
   named a property of a column on a Redshift source. Use plain columns there.
+- *"Connection test failed: Trino: a password is only sent over HTTPS …"*
+- *"Connection test failed: Athena: the host must be the AWS region (for
+  example eu-west-1) or its Athena endpoint …"*
 
 Everything else collapses to one of the four categories above, because the raw
 driver text carries host, port and credential detail.

@@ -19,6 +19,7 @@ from tripl.schemas.data_source import (
     PostgresSettings,
     SnowflakeSettings,
 )
+from tripl.schemas.trino_settings import AthenaSettings, TrinoSettings
 
 AdapterFactory = Callable[[DataSource, str], BaseAdapter]
 
@@ -262,6 +263,55 @@ def _build_snowflake(ds: DataSource, password: str) -> BaseAdapter:
     )
 
 
+def _build_trino(ds: DataSource, password: str) -> BaseAdapter:
+    from tripl.core.adapters.trino import TrinoAdapter
+
+    settings = TrinoSettings.model_validate(_stored_settings(ds))
+    # The outbound rule. A coordinator can live on any domain, so there is no
+    # domain check to lean on (as Snowflake and Databricks do); instead the
+    # vetted address is pinned: ``TrinoAdapter`` sends every request, every
+    # result page included, to that address, keeps the configured name for TLS,
+    # and refuses any other host, so a rebinding name cannot redirect it.
+    return TrinoAdapter(
+        host=ds.host,
+        port=ds.port,
+        database=ds.database_name,
+        username=ds.username,
+        password=password,
+        http_scheme=settings.http_scheme or "https",
+        schema=settings.schema_name,
+        schema_allowlist=settings.schema_allowlist,
+        timeout_seconds=_effective_timeout_seconds(ds),
+        address=vetted_address(ds),
+    )
+
+
+def _build_athena(ds: DataSource, password: str) -> BaseAdapter:
+    from tripl.core.adapters.athena import AthenaAdapter
+    from tripl.core.adapters.athena_sql import resolve_endpoint
+
+    settings = AthenaSettings.model_validate(_stored_settings(ds))
+    # The outbound rule, as for Snowflake: the host field only ever resolves to
+    # ``athena.<region>.amazonaws.com``, the name boto3 itself derives from the
+    # region, and the address check refuses one that resolves privately.
+    endpoint = resolve_endpoint(ds.host)
+    _vet_hostname(endpoint.hostname, 443)
+
+    return AthenaAdapter(
+        host=endpoint.hostname,
+        port=443,
+        database=ds.database_name,
+        username=ds.username,
+        password=password,
+        region=endpoint.region,
+        work_group=settings.work_group,
+        s3_output_location=settings.s3_output_location,
+        catalog=settings.catalog_name,
+        schema_allowlist=settings.schema_allowlist,
+        timeout_seconds=_effective_timeout_seconds(ds),
+    )
+
+
 def _vet_hostname(hostname: str, port: int) -> None:
     """:func:`vetted_address` for a hostname the factory derived itself."""
     from tripl.config import settings
@@ -304,4 +354,6 @@ register_adapter("redshift", _build_redshift)
 register_adapter("bigquery", _build_bigquery)
 register_adapter("databricks", _build_databricks)
 register_adapter("snowflake", _build_snowflake)
+register_adapter("trino", _build_trino)
+register_adapter("athena", _build_athena)
 register_adapter("synthetic", _build_synthetic)

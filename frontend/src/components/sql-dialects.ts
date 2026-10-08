@@ -111,6 +111,25 @@ const SnowflakeDialect = SQLDialect.define({
   backslashEscapes: true,
 })
 
+const TRINO_FUNCTIONS =
+  'count count_if sum avg min max approx_distinct arbitrary array_agg bool_and bool_or ' +
+  'date_trunc date_add date_diff from_unixtime to_unixtime with_timezone at_timezone ' +
+  'from_iso8601_timestamp current_date current_timestamp extract try_cast try cast ' +
+  'coalesce nullif if lower upper length substr split regexp_like regexp_extract ' +
+  'json_parse json_format json_extract json_extract_scalar json_array_length map_keys ' +
+  'element_at cardinality array_sort sequence row_number rank dense_rank lag lead ' +
+  'first_value last_value ntile approx_percentile round floor ceil abs format'
+const TRINO_TYPES =
+  'tinyint smallint integer bigint real double decimal boolean varchar char varbinary ' +
+  'date time timestamp interval array map row json uuid'
+
+const TrinoDialect = SQLDialect.define({
+  keywords: `${COMMON_KEYWORDS} unnest lateral tablesample filter grouping sets`,
+  builtin: TRINO_FUNCTIONS,
+  types: TRINO_TYPES,
+  identifierQuotes: '"',
+})
+
 const HIGHLIGHT_DIALECT: Record<DbType, SQLDialect> = {
   postgres: PostgreSQL,
   clickhouse: ClickHouseDialect,
@@ -120,6 +139,9 @@ const HIGHLIGHT_DIALECT: Record<DbType, SQLDialect> = {
   // PostgreSQL forks: highlighted and completed as PostgreSQL.
   greenplum: PostgreSQL,
   redshift: PostgreSQL,
+  // Athena engine version 3 is Trino SQL.
+  trino: TrinoDialect,
+  athena: TrinoDialect,
   // The local demo synthetic source mimics ClickHouse semantics, so reuse its
   // dialect for highlighting/autocomplete of the (rarely-edited) demo SQL.
   synthetic: ClickHouseDialect,
@@ -138,6 +160,8 @@ const FORMAT_LANGUAGE: Record<DbType, SqlLanguage> = {
   snowflake: 'snowflake',
   greenplum: 'postgresql',
   redshift: 'redshift',
+  trino: 'trino',
+  athena: 'trino',
   synthetic: 'clickhouse',
 }
 

@@ -89,7 +89,9 @@ export function ConnectionCoreFields({
         ? 'Access token or OAuth secret'
         : dbType === 'snowflake'
           ? 'Password or private key'
-          : 'Password'
+          : dbType === 'athena'
+            ? 'Secret access key'
+            : 'Password'
   const keyError = missing.secret ?? secretError
 
   // Three states, three different sentences.
@@ -211,6 +213,16 @@ export function ConnectionCoreFields({
           secretStatus={secretStatus}
           missing={missing}
         />
+      ) : dbType === 'athena' ? (
+        <AthenaCoreFields
+          idPrefix={idPrefix}
+          value={value}
+          onChange={onChange}
+          isEdit={isEdit}
+          secretSet={secretSet}
+          secretStatus={secretStatus}
+          missing={missing}
+        />
       ) : (
         <>
           {/* One column on phones: in a 375px dialog five columns left Port
@@ -241,13 +253,15 @@ export function ConnectionCoreFields({
               <FieldError inputId={`${idPrefix}-port`} message={missing.port} />
             </div>
             <div className={`sm:col-span-2 ${FIELD_COL_CLASS}`}>
-              <Label htmlFor={`${idPrefix}-database`}>Database</Label>
+              <Label htmlFor={`${idPrefix}-database`}>
+                {dbType === 'trino' ? 'Catalog' : 'Database'}
+              </Label>
               <Input
                 id={`${idPrefix}-database`}
                 value={value.databaseName}
                 onChange={(e) => onChange({ databaseName: e.target.value })}
                 aria-required
-                placeholder={examplePlaceholder('analytics')}
+                placeholder={examplePlaceholder(dbType === 'trino' ? 'hive' : 'analytics')}
                 {...invalidAria(`${idPrefix}-database`, missing.databaseName)}
               />
               <FieldError inputId={`${idPrefix}-database`} message={missing.databaseName} />
@@ -494,6 +508,93 @@ function SnowflakeCoreFields({
             <p className={HELP_CLASS}>
               For key-pair sign-in, paste the unencrypted PKCS#8 PEM key. Stored encrypted and
               never shown again.
+            </p>
+          )}
+        </div>
+      </div>
+    </>
+  )
+}
+
+/**
+ * Athena: an AWS region, the default Glue database, and an access key. The API
+ * is reached over HTTPS on 443 at the region's own endpoint, so there is no
+ * host or port box; the workgroup and result location are settings below.
+ */
+function AthenaCoreFields({
+  idPrefix,
+  value,
+  onChange,
+  isEdit,
+  secretSet,
+  secretStatus,
+  missing,
+}: DatabricksCoreFieldsProps) {
+  return (
+    <>
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+        <div className={FIELD_COL_CLASS}>
+          <Label htmlFor={`${idPrefix}-region`}>AWS region</Label>
+          <Input
+            id={`${idPrefix}-region`}
+            value={value.host}
+            onChange={(e) => onChange({ host: e.target.value })}
+            aria-required
+            placeholder={examplePlaceholder('eu-west-1')}
+            {...invalidAria(`${idPrefix}-region`, missing.host)}
+          />
+          <FieldError inputId={`${idPrefix}-region`} message={missing.host} />
+          <p className={HELP_CLASS}>
+            The region the workgroup and the Glue catalog are in. tripl only connects to that
+            region’s Athena endpoint.
+          </p>
+        </div>
+        <div className={FIELD_COL_CLASS}>
+          <Label htmlFor={`${idPrefix}-athena-database`}>Database</Label>
+          <Input
+            id={`${idPrefix}-athena-database`}
+            value={value.databaseName}
+            onChange={(e) => onChange({ databaseName: e.target.value })}
+            aria-required
+            placeholder={examplePlaceholder('analytics')}
+            {...invalidAria(`${idPrefix}-athena-database`, missing.databaseName)}
+          />
+          <FieldError inputId={`${idPrefix}-athena-database`} message={missing.databaseName} />
+          <p className={HELP_CLASS}>
+            The Glue database unqualified table names resolve in.
+          </p>
+        </div>
+      </div>
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+        <div className={FIELD_COL_CLASS}>
+          <Label htmlFor={`${idPrefix}-athena-key-id`}>Access key ID</Label>
+          <Input
+            id={`${idPrefix}-athena-key-id`}
+            value={value.username}
+            onChange={(e) => onChange({ username: e.target.value })}
+            placeholder={examplePlaceholder('AKIA…')}
+            {...SECRET_INPUT_PROPS}
+          />
+        </div>
+        <div className={FIELD_COL_CLASS}>
+          <Label htmlFor={`${idPrefix}-athena-secret`}>Secret access key</Label>
+          <Input
+            id={`${idPrefix}-athena-secret`}
+            type="password"
+            value={value.secret}
+            onChange={(e) => onChange({ secret: e.target.value })}
+            aria-required={!isEdit || undefined}
+            placeholder={
+              !isEdit ? 'Secret access key' : secretSet ? 'Leave empty to keep' : 'No secret stored'
+            }
+            {...invalidAria(`${idPrefix}-athena-secret`, missing.secret)}
+            {...PASSWORD_INPUT_PROPS}
+          />
+          <FieldError inputId={`${idPrefix}-athena-secret`} message={missing.secret} />
+          {secretStatus ?? (
+            <p className={HELP_CLASS}>
+              An IAM user’s key, allowed to run queries in the workgroup and to read its result
+              location. Stored encrypted and never shown again.
             </p>
           )}
         </div>

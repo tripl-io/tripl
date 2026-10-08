@@ -123,7 +123,7 @@ Locally, all of the above (except the warehouses) run under Docker Compose:
 
 - **Celery** app with a **RabbitMQ** broker.
 - **Warehouse adapters** (`core/adapters`) provide a common interface over
-  **ClickHouse**, **BigQuery**, **Databricks**, **Snowflake**, and **PostgreSQL** source databases (PostgreSQL's adapter also serves **Greenplum** and **Amazon Redshift** through dialect subclasses). A common
+  **ClickHouse**, **BigQuery**, **Databricks**, **Snowflake**, and **PostgreSQL** source databases (PostgreSQL's adapter also serves **Greenplum** and **Amazon Redshift** through dialect subclasses), plus **Trino** and **Amazon Athena** (one Trino SQL layer, two drivers). A common
   interface is not the same as identical behavior, and it is emphatically not the
   same as an equally *verified* behavior:
   - **ClickHouse and PostgreSQL are executed** in CI. The `conformance` job stands
@@ -149,6 +149,11 @@ Locally, all of the above (except the warehouses) run under Docker Compose:
     against a fake driver; a credentialed value suite
     (`snowflake-value-conformance.yml`) runs on release tags once an account is
     configured.
+  - **Trino is executed** in CI: the `trino` job runs the Trino value suite
+    against a real `trinodb/trino` coordinator, over a table-less fixture.
+    **Athena** shares Trino's SQL but its driver is mocked; a credentialed value
+    suite (`athena-value-conformance.yml`) runs on release tags once an AWS
+    account is configured.
 
   The gates live in `backend/src/tripl/tests/conformance/`. See the
   **[warehouse capability matrix](warehouse-parity.md)** for the per-capability
@@ -273,7 +278,7 @@ Locally, all of the above (except the warehouses) run under Docker Compose:
   watermark, so without that floor a metric that can never collect would be
   re-dispatched on every 300 s tick.
 - **Aggregations.** Adapter `_aggregate_value_sql` builds the per-kind SQL for
-  ClickHouse / BigQuery / Databricks / Snowflake / PostgreSQL / Greenplum / Redshift; `core/adapters/measure_validator` checks the
+  ClickHouse / BigQuery / Databricks / Snowflake / PostgreSQL / Greenplum / Redshift / Trino / Athena; `core/adapters/measure_validator` checks the
   measure/distinct column against the source's real columns before it reaches a
   query. Fact row filters persist in metric `config` as named `row_filters`,
   free-text `filter_sql`, and structured `conditions`; collection compiles them

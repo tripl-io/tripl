@@ -9,6 +9,8 @@ export type DbType =
   | 'snowflake'
   | 'greenplum'
   | 'redshift'
+  | 'trino'
+  | 'athena'
   | 'synthetic'
 
 export const DB_TYPE_OPTIONS: { value: DbType; label: string; defaultPort: number }[] = [
@@ -22,6 +24,11 @@ export const DB_TYPE_OPTIONS: { value: DbType; label: string; defaultPort: numbe
   // Greenplum and Redshift speak the PostgreSQL protocol and take its settings.
   { value: 'greenplum', label: 'Greenplum', defaultPort: 5432 },
   { value: 'redshift', label: 'Amazon Redshift', defaultPort: 5439 },
+  // Trino / Starburst coordinator: HTTPS on 443 by default (8080 for a local,
+  // unauthenticated one over HTTP).
+  { value: 'trino', label: 'Trino / Starburst', defaultPort: 443 },
+  // The Athena API is HTTPS on 443; the host field holds the AWS region.
+  { value: 'athena', label: 'Amazon Athena', defaultPort: 443 },
 ]
 
 export type DataSourceTestStatus = 'success' | 'failed'
@@ -86,12 +93,33 @@ export interface SnowflakeConnectionSettings {
   schema_allowlist?: string[] | null
 }
 
+// 'https' (default) or 'http' for an unauthenticated local coordinator.
+export type TrinoHttpScheme = 'https' | 'http'
+
+export interface TrinoConnectionSettings {
+  http_scheme?: TrinoHttpScheme | null
+  schema_name?: string | null
+  schema_allowlist?: string[] | null
+}
+
+export interface AthenaConnectionSettings {
+  // Unset: the account's `primary` workgroup.
+  work_group?: string | null
+  // Unset: the workgroup's own result location.
+  s3_output_location?: string | null
+  // Unset: AwsDataCatalog.
+  catalog_name?: string | null
+  schema_allowlist?: string[] | null
+}
+
 // ClickHouse and the synthetic warehouse have no connection settings of their own.
 export type ConnectionSettings =
   | BigQueryConnectionSettings
   | PostgresConnectionSettings
   | DatabricksConnectionSettings
   | SnowflakeConnectionSettings
+  | TrinoConnectionSettings
+  | AthenaConnectionSettings
 
 // Read side: the union flattened, with the private key replaced by a boolean.
 // Only the fields applicable to the source's db_type are ever populated.
@@ -113,6 +141,12 @@ export interface ConnectionSettingsResponse {
   // Snowflake
   warehouse?: string | null
   role?: string | null
+  // Trino (`schema_name` and `schema_allowlist` above are its too)
+  http_scheme?: TrinoHttpScheme | null
+  // Athena (`schema_allowlist` above is its too)
+  work_group?: string | null
+  s3_output_location?: string | null
+  catalog_name?: string | null
 }
 
 export interface DataSource {

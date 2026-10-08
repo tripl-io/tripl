@@ -8,7 +8,6 @@ from typing import Literal
 
 from pydantic import (
     BaseModel,
-    ConfigDict,
     Field,
     SecretStr,
     ValidationError,
@@ -17,7 +16,13 @@ from pydantic import (
 )
 
 from tripl.models.data_source import DBType, TestStatus
+from tripl.schemas.connection_settings_base import _ConnectionSettingsBase
 from tripl.schemas.not_null_update import reject_explicit_nulls
+from tripl.schemas.trino_settings import (
+    AthenaSettings,
+    TrinoHttpScheme,
+    TrinoSettings,
+)
 
 # ClickHouse JSON path *discovery* (preview) mode. "dynamic" enumerates only the
 # important typed subcolumn paths (JSONDynamicPaths, fast); "all" enumerates every
@@ -153,11 +158,6 @@ def _require_pem(value: str | None, *, label: str) -> str | None:
             f"{label} must be the PEM content itself (starting with '-----BEGIN'), not a file path"
         )
     return trimmed
-
-
-class _ConnectionSettingsBase(BaseModel):
-    # The whole point: an unknown key is an error, not a silently stored no-op.
-    model_config = ConfigDict(extra="forbid")
 
 
 class ClickHouseSettings(_ConnectionSettingsBase):
@@ -405,6 +405,8 @@ ConnectionSettings = (
     | BigQuerySettings
     | DatabricksSettings
     | SnowflakeSettings
+    | TrinoSettings
+    | AthenaSettings
     | SyntheticSettings
 )
 
@@ -417,6 +419,8 @@ CONNECTION_SETTINGS_MODELS: dict[str, type[_ConnectionSettingsBase]] = {
     DBType.bigquery.value: BigQuerySettings,
     DBType.databricks.value: DatabricksSettings,
     DBType.snowflake.value: SnowflakeSettings,
+    DBType.trino.value: TrinoSettings,
+    DBType.athena.value: AthenaSettings,
     DBType.synthetic.value: SyntheticSettings,
 }
 
@@ -498,7 +502,8 @@ class ConnectionSettingsResponse(BaseModel):
     sslcert: str | None = None
     search_path: str | None = None
     # Databricks (``auth_type``, ``schema_name`` and ``schema_allowlist`` are
-    # Snowflake's too)
+    # Snowflake's too; ``schema_name`` and ``schema_allowlist`` Trino's, and
+    # ``schema_allowlist`` Athena's)
     http_path: str | None = None
     auth_type: DatabricksAuthType | SnowflakeAuthType | None = None
     schema_name: str | None = None
@@ -506,6 +511,12 @@ class ConnectionSettingsResponse(BaseModel):
     # Snowflake
     warehouse: str | None = None
     role: str | None = None
+    # Trino
+    http_scheme: TrinoHttpScheme | None = None
+    # Athena
+    work_group: str | None = None
+    s3_output_location: str | None = None
+    catalog_name: str | None = None
     # The private key itself is never returned — only whether one is stored.
     sslkey_set: bool = False
 

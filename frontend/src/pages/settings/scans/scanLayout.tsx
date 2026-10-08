@@ -14,6 +14,8 @@ const DB_HUE: Record<DbType, string> = {
   snowflake: 'oklch(0.66 0.13 220)',
   greenplum: 'oklch(0.6 0.14 150)',
   redshift: 'oklch(0.58 0.18 20)',
+  trino: 'oklch(0.64 0.17 345)',
+  athena: 'oklch(0.6 0.15 265)',
   // Local demo synthetic warehouse — a distinct teal so it never reads as a
   // real engine.
   synthetic: 'oklch(0.62 0.13 175)',

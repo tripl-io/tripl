@@ -82,6 +82,16 @@ def compile_time_bucketed_multi_aggregate_sql(
         snowflake._column_types = dict(column_types)
         snowflake._allowed_columns = set(column_types)
         adapter = snowflake
+    elif db_type in ("trino", "athena"):
+        from tripl.core.adapters.athena import AthenaAdapter
+        from tripl.core.adapters.trino import TrinoAdapter
+
+        trino = object.__new__(AthenaAdapter if db_type == "athena" else TrinoAdapter)
+        # Trino's window literal and bucket follow the time column's declared type
+        # (timestamp / timestamp with time zone / date), and Athena is Trino SQL.
+        trino._column_types = dict(column_types)
+        trino._allowed_columns = set(column_types)
+        adapter = trino
     else:
         msg = f"Generated batch SQL is unavailable for data source type {db_type!r}"
         raise ValueError(msg)

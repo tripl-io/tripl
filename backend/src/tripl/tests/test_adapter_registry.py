@@ -30,6 +30,8 @@ def test_registry_lists_known_adapters() -> None:
     assert "bigquery" in db_types
     assert "databricks" in db_types
     assert "snowflake" in db_types
+    assert "trino" in db_types
+    assert "athena" in db_types
     assert "greenplum" in db_types
     assert "redshift" in db_types
 

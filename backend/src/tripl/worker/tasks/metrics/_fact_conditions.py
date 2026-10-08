@@ -19,6 +19,7 @@ from dataclasses import dataclass
 from typing import TypeGuard
 
 from tripl.core.adapters.measure_validator import (
+    TRINO_DIALECTS,
     SqlDialect,
     coerce_aggregation,
     parse_utc_timestamp,
@@ -301,8 +302,9 @@ def _escape_like_wildcards(text: str) -> str:
     run: ``quote_sql_string_literal`` doubles backslashes for ClickHouse and
     BigQuery and leaves them alone for PostgreSQL (``standard_conforming_strings``),
     so a pattern of ``\\%`` here reaches every engine as the value ``\\%`` — an
-    escaped percent, which is LIKE's default reading in all three. Snowflake has
-    no default escape character, so its LIKE names the backslash explicitly.
+    escaped percent, which is LIKE's default reading in all three. Snowflake and
+    Trino (Athena) have no default escape character, so their LIKE names the
+    backslash explicitly.
     Backslash is doubled FIRST so a value containing one cannot escape the escape.
     """
     return text.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
@@ -450,9 +452,14 @@ def _resolve_condition_fragment(
         except ValueError as exc:
             msg = f"fact operand condition value is invalid: {exc}"
             raise ScanError(msg) from exc
-        # Snowflake's LIKE has no default escape character; name the backslash
-        # every other engine reads by default (the literal ``'\\'`` is one).
-        escape = " ESCAPE '\\\\'" if dialect is SqlDialect.snowflake else ""
+        # Snowflake's and Trino's LIKE have no default escape character; name the
+        # backslash every other engine reads by default. Snowflake's literal
+        # ``'\\'`` is one backslash; so is Trino's ``'\'`` (it has no escapes).
+        escape = ""
+        if dialect is SqlDialect.snowflake:
+            escape = " ESCAPE '\\\\'"
+        elif dialect in TRINO_DIALECTS:
+            escape = " ESCAPE '\\'"
         return f"{quoted} {keyword} {literal}{escape}"
 
     msg = f"fact operand condition has unsupported operator {operator!r}"

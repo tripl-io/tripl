@@ -52,6 +52,17 @@ describe('starterSql', () => {
     }
   })
 
+  it('buckets Trino and Athena in UTC, whatever zone the column carries', () => {
+    for (const db of ['trino', 'athena'] as DbType[]) {
+      expect(starterSql('daily-active-users', db)).toContain(
+        "date_trunc('day', created_at AT TIME ZONE 'UTC')",
+      )
+      expect(starterSql('event-volume', db)).toContain(
+        "date_trunc('hour', created_at AT TIME ZONE 'UTC')",
+      )
+    }
+  })
+
   it('never emits date_trunc() for BigQuery', () => {
     for (const id of SQL_TEMPLATE_IDS) {
       expect(starterSql(id, 'bigquery')).not.toMatch(/date_trunc/i)

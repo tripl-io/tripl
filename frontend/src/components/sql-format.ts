@@ -7,6 +7,7 @@ import {
   snowflake,
   spark,
   sql,
+  trino,
   type DialectOptions,
   type SqlLanguage,
 } from 'sql-formatter'
@@ -29,6 +30,8 @@ const DIALECTS: Partial<Record<SqlLanguage, DialectOptions>> = {
   spark,
   snowflake,
   redshift,
+  // Trino, and Athena engine version 3 (which is Trino SQL).
+  trino,
   sql,
 }
 

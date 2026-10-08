@@ -4530,6 +4530,64 @@
         "title": "AppVersionSeriesResponse",
         "type": "object"
       },
+      "AthenaSettings": {
+        "additionalProperties": false,
+        "description": "Amazon Athena: the workgroup statements run in, where results go, what to browse.\n\n``host`` is the AWS region, ``database_name`` the default Glue database,\n``username`` the access key ID and the secret its secret access key; these\nare the settings that have no column of their own.",
+        "properties": {
+          "catalog_name": {
+            "anyOf": [
+              {
+                "maxLength": 128,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Catalog Name"
+          },
+          "s3_output_location": {
+            "anyOf": [
+              {
+                "maxLength": 1024,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "S3 Output Location"
+          },
+          "schema_allowlist": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Schema Allowlist"
+          },
+          "work_group": {
+            "anyOf": [
+              {
+                "maxLength": 128,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Work Group"
+          }
+        },
+        "title": "AthenaSettings",
+        "type": "object"
+      },
       "AttributionColumn": {
         "description": "One breakdown column's split: its top values and the part of the change\nthey explain (0..1).",
         "properties": {
@@ -6567,6 +6625,17 @@
             ],
             "title": "Auth Type"
           },
+          "catalog_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Catalog Name"
+          },
           "dataset_allowlist": {
             "anyOf": [
               {
@@ -6591,6 +6660,21 @@
               }
             ],
             "title": "Http Path"
+          },
+          "http_scheme": {
+            "anyOf": [
+              {
+                "enum": [
+                  "https",
+                  "http"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Http Scheme"
           },
           "location": {
             "anyOf": [
@@ -6624,6 +6708,17 @@
               }
             ],
             "title": "Role"
+          },
+          "s3_output_location": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "S3 Output Location"
           },
           "schema_allowlist": {
             "anyOf": [
@@ -6717,6 +6812,17 @@
               }
             ],
             "title": "Warehouse"
+          },
+          "work_group": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Work Group"
           }
         },
         "title": "ConnectionSettingsResponse",
@@ -6803,6 +6909,8 @@
           "snowflake",
           "greenplum",
           "redshift",
+          "trino",
+          "athena",
           "synthetic"
         ],
         "title": "DBType",
@@ -6827,6 +6935,12 @@
               },
               {
                 "$ref": "#/components/schemas/SnowflakeSettings"
+              },
+              {
+                "$ref": "#/components/schemas/TrinoSettings"
+              },
+              {
+                "$ref": "#/components/schemas/AthenaSettings"
               },
               {
                 "$ref": "#/components/schemas/SyntheticSettings"
@@ -6954,6 +7068,12 @@
               },
               {
                 "$ref": "#/components/schemas/SnowflakeSettings"
+              },
+              {
+                "$ref": "#/components/schemas/TrinoSettings"
+              },
+              {
+                "$ref": "#/components/schemas/AthenaSettings"
               },
               {
                 "$ref": "#/components/schemas/SyntheticSettings"
@@ -7343,6 +7463,12 @@
               },
               {
                 "$ref": "#/components/schemas/SnowflakeSettings"
+              },
+              {
+                "$ref": "#/components/schemas/TrinoSettings"
+              },
+              {
+                "$ref": "#/components/schemas/AthenaSettings"
               },
               {
                 "$ref": "#/components/schemas/SyntheticSettings"
@@ -31568,6 +31694,55 @@
           "direction"
         ],
         "title": "TopMoverItem",
+        "type": "object"
+      },
+      "TrinoSettings": {
+        "additionalProperties": false,
+        "description": "Trino / Starburst coordinator: its scheme, and what to browse.\n\n``host`` and ``port`` reach the coordinator, ``database_name`` is the\ncatalog and ``username`` the user; these are the settings that have no\ncolumn of their own.",
+        "properties": {
+          "http_scheme": {
+            "anyOf": [
+              {
+                "enum": [
+                  "https",
+                  "http"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Http Scheme"
+          },
+          "schema_allowlist": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Schema Allowlist"
+          },
+          "schema_name": {
+            "anyOf": [
+              {
+                "maxLength": 128,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Schema Name"
+          }
+        },
+        "title": "TrinoSettings",
         "type": "object"
       },
       "UnreadCountResponse": {

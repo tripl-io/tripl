@@ -20,7 +20,7 @@ every guide ends with a link to the reference page for it.
 1. [Try tripl on the demo project](./explore-the-demo.md): see everything working
    on realistic data, with nothing to connect.
 2. [Connect your warehouse](./connect-your-warehouse.md): point tripl at
-   ClickHouse, BigQuery, Databricks, Snowflake, Redshift, Greenplum or PostgreSQL. It only ever reads.
+   ClickHouse, BigQuery, Databricks, Snowflake, Redshift, Greenplum, Trino, Athena or PostgreSQL. It only ever reads.
 3. [Draft your tracking plan from a scan](./draft-your-plan-from-a-scan.md): turn
    the events already in your warehouse into a written plan.
 4. [Get a message when the numbers move](./get-alerted.md): send alerts to Slack,

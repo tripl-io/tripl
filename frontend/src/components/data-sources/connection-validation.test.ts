@@ -17,6 +17,7 @@ import {
   connectionSettingsToForm,
   httpPathError,
   pemError,
+  s3OutputLocationError,
   snowflakeWarehouseError,
 } from './connection-settings'
 
@@ -298,5 +299,104 @@ describe('Snowflake', () => {
       secret: 'Required',
     })
     expect(connectionCoreMissing('snowflake', { ...core, port: 0 }, 'edit', 'Required')).toEqual({})
+  })
+})
+
+const EMPTY_RESPONSE = {
+  location: null,
+  maximum_bytes_billed: null,
+  dataset_allowlist: null,
+  sslmode: null,
+  sslrootcert: null,
+  sslcert: null,
+  search_path: null,
+  sslkey_set: false,
+}
+
+describe('Trino', () => {
+  const form = {
+    ...EMPTY_CONNECTION_SETTINGS_FORM,
+    httpScheme: 'http' as const,
+    schemaName: ' events ',
+    schemaAllowlist: 'events, marts',
+  }
+
+  it('sends only its own settings, trimmed, and reads them back', () => {
+    expect(buildConnectionSettings('trino', form)).toEqual({
+      http_scheme: 'http',
+      schema_name: 'events',
+      schema_allowlist: ['events', 'marts'],
+    })
+    expect(connectionSettingsErrors('trino', EMPTY_CONNECTION_SETTINGS_FORM)).toEqual({})
+    const back = connectionSettingsToForm({
+      ...EMPTY_RESPONSE,
+      http_scheme: 'http',
+      schema_name: 'events',
+      schema_allowlist: ['events', 'marts'],
+    })
+    expect(back).toMatchObject({ httpScheme: 'http', schemaName: 'events' })
+    expect(connectionSettingsToForm({ ...EMPTY_RESPONSE }).httpScheme).toBe('https')
+  })
+
+  it('keeps its port box, and its password is optional', () => {
+    const core = {
+      ...EMPTY_CONNECTION_CORE_FORM,
+      host: 'trino.example.com',
+      port: 8080,
+      databaseName: 'hive',
+    }
+    expect(buildCoreCreatePayload('trino', core).port).toBe(8080)
+    expect(connectionCoreMissing('trino', core, 'create', 'Required')).toEqual({})
+  })
+})
+
+describe('Athena', () => {
+  const form = {
+    ...EMPTY_CONNECTION_SETTINGS_FORM,
+    workGroup: ' analytics ',
+    s3OutputLocation: 's3://my-bucket/athena/',
+    catalogName: '',
+    schemaAllowlist: 'events marts',
+  }
+
+  it('checks the result location is an S3 location', () => {
+    expect(s3OutputLocationError('')).toBeNull()
+    expect(s3OutputLocationError('s3://my-bucket/results/')).toBeNull()
+    expect(s3OutputLocationError('https://my-bucket.s3.amazonaws.com/')).toMatch(/S3 location/)
+    expect(
+      connectionSettingsErrors('athena', { ...form, s3OutputLocation: 'bucket/x' }),
+    ).toHaveProperty('s3OutputLocation')
+    expect(connectionSettingsErrors('athena', form)).toEqual({})
+  })
+
+  it('sends only its own settings, trimmed, and reads them back', () => {
+    expect(buildConnectionSettings('athena', form)).toEqual({
+      work_group: 'analytics',
+      s3_output_location: 's3://my-bucket/athena/',
+      catalog_name: null,
+      schema_allowlist: ['events', 'marts'],
+    })
+    const back = connectionSettingsToForm({
+      ...EMPTY_RESPONSE,
+      work_group: 'analytics',
+      s3_output_location: 's3://my-bucket/athena/',
+      catalog_name: 'AwsDataCatalog',
+      schema_allowlist: ['events'],
+    })
+    expect(back).toMatchObject({
+      workGroup: 'analytics',
+      s3OutputLocation: 's3://my-bucket/athena/',
+      catalogName: 'AwsDataCatalog',
+      schemaAllowlist: 'events',
+    })
+  })
+
+  it('always connects on 443 and needs its secret key on create only', () => {
+    const core = { ...EMPTY_CONNECTION_CORE_FORM, host: 'eu-west-1', databaseName: 'analytics' }
+    expect(buildCoreCreatePayload('athena', core).port).toBe(443)
+    expect(connectionCoreMissing('athena', { ...core, port: 0 }, 'create', 'Required')).toEqual({
+      secret: 'Required',
+    })
+    expect(connectionCoreMissing('athena', { ...core, port: 0 }, 'edit', 'Required')).toEqual({})
   })
 })

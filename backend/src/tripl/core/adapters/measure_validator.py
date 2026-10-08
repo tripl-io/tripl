@@ -150,12 +150,18 @@ class SqlDialect(StrEnum):
     snowflake = "snowflake"
     greenplum = "greenplum"
     redshift = "redshift"
+    trino = "trino"
+    athena = "athena"
 
+
+#: Trino SQL engines: Trino itself, and Athena engine version 3.
+TRINO_DIALECTS = frozenset({SqlDialect.trino, SqlDialect.athena})
 
 #: Dialects that read a string literal as PostgreSQL does under
 #: ``standard_conforming_strings`` (their adapters pin it): a backslash is data,
-#: and a quote is escaped only by doubling it.
-_STANDARD_STRING_DIALECTS = frozenset({SqlDialect.postgres, SqlDialect.greenplum})
+#: and a quote is escaped only by doubling it. Trino's literal has no escape
+#: sequence at all, so it reads one the same way.
+_STANDARD_STRING_DIALECTS = frozenset({SqlDialect.postgres, SqlDialect.greenplum, *TRINO_DIALECTS})
 
 #: Dialects whose adapter compares against an explicit-offset ``TIMESTAMPTZ``
 #: literal in a session pinned to UTC.
@@ -173,12 +179,15 @@ _DB_TYPE_DIALECT: dict[str, SqlDialect] = {
     "bigquery": SqlDialect.bigquery,
     "databricks": SqlDialect.databricks,
     "snowflake": SqlDialect.snowflake,
+    "trino": SqlDialect.trino,
+    "athena": SqlDialect.athena,
     "synthetic": SqlDialect.clickhouse,
 }
 
-#: ClickHouse, BigQuery and Databricks back-tick identifiers; PostgreSQL and
-#: Snowflake double-quote them (a double-quoted token is a STRING literal on
-#: Databricks, and a back-quote is a syntax error on Snowflake).
+#: ClickHouse, BigQuery and Databricks back-tick identifiers; PostgreSQL,
+#: Snowflake and Trino double-quote them (a double-quoted token is a STRING
+#: literal on Databricks, and a back-quote is a syntax error on Snowflake and
+#: Trino).
 _IDENTIFIER_QUOTE: dict[SqlDialect, str] = {
     SqlDialect.clickhouse: "`",
     SqlDialect.bigquery: "`",
@@ -187,6 +196,8 @@ _IDENTIFIER_QUOTE: dict[SqlDialect, str] = {
     SqlDialect.snowflake: '"',
     SqlDialect.greenplum: '"',
     SqlDialect.redshift: '"',
+    SqlDialect.trino: '"',
+    SqlDialect.athena: '"',
 }
 
 #: A value must LOOK like a date/timestamp before we try to parse it as one, so a
@@ -225,6 +236,8 @@ _SNOWFLAKE_BUCKET_HINT = (
     "Use DATE_TRUNC('DAY', <time column>) or TIME_SLICE(<time column>, 1, 'DAY') "
     "for a Snowflake source."
 )
+
+_TRINO_BUCKET_HINT = "Use date_trunc('day', <time column>) for a {engine} source."
 
 #: ``count(*) FILTER (WHERE ...)``: an aggregate's FILTER clause, which Redshift
 #: (PostgreSQL 8.0) never gained.
@@ -277,6 +290,47 @@ def _postgres_family_rules(
             )
         )
     return tuple(rules)
+
+
+def _trino_family_rules(engine: str) -> tuple[tuple[re.Pattern[str], str], ...]:
+    """The rules for Trino and for Athena, which runs Trino SQL (verified on Trino 483)."""
+    hint = _TRINO_BUCKET_HINT.format(engine=engine)
+    return (
+        (
+            _fn_re("toStartOfInterval"),
+            f"toStartOfInterval is a ClickHouse function and does not exist on {engine}. {hint}",
+        ),
+        (
+            _fn_re("date_bin"),
+            f"date_bin is a PostgreSQL function and does not exist on {engine}. {hint}",
+        ),
+        (
+            _fn_re("TIMESTAMP_TRUNC"),
+            f"TIMESTAMP_TRUNC is a BigQuery function and does not exist on {engine}. {hint}",
+        ),
+        (
+            _fn_re("TIMESTAMP_BUCKET"),
+            f"TIMESTAMP_BUCKET is a BigQuery function and does not exist on {engine}. {hint}",
+        ),
+        (
+            _fn_re("TIME_SLICE"),
+            f"TIME_SLICE is a Snowflake function and does not exist on {engine}. {hint}",
+        ),
+        (
+            _fn_re("countIf"),
+            f"countIf is a ClickHouse function and does not exist on {engine}. Use "
+            "count_if(<condition>).",
+        ),
+        (
+            _fn_re("parseDateTime64BestEffort"),
+            "parseDateTime64BestEffort is a ClickHouse function and does not exist on "
+            f"{engine}. Use a typed literal such as TIMESTAMP '2026-01-01 00:00:00 UTC'.",
+        ),
+        (
+            _BACKTICK_RE,
+            f'{engine} does not accept back-quoted identifiers. Use double quotes: "my column".',
+        ),
+    )
 
 
 #: Per-dialect "this cannot run here" rules, each verified against a live engine so a
@@ -407,6 +461,8 @@ _DIALECT_RULES: dict[SqlDialect, tuple[tuple[re.Pattern[str], str], ...]] = {
     ),
     SqlDialect.greenplum: _postgres_family_rules("Greenplum", filter_clause=True),
     SqlDialect.redshift: _postgres_family_rules("Redshift", filter_clause=False),
+    SqlDialect.trino: _trino_family_rules("Trino"),
+    SqlDialect.athena: _trino_family_rules("Athena"),
     SqlDialect.clickhouse: (
         (
             _fn_re("TIMESTAMP_TRUNC"),
@@ -657,6 +713,8 @@ def quote_sql_string_literal(text: str, dialect: SqlDialect) -> str:
       ``\\`` escapes in every string literal), so it gets the same form.
     * **Snowflake** reads backslash escapes in single-quoted literals too (and
       accepts ``''``), so it gets the backslash form as well.
+    * **Trino** and **Athena** have no escape sequence in a literal at all: a
+      backslash is data, so they get PostgreSQL's ``''`` form.
 
     So the previously-shared ``''`` escaping meant ANY structured filter value
     containing an apostrophe was a hard BigQuery parse error — raised inside a
@@ -777,6 +835,13 @@ def quote_timestamp_literal(value: datetime, dialect: SqlDialect, *, kind: TimeK
             return f"TO_DATE('{moment.strftime(_BQ_DATE_LITERAL_FMT)}', 'YYYY-MM-DD')"
         stamp = moment.strftime(_BQ_DATETIME_LITERAL_FMT)
         return f"TO_TIMESTAMP_TZ('{stamp} +00:00', 'YYYY-MM-DD HH24:MI:SS.FF6 TZH:TZM')"
+    if dialect in TRINO_DIALECTS:
+        # An explicit UTC zone names the instant against either family: a
+        # zone-less ``timestamp`` column is compared in the session zone, which
+        # is UTC on Athena and which the Trino adapter pins to UTC.
+        if kind is TimeKind.date:
+            return f"DATE '{moment.strftime(_BQ_DATE_LITERAL_FMT)}'"
+        return f"TIMESTAMP '{moment.strftime(_BQ_DATETIME_LITERAL_FMT)} UTC'"
     if dialect is SqlDialect.databricks:
         # A TIMESTAMP_NTZ column classifies as ``timestamp`` and compares against
         # this literal as the same UTC wall clock: the adapter pins the session to UTC.

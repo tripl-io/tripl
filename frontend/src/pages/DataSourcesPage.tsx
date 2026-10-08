@@ -889,6 +889,9 @@ function DataSourceCard({
   // workspace (account) and catalog (database).
   const isDatabricks = ds.db_type === 'databricks'
   const isSnowflake = ds.db_type === 'snowflake'
+  // Athena likewise: the host is the AWS region, the database a Glue database,
+  // and the "username" an access key ID, which is not shown as a chip.
+  const isAthena = ds.db_type === 'athena'
   // Non-owners get the connection redacted server-side, so
   // host/port/database_name arrive blank and this summary would render as a
   // bare ":0/". Keyed off the payload rather than the viewer's
@@ -896,7 +899,7 @@ function DataSourceCard({
   // to see, so this stays correct if the redaction rule changes.
   const connectionRedacted = !ds.host
   const connectionLabel =
-    isBigQuery || isDatabricks || isSnowflake
+    isBigQuery || isDatabricks || isSnowflake || isAthena
       ? `${ds.host}/${ds.database_name}`
       : `${ds.host}:${ds.port}/${ds.database_name}`
   const secretLabel = isBigQuery
@@ -905,7 +908,9 @@ function DataSourceCard({
       ? 'Token set'
       : isSnowflake
         ? 'Password or key set'
-        : 'Password set'
+        : isAthena
+          ? 'Secret access key set'
+          : 'Password set'
 
   return (
     // A card in the page, on the page's surface: --bg-elevated is for
@@ -952,7 +957,7 @@ function DataSourceCard({
         {ds.is_synthetic ? <SyntheticSourceBadge /> : <Chip size="xs">{ds.db_type}</Chip>}
         {/* A late source or an overdue scan reading it (F16, #269). */}
         <DataSourceFreshnessChip ds={ds} />
-        {ds.username && <Chip size="xs">{ds.username}</Chip>}
+        {ds.username && !isAthena && <Chip size="xs">{ds.username}</Chip>}
         {ds.timeout_seconds != null && <Chip size="xs">timeout {ds.timeout_seconds}s</Chip>}
         {/* What reads this source, each scan a link to its page, so the
             delete's reach shows before its confirm. */}
