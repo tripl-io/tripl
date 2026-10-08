@@ -255,6 +255,48 @@ describe('SettingsLayout nav accessibility', () => {
   })
 })
 
+describe('SettingsLayout on a public demo', () => {
+  // The organization's own settings a public demo answers with 403.
+  const REFUSED = ['Email', 'AI', 'Search', 'Photos', 'Trackers', 'Limits']
+
+  it('leaves the sections the demo refuses out of the rail and the palette', async () => {
+    render(
+      <RouterProvider
+        router={dataRouter(
+          <SettingsLayout activePath="members" backHref="/" publicDemo>
+            <div>content</div>
+          </SettingsLayout>,
+        )}
+      />,
+    )
+
+    const rail = screen.getByRole('navigation', { name: 'Settings' })
+    for (const label of REFUSED) {
+      expect(within(rail).queryByRole('link', { name: label }), `rail listed "${label}"`).toBeNull()
+    }
+    // A filter, not an empty group: what the demo takes stays.
+    for (const label of ['Details', 'Members', 'Invitations', 'Data sources', 'API keys']) {
+      expect(within(rail).getByRole('link', { name: label })).toBeInTheDocument()
+    }
+
+    fireEvent.keyDown(window, { key: 'k', ctrlKey: true })
+    const palette = await screen.findByRole('dialog')
+    expect(within(palette).getByText('Invitations')).toBeInTheDocument()
+    for (const label of REFUSED) {
+      expect(within(palette).queryByText(label), `palette offered "${label}"`).toBeNull()
+    }
+  })
+
+  it('lists them on any other instance', () => {
+    renderSettings('members')
+
+    const rail = screen.getByRole('navigation', { name: 'Settings' })
+    for (const label of REFUSED) {
+      expect(within(rail).getByRole('link', { name: label })).toBeInTheDocument()
+    }
+  })
+})
+
 describe('SettingsLayout responsive rail', () => {
   /** The rail element — the only <aside> in this shell. */
   function rail(container: HTMLElement): HTMLElement {

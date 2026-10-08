@@ -13,7 +13,7 @@
  * click elsewhere cannot dismiss it. It minimises to its face; "Hide hints"
  * quiets the coaching for the session and leaves the face, which brings it
  * back. Beside a dialog too wide to leave the column a corner, it narrows
- * rather than folding away.
+ * rather than folding away, leaving its face out where the words need the room.
  */
 
 import { useCallback, useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 'react'
@@ -25,6 +25,8 @@ import { clippingAncestors, visibleFrame } from './coachGeometry'
 import { GuideMascot } from './GuideMascot'
 import {
   CORNER_ORDER,
+  GUIDE_WIDTH_PX,
+  NARROW_WIDTHS_PX,
   chooseCorner,
   cornerBox,
   coveredArea,
@@ -36,10 +38,11 @@ import {
   type WeightedBox,
 } from './guidePlacement'
 
-/** The guide's width from `sm` up; below it the guide spans the screen. */
-const GUIDE_WIDTH_PX = 336
-/** Narrower cards, for beside a dialog too wide to leave the column a corner. */
-const NARROW_WIDTHS_PX: readonly number[] = [GUIDE_WIDTH_PX, 288, 240]
+/**
+ * Narrower than this, a card leaves its face out: beside the mascot a 240px
+ * card had 134px for its words, and a 168px one would have had 62.
+ */
+const MASCOT_MIN_WIDTH_PX = 288
 /** Before the guide has been measured. */
 const ESTIMATED_HEIGHT_PX = 176
 /** The folded guide: its face, in a round button. */
@@ -429,6 +432,8 @@ export function DemoGuide({
   // What is on screen, which the next measurement reads back: the layout
   // lags a render behind a fold or an unfold.
   const mode: GuideMode = small ? 'face' : layout?.mode === 'narrow' ? 'narrow' : 'card'
+  // Beside an 896px dialog at 1280px: the words, without the face beside them.
+  const compact = mode === 'narrow' && box !== undefined && box.right - box.left < MASCOT_MIN_WIDTH_PX
   const progress = complete ? 'Chapter complete' : `Step ${position} of ${total}`
   return createPortal(
     <div
@@ -500,13 +505,19 @@ export function DemoGuide({
         </button>
       ) : (
         <div
-          className="relative flex items-start gap-3 rounded-xl border p-3 pr-9 text-left shadow-lg bg-bg-elevated"
+          className={cn(
+            'relative flex items-start gap-3 rounded-xl border p-3 pr-9 text-left shadow-lg bg-bg-elevated',
+            compact && 'p-2.5 pr-8',
+          )}
           style={{ borderColor: 'var(--accent)' }}
         >
-          <div className="pt-0.5">
-            <GuideMascot size={44} />
-          </div>
-          <div className="min-w-0 flex-1 space-y-1.5">
+          {!compact && (
+            <div className="pt-0.5">
+              <GuideMascot size={44} />
+            </div>
+          )}
+          {/* A long token (`${product_id}`) wraps rather than leaving a compact card. */}
+          <div className={cn('min-w-0 flex-1 space-y-1.5', compact && 'break-words')}>
             <p className="micro-label text-fg-tertiary">
               <span>{progress}</span>
               {chapter && <span className="normal-case tracking-normal"> · {chapter}</span>}
@@ -553,7 +564,10 @@ export function DemoGuide({
             aria-expanded
             aria-label="Minimise the demo guide"
             title="Minimise"
-            className="absolute right-1.5 top-1.5 flex size-7 items-center justify-center rounded-sm transition-colors hover:bg-[var(--surface-hover)] text-fg-secondary"
+            className={cn(
+              'absolute right-1.5 top-1.5 flex size-7 items-center justify-center rounded-sm transition-colors hover:bg-[var(--surface-hover)] text-fg-secondary',
+              compact && 'right-1 top-1',
+            )}
           >
             <Minus className="size-3.5" aria-hidden="true" />
           </button>

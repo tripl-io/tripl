@@ -44,6 +44,16 @@ export function usePublicDemo(): boolean {
   return isPublicDemoStatus(data)
 }
 
+/**
+ * `usePublicDemo`, but `undefined` until the instance has answered: for a page
+ * that would otherwise show, for a moment, a form a public demo refuses. A
+ * failed probe reads as no demo, as it does everywhere else.
+ */
+export function usePublicDemoAnswer(): boolean | undefined {
+  const { data, isPending } = useQuery(authStatusQueryOptions())
+  return isPending ? undefined : isPublicDemoStatus(data)
+}
+
 /** Whether this edition creates more than one organization (Community runs one). */
 export function isMultiOrgStatus(status: AuthStatusResponse | null | undefined): boolean {
   return status?.multi_org === true

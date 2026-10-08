@@ -10,7 +10,7 @@ const PROJECTS = [
 ]
 
 function renderPalette(
-  overrides: { isOwner?: boolean; isPlatformAdmin?: boolean; backHref?: string } = {},
+  overrides: { isOwner?: boolean; isPlatformAdmin?: boolean; publicDemo?: boolean; backHref?: string } = {},
 ) {
   const onLeave = vi.fn()
   const onSignOut = vi.fn()
@@ -30,6 +30,7 @@ function renderPalette(
         isOwner={overrides.isOwner ?? true}
         // The first account of a self-hosted instance also operates it.
         isPlatformAdmin={overrides.isPlatformAdmin ?? true}
+        publicDemo={overrides.publicDemo ?? false}
         projects={PROJECTS}
         onLeave={onLeave}
         onSignOut={onSignOut}
@@ -84,6 +85,21 @@ describe('Settings command palette destinations', () => {
     expect(within(palette).queryByText('Mail relay')).toBeNull()
     expect(within(palette).queryByText('AI & search')).toBeNull()
     expect(within(palette).queryByText('Storage')).toBeNull()
+  })
+
+  it('leaves out on a public demo the sections the demo refuses, exactly as the rail does', async () => {
+    renderPalette({ publicDemo: true })
+
+    const palette = await openPalette()
+
+    for (const group of visibleGroupsAll(true, true, true)) {
+      for (const item of group.items) {
+        expect(within(palette).getByText(item.label)).toBeInTheDocument()
+      }
+    }
+    for (const label of ['Email', 'AI', 'Search', 'Photos', 'Trackers', 'Limits']) {
+      expect(within(palette).queryByText(label), `public demo offered "${label}"`).toBeNull()
+    }
   })
 
   it('goes to the project it names rather than to the first one in the list', async () => {

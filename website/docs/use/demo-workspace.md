@@ -222,7 +222,9 @@ The demo offers two guides, and they do different jobs.
   guide's own buttons never closes the dialog, menu or suggestion list it is
   coaching. When a large dialog leaves no corner
   of the page free, a narrower card takes the edge of the screen beside the
-  dialog, so the step stays readable while you work in it; only when there is no
+  dialog, so the step stays readable while you work in it — on a 1280-pixel
+  screen even beside the widest, the property and rule replay dialogs, where
+  the card leaves its face out to keep room for the words. Only when there is no
   room even for that does it fold into a round button showing the step number —
   click it to read the step. You can minimise the card yourself at any time. On
   a phone it

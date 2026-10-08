@@ -84,6 +84,7 @@ export function SettingsLayout({
   projectName,
   projectSlug,
   projects = [],
+  publicDemo = false,
   children,
 }: {
   /** Current section path (e.g. 'project/general'). */
@@ -99,6 +100,9 @@ export function SettingsLayout({
   /** Workspace projects, offered as palette destinations. Already fetched by
    *  SettingsArea, so the palette never issues a query of its own. */
   projects?: readonly Project[]
+  /** A public demo: the rail and the palette leave out the sections it
+   *  refuses. SettingsArea asks the instance, as it fetches `projects`. */
+  publicDemo?: boolean
   children: ReactNode
 }) {
   const auth = useAuth()
@@ -370,6 +374,7 @@ export function SettingsLayout({
         backHref={backHref}
         isOwner={isOwner}
         isPlatformAdmin={isPlatformAdmin}
+        publicDemo={publicDemo}
         projects={projects}
         backLabel={backLabel}
         onLeave={leaveTo}
@@ -434,7 +439,7 @@ export function SettingsLayout({
           aria-labelledby={RAIL_TITLE_ID}
           className="flex-1 overflow-y-auto px-3 pb-6 pt-1 [mask-image:linear-gradient(to_bottom,black_calc(100%_-_24px),transparent)]"
         >
-          {visibleGroupsAll(isOwner, isPlatformAdmin).map((group) => {
+          {visibleGroupsAll(isOwner, isPlatformAdmin, publicDemo).map((group) => {
             // Sentence case, not an uppercase eyebrow: these are names ("Demo
             // project 2", "You · Ada"), and caps shouted them.
             const sub = subFor(group)

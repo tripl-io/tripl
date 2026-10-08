@@ -2,11 +2,13 @@ import { fireEvent, render, screen, waitFor, within } from '@testing-library/rea
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { RouterProvider, createMemoryRouter } from 'react-router-dom'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { authApi } from '@/api/auth'
 import { projectMembersApi } from '@/api/projectMembers'
 import { projectsApi } from '@/api/projects'
 import { usersApi } from '@/api/users'
 import { AuthContext, type AuthContextValue } from '@/components/auth-context'
 import type { Project } from '@/types'
+import { QUICK_START_URL } from '@/demo/EndOfDemoLink'
 import SettingsArea from './SettingsArea'
 import { at } from '@/test/at'
 
@@ -356,7 +358,8 @@ describe('SettingsArea owner-only sections (#237)', () => {
     renderArea('organization/email', '', member)
 
     expect(await screen.findByRole('heading', { level: 1, name: 'Email' })).toBeInTheDocument()
-    expect(screen.getByRole('note')).toHaveTextContent(/Owner role is required/)
+    // After the instance says it is no public demo, which refuses the page.
+    expect(await screen.findByRole('note')).toHaveTextContent(/Owner role is required/)
     expect(screen.getByRole('link', { name: 'Go to Profile' })).toHaveAttribute(
       'href',
       '/settings/profile',
@@ -374,7 +377,7 @@ describe('SettingsArea owner-only sections (#237)', () => {
     renderArea(section, '', member)
 
     expect(await screen.findByRole('heading', { level: 1, name: title })).toBeInTheDocument()
-    expect(screen.getByRole('note')).toHaveTextContent(/Owner role is required/)
+    expect(await screen.findByRole('note')).toHaveTextContent(/Owner role is required/)
   })
 
   it('opens Single sign-on as an Enterprise feature: what it does, and where it is', async () => {
@@ -445,5 +448,53 @@ describe('SettingsArea platform console (Enterprise teaser)', () => {
     expect(await screen.findByText(/Every organization on the instance in one list/)).toBeInTheDocument()
     expect(screen.getByRole('heading', { name: 'Organizations is part of Tripl Enterprise' })).toBeInTheDocument()
     expect(screen.getByRole('link', { name: /User accounts/ })).toHaveAttribute('href', '/settings/platform/users')
+  })
+})
+
+describe('SettingsArea on a public demo', () => {
+  beforeEach(() => {
+    vi.spyOn(authApi, 'status').mockResolvedValue({
+      has_users: true,
+      registration_enabled: false,
+      public_demo: true,
+    })
+    vi.spyOn(projectsApi, 'list').mockResolvedValue(projects)
+  })
+
+  it('leaves the sections the demo refuses out of the rail', async () => {
+    renderArea('api-keys')
+
+    const rail = await screen.findByRole('navigation', { name: 'Settings' })
+    await waitFor(() => expect(within(rail).queryByRole('link', { name: 'Email' })).toBeNull())
+    for (const label of ['AI', 'Search', 'Photos', 'Trackers', 'Limits']) {
+      expect(within(rail).queryByRole('link', { name: label }), `public demo listed "${label}"`).toBeNull()
+    }
+    expect(within(rail).getByRole('link', { name: 'Invitations' })).toBeInTheDocument()
+  })
+
+  it.each([
+    ['organization/email', 'Email'],
+    ['organization/limits', 'Limits'],
+  ])('says the demo does not offer %s when it is opened by its address', async (section, title) => {
+    renderArea(section)
+
+    expect(await screen.findByRole('heading', { level: 1, name: title })).toBeInTheDocument()
+    expect(await screen.findByText(/This public demo runs with these settings fixed/)).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: 'Run tripl yourself (opens in a new tab)' })).toHaveAttribute(
+      'href',
+      QUICK_START_URL,
+    )
+    // Not the form the server would turn away.
+    expect(screen.queryByRole('button', { name: /Save/ })).toBeNull()
+  })
+
+  it('says so before any role gate: a member is not sent to ask an owner', async () => {
+    const owner = ownerAuthValue()
+    const member: AuthContextValue = { ...owner, user: owner.user && { ...owner.user, role: 'member' } }
+
+    renderArea('organization/trackers', '', member)
+
+    expect(await screen.findByText(/This public demo runs with these settings fixed/)).toBeInTheDocument()
+    expect(screen.queryByText(/Owner role is required/)).toBeNull()
   })
 })

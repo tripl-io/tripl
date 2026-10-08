@@ -21,6 +21,7 @@ import { expect, generateDemo, test } from './fixtures'
  */
 
 const DESKTOP = { width: 1440, height: 900 }
+const LAPTOP = { width: 1280, height: 800 }
 const PHONE = { width: 375, height: 812 }
 
 type Theme = 'light' | 'dark'
@@ -218,6 +219,26 @@ for (const [name, viewport] of [
     await page.context().close()
   })
 }
+
+test('beside a wide dialog on a 1280px screen the demo guide keeps its words', async ({ browser }) => {
+  const page = await openDemo(browser, LAPTOP)
+  await startFirstChapter(page, await openTour(page))
+  // A property's editor: 896px wide, which leaves 192px of screen either side.
+  // The guide folded to its face there, the step's words gone.
+  await page.goto(`/p/${slug}/variables`)
+  await page.getByRole('button', { name: /^Edit property / }).first().click()
+  const dialog = page.getByRole('dialog', { name: /^Edit: / })
+  await expect(dialog).toBeVisible()
+  const guide = page.locator('[data-demo-guide][data-guide-mode="narrow"]')
+  await expect(guide).toContainText(RUN_SCAN_INSTRUCTION)
+  await expectInsideViewport(page, guide, 'the narrow demo guide')
+  await expectNoSidewaysOverflow(guide, 'the narrow demo guide')
+  expect(
+    overlaps(await boxOf(guide, 'the narrow demo guide'), await boxOf(dialog, 'the dialog')),
+    'the guide covers the dialog',
+  ).toBe(false)
+  await page.context().close()
+})
 
 for (const theme of ['light', 'dark'] as const) {
   test(`the demo bar, tour and demo guide look as they did (${theme})`, async ({ browser }) => {

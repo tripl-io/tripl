@@ -69,6 +69,7 @@ export function SettingsCommandPalette({
   backLabel = 'Back to project',
   isOwner,
   isPlatformAdmin = false,
+  publicDemo = false,
   projects,
   onLeave,
   onSwitchProject,
@@ -85,6 +86,8 @@ export function SettingsCommandPalette({
   isOwner: boolean
   /** The operator flag: the security, observability and system sections. */
   isPlatformAdmin?: boolean
+  /** A public demo: the sections it refuses are not offered. */
+  publicDemo?: boolean
   projects: readonly Pick<Project, 'name' | 'slug'>[]
   /** Guarded navigation. `settingsPath` is null for a destination outside /settings. */
   /** Navigate away. The destination is all a caller needs: the settings
@@ -187,8 +190,9 @@ export function SettingsCommandPalette({
 
   // The rail's own groups, in the rail's order and under its labels, so the
   // palette reads as the same map of the area. Owner-only and platform-only
-  // sections are filtered exactly as the rail filters them.
-  const sectionGroups: PaletteGroup[] = visibleGroupsAll(isOwner, isPlatformAdmin).map(group => ({
+  // sections, and those a public demo refuses, are filtered exactly as the
+  // rail filters them.
+  const sectionGroups: PaletteGroup[] = visibleGroupsAll(isOwner, isPlatformAdmin, publicDemo).map(group => ({
     heading: `${group.label} settings`,
     rows: group.items.map(item => ({
       value: `section:${item.path}`,

@@ -128,7 +128,7 @@ the app renders what it lists without knowing what it is:
 | Field | What the app does with it |
 |---|---|
 | `routes` | Mounts each as a top-level route outside the app shell, lazily loaded. |
-| `settingsSections` | Adds a rail item to a Settings group (after the item named by `after`) and opens its page at the item's path. `access` decides who may open it: `orgOwner` (owners only) or `owner` (owners and admins). |
+| `settingsSections` | Adds a rail item to a Settings group (after the item named by `after`) and opens its page at the item's path. `access` decides who may open it: `orgOwner` (owners only) or `owner` (owners and admins). Set the item's `refusedOnPublicDemo` on the page of a router marked `outbound`: a public demo leaves it out of the rail and the palettes, and its address says the demo does not offer it. |
 | `authPanels` | Offers a button under the password form on the sign-in page, which opens the panel. |
 | `shellGates` | Called with the app shell's request errors; a gate returns a screen to show instead of the shell, or `null`. |
 
