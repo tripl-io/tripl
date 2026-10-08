@@ -240,6 +240,10 @@ export interface DateTimePickerProps {
   /** Names the control; the button's name adds the picked moment, the time field extends it. */
   label: string
   "aria-describedby"?: string
+  "aria-invalid"?: boolean
+  "aria-required"?: boolean
+  /** Offers a Clear button, which sends '' (an optional field). */
+  clearable?: boolean
   disabled?: boolean
   className?: string
 }
@@ -250,6 +254,9 @@ export function DateTimePicker({
   id,
   label,
   "aria-describedby": describedBy,
+  "aria-invalid": invalid,
+  "aria-required": required,
+  clearable,
   disabled,
   className,
 }: DateTimePickerProps) {
@@ -302,6 +309,10 @@ export function DateTimePicker({
           variant="outline"
           disabled={disabled}
           aria-describedby={describedBy}
+          aria-invalid={invalid || undefined}
+          aria-required={required || undefined}
+          // The wire value, for tests and tools that read the control.
+          data-value={date ? `${date}T${shownTime}` : ""}
           // An explicit name, not an sr-only prefix: name computation trims
           // each inline child and joins them without a space.
           aria-label={`${label}: ${shown || "none picked"}`}
@@ -347,6 +358,18 @@ export function DateTimePicker({
           <Button type="button" variant="ghost" onClick={pickNow}>
             Now
           </Button>
+          {clearable && date && (
+            <Button
+              type="button"
+              variant="ghost"
+              onClick={() => {
+                onChange("")
+                setOpen(false)
+              }}
+            >
+              Clear
+            </Button>
+          )}
           <Button type="button" className="ml-auto" onClick={() => setOpen(false)}>
             Done
           </Button>
@@ -369,6 +392,9 @@ export interface DatePickerProps {
   min?: string
   max?: string
   "aria-describedby"?: string
+  "aria-invalid"?: boolean
+  /** Offers a Clear button, which sends '' (a filter that can be lifted). */
+  clearable?: boolean
   disabled?: boolean
   className?: string
 }
@@ -386,6 +412,8 @@ export function DatePicker({
   min,
   max,
   "aria-describedby": describedBy,
+  "aria-invalid": invalid,
+  clearable,
   disabled,
   className,
 }: DatePickerProps) {
@@ -415,6 +443,8 @@ export function DatePicker({
           variant="outline"
           disabled={disabled}
           aria-describedby={describedBy}
+          aria-invalid={invalid || undefined}
+          data-value={date}
           aria-label={`${label}: ${date ? formatDate(date) : "none picked"}`}
           className={cn("h-8 justify-start gap-1.5 px-2.5 text-body font-normal", className)}
         >
@@ -440,6 +470,20 @@ export function DatePicker({
           min={min}
           max={max}
         />
+        {clearable && date && (
+          <div className="mt-3 flex justify-end border-t border-border pt-3">
+            <Button
+              type="button"
+              variant="ghost"
+              onClick={() => {
+                onChange("")
+                setOpen(false)
+              }}
+            >
+              Clear
+            </Button>
+          </div>
+        )}
       </PopoverContent>
     </Popover>
   )

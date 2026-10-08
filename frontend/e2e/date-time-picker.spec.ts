@@ -1,4 +1,6 @@
-import { deleteDemo, expect, generateDemo, test } from './fixtures'
+import { randomUUID } from 'node:crypto'
+
+import { deleteDemo, expect, generateDemo, signInAsOwner, test } from './fixtures'
 
 interface PlannedEventRow {
   id: string
@@ -76,4 +78,43 @@ test('a planned event takes its window from the date and time pickers', async ({
 
   await page.goto(`${projectBase}/overview`)
   await deleteDemo(page)
+})
+
+/**
+ * The audit log filters by day with the same calendar (it was a native
+ * mm/dd/yyyy field): From narrows the list and bounds To, Clear lifts it. The
+ * log is the owner's, so this runs as the owner on a project of its own.
+ */
+test('the audit log filters by day with the in-app calendar', async ({ page }) => {
+  await signInAsOwner(page)
+  const slug = `e2e-audit-${randomUUID().slice(0, 8)}`
+  const created = await page.request.post('/api/v1/projects', { data: { name: 'E2E audit', slug } })
+  expect(created.status(), await created.text()).toBe(201)
+
+  await page.goto(`/p/${slug}/audit`)
+  // A route's first visit compiles it on the dev server: give it time.
+  const from = page.getByRole('button', { name: /^From: / })
+  await expect(from).toBeVisible({ timeout: 60_000 })
+  await expect(page.locator('input[type="date"]')).toHaveCount(0)
+
+  // From = today: the project was created just now, so its entry stays listed.
+  await from.click()
+  const calendar = page.getByRole('dialog', { name: 'From: choose a date' })
+  await calendar.locator('button[aria-current="date"]').click()
+  await expect(calendar).toBeHidden()
+  expect(await from.getAttribute('data-value')).toMatch(/^\d{4}-\d{2}-\d{2}$/)
+  // Visible only: the Action filter's hidden <option> has the same text.
+  await expect(page.getByText('Created project').filter({ visible: true })).toBeVisible()
+
+  // To offers From's day, and nothing before it.
+  await page.getByRole('button', { name: /^To: / }).click()
+  const toCalendar = page.getByRole('dialog', { name: 'To: choose a date' })
+  await expect(toCalendar.locator('button[aria-current="date"]')).toBeEnabled()
+  await page.keyboard.press('Escape')
+
+  await from.click()
+  await calendar.getByRole('button', { name: 'Clear' }).click()
+  await expect(from).toHaveAttribute('data-value', '')
+
+  await page.request.delete(`/api/v1/projects/${slug}`)
 })

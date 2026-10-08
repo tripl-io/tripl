@@ -144,6 +144,20 @@ describe('DateTimePicker', () => {
     expect(onChange).toHaveBeenLastCalledWith(expect.stringMatching(/^\d{4}-\d{2}-01T09:00$/))
   })
 
+  it('offers Clear only when asked to, and sends an empty value', async () => {
+    const onChange = vi.fn()
+    const { rerender } = render(
+      <DateTimePicker label="Sunset" value="2026-01-14T09:30" onChange={onChange} />,
+    )
+    fireEvent.click(screen.getByRole('button', { name: /^Sunset: / }))
+    await screen.findByRole('grid')
+    expect(screen.queryByRole('button', { name: 'Clear' })).toBeNull()
+
+    rerender(<DateTimePicker label="Sunset" value="2026-01-14T09:30" onChange={onChange} clearable />)
+    fireEvent.click(screen.getByRole('button', { name: 'Clear' }))
+    expect(onChange).toHaveBeenLastCalledWith('')
+  })
+
   it('has no axe violations, open or closed', async () => {
     renderPicker()
     await expectNoAxeViolations(document.body)
@@ -185,6 +199,15 @@ describe('DatePicker (date only)', () => {
     expect(onChange).toHaveBeenLastCalledWith('2026-01-20')
     await waitFor(() => expect(screen.queryByRole('grid')).toBeNull())
     expect(screen.getByRole('button', { name: 'From: Jan 20, 2026' })).toBeInTheDocument()
+  })
+
+  it('lifts the filter with Clear when clearable', async () => {
+    const onChange = vi.fn()
+    render(<DatePicker label="From" value="2026-01-14" onChange={onChange} clearable />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'From: Jan 14, 2026' }))
+    fireEvent.click(await screen.findByRole('button', { name: 'Clear' }))
+    expect(onChange).toHaveBeenLastCalledWith('')
   })
 
   it('disables days outside min and max, and keeps the keyboard inside them', async () => {

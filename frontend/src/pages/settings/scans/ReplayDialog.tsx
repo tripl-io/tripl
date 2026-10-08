@@ -4,7 +4,7 @@ import { RotateCcw } from 'lucide-react'
 import { scansApi } from '@/api/scans'
 import type { IntervalCode, ScanConfig } from '@/types'
 import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
+import { DateTimePicker } from '@/components/ui/date-time-picker'
 import { Label } from '@/components/ui/label'
 import {
   Dialog,
@@ -167,12 +167,12 @@ export function ReplayDialog({
             <div className="grid gap-3 sm:grid-cols-2">
               <div className="grid gap-2">
                 <Label htmlFor="replay-from">From</Label>
-                <Input id="replay-from" type="datetime-local" value={from} onChange={e => setFrom(e.target.value)} aria-required {...invalidAria('replay-from', fromError)} />
+                <DateTimePicker id="replay-from" label="From" value={from} onChange={setFrom} aria-required {...invalidAria('replay-from', fromError)} className="w-full" />
                 <FieldError inputId="replay-from" message={fromError} />
               </div>
               <div className="grid gap-2">
                 <Label htmlFor="replay-to">To</Label>
-                <Input id="replay-to" type="datetime-local" value={to} onChange={e => setTo(e.target.value)} aria-required {...invalidAria('replay-to', toError)} />
+                <DateTimePicker id="replay-to" label="To" value={to} onChange={setTo} aria-required {...invalidAria('replay-to', toError)} className="w-full" />
                 <FieldError inputId="replay-to" message={toError} />
               </div>
             </div>

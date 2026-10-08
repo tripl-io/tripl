@@ -13,7 +13,7 @@ import { PageHeader } from '@/components/primitives/page-header'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import { FilterBar, FilterBarItem, FilterSearch } from '@/components/ui/filter-bar'
-import { Input } from '@/components/ui/input'
+import { DatePicker } from '@/components/ui/date-time-picker'
 import { Label } from '@/components/ui/label'
 import { Skeleton } from '@/components/ui/skeleton'
 import { useDebouncedValue } from '@/hooks/useDebouncedValue'
@@ -403,24 +403,24 @@ export function AuditLog({ source }: { source: AuditSource }) {
               ))}
             </select>
           </FilterBarItem>
-          {/* No format hint: these are native <input type="date"> controls,
-              which render and parse in the browser's own locale (mm/dd/yyyy
-              on a US profile). A hard-coded "(YYYY-MM-DD)" contradicted what
-              the control actually showed. */}
+          {/* The app's own calendar, not <input type="date">: the native
+              control rendered in the browser's locale (mm/dd/yyyy) and theme,
+              unlike every other date in the app. */}
           <FilterBarItem active={!!sinceDate}>
             <div className="flex items-center gap-1.5">
               <Label htmlFor="audit-since" className="text-caption font-normal text-fg-muted">
                 From
               </Label>
-              <Input
+              <DatePicker
                 id="audit-since"
-                type="date"
+                label="From"
                 value={sinceDate}
                 max={untilDate || undefined}
-                aria-invalid={rangeInvalid || undefined}
+                clearable
+                aria-invalid={rangeInvalid}
                 aria-describedby={rangeInvalid ? 'audit-range-error' : undefined}
-                onChange={(e) => applySince(e.target.value)}
-                className="h-7 w-auto text-caption"
+                onChange={applySince}
+                className="h-7 text-caption"
               />
             </div>
           </FilterBarItem>
@@ -429,15 +429,16 @@ export function AuditLog({ source }: { source: AuditSource }) {
               <Label htmlFor="audit-until" className="text-caption font-normal text-fg-muted">
                 To
               </Label>
-              <Input
+              <DatePicker
                 id="audit-until"
-                type="date"
+                label="To"
                 value={untilDate}
                 min={sinceDate || undefined}
-                aria-invalid={rangeInvalid || undefined}
+                clearable
+                aria-invalid={rangeInvalid}
                 aria-describedby={rangeInvalid ? 'audit-range-error' : undefined}
-                onChange={(e) => applyUntil(e.target.value)}
-                className="h-7 w-auto text-caption"
+                onChange={applyUntil}
+                className="h-7 text-caption"
               />
             </div>
           </FilterBarItem>

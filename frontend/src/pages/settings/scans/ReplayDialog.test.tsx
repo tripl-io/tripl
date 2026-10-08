@@ -27,14 +27,15 @@ function renderDialog(interval: IntervalCode | null) {
 }
 
 /**
- * The instant a `datetime-local` input holds. The component formats in local
- * time and `new Date('YYYY-MM-DDTHH:mm')` parses in local time, so this round
- * trip is exact and the assertions below hold in any timezone the suite runs in.
+ * The instant a date-time picker holds (its `YYYY-MM-DDTHH:mm` wire value). The
+ * component formats in local time and `new Date('YYYY-MM-DDTHH:mm')` parses in
+ * local time, so this round trip is exact and the assertions below hold in any
+ * timezone the suite runs in.
  */
 function instantOf(label: string): number {
-  const input = screen.getByLabelText(label) as HTMLInputElement
-  expect(input.value).not.toBe('')
-  return new Date(input.value).getTime()
+  const value = screen.getByLabelText(label).dataset.value ?? ''
+  expect(value).not.toBe('')
+  return new Date(value).getTime()
 }
 
 describe('ReplayDialog — the seeded period must be one the backend accepts', () => {

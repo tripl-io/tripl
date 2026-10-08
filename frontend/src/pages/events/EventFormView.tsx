@@ -44,6 +44,7 @@ import { visibleDuplicates } from '@/components/duplicates/duplicateHints'
 import { useDuplicateCheck } from '@/components/duplicates/useDuplicateCheck'
 import { validateJsonWithVars } from './jsonTemplate'
 import { applyEventNameFormat, nameFormatBaseColumns } from './utils'
+import { DateTimePicker } from '@/components/ui/date-time-picker'
 import { EvField, EvInput, EvTextarea, SelectControl, SurfCard } from './eventFormLayout'
 import { CheckCircle2, ChevronLeft, Copy, Loader2, Plus, Save, Sparkles } from 'lucide-react'
 import { branchTicket } from '@/lib/branchTicket'
@@ -1216,12 +1217,12 @@ export function EventForm({
                 hint="When this event stops being supported, in your local time."
                 last={isNew}
               >
-                <EvInput
+                <DateTimePicker
                   id="form-sunset"
-                  type="datetime-local"
-                  width="half"
+                  label="Sunset date"
                   value={sunsetAt}
-                  onChange={e => setSunsetAt(e.target.value)}
+                  onChange={setSunsetAt}
+                  clearable
                 />
               </EvField>
             )}
