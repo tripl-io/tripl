@@ -619,7 +619,7 @@ so it stops only writes spelled with one of those words — not a write reached
 through a function call (`setval`, `lo_create`), a lock clause (`FOR SHARE`) or
 session mutation (`set_config`). The barrier is the warehouse credential's own
 privileges (and, on PostgreSQL, `default_transaction_read_only=on` pinned on the
-connection).
+connection; Greenplum gets the same pin, Redshift has no such setting, so there the privileges alone).
 
 It also places **no limit on which tables are read**. There is no table
 allowlist: a statement that passes is read-only and single, not narrow. Combined

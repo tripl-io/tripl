@@ -3266,8 +3266,9 @@ documents indexed and whether embeddings were queued.
 
 **Where:** Workspace settings › Data sources (owner only). Supported types and
 default ports: **ClickHouse** (8123), **PostgreSQL** (5432, **version 14+
-required**), **BigQuery** (project/dataset based), **Snowflake** (443; account identifier, database and virtual warehouse), and **Databricks** (443;
-workspace hostname, catalog and SQL warehouse HTTP path). Create, edit, and delete
+required**), **BigQuery** (project/dataset based), **Snowflake** (443; account identifier, database and virtual warehouse), **Databricks** (443;
+workspace hostname, catalog and SQL warehouse HTTP path), **Amazon Redshift** (5439; no JSON columns) and
+**Greenplum** (5432; Greenplum 6 or 7). Create, edit, and delete
 sources; **Test connection** (the new-source dialog can test the connection
 before you create it, and nothing is stored by that test; a new source is tested
 again as soon as it is created, and an edited one when its host, credentials or
@@ -3296,7 +3297,7 @@ connection settings, shown only for the warehouse they apply to:
 | Warehouse | Settings |
 | --- | --- |
 | ClickHouse | JSON path discovery mode (`dynamic` / `all`) |
-| PostgreSQL | SSL mode, CA certificate, client certificate, client private key (PEM content; the key is stored encrypted and never returned), search path |
+| PostgreSQL, Redshift, Greenplum | SSL mode, CA certificate, client certificate, client private key (PEM content; the key is stored encrypted and never returned), search path |
 | BigQuery | Location, max billed bytes (cost guard, default 100 GiB), dataset allowlist (schema-browse scope) |
 | Databricks | HTTP path (required), authentication (access token or OAuth machine-to-machine), default schema, schema allowlist (schema-browse scope) |
 | Snowflake | Warehouse (required), authentication (password or key pair), role, default schema, schema allowlist (schema-browse scope) |

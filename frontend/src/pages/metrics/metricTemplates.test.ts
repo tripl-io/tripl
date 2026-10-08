@@ -44,6 +44,14 @@ describe('starterSql', () => {
     expect(starterSql('event-volume', 'snowflake')).toContain("DATE_TRUNC('HOUR', created_at)")
   })
 
+  it('buckets Greenplum and Redshift with date_trunc, which they have, not date_bin', () => {
+    for (const db of ['greenplum', 'redshift'] as DbType[]) {
+      expect(starterSql('daily-active-users', db)).toContain("date_trunc('day', created_at)")
+      expect(starterSql('event-volume', db)).toContain("date_trunc('hour', created_at)")
+      expect(starterSql('daily-active-users', db)).not.toMatch(/date_bin/)
+    }
+  })
+
   it('never emits date_trunc() for BigQuery', () => {
     for (const id of SQL_TEMPLATE_IDS) {
       expect(starterSql(id, 'bigquery')).not.toMatch(/date_trunc/i)

@@ -101,8 +101,25 @@ def unavailable(reason: str) -> NoReturn:
 # --- PostgreSQL --------------------------------------------------------------
 
 
+#: Which engine of the PostgreSQL family the ``TRIPL_CONF_PG_*`` server is. The
+#: same gates run against Greenplum (``greenplum``) through its adapter; the CI job
+#: that sets this starts a Greenplum container instead of ``postgres:18``.
+PG_ENGINE = os.environ.get("TRIPL_CONF_PG_ENGINE", "postgres")
+
+
+def pg_adapter_class() -> type[PostgresAdapter]:
+    """The adapter class for ``PG_ENGINE``."""
+    if PG_ENGINE == "greenplum":
+        from tripl.core.adapters.greenplum import GreenplumAdapter
+
+        return GreenplumAdapter
+    if PG_ENGINE != "postgres":
+        raise ValueError(f"unknown TRIPL_CONF_PG_ENGINE: {PG_ENGINE!r}")
+    return PostgresAdapter
+
+
 def _pg_adapter(**overrides: object) -> PostgresAdapter:
-    return PostgresAdapter(
+    return pg_adapter_class()(
         host=_PG_HOST,
         port=_PG_PORT,
         database=_PG_DB,

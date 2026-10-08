@@ -1,0 +1,114 @@
+name: Redshift release conformance
+
+# The value contract against a real Amazon Redshift endpoint, on stable release tags
+# only, like the BigQuery and Databricks ones: a pull request from a fork gets no
+# secrets, and a Serverless workgroup bills for the seconds it runs. Off until the repository
+# variable REDSHIFT_VALUE_CONFORMANCE_ENABLED is "true"; once on, a missing
+# credential fails the run instead of skipping it.
+#
+# A Redshift Serverless workgroup (or a provisioned cluster) with a public
+# endpoint: REDSHIFT_HOST is the endpoint, REDSHIFT_USER / REDSHIFT_PASSWORD a
+# database user that can sign in and nothing else — the fixture is a table-less
+# UNION ALL, so no table is read or created. REDSHIFT_PORT and REDSHIFT_DATABASE
+# are optional (5439, dev).
+
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: redshift-value-conformance
+  cancel-in-progress: false
+
+jobs:
+  credentials:
+    name: Validate credential configuration
+    runs-on: ubuntu-latest
+    outputs:
+      enabled: ${{ steps.probe.outputs.enabled }}
+    env:
+      REDSHIFT_VALUE_CONFORMANCE_ENABLED: ${{ vars.REDSHIFT_VALUE_CONFORMANCE_ENABLED }}
+      REDSHIFT_PASSWORD: ${{ secrets.REDSHIFT_PASSWORD }}
+      REDSHIFT_HOST: ${{ vars.REDSHIFT_HOST }}
+      REDSHIFT_USER: ${{ vars.REDSHIFT_USER }}
+    steps:
+      - id: probe
+        name: Detect configured Redshift endpoint
+        shell: bash
+        run: |
+          if [ "$GITHUB_EVENT_NAME" = "push" ] && [[ ! "$GITHUB_REF_NAME" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "enabled=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::Redshift conformance runs only for stable vX.Y.Z tags; skipping $GITHUB_REF_NAME."
+          elif [ "$REDSHIFT_VALUE_CONFORMANCE_ENABLED" != "true" ]; then
+            echo "enabled=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::Redshift value conformance is intentionally disabled."
+          elif [ -n "$REDSHIFT_PASSWORD" ] && [ -n "$REDSHIFT_HOST" ] && [ -n "$REDSHIFT_USER" ]; then
+            echo "enabled=true" >> "$GITHUB_OUTPUT"
+            echo "Redshift value conformance is enabled."
+          else
+            echo "::error::REDSHIFT_VALUE_CONFORMANCE_ENABLED=true requires the REDSHIFT_PASSWORD secret and the REDSHIFT_HOST and REDSHIFT_USER variables."
+            exit 1
+          fi
+
+  values:
+    name: Real Redshift values
+    needs: credentials
+    if: needs.credentials.outputs.enabled == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0
+        with:
+          enable-cache: true
+
+      - name: Install dependencies
+        run: uv sync --extra dev
+
+      - name: Execute real Redshift value contract
+        env:
+          # Step-scoped: the password never reaches checkout, dependency setup,
+          # caches, artifacts, or a file on disk.
+          TRIPL_CONF_RS_PASSWORD: ${{ secrets.REDSHIFT_PASSWORD }}
+          TRIPL_CONF_RS_HOST: ${{ vars.REDSHIFT_HOST }}
+          TRIPL_CONF_RS_PORT: ${{ vars.REDSHIFT_PORT || '5439' }}
+          TRIPL_CONF_RS_USER: ${{ vars.REDSHIFT_USER }}
+          TRIPL_CONF_RS_DATABASE: ${{ vars.REDSHIFT_DATABASE }}
+          TRIPL_RS_VALUE_REQUIRED: "1"
+        run: |
+          uv run pytest -q -m redshift_value \
+            --junitxml=redshift-value-conformance.xml \
+            src/tripl/tests/conformance/test_redshift_value_conformance.py
+
+      - name: Prove the credentialed gate ran without skips
+        if: always()
+        run: |
+          python3 - <<'PY'
+          import sys, xml.etree.ElementTree as ET
+          try:
+              root = ET.parse("redshift-value-conformance.xml").getroot()
+          except (OSError, ET.ParseError) as exc:
+              sys.exit(f"::error::no Redshift JUnit report: {exc}. The gate did not run.")
+          tests = errors = failures = skipped = 0
+          for suite in root.iter("testsuite"):
+              tests += int(suite.get("tests", 0))
+              errors += int(suite.get("errors", 0))
+              failures += int(suite.get("failures", 0))
+              skipped += int(suite.get("skipped", 0))
+          print(f"Redshift conformance: {tests} collected, {failures} failed, {errors} errored, {skipped} skipped")
+          if tests == 0:
+              sys.exit("::error::0 Redshift conformance tests ran.")
+          if skipped:
+              sys.exit(f"::error::{skipped} Redshift conformance test(s) skipped.")
+          if failures or errors:
+              sys.exit(f"::error::{failures} failed / {errors} errored Redshift conformance test(s).")
+          PY

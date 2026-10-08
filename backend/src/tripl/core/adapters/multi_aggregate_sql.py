@@ -42,10 +42,17 @@ def compile_time_bucketed_multi_aggregate_sql(
         clickhouse._column_types = dict(column_types)
         clickhouse._allowed_columns = set(column_types)
         adapter = clickhouse
-    elif db_type == "postgres":
+    elif db_type in ("postgres", "greenplum", "redshift"):
+        from tripl.core.adapters.greenplum import GreenplumAdapter
         from tripl.core.adapters.postgres import PostgresAdapter
+        from tripl.core.adapters.redshift import RedshiftAdapter
 
-        postgres = object.__new__(PostgresAdapter)
+        libpq_class: type[PostgresAdapter] = {
+            "postgres": PostgresAdapter,
+            "greenplum": GreenplumAdapter,
+            "redshift": RedshiftAdapter,
+        }[db_type]
+        postgres = object.__new__(libpq_class)
         postgres._allowed_columns = set(column_types)
         adapter = postgres
     elif db_type == "bigquery":

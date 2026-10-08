@@ -96,6 +96,10 @@ describe('pemError', () => {
     expect(
       connectionSettingsErrors('postgres', { ...bad, clearSslkey: true }),
     ).not.toHaveProperty('sslkey')
+    // Greenplum and Redshift take the PostgreSQL settings, so they are checked too.
+    for (const dbType of ['greenplum', 'redshift'] as const) {
+      expect(Object.keys(connectionSettingsErrors(dbType, bad)).sort()).toEqual(['sslkey', 'sslrootcert'])
+    }
   })
 })
 

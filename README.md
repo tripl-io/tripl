@@ -35,7 +35,7 @@ that actually land in your warehouse. When the two diverge, it tells you.
   Linear.
 
 **No SDK.** tripl reads from the warehouse you already have — **ClickHouse**,
-**BigQuery**, **Databricks**, **Snowflake**, or **PostgreSQL** — and never writes to it.
+**BigQuery**, **Databricks**, **Snowflake**, **Amazon Redshift**, **Greenplum**, or **PostgreSQL** — and never writes to it.
 
 Built for product managers, analysts, and data engineers who own a tracking
 plan.

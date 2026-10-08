@@ -117,6 +117,9 @@ const HIGHLIGHT_DIALECT: Record<DbType, SQLDialect> = {
   bigquery: BigQueryDialect,
   databricks: DatabricksDialect,
   snowflake: SnowflakeDialect,
+  // PostgreSQL forks: highlighted and completed as PostgreSQL.
+  greenplum: PostgreSQL,
+  redshift: PostgreSQL,
   // The local demo synthetic source mimics ClickHouse semantics, so reuse its
   // dialect for highlighting/autocomplete of the (rarely-edited) demo SQL.
   synthetic: ClickHouseDialect,
@@ -133,6 +136,8 @@ const FORMAT_LANGUAGE: Record<DbType, SqlLanguage> = {
   bigquery: 'bigquery',
   databricks: 'spark',
   snowflake: 'snowflake',
+  greenplum: 'postgresql',
+  redshift: 'redshift',
   synthetic: 'clickhouse',
 }
 

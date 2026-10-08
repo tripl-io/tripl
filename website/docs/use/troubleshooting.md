@@ -570,6 +570,11 @@ re-check settings that are all correct, so they follow the prefix unchanged:
 - *"Connection test failed: PostgreSQL 13.23 is too old for tripl: every
   time-bucket query uses date_bin(), which was added in PostgreSQL 14. Upgrade
   the server to 14 or newer."*
+- *"Connection test failed: This Greenplum server (PostgreSQL 8.3) is too old
+  for tripl: Greenplum 6, the oldest release tripl supports, is built on
+  PostgreSQL 9.4. Upgrade the server to Greenplum 6 or newer."*
+- *"Redshift data sources do not support JSON columns …"* — a scan or metric
+  named a property of a column on a Redshift source. Use plain columns there.
 
 Everything else collapses to one of the four categories above, because the raw
 driver text carries host, port and credential detail.

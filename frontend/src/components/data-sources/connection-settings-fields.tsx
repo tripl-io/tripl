@@ -17,6 +17,7 @@ import {
   SNOWFLAKE_AUTH_OPTIONS,
   SSL_MODE_OPTIONS,
   TEXTAREA_CLASS,
+  usesPostgresSettings,
   type ConnectionSettingsForm,
   type PemErrors,
   type PemField,
@@ -269,7 +270,7 @@ export function ConnectionSettingsFields({
     )
   }
 
-  if (dbType === 'postgres') {
+  if (usesPostgresSettings(dbType)) {
     return (
       <>
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">

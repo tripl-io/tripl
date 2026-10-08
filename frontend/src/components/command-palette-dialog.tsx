@@ -301,7 +301,7 @@ const SETTINGS_KEYWORDS: Record<string, string[]> = {
   general: ['timezone', 'slug', 'rename', 'project name'],
   'plan-rules': ['naming', 'rules'],
   members: ['users', 'roles', 'invite', 'team'],
-  sources: ['database', 'connection', 'warehouse', 'clickhouse', 'postgres'],
+  sources: ['database', 'connection', 'warehouse', 'clickhouse', 'postgres', 'greenplum', 'redshift'],
   apikeys: ['api key', 'token', 'tracker'],
   profile: ['name', 'email', 'avatar'],
   security: ['password', 'sessions', 'sign in'],

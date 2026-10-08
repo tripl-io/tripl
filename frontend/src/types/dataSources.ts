@@ -7,6 +7,8 @@ export type DbType =
   | 'bigquery'
   | 'databricks'
   | 'snowflake'
+  | 'greenplum'
+  | 'redshift'
   | 'synthetic'
 
 export const DB_TYPE_OPTIONS: { value: DbType; label: string; defaultPort: number }[] = [
@@ -17,6 +19,9 @@ export const DB_TYPE_OPTIONS: { value: DbType; label: string; defaultPort: numbe
   { value: 'databricks', label: 'Databricks', defaultPort: 443 },
   // Always HTTPS on 443, like Databricks.
   { value: 'snowflake', label: 'Snowflake', defaultPort: 443 },
+  // Greenplum and Redshift speak the PostgreSQL protocol and take its settings.
+  { value: 'greenplum', label: 'Greenplum', defaultPort: 5432 },
+  { value: 'redshift', label: 'Amazon Redshift', defaultPort: 5439 },
 ]
 
 export type DataSourceTestStatus = 'success' | 'failed'

@@ -158,7 +158,7 @@ needs.
 
 1. Open **Data sources** from the workspace settings area.
 2. Add a connection for your warehouse — **ClickHouse**, **BigQuery**,
-   **Databricks**, **Snowflake**, or **PostgreSQL** — and fill in the connection details:
+   **Databricks**, **Snowflake**, **Amazon Redshift**, **Greenplum**, or **PostgreSQL** — and fill in the connection details:
    - **ClickHouse**: host, port (8123), database, username, password. Optionally
      pick a **JSON path discovery** mode for `JSON`-typed columns.
    - **PostgreSQL**: host, port (5432), database, username, password. **Version 14
@@ -179,6 +179,13 @@ needs.
      queries run on, and a password — or, with **Key pair**, the user's PEM
      private key. Optionally set a **role**, a **default schema** and a **schema
      allowlist**; see [Connect your warehouse](../how-to/connect-your-warehouse.md#snowflake).
+   - **Amazon Redshift**: the Serverless workgroup's or cluster's endpoint, port
+     (5439), database, username, password, and the same optional settings as
+     PostgreSQL. Redshift sources have **no JSON columns**: a `SUPER` column is
+     read as an opaque value. See [Connect your warehouse](../how-to/connect-your-warehouse.md#amazon-redshift).
+   - **Greenplum**: the coordinator's host, port (5432), database, username,
+     password, and the same optional settings as PostgreSQL. Greenplum 6 or 7,
+     including the Cloudberry, Greengage and WarehousePG forks.
 3. Every warehouse — BigQuery, Databricks and Snowflake included — accepts a **query timeout in seconds**
    (300 by default).
 4. Save, then click **Test** on the connection card.

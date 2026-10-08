@@ -389,7 +389,7 @@ def test_quote_sql_literal_keeps_injection_inside_the_string(dialect: SqlDialect
     # The payload survives as DATA, its quote escaped rather than closing the literal:
     # exactly one escaped quote, and no bare one left over.
     body = rendered[1:-1]
-    escaped = "''" if dialect is SqlDialect.postgres else "\\'"
+    escaped = "''" if dialect in (SqlDialect.postgres, SqlDialect.greenplum) else "\\'"
     assert body.count(escaped) == 1
     assert body.replace(escaped, "").count("'") == 0
 

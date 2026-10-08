@@ -18,7 +18,7 @@ executed, and what is intentionally unavailable.
 - **The warehouse.** The demo's data source is a first-class *synthetic* source: a
   bounded, deterministic, in-memory dataset (an `events` table and an `orders`
   table). It has **no network or filesystem access** and is never a real
-  ClickHouse / PostgreSQL / BigQuery / Databricks / Snowflake connection. It is clearly badged as local
+  ClickHouse / PostgreSQL / BigQuery / Databricks / Snowflake / Redshift / Greenplum connection. It is clearly badged as local
   synthetic data throughout the UI and can never be selected by a real project or
   edited into real credentials. Its display name and timeout can be edited without
   changing the locked connection settings.

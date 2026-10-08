@@ -19,7 +19,7 @@ This guide takes you from nothing to a working tripl setup:
    [wire up your first alert](#step-8--set-up-your-first-alert).
 
 Steps 1–3 need nothing but Docker and take about fifteen minutes. Steps 4–8 need
-read access to a warehouse (**ClickHouse**, **BigQuery**, **Databricks**, **Snowflake**, or **PostgreSQL**)
+read access to a warehouse (**ClickHouse**, **BigQuery**, **Databricks**, **Snowflake**, **Amazon Redshift**, **Greenplum**, or **PostgreSQL**)
 where analytics events already land; budget half an hour the first time.
 
 If a term is unfamiliar along the way, [Concepts](./use/concepts.md) defines

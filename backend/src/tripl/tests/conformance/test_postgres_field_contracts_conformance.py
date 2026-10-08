@@ -50,6 +50,8 @@ from tripl.tests.conformance.conftest import (  # noqa: E402
     _PG_PASSWORD,
     _PG_PORT,
     _PG_USER,
+    PG_ENGINE,
+    pg_adapter_class,
     seeding_cursor,
     unavailable,
 )
@@ -159,7 +161,7 @@ CONTRACTS: tuple[FieldContractExpectation, ...] = (
 
 
 def _adapter(**overrides: object) -> PostgresAdapter:
-    return PostgresAdapter(
+    return pg_adapter_class()(
         host=_PG_HOST,
         port=_PG_PORT,
         database=_PG_DB,
@@ -379,7 +381,12 @@ def test_a_violation_past_the_sampling_limit_is_invisible_to_the_fallback(
     50,001 rows; exactly one is bad, and it is the last one. BaseAdapter pulls
     ``limit`` (50,000) rows and counts them in Python, so it never sees row 50,001:
     it reports NO drift on a table that has drift. This is the "before".
+
+    PostgreSQL only: "the last row" assumes an unordered scan returns rows in
+    insertion order, which a single heap does and Greenplum's segments do not.
     """
+    if PG_ENGINE != "postgres":
+        pytest.skip("an MPP scan has no insertion order for the sample to cut at")
     contracts_pg.get_columns(BULK_BASE)
     contract = [
         FieldContractExpectation(
@@ -476,6 +483,11 @@ def test_a_lookbehind_pattern_is_compiled_rather_than_declined(
     # '^u[0-9]+$' contract catches, reached through a construct RE2 has no answer
     # for. Agreement with the fallback therefore says more than "it compiled".
     pattern = "(?<=u)[0-9]+"
+    if contracts_pg._conn.info.server_version < 90600:  # noqa: SLF001
+        # Lookbehind arrived in PostgreSQL 9.6, so Greenplum 6 (9.4) declines it —
+        # and declining is the whole contract: no statement is built around it.
+        assert not contracts_pg.contract_regex_is_compilable(pattern)
+        return
     assert contracts_pg.contract_regex_is_compilable(pattern)
 
     lookbehind = [

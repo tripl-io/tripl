@@ -148,6 +148,18 @@ class SqlDialect(StrEnum):
     bigquery = "bigquery"
     databricks = "databricks"
     snowflake = "snowflake"
+    greenplum = "greenplum"
+    redshift = "redshift"
+
+
+#: Dialects that read a string literal as PostgreSQL does under
+#: ``standard_conforming_strings`` (their adapters pin it): a backslash is data,
+#: and a quote is escaped only by doubling it.
+_STANDARD_STRING_DIALECTS = frozenset({SqlDialect.postgres, SqlDialect.greenplum})
+
+#: Dialects whose adapter compares against an explicit-offset ``TIMESTAMPTZ``
+#: literal in a session pinned to UTC.
+_TIMESTAMPTZ_DIALECTS = frozenset({SqlDialect.postgres, SqlDialect.greenplum, SqlDialect.redshift})
 
 
 #: ``DataSource.db_type`` -> dialect. The synthetic demo warehouse mimics ClickHouse
@@ -156,6 +168,8 @@ class SqlDialect(StrEnum):
 _DB_TYPE_DIALECT: dict[str, SqlDialect] = {
     "clickhouse": SqlDialect.clickhouse,
     "postgres": SqlDialect.postgres,
+    "greenplum": SqlDialect.greenplum,
+    "redshift": SqlDialect.redshift,
     "bigquery": SqlDialect.bigquery,
     "databricks": SqlDialect.databricks,
     "snowflake": SqlDialect.snowflake,
@@ -171,6 +185,8 @@ _IDENTIFIER_QUOTE: dict[SqlDialect, str] = {
     SqlDialect.databricks: "`",
     SqlDialect.postgres: '"',
     SqlDialect.snowflake: '"',
+    SqlDialect.greenplum: '"',
+    SqlDialect.redshift: '"',
 }
 
 #: A value must LOOK like a date/timestamp before we try to parse it as one, so a
@@ -201,12 +217,67 @@ _POSTGRES_BUCKET_HINT = (
     "Use date_bin(INTERVAL '1 day', <time column>, TIMESTAMPTZ '1970-01-01 00:00:00+00:00') "
     "for a PostgreSQL source."
 )
+#: Greenplum (PostgreSQL 9.4 / 12) and Redshift (PostgreSQL 8.0) predate date_bin.
+_DATE_TRUNC_BUCKET_HINT = "Use date_trunc('day', <time column>) for a {engine} source."
 _BIGQUERY_BUCKET_HINT = "Use TIMESTAMP_TRUNC(<time column>, DAY, 'UTC') for a BigQuery source."
 _DATABRICKS_BUCKET_HINT = "Use date_trunc('DAY', <time column>) for a Databricks source."
 _SNOWFLAKE_BUCKET_HINT = (
     "Use DATE_TRUNC('DAY', <time column>) or TIME_SLICE(<time column>, 1, 'DAY') "
     "for a Snowflake source."
 )
+
+#: ``count(*) FILTER (WHERE ...)``: an aggregate's FILTER clause, which Redshift
+#: (PostgreSQL 8.0) never gained.
+_FILTER_CLAUSE_RE = re.compile(r"\)\s*filter\s*\(\s*where\b", re.IGNORECASE)
+
+
+def _postgres_family_rules(
+    engine: str, *, filter_clause: bool
+) -> tuple[tuple[re.Pattern[str], str], ...]:
+    """The rules for a PostgreSQL-protocol engine older than PostgreSQL 14."""
+    hint = _DATE_TRUNC_BUCKET_HINT.format(engine=engine)
+    count_if = (
+        "count(*) FILTER (WHERE <condition>)"
+        if filter_clause
+        else "count(CASE WHEN <condition> THEN 1 END)"
+    )
+    rules: list[tuple[re.Pattern[str], str]] = [
+        (
+            _fn_re("date_bin"),
+            f"date_bin was added in PostgreSQL 14 and does not exist on {engine}. {hint}",
+        ),
+        (
+            _fn_re("TIMESTAMP_TRUNC"),
+            f"TIMESTAMP_TRUNC is a BigQuery function and does not exist on {engine}. {hint}",
+        ),
+        (
+            _fn_re("toStartOfInterval"),
+            f"toStartOfInterval is a ClickHouse function and does not exist on {engine}. {hint}",
+        ),
+        (
+            _fn_re("countIf"),
+            f"countIf is a ClickHouse function and does not exist on {engine}. Use {count_if}.",
+        ),
+        (
+            _fn_re("parseDateTime64BestEffort"),
+            "parseDateTime64BestEffort is a ClickHouse function and does not exist on "
+            f"{engine}. Use a typed literal such as TIMESTAMPTZ '2026-01-01 00:00:00+00:00'.",
+        ),
+        (
+            _BACKTICK_RE,
+            f'{engine} does not accept back-quoted identifiers. Use double quotes: "my column".',
+        ),
+    ]
+    if not filter_clause:
+        rules.append(
+            (
+                _FILTER_CLAUSE_RE,
+                f"{engine} has no aggregate FILTER (WHERE ...) clause. Fold the condition "
+                "into the aggregate instead: count(CASE WHEN <condition> THEN 1 END).",
+            )
+        )
+    return tuple(rules)
+
 
 #: Per-dialect "this cannot run here" rules, each verified against a live engine so a
 #: valid query is never flagged. Ordered most-specific first.
@@ -334,6 +405,8 @@ _DIALECT_RULES: dict[SqlDialect, tuple[tuple[re.Pattern[str], str], ...]] = {
             'PostgreSQL does not accept back-quoted identifiers. Use double quotes: "my column".',
         ),
     ),
+    SqlDialect.greenplum: _postgres_family_rules("Greenplum", filter_clause=True),
+    SqlDialect.redshift: _postgres_family_rules("Redshift", filter_clause=False),
     SqlDialect.clickhouse: (
         (
             _fn_re("TIMESTAMP_TRUNC"),
@@ -604,7 +677,7 @@ def quote_sql_string_literal(text: str, dialect: SqlDialect) -> str:
         raise ValueError("SQL string literal must not be empty")
     if "\x00" in stripped:
         raise ValueError("SQL string literal must not contain NUL bytes")
-    if dialect is SqlDialect.postgres:
+    if dialect in _STANDARD_STRING_DIALECTS:
         return "'" + stripped.replace("'", "''") + "'"
     escaped = (
         stripped.replace("\\", "\\\\").replace("'", "\\'").replace("\n", "\\n").replace("\r", "\\r")
@@ -694,7 +767,7 @@ def quote_timestamp_literal(value: datetime, dialect: SqlDialect, *, kind: TimeK
     moment = to_utc(value)
     if dialect is SqlDialect.clickhouse:
         return f"parseDateTime64BestEffort('{format_utc_literal(moment)}', 6, 'UTC')"
-    if dialect is SqlDialect.postgres:
+    if dialect in _TIMESTAMPTZ_DIALECTS:
         return f"TIMESTAMPTZ '{format_utc_literal(moment)}'"
     if dialect is SqlDialect.snowflake:
         # TIMESTAMP_TZ at +00:00 names the instant whatever the column's family:

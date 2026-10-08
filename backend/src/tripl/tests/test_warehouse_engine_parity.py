@@ -53,7 +53,9 @@ from tripl.core.adapters.base import (
 from tripl.core.adapters.bigquery import BigQueryAdapter
 from tripl.core.adapters.clickhouse import ClickHouseAdapter
 from tripl.core.adapters.databricks import DatabricksAdapter
+from tripl.core.adapters.greenplum import GreenplumAdapter
 from tripl.core.adapters.postgres import PostgresAdapter
+from tripl.core.adapters.redshift import RedshiftAdapter
 from tripl.core.adapters.snowflake import SnowflakeAdapter
 from tripl.core.adapters.synthetic import SyntheticAdapter
 from tripl.models.domain_enums import MetricAggregation
@@ -263,6 +265,22 @@ def _pg() -> tuple[BaseAdapter, list[str]]:
     return adapter, conn.sql
 
 
+def _gp() -> tuple[BaseAdapter, list[str]]:
+    conn = _PGConn()
+    adapter = object.__new__(GreenplumAdapter)
+    adapter._conn = conn
+    adapter._allowed_columns = set(_ALLOWED)
+    return adapter, conn.sql
+
+
+def _rs() -> tuple[BaseAdapter, list[str]]:
+    conn = _PGConn()
+    adapter = object.__new__(RedshiftAdapter)
+    adapter._conn = conn
+    adapter._allowed_columns = set(_ALLOWED)
+    return adapter, conn.sql
+
+
 def _bq() -> tuple[BaseAdapter, list[str]]:
     client = _BQClient()
     adapter = object.__new__(BigQueryAdapter)
@@ -281,6 +299,8 @@ def _bq() -> tuple[BaseAdapter, list[str]]:
 _SQL_ENGINES: dict[str, Callable[[], tuple[BaseAdapter, list[str]]]] = {
     "clickhouse": _ch,
     "postgres": _pg,
+    "greenplum": _gp,
+    "redshift": _rs,
     "bigquery": _bq,
     "databricks": _dbx,
     "snowflake": _sf,
@@ -338,6 +358,8 @@ _ENTRY_POINTS: dict[str, Callable[[BaseAdapter], None]] = {
 _TIE_BREAK = {
     "clickhouse": "ORDER BY _breakdown_column, _cnt DESC, _breakdown_value ",
     "postgres": 'ORDER BY _cnt DESC, _breakdown_value COLLATE "C") AS rn ',
+    "greenplum": 'ORDER BY _cnt DESC, _breakdown_value COLLATE "C") AS rn ',
+    "redshift": "ORDER BY _cnt DESC, _breakdown_value) AS rn ",
     "bigquery": "ORDER BY _cnt DESC, _breakdown_value) AS rn ",
     "databricks": "ORDER BY _cnt DESC, _breakdown_value) AS rn ",
     "snowflake": "ORDER BY _cnt DESC, _breakdown_value) AS rn ",
@@ -348,6 +370,8 @@ _TIE_BREAK = {
 _CUT_AT_TWO = {
     "clickhouse": "LIMIT 2 BY _breakdown_column",
     "postgres": "WHERE rn <= 2",
+    "greenplum": "WHERE rn <= 2",
+    "redshift": "WHERE rn <= 2",
     "bigquery": "WHERE rn <= 2",
     "databricks": "WHERE rn <= 2",
     "snowflake": "WHERE rn <= 2",
@@ -685,6 +709,8 @@ def _grouping_groups(engine: str, sql: str) -> frozenset[str]:
 _RAW_BREAKDOWN_TERM = {
     "clickhouse": "`event_name`",
     "postgres": '"event_name"',
+    "greenplum": '"event_name"',
+    "redshift": '"event_name"',
     "bigquery": "`event_name`",
     "databricks": "`event_name`",
     "snowflake": '"event_name"',
@@ -760,7 +786,7 @@ def _seeded(engine: str) -> tuple[BaseAdapter, list[str]]:
         ch_client = _SeededCHClient()
         adapter._client = ch_client
         return adapter, ch_client.sql
-    if engine == "postgres":
+    if engine in ("postgres", "greenplum", "redshift"):
         pg_conn = _SeededPGConn()
         adapter._conn = pg_conn
         return adapter, pg_conn.sql
@@ -1197,6 +1223,14 @@ _DISTINCT_GATE = {
         "CASE WHEN count(*) FILTER (WHERE amount > 0) = 0 "
         'THEN NULL ELSE count(DISTINCT "event_name") FILTER (WHERE amount > 0) END'
     ),
+    "greenplum": (
+        "CASE WHEN count(*) FILTER (WHERE amount > 0) = 0 "
+        'THEN NULL ELSE count(DISTINCT "event_name") FILTER (WHERE amount > 0) END'
+    ),
+    "redshift": (
+        "CASE WHEN count(CASE WHEN amount > 0 THEN 1 END) = 0 "
+        'THEN NULL ELSE count(DISTINCT CASE WHEN amount > 0 THEN "event_name" END) END'
+    ),
     "bigquery": (
         "CASE WHEN COUNTIF(amount > 0) = 0 "
         "THEN NULL ELSE count(DISTINCT IF(amount > 0, `event_name`, NULL)) END"
@@ -1218,6 +1252,8 @@ _DISTINCT_GATE = {
 _ROW_PRESENCE_PROBE = {
     "clickhouse": "countIf(amount > 0) = 0",
     "postgres": "count(*) FILTER (WHERE amount > 0) = 0",
+    "greenplum": "count(*) FILTER (WHERE amount > 0) = 0",
+    "redshift": "count(CASE WHEN amount > 0 THEN 1 END) = 0",
     "bigquery": "COUNTIF(amount > 0) = 0",
     "databricks": "count_if(amount > 0) = 0",
     "snowflake": "COUNT_IF(amount > 0) = 0",
@@ -1228,6 +1264,8 @@ _ROW_PRESENCE_PROBE = {
 _PLAIN_COUNT = {
     "clickhouse": "if(countIf(amount > 0) = 0, NULL, countIf(amount > 0)) AS `c`",
     "postgres": 'NULLIF(count(*) FILTER (WHERE amount > 0), 0) AS "c"',
+    "greenplum": 'NULLIF(count(*) FILTER (WHERE amount > 0), 0) AS "c"',
+    "redshift": 'NULLIF(count(CASE WHEN amount > 0 THEN 1 END), 0) AS "c"',
     "bigquery": "NULLIF(count(CASE WHEN amount > 0 THEN 1 END), 0) AS `c`",
     "databricks": "NULLIF(count_if(amount > 0), 0) AS `c`",
     "snowflake": 'NULLIF(COUNT_IF(amount > 0), 0) AS "c"',
@@ -1238,6 +1276,8 @@ _PLAIN_COUNT = {
 _UNFILTERED_DISTINCT = {
     "clickhouse": "count(DISTINCT `event_name`) AS `u`",
     "postgres": 'count(DISTINCT "event_name") AS "u"',
+    "greenplum": 'count(DISTINCT "event_name") AS "u"',
+    "redshift": 'count(DISTINCT "event_name") AS "u"',
     "bigquery": "count(DISTINCT `event_name`) AS `u`",
     "databricks": "count(DISTINCT `event_name`) AS `u`",
     "snowflake": 'count(DISTINCT "event_name") AS "u"',
@@ -1252,6 +1292,8 @@ _UNFILTERED_DISTINCT = {
 _FILTERED_SUM = {
     "clickhouse": "if(countIf(amount > 0) = 0, NULL, sumIf(`amount`, amount > 0)) AS `s`",
     "postgres": 'sum("amount") FILTER (WHERE amount > 0) AS "s"',
+    "greenplum": 'sum("amount") FILTER (WHERE amount > 0) AS "s"',
+    "redshift": 'sum(CASE WHEN amount > 0 THEN "amount" END) AS "s"',
     "bigquery": "sum(CASE WHEN amount > 0 THEN `amount` END) AS `s`",
     "databricks": "sum(CASE WHEN amount > 0 THEN `amount` END) AS `s`",
     "snowflake": 'sum(CASE WHEN amount > 0 THEN "amount" END) AS "s"',
@@ -1483,6 +1525,22 @@ def _pg_contracts() -> tuple[BaseAdapter, _ContractConn]:
     return adapter, conn
 
 
+def _gp_contracts() -> tuple[BaseAdapter, _ContractConn]:
+    conn = _ContractConn()
+    adapter = object.__new__(GreenplumAdapter)
+    adapter._conn = conn
+    adapter._allowed_columns = set(_ALLOWED)
+    return adapter, conn
+
+
+def _rs_contracts() -> tuple[BaseAdapter, _ContractConn]:
+    conn = _ContractConn()
+    adapter = object.__new__(RedshiftAdapter)
+    adapter._conn = conn
+    adapter._allowed_columns = set(_ALLOWED)
+    return adapter, conn
+
+
 def _ch_contracts() -> tuple[BaseAdapter, _ContractCHClient]:
     client = _ContractCHClient()
     adapter = object.__new__(ClickHouseAdapter)
@@ -1508,6 +1566,8 @@ def _sf_contracts() -> tuple[BaseAdapter, _DBXConn]:
 _CONTRACT_ENGINES: dict[str, Callable[[], tuple[BaseAdapter, object]]] = {
     "clickhouse": _ch_contracts,
     "postgres": _pg_contracts,
+    "greenplum": _gp_contracts,
+    "redshift": _rs_contracts,
     "databricks": _dbx_contracts,
     "snowflake": _sf_contracts,
 }
@@ -1540,6 +1600,8 @@ _COUNTED_ROW: tuple[object, ...] = (1, 10, "buy", 2, 11, "<NULL>", 5, 10, "99")
 _CONTRACT_WINDOW = {
     "clickhouse": "`time` >= parseDateTime64BestEffort(",
     "postgres": '"time" >= TIMESTAMPTZ ',
+    "greenplum": '"time" >= TIMESTAMPTZ ',
+    "redshift": '"time" >= TIMESTAMPTZ ',
     "databricks": "`time` >= TIMESTAMP '",
     "snowflake": '"time" >= TO_TIMESTAMP_NTZ(',
 }
@@ -1860,6 +1922,8 @@ _SURVIVOR = FieldContractExpectation(
 _RANGE_COMPILED = {
     "clickhouse": "toFloat64OrNull",
     "postgres": "::numeric",
+    "greenplum": "::numeric",
+    "redshift": "::double precision",
     "bigquery": "SAFE_CAST",
     "databricks": "try_cast",
     "snowflake": "TRY_TO_DOUBLE",

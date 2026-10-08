@@ -113,6 +113,7 @@ markers = [
     "databricks_value: executes value assertions against a real Databricks SQL warehouse",
     # Real Snowflake values, likewise: snowflake-value-conformance.yml on release tags.
     "snowflake_value: executes value assertions against a real Snowflake account",
+    "redshift_value: executes value assertions against a real Amazon Redshift endpoint",
     # The search relevance harness (src/tripl/tests/relevance/). The suite runs on
     # SQLite, so the PRODUCTION ranking SQL — ts_rank_cd, the trigram/boost tiers,
     # merge_results, and the tripl_search text-search configuration — is executed
