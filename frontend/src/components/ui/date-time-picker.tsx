@@ -4,15 +4,15 @@ import { Button } from "@/components/ui/button"
 import { IconButton } from "@/components/ui/icon-button"
 import { Input } from "@/components/ui/input"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
-import { formatDate } from "@/lib/datetime"
+import { formatDate, formatDateTime } from "@/lib/datetime"
 import { cn } from "@/lib/utils"
 import { useNow } from "@/hooks/useNow"
 
 /*
- * A date + time picker in the design system's own controls: a button that opens
- * a small calendar grid in a popover, and a time field beside it. It replaces the
- * native `datetime-local` input, whose picker looks different in every browser
- * and ignores the app's theme.
+ * A date + time picker in the design system's own controls: one button, showing
+ * both, opens a popover with a small calendar grid and the time field under it.
+ * It replaces the native `datetime-local` input, whose picker looks different in
+ * every browser and ignores the app's theme.
  *
  * The value keeps the `datetime-local` wire format, `YYYY-MM-DDTHH:mm` in the
  * viewer's local time, so a form that used the native input keeps parsing it
@@ -235,9 +235,9 @@ export interface DateTimePickerProps {
   /** `YYYY-MM-DDTHH:mm` in local time, or '' for no value. */
   value: string
   onChange: (value: string) => void
-  /** Id of the date button, so a `<Label htmlFor>` can point at the control. */
+  /** Id of the button, so a `<Label htmlFor>` can point at the control. */
   id?: string
-  /** Names the whole control; the date button and time field extend it. */
+  /** Names the control; the button's name adds the picked moment, the time field extends it. */
   label: string
   "aria-describedby"?: string
   disabled?: boolean
@@ -266,66 +266,93 @@ export function DateTimePicker({
     setOpen(next)
   }
 
+  const timeRef = React.useRef<HTMLInputElement | null>(null)
+  // The time shown before a day is picked; it is sent with the day.
+  const shownTime = time || "09:00"
+
   const selectDate = (day: Date) => {
-    onChange(`${toDateKey(day)}T${time || "00:00"}`)
-    setOpen(false)
+    onChange(`${toDateKey(day)}T${shownTime}`)
+    // The popover stays open: the time is the next thing to set.
+    setFocused(day)
+    timeRef.current?.focus()
   }
 
   const changeTime = (nextTime: string) => {
     // A cleared time field has nothing to send; the last full value stands.
     if (!TIME_PART.test(nextTime)) return
-    onChange(`${date || toDateKey(new Date())}T${nextTime}`)
+    onChange(`${date || toDateKey(focused)}T${nextTime}`)
   }
 
+  const pickNow = () => {
+    const current = new Date()
+    onChange(`${toDateKey(current)}T${pad(current.getHours())}:${pad(current.getMinutes())}`)
+    setFocused(current)
+  }
+
+  // The app's own date-time format, so the button reads like every other
+  // timestamp on the page ("Oct 8, 2026, 10:00 PM").
+  const shown = date ? formatDateTime(`${date}T${shownTime}`) : ""
+
   return (
-    <div role="group" aria-label={label} className={cn("flex items-center gap-1.5", className)}>
-      <Popover open={open} onOpenChange={onOpenChange}>
-        <PopoverTrigger asChild>
-          <Button
-            id={id}
-            type="button"
-            variant="outline"
-            disabled={disabled}
-            aria-describedby={describedBy}
-            // An explicit name, not an sr-only prefix: name computation trims
-            // each inline child and joins them without a space, which read the
-            // prefix and the date as one word ("date:Jan 14, 2026").
-            aria-label={`${label}, date: ${date ? formatDate(date) : "none picked"}`}
-            className="h-8 justify-start gap-1.5 px-2.5 text-body font-normal"
-          >
-            <CalendarDays aria-hidden="true" className="size-3.5 text-fg-tertiary" />
-            {date ? formatDate(date) : <span className="text-fg-tertiary">Pick a date</span>}
-          </Button>
-        </PopoverTrigger>
-        <PopoverContent
-          align="start"
-          className="w-auto p-3"
-          aria-label={`${label}: choose a date`}
-          onOpenAutoFocus={event => {
-            // Straight onto the chosen day, as a date picker's keyboard users expect.
-            event.preventDefault()
-            focusRef.current?.focus()
-          }}
+    <Popover open={open} onOpenChange={onOpenChange}>
+      <PopoverTrigger asChild>
+        <Button
+          id={id}
+          type="button"
+          variant="outline"
+          disabled={disabled}
+          aria-describedby={describedBy}
+          // An explicit name, not an sr-only prefix: name computation trims
+          // each inline child and joins them without a space.
+          aria-label={`${label}: ${shown || "none picked"}`}
+          // The size of the text fields beside it in a form.
+          className={cn("h-8 justify-start gap-1.5 px-2.5 text-body-sm font-normal tnum", className)}
         >
-          <CalendarGrid
-            selected={selected}
-            focused={focused}
-            onFocusedChange={setFocused}
-            onSelect={selectDate}
-            focusRef={focusRef}
+          <CalendarDays aria-hidden="true" className="size-3.5 text-fg-tertiary" />
+          {shown || <span className="text-fg-tertiary">Pick date and time</span>}
+        </Button>
+      </PopoverTrigger>
+      <PopoverContent
+        align="start"
+        className="w-auto p-3"
+        aria-label={`${label}: choose a date and time`}
+        onOpenAutoFocus={event => {
+          // Straight onto the chosen day, as a date picker's keyboard users expect.
+          event.preventDefault()
+          focusRef.current?.focus()
+        }}
+      >
+        <CalendarGrid
+          selected={selected}
+          focused={focused}
+          onFocusedChange={setFocused}
+          onSelect={selectDate}
+          focusRef={focusRef}
+        />
+        <div className="mt-3 flex items-center gap-2 border-t border-border pt-3">
+          <Input
+            ref={timeRef}
+            type="time"
+            aria-label={`${label}, time`}
+            value={shownTime}
+            onChange={event => changeTime(event.target.value)}
+            onKeyDown={event => {
+              if (event.key !== "Enter") return
+              // Enter confirms, as in a form field, without submitting the form.
+              event.preventDefault()
+              setOpen(false)
+            }}
+            className="h-8 w-[104px] text-body md:text-body tnum"
           />
-        </PopoverContent>
-      </Popover>
-      <Input
-        type="time"
-        aria-label={`${label}, time`}
-        aria-describedby={describedBy}
-        value={time}
-        disabled={disabled}
-        onChange={event => changeTime(event.target.value)}
-        className="h-8 w-[104px] text-body md:text-body"
-      />
-    </div>
+          <Button type="button" variant="ghost" onClick={pickNow}>
+            Now
+          </Button>
+          <Button type="button" className="ml-auto" onClick={() => setOpen(false)}>
+            Done
+          </Button>
+        </div>
+      </PopoverContent>
+    </Popover>
   )
 }
 

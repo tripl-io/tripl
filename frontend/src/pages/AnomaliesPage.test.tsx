@@ -861,9 +861,9 @@ describe('AnomaliesPage — when column', () => {
     expect(screen.queryByRole('columnheader', { name: 'Bucket' })).not.toBeInTheDocument()
     const time = document.querySelector('time[datetime="2026-07-01T00:00:00Z"]')
     expect(time).not.toBeNull()
-    // Absolute ("Jul 1, 02:00" in the viewer's zone), never "3mo ago" beside a
-    // second relative time it seems to contradict.
-    expect(time?.textContent).toMatch(/\d{2}:\d{2}$/)
+    // Absolute ("Jul 1, 2:00 AM" in the viewer's zone, the app's clock), never
+    // "3mo ago" beside a second relative time it seems to contradict.
+    expect(time?.textContent).toMatch(/\d{1,2}:\d{2}\s[AP]M$/)
     expect(time?.textContent).not.toMatch(/ago/)
     expect(time?.getAttribute('title')).toMatch(/^Bucket starting .+\(.+\)$/)
     // No detection time on the payload, so nothing claims one.

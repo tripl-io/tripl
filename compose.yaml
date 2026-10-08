@@ -147,6 +147,10 @@ x-app-environment: &app-environment
 services:
   postgres:
     restart: unless-stopped
+    # tini as PID 1. A healthcheck probe that times out is killed and its orphan
+    # reaped by PID 1; the postmaster, as PID 1, reads that as a crashed child and
+    # restarts the whole cluster.
+    init: true
     image: pgvector/pgvector:0.8.7-pg18-trixie
     environment:
       POSTGRES_USER: tripl

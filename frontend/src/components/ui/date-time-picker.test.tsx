@@ -24,16 +24,19 @@ function renderPicker(initial = '2026-01-14T09:30') {
 }
 
 function openCalendar() {
-  fireEvent.click(screen.getByRole('button', { name: /^Date and time, date: / }))
+  fireEvent.click(screen.getByRole('button', { name: /^Date and time: / }))
   return screen.findByRole('grid', { name: 'January 2026' })
 }
 
 describe('DateTimePicker', () => {
-  it('names its date button and time field after the label, and shows the value', () => {
+  it('shows the date and the time on one button, and the time field in the popover', async () => {
     renderPicker()
 
-    expect(screen.getByRole('group', { name: 'Date and time' })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: /^Date and time, date: / })).toHaveTextContent('Jan 14, 2026')
+    const button = screen.getByRole('button', { name: 'Date and time: Jan 14, 2026, 9:30 AM' })
+    expect(button).toHaveTextContent('Jan 14, 2026, 9:30 AM')
+    expect(screen.queryByLabelText('Date and time, time')).toBeNull()
+
+    await openCalendar()
     expect(screen.getByLabelText('Date and time, time')).toHaveValue('09:30')
   })
 
@@ -50,15 +53,17 @@ describe('DateTimePicker', () => {
     expect(day).toHaveAttribute('tabindex', '0')
   })
 
-  it('picks a day with the mouse and keeps the time', async () => {
+  it('picks a day with the mouse, keeps the time, and moves on to the time field', async () => {
     const { onChange } = renderPicker()
 
     const grid = await openCalendar()
     fireEvent.click(within(grid).getByRole('button', { name: 'Tuesday, January 20, 2026' }))
 
     expect(onChange).toHaveBeenLastCalledWith('2026-01-20T09:30')
+    expect(screen.getByLabelText('Date and time, time')).toHaveFocus()
+    fireEvent.click(screen.getByRole('button', { name: 'Done' }))
     await waitFor(() => expect(screen.queryByRole('grid')).not.toBeInTheDocument())
-    expect(screen.getByRole('button', { name: /^Date and time, date: / })).toHaveTextContent('Jan 20, 2026')
+    expect(screen.getByRole('button', { name: /^Date and time: / })).toHaveTextContent('Jan 20, 2026, 9:30 AM')
   })
 
   it('moves by day and week with the arrow keys, and by month with Page Down', async () => {
@@ -100,18 +105,43 @@ describe('DateTimePicker', () => {
     expect(await screen.findByRole('grid', { name: 'December 2025' })).toBeInTheDocument()
   })
 
-  it('changes the time and keeps the day', () => {
+  it('changes the time and keeps the day; Enter closes the popover', async () => {
     const { onChange } = renderPicker()
 
-    fireEvent.change(screen.getByLabelText('Date and time, time'), { target: { value: '17:05' } })
-
+    await openCalendar()
+    const time = screen.getByLabelText('Date and time, time')
+    fireEvent.change(time, { target: { value: '17:05' } })
     expect(onChange).toHaveBeenLastCalledWith('2026-01-14T17:05')
+
+    fireEvent.keyDown(time, { key: 'Enter' })
+    await waitFor(() => expect(screen.queryByRole('grid')).not.toBeInTheDocument())
+    expect(screen.getByRole('button', { name: 'Date and time: Jan 14, 2026, 5:05 PM' })).toBeInTheDocument()
   })
 
-  it('asks for a date when it has none', () => {
-    renderPicker('')
+  it('sets the current moment with Now', async () => {
+    vi.useFakeTimers({ toFake: ['Date'] })
+    vi.setSystemTime(new Date(2026, 0, 14, 16, 7))
+    try {
+      const { onChange } = renderPicker('')
+      fireEvent.click(screen.getByRole('button', { name: /^Date and time: / }))
+      fireEvent.click(await screen.findByRole('button', { name: 'Now' }))
+      expect(onChange).toHaveBeenLastCalledWith('2026-01-14T16:07')
+    } finally {
+      vi.useRealTimers()
+    }
+  })
 
-    expect(screen.getByRole('button', { name: /^Date and time, date: / })).toHaveTextContent('Pick a date')
+  it('asks for a date and time when it has none, and starts a picked day at 09:00', async () => {
+    const { onChange } = renderPicker('')
+
+    const button = screen.getByRole('button', { name: 'Date and time: none picked' })
+    expect(button).toHaveTextContent('Pick date and time')
+    fireEvent.click(button)
+    const grid = await screen.findByRole('grid')
+    const first = within(grid).getAllByRole('button')[0]
+    if (!first) throw new Error('the grid has days')
+    fireEvent.click(first)
+    expect(onChange).toHaveBeenLastCalledWith(expect.stringMatching(/^\d{4}-\d{2}-01T09:00$/))
   })
 
   it('has no axe violations, open or closed', async () => {

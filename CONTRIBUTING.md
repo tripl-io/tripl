@@ -56,7 +56,8 @@ docker compose -f compose.dev.yaml up --watch
 ```
 
 Services started: `postgres` (pgvector, pg18), `rabbitmq`, `redis`, `api`,
-`celery-worker`, `celery-beat`, and `frontend`.
+`celery-worker`, `celery-beat`, and `frontend`. The dev worker runs two worker
+processes inside its 1 GB limit; set `CELERY_WORKER_CONCURRENCY` for more.
 
 | Surface | URL |
 |---|---|

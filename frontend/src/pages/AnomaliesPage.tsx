@@ -708,18 +708,15 @@ export default function AnomaliesPage() {
 }
 
 /**
- * A bucket's start as a short absolute time — "Today 18:00", "Sep 25, 18:00" —
+ * A bucket's start as a short absolute time — "Today 6:00 PM", "Sep 25, 6:00 PM" —
  * which, unlike "1h ago", cannot read as contradicting "found 16m ago" under
- * it.
+ * it. The clock matches `formatTimestamp`, so the row and the signal's own page
+ * name the bucket alike.
  */
 function formatShortWhen(iso: string, now: Date = new Date()): string {
   const date = new Date(iso)
   if (Number.isNaN(date.getTime())) return ''
-  const time = date.toLocaleTimeString(APP_LOCALE, {
-    hour: '2-digit',
-    minute: '2-digit',
-    hourCycle: 'h23',
-  })
+  const time = date.toLocaleTimeString(APP_LOCALE, { hour: 'numeric', minute: '2-digit' })
   if (date.toDateString() === now.toDateString()) return `Today ${time}`
   const dayOptions: Intl.DateTimeFormatOptions = { month: 'short', day: 'numeric' }
   if (date.getFullYear() !== now.getFullYear()) dayOptions.year = 'numeric'
@@ -839,9 +836,17 @@ function AnomalyRow({
           <Link
             to={getAlertingPath(slug, { incidentId })}
             className="relative shrink-0 whitespace-nowrap text-micro no-underline hover:underline text-accent"
+            // An explicit name: the status span below would join it without a space.
+            aria-label={incidentStatus ? `Incident · ${alertInboxStatusLabel(incidentStatus).toLowerCase()}` : undefined}
           >
             Incident
-            {incidentStatus ? ` · ${alertInboxStatusLabel(incidentStatus).toLowerCase()}` : ''}
+            {/* The status only from sm up: on a phone it left the scope name a
+                few letters, as "within total" did. */}
+            {incidentStatus && (
+              <span className="sr-only sm:not-sr-only">
+                {` · ${alertInboxStatusLabel(incidentStatus).toLowerCase()}`}
+              </span>
+            )}
           </Link>
         )}
       </span>

@@ -2010,7 +2010,11 @@ A **planned event** names a window in which you expect a series to move — a
 campaign, a sale, a holiday, a maintenance window — so the move is not reported
 as news. The **Planned events** card on the monitoring Volume tab creates one
 for the chart in view: a label, a start and an end in your local time, and what
-it expects (**a rise**, **a drop**, or **either**).
+it expects (**a rise**, **a drop**, or **either**). **Starts** and **Ends** each
+open one picker, a calendar with the time under it (**Now** fills in the
+current minute). The card lists the windows from the start of the chart's range
+on, upcoming ones included, so next month's sale stays in view after you add it;
+the chart shades a window once its buckets exist.
 
 An anomaly whose bucket falls inside `[start, end)`, whose direction matches,
 and whose series is the event's (or any series, for a project-wide event) is
