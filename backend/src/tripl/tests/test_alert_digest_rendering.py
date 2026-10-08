@@ -192,7 +192,9 @@ def test_a_digest_names_a_drift_s_kind_and_quotes_no_counts() -> None:
         digest=True,
     )
 
-    assert text.startswith("◆ Distribution drift screen_view.platform\n  details: ")
+    heading, line = text.split("\n", 1)
+    assert heading == "1 drift"
+    assert line.startswith("◆ Distribution drift screen_view.platform\n  details: ")
     assert "1200" not in text
     assert "▲" not in text
 
