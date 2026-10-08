@@ -470,6 +470,31 @@ def test_a_rerun_after_a_partial_send_pages_only_what_is_missing(
     assert first_key not in {body["dedup_key"] for _, body in retried}
 
 
+def test_a_drift_s_summary_names_its_kind_not_a_spike() -> None:
+    """A drift's row says "spike" only so a rule's Spikes toggle gates it."""
+    rule = AlertRule(name="Drift watch")
+    project = Project(name="Checkout", slug="checkout")
+
+    def summary(scope_type: str, scope_name: str, direction: str, drift_field: str | None) -> str:
+        item = AlertDeliveryItem(
+            scope_type=scope_type,
+            scope_name=scope_name,
+            direction=direction,
+            drift_field=drift_field,
+        )
+        return alerts_pagerduty._group_summary(
+            project=project, rule=rule, items=[item], matched_count=1
+        )
+
+    assert (
+        summary("distribution", "Screen View.platform", "spike", "platform")
+        == "[Checkout] Drift watch: Distribution drift Screen View.platform (platform)"
+    )
+    assert summary("event", "checkout:step1", "drop", None) == (
+        "[Checkout] Drift watch: checkout:step1 drop"
+    )
+
+
 @pytest.mark.parametrize("failure", ["status", "raise"])
 def test_a_refused_event_fails_without_echoing_the_routing_key(
     sync_session_factory: sessionmaker[Session], monkeypatch: pytest.MonkeyPatch, failure: str

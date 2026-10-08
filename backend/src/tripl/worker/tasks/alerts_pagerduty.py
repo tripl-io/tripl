@@ -38,6 +38,7 @@ from sqlalchemy import exists, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import Session
 
+from tripl.alert_templates import alert_scope_label, scope_has_direction
 from tripl.alerting_validation import (
     DEFAULT_PAGERDUTY_SEVERITY,
     PAGERDUTY_SEVERITIES,
@@ -111,7 +112,13 @@ def _group_summary(
     prefix = project.name if project else "tripl"
     if len(items) == 1:
         item = items[0]
-        what = f"{item.scope_name} {item.direction}"
+        # A drift went neither way, so its kind names it rather than the
+        # "spike" its row carries for the rule's Spikes toggle.
+        what = (
+            f"{item.scope_name} {item.direction}"
+            if scope_has_direction(item.scope_type)
+            else f"{alert_scope_label(item.scope_type)} {item.scope_name}"
+        )
         if item.drift_field:
             what = f"{what} ({item.drift_field})"
         return _truncate(f"[{prefix}] {rule.name}: {what}", PAGERDUTY_SUMMARY_MAX_CHARS)

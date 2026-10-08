@@ -898,7 +898,7 @@ const IncidentCard = memo(function IncidentCard({
               volume + event-type volume + metric + project volume", which as
               one nowrap line ran past the card at 375px. */}
           <span className="break-words">
-            {incidentDirectionGlyph(group.direction)} {reason}
+            {incidentDirectionGlyph(group.direction, group.scope_types)} {reason}
           </span>
           <MetaDot />
           <span className="font-medium text-foreground">{countOf(group.item_count, 'item', 'items')}</span>

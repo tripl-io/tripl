@@ -16,6 +16,7 @@ from httpx import AsyncClient
 from sqlalchemy import select
 
 from tripl.config import settings
+from tripl.extensions import Extension, override_extensions
 from tripl.models.app_setting import AppSetting
 from tripl.services import safe_http, telemetry_service
 from tripl.tests._platform_world import build_world
@@ -61,6 +62,13 @@ def test_counts_are_ranges() -> None:
     ]  # fmt: skip
 
 
+def test_the_edition_is_enterprise_once_an_extension_loads() -> None:
+    with override_extensions([]):
+        assert telemetry_service.edition() == "community"
+    with override_extensions([Extension()]):
+        assert telemetry_service.edition() == "enterprise"
+
+
 async def test_off_by_default_nothing_is_sent_or_stored(receiver: Receiver) -> None:
     assert settings.telemetry_enabled is False
     assert await _send() == {"sent": False, "reason": "disabled"}
@@ -86,7 +94,8 @@ async def test_a_ping_names_nobody_and_is_kept_for_the_operator(
         "warehouse_engines", "projects", "event_types", "users", "scans_last_day",
         "days_since_install",
     }  # fmt: skip
-    assert payload["edition"] == "community"
+    # The suite also runs with the Enterprise package installed.
+    assert payload["edition"] == telemetry_service.edition()
     assert payload["projects"] == "1-10"
     assert payload["users"] == "1-10"
     assert payload["days_since_install"] == 0

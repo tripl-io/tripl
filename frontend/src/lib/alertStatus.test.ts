@@ -8,10 +8,12 @@ import {
   bulkInboxActionSuccessMessage,
   bulkMuteConfirmMessage,
   inboxActionSuccessMessage,
+  incidentDirectionGlyph,
   incidentMagnitudeLabel,
   incidentMagnitudeTitle,
   incidentReasonLabel,
   incidentWorstDeltaLabel,
+  isDriftOnly,
   isHandledInboxStatus,
   muteConfirmMessage,
   priorDecisionLabel,
@@ -94,6 +96,33 @@ describe('what fired, on the card', () => {
     expect(incidentReasonLabel('spike', ['event', 'release_regression'])).toBe(
       'spike · volume + release regression',
     )
+  })
+
+  it('names a drift by its kind alone: it went neither up nor down', () => {
+    // Its row says "spike" only so a rule's Spikes toggle gates it.
+    expect(isDriftOnly(['distribution', 'schema'])).toBe(true)
+    expect(isDriftOnly(['distribution', 'event'])).toBe(false)
+    expect(isDriftOnly([])).toBe(false)
+    expect(incidentReasonLabel('spike', ['distribution'])).toBe('distribution drift')
+    expect(incidentDirectionGlyph('spike', ['property_drift'])).toBe('◆')
+    expect(incidentDirectionGlyph('spike', ['event'])).toBe('↑')
+    expect(incidentDirectionGlyph('drop')).toBe('↓')
+    // A group that mixes a volume kind in keeps the direction that kind has.
+    expect(incidentReasonLabel('spike', ['event', 'schema'])).toBe('spike · volume + schema drift')
+  })
+
+  it('quotes a drift\'s counts with no relative change', () => {
+    // The two windows' rows of a distribution drift read "· 0.0%" apart.
+    const drift = { actual_count: 48000, expected_count: 48000, percent_delta: 0 }
+    expect(incidentMagnitudeLabel({ ...drift, scope_types: ['distribution'] })).toBe(
+      '48,000 vs 48,000 expected',
+    )
+    expect(
+      incidentMagnitudeLabel({ actual_count: 1, expected_count: 0, percent_delta: null, scope_types: ['schema'] }),
+    ).toBe('1 actual, none expected')
+    expect(
+      incidentWorstDeltaLabel({ item_count: 3, max_abs_percent_delta: 0, scope_types: ['distribution'] }),
+    ).toBeNull()
   })
 
   it('writes the magnitude against its baseline', () => {

@@ -404,6 +404,39 @@ def _capture_prompt(monkeypatch: pytest.MonkeyPatch) -> dict[str, str]:
     return captured
 
 
+def test_build_ai_explanation_describes_a_value_drift_as_new_values(
+    monkeypatch: pytest.MonkeyPatch,
+):
+    """A value drift's row says "spike", actual = how many new values, expected 0.
+
+    Quoted as a volume line, that was "spike, actual 2 vs expected 0", and the
+    note the model wrote from it explained a rise in traffic.
+    """
+    captured = _capture_prompt(monkeypatch)
+    delivery = _delivery_with_item()
+    item = delivery.items[0]
+    item.scope_type = "variable_value_drift"
+    item.scope_name = "checkout:completed.tier"
+    item.direction = "spike"
+    item.actual_count = 2
+    item.expected_count = 0
+    item.drift_field = "tier"
+    item.sample_value = "platinum, diamond"
+
+    alerts_task._build_ai_explanation(
+        delivery,
+        scan_name="main",
+        project_name="AI",
+        item_context_cache={},
+    )
+
+    assert (
+        "- [value drift] checkout:completed.tier: ${tier} observed platinum, diamond"
+        in captured["user_prompt"]
+    )
+    assert "spike" not in captured["user_prompt"]
+
+
 def test_build_ai_explanation_marks_items_that_co_fired(monkeypatch: pytest.MonkeyPatch):
     """Two scopes moving together on one bucket is context the model needs.
 

@@ -366,7 +366,12 @@ async def test_a_value_drift_the_pipeline_delivers_now_reaches_the_replay(
     assert firing["actual_count"] == pytest.approx(float(len(_OBSERVED_VALUES)))
     assert firing["expected_count"] == pytest.approx(0.0)
     assert firing["percent_delta"] is None
-    assert NO_BASELINE_LABEL in firing["rendered_item"]
+    # A drift's default item: the scope and the drift line. No direction and no
+    # counts, so no "no baseline" either: there is no ratio to deny.
+    assert firing["rendered_item"] == (
+        f"- Variable value drift {_EVENT_NAME}.{_VARIABLE_NAME}\n"
+        "  value drift: ${tier} observed platinum, diamond"
+    )
     # Only release regressions carry a window; this family leaves it null and
     # the rendered line is unaffected.
     assert firing["window_from"] is None

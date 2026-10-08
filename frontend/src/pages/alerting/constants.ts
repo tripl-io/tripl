@@ -169,8 +169,8 @@ export const ITEM_TEMPLATE_VARIABLE_OPTIONS = [
   { name: 'scope_type', description: 'Matched scope type' },
   { name: 'scope_label', description: 'Matched scope label' },
   { name: 'direction', description: 'Direction: spike or drop' },
-  { name: 'direction_label', description: 'Direction: up or down' },
-  { name: 'direction_arrow', description: 'A single up/down arrow for the direction' },
+  { name: 'direction_label', description: 'Direction: up or down; drift for the drift kinds, which have none' },
+  { name: 'direction_arrow', description: 'A single up/down arrow for the direction; a diamond for the drift kinds' },
   {
     name: 'scope_link',
     description:

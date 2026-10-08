@@ -155,6 +155,50 @@ def test_the_arrow_leads_the_line_because_the_heading_scrolls_away() -> None:
     assert "▲" not in text
 
 
+def _drift(name: str, scope_type: str, actual: float, expected: float) -> SimpleNamespace:
+    """A drift as its row stores it: filed as a spike, so the Spikes toggle gates it."""
+    item = _item(name, actual, expected, "spike")
+    item.scope_type = scope_type
+    return item
+
+
+def test_a_drift_is_grouped_as_a_drift_not_as_up_or_new() -> None:
+    """A drift went neither up nor down. A distribution drift compares two
+    windows' row counts, so it sat under "up"; a schema drift's expected 0 put
+    it under "new", as if an event had shipped."""
+    distribution = _drift("screen_view.platform", "distribution", 1200, 1200)
+    schema = _drift("checkout.amount", "schema", 1, 0)
+    items = [
+        _item("checkout:complete:annual", 42, 310, "drop"),
+        distribution,
+        schema,
+        _item("session:start:cold", 88000, 0, "spike"),
+    ]
+
+    groups = am._digest_groups(items)
+
+    assert [heading for heading, _group in groups] == ["1 down", "2 drifts", "1 new"]
+    assert dict(groups)["2 drifts"] == [distribution, schema]
+    assert "1 down, 2 drifts, 1 new" in am._digest_headline(items, len(items))
+    # Nothing ranks a drift, so it is never the worst mover.
+    assert am._digest_headline([distribution], 1) == "1 alerts · 1 drift"
+
+
+def test_a_digest_names_a_drift_s_kind_and_quotes_no_counts() -> None:
+    text = am._build_items_text(
+        [_drift("screen_view.platform", "distribution", 1200, 1200)],
+        message_format=ALERT_MESSAGE_FORMAT_PLAIN,
+        items_template=None,
+        digest=True,
+    )
+
+    heading, line = text.split("\n", 1)
+    assert heading == "1 drift"
+    assert line.startswith("◆ Distribution drift screen_view.platform\n  details: ")
+    assert "1200" not in text
+    assert "▲" not in text
+
+
 # ── the headline and the window ───────────────────────────────────────────
 
 
