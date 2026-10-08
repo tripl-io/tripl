@@ -5,6 +5,7 @@ import type {
   DbType,
   PostgresSslMode,
   SnowflakeAuthType,
+  TrinoHttpScheme,
 } from '@/types'
 import { REQUIRED_MESSAGE } from '@/components/forms/validation'
 import { INPUT_INVALID_CLASS, INPUT_PLACEHOLDER_CLASS, INPUT_TEXT_CLASS } from '@/components/settings/input-style'
@@ -40,6 +41,12 @@ export interface ConnectionSettingsForm {
   warehouse: string
   role: string
   snowflakeAuthType: SnowflakeAuthType
+  // Trino (schemaName and schemaAllowlist above are its too)
+  httpScheme: TrinoHttpScheme
+  // Athena (schemaAllowlist above is its too)
+  workGroup: string
+  s3OutputLocation: string
+  catalogName: string
 }
 
 export const EMPTY_CONNECTION_SETTINGS_FORM: ConnectionSettingsForm = {
@@ -59,6 +66,31 @@ export const EMPTY_CONNECTION_SETTINGS_FORM: ConnectionSettingsForm = {
   warehouse: '',
   role: '',
   snowflakeAuthType: 'password',
+  httpScheme: 'https',
+  workGroup: '',
+  s3OutputLocation: '',
+  catalogName: '',
+}
+
+export const TRINO_SCHEME_OPTIONS: { value: TrinoHttpScheme; label: string }[] = [
+  { value: 'https', label: 'HTTPS (password sign-in)' },
+  { value: 'http', label: 'HTTP (no authentication; local or in-cluster only)' },
+]
+
+// Mirrors MAX_TRINO_SCHEMA_ALLOWLIST in backend/src/tripl/schemas/data_source.py.
+export const MAX_TRINO_SCHEMA_ALLOWLIST = 50
+
+// Mirrors _S3_URI_RE on the backend: where Athena writes query results.
+const S3_URI_RE = /^s3:\/\/[a-z0-9][a-z0-9.-]{1,61}[a-z0-9](\/[^\s'"\\]{0,900})?$/
+
+/** Why `value` is not an S3 output location, or null when it is (or is empty). */
+export function s3OutputLocationError(value: string): string | null {
+  const trimmed = value.trim()
+  if (!trimmed) return null
+  if (!S3_URI_RE.test(trimmed)) {
+    return 'Use an S3 location, like s3://my-bucket/athena-results/.'
+  }
+  return null
 }
 
 export const DATABRICKS_AUTH_OPTIONS: { value: DatabricksAuthType; label: string }[] = [
@@ -217,7 +249,9 @@ export type PemField = 'sslrootcert' | 'sslcert' | 'sslkey'
  * Inline errors for the settings fields, by field: the Postgres PEM blocks, and
  * the Databricks HTTP path and the Snowflake warehouse (the required settings).
  */
-export type PemErrors = Partial<Record<PemField | 'httpPath' | 'warehouse', string>>
+export type PemErrors = Partial<
+  Record<PemField | 'httpPath' | 'warehouse' | 's3OutputLocation', string>
+>
 
 /**
  * Inline errors for the settings fields: the Postgres PEM blocks, the
@@ -235,6 +269,10 @@ export function connectionSettingsErrors(
   if (dbType === 'snowflake') {
     const warehouse = snowflakeWarehouseError(form.warehouse, requiredMessage)
     return warehouse ? { warehouse } : {}
+  }
+  if (dbType === 'athena') {
+    const s3OutputLocation = s3OutputLocationError(form.s3OutputLocation)
+    return s3OutputLocation ? { s3OutputLocation } : {}
   }
   if (!usesPostgresSettings(dbType)) return {}
   const errors: PemErrors = {}
@@ -310,6 +348,25 @@ export function buildConnectionSettings(
     }
   }
 
+  if (dbType === 'trino') {
+    const schemas = parseAllowlist(form.schemaAllowlist)
+    return {
+      http_scheme: form.httpScheme,
+      schema_name: nullable(form.schemaName),
+      schema_allowlist: schemas.length > 0 ? schemas : null,
+    }
+  }
+
+  if (dbType === 'athena') {
+    const schemas = parseAllowlist(form.schemaAllowlist)
+    return {
+      work_group: nullable(form.workGroup),
+      s3_output_location: nullable(form.s3OutputLocation),
+      catalog_name: nullable(form.catalogName),
+      schema_allowlist: schemas.length > 0 ? schemas : null,
+    }
+  }
+
   if (usesPostgresSettings(dbType)) {
     const sslkey = form.sslkey.trim()
     return {
@@ -351,5 +408,9 @@ export function connectionSettingsToForm(
     warehouse: settings.warehouse ?? '',
     role: settings.role ?? '',
     snowflakeAuthType: settings.auth_type === 'key_pair' ? 'key_pair' : 'password',
+    httpScheme: settings.http_scheme === 'http' ? 'http' : 'https',
+    workGroup: settings.work_group ?? '',
+    s3OutputLocation: settings.s3_output_location ?? '',
+    catalogName: settings.catalog_name ?? '',
   }
 }

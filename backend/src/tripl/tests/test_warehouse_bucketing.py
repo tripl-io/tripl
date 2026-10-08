@@ -34,6 +34,7 @@ from tripl.core.adapters.errors import WarehouseCapabilityError
 from tripl.core.adapters.postgres import PostgresAdapter
 from tripl.core.adapters.snowflake import SnowflakeAdapter
 from tripl.core.adapters.synthetic import SyntheticAdapter
+from tripl.core.adapters.trino import TrinoAdapter
 from tripl.core.bucketing import (
     EPOCH,
     WEEK_ORIGIN,
@@ -612,6 +613,20 @@ def test_snowflake_date_column_rejects_sub_day_intervals(code: str) -> None:
         _snowflake(time_type="DATE")._bucket_expression(_COL, code)
 
 
+def _trino(time_type: str = "timestamp(3) with time zone") -> TrinoAdapter:
+    adapter = object.__new__(TrinoAdapter)
+    adapter._allowed_columns = {_COL}
+    adapter._column_types = {_COL: time_type}
+    return adapter
+
+
+@pytest.mark.parametrize("code", ["15m", "1h", "6h"])
+def test_trino_date_column_rejects_sub_day_intervals(code: str) -> None:
+    """Same refusal as BigQuery's, for the same reason (and Athena's, its subclass)."""
+    with pytest.raises(WarehouseCapabilityError, match="no time-of-day"):
+        _trino(time_type="date")._bucket_expression(_COL, code)
+
+
 @pytest.mark.parametrize("code", CODES)
 def test_every_adapter_states_its_week_and_epoch_anchor_explicitly(code: str) -> None:
     """No adapter may rely on its dialect's default bucket origin.
@@ -625,6 +640,7 @@ def test_every_adapter_states_its_week_and_epoch_anchor_explicitly(code: str) ->
     bq = _bigquery()._bucket_expression(_COL, code)
     dbx = _databricks()._bucket_expression(_COL, code)
     sf = _snowflake()._bucket_expression(_COL, code)
+    trino = _trino()._bucket_expression(_COL, code)
 
     if code == "1w":
         assert "toMonday" in ch
@@ -635,6 +651,8 @@ def test_every_adapter_states_its_week_and_epoch_anchor_explicitly(code: str) ->
         # Snowflake's DATE_TRUNC('WEEK') follows the session's WEEK_START, so the
         # week is floored on a grid anchored at WEEK_ORIGIN (a Monday) instead.
         assert f"- {int(WEEK_ORIGIN.timestamp())})" in sf
+        # Trino: the same epoch grid, counted in whole seconds by date_diff.
+        assert f"- {int(WEEK_ORIGIN.timestamp())} AS double)" in trino
     else:
         assert "'UTC'" in ch  # bucket in UTC, not the column's zone
         assert "1970-01-01" in pg  # EPOCH origin, stated
@@ -645,3 +663,7 @@ def test_every_adapter_states_its_week_and_epoch_anchor_explicitly(code: str) ->
         assert "unix_seconds(" in dbx or dbx.startswith(("date_trunc('HOUR'", "date_trunc('DAY'"))
         # Snowflake: the same split, over DATE_PART(EPOCH_SECOND, ...).
         assert "EPOCH_SECOND" in sf or sf.startswith(("DATE_TRUNC('HOUR'", "DATE_TRUNC('DAY'"))
+        # Trino: the same split, over date_diff('second', <epoch>, ...).
+        assert "date_diff('second', TIMESTAMP '1970-01-01" in trino or trino.startswith(
+            ("CAST(date_trunc('hour'", "CAST(date_trunc('day'")
+        )

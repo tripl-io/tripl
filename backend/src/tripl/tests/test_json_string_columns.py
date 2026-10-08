@@ -166,7 +166,14 @@ def test_schema_preset_properties_column_may_be_parsed_but_not_the_event_column(
 
 
 def test_string_type_classifier() -> None:
-    for name in ("String", "Nullable(String)", "LowCardinality(Nullable(String))", "STRING"):
+    for name in (
+        "String",
+        "Nullable(String)",
+        "LowCardinality(Nullable(String))",
+        "STRING",
+        "varchar",
+        "varchar(64)",
+    ):
         assert is_string_type(name)
     assert is_string_type("FixedString(16)")
     for name in ("JSON", "Int64", "Array(String)", "Map(String, String)", "DateTime"):
@@ -240,7 +247,10 @@ class TestApi:
         ds = await _data_source(client, "postgres")
         resp = await client.post(f"/api/v1/projects/{project['slug']}/scans", json=_body(ds))
         assert resp.status_code == 422
-        assert "ClickHouse, BigQuery, Databricks and Snowflake data sources only" in resp.text
+        assert (
+            "ClickHouse, BigQuery, Databricks, Snowflake, Trino and Athena data sources only"
+            in resp.text
+        )
 
         plain = await client.post(
             f"/api/v1/projects/{project['slug']}/scans",
@@ -497,7 +507,8 @@ def test_bigquery_breakdown_and_property_extraction_read_the_parsed_column() -> 
 def test_engines_without_the_parse_refuse_it() -> None:
     postgres = object.__new__(PostgresAdapter)
     with pytest.raises(
-        WarehouseCapabilityError, match="only ClickHouse, BigQuery, Databricks and Snowflake"
+        WarehouseCapabilityError,
+        match="only ClickHouse, BigQuery, Databricks, Snowflake, Trino and Athena",
     ):
         postgres.json_string_source("SELECT 1", ["props"])
     with pytest.raises(WarehouseCapabilityError, match="Parse as JSON"):

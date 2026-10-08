@@ -58,6 +58,7 @@ from tripl.core.adapters.postgres import PostgresAdapter
 from tripl.core.adapters.redshift import RedshiftAdapter
 from tripl.core.adapters.snowflake import SnowflakeAdapter
 from tripl.core.adapters.synthetic import SyntheticAdapter
+from tripl.core.adapters.trino import TrinoAdapter
 from tripl.models.domain_enums import MetricAggregation
 from tripl.schemas.field_definition import FieldDefinitionCreate, FieldDefinitionUpdate
 from tripl.worker.tasks._errors import ScanError
@@ -248,6 +249,26 @@ def _sf() -> tuple[BaseAdapter, list[str]]:
     return _sf_adapter(conn), conn.sql
 
 
+def _trino_adapter(conn: _DBXConn) -> TrinoAdapter:
+    """Trino renders every value as a quoted literal, so the fake binds nothing."""
+    adapter = object.__new__(TrinoAdapter)
+    adapter._conn = conn
+    adapter._allowed_columns = set(_ALLOWED)
+    # Seeded so no LIMIT 0 column read lands at sql[0], as for BigQuery.
+    adapter._column_types = {
+        "time": "timestamp(3) with time zone",
+        "event_name": "varchar",
+        "amount": "double",
+    }
+    adapter._catalog = "hive"
+    return adapter
+
+
+def _trino() -> tuple[BaseAdapter, list[str]]:
+    conn = _DBXConn()
+    return _trino_adapter(conn), conn.sql
+
+
 def _ch() -> tuple[BaseAdapter, list[str]]:
     client = _CHClient()
     adapter = object.__new__(ClickHouseAdapter)
@@ -304,6 +325,7 @@ _SQL_ENGINES: dict[str, Callable[[], tuple[BaseAdapter, list[str]]]] = {
     "bigquery": _bq,
     "databricks": _dbx,
     "snowflake": _sf,
+    "trino": _trino,
 }
 
 
@@ -363,6 +385,7 @@ _TIE_BREAK = {
     "bigquery": "ORDER BY _cnt DESC, _breakdown_value) AS rn ",
     "databricks": "ORDER BY _cnt DESC, _breakdown_value) AS rn ",
     "snowflake": "ORDER BY _cnt DESC, _breakdown_value) AS rn ",
+    "trino": "ORDER BY _cnt DESC, _breakdown_value) AS rn ",
 }
 
 # How each dialect cuts the list. ``values_limit=3`` must ask for 2, because
@@ -375,6 +398,7 @@ _CUT_AT_TWO = {
     "bigquery": "WHERE rn <= 2",
     "databricks": "WHERE rn <= 2",
     "snowflake": "WHERE rn <= 2",
+    "trino": "WHERE rn <= 2",
 }
 
 
@@ -714,6 +738,7 @@ _RAW_BREAKDOWN_TERM = {
     "bigquery": "`event_name`",
     "databricks": "`event_name`",
     "snowflake": '"event_name"',
+    "trino": '"event_name"',
 }
 
 # The top-values pre-query returns ``(column, value)`` pairs in all three
@@ -800,6 +825,11 @@ def _seeded(engine: str) -> tuple[BaseAdapter, list[str]]:
         sf_conn.seed_first = True
         adapter._conn = sf_conn
         return adapter, sf_conn.sql
+    if engine == "trino":
+        trino_conn = _DBXConn()
+        trino_conn.seed_first = True
+        adapter._conn = trino_conn
+        return adapter, trino_conn.sql
     bq_client = _SeededBQClient()
     adapter._client = bq_client
     return adapter, bq_client.sql
@@ -1243,6 +1273,10 @@ _DISTINCT_GATE = {
         "CASE WHEN COUNT_IF(amount > 0) = 0 "
         'THEN NULL ELSE COUNT(DISTINCT IFF(amount > 0, "event_name", NULL)) END'
     ),
+    "trino": (
+        "CASE WHEN count_if(amount > 0) = 0 "
+        'THEN NULL ELSE count(DISTINCT IF(amount > 0, "event_name", NULL)) END'
+    ),
 }
 
 # The row-presence probe alone: a COUNT OF ROWS compared to zero. The ``= 0``
@@ -1257,6 +1291,7 @@ _ROW_PRESENCE_PROBE = {
     "bigquery": "COUNTIF(amount > 0) = 0",
     "databricks": "count_if(amount > 0) = 0",
     "snowflake": "COUNT_IF(amount > 0) = 0",
+    "trino": "count_if(amount > 0) = 0",
 }
 
 # The plain filtered count keeps the compact spelling: its filtered value IS the
@@ -1269,6 +1304,7 @@ _PLAIN_COUNT = {
     "bigquery": "NULLIF(count(CASE WHEN amount > 0 THEN 1 END), 0) AS `c`",
     "databricks": "NULLIF(count_if(amount > 0), 0) AS `c`",
     "snowflake": 'NULLIF(COUNT_IF(amount > 0), 0) AS "c"',
+    "trino": 'NULLIF(count_if(amount > 0), 0) AS "c"',
 }
 
 # An unfiltered spec is unconditional and must stay exactly what the
@@ -1281,6 +1317,7 @@ _UNFILTERED_DISTINCT = {
     "bigquery": "count(DISTINCT `event_name`) AS `u`",
     "databricks": "count(DISTINCT `event_name`) AS `u`",
     "snowflake": 'count(DISTINCT "event_name") AS "u"',
+    "trino": 'count(DISTINCT "event_name") AS "u"',
 }
 
 # A filtered sum, where the engines legitimately differ and the difference is
@@ -1297,6 +1334,7 @@ _FILTERED_SUM = {
     "bigquery": "sum(CASE WHEN amount > 0 THEN `amount` END) AS `s`",
     "databricks": "sum(CASE WHEN amount > 0 THEN `amount` END) AS `s`",
     "snowflake": 'sum(CASE WHEN amount > 0 THEN "amount" END) AS "s"',
+    "trino": 'sum(CASE WHEN amount > 0 THEN "amount" END) AS "s"',
 }
 
 
@@ -1559,6 +1597,11 @@ def _sf_contracts() -> tuple[BaseAdapter, _DBXConn]:
     return _sf_adapter(conn), conn
 
 
+def _trino_contracts() -> tuple[BaseAdapter, _DBXConn]:
+    conn = _DBXConn()
+    return _trino_adapter(conn), conn
+
+
 # The two engines this issue moved (and Databricks, which was born single-pass and
 # judges in Python like them). BigQuery is covered separately below: it was
 # already single-pass, and it is the documented exception on where the verdict is
@@ -1570,6 +1613,7 @@ _CONTRACT_ENGINES: dict[str, Callable[[], tuple[BaseAdapter, object]]] = {
     "redshift": _rs_contracts,
     "databricks": _dbx_contracts,
     "snowflake": _sf_contracts,
+    "trino": _trino_contracts,
 }
 
 _CONTRACTS = [
@@ -1604,6 +1648,7 @@ _CONTRACT_WINDOW = {
     "redshift": '"time" >= TIMESTAMPTZ ',
     "databricks": "`time` >= TIMESTAMP '",
     "snowflake": '"time" >= TO_TIMESTAMP_NTZ(',
+    "trino": '"time" >= TIMESTAMP \'',
 }
 
 # What those counts mean, judged once. The third contract is the interesting one:
@@ -1927,6 +1972,7 @@ _RANGE_COMPILED = {
     "bigquery": "SAFE_CAST",
     "databricks": "try_cast",
     "snowflake": "TRY_TO_DOUBLE",
+    "trino": "AS double)",
 }
 
 # A numeric literal for infinity or NaN, however spelled. ``\b`` keeps it off
@@ -2263,6 +2309,8 @@ _REFUSED_BY = {
     "databricks": "(?P<sku>x)",
     # Snowflake's POSIX ERE has no lookaround.
     "snowflake": "^(?!test_)",
+    # Trino's joni has lookaround, but not Python's named-group spelling.
+    "trino": "(?P<sku>x)",
 }
 
 # Portable in all three dialects and in Python: literals, a character class, an
@@ -2281,6 +2329,8 @@ _PROBE_SQL = {
     "databricks": "SELECT '' RLIKE '{pattern}'",
     # Bound as :1; the fake writes the value back in.
     "snowflake": "SELECT REGEXP_INSTR('', '{pattern}')",
+    # A quoted literal: none of the probed patterns holds a quote.
+    "trino": "SELECT regexp_like('', '{pattern}')",
 }
 
 
@@ -2403,12 +2453,20 @@ def _sf_refusing(
     return _sf_adapter(conn), conn.sql
 
 
+def _trino_refusing(
+    refused: str | None = None, *, offline: bool = False
+) -> tuple[BaseAdapter, list[str]]:
+    conn = _DBXConn(refusing=True, refused=refused, offline=offline)
+    return _trino_adapter(conn), conn.sql
+
+
 _REFUSING_ENGINES: dict[str, Callable[..., tuple[BaseAdapter, list[str]]]] = {
     "clickhouse": _ch_refusing,
     "postgres": _pg_refusing,
     "bigquery": _bq_refusing,
     "databricks": _dbx_refusing,
     "snowflake": _sf_refusing,
+    "trino": _trino_refusing,
 }
 
 

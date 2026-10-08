@@ -18,6 +18,11 @@ import type { DataSource, DbType, JsonPathDiscovery } from '@/types'
  *   - Snowflake: `host` is the account identifier, `databaseName` the
  *     database, `username` the user and `secret` its password or, for key-pair
  *     sign-in, its PEM private key. The port is always 443 and is not shown.
+ *   - Trino: `host`/`port` reach the coordinator, `databaseName` is the
+ *     catalog, and the password is optional (an unauthenticated coordinator).
+ *   - Athena: `host` is the AWS region, `databaseName` the default Glue
+ *     database, `username` the access key ID and `secret` the secret access
+ *     key. The port is always 443 and is not shown.
  *
  * `secret` is write-only. The API never returns a password or a service-account
  * key (only the `password_set` boolean), so it always starts empty on edit and
@@ -72,7 +77,7 @@ export const DATABRICKS_PORT = 443
 
 /** The warehouses reached over HTTPS on 443 only, with no port box. */
 export function isHttpsOnly(dbType: DbType): boolean {
-  return dbType === 'databricks' || dbType === 'snowflake'
+  return dbType === 'databricks' || dbType === 'snowflake' || dbType === 'athena'
 }
 
 interface CoreCreatePayload {

@@ -59,6 +59,8 @@ export const DB_TYPES: readonly DbType[] = [
   'snowflake',
   'greenplum',
   'redshift',
+  'trino',
+  'athena',
   'synthetic',
 ]
 
@@ -95,6 +97,12 @@ function bucketExpression(db: DbType | undefined, unit: 'day' | 'hour'): string 
     case 'greenplum':
     case 'redshift':
       return `date_trunc('${unit}', created_at)`
+    // Trino and Athena (engine version 3 is Trino SQL): date_trunc truncates a
+    // zoned timestamp in its OWN zone, so the value is moved to UTC first. A
+    // zone-less column is read in the session zone, which is UTC on both.
+    case 'trino':
+    case 'athena':
+      return `date_trunc('${unit}', created_at AT TIME ZONE 'UTC')`
     // ClickHouse, the synthetic demo warehouse (which mimics ClickHouse
     // semantics), and "no source picked yet" all use the ClickHouse form. The
     // moment a source is selected the SQL is re-rendered for it, so an

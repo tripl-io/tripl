@@ -240,6 +240,8 @@ _NATIVE_TIME_TYPE_ENGINES = {
     "bigquery": "BigQuery",
     "databricks": "Databricks",
     "snowflake": "Snowflake",
+    "trino": "Trino",
+    "athena": "Athena",
 }
 
 
@@ -249,10 +251,11 @@ def _saved_fact_column_types(fact_table: FactTable, data_source: DataSource) -> 
     The normalized ``type`` remains the form/validation contract. ``native_type``
     is captured by Fact table -> Preview columns and is required where a dialect
     generates different SQL for members of the same normalized family. Existing
-    BigQuery, Databricks and Snowflake tables without that snapshot must be
-    re-previewed rather than being shown a plausible but non-executable TIMESTAMP
-    guess for DATETIME/DATE (BigQuery), TIMESTAMP_NTZ/DATE (Databricks) or
-    TIMESTAMP_NTZ/TIMESTAMP_TZ/DATE (Snowflake).
+    BigQuery, Databricks, Snowflake, Trino and Athena tables without that
+    snapshot must be re-previewed rather than being shown a plausible but
+    non-executable TIMESTAMP guess for DATETIME/DATE (BigQuery), TIMESTAMP_NTZ/DATE
+    (Databricks), TIMESTAMP_NTZ/TIMESTAMP_TZ/DATE (Snowflake) or timestamp /
+    timestamp with time zone / date (Trino, Athena).
     """
     columns = [column for column in (fact_table.columns or []) if isinstance(column, Mapping)]
     column_types = {

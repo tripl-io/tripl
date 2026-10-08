@@ -265,7 +265,7 @@ jobs:
           TRIPL_CONF_BQ_EMULATOR_URL: http://localhost:9050
           TRIPL_CONF_BQ_PROJECT: tripl-test
         run: |
-          uv run pytest -q -m "conformance and not bigquery_value and not bigquery_pipeline and not databricks_value and not snowflake_value and not redshift_value" \
+          uv run pytest -q -m "conformance and not bigquery_value and not bigquery_pipeline and not databricks_value and not snowflake_value and not redshift_value and not trino_value and not athena_value" \
             --junitxml=conformance.xml \
             src/tripl/tests/conformance
 
@@ -416,6 +416,89 @@ jobs:
           if failures or errors:
               sys.exit(f"::error::{failures} failed / {errors} errored Greenplum conformance test(s).")
           PY
+
+  trino:
+    # The value contract executed on a real Trino coordinator. Trino is
+    # credential-free in Docker, so unlike the Snowflake, Redshift and Athena gates
+    # (release tags, real accounts) this one runs on every pull request. The
+    # fixture is a table-less UNION ALL; the session catalog (memory) is never
+    # read. Athena engine version 3 is Trino SQL, so this is also the executing
+    # gate for every statement AthenaAdapter sends.
+    name: Warehouse conformance (Trino)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v10.2.0
+        with:
+          enable-cache: true
+
+      - name: Start Trino
+        # trinodb/trino: a single-node coordinator, multi-arch. Pinned by digest,
+        # like every other conformance warehouse.
+        run: |
+          docker run -d --name trino -p 8080:8080 \
+            trinodb/trino:483@sha256:db58cc93e593a2706553745f276bb119c9810e69918be56ecde088ba7ccb0534
+
+      - name: Install dependencies
+        run: uv sync --extra dev
+
+      - name: Wait for Trino
+        # The HTTP server answers before the node has joined: wait until a real
+        # statement returns a row.
+        run: |
+          for i in $(seq 1 90); do
+            if uv run python -c "import trino; c = trino.dbapi.connect(host='localhost', port=8080, user='tripl', catalog='memory', http_scheme='http').cursor(); c.execute('SELECT 1'); assert c.fetchall() == [[1]]" >/dev/null 2>&1; then
+              echo "Trino answered after $i attempt(s)"
+              exit 0
+            fi
+            sleep 3
+          done
+          echo "::error::Trino never became reachable"
+          docker logs trino 2>&1 | tail -50 || true
+          exit 1
+
+      - name: Conformance gates on Trino
+        env:
+          TRIPL_TRINO_VALUE_REQUIRED: "1"
+          TRIPL_CONF_TRINO_HOST: localhost
+          TRIPL_CONF_TRINO_PORT: "8080"
+        run: |
+          uv run pytest -q -m trino_value --junitxml=trino-conformance.xml \
+            src/tripl/tests/conformance/test_trino_value_conformance.py
+
+      - name: Prove the Trino gates actually ran
+        if: always()
+        run: |
+          python3 - <<'PY'
+          import sys, xml.etree.ElementTree as ET
+          try:
+              root = ET.parse("trino-conformance.xml").getroot()
+          except (OSError, ET.ParseError) as exc:
+              sys.exit(f"::error::no Trino JUnit report: {exc}. The gates did not run.")
+          tests = errors = failures = skipped = 0
+          for suite in root.iter("testsuite"):
+              tests += int(suite.get("tests", 0))
+              errors += int(suite.get("errors", 0))
+              failures += int(suite.get("failures", 0))
+              skipped += int(suite.get("skipped", 0))
+          print(f"Trino conformance: {tests} collected, {failures} failed, {errors} errored, {skipped} skipped")
+          if tests == 0:
+              sys.exit("::error::0 Trino conformance tests ran.")
+          if skipped:
+              sys.exit(f"::error::{skipped} Trino conformance test(s) skipped.")
+          if failures or errors:
+              sys.exit(f"::error::{failures} failed / {errors} errored Trino conformance test(s).")
+          PY
+
+      - name: Trino logs (on failure)
+        if: failure()
+        run: docker logs trino 2>&1 | tail -100 || true
 
   relevance:
     name: Search relevance harness (postgres)

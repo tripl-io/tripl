@@ -34,9 +34,9 @@ Install the pinned Bun:
 curl -fsSL https://bun.com/install | bash -s "bun-v1.4.2"
 ```
 
-:::note ClickHouse / BigQuery / Databricks / Snowflake / Postgres warehouses are external
+:::note Warehouses are external
 tripl reads from *external* analytics warehouses (ClickHouse, BigQuery,
-Databricks, Snowflake, and the Postgres warehouse adapter). Compose does **not** start a warehouse for you. The
+Databricks, Snowflake, Redshift, Greenplum, Trino, Athena, and the Postgres warehouse adapter). Compose does **not** start a warehouse for you. The
 PostgreSQL container in the dev stack is tripl's own system-of-record database,
 not a scan target. Scans and data-source connection tests need a reachable
 external warehouse.
@@ -524,7 +524,9 @@ sources; and API, worker, and beat must all stay runnable together via Compose.
 
 - **Scan / connection test fails with no warehouse reachable.** Warehouses are
   external and not started by Compose. Point a data source at a real ClickHouse,
-  BigQuery, Databricks, Snowflake, or Postgres warehouse you control.
+  BigQuery, Databricks, Snowflake, Trino, or Postgres warehouse you control. (A
+  Trino coordinator runs in one container: `docker run -d -p 8080:8080 trinodb/trino`,
+  then a `trino` source on port 8080 with scheme `http` and catalog `tpch`.)
 - **App refuses to start in non-debug mode.** `Settings.assert_production_ready()`
   rejects an empty/invalid `ENCRYPTION_KEY`, an empty `SECRET_KEY`, CORS that
   resolves to nothing or to the wildcard `*`, or `SESSION_COOKIE_SECURE=false`

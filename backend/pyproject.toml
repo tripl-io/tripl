@@ -51,6 +51,8 @@ dependencies = [
     "holidays>=0.105",
     "databricks-sql-connector>=4.6.0",
     "snowflake-connector-python>=3.12",
+    "trino>=0.330",
+    "pyathena>=3.0",
 ]
 
 [project.scripts]
@@ -114,6 +116,11 @@ markers = [
     # Real Snowflake values, likewise: snowflake-value-conformance.yml on release tags.
     "snowflake_value: executes value assertions against a real Snowflake account",
     "redshift_value: executes value assertions against a real Amazon Redshift endpoint",
+    # Trino runs credential-free in Docker: the dedicated `trino` CI job executes
+    # this marker, and the ordinary conformance job excludes it.
+    "trino_value: executes value assertions against a real Trino coordinator",
+    # Real Athena values need an AWS account: athena-value-conformance.yml on release tags.
+    "athena_value: executes value assertions against a real Amazon Athena workgroup",
     # The search relevance harness (src/tripl/tests/relevance/). The suite runs on
     # SQLite, so the PRODUCTION ranking SQL — ts_rank_cd, the trigram/boost tiers,
     # merge_results, and the tripl_search text-search configuration — is executed
@@ -168,7 +175,7 @@ exclude = ["src/tripl/tests/"]
 plugins = ["pydantic.mypy"]
 
 [[tool.mypy.overrides]]
-module = ["celery.*", "statsmodels.*", "google.cloud.*", "opentelemetry.*"]
+module = ["celery.*", "statsmodels.*", "google.cloud.*", "opentelemetry.*", "botocore.*"]
 ignore_missing_imports = true
 
 # Coverage for `pytest --cov=tripl` (CI runs it; see CONTRIBUTING.md, "Coverage").

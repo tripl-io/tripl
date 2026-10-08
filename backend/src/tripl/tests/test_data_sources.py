@@ -645,6 +645,51 @@ class TestConnectionSettings:
         assert resp.status_code == 422, resp.text
         assert "warehouse" in resp.text
 
+    async def test_trino_settings_round_trip(self, client: AsyncClient):
+        create = await _create(
+            client,
+            db_type="trino",
+            host="trino.example.com",
+            port=443,
+            database_name="hive",
+            username="tripl",
+            password="hunter2",
+            connection_settings={
+                "http_scheme": "https",
+                "schema_name": "events",
+                "schema_allowlist": ["marts"],
+            },
+        )
+        assert create.status_code == 201, create.text
+        settings = create.json()["connection_settings"]
+        assert settings["http_scheme"] == "https"
+        assert settings["schema_name"] == "events"
+        assert settings["schema_allowlist"] == ["marts"]
+        assert settings["warehouse"] is None
+        assert "hunter2" not in create.text
+
+    async def test_athena_settings_round_trip(self, client: AsyncClient):
+        create = await _create(
+            client,
+            db_type="athena",
+            host="eu-west-1",
+            port=443,
+            database_name="analytics",
+            username="AKIAEXAMPLE",
+            password="secret",
+            connection_settings={
+                "work_group": "primary",
+                "s3_output_location": "s3://my-bucket/athena/",
+                "schema_allowlist": ["marts"],
+            },
+        )
+        assert create.status_code == 201, create.text
+        settings = create.json()["connection_settings"]
+        assert settings["work_group"] == "primary"
+        assert settings["s3_output_location"] == "s3://my-bucket/athena/"
+        assert settings["catalog_name"] is None
+        assert "secret" not in create.text.replace("password_set", "")
+
     async def test_postgres_settings_round_trip(self, client: AsyncClient):
         create = await _create(
             client,
@@ -697,6 +742,9 @@ class TestConnectionSettings:
                 {"http_path": "/sql/1.0/warehouses/x"},
                 "snowflake",
             ),
+            # An Athena setting on a Trino source, and a Trino one on Athena.
+            ("trino", "trino.example.com", {"work_group": "primary"}, "trino"),
+            ("athena", "eu-west-1", {"http_scheme": "https"}, "athena"),
         ],
     )
     async def test_inapplicable_settings_are_rejected_not_ignored(

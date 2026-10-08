@@ -1672,6 +1672,8 @@ def test_invalid_numeric_literal_is_rejected_for_number_column() -> None:
         (SqlDialect.bigquery, "(`order` = 'o1')"),
         (SqlDialect.databricks, "(`order` = 'o1')"),
         (SqlDialect.snowflake, "(\"order\" = 'o1')"),
+        (SqlDialect.trino, "(\"order\" = 'o1')"),
+        (SqlDialect.athena, "(\"order\" = 'o1')"),
     ],
 )
 def test_condition_quotes_reserved_identifier_per_dialect(
@@ -1700,6 +1702,9 @@ def test_condition_quotes_reserved_identifier_per_dialect(
         (SqlDialect.bigquery, "(`user_id` = 'u\\' OR 1=1 --')"),
         (SqlDialect.databricks, "(`user_id` = 'u\\' OR 1=1 --')"),
         (SqlDialect.snowflake, "(\"user_id\" = 'u\\' OR 1=1 --')"),
+        # Trino has no escape sequence in a literal at all: the quote is doubled.
+        (SqlDialect.trino, "(\"user_id\" = 'u'' OR 1=1 --')"),
+        (SqlDialect.athena, "(\"user_id\" = 'u'' OR 1=1 --')"),
     ],
 )
 def test_condition_escapes_string_values_per_dialect(dialect: SqlDialect, expected: str) -> None:
@@ -1751,6 +1756,8 @@ def test_condition_value_cannot_break_out_of_its_string(dialect: SqlDialect) -> 
             "(\"ts\" > TO_TIMESTAMP_TZ('2026-01-01 00:00:00.000000 +00:00', "
             "'YYYY-MM-DD HH24:MI:SS.FF6 TZH:TZM'))",
         ),
+        (SqlDialect.trino, "(\"ts\" > TIMESTAMP '2026-01-01 00:00:00.000000 UTC')"),
+        (SqlDialect.athena, "(\"ts\" > TIMESTAMP '2026-01-01 00:00:00.000000 UTC')"),
     ],
 )
 def test_condition_on_time_column_emits_typed_utc_literal(

@@ -624,7 +624,7 @@ alerts like any other schema drift. The contract comes from the property:
 ### Text columns parsed as JSON
 
 When a table keeps its properties as JSON text in a plain `String` (ClickHouse)
-or `STRING` (BigQuery, Databricks, Snowflake) column, tick the column under **Parse as JSON** in the
+or `STRING` (BigQuery, Databricks, Snowflake) or `varchar` (Trino, Athena) column, tick the column under **Parse as JSON** in the
 scan form ([Scans](./feature-reference.md#parse-as-json)). The scan then treats
 it as a JSON column: every key becomes a property with a type, a presence rate
 and sample values, a nested object becomes one object property, and

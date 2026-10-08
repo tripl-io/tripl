@@ -614,7 +614,7 @@ class BaseAdapter(abc.ABC):
         """
         msg = (
             "This data source cannot parse String columns as JSON; "
-            "only ClickHouse, BigQuery, Databricks and Snowflake can."
+            "only ClickHouse, BigQuery, Databricks, Snowflake, Trino and Athena can."
         )
         raise WarehouseCapabilityError(msg)
 

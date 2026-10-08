@@ -3267,8 +3267,9 @@ documents indexed and whether embeddings were queued.
 **Where:** Workspace settings › Data sources (owner only). Supported types and
 default ports: **ClickHouse** (8123), **PostgreSQL** (5432, **version 14+
 required**), **BigQuery** (project/dataset based), **Snowflake** (443; account identifier, database and virtual warehouse), **Databricks** (443;
-workspace hostname, catalog and SQL warehouse HTTP path), **Amazon Redshift** (5439; no JSON columns) and
-**Greenplum** (5432; Greenplum 6 or 7). Create, edit, and delete
+workspace hostname, catalog and SQL warehouse HTTP path), **Amazon Redshift** (5439; no JSON columns),
+**Greenplum** (5432; Greenplum 6 or 7), **Trino** (443; coordinator host, catalog, user, optional password) and
+**Amazon Athena** (AWS region, Glue database, access key). Create, edit, and delete
 sources; **Test connection** (the new-source dialog can test the connection
 before you create it, and nothing is stored by that test; a new source is tested
 again as soon as it is created, and an edited one when its host, credentials or
@@ -3285,7 +3286,7 @@ scans when there are three or fewer: *1 scan (Demo scan) and its 42 runs will be
 removed with it.* The dialog checks secrets before saving: a BigQuery key must
 be valid JSON with `"type": "service_account"` (paste it or **load the key
 file**), a Databricks HTTP path is required and must be a path (`/sql/1.0/warehouses/…`), a
-Snowflake warehouse is required,
+Snowflake warehouse is required, an Athena query result location must be an `s3://` location,
 not a URL, and PostgreSQL certificates and keys must be PEM blocks
 (`-----BEGIN …-----` to `-----END …-----`), not file paths. Credential fields
 are excluded from browser autofill, password managers and spell check.
@@ -3301,6 +3302,8 @@ connection settings, shown only for the warehouse they apply to:
 | BigQuery | Location, max billed bytes (cost guard, default 100 GiB), dataset allowlist (schema-browse scope) |
 | Databricks | HTTP path (required), authentication (access token or OAuth machine-to-machine), default schema, schema allowlist (schema-browse scope) |
 | Snowflake | Warehouse (required), authentication (password or key pair), role, default schema, schema allowlist (schema-browse scope) |
+| Trino | Scheme (`https` / `http`; a password is only sent over HTTPS), default schema, schema allowlist (schema-browse scope) |
+| Athena | Workgroup (default `primary`), query result location (`s3://…`), catalog (default `AwsDataCatalog`), schema allowlist (schema-browse scope) |
 
 :::info Not interchangeable — read the capability matrix
 The warehouses expose the same features but not the same guarantees.

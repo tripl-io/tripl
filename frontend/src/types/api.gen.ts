@@ -7589,6 +7589,24 @@ export interface components {
             versions: components["schemas"]["AppVersionInfo"][];
         };
         /**
+         * AthenaSettings
+         * @description Amazon Athena: the workgroup statements run in, where results go, what to browse.
+         *
+         *     ``host`` is the AWS region, ``database_name`` the default Glue database,
+         *     ``username`` the access key ID and the secret its secret access key; these
+         *     are the settings that have no column of their own.
+         */
+        AthenaSettings: {
+            /** Catalog Name */
+            catalog_name?: string | null;
+            /** S3 Output Location */
+            s3_output_location?: string | null;
+            /** Schema Allowlist */
+            schema_allowlist?: string[] | null;
+            /** Work Group */
+            work_group?: string | null;
+        };
+        /**
          * AttributionColumn
          * @description One breakdown column's split: its top values and the part of the change
          *     they explain (0..1).
@@ -8490,16 +8508,22 @@ export interface components {
         ConnectionSettingsResponse: {
             /** Auth Type */
             auth_type?: ("pat" | "oauth_m2m") | ("password" | "key_pair") | null;
+            /** Catalog Name */
+            catalog_name?: string | null;
             /** Dataset Allowlist */
             dataset_allowlist?: string[] | null;
             /** Http Path */
             http_path?: string | null;
+            /** Http Scheme */
+            http_scheme?: ("https" | "http") | null;
             /** Location */
             location?: string | null;
             /** Maximum Bytes Billed */
             maximum_bytes_billed?: number | null;
             /** Role */
             role?: string | null;
+            /** S3 Output Location */
+            s3_output_location?: string | null;
             /** Schema Allowlist */
             schema_allowlist?: string[] | null;
             /** Schema Name */
@@ -8519,6 +8543,8 @@ export interface components {
             sslrootcert?: string | null;
             /** Warehouse */
             warehouse?: string | null;
+            /** Work Group */
+            work_group?: string | null;
         };
         /** CoverageBucket */
         CoverageBucket: {
@@ -8553,7 +8579,7 @@ export interface components {
          * DBType
          * @enum {string}
          */
-        DBType: "clickhouse" | "postgres" | "bigquery" | "databricks" | "snowflake" | "greenplum" | "redshift" | "synthetic";
+        DBType: "clickhouse" | "postgres" | "bigquery" | "databricks" | "snowflake" | "greenplum" | "redshift" | "trino" | "athena" | "synthetic";
         /**
          * DataSourceConnectionTest
          * @description An unsaved data-source config to test a connection with.
@@ -8565,7 +8591,7 @@ export interface components {
          */
         DataSourceConnectionTest: {
             /** Connection Settings */
-            connection_settings?: components["schemas"]["ClickHouseSettings"] | components["schemas"]["PostgresSettings"] | components["schemas"]["BigQuerySettings"] | components["schemas"]["DatabricksSettings"] | components["schemas"]["SnowflakeSettings"] | components["schemas"]["SyntheticSettings"] | null;
+            connection_settings?: components["schemas"]["ClickHouseSettings"] | components["schemas"]["PostgresSettings"] | components["schemas"]["BigQuerySettings"] | components["schemas"]["DatabricksSettings"] | components["schemas"]["SnowflakeSettings"] | components["schemas"]["TrinoSettings"] | components["schemas"]["AthenaSettings"] | components["schemas"]["SyntheticSettings"] | null;
             /** Database Name */
             database_name: string;
             db_type: components["schemas"]["DBType"];
@@ -8611,7 +8637,7 @@ export interface components {
         /** DataSourceCreate */
         DataSourceCreate: {
             /** Connection Settings */
-            connection_settings?: components["schemas"]["ClickHouseSettings"] | components["schemas"]["PostgresSettings"] | components["schemas"]["BigQuerySettings"] | components["schemas"]["DatabricksSettings"] | components["schemas"]["SnowflakeSettings"] | components["schemas"]["SyntheticSettings"] | null;
+            connection_settings?: components["schemas"]["ClickHouseSettings"] | components["schemas"]["PostgresSettings"] | components["schemas"]["BigQuerySettings"] | components["schemas"]["DatabricksSettings"] | components["schemas"]["SnowflakeSettings"] | components["schemas"]["TrinoSettings"] | components["schemas"]["AthenaSettings"] | components["schemas"]["SyntheticSettings"] | null;
             /** Database Name */
             database_name: string;
             db_type: components["schemas"]["DBType"];
@@ -8758,7 +8784,7 @@ export interface components {
         /** DataSourceUpdate */
         DataSourceUpdate: {
             /** Connection Settings */
-            connection_settings?: components["schemas"]["ClickHouseSettings"] | components["schemas"]["PostgresSettings"] | components["schemas"]["BigQuerySettings"] | components["schemas"]["DatabricksSettings"] | components["schemas"]["SnowflakeSettings"] | components["schemas"]["SyntheticSettings"] | null;
+            connection_settings?: components["schemas"]["ClickHouseSettings"] | components["schemas"]["PostgresSettings"] | components["schemas"]["BigQuerySettings"] | components["schemas"]["DatabricksSettings"] | components["schemas"]["SnowflakeSettings"] | components["schemas"]["TrinoSettings"] | components["schemas"]["AthenaSettings"] | components["schemas"]["SyntheticSettings"] | null;
             /** Database Name */
             database_name?: string | null;
             db_type?: components["schemas"]["DBType"] | null;
@@ -18134,6 +18160,22 @@ export interface components {
             stddev: number;
             /** Z Score */
             z_score: number;
+        };
+        /**
+         * TrinoSettings
+         * @description Trino / Starburst coordinator: its scheme, and what to browse.
+         *
+         *     ``host`` and ``port`` reach the coordinator, ``database_name`` is the
+         *     catalog and ``username`` the user; these are the settings that have no
+         *     column of their own.
+         */
+        TrinoSettings: {
+            /** Http Scheme */
+            http_scheme?: ("https" | "http") | null;
+            /** Schema Allowlist */
+            schema_allowlist?: string[] | null;
+            /** Schema Name */
+            schema_name?: string | null;
         };
         /** UnreadCountResponse */
         UnreadCountResponse: {

@@ -1,0 +1,120 @@
+name: Athena release conformance
+
+# The value contract against a real Amazon Athena workgroup (engine version 3), on
+# stable release tags only, like the BigQuery, Snowflake and Redshift ones: a pull
+# request from a fork gets no secrets, and Athena bills per query. Off until the
+# repository variable ATHENA_VALUE_CONFORMANCE_ENABLED is "true"; once on, a
+# missing credential fails the run instead of skipping it.
+#
+# It has NOT yet run against a live account: the Trino job in ci.yml executes the
+# same assertions on every pull request, and Athena engine version 3 is Trino SQL,
+# but the Athena connection itself (pyathena, the workgroup, the result location)
+# is verified only by this workflow once it is switched on.
+#
+# An IAM user (or role keys) allowed athena:StartQueryExecution /
+# GetQueryExecution / GetQueryResults / StopQueryExecution on the workgroup, and
+# s3:PutObject / GetObject on its result location. ATHENA_REGION, ATHENA_WORKGROUP
+# (default primary) and ATHENA_OUTPUT (an s3:// location, unless the workgroup
+# sets one) are variables; ATHENA_ACCESS_KEY_ID / ATHENA_SECRET_ACCESS_KEY are
+# secrets. The fixture is a table-less UNION ALL, so no table is read or created.
+
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: athena-value-conformance
+  cancel-in-progress: false
+
+jobs:
+  credentials:
+    name: Validate credential configuration
+    runs-on: ubuntu-latest
+    outputs:
+      enabled: ${{ steps.probe.outputs.enabled }}
+    env:
+      ATHENA_VALUE_CONFORMANCE_ENABLED: ${{ vars.ATHENA_VALUE_CONFORMANCE_ENABLED }}
+      ATHENA_ACCESS_KEY_ID: ${{ secrets.ATHENA_ACCESS_KEY_ID }}
+      ATHENA_SECRET_ACCESS_KEY: ${{ secrets.ATHENA_SECRET_ACCESS_KEY }}
+      ATHENA_REGION: ${{ vars.ATHENA_REGION }}
+    steps:
+      - id: probe
+        name: Detect configured Athena workgroup
+        shell: bash
+        run: |
+          if [ "$GITHUB_EVENT_NAME" = "push" ] && [[ ! "$GITHUB_REF_NAME" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "enabled=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::Athena conformance runs only for stable vX.Y.Z tags; skipping $GITHUB_REF_NAME."
+          elif [ "$ATHENA_VALUE_CONFORMANCE_ENABLED" != "true" ]; then
+            echo "enabled=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::Athena value conformance is intentionally disabled."
+          elif [ -n "$ATHENA_ACCESS_KEY_ID" ] && [ -n "$ATHENA_SECRET_ACCESS_KEY" ] && [ -n "$ATHENA_REGION" ]; then
+            echo "enabled=true" >> "$GITHUB_OUTPUT"
+            echo "Athena value conformance is enabled."
+          else
+            echo "::error::ATHENA_VALUE_CONFORMANCE_ENABLED=true requires the ATHENA_ACCESS_KEY_ID and ATHENA_SECRET_ACCESS_KEY secrets and the ATHENA_REGION variable."
+            exit 1
+          fi
+
+  values:
+    name: Real Athena values
+    needs: credentials
+    if: needs.credentials.outputs.enabled == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0
+        with:
+          enable-cache: true
+
+      - name: Install dependencies
+        run: uv sync --extra dev
+
+      - name: Execute real Athena value contract
+        env:
+          # Step-scoped: the keys never reach checkout, dependency setup, caches,
+          # artifacts, or a file on disk.
+          TRIPL_CONF_ATHENA_ACCESS_KEY_ID: ${{ secrets.ATHENA_ACCESS_KEY_ID }}
+          TRIPL_CONF_ATHENA_SECRET_ACCESS_KEY: ${{ secrets.ATHENA_SECRET_ACCESS_KEY }}
+          TRIPL_CONF_ATHENA_REGION: ${{ vars.ATHENA_REGION }}
+          TRIPL_CONF_ATHENA_WORKGROUP: ${{ vars.ATHENA_WORKGROUP }}
+          TRIPL_CONF_ATHENA_OUTPUT: ${{ vars.ATHENA_OUTPUT }}
+          TRIPL_ATHENA_VALUE_REQUIRED: "1"
+        run: |
+          uv run pytest -q -m athena_value \
+            --junitxml=athena-value-conformance.xml \
+            src/tripl/tests/conformance/test_athena_value_conformance.py
+
+      - name: Prove the credentialed gate ran without skips
+        if: always()
+        run: |
+          python3 - <<'PY'
+          import sys, xml.etree.ElementTree as ET
+          try:
+              root = ET.parse("athena-value-conformance.xml").getroot()
+          except (OSError, ET.ParseError) as exc:
+              sys.exit(f"::error::no Athena JUnit report: {exc}. The gate did not run.")
+          tests = errors = failures = skipped = 0
+          for suite in root.iter("testsuite"):
+              tests += int(suite.get("tests", 0))
+              errors += int(suite.get("errors", 0))
+              failures += int(suite.get("failures", 0))
+              skipped += int(suite.get("skipped", 0))
+          print(f"Athena conformance: {tests} collected, {failures} failed, {errors} errored, {skipped} skipped")
+          if tests == 0:
+              sys.exit("::error::0 Athena conformance tests ran.")
+          if skipped:
+              sys.exit(f"::error::{skipped} Athena conformance test(s) skipped.")
+          if failures or errors:
+              sys.exit(f"::error::{failures} failed / {errors} errored Athena conformance test(s).")
+          PY

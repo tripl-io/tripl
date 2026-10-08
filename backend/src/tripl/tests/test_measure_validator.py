@@ -389,7 +389,8 @@ def test_quote_sql_literal_keeps_injection_inside_the_string(dialect: SqlDialect
     # The payload survives as DATA, its quote escaped rather than closing the literal:
     # exactly one escaped quote, and no bare one left over.
     body = rendered[1:-1]
-    escaped = "''" if dialect in (SqlDialect.postgres, SqlDialect.greenplum) else "\\'"
+    standard = (SqlDialect.postgres, SqlDialect.greenplum, SqlDialect.trino, SqlDialect.athena)
+    escaped = "''" if dialect in standard else "\\'"
     assert body.count(escaped) == 1
     assert body.replace(escaped, "").count("'") == 0
 
@@ -440,6 +441,8 @@ def test_quote_sql_string_literal_escapes_newlines(dialect: SqlDialect) -> None:
         ("bigquery", SqlDialect.bigquery),
         ("databricks", SqlDialect.databricks),
         ("snowflake", SqlDialect.snowflake),
+        ("trino", SqlDialect.trino),
+        ("athena", SqlDialect.athena),
         # The synthetic demo warehouse mimics ClickHouse semantics.
         ("synthetic", SqlDialect.clickhouse),
     ],
@@ -466,6 +469,8 @@ def test_dialect_for_db_type_rejects_unknown() -> None:
         (SqlDialect.databricks, "`order`"),
         (SqlDialect.postgres, '"order"'),
         (SqlDialect.snowflake, '"order"'),
+        (SqlDialect.trino, '"order"'),
+        (SqlDialect.athena, '"order"'),
     ],
 )
 def test_quote_identifier_quotes_reserved_word_per_dialect(

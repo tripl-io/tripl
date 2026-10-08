@@ -44,6 +44,8 @@ requests remain credential-free and stop at ZetaSQL analysis.
 | **Snowflake** | **Mocked on every PR; values executed on release tags once an account is configured.** `test_snowflake_adapter.py` and the shared parity suites drive the real adapter against a fake DB-API driver and assert the SQL it sends and how it decodes what comes back. The credentialed value suite (`conformance/test_snowflake_value_conformance.py`, marker `snowflake_value`) runs against a real account in `snowflake-value-conformance.yml` on stable release tags when `SNOWFLAKE_VALUE_CONFORMANCE_ENABLED` is set. It has not yet been run against a live account. | Today: the SQL shape and the result decoding. Once the value suite has run: bucket counts on every interval over TIMESTAMP_TZ, TIMESTAMP_NTZ, TIMESTAMP_LTZ and DATE, half-open windows, sums and breakdowns, multi-aggregates, top-N folding, VARIANT paths, JSON in STRING columns, field-contract counts. | That Snowflake accepts the SQL or computes the reference values: until the value suite passes against a real account, every Snowflake cell is believed, not proven. |
 | **Greenplum** | **EXECUTED.** The PostgreSQL gates (`test_postgres_conformance.py`, `test_postgres_field_contracts_conformance.py`) run again through `GreenplumAdapter` against real Greenplum **6.27** and **7.1** containers (`woblerr/greenplum`), in the `greenplum` CI job. | SQL validity **and** computed values, as PostgreSQL, on both major versions. | The pipeline gate (it keeps tripl's own schema in the same database) and the forks (Cloudberry, Greengage, WarehousePG), which share Greenplum's SQL but are not run. |
 | **Amazon Redshift** | **Mocked on every PR; values executed on release tags once an endpoint is configured.** `test_greenplum_redshift_adapters.py` and the shared parity suites assert the SQL `RedshiftAdapter` sends. The credentialed value suite (`conformance/test_redshift_value_conformance.py`, marker `redshift_value`) runs against a real Serverless workgroup or cluster in `redshift-value-conformance.yml` on stable release tags when `REDSHIFT_VALUE_CONFORMANCE_ENABLED` is set. It has not yet been run against a live endpoint. | Today: the SQL shape. Once the value suite has run: bucket counts on every interval over `timestamptz` and `timestamp`, half-open windows, sums and breakdowns, multi-aggregates with CASE-folded filters, top-N folding, field-contract counts, literal quoting. | That Redshift accepts the SQL or computes the reference values: until the value suite passes against a real endpoint, every Redshift cell is believed, not proven. No JSON: Redshift sources do not support JSON columns. |
+| **Trino** | **EXECUTED.** The value suite (`conformance/test_trino_value_conformance.py`, marker `trino_value`) runs against a real `trinodb/trino` **483** coordinator in the `trino` CI job, over a table-less fixture built from `VALUES`. `test_trino_adapter.py` and the shared parity suites pin the SQL on every PR as well. | SQL validity **and** computed values: bucket timestamps on every interval over `timestamp(6) with time zone`, `timestamp(3) with time zone`, `timestamp` and `date`, half-open windows, sums and breakdowns, multi-aggregates, top-N folding, `json` paths, shapes and properties, JSON in `varchar` columns, field-contract counts, regex probing, literal quoting, the coordinator-side timeout. | Starburst's own additions and the connectors behind a catalog (Hive, Iceberg, Delta): the fixture is table-less, so the SQL is proven, not every connector's type mapping. |
+| **Amazon Athena** | **Mocked on every PR; values executed on release tags once an account is configured.** `test_athena_adapter.py` drives the real adapter against a fake `pyathena` connection; its SQL is the Trino adapter's, which the `trino` job executes. The credentialed value suite (`conformance/test_athena_value_conformance.py`, marker `athena_value`) runs the same tests as Trino's in `athena-value-conformance.yml` on stable release tags when `ATHENA_VALUE_CONFORMANCE_ENABLED` is set. It has not yet been run against a live account. | Today: the SQL (through Trino) and the driver wiring. Once the value suite has run: the same cells as Trino, on Athena engine version 3. | That Athena's engine (version 3, a Trino fork) agrees with upstream Trino on every function tripl uses: until the value suite passes against a real account, Athena-specific behaviour is believed, not proven. |
 | synthetic | In-memory fixture, not a warehouse. | Nothing about a real warehouse. | — |
 
 **Why emulator values are never used.** The emulator's *analyzer* is Google's;
@@ -147,6 +149,7 @@ dialect default already agrees:
 | ClickHouse | `toDateTime(toMonday(col, 'UTC'), 'UTC')` — ClickHouse is the one whose default already agrees: `toStartOfInterval(col, INTERVAL 1 WEEK)` is Monday-anchored at `1970-01-05`, *not* off the epoch Thursday. `toMonday` is used for a different reason — the week form of `toStartOfInterval` returns a **Date**, so a `1w` bucket would come back as `datetime.date` while every other interval yields `datetime.datetime` | **executed** |
 | PostgreSQL | `date_bin('7 days', col, TIMESTAMPTZ '1970-01-05 00:00:00+00:00')` — anchored at the first Monday, not the epoch | **executed** |
 | Greenplum, Redshift | No `date_bin` (Greenplum is PostgreSQL 9.4 / 12, Redshift 8.0), so every interval is epoch arithmetic: `origin + floor((date_part('epoch', t) - origin_seconds) / w) * w * INTERVAL '1 second'`, with the origin at the epoch, or at `WEEK_ORIGIN` (a Monday) for weeks — the grid `date_bin` draws. The session time zone is pinned to UTC, so a `timestamp` column's wall clock reads as UTC | Greenplum **executed** (6 and 7); Redshift **not executed** (mocked) |
+| Trino, Athena | `1h`/`1d` use `date_trunc` on the UTC wall clock (a zoned column is moved `AT TIME ZONE 'UTC'` first, because `date_trunc` truncates in the value's own zone). `15m`, `6h` and weeks floor the whole seconds since the epoch — `date_diff('second', TIMESTAMP '1970-01-01 00:00:00.000', date_trunc('minute', t))` — onto a grid anchored at the epoch, or at `WEEK_ORIGIN` (a Monday) for weeks; no `day_of_week` setting is read. Every bucket is a zone-less `timestamp(3)` holding the UTC wall clock | Trino **executed**; Athena **not executed** (mocked) |
 | BigQuery | `TIMESTAMP_TRUNC(col, WEEK(MONDAY), 'UTC')` / `DATETIME_TRUNC(col, WEEK(MONDAY))` / `DATE_TRUNC(col, WEEK(MONDAY))` by declared time type | **executed on real BigQuery** for all three time families |
 | Databricks | `date_trunc('WEEK', CAST(col AS TIMESTAMP))` — Databricks documents `WEEK` truncation as the Monday of the week. `15m`/`6h` use `timestamp_seconds(floor(unix_seconds(t) / w) * w)` off the epoch; `1h`/`1d` use `date_trunc`, the same grid because they divide the UTC day. The session time zone is pinned to UTC | **not executed** (mocked) |
 | Snowflake | Weeks, `15m` and `6h` floor `DATE_PART(EPOCH_SECOND, t)` onto a grid anchored at the epoch (at `WEEK_ORIGIN`, a Monday, for weeks), so the session's `WEEK_START` cannot move a bucket; `1h`/`1d` use `DATE_TRUNC`. `TIMESTAMP_TZ`/`TIMESTAMP_LTZ` are converted to the UTC wall clock first, because `DATE_TRUNC` on a `TIMESTAMP_TZ` truncates in the value's own offset. The session time zone is pinned to UTC | **not executed** (mocked) |
@@ -182,6 +185,7 @@ cannot be placed in a window at all.
 | Snowflake | `TIMESTAMP_TZ`, `TIMESTAMP_LTZ`, `TIMESTAMP_NTZ`, `DATE` | `TIME`, anything else | **Not guaranteed** — refused with an actionable error where the time kind is first needed. A `DATE` column refuses `15m`/`1h`/`6h` |
 | PostgreSQL | `timestamp`, `timestamptz`, `date` | `time`, `timetz`, and any array (`timestamptz[]`) | **No** — classified as unsupported, but not acted on. See caveat [7] |
 | Greenplum, Redshift | As PostgreSQL | As PostgreSQL | As PostgreSQL |
+| Trino, Athena | `timestamp(p)`, `timestamp(p) with time zone`, `date` | `time`, `time with time zone`, anything else | **Not guaranteed** — refused with an actionable error where the time kind is first needed. A `date` column refuses `15m`/`1h`/`6h` |
 
 Notes that bite in practice:
 
@@ -208,7 +212,7 @@ activated on PostgreSQL at all.
 
 | Kind | Meaning | Dialect spellings |
 | --- | --- | --- |
-| `json` | Schemaless document; paths are discovered *from the data* | CH `JSON` / `Object('json')`, BQ `JSON`, PG `json` / `jsonb`, Databricks `VARIANT` |
+| `json` | Schemaless document; paths are discovered *from the data* | CH `JSON` / `Object('json')`, BQ `JSON`, PG `json` / `jsonb`, Databricks `VARIANT`, Trino/Athena `json` |
 | `struct` | Fixed nested schema; paths come from the *declared schema* | BQ `RECORD` / `STRUCT`, CH `Tuple(…)`, Databricks `STRUCT<…>` |
 | `map` | Key/value container | CH `Map(…)`, Databricks `MAP<…>` |
 
@@ -703,13 +707,37 @@ be *authenticated* as well, choose `verify-full` and supply the CA. Do not read
 | Driver | `databricks-sql-connector`, without `pyarrow`: results arrive as rows over the Thrift protocol, and complex values (`STRUCT`, `MAP`, `ARRAY`, `VARIANT`) as JSON text. |
 | Outbound guard | With `OUTBOUND_PUBLIC_HOSTS_ONLY`, the host must be a Databricks workspace hostname, because the driver cannot be pinned to the vetted address. See [Security](../run/security.md). |
 
+### Trino
+
+| | |
+| --- | --- |
+| Compute | A Trino coordinator or a Starburst cluster, over its HTTP(S) endpoint. Verified against **Trino 483**. |
+| Default port | 443 (`https`); 8080 for a coordinator without TLS (`http`) |
+| Credentials | host, port, **catalog** (the database field), user, and a password for password authentication. A password is only sent over HTTPS. |
+| Privileges | Read access to the catalog's tables. tripl never writes, and its SQL gate refuses every write or DDL statement. |
+| Source-specific settings | **Scheme** (`https` / `http`), **default schema**, **schema allowlist** (at most 50). |
+| Session | tripl sets the session time zone to UTC and `query_max_run_time` to the source's timeout, and the client's request timeout to match. Values are written as single-quoted literals (see [Security](../run/security.md#outbound-requests)); the client retries nothing. |
+| Driver | `trino` (the Trino Python client). Every request, result pages included, goes to the vetted address. |
+
+### Amazon Athena
+
+| | |
+| --- | --- |
+| Compute | Athena engine version 3, in a **workgroup** (`primary` by default). |
+| Credentials | the **AWS region** (the host field), the Glue **database**, an **access key ID** (username field) and **secret access key** (password field). |
+| Privileges | Athena query execution in the workgroup, Glue read access to the catalog, S3 read access to the data and write access to the query result location. |
+| Source-specific settings | **Workgroup**, **query result location** (`s3://…`), **catalog** (default `AwsDataCatalog`), **schema allowlist** (at most 50). |
+| Session | Athena has no session time zone setting; its engine runs in UTC. No statement timeout either: tripl stops the query (`StopQueryExecution`) when the source's timeout passes. |
+| Driver | `pyathena` over `boto3`, pointed at the region's own Athena endpoint only. Results are read through `GetQueryResults`. |
+
 ### Every warehouse
 
 **Timeout (seconds)** applies to all four real source types, BigQuery and
 Databricks included, and defaults to **300s**. It bounds the connect handshake and the query itself
 (`send_receive_timeout` on ClickHouse, `statement_timeout` on PostgreSQL,
 a result deadline plus `job_timeout_ms` on BigQuery, `STATEMENT_TIMEOUT` plus a
-client-side cancel on Databricks). The synthetic source
+client-side cancel on Databricks, `query_max_run_time` on Trino, a client-side
+`StopQueryExecution` on Athena). The synthetic source
 accepts the setting and ignores it — there is no wall clock to guard over an
 in-memory fixture (caveat [10]).
 
@@ -743,6 +771,11 @@ SELECT * FROM `my-gcp-project.analytics.events`
 SELECT * FROM events
 -- ...or qualify it with catalog.schema.table:
 SELECT * FROM main.analytics.events
+
+-- Trino / Athena  (bare name resolves in the default schema; quote with "...")
+SELECT * FROM events
+-- ...or qualify it with catalog.schema.table:
+SELECT * FROM hive.analytics.events
 ```
 
 ### Time buckets in a SQL metric
@@ -780,6 +813,13 @@ SELECT date_trunc('DAY', created_at) AS bucket,
 FROM events
 GROUP BY 1
 ORDER BY 1
+
+-- Trino / Athena  (AT TIME ZONE 'UTC': date_trunc truncates in a zoned value's own zone)
+SELECT date_trunc('day', created_at AT TIME ZONE 'UTC') AS bucket,
+       count(DISTINCT user_id) AS value
+FROM events
+GROUP BY 1
+ORDER BY 1
 ```
 
 The **New metric** screen renders exactly these, per selected data source, and
@@ -804,6 +844,9 @@ TIMESTAMP_TRUNC(created_at, WEEK(MONDAY), 'UTC')
 
 -- Databricks  (WEEK truncates to the Monday)
 date_trunc('WEEK', created_at)
+
+-- Trino / Athena  (week truncates to the Monday)
+date_trunc('week', created_at AT TIME ZONE 'UTC')
 ```
 
 ### Fact tables and measure columns
@@ -834,6 +877,7 @@ tripl compiles it per dialect:
 | BigQuery (`STRUCT` column) | `` `payload`.`user`.`address`.`city` `` — dotted field access, and only for paths the schema declares |
 | Databricks (`VARIANT` column) | `` `payload`:['user']['address']['city'] `` |
 | Databricks (`STRUCT` column) | `` `payload`.`user`.`address`.`city` `` — only for fields the type declares; a `MAP` column takes one key |
+| Trino / Athena (`json` column) | `json_extract_scalar("payload", '$["user"]["address"]["city"]')` (bracketed keys match exactly) |
 
 Path parts must be identifier-safe (`[a-zA-Z_][a-zA-Z0-9_]*`). A part that is not
 is **rejected, not escaped** — the path is interpolated into SQL, so the allowlist
@@ -848,6 +892,7 @@ is a security boundary, not a convenience.
 | BigQuery | `TIMESTAMP` (best), `DATETIME`, `DATE` | `TIME`; and **no sub-day interval on a `DATE` column** |
 | Databricks | `TIMESTAMP` (best), `TIMESTAMP_NTZ`, `DATE` | **no sub-day interval on a `DATE` column** |
 | Snowflake | `TIMESTAMP_TZ` or `TIMESTAMP_LTZ` (best), `TIMESTAMP_NTZ` (read as UTC), `DATE` | **no sub-day interval on a `DATE` column** |
+| Trino, Athena | `timestamp with time zone` (best), `timestamp` (read as UTC), `date` | `time`; **no sub-day interval on a `date` column** |
 
 ---
 
@@ -1014,8 +1059,9 @@ The JSON text is an implementation detail of the SQL, not of the row contract.
 
 `regex_violation` compiles the stored pattern with PostgreSQL's `~` (POSIX ARE),
 ClickHouse's `match()` (RE2), BigQuery's `REGEXP_CONTAINS` (RE2), Databricks'
-`RLIKE` (Java `java.util.regex`), and Python's `re.search` in the fallback. All
-five are **unanchored partial matches**, and all five agree on ordinary patterns — literals, character classes, anchors, `|`,
+`RLIKE` (Java `java.util.regex`), Trino's and Athena's `regexp_like` (Joni, a
+Java-syntax engine), and Python's `re.search` in the fallback. All
+six are **unanchored partial matches**, and all five agree on ordinary patterns — literals, character classes, anchors, `|`,
 quantifiers, `\d` / `\w` / `\s`. They do not agree on everything, and tripl does
 not pretend otherwise. Two divergences worth knowing, and they point in opposite
 directions:
@@ -1024,14 +1070,16 @@ directions:
   `\b` pattern matches nothing on PostgreSQL.
 - Lookaround (`(?=`, `(?!`, `(?<=`, `(?<!`) and backreferences are valid in
   PostgreSQL's ARE and in Python but are rejected by **RE2**, so those patterns
-  fail on ClickHouse and BigQuery instead. Java accepts them.
+  fail on ClickHouse and BigQuery instead. Java and Joni accept them.
 - Python's named group `(?P<name>…)` is refused by Java (which spells it
-  `(?<name>…)`) and by POSIX ARE, so it fails on Databricks and PostgreSQL.
+  `(?<name>…)`), by Joni and by POSIX ARE, so it fails on Databricks, Trino,
+  Athena and PostgreSQL.
 
 A pattern the engine refuses costs exactly that one expectation. Before the
 statement is built, tripl offers the pattern to the engine itself (`SELECT
 match('', …)` on ClickHouse, `SELECT REGEXP_CONTAINS('', …)` on BigQuery,
-`SELECT '' RLIKE :p0` on Databricks); a
+`SELECT '' RLIKE :p0` on Databricks, `SELECT regexp_like('', '…')` on Trino and
+Athena); a
 refusal drops that expectation, and every other contract in the scan is still
 evaluated. The engine is asked rather than screened against a "portable subset",
 because a static screen would have to reject the lookahead a PostgreSQL-only

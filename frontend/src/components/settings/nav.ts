@@ -187,7 +187,7 @@ const CORE_WORKSPACE_GROUPS: SettingsNavGroup[] = [
         icon: Database,
         path: 'data-sources',
         wide: true,
-        keywords: ['warehouse', 'connection', 'clickhouse', 'postgres', 'bigquery', 'databricks', 'snowflake', 'greenplum', 'redshift', 'credentials'],
+        keywords: ['warehouse', 'connection', 'clickhouse', 'postgres', 'bigquery', 'databricks', 'snowflake', 'greenplum', 'redshift', 'trino', 'starburst', 'athena', 'credentials'],
       },
       {
         id: 'apikeys',

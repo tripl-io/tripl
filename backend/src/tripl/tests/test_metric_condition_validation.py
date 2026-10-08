@@ -84,6 +84,10 @@ def test_string_condition_keeps_numeric_value_as_text() -> None:
         # Snowflake reads the literal like Databricks, but its LIKE has no default
         # escape character, so the backslash is named.
         (SqlDialect.snowflake, "'%100\\\\%%' ESCAPE '\\\\'"),
+        # Trino (and Athena) read the literal like PostgreSQL, but their LIKE has
+        # no default escape character either, so the backslash is named.
+        (SqlDialect.trino, "'%100\\%%' ESCAPE '\\'"),
+        (SqlDialect.athena, "'%100\\%%' ESCAPE '\\'"),
     ],
 )
 def test_contains_escapes_like_wildcards(dialect: SqlDialect, expected: str) -> None:

@@ -175,7 +175,7 @@ A plan is only half the story. The other half is what your apps actually send.
 ### Data source
 
 A **data source** is a connection to a data warehouse where your real analytics
-events land — **ClickHouse**, **BigQuery**, **Databricks**, **Snowflake**, **Amazon Redshift**, **Greenplum**, or **PostgreSQL**. tripl reads from
+events land — **ClickHouse**, **BigQuery**, **Databricks**, **Snowflake**, **Amazon Redshift**, **Greenplum**, **Trino**, **Amazon Athena**, or **PostgreSQL**. tripl reads from
 it; it never writes to it. Your warehouse stays entirely under your control.
 
 ### Scan

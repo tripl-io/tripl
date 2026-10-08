@@ -32,7 +32,7 @@ That comparison is the whole job tripl does.
 landing in your warehouse, with a message when the two stop agreeing.**
 
 It reads the analytics data you already have — ClickHouse, BigQuery,
-Databricks, Snowflake, Redshift, Greenplum or PostgreSQL. There's no SDK to ship, no re-instrumentation, and nothing your app
+Databricks, Snowflake, Redshift, Greenplum, Trino, Athena or PostgreSQL. There's no SDK to ship, no re-instrumentation, and nothing your app
 has to send anywhere new. If your events already land in a warehouse, tripl can
 start telling you the truth about them this week.
 

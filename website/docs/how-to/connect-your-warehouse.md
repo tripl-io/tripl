@@ -1,7 +1,7 @@
 ---
 title: Connect your warehouse
 sidebar_position: 2
-description: Add a read-only connection to ClickHouse, BigQuery, Databricks, Snowflake, Redshift, Greenplum or PostgreSQL and check that tripl can reach it.
+description: Add a read-only connection to ClickHouse, BigQuery, Databricks, Snowflake, Redshift, Greenplum, Trino, Athena or PostgreSQL and check that tripl can reach it.
 ---
 
 # Connect your warehouse
@@ -38,6 +38,8 @@ Press **Add connection**, give it a name your team will recognise, and pick the
 | **Snowflake** | Account identifier, database, user, the virtual warehouse, and a password or the user's private key. See [Snowflake](#snowflake) below. |
 | **Amazon Redshift** | Endpoint host, port (5439), database, username, password. Serverless and provisioned clusters. No JSON columns. See [Amazon Redshift](#amazon-redshift) below. |
 | **Greenplum** | Coordinator host, port (5432), database, username, password. Greenplum 6 or 7, and the Cloudberry, Greengage and WarehousePG forks. See [Greenplum](#greenplum) below. |
+| **Trino** | Coordinator host, port (443), catalog, user, and a password when the coordinator asks for one. Starburst too. See [Trino](#trino) below. |
+| **Amazon Athena** | AWS region, Glue database, an access key ID and secret access key, and optionally a workgroup and S3 result location. See [Amazon Athena](#amazon-athena) below. |
 
 ![The New data source dialog for ClickHouse](/img/screenshots/data-source-add.light.webp#gh-light-mode-only)
 ![The New data source dialog for ClickHouse](/img/screenshots/data-source-add.dark.webp#gh-dark-mode-only)
@@ -213,6 +215,96 @@ GRANT SELECT ON ALL TABLES IN SCHEMA analytics TO tripl_reader;
 Every session runs in UTC and read-only, exactly as on PostgreSQL. Greenplum 6
 is built on PostgreSQL 9.4, so a regex field contract that uses lookbehind
 (`(?<=...)`) is not evaluated there; the contracts beside it still run.
+
+### Trino
+
+tripl connects to a **Trino** coordinator, or a **Starburst** cluster, over
+Trino's HTTP protocol. The **database** field names the **catalog** tripl reads
+(`hive`, `iceberg`, `delta`, …); a scan's base query can still name tables in
+other catalogs in full (`catalog.schema.table`).
+
+1. **Host and port.** The coordinator's host name and its HTTPS port (443 by
+   default; 8443 is common on self-managed clusters). A coordinator without TLS —
+   inside a private network, or the `trinodb/trino` container on port 8080 —
+   needs **Scheme** set to `http`.
+2. **User.** With password (LDAP / file) authentication, the user and its
+   password. A coordinator without authentication takes only a user name, which
+   Trino records as the query's user. **A password is only ever sent over
+   HTTPS**: the form refuses a password with the `http` scheme.
+3. **Default schema** (optional): where a bare table name resolves, and the
+   schema the schema browser lists first. **Schema allowlist** (optional, up to
+   50): which schemas the schema browser reads; empty lists every schema in the
+   catalog.
+
+Grant the user read access to the catalog's tables and nothing more. With
+Trino's file-based access control:
+
+```json
+{
+  "catalogs": [{ "user": "tripl", "catalog": "hive", "allow": "read-only" }],
+  "tables": [{ "user": "tripl", "privileges": ["SELECT"] }]
+}
+```
+
+Every statement runs with its session time zone set to UTC and with
+`query_max_run_time` set to the source's timeout, so the coordinator itself
+cancels a statement that runs too long.
+
+:::note JSON in Trino
+A `json` column is a JSON column to tripl: its keys are discovered and become
+properties. A `varchar` column holding JSON text can be ticked under **Parse as
+JSON** in the scan form. `row`, `map` and `array` columns are read as values
+(rendered as JSON text), not expanded into properties.
+:::
+
+### Amazon Athena
+
+tripl runs its queries through the Athena API, in a **workgroup**, with an IAM
+user's **access key**. Athena engine version 3 is built on Trino, and tripl
+writes the same SQL for both.
+
+1. **AWS region**: where the Glue database lives (`eu-west-1`). The form takes
+   the region code, or the regional endpoint `athena.eu-west-1.amazonaws.com`;
+   nothing else is accepted.
+2. **Database**: the Glue database a bare table name resolves in.
+3. **Access key ID** and **secret access key** of an IAM user (or a role's
+   long-lived key) allowed to run Athena queries. The policy below is the minimum:
+
+   ```json
+   {
+     "Version": "2012-10-17",
+     "Statement": [
+       { "Effect": "Allow",
+         "Action": ["athena:StartQueryExecution", "athena:GetQueryExecution",
+                    "athena:GetQueryResults", "athena:StopQueryExecution",
+                    "athena:GetWorkGroup"],
+         "Resource": "arn:aws:athena:eu-west-1:123456789012:workgroup/analytics" },
+       { "Effect": "Allow",
+         "Action": ["glue:GetDatabase", "glue:GetDatabases", "glue:GetTable",
+                    "glue:GetTables", "glue:GetPartitions"],
+         "Resource": "*" },
+       { "Effect": "Allow",
+         "Action": ["s3:GetObject", "s3:ListBucket", "s3:GetBucketLocation"],
+         "Resource": ["arn:aws:s3:::my-events-bucket", "arn:aws:s3:::my-events-bucket/*"] },
+       { "Effect": "Allow",
+         "Action": ["s3:PutObject", "s3:GetObject", "s3:ListBucket",
+                    "s3:GetBucketLocation", "s3:AbortMultipartUpload"],
+         "Resource": ["arn:aws:s3:::my-athena-results", "arn:aws:s3:::my-athena-results/*"] }
+     ]
+   }
+   ```
+
+4. **Workgroup** (optional, `primary` by default) and **Query result location**
+   (an `s3://bucket/prefix/`, required unless the workgroup sets one). Athena
+   writes every query's result there; it is the only place the key needs to
+   write. A dedicated workgroup lets you cap the data each query scans.
+5. **Catalog** (optional, `AwsDataCatalog` by default) and a **schema
+   allowlist** for the schema browser.
+
+Every statement runs in UTC. Athena has no per-query timeout setting, so tripl
+stops a statement itself (`StopQueryExecution`) when the source's timeout
+passes. Athena bills by data scanned: give scans a lookback window, and point
+them at partitioned tables where you can.
 
 ## 3. Check it stays healthy
 

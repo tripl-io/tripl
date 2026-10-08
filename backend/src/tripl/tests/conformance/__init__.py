@@ -24,6 +24,12 @@ The suites in this package close that hole by making CI actually run the SQL:
 * ``test_redshift_value_conformance`` — real Amazon Redshift (Serverless or a
   cluster), on release tags once configured, or by hand; same table-less approach.
 
+* ``test_trino_value_conformance`` — a real Trino coordinator in Docker, on every
+  pull request (credential-free); asserts exact computed values from a typed,
+  table-less fixture shared with Athena (``trino_values``).
+* ``test_athena_value_conformance`` — real Amazon Athena (engine version 3, i.e.
+  Trino SQL), on release tags once configured, or by hand; the same assertions.
+
 The PostgreSQL gates also run against Greenplum 6 and 7 (``TRIPL_CONF_PG_ENGINE=
 greenplum``), through ``GreenplumAdapter``.
 

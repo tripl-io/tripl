@@ -22,6 +22,7 @@ import {
   type PemErrors,
   type PemField,
 } from './connection-settings'
+import { AthenaSettingsFields, TrinoSettingsFields } from './connection-settings-trino-fields'
 import { examplePlaceholder } from '@/components/forms/placeholders'
 import { FieldError } from '@/components/forms/FieldError'
 import { invalidAria } from '@/components/forms/validation'
@@ -267,6 +268,21 @@ export function ConnectionSettingsFields({
           </p>
         </div>
       </>
+    )
+  }
+
+  if (dbType === 'trino') {
+    return <TrinoSettingsFields idPrefix={idPrefix} value={value} onChange={onChange} />
+  }
+
+  if (dbType === 'athena') {
+    return (
+      <AthenaSettingsFields
+        idPrefix={idPrefix}
+        value={value}
+        onChange={onChange}
+        s3OutputError={pemErrors.s3OutputLocation}
+      />
     )
   }
 

@@ -114,12 +114,19 @@ def is_string_type(type_name: str) -> bool:
     """Whether a column holds plain text a scan may be asked to parse as JSON.
 
     ClickHouse ``String`` / ``FixedString(N)`` (under any ``Nullable`` /
-    ``LowCardinality`` wrapper) and BigQuery / Databricks / Snowflake ``STRING`` (the
-    Snowflake adapter reports its text columns under that name): the dialects
-    whose adapters implement ``json_string_source`` (F23.9, #306).
+    ``LowCardinality`` wrapper), BigQuery / Databricks / Snowflake ``STRING`` (the
+    Snowflake adapter reports its text columns under that name) and Trino / Athena
+    ``varchar`` / ``varchar(n)``: the dialects whose adapters implement
+    ``json_string_source`` (F23.9, #306). PostgreSQL's ``varchar`` matches too;
+    the db-type gate (``core.json_string_columns``) is what refuses it there.
     """
     name = _normalize(type_name)
-    return name == "string" or name.startswith("fixedstring(")
+    return (
+        name == "string"
+        or name.startswith("fixedstring(")
+        or name == "varchar"
+        or name.startswith("varchar(")
+    )
 
 
 def classify_time(type_name: str) -> TimeKind:

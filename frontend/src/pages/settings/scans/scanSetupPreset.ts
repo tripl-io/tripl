@@ -79,13 +79,16 @@ export const JSON_STRING_DB_TYPES: readonly string[] = [
   'bigquery',
   'databricks',
   'snowflake',
+  'trino',
+  'athena',
 ]
 
 /**
  * Whether a warehouse type names plain text: ClickHouse `String` /
  * `FixedString(N)` under any `Nullable` / `LowCardinality` wrapper, BigQuery
- * `STRING`, Databricks `string`, Snowflake `STRING` (how its adapter reports text).
- * Mirrors `core.warehouse_types.is_string_type`.
+ * `STRING`, Databricks `string`, Snowflake `STRING` (how its adapter reports text),
+ * Trino / Athena `varchar` and `varchar(n)`. Mirrors
+ * `core.warehouse_types.is_string_type`.
  */
 export function isTextColumnType(typeName: string): boolean {
   let name = typeName.trim()
@@ -95,7 +98,12 @@ export function isTextColumnType(typeName: string): boolean {
     name = (match[1] ?? '').trim()
   }
   const lower = name.toLowerCase()
-  return lower === 'string' || lower.startsWith('fixedstring(')
+  return (
+    lower === 'string' ||
+    lower.startsWith('fixedstring(') ||
+    lower === 'varchar' ||
+    lower.startsWith('varchar(')
+  )
 }
 
 /**
