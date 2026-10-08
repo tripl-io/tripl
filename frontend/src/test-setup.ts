@@ -104,11 +104,7 @@ function installMatchMedia() {
 // it, because those warnings are how React reports invalid DOM nesting, state
 // updates outside act(), and react-query reports a query that resolved to
 // undefined — real defects that used to pass green.
-const KNOWN_CONSOLE_NOISE: RegExp[] = [
-  // The demo coach card renders inside the scan runs table (#209).
-  /In HTML, <div> cannot be a child of <tbody>/,
-  /<tbody> cannot contain a nested <div>/,
-]
+const KNOWN_CONSOLE_NOISE: RegExp[] = []
 
 const consoleCalls: string[] = []
 
