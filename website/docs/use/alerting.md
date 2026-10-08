@@ -1491,8 +1491,14 @@ the *current* latest release, with the comparability verdict; see
 
 Each incident card leads with its scope and a signed delta badge (`+203%`,
 `−48%`), then when it last fired as a relative time, with **Acknowledge** among
-its actions. A project with no alert rules shows **No alert rules yet** in place
-of the list, and its **Create a rule** button opens the rule form on the Rules
+its actions. A drift's card (schema, distribution, variable-value or property
+drift) has no badge and no percentage, and names its kind with `◆` where
+other cards say `↑ spike` or `↓ drop`: a drift went neither way, and its counts
+are what the scan compared. The bell titles it the same way, e.g.
+*Distribution drift on Screen View.platform*.
+
+A project with no alert rules shows **No alert rules yet** in place of the
+list, and its **Create a rule** button opens the rule form on the Rules
 tab (`?section=monitors&new=rule`).
 
 The top bar's bell, titled **Alerts**, previews the same queue. Its badge counts

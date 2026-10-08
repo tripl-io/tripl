@@ -1,4 +1,5 @@
 import type { ChipTone } from '@/components/primitives/chip-variants'
+import { isDriftOnly } from '@/lib/alertStatus'
 import { formatSignalEffect } from '@/lib/monitoring'
 import { hasBaseline } from '@/lib/percentDelta'
 import type { AlertInboxGroup } from '@/types'
@@ -31,8 +32,11 @@ export function incidentHeadline(group: Pick<AlertInboxGroup, 'scope_names'>): {
  * it is the one no-percentage case with a meaning worth a glance.
  */
 export function incidentDeltaBadge(
-  group: Pick<AlertInboxGroup, 'direction' | 'actual_count' | 'expected_count'>,
+  group: Pick<AlertInboxGroup, 'direction' | 'actual_count' | 'expected_count'>
+    & Partial<Pick<AlertInboxGroup, 'scope_types'>>,
 ): { label: string; tone: ChipTone } | null {
+  // A drift has no signed size: its counts are what the scan compared.
+  if (isDriftOnly(group.scope_types ?? [])) return null
   const tone: ChipTone = group.direction === 'drop' ? 'danger' : 'warning'
   if (group.direction === 'drop' && group.actual_count === 0) {
     return { label: 'dropped to zero', tone }

@@ -29,4 +29,17 @@ describe('incidentDeltaBadge', () => {
       'dropped to zero',
     )
   })
+
+  it('gives a drift no badge: its counts are rows the scan compared, not a size', () => {
+    // A distribution drift's row says "spike" and carries the two windows' rows;
+    // the badge read "+0%".
+    expect(
+      incidentDeltaBadge({
+        direction: 'spike',
+        actual_count: 48000,
+        expected_count: 48000,
+        scope_types: ['distribution'],
+      }),
+    ).toBeNull()
+  })
 })

@@ -140,6 +140,11 @@ export function scopeHasDirection(scopeType: MetricScopeType): boolean {
   return !DIRECTIONLESS_SCOPES.has(scopeType)
 }
 
+/** Whether every kind in an incident is a drift, so the incident has no direction. */
+export function isDriftOnly(scopeTypes: readonly MetricScopeType[]): boolean {
+  return scopeTypes.length > 0 && scopeTypes.every(type => !scopeHasDirection(type))
+}
+
 /**
  * "drop · release regression" — the one line that answers "why did the same
  * alert come back for a different reason?".
@@ -162,11 +167,17 @@ export function incidentReasonLabel(
 ): string {
   if (scopeTypes.length === 0) return direction
   const kinds = scopeTypes.map(type => SCOPE_KIND_LABEL[type] ?? type)
+  // A drift went neither way: its "spike" only lets the Spikes toggle gate it.
+  if (isDriftOnly(scopeTypes)) return kinds.join(' + ')
   return `${direction} · ${kinds.join(' + ')}`
 }
 
-/** The arrow that carries direction at a glance, ahead of the word. */
-export function incidentDirectionGlyph(direction: AlertInboxGroup['direction']): string {
+/** The arrow that carries direction at a glance, ahead of the word; ◆ for a drift. */
+export function incidentDirectionGlyph(
+  direction: AlertInboxGroup['direction'],
+  scopeTypes: readonly MetricScopeType[] = [],
+): string {
+  if (isDriftOnly(scopeTypes)) return '◆'
   return direction === 'drop' ? '↓' : '↑'
 }
 
@@ -223,13 +234,18 @@ export function incidentMagnitudeLabel(group: {
   actual_count: number
   expected_count: number
   percent_delta: number | null
+  scope_types?: readonly MetricScopeType[]
 }): string {
-  const delta = formatPercentDelta(group.percent_delta, group.expected_count)
+  // A drift's counts are what the scan compared, with no relative change to
+  // state: a distribution drift's are the two windows' rows, "· 0.0%" apart.
+  const delta = isDriftOnly(group.scope_types ?? [])
+    ? ''
+    : ` · ${formatPercentDelta(group.percent_delta, group.expected_count)}`
   const actual = formatIncidentCount(group.actual_count)
   if (group.expected_count <= 0) {
-    return `${actual} actual, none expected · ${delta}`
+    return `${actual} actual, none expected${delta}`
   }
-  return `${actual} vs ${formatIncidentCount(group.expected_count)} expected · ${delta}`
+  return `${actual} vs ${formatIncidentCount(group.expected_count)} expected${delta}`
 }
 
 /**
@@ -256,8 +272,10 @@ export function incidentMagnitudeTitle(group: {
 export function incidentWorstDeltaLabel(group: {
   item_count: number
   max_abs_percent_delta: number | null
+  scope_types?: readonly MetricScopeType[]
 }): string | null {
   if (group.item_count <= 1 || group.max_abs_percent_delta === null) return null
+  if (isDriftOnly(group.scope_types ?? [])) return null
   return `worst ${group.max_abs_percent_delta.toFixed(1)}% in this group`
 }
 

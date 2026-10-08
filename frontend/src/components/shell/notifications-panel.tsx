@@ -14,7 +14,12 @@ import {
 import { alertingApi } from '@/api/alerting'
 import { useExpandedSignals } from '@/hooks/useExpandedSignals'
 import { useConfirm, type ConfirmOptions } from '@/hooks/useConfirm'
-import { formatIncidentCount, incidentMagnitudeLabel } from '@/lib/alertStatus'
+import {
+  formatIncidentCount,
+  incidentMagnitudeLabel,
+  incidentReasonLabel,
+  isDriftOnly,
+} from '@/lib/alertStatus'
 import { formatRelativeTime } from '@/lib/datetime'
 import { currentOrgSlug, getAlertingPath, projectPath, workspacePath } from '@/lib/navigation'
 import { channelLabel, TICKET_CHANNELS } from '@/lib/alertChannels'
@@ -444,7 +449,13 @@ function NotificationSection({
 }
 
 function IncidentNotification({ slug, group }: { slug: string; group: AlertInboxGroup }) {
-  const verb = group.direction === 'drop' ? 'Drop' : 'Spike'
+  // A drift went neither way, so its kind names it ("Schema drift on …").
+  const kind = incidentReasonLabel(group.direction, group.scope_types)
+  const verb = isDriftOnly(group.scope_types)
+    ? kind.charAt(0).toUpperCase() + kind.slice(1)
+    : group.direction === 'drop'
+      ? 'Drop'
+      : 'Spike'
   const names = group.scope_names.join(', ')
   const title = `${verb} on ${names || 'a deleted scope'}`
   return (
