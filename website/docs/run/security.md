@@ -542,9 +542,16 @@ was removed from the project gets `404` like any other non-member.
   invitation is a member of no project. The creator or an org owner or admin
   adds them in **Settings → Project → Access**, or through
   `POST /api/v1/projects/{slug}/members`.
+- **Rejoining starts from the default.** A project role counts only while its
+  holder is a member of the project's organization. When someone joins an
+  organization (an invitation, an owner adding them, single sign-on or SCIM),
+  any project roles they still held in its projects from an earlier membership
+  are deleted, so they start on the organization's default project role rather
+  than on a role nobody gave them this time.
 - **Demos belong to their creator.** A demo workspace starts with its creator as
   its only member. A reset rebuilds the project row, and the members it had
-  before the reset are granted on the new row.
+  before the reset who are still in the organization are granted on the new
+  row.
 
 Managing members (`POST`, `PATCH /{user_id}` and `DELETE /{user_id}` under
 `/projects/{slug}/members`) is limited to the organization's owners and admins

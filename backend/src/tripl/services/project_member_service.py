@@ -54,6 +54,9 @@ class MemberGrant:
     added_by_user_id: uuid.UUID | None
 
 
+MEMBER_MANAGER_REQUIRED = "Only the project creator or an owner can manage members"
+
+
 def is_member_manager(project_role: str | None, user: User, project: Project) -> bool:
     """An owner/admin of the project's organization, or whoever created this project.
 
@@ -69,10 +72,7 @@ def is_member_manager(project_role: str | None, user: User, project: Project) ->
 def require_member_manager(project_role: str | None, user: User, project: Project) -> None:
     if is_member_manager(project_role, user, project):
         return
-    raise HTTPException(
-        status_code=403,
-        detail="Only the project creator or an owner can manage members",
-    )
+    raise HTTPException(status_code=403, detail=MEMBER_MANAGER_REQUIRED)
 
 
 def _serialize(member: ProjectMember, user: User) -> ProjectMemberResponse:
@@ -176,8 +176,23 @@ async def snapshot_grants(session: AsyncSession, project_id: uuid.UUID) -> list[
 async def restore_grants(
     session: AsyncSession, project_id: uuid.UUID, grants: list[MemberGrant]
 ) -> None:
-    """Re-grant a snapshot onto a (re-created) project. No commit."""
+    """Re-grant a snapshot onto a (re-created) project. No commit.
+
+    Only to members of the project's organization: a row its holder kept after
+    leaving counts for nothing, and copying it would only carry it forward.
+    """
+    org_id = await session.scalar(select(Project.organization_id).where(Project.id == project_id))
+    members = set(
+        await session.scalars(
+            select(OrganizationMember.user_id).where(
+                OrganizationMember.organization_id == org_id,
+                OrganizationMember.user_id.in_([grant.user_id for grant in grants]),
+            )
+        )
+    )
     for grant in grants:
+        if grant.user_id not in members:
+            continue
         await grant_membership(
             session,
             project_id=project_id,
@@ -219,6 +234,15 @@ async def add_member(
     # so the membership read below still stands at the insert: a removal landing
     # between the two left a row for someone outside the organization.
     await auth_service.acquire_owner_set_xact_lock(session, project.organization_id)
+    # The caller's right to manage members, read again under that lock: a
+    # manager removed from the organization while this request waited on it
+    # no longer has it.
+    # The creator clause alone is not enough: a creator who left holds no role.
+    actor = await session.get(User, added_by) if added_by is not None else None
+    if actor is not None:
+        actor_role = await project_access.member_role(session, actor, project.id)
+        if actor_role is None or not is_member_manager(actor_role, actor, project):
+            raise HTTPException(status_code=403, detail=MEMBER_MANAGER_REQUIRED)
     user = await session.get(User, user_id)
     # Only members of the project's organization can join it. A user of another
     # organization answers the same 404 as an unknown id, so the endpoint is no

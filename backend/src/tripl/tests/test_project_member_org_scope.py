@@ -276,3 +276,99 @@ def test_member_manager_is_project_owner_or_creator() -> None:
     with pytest.raises(HTTPException) as refused:
         project_member_service.require_member_manager(project_access.EDITOR, other, project)
     assert refused.value.status_code == 403
+
+
+# ── a row left from an earlier membership ───────────────────────────────────
+
+
+async def _rows(user_id: uuid.UUID) -> set[uuid.UUID]:
+    async with TestSessionLocal() as session:
+        return set(
+            await session.scalars(
+                select(ProjectMember.project_id).where(ProjectMember.user_id == user_id)
+            )
+        )
+
+
+async def test_joining_an_organization_drops_the_rows_left_from_before() -> None:
+    """A row its holder kept after leaving would revive on rejoining.
+
+    It would then override the organization default without anyone choosing
+    it. Rows in another organization's projects are not this join's business.
+    """
+    org_a, org_b = await _org(), await _org()
+    here, elsewhere = await _project(org_a), await _project(org_b)
+    returning = await _user(org_b, OrganizationRole.member)
+    await _stray_row(here, returning)
+    await _add(elsewhere, returning)
+
+    async with TestSessionLocal() as session:
+        session.add(
+            OrganizationMember(
+                organization_id=org_a, user_id=returning, role=OrganizationRole.member.value
+            )
+        )
+        await session.commit()
+
+    assert await _rows(returning) == {elsewhere}
+
+
+async def test_a_row_staged_beside_the_membership_is_kept() -> None:
+    """An acceptance that grants a project writes both in one flush."""
+    org_id = await _org()
+    project_id = await _project(org_id)
+    joining = await _user(None, None)
+
+    async with TestSessionLocal() as session:
+        session.add(
+            OrganizationMember(
+                organization_id=org_id, user_id=joining, role=OrganizationRole.member.value
+            )
+        )
+        session.add(
+            ProjectMember(
+                project_id=project_id, user_id=joining, role=ProjectMemberRole.viewer.value
+            )
+        )
+        await session.commit()
+
+    assert await _rows(joining) == {project_id}
+
+
+async def test_restored_grants_skip_whoever_left_the_organization() -> None:
+    """A demo reset re-grants its snapshot; a row of someone who left stays behind."""
+    org_id = await _org()
+    project_id = await _project(org_id)
+    stayed = await _user(org_id, OrganizationRole.member)
+    left = await _user(None, None)
+    grants = [
+        project_member_service.MemberGrant(
+            user_id=user_id, role=ProjectMemberRole.editor.value, added_by_user_id=None
+        )
+        for user_id in (stayed, left)
+    ]
+
+    async with TestSessionLocal() as session:
+        await project_member_service.restore_grants(session, project_id, grants)
+        await session.commit()
+
+    assert await _rows(stayed) == {project_id}
+    assert await _rows(left) == set()
+
+
+async def test_add_member_reads_the_managers_right_again() -> None:
+    """A creator who left the organization manages nothing, whatever the endpoint read."""
+    org_id = await _org()
+    creator = await _user(None, None)
+    project_id = await _project(org_id, created_by=creator)
+    colleague = await _user(org_id, OrganizationRole.member)
+
+    async with TestSessionLocal() as session:
+        project = await session.get(Project, project_id)
+        assert project is not None
+        with pytest.raises(HTTPException) as refused:
+            await project_member_service.add_member(
+                session, project, user_id=colleague, role=ProjectMemberRole.editor, added_by=creator
+            )
+    assert refused.value.status_code == 403
+    assert await _rows(colleague) == set()

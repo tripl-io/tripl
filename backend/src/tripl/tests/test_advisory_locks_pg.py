@@ -26,15 +26,17 @@ from collections.abc import AsyncIterator
 
 import pytest
 from fastapi import HTTPException
-from sqlalchemy import select, text
+from sqlalchemy import delete, select, text
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 
 from tripl.models import Base
-from tripl.models.domain_enums import OrganizationRole
-from tripl.models.organization import DEFAULT_ORG_ID, OrganizationMember
+from tripl.models.domain_enums import OrganizationRole, ProjectMemberRole
+from tripl.models.organization import DEFAULT_ORG_ID, Organization, OrganizationMember
+from tripl.models.project import Project
+from tripl.models.project_member import ProjectMember
 from tripl.models.user import User
 from tripl.schemas.auth import RegisterRequest
-from tripl.services import auth_service, metric_definition_service
+from tripl.services import auth_service, metric_definition_service, project_member_service
 from tripl.tests._pg_url import asyncpg_url
 from tripl.tests.test_alert_digest_concurrency_pg import _engine_or_skip
 from tripl.tests.test_merge_races_pg import _SEARCH_CONFIGURATIONS
@@ -182,6 +184,77 @@ async def test_a_second_first_registration_waits_and_then_is_not_owner(
             )
         ).all()
     assert [row.email for row in owners] == ["first@example.com"]
+
+
+@pytest.mark.postgres
+@pytest.mark.asyncio
+async def test_adding_a_project_member_waits_for_a_removal_from_the_organization(
+    pg_sessions: async_sessionmaker[AsyncSession],
+) -> None:
+    """``project_member_service.add_member`` takes the owner-set lock first.
+
+    A removal from the organization holds that lock while it deletes the
+    membership. An add racing it must wait, then see the removal and refuse:
+    without the lock its membership check could pass just before the removal
+    and its insert land just after, leaving a row for someone outside the
+    organization.
+    """
+    org_id = uuid.uuid4()
+    async with pg_sessions() as setup:
+        setup.add(Organization(id=org_id, slug=f"race-{org_id.hex[:8]}", name="Race"))
+        owner = User(email="owner@example.com", name="Owner", password_hash="x")
+        leaving = User(email="leaving@example.com", name="Leaving", password_hash="x")
+        setup.add_all([owner, leaving])
+        await setup.flush()
+        setup.add_all(
+            [
+                OrganizationMember(
+                    organization_id=org_id, user_id=owner.id, role=OrganizationRole.owner.value
+                ),
+                OrganizationMember(
+                    organization_id=org_id, user_id=leaving.id, role=OrganizationRole.member.value
+                ),
+            ]
+        )
+        project = Project(name="Shop", slug="shop", organization_id=org_id)
+        setup.add(project)
+        await setup.commit()
+
+    async with pg_sessions() as removal:
+        await auth_service.acquire_owner_set_xact_lock(removal, org_id)
+
+        async def add() -> None:
+            async with pg_sessions() as adding:
+                target = await adding.get(Project, project.id)
+                assert target is not None
+                await project_member_service.add_member(
+                    adding,
+                    target,
+                    user_id=leaving.id,
+                    role=ProjectMemberRole.editor,
+                    added_by=owner.id,
+                )
+
+        racing = asyncio.create_task(add())
+        await asyncio.sleep(_SETTLE_SECONDS)
+        assert not racing.done(), "add_member did not wait for the owner-set lock"
+
+        await removal.execute(
+            delete(OrganizationMember).where(
+                OrganizationMember.organization_id == org_id,
+                OrganizationMember.user_id == leaving.id,
+            )
+        )
+        await removal.commit()
+
+    with pytest.raises(HTTPException) as refused:
+        await asyncio.wait_for(racing, _DEADLINE_SECONDS)
+    assert refused.value.status_code == 404
+    async with pg_sessions() as session:
+        rows = await session.scalars(
+            select(ProjectMember.id).where(ProjectMember.user_id == leaving.id)
+        )
+        assert list(rows) == []
 
 
 # --- metric_definition_service: the dispatcher's advisory lock ------------------
