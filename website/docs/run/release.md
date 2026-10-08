@@ -141,6 +141,12 @@ linux/amd64 only and are not releases: no `latest`, no GitHub Release, nothing
 on PyPI. Do not run them in production. An older commit whose CI finishes after
 a newer one's never takes `preview` back.
 
+The build has 15 minutes; it takes one or two. One that fails or runs out of
+time is built once more, on a fresh builder and without the Actions layer
+cache, where builds have stalled before (30 minutes), and the job gives up
+after an hour. Runs wait for each other, so a stuck one would otherwise hold
+every newer preview, and the demo, behind it.
+
 The Enterprise edition builds its own preview on this image, and that is what
 the public demo runs. Once the image is out, `preview.yml` asks the Enterprise
 repository to build it. That takes `ENTERPRISE_DISPATCH_TOKEN` in the `preview`
