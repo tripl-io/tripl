@@ -63,12 +63,14 @@ from tripl.alert_templates import (
     ALERT_MESSAGE_FORMAT_PLAIN,
     ALERT_MESSAGE_FORMAT_TELEGRAM_MARKDOWNV2,
     DriftLineFacts,
+    alert_scope_label,
     build_drift_line,
     get_default_items_template,
 )
 from tripl.models import Base
 from tripl.models.alert_delivery_item import AlertDeliveryItem
 from tripl.models.alert_destination import AlertDestination, AlertDestinationType
+from tripl.models.alert_rule import AlertRule
 from tripl.models.data_source import DataSource
 from tripl.models.domain_enums import MetricKind, MetricScopeType, MetricStatus
 from tripl.models.event import Event, EventStatus
@@ -78,7 +80,7 @@ from tripl.models.project import Project
 from tripl.models.scan_config import ScanConfig
 from tripl.schemas.alerting import SimulatedRuleFiring
 from tripl.services import app_settings_service
-from tripl.services.alerting_rendering import render_firing_item
+from tripl.services.alerting_rendering import render_firing_item, render_firings_message
 
 # Both digest tasks are taken from ``alerts``, which re-exports them in its
 # ``__all__``, the way the existing sunset coverage in test_alerting.py does.
@@ -324,6 +326,77 @@ def test_a_firing_with_no_drift_context_contributes_no_line() -> None:
         == ""
     )
     assert build_drift_line(DriftLineFacts(scope_type=MetricScopeType.event.value)) == ""
+
+
+# The kinds with no direction (``alert_templates.DIRECTIONLESS_SCOPES``).
+_DIRECTIONLESS_DRIFTS: dict[str, dict[str, object]] = {
+    "schema drift": _DRIFT_SCOPES["schema drift"],
+    # Two windows' row counts, which the count template printed as "up,
+    # actual=1200, expected=1200, delta=0 (0.0%)".
+    "distribution drift": {
+        **_DRIFT_SCOPES["distribution drift"],
+        "actual_count": 1200,
+        "expected_count": 1200,
+        "absolute_delta": 0,
+    },
+    "variable value drift": _DRIFT_SCOPES["variable value drift"],
+    "property drift": {
+        "scope_type": MetricScopeType.property_drift.value,
+        "scope_name": "checkout:completed",
+        "drift_field": "plan",
+        "drift_type": "missing_required",
+        "sample_value": "on 40% of rows, required on 95%",
+    },
+}
+
+
+@pytest.mark.parametrize(
+    "message_format", [ALERT_MESSAGE_FORMAT_PLAIN, ALERT_MESSAGE_FORMAT_TELEGRAM_MARKDOWNV2]
+)
+@pytest.mark.parametrize("scope", list(_DIRECTIONLESS_DRIFTS))
+def test_a_drift_s_default_item_has_no_direction_and_no_counts(
+    scope: str, message_format: str
+) -> None:
+    """A drift's row says "spike" only so a rule's Spikes toggle gates it.
+
+    Through the count template every drift read "up", and a distribution drift
+    quoted the row counts of the two windows it compared. Rendered the way a
+    rule that keeps the default items template renders it: the preview through
+    ``render_firings_message``, the send through ``_build_items_text`` with no
+    template, each picking the default per item.
+    """
+    facts = _DIRECTIONLESS_DRIFTS[scope]
+    item, firing = _pair(**facts)
+    rule = AlertRule(name="Drift watch", message_format=message_format)
+    destination = AlertDestination(type=AlertDestinationType.telegram.value, name="ops")
+
+    (previewed,), _message = render_firings_message(
+        rule, [firing], destination=destination, project=Project(name="Shop", slug="shop")
+    )
+    delivered = _build_items_text([item], message_format=message_format, items_template=None)
+
+    assert previewed == delivered
+    if message_format == ALERT_MESSAGE_FORMAT_PLAIN:
+        first_line, rest = delivered.split("\n", 1)
+        label = alert_scope_label(str(facts["scope_type"]))
+        assert first_line == f"- {label} {facts['scope_name']}"
+        # What changed is the drift line under it.
+        assert rest.startswith("  ")
+
+
+def test_a_custom_template_calls_a_drift_a_drift() -> None:
+    """``${direction_label}`` and ``${direction_arrow}`` said "up" and ▲ for every drift."""
+    item, firing = _pair(**_DIRECTIONLESS_DRIFTS["distribution drift"])
+    template = "${scope_name}: ${direction_label} ${direction_arrow}"
+
+    previewed = _previewed(
+        firing, message_format=ALERT_MESSAGE_FORMAT_PLAIN, items_template=template
+    )
+
+    assert previewed == "checkout.platform: drift ◆"
+    assert previewed == _delivered(
+        item, message_format=ALERT_MESSAGE_FORMAT_PLAIN, items_template=template
+    )
 
 
 def test_the_release_line_names_the_rollout_window_on_both_sides() -> None:

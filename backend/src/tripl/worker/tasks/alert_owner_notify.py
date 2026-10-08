@@ -39,11 +39,7 @@ from sqlalchemy import and_, or_, select, update
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session, selectinload
 
-from tripl.alert_templates import (
-    ALERT_MESSAGE_FORMAT_PLAIN,
-    get_default_items_template,
-    get_digest_items_template,
-)
+from tripl.alert_templates import ALERT_MESSAGE_FORMAT_PLAIN
 from tripl.models.alert_delivery import AlertDelivery, AlertDeliveryStatus
 from tripl.models.alert_delivery_item import AlertDeliveryItem
 from tripl.models.alert_owner_notification import (
@@ -107,15 +103,11 @@ def _items_text(
 ) -> str:
     from tripl.worker.tasks.alerts_messages import _build_items_text
 
-    template = (
-        get_digest_items_template(ALERT_MESSAGE_FORMAT_PLAIN)
-        if digest
-        else get_default_items_template(ALERT_MESSAGE_FORMAT_PLAIN)
-    )
+    # The defaults, picked per item: a drift has its own.
     return _build_items_text(
         items,
         message_format=ALERT_MESSAGE_FORMAT_PLAIN,
-        items_template=template,
+        items_template=None,
         session=session,
         scan_config_id=scan_config_id,
         digest=digest,

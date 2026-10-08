@@ -36,7 +36,7 @@ from tripl.models.project import Project
 from tripl.models.project_member import ProjectMember
 from tripl.models.user import User
 from tripl.schemas.project_member import ProjectMemberResponse
-from tripl.services import project_access
+from tripl.services import auth_service, project_access
 
 NOT_A_MEMBER_DETAIL = "User is not a member of this project"
 ORG_ADMIN_ALWAYS_HAS_ACCESS = (
@@ -215,6 +215,10 @@ async def add_member(
     role: ProjectMemberRole,
     added_by: uuid.UUID | None,
 ) -> ProjectMemberResponse:
+    # The lock a removal from the organization holds (``org_service.remove_member``),
+    # so the membership read below still stands at the insert: a removal landing
+    # between the two left a row for someone outside the organization.
+    await auth_service.acquire_owner_set_xact_lock(session, project.organization_id)
     user = await session.get(User, user_id)
     # Only members of the project's organization can join it. A user of another
     # organization answers the same 404 as an unknown id, so the endpoint is no

@@ -169,6 +169,11 @@ URL takes up the line, and the items grouped.
   went from nothing to something is usually a new event shipping, not an
   incident, and ranking by percentage would otherwise pin it to the top —
   an undefined ratio has no magnitude to sort by.
+- **Drifts get a group of their own**, just before that one, and the summary
+  counts them (`2 drifts`). A schema, distribution, variable-value or property
+  drift went neither up nor down, so its line is its kind and scope, e.g.
+  `◆ Schema drift checkout.amount`, with no count pair: those counts are rows
+  the scan compared, not the size of the drift.
 - **The first line is a summary you can trust**, e.g. `24 alerts · 7 down,
   17 up · worst checkout:complete:annual down 86%`. It is computed, never
   written by the AI, so it is correct on the morning the model is off or slow —
@@ -635,7 +640,9 @@ the drift and regression signals they behave like a volume anomaly — they carr
 a real spike/drop direction and **do** honor the count thresholds below.
 
 **Direction.** *Notify on spike* and *notify on drop* (at least one must be on).
-Schema, distribution, variable-value and property drift are reported as a **spike**;
+Schema, distribution, variable-value and property drift are reported as a **spike**
+(only for this switch: their messages call them neither up nor down, see
+[Message templates](#message-templates));
 release regressions and source freshness are reported as a **drop** — so a
 drift-only rule still needs *notify on spike* enabled, and a rule that should
 hear about late data needs *notify on drop*. **Lifecycle** alerts are the
@@ -1228,6 +1235,21 @@ property is rejected, so a typo fails fast rather than sending a broken message)
   drop this property, release-regression items lose that qualifier — see
   [Release-regression items](#release-regression-items) below for why it is
   there.
+
+  **A drift item has no direction and no counts.** A schema, distribution,
+  variable-value or property drift went neither up nor down, and the counts its
+  row carries are what the scan compared (a distribution drift's are the two
+  windows' row counts), not the size of the drift. On the default item template
+  a drift reads as its kind and scope, with the drift line under it:
+
+  ```text
+  - Distribution drift screen_view.platform
+    drift: distribution_shift platform sample=psi=0.412; ios 61.0%->38.0%
+  ```
+
+  In a template of your own, `${direction_label}` says `drift` and
+  `${direction_arrow}` is `◆` for these items; the count properties still hold
+  the row's numbers.
 - **Email subject** supports a smaller set: `${project_name}`, `${project_slug}`,
   `${org_slug}`, `${rule_name}`, `${destination_name}`, `${matched_count}`.
 

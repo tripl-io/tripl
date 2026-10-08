@@ -4,6 +4,8 @@ from tripl.alert_templates import (
     ALERT_MESSAGE_FORMAT_PLAIN,
     AlertTemplateContext,
     DriftLineFacts,
+    alert_direction_arrow,
+    alert_direction_label,
     alert_scope_label,
     build_drift_line,
     escape_alert_value,
@@ -111,8 +113,7 @@ def render_firing_item(
         "scope_label": escape_alert_value(scope_label, message_format),
         "direction": escape_alert_value(firing.direction, message_format),
         "direction_label": escape_alert_value(
-            "up" if firing.direction == "spike" else "down",
-            message_format,
+            alert_direction_label(firing.scope_type, firing.direction), message_format
         ),
         # Percent-unit catalog metrics render stored fractions ×100 with a "%"
         # suffix; otherwise the raw float flows to the shared stringifier
@@ -174,7 +175,7 @@ def render_firing_item(
         # has no anomaly row behind it, so the preview leaves the line out.
         "attribution": "",
         "attribution_line": "",
-        "direction_arrow": "\u25b2" if firing.direction == "spike" else "\u25bc",
+        "direction_arrow": alert_direction_arrow(firing.scope_type, firing.direction),
         # The simulator has no delivery, so no incident to link to. The bare
         # escaped name is what ``format_alert_link`` returns for an empty URL,
         # so the preview shows exactly what a link-less format would render.
@@ -202,14 +203,14 @@ def render_firings_message(
     live worker sends.
     """
     message_format = rule.message_format or ALERT_MESSAGE_FORMAT_PLAIN
-    items_template = normalize_message_template(rule.items_template) or get_default_items_template(
-        message_format
-    )
+    # Resolved per firing, as the send does: a drift has a default item of its own.
+    custom_items_template = normalize_message_template(rule.items_template)
     rendered_items = [
         render_firing_item(
             firing,
             message_format=message_format,
-            items_template=items_template,
+            items_template=custom_items_template
+            or get_default_items_template(message_format, firing.scope_type),
             metric_unit=(
                 (metric_units or {}).get(firing.scope_ref)
                 if firing.scope_type == SCOPE_METRIC

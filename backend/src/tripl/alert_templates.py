@@ -102,6 +102,27 @@ DEFAULT_ALERT_ITEMS_TEMPLATES: dict[str, str] = {
     ),
 }
 
+# A drift's default item: its scope, then the drift line that says what changed.
+# No direction and no counts, because a drift has neither (``DIRECTIONLESS_SCOPES``):
+# printed through the template above, a distribution drift read "up,
+# actual=1200, expected=1200, delta=0 (0.0%)" — two windows' row counts and a
+# direction its row carries only for the rule's Spikes toggle. Used where the
+# rule keeps the default items template; a custom one renders drifts too.
+DEFAULT_DRIFT_ALERT_ITEMS_TEMPLATES: dict[str, str] = {
+    ALERT_MESSAGE_FORMAT_PLAIN: (
+        "- ${scope_label} ${scope_name}${drift_line}${details_line}${monitoring_line}"
+    ),
+    ALERT_MESSAGE_FORMAT_SLACK_MRKDWN: (
+        "- ${scope_label} ${scope_name}${drift_line}${details_line}${monitoring_line}"
+    ),
+    ALERT_MESSAGE_FORMAT_TELEGRAM_HTML: (
+        "- ${scope_label} ${scope_name}${drift_line}${details_line}${monitoring_line}"
+    ),
+    ALERT_MESSAGE_FORMAT_TELEGRAM_MARKDOWNV2: (
+        "\\- ${scope_label} ${scope_name}${drift_line}${details_line}${monitoring_line}"
+    ),
+}
+
 ALERT_TEMPLATE_VARIABLES: dict[str, str] = {
     "project_name": "Project display name",
     "project_slug": "Project slug (unique only inside its organization)",
@@ -126,7 +147,7 @@ ALERT_ITEM_TEMPLATE_VARIABLES: dict[str, str] = {
     "scope_type": "Matched scope type",
     "scope_label": "Matched scope label",
     "direction": "Direction: spike or drop",
-    "direction_label": "Direction: up or down",
+    "direction_label": "Direction: up or down; drift for the drift kinds, which have none",
     "actual_count": "Actual count",
     "expected_count": "Expected count",
     "expected_basis": (
@@ -164,7 +185,7 @@ ALERT_ITEM_TEMPLATE_VARIABLES: dict[str, str] = {
         "plus a release that crossed the activation gate in the window (empty if none)"
     ),
     "attribution_line": "Rendered attribution line with leading newline when one exists",
-    "direction_arrow": "A single up/down arrow for the direction",
+    "direction_arrow": "A single up/down arrow for the direction; a diamond for the drift kinds",
     "scope_link": (
         "Scope name linked to its incident on formats that support links; the bare name on plain"
     ),
@@ -225,6 +246,16 @@ DIGEST_ALERT_ITEMS_TEMPLATES: dict[str, str] = {
         "${direction_arrow} ${scope_link} ${actual_count} vs ${expected_count} "
         "(${percent_delta_label})"
     ),
+}
+
+# A drift in a digest: its kind and scope, under the drift group's heading
+# (``alerts_messages._digest_groups``). No "actual vs expected": for a drift
+# those are row counts, not what changed — the link carries that.
+DIGEST_DRIFT_ALERT_ITEMS_TEMPLATES: dict[str, str] = {
+    ALERT_MESSAGE_FORMAT_PLAIN: "${direction_arrow} ${scope_label} ${scope_name}${details_line}",
+    ALERT_MESSAGE_FORMAT_SLACK_MRKDWN: "${direction_arrow} ${scope_label} ${scope_link}",
+    ALERT_MESSAGE_FORMAT_TELEGRAM_HTML: "${direction_arrow} ${scope_label} ${scope_link}",
+    ALERT_MESSAGE_FORMAT_TELEGRAM_MARKDOWNV2: "${direction_arrow} ${scope_label} ${scope_link}",
 }
 
 # Formats whose syntax can hide a URL behind a label. ``plain`` cannot, which is
@@ -302,11 +333,15 @@ def get_digest_message_template(message_format: str | None) -> str:
     )
 
 
-def get_digest_items_template(message_format: str | None) -> str:
+def get_digest_items_template(message_format: str | None, scope_type: str | None = None) -> str:
+    """A digest's default item for the format: a drift's own for a drift ``scope_type``."""
     fmt = message_format or ALERT_MESSAGE_FORMAT_PLAIN
-    return DIGEST_ALERT_ITEMS_TEMPLATES.get(
-        fmt, DIGEST_ALERT_ITEMS_TEMPLATES[ALERT_MESSAGE_FORMAT_PLAIN]
+    templates = (
+        DIGEST_ALERT_ITEMS_TEMPLATES
+        if scope_type is None or scope_has_direction(scope_type)
+        else DIGEST_DRIFT_ALERT_ITEMS_TEMPLATES
     )
+    return templates.get(fmt, templates[ALERT_MESSAGE_FORMAT_PLAIN])
 
 
 _ALERT_TEMPLATE_VAR_RE = re.compile(r"\$\{([a-zA-Z_][a-zA-Z0-9_]*)\}")
@@ -354,12 +389,15 @@ def get_default_message_template(message_format: str | None) -> str:
     )
 
 
-def get_default_items_template(message_format: str | None) -> str:
+def get_default_items_template(message_format: str | None, scope_type: str | None = None) -> str:
+    """The default item for the format: a drift's own for a drift ``scope_type``."""
     normalized_format = normalize_message_format(message_format)
-    return DEFAULT_ALERT_ITEMS_TEMPLATES.get(
-        normalized_format,
-        DEFAULT_ALERT_ITEMS_TEMPLATES[ALERT_MESSAGE_FORMAT_PLAIN],
+    templates = (
+        DEFAULT_ALERT_ITEMS_TEMPLATES
+        if scope_type is None or scope_has_direction(scope_type)
+        else DEFAULT_DRIFT_ALERT_ITEMS_TEMPLATES
     )
+    return templates.get(normalized_format, templates[ALERT_MESSAGE_FORMAT_PLAIN])
 
 
 def get_supported_message_formats(destination_type: str) -> tuple[str, ...]:
@@ -603,6 +641,40 @@ def alert_scope_label(scope_type: str) -> str:
     stay identical. Unknown future scopes still fall back to their raw value.
     """
     return ALERT_SCOPE_LABELS.get(scope_type, str(scope_type))
+
+
+# The drift kinds: a change of shape, with no rise or fall to report. Their rows
+# say ``direction="spike"`` only so a rule's Spikes toggle gates every drift the
+# same way (``alerting_property_drift``), and their counts are two windows' row
+# counts, or nothing, rather than the drift's size. The frontend's
+# ``scopeHasDirection`` (``lib/alertStatus.ts``) names the same four.
+DIRECTIONLESS_SCOPES = frozenset(
+    {
+        MetricScopeType.schema.value,
+        MetricScopeType.distribution.value,
+        _SCOPE_VARIABLE_VALUE_DRIFT,
+        _SCOPE_PROPERTY_DRIFT,
+    }
+)
+
+
+def scope_has_direction(scope_type: str) -> bool:
+    """Whether an item of this scope has a direction, and counts that say how far it moved."""
+    return scope_type not in DIRECTIONLESS_SCOPES
+
+
+def alert_direction_label(scope_type: str, direction: str) -> str:
+    """``${direction_label}``: "up" or "down", or "drift" for a drift kind."""
+    if not scope_has_direction(scope_type):
+        return "drift"
+    return "up" if direction == "spike" else "down"
+
+
+def alert_direction_arrow(scope_type: str, direction: str) -> str:
+    """``${direction_arrow}``: ▲ or ▼, or ◆ for a drift kind; one UTF-16 unit each."""
+    if not scope_has_direction(scope_type):
+        return "◆"
+    return "▲" if direction == "spike" else "▼"
 
 
 @dataclass(frozen=True)

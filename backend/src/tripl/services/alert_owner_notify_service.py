@@ -33,11 +33,7 @@ from fastapi import HTTPException
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from tripl.alert_templates import (
-    ALERT_MESSAGE_FORMAT_PLAIN,
-    get_default_items_template,
-    percent_delta_of,
-)
+from tripl.alert_templates import ALERT_MESSAGE_FORMAT_PLAIN, percent_delta_of
 from tripl.models.alert_delivery import AlertDelivery
 from tripl.models.alert_delivery_item import AlertDeliveryItem, trim_scope_name
 from tripl.models.alert_owner_notification import (
@@ -82,7 +78,8 @@ def _items_text(items: list[AlertDeliveryItem]) -> str:
     return _build_items_text(
         items,
         message_format=ALERT_MESSAGE_FORMAT_PLAIN,
-        items_template=get_default_items_template(ALERT_MESSAGE_FORMAT_PLAIN),
+        # The defaults, picked per item: a drift has its own.
+        items_template=None,
         session=None,
     )
 

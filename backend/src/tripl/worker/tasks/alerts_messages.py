@@ -23,6 +23,8 @@ from tripl.alert_templates import (
     ALERT_MESSAGE_FORMAT_TELEGRAM_MARKDOWNV2,
     AlertTemplateContext,
     DriftLineFacts,
+    alert_direction_arrow,
+    alert_direction_label,
     alert_scope_label,
     build_drift_line,
     escape_alert_value,
@@ -42,6 +44,7 @@ from tripl.alert_templates import (
     property_drift_line,
     release_regression_basis,
     render_alert_template,
+    scope_has_direction,
     source_freshness_line,
 )
 from tripl.alerting_matching import (
@@ -50,6 +53,7 @@ from tripl.alerting_matching import (
     SCOPE_PROPERTY_DRIFT,
     SCOPE_RELEASE_REGRESSION,
     SCOPE_SOURCE_FRESHNESS,
+    SCOPE_VARIABLE_VALUE_DRIFT,
 )
 from tripl.anomaly_context import (
     SCOPE_EVENT,
@@ -371,8 +375,7 @@ def _build_item_template_context(
         "scope_label": escape_alert_value(scope_label, message_format),
         "direction": escape_alert_value(item.direction, message_format),
         "direction_label": escape_alert_value(
-            "up" if item.direction == "spike" else "down",
-            message_format,
+            alert_direction_label(item.scope_type, item.direction), message_format
         ),
         # Percent-unit catalog metrics render stored fractions ×100 with a "%"
         # suffix; every other unit/scope passes the raw float through to the
@@ -426,9 +429,9 @@ def _build_item_template_context(
         # A digest groups by direction, so a reader who has scrolled past the
         # heading has nothing else telling them which way the number moved —
         # the sign alone does not, because format_percent_delta prints an
-        # unsigned magnitude for a spike. Both arrows are BMP, so one UTF-16
-        # unit each.
-        "direction_arrow": "\u25b2" if item.direction == "spike" else "\u25bc",
+        # unsigned magnitude for a spike. A drift gets a diamond: it went
+        # neither way.
+        "direction_arrow": alert_direction_arrow(item.scope_type, item.direction),
         # Already-escaped markup: NOT passed through escape_alert_value, which
         # would turn the tags into literal text. format_alert_link escapes the
         # label and the URL separately, because the two slots have different
@@ -436,6 +439,45 @@ def _build_item_template_context(
         "scope_link": format_alert_link(item.scope_name, item.details_path or "", message_format),
     }
     return AlertTemplateContext(variables=variables, message_format=message_format)
+
+
+def _digest_split(
+    items: list[AlertDeliveryItem],
+) -> tuple[
+    list[AlertDeliveryItem],
+    list[AlertDeliveryItem],
+    list[AlertDeliveryItem],
+    list[AlertDeliveryItem],
+]:
+    """``(drops, spikes, drifts, unbaselined)``: one split for the headline and the groups.
+
+    The headline says "3 new" and ``_digest_groups`` builds the group under it,
+    so the two cannot be allowed to bucket one item differently. A drift is
+    asked first: it went neither up nor down (``scope_has_direction``), and a
+    schema drift's expected count of 0 would otherwise file it as new.
+    ``has_baseline`` decides "new", never a sign test: a signed catalog metric
+    at a baseline of -100 is an ordinary drop or spike with a real percent, and
+    filing it under "new" both miscounted the headline and made it ineligible
+    to be named the worst mover.
+    """
+    drops: list[AlertDeliveryItem] = []
+    spikes: list[AlertDeliveryItem] = []
+    drifts: list[AlertDeliveryItem] = []
+    unbaselined: list[AlertDeliveryItem] = []
+    for item in items:
+        if not scope_has_direction(item.scope_type):
+            drifts.append(item)
+        elif not has_baseline(item.expected_count):
+            unbaselined.append(item)
+        elif item.direction == "spike":
+            spikes.append(item)
+        else:
+            drops.append(item)
+    return drops, spikes, drifts, unbaselined
+
+
+def _drift_count(count: int) -> str:
+    return f"{count} drift" if count == 1 else f"{count} drifts"
 
 
 def _digest_headline(items: list[AlertDeliveryItem], total: int) -> str:
@@ -449,17 +491,12 @@ def _digest_headline(items: list[AlertDeliveryItem], total: int) -> str:
     """
     if not items:
         return f"{total} alerts"
-    # ``has_baseline`` decides "new", never a sign test: a signed catalog
-    # metric at a baseline of -100 is an ordinary drop or spike with a real
-    # percent, and filing it under "new" both miscounted the headline and made
-    # it ineligible to be named the worst mover.
-    downs = [i for i in items if i.direction != "spike" and has_baseline(i.expected_count)]
-    ups = [i for i in items if i.direction == "spike" and has_baseline(i.expected_count)]
-    new = [i for i in items if not has_baseline(i.expected_count)]
+    downs, ups, drifts, new = _digest_split(items)
     parts = [f"{total} alerts"]
     counts = [
         f"{len(downs)} down" if downs else "",
         f"{len(ups)} up" if ups else "",
+        _drift_count(len(drifts)) if drifts else "",
         f"{len(new)} new" if new else "",
     ]
     counted = ", ".join(part for part in counts if part)
@@ -528,18 +565,14 @@ def _digest_groups(
     ratio has no magnitude to rank), which is exactly backwards: a counter that
     went from nothing to something is usually a new event shipping, not an
     incident, and it was crowding out the items that were.
+
+    DRIFTS GET A GROUP OF THEIR OWN, ahead of the new ones. A schema,
+    distribution, value or property drift went neither up nor down, and its
+    counts are rows of the windows compared, so under "up" it was a false
+    spike, and under "new" it was a false first sighting. Nothing ranks a drift,
+    so the group keeps the delivery's order.
     """
-    drops, spikes, unbaselined = [], [], []
-    for item in items:
-        # Same predicate as ``_digest_headline`` above, from the same function:
-        # the heading says "3 new" and this builds the group under it, so the
-        # two cannot be allowed to bucket one item differently.
-        if not has_baseline(item.expected_count):
-            unbaselined.append(item)
-        elif item.direction == "spike":
-            spikes.append(item)
-        else:
-            drops.append(item)
+    drops, spikes, drifts, unbaselined = _digest_split(items)
 
     by_percent = lambda item: -abs(item.percent_delta)  # noqa: E731
     by_absolute = lambda item: -abs(item.actual_count - item.expected_count)  # noqa: E731
@@ -548,6 +581,8 @@ def _digest_groups(
         groups.append((f"{len(drops)} down", sorted(drops, key=by_percent)))
     if spikes:
         groups.append((f"{len(spikes)} up", sorted(spikes, key=by_percent)))
+    if drifts:
+        groups.append((_drift_count(len(drifts)), drifts))
     if unbaselined:
         groups.append((f"{len(unbaselined)} new", sorted(unbaselined, key=by_absolute)))
     return groups
@@ -557,7 +592,7 @@ def _build_items_text(
     items: list[AlertDeliveryItem],
     *,
     message_format: str,
-    items_template: str,
+    items_template: str | None,
     session: Session | None = None,
     scan_config_id: uuid.UUID | None = None,
     item_context_cache: dict[uuid.UUID, tuple[str, ...]] | None = None,
@@ -572,12 +607,22 @@ def _build_items_text(
     a channel with a per-message ceiling does instead is carry fewer items per
     message and send more messages — see :func:`split_telegram_messages`, which
     chooses the subsets and hands them here one group at a time.
+
+    ``items_template`` None renders each item through the format's default, a
+    drift through the drift default, which drops the direction and counts.
     """
     metric_units = _resolve_metric_units(session, items, metric_units_cache)
 
     def render_one(item: AlertDeliveryItem) -> str:
+        template = items_template
+        if template is None:
+            template = (
+                get_digest_items_template(message_format, item.scope_type)
+                if digest
+                else get_default_items_template(message_format, item.scope_type)
+            )
         return render_alert_template(
-            items_template,
+            template,
             _build_item_template_context(
                 item,
                 message_format=message_format,
@@ -640,17 +685,12 @@ def _build_template_context(
     project_timezone: str | None = None,
 ) -> AlertTemplateContext:
     message_format = message_format_override or rule.message_format or ALERT_MESSAGE_FORMAT_PLAIN
-    items_template = normalize_message_template(rule.items_template)
     # The two templates are INDEPENDENT operator signals and are gated
     # separately. A rule that saved a custom message_template and left the item
     # template alone must still get the compact digest items — reading one
-    # column to decide both would hand it the verbose ones.
-    if items_template is None:
-        items_template = (
-            get_digest_items_template(message_format)
-            if digest
-            else get_default_items_template(message_format)
-        )
+    # column to decide both would hand it the verbose ones. None: the defaults,
+    # which ``_build_items_text`` picks per item, since a drift has its own.
+    items_template = normalize_message_template(rule.items_template)
     # ``items`` is one message's share of a delivery split across several (see
     # split_telegram_messages). Its count, not the delivery's, is what the
     # header may claim: a reader looking at message 2 of 2 counts what is in
@@ -1104,6 +1144,12 @@ def _build_ai_explanation(
                 if part
             )
             lines.append(f"- [{item.scope_type} drift] {item.scope_name}: {drift_bits}")
+            continue
+        if item.scope_type == SCOPE_VARIABLE_VALUE_DRIFT:
+            # Values a variable had not taken before, not a volume move: its
+            # "actual" is how many there are, against an expected 0.
+            observed = f" observed {item.sample_value}" if item.sample_value else ""
+            lines.append(f"- [value drift] {item.scope_name}: ${{{item.drift_field}}}{observed}")
             continue
         # "no baseline" rather than "+0%" for a zero-expected item: the note the
         # model writes from this prompt is what the reader receives, and "+0%"

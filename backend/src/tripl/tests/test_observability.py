@@ -2,36 +2,47 @@
 
 from __future__ import annotations
 
-from importlib import reload
+import importlib.util
 
 import pytest
+from fastapi import FastAPI
 from fastapi.testclient import TestClient
+
+from tripl.config import settings
+from tripl.services import app_settings_service
 
 
 @pytest.fixture
-def metrics_app(monkeypatch: pytest.MonkeyPatch):
-    """FastAPI app rebuilt with PROMETHEUS_METRICS_ENABLED=true.
+def metrics_app(monkeypatch: pytest.MonkeyPatch) -> FastAPI:
+    """The app `tripl.main` builds with Prometheus metrics enabled.
 
-    `tripl.main` decides whether to register `/metrics` at import time, so we
-    have to reload the module after flipping the setting. The fixture also
-    rolls back to the default-disabled state afterwards.
+    `tripl.main` decides whether to register `/metrics` at import time, so the
+    fixture runs that module again into a module object of its own, with the
+    flag set on the shared `settings`. Reloading `tripl.config` instead would
+    replace `tripl.config.settings`: every test module that imported it would
+    patch a stale object for the rest of the worker's run, while the code under
+    test read the new one (the hosted warehouse-host checks among them).
     """
-    monkeypatch.setenv("PROMETHEUS_METRICS_ENABLED", "true")
-    import tripl.config
+    monkeypatch.setattr(settings, "prometheus_metrics_enabled", True)
+    # The flag above, not whatever overrides the test database holds.
+    monkeypatch.setattr(app_settings_service, "apply_startup_service_overrides", lambda: [])
+    spec = importlib.util.find_spec("tripl.main")
+    assert spec is not None and spec.loader is not None
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    app: FastAPI = module.app
+    return app
 
-    reload(tripl.config)
+
+def test_metrics_app_replaces_neither_settings_nor_the_app(metrics_app: FastAPI) -> None:
+    import tripl.config
     import tripl.main
 
-    reload(tripl.main)
-    try:
-        yield tripl.main.app
-    finally:
-        monkeypatch.delenv("PROMETHEUS_METRICS_ENABLED", raising=False)
-        reload(tripl.config)
-        reload(tripl.main)
+    assert tripl.config.settings is settings
+    assert tripl.main.app is not metrics_app
 
 
-def test_metrics_endpoint_exposes_prometheus_text(metrics_app) -> None:
+def test_metrics_endpoint_exposes_prometheus_text(metrics_app: FastAPI) -> None:
     client = TestClient(metrics_app)
     response = client.get("/metrics")
     assert response.status_code == 200
