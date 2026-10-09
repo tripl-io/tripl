@@ -445,6 +445,30 @@ def test_an_explicit_version_gets_no_pin_reminder(
     assert "pin a released tag" not in captured.err
 
 
+@pytest.mark.parametrize(
+    ("extra", "said"),
+    [
+        ((), True),
+        (("--no-telemetry",), False),
+        (("--edition", "enterprise"), False),
+        (("--edition", "enterprise", "--telemetry"), True),
+    ],
+)
+def test_a_new_env_says_when_telemetry_is_on_and_how_to_turn_it_off(
+    install_dir: Path,
+    fake_runner: FakeRunner,
+    capsys: pytest.CaptureFixture[str],
+    extra: tuple[str, ...],
+    said: bool,
+) -> None:
+    assert main(argv(install_dir, *extra, "--dry-run")) == 0
+
+    err = capsys.readouterr().err
+    assert ("anonymous usage telemetry is on" in err) is said
+    if said:
+        assert "TELEMETRY_ENABLED=false" in err
+
+
 def test_no_start_writes_the_files_and_starts_nothing(
     install_dir: Path, fake_runner: FakeRunner, capsys: pytest.CaptureFixture[str]
 ) -> None:

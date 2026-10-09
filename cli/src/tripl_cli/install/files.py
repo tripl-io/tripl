@@ -173,7 +173,7 @@ def render_env(
     version: str,
     generated_at: datetime,
     values: Mapping[str, str],
-    telemetry: bool = False,
+    telemetry: bool | None = None,
 ) -> str:
     """The generated ``.env``, in full.
 
@@ -218,7 +218,10 @@ def render_env(
             "",
             "# Anonymous usage telemetry: one small ping a day, no names, emails, hosts or",
             f"# data. What it holds: {TELEMETRY_DOCS_URL}",
-            env_line("TELEMETRY_ENABLED", "true" if telemetry else "false"),
+            "# Unset, it is on in the community edition and off in enterprise.",
+            env_line("TELEMETRY_ENABLED", "true" if telemetry else "false")
+            if telemetry is not None
+            else "# TELEMETRY_ENABLED=false",
         ]
     )
     return "\n".join(lines) + "\n"
@@ -249,7 +252,7 @@ def plan_env(
     version: str,
     generated_at: datetime,
     values: Mapping[str, str],
-    telemetry: bool = False,
+    telemetry: bool | None = None,
 ) -> FileWrite:
     """Create it, append to it, or leave it entirely alone. Never overwrite."""
     path = directory / ENV_NAME
@@ -369,7 +372,7 @@ def plan_writes(
     generated_at: datetime,
     values: Mapping[str, str],
     force: bool = False,
-    telemetry: bool = False,
+    telemetry: bool | None = None,
 ) -> tuple[FileWrite, ...]:
     """The three files, in the order they are reported and applied."""
     return (

@@ -24,6 +24,8 @@ x-backend-environment: &backend-environment
   HSTS_ENABLED: ${HSTS_ENABLED:-false}
   CONTENT_SECURITY_POLICY: ${CONTENT_SECURITY_POLICY:-}
   RATE_LIMIT_ENABLED: ${RATE_LIMIT_ENABLED:-true}
+  # A development stack is not an install: no usage ping unless asked for.
+  TELEMETRY_ENABLED: ${TELEMETRY_ENABLED:-false}
   RATE_LIMIT_LOGIN_PER_MINUTE: ${RATE_LIMIT_LOGIN_PER_MINUTE:-5}
   RATE_LIMIT_REGISTER_PER_HOUR: ${RATE_LIMIT_REGISTER_PER_HOUR:-3}
   LOG_LEVEL: ${LOG_LEVEL:-INFO}

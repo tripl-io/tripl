@@ -1,8 +1,9 @@
 import { expect, signInAsOwner, test } from './fixtures'
 
 /**
- * Usage telemetry is opt-in: on the CI stack nothing turns it on, and the
- * platform admin reads that — and where it would go — under Runtime.
+ * Usage telemetry is on by default in Community, but the dev stack CI runs
+ * (compose.dev.yaml) turns it off; the platform admin reads that — and where it
+ * would go — under Runtime.
  */
 test('a platform admin sees usage telemetry is off and where it would go', async ({ page }) => {
   await signInAsOwner(page)
@@ -16,6 +17,6 @@ test('a platform admin sees usage telemetry is off and where it would go', async
   await page.goto('/settings/instance/runtime')
   // A route's first visit compiles it on the dev server: give it time.
   await expect(page.getByText('Usage telemetry')).toBeVisible({ timeout: 60_000 })
-  await expect(page.getByText('Off (TELEMETRY_ENABLED is not set)')).toBeVisible()
+  await expect(page.getByText('Off (TELEMETRY_ENABLED=false)')).toBeVisible()
   await expect(page.getByText('https://telemetry.tripl.io/v1/ping')).toBeVisible()
 })

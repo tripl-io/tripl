@@ -324,11 +324,14 @@ class Settings(BaseSettings):
     oidc_button_label: str = "Sign in with OpenID Connect"
     oidc_allowed_domains: Annotated[list[str], NoDecode] = Field(default_factory=list)
     oidc_auto_create_users: bool = True
-    # Opt-in anonymous usage telemetry (services/telemetry_service.py): off
-    # unless set; then one small JSON ping a day — instance id, version,
-    # edition, warehouse engines, bucketed counts — and never names, emails,
-    # hosts, queries or data. website/docs/run/telemetry.md lists every field.
-    telemetry_enabled: bool = False
+    # Anonymous usage telemetry (services/telemetry_service.py): one small JSON
+    # ping a day — instance id, version, edition, warehouse engines, bucketed
+    # counts — and never names, emails, hosts, queries or data.
+    # website/docs/run/telemetry.md lists every field. Unset means the
+    # edition's default: on in Community, off in Enterprise. DO_NOT_TRACK
+    # (the cross-tool opt-out) turns it off whatever this says.
+    telemetry_enabled: bool | None = None
+    do_not_track: bool = False
     telemetry_endpoint: str = "https://telemetry.tripl.io/v1/ping"
 
     # AI features (LLM-powered descriptions, Q&A). Disabled by default because

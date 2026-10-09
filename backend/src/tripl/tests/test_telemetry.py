@@ -1,13 +1,15 @@
-"""Opt-in anonymous usage telemetry (``telemetry_service``).
+"""Anonymous usage telemetry (``telemetry_service``).
 
-Off by default; on, one ping a day with nothing that names anyone, counts only
-as ranges, and the last one kept for the operator to read. A public demo
-sends nothing, and a receiver that is down changes nothing.
+On by default in Community, off in Enterprise and under DO_NOT_TRACK; on, one
+ping a day with nothing that names anyone, counts only as ranges, and the last
+one kept for the operator to read. A public demo sends nothing, and a receiver
+that is down changes nothing.
 """
 
 from __future__ import annotations
 
 import json
+import logging
 from datetime import UTC, datetime, timedelta
 from typing import Any
 
@@ -69,11 +71,50 @@ def test_the_edition_is_enterprise_once_an_extension_loads() -> None:
         assert telemetry_service.edition() == "enterprise"
 
 
-async def test_off_by_default_nothing_is_sent_or_stored(receiver: Receiver) -> None:
-    assert settings.telemetry_enabled is False
+async def test_turned_off_nothing_is_sent_or_stored(
+    receiver: Receiver, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(settings, "telemetry_enabled", False)
     assert await _send() == {"sent": False, "reason": "disabled"}
     assert receiver.pings == []
     assert await _rows() == []
+
+
+def test_unset_it_is_on_in_community_and_off_in_enterprise(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(settings, "telemetry_enabled", None)
+    with override_extensions([]):
+        assert telemetry_service.inactive_reason() is None
+    with override_extensions([Extension()]):
+        assert telemetry_service.inactive_reason() == "enterprise default"
+        monkeypatch.setattr(settings, "telemetry_enabled", True)
+        assert telemetry_service.inactive_reason() is None
+
+
+def test_do_not_track_wins_over_everything(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(settings, "telemetry_enabled", True)
+    monkeypatch.setattr(settings, "do_not_track", True)
+    assert telemetry_service.inactive_reason() == "do not track"
+
+
+def test_startup_says_it_is_on_and_how_to_turn_it_off(
+    monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+) -> None:
+    monkeypatch.setattr(settings, "telemetry_enabled", True)
+    with caplog.at_level(logging.WARNING, logger=telemetry_service.__name__):
+        telemetry_service.log_startup_notice()
+    (record,) = caplog.records
+    message = record.getMessage()
+    assert "telemetry is ON" in message
+    assert "TELEMETRY_ENABLED=false" in message
+    assert "DO_NOT_TRACK=1" in message
+    assert "https://docs.tripl.io/run/telemetry" in message
+
+    caplog.clear()
+    monkeypatch.setattr(settings, "telemetry_enabled", False)
+    telemetry_service.log_startup_notice()
+    assert caplog.records == []
 
 
 async def test_a_ping_names_nobody_and_is_kept_for_the_operator(
@@ -139,7 +180,8 @@ async def test_a_public_demo_sends_nothing(
     assert receiver.pings == []
 
 
-async def test_only_a_platform_admin_reads_it() -> None:
+async def test_only_a_platform_admin_reads_it(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(settings, "telemetry_enabled", False)
     world = await build_world()
     try:
         assert (await world.bob.get(STATUS)).status_code == 403

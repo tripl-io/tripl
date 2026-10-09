@@ -66,6 +66,7 @@ Every flag, the plan output, the file actions and the safety rules live in [`tri
 - **The `compose.yaml` it writes is the one described [below](#the-compose-stack)**, minus the `mcp` service's `build:` block: a fresh host has no source tree, so `--profile mcp` pulls the published image instead of building it.
 - **Re-running converges.** A second run leaves `.env` alone, reports the other two files as `unchanged` or `kept`, and still runs `pull` and `up -d` — which is how you apply an edit to `compose.yaml` or a `compose.override.yaml`.
 - **It stops at a running, empty instance.** The owner account and the warehouse connection are browser steps; see [Connecting a warehouse](#connecting-a-warehouse).
+- **Community sends one anonymous usage ping a day** unless you turn it off: `--no-telemetry`, or `TELEMETRY_ENABLED=false` in `.env` later. `install` and the API's startup log both say so. What the ping holds, and what it never does, is in [Telemetry](./telemetry.md).
 
 ### The variables the stack needs
 

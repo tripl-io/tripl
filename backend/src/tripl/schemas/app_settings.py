@@ -630,10 +630,11 @@ class OrgTrackerDefaultsUpdate(BaseModel):
 
 
 class TelemetryStatusResponse(BaseModel):
-    """``GET /platform/settings/telemetry``: the opt-in usage ping, and the last one sent."""
+    """``GET /platform/settings/telemetry``: the usage ping, and the last one sent."""
 
     enabled: bool
-    #: Why nothing is sent (``disabled``, ``no endpoint``, ``public demo``); null when it is.
+    #: Why nothing is sent (``do not track``, ``disabled``, ``enterprise default``,
+    #: ``no endpoint``, ``public demo``); null when it is.
     reason: str | None = None
     endpoint: str
     instance_id: str | None = None

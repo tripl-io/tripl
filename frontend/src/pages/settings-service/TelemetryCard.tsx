@@ -6,13 +6,15 @@ import { SILENT_ERROR_META } from '@/lib/errorFeedback'
 import { telemetryStatusKey } from '@/lib/queryKeys'
 
 const REASON: Record<string, string> = {
-  disabled: 'Off (TELEMETRY_ENABLED is not set)',
+  'do not track': 'Off (DO_NOT_TRACK is set)',
+  disabled: 'Off (TELEMETRY_ENABLED=false)',
+  'enterprise default': 'Off (Enterprise default; TELEMETRY_ENABLED=true turns it on)',
   'no endpoint': 'Off (TELEMETRY_ENDPOINT is empty)',
   'public demo': 'Off (a public demo never sends it)',
 }
 
 /**
- * Settings › Platform › Runtime: the opt-in usage ping (C2), read-only. Whether
+ * Settings › Platform › Runtime: the usage ping (C2), read-only. Whether
  * it is sent and where, and the exact document it last sent — what
  * website/docs/run/telemetry.md lists, nothing more.
  */
@@ -27,7 +29,7 @@ export function TelemetryCard() {
   return (
     <SCard
       title="Usage telemetry"
-      description="One anonymous ping a day: no names, emails, hosts or data. Set in the server's environment."
+      description="One anonymous ping a day: no names, emails, hosts or data. TELEMETRY_ENABLED=false in the server's environment turns it off."
     >
       <InfoRow
         label="Sending"
