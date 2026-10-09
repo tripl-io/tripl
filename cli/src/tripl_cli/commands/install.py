@@ -37,7 +37,7 @@ from tripl_cli.config import Config, normalize_base_url
 from tripl_cli.errors import EXIT_FAILURE, EXIT_OK, TriplConfigError, TriplError
 from tripl_cli.install import docker, files, secrets
 from tripl_cli.install.health import HealthOutcome, read_bootstrap, wait_for_health
-from tripl_cli.install.plan import APPEND, FileWrite, InstallPlan
+from tripl_cli.install.plan import APPEND, CREATE, FileWrite, InstallPlan
 from tripl_cli.install.render import (
     render_directory_header,
     render_health,
@@ -132,11 +132,13 @@ def register(
     parser.add_argument(
         "--telemetry",
         dest="telemetry",
-        action="store_true",
+        action=argparse.BooleanOptionalAction,
+        default=None,
         help=(
-            "share anonymous usage telemetry: one small ping a day, no names, emails, hosts "
-            "or data (TELEMETRY_ENABLED in the new .env; default: off). Asked once, here: an "
-            "existing .env is never rewritten"
+            "anonymous usage telemetry: one small ping a day, no names, emails, hosts or "
+            "data. Neither flag leaves the edition's default (on in community, off in "
+            "enterprise); either writes TELEMETRY_ENABLED into the new .env. Asked once, "
+            "here: an existing .env is never rewritten"
         ),
     )
     add_wait_flag(parser)
@@ -375,7 +377,7 @@ def run_install(args: argparse.Namespace, config: Config) -> int:
         generated_at=generated_at,
         values=values,
         force=bool(args.force),
-        telemetry=bool(args.telemetry),
+        telemetry=args.telemetry,
     )
     # What will be TRUE when this finishes, which on a re-run is the existing
     # .env's values - that file is never overwritten. Everything downstream (the
@@ -436,6 +438,20 @@ def run_install(args: argparse.Namespace, config: Config) -> int:
         print(
             f"tripl: note: {files.ENTERPRISE_IMAGE} is private. Run `docker login ghcr.io` "
             "with the credentials that came with your subscription before the pull.",
+            file=sys.stderr,
+        )
+    creating_env = any(
+        write.action == CREATE and write.path.name == files.ENV_NAME for write in writes
+    )
+    telemetry_on = args.telemetry is True or (
+        args.telemetry is None and plan.image != files.ENTERPRISE_IMAGE
+    )
+    if creating_env and telemetry_on:
+        print(
+            "tripl: note: anonymous usage telemetry is on: one small ping a day, no names, "
+            f"emails, hosts or data ({files.TELEMETRY_DOCS_URL}). Turn it off with "
+            "TELEMETRY_ENABLED=false in .env, or re-run with --no-telemetry before the "
+            ".env exists.",
             file=sys.stderr,
         )
     if plan.insecure_scheme:

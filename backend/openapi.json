@@ -31530,7 +31530,7 @@
         "type": "object"
       },
       "TelemetryStatusResponse": {
-        "description": "``GET /platform/settings/telemetry``: the opt-in usage ping, and the last one sent.",
+        "description": "``GET /platform/settings/telemetry``: the usage ping, and the last one sent.",
         "properties": {
           "enabled": {
             "title": "Enabled",
@@ -35412,7 +35412,7 @@
     },
     "/api/v1/platform/settings/telemetry": {
       "get": {
-        "description": "The opt-in usage ping: whether it is sent, where to, and exactly what it last held.",
+        "description": "The usage ping: whether it is sent (and if not, why), where to, and what it last held.",
         "operationId": "get_telemetry_api_v1_platform_settings_telemetry_get",
         "responses": {
           "200": {

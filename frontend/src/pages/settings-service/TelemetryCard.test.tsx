@@ -33,9 +33,17 @@ afterEach(() => {
 describe('TelemetryCard', () => {
   it('says it is off, and why', async () => {
     renderCard(OFF)
-    expect(await screen.findByText('Off (TELEMETRY_ENABLED is not set)')).toBeInTheDocument()
+    expect(await screen.findByText('Off (TELEMETRY_ENABLED=false)')).toBeInTheDocument()
     expect(screen.getByText('Never')).toBeInTheDocument()
     expect(screen.queryByTestId('telemetry-payload')).toBeNull()
+  })
+
+  it.each([
+    ['do not track', 'Off (DO_NOT_TRACK is set)'],
+    ['enterprise default', 'Off (Enterprise default; TELEMETRY_ENABLED=true turns it on)'],
+  ])('names %s as the reason', async (reason, label) => {
+    renderCard({ ...OFF, reason })
+    expect(await screen.findByText(label)).toBeInTheDocument()
   })
 
   it('shows exactly what it last sent', async () => {

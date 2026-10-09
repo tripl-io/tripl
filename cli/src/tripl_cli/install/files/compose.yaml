@@ -95,6 +95,7 @@ x-app-environment: &app-environment
   OIDC_AUTO_CREATE_USERS: ${OIDC_AUTO_CREATE_USERS:-}
   TELEMETRY_ENABLED: ${TELEMETRY_ENABLED:-}
   TELEMETRY_ENDPOINT: ${TELEMETRY_ENDPOINT:-}
+  DO_NOT_TRACK: ${DO_NOT_TRACK:-}
   PUBLIC_DEMO: ${PUBLIC_DEMO:-}
   # The Enterprise license key (read by the Enterprise image only).
   LICENSE_KEY: ${LICENSE_KEY:-}

@@ -161,7 +161,7 @@ celery_app.conf.beat_schedule = {
     },
     "send-telemetry": {
         "task": "tripl.worker.tasks.telemetry.send_telemetry",
-        # Daily: the opt-in usage ping (TELEMETRY_ENABLED); a no-op otherwise.
+        # Daily: the usage ping (telemetry_service.inactive_reason); a no-op when off.
         # Its counts are day-scale, so once a day says all there is.
         "schedule": crontab(hour=7, minute=13),
     },

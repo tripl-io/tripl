@@ -1,4 +1,4 @@
-"""The daily opt-in usage ping (``telemetry_service``): a no-op unless enabled."""
+"""The daily usage ping (``telemetry_service``): a no-op while it is off."""
 
 from __future__ import annotations
 

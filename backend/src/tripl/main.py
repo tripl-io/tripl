@@ -41,6 +41,7 @@ from tripl.middleware.org_path_rewrite import OrgPathRewriteMiddleware  # noqa: 
 from tripl.middleware.request_id import bound_request_id, request_id_from_scope  # noqa: E402
 from tripl.middleware.security_headers import build_security_headers  # noqa: E402
 from tripl.observability.metrics import render_metrics  # noqa: E402
+from tripl.services import telemetry_service  # noqa: E402
 
 # Configure logging now (after overrides are applied) so every log line — including
 # those emitted while building the app and importing routers, before the async
@@ -60,6 +61,7 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     # An extension's cipher (a key management service, say) proves itself now
     # rather than at the first secret a request reads. Default cipher: no-op.
     crypto.check_cipher()
+    telemetry_service.log_startup_notice()
     logger.info(
         "tripl starting",
         extra={

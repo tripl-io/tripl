@@ -2664,9 +2664,9 @@ the file permissions done for you instead of copied out of a code block.
 ```
 usage: tripl install [-h] [--url URL] [--api-key KEY] [--config PATH]
                      --app-url URL [--dir PATH] [--version TAG]
-                     [--edition {community,enterprise}] [--telemetry]
-                     [--wait SECONDS] [--no-start] [--force] [--dry-run]
-                     [--yes] [--json]
+                     [--edition {community,enterprise}]
+                     [--telemetry | --no-telemetry] [--wait SECONDS]
+                     [--no-start] [--force] [--dry-run] [--yes] [--json]
 ```
 
 | Flag | Meaning |
@@ -2675,7 +2675,7 @@ usage: tripl install [-h] [--url URL] [--api-key KEY] [--config PATH]
 | `--dir PATH` | Where the stack lives. Default `./tripl`; always **reported absolute**, whatever you typed. |
 | `--version TAG` | Image tag to pin in `.env`. Default `latest`. Must look like a Docker tag — a letter, digit or underscore followed by up to 127 of `[A-Za-z0-9._-]`. |
 | `--edition NAME` | Which image `.env` pins as `TRIPL_IMAGE`: `community` (the default, `ghcr.io/tripl-io/tripl`) or `enterprise` (`ghcr.io/tripl-io/tripl-enterprise`). The Enterprise image is private, so run `docker login ghcr.io` with the credentials that come with your subscription before `install` pulls it; `install` prints that reminder and holds no credentials itself. Like `--version`, it does not change an existing `.env`. |
-| `--telemetry` | Share anonymous usage telemetry: the new `.env` gets `TELEMETRY_ENABLED=true` instead of `false` — one small ping a day, no names, emails, hosts or data ([what it holds](./telemetry.md)). Asked once, here: like `--version`, it does not change an existing `.env`; edit that file to change your mind. |
+| `--telemetry`, `--no-telemetry` | Anonymous usage telemetry — one small ping a day, no names, emails, hosts or data ([what it holds](./telemetry.md)). Without either flag the new `.env` leaves `TELEMETRY_ENABLED` commented out, so the edition's default applies: **on in Community**, off in Enterprise; `install` then says on stderr that it is on and how to turn it off. Either flag writes `TELEMETRY_ENABLED=true` or `false` instead. Asked once, here: like `--version`, it does not change an existing `.env`; edit that file to change your mind. |
 | `--wait SECONDS` | How long to poll `/health` before giving up. Default `300`, range `0`–`3600`. **`0` skips waiting entirely** — it does not mean "probe once". |
 | `--no-start` | Write the files and run nothing. Also skips the Docker probe, so it works on a machine with no Docker at all. |
 | `--force` | Replace a `compose.yaml` or `rabbitmq.conf` that differs from the packaged one. **Never reaches `.env`.** |
@@ -2812,7 +2812,7 @@ Eight variables, and that is the whole file. It is **not** a copy of
 | `SECRET_KEY` | `secrets.token_urlsafe(48)` — 64 url-safe characters. |
 | `POSTGRES_PASSWORD` | `secrets.token_hex(24)` — 48 hex characters. |
 | `RABBITMQ_PASSWORD` | `secrets.token_hex(24)` — 48 hex characters. |
-| `TELEMETRY_ENABLED` | `false`, or `true` with `--telemetry` ([telemetry](./telemetry.md)). |
+| `TELEMETRY_ENABLED` | Commented out (the edition's default), or `true` / `false` with `--telemetry` / `--no-telemetry` ([telemetry](./telemetry.md)). |
 
 The two passwords are **hex on purpose**, not for looks. `compose.yaml` builds
 `postgresql+asyncpg://tripl:${POSTGRES_PASSWORD}@postgres:5432/tripl` by plain

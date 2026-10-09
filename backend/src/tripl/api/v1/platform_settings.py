@@ -99,5 +99,5 @@ async def get_telemetry(
     session: SessionDep,
     _current_user: PlatformAdminUserDep,
 ) -> TelemetryStatusResponse:
-    """The opt-in usage ping: whether it is sent, where to, and exactly what it last held."""
+    """The usage ping: whether it is sent (and if not, why), where to, and what it last held."""
     return TelemetryStatusResponse.model_validate(await telemetry_service.status(session))

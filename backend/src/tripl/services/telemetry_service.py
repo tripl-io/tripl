@@ -1,8 +1,10 @@
-"""Opt-in anonymous usage telemetry: one small ping a day.
+"""Anonymous usage telemetry: one small ping a day.
 
-Off unless the operator turns it on (``TELEMETRY_ENABLED=true``; ``tripl
-install`` asks once). Then the ``send-telemetry`` beat task POSTs one JSON
-document a day to ``TELEMETRY_ENDPOINT``. What it holds is everything there is
+On by default in Community, off by default in Enterprise; ``TELEMETRY_ENABLED``
+says otherwise, and ``DO_NOT_TRACK`` turns it off whatever that says. The API
+logs at startup that it is on, and how to turn it off. While it is on, the
+``send-telemetry`` beat task POSTs one JSON document a day to
+``TELEMETRY_ENDPOINT``. What it holds is everything there is
 (``website/docs/run/telemetry.md`` lists it, and **Settings → Platform →
 Runtime** shows the last one sent):
 
@@ -72,15 +74,35 @@ def edition() -> str:
     return "enterprise" if extensions.extensions() else "community"
 
 
+TELEMETRY_DOCS_URL = "https://docs.tripl.io/run/telemetry"
+
+
 def inactive_reason() -> str | None:
     """Why nothing is sent, or None when the ping goes out."""
-    if not settings.telemetry_enabled:
+    if settings.do_not_track:
+        return "do not track"
+    if settings.telemetry_enabled is False:
         return "disabled"
+    if settings.telemetry_enabled is None and edition() == "enterprise":
+        return "enterprise default"
     if not settings.telemetry_endpoint:
         return "no endpoint"
     if tenancy.public_demo():
         return "public demo"
     return None
+
+
+def log_startup_notice() -> None:
+    """Say plainly, once at startup, that the ping is on and how to turn it off."""
+    if inactive_reason() is not None:
+        return
+    logger.warning(
+        "Anonymous usage telemetry is ON: one small ping a day to %s - no names, "
+        "emails, hosts, queries or data. What it holds: %s. "
+        "Turn it off with TELEMETRY_ENABLED=false (or DO_NOT_TRACK=1) and restart.",
+        settings.telemetry_endpoint,
+        TELEMETRY_DOCS_URL,
+    )
 
 
 def _operator_row() -> Any:

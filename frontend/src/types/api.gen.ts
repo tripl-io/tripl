@@ -1002,7 +1002,7 @@ export interface paths {
         };
         /**
          * Get Telemetry
-         * @description The opt-in usage ping: whether it is sent, where to, and exactly what it last held.
+         * @description The usage ping: whether it is sent (and if not, why), where to, and what it last held.
          */
         get: operations["get_telemetry_api_v1_platform_settings_telemetry_get"];
         put?: never;
@@ -18090,7 +18090,7 @@ export interface components {
         };
         /**
          * TelemetryStatusResponse
-         * @description ``GET /platform/settings/telemetry``: the opt-in usage ping, and the last one sent.
+         * @description ``GET /platform/settings/telemetry``: the usage ping, and the last one sent.
          */
         TelemetryStatusResponse: {
             /** Enabled */
