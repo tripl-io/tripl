@@ -28,7 +28,7 @@ class ApiRequest:
     server apply its own default.
     """
 
-    method: str  # "GET" | "POST" | "PATCH"
+    method: str  # "GET" | "POST" | "PATCH" | "PUT"
     path: str
     params: dict[str, Any] | None = None
     json_body: Any | None = None

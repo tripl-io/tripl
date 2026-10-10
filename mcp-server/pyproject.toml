@@ -1,17 +1,17 @@
 [project]
 name = "tripl-mcp"
-# 0.2.2: new Docs-note and typed-property tools, which import modules only
-# `tripl` 0.2.2 has; the dependency floor below moved with it. The version
-# range that dependency pins is declared once, below; it is not repeated here.
+# One version for the service, the `tripl` CLI and this server; bin/release.sh
+# writes it, and the `tripl` range below with it.
 version = "0.3.1"
 description = "Standalone MCP server exposing a curated agent toolset over the tripl REST API"
 readme = "README.md"
 requires-python = ">=3.12"
 # Apache-2.0 while the SERVICE is AGPL-3.0-or-later, and that split is
 # deliberate: this package is a standalone httpx client of the REST API — it
-# imports nothing from `tripl` — so a permissive licence lets anyone embed it in
-# their own agent without the service's copyleft reaching into their codebase.
-# Apache rather than MIT for the express patent grant.
+# imports nothing from the service, only from the Apache-2.0 `tripl` CLI
+# distribution — so a permissive licence lets anyone embed it in their own agent
+# without the service's copyleft reaching into their codebase. Apache rather
+# than MIT for the express patent grant.
 license = "Apache-2.0"
 license-files = ["LICENSE"]
 authors = [{ name = "Vladislav Denisov" }]
@@ -49,12 +49,14 @@ dependencies = [
     # four ways, the event-name regex three, plus security headers and the
     # signal significance gate.
     #
-    # `>=0.2`, NOT `>=0.1`: this package imports `page_items` / `page_total`
-    # from `tripl_cli.api`, and the published tripl 0.1.0 does not export them —
-    # they were added after it shipped. A wheel declaring `>=0.1` therefore
-    # resolves happily and then dies on import with ImportError, which is what
-    # the clean-venv smoke test in publish-mcp.yml caught. Bump
-    # this floor whenever a symbol is imported that an older `tripl` lacks.
+    # The floor is this release's own version, not the oldest `tripl` that
+    # happens to work: this package imports symbols from `tripl_cli` that each
+    # release adds, and a floor below the one that added them resolves happily
+    # and then dies on import with ImportError (the clean-venv smoke test in
+    # publish-mcp.yml exists to catch that). bin/release.sh rewrites the range
+    # on every release: the floor to the version being released, the ceiling to
+    # the next breaking series (the next minor while the major is 0, the next
+    # major after that).
     #
     # [tool.uv.sources] below points `tripl` at the sibling checkout for anything
     # that BUILDS from this source tree — see the note there, it is broader than

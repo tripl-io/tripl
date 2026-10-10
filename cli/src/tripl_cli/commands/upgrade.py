@@ -39,7 +39,6 @@ would be a second thing to keep in sync with the first.
 
 from __future__ import annotations
 
-import re
 import sys
 import time
 from argparse import ArgumentParser, Namespace, _SubParsersAction
@@ -67,11 +66,12 @@ from tripl_cli.errors import EXIT_FAILURE, EXIT_OK, TriplConfigError
 from tripl_cli.install import docker, files
 from tripl_cli.install.health import HealthOutcome, wait_for_health
 from tripl_cli.install.plan import (
+    FLAG_ALLOW_UNORDERED,
     ORDER_DOWNGRADE,
     ORDER_SAME,
     ORDER_UNKNOWN,
-    ORDER_UPGRADE,
     UpgradePlan,
+    compare,
 )
 from tripl_cli.install.render import (
     render_backup_gate,
@@ -84,15 +84,6 @@ from tripl_cli.install.render import (
 from tripl_cli.install.shell import Command, Runner, subprocess_runner
 from tripl_cli.model import JsonDict, to_rfc3339
 from tripl_cli.report import upgrade_document
-
-# Strict three-part semver, digits only. `1.4`, `v1.4.0` and `sha-abc1234` all
-# fail it deliberately: a partial match would be an invented ordering.
-_SEMVER = re.compile(r"(\d+)\.(\d+)\.(\d+)")
-
-# The override for the ordering guard, spelled out. Its name has to survive
-# being read in a CI log by somebody who did not write the pipeline: `--yes`
-# there says "this run is automated", and said nothing about downgrades.
-FLAG_ALLOW_UNORDERED = "--allow-unordered-tag"
 
 
 def default_runner() -> Runner:
@@ -127,7 +118,7 @@ def register(
         metavar="TAG",
         required=True,
         type=image_tag("--to"),
-        help="the image tag to move to, e.g. 1.5.0. Required; there is no default",
+        help=f"the image tag to move to, e.g. {files.example_tag()}. Required; there is no default",
     )
     add_directory_flag(parser)
     add_wait_flag(parser)
@@ -143,18 +134,6 @@ def register(
         ),
     )
     parser.set_defaults(handler=run_upgrade)
-
-
-def compare(current: str, target: str) -> str:
-    """How the two tags order, or ``unknown`` when they simply do not."""
-    if current == target:
-        return ORDER_SAME
-    left, right = _SEMVER.fullmatch(current), _SEMVER.fullmatch(target)
-    if left is None or right is None:
-        return ORDER_UNKNOWN
-    low = tuple(int(part) for part in left.groups())
-    high = tuple(int(part) for part in right.groups())
-    return ORDER_UPGRADE if high > low else ORDER_DOWNGRADE
 
 
 def _unorderable(current: str, target: str) -> str:

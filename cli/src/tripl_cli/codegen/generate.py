@@ -138,10 +138,6 @@ def target_context(target: Target, language: str) -> dict[str, Any]:
     return context
 
 
-def render_target(target: Target, language: str) -> str:
-    return _render(_template(target, language), target_context(target, language))
-
-
 def _render(template: Template, context: Mapping[str, Any], *frames: Mapping[str, Any]) -> str:
     try:
         text = template.render(context, *frames)

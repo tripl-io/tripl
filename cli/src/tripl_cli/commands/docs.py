@@ -28,7 +28,6 @@ what the folder no longer has.
 from __future__ import annotations
 
 import argparse
-import json
 import sys
 import time
 from datetime import UTC, datetime
@@ -48,21 +47,17 @@ from tripl_cli.commands import (
 )
 from tripl_cli.commands._docs_files import Folder, read_folder, refuse_non_empty, write_bundle
 from tripl_cli.commands._plan import MAIN, begin, emit
-from tripl_cli.commands._write import add_write_flags, confirm, request_document
+from tripl_cli.commands._write import add_write_flags, confirm, emit_mutation, request_document
 from tripl_cli.config import Config, require_base_url
 from tripl_cli.diagnostics.collect import Reader, instance_of
 from tripl_cli.errors import EXIT_OK, TriplConfigError, TriplError
 from tripl_cli.model import JsonDict, MutationOutcome, PlanRead, Run, as_dict, as_list, text_of
-from tripl_cli.render import columns, plural, render_header, render_plan_read
-from tripl_cli.report import mutation_document
+from tripl_cli.render import columns, plural, render_plan_read
 from tripl_cli.runner import run_async
 
 SCOPE_ALL = "all"
 DEFAULT_SCOPE = "project"
 SCOPE_LABELS = {"project": "project notes", "organization": "organization notes"}
-# What `--audience X` keeps. A note marked `both` is written for either reader,
-# so it matches `human` and `agent`. `both` itself keeps only those notes.
-AUDIENCE_MATCHES = {"human": ("human", "both"), "agent": ("agent", "both"), "both": ("both",)}
 # The import result's lists, in the order the human summary names them.
 RESULT_LISTS = ("created", "updated", "unchanged", "deleted")
 # What a refusal after the preview says: the dry-run import went out, and it
@@ -237,10 +232,9 @@ def run_ls(args: argparse.Namespace, config: Config) -> int:
     async def body(client: httpx.AsyncClient) -> PlanRead:
         reader = context.reader(client)
         payload = await reader.send(docs_api.list_docs(slug))
-        rows = docs_api.tree_docs(payload, None if scope == SCOPE_ALL else scope)
-        if audience is not None:
-            wanted = AUDIENCE_MATCHES[audience]
-            rows = [row for row in rows if text_of(row, "audience") in wanted]
+        rows = docs_api.filter_by_audience(
+            docs_api.tree_docs(payload, None if scope == SCOPE_ALL else scope), audience
+        )
         # No total, offset or limit: the tree route pages nothing, so the rows
         # ARE the whole answer, the same statement `plan types` makes.
         return context.read(
@@ -423,16 +417,13 @@ def run_push(args: argparse.Namespace, config: Config) -> int:
         action=mode,
         result=result,
     )
-    human = sys.stderr if as_json else sys.stdout
-    print(
-        render_header(outcome.command, base_url, config.sources.get("base_url", "unknown")),
-        file=human,
+    emit_mutation(
+        outcome,
+        base_url=base_url,
+        config=config,
+        as_json=as_json,
+        human=_render_push(outcome, folder, scope=scope),
     )
-    print(file=human)
-    print(_render_push(outcome, folder, scope=scope), file=human)
-    if as_json:
-        json.dump(mutation_document(outcome), sys.stdout)
-        sys.stdout.write("\n")
     return EXIT_OK
 
 

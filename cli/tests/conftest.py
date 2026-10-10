@@ -704,7 +704,7 @@ class FakeInstance:
 
     @staticmethod
     def variables_url(slug: str) -> str:
-        return f"{API_BASE}/projects/{slug}/variables"
+        return f"{API_BASE}/projects/{slug}/properties"
 
     @staticmethod
     def branches_url(slug: str) -> str:

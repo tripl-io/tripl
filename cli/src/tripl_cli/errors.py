@@ -46,7 +46,7 @@ class TriplConfigError(TriplError):
 
 
 class TriplAPIError(TriplError):
-    """The instance answered 4xx/5xx.
+    """The instance answered 4xx/5xx, or a 3xx to a write the client will not follow.
 
     Carries the status so each consumer can render its own guidance — the MCP
     server writes to an agent, the CLI writes to a terminal, and neither wording

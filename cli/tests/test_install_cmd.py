@@ -250,9 +250,12 @@ def test_a_failing_compose_command_exits_one_and_says_it_is_re_runnable(
 
     err = capsys.readouterr().err
     assert "docker compose pull` failed (exit 1)" in err
-    assert "safe to re-run by hand" in err
-    # The files were written before the pull, and `up -d` was never reached.
-    assert (install_dir / ".env").exists()
+    # The files were written before the pull, and `up -d` was never reached -
+    # so the .env this run generated was removed again, and the way forward is
+    # the whole command, not `docker compose pull` by hand against no .env.
+    # tests/test_install_version_recovery.py covers why.
+    assert not (install_dir / ".env").exists()
+    assert "`tripl install` can simply be run again" in err
     assert ("docker", "compose", "up", "-d") not in fake_runner.argvs
 
 

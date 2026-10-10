@@ -30,9 +30,13 @@ WRITE_UPDATE = ToolAnnotations(read_only_hint=False, destructive_hint=True, idem
 # sending the same content twice changes nothing the second time (no revision).
 WRITE_REPLACE = ToolAnnotations(read_only_hint=False, destructive_hint=True, idempotent_hint=True)
 
+# `title` is the human label create_event tells an agent to set; the last two
+# are the columns the has_open_questions and silent_since_days filters act on,
+# so a filtered row shows why it matched.
 EVENT_LIST_FIELDS = (
     "id",
     "name",
+    "title",
     "description",
     "status",
     "reviewed",
@@ -40,13 +44,17 @@ EVENT_LIST_FIELDS = (
     "tags",
     "sunset_at",
     "owner_id",
+    "open_question_count",
+    "last_seen_at",
 )
 
 # An event type's own attributes, WITHOUT the embedded field_definitions: a
 # project with 40 event types × 25 fields returns the entire field catalogue on
 # every list call, which is the bulk of the payload and almost never what the
 # caller is after at that point. get_event_type_fields fetches one type's fields
-# on demand.
+# on demand. `event_name_format` is the scan naming rule that governs the type:
+# when it is set the server derives an event's name from its field values and
+# may replace the one an agent sends, so the agent needs it before writing.
 EVENT_TYPE_LIST_FIELDS = (
     "id",
     "name",
@@ -54,6 +62,7 @@ EVENT_TYPE_LIST_FIELDS = (
     "description",
     "color",
     "order",
+    "event_name_format",
 )
 
 # What an agent needs to write a valid field value. The contract_* thresholds are
@@ -160,14 +169,27 @@ def summarize_collection(data: Any, sample_size: int = 10) -> dict[str, Any]:
     payload IS a page, which ``page_items`` cannot answer — an absent envelope
     and an empty one both unwrap to no rows, and the difference decides between
     a ``{total, sample}`` summary and passing an unrecognised object through.
+
+    An envelope's other scalar members are kept beside the summary: they are
+    facts about the whole collection, which the sample cannot carry
+    (``ShadowEventListResponse.new_count``, ``DeadEventListResponse.days``).
     """
     if isinstance(data, dict) and "items" in data:
         items = page_items(data)
         total = page_total(data)
+        scalars = {
+            key: value
+            for key, value in data.items()
+            if key not in ("items", "total") and not isinstance(value, list | dict)
+        }
         # ``total`` is required on every list envelope this API serves, so the
         # fallback covers a malformed body only — and there the row count is the
         # one number that is certainly true.
-        return {"total": len(items) if total is None else total, "sample": items[:sample_size]}
+        return {
+            **scalars,
+            "total": len(items) if total is None else total,
+            "sample": items[:sample_size],
+        }
     if isinstance(data, list):
         return {"total": len(data), "sample": data[:sample_size]}
     return {"data": data}
@@ -193,16 +215,27 @@ def with_mutation_warnings(data: Any) -> Any:
     ``tripl events`` is read-only BY DECISION — a catalog write has
     to land on a plan branch, and reproducing that gate from a shell is a command
     surface of its own (see ``tripl_cli.commands.events``). There is no second
-    caller to share with until the CLI can write.
+    caller to share with until the CLI can write events.
+    """
+    return hoist_warnings(
+        data,
+        "The mutation succeeded WITH warnings. Adopt the server-canonical name/id "
+        "from 'result' below; do not assume your proposed values were kept.",
+    )
+
+
+def hoist_warnings(data: Any, note: str) -> Any:
+    """Move a write answer's ``warnings`` to the front, with ``note`` saying what to do.
+
+    The one shape every warning-bearing write answer reaches an agent in:
+    ``IMPORTANT_warnings``, then the instruction, then the answer itself under
+    ``result`` without its ``warnings``. An answer with no warnings, or one that
+    is not an object, passes through unchanged.
     """
     if isinstance(data, dict) and data.get("warnings"):
         return {
             "IMPORTANT_warnings": data["warnings"],
-            "note": (
-                "The mutation succeeded WITH warnings. Adopt the server-canonical "
-                "name/id from 'result' below; do not assume your proposed values "
-                "were kept."
-            ),
+            "note": note,
             "result": {k: v for k, v in data.items() if k != "warnings"},
         }
     return data

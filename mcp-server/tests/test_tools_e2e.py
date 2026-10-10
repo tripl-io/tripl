@@ -39,7 +39,6 @@ async def test_stdio_lifespan_reuses_one_http_client(
             base_url=f"{base_url.rstrip('/')}/api/v1",
             headers={"Authorization": f"Bearer {api_key}", "User-Agent": user_agent},
             timeout=timeout,
-            follow_redirects=True,
         )
         clients.append(client)
         return client

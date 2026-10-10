@@ -14,7 +14,7 @@ from collections.abc import Mapping, Sequence
 from typing import Any
 
 from tripl_cli.api.request import ApiRequest
-from tripl_cli.model import JsonDict, JsonList, as_dict, int_of, page_items
+from tripl_cli.model import JsonDict, JsonList, page_items
 
 VALIDATE = "/projects/{slug}/plan/validate"
 
@@ -70,9 +70,3 @@ def batches[T](items: Sequence[T], size: int = MAX_ITEMS) -> list[Sequence[T]]:
 def verdicts(payload: Any) -> JsonList:
     """The per-item verdicts of one response, in the order the route answered them."""
     return page_items(payload)
-
-
-def summary_counts(payload: Any) -> JsonDict:
-    """``{ok, warnings, errors}`` of one response, as ints (0 when absent)."""
-    summary = as_dict(as_dict(payload).get("summary"))
-    return {key: int_of(summary, key) for key in ("ok", "warnings", "errors")}

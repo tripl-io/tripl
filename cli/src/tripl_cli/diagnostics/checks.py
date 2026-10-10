@@ -39,6 +39,7 @@ from tripl_cli.model import (
     Snapshot,
     Target,
     format_duration,
+    is_healthy,
     parse_time,
     text_of,
     to_rfc3339,
@@ -95,7 +96,7 @@ def check_connectivity(snapshot: Snapshot) -> Check:
             "(/health -> component=database). The API will fail on almost every request "
             "until the database is back.",
         )
-    if health.ok and (health.value or {}).get("status") == "ok":
+    if is_healthy(health):
         return Check(
             id="connectivity",
             title="Instance reachability",

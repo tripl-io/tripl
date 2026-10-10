@@ -57,17 +57,8 @@ REOPEN_ACTION = "reopen"
 # stays in the tripl UI.
 CLI_ALLOWED_DRIFT_ACTIONS: tuple[str, ...] = (*DISMISS_ACTIONS, REOPEN_ACTION)
 
-# SchemaDriftStatus and SchemaDriftType, verbatim from the OpenAPI document.
+# SchemaDriftStatus, verbatim from the OpenAPI document.
 DRIFT_STATUSES: tuple[str, ...] = ("open", "accepted", "snoozed", "false_positive")
-DRIFT_TYPES: tuple[str, ...] = (
-    "new_field",
-    "missing_field",
-    "type_changed",
-    "enum_violation",
-    "required_null_violation",
-    "regex_violation",
-    "range_violation",
-)
 
 
 def list_event_types(slug: str, *, branch: str | None = None) -> ApiRequest:

@@ -1,10 +1,8 @@
 [project]
 name = "tripl"
-# 0.2.3: the installer's compose file runs RabbitMQ's healthcheck as the
-# rabbitmq user (gosu), so a first `tripl install` no longer races the Erlang
-# cookie. Versioned with the service release; tripl-mcp is unchanged.
+# One version for the service, this CLI and tripl-mcp; bin/release.sh writes it.
 version = "0.3.1"
-description = "Operator CLI for a tripl tracking-plan instance: diagnostics, health and live monitoring"
+description = "Command-line client for tripl: instance diagnostics and live monitoring, tracking-plan reads, code checks and codegen against the plan, team notes, and self-hosted install and upgrade"
 readme = "README.md"
 requires-python = ">=3.12"
 # Apache-2.0 while the SERVICE is AGPL-3.0-or-later, for the same reason
@@ -49,10 +47,9 @@ dependencies = [
 
 [project.urls]
 Homepage = "https://docs.tripl.io/"
-# The docs site sets `routeBasePath: '/'` under baseUrl `/tripl/`, so a page at
-# website/docs/run/cli.md is served at /tripl/run/cli — there is no /docs/
-# segment. mcp-server/pyproject.toml carried the /docs/ form and 404ed; both are
-# corrected now, so check this shape when adding a third package.
+# The docs site serves website/docs at the root (`baseUrl: '/'`,
+# `routeBasePath: '/'`), so website/docs/run/cli.md is /run/cli: there is no
+# /docs/ segment. Check this shape when adding a package.
 Documentation = "https://docs.tripl.io/run/cli"
 Repository = "https://github.com/tripl-io/tripl"
 Issues = "https://github.com/tripl-io/tripl/issues"

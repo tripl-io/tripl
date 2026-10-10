@@ -64,7 +64,7 @@ def register(mcp: MCPServer) -> None:
             "List the project's warehouse scan configurations (id, name, schedule, "
             "governed event types) plus a 'dispatchable' flag: whether the scheduler "
             "would ever select the config. Trimmed - base_query and the tuning knobs "
-            "are omitted; use the tripl UI for the full config. Requires a tk_r_ or "
+            "are omitted; use get_scan for one config in full. Requires a tk_r_ or "
             "tk_w_ key."
         ),
     )(list_scans)

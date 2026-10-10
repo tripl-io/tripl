@@ -17,7 +17,9 @@ THE SAFETY RULES, in one place:
 1. ``.env`` is never overwritten. It is created, or appended to with the
    operator's confirmation, or left alone. ``--force`` does not reach it, and
    there is no flag that does: losing ``ENCRYPTION_KEY`` permanently destroys
-   every stored warehouse and alert-destination credential.
+   every stored warehouse and alert-destination credential. (A ``.env`` the
+   same ``tripl install`` run created is removed again when its pull fails
+   before anything read it: ``commands/install.withdraw_unused_env``.)
 2. ``.env`` and ``.env.bak.*`` are created at 0600 BY ``os.open``. Never
    ``open()`` then ``chmod`` — that leaves a window, however short, in which
    the database password and SECRET_KEY are world-readable.
@@ -36,11 +38,13 @@ from datetime import datetime
 from importlib.resources import files as resource_files
 from pathlib import Path
 
+from tripl_cli import __version__
 from tripl_cli.errors import TriplError
 from tripl_cli.install.plan import (
     APPEND,
     CREATE,
     KEPT,
+    RELEASE_TAG,
     REPLACE,
     UNCHANGED,
     FileWrite,
@@ -61,6 +65,25 @@ EDITION_IMAGES = {"community": DEFAULT_IMAGE, "enterprise": ENTERPRISE_IMAGE}
 DEFAULT_VERSION = "latest"
 
 VERSION_KEY = "TRIPL_VERSION"
+
+# What a version example falls back to when this CLI's own version is not a
+# released tag.
+TAG_PLACEHOLDER = "X.Y.Z"
+
+
+def example_tag() -> str:
+    """A tag to show wherever this CLI suggests one: its own version.
+
+    The image, this CLI and tripl-mcp are released together under one version
+    by bin/release.sh (the enterprise image follows the same numbers), so the
+    version of an installed CLI names an image that was published. A
+    hard-coded example did not: it suggested 1.5.0 when no 1.x had been
+    released, and an operator who pasted it got `manifest unknown`. A source
+    tree with no install reports ``0.0.0+unknown``, which is no tag at all, so
+    it gets the placeholder.
+    """
+    return __version__ if RELEASE_TAG.fullmatch(__version__) else TAG_PLACEHOLDER
+
 
 COMPOSE_NAME = "compose.yaml"
 RABBITMQ_NAME = "rabbitmq.conf"

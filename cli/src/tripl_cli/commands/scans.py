@@ -35,7 +35,7 @@ from tripl_cli.commands import (
     require_single_project,
 )
 from tripl_cli.commands._resolve import resolve_one
-from tripl_cli.commands._write import add_write_flags, confirm, request_document
+from tripl_cli.commands._write import add_write_flags, confirm, emit_mutation, request_document
 from tripl_cli.config import Config, require_base_url
 from tripl_cli.diagnostics.collect import (
     Reader,
@@ -57,13 +57,8 @@ from tripl_cli.model import (
     as_list,
     text_of,
 )
-from tripl_cli.render import (
-    render_header,
-    render_mutation,
-    render_scan_configs,
-    render_scan_jobs,
-)
-from tripl_cli.report import mutation_document, scan_jobs_document, scans_document
+from tripl_cli.render import render_header, render_scan_configs, render_scan_jobs
+from tripl_cli.report import scan_jobs_document, scans_document
 from tripl_cli.runner import gather_bounded, run_async
 
 # The API's own default. Deliberately not doctor's 200: `scans jobs` answers
@@ -330,21 +325,6 @@ def run_jobs(args: argparse.Namespace, config: Config) -> int:
     return EXIT_OK
 
 
-def _emit_mutation(
-    outcome: MutationOutcome, *, base_url: str, config: Config, as_json: bool
-) -> None:
-    human = sys.stderr if as_json else sys.stdout
-    print(
-        render_header(outcome.command, base_url, config.sources.get("base_url", "unknown")),
-        file=human,
-    )
-    print(file=human)
-    print(render_mutation(outcome), file=human)
-    if as_json:
-        json.dump(mutation_document(outcome), sys.stdout)
-        sys.stdout.write("\n")
-
-
 def run_run(args: argparse.Namespace, config: Config) -> int:
     slug = require_single_project(args)
     selector: str = str(args.scan)
@@ -388,7 +368,7 @@ def run_run(args: argparse.Namespace, config: Config) -> int:
         scan_name=scan_name,
         result=result,
     )
-    _emit_mutation(outcome, base_url=base_url, config=config, as_json=as_json)
+    emit_mutation(outcome, base_url=base_url, config=config, as_json=as_json)
     if result is not None and text_of(result, "status") == "failed":
         # A 201 is NOT success. `scan_service.trigger_scan` catches a broker
         # failure and returns the job with status="failed" and an error_message,
@@ -449,5 +429,5 @@ def run_cancel(args: argparse.Namespace, config: Config) -> int:
         job_id=job_id,
         result=result,
     )
-    _emit_mutation(outcome, base_url=base_url, config=config, as_json=as_json)
+    emit_mutation(outcome, base_url=base_url, config=config, as_json=as_json)
     return EXIT_OK

@@ -37,11 +37,17 @@ from typing import Any
 import httpx
 
 from tripl_cli.api import plan_export
-from tripl_cli.check.config import CODEGEN_LANGUAGES, CheckConfig, find_config, load
+from tripl_cli.check.config import CODEGEN_LANGUAGES
 from tripl_cli.codegen.files import SyncResult, sync
 from tripl_cli.codegen.generate import GeneratedFile, generate
 from tripl_cli.codegen.model import CodegenModel, parse_model
 from tripl_cli.commands import add_json, add_timeout
+from tripl_cli.commands._check_config import (
+    add_check_config,
+    add_project_flag,
+    check_config_of,
+    project_of,
+)
 from tripl_cli.commands._plan import MAIN, Branch, add_branch, begin, resolve_branch
 from tripl_cli.config import Config
 from tripl_cli.diagnostics.collect import instance_of
@@ -109,50 +115,6 @@ def register(
 
 
 # --- shared with `tripl export` ---------------------------------------------------
-def add_check_config(parser: argparse.ArgumentParser) -> None:
-    parser.add_argument(
-        "--check-config",
-        dest="check_config",
-        metavar="PATH",
-        type=Path,
-        help=(
-            "the check config (default: the nearest .tripl/check.yml, .yaml or .json "
-            "at or above the current directory, up to the repository root)"
-        ),
-    )
-
-
-def add_project_flag(parser: argparse.ArgumentParser) -> None:
-    parser.add_argument(
-        "--project",
-        dest="project",
-        metavar="SLUG",
-        action="append",
-        help="project slug; overrides `project:` in the check config",
-    )
-
-
-def check_config_of(args: argparse.Namespace) -> CheckConfig | None:
-    path: Path | None = args.check_config
-    if path is not None:
-        return load(path)
-    found = find_config(Path.cwd())
-    return load(found) if found is not None else None
-
-
-def project_of(args: argparse.Namespace, check_config: CheckConfig | None, command: str) -> str:
-    slugs: list[str] = list(args.project or ())
-    if len(slugs) > 1:
-        raise TriplConfigError(
-            f"--project was given {len(slugs)} times; tripl {command} reads one project."
-        )
-    if slugs:
-        return slugs[0]
-    if check_config is not None and check_config.project:
-        return check_config.project
-    raise TriplConfigError("name the project: `project:` in .tripl/check.yml, or --project <slug>.")
-
-
 def branch_document(branch: Branch) -> JsonDict | None:
     return None if branch.id is None else {"id": branch.id, "name": branch.name}
 

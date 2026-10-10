@@ -15,18 +15,22 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from tripl_cli.install.files import ENV_NAME
+from tripl_cli.install.files import ENV_NAME, VERSION_KEY
 from tripl_cli.install.health import HealthOutcome
 from tripl_cli.install.plan import (
     APPEND,
     CREATE,
+    FLAG_ALLOW_UNORDERED,
     KEPT,
+    ORDER_DOWNGRADE,
+    ORDER_UNKNOWN,
     REPLACE,
     UNCHANGED,
     FileWrite,
     InstallPlan,
     SettingOutcome,
     UpgradePlan,
+    compare,
 )
 from tripl_cli.install.secrets import REQUIRED_SECRETS
 from tripl_cli.install.shell import describe
@@ -136,14 +140,25 @@ def render_install_plan(plan: InstallPlan) -> str:
 # and never will be: it reaches compose.yaml and rabbitmq.conf only, because
 # rewriting .env would destroy ENCRYPTION_KEY and with it every stored warehouse
 # credential. Naming a flag that does not do the thing would be worse than
-# saying nothing.
+# saying nothing - and so would naming a command that refuses: the pin is moved
+# by `tripl upgrade`, which refuses a downgrade outright and an unorderable pair
+# without FLAG_ALLOW_UNORDERED, so the advice follows the same ordering.
 def _remedy(setting: SettingOutcome, directory: Path) -> str:
-    if setting.name == "TRIPL_VERSION":
-        return f"  To move the pin: tripl upgrade --to {setting.requested} --dir {directory}"
-    return (
-        f"  To change it: edit {directory / ENV_NAME}, then "
-        f"`cd {directory} && docker compose up -d`."
-    )
+    env = directory / ENV_NAME
+    if setting.name != VERSION_KEY:
+        return f"  To change it: edit {env}, then `cd {directory} && docker compose up -d`."
+    move = f"tripl upgrade --to {setting.requested} --dir {directory}"
+    ordering = compare(setting.effective, setting.requested)
+    if ordering == ORDER_DOWNGRADE:
+        return (
+            f"  `tripl upgrade` will not move the pin back to {setting.requested}. If this "
+            f"stack has never started, edit {VERSION_KEY} in {env} by hand; if it has, the "
+            "older image cannot read the schema the newer one wrote, and restoring a backup "
+            "is the way back."
+        )
+    if ordering == ORDER_UNKNOWN:
+        return f"  To move the pin: {move} {FLAG_ALLOW_UNORDERED}"
+    return f"  To move the pin: {move}"
 
 
 def render_kept_settings(plan: InstallPlan) -> str:
