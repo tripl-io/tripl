@@ -425,10 +425,11 @@ describe('App', () => {
     renderApp('/p/demo/this-route-does-not-exist')
 
     expect(await screen.findByText('Page not found')).toBeInTheDocument()
-    // The project is still in scope: its name heads the breadcrumb trail.
+    // The project is still in scope: its name heads the breadcrumb trail, and
+    // names the tab — by its name, not the slug.
     expect(screen.getAllByText('Demo').length).toBeGreaterThan(0)
     await waitFor(() => {
-      expect(document.title).toBe('Page not found · demo · tripl')
+      expect(document.title).toBe('Page not found · Demo · tripl')
     })
   })
 
@@ -455,9 +456,10 @@ describe('App', () => {
     // activity fan-out behind a shell that was never going to work.
     const scoped = [...new Set(requested.filter((u) => u.includes('no-such-project-xyz')))]
     expect(scoped).toEqual(['/api/v1/projects/no-such-project-xyz'])
-    // …and the invented slug is not echoed back as if it named a workspace.
+    // …and the invented slug is not echoed back as if it named a workspace:
+    // the tab says what the screen's heading says.
     await waitFor(() => {
-      expect(document.title).toBe('Page not found · tripl')
+      expect(document.title).toBe('Project not found · tripl')
     })
   })
 })
@@ -544,7 +546,7 @@ describe('App auth links', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Sign out and use another account' }))
 
     expect(await screen.findByLabelText('Password')).toBeInTheDocument()
-    expect(screen.getByRole('heading', { name: 'Join this tripl workspace' })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: 'Join this organization on tripl' })).toBeInTheDocument()
     expect(window.location.pathname).toBe('/invite/tok-1')
   })
 })

@@ -97,7 +97,7 @@ describe('Settings command palette destinations', () => {
         expect(within(palette).getByText(item.label)).toBeInTheDocument()
       }
     }
-    for (const label of ['Email', 'AI', 'Search', 'Photos', 'Trackers', 'Limits']) {
+    for (const label of ['Email', 'AI', 'Semantic search', 'Photos', 'Trackers', 'Limits']) {
       expect(within(palette).queryByText(label), `public demo offered "${label}"`).toBeNull()
     }
   })
@@ -152,6 +152,24 @@ describe('Settings command palette search (#238)', () => {
     fireEvent.change(within(palette).getByRole('combobox'), { target: { value: 'api key' } })
     expect(within(palette).getByText('API keys')).toBeInTheDocument()
     expect(within(palette).queryByText('General')).toBeNull()
+  })
+
+  it('finds a section by the words the app palette finds it by', async () => {
+    // Both palettes read the rail's keywords and nothing else: "version" used
+    // to find System from the app and nothing in here.
+    renderPalette()
+
+    const palette = await openPalette()
+    fireEvent.change(within(palette).getByRole('combobox'), { target: { value: 'version' } })
+    expect(within(palette).getByText('System')).toBeInTheDocument()
+
+    fireEvent.change(within(palette).getByRole('combobox'), { target: { value: 'embeddings' } })
+    expect(within(palette).getByText('Semantic search')).toBeInTheDocument()
+    expect(within(palette).getByText('AI & search')).toBeInTheDocument()
+
+    // Platform storage holds event photos and keeps them: no retention there.
+    fireEvent.change(within(palette).getByRole('combobox'), { target: { value: 'retention' } })
+    expect(within(palette).queryByText('Storage')).toBeNull()
   })
 })
 

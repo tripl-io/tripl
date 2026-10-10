@@ -8,12 +8,12 @@ interface PlannedEventRow {
 }
 
 /**
- * Planned events (F18, #271), on the demo: its seeded promo covers the spike
- * on a catalog metric, so that metric's chart shades the window and lists the
- * event; a planned event added from the card shows up there and can be
- * deleted again.
+ * Expected windows (F18, #271; planned events in the API), on the demo: its
+ * seeded promo covers the spike on a catalog metric, so that metric's chart
+ * shades the window and lists it; a window added from the card shows up there
+ * and can be deleted again.
  */
-test('the demo promo shades its metric chart, and a planned event can be added and removed', async ({
+test('the demo promo shades its metric chart, and an expected window can be added and removed', async ({
   page,
   account,
 }) => {
@@ -31,18 +31,18 @@ test('the demo promo shades its metric chart, and a planned event can be added a
   await page.goto(`${projectBase}/monitoring/metric/${metricId}`)
   const card = page.locator('#planned-events')
   // A route's first visit compiles it on the dev server: give it time.
-  await expect(card.getByRole('heading', { name: 'Planned events' })).toBeVisible({ timeout: 60_000 })
+  await expect(card.getByRole('heading', { name: 'Expected windows' })).toBeVisible({ timeout: 60_000 })
   await expect(card.getByText('Spring promo (planned)')).toBeVisible()
   // The chart names the shaded window for screen readers.
   await expect(page.getByTestId('planned-window').first()).toContainText('Spring promo (planned)')
 
   // Add one from the card (default window: now to a day from now)...
-  await card.getByLabel('Planned event label').fill('E2E launch')
-  await card.getByRole('button', { name: 'Add planned event' }).click()
+  await card.getByLabel('Expected window label').fill('E2E launch')
+  await card.getByRole('button', { name: 'Add expected window' }).click()
   await expect(card.getByText('E2E launch')).toBeVisible()
 
   // ...and delete it again.
-  await card.getByRole('button', { name: 'Delete planned event E2E launch' }).click()
+  await card.getByRole('button', { name: 'Delete expected window E2E launch' }).click()
   await page.getByRole('alertdialog').getByRole('button', { name: 'Delete' }).click()
   await expect(card.getByText('E2E launch')).toHaveCount(0)
   await expect(card.getByText('Spring promo (planned)')).toBeVisible()

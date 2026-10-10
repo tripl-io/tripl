@@ -68,14 +68,6 @@ export interface FactOperandState {
   filters: FactFilter[]
 }
 
-export const EMPTY_OPERAND: FactOperandState = {
-  factTableId: '',
-  aggregation: 'count',
-  measureColumn: '',
-  distinctColumn: '',
-  filters: [],
-}
-
 /** Every input the author can change on the metric editor. */
 export interface MetricDraft {
   kind: MetricKind
@@ -116,6 +108,17 @@ export interface MetricDraft {
   factComposition: FactComposition
   numeratorOp: FactOperandState
   denominatorOp: FactOperandState
+}
+
+/** How an aggregation is painted: the form's select and its validation say the
+ *  same word, never the wire code (`count_distinct`). */
+export const AGGREGATION_LABEL: Record<MetricAggregation, string> = {
+  count: 'Count',
+  sum: 'Sum',
+  avg: 'Average',
+  min: 'Min',
+  max: 'Max',
+  count_distinct: 'Count distinct',
 }
 
 export function needsMeasure(aggregation: MetricAggregation): boolean {
@@ -241,10 +244,10 @@ export function operandErrors(
       : 'A fact table is required for a fact metric.'
   }
   if (needsMeasure(operand.aggregation) && !operand.measureColumn) {
-    errs[`${idPrefix}-measure`] = `A ${qualifier}measure column is required for the ${operand.aggregation} aggregation.`
+    errs[`${idPrefix}-measure`] = `A ${qualifier}measure column is required for ${AGGREGATION_LABEL[operand.aggregation]}.`
   }
   if (needsDistinct(operand.aggregation) && !operand.distinctColumn) {
-    errs[`${idPrefix}-distinct`] = `A ${qualifier}distinct column is required for the count_distinct aggregation.`
+    errs[`${idPrefix}-distinct`] = `A ${qualifier}distinct column is required for ${AGGREGATION_LABEL.count_distinct}.`
   }
   const rowErrors = filterRowErrors(operand.filters)
   operand.filters.forEach((filter, index) => {

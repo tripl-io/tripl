@@ -151,16 +151,18 @@ describe('serverCoreErrors', () => {
     expect(result.rest).toBe('timeout_seconds: Too large')
   })
 
-  it('only pins what the type shows: no port for BigQuery, no password box message elsewhere', () => {
+  it('only pins what the type shows: no port or username for BigQuery', () => {
     const port = { loc: ['body', 'port'], msg: 'Bad port', type: 'value_error' }
     const password = { loc: ['body', 'password'], msg: 'Bad key', type: 'value_error' }
-    expect(serverCoreErrors(apiError([port, password]), 'bigquery', 'Required')).toEqual({
+    const username = { loc: ['body', 'username'], msg: 'Needs a user', type: 'missing' }
+    expect(serverCoreErrors(apiError([port, password, username]), 'bigquery', 'Required')).toEqual({
       fields: { secret: 'Bad key' },
-      rest: 'port: Bad port',
+      rest: 'port: Bad port; username: Needs a user',
     })
-    expect(serverCoreErrors(apiError([port, password]), 'postgres', 'Required')).toEqual({
-      fields: { port: 'Bad port' },
-      rest: 'password: Bad key',
+    // The password box shows its own refusal (a Trino password over HTTP).
+    expect(serverCoreErrors(apiError([port, password, username]), 'postgres', 'Required')).toEqual({
+      fields: { port: 'Bad port', secret: 'Bad key', username: 'Required' },
+      rest: null,
     })
   })
 
@@ -292,7 +294,12 @@ describe('Snowflake', () => {
   })
 
   it('always connects on 443 and needs its secret on create only', () => {
-    const core = { ...EMPTY_CONNECTION_CORE_FORM, host: 'myorg-myaccount', databaseName: 'DB' }
+    const core = {
+      ...EMPTY_CONNECTION_CORE_FORM,
+      host: 'myorg-myaccount',
+      databaseName: 'DB',
+      username: 'TRIPL',
+    }
     expect(buildCoreCreatePayload('snowflake', core).port).toBe(443)
     expect(buildCoreUpdatePayload('snowflake', { ...core, port: 8123 }).port).toBe(443)
     expect(connectionCoreMissing('snowflake', { ...core, port: 0 }, 'create', 'Required')).toEqual({
@@ -344,6 +351,7 @@ describe('Trino', () => {
       host: 'trino.example.com',
       port: 8080,
       databaseName: 'hive',
+      username: 'tripl',
     }
     expect(buildCoreCreatePayload('trino', core).port).toBe(8080)
     expect(connectionCoreMissing('trino', core, 'create', 'Required')).toEqual({})
@@ -392,7 +400,12 @@ describe('Athena', () => {
   })
 
   it('always connects on 443 and needs its secret key on create only', () => {
-    const core = { ...EMPTY_CONNECTION_CORE_FORM, host: 'eu-west-1', databaseName: 'analytics' }
+    const core = {
+      ...EMPTY_CONNECTION_CORE_FORM,
+      host: 'eu-west-1',
+      databaseName: 'analytics',
+      username: 'AKIAEXAMPLE',
+    }
     expect(buildCoreCreatePayload('athena', core).port).toBe(443)
     expect(connectionCoreMissing('athena', { ...core, port: 0 }, 'create', 'Required')).toEqual({
       secret: 'Required',

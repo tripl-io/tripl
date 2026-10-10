@@ -1,10 +1,19 @@
 // @vitest-environment jsdom
-import { renderHook } from '@testing-library/react'
+import { createElement, type ReactNode } from 'react'
+import { MemoryRouter } from 'react-router-dom'
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
+import { renderHook, waitFor } from '@testing-library/react'
 import { afterEach, describe, expect, it } from 'vitest'
+import { ApiError } from '@/api/client'
+import { SETTINGS_NAV } from '@/components/settings/nav'
+import { editPageTitle } from '@/components/shell-chrome-context'
+import { buildNavGroups } from '@/lib/navigation'
+import { projectQueryOptions, projectsQueryOptions } from '@/lib/queryKeys'
+import type { Project } from '@/types'
 import {
+  NOT_FOUND_TITLE_LABEL,
   buildDocumentTitle,
-  entityTitleLabel,
-  resolveEntityKind,
+  composeDocumentTitle,
   resolveTitleFromPath,
   useDocumentTitle,
 } from './useDocumentTitle'
@@ -12,29 +21,240 @@ import {
 const SEP = ' · '
 
 describe('buildDocumentTitle', () => {
-  it('includes the page label and project slug for a project-scoped route', () => {
-    expect(buildDocumentTitle('Anomalies', 'acme')).toBe(
-      `Anomalies${SEP}acme${SEP}tripl`,
+  it('joins the segments, most specific first, and ends with the app', () => {
+    expect(buildDocumentTitle('Anomalies', 'Acme')).toBe(`Anomalies${SEP}Acme${SEP}tripl`)
+    expect(buildDocumentTitle('Screen View', 'Event type', 'Acme')).toBe(
+      `Screen View${SEP}Event type${SEP}Acme${SEP}tripl`,
     )
-    expect(buildDocumentTitle('Events', 'acme')).toBe(`Events${SEP}acme${SEP}tripl`)
-  })
-
-  it('omits the slug segment when there is no active project', () => {
     expect(buildDocumentTitle('Settings')).toBe(`Settings${SEP}tripl`)
-    expect(buildDocumentTitle('Settings', null)).toBe(`Settings${SEP}tripl`)
-    expect(buildDocumentTitle('Settings', '')).toBe(`Settings${SEP}tripl`)
   })
 
-  it('drops blank or whitespace-only segments so no empty separators appear', () => {
+  it('drops blank, null and missing segments so no empty separators appear', () => {
+    expect(buildDocumentTitle('Settings', null)).toBe(`Settings${SEP}tripl`)
+    expect(buildDocumentTitle('Settings', undefined, '  ')).toBe(`Settings${SEP}tripl`)
     expect(buildDocumentTitle('')).toBe('tripl')
-    expect(buildDocumentTitle('   ')).toBe('tripl')
-    expect(buildDocumentTitle('   ', '  ')).toBe('tripl')
+    expect(buildDocumentTitle()).toBe('tripl')
   })
 
   it('trims surrounding whitespace on each segment', () => {
-    expect(buildDocumentTitle('  Coverage  ', '  acme  ')).toBe(
-      `Coverage${SEP}acme${SEP}tripl`,
+    expect(buildDocumentTitle('  Coverage  ', '  Acme  ')).toBe(`Coverage${SEP}Acme${SEP}tripl`)
+  })
+})
+
+describe('resolveTitleFromPath: project routes', () => {
+  it('labels a project surface and carries its slug', () => {
+    expect(resolveTitleFromPath('/p/acme/anomalies')).toEqual({ label: 'Anomalies', slug: 'acme' })
+    expect(resolveTitleFromPath('/p/acme/overview')).toEqual({ label: 'Overview', slug: 'acme' })
+    expect(resolveTitleFromPath('/o/org-1/p/acme/duplicates')).toEqual({ label: 'Duplicates', slug: 'acme' })
+    // A bare project address redirects to the project's home.
+    expect(resolveTitleFromPath('/p/acme')).toEqual({ label: 'Overview', slug: 'acme' })
+  })
+
+  it('titles the Annotations page by its name, not as a 404', () => {
+    // The page worked; its tab, history entry and bookmark said "Page not found".
+    expect(resolveTitleFromPath('/p/acme/annotations')).toEqual({ label: 'Annotations', slug: 'acme' })
+  })
+
+  it('titles every sidebar page by the label it is listed under', () => {
+    // The guard that would have caught Annotations: a page the sidebar gains
+    // cannot fall through to the 404 title.
+    for (const group of buildNavGroups('acme', undefined)) {
+      for (const item of group.items) {
+        expect(resolveTitleFromPath(item.href).label).toBe(item.label)
+      }
+    }
+  })
+
+  it('names an unmatched project sub-path as not-found while keeping the slug', () => {
+    expect(resolveTitleFromPath('/p/acme/this-route-does-not-exist')).toEqual({
+      label: NOT_FOUND_TITLE_LABEL,
+      slug: 'acme',
+    })
+  })
+
+  it('keeps redirect-only surfaces on a real label so they never flash not-found', () => {
+    expect(resolveTitleFromPath('/p/acme/settings/alerting')).toMatchObject({ label: 'Alerting' })
+    expect(resolveTitleFromPath('/p/acme/settings/audit')).toMatchObject({ label: 'Audit log' })
+    expect(resolveTitleFromPath('/p/acme/settings/scans')).toMatchObject({ label: 'Scans' })
+    expect(resolveTitleFromPath('/p/acme/settings/event-types/abc123')).toMatchObject({ label: 'Event types' })
+    expect(resolveTitleFromPath('/p/acme/fact-tables')).toMatchObject({ label: 'Fact tables' })
+    expect(resolveTitleFromPath('/p/acme/monitors')).toMatchObject({ label: 'Alert rules' })
+  })
+
+  it('names the sub-surfaces that are their own destination', () => {
+    expect(resolveTitleFromPath('/p/acme/metrics/fact-tables')).toEqual({
+      label: 'Fact tables',
+      slug: 'acme',
+      kind: 'Fact table',
+    })
+    // The page's own heading, which the breadcrumb leaf repeats.
+    expect(resolveTitleFromPath('/p/acme/settings/monitoring')).toMatchObject({ label: 'Detection settings' })
+    // General is project configuration, named by its parent.
+    expect(resolveTitleFromPath('/p/acme/settings/general')).toMatchObject({ label: 'Project settings' })
+  })
+
+  it('keeps the Events tabs on the Events label', () => {
+    // Filtered views of one catalog: a tab switch must not rewrite the tab.
+    for (const path of ['/p/acme/events', '/p/acme/events/review', '/p/acme/events/checkout_completed']) {
+      expect(resolveTitleFromPath(path).label).toBe('Events')
+    }
+  })
+
+  it('names the create and edit pages instead of passing for their list', () => {
+    expect(resolveTitleFromPath('/p/acme/events/all/new').label).toBe('New event')
+    expect(resolveTitleFromPath('/p/acme/events/all/bulk').label).toBe('Add many events')
+    expect(resolveTitleFromPath('/p/acme/events/all/e-1/edit')).toEqual({
+      label: 'Edit event',
+      slug: 'acme',
+      kind: 'Event',
+    })
+    expect(resolveTitleFromPath('/p/acme/metrics/new').label).toBe('New metric')
+    expect(resolveTitleFromPath('/p/acme/metrics/fact-tables/new').label).toBe('New fact table')
+  })
+
+  it('names what one row of a surface is, in the singular', () => {
+    const kinds: Array<[string, string]> = [
+      ['/p/acme/events/all/e-1/edit', 'Event'],
+      ['/p/acme/event-types/et-1', 'Event type'],
+      ['/p/acme/variables/v-1', 'Property'],
+      ['/p/acme/branches/b-1', 'Plan branch'],
+      ['/p/acme/docs/project/setup', 'Note'],
+      ['/p/acme/metrics/m-1/edit', 'Metric'],
+      // Not "Metric": a fact table's editor sits under Metrics too.
+      ['/p/acme/metrics/fact-tables/ft-1/edit', 'Fact table'],
+      ['/p/acme/monitors/r-1', 'Alert rule'],
+      ['/p/acme/scans/s-1', 'Scan'],
+      ['/p/acme/monitoring/event-type/et-1', 'Event type volume'],
+      ['/p/acme/monitoring/event/ev-1/breakdowns', 'Event'],
+      ['/p/acme/monitoring/metric/m-1', 'Metric'],
+    ]
+    for (const [path, kind] of kinds) {
+      expect(resolveTitleFromPath(path).kind).toBe(kind)
+    }
+  })
+
+  it('has no row kind off a row', () => {
+    expect(resolveTitleFromPath('/p/acme/monitoring').kind).toBeUndefined()
+    expect(resolveTitleFromPath('/p/acme/monitors').kind).toBeUndefined()
+    expect(resolveTitleFromPath('/p/acme/event-types').kind).toBeUndefined()
+  })
+})
+
+describe('resolveTitleFromPath: settings', () => {
+  it('frames every rail section with its group', () => {
+    for (const groups of Object.values(SETTINGS_NAV)) {
+      for (const group of groups) {
+        for (const item of group.items) {
+          expect(resolveTitleFromPath(`/settings/${item.path}`)).toMatchObject({
+            label: item.label,
+            scope: `${group.label} settings`,
+          })
+        }
+      }
+    }
+    expect(resolveTitleFromPath('/settings/members')).toEqual({ label: 'Members', scope: 'Organization settings' })
+    expect(resolveTitleFromPath('/settings/instance/runtime')).toEqual({ label: 'Runtime', scope: 'Platform settings' })
+    expect(resolveTitleFromPath('/settings/profile')).toEqual({ label: 'Profile', scope: 'Account settings' })
+  })
+
+  it('names the project a project section changes, from its address', () => {
+    expect(resolveTitleFromPath('/settings/project/general', '?project=acme')).toEqual({
+      label: 'General',
+      scope: 'Project settings',
+      slug: 'acme',
+    })
+    // Only a project section reads it.
+    expect(resolveTitleFromPath('/settings/members', '?project=acme')).not.toHaveProperty('slug')
+  })
+
+  it('keeps the rail label on a route deeper than its rail entry', () => {
+    expect(resolveTitleFromPath('/settings/data-sources/0f8fad5b-d9cb-469f-a165-70867728950e')).toEqual({
+      label: 'Data sources',
+      scope: 'Organization settings',
+    })
+  })
+
+  it('titles a pre-takeover address as the section it redirects to', () => {
+    expect(resolveTitleFromPath('/settings/runtime')).toEqual({ label: 'Runtime', scope: 'Platform settings' })
+    expect(resolveTitleFromPath('/settings/users')).toEqual({ label: 'Members', scope: 'Organization settings' })
+    expect(resolveTitleFromPath('/data-sources')).toEqual({ label: 'Data sources', scope: 'Organization settings' })
+    expect(resolveTitleFromPath('/account')).toEqual({ label: 'Profile', scope: 'Account settings' })
+  })
+
+  it('keeps a settings title on the frame before an unknown section redirects', () => {
+    expect(resolveTitleFromPath('/settings')).toEqual({ label: 'Settings' })
+    expect(resolveTitleFromPath('/settings/organization/no-such-section')).toEqual({ label: 'Settings' })
+    expect(resolveTitleFromPath('/settings/instance/no-such-section')).toEqual({ label: 'Settings' })
+  })
+
+  it('calls a settings address with no route behind it not-found, as the page does', () => {
+    // It used to read "Settings" over the 404 page.
+    for (const path of ['/settings/foo', '/settings/project', '/settings/project/foo', '/settings/instance']) {
+      expect(resolveTitleFromPath(path)).toEqual({ label: NOT_FOUND_TITLE_LABEL })
+    }
+  })
+})
+
+describe('resolveTitleFromPath: pages outside projects and settings', () => {
+  it('labels the pages a new member or a new account opens first', () => {
+    expect(resolveTitleFromPath('/invite/abc123')).toEqual({ label: 'Invitation' })
+    expect(resolveTitleFromPath('/verify-email')).toEqual({ label: 'Verify email' })
+    expect(resolveTitleFromPath('/auth')).toEqual({ label: 'Sign in' })
+  })
+
+  it('labels the workspace and the root, and names unmatched paths not-found', () => {
+    expect(resolveTitleFromPath('/')).toEqual({ label: 'All projects' })
+    expect(resolveTitleFromPath('/workspace')).toEqual({ label: 'All projects' })
+    expect(resolveTitleFromPath('/o/org-1')).toEqual({ label: 'All projects' })
+    expect(resolveTitleFromPath('/nope')).toEqual({ label: NOT_FOUND_TITLE_LABEL })
+  })
+})
+
+describe('composeDocumentTitle', () => {
+  it('names a project page after the project, never its slug', () => {
+    const route = resolveTitleFromPath('/p/demo-0793b8/overview')
+    expect(composeDocumentTitle(route, { projectName: 'Demo Project' })).toBe(
+      `Overview${SEP}Demo Project${SEP}tripl`,
     )
+    // Until the name is known the project is left out, not echoed from the address.
+    expect(composeDocumentTitle(route)).toBe(`Overview${SEP}tripl`)
+  })
+
+  it('says "Project not found" for a project the shell could not find', () => {
+    const route = resolveTitleFromPath('/p/no-such-project/overview')
+    expect(composeDocumentTitle(route, { projectMissing: true })).toBe(`Project not found${SEP}tripl`)
+  })
+
+  it('leads a row page with the row, then its kind, then the project', () => {
+    expect(
+      composeDocumentTitle(resolveTitleFromPath('/p/acme/branches/b-1'), {
+        entity: 'feature/checkout-funnel',
+        projectName: 'Acme',
+      }),
+    ).toBe(`feature/checkout-funnel${SEP}Plan branch${SEP}Acme${SEP}tripl`)
+    expect(
+      composeDocumentTitle(resolveTitleFromPath('/p/acme/events/all/e-1/edit'), {
+        entity: editPageTitle('Home Screen View'),
+        projectName: 'Acme',
+      }),
+    ).toBe(`Edit${SEP}Home Screen View${SEP}Event${SEP}Acme${SEP}tripl`)
+  })
+
+  it('frames a settings section with its group, and names the project it changes', () => {
+    expect(
+      composeDocumentTitle(resolveTitleFromPath('/settings/project/general', '?project=acme'), {
+        projectName: 'Acme',
+      }),
+    ).toBe(`General${SEP}Project settings${SEP}Acme${SEP}tripl`)
+    expect(composeDocumentTitle(resolveTitleFromPath('/settings/organization/general'))).toBe(
+      `Details${SEP}Organization settings${SEP}tripl`,
+    )
+    // An unknown `?project=` is the section's to answer; the tab names no project.
+    expect(
+      composeDocumentTitle(resolveTitleFromPath('/settings/project/general', '?project=ghost'), {
+        projectMissing: true,
+      }),
+    ).toBe(`General${SEP}Project settings${SEP}tripl`)
   })
 })
 
@@ -44,274 +264,47 @@ describe('useDocumentTitle', () => {
     document.title = originalTitle
   })
 
-  it('writes the composed title to document.title', () => {
-    renderHook(() => useDocumentTitle('Metrics', 'acme'))
-    expect(document.title).toBe(`Metrics${SEP}acme${SEP}tripl`)
+  function renderAt(path: string, client: QueryClient, entity: string | null = null) {
+    const wrapper = ({ children }: { children: ReactNode }) =>
+      createElement(
+        QueryClientProvider,
+        { client },
+        createElement(MemoryRouter, { initialEntries: [path] }, children),
+      )
+    return renderHook(() => useDocumentTitle(entity), { wrapper })
+  }
+
+  function withProjects(projects: Array<Pick<Project, 'slug' | 'name'>>): QueryClient {
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+    client.setQueryData(projectsQueryOptions().queryKey, projects as Project[])
+    return client
+  }
+
+  it('writes the route title, naming the project from the shell’s cache', () => {
+    renderAt('/p/acme/anomalies', withProjects([{ slug: 'acme', name: 'Acme Corp' }]))
+    expect(document.title).toBe(`Anomalies${SEP}Acme Corp${SEP}tripl`)
   })
 
-  it('updates document.title when the label or slug changes', () => {
-    const { rerender } = renderHook(
-      ({ label, slug }: { label: string; slug?: string }) =>
-        useDocumentTitle(label, slug),
-      { initialProps: { label: 'Events', slug: 'acme' } },
-    )
-    expect(document.title).toBe(`Events${SEP}acme${SEP}tripl`)
-
-    rerender({ label: 'Reconciliation', slug: 'acme' })
-    expect(document.title).toBe(`Reconciliation${SEP}acme${SEP}tripl`)
-  })
-})
-
-describe('resolveTitleFromPath', () => {
-  it('labels a project-scoped surface and carries its slug', () => {
-    expect(resolveTitleFromPath('/p/acme/anomalies')).toEqual({ label: 'Anomalies', slug: 'acme' })
-    expect(resolveTitleFromPath('/p/acme/overview')).toEqual({ label: 'Overview', slug: 'acme' })
-    expect(resolveTitleFromPath('/p/acme/duplicates')).toEqual({ label: 'Duplicates', slug: 'acme' })
-    // A bare project path lands on Events (the default surface).
-    expect(resolveTitleFromPath('/p/acme')).toEqual({ label: 'Events', slug: 'acme' })
+  it('names the project from the project endpoint when the list does not show it', () => {
+    // A demo the list hides while it seeds still has a name.
+    const client = withProjects([])
+    client.setQueryData(projectQueryOptions('fresh').queryKey, { slug: 'fresh', name: 'Fresh demo' } as Project)
+    renderAt('/p/fresh/overview', client)
+    expect(document.title).toBe(`Overview${SEP}Fresh demo${SEP}tripl`)
   })
 
-  it('names an unmatched project sub-path as not-found while keeping the slug', () => {
-    // `/p/acme/<no-such-surface>` renders the 404 page, so the tab
-    // must say so instead of inheriting the Events label. The slug is still
-    // valid, so the project keeps naming the tab.
-    expect(resolveTitleFromPath('/p/acme/this-route-does-not-exist')).toEqual({
-      label: 'Page not found',
-      slug: 'acme',
-    })
-    expect(resolveTitleFromPath('/p/acme/no-such-surface-either')).toEqual({
-      label: 'Page not found',
-      slug: 'acme',
-    })
+  it('leads with the entity a detail page has named', () => {
+    renderAt('/p/acme/monitors/r-1', withProjects([{ slug: 'acme', name: 'Acme Corp' }]), 'Checkout drop')
+    expect(document.title).toBe(`Checkout drop${SEP}Alert rule${SEP}Acme Corp${SEP}tripl`)
   })
 
-  it('titles the top-level Scans surface and its detail pages', () => {
-    // Scans moved out of `/settings` and is a real surface segment now; without
-    // an entry in PROJECT_SURFACE_LABELS the tab would read "Page not found" on
-    // a page that renders perfectly.
-    expect(resolveTitleFromPath('/p/acme/scans')).toEqual({ label: 'Scans', slug: 'acme' })
-    // A scan id is not a sub-surface, so the detail page inherits "Scans".
-    expect(resolveTitleFromPath('/p/acme/scans/scan-1')).toEqual({ label: 'Scans', slug: 'acme' })
-    // The legacy path still resolves — it redirects, and the frame before the
-    // redirect commits must not flash not-found.
-    expect(resolveTitleFromPath('/p/acme/settings/scans')).toEqual({
-      label: 'Scans',
-      slug: 'acme',
+  it('says "Project not found" once the shell has been told there is no such project', async () => {
+    const client = withProjects([{ slug: 'acme', name: 'Acme Corp' }])
+    await client.prefetchQuery({
+      queryKey: projectQueryOptions('ghost').queryKey,
+      queryFn: () => Promise.reject(new ApiError('Not found', 404)),
     })
-  })
-
-  it('titles the Plan, Observe and Govern surfaces at their top-level routes', () => {
-    const cases: Array<[string, string]> = [
-      ['/p/acme/event-types', 'Event types'],
-      ['/p/acme/event-types/abc123', 'Event types'],
-      ['/p/acme/meta-fields', 'Meta fields'],
-      ['/p/acme/variables', 'Properties'],
-      ['/p/acme/variables/v-1', 'Properties'],
-      ['/p/acme/relations', 'Relations'],
-      ['/p/acme/branches', 'Plan branches'],
-      ['/p/acme/branches/b-1', 'Plan branches'],
-      ['/p/acme/history', 'Plan history'],
-      ['/p/acme/alerting', 'Alerting'],
-      ['/p/acme/alerting/d-1', 'Alerting'],
-      ['/p/acme/audit', 'Audit log'],
-    ]
-    for (const [path, label] of cases) {
-      expect(resolveTitleFromPath(path)).toEqual({ label, slug: 'acme' })
-    }
-  })
-
-  it('keeps redirect-only surfaces on a real label so they never flash not-found', () => {
-    // The old /settings/<surface> addresses redirect to the top-level routes.
-    expect(resolveTitleFromPath('/p/acme/settings/alerting')).toEqual({
-      label: 'Alerting',
-      slug: 'acme',
-    })
-    expect(resolveTitleFromPath('/p/acme/settings/audit')).toEqual({
-      label: 'Audit log',
-      slug: 'acme',
-    })
-    expect(resolveTitleFromPath('/p/acme/fact-tables')).toEqual({
-      label: 'Fact tables',
-      slug: 'acme',
-    })
-    expect(resolveTitleFromPath('/data-sources')).toEqual({ label: 'Data sources' })
-    expect(resolveTitleFromPath('/account')).toEqual({ label: 'Profile' })
-  })
-
-  it('labels a sub-surface that is its own destination rather than its parent surface', () => {
-    // Old /settings/<surface> addresses, which redirect to the top-level route.
-    expect(resolveTitleFromPath('/p/acme/settings/event-types')).toEqual({
-      label: 'Event types',
-      slug: 'acme',
-    })
-    expect(resolveTitleFromPath('/p/acme/settings/meta-fields')).toEqual({
-      label: 'Meta fields',
-      slug: 'acme',
-    })
-    expect(resolveTitleFromPath('/p/acme/metrics/fact-tables')).toEqual({
-      label: 'Fact tables',
-      slug: 'acme',
-    })
-    // Deeper segments (detail ids, editors) inherit the sub-surface label.
-    expect(resolveTitleFromPath('/p/acme/settings/event-types/abc123')).toEqual({
-      label: 'Event types',
-      slug: 'acme',
-    })
-    expect(resolveTitleFromPath('/p/acme/metrics/fact-tables/new')).toEqual({
-      label: 'Fact tables',
-      slug: 'acme',
-    })
-  })
-
-  it('names the settings sub-surfaces that name themselves', () => {
-    // These two shared "Project settings" with the general tab while their own
-    // headings read "Detection settings" and "Plan history" — the only two
-    // routes in the production walk where the tab, the breadcrumb and the page
-    // heading all disagreed. The label here is the page's own heading.
-    expect(resolveTitleFromPath('/p/acme/settings/monitoring')).toEqual({
-      label: 'Detection settings',
-      slug: 'acme',
-    })
-    expect(resolveTitleFromPath('/p/acme/settings/history')).toEqual({
-      label: 'Plan history',
-      slug: 'acme',
-    })
-  })
-
-  it('keeps the project configuration tab on the parent settings label', () => {
-    // `general` really is project configuration rather than a destination of its
-    // own, so it stays named by its parent.
-    expect(resolveTitleFromPath('/p/acme/settings/general')).toEqual({
-      label: 'Project settings',
-      slug: 'acme',
-    })
-    // `/events/event-types` is not a real route: it matches the Events tab
-    // pattern and renders a filtered catalog, so it must stay on "Events".
-    expect(resolveTitleFromPath('/p/acme/events/event-types')).toEqual({
-      label: 'Events',
-      slug: 'acme',
-    })
-  })
-
-  it('keeps every other sub-path of a surface on the parent surface label', () => {
-    // Events tabs are filtered views of the same catalog, not their own surface.
-    expect(resolveTitleFromPath('/p/acme/events')).toEqual({ label: 'Events', slug: 'acme' })
-    expect(resolveTitleFromPath('/p/acme/events/review')).toEqual({ label: 'Events', slug: 'acme' })
-    expect(resolveTitleFromPath('/p/acme/events/archived')).toEqual({ label: 'Events', slug: 'acme' })
-    // A per-event-type tab, and an event opened from one, are still Events.
-    expect(resolveTitleFromPath('/p/acme/events/checkout_completed')).toEqual({
-      label: 'Events',
-      slug: 'acme',
-    })
-    expect(resolveTitleFromPath('/p/acme/events/all/42')).toEqual({ label: 'Events', slug: 'acme' })
-    // The metric editors stay on Metrics.
-    expect(resolveTitleFromPath('/p/acme/metrics')).toEqual({ label: 'Metrics', slug: 'acme' })
-    expect(resolveTitleFromPath('/p/acme/metrics/new')).toEqual({ label: 'Metrics', slug: 'acme' })
-  })
-
-  it('labels the full-takeover Settings routes that mount outside the shell (no slug)', () => {
-    expect(resolveTitleFromPath('/settings/members')).toEqual({ label: 'Members' })
-    expect(resolveTitleFromPath('/settings/data-sources')).toEqual({ label: 'Data sources' })
-    expect(resolveTitleFromPath('/settings')).toEqual({ label: 'Settings' })
-  })
-
-  it('gives each two-segment settings section its own title', () => {
-    // Eleven routes used to share three titles, because the lookup read only the
-    // first path segment and the rail's paths are a mix of one and two segments.
-    // The owner-operator configuring an instance has several of these open at
-    // once and could not tell the tabs apart, and history search for "Storage"
-    // found nothing.
-    expect(resolveTitleFromPath('/settings/instance/runtime')).toEqual({ label: 'Runtime' })
-    expect(resolveTitleFromPath('/settings/instance/storage')).toEqual({ label: 'Storage' })
-    expect(resolveTitleFromPath('/settings/instance/security')).toEqual({
-      label: 'Security & access',
-    })
-    expect(resolveTitleFromPath('/settings/project/plan-rules')).toEqual({ label: 'Plan rules' })
-    expect(resolveTitleFromPath('/settings/project/members')).toEqual({ label: 'Access' })
-
-    // The seven instance sections are distinguishable from each other, which is
-    // the property that was actually broken.
-    const instanceTitles = [
-      'runtime',
-      'ai',
-      'email',
-      'security',
-      'storage',
-      'observability',
-      'system',
-    ].map((section) => resolveTitleFromPath(`/settings/instance/${section}`).label)
-    expect(new Set(instanceTitles).size).toBe(instanceTitles.length)
-    // The account-level Security section keeps its own, different name.
-    expect(resolveTitleFromPath('/settings/security')).toEqual({ label: 'Password & sessions' })
-  })
-
-  it('keeps the rail label on a route deeper than its rail entry', () => {
-    // Opening a data source from the list navigates to /settings/data-sources/<id>,
-    // which the rail lists only one segment shorter. Matching the full section
-    // path alone dropped it to the generic "Settings".
-    expect(
-      resolveTitleFromPath('/settings/data-sources/0f8fad5b-d9cb-469f-a165-70867728950e'),
-    ).toEqual({ label: 'Data sources' })
-    // The same inheritance one level down from a two-segment rail entry.
-    expect(resolveTitleFromPath('/settings/instance/runtime/anything')).toEqual({
-      label: 'Runtime',
-    })
-  })
-
-  it('falls back to the section parent for a path the settings rail does not list', () => {
-    // Bare parents and the retired top-level sections that only redirect into a
-    // child still have to name a tab rather than reading "Settings" or flashing
-    // not-found.
-    expect(resolveTitleFromPath('/settings/instance')).toEqual({ label: 'Instance settings' })
-    expect(resolveTitleFromPath('/settings/project')).toEqual({ label: 'Project settings' })
-    expect(resolveTitleFromPath('/settings/instance/no-such-section')).toEqual({
-      label: 'Instance settings',
-    })
-  })
-
-  it('labels the invite acceptance page rather than calling it not-found', () => {
-    // /invite/:token is a real rendered page that sets no title of its own, and
-    // it is the first (often only) tripl page an invited member opens — reading
-    // "Page not found" on it looked like a dead link.
-    expect(resolveTitleFromPath('/invite/abc123')).toEqual({ label: 'Invitation' })
-    expect(buildDocumentTitle(resolveTitleFromPath('/invite/abc123').label)).toBe(
-      `Invitation${SEP}tripl`,
-    )
-  })
-
-  it('labels auth, workspace and the root, and names unmatched paths not-found', () => {
-    expect(resolveTitleFromPath('/auth')).toEqual({ label: 'Sign in' })
-    expect(resolveTitleFromPath('/')).toEqual({ label: 'All projects' })
-    expect(resolveTitleFromPath('/workspace')).toEqual({ label: 'All projects' })
-    expect(resolveTitleFromPath('/nope')).toEqual({ label: 'Page not found' })
-    expect(buildDocumentTitle(resolveTitleFromPath('/nope').label)).toBe(
-      `Page not found${SEP}tripl`,
-    )
-  })
-})
-
-describe('detail-page tab titles', () => {
-  it('names the kind of entity a detail route shows', () => {
-    expect(resolveEntityKind('/p/acme/monitoring/event-type/et-1')).toBe('Event type volume')
-    expect(resolveEntityKind('/p/acme/monitoring/event/ev-1/breakdowns')).toBe('Event')
-    expect(resolveEntityKind('/p/acme/monitoring/metric/m-1')).toBe('Metric')
-    expect(resolveEntityKind('/p/acme/monitors/r-1')).toBe('Alert rule')
-    expect(resolveEntityKind('/p/acme/scans/s-1')).toBe('Scan')
-  })
-
-  it('is null off a detail route', () => {
-    expect(resolveEntityKind('/p/acme/monitoring')).toBeNull()
-    expect(resolveEntityKind('/p/acme/monitors')).toBeNull()
-    expect(resolveEntityKind('/p/acme/events')).toBeNull()
-    expect(resolveEntityKind('/settings/members')).toBeNull()
-  })
-
-  it('leads the tab with the entity name, then its kind', () => {
-    expect(buildDocumentTitle(entityTitleLabel('Screen View', 'Event type volume'))).toBe(
-      `Screen View${SEP}Event type volume${SEP}tripl`,
-    )
-    expect(buildDocumentTitle(entityTitleLabel('Spike & drift watch', 'Alert rule'))).toBe(
-      `Spike & drift watch${SEP}Alert rule${SEP}tripl`,
-    )
+    renderAt('/p/ghost/overview', client)
+    await waitFor(() => expect(document.title).toBe(`Project not found${SEP}tripl`))
   })
 })

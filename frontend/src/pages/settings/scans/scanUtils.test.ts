@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import type { ScanJob } from '@/types'
-import { SCAN_STATUS_LABEL, formatCount } from './scanLayoutConstants'
+import { formatCompactNumber } from '@/lib/format'
+import { SCAN_STATUS_LABEL } from './scanLayoutConstants'
 import {
   LOADING_SCAN_RUN_INFO,
   consecutiveFailedRuns,
@@ -120,9 +121,9 @@ describe('jobScanned (#247)', () => {
   })
 
   it('prints the unit after the figure, agreeing with the raw count', () => {
-    expect(formatJobScanned({ value: 4428, unit: 'rows' })).toBe(`${(4428).toLocaleString()} rows`)
+    expect(formatJobScanned({ value: 4428, unit: 'rows' })).toBe('4,428 rows')
     expect(formatJobScanned({ value: 1, unit: 'combinations' })).toBe('1 combo')
-    expect(formatJobScanned({ value: 1500, unit: 'combinations' }, formatCount)).toBe('1.5K combos')
+    expect(formatJobScanned({ value: 1500, unit: 'combinations' }, formatCompactNumber)).toBe('1.5k combos')
     expect(formatJobScanned(null)).toBe('—')
   })
 })
@@ -292,24 +293,6 @@ describe('eligibleChunkIntervals', () => {
   it('returns the interval and coarser sizes', () => {
     expect(eligibleChunkIntervals('1h')).toEqual(['1h', '6h', '1d', '1w'])
     expect(eligibleChunkIntervals('')).toEqual([])
-  })
-})
-
-describe('formatCount', () => {
-  it('moves up a unit when rounding reaches 1000 of the smaller one', () => {
-    expect(formatCount(999_949)).toBe('999.9K')
-    expect(formatCount(999_950)).toBe('1M')
-    expect(formatCount(999_999)).toBe('1M')
-    expect(formatCount(999_995_000)).toBe('1B')
-  })
-
-  it('keeps the ordinary cases', () => {
-    expect(formatCount(null)).toBe('—')
-    expect(formatCount(999)).toBe('999')
-    expect(formatCount(1_000)).toBe('1K')
-    expect(formatCount(100_000)).toBe('100K')
-    expect(formatCount(1_800_000)).toBe('1.8M')
-    expect(formatCount(2_500_000_000)).toBe('2.5B')
   })
 })
 

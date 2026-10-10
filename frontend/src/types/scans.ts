@@ -1,5 +1,17 @@
-import type { MetricScopeType } from './metrics'
+import type { components } from './api.gen'
 
+// Scan payloads, taken from the generated OpenAPI schema (`api.gen.ts`) rather
+// than restated, so a backend change is a compile error where it is read. A
+// field the backend declares with a `None` default is optional here even
+// though the server always sends it: read it with `== null` or `??`.
+//
+// Three shapes stay hand-written because the backend serves them as an untyped
+// dict (`result_summary`): ScanJobResultSummary and the ScanPreview* family.
+// ScanDryRunResponse stays hand-written too (its consumers read the lists as
+// always present); `types/apiDrift.ts` holds it to the generated type.
+type Schemas = components['schemas']
+
+/** A job's `result_summary`: an untyped dict in the schema, read as this. */
 export interface ScanJobResultSummary {
   mode?: 'metrics_collection' | 'metrics_replay'
   catalog_sync_skipped?: boolean
@@ -73,149 +85,60 @@ export interface ScanJobResultSummary {
  *               (wins over `late`);
  *   - `unknown` a manual scan (no interval) or no collection yet.
  */
-export type SourceFreshnessStatus = 'fresh' | 'late' | 'overdue' | 'unknown'
-
-export interface SourceFreshness {
-  status: SourceFreshnessStatus
-  /** Seconds between now and `last_event_at`; null without an observed event. */
-  lag_seconds: number | null
-  /** Start of the newest bucket that had events, as the latest successful
-   *  metrics collection saw it: bucket resolution, so it can trail the newest
-   *  event by up to one scan interval. */
-  last_event_at: string | null
-  /** When that collection completed. */
-  last_collection_at: string | null
-  /** The moment past which the source counts as late; null when unknown. */
-  expected_by: string | null
-}
-
-/** One scan's row in `GET /projects/{slug}/source-freshness`. */
-export interface SourceFreshnessItem {
-  id: string
-  name: string
-  data_source_id: string
-  freshness: SourceFreshness
-}
-
-export interface ProjectLatestScanJob {
-  id: string
-  scan_config_id: string
-  scan_name: string
-  status: 'pending' | 'running' | 'completed' | 'failed' | 'cancelled'
-  started_at: string | null
-  completed_at: string | null
-  result_summary: ScanJobResultSummary | null
-  error_message: string | null
-  created_at: string
-}
-
-export interface ProjectLatestSignal {
-  scan_config_id: string
-  scan_name: string
-  scope_type: MetricScopeType
-  scope_ref: string
-  scope_name: string
-  state: 'latest_scan' | 'recent'
-  bucket: string
-  actual_count: number
-  expected_count: number
-  z_score: number
-  direction: 'spike' | 'drop'
-}
-
-export type IntervalCode = '15m' | '1h' | '6h' | '1d' | '1w'
-
-export interface EventGroupCondition {
-  field: string
-  pattern: string
-}
-
-export interface EventGroupRule {
-  name: string
-  condition_logic: 'all' | 'any'
-  conditions: EventGroupCondition[]
-}
+export type SourceFreshnessStatus = SourceFreshness['status']
 
 /**
- * How a scan was set up (F23.4c). `event_properties`: names come from
- * `event_name_column` and every key of `properties_column` is catalogued as a
- * property; the backend derives the name format, JSON value paths, Event type
- * column and group rules from those two columns. `custom`: every field as set.
+ * `lag_seconds` is the seconds between now and `last_event_at`, null without
+ * an observed event. `last_event_at` is the start of the newest bucket that
+ * had events, as the latest successful metrics collection saw it: bucket
+ * resolution, so it can trail the newest event by up to one scan interval.
+ * `last_collection_at` is when that collection completed; `expected_by` the
+ * moment past which the source counts as late, null when unknown.
  */
-export type ScanSetupPreset = 'custom' | 'event_properties'
+export type SourceFreshness = Schemas['SourceFreshness']
 
-export interface ScanConfig {
-  id: string
-  data_source_id: string
-  project_id: string
-  event_type_id: string | null
-  name: string
-  base_query: string
-  event_type_column: string | null
-  time_column: string | null
-  event_name_format: string | null
-  json_value_paths: string[]
-  event_group_rules: EventGroupRule[]
-  /** Optional so hand-built configs (tests, older fixtures) read as `custom`. */
-  setup_preset?: ScanSetupPreset
-  event_name_column?: string | null
-  properties_column?: string | null
-  /**
-   * String (ClickHouse) / STRING (BigQuery, Databricks) columns every read of the source
-   * parses as JSON (F23.9), so their keys become properties like a JSON
-   * column's. Optional so hand-built configs (tests, older fixtures) parse none.
-   */
-  json_string_columns?: string[]
-  metric_breakdown_columns: string[]
-  metric_breakdown_values_limit: number | null
-  distribution_drift_fields: string[]
-  cardinality_threshold: number
-  interval: IntervalCode | null
-  replay_chunk_interval: IntervalCode | null
-  scan_lookback_hours: number | null
-  scan_row_limit: number | null
-  metrics_row_limit: number | null
-  app_version_column: string | null
-  app_version_keep_releases: number | null
-  app_version_prerelease_pattern: string | null
-  app_version_active_share_min: number | null
-  platform_column: string | null
-  created_at: string
-  updated_at: string
-  /**
-   * Server-derived `interval IS NOT NULL`: whether the scheduler
-   * collects metrics for this scan. Read-only, never sent back. The views keep
-   * `scanModeOf`, which also needs a time column: an interval without one is
-   * `misconfigured`, a state this flag alone would report as monitoring.
-   * Optional so hand-built configs (tests, the form's draft) need not invent it.
-   */
-  readonly monitoring_enabled?: boolean
-  /**
-   * Sent only by `GET /scans/{id}`: when the newest scheduled
-   * metrics collection finished, and the earliest moment the scheduler
-   * considers the scan due again. Null for a scan it never collects.
-   */
-  readonly last_metrics_run_at?: string | null
-  readonly next_metrics_run_at?: string | null
-  /**
-   * Source freshness (F16, #269), computed on read. Optional so hand-built
-   * configs (tests, the form's draft) need not invent it.
-   */
-  readonly freshness?: SourceFreshness
+/** One scan's row in `GET /projects/{slug}/source-freshness`. */
+export type SourceFreshnessItem = Schemas['SourceFreshnessItem']
+
+export type ProjectLatestScanJob = Omit<Schemas['ProjectLatestScanJob'], 'result_summary'> & {
+  result_summary: ScanJobResultSummary | null
 }
 
-export interface PlatformPresenceRow {
-  event_id: string
-  event_name: string
-  present_platforms: string[]
-}
+/** `state` is `latest_scan` or `recent` (a plain string in the schema). */
+export type ProjectLatestSignal = Schemas['ProjectLatestSignal']
 
-export interface PlatformPresenceResponse {
-  scan_config_id: string
-  platform_column: string | null
-  platforms: string[]
-  items: PlatformPresenceRow[]
-}
+export type IntervalCode = Schemas['ScanInterval']
+
+export type EventGroupCondition = Schemas['EventGroupCondition']
+export type EventGroupRule = Schemas['EventGroupRule']
+
+/**
+ * A scan as `GET /scans` and `PATCH /scans/{id}` return it.
+ *
+ * `setup_preset` says how it was set up (F23.4c): `event_properties` names
+ * events from `event_name_column` and catalogues every key of
+ * `properties_column` as a property, the backend deriving the name format,
+ * JSON value paths, Event type column and group rules from those two columns;
+ * `custom` takes every field as set. `json_string_columns` are String
+ * (ClickHouse) / STRING (BigQuery, Databricks) columns every read of the
+ * source parses as JSON (F23.9), so their keys become properties like a JSON
+ * column's. `monitoring_enabled` is the server-derived `interval IS NOT NULL`;
+ * the views keep `scanModeOf`, which also needs a time column (an interval
+ * without one is `misconfigured`, a state this flag alone would report as
+ * monitoring). `freshness` is computed on read (F16, #269).
+ */
+export type ScanConfig = Schemas['ScanConfigResponse']
+export type ScanSetupPreset = ScanConfig['setup_preset']
+
+/**
+ * `GET /scans/{id}`: a ScanConfig plus when the newest scheduled metrics
+ * collection finished and the earliest moment the scheduler considers the scan
+ * due again — null for a scan it never collects.
+ */
+export type ScanConfigDetail = Schemas['ScanConfigDetailResponse']
+
+export type PlatformPresenceRow = Schemas['PlatformPresenceRow']
+export type PlatformPresenceResponse = Schemas['PlatformPresenceResponse']
 
 export interface ScanPreviewColumn {
   name: string
@@ -267,43 +190,23 @@ export interface ScanConfigPreview {
   event_properties?: ScanPreviewEventProperties | null
 }
 
-export interface ScanPreviewJob {
-  id: string
-  status: 'pending' | 'running' | 'completed' | 'failed'
-  started_at: string | null
-  completed_at: string | null
-  // Holds a ScanConfigPreview when status === 'completed'; null otherwise.
+/** `result_summary` holds a ScanConfigPreview when `status` is `completed`. */
+export type ScanPreviewJob = Omit<Schemas['ScanPreviewJobResponse'], 'result_summary'> & {
   result_summary: ScanConfigPreview | null
-  error_message: string | null
-  created_at: string
-  updated_at: string
 }
 
-export interface ProjectAnomalySettings {
-  id: string
-  project_id: string
-  anomaly_detection_enabled: boolean
-  detect_project_total: boolean
-  detect_event_types: boolean
-  detect_events: boolean
-  // Catalog metrics (Metrics tab) are scored on their own series, independent
-  // of the event-scope flags above.
-  detect_metrics: boolean
-  baseline_window_buckets: number
-  min_history_buckets: number
-  sigma_threshold: number
-  min_expected_count: number
-  // How long a detected anomaly keeps counting as an "open" signal for the
-  // Anomalies page and the sidebar badge.
-  recent_signal_window_hours: number
-  // Wall-clock allowance for the warehouse to finish delivering a bucket before
-  // that bucket is scored. Holds the newest buckets back from raising signals.
-  anomaly_ingestion_settling_minutes: number
-  // ISO 3166-1 alpha-2 code whose public holidays are planned events; null for none.
-  holiday_country: string | null
-  created_at: string
-  updated_at: string
-}
+/**
+ * A project's anomaly detection settings. `id`, `created_at` and `updated_at`
+ * are null on a project that never saved its settings: the GET answers with
+ * the defaults and stores no row. Catalog metrics (`detect_metrics`) are
+ * scored on their own series, independent of the event-scope flags.
+ * `recent_signal_window_hours` is how long a detected anomaly keeps counting
+ * as an open signal; `anomaly_ingestion_settling_minutes` the wall-clock
+ * allowance for the warehouse to finish delivering a bucket before it is
+ * scored; `holiday_country` the ISO 3166-1 alpha-2 code whose public holidays
+ * become expected windows, null for none.
+ */
+export type ProjectAnomalySettings = Schemas['ProjectAnomalySettingsResponse']
 
 /**
  * One scope the false-positive ratchet has made stricter.
@@ -312,66 +215,35 @@ export interface ProjectAnomalySettings {
  * `min_expected_count` for the scope it fired on — and only that scope. The
  * values here are ABSOLUTE and replace the project settings for that scope.
  * The ratchet never decays, so deleting the override is the only way back.
+ * `scan_config_id` is null for `metric` scopes: catalog metric series are
+ * project-global.
  */
-export interface AnomalyScopeOverride {
-  id: string
-  // null for `metric` scopes: catalog metric series are project-global.
-  scan_config_id: string | null
-  scan_config_name: string | null
-  scope_type: string
-  scope_ref: string
-  scope_name: string
-  sigma_threshold: number
-  min_expected_count: number
-  false_positive_count: number
-  created_at: string
-  updated_at: string
-}
+export type AnomalyScopeOverride = Schemas['AnomalyScopeOverrideResponse']
+export type AnomalyScopeOverrideList = Schemas['AnomalyScopeOverrideListResponse']
 
-export interface AnomalyScopeOverrideList {
-  items: AnomalyScopeOverride[]
-  total: number
-}
-
-export interface ScanJob {
-  id: string
-  scan_config_id: string
-  status: 'pending' | 'running' | 'completed' | 'failed' | 'cancelled'
-  started_at: string | null
-  completed_at: string | null
+export type ScanJob = Omit<Schemas['ScanJobResponse'], 'result_summary'> & {
   result_summary: ScanJobResultSummary | null
-  error_message: string | null
-  created_at: string
-  updated_at: string
 }
 
-// Mirrors ScanActivityItem / ScanActivityResponse (schemas/scan_job.py): the
-// Scans list's per-scan figures, aggregated in SQL over the whole history.
-export interface ScanActivityItem {
-  scan_config_id: string
+/**
+ * The Scans list's per-scan figures, aggregated in SQL over the whole history.
+ * `failing_streak` counts consecutive failed runs, newest first, looking past
+ * queued/running jobs. `rows_read_24h` mixes two units: `warehouse_rows_24h`
+ * (rows metrics runs read) plus `catalog_combinations_24h` (the GROUP BY ALL
+ * combinations catalog runs read back) over the same window (#247).
+ */
+export type ScanActivityItem = Omit<Schemas['ScanActivityItem'], 'latest_job'> & {
   latest_job: ScanJob | null
-  // Consecutive failed runs, newest first, looking past queued/running jobs.
-  failing_streak: number
-  // Rows read by jobs stamped (completed, else started) inside the window.
-  // Mixes two units; the split pair below sums to it.
-  rows_read_24h: number
-  // Warehouse rows metrics runs read, and the GROUP BY ALL combinations catalog
-  // runs read back, over the same window (#247). Always sent; optional so
-  // fixtures written before the split still type.
-  warehouse_rows_24h?: number
-  catalog_combinations_24h?: number
 }
 
-export interface ScanActivityResponse {
-  window_from: string
-  window_to: string
+export type ScanActivityResponse = Omit<Schemas['ScanActivityResponse'], 'items'> & {
   items: ScanActivityItem[]
 }
 
 // ─── Dry run: "what would this scan create?" ──────────────────────────────────
-// Mirrors the backend's ScanDryRun* Pydantic models (schemas/scan_config.py).
-// The payload is computed by the SAME planner a real run uses, so the names
-// below are the names a run would write — never a second implementation of
+// The backend's ScanDryRun* Pydantic models (schemas/scan_config.py). The
+// payload is computed by the SAME planner a real run uses, so the names below
+// are the names a run would write — never a second implementation of
 // generation in TypeScript.
 
 /**
@@ -381,45 +253,17 @@ export interface ScanActivityResponse {
  * writes one Event per event type, so a grouped scan whose name format collapses
  * to the same string under two event types creates two events.
  */
-export interface ScanDryRunEvent {
-  name: string
-  /** The name before group rules merged it; equal to `name` when nothing merged. */
-  source_name: string
-  /**
-   * The event type this event lands under — the group value on the
-   * `event_type_column` path, the chosen event type's name otherwise.
-   */
-  event_type: string
-  /**
-   * Sampled warehouse rows behind this name — an EXACT count of the rows the dry
-   * run looked at, never an estimate of the whole table.
-   */
-  approx_row_count: number
-  share_of_sample: number
-  status: 'new' | 'existing'
-  /** The event group rule that merged this name, when one did. */
-  grouped_by_rule: string | null
-  count_confidence: 'exact' | 'sampled'
-}
+export type ScanDryRunEvent = Schemas['ScanDryRunEvent']
 
 /**
  * A field the config would add to the plan. `type` is json-or-string and nothing
  * else — that is the entire type inference a scan performs, and promising
  * `integer`/`timestamp` would be a claim about something it does not do.
  */
-export interface ScanDryRunField {
-  name: string
-  type: 'json' | 'string'
-  status: 'new' | 'exists'
-  event_type: string
-}
+export type ScanDryRunField = Schemas['ScanDryRunField']
 
 /** A column the cardinality rule collapsed into a `{column}` template. */
-export interface ScanDryRunTemplatedColumn {
-  column: string
-  distinct_values: number
-  threshold: number
-}
+export type ScanDryRunTemplatedColumn = Schemas['ScanDryRunTemplatedColumn']
 
 /**
  * What a scan would create, bounded by three separate partialities the UI must
@@ -450,65 +294,25 @@ export interface ScanDryRunResponse {
 }
 
 /** The planned event a would-be-new name looks like. */
-export interface ScanDryRunDuplicateOf {
-  event_id: string
-  name: string
-  /** 0..1 */
-  score: number
-  status: string
-}
+export type ScanDryRunDuplicateOf = Schemas['ScanDryRunDuplicateOf']
 
 /**
  * `combinatorial_explosion`: `count` new names under one event type differ
  * only in one slot (`slot` / `slot_label`; `pattern` shows the fixed parts
  * with `*`), i.e. a high-cardinality value is part of the name.
  * `duplicate`: the new event `name` looks like `duplicate_of`, already planned.
- * Mirrors `ScanDryRunNameWarning` in backend/src/tripl/schemas/scan_config.py.
  */
-export interface ScanDryRunNameWarning {
-  code: 'combinatorial_explosion' | 'duplicate'
-  event_type: string
-  message: string
-  count?: number | null
-  slot?: number | null
-  slot_label?: string | null
-  pattern?: string | null
-  samples?: string[]
-  name?: string | null
-  duplicate_of?: ScanDryRunDuplicateOf | null
-}
+export type ScanDryRunNameWarning = Schemas['ScanDryRunNameWarning']
 
-/** The draft a dry run is computed from. Mirrors ScanDryRunRequest. */
-export interface ScanDryRunRequest {
-  data_source_id: string
-  base_query: string
-  event_type_id?: string | null
-  event_type_column?: string | null
-  time_column?: string | null
-  event_name_format?: string | null
-  event_group_rules?: EventGroupRule[]
-  json_value_paths?: string[]
-  setup_preset?: ScanSetupPreset
-  event_name_column?: string | null
-  properties_column?: string | null
-  json_string_columns?: string[]
-  cardinality_threshold?: number
-  app_version_column?: string | null
-  platform_column?: string | null
-  scan_lookback_hours?: number | null
-  sample_row_limit?: number
-}
+/** Fields the backend defaults, which the generated type marks required. */
+type ScanDryRunDefaulted = 'setup_preset' | 'cardinality_threshold' | 'sample_row_limit'
 
-export interface ScanDryRunJob {
-  id: string
-  status: 'pending' | 'running' | 'completed' | 'failed' | 'cancelled'
-  started_at: string | null
-  completed_at: string | null
-  /** Holds a ScanDryRunResponse when status === 'completed'; null otherwise. */
+/** The draft a dry run is computed from. */
+export type ScanDryRunRequest = Omit<Schemas['ScanDryRunRequest'], ScanDryRunDefaulted> &
+  Partial<Pick<Schemas['ScanDryRunRequest'], ScanDryRunDefaulted>>
+
+export type ScanDryRunJob = Omit<Schemas['ScanDryRunJobResponse'], 'result_summary'> & {
   result_summary: ScanDryRunResponse | null
-  error_message: string | null
-  created_at: string
-  updated_at: string
 }
 
 /**

@@ -13,11 +13,11 @@ interface PlannedEventRow {
 
 /**
  * The date + time picker is one control: a button showing both, which opens a
- * calendar with the time field under it. Driven here through the planned-event
- * form on a demo metric chart, then read back from the server, so the local
+ * calendar with the time field under it. Driven here through the Expected
+ * windows form on a demo metric chart, then read back from the server, so the local
  * time a user picks is the instant that is stored.
  */
-test('a planned event takes its window from the date and time pickers', async ({ page, account }) => {
+test('an expected window takes its span from the date and time pickers', async ({ page, account }) => {
   void account
   const slug = await generateDemo(page)
   const projectBase = page.url().replace(/\/overview$/, '')
@@ -29,7 +29,7 @@ test('a planned event takes its window from the date and time pickers', async ({
   await page.goto(`${projectBase}/monitoring/metric/${metricId}`)
   const card = page.locator('#planned-events')
   // A route's first visit compiles it on the dev server: give it time.
-  await expect(card.getByRole('heading', { name: 'Planned events' })).toBeVisible({ timeout: 60_000 })
+  await expect(card.getByRole('heading', { name: 'Expected windows' })).toBeVisible({ timeout: 60_000 })
   // Captions say which picker is which.
   await expect(card.getByText('Starts', { exact: true })).toBeVisible()
   await expect(card.getByText('Ends', { exact: true })).toBeVisible()
@@ -57,8 +57,8 @@ test('a planned event takes its window from the date and time pickers', async ({
   await expect(ends).toBeHidden()
   await expect(card.getByRole('button', { name: /^Ends: / })).toHaveText(/ 12, \d{4}, 6:30\sPM$/)
 
-  await card.getByLabel('Planned event label').fill('E2E picked window')
-  await card.getByRole('button', { name: 'Add planned event' }).click()
+  await card.getByLabel('Expected window label').fill('E2E picked window')
+  await card.getByRole('button', { name: 'Add expected window' }).click()
   await expect(card.getByText('E2E picked window')).toBeVisible()
 
   // Stored as the instants picked in the browser's own zone.
@@ -72,7 +72,7 @@ test('a planned event takes its window from the date and time pickers', async ({
   expect(await local(row.starts_at)).toEqual([10, 9, 15])
   expect(await local(row.ends_at)).toEqual([12, 18, 30])
 
-  await card.getByRole('button', { name: 'Delete planned event E2E picked window' }).click()
+  await card.getByRole('button', { name: 'Delete expected window E2E picked window' }).click()
   await page.getByRole('alertdialog').getByRole('button', { name: 'Delete' }).click()
   await expect(card.getByText('E2E picked window')).toHaveCount(0)
 

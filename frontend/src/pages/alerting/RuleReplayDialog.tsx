@@ -27,9 +27,11 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import type { AlertMessageFormat, AlertRule, AlertRuleSimulateResponse, ScanConfig } from '@/types'
 import { getErrorMessage } from '@/lib/utils'
 import { formatIncidentCount, scopeHasDirection, scopeKindLabel } from '@/lib/alertStatus'
-import { APP_LOCALE } from '@/lib/format'
 import { formatPercentDelta } from '@/lib/percentDelta'
 import { formatCooldown } from './constants'
+import { formatShortTimestamp } from '@/lib/datetime'
+import { formatNumber } from '@/lib/format'
+import { pluralize } from '@/lib/plural'
 
 const DAYS_OPTIONS = [1, 3, 7, 14, 30] as const
 
@@ -109,23 +111,6 @@ function isInvalidOverride(value: number | null): boolean {
   return value !== null && Number.isNaN(value)
 }
 
-/**
- * "Sep 24, 00:00" — short enough to sit in a 7rem column without running into
- * Scope, in sans with tabular figures. The year says nothing inside a
- * replay window of at most 30 days.
- */
-function formatReplayWhen(value: string): string {
-  const date = new Date(value)
-  if (Number.isNaN(date.getTime())) return ''
-  return date.toLocaleString(APP_LOCALE, {
-    month: 'short',
-    day: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit',
-    hourCycle: 'h23',
-  })
-}
-
 /** One override input: a real label, and the value it replaces as helper text. */
 function OverrideField({
   id,
@@ -186,8 +171,8 @@ function FiringsCountBadge({
     <div className="flex flex-col items-start rounded-md border bg-muted/30 px-3 py-2">
       <div className="micro-label text-fg-tertiary">{label}</div>
       <div className="flex items-center gap-2">
-        <span className="text-heading font-semibold tnum">{count}</span>
-        <span className="text-body-sm text-fg-tertiary">{count === 1 ? 'firing' : 'firings'}</span>
+        <span className="text-heading font-semibold tnum">{formatNumber(count)}</span>
+        <span className="text-body-sm text-fg-tertiary">{pluralize(count, 'firing', 'firings')}</span>
         {noisy && (
           <Chip tone="danger" icon={<AlertTriangle aria-hidden="true" />}>
             Noisy
@@ -596,8 +581,10 @@ export function RuleReplayDialog({
                     >
                       <TableHeader className="bg-muted/50">
                         <TableRow className="hover:bg-transparent">
-                          <TableHead scope="col" className="h-auto w-28 py-2">When</TableHead>
-                          <TableHead scope="col" className="h-auto w-64 py-2">Scope</TableHead>
+                          {/* Wide enough for "Sep 24, 12:00 AM": the app's 12-hour
+                              clock, as every other short time prints it. */}
+                          <TableHead scope="col" className="h-auto w-36 py-2">When</TableHead>
+                          <TableHead scope="col" className="h-auto w-56 py-2">Scope</TableHead>
                           <TableHead scope="col" className="hidden h-auto w-32 py-2 md:table-cell">Scan</TableHead>
                           <TableHead scope="col" className="h-auto w-20 py-2">Dir</TableHead>
                           <TableHead scope="col" className="h-auto w-20 py-2 text-right">Actual</TableHead>
@@ -608,7 +595,7 @@ export function RuleReplayDialog({
                       <TableBody>
                         {displayResult.firings.map((firing) => (
                           <TableRow key={firing.anomaly_id}>
-                            <TableCell className="whitespace-nowrap py-1.5 tnum">{formatReplayWhen(firing.bucket)}</TableCell>
+                            <TableCell className="whitespace-nowrap py-1.5 tnum">{formatShortTimestamp(firing.bucket)}</TableCell>
                             {/* The kind through the shared `scopeKindLabel`, the
                                 same words the Inbox chips use, rather than the
                                 raw enum. The column shipped printing
@@ -644,7 +631,7 @@ export function RuleReplayDialog({
                               className="hidden truncate py-1.5 md:table-cell"
                               title={firing.scan_config_id ?? 'Project-wide'}
                             >
-                              {firing.scan_config_id === null
+                              {firing.scan_config_id == null
                                 ? 'Project-wide'
                                 : (scans.find(scan => scan.id === firing.scan_config_id)?.name
                                   ?? `Scan ${firing.scan_config_id.slice(0, 8)}`)}

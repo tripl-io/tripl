@@ -15,17 +15,17 @@
  */
 
 import { useState } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
+import { useNavigate } from 'react-router-dom'
 import { ArrowRight, Compass, Sparkles, X } from 'lucide-react'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import type { Project } from '@/types'
 import { useDemoScenario, useDemoScenarioActions } from './demoScenarioContext'
+import { EndOfDemoLink } from './EndOfDemoLink'
+import { gestureCopy } from './gestureCopy'
 import { ProductTour } from './ProductTour'
 import type { ChapterListEntry } from './scenarioModel'
 import { setWelcomeDismissed, useWelcomeDismissed } from './welcomeDismissal'
-import { usePublicDemo } from '@/lib/deploymentMode'
-import { workspacePath } from '@/lib/navigation'
 
 export function DemoWelcomePanel({ project }: { project: Project }) {
   const [tourOpen, setTourOpen] = useState(false)
@@ -33,7 +33,6 @@ export function DemoWelcomePanel({ project }: { project: Project }) {
   const { available, chapters, state } = useDemoScenario()
   const { startChapter } = useDemoScenarioActions()
   const dismissed = useWelcomeDismissed(project.slug)
-  const publicDemo = usePublicDemo()
 
   if (dismissed) return null
 
@@ -76,17 +75,20 @@ export function DemoWelcomePanel({ project }: { project: Project }) {
       <div className="flex min-w-0 items-center gap-2">
         <Sparkles className="h-4 w-4 shrink-0 text-accent" aria-hidden="true" />
         <h2 id="demo-welcome-heading" className="text-body-sm font-semibold">
-          Welcome to your demo workspace
+          Welcome to your demo project
         </h2>
       </div>
       {/* No "Local synthetic data" badge here: the demo banner right above
           already carries it on every surface. With the chapters on offer, the
           line says what Start begins rather than repeating that banner: a
           newcomer read "Start: Run the live loop" with nothing to say what a
-          chapter was. */}
-      <p className="hidden min-w-0 text-caption md:block text-fg-secondary">
+          chapter was. On a phone too, on a line of its own: hidden there, it
+          left exactly that. */}
+      <p className="min-w-0 basis-full text-caption md:basis-auto text-fg-secondary">
         {next
-          ? `${chapters.length} short chapters show tripl at work — the guide points at every click.`
+          ? gestureCopy(
+              `${chapters.length} short chapters show tripl at work — the guide points at every click.`,
+            )
           : 'Everything runs on a local, synthetic warehouse — nothing outside is touched.'}
       </p>
 
@@ -97,20 +99,18 @@ export function DemoWelcomePanel({ project }: { project: Project }) {
             <ArrowRight className="h-3 w-3" aria-hidden="true" />
           </Button>
         )}
+        {/* Named as the demo bar's button that opens the same dialog: as
+            "Browse chapters" beside the bar's "Tour & chapters", the two read
+            as two different things. */}
         <Button type="button" size="xs" variant="outline" onClick={() => setTourOpen(true)}>
           <Compass className="h-3 w-3" aria-hidden="true" />
-          {available ? 'Browse chapters' : 'Take the tour'}
+          {available ? 'Tour & chapters' : 'Take the tour'}
         </Button>
         {/* The demo never pointed at the real product, so the funnel it is
-            the front of ended in a dead stop. The dashboard is
-            where "New project — start empty and connect your own warehouse"
-            lives. Not on a public demo: the server refuses a blank project
-            there, and the link led nowhere. */}
-        {!publicDemo && (
-          <Button asChild size="xs" variant="ghost">
-            <Link to={workspacePath()}>Create a real project</Link>
-          </Button>
-        )}
+            the front of ended in a dead stop. This is the way out the last
+            chapter ends on: a real project, or the quick start on a public
+            demo, where the server refuses a blank project. */}
+        <EndOfDemoLink variant="ghost" />
         {/* A 36px target, pulled into the row's padding so the row
             stays one line high. */}
         <button

@@ -19,6 +19,7 @@ function makeDestination(overrides: Partial<AlertDestination> = {}): AlertDestin
     type: 'telegram',
     name: 'TG',
     held_count: 0,
+    project_timezone: 'UTC',
     enabled: true,
     webhook_set: false,
     bot_token_set: true,

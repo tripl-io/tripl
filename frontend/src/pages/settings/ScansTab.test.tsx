@@ -333,9 +333,9 @@ describe('ScansTab', () => {
     expect(screen.getByText(/SELECT \* FROM analytics\.events_v2/)).toBeInTheDocument()
   })
 
-  // The recent-runs rail prints its count through `formatCount`, which compacts
-  // (1.8M) — so the noun has to agree with the raw number, not with the string
-  // that reaches the screen. A run that read a single warehouse row said
+  // The recent-runs rail prints its count through `formatJobScanned`, which
+  // can take a compact formatter (1.8M) — so the noun has to agree with the raw
+  // number, not with the string that reaches the screen. A run that read a single warehouse row said
   // "1 rows".
   it('agrees with the count on a run that read exactly one row', async () => {
     setupFetchWithJobs([
@@ -494,7 +494,7 @@ describe('ScansTab', () => {
     renderTab()
 
     const label = await screen.findByText('Warehouse rows · 24h')
-    await waitFor(() => expect(label.parentElement?.textContent).toBe('Warehouse rows · 24h1.5K'))
+    await waitFor(() => expect(label.parentElement?.textContent).toBe('Warehouse rows · 24h1.5k'))
     expect(label.parentElement?.textContent).not.toContain('+')
     // The catalog runs' combinations are named beside it, not added in.
     expect(label.closest('[title]')).toHaveAttribute(
@@ -968,12 +968,12 @@ describe('ScansTab — data layer and feedback', () => {
     renderTab()
 
     expect(
-      await screen.findByRole('heading', { name: 'Connect your warehouse to start scanning' }),
+      await screen.findByRole('heading', { name: 'Connect a data source to start scanning' }),
     ).toBeInTheDocument()
-    // What setting up a scan involves, in order.
+    // What setting up a scan involves, in order, in the glossary's noun.
     const steps = screen.getByRole('list', { name: 'Setting up a scan' })
-    expect(steps).toHaveTextContent('Add a connection to your warehouse')
-    expect(screen.getByRole('link', { name: 'Add connection' })).toHaveAttribute('href', '/settings/data-sources')
+    expect(steps).toHaveTextContent('Connect a data source')
+    expect(screen.getByRole('link', { name: 'Connect a data source' })).toHaveAttribute('href', '/settings/data-sources')
     // Nothing else competes with it: no stat strip, no second empty state, no
     // empty "All scans" panel, no disabled New scan.
     expect(screen.queryByText('Monitoring')).not.toBeInTheDocument()
@@ -1085,6 +1085,40 @@ describe('ScansTab — data layer and feedback', () => {
     expect(await screen.findByText('10 rows')).toBeInTheDocument()
     // The old failure is still listed, with its reason, but nothing to retry.
     expect(screen.getAllByText('Failed').length).toBeGreaterThan(0)
+    expect(screen.queryByRole('button', { name: /Run again/i })).not.toBeInTheDocument()
+  })
+})
+
+describe('ScansTab — Recent runs columns line up (prelaunch)', () => {
+  // "Failed" is narrower than "Succeeded"; with the pill at its own width every
+  // column after it on a failed row started left of the rows above.
+  it('puts every status pill in one fixed-width slot and keeps a quiet failed row\'s figures', async () => {
+    setupFetchWithJobs([
+      {
+        id: 'job-ok',
+        scan_config_id: 'scan-1',
+        status: 'completed',
+        started_at: '2026-01-02T00:00:00Z',
+        completed_at: '2026-01-02T00:00:05Z',
+        result_summary: { query_rows_scanned: 10 },
+        error_message: null,
+        created_at: '2026-01-02T00:00:00Z',
+        updated_at: '2026-01-02T00:00:05Z',
+      },
+      { ...failedJob('job-old', '2026-01-01T00:00:00Z'), completed_at: '2026-01-01T00:00:12Z' },
+    ])
+    const { container } = renderTab()
+
+    expect(await screen.findByText('10 rows')).toBeInTheDocument()
+    const slots = Array.from(container.querySelectorAll('[data-slot="run-status"]'))
+    expect(slots.map(slot => slot.textContent)).toEqual(['Succeeded', 'Failed'])
+    for (const slot of slots) expect(slot).toHaveClass('shrink-0', 'sm:w-24')
+
+    // The old failure offers no action (a success followed it), so its row
+    // keeps the figure columns: no rows read, and how long it ran.
+    const failedRow = at(slots, 1).parentElement as HTMLElement
+    expect(failedRow).toHaveTextContent('—')
+    expect(failedRow).toHaveTextContent('12.0s')
     expect(screen.queryByRole('button', { name: /Run again/i })).not.toBeInTheDocument()
   })
 })

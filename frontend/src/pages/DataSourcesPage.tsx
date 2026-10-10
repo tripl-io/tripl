@@ -5,22 +5,18 @@ import { onboardingStepHref, parseOnboardingReturn } from '@/components/onboardi
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { dataSourcesApi } from '@/api/dataSources'
 import { dataSourceDeleteMessage, dataSourceDeleteRequireText } from './dataSourceDelete'
-import { useAuth } from '@/components/auth-context'
 import { useConfirm } from '@/hooks/useConfirm'
-import {
-  UNSAVED_CHANGES_MESSAGE,
-  useDirtySinceOpen,
-  useUnsavedDialogGuard,
-} from '@/hooks/useUnsavedChangesGuard'
+import { UNSAVED_CHANGES_MESSAGE, useDirtySinceOpen } from '@/hooks/useUnsavedChangesGuard'
 import { LEAVE_CONFIRMED, useUnsavedChanges } from '@/components/settings/unsaved-changes'
 import { SILENT_ERROR_META } from '@/lib/errorFeedback'
 import type { DataSource, DbType } from '@/types'
-import { DB_TYPE_OPTIONS } from '@/types'
+import { DB_TYPE_OPTIONS, dbTypeLabel } from '@/types'
 import { Button } from '@/components/ui/button'
 import { IconButton } from '@/components/ui/icon-button'
 import {
   Dialog,
   DialogBody,
+  DialogClose,
   DialogContent,
   DialogFooter,
   DialogHeader,
@@ -33,6 +29,8 @@ import { ConnectionSettingsFields } from '@/components/data-sources/connection-s
 import { ConnectionCoreFields } from '@/components/data-sources/connection-core-fields'
 import { UsedByScans } from '@/components/data-sources/used-by-scans'
 import { DataSourceFreshnessChip } from '@/components/data-sources/data-source-freshness'
+import { DB_TYPE_PICKER_OPTIONS } from '@/components/data-sources/db-type-picker'
+import { DbTypePreviewChip, DbTypePreviewNote } from '@/components/data-sources/db-type-preview'
 import {
   EMPTY_CONNECTION_CORE_FORM,
   buildCoreCreatePayload,
@@ -51,10 +49,10 @@ import { REQUIRED_MESSAGE, focusFirstInvalid, invalidAria } from '@/components/f
 import {
   EMPTY_CONNECTION_SETTINGS_FORM,
   buildConnectionSettings,
-  connectionSettingsErrors,
   connectionSettingsToForm,
+  editedSettingsErrors,
   type ConnectionSettingsForm,
-  type PemErrors,
+  type SettingsErrors,
 } from '@/components/data-sources/connection-settings'
 import { EmptyState } from '@/components/empty-state'
 import { ErrorState } from '@/components/error-state'
@@ -79,7 +77,7 @@ import { dataSourceHealthLexeme } from '@/lib/statusLexicon'
 import { getErrorMessage } from '@/lib/utils'
 import { formatDate, formatRelativeTime } from '@/lib/datetime'
 import { dataSourcesKey } from '@/lib/queryKeys'
-import { isOwner } from '@/lib/permissions'
+import { useIsOwner } from '@/lib/permissions'
 import { usePublicDemo } from '@/lib/deploymentMode'
 import { currentOrgSlug, projectPath, settingsPath } from '@/lib/navigation'
 
@@ -96,47 +94,59 @@ function isHealthCheckStale(ds: DataSource, now: number = Date.now()): boolean {
 }
 
 /**
- * Inline validation for the connection dialogs: a malformed
- * service-account key or PEM block is caught here instead of at connect time.
+ * Inline validation for the connection dialogs: a malformed service-account
+ * key or PEM block, a missing user name, a Trino password over HTTP or a
+ * qualified schema name is caught here instead of at connect time.
  *
- * Only fields that differ from `baseline` are checked. On edit the baseline is
- * the stored settings, so a certificate saved before this check existed cannot
- * block an unrelated rename; on create it is the empty form.
+ * Settings fields are checked once they differ from `baseline`
+ * (`editedSettingsErrors`): on edit that is the stored settings, so a
+ * certificate saved before a check existed cannot block an unrelated rename;
+ * on create it is the empty form.
  */
 interface ConnectionErrors {
   secret: string | null
-  pem: PemErrors
+  settings: SettingsErrors
   /** Required core fields left empty, flagged inline under each. */
   missing: CoreMissing
 }
 
-const NO_CONNECTION_ERRORS: ConnectionErrors = { secret: null, pem: {}, missing: {} }
+const NO_CONNECTION_ERRORS: ConnectionErrors = { secret: null, settings: {}, missing: {} }
 
+interface ConnectionErrorContext {
+  mode: 'create' | 'edit'
+  baseline: ConnectionSettingsForm
+  /** Whether the source being edited stores a password; false on create. */
+  passwordSet: boolean
+}
+
+const CREATE_CONTEXT: ConnectionErrorContext = {
+  mode: 'create',
+  baseline: EMPTY_CONNECTION_SETTINGS_FORM,
+  passwordSet: false,
+}
+
+// Some rules read both forms: the Databricks sign-in (a setting) decides
+// whether the username is required, and the Trino scheme whether a password
+// may be sent at all.
 function connectionErrors(
   dbType: DbType,
   core: ConnectionCoreForm,
   settings: ConnectionSettingsForm,
-  baseline: ConnectionSettingsForm,
-  mode: 'create' | 'edit',
+  { mode, baseline, passwordSet }: ConnectionErrorContext,
 ): ConnectionErrors {
-  const pem: PemErrors = {}
-  const all = connectionSettingsErrors(dbType, settings, REQUIRED_MESSAGE)
-  for (const field of ['sslrootcert', 'sslcert', 'sslkey'] as const) {
-    const error = all[field]
-    if (error && settings[field] !== baseline[field]) pem[field] = error
-  }
-  // Not baseline-gated: without it there is no warehouse to connect to at all.
-  if (all.httpPath) pem.httpPath = all.httpPath
-  if (all.warehouse) pem.warehouse = all.warehouse
   return {
-    secret: connectionCoreSecretError(dbType, core),
-    pem,
-    missing: connectionCoreMissing(dbType, core, mode, REQUIRED_MESSAGE),
+    secret: connectionCoreSecretError(dbType, core, { httpScheme: settings.httpScheme, passwordSet }),
+    settings: editedSettingsErrors(dbType, settings, baseline, REQUIRED_MESSAGE),
+    missing: connectionCoreMissing(dbType, core, mode, REQUIRED_MESSAGE, settings.authType),
   }
 }
 
 function hasConnectionErrors(errors: ConnectionErrors): boolean {
-  return !!errors.secret || Object.keys(errors.pem).length > 0 || Object.keys(errors.missing).length > 0
+  return (
+    !!errors.secret ||
+    Object.keys(errors.settings).length > 0 ||
+    Object.keys(errors.missing).length > 0
+  )
 }
 
 /**
@@ -158,7 +168,6 @@ function ConnectionsTab({ openDsId }: { openDsId?: string }) {
   const navigate = useNavigate()
   const location = useLocation()
   const qc = useQueryClient()
-  const { user } = useAuth()
   const [showForm, setShowForm] = useState(false)
   const [editingDs, setEditingDs] = useState<DataSource | null>(null)
   const editingDsIdRef = useRef<string | null>(null)
@@ -218,7 +227,8 @@ function ConnectionsTab({ openDsId }: { openDsId?: string }) {
   // Every source with a test in flight. One shared id let testing A then B
   // re-enable A's button mid-test, and A's finish re-enabled B's.
   const [testingIds, setTestingIds] = useState<ReadonlySet<string>>(() => new Set())
-  const canManageDataSources = isOwner(user?.role)
+  // Owner of the organization the app acts in, not of the default one.
+  const canManageDataSources = useIsOwner()
   // A public demo connects to no warehouse of one's own.
   const publicDemo = usePublicDemo()
   const canAddConnection = canManageDataSources && !publicDemo
@@ -272,13 +282,10 @@ function ConnectionsTab({ openDsId }: { openDsId?: string }) {
     mutationFn: ({ id }: { id: string; retest: boolean }) => {
       const editDbType = editingDs?.db_type
       if (!editDbType) throw new Error('No data source is being edited')
+      // A demo source has nothing to configure but its name: the synthetic
+      // adapter reads no connection and ignores a timeout.
       if (editingDs.is_synthetic) {
-        return dataSourcesApi.update(id, {
-          name: editName.trim(),
-          timeout_seconds: editCore.timeoutSeconds.trim()
-            ? Number(editCore.timeoutSeconds)
-            : null,
-        })
+        return dataSourcesApi.update(id, { name: editName.trim() })
       }
       const connectionSettings = buildConnectionSettings(editDbType, editSettings)
       return dataSourcesApi.update(id, {
@@ -436,7 +443,7 @@ function ConnectionsTab({ openDsId }: { openDsId?: string }) {
   })
   const draftTestShown = draftTestMut.variables?.key === draftKey && !draftTestMut.isPending
   const testDraft = () => {
-    const errors = connectionErrors(dbType, core, settings, EMPTY_CONNECTION_SETTINGS_FORM, 'create')
+    const errors = connectionErrors(dbType, core, settings, CREATE_CONTEXT)
     setCreateErrors(errors)
     if (hasConnectionErrors(errors)) {
       focusFirstInvalidSoon(createFormRef.current)
@@ -464,7 +471,9 @@ function ConnectionsTab({ openDsId }: { openDsId?: string }) {
     ...(createSentKey === draftKey ? createServer.fields : {}),
     ...createErrors.missing,
   }
-  const editKey = JSON.stringify(editCore)
+  // Settings too: a refusal can be about the two together (a Trino password
+  // and the HTTP scheme).
+  const editKey = JSON.stringify({ editCore, editSettings })
   const editServer = serverCoreErrors(
     updateMut.isError ? updateMut.error : null,
     editingDs?.db_type ?? 'clickhouse',
@@ -489,7 +498,7 @@ function ConnectionsTab({ openDsId }: { openDsId?: string }) {
   }
 
   const submitCreate = () => {
-    const errors = connectionErrors(dbType, core, settings, EMPTY_CONNECTION_SETTINGS_FORM, 'create')
+    const errors = connectionErrors(dbType, core, settings, CREATE_CONTEXT)
     const nameError = name.trim() ? null : REQUIRED_MESSAGE
     setCreateErrors(errors)
     setCreateNameError(nameError)
@@ -516,7 +525,11 @@ function ConnectionsTab({ openDsId }: { openDsId?: string }) {
       return
     }
     const baseline = connectionSettingsToForm(editingDs.connection_settings)
-    const errors = connectionErrors(editingDs.db_type, editCore, editSettings, baseline, 'edit')
+    const errors = connectionErrors(editingDs.db_type, editCore, editSettings, {
+      mode: 'edit',
+      baseline,
+      passwordSet: editingDs.password_set,
+    })
     setEditErrors(errors)
     if (hasConnectionErrors(errors)) {
       focusFirstInvalidSoon(editFormRef.current)
@@ -532,11 +545,10 @@ function ConnectionsTab({ openDsId }: { openDsId?: string }) {
 
   // One stray overlay click or Escape used to throw away a pasted service-account
   // key or PEM certificate. Both dialogs now ask first while they hold
-  // anything the user typed; Cancel asks too, since it is the same loss.
+  // anything the user typed (<Dialog dirty>); Cancel is a <DialogClose>, so it
+  // asks too, since it is the same loss.
   const createDirty = useDirtySinceOpen(showForm, { name, dbType, core, settings })
-  const createGuard = useUnsavedDialogGuard(createDirty)
   const editDirty = useDirtySinceOpen(!!editingDs, { editName, editCore, editSettings })
-  const editGuard = useUnsavedDialogGuard(editDirty)
   // The edit dialog has a URL of its own, so browser Back closes it without
   // any of the dialog's close requests running. Registering the draft with the
   // settings shell puts Back (and every other way out of this URL) behind the
@@ -569,15 +581,16 @@ function ConnectionsTab({ openDsId }: { openDsId?: string }) {
   return (
     <div className="space-y-5">
       {dialog}
-      {createGuard.dialog}
-      {editGuard.dialog}
 
       {/* Compact stats header (page title comes from the Settings tab bar).
           It wraps, and is never right-aligned: a non-wrapping `justify-end` row
           overflowed off the LEFT edge at 375px, where nothing can scroll to it,
           and "Connections" read as "TIONS". */}
       <div className="flex flex-wrap items-center justify-between gap-x-6 gap-y-3">
-        <MiniStatStrip boxed>
+        {/* Full width on a phone, as page stats are under a PageHeader, so
+            "Add connection" always wraps under the strip rather than beside
+            whichever stat happened to fit. */}
+        <MiniStatStrip boxed className="max-sm:w-full">
           {/* Pending values are a skeleton with no tone (#237). */}
           <MiniStat
             label="Connections"
@@ -607,7 +620,7 @@ function ConnectionsTab({ openDsId }: { openDsId?: string }) {
       </div>
 
       {/* Create dialog */}
-      <Dialog open={showForm} onOpenChange={(v) => { if (!v) createGuard.requestClose(resetForm) }}>
+      <Dialog open={showForm} dirty={createDirty} onOpenChange={(v) => { if (!v) resetForm() }}>
         <DialogContent className="sm:max-w-lg">
           {/* noValidate: every empty required field is flagged inline on
               submit, not by the browser's bubble on the first one.
@@ -634,9 +647,7 @@ function ConnectionsTab({ openDsId }: { openDsId?: string }) {
                     }}
                     aria-required
                     // Follows the type, so BigQuery is not offered "Production ClickHouse".
-                    placeholder={examplePlaceholder(
-                      `Production ${DB_TYPE_OPTIONS.find((o) => o.value === dbType)?.label ?? 'warehouse'}`,
-                    )}
+                    placeholder={examplePlaceholder(`Production ${dbTypeLabel(dbType)}`)}
                     {...invalidAria('ds-name', createNameError)}
                   />
                   <FieldError inputId="ds-name" message={createNameError} />
@@ -648,10 +659,11 @@ function ConnectionsTab({ openDsId }: { openDsId?: string }) {
                     width="fill"
                     value={dbType}
                     onChange={(value) => handleDbTypeChange(value as DbType)}
-                    options={DB_TYPE_OPTIONS}
+                    options={DB_TYPE_PICKER_OPTIONS}
                   />
                 </div>
               </div>
+              <DbTypePreviewNote dbType={dbType} />
               <ConnectionCoreFields
                 idPrefix="ds"
                 dbType={dbType}
@@ -659,6 +671,7 @@ function ConnectionsTab({ openDsId }: { openDsId?: string }) {
                 onChange={patchCore}
                 mode="create"
                 secretError={createErrors.secret}
+                databricksAuth={settings.authType}
                 missing={createMissing}
               />
               <ConnectionSettingsFields
@@ -666,7 +679,7 @@ function ConnectionsTab({ openDsId }: { openDsId?: string }) {
                 dbType={dbType}
                 value={settings}
                 onChange={patchSettings}
-                pemErrors={createErrors.pem}
+                errors={createErrors.settings}
               />
               {/* Only what no control can show; field refusals sit under their field. */}
               {createServer.rest && (
@@ -687,7 +700,9 @@ function ConnectionsTab({ openDsId }: { openDsId?: string }) {
               )}
             </DialogBody>
             <DialogFooter>
-              <Button type="button" variant="outline" onClick={() => createGuard.requestClose(resetForm)}>Cancel</Button>
+              <DialogClose asChild>
+                <Button type="button" variant="outline">Cancel</Button>
+              </DialogClose>
               <Button
                 type="button"
                 variant="outline"
@@ -703,7 +718,7 @@ function ConnectionsTab({ openDsId }: { openDsId?: string }) {
       </Dialog>
 
       {/* Edit dialog */}
-      <Dialog open={!!editingDs} onOpenChange={(v) => { if (!v) editGuard.requestClose(closeEdit) }}>
+      <Dialog open={!!editingDs} dirty={editDirty} onOpenChange={(v) => { if (!v) closeEdit() }}>
         <DialogContent className="sm:max-w-lg">
           <form
             ref={editFormRef}
@@ -732,20 +747,9 @@ function ConnectionsTab({ openDsId }: { openDsId?: string }) {
               {editingDs && (
                 <>
                   {editingDs.is_synthetic ? (
-                    <div className="grid gap-2">
-                      <p className="text-body text-fg-tertiary">
-                        Demo sources have no warehouse connection to configure.
-                      </p>
-                      <Label htmlFor="edit-ds-timeout">Timeout (seconds)</Label>
-                      <Input
-                        id="edit-ds-timeout"
-                        type="number"
-                        min={1}
-                        value={editCore.timeoutSeconds}
-                        onChange={(e) => patchEditCore({ timeoutSeconds: e.target.value })}
-                        placeholder="Default"
-                      />
-                    </div>
+                    <p className="text-body text-fg-tertiary">
+                      Demo sources read built-in sample data; there is no connection or timeout to configure.
+                    </p>
                   ) : (
                     <>
                       <ConnectionCoreFields
@@ -756,6 +760,7 @@ function ConnectionsTab({ openDsId }: { openDsId?: string }) {
                         mode="edit"
                         secretSet={editingDs.password_set}
                         secretError={editErrors.secret}
+                        databricksAuth={editSettings.authType}
                         missing={editMissing}
                       />
                       <ConnectionSettingsFields
@@ -764,7 +769,7 @@ function ConnectionsTab({ openDsId }: { openDsId?: string }) {
                         value={editSettings}
                         onChange={patchEditSettings}
                         sslkeySet={editingDs.connection_settings?.sslkey_set ?? false}
-                        pemErrors={editErrors.pem}
+                        errors={editErrors.settings}
                       />
                     </>
                   )}
@@ -775,7 +780,9 @@ function ConnectionsTab({ openDsId }: { openDsId?: string }) {
               )}
             </DialogBody>
             <DialogFooter>
-              <Button type="button" variant="outline" onClick={() => editGuard.requestClose(closeEdit)}>Cancel</Button>
+              <DialogClose asChild>
+                <Button type="button" variant="outline">Cancel</Button>
+              </DialogClose>
               <Button type="submit" disabled={updateMut.isPending}>Save</Button>
             </DialogFooter>
           </form>
@@ -800,7 +807,7 @@ function ConnectionsTab({ openDsId }: { openDsId?: string }) {
       )}
 
       {/* isSuccess, not !isError: an in-flight fetch also has zero rows, and
-          offering "Add a database connection" to someone who already has
+          offering "Add a data source" to someone who already has
           connections is a claim the page cannot yet make. */}
       {dataSourcesQuery.isSuccess && dataSources.length === 0 && (
         <EmptyState
@@ -808,10 +815,10 @@ function ConnectionsTab({ openDsId }: { openDsId?: string }) {
           title="No data sources"
           description={
             publicDemo
-              ? 'This public demo runs on its demo projects; it connects to no warehouse of your own.'
+              ? 'This public demo runs on its demo projects; it connects to no data source of your own.'
               : canManageDataSources
-                ? 'Add a database connection to start scanning for events.'
-                : 'Data source connections are managed by owners.'
+                ? 'Add a data source to start scanning for events.'
+                : 'Data sources are managed by organization owners and admins.'
           }
           action={canAddConnection ? (
             <Button onClick={() => setShowForm(true)}>
@@ -954,11 +961,16 @@ function DataSourceCard({
             {statusLabel}
           </Chip>
         )}
-        {ds.is_synthetic ? <SyntheticSourceBadge /> : <Chip size="xs">{ds.db_type}</Chip>}
+        {/* The warehouse by name ("ClickHouse"), not its wire id. */}
+        {ds.is_synthetic ? <SyntheticSourceBadge /> : <Chip size="xs">{dbTypeLabel(ds.db_type)}</Chip>}
+        <DbTypePreviewChip dbType={ds.db_type} />
         {/* A late source or an overdue scan reading it (F16, #269). */}
         <DataSourceFreshnessChip ds={ds} />
         {ds.username && !isAthena && <Chip size="xs">{ds.username}</Chip>}
-        {ds.timeout_seconds != null && <Chip size="xs">timeout {ds.timeout_seconds}s</Chip>}
+        {/* The synthetic adapter ignores a timeout, so a demo source shows none. */}
+        {ds.timeout_seconds != null && !ds.is_synthetic && (
+          <Chip size="xs">timeout {ds.timeout_seconds}s</Chip>
+        )}
         {/* What reads this source, each scan a link to its page, so the
             delete's reach shows before its confirm. */}
         <UsedByScans ds={ds} />

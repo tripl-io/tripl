@@ -3,6 +3,8 @@ import { MemoryRouter, Route, Routes } from 'react-router-dom'
 import { describe, expect, it } from 'vitest'
 import ConceptsPage from './ConceptsPage'
 import { PRODUCT_PILLARS } from '@/components/workspace-welcome-pillars'
+import { CHANNEL_LABELS } from '@/lib/alertChannels'
+import { buildNavGroups } from '@/lib/navigation'
 
 function renderConcepts() {
   return render(
@@ -94,6 +96,9 @@ describe('ConceptsPage', () => {
       'Incidents',
       'In review',
       'Catalog and monitoring scans',
+      'Docs',
+      'Annotations',
+      'Duplicates',
     ]) {
       expect(screen.getByRole('heading', { name: term, level: 4 })).toBeInTheDocument()
     }
@@ -102,6 +107,59 @@ describe('ConceptsPage', () => {
       'href',
       '/settings/data-sources',
     )
+    expect(screen.getByRole('link', { name: 'Open Annotations in the app' })).toHaveAttribute(
+      'href',
+      '/p/demo/annotations',
+    )
+  })
+
+  it('defines every item the project sidebar shows, so the two cannot drift', () => {
+    // Docs, Annotations and Duplicates reached the sidebar without a glossary
+    // row; reading the nav model itself catches the next one.
+    renderConcepts()
+    for (const group of buildNavGroups('demo', undefined)) {
+      for (const item of group.items) {
+        expect(
+          screen.queryByRole('heading', { name: item.label, level: 4 }),
+          `sidebar item "${item.label}" has no glossary row`,
+        ).not.toBeNull()
+      }
+    }
+  })
+
+  it('names every alert destination, and the plan terms the way their pages do', () => {
+    renderConcepts()
+    // Prose, not the picker's labels, but checked against them: a channel added
+    // to CHANNEL_LABELS fails here until the glossary names it too.
+    const alerting = screen.getByText(/the destinations \(/)
+    for (const channel of Object.values(CHANNEL_LABELS)) {
+      expect(alerting.textContent ?? '').toMatch(new RegExp(channel, 'i'))
+    }
+    // Properties are typed ${name} placeholders, not free-standing constants,
+    // and relations join fields of event types, not events.
+    expect(screen.getByText(/reference as \$\{name\} placeholders/)).toBeInTheDocument()
+    expect(screen.queryByText(/thresholds, identifiers, constants/)).toBeNull()
+    expect(screen.getByText(/Declared joins between event types/)).toBeInTheDocument()
+  })
+
+  it('calls a no-alert window an expected window, and counts the data match in rows', () => {
+    renderConcepts()
+
+    // "Planned event" is the plan's own noun; an annotation window that mutes
+    // a spike is an expected window, as the Annotations page calls it.
+    expect(screen.getByText(/and expected windows: windows such as a campaign/)).toBeInTheDocument()
+    expect(screen.queryByText(/a note — and planned events/)).toBeNull()
+    // The data match counts warehouse rows, not catalog entries.
+    expect(screen.getByText(/occurrences \(warehouse rows\) that matched a planned event/)).toBeInTheDocument()
+    expect(screen.queryByText(/compares the plan with what actually arrives/)).toBeNull()
+  })
+
+  it('uses the app’s American spelling and teaches no event naming convention', () => {
+    const { container } = renderConcepts()
+    expect(container.textContent).not.toMatch(/colour|organis/i)
+    // The New event form dropped "checkout:completed" for teaching one naming
+    // convention; the glossary must not keep it alive.
+    expect(container.textContent).not.toContain('checkout:completed')
   })
 
   it('makes each concept-map chip a jump to its glossary row (#238)', () => {

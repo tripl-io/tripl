@@ -13,6 +13,7 @@ import type {
   HealthGrade,
   ProjectHealthTrendPoint,
 } from '@/types/health'
+import { countOf } from '@/lib/plural'
 
 /** The backend's thresholds (health_weights.py), for a score without a grade. */
 export const GRADE_HEALTHY_MIN = 80
@@ -117,7 +118,7 @@ export function healthDeltaTone(
 
 /** The breakdown's footnote when some components did not count. */
 export function renormalizedFootnote(applicableCount: number): string {
-  return `Weights renormalized over ${applicableCount} applicable component${applicableCount === 1 ? '' : 's'}`
+  return `Weights renormalized over ${countOf(applicableCount, 'applicable component', 'applicable components')}`
 }
 
 /** The six components in the fixed order, whatever order they arrived in. */

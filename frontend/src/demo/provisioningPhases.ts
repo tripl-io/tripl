@@ -17,7 +17,7 @@ export interface ProvisioningPhase {
 }
 
 export const PROVISIONING_PHASES: readonly ProvisioningPhase[] = [
-  { id: 'workspace', label: 'Creating workspace' },
+  { id: 'project', label: 'Creating project' },
   { id: 'events', label: 'Seeding events' },
   { id: 'metrics', label: 'Collecting metrics' },
   { id: 'monitors', label: 'Configuring monitors' },

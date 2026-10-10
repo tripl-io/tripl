@@ -2,12 +2,13 @@ import { act, fireEvent, render, screen, waitFor, within } from '@testing-librar
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { createElement, type ReactNode } from 'react'
 import { MemoryRouter, Route, Routes, useNavigate } from 'react-router-dom'
+import { ActiveProjectContext } from '@/components/active-project-context'
 import { AuthContext } from '@/components/auth-context'
 import { authAs } from '@/test/auth'
 import { ApiError } from '@/api/client'
 import { expectNoAxeViolations } from '@/test/axe'
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
-import type { DataSource, EventListItem, MetricDefinitionDetailResponse } from '@/types'
+import type { DataSource, EventListItem, MetricDefinitionDetailResponse, Project } from '@/types'
 import MetricEditPage, { MetricForm } from './MetricForm'
 
 vi.mock('@/api/metricsCatalog', () => ({
@@ -842,7 +843,7 @@ describe('MetricForm validation', () => {
     submit()
 
     expect(
-      (await screen.findAllByText('A measure column is required for the sum aggregation.')).length,
+      (await screen.findAllByText('A measure column is required for Sum.')).length,
     ).toBeGreaterThan(0)
     expect(metricsCatalogApi.create).not.toHaveBeenCalled()
   })
@@ -1548,6 +1549,7 @@ describe('MetricForm event picker', () => {
       expect(eventsApi.list).toHaveBeenCalledWith(
         'demo',
         expect.objectContaining({ search: 'event_24', limit: 100 }),
+        null,
       ),
     )
     await pickEvent('metric-numerator', 'event_245')
@@ -2272,5 +2274,78 @@ describe('MetricForm follow-ups', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Preview' }))
 
     expect(await screen.findByText(/No counts have been collected/)).toBeInTheDocument()
+  })
+})
+
+describe('MetricEditPage data sources of this project', () => {
+  // A brand-new project beside a demo one: the demo's synthetic warehouse is
+  // owned by the demo project, and the server refuses a SQL metric bound to it.
+  const PROJECT = { id: 'p-blank', slug: 'blank', can_mutate: true } as Project
+
+  function renderNewMetric(auth = authAs('member')) {
+    render(
+      createElement(
+        AuthContext.Provider,
+        { value: auth },
+        createElement(
+          ActiveProjectContext.Provider,
+          { value: PROJECT },
+          createElement(
+            MemoryRouter,
+            { initialEntries: ['/p/blank/metrics/new'] },
+            createElement(
+              Routes,
+              null,
+              createElement(Route, { path: '/p/:slug/metrics/new', element: createElement(MetricEditPage) }),
+            ),
+          ),
+        ),
+      ),
+      { wrapper },
+    )
+  }
+
+  it("does not offer another project's warehouse", async () => {
+    vi.mocked(dataSourcesApi.list).mockResolvedValue([
+      { id: 'ds-demo', name: 'Demo warehouse demo-0793b8', project_id: 'p-demo' },
+      { id: 'ds-shared', name: 'Shared warehouse', project_id: null },
+      { id: 'ds-own', name: 'Own warehouse', project_id: 'p-blank' },
+    ] as unknown as DataSource[])
+    renderNewMetric()
+
+    fireEvent.click(await screen.findByRole('radio', { name: /Custom SQL/ }))
+
+    const select = document.getElementById('metric-sql-data-source')!
+    expect([...select.querySelectorAll('option')].map(option => option.textContent)).toEqual([
+      'Select data source…',
+      'Shared warehouse',
+      'Own warehouse',
+    ])
+  })
+
+  it('says the project has none, and who can connect one, instead of an empty select', async () => {
+    vi.mocked(dataSourcesApi.list).mockResolvedValue([
+      { id: 'ds-demo', name: 'Demo warehouse demo-0793b8', project_id: 'p-demo' },
+    ] as unknown as DataSource[])
+    renderNewMetric()
+
+    fireEvent.click(await screen.findByRole('radio', { name: /Custom SQL/ }))
+
+    expect(screen.getByText(/No data source in this project yet/)).toBeInTheDocument()
+    expect(screen.getByText(/An owner has to connect one first/)).toBeInTheDocument()
+    expect(screen.queryByRole('link', { name: 'Connect one' })).toBeNull()
+    expect(document.querySelector('select#metric-sql-data-source')).toBeNull()
+  })
+
+  it('gives an owner the way to connect one', async () => {
+    vi.mocked(dataSourcesApi.list).mockResolvedValue([])
+    renderNewMetric(authAs('owner'))
+
+    fireEvent.click(await screen.findByRole('radio', { name: /Custom SQL/ }))
+
+    expect(screen.getByRole('link', { name: 'Connect one' })).toHaveAttribute(
+      'href',
+      expect.stringContaining('/settings/data-sources'),
+    )
   })
 })

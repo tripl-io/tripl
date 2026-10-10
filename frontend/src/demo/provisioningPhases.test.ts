@@ -4,7 +4,7 @@ import { PROVISIONING_PHASES, nextPhaseIndex } from './provisioningPhases'
 describe('provisioningPhases', () => {
   it('narrates the expected create phases in order', () => {
     expect(PROVISIONING_PHASES.map((phase) => phase.id)).toEqual([
-      'workspace',
+      'project',
       'events',
       'metrics',
       'monitors',

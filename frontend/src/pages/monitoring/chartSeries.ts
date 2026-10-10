@@ -162,7 +162,3 @@ export function selectBreakdownChartSeries(
     hiddenCount: Math.max(0, matching.length - BREAKDOWN_SERIES_CAP),
   }
 }
-
-export function formatPercent(value: number): string {
-  return `${(value * 100).toFixed(1)}%`
-}

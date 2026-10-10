@@ -1,14 +1,13 @@
-import { Link } from 'react-router-dom'
-import { settingsPath } from '@/lib/activeOrg'
 import { Database, Plus, ScanSearch } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { EmptyState } from '@/components/empty-state'
 import { ErrorState } from '@/components/error-state'
+import { ConnectDataSourceButton } from '@/components/first-scan-actions'
 import { SectionSkeleton } from '@/components/states'
 
 /** What setting up a scan involves, in the order the product asks for it. */
 const SETUP_STEPS = [
-  'Add a connection to your warehouse',
+  'Connect a data source',
   'Write the query the scan reads',
   'Preview what it would create, then create it',
 ] as const
@@ -67,7 +66,7 @@ export function FirstScanEmptyState({
     return (
       <ErrorState
         title="Could not load this project’s data sources"
-        description="A scan starts with a warehouse connection, and the list of connections did not load."
+        description="A scan starts with a data source, and the list of data sources did not load."
         error={dataSourcesError}
         onRetry={onRetryDataSources}
       />
@@ -78,25 +77,20 @@ export function FirstScanEmptyState({
     return (
       <EmptyState
         icon={Database}
-        title="Connect your warehouse to start scanning"
+        // The glossary's noun and the other empty states' button: this one said
+        // "warehouse", "connection" and "Add connection" for the same step.
+        title="Connect a data source to start scanning"
         description={
           isOwner
-            ? 'A scan reads a query from your warehouse into your tracking plan. It starts with a connection.'
-            : 'A scan reads a query from your warehouse into your tracking plan. An owner has to add the warehouse connection first.'
+            ? 'A scan reads a query from a data source into your tracking plan. It starts with connecting one.'
+            : 'A scan reads a query from a data source into your tracking plan. An owner has to connect a data source first.'
         }
         action={
           <div className="flex flex-col items-center gap-4">
             <SetupSteps from={1} />
             {/* Data sources are owner-only: anyone else gets the steps and no
                 button they cannot use. */}
-            {isOwner && (
-              <Button asChild size="lg">
-                <Link to={settingsPath('/settings/data-sources')}>
-                  <Plus className="size-4" aria-hidden="true" />
-                  Add connection
-                </Link>
-              </Button>
-            )}
+            {isOwner && <ConnectDataSourceButton />}
           </div>
         }
       />
@@ -109,15 +103,16 @@ export function FirstScanEmptyState({
       title={isOwner ? 'Create your first scan' : 'No scans yet'}
       description={
         isOwner
-          ? 'A scan reads a query from your warehouse into your tracking plan. You preview what it would create before you save it.'
+          ? 'A scan reads a query from a data source into your tracking plan. You preview what it would create before you save it.'
           : 'An owner creates scans. Once one exists, it is listed here with its runs.'
       }
       action={
         isOwner ? (
           <div className="flex flex-col items-center gap-4">
             <SetupSteps from={2} />
-            <Button size="lg" onClick={onNewScan}>
-              <Plus className="size-4" aria-hidden="true" />
+            {/* The size of every first-run step's button. */}
+            <Button size="sm" onClick={onNewScan}>
+              <Plus aria-hidden="true" />
               New scan
             </Button>
           </div>

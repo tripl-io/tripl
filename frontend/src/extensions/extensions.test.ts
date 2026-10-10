@@ -8,7 +8,7 @@ import {
   extensionRoutes,
   extensionSettingsSection,
 } from '.'
-import { ENTERPRISE_TEASERS, visibleTeasers, type EnterpriseTeaser } from './teasers'
+import { ENTERPRISE_TEASERS, enterpriseTeaserSection, visibleTeasers, type EnterpriseTeaser } from './teasers'
 
 const item = (id: string) => ({ id, label: id, icon: Lock, path: `organization/${id}` })
 
@@ -130,5 +130,46 @@ describe('Enterprise teasers', () => {
       ['x', 'Enterprise'],
       ['b', undefined],
     ])
+  })
+})
+
+describe('enterpriseTeaserSection', () => {
+  it('hands the Enterprise extension the teaser\'s placement and item, without the tag', () => {
+    const teaser = ENTERPRISE_TEASERS.find((entry) => entry.item.id === 'org-sso')
+    const section = enterpriseTeaserSection('org-sso')
+
+    expect(section.group).toBe('Organization')
+    expect(section.after).toBe('org-trackers')
+    expect(section).not.toHaveProperty('before')
+    expect(section.item).not.toHaveProperty('tag')
+    expect(section.item.label).toBe('Single sign-on')
+    expect(section.item.path).toBe('organization/sso')
+    expect(section.item.icon).toBe(teaser?.item.icon)
+    expect(section.item.keywords).toEqual(teaser?.item.keywords)
+    // Who sees the item stays the teaser's: an organization's owners and admins.
+    expect(section.item.ownerOnly).toBe(true)
+    // The teaser itself keeps its tag: Community still shows it.
+    expect(teaser?.item.tag).toBe('Enterprise')
+  })
+
+  it('keeps the console the platform admin\'s, ahead of Runtime', () => {
+    const section = enterpriseTeaserSection('platform-orgs')
+
+    expect(section.group).toBe('Platform')
+    expect(section.before).toBe('runtime')
+    expect(section).not.toHaveProperty('after')
+    expect(section.item.platformOnly).toBe(true)
+  })
+
+  it('places every Enterprise section where its teaser sits', () => {
+    for (const teaser of ENTERPRISE_TEASERS) {
+      const section = enterpriseTeaserSection(teaser.item.id)
+      expect([section.group, section.after, section.before]).toEqual([teaser.group, teaser.after, teaser.before])
+      expect({ ...section.item, tag: 'Enterprise' }).toEqual(teaser.item)
+    }
+  })
+
+  it('refuses an id no teaser has', () => {
+    expect(() => enterpriseTeaserSection('org-nope')).toThrow(/org-nope/)
   })
 })

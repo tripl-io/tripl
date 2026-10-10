@@ -3,7 +3,7 @@ import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { variablesApi } from '@/api/variables'
 import type { VariableType } from '@/types'
 import { Button } from '@/components/ui/button'
-import { Dialog, DialogBody, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+import { Dialog, DialogBody, DialogClose, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { ChipListInput } from '@/components/chip-list-input'
@@ -11,6 +11,7 @@ import { FieldError } from '@/components/forms/FieldError'
 import { examplePlaceholder } from '@/components/forms/placeholders'
 import { REQUIRED_MESSAGE, focusFirstInvalid, invalidAria } from '@/components/forms/validation'
 import { NativeSelect } from '@/components/settings/kit'
+import { useDirtySinceOpen } from '@/hooks/useUnsavedChangesGuard'
 import { SILENT_ERROR_META } from '@/lib/errorFeedback'
 import { projectKey, variablesKey } from '@/lib/queryKeys'
 import { getErrorMessage } from '@/lib/utils'
@@ -86,8 +87,11 @@ export function VariablesCreateDialog({
     },
   })
 
+  // Mounted only while open, so the first render's form is the baseline.
+  const dirty = useDirtySinceOpen(true, { name, varType, description, allowedValues, bindings })
+
   return (
-    <Dialog open onOpenChange={(open) => { if (!open) onClose() }}>
+    <Dialog open dirty={dirty} onOpenChange={(open) => { if (!open) onClose() }}>
       <DialogContent>
         {/* noValidate: the name rule is said inline, not as the browser's
             "Please match the requested format.". Only the body scrolls,
@@ -169,7 +173,9 @@ export function VariablesCreateDialog({
             {createMut.isError && <p className="text-body text-destructive">{getErrorMessage(createMut.error)}</p>}
           </DialogBody>
           <DialogFooter>
-            <Button type="button" variant="outline" onClick={onClose}>Cancel</Button>
+            <DialogClose asChild>
+              <Button type="button" variant="outline">Cancel</Button>
+            </DialogClose>
             <Button type="submit" disabled={createMut.isPending || invalidValues.length > 0}>Create</Button>
           </DialogFooter>
         </form>

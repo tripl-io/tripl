@@ -4,7 +4,6 @@ import { useSearchParams } from 'react-router-dom'
 import { dataSourcesApi } from '@/api/dataSources'
 import { projectsApi } from '@/api/projects'
 import { useAuth } from '@/components/auth-context'
-import { Chip } from '@/components/primitives/chip'
 import { MiniStat, MiniStatStrip } from '@/components/primitives/mini-stat'
 import { PageContainer } from '@/components/primitives/page-container'
 import { PageHeader } from '@/components/primitives/page-header'
@@ -23,9 +22,11 @@ import { useAutoStartDemo } from '@/demo/autoStartDemo'
 import { useDemoProvisioning } from '@/demo/useDemoProvisioning'
 import { forgetDemoLocalState, sweepOrphanedDemoLocalState } from '@/demo/demoLocalState'
 import { useConfirm } from '@/hooks/useConfirm'
+import { useOrgDefaultProjectRole } from '@/hooks/useOrgDefaultProjectRole'
 import { deleteProjectConfirmation } from '@/lib/projectDeletion'
 import { SILENT_ERROR_META } from '@/lib/errorFeedback'
 import { formatPlanCoverage } from '@/lib/coverage'
+import { formatNumber } from '@/lib/format'
 import { pluralize } from '@/lib/plural'
 import type { Project } from '@/types'
 import {
@@ -36,7 +37,7 @@ import {
   Sparkles,
 } from 'lucide-react'
 import { dataSourcesKey, projectKey, projectsKey, projectsQueryOptions } from '@/lib/queryKeys'
-import { canWrite, isOwner as isOwnerRole, useIsOrgOwner } from '@/lib/permissions'
+import { useCanWrite, useIsOrgOwner, useIsOwner } from '@/lib/permissions'
 import { usePublicDemo } from '@/lib/deploymentMode'
 import { AttentionStat, ProjectCard } from './ProjectsPageCards'
 import { CreateProjectDialog } from './ProjectsPageCreateDialog'
@@ -47,6 +48,10 @@ export default function MainPage() {
   const { user } = useAuth()
   const publicDemo = usePublicDemo()
   const ownsWorkspace = useIsOrgOwner()
+  // Both read the role in the organization the app acts in, not the default
+  // organization's that `user.role` carries.
+  const isOwner = useIsOwner()
+  const canCreateProject = useCanWrite()
   // `?new=1` opens the create dialog on arrival: the sidebar project
   // switcher's "New project" item lands here (#238).
   const [searchParams, setSearchParams] = useSearchParams()
@@ -128,7 +133,7 @@ export default function MainPage() {
   const isProvisioningDemo =
     provisioning.status === 'provisioning' || provisioning.status === 'cancelling'
 
-  // Every demo is an extra synthetic workspace inside the real roll-ups, so the
+  // Every demo is an extra synthetic project inside the real roll-ups, so the
   // second one asks first and points at Reset instead.
   //
   // At the cap the button is disabled with the reason beside it: the
@@ -168,8 +173,6 @@ export default function MainPage() {
       // figure it has not loaded.
       ? <StatValueSkeleton />
       : String(dataSourceCount)
-  const isOwner = isOwnerRole(user?.role)
-  const canCreateProject = canWrite(user?.role)
   // A public demo runs on demo projects only: generated, never blank.
   const canCreateBlank = canCreateProject && !publicDemo
   const canDeleteProject = isOwner
@@ -178,6 +181,16 @@ export default function MainPage() {
   // exists. Loading and error states render exactly as before.
   const isEmptyWorkspace =
     !projectsQuery.isLoading && !projectsQuery.isError && projects.length === 0
+  // The list holds only the projects the viewer may open. A member, where the
+  // organization's default project access is none, sees one only once added to
+  // it: their empty list says nothing about the team's. An owner or admin sees
+  // every project, and so does everyone where the default grants access. Only
+  // an empty list asks.
+  const defaultProjectRole = useOrgDefaultProjectRole({
+    enabled: isEmptyWorkspace && !isOwner && !publicDemo,
+  })
+  const memberSeesOnlyAddedProjects =
+    !isOwner && !publicDemo && defaultProjectRole === 'none'
   // A public demo's newcomer signed in for a demo of their own: in the empty
   // workspace that is theirs, the create starts by itself, once
   // (autoStartDemo.ts). Never on a list still being re-read — an empty one
@@ -269,7 +282,7 @@ export default function MainPage() {
 
       {isEmptyWorkspace && (
         <WorkspaceWelcome
-          canCreateProject={canCreateProject}
+          memberSeesOnlyAddedProjects={memberSeesOnlyAddedProjects}
           isProvisioningDemo={isProvisioningDemo}
           onGenerateDemo={() => void handleGenerateDemo()}
           onCreateProject={canCreateBlank ? () => setShowForm(true) : undefined}
@@ -309,9 +322,17 @@ export default function MainPage() {
                 // health signal — keep it neutral so 77% never reads as an error.
                 tone="neutral"
               />
+              {/* Every source the Data sources page lists, so the two agree; a
+                  demo's warehouse is said to be synthetic, since the getting-
+                  started step on the cards below counts only real ones. */}
               <MiniStat
                 label="Data sources"
                 value={dataSourceValue}
+                delta={
+                  dataSourcesQuery.isSuccess && dataSourceCount > realSourceCount
+                    ? `${formatNumber(dataSourceCount - realSourceCount)} synthetic`
+                    : undefined
+                }
                 tone={dataSourcesQuery.isError ? 'danger' : 'neutral'}
               />
               {/* "Automation 8 · 3 covered" was the only tile on the landing page
@@ -403,14 +424,12 @@ export default function MainPage() {
           </div>
 
           <section className="space-y-3">
-            <div className="flex items-end justify-between gap-3">
-              <div>
-                <h2 className="text-heading font-semibold tracking-tight">Project portfolio</h2>
-                <p className="text-caption text-fg-tertiary">
-                  Recently updated projects with planning, review, scan, and alerting coverage.
-                </p>
-              </div>
-              <Chip size="sm">{projects.length} tracked</Chip>
+            {/* No count chip: the Projects tile above already says how many. */}
+            <div>
+              <h2 className="text-heading font-semibold tracking-tight">Project portfolio</h2>
+              <p className="text-caption text-fg-tertiary">
+                Recently updated projects with planning, review, scan, and alerting coverage.
+              </p>
             </div>
 
             <div className="grid gap-3">

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import type { MonitoringSignal, SignalVerdict } from '@/types'
+import type { MonitoringSignal, SignalVerdictInfo } from '@/types'
 import {
   MUTE_OPTIONS,
   canClearVerdict,
@@ -26,6 +26,10 @@ function signal(over: Partial<MonitoringSignal> = {}): MonitoringSignal {
     direction: 'spike',
     scope_name: 'Signup',
     incident_child: false,
+    muted: false,
+    expected: false,
+    hidden: false,
+    attribution_status: 'not_computed',
     unit: null,
     detected_at: null,
     ...over,
@@ -71,7 +75,7 @@ describe('signal triage helpers', () => {
   })
 
   it('clears only a verdict the signal itself carries, not its incident\'s', () => {
-    const verdict: SignalVerdict = {
+    const verdict: SignalVerdictInfo = {
       verdict: 'real_issue',
       expected_reason: null,
       note: null,

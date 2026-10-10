@@ -804,7 +804,7 @@ describe('ScanFormSections — source scoping', () => {
     expect(screen.getByText('Catalog + monitoring')).toBeInTheDocument()
     expect(screen.getByText('event_ts')).toBeInTheDocument()
     expect(screen.getByText('Last 24 hours')).toBeInTheDocument()
-    expect(screen.getByText((5000).toLocaleString())).toBeInTheDocument()
+    expect(screen.getByText('5,000')).toBeInTheDocument()
     expect(screen.getByText('Instance default')).toBeInTheDocument()
     expect(screen.getByText('Home')).toBeInTheDocument()
     expect(screen.getByText('platform')).toBeInTheDocument()

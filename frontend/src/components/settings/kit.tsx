@@ -53,7 +53,8 @@ export function SHeader({
   /** The nav group, e.g. "Settings". */
   eyebrow?: string
   title: string
-  description?: string
+  /** Text, or text with a link in it (PageHeader takes either). */
+  description?: ReactNode
   actions?: ReactNode
 }) {
   return (
@@ -1003,7 +1004,7 @@ export function Panel({
 /**
  * The one save model for a settings page: a bar pinned to the top of
  * the scrolling pane with Discard and Save changes, so every page with a
- * draft saves the same way. It is Instance settings' bar, lifted out so Project
+ * draft saves the same way. It is the Platform pages' bar, lifted out so Project
  * General can drop its per-card footer Save buttons and use it too.
  *
  * Built on forms/SaveBar's `placement="top"`, so settings and authoring
@@ -1053,14 +1054,9 @@ export function SettingsSaveBar({
       <Button type="button" variant="outline" onClick={onDiscard} disabled={!dirty || pending}>
         Discard
       </Button>
-      <Button
-        type="button"
-        onClick={onSave}
-        disabled={!dirty || invalid || pending}
-        // A neutral surface when disabled: the default half-opacity teal
-        // read as an enabled button.
-        className="disabled:bg-[var(--bg-sunken)] disabled:text-[var(--fg-subtle)] disabled:opacity-100 disabled:shadow-none"
-      >
+      {/* Both buttons keep the shared disabled surface (button-variants.ts), so
+          with nothing to save neither one looks like the live action. */}
+      <Button type="button" onClick={onSave} disabled={!dirty || invalid || pending}>
         <Save className="h-3.5 w-3.5" aria-hidden="true" />
         {pending ? 'Saving...' : saveLabel}
       </Button>

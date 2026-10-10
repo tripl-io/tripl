@@ -13,23 +13,46 @@ export type DbType =
   | 'athena'
   | 'synthetic'
 
-export const DB_TYPE_OPTIONS: { value: DbType; label: string; defaultPort: number }[] = [
+export interface DbTypeOption {
+  value: DbType
+  /** The warehouse's name, never qualified: names and placeholders build on it. */
+  label: string
+  defaultPort: number
+  /**
+   * Not yet verified against a live warehouse: its live conformance suite has
+   * not passed. The type picker and the source's card say so. Removed once the
+   * suite passes.
+   */
+  preview?: boolean
+}
+
+export const DB_TYPE_OPTIONS: DbTypeOption[] = [
   { value: 'clickhouse', label: 'ClickHouse', defaultPort: 8123 },
   { value: 'postgres', label: 'PostgreSQL', defaultPort: 5432 },
   { value: 'bigquery', label: 'BigQuery', defaultPort: 0 },
   // Always HTTPS on 443; the form does not show a port for it.
   { value: 'databricks', label: 'Databricks', defaultPort: 443 },
   // Always HTTPS on 443, like Databricks.
-  { value: 'snowflake', label: 'Snowflake', defaultPort: 443 },
+  { value: 'snowflake', label: 'Snowflake', defaultPort: 443, preview: true },
   // Greenplum and Redshift speak the PostgreSQL protocol and take its settings.
   { value: 'greenplum', label: 'Greenplum', defaultPort: 5432 },
-  { value: 'redshift', label: 'Amazon Redshift', defaultPort: 5439 },
+  { value: 'redshift', label: 'Amazon Redshift', defaultPort: 5439, preview: true },
   // Trino / Starburst coordinator: HTTPS on 443 by default (8080 for a local,
   // unauthenticated one over HTTP).
-  { value: 'trino', label: 'Trino / Starburst', defaultPort: 443 },
+  { value: 'trino', label: 'Trino / Starburst', defaultPort: 443, preview: true },
   // The Athena API is HTTPS on 443; the host field holds the AWS region.
-  { value: 'athena', label: 'Amazon Athena', defaultPort: 443 },
+  { value: 'athena', label: 'Amazon Athena', defaultPort: 443, preview: true },
 ]
+
+/** The warehouse's display name ("ClickHouse"), or the raw type for one the list lacks. */
+export function dbTypeLabel(dbType: DbType): string {
+  return DB_TYPE_OPTIONS.find(option => option.value === dbType)?.label ?? dbType
+}
+
+/** Whether this warehouse's connector is still in preview (see {@link DbTypeOption.preview}). */
+export function isPreviewDbType(dbType: DbType): boolean {
+  return DB_TYPE_OPTIONS.some(option => option.value === dbType && option.preview === true)
+}
 
 export type DataSourceTestStatus = 'success' | 'failed'
 

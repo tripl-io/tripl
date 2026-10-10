@@ -138,6 +138,16 @@ describe('FactTablesList', () => {
     const links = await screen.findAllByRole('link', { name: /New fact table/ })
     expect(links[0]).toHaveAttribute('href', '/p/demo/metrics/fact-tables/new')
   })
+
+  it('shows no strip of zeroes over the empty state', async () => {
+    mockList({ items: [], total: 0 })
+
+    renderList()
+
+    expect(await screen.findByText('No fact tables yet')).toBeInTheDocument()
+    expect(screen.queryByText('Sources in use')).toBeNull()
+    expect(screen.queryByText('Tables in use')).toBeNull()
+  })
 })
 
 describe('FactTablesList data source column', () => {

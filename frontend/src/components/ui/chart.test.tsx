@@ -1245,7 +1245,7 @@ describe('planned events on the chart (F18)', () => {
       />,
     )
 
-    expect(screen.getByTestId('planned-window')).toHaveTextContent('Planned: Spring promo')
+    expect(screen.getByTestId('planned-window')).toHaveTextContent('Expected window: Spring promo')
   })
 })
 

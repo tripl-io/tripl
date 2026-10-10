@@ -4,8 +4,7 @@
  * address.
  */
 
-import { orgStorageKey } from '@/lib/activeOrg'
-export const LAST_PROJECT_SLUG_KEY = 'tripl-last-project-slug'
+import { LAST_PROJECT_SLUG_KEY, orgStorageKey } from '@/lib/activeOrg'
 
 /**
  * Forget the remembered project when it is `slug`. A project the server

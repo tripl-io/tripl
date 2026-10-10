@@ -1,6 +1,5 @@
 import { api, withBranch } from './client'
 import type {
-  AnomalyAttributionResponse,
   AppVersionAdoptionResponse,
   AppVersionSeriesResponse,
   BreakdownTimeline,
@@ -17,7 +16,6 @@ import type {
   SignalSeriesScope,
   SignalTriageScope,
   SignalTriageState,
-  SignalVerdictCounts,
   SignalVerdictRequest,
   TopEvent,
   TopMoverItem,
@@ -171,15 +169,6 @@ export const eventMetricsApi = {
 
   clearSignalVerdict: (slug: string, scope: SignalTriageScope) =>
     api.del<void>(`/projects/${slug}/signals/verdict?${triageQuery(scope, true)}`),
-
-  getSignalVerdictCounts: (slug: string) =>
-    api.get<SignalVerdictCounts>(`/projects/${slug}/signals/verdict-counts`),
-
-  /** Why a stored anomaly changed (#255), for a surface whose payload does not inline it. */
-  getAnomalyAttribution: (slug: string, anomalyId: string) =>
-    api.get<AnomalyAttributionResponse>(
-      `/projects/${slug}/anomalies/${encodeURIComponent(anomalyId)}/attribution`,
-    ),
 
   getTopMovers: (
     slug: string,

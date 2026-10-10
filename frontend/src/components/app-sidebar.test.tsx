@@ -301,7 +301,7 @@ describe('AppSidebar', () => {
 
     fireEvent.keyDown(screen.getByRole('button', { name: /^Account menu/ }), { key: 'Enter' })
     expect(await screen.findByRole('menuitem', { name: 'Sign out' })).toBeInTheDocument()
-    expect(screen.getByRole('menuitem', { name: 'Workspace settings' })).toBeInTheDocument()
+    expect(screen.getByRole('menuitem', { name: 'Settings' })).toBeInTheDocument()
     expect(screen.getByRole('menuitem', { name: 'Appearance' })).toBeInTheDocument()
   })
 
@@ -457,7 +457,7 @@ describe('AppSidebar shell review (#238)', () => {
 
     // No loose gear / sign-out icons beside the user any more.
     expect(screen.queryByRole('button', { name: 'Sign out' })).toBeNull()
-    expect(screen.queryByRole('link', { name: 'Workspace settings' })).toBeNull()
+    expect(screen.queryByRole('link', { name: 'Settings' })).toBeNull()
     // Appearance stays one click away.
     expect(screen.getByRole('button', { name: 'Appearance' })).toBeInTheDocument()
 
@@ -466,7 +466,12 @@ describe('AppSidebar shell review (#238)', () => {
       'href',
       '/settings/profile',
     )
-    expect(screen.getByRole('menuitem', { name: 'Workspace settings' })).toHaveAttribute('href', '/settings')
+    expect(screen.getByRole('menuitem', { name: 'Settings' })).toHaveAttribute('href', '/settings')
+    // The docs site, from every page: the Concepts glossary is project-scoped
+    // and has no link out to it.
+    const docs = screen.getByRole('menuitem', { name: 'Documentation (opens in a new tab)' })
+    expect(docs).toHaveAttribute('href', 'https://docs.tripl.io')
+    expect(docs).toHaveAttribute('target', '_blank')
     expect(screen.getByRole('menuitem', { name: 'Sign out' })).toBeInTheDocument()
   })
 

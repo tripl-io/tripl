@@ -49,6 +49,7 @@ import { SearchVariantCount, SearchVariantRows } from '@/components/search-varia
 import { PROJECT_GROUPS, WORKSPACE_GROUPS, itemVisible } from '@/components/settings/nav'
 import { useTheme } from '@/components/theme-provider'
 import { eventNameLabel } from '@/lib/eventName'
+import { DOCS_SITE_URL } from '@/lib/docsSite'
 import { buildNavGroups, currentOrgSlug, projectHomePath, projectPath, settingsPath, switchProjectPath, withActiveOrg, workspacePath } from '@/lib/navigation'
 import { isOnboardingDismissed, setOnboardingDismissed } from '@/lib/onboardingDismissal'
 import { useBranchContext, useBranchLinkProps } from '@/hooks/useBranch'
@@ -68,7 +69,7 @@ import {
   projectsQueryOptions,
 } from '@/lib/queryKeys'
 import { SILENT_ERROR_META } from '@/lib/errorFeedback'
-import { canWrite, isOwner as isOwnerRole, isPlatformAdmin as isPlatformAdminUser } from '@/lib/permissions'
+import { canWriteProject, isOwner as isOwnerRole, isPlatformAdmin as isPlatformAdminUser } from '@/lib/permissions'
 import { usePublicDemo } from '@/lib/deploymentMode'
 
 
@@ -175,7 +176,7 @@ interface PaletteRow {
    * name of a renamed page ("Schema & fields"), or what a settings section
    * holds ("timezone" for General) (#238).
    */
-  keywords?: string[]
+  keywords?: readonly string[]
   icon: PaletteIcon
   iconColor?: string
   active?: boolean
@@ -277,7 +278,10 @@ const STALE_RESULT_OPACITY = 0.55
 const NAV_KEYWORDS: Record<string, string[]> = {
   overview: ['live activity', 'home', 'dashboard', 'kpi'],
   schema: ['schema & fields', 'schema', 'custom properties'],
-  alerting: ['monitors', 'alert rules', 'incidents', 'inbox', 'destinations'],
+  // The destinations by name too: a PagerDuty or Slack destination is set up
+  // on this page in every edition, so "pagerduty" must not find only the
+  // Enterprise escalation settings.
+  alerting: ['monitors', 'alert rules', 'incidents', 'inbox', 'destinations', 'slack', 'telegram', 'teams', 'pagerduty', 'webhook'],
   anomalies: ['signals', 'spikes', 'drops'],
   metrics: ['fact tables', 'kpi'],
   scans: ['data source', 'sql'],
@@ -290,40 +294,11 @@ const NAV_KEYWORDS: Record<string, string[]> = {
 /**
  * Settings rows whose rail label collides with a project page in the same
  * list: the project's Govern › Audit log is filtered to the project, the
- * instance one is not.
+ * organization's is not. The settings palette lists no project pages, so it
+ * keeps the rail label.
  */
 const SETTINGS_LABEL: Record<string, string> = {
-  'inst-audit': 'Instance audit log',
-}
-
-/** What each settings section holds, keyed by settings/nav.ts item id. */
-const SETTINGS_KEYWORDS: Record<string, string[]> = {
-  general: ['timezone', 'slug', 'rename', 'project name'],
-  'plan-rules': ['naming', 'rules'],
-  members: ['users', 'roles', 'invite', 'team'],
-  sources: [
-    'database',
-    'connection',
-    'warehouse',
-    'clickhouse',
-    'postgres',
-    'greenplum',
-    'redshift',
-    'trino',
-    'starburst',
-    'athena',
-  ],
-  apikeys: ['api key', 'token', 'tracker'],
-  profile: ['name', 'email', 'avatar'],
-  security: ['password', 'sessions', 'sign in'],
-  runtime: ['workers', 'jobs', 'celery'],
-  email: ['smtp', 'mail'],
-  ai: ['openai', 'llm', 'embeddings', 'model'],
-  'inst-security': ['registration', 'sign up', 'access'],
-  storage: ['retention', 'files', 'photos'],
-  observability: ['logs', 'metrics', 'tracing'],
-  system: ['version', 'health'],
-  'inst-audit': ['audit log', 'history'],
+  'inst-audit': 'Organization audit log',
 }
 
 /**
@@ -570,7 +545,7 @@ export default function CommandPalette({
     path: string,
     label: string,
     icon: PaletteIcon,
-    keywords?: string[],
+    keywords?: readonly string[],
   ): PaletteRow => ({
     value: paletteValue.nav(path),
     label,
@@ -582,7 +557,10 @@ export default function CommandPalette({
   const isOwner = isOwnerRole(auth.user?.role)
   const isPlatformAdmin = isPlatformAdminUser(auth.user)
   const publicDemo = usePublicDemo()
-  const canEdit = canWrite(auth.user?.role)
+  // Read-only is a project matter (a viewer member), so the create actions ask
+  // about the palette's own resolved project, which may come from the projects
+  // list when the shell's context names no project yet.
+  const canEdit = canWriteProject(auth.user, activeProject)
 
   // Workspace destinations: the portfolio, then every settings section the
   // role can open, built from the settings rail's own model so the palette
@@ -606,15 +584,23 @@ export default function CommandPalette({
         const label = group.label === 'Project'
           ? `Project settings: ${item.label}`
           : (SETTINGS_LABEL[item.id] ?? item.label)
-        // The rail's own keywords too, so the palette finds what the settings
-        // palette finds ("dark mode", "delete project"), plus the extra words
-        // kept here.
-        const keywords = [...(item.keywords ?? []), ...(SETTINGS_KEYWORDS[item.id] ?? [])]
-        return navRow(path, label, item.icon, keywords.length > 0 ? keywords : undefined)
+        // The rail's own keywords, and only those: both palettes find a
+        // section by the same words ("dark mode", "version").
+        return navRow(path, label, item.icon, item.keywords)
       }),
   )
   const navigateRows: PaletteRow[] = [
     navRow(workspacePath(), 'All projects', LayoutDashboard, ['portfolio', 'workspace']),
+    // The docs site, in a new tab, from anywhere: Concepts is the in-app
+    // glossary, project-scoped, and links nowhere outside the app.
+    {
+      value: paletteValue.action('open-docs'),
+      label: 'Documentation',
+      hint: 'Opens in a new tab',
+      keywords: ['docs', 'documentation', 'help', 'manual'],
+      icon: BookOpen,
+      onSelect: () => runCommand(() => window.open(DOCS_SITE_URL, '_blank', 'noopener,noreferrer')),
+    },
     ...settingsRows,
   ]
 
@@ -744,7 +730,8 @@ export default function CommandPalette({
         ]
 
   // Commands, not places (#238): a common task can be started from the
-  // keyboard. Create actions only for a role that can create. "New branch" and
+  // keyboard. Create actions only where the reader can edit this project; a
+  // viewer member would land on a refusal. "New branch" and
   // "Invite member" open their forms (`?new=1`, `?invite=1`), not just the page
   // the form lives on.
   const actionRows: PaletteRow[] = [
@@ -1125,7 +1112,7 @@ export default function CommandPalette({
                   value={paletteValue.ai()}
                   onSelect={() => handleAskAi(debouncedQuery)}
                   icon={Sparkles}
-                  label={`Ask AI: «${debouncedQuery}»`}
+                  label={`Ask AI: “${debouncedQuery}”`}
                 />
               </Group>
             )}

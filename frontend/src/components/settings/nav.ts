@@ -25,6 +25,7 @@ import {
   type ExtensionSettingsSection,
 } from '@/extensions'
 import { stripOrgPrefix } from '@/lib/activeOrg'
+import { PLATFORM_SECTION_LABELS, platformSectionPath } from './platform-sections'
 
 /**
  * Navigation model for the full-takeover Settings area. Two top-level contexts
@@ -47,16 +48,9 @@ export type SettingsNavItem = {
    */
   ownerOnly?: boolean
   /**
-   * An organization-scoped INSTANCE settings section (runtime, email, AI,
-   * storage): `/settings` admits a platform admin as well as an org owner or
-   * admin (backend `get_settings_admin_user`), so it shows for either. Only
-   * meaningful next to `ownerOnly`.
-   */
-  settingsAdmin?: boolean
-  /**
-   * An operator-only section (security, observability, system): shown only to
-   * a platform admin (backend `require_platform_admin`), whatever their
-   * organization role. Wins over `ownerOnly`.
+   * An operator's section (the Platform group, the platform console): shown
+   * only to a platform admin, whatever their organization role. Wins over
+   * `ownerOnly`.
    */
   platformOnly?: boolean
   /**
@@ -74,10 +68,10 @@ export type SettingsNavItem = {
    */
   tag?: string
   /**
-   * A section built around a wide table (members, keys, the audit log, the
-   * platform console): its content column widens to the room there is instead
-   * of the narrow form width every other section shares, so columns are not
-   * cut off behind a horizontal scroll on a wide screen.
+   * A section built around a wide table (data sources, API keys, the audit
+   * log, the platform console): its content column widens to the room there
+   * is instead of the narrow form width every other section shares, so
+   * columns are not cut off behind a horizontal scroll on a wide screen.
    */
   wide?: boolean
   /**
@@ -121,7 +115,6 @@ export const PROJECT_GROUPS: SettingsNavGroup[] = [
         label: 'Access',
         icon: UserCog,
         path: 'project/members',
-        wide: true,
         keywords: ['members', 'people', 'team', 'roles', 'add member', 'permissions', 'who can see'],
       },
       {
@@ -160,24 +153,22 @@ const CORE_WORKSPACE_GROUPS: SettingsNavGroup[] = [
         label: 'Members',
         icon: Users,
         path: 'members',
-        wide: true,
-        keywords: ['users', 'people', 'roles', 'team', 'remove member', 'transfer ownership'],
+        keywords: ['users', 'people', 'roles', 'team', 'invite', 'remove member', 'transfer ownership'],
       },
-      // Named sets of members (F20): note sharing and owner routing will name
-      // them. Everyone reads them; owners and admins manage them.
+      // Named sets of members (F20): a Docs note can be shared with one, and
+      // Enterprise escalation policies name them too. Everyone reads them;
+      // owners and admins manage them.
       {
         id: 'groups',
         label: 'Groups',
         icon: Users,
         path: 'organization/groups',
-        wide: true,
       },
       {
         id: 'invitations',
         label: 'Invitations',
         icon: UserPlus,
         path: 'invitations',
-        wide: true,
         ownerOnly: true,
         keywords: ['invite', 'add member', 'revoke'],
       },
@@ -187,7 +178,7 @@ const CORE_WORKSPACE_GROUPS: SettingsNavGroup[] = [
         icon: Database,
         path: 'data-sources',
         wide: true,
-        keywords: ['warehouse', 'connection', 'clickhouse', 'postgres', 'bigquery', 'databricks', 'snowflake', 'greenplum', 'redshift', 'trino', 'starburst', 'athena', 'credentials'],
+        keywords: ['warehouse', 'database', 'connection', 'clickhouse', 'postgres', 'bigquery', 'databricks', 'snowflake', 'greenplum', 'redshift', 'trino', 'starburst', 'athena', 'credentials'],
       },
       {
         id: 'apikeys',
@@ -219,12 +210,16 @@ const CORE_WORKSPACE_GROUPS: SettingsNavGroup[] = [
         refusedOnPublicDemo: true,
       },
       {
+        // "Semantic search", not "Search": the page sets the embeddings the
+        // organization's search runs on, and the same group lists the
+        // Enterprise "Search projects", which is a search tool, not a setting.
         id: 'org-search',
-        label: 'Search',
+        label: 'Semantic search',
         icon: Search,
         path: 'organization/search',
         ownerOnly: true,
         refusedOnPublicDemo: true,
+        keywords: ['embeddings', 'vector'],
       },
       {
         // "Photos", not "Storage": the Platform group's "Storage" is the
@@ -243,6 +238,7 @@ const CORE_WORKSPACE_GROUPS: SettingsNavGroup[] = [
         path: 'organization/trackers',
         ownerOnly: true,
         refusedOnPublicDemo: true,
+        keywords: ['jira', 'linear', 'tickets'],
       },
       {
         id: 'org-limits',
@@ -264,9 +260,9 @@ const CORE_WORKSPACE_GROUPS: SettingsNavGroup[] = [
         label: 'Profile',
         icon: User,
         path: 'profile',
-        keywords: ['name', 'email', 'account', 'appearance', 'theme', 'dark mode'],
+        keywords: ['name', 'email', 'avatar', 'account', 'appearance', 'theme', 'dark mode'],
       },
-      // "Password & sessions", not "Security": the Instance group has its own
+      // "Password & sessions", not "Security": the Platform group has its own
       // "Security & access", and two items called Security one group apart
       // read as the same page (#238).
       {
@@ -274,7 +270,7 @@ const CORE_WORKSPACE_GROUPS: SettingsNavGroup[] = [
         label: 'Password & sessions',
         icon: Lock,
         path: 'security',
-        keywords: ['security', 'password', 'sign out'],
+        keywords: ['security', 'sign in', 'sign out'],
       },
     ],
   },
@@ -285,63 +281,68 @@ const CORE_WORKSPACE_GROUPS: SettingsNavGroup[] = [
     label: 'Platform',
     sub: 'Platform admin',
     desc: 'Server-wide settings',
+    // Labels and paths from platform-sections.ts, which imports nothing, so
+    // the Platform pages can take their names from the same copy.
     items: [
       // The console (every organization and account on the instance) is the
       // Enterprise edition's: its items come before Runtime (extensions/teasers.ts).
       {
         id: 'runtime',
-        label: 'Runtime',
+        label: PLATFORM_SECTION_LABELS.runtime,
         icon: Cpu,
-        path: 'instance/runtime',
+        path: platformSectionPath('runtime'),
         platformOnly: true,
+        keywords: ['base url', 'row limit', 'telemetry'],
       },
       {
-        // Named apart from Organization › Email: this one carries account mail
-        // (sign-up, password reset, invitations) and is every organization's
-        // default relay.
         id: 'email',
-        label: 'Mail relay',
+        label: PLATFORM_SECTION_LABELS.email,
         icon: Mail,
-        path: 'instance/email',
+        path: platformSectionPath('email'),
         platformOnly: true,
         keywords: ['smtp', 'email'],
       },
       {
         id: 'ai',
-        label: 'AI & search',
+        label: PLATFORM_SECTION_LABELS.ai,
         icon: Sparkles,
-        path: 'instance/ai',
+        path: platformSectionPath('ai'),
         platformOnly: true,
-        keywords: ['llm', 'embeddings'],
+        keywords: ['llm', 'openai', 'model', 'embeddings'],
       },
       {
         id: 'inst-security',
-        label: 'Security & access',
+        label: PLATFORM_SECTION_LABELS.security,
         icon: Shield,
-        path: 'instance/security',
+        path: platformSectionPath('security'),
         platformOnly: true,
-        keywords: ['registration', 'sign up', 'access'],
+        keywords: ['registration', 'sign up', 'sessions', 'cors', 'rate limit'],
       },
       {
+        // Event photos are all this page stores, and nothing on it expires:
+        // no "retention" here.
         id: 'storage',
-        label: 'Storage',
+        label: PLATFORM_SECTION_LABELS.storage,
         icon: Archive,
-        path: 'instance/storage',
+        path: platformSectionPath('storage'),
         platformOnly: true,
+        keywords: ['photos', 'files', 'gcs', 'bucket'],
       },
       {
         id: 'observability',
-        label: 'Observability',
+        label: PLATFORM_SECTION_LABELS.observability,
         icon: Activity,
-        path: 'instance/observability',
+        path: platformSectionPath('observability'),
         platformOnly: true,
+        keywords: ['logs', 'metrics', 'prometheus', 'tracing', 'opentelemetry'],
       },
       {
         id: 'system',
-        label: 'System',
+        label: PLATFORM_SECTION_LABELS.system,
         icon: Server,
-        path: 'instance/system',
+        path: platformSectionPath('system'),
         platformOnly: true,
+        keywords: ['version', 'health', 'migration', 'celery', 'redis'],
       },
     ],
   },
@@ -384,12 +385,32 @@ export const SETTINGS_NAV: Record<SettingsContext, SettingsNavGroup[]> = {
   workspace: WORKSPACE_GROUPS,
 }
 
-export const SETTINGS_STORAGE_KEY = 'tripl.settings'
-
-/** First section path for a context (used when switching context). */
-export function firstSectionPath(ctx: SettingsContext): string {
-  return SETTINGS_NAV[ctx][0]?.items[0]?.path ?? ''
+/**
+ * `/settings/<x>` addresses from before the takeover, each the section path it
+ * now redirects to: the instance sections that moved under `instance/`, and two
+ * renamed ones. App.tsx routes them from this map, and the browser tab names
+ * the redirect's one frame after where it lands rather than "Page not found".
+ */
+export const LEGACY_SETTINGS_REDIRECTS: Readonly<Record<string, string>> = {
+  runtime: 'instance/runtime',
+  ai: 'instance/ai',
+  email: 'instance/email',
+  storage: 'instance/storage',
+  observability: 'instance/observability',
+  system: 'instance/system',
+  users: 'members',
+  account: 'profile',
 }
+
+/**
+ * The section families routed as `/settings/<family>/:sub`: the area answers
+ * any section there, redirecting one it does not have to a page of the family.
+ * The project family is not one — its sections are routed one by one, and any
+ * other `project/<x>` is a 404.
+ */
+export const SETTINGS_SUB_ROUTED_FAMILIES = ['organization', 'instance', 'platform'] as const
+
+export const SETTINGS_STORAGE_KEY = 'tripl.settings'
 
 /**
  * The settings section a URL points at, or `null` when it points outside the
@@ -459,23 +480,22 @@ export function contextForPath(path: string): SettingsContext {
  * Whether a section is shown to this caller (F20 PR4).
  *
  * `isOwner` is an owner or admin of the organization; `isPlatformAdmin` the
- * operator flag. A platform-only section needs the flag; an org-scoped instance
- * section takes either; any other owner-only section takes the org role. On a
- * public demo (`publicDemo`) a section the demo refuses is nobody's.
+ * operator flag. A platform-only section needs the flag; an owner-only one
+ * takes the org role. On a public demo (`publicDemo`) a section the demo
+ * refuses is nobody's.
  */
 export function itemVisible(
-  item: Pick<SettingsNavItem, 'ownerOnly' | 'settingsAdmin' | 'platformOnly' | 'refusedOnPublicDemo'>,
+  item: Pick<SettingsNavItem, 'ownerOnly' | 'platformOnly' | 'refusedOnPublicDemo'>,
   isOwner: boolean,
   isPlatformAdmin = false,
   publicDemo = false,
 ): boolean {
   if (publicDemo && item.refusedOnPublicDemo) return false
   if (item.platformOnly) return isPlatformAdmin
-  if (!item.ownerOnly) return true
-  return isOwner || (item.settingsAdmin === true && isPlatformAdmin)
+  return !item.ownerOnly || isOwner
 }
 
-/** Group the visible workspace groups for a role (drops the Instance sections it cannot use). */
+/** The groups of a context with the sections this caller may open; a group left empty is dropped. */
 export function visibleGroups(
   ctx: SettingsContext,
   isOwner: boolean,

@@ -195,8 +195,11 @@ describe('ReconciliationPage', () => {
     expect(screen.getByText('Data match')).toBeInTheDocument()
     expect(screen.getByText('occurrences matched')).toBeInTheDocument()
     // The headline carries an inline clarifier so it can't be misread as the
-    // Coverage page's plan-coverage KPI — they measure different things.
-    expect(screen.getByTitle(/tracked event occurrences in warehouse data/i)).toBeInTheDocument()
+    // Coverage page's plan-coverage KPI — they measure different things. An
+    // info tip a keyboard can reach, not a `title` only a mouse could.
+    expect(
+      screen.getByRole('button', { name: /tracked event occurrences in warehouse data/i }),
+    ).toBeInTheDocument()
     expect(screen.queryByText('data-match coverage')).not.toBeInTheDocument()
     expect(
       screen.getByText(
@@ -1138,5 +1141,29 @@ describe('ReconciliationPage design review (#248)', () => {
     )
     const newTab = screen.getByRole('button', { name: 'New 1' })
     expect(within(newTab).getByText('1')).toHaveAttribute('data-tone', 'warning')
+  })
+
+  // At 390px the checkbox, the name, the type chip and both buttons shared one
+  // line, and the scan, count and samples toggle squeezed into a ~90px column.
+  it('lets a shadow row put its type and actions under the name on a phone', async () => {
+    mockWith(coverage, dead, {
+      ...shadowNew,
+      items: [{
+        ...at(shadowNew.items, 0),
+        event_type_id: 'et-1',
+        event_type_name: 'screen',
+        sample_properties: [{ color: 'red' }],
+      }],
+    })
+    renderPage()
+
+    const chip = await screen.findByText('type: screen')
+    const group = chip.parentElement as HTMLElement
+    // The type and the actions move together, onto a line of their own.
+    expect(group).toContainElement(screen.getByRole('button', { name: 'Accept' }))
+    expect(group).toHaveClass('max-sm:w-full', 'max-sm:justify-between')
+    expect(group.parentElement).toHaveClass('flex-wrap', 'sm:flex-nowrap')
+    // The toggle never wraps away from the "·" drawn inside it.
+    expect(screen.getByRole('button', { name: 'Show 1 sample' })).toHaveClass('whitespace-nowrap')
   })
 })

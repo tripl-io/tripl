@@ -5,6 +5,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { AuthUser, ProjectLatestScanJob, ProjectSummary, Role } from '@/types'
 import { AuthContext, type AuthContextValue } from './auth-context'
 import { OnboardingChecklist } from './onboarding-checklist'
+import { setOnboardingDismissed } from '@/lib/onboardingDismissal'
 import { countRealSources } from './onboarding-utils'
 import { type Persona } from '@/test/persona'
 import { PersonaProject } from '@/test/PersonaProject'
@@ -159,6 +160,18 @@ describe('OnboardingChecklist collapse and recovery', () => {
     }
     expect(options.action.label).toBe('Undo')
     act(() => options.action.onClick())
+    expect(screen.getByText('4 of 5')).toBeInTheDocument()
+  })
+
+  it('comes back when something else brings it back, as the palette does', () => {
+    // "Show getting started" in search writes the flag and navigates to the
+    // Overview the reader may already be on: the card has to follow the write,
+    // not wait for a remount.
+    renderChecklist({ ...nearlyDoneProps(), projectId: 'project-1' })
+    fireEvent.click(screen.getByRole('button', { name: /dismiss/i }))
+    expect(screen.queryByText('4 of 5')).not.toBeInTheDocument()
+
+    act(() => setOnboardingDismissed('demo', 'project-1', false))
     expect(screen.getByText('4 of 5')).toBeInTheDocument()
   })
 

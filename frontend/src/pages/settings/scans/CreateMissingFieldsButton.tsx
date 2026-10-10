@@ -7,7 +7,7 @@ import { ErrorState } from '@/components/error-state'
 import { isJsonPreviewType } from './scanUtils'
 import { projectEventTypesKey } from '@/lib/queryKeys'
 import { SILENT_ERROR_META } from '@/lib/errorFeedback'
-import { countOf } from '@/lib/plural'
+import { countOf, pluralize } from '@/lib/plural'
 
 /**
  * Declares the columns a run would skip as fields on the scan's event type.
@@ -88,15 +88,14 @@ export function CreateMissingFieldsButton({
     const previewColumn = preview.columns.find(candidate => candidate.name === column)
     return previewColumn && isJsonPreviewType(previewColumn.type_name) ? 'json' : 'string'
   }
-  const plural = remaining.length === 1 ? '' : 's'
 
   return (
     <div className="space-y-2">
       {createdNote}
       <div className="flex items-center justify-between gap-3 rounded-md border border-dashed bg-muted/10 px-3 py-2">
         <p className="text-body-sm text-fg-tertiary">
-          Add {remaining.length === 1 ? 'it' : 'them'} to
-          {' '}"{eventType.display_name}" and runs will collect {remaining.length === 1 ? 'it' : 'them'} instead.
+          Add {pluralize(remaining.length, 'it', 'them')} to
+          {' '}"{eventType.display_name}" and runs will collect {pluralize(remaining.length, 'it', 'them')} instead.
         </p>
         <Button
           type="button"
@@ -113,7 +112,7 @@ export function CreateMissingFieldsButton({
             )
           }
         >
-          {mutation.isPending ? 'Creating…' : `Create ${remaining.length} field${plural}`}
+          {mutation.isPending ? 'Creating…' : `Create ${countOf(remaining.length, 'field', 'fields')}`}
         </Button>
       </div>
       {mutation.isError && (

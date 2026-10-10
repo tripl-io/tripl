@@ -83,7 +83,8 @@ function mockApi(options: { patchStatus?: number } = {}) {
         )
       }
       if (url.endsWith('/api/v1/users/invitations')) return Promise.resolve(jsonResponse([]))
-      if (url.endsWith('/api/v1/users')) return Promise.resolve(jsonResponse(USERS))
+      // The roster is read in pages: `/users?limit=…&offset=…`.
+      if (url.startsWith('/api/v1/users?')) return Promise.resolve(jsonResponse(USERS))
       return Promise.reject(new Error(`Unexpected request: ${method} ${url}`))
     },
   )

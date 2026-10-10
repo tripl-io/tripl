@@ -206,9 +206,8 @@ export function incidentDirectionGlyph(
  * carries it and the decimals are baseline noise.
  *
  * Callers that have room for it should keep the unrounded value in a `title`.
- * Named for the domain rather than `formatCount`, which is already taken by
- * `ui/chart-format` for the axis-tick abbreviation ("380k") — the opposite
- * trade-off, and not one an incident row wants.
+ * Not the compact count (`formatCompactNumber`, "380k") the chart axes print:
+ * that is the opposite trade-off, and not one an incident row wants.
  */
 export function formatIncidentCount(value: number): string {
   if (Math.abs(value) >= 1) return formatNumber(Math.round(value))
@@ -229,16 +228,24 @@ export function formatIncidentCount(value: number): string {
  * event firing for the first time — and `formatPercentDelta` is the one place
  * that decides how that is written, so the inbox cannot disagree with the
  * delivery item or with the alert message the reader is holding.
+ *
+ * `withPercent: false` is for a surface that already shows the change signed
+ * beside it — the Inbox card's badge. The same size printed twice, "+62%" and
+ * "62.2%", read as two different facts; that surface moves the as-sent
+ * percent into {@link incidentMagnitudeTitle} instead.
  */
-export function incidentMagnitudeLabel(group: {
-  actual_count: number
-  expected_count: number
-  percent_delta: number | null
-  scope_types?: readonly MetricScopeType[]
-}): string {
+export function incidentMagnitudeLabel(
+  group: {
+    actual_count: number
+    expected_count: number
+    percent_delta: number | null
+    scope_types?: readonly MetricScopeType[]
+  },
+  { withPercent = true }: { withPercent?: boolean } = {},
+): string {
   // A drift's counts are what the scan compared, with no relative change to
   // state: a distribution drift's are the two windows' rows, "· 0.0%" apart.
-  const delta = isDriftOnly(group.scope_types ?? [])
+  const delta = !withPercent || isDriftOnly(group.scope_types ?? [])
     ? ''
     : ` · ${formatPercentDelta(group.percent_delta, group.expected_count)}`
   const actual = formatIncidentCount(group.actual_count)
@@ -253,30 +260,61 @@ export function incidentMagnitudeLabel(group: {
  *
  * Rounding is right for reading the card at a glance; it is wrong for anyone
  * reconciling a baseline against the detector, so the precision is moved rather
- * than dropped.
+ * than dropped. `withPercent` adds the percent exactly as the alert message
+ * printed it, for the surface whose visible line leaves it out.
  */
-export function incidentMagnitudeTitle(group: {
-  actual_count: number
-  expected_count: number
-}): string {
-  return `Unrounded: ${group.actual_count} actual, ${group.expected_count} expected`
+export function incidentMagnitudeTitle(
+  group: {
+    actual_count: number
+    expected_count: number
+    percent_delta?: number | null
+    scope_types?: readonly MetricScopeType[]
+  },
+  { withPercent = false }: { withPercent?: boolean } = {},
+): string {
+  const counts = `Unrounded: ${group.actual_count} actual, ${group.expected_count} expected`
+  if (!withPercent || isDriftOnly(group.scope_types ?? [])) return counts
+  const percent = formatPercentDelta(group.percent_delta ?? null, group.expected_count)
+  return `${counts} · ${percent} in the alert message`
 }
 
 /**
- * "worst 92.4% in this group", or null when there is nothing extra to say.
- *
- * Only for multi-item groups: on a single-item group the worst magnitude IS the
- * magnitude line above it, and printing the same number twice reads as two
- * different facts.
+ * A change's size the way every signal list writes it: whole percent from 10%
+ * up, one decimal below — the rule `formatSignalEffect` (lib/monitoring.ts)
+ * applies, so the Inbox and Anomalies print one spike's size alike. Unsigned,
+ * because what it is given is a magnitude.
  */
-export function incidentWorstDeltaLabel(group: {
+function formatChangeSize(percent: number): string {
+  const digits = percent >= 10 ? 0 : 1
+  return `${formatNumber(percent, { minimumFractionDigits: digits, maximumFractionDigits: digits })}%`
+}
+
+/**
+ * "largest in this incident: 200%", or null when there is nothing extra to say.
+ *
+ * `max_abs_percent_delta` is the biggest measured change across every item of
+ * the incident, while the card's badge and counts are its newest firing. It is
+ * an unsigned magnitude with no scope attached, so it is stated as a size and
+ * nothing more.
+ *
+ * Null for a single-item incident, and whenever it would print the same figure
+ * as the newest firing: the same number twice reads as two different facts.
+ */
+export function incidentLargestChangeLabel(group: {
   item_count: number
   max_abs_percent_delta: number | null
+  percent_delta: number | null
   scope_types?: readonly MetricScopeType[]
 }): string | null {
   if (group.item_count <= 1 || group.max_abs_percent_delta === null) return null
   if (isDriftOnly(group.scope_types ?? [])) return null
-  return `worst ${group.max_abs_percent_delta.toFixed(1)}% in this group`
+  const largest = formatChangeSize(group.max_abs_percent_delta)
+  // Both sides are stored magnitudes of the same column, so they compare as
+  // written. Older rows may carry a signed `percent_delta`, hence the abs.
+  if (group.percent_delta !== null && formatChangeSize(Math.abs(group.percent_delta)) === largest) {
+    return null
+  }
+  return `largest in this incident: ${largest}`
 }
 
 /**
@@ -296,7 +334,7 @@ export function incidentWorstDeltaLabel(group: {
  */
 export function priorDecisionLabel(group: {
   status: AlertInboxStatus
-  acted_at: string | null
+  acted_at?: string | null
   acted_by_name: string | null
   latest_delivery_at: string
 }): string | null {
@@ -523,25 +561,4 @@ export function bulkInboxActionSuccessMessage(
     case 'note':
       return `Note saved on ${incidents}.`
   }
-}
-
-/**
- * Pydantic prepends "Value error, " to every message a `model_validator` raises,
- * and it must not reach a toast.
- *
- * The prefix is an artefact of how the server DECLARED the rule, not part of
- * what it is telling the operator, and the one message a bulk caller can
- * realistically provoke is the long false-positive refusal — which ends by
- * naming the way to do it anyway, one incident at a time. Prefixing that with
- * "Value error," makes a deliberate, well-argued policy read like the page
- * broke.
- *
- * Applied to an already-flattened message string rather than to the raw error,
- * so this stays pure and testable and `lib/` gains no dependency on the API
- * client: `api/client.ts` already turns a FastAPI 422 `detail` array into one
- * string (dropping the `body` path segment), and this is the last step of that
- * same flattening.
- */
-export function stripValueErrorPrefix(message: string): string {
-  return message.startsWith('Value error, ') ? message.slice('Value error, '.length) : message
 }

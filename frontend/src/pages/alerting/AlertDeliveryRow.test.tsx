@@ -4,7 +4,7 @@ import { MemoryRouter } from 'react-router-dom'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { AuthContext, type AuthContextValue } from '@/components/auth-context'
 import type { AlertDelivery, AlertDeliveryDetail, AlertDeliveryItem, Role } from '@/types'
-import { formatDateTime } from '@/lib/datetime'
+import { formatDateTime, shortTimestampParts } from '@/lib/datetime'
 import { AlertDeliveryRow } from './AlertDeliveryRow'
 import type { RetryWatchOptions } from './retryWatch'
 import { type Persona } from '@/test/persona'
@@ -416,6 +416,21 @@ describe('AlertDeliveryRow timestamp', () => {
     const full = formatDateTime(delivery.created_at)
     expect(screen.getByTitle(full)).toBeInTheDocument()
     expect(screen.queryByText(full)).toBeNull()
+  })
+
+  it('prints the two lines in the app locale and clock, like every other time', () => {
+    // It used the browser's locale, so a German reader saw "1. Jan." and a
+    // 24-hour clock here beside English dates on the rest of the page.
+    const delivery = mockDelivery({ status: 'sent', error_message: null })
+    renderRow(delivery)
+
+    const parts = shortTimestampParts(delivery.created_at)
+    if (!parts) throw new Error('the fixture has a readable created_at')
+    const cell = screen.getByTitle(formatDateTime(delivery.created_at))
+    expect(within(cell).getByText(parts.date)).toBeInTheDocument()
+    // getByText collapses whitespace (ICU may emit a narrow no-break space).
+    expect(within(cell).getByText(parts.time.replace(/\s+/g, ' '))).toBeInTheDocument()
+    expect(parts.time).toMatch(/^\d{1,2}:\d{2}\s[AP]M$/)
   })
 })
 
@@ -1028,6 +1043,17 @@ describe('AlertDeliveryRow — the status cell holds only the status', () => {
     const suffix = screen.getByText('Local · simulated')
     expect(suffix.closest('td')).not.toBe(screen.getByText('sent').closest('td'))
     expect(suffix.closest('td')).toHaveTextContent(/Ops/)
+  })
+
+  // Moved here with the unused LocalDeliveryBadge: this suffix is the only
+  // place a demo-sink delivery is marked, so it carries the honesty checks.
+  it('says nothing was sent outside, and never in the success tone', () => {
+    renderRow(mockDelivery({ status: 'sent', error_message: null, is_local: true, is_simulated: false }))
+
+    const suffix = screen.getByText('Local')
+    expect(suffix).toHaveAttribute('title', expect.stringContaining('nothing was sent to an external channel'))
+    expect(suffix.className).toMatch(/text-warning/)
+    expect(suffix.className).not.toMatch(/emerald|success/)
   })
 })
 

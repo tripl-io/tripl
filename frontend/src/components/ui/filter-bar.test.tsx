@@ -28,10 +28,12 @@ describe('FilterBar', () => {
     expect(search).toHaveFocus()
   })
 
-  it('shows an unset filter as a quiet "Label: any" chip and no clear link', () => {
+  it('shows an unset filter as a quiet "Label: Any" chip and no clear link', () => {
     renderBar()
-    const chip = screen.getByRole('combobox', { name: 'Status filter: any' })
-    expect(chip).toHaveTextContent('Status:any')
+    // Capitalized by default, so every list page reads the same without
+    // passing its own `anyLabel`.
+    const chip = screen.getByRole('combobox', { name: 'Status filter: Any' })
+    expect(chip).toHaveTextContent('Status:Any')
     expect(chip).toHaveClass('border-dashed')
     expect(screen.queryByRole('button', { name: 'Clear filters' })).toBeNull()
     expect(screen.getByText('42 events')).toBeInTheDocument()
@@ -111,7 +113,7 @@ describe('FilterBar below 640px', () => {
     fireEvent.click(trigger)
     const sheet = screen.getByRole('dialog', { name: 'Filters' })
     expect(within(sheet).getByRole('combobox', { name: 'Status filter: live' })).toBeInTheDocument()
-    expect(within(sheet).getByRole('combobox', { name: 'Kind filter: any' })).toBeInTheDocument()
+    expect(within(sheet).getByRole('combobox', { name: 'Kind filter: Any' })).toBeInTheDocument()
     expect(within(sheet).getByText('42 events')).toBeInTheDocument()
 
     fireEvent.click(within(sheet).getByRole('button', { name: 'Clear filters' }))

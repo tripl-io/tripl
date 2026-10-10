@@ -194,7 +194,8 @@ describe('TrackerConfigDialog', () => {
     fireEvent.change(baseUrl, { target: { value: 'http://acme.atlassian.net' } })
     fireEvent.change(screen.getByLabelText('Project key'), { target: { value: '1-bad' } })
     // A saved value cannot be blanked: the PATCH has no way to clear it.
-    fireEvent.change(screen.getByLabelText('Auth email'), { target: { value: ' ' } })
+    // "Account email", as Organization › Trackers names the same Jira field.
+    fireEvent.change(screen.getByLabelText('Account email'), { target: { value: ' ' } })
     fireEvent.click(screen.getByRole('button', { name: 'Save' }))
 
     expect(
@@ -421,5 +422,25 @@ describe('TrackerConfigDialog', () => {
       expect(screen.queryByRole('button', { name: 'Linear' })).toBeNull()
       expect(screen.getByText('Linear')).toBeInTheDocument()
     })
+  })
+})
+
+describe('TrackerConfigDialog — unsaved connection (prelaunch)', () => {
+  it('asks before Cancel drops a typed key, and closes an untouched form at once', async () => {
+    vi.mocked(trackerConfigApi.get).mockResolvedValue(makeConfig())
+    const onOpenChange = vi.fn()
+    renderDialog('owner', onOpenChange)
+
+    const projectKey = await screen.findByLabelText('Project key')
+    fireEvent.click(screen.getByRole('button', { name: 'Cancel' }))
+    expect(onOpenChange).toHaveBeenCalledWith(false)
+    onOpenChange.mockClear()
+
+    fireEvent.change(projectKey, { target: { value: 'PAY' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Cancel' }))
+    expect(onOpenChange).not.toHaveBeenCalled()
+    fireEvent.click(await screen.findByRole('button', { name: 'Discard changes' }))
+    await waitFor(() => expect(onOpenChange).toHaveBeenCalledWith(false))
+    expect(trackerConfigApi.update).not.toHaveBeenCalled()
   })
 })

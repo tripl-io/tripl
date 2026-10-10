@@ -1,10 +1,10 @@
 import { Link, useParams } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
-import { ArrowRight, Info, ShieldCheck, ShieldX } from 'lucide-react'
+import { ArrowRight, ShieldCheck, ShieldX } from 'lucide-react'
 import { projectsApi } from '@/api/projects'
 import { reconciliationApi } from '@/api/reconciliation'
 import { Button } from '@/components/ui/button'
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
+import { InfoTip } from '@/components/info-tip'
 import { EmptyState } from '@/components/empty-state'
 import { ErrorState } from '@/components/error-state'
 import { Panel } from '@/components/settings/kit'
@@ -15,16 +15,22 @@ import { TERM_HINTS } from '@/lib/termHints'
 import { SectionSkeleton, StatValueSkeleton } from '@/components/states'
 import { Chip } from '@/components/primitives/chip'
 import { MiniStat, MiniStatStrip } from '@/components/primitives/mini-stat'
-import { DEAD_EVENT_DAYS, formatPlanCoverage, planCoverageRatio } from '@/lib/coverage'
+import {
+  DEAD_EVENT_DAYS,
+  PLAN_COVERAGE_HELP,
+  formatNotImplementedBreakdown,
+  formatPlanCoverage,
+  planCoverageTone,
+} from '@/lib/coverage'
 import { formatRelativeTime } from '@/lib/datetime'
 import { formatNumber } from '@/lib/format'
 import { eventNameLabel } from '@/lib/eventName'
 import { getMonitoringPath } from '@/lib/monitoring'
-import { coverageTone } from '@/lib/statusLexicon'
 import { EventName } from '@/components/event-name'
 import type { DeadEvent } from '@/api/reconciliation'
 import { deadEventsKey, projectKey } from '@/lib/queryKeys'
 import { currentOrgSlug, projectPath } from '@/lib/navigation'
+import { countOf } from '@/lib/plural'
 
 // Window for "is this event still emitting data". Shared with Reconciliation's
 // Dead events panel — the "Triage in Reconciliation" link below hands off to
@@ -32,12 +38,6 @@ import { currentOrgSlug, projectPath } from '@/lib/navigation'
 // count that sent the user there.
 const DEAD_DAYS = DEAD_EVENT_DAYS
 const GAP_LIMIT = 50
-
-// One-line clarifier for the headline number. "Plan coverage" sits one nav item
-// from Reconciliation's data-match number and also reads as "coverage", so spell
-// out that this counts implemented events, not events seen in warehouse data.
-const PLAN_COVERAGE_HELP =
-  'Share of active planned events marked implemented. Different from the Reconciliation data match, which measures how many planned events are actually seen in warehouse data.'
 
 // The gap list is computed over a deliberately NARROWER population than the
 // "Active events" stat above it: only implemented/live events that are old
@@ -85,7 +85,6 @@ export default function CoveragePage() {
   // dev …) land here too, so the bar is labelled "not implemented" rather than
   // "pending" to stop the two adjacent numbers reading as the same bucket.
   const notImplemented = Math.max(0, active - implemented)
-  const coverageRatio = planCoverageRatio(implemented, active)
 
   const isNewProject = !!summary && summary.event_count === 0
   const noGaps = !!deadQuery.data && !deadQuery.isError && deadItems.length === 0
@@ -109,7 +108,9 @@ export default function CoveragePage() {
         }
       />
 
-      {/* Rollup */}
+      {/* Rollup. Not on a new project: five zeros and a "0%" over the empty
+          state below read as a failing grade, and Events and Scans show no
+          strip on a first run either. */}
       {projectQuery.isError ? (
         <ErrorState
           title="Coverage unavailable"
@@ -120,19 +121,17 @@ export default function CoveragePage() {
           retryLabel="Retry"
           compact
         />
-      ) : (
+      ) : isNewProject ? null : (
         <>
           <MiniStatStrip boxed>
-            <div title={PLAN_COVERAGE_HELP}>
-              <MiniStat
-                label="Plan coverage"
-                value={summary ? formatPlanCoverage(implemented, active) : <StatValueSkeleton />}
-                // The shared thresholds (they take a percent), so this tile and
-                // Reconciliation cannot drift apart.
-                tone={summary && active > 0 ? coverageTone(coverageRatio * 100) : 'neutral'}
-                labelAddon={<Info className="h-3 w-3 shrink-0" aria-hidden />}
-              />
-            </div>
+            <MiniStat
+              label="Plan coverage"
+              value={summary ? formatPlanCoverage(implemented, active) : <StatValueSkeleton />}
+              // The Overview's rule, so the tile it links from shows this figure
+              // in the same colour.
+              tone={summary ? planCoverageTone(implemented, active) : 'neutral'}
+              labelAddon={<InfoTip help={PLAN_COVERAGE_HELP} />}
+            />
             <MiniStat
               label="Active events"
               value={summary ? formatNumber(active) : <StatValueSkeleton />}
@@ -142,11 +141,11 @@ export default function CoveragePage() {
               value={summary ? formatNumber(implemented) : <StatValueSkeleton />}
             />
             {/* "In review", the one name for the status count everywhere
-                (#238); it was "Awaiting review" here only. */}
+                (#238); it was "Awaiting review" here only. Neutral, as on the
+                Overview: a review queue is work in progress, not an exception. */}
             <MiniStat
               label="In review"
               value={summary ? formatNumber(summary.review_pending_event_count) : <StatValueSkeleton />}
-              tone={summary && summary.review_pending_event_count > 0 ? 'warning' : 'neutral'}
             />
             <MiniStat
               label="Archived"
@@ -178,8 +177,8 @@ export default function CoveragePage() {
               slug ? (
                 <Button asChild size="sm">
                   <Link to={projectPath(currentOrgSlug(), slug, '/events')} className="no-underline">
-                    Go to events
-                    <ArrowRight className="h-3.5 w-3.5" />
+                    Go to Events
+                    <ArrowRight aria-hidden="true" />
                   </Link>
                 </Button>
               ) : undefined
@@ -193,7 +192,7 @@ export default function CoveragePage() {
           subtitle={
             deadQuery.data ? (
               <span className="inline-flex items-center gap-1">
-                {`${formatNumber(deadTotal)} implemented event${deadTotal === 1 ? '' : 's'} with no data in the last ${DEAD_DAYS} days`}
+                {`${countOf(deadTotal, 'implemented event', 'implemented events')} with no data in the last ${DEAD_DAYS} days`}
                 <InfoTip help={GAP_BASIS_HELP} />
               </span>
             ) : undefined
@@ -269,11 +268,6 @@ function CoverageBar({
 }) {
   const total = implemented + notImplemented
   const implementedPct = total > 0 ? (implemented / total) * 100 : 0
-  // In review is a subset of the remainder; the rest are drafts, events ready
-  // for development and deprecated ones. Said under the bar so the tiles and
-  // the bar add up at a glance.
-  const inReviewShare = Math.min(inReview, notImplemented)
-  const otherShare = notImplemented - inReviewShare
   const notImplementedCount = (
     <>
       <span
@@ -317,34 +311,10 @@ function CoverageBar({
       </div>
       {notImplemented > 0 && (
         <p className="tnum mt-2 text-caption text-fg-tertiary">
-          {`Not implemented: ${formatNumber(inReviewShare)} in review, ${formatNumber(otherShare)} draft, ready for dev or deprecated.`}
+          {formatNotImplementedBreakdown(inReview, notImplemented)}
         </p>
       )}
     </div>
-  )
-}
-
-/**
- * An info icon that shows `help` on hover or focus, and names it for a screen
- * reader. Carries its own provider, as TermHint does, so the page renders it
- * without the app's root one (page tests mount without it).
- */
-function InfoTip({ help }: { help: string }) {
-  return (
-    <TooltipProvider delayDuration={200}>
-      <Tooltip>
-        <TooltipTrigger asChild>
-          <button
-            type="button"
-            className="inline-flex shrink-0 rounded-sm outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)]"
-            aria-label={help}
-          >
-            <Info className="size-3 text-fg-tertiary" aria-hidden="true" />
-          </button>
-        </TooltipTrigger>
-        <TooltipContent className="max-w-xs whitespace-normal">{help}</TooltipContent>
-      </Tooltip>
-    </TooltipProvider>
   )
 }
 
@@ -377,7 +347,9 @@ function GapRow({ item, slug }: { item: DeadEvent; slug: string | undefined }) {
           {item.event_type_name}
         </Chip>
       )}
-      <span className="tnum w-28 shrink-0 text-right text-micro text-fg-tertiary">
+      {/* Narrow on a phone: "Never seen" fits in 64px, and the room is the
+          event name's. */}
+      <span className="tnum w-16 shrink-0 text-right text-micro text-fg-tertiary sm:w-28">
         {item.last_seen_at ? formatRelativeTime(item.last_seen_at) : 'Never seen'}
       </span>
     </div>

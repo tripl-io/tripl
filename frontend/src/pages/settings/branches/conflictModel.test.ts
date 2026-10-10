@@ -54,6 +54,7 @@ const DELETED: PlanBranchConflictEntity = {
   name: 'pv.legacy',
   parent: 'pv',
   label: 'legacy',
+  added_on_both: false,
   fields: [
     {
       field: '@presence',
@@ -125,10 +126,10 @@ describe('bulkChoices', () => {
 
 describe('presenceLeft', () => {
   it('counts the deletions no choice covers yet', () => {
-    expect(presenceLeft([TWIN, DELETED], (_entity, field) => field.choice)).toBe(1)
+    expect(presenceLeft([TWIN, DELETED], (_entity, field) => field.choice ?? null)).toBe(1)
     expect(presenceLeft([TWIN, DELETED], () => 'ours')).toBe(0)
     expect(
-      presenceLeft([TWIN, DELETED], (_entity, field) => field.choice, {
+      presenceLeft([TWIN, DELETED], (_entity, field) => field.choice ?? null, {
         entity_type: 'event',
         name: TWIN.name,
       }),

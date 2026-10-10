@@ -22,6 +22,7 @@ import { ArrowRight, Eye, EyeOff, RotateCcw, X } from 'lucide-react'
 import { Chip } from '@/components/primitives/chip'
 import { Dot } from '@/components/primitives/dot'
 import { Button } from '@/components/ui/button'
+import { cn } from '@/lib/utils'
 import {
   entryPresenceKey,
   followUpPresenceKey,
@@ -39,6 +40,7 @@ import {
   type ScenarioStep,
 } from './scenarioModel'
 import { EndOfDemoLink } from './EndOfDemoLink'
+import { useGuideCardOpen } from './guideCardOpen'
 import { isOnStepPage, useWelcomeStandsIn } from './stepLocation'
 
 const REGION_LABEL = 'Demo scenario'
@@ -121,6 +123,7 @@ function ActiveStrip({
   onHideHints,
   onDismiss,
 }: ActiveStripProps) {
+  const guideCardOpen = useGuideCardOpen()
   return (
     <StripShell>
       <Chip tone="accent" size="xs" className="shrink-0 lg:@max-[500px]/strip:hidden">
@@ -144,10 +147,15 @@ function ActiveStrip({
         </Chip>
         {/* Cut to the row's width on a desktop, whole in the DOM (and so to a
             screen reader), and whole on hover. A strip too narrow for a
-            useful fragment of it leaves it to the demo guide. */}
+            useful fragment of it leaves it to the demo guide, and so does
+            any strip while the guide's card is open: the card says it in
+            full, and the strip's cut copy read as the same sentence twice. */}
         <span
           // Only what the title and the step count leave: the title goes last.
-          className="min-w-0 text-caption leading-[1.45] lg:flex-1 lg:basis-0 lg:truncate lg:@max-[620px]/strip:sr-only text-fg-secondary"
+          className={cn(
+            'min-w-0 text-caption leading-[1.45] lg:flex-1 lg:basis-0 lg:truncate lg:@max-[620px]/strip:sr-only text-fg-secondary',
+            guideCardOpen && 'sr-only',
+          )}
           title={step.instruction}
         >
           {step.instruction}

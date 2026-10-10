@@ -5,6 +5,7 @@ import { countOf } from '@/lib/plural'
 import type { DataSource, EventType, ScanConfig } from '@/types'
 import { INTERVAL_LABEL } from './scanLayoutConstants'
 import { SCAN_MODE_DETAIL_LABEL, scanModeOf } from './scanMode'
+import { formatNumber } from '@/lib/format'
 
 function tokens(values: readonly string[]) {
   if (values.length === 0) return null
@@ -23,7 +24,7 @@ function token(value: string | null) {
 
 /** A cap left empty falls back to the instance default; say so, not "—". */
 function limit(value: number | null) {
-  return value == null ? 'Instance default' : value.toLocaleString()
+  return value == null ? 'Instance default' : formatNumber(value)
 }
 
 /**
@@ -92,8 +93,10 @@ export function ScanConfigReadView({
       value: sc.scan_lookback_hours ? `Last ${countOf(sc.scan_lookback_hours, 'hour', 'hours')}` : 'Whole query',
     },
     ...(preset ? [] : [{ label: 'JSON values kept', value: tokens(sc.json_value_paths) }]),
+    // Row labels match the scan's Overview and its editor, so the owner and a
+    // reader who cannot edit name each setting the same way.
     {
-      label: 'Event groups',
+      label: 'Event group rules',
       block: sc.event_group_rules.length > 0,
       value:
         sc.event_group_rules.length > 0 ? (
@@ -114,8 +117,8 @@ export function ScanConfigReadView({
       ? [
           { label: 'Metric breakdowns', value: tokens(sc.metric_breakdown_columns) },
           {
-            label: 'Values per breakdown',
-            value: sc.metric_breakdown_values_limit == null ? 'No limit' : sc.metric_breakdown_values_limit.toLocaleString(),
+            label: 'Value limit',
+            value: sc.metric_breakdown_values_limit == null ? 'Unlimited' : formatNumber(sc.metric_breakdown_values_limit),
           },
           { label: 'Distribution drift', value: tokens(sc.distribution_drift_fields) },
           {
@@ -126,7 +129,7 @@ export function ScanConfigReadView({
       : []),
     { label: 'App version column', value: token(sc.app_version_column) },
     { label: 'Platform column', value: token(sc.platform_column) },
-    { label: 'Cardinality threshold', value: sc.cardinality_threshold.toLocaleString() },
+    { label: 'Cardinality threshold', value: formatNumber(sc.cardinality_threshold) },
     { label: 'Scan row cap', value: limit(sc.scan_row_limit) },
     ...(monitoring ? [{ label: 'Metrics row cap', value: limit(sc.metrics_row_limit) }] : []),
   ]

@@ -2,6 +2,7 @@ import { Check, LayoutGrid } from 'lucide-react'
 import type { FieldDefinition, MetaFieldDefinition } from '@/types'
 import { Button } from '@/components/ui/button'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
+import { EVENT_ATTRIBUTE_LABEL } from '@/lib/eventAttributes'
 import { LAST_SEEN_COL_KEY, ROW_METRICS_LABEL } from './utils'
 import { HEALTH_COL_KEY } from './useColumnVisibility'
 
@@ -68,9 +69,11 @@ export function ColumnsMenu({
         <Button variant="outline" size="sm">
           <LayoutGrid />
           <span className="max-sm:sr-only">Columns</span>
+          {/* Not on a phone: the cards there have no columns to count, and
+              "9 hidden · 1 off-screen" beside an icon read as noise. */}
           {badge && (
             <span
-              className="ml-1 text-micro text-fg-tertiary"
+              className="ml-1 text-micro text-fg-tertiary max-md:hidden"
             >
               {badge}
             </span>
@@ -90,7 +93,7 @@ export function ColumnsMenu({
           onChange={() => onToggle('status')}
         />
         <ColumnToggle
-          label="Verified"
+          label={EVENT_ATTRIBUTE_LABEL.reviewed}
           pinned={reviewedPinned}
           checked={!reviewedHidden}
           onChange={() => onToggle('reviewed')}

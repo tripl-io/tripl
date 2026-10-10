@@ -162,7 +162,7 @@ describe('ImpactNotice (#257)', () => {
     act(() => {
       answer = seen[seen.length - 1]!({
         title: 'Delete selected events',
-        message: <ConfirmImpactMessage message="Delete 1 selected events?" slug="demo" branchId={null} changes={DELETE_E1} />,
+        message: <ConfirmImpactMessage message="Delete 1 selected event?" slug="demo" branchId={null} changes={DELETE_E1} />,
         confirmLabel: 'Delete',
         variant: 'danger',
       })

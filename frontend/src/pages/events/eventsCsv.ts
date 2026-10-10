@@ -4,6 +4,7 @@ import type {
   FieldDefinition,
   MetaFieldDefinition,
 } from '@/types'
+import { EVENT_ATTRIBUTE_LABEL } from '@/lib/eventAttributes'
 import { EVENT_STATUS_LABELS, type EventStatus } from '@/lib/eventStatus'
 
 import { resolveFieldValue, resolveMetaValue } from './useEventsFiltering'
@@ -84,7 +85,7 @@ export function buildEventsCsvColumns(options: EventsCsvColumnOptions): EventsCs
     })
   }
   if (!options.hideReviewed) {
-    columns.push({ header: 'Verified', value: ev => (ev.reviewed ? 'yes' : 'no') })
+    columns.push({ header: EVENT_ATTRIBUTE_LABEL.reviewed, value: ev => (ev.reviewed ? 'yes' : 'no') })
   }
   if (!options.hideTags) {
     columns.push({ header: 'Tags', value: ev => ev.tags.map(tag => tag.name).join(' ') })

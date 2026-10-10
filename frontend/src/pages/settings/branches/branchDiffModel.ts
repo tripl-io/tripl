@@ -83,14 +83,16 @@ export interface DiffLoad {
  * which is what its other callers read it as.
  */
 export function pairedDiffCounts(diff: PlanBranchDiffSummary | undefined): PairedDiffCounts {
-  const summary = diff?.summary ?? { added: 0, removed: 0, changed: 0 }
+  const added = diff?.summary.added ?? 0
+  const changed = diff?.summary.changed ?? 0
+  const removed = diff?.summary.removed ?? 0
   const renamed = diffRenames(diff).length
   return {
-    added: summary.added - renamed,
-    changed: summary.changed,
-    removed: summary.removed - renamed,
+    added: added - renamed,
+    changed,
+    removed: removed - renamed,
     renamed,
-    total: summary.added + summary.changed + summary.removed - renamed,
+    total: added + changed + removed - renamed,
   }
 }
 
@@ -98,13 +100,13 @@ export function pairedDiffCounts(diff: PlanBranchDiffSummary | undefined): Paire
  * `BranchRevertRequest` uses, so a row and its pairing always agree. */
 export function entryKey(
   entityType: PlanDiffEntityType,
-  parent: string | null,
+  parent: string | null | undefined,
   name: string,
 ): string {
   // JSON and not a separator: an event name has no character class at all
   // (``EventUpdate`` bounds only its length), so any joiner could occur inside
   // one and fuse two different changes into one key.
-  return JSON.stringify([entityType, parent, name])
+  return JSON.stringify([entityType, parent ?? null, name])
 }
 
 /** A stable React key for one diff row. Not the list index: a revert removes a
@@ -403,7 +405,7 @@ export function mergePrompt(
 }
 
 export function diffEntryDetail(entry: PlanDiffEntry): string {
-  if (entry.changes.length > 0) return entry.changes.join(', ')
+  if (entry.changes?.length) return entry.changes.join(', ')
   return entry.parent ? `${entry.entity_type} · ${entry.parent}` : entry.entity_type
 }
 
@@ -441,7 +443,7 @@ export function describeBranchActionError(error: unknown): string {
     if (quota) {
       const stale =
         (quota.stale ?? 0) > 0
-          ? ` ${quota.stale} approval(s) went stale after later edits — re-approve.`
+          ? ` ${countOf(quota.stale ?? 0, 'approval', 'approvals')} went stale after later edits — re-approve.`
           : ''
       return `Not enough approvals to merge: ${quota.current ?? 0} of ${quota.required ?? 0} required.${stale}`
     }

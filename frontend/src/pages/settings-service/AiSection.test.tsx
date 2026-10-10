@@ -79,6 +79,8 @@ function settingsFixture(
     },
     ai: { ...AI, ...ai },
     system: {
+      version: '0.0.0+test',
+      edition: 'community',
       debug: false,
       database_url_configured: true,
       sync_database_url_configured: true,
@@ -228,24 +230,31 @@ describe('Instance AI — the stored keys', () => {
       settingsFixture({}, { 'ai.ai_api_key': 'override', 'ai.search_embedding_api_key': 'env' }),
     )
 
-    expect(within(labelRow('AI API key')).getByText('Override')).toBeInTheDocument()
+    expect(within(labelRow('API key')).getByText('Override')).toBeInTheDocument()
     expect(within(labelRow('Embedding API key')).getByText('Env')).toBeInTheDocument()
   })
 })
 
 describe('Instance AI — stored key deletion', () => {
   it('offers no delete for a key that is not stored', () => {
-    renderSection(settingsFixture({ ai_api_key_configured: false }))
+    renderSection(settingsFixture({ ai_api_key_configured: false, search_embedding_api_key_configured: false }))
 
-    const buttons = screen.getAllByRole('button', { name: 'Delete stored key' })
-    expect(buttons).toHaveLength(2)
-    for (const button of buttons) expect(button).toBeDisabled()
+    // Not a greyed-out button: with nothing stored there is nothing to delete.
+    expect(screen.queryByRole('button', { name: 'Delete stored key' })).toBeNull()
   })
 
-  it('offers delete once a key is stored', () => {
+  it('offers delete once a key is stored, beside that key only', () => {
     renderSection(settingsFixture({ ai_api_key_configured: true }))
 
-    expect(screen.getAllByRole('button', { name: 'Delete stored key' })[0]).toBeEnabled()
+    const buttons = screen.getAllByRole('button', { name: 'Delete stored key' })
+    expect(buttons).toHaveLength(1)
+    expect(buttons[0]).toBeEnabled()
+  })
+
+  it('offers delete for a stored embedding key', () => {
+    renderSection(settingsFixture({ search_embedding_api_key_configured: true }))
+
+    expect(screen.getAllByRole('button', { name: 'Delete stored key' })).toHaveLength(1)
   })
 })
 
@@ -266,8 +275,9 @@ describe('Instance AI — connection test', () => {
 
     expect(screen.getByRole('button', { name: 'Test AI' })).toBeDisabled()
     expect(screen.getByText(/AI is off in the saved settings/)).toBeInTheDocument()
-    // The dependent rows stay editable, only de-emphasised.
-    expect(screen.getByText('Not used while AI is off.')).toBeInTheDocument()
+    // The dependent rows stay editable, only de-emphasised; the switch's own
+    // hint says why, not a caption floating between it and the first row.
+    expect(screen.getByText('Off: the provider settings below are not used.')).toBeInTheDocument()
     expect(screen.getByLabelText('Model')).toBeEnabled()
   })
 
@@ -293,7 +303,7 @@ describe('Instance AI — numeric fields', () => {
     const setField = vi.fn()
     renderSection(settingsFixture(), undefined, setField)
 
-    fireEvent.change(screen.getByLabelText('Timeout seconds'), { target: { value: '' } })
+    fireEvent.change(screen.getByLabelText('Timeout'), { target: { value: '' } })
 
     expect(setField).toHaveBeenCalledWith('ai', 'ai_timeout_seconds', '')
   })
@@ -303,7 +313,7 @@ describe('Instance AI — numeric fields', () => {
     const base = editableFromSettings(settings)
     renderSection(settings, { ...base, ai: { ...base.ai, ai_timeout_seconds: '' } })
 
-    const input = screen.getByLabelText('Timeout seconds')
+    const input = screen.getByLabelText('Timeout')
     expect(input).toHaveAttribute('aria-invalid', 'true')
     expect(input).toHaveAccessibleDescription('Enter a whole number, 1 or more.')
   })

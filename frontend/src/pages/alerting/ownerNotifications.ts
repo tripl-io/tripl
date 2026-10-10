@@ -2,8 +2,10 @@ import type { ChipTone } from '@/components/primitives/chip'
 import type {
   AlertOwnerNotification,
   AlertOwnerNotificationStatus,
+  MetricScopeType,
   SignalOwnerRef,
 } from '@/types'
+import { pluralize } from '@/lib/plural'
 
 /**
  * Owner routing (F07, #260): the pure wording the incident card, the signal
@@ -11,10 +13,30 @@ import type {
  * react-refresh sees components only there.
  */
 
-/** "Owners: @anna, @oleg", or null when there is nobody to name. */
-export function ownersLabel(owners: readonly SignalOwnerRef[] | null | undefined): string | null {
+/**
+ * Whose owners an alert names, as owner routing resolves them
+ * (alert_owner_routing.py): a catalog metric's own owner, or, for anything
+ * about an event or an event type (drift, release and lifecycle signals
+ * included), that event type's owners. An event's own owner is never one of
+ * them, so the line must not read as if it were.
+ */
+export type OwnerSource = 'metric' | 'event_type'
+
+export function ownerSourceOf(scopeType: MetricScopeType): OwnerSource {
+  return scopeType === 'metric' ? 'metric' : 'event_type'
+}
+
+/**
+ * "Event type owners: @anna, @oleg" ("Event type owner: @anna" for one), or
+ * "Owner: @anna" for a metric; null when there is nobody to name.
+ */
+export function ownersLabel(
+  owners: readonly SignalOwnerRef[] | null | undefined,
+  source: OwnerSource,
+): string | null {
   if (!owners || owners.length === 0) return null
-  return `Owners: ${owners.map(owner => `@${owner.name}`).join(', ')}`
+  const noun = source === 'metric' ? 'Owner' : 'Event type owner'
+  return `${pluralize(owners.length, noun, `${noun}s`)}: ${owners.map(owner => `@${owner.name}`).join(', ')}`
 }
 
 const STATUS_LABEL: Record<AlertOwnerNotificationStatus, string> = {

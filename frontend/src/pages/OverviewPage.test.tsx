@@ -1,11 +1,13 @@
-import { render, screen, waitFor, within } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { MemoryRouter, Route, Routes } from 'react-router-dom'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { ThemeProvider } from '@/components/theme-provider'
 import { AuthContext, type AuthContextValue } from '@/components/auth-context'
 import { ActivityPanel } from '@/components/activity-panel'
+import { setOnboardingDismissed } from '@/lib/onboardingDismissal'
 import OverviewPage from './OverviewPage'
+import { formatNumber } from '@/lib/format'
 
 function jsonResponse(body: unknown) {
   return new Response(JSON.stringify(body), {
@@ -187,7 +189,8 @@ describe('OverviewPage', () => {
     expect(await screen.findByText('323')).toBeInTheDocument()
     // plan coverage 320/323 → "99.1%", identical to the projects dashboard
     expect(await screen.findByText('99.1%')).toBeInTheDocument()
-    expect(screen.getByText('Coverage')).toBeInTheDocument()
+    // Named as on the Coverage page the tile opens.
+    expect(screen.getByText('Plan coverage')).toBeInTheDocument()
   })
 
   it('names the scan the volume card charts, not "project total"', async () => {
@@ -202,7 +205,7 @@ describe('OverviewPage', () => {
     ).toBeInTheDocument()
     expect(screen.queryByText('Volume · project total')).not.toBeInTheDocument()
     expect(
-      screen.getByText('One scan — not the project’s combined volume across all scans.'),
+      screen.getByText('This scan only — Top events below counts every scan.'),
     ).toBeInTheDocument()
     // The headline is the last 24 hours (10 + 25), not the newest bucket.
     expect(await screen.findByText('35')).toBeInTheDocument()
@@ -227,7 +230,8 @@ describe('OverviewPage', () => {
         name: 'Volume in the last 24 hours: 250, +25% against the 24 hours before',
       }),
     ).toBeInTheDocument()
-    expect(screen.getByText('+25%')).toBeInTheDocument()
+    // The change says what it compares, in words rather than a hover title.
+    expect(screen.getByText('+25% vs prior 24h')).toBeInTheDocument()
     expect(screen.queryByText(/latest bucket/)).not.toBeInTheDocument()
     expect(screen.queryByText(/buckets$/)).not.toBeInTheDocument()
     // The axis ends at "now" at the series' cadence ("hour" is not a scan
@@ -287,7 +291,7 @@ describe('OverviewPage', () => {
     expect(screen.getByText('Loading volume…')).toBeInTheDocument()
     // The header keeps its second line rather than growing one on arrival.
     expect(
-      screen.getByText('One scan — not the project’s combined volume across all scans.'),
+      screen.getByText('This scan only — Top events below counts every scan.'),
     ).toBeInTheDocument()
   })
 
@@ -363,7 +367,7 @@ describe('OverviewPage', () => {
     // so nothing depends on hovering to tell the bars apart.
     for (const e of topEvents) {
       expect(
-        screen.getByRole('listitem', { name: `${e.name}: ${e.total_count.toLocaleString()} events` }),
+        screen.getByRole('listitem', { name: `${e.name}: ${formatNumber(e.total_count)} events` }),
       ).toBeInTheDocument()
     }
   })
@@ -446,6 +450,32 @@ describe('OverviewPage', () => {
       'title',
       'Scan failed: Nightly metrics',
     )
+  })
+
+  // The card renders the activity rail's rows: a scan-generated event reads by
+  // its values, as in the rail, not by its raw key=value signature.
+  it('names a scan-generated event in Recent activity as the rail does', async () => {
+    mockFetch({
+      activity: [
+        {
+          id: 'event:e1',
+          project_id: 'project-1',
+          project_slug: 'demo',
+          project_name: 'Demo',
+          type: 'event',
+          severity: 'low',
+          title: 'Event created: event_name=Home Screen View | screen_name=Home',
+          detail: 'screen_view',
+          occurred_at: '2026-06-25T10:00:00Z',
+          target_path: '/p/demo/events/e1',
+        },
+      ],
+    })
+    renderOverview()
+
+    const row = await screen.findByRole('link', { name: /Event created: Home Screen View · Home/ })
+    expect(row).toHaveAttribute('href', '/p/demo/events/e1')
+    expect(screen.queryByText(/event_name=/)).not.toBeInTheDocument()
   })
 
   it('short-circuits to the full-page not-found on a project 404', async () => {
@@ -616,7 +646,7 @@ describe('OverviewPage', () => {
     })
     renderOverview()
 
-    expect(await screen.findByText('1.2 vs 0.4')).toBeInTheDocument()
+    expect(await screen.findByText('1.2 vs 0.4 expected')).toBeInTheDocument()
   })
 
   it('labels a drop-to-zero signal as "dropped to zero", not the clamped z-score', async () => {
@@ -837,7 +867,7 @@ describe('OverviewPage — design review follow-ups', () => {
       'href',
       '/p/demo/anomalies',
     )
-    expect(screen.getByRole('link', { name: /^Coverage/ })).toHaveAttribute(
+    expect(screen.getByRole('link', { name: /^Plan coverage/ })).toHaveAttribute(
       'href',
       '/p/demo/coverage',
     )
@@ -867,8 +897,9 @@ describe('OverviewPage — design review follow-ups', () => {
     })
     renderOverview()
 
-    const anomalies = await screen.findByRole('link', { name: '1 open anomaly' })
-    expect(anomalies).toHaveAttribute('href', '/p/demo/anomalies')
+    // "Open signals", the KPI's word for the same count, not "open anomalies".
+    const signals = await screen.findByRole('link', { name: '1 open signal' })
+    expect(signals).toHaveAttribute('href', '/p/demo/anomalies')
     expect(screen.getByRole('link', { name: '2 open incidents' })).toHaveAttribute(
       'href',
       '/p/demo/alerting',
@@ -898,6 +929,11 @@ describe('OverviewPage — design review follow-ups', () => {
     expect(
       container.querySelectorAll('[data-slot="mini-stat-strip"] .pulse-dot'),
     ).toHaveLength(1)
+    // Its word for screen readers is the signal's own, "open", not the
+    // "active" of the events tile beside it.
+    const kpi = screen.getByText('Open signals').closest('dl') as HTMLElement
+    expect(within(kpi).getByText('open')).toHaveClass('sr-only')
+    expect(kpi).not.toHaveTextContent(/active/)
   })
 
   it('shows one empty state instead of five empty panels in a blank project', async () => {
@@ -910,14 +946,58 @@ describe('OverviewPage — design review follow-ups', () => {
     expect(
       await screen.findByRole('heading', { name: 'Overview fills in after your first scan' }),
     ).toBeInTheDocument()
-    // Owners can act on it straight away.
-    expect(screen.getByRole('link', { name: 'Connect a data source' })).toHaveAttribute(
-      'href',
-      '/settings/data-sources',
-    )
+    // One way to connect a source: the getting-started checklist's first step.
+    // The empty state under it says why the page is empty without a second
+    // "Connect a data source" button.
+    const steps = screen.getByRole('list', { name: 'Setup steps' })
+    expect(within(steps).getByRole('link', { name: /Connect a data source/ })).toBeInTheDocument()
+    expect(screen.queryByRole('link', { name: 'Connect a data source' })).not.toBeInTheDocument()
     expect(screen.queryByText('Top events · 48h')).not.toBeInTheDocument()
     expect(screen.queryByText('Source health')).not.toBeInTheDocument()
     expect(screen.queryByText('Active signals')).not.toBeInTheDocument()
+  })
+
+  it('offers the empty state its own Connect button once the checklist is dismissed', async () => {
+    setOnboardingDismissed('demo', 'project-1', true)
+    try {
+      mockFetch({
+        summary: { active_event_count: 0, implemented_event_count: 0, review_pending_event_count: 0 },
+        sources: [],
+      })
+      renderOverview()
+
+      // Owners can act on it straight away.
+      expect(await screen.findByRole('link', { name: 'Connect a data source' })).toHaveAttribute(
+        'href',
+        '/settings/data-sources',
+      )
+      expect(screen.queryByRole('list', { name: 'Setup steps' })).not.toBeInTheDocument()
+    } finally {
+      setOnboardingDismissed('demo', 'project-1', false)
+    }
+  })
+
+  it('offers the Connect button the moment the checklist is dismissed on the page', async () => {
+    try {
+      mockFetch({
+        summary: { active_event_count: 0, implemented_event_count: 0, review_pending_event_count: 0 },
+        sources: [],
+      })
+      renderOverview()
+
+      await screen.findByRole('list', { name: 'Setup steps' })
+      expect(screen.queryByRole('link', { name: 'Connect a data source' })).not.toBeInTheDocument()
+
+      // Nothing else re-renders the page here: the button has to follow the
+      // dismissal itself, not wait for the next refetch.
+      fireEvent.click(screen.getByRole('button', { name: 'Dismiss getting-started checklist' }))
+      expect(await screen.findByRole('link', { name: 'Connect a data source' })).toHaveAttribute(
+        'href',
+        '/settings/data-sources',
+      )
+    } finally {
+      setOnboardingDismissed('demo', 'project-1', false)
+    }
   })
 
   it('names a synthetic source once, with its status as a chip, and links the row', async () => {
@@ -938,9 +1018,11 @@ describe('OverviewPage — design review follow-ups', () => {
     // The badge says "Synthetic"; the engine name no longer repeats it.
     expect(within(synthetic).queryByText('synthetic')).not.toBeInTheDocument()
     expect(within(synthetic).getByText('Synthetic')).toBeInTheDocument()
-    // A real engine still shows, since it adds information.
+    // A real engine still shows, since it adds information, by the name the
+    // Data sources page gives it rather than the raw type key.
     const real = screen.getByText('Demo warehouse').closest('a') as HTMLElement
-    expect(within(real).getByText('clickhouse')).toBeInTheDocument()
+    expect(within(real).getByText('ClickHouse')).toBeInTheDocument()
+    expect(within(real).queryByText('clickhouse')).not.toBeInTheDocument()
     // The status is a toned chip (the check is months old here, so "Stale").
     expect(
       within(real).getByText('Stale').closest('[data-slot="chip"]'),

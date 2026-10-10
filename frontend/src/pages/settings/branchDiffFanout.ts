@@ -1,5 +1,4 @@
-import type { PlanBranchListItem } from '@/api/planBranches'
-import type { PlanBranchDiffSummary } from '@/types'
+import type { PlanBranchDiffSummary, PlanBranchSummary } from '@/types'
 import { pairedDiffCounts } from './branches/branchDiffModel'
 import { isLandedBranch } from './branches/branchMeta'
 
@@ -34,7 +33,7 @@ export interface RowCounts {
  * panel: the numbers a reviewer can compare are computed one way.
  */
 export function rowBadgeCounts(
-  items: PlanBranchListItem[],
+  items: PlanBranchSummary[],
   selectedId: string | null,
   selectedDiff: PlanBranchDiffSummary | undefined,
 ): Map<string, RowCounts> {

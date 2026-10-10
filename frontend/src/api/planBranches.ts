@@ -1,6 +1,5 @@
 import { api } from './client'
 import type {
-  EntityChangeCount,
   ImplementationTicket,
   MergedEventPreview,
   MergePreviewTarget,
@@ -8,6 +7,7 @@ import type {
   PlanBranchConflicts,
   PlanBranchDetail,
   PlanBranchDiffSummary,
+  PlanBranchList,
   PlanBranchMergeResolution,
   PlanBranchResolutionBatchCreate,
   PlanBranchResolutionBatchResponse,
@@ -15,44 +15,36 @@ import type {
   PlanBranchSummary,
   PlanBranchTransitionAction,
   PlanDiffEntityType,
-  PlanDiffKind,
-  ResolutionChoice,
   UpdateFromMainPreview,
   UpdateFromMainRequest,
   UpdateFromMainResult,
 } from '../types'
+import type { components } from '../types/api.gen'
+
+type Schemas = components['schemas']
 
 // --- Move or copy changes to another branch ---------------------------------
-// Hand-written mirrors of the Pydantic schemas in backend/src/tripl/schemas/
-// plan_branch.py (`BranchTransfer*`); reconciled with api.gen.ts on regeneration.
+// The generated `BranchTransfer*` schemas (backend/src/tripl/schemas/
+// plan_branch.py). A field the backend declares with a `None` default is
+// optional here even though the server always sends it.
 
-export type BranchTransferMode = 'move' | 'copy'
+export type BranchTransferMode = Schemas['BranchTransferRequest']['mode']
 
 /** One diff row, addressed the way a revert addresses it (no `field`). */
-export interface BranchTransferEntryRef {
-  entity_type: PlanDiffEntityType
-  name: string
-  parent?: string | null
-  entity_id?: string | null
-}
+export type BranchTransferEntryRef = Schemas['BranchTransferEntryRef']
 
-export interface BranchTransferRequest {
-  /** Null previews against a branch cut from main now; only with `dry_run`. */
-  target_branch_id: string | null
-  mode: BranchTransferMode
-  entries: BranchTransferEntryRef[]
+/**
+ * The request body. `target_branch_id` null previews against a branch cut from
+ * main now; only with `dry_run`. `dry_run` defaults to false server-side, so a
+ * real transfer may leave it out (the generated type marks a defaulted field
+ * required).
+ */
+export type BranchTransferRequest = Omit<Schemas['BranchTransferRequest'], 'dry_run'> & {
   dry_run?: boolean
 }
 
-export interface BranchTransferItem {
-  entity_type: PlanDiffEntityType
-  name: string
-  parent: string | null
-  entity_id: string | null
-  kind: PlanDiffKind
-  /** The selected row a carried one is needed by. */
-  needed_by: string | null
-}
+/** One listed row; `needed_by` names the selected row a carried one is needed by. */
+export type BranchTransferItem = Schemas['BranchTransferItem']
 
 export type BranchTransferConflictReason =
   | 'target_exists'
@@ -62,7 +54,11 @@ export type BranchTransferConflictReason =
   | 'ambiguous_rename'
   | 'has_discussion'
 
-/** One refused row, as the 409 `transfer_conflicts` lists it. */
+/**
+ * One refused row, as the 409 `transfer_conflicts` lists it. Hand-written: an
+ * HTTPException detail is not part of the OpenAPI schema, so there is no
+ * generated type to alias.
+ */
 export interface BranchTransferConflict {
   entity_type: PlanDiffEntityType
   name: string
@@ -72,49 +68,21 @@ export interface BranchTransferConflict {
   message: string
 }
 
-export interface BranchTransferResult {
-  mode: BranchTransferMode
-  dry_run: boolean
-  target_branch_id: string | null
-  target_branch_name: string | null
-  applied: BranchTransferItem[]
-  carried: BranchTransferItem[]
-  skipped: BranchTransferItem[]
-  warnings: string[]
-  target_counts: EntityChangeCount[]
-  source_diff: PlanBranchDiffSummary | null
-}
-
-/**
- * A branch row as `GET /branches` returns it. `ahead` / `behind_base` are filled
- * only when the list is asked for them (`include_diff_counts`), and then only
- * for open feature branches; merged, closed and main rows keep them null, as
- * does every row of a plain list. `ahead` is the backend's raw count of
- * reviewable entries — a rename still counts as its removal plus its addition.
- */
-export interface PlanBranchListItem extends PlanBranchSummary {
-  ahead?: number | null
-  behind_base?: boolean | null
-}
-
-export interface PlanBranchListResponse {
-  items: PlanBranchListItem[]
-  total: number
-}
+export type BranchTransferResult = Schemas['BranchTransferResult']
 
 export const planBranchesApi = {
   /** `include_diff_counts` costs one plan snapshot per open branch plus one
    * for main, so only the Branches tab's badges ask for it — the switcher and
    * everything else read the plain list. */
   list: (slug: string, options: { include_diff_counts?: boolean } = {}) =>
-    api.get<PlanBranchListResponse>(
+    api.get<PlanBranchList>(
       `/projects/${slug}/branches${options.include_diff_counts ? '?include_diff_counts=true' : ''}`,
     ),
 
   get: (slug: string, branchId: string) =>
     api.get<PlanBranchDetail>(`/projects/${slug}/branches/${branchId}`),
 
-  create: (slug: string, data: { name: string; description?: string }) =>
+  create: (slug: string, data: Schemas['PlanBranchCreate']) =>
     api.post<PlanBranchSummary>(`/projects/${slug}/branches`, data),
 
   delete: (slug: string, branchId: string) =>
@@ -189,15 +157,9 @@ export const planBranchesApi = {
   revert: (
     slug: string,
     branchId: string,
-    data: {
-      entity_type: PlanDiffEntityType
-      name: string
-      parent?: string | null
-      field?: string | null
-      /** The diff entry's own `entity_id`: two events (or relations) may share a
-       * name, and then only the id says which entry is meant. */
-      entity_id?: string | null
-    },
+    /** `entity_id` is the diff entry's own: two events (or relations) may
+     * share a name, and then only the id says which entry is meant. */
+    data: Schemas['BranchRevertRequest'],
   ) =>
     api.post<PlanBranchDiffSummary>(
       `/projects/${slug}/branches/${branchId}/revert`,
@@ -238,12 +200,7 @@ export const planBranchesApi = {
   saveResolution: (
     slug: string,
     branchId: string,
-    data: {
-      entity_type: string
-      entity_name: string
-      field_name: string
-      choice: ResolutionChoice
-    },
+    data: Schemas['ResolutionCreate'],
   ) =>
     api.post<PlanBranchMergeResolution>(
       `/projects/${slug}/branches/${branchId}/resolutions`,
@@ -255,11 +212,6 @@ export const planBranchesApi = {
     api.post<PlanBranchResolutionBatchResponse>(
       `/projects/${slug}/branches/${branchId}/resolutions/batch`,
       data,
-    ),
-
-  deleteResolution: (slug: string, branchId: string, resolutionId: string) =>
-    api.del(
-      `/projects/${slug}/branches/${branchId}/resolutions/${resolutionId}`,
     ),
 
   /** Tracker tickets opened when this branch merged. Read-only: the backend

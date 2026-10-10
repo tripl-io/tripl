@@ -1,216 +1,101 @@
-import type { AlertInboxStatus, SignalOwnerRef } from './alerting'
+import type { components } from './api.gen'
 
-// Exhaustive scope-type union mirroring the backend MetricScopeType enum
-// (backend/src/tripl/models/domain_enums.py). Keep every member in sync;
-// narrowing this to a subset silently mis-routes the omitted scopes.
-export type MetricScopeType =
-  | 'project_total'
-  | 'event_type'
-  | 'event'
-  | 'schema'
-  | 'distribution'
-  | 'release_regression'
-  | 'metric'
-  | 'variable_value_drift'
-  // A late or overdue scan source (F16, #269); scope_ref is the scan config id.
-  | 'source_freshness'
-  // An open lifecycle finding (#258): past sunset and still sending, or a
-  // silent successor. One alert per finding.
-  | 'lifecycle'
-  // An open property drift (F23, #306): a new property, a missing required
-  // one, or a type change. scope_ref is the drift row id; event_id is the
-  // event, or null for a type change.
-  | 'property_drift'
+// Metric, signal and chart payloads, taken from the generated OpenAPI schema
+// (`api.gen.ts`) rather than restated, so a backend change to any of them is a
+// compile error where it is read instead of a silent drift.
+//
+// A field the backend declares with a `None` default is optional here
+// (`field?: T | null`) even though the server always sends it, null when
+// unset. Read such a field with `== null`, `!= null` or `??`, never with
+// `=== null`: TypeScript treats it as possibly undefined.
+type Schemas = components['schemas']
 
-export interface EventMetricPoint {
-  bucket: string
-  count: number
-  expected_count: number | null
-  stddev: number | null
-  is_anomaly: boolean
-  anomaly_direction: 'spike' | 'drop' | null
-  z_score: number | null
-  detector_kind?: string | null
-  /**
-   * The baseline the detector scored this bucket against, flagged or not: the
-   * expected value and the floored effective stddev (the band is
-   * `baseline_expected ± sigma_threshold * baseline_stddev`). Null where no
-   * baseline was stored — older buckets, unscored ones and routes other than
-   * the event, event-type and project-total drilldowns.
-   */
-  baseline_expected?: number | null
-  baseline_stddev?: number | null
-  /**
-   * The verdict on this bucket's signal, and the incident it was routed into
-   * (#254). Only a flagged bucket carries them; optional because a payload
-   * that predates verdicts, and every locally-built point, has neither.
-   */
-  verdict?: SignalVerdict | null
-  incident?: SignalIncidentRef | null
-  /**
-   * The planned event that expected this flagged bucket (F18): the chart mutes
-   * its marker and names the event. Absent on every other bucket.
-   */
-  planned_event_id?: string | null
-}
+/**
+ * Every scope a signal or alert can be about (backend MetricScopeType):
+ * `project_total`, `event_type`, `event`, `schema`, `distribution`,
+ * `release_regression`, `metric`, `variable_value_drift`, `source_freshness`
+ * (scope_ref is the scan config id), `lifecycle` (an open lifecycle finding,
+ * #258) and `property_drift` (scope_ref is the drift row id, F23).
+ */
+export type MetricScopeType = Schemas['MetricScopeType']
+
+/**
+ * One bucket of an event-volume series. `baseline_expected` and
+ * `baseline_stddev` are the baseline the detector scored the bucket against,
+ * flagged or not (the band is `baseline_expected ± sigma_threshold *
+ * baseline_stddev`), null where none was stored. Only a flagged bucket
+ * carries `verdict` (#254) and, when a planned event expected it,
+ * `planned_event_id` (F18).
+ */
+export type EventMetricPoint = Schemas['EventMetricPoint']
 
 /**
  * What a person decided a signal was (#254). `expected` keeps its older
  * behaviour — a chart annotation on the bucket and the signal hidden — and
  * its reason only documents it; `false_positive` tunes detection the way an
  * incident's does; `tracking_bug` and `real_issue` record the finding.
+ *
+ * The generated schema calls this enum `SignalVerdict`. It is
+ * `SignalVerdictKind` here, and the verdict object is `SignalVerdictInfo`,
+ * so no name means both.
  */
-export type SignalVerdictKind = 'expected' | 'tracking_bug' | 'false_positive' | 'real_issue'
+export type SignalVerdictKind = Schemas['SignalVerdict']
 
 /** Why an `expected` signal was expected; documents only, suppresses nothing. */
-export type SignalExpectedReason = 'campaign' | 'release' | 'seasonality' | 'other'
+export type SignalExpectedReason = Schemas['SignalExpectedReason']
 
 /**
  * A signal's verdict as the read payloads carry it. `source: 'incident'`
  * means the signal belongs to an incident and the verdict shown is the
  * incident's state: the incident is the source of truth, so the signal's own
- * verdict cannot be cleared from here.
+ * verdict cannot be cleared from here. `author_name` is null once the
+ * author's account is gone and on a status the system changed; `created_at`
+ * is null when the time is not known.
  */
-export interface SignalVerdict {
-  verdict: SignalVerdictKind
-  expected_reason: SignalExpectedReason | null
-  note: string | null
-  // Null once the author's account is gone, and on an incident whose status
-  // was changed by the system.
-  author_name: string | null
-  // Null when the time the verdict was set is not known (an incident whose
-  // status change carries no timestamp).
-  created_at: string | null
-  source: 'signal' | 'incident'
-}
+export type SignalVerdictInfo = Schemas['SignalVerdictInfo']
 
 /** The incident a signal was routed into, as the verdict payloads name it. */
-export interface SignalIncidentRef {
-  id: string
-  status: AlertInboxStatus
-}
+export type SignalIncidentRef = Schemas['SignalIncidentBrief']
 
 /** `POST /projects/{slug}/signals/verdict`: a verdict on one signal. */
-export interface SignalVerdictRequest {
-  scan_config_id: string | null
-  scope_type: MetricScopeType
-  scope_ref: string
-  bucket: string
-  verdict: SignalVerdictKind
-  expected_reason?: SignalExpectedReason | null
-  note?: string | null
-}
+export type SignalVerdictRequest = Schemas['SignalVerdictRequest']
 
-/** `GET /projects/{slug}/signals/verdict-counts`, read by the health score (F15). */
-export interface SignalVerdictCounts {
-  needs_verdict: number
-  expected: number
-  tracking_bug: number
-  false_positive: number
-  real_issue: number
-}
+/**
+ * One row of the Overview's top events. `window_total_count` is the
+ * project's volume over the same window, counted the project-total way, so
+ * the shares need not add up to 100%.
+ */
+export type TopEvent = Schemas['TopEventResponse']
 
-export interface TopEvent {
-  event_id: string
-  name: string
-  event_type_id: string
-  total_count: number
-  // The project's volume over the same window, identical on every row, so a
-  // row can show its event's share without a second request. Counted
-  // the project-total way, so the shares need not add up to 100%.
-  window_total_count: number
-}
+/** Events created per day on the main branch, for the Overview sparkline. */
+export type OverviewKpiSeries = Schemas['OverviewKpiSeriesResponse']
 
-export interface OverviewKpiSeries {
-  days: number
-  // Events CREATED per day on the main branch. Named `active_events` until
-  // it was renamed, which is what led the Overview sparkline to announce itself
-  // as "Active events by day" while plotting creations across every branch.
-  new_events: number[]
-}
-
-export interface MonitoringSignal {
-  // NULL for `metric`-scope signals: catalog MetricDefinition series are
-  // project-global and belong to no single scan config. The backend has always
-  // said so (MetricSignalResponse.scan_config_id is `uuid.UUID | None`); this
-  // declaration claimed otherwise, so a consumer could treat it as a string,
-  // typecheck, and meet a null at runtime.
-  scan_config_id: string | null
-  scope_type: MetricScopeType
-  scope_ref: string
-  state: 'latest_scan' | 'recent'
-  event_id: string | null
-  event_type_id: string | null
-  bucket: string
-  actual_count: number
-  expected_count: number
-  stddev: number
-  z_score: number
-  direction: 'spike' | 'drop'
-  // How big this signal is relative to what was expected — what the Significant
-  // gate and the sidebar badge both read. Computed server-side because only it
-  // knows whether a catalog metric's series is count-shaped, which decides
-  // whether the denominator is floored at 1. Null on a payload
-  // that did not compute it; `relativeEffect` falls back to the count-shaped
-  // estimate there rather than treating the signal as having no magnitude.
-  relative_effect?: number | null
-  // Display name of the scope that fired, resolved server-side. Null when it
-  // could not be resolved (the entity was deleted) or when the scope names
-  // itself — `project_total`. Never substitute `scope_ref`: a hex prefix reads
-  // as a name, and the page then disagrees with the activity rail about what
-  // fired. Optional like `scan_config_name`: the server always
-  // sends it, but locally-synthesised signals need not fabricate one.
-  scope_name?: string | null
-  // True when this row is a child scope (event_type/event) folded under a
-  // co-firing project_total incident. Only the expanded AnomaliesPage fetch
-  // sets it; collapsed callers drop children so it is always false there.
-  incident_child: boolean
-  // Display unit of a `metric`-scope signal's catalog metric ("%", "ms"…);
-  // null for every other scope and for a unitless metric, and on a
-  // locally-synthesised signal.
-  unit: string | null
-  // When the detector wrote the anomaly — distinct from `bucket`, when the
-  // anomalous period STARTED. Null on a payload that predates it.
-  detected_at: string | null
-  // The Alerting Inbox incident this signal was routed into and its status
-  // there, so an Anomalies row can link to the incident. Null when no
-  // rule delivered it; filled on the expanded list only.
-  incident_id?: string | null
-  incident_status?: AlertInboxStatus | null
-  // Triage of a signal NO rule routed to an incident; a signal
-  // with `incident_id` is triaged in the inbox and never carries these. Read
-  // `muted_until` together with `muted`: null means both "not muted" and
-  // "muted until someone unmutes". `hidden` (muted or expected) is what every
-  // open-signal count gates on; the collapsed list drops hidden signals, the
-  // expanded list keeps them so the Anomalies page can offer "Show hidden".
-  // Optional: locally-synthesised signals need not carry them.
-  acknowledged_at?: string | null
-  muted?: boolean
-  muted_until?: string | null
-  expected?: boolean
-  expected_note?: string | null
-  hidden?: boolean
-  // The verdict (#254) and the incident it belongs to. Unlike the triage
-  // fields above, a routed signal carries a verdict too: its incident's state,
-  // with `source: 'incident'`. A signal with a verdict leaves the open-signal
-  // counts; one without is what the "Needs verdict" filter lists.
-  verdict?: SignalVerdict | null
-  incident?: SignalIncidentRef | null
-  // Why it changed (#255): the flagged bucket's delta split across the scan's
-  // breakdown columns, computed when the anomaly was written so the alert and
-  // this page read the same numbers. Optional: a payload that predates it, and
-  // every locally-synthesised signal, carries neither.
-  attribution?: SignalAttribution | null
-  attribution_status?: SignalAttributionStatus
-  // The stored anomaly this signal reads, for the attribution endpoint
-  // (`GET /projects/{slug}/anomalies/{anomaly_id}/attribution`). Null on a
-  // payload that predates it and on a locally-synthesised signal.
-  anomaly_id?: string | null
-  // Owners of the signal's event type / catalog metric (F07, #260), for the
-  // Signal card's owners line and "Notify owners". Optional: a payload that
-  // predates owner routing omits it, which renders as no owners line.
-  owners?: SignalOwnerRef[]
-}
+/**
+ * An open signal (`GET /anomalies/signals`, the metric payloads'
+ * `latest_signal`).
+ *
+ * - `scan_config_id` is null for a catalog `metric` scope, which belongs to
+ *   no single scan config.
+ * - `relative_effect` is how big the signal is next to what was expected,
+ *   computed server-side because only the server knows whether a catalog
+ *   metric is count-shaped.
+ * - `scope_name` is the display name of the scope that fired, null when it
+ *   could not be resolved or the scope names itself (`project_total`). Never
+ *   substitute `scope_ref`: a hex prefix reads as a name.
+ * - `incident_child` marks a child scope folded under a co-firing
+ *   project-total incident (expanded fetch only).
+ * - `incident_id`/`incident_status`: the inbox incident a rule routed it
+ *   into. A routed signal is triaged in the inbox; the triage fields
+ *   (`acknowledged_at`, `muted`, `muted_until`, `expected`, `expected_note`,
+ *   `hidden`) belong to an unrouted one. `hidden` (muted or expected) is
+ *   what every open-signal count gates on.
+ * - `verdict` (#254) is the signal's own, or its incident's state.
+ * - `attribution` (#255) splits the flagged bucket's delta across the
+ *   scan's breakdown columns; `anomaly_id` is what the attribution endpoint
+ *   takes.
+ * - `owners` (F07, #260) are the owners of its event type or catalog metric.
+ */
+export type MonitoringSignal = Schemas['MetricSignalResponse']
 
 /**
  * Whether a signal has an attribution (#255): `ready` carries one;
@@ -218,395 +103,130 @@ export interface MonitoringSignal {
  * there is nothing to attribute; `not_computed` is everything else — a signal
  * older than the feature, or a scope attribution does not cover.
  */
-export type SignalAttributionStatus = 'ready' | 'no_breakdown_columns' | 'not_computed'
+export type SignalAttributionStatus = MonitoringSignal['attribution_status']
 
-/** One breakdown value's part of the flagged bucket's delta. */
-export interface SignalAttributionValue {
-  value: string
-  /** actual − expected for this value; the column's values and its Other sum to the scope's delta. */
-  delta: number
-  expected: number
-  actual: number
-  /**
-   * This value's delta over the scope's delta, SIGNED: negative for a value
-   * that moved against the change, and not clipped. Never render it as a raw
-   * 0..1 share; the panel prints `headline` and the signed counts instead.
-   */
-  share: number
-}
+/**
+ * One breakdown value's part of the flagged bucket's delta. `share` is its
+ * delta over the scope's delta, SIGNED and not clipped: never render it as a
+ * raw 0..1 share.
+ */
+export type SignalAttributionValue = Schemas['AttributionValue']
 
-/** One breakdown column's split of the delta, its top values first. */
-export interface SignalAttributionColumn {
-  column: string
-  /** Same-sign contributions of the top values over the delta, clipped 0..1. */
-  explained_share: number
-  values: SignalAttributionValue[]
-}
+/**
+ * One breakdown column's split of the delta, its top values first.
+ * `explained_share` is the top values' same-sign contribution, clipped 0..1.
+ */
+export type SignalAttributionColumn = Schemas['AttributionColumn']
 
 /** An app version that crossed the activation gate within the anomaly's window. */
-export interface SignalAttributionRelease {
-  version: string
-  previous_version: string | null
-  /** Share of traffic the version reached, 0..1. */
-  share: number
-  reached_at: string
-}
+export type SignalAttributionRelease = Schemas['AttributionRelease']
 
-export interface SignalAttribution {
-  /** actual − expected for the flagged bucket. */
-  delta: number
-  /** Up to three columns, ranked by their top value's |contribution|. */
-  columns: SignalAttributionColumn[]
-  release: SignalAttributionRelease | null
-  /**
-   * The one-liners the alert carries too, worded by the backend (the single
-   * source of the formula): e.g. "92% of the drop comes from platform = ios
-   * (−3,120 of −3,390)" and "Release 4.12 reached 38% of traffic 3h before
-   * the drop". Render them verbatim; null when there is nothing to say.
-   */
-  headline?: string | null
-  release_line?: string | null
-  /** When the worker computed this attribution. */
-  computed_at?: string | null
-}
-
-/** `GET /projects/{slug}/anomalies/{anomaly_id}/attribution`. */
-export interface AnomalyAttributionResponse {
-  anomaly_id: string
-  scan_config_id: string | null
-  attribution: SignalAttribution | null
-  attribution_status: SignalAttributionStatus
-}
+/**
+ * Why a signal changed (#255). `headline` and `release_line` are worded by
+ * the backend, the same lines the alert carries: render them verbatim.
+ */
+export type SignalAttribution = Schemas['SignalAttribution']
 
 /** The scope a triage verdict is about, keyed like the signal. */
-export interface SignalTriageScope {
-  // Null for a catalog `metric` scope; required for every other one.
-  scan_config_id: string | null
-  scope_type: MetricScopeType
-  scope_ref: string
-  bucket: string
-}
+export type SignalTriageScope = Schemas['SignalTriageScope']
 
-export type SignalMuteDuration = '24h' | '7d' | 'until_unmuted'
+export type SignalMuteDuration = Schemas['SignalMuteRequest']['duration']
 
 /** A signal's triage fields after a write, as the lists will show them. */
-export interface SignalTriageState {
-  acknowledged_at: string | null
-  muted: boolean
-  muted_until: string | null
-  expected: boolean
-  expected_note: string | null
-  hidden: boolean
-}
+export type SignalTriageState = Schemas['SignalTriageState']
 
-export interface TopMoverItem {
-  breakdown_column: string
-  breakdown_value: string
-  is_other: boolean
-  actual_count: number
-  expected_count: number
-  stddev: number
-  z_score: number
-  direction: 'spike' | 'drop'
-}
+export type TopMoverItem = Schemas['TopMoverItem']
 
-export type DistributionDriftBand = 'stable' | 'minor' | 'significant'
+export type DistributionDriftBand = Schemas['DistributionDriftBand']
+export type DistributionDriftTopMover = Schemas['DistributionDriftTopMover']
+export type DistributionDriftPoint = Schemas['DistributionDriftPoint']
+export type DistributionDriftsResponse = Schemas['DistributionDriftsResponse']
 
-export interface DistributionDriftTopMover {
-  value: string
-  baseline_share: number
-  current_share: number
-  contribution: number
-}
-
-export interface DistributionDriftPoint {
-  id: string
-  scan_config_id: string
-  event_type_id: string | null
-  field_name: string
-  bucket: string
-  psi: number
-  band: DistributionDriftBand
-  baseline_total: number
-  current_total: number
-  top_movers: DistributionDriftTopMover[]
-}
-
-export interface DistributionDriftsResponse {
-  scope: 'project_total' | 'event_type' | 'event'
-  scan_config_id: string | null
-  event_type_id: string | null
-  fields: string[]
-  data: DistributionDriftPoint[]
-}
-
-export interface ForecastPoint {
-  bucket: string
-  expected_count: number
-  stddev: number
-}
+export type ForecastPoint = Schemas['ForecastPoint']
 
 /**
  * Who made an annotation: a person in the form (`manual`), the metrics worker
  * when an app version activated (`release`), or a deploy script through the
  * API or CLI (`api`).
  */
-export type ChartAnnotationSource = 'manual' | 'release' | 'api'
+export type ChartAnnotationSource = Schemas['ChartAnnotationSource']
 
-export interface ChartAnnotation {
-  id: string
-  project_id: string
-  scope_type: 'project_total' | 'event_type' | 'event' | 'metric' | null
-  scope_ref: string | null
-  bucket: string
-  label: string
-  description: string | null
-  color: string
-  source: ChartAnnotationSource
-  /** A release note, deploy or changelog link (http/https only). */
-  url: string | null
-  created_by_user_id: string | null
-  created_at: string
-  /** The scoped series' name; only on list responses, null when project-wide or gone. */
-  scope_name?: string | null
-}
+/**
+ * A chart annotation. `url` is a release note, deploy or changelog link
+ * (http/https only); `scope_name`, the scoped series' name, is set on list
+ * responses and null when project-wide or gone.
+ */
+export type ChartAnnotation = Schemas['ChartAnnotationResponse']
 
 /**
  * A window in which the project expects its numbers to move (F18): a campaign,
  * a sale, a holiday. Anomalies inside it are drawn but raise no alert.
  * `direction` null expects either way; a null scope covers every chart.
+ * `source` is `manual` or `holiday`; holiday rows come from the project's
+ * holiday calendar and are read-only.
  */
-export interface PlannedEvent {
-  id: string
-  project_id: string
-  label: string
-  description: string | null
-  starts_at: string
-  ends_at: string
-  direction: 'spike' | 'drop' | null
-  scope_type: 'project_total' | 'event_type' | 'event' | 'metric' | null
-  scope_ref: string | null
-  /** `holiday` rows come from the project's holiday calendar and are read-only. */
-  source: 'manual' | 'holiday'
-  created_by_user_id: string | null
-  created_at: string
-  updated_at: string
-  /** The scoped series' name; only on list responses, null when project-wide or gone. */
-  scope_name?: string | null
-}
+export type PlannedEvent = Schemas['PlannedEventResponse']
 
 /**
  * A recurring window people keep marking expected (#271): the same series at
- * the same UTC weekday and hour. Accepting it is creating `windows` as planned
- * events.
+ * the same UTC weekday (0 = Monday) and hour. Accepting it is creating
+ * `windows` as planned events.
  */
-export interface PlannedWindowSuggestion {
-  scope_type: 'project_total' | 'event_type' | 'event' | 'metric'
-  scope_ref: string
-  scope_name: string | null
-  /** 0 = Monday, UTC. */
-  weekday: number
-  hour: number
-  direction: 'spike' | 'drop' | null
-  verdict_count: number
-  last_bucket: string
-  note: string | null
-  windows: { starts_at: string; ends_at: string }[]
-}
+export type PlannedWindowSuggestion = Schemas['PlannedWindowSuggestionResponse']
 
-export interface SeasonalityCell {
-  weekday: number
-  hour: number
-  count: number
-  anomaly_count: number
-}
+export type SeasonalityCell = Schemas['SeasonalityCell']
 
-export interface SeasonalityHeatmap {
-  scan_config_id: string
-  scope_type: MetricScopeType
-  scope_ref: string
-  cells: SeasonalityCell[]
-  max_count: number
-  total_count: number
-  // The scan interval the cells were binned from. A daily/weekly scan puts every
-  // bucket in hour 0, so the 7×24 grid can never fill and must not be drawn.
-  interval: string
-  hourly_resolution: boolean
-}
+/**
+ * A weekday × hour heatmap. `interval` is the scan interval the cells were
+ * binned from: a daily or weekly scan puts every bucket in hour 0, so
+ * without `hourly_resolution` the 7×24 grid can never fill and is not drawn.
+ */
+export type SeasonalityHeatmap = Schemas['SeasonalityHeatmapResponse']
 
-export interface BreakdownTimelinePoint {
-  bucket: string
-  count: number
-}
+export type BreakdownTimelinePoint = Schemas['BreakdownTimelinePoint']
+export type BreakdownTimeline = Schemas['BreakdownTimelineResponse']
 
-export interface BreakdownTimeline {
-  scan_config_id: string
-  scope_type: MetricScopeType
-  scope_ref: string
-  breakdown_column: string
-  breakdown_value: string
-  is_other: boolean
-  interval: string | null
-  data: BreakdownTimelinePoint[]
-}
-
-export interface EventMetricsResponse {
-  scope: 'project_total' | 'event_type' | 'event' | 'events_total'
-  scan_config_id: string | null
-  // Display name of the single scan config the `project_total` / `events_total`
-  // series is scoped to, so the chart can name its scope instead of implying
-  // it covers every scan in the project. Optional like
-  // `sigma_threshold`: the server always sends it (null for scopes that have no
-  // single scan), but locally-synthesised responses need not fabricate one.
-  scan_config_name?: string | null
-  event_id: string | null
-  event_type_id: string | null
-  interval: string | null
-  latest_signal: MonitoringSignal | null
-  sigma_threshold?: number
-  // When the scan's newest completed collection finished, and the earliest
-  // moment the scheduler dispatches the next one (equal to the response time
-  // when collection is due now). Null without a scan config or interval (L4).
-  last_collected_at?: string | null
-  next_collection_at?: string | null
-  // The Events tab's series only: volume over the 7 days ending at the request's
-  // upper bound and the 7 before, whatever the chart's range.
-  week_total?: number | null
-  prior_week_total?: number | null
-  data: EventMetricPoint[]
-  forecast: ForecastPoint[]
-}
+/**
+ * An event-volume series. `scope` is `project_total`, `event_type`, `event`
+ * or `events_total`. `scan_config_name` names the single scan a
+ * `project_total`/`events_total` series is scoped to. `last_collected_at` and
+ * `next_collection_at` are when the scan's newest collection finished and
+ * the earliest the scheduler dispatches the next one. `week_total` and
+ * `prior_week_total` (the Events tab's series only) are the volume over the
+ * 7 days ending at the request's upper bound and the 7 before.
+ */
+export type EventMetricsResponse = Schemas['EventMetricsResponse']
 
 /** One signal a row sparkline asks `POST /anomalies/signals/series` for. */
-export interface SignalSeriesScope {
-  scan_config_id: string
-  scope_type: 'project_total' | 'event_type' | 'event'
-  scope_ref: string
-  bucket: string
-}
+export type SignalSeriesScope = Schemas['SignalSeriesScope']
 
 /**
  * Up to 24 buckets around one signal's flagged bucket: 19 before it, the
  * bucket, and up to 4 after. Interior gaps are zero-filled; buckets past the
  * newest stored one are absent.
  */
-export interface SignalSeries extends SignalSeriesScope {
-  interval: string | null
-  data: { bucket: string; count: number }[]
-}
+export type SignalSeries = Schemas['SignalSeriesResponse']
 
-export interface EventMetricBreakdownSeries {
-  breakdown_value: string
-  is_other: boolean
-  total_count: number
-  data: EventMetricPoint[]
-  parity_anomalies: PlatformParityAnomaly[]
-}
+export type EventMetricBreakdownSeries = Schemas['EventMetricBreakdownSeries']
+export type PlatformParityAnomaly = Schemas['PlatformParityAnomaly']
+export type EventMetricBreakdownsResponse = Schemas['EventMetricBreakdownsResponse']
 
-export interface PlatformParityAnomaly {
-  bucket: string
-  actual_share: number
-  expected_share: number
-  stddev: number
-  z_score: number
-  direction: 'spike' | 'drop'
-}
+export type AppVersionInfo = Schemas['AppVersionInfo']
+export type AppVersionMetricSeries = Schemas['AppVersionMetricSeries']
+export type AppVersionSeriesResponse = Schemas['AppVersionSeriesResponse']
+export type AppVersionAdoptionResponse = Schemas['AppVersionAdoptionResponse']
 
-export interface EventMetricBreakdownsResponse {
-  event_id: string
-  scan_config_id: string | null
-  interval: string | null
-  columns: string[]
-  selected_column: string | null
-  series: EventMetricBreakdownSeries[]
-}
+export type ReleaseRegressionItem = Schemas['ReleaseRegressionItem']
 
-export interface AppVersionInfo {
-  version: string
-  is_other: boolean
-  is_latest: boolean
-  is_active: boolean
-}
-
-export interface AppVersionMetricSeries {
-  version: string
-  is_other: boolean
-  is_latest: boolean
-  is_active: boolean
-  total_count: number
-  data: EventMetricPoint[]
-}
-
-export interface AppVersionSeriesResponse {
-  scan_config_id: string
-  scope_type: MetricScopeType
-  scope_ref: string
-  event_id: string | null
-  event_type_id: string | null
-  app_version_column: string | null
-  interval: string | null
-  latest_version: string | null
-  sigma_threshold?: number
-  versions: AppVersionInfo[]
-  series: AppVersionMetricSeries[]
-}
-
-export interface AppVersionAdoptionResponse extends AppVersionSeriesResponse {
-  totals: BreakdownTimelinePoint[]
-}
-
-export interface ReleaseRegressionItem {
-  scope_type: MetricScopeType
-  scope_ref: string
-  scope_name: string
-  event_id: string | null
-  event_type_id: string | null
-  kind: 'missing' | 'volume_drop'
-  version: string
-  previous_version: string
-  observed_count: number
-  expected_count: number
-  ratio: number
-  share_prev: number
-  share_new: number
-  release_share: number
-  window_from: string
-  window_to: string
-}
-
-export type ReleaseComparabilityReason =
-  | 'comparable'
-  | 'no_baseline'
-  | 'baseline_no_volume'
-  | 'population_mismatch'
+export type ReleaseComparabilityReason = Schemas['ReleaseComparabilityReason']
 
 /**
  * Verdict of one release-regression pass. An empty `items` means "nothing
  * regressed" only when the matching verdict says `comparable`; otherwise the
  * findings were withheld and the release cannot be judged yet.
  */
-export interface ReleaseComparabilityItem {
-  scope_type: MetricScopeType
-  comparable: boolean
-  reason: ReleaseComparabilityReason
-  version: string | null
-  previous_version: string | null
-  emerging_share: number
-  max_emerging_share: number
-}
+export type ReleaseComparabilityItem = Schemas['ReleaseComparabilityItem']
 
-export interface ReleaseRegressionsResponse {
-  scan_config_id: string
-  app_version_column: string | null
-  latest_version: string | null
-  comparability: ReleaseComparabilityItem[]
-  items: ReleaseRegressionItem[]
-}
+export type ReleaseRegressionsResponse = Schemas['ReleaseRegressionsResponse']
 
-export interface EventWindowMetrics {
-  event_id: string
-  scan_config_id: string | null
-  interval: string | null
-  total_count: number
-  data: EventMetricPoint[]
-}
+export type EventWindowMetrics = Schemas['EventWindowMetricsResponse']

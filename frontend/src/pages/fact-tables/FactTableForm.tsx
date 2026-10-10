@@ -1,4 +1,4 @@
-import { PageHeader } from '@/components/primitives/page-header'
+import { PageBackLink, PageHeader } from '@/components/primitives/page-header'
 import { PageContainer } from '@/components/primitives/page-container'
 import { SaveBar } from '@/components/forms/SaveBar'
 import { examplePlaceholder, sqlPlaceholder } from '@/components/forms/placeholders'
@@ -7,16 +7,15 @@ import { Button } from '@/components/ui/button'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { Navigate, useNavigate, useParams } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { ChevronLeft, Eye, Loader2, Plus, Save, Trash2 } from 'lucide-react'
-import { dataSourcesApi } from '@/api/dataSources'
+import { Eye, Loader2, Plus, Save, Trash2 } from 'lucide-react'
 import { factTablesApi } from '@/api/factTables'
-import { toast } from 'sonner'
 import { ColumnSuggestInput } from '@/components/column-suggest'
+import { NoProjectDataSource } from '@/components/data-sources/no-project-data-source'
 import { ErrorState } from '@/components/error-state'
 import { SqlEditor } from '@/components/sql-editor'
 import { useDataSourceSchema } from '@/hooks/useDataSourceSchema'
 import { useConfirm } from '@/hooks/useConfirm'
-import { ConfirmImpactMessage } from '@/components/dependencies/ImpactNotice'
+import { useProjectDataSources } from '@/hooks/useProjectDataSources'
 import { UsedBySection } from '@/components/dependencies/UsedBySection'
 import { useUnsavedChangesGuard } from '@/hooks/useUnsavedChangesGuard'
 import { editPageTitle, usePageTitle } from '@/components/shell-chrome-context'
@@ -40,7 +39,6 @@ import type {
   FactTableUpdate,
 } from '@/types'
 import {
-  dataSourcesKey,
   factTableKey,
   factTablesKey,
   metricGeneratedSqlKey,
@@ -51,6 +49,7 @@ import { toIdentifier } from '@/lib/identifier'
 import { SILENT_ERROR_META } from '@/lib/errorFeedback'
 import { PageSkeleton, QueryErrorState, ReadOnlyNotice } from '@/components/states'
 import { FactTableReadView } from './FactTableReadView'
+import { deleteFactTableConfirmation } from './factTableDelete'
 import { ColorSwatches } from '@/pages/metrics/ColorSwatches'
 import { nextMetricColor } from '@/pages/metrics/metricDraft'
 import { useDebouncedRerun } from '@/pages/metrics/useDebouncedRerun'
@@ -283,6 +282,9 @@ export function FactTableForm({ slug, factTable, dataSources, onClose }: FactTab
     () => toOptions('Select data source…', dataSources.map(ds => ({ value: ds.id, label: ds.name }))),
     [dataSources],
   )
+  // Nothing this project may use: said where the select would be, rather than
+  // a select with only its placeholder.
+  const noDataSources = dataSources.length === 0
 
   // Drive the SQL editor's dialect highlighting + schema-aware autocomplete from
   // the selected data source (same wiring as the scans base-query editor).
@@ -470,42 +472,15 @@ export function FactTableForm({ slug, factTable, dataSources, onClose }: FactTab
     },
   })
 
-  const deleteMut = useMutation({
-    // Rendered inline: a 409 names the metrics that still read this table, and
-    // that list is the whole point of the message.
-    meta: SILENT_ERROR_META,
-    mutationFn: (id: string) => factTablesApi.remove(slug, id),
-    onSuccess: () => {
-      unsaved.release()
-      void qc.invalidateQueries({ queryKey: factTablesKey(slug) })
-      void qc.invalidateQueries({ queryKey: projectFactTableKey(slug) })
-      toast.success('Fact table deleted.')
-      onClose()
-    },
-  })
-
+  // The list row's confirmation: the delete runs in the dialog, and a 409
+  // naming the metrics that still read this table shows there. `ok` means the
+  // table is gone.
   const onDelete = async () => {
     if (!factTable) return
-    const ok = await confirm({
-      title: 'Delete this fact table?',
-      // The metrics that read it, listed before the attempt (#257). These are
-      // the one dependents that DO block: the server refuses with a 409.
-      message: (
-        <ConfirmImpactMessage
-          message={
-            `"${factTable.display_name}" disappears from every fact metric's picker. A fact table ` +
-            'that metrics still read cannot be deleted; the refusal names them.'
-          }
-          slug={slug}
-          branchId={null}
-          mode="blocks"
-          changes={[{ kind: 'fact_table', id: factTable.id, change: 'delete' }]}
-        />
-      ),
-      confirmLabel: 'Delete fact table',
-      variant: 'danger',
-    })
-    if (ok) deleteMut.mutate(factTable.id)
+    const ok = await confirm(deleteFactTableConfirmation(factTable, slug, qc))
+    if (!ok) return
+    unsaved.release()
+    onClose()
   }
 
   // Focus asked for after an awaited preview has to wait for the render that
@@ -588,7 +563,7 @@ export function FactTableForm({ slug, factTable, dataSources, onClose }: FactTab
     setRowFilters(current => current.filter(filter => filter.id !== id))
   }
 
-  const busy = saveMut.isPending || previewMut.isPending || deleteMut.isPending
+  const busy = saveMut.isPending || previewMut.isPending
 
   return (
     <div className="h-full overflow-y-auto">
@@ -606,16 +581,9 @@ export function FactTableForm({ slug, factTable, dataSources, onClose }: FactTab
           void onSubmit()
         }}
       >
-        <button
-          type="button"
-          onClick={onClose}
-          className="mb-[14px] inline-flex items-center gap-1 text-caption transition-colors hover:text-[var(--fg)]"
-          style={{ color: 'var(--fg-muted)' }}
-        >
-          <ChevronLeft size={14} /> Fact tables
-        </button>
         <PageHeader
           className="mb-[18px]"
+          back={<PageBackLink label="Fact tables" onClick={onClose} />}
           eyebrow="Observe · Fact table"
           // The edited table is named, so two open editors are told apart.
           title={
@@ -693,19 +661,24 @@ export function FactTableForm({ slug, factTable, dataSources, onClose }: FactTab
           <SCard title="Source" description="The warehouse query this table reads. A read-only SELECT (WITH … SELECT works too).">
             <Field
               label="Data source"
-              htmlFor="fact-data-source"
+              htmlFor={noDataSources ? false : 'fact-data-source'}
+              errorId={fieldErrorId('fact-data-source')}
               required
               error={fieldErrors['fact-data-source']}
               announceError={false}
             >
-              <NativeSelect
-                id="fact-data-source"
-                value={dataSourceId}
-                onChange={setDataSourceId}
-                options={dataSourceOptions}
-                aria-required
-                {...errorAria(fieldErrors, 'fact-data-source')}
-              />
+              {noDataSources ? (
+                <NoProjectDataSource id="fact-data-source" />
+              ) : (
+                <NativeSelect
+                  id="fact-data-source"
+                  value={dataSourceId}
+                  onChange={setDataSourceId}
+                  options={dataSourceOptions}
+                  aria-required
+                  {...errorAria(fieldErrors, 'fact-data-source')}
+                />
+              )}
             </Field>
             <Field
               label="SQL"
@@ -991,12 +964,6 @@ export function FactTableForm({ slug, factTable, dataSources, onClose }: FactTab
           </div>
         )}
 
-        {deleteMut.isError && (
-          <div className="mb-[18px]">
-            <ErrorState compact title="Could not delete fact table" error={deleteMut.error} />
-          </div>
-        )}
-
         {/* Sticky, so Save and the reason it is blocked stay on screen on a
             long form. The status jumps to the first flagged field. */}
         <SaveBar
@@ -1017,11 +984,7 @@ export function FactTableForm({ slug, factTable, dataSources, onClose }: FactTab
               // foot instead of between them.
               className="max-sm:order-3 max-sm:mt-2 max-sm:w-full"
             >
-              {deleteMut.isPending ? (
-                <Loader2 className="animate-spin" aria-hidden="true" />
-              ) : (
-                <Trash2 aria-hidden="true" />
-              )}
+              <Trash2 aria-hidden="true" />
               Delete fact table
             </Button>
           )}
@@ -1064,10 +1027,9 @@ export default function FactTableEditPage() {
 
   const goBack = () => navigate(projectPath(currentOrgSlug(), slug, '/metrics/fact-tables'))
 
-  const dataSourcesQuery = useQuery({
-    queryKey: dataSourcesKey(),
-    queryFn: () => dataSourcesApi.list(),
-  })
+  // Only the sources this project may use: the server refuses a fact table
+  // bound to another project's warehouse.
+  const dataSourcesQuery = useProjectDataSources()
   const factTableQuery = useQuery({
     queryKey: factTableKey(slug, factTableId),
     queryFn: () => factTablesApi.get(slug!, factTableId!),

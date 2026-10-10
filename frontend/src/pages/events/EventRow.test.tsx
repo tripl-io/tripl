@@ -14,6 +14,7 @@ import type {
   MonitoringSignal,
   Variable,
 } from '@/types'
+import type { EventHealth } from '@/types/health'
 import { TooltipProvider } from '@/components/ui/tooltip'
 import { BranchContext } from '@/components/branch-context-internal'
 import { formatDateTime } from '@/lib/datetime'
@@ -103,6 +104,10 @@ function makeSignal(overrides: Partial<MonitoringSignal> = {}): MonitoringSignal
     z_score: 9,
     direction: 'spike',
     incident_child: false,
+    muted: false,
+    expected: false,
+    hidden: false,
+    attribution_status: 'not_computed',
     unit: null,
     detected_at: null,
     ...overrides,
@@ -124,9 +129,11 @@ function renderRow(
     metaValueMap,
     reorderable,
     justCreated,
+    health,
   }: {
     reorderable?: boolean
     justCreated?: boolean
+    health?: EventHealth
     variables?: Variable[]
     fieldColumns?: FieldDefinition[]
     metaFields?: MetaFieldDefinition[]
@@ -178,6 +185,7 @@ function renderRow(
                   onRowAction={() => {}}
                   reorderable={reorderable}
                   justCreated={justCreated}
+                  health={health}
                 />
               </tbody>
             </table>
@@ -416,6 +424,26 @@ describe('EventRow template token rendering', () => {
     expect(screen.getByText('${missing}')).toHaveClass('text-warning')
     // A quiet code token, not accent-coloured mono that reads as a link.
     expect(screen.getByText('${variant}')).toHaveAttribute('data-slot', 'code-token')
+  })
+
+  it("says on hover which values a known token's property documents", () => {
+    renderRow(
+      makeEvent({
+        field_values: [{ id: 'fv-1', field_definition_id: TEMPLATE_FIELD.id, value: '${variant}' }],
+      }),
+      [],
+      undefined,
+      {
+        variables: [{ ...TEMPLATE_VARIABLE, allowed_values: ['control', 'treatment'] }],
+        fieldColumns: [TEMPLATE_FIELD],
+        getFieldValue: () => '${variant}',
+      },
+    )
+
+    expect(screen.getByText('${variant}')).toHaveAttribute(
+      'title',
+      'Property ${variant}: filled in from observed values. Documented values: control, treatment',
+    )
   })
 })
 
@@ -750,5 +778,40 @@ describe('EventRow phone card', () => {
   it('keeps the drag handle in its cell when the list can be reordered', () => {
     renderRow(makeEvent({ name: 'Home Screen View' }), [], undefined, { reorderable: true })
     expect(screen.getByRole('button', { name: 'Drag to reorder Home Screen View' })).toBeInTheDocument()
+  })
+})
+
+describe('EventRow phone card labels', () => {
+  // A card has no column headers, so a bare "Recent" chip and "89" pill could
+  // not be read. Each names itself on a phone only (`md:hidden`).
+  const HEALTH: EventHealth = {
+    event_id: 'evt-1',
+    event_type_id: 'et-1',
+    name: 'checkout_completed',
+    score: 89,
+    grade: 'healthy',
+    renormalized: false,
+    excluded: [],
+    top_issue: null,
+    components: [],
+  }
+
+  it('names the signal chip on a phone and says what its word means', () => {
+    renderRow(makeEvent(), windowSeries(10, 20), makeSignal({ state: 'recent' }))
+
+    const chip = screen.getByText('Recent')
+    expect(chip).toHaveTextContent('Recent signal')
+    expect(chip.querySelector('.md\\:hidden')).toHaveTextContent('signal')
+    expect(chip).toHaveAttribute('title', 'Recent signal: still open from an earlier scan')
+  })
+
+  it('names the health score and the 48h count on a phone', () => {
+    const { container } = renderRow(makeEvent(), windowSeries(10, 20), undefined, { health: HEALTH })
+
+    const badge = screen.getByRole('button', { name: /Show breakdown/ })
+    expect(badge).toHaveTextContent('Health 89')
+    expect(badge.querySelector('.md\\:hidden')).toHaveTextContent('Health')
+    const phoneLabels = Array.from(container.querySelectorAll('.md\\:hidden'), node => node.textContent?.trim())
+    expect(phoneLabels).toContain('48h')
   })
 })

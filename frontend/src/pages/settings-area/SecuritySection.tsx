@@ -7,6 +7,7 @@ import { SCard, SHeader } from '@/components/settings/kit'
 import { DisabledReason, disabledReasonAria } from '@/components/states'
 import { Button } from '@/components/ui/button'
 import { SILENT_ERROR_META } from '@/lib/errorFeedback'
+import { RESET_LINK_COMMAND, RESET_LINK_PLACE } from '@/lib/passwordReset'
 import { isPlatformAdmin } from '@/lib/permissions'
 import { authStatusKey } from '@/lib/queryKeys'
 import { getErrorMessage } from '@/lib/utils'
@@ -37,6 +38,10 @@ const UNBUILT = [
  * password?". It used to hold two inputs and an "Update password"
  * button that did nothing at all, so people walked away believing their
  * password had rotated, and then the same controls disabled.
+ *
+ * Without email the button cannot work, and the card names the two ways to a
+ * link instead: an owner or admin creates one on Members, or whoever runs the
+ * server prints one with `tripl-admin`.
  *
  * Two-factor and session management are not built; they share one "Coming
  * later" card instead of a page of switches nobody can move.
@@ -71,6 +76,7 @@ export default function SecuritySection() {
     </Link>
   )
   const blocker = emailOff ? "This instance can't send email yet." : null
+  const noEmail = emailOff || (resetMut.isSuccess && !resetMut.data.email_configured)
 
   return (
     <div>
@@ -115,6 +121,13 @@ export default function SecuritySection() {
               </span>
             )}
           </div>
+          {noEmail && (
+            <p className="m-0 text-caption text-fg-tertiary">
+              Without email, an owner or admin of your organization can create a reset link for you
+              under {RESET_LINK_PLACE}. If no one can, whoever runs the server can print one
+              with <code className="mono">{`${RESET_LINK_COMMAND} ${email}`}</code>.
+            </p>
+          )}
           {resetMut.isError && (
             <p role="alert" className="m-0 text-body-sm text-danger">
               Could not request a reset link: {getErrorMessage(resetMut.error)}

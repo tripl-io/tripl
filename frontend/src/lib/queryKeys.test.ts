@@ -151,7 +151,7 @@ describe('query key values', () => {
       }),
       ['events', 'demo', 'b-1', 'et-1', 'q', ['live'], 'tag', 7, true, false, 'volume'],
     ],
-    [keys.eventsPickerKey('demo', null, 'metric-picker', 'q'), ['events', 'demo', null, 'metric-picker', 'q']],
+    [keys.eventsPickerKey('demo', null, 'q'), ['events', 'demo', null, 'picker', 'q']],
     [keys.eventsInReviewCountKey('demo', 'b-1'), ['events', 'demo', 'b-1', 'inReviewCount']],
     [keys.eventKey('demo', null, 'e-1'), ['event', 'demo', null, 'e-1']],
     [keys.eventTagsKey('demo', 'b-1'), ['eventTags', 'demo', 'b-1']],
@@ -159,14 +159,12 @@ describe('query key values', () => {
     [keys.eventIdentityProbeKey('demo', 'b-1', 'et-1', 'name'), ['eventIdentityProbe', 'demo', 'b-1', 'et-1', 'name']],
     [keys.eventImplementationTicketsKey('demo', 'b-1', 'e-1'), ['eventImplementationTickets', 'demo', 'b-1', 'e-1']],
     [keys.eventMigrationKey('demo', 'b-1', 'e-1'), ['eventMigration', 'demo', 'b-1', 'e-1']],
-    [keys.bulkIdentitiesKey('demo', 'b-1', 'et-1'), ['bulkIdentities', 'demo', 'b-1', 'et-1']],
     [keys.eventCommentsKey('demo', 'e-1'), ['eventComments', 'demo', 'e-1']],
     [keys.eventPhotosKey('demo', 'e-1'), ['eventPhotos', 'demo', 'e-1']],
     [keys.eventPhotoCommentsKey('demo', 'e-1', 'p-1'), ['eventPhotoComments', 'demo', 'e-1', 'p-1']],
     [keys.eventWindowMetricsKey('demo', ['e-1', 'e-2']), ['eventWindowMetrics', 'demo', 'e-1,e-2']],
     [keys.expandedSignalsKey('demo'), ['activeSignals', 'demo', 'expanded']],
     [keys.eventsTabSignalsKey('demo'), ['activeSignals', 'demo', 'tabs']],
-    [keys.signalVerdictCountsKey('demo'), ['activeSignals', 'demo', 'verdictCounts']],
     [keys.eventRowSignalsKey('demo', ['e-1', 'e-2']), ['activeSignals', 'demo', 'rows', 'e-1,e-2']],
     [keys.eventTypeDriftsKey('demo', 'et-1'), ['eventTypeDrifts', 'demo', 'et-1']],
     [keys.eventTypeOwnersKey('demo', 'et-1'), ['eventTypeOwners', 'demo', 'et-1']],
@@ -201,7 +199,6 @@ describe('query key values', () => {
     [keys.platformPresenceKey('demo', 'sc-1'), ['platformPresence', 'demo', 'sc-1']],
     [keys.demoScenarioScanWatchKey('demo', 'j-1'), ['demo-scenario-scan-watch', 'demo', 'j-1']],
     [keys.demoScenarioCollectWatchKey('demo', 'm-1', 1), ['demo-scenario-collect-watch', 'demo', 'm-1', 1]],
-    [keys.metricCollectWatchKey('demo', 'm-1', 1), ['metric-collect-watch', 'demo', 'm-1', 1]],
 
     [keys.metricsCatalogListKey('demo', 'all', 'all', ''), ['metrics-catalog', 'demo', 'all', 'all', '', '']],
     [keys.metricsCatalogListKey('demo', 'all', 'all', '', 'reviewed'), ['metrics-catalog', 'demo', 'all', 'all', '', 'reviewed']],
@@ -259,7 +256,7 @@ describe('query key values', () => {
 
   it.each([
     // [prefix an invalidation uses, key a reader caches under]
-    [keys.eventsRootKey(), keys.eventsPickerKey('demo', 'b-1', 'alert-filter', 'q')],
+    [keys.eventsRootKey(), keys.eventsPickerKey('demo', 'b-1', 'q')],
     [keys.projectEventsKey('demo'), keys.eventsInReviewCountKey('demo', 'b-1')],
     [keys.projectEventKey('demo'), keys.eventKey('demo', 'b-1', 'e-1')],
     [keys.projectEventHistoryKey('demo'), keys.eventHistoryKey('demo', 'b-1', 'e-1')],

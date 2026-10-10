@@ -35,6 +35,7 @@ import { useAiStatus } from '@/hooks/useAiStatus'
 import { ScenarioCoachMark } from '@/demo/ScenarioCoachMark'
 import { useDemoScenario, useDemoScenarioActions } from '@/demo/demoScenarioContext'
 import { SCENARIO_SEEDED } from '@/demo/scenarioModel'
+import { EVENT_ATTRIBUTE_LABEL } from '@/lib/eventAttributes'
 import { EVENT_STATUS_LABELS, EVENT_STATUSES } from '@/lib/eventStatus'
 import type { EventStatus } from '@/lib/eventStatus'
 import { ErrorState } from '@/components/error-state'
@@ -45,8 +46,9 @@ import { useDuplicateCheck } from '@/components/duplicates/useDuplicateCheck'
 import { validateJsonWithVars } from './jsonTemplate'
 import { applyEventNameFormat, nameFormatBaseColumns } from './utils'
 import { DateTimePicker } from '@/components/ui/date-time-picker'
-import { EvField, EvInput, EvTextarea, SelectControl, SurfCard } from './eventFormLayout'
-import { CheckCircle2, ChevronLeft, Copy, Loader2, Plus, Save, Sparkles } from 'lucide-react'
+import { EvField, EvInput, EvTextarea, EventsBackButton, SelectControl, SurfCard } from './eventFormLayout'
+import { NoEventTypesNotice } from './NoEventTypesNotice'
+import { CheckCircle2, Copy, Loader2, Plus, Save, Sparkles } from 'lucide-react'
 import { branchTicket } from '@/lib/branchTicket'
 import {
   branchEventIdentityProbesKey,
@@ -79,9 +81,12 @@ import {
   NAME_SAMPLE_SIZE,
 } from './eventNameConvention'
 import { SuccessorPicker } from './SuccessorPicker'
+import { ownerFieldHint } from './eventOwner'
+import { useEventTypeOwners } from './useEventTypeOwners'
 import { FieldValuesCard, MetaFieldsCard, TagsBreakdownsCard } from './EventFormCards'
 import type { EventDuplicate } from './duplicateEvent'
 import { currentOrgSlug, projectPath } from '@/lib/navigation'
+import { pluralize } from '@/lib/plural'
 
 const NO_CREATED: CreatedIdentity[] = []
 
@@ -236,6 +241,11 @@ export function EventForm({
   // for. GET /users is open to any signed-in user.
   const usersQuery = useQuery({ queryKey: usersKey(), queryFn: () => usersApi.list() })
   const users = usersQuery.data ?? []
+  // With no owner picked, the type's owners answer for the event and the
+  // health score counts them, so the hint names them. Only main's types have
+  // owners.
+  const { owners: typeOwners } = useEventTypeOwners(slug, etId, { enabled: branchId === null && !ownerId })
+  const ownerHint = ownerFieldHint(ownerId, eventTypes.find(et => et.id === etId)?.display_name, typeOwners)
 
   // A branch named after a ticket pre-fills the meta field that links to it,
   // once, on a new event; a field the reader has touched — typed into, or
@@ -661,7 +671,7 @@ export function EventForm({
       const ok = await confirm({
         title: 'Change the event type?',
         message: `${nextType ? nextType.display_name : 'No type'} has no field for ${carried.dropped.join(', ')}, so ${
-          carried.dropped.length === 1 ? 'that value is' : 'those values are'
+          pluralize(carried.dropped.length, 'that value is', 'those values are')
         } cleared. Values of fields with the same name are kept.`,
         confirmLabel: 'Change type',
         variant: 'primary',
@@ -938,19 +948,10 @@ export function EventForm({
         <PageHeader
           className="mb-[18px]"
           eyebrow="Plan · Event"
-          // A viewer is told what they are looking at, not handed a generic
-          // "Event".
-          title={isNew ? 'New event' : canWrite ? 'Edit event' : event!.name}
-          back={
-            <button
-              type="button"
-              onClick={onClose}
-              className="inline-flex items-center gap-1 text-caption transition-colors hover:text-[var(--fg)]"
-              style={{ color: 'var(--fg-muted)' }}
-            >
-              <ChevronLeft className="size-3.5" aria-hidden="true" /> {isNew ? 'Events' : event!.name}
-            </button>
-          }
+          // The edited event is named, as the metric editor names its metric:
+          // a generic "Edit event" left the page without the event's name.
+          title={isNew ? 'New event' : `${canWrite ? 'Edit' : 'Event'} · ${event!.name}`}
+          back={<EventsBackButton onClick={onClose} />}
         />
         {banner}
         {!canWrite && <ReadOnlyNotice className="mb-[18px]" />}
@@ -962,7 +963,7 @@ export function EventForm({
 
           <SurfCard title="Details">
             <EvField
-              label="Event type"
+              label={EVENT_ATTRIBUTE_LABEL.event_type_name}
               // A select with nothing to select is not a control, so the caption
               // names no control either (the `Field` escape hatch this repo uses
               // elsewhere for rows that hold prose).
@@ -972,20 +973,7 @@ export function EventForm({
               last={false}
             >
               {eventTypes.length === 0 ? (
-                // An empty project offered "Select type…" and no way forward: the
-                // field card stayed hidden, Create stayed blocked, and nothing said
-                // a type has to exist first. This is the first thing a new project
-                // does.
-                <p className="text-body-sm text-fg-secondary">
-                  This project has no event types yet, and an event belongs to one.{' '}
-                  <Link
-                    to={projectPath(currentOrgSlug(), slug, '/event-types')}
-                    className="underline underline-offset-2 text-accent"
-                  >
-                    Create an event type
-                  </Link>{' '}
-                  first, then come back here.
-                </p>
+                <NoEventTypesNotice slug={slug} />
               ) : (
                 <>
                   <SelectControl
@@ -1005,7 +993,7 @@ export function EventForm({
             </EvField>
 
             <EvField
-              label="Name"
+              label={EVENT_ATTRIBUTE_LABEL.name}
               htmlFor="form-name"
               required
               hint={
@@ -1143,7 +1131,7 @@ export function EventForm({
                 exactly this split now — production had analysts' wording jammed
                 into names that could never match a scan. */}
             <EvField
-              label="Title"
+              label={EVENT_ATTRIBUTE_LABEL.title}
               htmlFor="form-title"
               hint="Shown beside the identity in lists and the diff. Never part of the name a scan matches on."
             >
@@ -1157,7 +1145,7 @@ export function EventForm({
             </EvField>
 
             <EvField
-              label="Description"
+              label={EVENT_ATTRIBUTE_LABEL.description}
               htmlFor="form-description"
               notes={
                 aiDescribeMut.isError ? (
@@ -1190,16 +1178,16 @@ export function EventForm({
               )}
             </EvField>
 
-            <EvField label="Status" htmlFor="form-status">
+            <EvField label={EVENT_ATTRIBUTE_LABEL.status} htmlFor="form-status">
               <SelectControl id="form-status" value={status} onChange={v => setStatus(v as EventStatus)}>
                 {EVENT_STATUSES.map(s => <option key={s} value={s}>{EVENT_STATUS_LABELS[s]}</option>)}
               </SelectControl>
             </EvField>
 
             <EvField
-              label="Owner"
+              label={EVENT_ATTRIBUTE_LABEL.owner_id}
               htmlFor="form-owner"
-              hint="Who answers for this event."
+              hint={ownerHint}
               last={status !== 'deprecated'}
             >
               <SelectControl id="form-owner" value={ownerId} onChange={setOwnerId}>
@@ -1212,14 +1200,14 @@ export function EventForm({
 
             {status === 'deprecated' && (
               <EvField
-                label="Sunset date"
+                label={EVENT_ATTRIBUTE_LABEL.sunset_at}
                 htmlFor="form-sunset"
                 hint="When this event stops being supported, in your local time."
                 last={isNew}
               >
                 <DateTimePicker
                   id="form-sunset"
-                  label="Sunset date"
+                  label={EVENT_ATTRIBUTE_LABEL.sunset_at}
                   value={sunsetAt}
                   onChange={setSunsetAt}
                   clearable

@@ -1,7 +1,7 @@
 /**
  * A public demo's newcomer gets their demo without being asked for it.
  *
- * The sign-in card promises "a demo workspace of your own", and the visitor
+ * The sign-in card promises "a demo project of your own", and the visitor
  * then landed on an empty workspace whose one thing to do was a button that
  * made it. Starting the create for them keeps the promise; the provisioning
  * dialog says what is happening and opens the demo when it is ready.

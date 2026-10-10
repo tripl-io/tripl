@@ -86,7 +86,10 @@ export function typeOptions(
   return [
     {
       ...typeOption({ id: selectedTypeId, display_name: '', color: '' }),
-      label: `Every event of type ${selectedTypeId.slice(0, 8)}`,
+      // Neutral on purpose: the type list may still be loading, so the stored
+      // type is not known to be deleted, and an id prefix means nothing to a
+      // reader.
+      label: 'Every event of an unknown type',
     },
     ...matching,
   ]

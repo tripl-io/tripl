@@ -308,6 +308,8 @@ export interface Variable {
   listed_event_count?: number
   /** Of those, the events that require it. */
   required_event_count?: number
+  /** Events whose field or meta values name its `${token}` (the `usage` filter's token scan). */
+  value_event_count?: number
   event_count?: number
   context_count?: number
   low_context_count?: number

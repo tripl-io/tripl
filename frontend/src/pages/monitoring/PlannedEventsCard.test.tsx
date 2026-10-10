@@ -56,14 +56,14 @@ describe('PlannedEventsCard (F18)', () => {
 
   it('offers no form or delete to a viewer', () => {
     renderCard([{ ...BASE, label: 'Promo' }])
-    expect(screen.queryByRole('button', { name: 'Add planned event' })).not.toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: /Delete planned event/ })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Add expected window' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /Delete expected window/ })).not.toBeInTheDocument()
     expect(screen.getByText(/up to an editor or owner/)).toBeInTheDocument()
   })
 
   it('lets an editor add once a label is typed', () => {
     renderCard([{ ...BASE, label: 'Promo' }], true)
-    expect(screen.getByRole('button', { name: 'Add planned event' })).toBeDisabled()
-    expect(screen.getByRole('button', { name: 'Delete planned event Promo' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Add expected window' })).toBeDisabled()
+    expect(screen.getByRole('button', { name: 'Delete expected window Promo' })).toBeInTheDocument()
   })
 })

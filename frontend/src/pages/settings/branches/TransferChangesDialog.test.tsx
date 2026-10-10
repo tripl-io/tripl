@@ -237,4 +237,26 @@ describe('TransferChangesDialog', () => {
       expect.objectContaining({ mode: 'copy' }),
     )
   })
+
+  it('asks before Escape drops a new branch being written', async () => {
+    vi.mocked(planBranchesApi.transfer).mockResolvedValue(result())
+    const { onOpenChange } = renderDialog()
+
+    fireEvent.click(await screen.findByRole('radio', { name: 'New branch…' }))
+    fireEvent.change(screen.getByLabelText('Description'), { target: { value: 'Signup rework' } })
+    fireEvent.keyDown(screen.getByRole('dialog'), { key: 'Escape' })
+
+    expect(await screen.findByRole('alertdialog')).toHaveTextContent('Leave without saving?')
+    expect(onOpenChange).not.toHaveBeenCalledWith(false)
+  })
+
+  it('closes from Cancel at once when nothing was picked', async () => {
+    const { onOpenChange } = renderDialog()
+    await screen.findByRole('radio', { name: 'TASK-2' })
+
+    fireEvent.click(screen.getByRole('button', { name: 'Cancel' }))
+
+    expect(onOpenChange).toHaveBeenCalledWith(false)
+    expect(screen.queryByRole('alertdialog')).toBeNull()
+  })
 })

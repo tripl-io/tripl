@@ -6,8 +6,10 @@ import { Fragment, useState } from 'react'
 import { Panel } from '@/components/settings/kit'
 import { Link, useParams } from 'react-router-dom'
 import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { ArrowRight, ChevronDown, GitCompare, Inbox, Info } from 'lucide-react'
+import { ChevronDown, GitCompare, Inbox } from 'lucide-react'
 import { EmptyState } from '@/components/empty-state'
+import { GoToScansButton } from '@/components/first-scan-actions'
+import { InfoTip } from '@/components/info-tip'
 import {
   MAX_SHADOW_BATCH,
   reconciliationApi,
@@ -35,8 +37,9 @@ import { SegmentedControl } from '@/components/ui/segmented-control'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { useActiveBranchId } from '@/hooks/useBranch'
 import { useConfirm } from '@/hooks/useConfirm'
-import { DEAD_EVENT_DAYS } from '@/lib/coverage'
+import { DEAD_EVENT_DAYS, dataMatchHelp } from '@/lib/coverage'
 import { formatRelativeTime } from '@/lib/datetime'
+import { formatNumber } from '@/lib/format'
 import { countOf } from '@/lib/plural'
 import { eventNameLabel } from '@/lib/eventName'
 import { getMonitoringPath } from '@/lib/monitoring'
@@ -93,10 +96,9 @@ interface BulkProgress {
 
 // One-line clarifier for the headline number. It reads as "coverage" but is a
 // different measure than the Coverage page's plan-coverage KPI, so spell out the
-// distinction to stop the two governance views looking contradictory. The unit
-// is warehouse OCCURRENCES (rows), not catalog entries — every other surface
-// uses "events" for the latter, so this one has to say which it means.
-const DATA_MATCH_HELP = `Share of tracked event occurrences in warehouse data that matched a planned event, over the last ${COVERAGE_DAYS} days. Counts occurrences (warehouse rows), not catalog entries. Different from Coverage, which measures how many active events are marked implemented.`
+// distinction to stop the two governance views looking contradictory. Both
+// pages' wording lives in lib/coverage, so neither can misdescribe the other.
+const DATA_MATCH_HELP = dataMatchHelp(COVERAGE_DAYS)
 
 // Ceiling for an imperfect match. `coverage_pct` arrives rounded to 2 dp, so a
 // single unmatched occurrence in 672 million comes back as exactly 100.0 and any
@@ -150,10 +152,6 @@ function bucketLabelPct(bucket: CoverageBucket): number {
 
 function hasBucketData(bucket: CoverageBucket): boolean {
   return bucket.total_count > 0
-}
-
-function pluralize(count: number, noun: string): string {
-  return `${count.toLocaleString()} ${noun}${count === 1 ? '' : 's'}`
 }
 
 export default function ReconciliationPage() {
@@ -306,7 +304,7 @@ export default function ReconciliationPage() {
     onSuccess: (result) => {
       setSelectedDead(new Set())
       setDeadError(null)
-      setArchiveNotice(`${pluralize(result.archived_count, 'event')} archived.`)
+      setArchiveNotice(`${countOf(result.archived_count, 'event', 'events')} archived.`)
       invalidatePlan()
     },
     onError: (err: unknown) => {
@@ -482,7 +480,7 @@ export default function ReconciliationPage() {
     const verb = action === 'accept' ? 'accepted' : 'dismissed'
     const failed = items.length - succeeded
     setBulkNotice(
-      `${pluralize(succeeded, 'event')} ${verb}.${failed > 0 ? ` ${failed.toLocaleString()} failed; see the rows below.` : ''}`,
+      `${countOf(succeeded, 'event', 'events')} ${verb}.${failed > 0 ? ` ${formatNumber(failed)} failed; see the rows below.` : ''}`,
     )
     invalidateShadow()
     if (action === 'accept') invalidatePlan()
@@ -521,7 +519,7 @@ export default function ReconciliationPage() {
     if (ids.length === 0) return
     const ok = await confirm({
       title: 'Archive dead events',
-      message: `Archive ${pluralize(ids.length, 'planned event')}? Archived events leave the active plan and stop counting towards Coverage.`,
+      message: `Archive ${countOf(ids.length, 'planned event', 'planned events')}? Archived events leave the active plan and stop counting towards Coverage.`,
       confirmLabel: 'Archive',
       variant: 'danger',
     })
@@ -549,21 +547,12 @@ export default function ReconciliationPage() {
         <EmptyState
           icon={GitCompare}
           title="Nothing to reconcile yet"
-          description="Reconciliation compares your plan with what a scan reads from your warehouse. No scan has run in this project yet; run one first."
-          action={
-            slug ? (
-              <Button asChild size="lg">
-                <Link to={projectPath(currentOrgSlug(), slug, '/scans')} className="no-underline">
-                  Go to Scans
-                  <ArrowRight aria-hidden="true" />
-                </Link>
-              </Button>
-            ) : undefined
-          }
+          description="Reconciliation compares your plan with what a scan reads from your data sources. No scan has run in this project yet; run one first."
+          action={slug ? <GoToScansButton slug={slug} /> : undefined}
         />
       ) : (
         <>
-          {/* Data match — share of planned events actually seen in data (distinct from plan coverage) */}
+          {/* Data match — share of tracked occurrences that matched a planned event (distinct from plan coverage) */}
           {/* The window is a static label on the panel it describes, not a disabled
               button that read as a greyed-out date picker. Dead events
               runs on the shared DEAD_EVENT_DAYS window and names it itself, so a
@@ -573,7 +562,7 @@ export default function ReconciliationPage() {
             right={<Chip size="xs">Last {COVERAGE_DAYS} days</Chip>}
             subtitle={
               coverage
-                ? `${coverage.summary.matched_count.toLocaleString()} of ${coverage.summary.total_count.toLocaleString()} tracked event occurrences matched a planned event · ${coverage.days}d`
+                ? `${formatNumber(coverage.summary.matched_count)} of ${formatNumber(coverage.summary.total_count)} tracked event occurrences matched a planned event · ${coverage.days}d`
                 : undefined
             }
           >
@@ -608,15 +597,9 @@ export default function ReconciliationPage() {
                   >
                     {coverage.summary.total_count > 0 ? formatMatchPct(coverage.summary) : '—'}
                   </span>
-                  <span
-                    className="inline-flex items-center gap-1 text-caption text-fg-tertiary"
-                    title={DATA_MATCH_HELP}
-                  >
+                  <span className="inline-flex items-center gap-1 text-caption text-fg-tertiary">
                     occurrences matched
-                    <Info
-                      className="h-3 w-3 shrink-0 text-fg-tertiary"
-                      aria-hidden
-                    />
+                    <InfoTip help={DATA_MATCH_HELP} />
                   </span>
                 </div>
                 <CoverageStrip items={coverage.items} days={coverage.days} />
@@ -659,7 +642,7 @@ export default function ReconciliationPage() {
                           <>
                             {' '}
                             <Chip tone="warning" size="xs" className="tnum">
-                              {shadow.new_count.toLocaleString()}
+                              {formatNumber(shadow.new_count)}
                             </Chip>
                           </>
                         )}
@@ -812,7 +795,7 @@ export default function ReconciliationPage() {
                   className="flex flex-wrap items-center gap-2.5 border-t px-4 py-2 text-caption border-border-subtle text-fg-tertiary"
                 >
                   <span>
-                    Showing {shadow.items.length.toLocaleString()} of {shadow.total.toLocaleString()}
+                    Showing {formatNumber(shadow.items.length)} of {formatNumber(shadow.total)}
                   </span>
                   {shadowQuery.hasNextPage && (
                     <Button
@@ -944,15 +927,15 @@ export default function ReconciliationPage() {
                   className="flex flex-wrap items-center gap-2.5 border-t px-4 py-2 text-caption border-border-subtle text-fg-tertiary"
                 >
                   <span>
-                    Showing {shownDeadItems.length.toLocaleString()} of{' '}
-                    {deadItems.length.toLocaleString()}
+                    Showing {formatNumber(shownDeadItems.length)} of{' '}
+                    {formatNumber(deadItems.length)}
                   </span>
                   <Button
                     size="xs"
                     variant="outline"
                     onClick={() => setDeadShown((shown) => shown + DEAD_PAGE_SIZE)}
                   >
-                    Show {Math.min(hiddenDeadCount, DEAD_PAGE_SIZE).toLocaleString()} more
+                    Show {formatNumber(Math.min(hiddenDeadCount, DEAD_PAGE_SIZE))} more
                   </Button>
                 </div>
               )}
@@ -1001,7 +984,7 @@ function bucketUnit(items: CoverageBucket[]): BucketUnit {
 /** Spoken summary of the histogram: the window, the range, the latest bucket, and the gaps. */
 function describeDataMatch(items: CoverageBucket[], days: number, unit: BucketUnit): string {
   const withData = items.filter(hasBucketData)
-  const parts = [`Data match per ${unit} over the last ${pluralize(days, 'day')}`]
+  const parts = [`Data match per ${unit} over the last ${countOf(days, 'day', 'days')}`]
   const latest = withData[withData.length - 1]
   if (latest) {
     const pcts = withData.map(bucketLabelPct)
@@ -1012,7 +995,7 @@ function describeDataMatch(items: CoverageBucket[], days: number, unit: BucketUn
     )
   }
   const noData = items.length - withData.length
-  if (noData > 0) parts.push(`${pluralize(noData, unit)} without data`)
+  if (noData > 0) parts.push(`${countOf(noData, unit, `${unit}s`)} without data`)
   return parts.join('; ')
 }
 
@@ -1043,7 +1026,7 @@ function CoverageStrip({ items, days }: { items: CoverageBucket[]; days: number 
           className="inline-flex items-center gap-2 rounded-md border px-2.5 py-1.5 text-caption border-border-subtle text-fg-secondary"
         >
           <Dot tone={coverageTone(steadyPct)} size={6} />
-          Stable at {steadyPct}% in every {unit} with data over the last {pluralize(days, 'day')}
+          Stable at {steadyPct}% in every {unit} with data over the last {countOf(days, 'day', 'days')}
         </div>
       </div>
     )
@@ -1188,7 +1171,9 @@ function ShadowRow({
     <div
       className="flex min-h-(--row-h) flex-col justify-center gap-2 border-t px-4 py-2 border-border-subtle"
     >
-      <div className="flex items-center gap-2.5">
+      {/* One line from sm up. On a phone the type and the actions wrap under
+          the name, which otherwise shrank to a ~90px column of metadata. */}
+      <div className="flex flex-wrap items-center gap-x-2.5 gap-y-1.5 sm:flex-nowrap">
         {onToggleSelect && (
           <Checkbox
             checked={selected}
@@ -1197,7 +1182,9 @@ function ShadowRow({
             aria-label={`Select ${eventNameLabel(item.event_name)}`}
           />
         )}
-        <div className="min-w-0 flex-1">
+        {/* The phone basis leaves room for the checkbox (16px + the 10px gap)
+            and nothing else, so the group after it starts a line of its own. */}
+        <div className="min-w-0 flex-1 max-sm:basis-[calc(100%-1.625rem)]">
           <span className="mono text-body-sm text-fg">
             <EventName name={item.event_name} />
           </span>
@@ -1214,14 +1201,16 @@ function ShadowRow({
             ) : (
               <span>{item.scan_config_name}</span>
             )}
-            <span className="tnum">{item.observed_count.toLocaleString()} seen</span>
+            <span className="tnum">{formatNumber(item.observed_count)} seen</span>
             <span>last seen {formatRelativeTime(item.last_seen_at)}</span>
             {/* What the event looks like before it is accepted: the rows the
                 latest collection saw for it. */}
             {samples.length > 0 && (
+              // Never wrapped: its "·" is drawn inside it, and a wrapped label
+              // left the dot stranded beside a two-line button.
               <button
                 type="button"
-                className="inline-flex items-center gap-0.5 hover:underline"
+                className="inline-flex items-center gap-0.5 whitespace-nowrap hover:underline"
                 aria-expanded={samplesOpen}
                 aria-controls={samplesId}
                 onClick={() => setSamplesOpen(open => !open)}
@@ -1235,33 +1224,40 @@ function ShadowRow({
             )}
           </div>
         </div>
-        {item.event_type_name ? (
-          // Labelled: a bare "Click" chip did not say it was the event type.
-          <Chip variant="outline" size="xs">type: {item.event_type_name}</Chip>
-        ) : (
-          <span className="shrink-0 text-micro text-fg-tertiary">
-            no type
-          </span>
-        )}
-        {item.status === 'new' && onAccept && onDismiss && (
-          <div className="flex shrink-0 gap-1.5">
-            {/* Exactly one row coaches: the seeded shadow candidate. */}
-            <ScenarioCoachMark
-              step="reconcile/accept-shadow"
-              when={item.event_name === SCENARIO_SEEDED.shadowCandidateName}
-            >
-              {/* Outline: a column of solid primaries down a long inbox left
-                  no primary at all. The bulk "Accept N selected" is the
-                  queue's action. */}
-              <Button size="sm" variant="outline" disabled={isActing} onClick={onAccept}>
-                Accept
+        {/* The type under the name on a phone, the actions at the right. */}
+        <div
+          className={`flex shrink-0 items-center gap-2.5 max-sm:w-full max-sm:justify-between${
+            onToggleSelect ? ' max-sm:pl-6.5' : ''
+          }`}
+        >
+          {item.event_type_name ? (
+            // Labelled: a bare "Click" chip did not say it was the event type.
+            <Chip variant="outline" size="xs">type: {item.event_type_name}</Chip>
+          ) : (
+            <span className="shrink-0 text-micro text-fg-tertiary">
+              no type
+            </span>
+          )}
+          {item.status === 'new' && onAccept && onDismiss && (
+            <div className="flex shrink-0 gap-1.5">
+              {/* Exactly one row coaches: the seeded shadow candidate. */}
+              <ScenarioCoachMark
+                step="reconcile/accept-shadow"
+                when={item.event_name === SCENARIO_SEEDED.shadowCandidateName}
+              >
+                {/* Outline: a column of solid primaries down a long inbox left
+                    no primary at all. The bulk "Accept N selected" is the
+                    queue's action. */}
+                <Button size="sm" variant="outline" disabled={isActing} onClick={onAccept}>
+                  Accept
+                </Button>
+              </ScenarioCoachMark>
+              <Button size="sm" variant="ghost" disabled={isActing} onClick={onDismiss}>
+                Dismiss
               </Button>
-            </ScenarioCoachMark>
-            <Button size="sm" variant="ghost" disabled={isActing} onClick={onDismiss}>
-              Dismiss
-            </Button>
-          </div>
-        )}
+            </div>
+          )}
+        </div>
       </div>
       {samplesOpen && samples.length > 0 && <ShadowSamples id={samplesId} samples={samples} />}
       {needsEventTypeSelect && (

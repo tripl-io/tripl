@@ -10,10 +10,9 @@ import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from '@/components/ui/select'
 import { formatTimestamp } from '@/lib/datetime'
-import { APP_LOCALE } from '@/lib/format'
+import { APP_LOCALE, formatNumber, formatPercent } from '@/lib/format'
 import { SILENT_ERROR_META } from '@/lib/errorFeedback'
 import type { DistributionDriftBand, DistributionDriftPoint } from '@/types'
-import { formatPercent } from './chartSeries'
 import { distributionDriftsKey } from '@/lib/queryKeys'
 import { ChartCardHeader } from './MetricsRangeControls'
 
@@ -243,7 +242,7 @@ function DistributionDriftPanel({
               />
               <MiniStat
                 label="Rows"
-                value={`${latest.baseline_total.toLocaleString()} → ${latest.current_total.toLocaleString()}`}
+                value={`${formatNumber(latest.baseline_total)} → ${formatNumber(latest.current_total)}`}
               />
             </MiniStatStrip>
           )}

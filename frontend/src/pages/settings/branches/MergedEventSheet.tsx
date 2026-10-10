@@ -14,6 +14,7 @@ import {
   SheetTitle,
 } from '@/components/ui/sheet'
 import { Skeleton } from '@/components/ui/skeleton'
+import { EVENT_ATTRIBUTE_LABEL, eventAttributeLabel } from '@/lib/eventAttributes'
 import { planBranchMergePreviewKey } from '@/lib/queryKeys'
 import { getErrorMessage } from '@/lib/utils'
 import type {
@@ -27,7 +28,6 @@ import type {
 import { DiffValue } from '../DiffValue'
 import {
   HIDE_UNCHANGED_THRESHOLD,
-  attributeLabel,
   stateMeta,
   visibleRows,
 } from './mergedEventModel'
@@ -253,10 +253,19 @@ function PreviewBody({
       <ValueSection
         title="Attributes"
         rows={visibleRows(attributes, hideUnchanged)}
-        labelOf={attributeLabel}
+        labelOf={eventAttributeLabel}
       />
-      <ValueSection title="Field values" rows={visibleRows(fieldValues, hideUnchanged)} mono />
-      <ValueSection title="Meta values" rows={visibleRows(metaValues, hideUnchanged)} mono />
+      <ValueSection
+        title={EVENT_ATTRIBUTE_LABEL.field_values}
+        rows={visibleRows(fieldValues, hideUnchanged)}
+        mono
+      />
+      {/* "Meta fields", as the event's own form and page name them. */}
+      <ValueSection
+        title={EVENT_ATTRIBUTE_LABEL.meta_values}
+        rows={visibleRows(metaValues, hideUnchanged)}
+        mono
+      />
       <TagSection rows={visibleRows(tags, hideUnchanged)} />
       <PropertySection rows={visibleRows(properties, hideUnchanged)} />
     </div>
@@ -383,7 +392,7 @@ function plain(value: unknown): string {
 function TagSection({ rows }: { rows: MergedValue[] }) {
   if (rows.length === 0) return null
   return (
-    <Section title="Tags">
+    <Section title={EVENT_ATTRIBUTE_LABEL.tags}>
       <ul className="flex flex-wrap gap-1.5">
         {rows.map((row) => {
           const meta = stateMeta(row.state)
@@ -427,9 +436,9 @@ function PropertySection({ rows }: { rows: MergedProperty[] }) {
                     <div className="text-info">changed on main since this branch</div>
                   ) : null}
                   {prop.variable_state === 'conflict' && prop.state !== 'conflict' ? (
-                    // The variable clashes on an attribute the event does not
+                    // The property clashes on an attribute the event does not
                     // hold (its description, say); the notes name it.
-                    <div className="text-danger">variable conflicts with main</div>
+                    <div className="text-danger">property conflicts with main</div>
                   ) : null}
                 </td>
                 <td className="py-1.5 pr-3 mono">{prop.variable_type}</td>

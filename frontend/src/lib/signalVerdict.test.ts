@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import type { SignalVerdict } from '@/types'
+import type { SignalVerdictInfo } from '@/types'
 import {
   needsVerdict,
   signalCommentDraft,
@@ -8,7 +8,7 @@ import {
   verdictLabel,
 } from './signalVerdict'
 
-const VERDICT: SignalVerdict = {
+const VERDICT: SignalVerdictInfo = {
   verdict: 'expected',
   expected_reason: 'campaign',
   note: 'Spring sale',

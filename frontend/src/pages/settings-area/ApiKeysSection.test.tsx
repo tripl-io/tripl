@@ -71,7 +71,7 @@ describe('ApiKeysSection', () => {
     fireEvent.click(screen.getByRole('button', { name: /Create key/i }))
 
     const formTitle = await screen.findByText('New API key')
-    const keyListTitle = screen.getByText('All keys')
+    const keyListTitle = screen.getByText('Your keys')
 
     // The form must render above the key list card so it appears right where
     // the user clicked, not below the fold (regression).

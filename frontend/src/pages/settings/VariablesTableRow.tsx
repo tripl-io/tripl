@@ -8,7 +8,9 @@ import { TableCell, TableRow } from '@/components/ui/table'
 import { ScenarioCoachMark } from '@/demo/ScenarioCoachMark'
 import { SCENARIO_SEEDED } from '@/demo/scenarioModel'
 import { countOf } from '@/lib/plural'
+import { cn } from '@/lib/utils'
 import type { Variable } from '@/types'
+import { STICKY_ACTIONS_CLASS } from './stickyActions'
 
 // Chips past this count collapse into a "+N" counter — a variable with dozens
 // of documented or observed values must not dominate the table's node budget.
@@ -16,6 +18,24 @@ const MAX_CHIPS = 6
 // Up to this many event names render as a plain list; above it they collapse
 // into a <details> disclosure so the row stays one line tall.
 const MAX_INLINE_EVENTS = 3
+// Observed values the phone line names before a "+N".
+const PHONE_VALUES = 3
+
+/**
+ * The Observed in and Observed values columns as one line, for a phone, where
+ * those columns are hidden: "Seen in 2 events · values: ios, android, web +1".
+ * Null when scans have seen neither.
+ */
+function phoneObservedLine(eventCount: number, observedValues: readonly string[]): string | null {
+  const shown = observedValues.slice(0, PHONE_VALUES).join(', ')
+  const more = observedValues.length > PHONE_VALUES ? ` +${observedValues.length - PHONE_VALUES}` : ''
+  const values = observedValues.length > 0 ? `${shown}${more}` : null
+  if (eventCount > 0) {
+    const seen = `Seen in ${countOf(eventCount, 'event', 'events')}`
+    return values ? `${seen} · values: ${values}` : seen
+  }
+  return values ? `Values: ${values}` : null
+}
 
 export interface VariablesTableRowProps {
   variable: Variable
@@ -83,6 +103,7 @@ function VariablesTableRowImpl({
   const listedLabel = listedCount > 0
     ? `On ${countOf(listedCount, 'event', 'events')} · ${variable.required_event_count ?? 0} required`
     : null
+  const phoneObserved = phoneObservedLine(eventCount, observedValues)
 
   return (
     <TableRow
@@ -130,10 +151,18 @@ function VariablesTableRowImpl({
           </Chip>
           {driftCount > 0 && (
             <Chip tone="warning" size="xs" className="font-sans" title="Observed values outside the documented list">
-              {driftCount} drift{driftCount === 1 ? '' : 's'}
+              {countOf(driftCount, 'drift', 'drifts')}
             </Chip>
           )}
         </div>
+        {/* Below `md` the Description and Observed columns are hidden (see
+            the table head), so the row says them here, under the name. */}
+        {variable.description && (
+          <p className="mt-1 font-sans text-caption text-fg-tertiary md:hidden">{variable.description}</p>
+        )}
+        {phoneObserved && (
+          <p className="mt-0.5 font-sans text-micro text-fg-tertiary wrap-anywhere md:hidden">{phoneObserved}</p>
+        )}
         {listedLabel && (
           <div className="mt-1 font-sans text-micro text-fg-tertiary">
             {listedEventsHref && inRouter ? (
@@ -159,7 +188,7 @@ function VariablesTableRowImpl({
           </div>
         )}
       </TableCell>
-      <TableCell className="text-body-sm align-top">
+      <TableCell className="hidden text-body-sm align-top md:table-cell">
         {eventCount === 0 ? (
           <span className="text-fg-tertiary">—</span>
         ) : eventNames.length <= MAX_INLINE_EVENTS ? (
@@ -184,8 +213,8 @@ function VariablesTableRowImpl({
           </details>
         )}
       </TableCell>
-      <TableCell className="text-body-sm text-fg-tertiary align-top">{variable.description}</TableCell>
-      <TableCell className="align-top">
+      <TableCell className="hidden text-body-sm text-fg-tertiary align-top md:table-cell">{variable.description}</TableCell>
+      <TableCell className="hidden align-top md:table-cell">
         {documentedValues.length > 0 ? (
           <div className="flex max-w-sm flex-wrap gap-1">
             {documentedValues.slice(0, MAX_CHIPS).map(value => (
@@ -199,7 +228,7 @@ function VariablesTableRowImpl({
           <span className="text-body-sm text-fg-tertiary">—</span>
         )}
       </TableCell>
-      <TableCell>
+      <TableCell className="hidden align-top md:table-cell">
         {/* Two unrelated silences used to render the same em-dash: no event
             references this variable at all, and every context that does
             reference it came back with nothing in it. Only the second is worth
@@ -218,7 +247,7 @@ function VariablesTableRowImpl({
         ) : contextCount > 0 ? (
           <span
             className="text-body-sm text-fg-tertiary"
-            title={`${contextCount} value context${contextCount === 1 ? '' : 's'}, none holding a value`}
+            title={`${countOf(contextCount, 'value context', 'value contexts')}, none holding a value`}
           >
             No values stored
           </span>
@@ -227,8 +256,10 @@ function VariablesTableRowImpl({
         )}
       </TableCell>
       {/* Pinned to the right edge like its header, so a phone reader can act
-          on a row without first finding the sideways scroll. */}
-      <TableCell className="sticky right-0 bg-surface">
+          on a row without first finding the sideways scroll. Top-aligned like
+          every other cell: centred, the icons floated below the name in a row
+          a long description made tall. */}
+      <TableCell className={cn(STICKY_ACTIONS_CLASS, 'align-top')}>
         <div className="flex gap-1 justify-end">
           {/* Exactly one row carries the inspect mark: the seeded drifting
               variable, so the coaching reads as an example. */}

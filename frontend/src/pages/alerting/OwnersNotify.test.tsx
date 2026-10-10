@@ -17,14 +17,19 @@ function wrap(ui: ReactNode) {
 
 describe('OwnersNotify (F07, #260)', () => {
   it('renders nothing for an unowned scope', () => {
-    wrap(<OwnersNotify owners={[]} canNotify notify={vi.fn()} target="checkout" />)
+    wrap(<OwnersNotify owners={[]} scopeType="event_type" canNotify notify={vi.fn()} target="checkout" />)
     expect(screen.queryByTestId('owners-notify')).toBeNull()
   })
 
   it('shows the owners to a viewer without the button', () => {
-    wrap(<OwnersNotify owners={OWNERS} canNotify={false} notify={vi.fn()} target="checkout" />)
-    expect(screen.getByText('Owners: @anna, @oleg')).toBeInTheDocument()
+    wrap(<OwnersNotify owners={OWNERS} scopeType="event_type" canNotify={false} notify={vi.fn()} target="checkout" />)
+    expect(screen.getByText('Event type owners: @anna, @oleg')).toBeInTheDocument()
     expect(screen.queryByRole('button')).toBeNull()
+  })
+
+  it("names a metric's owner as the owner, not an event type's", () => {
+    wrap(<OwnersNotify owners={[OWNERS[0]!]} scopeType="metric" canNotify={false} notify={vi.fn()} target="Revenue" />)
+    expect(screen.getByText('Owner: @anna')).toBeInTheDocument()
   })
 
   it('emails the owners on click and says who got it', async () => {
@@ -32,7 +37,7 @@ describe('OwnersNotify (F07, #260)', () => {
       { user_id: 'u-1', name: 'anna', email: 'anna@x.io', status: 'sent' },
       { user_id: 'u-2', name: 'oleg', email: 'oleg@x.io', status: 'skipped', error: 'no email' },
     ])
-    wrap(<OwnersNotify owners={OWNERS} canNotify notify={notify} target="checkout" />)
+    wrap(<OwnersNotify owners={OWNERS} scopeType="event_type" canNotify notify={notify} target="checkout" />)
 
     fireEvent.click(screen.getByRole('button', { name: 'Notify owners of checkout by email' }))
 
@@ -42,7 +47,7 @@ describe('OwnersNotify (F07, #260)', () => {
 
   it('reports a refused request', async () => {
     const notify = vi.fn().mockRejectedValue(new Error('Forbidden'))
-    wrap(<OwnersNotify owners={OWNERS} canNotify notify={notify} target="checkout" />)
+    wrap(<OwnersNotify owners={OWNERS} scopeType="event_type" canNotify notify={notify} target="checkout" />)
 
     fireEvent.click(screen.getByRole('button', { name: 'Notify owners of checkout by email' }))
 

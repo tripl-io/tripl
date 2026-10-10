@@ -217,3 +217,15 @@ describe('Email settings — test send', () => {
     expect(screen.getByText('Set a default From address and save first.')).toBeInTheDocument()
   })
 })
+
+describe('Email settings — stored password', () => {
+  it('offers to delete the stored password only when one is stored', () => {
+    const { unmount } = renderSection(settingsFixture({ smtp_password_configured: true }))
+    expect(screen.getByRole('button', { name: 'Delete stored password' })).toBeEnabled()
+    unmount()
+
+    // Not a greyed-out button: with nothing stored there is nothing to delete.
+    renderSection(settingsFixture({ smtp_password_configured: false }))
+    expect(screen.queryByRole('button', { name: 'Delete stored password' })).toBeNull()
+  })
+})

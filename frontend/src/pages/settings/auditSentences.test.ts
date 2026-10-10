@@ -9,7 +9,6 @@ import {
   displayTarget,
   groupByDay,
   targetPath,
-  toIsoOrUndef,
 } from './auditSentences'
 
 function entry(overrides: Partial<AuditEntry>): AuditEntry {
@@ -36,8 +35,8 @@ describe('auditSentences', () => {
     expect(actionSentence('org.unsuspend')).toBe('Reinstated the organization')
     expect(actionSentence('platform.step_in')).toBe('Started a read-only step-in')
     expect(actionSentence('platform.step_in_end')).toBe('Ended a read-only step-in')
-    expect(actionSentence('platform.admin_grant')).toBe('Granted platform admin to')
-    expect(actionSentence('platform.admin_revoke')).toBe('Revoked platform admin from')
+    expect(actionSentence('platform.admin_grant')).toBe('Granted platform admin to user')
+    expect(actionSentence('platform.admin_revoke')).toBe('Revoked platform admin from user')
     expect(actionTone('org.suspend')).toBe('danger')
     expect(actionTone('org.unsuspend')).toBe('success')
     expect(actionTone('platform.step_in')).toBe('warning')
@@ -54,7 +53,7 @@ describe('auditSentences', () => {
     expect(actionSentence('org.governance_policy.update')).toBe('Changed the plan policy')
     expect(actionTone('org.governance_policy.delete')).toBe('danger')
     expect(actionSentence('org.group_grant.create')).toBe('Gave a group a role in a project')
-    expect(actionSentence('org.team_sync.apply')).toBe('Synced groups from the identity provider for')
+    expect(actionSentence('org.team_sync.apply')).toBe('Synced groups from the identity provider for user')
     expect(actionTone('org.project_role.delete')).toBe('danger')
   })
 
@@ -89,10 +88,15 @@ describe('auditSentences', () => {
   })
 
   it('names the code only where two option labels would read alike', () => {
+    // A bulk code reads apart from its single-row sibling now, so no bracket.
     const labels = actionOptionLabels(['event.delete', 'event.bulk_delete', 'event.create'])
-    expect(labels.get('event.delete')).toBe('Deleted event (event.delete)')
-    expect(labels.get('event.bulk_delete')).toBe('Deleted event (event.bulk_delete)')
+    expect(labels.get('event.delete')).toBe('Deleted event')
+    expect(labels.get('event.bulk_delete')).toBe('Deleted events in bulk')
     expect(labels.get('event.create')).toBe('Created event')
+    // The last resort, for two unknown codes that humanise alike.
+    const clash = actionOptionLabels(['widget_part.frob', 'widget.part.frob'])
+    expect(clash.get('widget_part.frob')).toBe('Frob widget part (widget_part.frob)')
+    expect(clash.get('widget.part.frob')).toBe('Frob widget part (widget.part.frob)')
   })
 
   it('shortens a UUID target name and falls back to the target type', () => {
@@ -120,11 +124,5 @@ describe('auditSentences', () => {
       entry({ id: 'c', created_at: '2020-01-01T12:00:00Z' }),
     ])
     expect(groups.map((g) => g.entries.map((e) => e.id))).toEqual([['a', 'b'], ['c']])
-  })
-
-  it('pins a date input to the start or end of the local day', () => {
-    expect(toIsoOrUndef('')).toBeUndefined()
-    expect(toIsoOrUndef('2026-09-24')).toBe(new Date('2026-09-24T00:00:00.000').toISOString())
-    expect(toIsoOrUndef('2026-09-24', true)).toBe(new Date('2026-09-24T23:59:59.999').toISOString())
   })
 })

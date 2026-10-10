@@ -60,20 +60,8 @@ export function KV({
   )
 }
 
-// Placeholder for an empty value (the mockup's NONE token).
+// Placeholder for an empty value: sentence case and muted sans, like the
+// "Unlimited" beside it.
 export function NoneTag() {
-  return <span className="text-fg-tertiary">none</span>
-}
-
-// Back link used on detail / create surfaces.
-export function BackLink({ onClick, label = 'Scans' }: { onClick: () => void; label?: string }) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      className="inline-flex items-center gap-1 text-caption transition-colors text-fg-secondary"
-    >
-      <span aria-hidden>←</span> {label}
-    </button>
-  )
+  return <span className="text-fg-tertiary">None</span>
 }

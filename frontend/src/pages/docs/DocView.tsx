@@ -11,6 +11,7 @@ import { docRoute, formatBytes } from '@/lib/docTree'
 import { formatDateTime } from '@/lib/datetime'
 import type { DocAudience, DocFileResponse, DocLinkedFrom, DocLinkResolution } from '@/types/docs'
 import { DocMarkdown } from './DocMarkdown'
+import { countOf } from '@/lib/plural'
 
 const AUDIENCE_LABEL: Record<DocAudience, string> = {
   human: 'For people',
@@ -129,7 +130,7 @@ export function DocView({
       {extraKeys.length > 0 && (
         <details className="rounded-control border border-border bg-bg-sunken px-3 py-2 text-body-sm">
           <summary className="cursor-pointer text-fg-secondary">
-            Other frontmatter ({extraKeys.length} {extraKeys.length === 1 ? 'key' : 'keys'})
+            Other frontmatter ({countOf(extraKeys.length, 'key', 'keys')})
           </summary>
           <pre className="mono m-0 mt-2 overflow-x-auto whitespace-pre-wrap text-caption">
             {JSON.stringify(doc.extra_frontmatter, null, 2)}

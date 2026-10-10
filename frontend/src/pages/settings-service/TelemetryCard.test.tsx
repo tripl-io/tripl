@@ -18,6 +18,10 @@ const OFF: TelemetryStatus = {
 
 function renderCard(status: TelemetryStatus) {
   vi.spyOn(serviceSettingsApi, 'telemetry').mockResolvedValue(status)
+  mount()
+}
+
+function mount() {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
   render(
     <QueryClientProvider client={client}>
@@ -44,6 +48,33 @@ describe('TelemetryCard', () => {
   ])('names %s as the reason', async (reason, label) => {
     renderCard({ ...OFF, reason })
     expect(await screen.findByText(label)).toBeInTheDocument()
+  })
+
+  /**
+   * The card is the app's one disclosure of an on-by-default ping. It named
+   * only TELEMETRY_ENABLED, never said a restart is needed, and had no link to
+   * what the ping holds.
+   */
+  it('says how to turn it off, and links to what it sends', async () => {
+    renderCard({ ...OFF, enabled: true, reason: null })
+    expect(await screen.findByText('On')).toBeInTheDocument()
+    const description = screen.getByText(/One anonymous ping a day/)
+    expect(description).toHaveTextContent('TELEMETRY_ENABLED=false')
+    expect(description).toHaveTextContent('DO_NOT_TRACK=1')
+    expect(description).toHaveTextContent(/restart/)
+    expect(screen.getByRole('link', { name: /What it sends/ })).toHaveAttribute(
+      'href',
+      'https://docs.tripl.io/run/telemetry',
+    )
+  })
+
+  /** A failed status read used to remove the disclosure along with the rows. */
+  it('keeps the disclosure when the status cannot be read', async () => {
+    vi.spyOn(serviceSettingsApi, 'telemetry').mockRejectedValue(new Error('boom'))
+    mount()
+    expect(await screen.findByText('Unknown (the status could not be read)')).toBeInTheDocument()
+    expect(screen.getByText(/One anonymous ping a day/)).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: /What it sends/ })).toBeInTheDocument()
   })
 
   it('shows exactly what it last sent', async () => {

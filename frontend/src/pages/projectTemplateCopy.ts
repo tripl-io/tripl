@@ -3,6 +3,7 @@ import type {
   ProjectTemplateMetricNeeds,
   ProjectTemplateSummary,
 } from '@/types/projectTemplates'
+import { countOf } from '@/lib/plural'
 
 /** Copy shared by the New project dialog's template picker and its tests (F21). */
 
@@ -10,20 +11,16 @@ export const BLANK_PROJECT_LABEL = 'Blank project'
 export const SUGGESTIONS_NOTE =
   'Suggestions only. Created after you connect a data source / alert destination — not added automatically.'
 
-function plural(count: number, one: string, many: string) {
-  return `${count} ${count === 1 ? one : many}`
-}
-
-/** "12 events · 5 event types · 4 variables" */
+/** "12 events · 5 event types · 4 properties" */
 export function formatTemplateCounts(counts: ProjectTemplateCounts): string {
   return [
-    plural(counts.events, 'event', 'events'),
-    plural(counts.event_types, 'event type', 'event types'),
-    plural(counts.variables, 'property', 'properties'),
+    countOf(counts.events, 'event', 'events'),
+    countOf(counts.event_types, 'event type', 'event types'),
+    countOf(counts.variables, 'property', 'properties'),
   ].join(' · ')
 }
 
-/** The card's detail line: "9 events · 5 event types · 4 variables · version 1" */
+/** The card's detail line: "9 events · 5 event types · 4 properties · version 1" */
 export function formatTemplateMeta(
   template: Pick<ProjectTemplateSummary, 'counts' | 'version'>,
 ): string {

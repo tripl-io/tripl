@@ -129,10 +129,30 @@ describe('EventTypesTab list', () => {
     })
 
     expect(await screen.findByText('Checkout')).toBeInTheDocument()
-    expect(screen.getByText('checkout_*')).toBeInTheDocument()
+    // The type's own key, with no made-up `checkout_*` glob under it.
+    expect(screen.getByText('checkout')).toBeInTheDocument()
+    expect(screen.queryByText(/checkout_\*/)).toBeNull()
+    expect(screen.queryByText(/named by/)).toBeNull()
     // sensitive count chip (1 PII field)
     const row = screen.getByText('Checkout').closest('tr') as HTMLElement
     expect(within(row).getByText('2')).toBeInTheDocument() // 2 fields
+  })
+
+  it("names a type's scan naming rule only when it has one", async () => {
+    renderWithRoutes('/p/demo/event-types', async (input) => {
+      const url = String(input)
+      if (url.endsWith('/api/v1/projects/demo/event-types')) {
+        return mockJsonResponse([{ ...CHECKOUT, event_name_format: 'checkout:{step}' }])
+      }
+      throw new Error(`Unhandled fetch: ${url}`)
+    })
+
+    const row = (await screen.findByText('Checkout')).closest('tr') as HTMLElement
+    expect(within(row).getByText('checkout:{step}')).toHaveAttribute(
+      'title',
+      "The scan rule this type's events are named by",
+    )
+    expect(within(row).getByText(/named by/)).toBeInTheDocument()
   })
 
   it('heads a single-type project "1 type", not "1 types"', async () => {
@@ -363,7 +383,7 @@ describe('EventTypeDetail tabbed page', () => {
     const url = String(input)
     if (url.endsWith('/api/v1/projects/demo/event-types')) return mockJsonResponse([CHECKOUT])
     if (url.endsWith('/api/v1/projects/demo/event-types/type-1/owners')) return mockJsonResponse([])
-    if (url.endsWith('/api/v1/users')) return mockJsonResponse([])
+    if (url.includes('/api/v1/users?')) return mockJsonResponse([])
     if (url.endsWith('/api/v1/projects/demo/members')) return mockJsonResponse([])
     throw new Error(`Unhandled fetch: ${url}`)
   }
@@ -704,7 +724,7 @@ describe('EventTypeDetail settings', () => {
       const url = String(input)
       if (url.endsWith('/api/v1/projects/demo/event-types')) return mockJsonResponse([CHECKOUT])
       if (url.endsWith('/owners')) return mockJsonResponse([])
-      if (url.endsWith('/api/v1/users')) return mockJsonResponse([])
+      if (url.includes('/api/v1/users?')) return mockJsonResponse([])
       if (url.endsWith('/api/v1/projects/demo/members')) return mockJsonResponse([])
       if (url.includes('/api/v1/projects/demo/events?')) return mockJsonResponse({ items: [], total: 0 })
       throw new Error(`Unhandled fetch: ${url}`)
@@ -719,7 +739,7 @@ describe('EventTypeDetail settings', () => {
       const url = String(input)
       if (url.endsWith('/api/v1/projects/demo/event-types')) return mockJsonResponse([CHECKOUT])
       if (url.endsWith('/owners')) return mockJsonResponse([])
-      if (url.endsWith('/api/v1/users')) return mockJsonResponse([])
+      if (url.includes('/api/v1/users?')) return mockJsonResponse([])
       if (url.endsWith('/api/v1/projects/demo/members')) return mockJsonResponse([])
       if (url.includes('/api/v1/projects/demo/events?')) return new Promise<Response>(() => {})
       throw new Error(`Unhandled fetch: ${url}`)
@@ -735,7 +755,7 @@ describe('EventTypeDetail settings', () => {
       const url = String(input)
       if (url.endsWith('/api/v1/projects/demo/event-types')) return mockJsonResponse([CHECKOUT])
       if (url.endsWith('/owners')) return mockJsonResponse([])
-      if (url.endsWith('/api/v1/users')) return mockJsonResponse([])
+      if (url.includes('/api/v1/users?')) return mockJsonResponse([])
       if (url.endsWith('/api/v1/projects/demo/members')) return mockJsonResponse([])
       if (url.includes('/api/v1/projects/demo/events?'))
         return new Response(JSON.stringify({ detail: 'boom' }), {
@@ -763,7 +783,7 @@ describe('EventTypeDetail settings', () => {
       }
       if (url.endsWith('/api/v1/projects/demo/event-types')) return mockJsonResponse([CHECKOUT])
       if (url.endsWith('/owners')) return mockJsonResponse([OWNER])
-      if (url.endsWith('/api/v1/users')) return mockJsonResponse([])
+      if (url.includes('/api/v1/users?')) return mockJsonResponse([])
       if (url.endsWith('/api/v1/projects/demo/members')) return mockJsonResponse([])
       if (url.includes('/api/v1/projects/demo/events?')) return mockJsonResponse({ items: [], total: 0 })
       throw new Error(`Unhandled fetch: ${url}`)
@@ -793,7 +813,7 @@ describe('EventTypeDetail settings', () => {
       }
       // A roster member who is not in the project must not be offered; an
       // instance owner, who never holds a member row, is.
-      if (url.endsWith('/api/v1/users')) {
+      if (url.includes('/api/v1/users?')) {
         return mockJsonResponse([
           { id: 'u-3', name: 'Linus', email: 'linus@x.io', role: 'editor', created_at: '2026-01-01T00:00:00Z' },
           { id: 'u-4', name: 'Boss', email: 'boss@x.io', role: 'owner', created_at: '2026-01-01T00:00:00Z' },
@@ -824,7 +844,7 @@ describe('EventTypeDetail settings', () => {
       }
       if (url.endsWith('/api/v1/projects/demo/event-types')) return mockJsonResponse(types)
       if (url.endsWith('/owners')) return mockJsonResponse([])
-      if (url.endsWith('/api/v1/users')) return mockJsonResponse([])
+      if (url.includes('/api/v1/users?')) return mockJsonResponse([])
       if (url.endsWith('/api/v1/projects/demo/members')) return mockJsonResponse([])
       if (url.includes('/api/v1/projects/demo/events?')) return mockJsonResponse({ items: [], total: 0 })
       throw new Error(`Unhandled fetch: ${url}`)
@@ -907,7 +927,7 @@ describe('FieldsEditor reordering', () => {
       }
       if (url.endsWith('/api/v1/projects/demo/event-types')) return mockJsonResponse(types)
       if (url.endsWith('/owners')) return mockJsonResponse([])
-      if (url.endsWith('/api/v1/users')) return mockJsonResponse([])
+      if (url.includes('/api/v1/users?')) return mockJsonResponse([])
       if (url.endsWith('/api/v1/projects/demo/members')) return mockJsonResponse([])
       if (url.includes('/api/v1/projects/demo/events?')) return mockJsonResponse({ items: [], total: 0 })
       throw new Error(`Unhandled fetch: ${url}`)
@@ -953,7 +973,7 @@ describe('follow-ups', () => {
           : mockJsonResponse([CHECKOUT])
       }
       if (url.endsWith('/owners')) return mockJsonResponse([])
-      if (url.endsWith('/api/v1/users')) return mockJsonResponse([])
+      if (url.includes('/api/v1/users?')) return mockJsonResponse([])
       if (url.endsWith('/api/v1/projects/demo/members')) return mockJsonResponse([])
       if (url.includes('/api/v1/projects/demo/events?')) return mockJsonResponse({ items: [], total: 0 })
       throw new Error(`Unhandled fetch: ${url}`)

@@ -6,12 +6,9 @@ import { NativeSelect, Panel } from '@/components/settings/kit'
 import { ReadOnlyDefinition } from '@/components/states'
 import { Label } from '@/components/ui/label'
 import { SILENT_ERROR_META } from '@/lib/errorFeedback'
-import {
-  holidayCountriesKey,
-  projectAnomalySettingsKey,
-  projectPlannedEventsKey,
-} from '@/lib/queryKeys'
+import { holidayCountriesKey, projectAnomalySettingsKey } from '@/lib/queryKeys'
 import { getErrorMessage } from '@/lib/utils'
+import { invalidatePlannedEventEffects } from '@/pages/monitoring/plannedEventMutations'
 
 const regionNames = new Intl.DisplayNames(['en'], { type: 'region' })
 
@@ -27,11 +24,11 @@ function countryLabel(code: string): string {
 }
 
 const SUBTITLE =
-  "A country's public holidays become project-wide planned events: a holiday's dip or surge is still drawn, but raises no alert."
+  "A country's public holidays become project-wide expected windows: a holiday's dip or surge is still drawn, but never becomes a signal or an alert."
 
 /**
  * The project's holiday calendar (F18): a country whose public holidays become
- * project-wide planned events. The backend writes those rows when the country
+ * project-wide expected windows. The backend writes those rows when the country
  * changes and rolls them into each new year nightly; here it is one select.
  */
 export function HolidayCalendarPanel({
@@ -60,9 +57,11 @@ export function HolidayCalendarPanel({
     mutationFn: (code: string | null) => anomalySettingsApi.update(slug, { holiday_country: code }),
     onSuccess: (_data, code) => {
       void qc.invalidateQueries({ queryKey: projectAnomalySettingsKey(slug) })
-      void qc.invalidateQueries({ queryKey: projectPlannedEventsKey(slug) })
+      // Adding or removing the holiday windows retags anomalies like any other
+      // window write: the series, the signals and the sidebar badge follow.
+      invalidatePlannedEventEffects(qc, slug)
       toast.success(
-        code ? `Holidays of ${countryLabel(code)} added as planned events` : 'Holiday calendar removed',
+        code ? `Holidays of ${countryLabel(code)} added as expected windows` : 'Holiday calendar removed',
       )
     },
   })

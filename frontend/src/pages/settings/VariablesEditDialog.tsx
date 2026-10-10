@@ -1,10 +1,11 @@
 import { useId } from 'react'
-import { Link, useInRouterContext } from 'react-router-dom'
+import { Link, useInRouterContext, useNavigate } from 'react-router-dom'
 import { ArrowUpRight } from 'lucide-react'
 import type { Variable } from '@/types'
 import { Button } from '@/components/ui/button'
 import { ImpactNotice } from '@/components/dependencies/ImpactNotice'
-import { Dialog, DialogBody, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+import { Dialog, DialogBody, DialogClose, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+import { useDialogLeave } from '@/components/ui/dialog-guard'
 import type { BindingExample } from './bindingExample'
 import { useVariableDefinitionDraft } from './variable-detail/useVariableDefinitionDraft'
 import { VariableDefinitionFields } from './variable-detail/VariableDefinitionFields'
@@ -51,7 +52,9 @@ export function VariablesEditDialog({
   const draft = useVariableDefinitionDraft({ slug, branchId, variable, canWrite, onSaved: onClose })
 
   return (
-    <Dialog open onOpenChange={open => { if (!open) onClose() }}>
+    // The same draft its own page guards: a stray click outside, Escape or
+    // Cancel asks before dropping an edited definition.
+    <Dialog open dirty={canWrite && draft.dirty} onOpenChange={open => { if (!open) onClose() }}>
       <DialogContent className="max-w-4xl">
         {/* pr-8 keeps a long name from running under the close button. */}
         <DialogHeader className="pr-8">
@@ -98,16 +101,10 @@ export function VariablesEditDialog({
         <DialogFooter>
           {/* In the footer, not the header: the dialog's first focus belongs
               to the Name field, not to a way out of the dialog. */}
-          {inRouter && (
-            <Link
-              to={variableDetailPath(slug, variable.id)}
-              className="inline-flex items-center gap-0.5 self-center text-caption font-medium text-accent hover:underline sm:mr-auto"
-            >
-              Open property page
-              <ArrowUpRight className="size-3" aria-hidden="true" />
-            </Link>
-          )}
-          <Button type="button" variant="outline" onClick={onClose}>{canWrite ? 'Cancel' : 'Close'}</Button>
+          {inRouter && <OpenPropertyPageLink to={variableDetailPath(slug, variable.id)} />}
+          <DialogClose asChild>
+            <Button type="button" variant="outline">{canWrite ? 'Cancel' : 'Close'}</Button>
+          </DialogClose>
           {canWrite && (
             <Button type="submit" form={formId} disabled={draft.updateMut.isPending || draft.typeChangeBlocked || draft.schemaIssues.length > 0}>
               Save
@@ -116,5 +113,30 @@ export function VariablesEditDialog({
         </DialogFooter>
       </DialogContent>
     </Dialog>
+  )
+}
+
+/**
+ * The way from the quick editor to the property's own page. A link, so it
+ * opens in a new tab as well; a plain click with an edited definition asks
+ * first, as Cancel does, instead of leaving the draft behind.
+ */
+function OpenPropertyPageLink({ to }: { to: string }) {
+  const navigate = useNavigate()
+  const leave = useDialogLeave()
+  return (
+    <Link
+      to={to}
+      onClick={event => {
+        // A modified click opens another tab and leaves this dialog as it is.
+        if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey || event.button !== 0) return
+        event.preventDefault()
+        leave(() => navigate(to))
+      }}
+      className="inline-flex items-center gap-0.5 self-center text-caption font-medium text-accent hover:underline sm:mr-auto"
+    >
+      Open property page
+      <ArrowUpRight className="size-3" aria-hidden="true" />
+    </Link>
   )
 }

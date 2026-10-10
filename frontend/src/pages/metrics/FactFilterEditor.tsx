@@ -18,7 +18,6 @@ import type { DbType } from '@/types/dataSources'
 import type { TableSchema } from '@/types/dataSourceSchema'
 import type { FactOperandPreviewResponse } from '@/types/metricsCatalog'
 import type { FactTableColumn } from '@/types/factTables'
-import { formatNumber } from '@/lib/format'
 
 import {
   VALUELESS_CONDITION_OPERATORS,
@@ -33,6 +32,7 @@ import {
 import { errorAria, fieldErrorId, type FieldErrors } from '@/lib/fieldErrors'
 import { filterFieldId } from './metricDraft'
 import { sqlPlaceholder } from '@/components/forms/placeholders'
+import { countOf } from '@/lib/plural'
 
 interface FactFilterEditorProps {
   filters: FactFilter[]
@@ -408,7 +408,7 @@ function FilterCheckPanel({ result, transportError }: FilterCheckPanelProps) {
     >
       <CheckCircle2 size={14} style={{ color: 'var(--success, var(--fg-muted))' }} />
       {result.row_count > 0
-        ? `Filters ran clean against the warehouse and matched ${formatNumber(result.row_count)} ${result.row_count === 1 ? 'row' : 'rows'} in the last 7 days.`
+        ? `Filters ran clean against the warehouse and matched ${countOf(result.row_count, 'row', 'rows')} in the last 7 days.`
         : 'Filters ran clean against the warehouse, but matched no rows in the last 7 days.'}
     </div>
   )

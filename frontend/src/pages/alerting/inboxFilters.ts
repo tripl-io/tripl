@@ -1,5 +1,6 @@
 import { ALERT_INBOX_STATUSES, alertInboxStatusLabel } from '@/lib/alertStatus'
 import type { AlertInboxStatus, AlertInboxStatusCounts, MetricScopeType } from '@/types'
+import { dayBoundaryIso, toDateKey } from '@/lib/datetime'
 
 /**
  * How far back the inbox reads, in days.
@@ -7,7 +8,7 @@ import type { AlertInboxStatus, AlertInboxStatusCounts, MetricScopeType } from '
  * The server's half is `INBOX_LOOKBACK_DAYS` in
  * backend/src/tripl/services/_alerting_deliveries.py. Spelled once here because
  * three things now depend on it and they must not drift: the coverage sentence
- * at the head of the list, the `min` on the date inputs, and the sentence under
+ * at the head of the list, the `min` on the day pickers, and the sentence under
  * them saying what a date filter can and cannot reach.
  *
  * It is a CEILING, not a promise — `INBOX_MAX_SOURCE_ITEMS` can cut the window
@@ -30,7 +31,7 @@ export type InboxDirection = 'spike' | 'drop'
 /**
  * Everything the reader has narrowed the inbox to, besides `status`.
  *
- * Dates are kept as the `YYYY-MM-DD` an `<input type="date">` produces rather
+ * Dates are kept as the `YYYY-MM-DD` the day picker (`DatePicker`) holds rather
  * than as instants: that is what the control holds, what the URL should carry
  * so a shared link means the same thing tomorrow, and it is the only form in
  * which "the 8th" is a day rather than a moment. They become instants once, in
@@ -100,11 +101,11 @@ export const INBOX_FILTER_PARAM_KEYS: readonly string[] = Object.values(PARAM_KE
  *  day that does not exist: JS ROLLS `2026-02-31` forward to 3 March instead of
  *  failing, so a successful parse is not proof (Copilot, PR #162).
  *
- *  The rollover is worse than a wrong date. `<input type="date">` cannot
- *  produce one, so it arrives only from a hand-edited or stale URL — and the
- *  input then shows BLANK for a value it will not accept, while the list is
- *  quietly filtered from a day nobody named. The bar would be describing a
- *  filter it is not applying. Dropping it makes the two agree. */
+ *  The rollover is worse than a wrong date. The day picker cannot produce
+ *  one, so it arrives only from a hand-edited or stale URL — and the picker
+ *  would then show the rolled-over day while the list is filtered from a day
+ *  nobody named. The bar would be describing a filter it is not applying.
+ *  Dropping it makes the two agree. */
 function readDay(value: string | null): string {
   if (!value) return ''
   const parts = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value)
@@ -161,25 +162,6 @@ export function writeInboxFilters(state: InboxFilterState): Record<string, strin
   return written
 }
 
-/**
- * A local calendar day as the instant it starts, or the last instant it holds.
- *
- * LOCAL, not UTC. The card renders `latest_delivery_at` through
- * `formatDateTime`, which is local, so "the 8th" has to mean the 8th as the
- * reader sees it — asking for a UTC day would drop the incidents that fired in
- * the evening east of Greenwich and include ones from the day before.
- *
- * The end of the day is inclusive down to the millisecond because the server's
- * bound is inclusive: `?fired_to=2026-09-08` meaning "up to 00:00" would return
- * nothing for the day the reader named, which is the least useful possible
- * reading of a date filter.
- */
-function dayBoundaryIso(day: string, edge: 'start' | 'end'): string | undefined {
-  if (!day) return undefined
-  const at = new Date(`${day}T${edge === 'start' ? '00:00:00.000' : '23:59:59.999'}`)
-  return Number.isNaN(at.getTime()) ? undefined : at.toISOString()
-}
-
 /** The filter state as the query the API takes. `undefined` members are
  *  omitted by the client, so nothing sends an empty filter. */
 export function inboxFilterQuery(
@@ -210,14 +192,12 @@ export function hasActiveInboxFilters(state: InboxFilterState): boolean {
 
 /** The earliest day a date filter can reach, as `YYYY-MM-DD`.
  *
- *  Handed to the inputs' `min` so the control states its own bound instead of
+ *  Handed to the pickers' `min` so the control states its own bound instead of
  *  accepting a date and quietly returning nothing — a bug seen before. */
 export function earliestReachableDay(now: Date): string {
   const at = new Date(now)
   at.setDate(at.getDate() - INBOX_LOOKBACK_DAYS)
-  const month = String(at.getMonth() + 1).padStart(2, '0')
-  const day = String(at.getDate()).padStart(2, '0')
-  return `${at.getFullYear()}-${month}-${day}`
+  return toDateKey(at)
 }
 
 /**

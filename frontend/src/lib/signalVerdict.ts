@@ -10,7 +10,7 @@ import { formatSignalValues } from '@/lib/signalMetricFormat'
 import type {
   MonitoringSignal,
   SignalExpectedReason,
-  SignalVerdict,
+  SignalVerdictInfo,
   SignalVerdictKind,
 } from '@/types'
 
@@ -93,12 +93,8 @@ export function verdictTone(kind: SignalVerdictKind): ChipTone {
   return VERDICT_TONE[kind]
 }
 
-export function verdictKindLabel(kind: SignalVerdictKind): string {
-  return VERDICT_LABEL[kind]
-}
-
 /** "Expected · campaign", "Tracking bug": the verdict as one short phrase. */
-export function verdictLabel(verdict: Pick<SignalVerdict, 'verdict' | 'expected_reason'>): string {
+export function verdictLabel(verdict: Pick<SignalVerdictInfo, 'verdict' | 'expected_reason'>): string {
   const base = VERDICT_LABEL[verdict.verdict]
   if (verdict.verdict === 'expected' && verdict.expected_reason) {
     return `${base} · ${REASON_LABEL[verdict.expected_reason]}`
@@ -111,7 +107,7 @@ export function verdictLabel(verdict: Pick<SignalVerdict, 'verdict' | 'expected_
  * verdict says it came from the incident, since that is where it is changed.
  * A verdict without a known time leaves the time out.
  */
-export function verdictAttribution(verdict: SignalVerdict): string {
+export function verdictAttribution(verdict: SignalVerdictInfo): string {
   const who = verdict.author_name ? `by ${verdict.author_name}` : null
   const when = verdict.created_at ? formatTimestamp(verdict.created_at) : null
   const parts = [who, when].filter(Boolean).join(', ')

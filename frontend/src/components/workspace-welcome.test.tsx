@@ -1,6 +1,7 @@
 import { fireEvent, render, screen } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
 import { DEMO_PROVISION_ESTIMATE } from '@/demo/provisioningPhases'
+import { CONCEPTS_DOCS_URL } from '@/lib/docsSite'
 import { WorkspaceWelcome } from './workspace-welcome'
 import { WELCOME_PILLARS } from './workspace-welcome-pillars'
 
@@ -8,7 +9,7 @@ type WelcomeProps = Parameters<typeof WorkspaceWelcome>[0]
 
 function renderWelcome(overrides: Partial<WelcomeProps> = {}) {
   const props: WelcomeProps = {
-    canCreateProject: true,
+    memberSeesOnlyAddedProjects: false,
     isProvisioningDemo: false,
     onGenerateDemo: vi.fn(),
     onCreateProject: vi.fn(),
@@ -74,30 +75,37 @@ describe('WorkspaceWelcome', () => {
     }
   })
 
-  it('shows viewers the pillars and an ask-an-owner note instead of create buttons', () => {
-    renderWelcome({ canCreateProject: false })
+  it("tells a member the team's projects may exist, and keeps both ways in", () => {
+    renderWelcome({ memberSeesOnlyAddedProjects: true })
 
-    for (const pillar of WELCOME_PILLARS) {
-      expect(screen.getByText(pillar.title)).toBeInTheDocument()
-    }
-    expect(
-      screen.getByText(/Ask a workspace owner or editor to create the first project/),
-    ).toBeInTheDocument()
-    expect(screen.queryByRole('button')).not.toBeInTheDocument()
-    expect(
-      screen.queryByText(/Start empty or from an industry template/),
-    ).not.toBeInTheDocument()
+    expect(screen.getByText(/You see a project here once you are added to it/)).toHaveTextContent(
+      'ask an organization owner or admin to add you under Settings › Project › Access',
+    )
+    // Members may create projects of their own (F20 PR4): the note does not
+    // take the buttons away.
+    expect(screen.getByRole('button', { name: /Generate demo project/i })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /New project/i })).toBeInTheDocument()
+  })
+
+  it('says nothing about access to someone who sees every project', () => {
+    renderWelcome({ memberSeesOnlyAddedProjects: false })
+
+    expect(screen.queryByText(/You see a project here once you are added to it/)).toBeNull()
   })
 
   it('links to the concepts docs in a new tab from the closing strip', () => {
     renderWelcome()
 
     expect(
-      screen.getByText(/the same loop your real project runs on a schedule/),
+      screen.getByText(/What a project does on a schedule: scan the warehouse/),
     ).toBeInTheDocument()
+    // The reader has no project yet, so the strip does not talk about one.
+    expect(screen.queryByText(/your real project/)).toBeNull()
 
     const link = screen.getByRole('link', { name: /Read the concepts/ })
-    expect(link).toHaveAttribute('href', 'https://docs.tripl.io/')
+    // The concepts page itself, not the docs home.
+    expect(link).toHaveAttribute('href', CONCEPTS_DOCS_URL)
+    expect(CONCEPTS_DOCS_URL).toBe('https://docs.tripl.io/use/concepts')
     expect(link).toHaveAttribute('target', '_blank')
     expect(link).toHaveAttribute('rel', 'noreferrer')
     // a link that leaves the app says so in its name.

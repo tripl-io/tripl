@@ -31,6 +31,9 @@ function makeRule(overrides: Partial<AlertRule> = {}): AlertRule {
     include_variable_value_drifts: false,
     include_metrics: false,
     include_source_freshness: false,
+    include_lifecycle: false,
+    include_property_drifts: false,
+    notify_owners: false,
     notify_on_spike: false,
     notify_on_drop: true,
     ai_explanation_enabled: false,
@@ -63,6 +66,7 @@ function makeDestination(overrides: Partial<AlertDestination> = {}): AlertDestin
     // Zero, not omitted: the API always sends this field, and a double that can
     // leave it out is a claim that a destination with no held count is normal.
     held_count: 0,
+    project_timezone: 'UTC',
     enabled: true,
     webhook_set: false,
     bot_token_set: true,
@@ -281,7 +285,7 @@ describe('DestinationCard after an edit', () => {
 describe('DestinationCard enable switch', () => {
   it('says why when the server refuses the write', async () => {
     vi.spyOn(alertingApi, 'updateDestination').mockRejectedValue(
-      new Error('Value error, A demo destination cannot be enabled'),
+      new Error('A demo destination cannot be enabled'),
     )
     renderCard()
 

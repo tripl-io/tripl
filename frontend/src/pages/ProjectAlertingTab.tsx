@@ -24,7 +24,6 @@ import {
   falsePositiveConfirmMessage,
   inboxActionSuccessMessage,
   muteConfirmMessage,
-  stripValueErrorPrefix,
 } from '@/lib/alertStatus'
 import { useCanWriteProject } from '@/lib/permissions'
 import { useAdaptiveRefetchInterval } from '@/realtime/streamContext'
@@ -57,6 +56,7 @@ import {
 } from './alerting/inboxFilters'
 import { CHANNEL_META } from './alerting/channelMeta'
 import { PageHead } from '@/components/settings/kit'
+import { CountBadge } from '@/components/primitives/count-badge'
 import { PageContainer } from '@/components/primitives/page-container'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import type { DestinationChannel } from './alerting/constants'
@@ -169,6 +169,19 @@ const SECTION_LABELS: Record<AlertingSection, string> = {
   // behind the Inbox's incidents. The section KEY stays `audit` — every alert
   // deep link written so far carries it.
   audit: 'Delivery log',
+}
+
+/**
+ * The word a tab's count carries when the number alone says the wrong thing.
+ *
+ * Inbox and Delivery log both wear a red count, and a bare "Delivery log 1"
+ * beside "Inbox 1" read as the same incident shown twice. It counts failed
+ * deliveries — messages that never reached their destination and wait for a
+ * Retry — so it says so. The Inbox count stays a bare number: open incidents
+ * are what that tab lists by default.
+ */
+const SECTION_COUNT_WORD: Partial<Record<AlertingSection, string>> = {
+  audit: 'failed',
 }
 
 // One page of incidents. 20 was not only too small to reach 37 of 57 production
@@ -356,6 +369,8 @@ export default function ProjectAlertingTab({ slug, focusDeliveryId, focusItemKey
     data: deliveries,
     isLoading: deliveriesLoading,
     isError: deliveriesFailed,
+    isSuccess: deliveriesLoaded,
+    isPlaceholderData: deliveriesPlaceholder,
   } = useQuery({
     queryKey: alertDeliveriesPageKey(slug, activeDeliveryFilters, deliveryOffset),
     queryFn: () => alertingApi.listDeliveries(slug, {
@@ -580,7 +595,7 @@ export default function ProjectAlertingTab({ slug, focusDeliveryId, focusItemKey
     mutationFn: (destinationId: string) => alertingApi.deleteDestination(slug, destinationId),
     onSuccess: () => invalidateAlertingConfig(qc, slug),
     onError: error => {
-      surfaceError(error, stripValueErrorPrefix)
+      surfaceError(error)
     },
   })
 
@@ -1009,7 +1024,7 @@ export default function ProjectAlertingTab({ slug, focusDeliveryId, focusItemKey
     // N cards and belongs to none of them, and the one thing worse than a toast
     // here would be the same message stamped onto twelve rows.
     onError: error => {
-      surfaceError(error, stripValueErrorPrefix)
+      surfaceError(error)
     },
     // On settled, not on success — same reasoning as the single route: an action
     // can commit and then fail to render its response, and a list left showing
@@ -1110,7 +1125,7 @@ export default function ProjectAlertingTab({ slug, focusDeliveryId, focusItemKey
     inbox: tabCounts.openIncidents,
     audit: tabCounts.failedDeliveries,
   }
-  // A demo workspace is zero-egress: the API accepts no destination but the local
+  // A demo project is zero-egress: the API accepts no destination but the local
   // demo sink, so offering the channel buttons would only walk the user into a
   // rejection. Say why instead.
   const isDemo = project?.is_demo === true
@@ -1161,7 +1176,7 @@ export default function ProjectAlertingTab({ slug, focusDeliveryId, focusItemKey
         // do — the honest note used to appear only below the destination cards.
         description={
           isDemo
-            ? 'Route active anomaly signals through rules and destinations. In a demo workspace every destination is a local sink: deliveries are recorded and rendered here, and none of them leave this instance.'
+            ? 'Route active anomaly signals through rules and destinations. In a demo project every destination is a local sink: deliveries are recorded and rendered here, and none of them leave this instance.'
             // All six channels, not the three the page shipped with: the
             // issue-tracker integrations went unnoticed from here.
             : 'Route active anomaly signals to Slack, Telegram, email, webhooks, Jira, Linear, PagerDuty or Microsoft Teams. Rules are project-level and apply to every scan in the project.'
@@ -1182,24 +1197,38 @@ export default function ProjectAlertingTab({ slug, focusDeliveryId, focusItemKey
         // reimplemented. Selection follows focus and still
         // pushes `?section=`, so Back returns to the previous section.
         <TabsList aria-label="Alerting sections">
-          {ALERTING_SECTIONS.map(value => (
-            <TabsTrigger
-              key={value}
-              value={value}
-              // Only the selected tab points at a panel: exactly one section is
-              // mounted at a time, and an aria-controls naming an id that is not
-              // in the document is a broken reference, not a hint.
-              {...(section === value ? {} : { 'aria-controls': undefined })}
-              onPointerEnter={() => void SECTION_PREFETCH[value]().catch(() => {})}
-              onFocus={() => void SECTION_PREFETCH[value]().catch(() => {})}
-              // Zero says nothing a bare label does not, so it is left off:
-              // only open incidents and failed deliveries earn the red count.
-              count={sectionCount[value] ? sectionCount[value] : undefined}
-              countUrgent
-            >
-              {SECTION_LABELS[value]}
-            </TabsTrigger>
-          ))}
+          {ALERTING_SECTIONS.map(value => {
+            // Zero says nothing a bare label does not, so it is left off:
+            // only open incidents and failed deliveries earn the red count.
+            const count = sectionCount[value] || undefined
+            const countWord = SECTION_COUNT_WORD[value]
+            return (
+              <TabsTrigger
+                key={value}
+                value={value}
+                // Only the selected tab points at a panel: exactly one section is
+                // mounted at a time, and an aria-controls naming an id that is not
+                // in the document is a broken reference, not a hint.
+                {...(section === value ? {} : { 'aria-controls': undefined })}
+                onPointerEnter={() => void SECTION_PREFETCH[value]().catch(() => {})}
+                onFocus={() => void SECTION_PREFETCH[value]().catch(() => {})}
+                count={countWord ? undefined : count}
+                countUrgent
+              >
+                {SECTION_LABELS[value]}
+                {/* The trigger's own count is a bare number, so a worded one is
+                    drawn here, in the same red pill and with the same
+                    out-of-pill name the trigger gives its number. */}
+                {countWord && count !== undefined && (
+                  <>
+                    <CountBadge count={`${count > 99 ? '99+' : count} ${countWord}`} urgent />
+                    {' '}
+                    <span className="sr-only">{`(${count} ${countWord})`}</span>
+                  </>
+                )}
+              </TabsTrigger>
+            )
+          })}
         </TabsList>
       )}
 
@@ -1366,6 +1395,7 @@ export default function ProjectAlertingTab({ slug, focusDeliveryId, focusItemKey
           deliveries={deliveries}
           isLoading={deliveriesLoading}
           isError={deliveriesFailed}
+          deliveriesQuery={{ isSuccess: deliveriesLoaded, isPlaceholderData: deliveriesPlaceholder }}
           pinnedDelivery={pinnedDelivery}
           focusDeliveryId={focusDeliveryId}
           focusItemKey={focusItemKey}

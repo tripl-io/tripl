@@ -37,7 +37,9 @@ describe('DateTimePicker', () => {
     expect(screen.queryByLabelText('Date and time, time')).toBeNull()
 
     await openCalendar()
-    expect(screen.getByLabelText('Date and time, time')).toHaveValue('09:30')
+    // In the trigger's own clock, not the browser's (`\s`: ICU may put a
+    // narrow no-break space before AM).
+    expect((screen.getByLabelText('Date and time, time') as HTMLInputElement).value).toMatch(/^9:30\sAM$/)
   })
 
   it('opens on the chosen day, focused and selected', async () => {
@@ -116,6 +118,34 @@ describe('DateTimePicker', () => {
     fireEvent.keyDown(time, { key: 'Enter' })
     await waitFor(() => expect(screen.queryByRole('grid')).not.toBeInTheDocument())
     expect(screen.getByRole('button', { name: 'Date and time: Jan 14, 2026, 5:05 PM' })).toBeInTheDocument()
+  })
+
+  it('takes a time typed in the 12-hour clock and shows it back in that clock', async () => {
+    const { onChange } = renderPicker()
+
+    await openCalendar()
+    const time = screen.getByLabelText('Date and time, time')
+    fireEvent.change(time, { target: { value: '9:3' } })
+    // Half-typed: nothing is sent, and the field says so.
+    expect(onChange).not.toHaveBeenCalled()
+    expect(time).toHaveAttribute('aria-invalid', 'true')
+
+    fireEvent.change(time, { target: { value: '9:45 pm' } })
+    expect(onChange).toHaveBeenLastCalledWith('2026-01-14T21:45')
+    fireEvent.blur(time)
+    expect((time as HTMLInputElement).value).toMatch(/^9:45\sPM$/)
+    expect(time).not.toHaveAttribute('aria-invalid')
+  })
+
+  it('puts back the last time that read when the field is left half-typed', async () => {
+    const { onChange } = renderPicker()
+
+    await openCalendar()
+    const time = screen.getByLabelText('Date and time, time')
+    fireEvent.change(time, { target: { value: '' } })
+    fireEvent.blur(time)
+    expect(onChange).not.toHaveBeenCalled()
+    expect((time as HTMLInputElement).value).toMatch(/^9:30\sAM$/)
   })
 
   it('sets the current moment with Now', async () => {

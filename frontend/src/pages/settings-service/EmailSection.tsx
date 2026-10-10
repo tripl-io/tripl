@@ -8,6 +8,7 @@ import { Button } from '@/components/ui/button'
 import { Field, SCard, NativeSelect, TextInput } from '@/components/settings/kit'
 import { examplePlaceholder } from '@/components/forms/placeholders'
 import { DisabledReason, disabledReasonAria } from '@/components/states'
+import { FIELD_COPY, SMTP_CARD_TITLE, SMTP_SECURITY_HINTS, SMTP_SECURITY_OPTIONS } from './fieldCopy'
 import { NumberSettingInput, SourceBadge, StatusBadge } from './ServiceSettingsPrimitives'
 import type {
   EditableSettings,
@@ -17,25 +18,12 @@ import type {
 } from './serviceSettingsHelpers'
 import { sourceFor } from './serviceSettingsHelpers'
 
-// Ports named in the labels because the mode and the port have to agree, and
-// disagreeing does not produce an error the operator can act on — the client
-// waits for a greeting that never arrives and stalls until it times out.
-// Short enough to show whole: the long forms were cut mid-parenthesis;
-// the hint under the select says what each mode does.
-const SECURITY_OPTIONS = [
-  { value: 'starttls', label: 'STARTTLS (ports 587, 2525)' },
-  { value: 'implicit_tls', label: 'Implicit TLS (port 465)' },
-  { value: 'none', label: 'None (plaintext)' },
-] as const
-
-const SECURITY_HINTS: Record<string, string> = {
-  starttls:
-    'Connects in the clear, reads the server greeting, then upgrades. What submission ports 587 and 2525 expect.',
-  implicit_tls:
-    'Wraps the connection in TLS before sending anything, so the greeting itself is encrypted. What port 465 expects.',
-  none: 'No encryption at all. Only reasonable for a relay on localhost or a network path you already trust.',
-}
-
+/**
+ * Platform › Mail relay. The fields come in the order Organization › Email
+ * shows the same values in (host, port, security, sign-in, sender), on one
+ * card: on a self-hosted instance the default organization's Email page edits
+ * this very relay.
+ */
 export function EmailSection({
   form,
   settings,
@@ -69,9 +57,9 @@ export function EmailSection({
 
   return (
     <>
-      <SCard title="SMTP">
+      <SCard title={SMTP_CARD_TITLE}>
         <Field
-          label="SMTP host"
+          label={FIELD_COPY.smtp_host.label}
           labelRight={<SourceBadge source={sourceFor(settings, 'email', 'smtp_host')} />}
         >
           <TextInput
@@ -82,7 +70,7 @@ export function EmailSection({
           />
         </Field>
         <Field
-          label="Port"
+          label={FIELD_COPY.smtp_port.label}
           labelRight={<SourceBadge source={sourceFor(settings, 'email', 'smtp_port')} />}
         >
           <NumberSettingInput
@@ -94,7 +82,27 @@ export function EmailSection({
           />
         </Field>
         <Field
-          label="SMTP username"
+          label={FIELD_COPY.smtp_security.label}
+          htmlFor="email-smtp-security"
+          labelRight={<SourceBadge source={sourceFor(settings, 'email', 'smtp_security')} />}
+          // Stacked because the hint is a sentence, and this is the one field on
+          // the card whose wrong value produces no error message anywhere — the
+          // send just hangs. It replaced a "Use TLS" switch that could only ever
+          // mean STARTTLS, which is why a 465 relay was unreachable however it
+          // was set.
+          stacked
+          hint={SMTP_SECURITY_HINTS[form.email.smtp_security]}
+        >
+          <NativeSelect
+            id="email-smtp-security"
+            value={form.email.smtp_security}
+            onChange={value => setField('email', 'smtp_security', value)}
+            options={SMTP_SECURITY_OPTIONS}
+            width="fill"
+          />
+        </Field>
+        <Field
+          label={FIELD_COPY.smtp_username.label}
           labelRight={<SourceBadge source={sourceFor(settings, 'email', 'smtp_username')} />}
         >
           <TextInput
@@ -105,7 +113,7 @@ export function EmailSection({
           />
         </Field>
         <Field
-          label="SMTP password"
+          label={FIELD_COPY.smtp_password.label}
           labelRight={<SourceBadge source={sourceFor(settings, 'email', 'smtp_password')} />}
         >
           <div className="flex gap-2">
@@ -123,50 +131,30 @@ export function EmailSection({
                 }
               />
             </div>
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              onClick={() => onClearSecret('email', 'smtp_password')}
-              disabled={saving || !form.email.smtp_password_configured}
-            >
-              Delete stored password
-            </Button>
+            {/* Only with a password stored: with none there is nothing to
+                delete, and a disabled button only said so in grey. */}
+            {form.email.smtp_password_configured && (
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => onClearSecret('email', 'smtp_password')}
+                disabled={saving}
+              >
+                Delete stored password
+              </Button>
+            )}
           </div>
         </Field>
         <Field
-          label="Security"
-          htmlFor="email-smtp-security"
-          labelRight={<SourceBadge source={sourceFor(settings, 'email', 'smtp_security')} />}
-          // Stacked because the hint is a sentence, and this is the one field on
-          // the card whose wrong value produces no error message anywhere — the
-          // send just hangs. It replaced a "Use TLS" switch that could only ever
-          // mean STARTTLS, which is why a 465 relay was unreachable however it
-          // was set.
-          stacked
-          hint={SECURITY_HINTS[form.email.smtp_security]}
-          last
-        >
-          <NativeSelect
-            id="email-smtp-security"
-            value={form.email.smtp_security}
-            onChange={value => setField('email', 'smtp_security', value)}
-            options={SECURITY_OPTIONS}
-            width="fill"
-          />
-        </Field>
-      </SCard>
-
-      <SCard title="Sender">
-        <Field
-          label="Default From address"
+          label={FIELD_COPY.smtp_from_address.label}
           labelRight={<SourceBadge source={sourceFor(settings, 'email', 'smtp_from_address')} />}
           last
         >
           <TextInput
             value={form.email.smtp_from_address}
             onChange={value => setField('email', 'smtp_from_address', value)}
-            placeholder={examplePlaceholder('tripl@example.com')}
+            placeholder={examplePlaceholder('alerts@example.com')}
             mono
           />
         </Field>

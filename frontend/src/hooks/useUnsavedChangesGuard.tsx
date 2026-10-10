@@ -183,7 +183,9 @@ export function useUnsavedChangesGuard(
  * dialog covers every in-app link, and a dialog must not steal the one blocker
  * a page may hold.
  *
- *   <Dialog open={open} onOpenChange={o => { if (!o) guard.requestClose(close) }}>
+ * The shared `<Dialog>` (components/ui/dialog) runs this for every dialog:
+ * pass it `dirty`, or call `useDialogDirty` (components/ui/dialog-guard) from
+ * a body inside it, rather than wiring the guard by hand.
  */
 export function useUnsavedDialogGuard(
   isDirty: boolean,

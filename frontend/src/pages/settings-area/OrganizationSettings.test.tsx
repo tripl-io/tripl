@@ -71,7 +71,8 @@ function mockApi(org = 'acme', role: Role = 'owner') {
       const created = JSON.parse(body ?? '{}') as { slug: string; name: string }
       return Promise.resolve(jsonResponse(orgResponse(created.slug, 'owner', created.name), 201))
     }
-    if (url === `${base}/members`) return Promise.resolve(jsonResponse(MEMBERS))
+    // orgsApi.members pages the roster: `/members?limit=1000&offset=0`.
+    if (url.startsWith(`${base}/members?`)) return Promise.resolve(jsonResponse(MEMBERS))
     if (url.startsWith(`${base}/members/`) && method === 'PATCH') {
       const { role: next } = JSON.parse(body ?? '{}') as { role: Role }
       const id = url.slice(`${base}/members/`.length)
@@ -157,13 +158,13 @@ describe('Organization › Details', () => {
     renderSection(<OrganizationGeneralSection />)
 
     const name = await screen.findByLabelText('Name')
-    const slug = screen.getByLabelText('Slug')
-    expect(slug).toHaveValue('acme')
-    expect(slug).toHaveAttribute('readonly')
-    expect(screen.getByText(/cannot be changed/)).toBeInTheDocument()
+    // Text, not a read-only input that looks like the editable Name above it.
+    expect(screen.queryByLabelText('Slug')).toBeNull()
+    expect(screen.getByText('acme')).toBeInTheDocument()
+    expect(screen.getByText(/\/o\/acme\/…\), so it cannot be changed/)).toBeInTheDocument()
 
     fireEvent.change(name, { target: { value: 'Acme Labs' } })
-    fireEvent.click(screen.getByRole('button', { name: 'Save' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Save changes' }))
 
     await waitFor(() => {
       expect(calls.find((c) => c.method === 'PATCH')).toEqual(
@@ -171,6 +172,43 @@ describe('Organization › Details', () => {
       )
     })
     expect(await screen.findByText('Saved')).toBeInTheDocument()
+  })
+
+  it('saves the name and the default access with one bar, in one request', async () => {
+    const calls = mockApi()
+    renderSection(<OrganizationGeneralSection />)
+
+    fireEvent.change(await screen.findByLabelText('Name'), { target: { value: 'Acme Labs' } })
+    fireEvent.change(screen.getByLabelText('Default access'), { target: { value: 'editor' } })
+    // One bar for the page, not a footer Save per card.
+    expect(screen.getAllByRole('button', { name: /^Save/ })).toHaveLength(1)
+    fireEvent.click(screen.getByRole('button', { name: 'Save changes' }))
+
+    await waitFor(() => {
+      expect(calls.filter((c) => c.method === 'PATCH')).toEqual([
+        expect.objectContaining({
+          url: '/api/v1/orgs/acme',
+          body: JSON.stringify({ name: 'Acme Labs', default_project_role: 'editor' }),
+        }),
+      ])
+    })
+    expect(await screen.findByText('Saved')).toBeInTheDocument()
+  })
+
+  it('discards both edits and refuses an emptied name', async () => {
+    const calls = mockApi()
+    renderSection(<OrganizationGeneralSection />)
+
+    const name = await screen.findByLabelText('Name')
+    fireEvent.change(name, { target: { value: '   ' } })
+    expect(screen.getByRole('button', { name: 'Save changes' })).toBeDisabled()
+
+    fireEvent.change(screen.getByLabelText('Default access'), { target: { value: 'viewer' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Discard' }))
+
+    expect(name).toHaveValue('Acme')
+    expect(screen.getByLabelText('Default access')).toHaveValue('none')
+    expect(calls.some((c) => c.method === 'PATCH')).toBe(false)
   })
 
   it('deletes only after the slug is typed, then leaves the organization', async () => {
@@ -213,7 +251,7 @@ describe('Organization › Details', () => {
     mockApi('acme', 'member')
     renderSection(<OrganizationGeneralSection />, { role: 'member' })
     expect(await screen.findByText('Acme')).toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: 'Save' })).toBeNull()
+    expect(screen.queryByRole('button', { name: 'Save changes' })).toBeNull()
   })
 
   it('sets the default access to projects, with what it means (F20 PR15)', async () => {
@@ -228,7 +266,7 @@ describe('Organization › Details', () => {
       'Editor',
     ])
     expect(screen.getByText(/Projects are invite-only/)).toBeInTheDocument()
-    const save = screen.getByRole('button', { name: 'Save default access' })
+    const save = screen.getByRole('button', { name: 'Save changes' })
     expect(save).toBeDisabled()
 
     fireEvent.change(select, { target: { value: 'viewer' } })
@@ -251,7 +289,7 @@ describe('Organization › Details', () => {
     mockApi('acme', 'admin')
     const { unmount } = renderSection(<OrganizationGeneralSection />, { role: 'admin' })
     expect(await screen.findByLabelText('Default access')).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Save default access' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Save changes' })).toBeInTheDocument()
     unmount()
     vi.restoreAllMocks()
 
@@ -260,7 +298,7 @@ describe('Organization › Details', () => {
     expect(await screen.findByText('Default access')).toBeInTheDocument()
     expect(screen.getByText('No access')).toBeInTheDocument()
     expect(screen.queryByLabelText('Default access')).toBeNull()
-    expect(screen.queryByRole('button', { name: 'Save default access' })).toBeNull()
+    expect(screen.queryByRole('button', { name: 'Save changes' })).toBeNull()
   })
 
   /** The instance answers `/auth/status` with `fields` (multi_org: an Enterprise edition). */
@@ -298,7 +336,7 @@ describe('Organization › Details', () => {
     answerStatus({ multi_org: false })
     renderSection(<OrganizationGeneralSection />, { platformAdmin: true })
     expect(
-      await screen.findByRole('heading', { name: 'Creating more organizations is part of Tripl Enterprise' }),
+      await screen.findByRole('heading', { name: 'Creating more organizations: part of tripl Enterprise' }),
     ).toBeInTheDocument()
     expect(screen.queryByRole('heading', { name: 'Create organization' })).toBeNull()
   })

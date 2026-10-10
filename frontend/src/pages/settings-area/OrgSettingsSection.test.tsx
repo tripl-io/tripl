@@ -45,10 +45,10 @@ describe('Organization › Limits', () => {
     expect(await screen.findByDisplayValue('20000')).toBeInTheDocument()
     expect(get).toHaveBeenCalledWith('acme')
     expect(screen.getByText('Organization', { selector: '[title]' })).toBeInTheDocument()
-    expect(screen.getByText('Operator', { selector: '[title]' })).toBeInTheDocument()
+    expect(screen.getByText('Platform', { selector: '[title]' })).toBeInTheDocument()
     // What clearing the organization's own value would give back.
     expect(screen.getByText(/Without it: 50,000\./)).toBeInTheDocument()
-    expect(screen.getByText('Operator maximum: 50,000 rows.')).toBeInTheDocument()
+    expect(screen.getByText('Platform maximum: 50,000 rows.')).toBeInTheDocument()
   })
 
   it('saves only the edited limit, as a number, for this organization', async () => {
@@ -63,18 +63,18 @@ describe('Organization › Limits', () => {
     )
   })
 
-  it("blocks Save above the operator's maximum (critique #15)", async () => {
+  it("blocks Save above the platform's maximum (critique #15)", async () => {
     const { update } = renderSection('limits')
     await screen.findByDisplayValue('20000')
 
     fireEvent.change(input('Metrics row limit default'), { target: { value: '200000' } })
 
-    expect(screen.getByText("The operator's maximum is 100,000.")).toBeInTheDocument()
+    expect(screen.getByText("The platform's maximum is 100,000.")).toBeInTheDocument()
     expect(screen.getByRole('button', { name: /Save changes/ })).toBeDisabled()
     expect(update).not.toHaveBeenCalled()
   })
 
-  it("clears the organization's value to inherit the operator's again", async () => {
+  it("clears the organization's value to inherit the platform's again", async () => {
     const { update } = renderSection('limits')
     await screen.findByDisplayValue('20000')
 
@@ -89,20 +89,20 @@ describe('Organization › Limits', () => {
 })
 
 describe('Organization › AI', () => {
-  it("warns that the operator's key does not follow an endpoint set here (critique #13)", async () => {
+  it("warns that the platform's key does not follow an endpoint set here (critique #13)", async () => {
     renderSection('ai')
     await screen.findByDisplayValue('https://api.operator.example/v1')
 
     fireEvent.change(input('Base URL'), { target: { value: 'https://llm.acme.example/v1' } })
 
-    const note = screen.getByText(/the operator’s key is never sent to an endpoint set here/)
-    expect(note).toHaveTextContent(/take the built-in defaults, not the operator’s values/)
+    const note = screen.getByText(/the platform’s key is never sent to an endpoint set here/)
+    expect(note).toHaveTextContent(/take the built-in defaults, not the platform’s values/)
 
     fireEvent.change(input('API key'), { target: { value: 'sk-acme' } })
-    expect(screen.queryByText(/the operator’s key is never sent to an endpoint set here/)).toBeNull()
+    expect(screen.queryByText(/the platform’s key is never sent to an endpoint set here/)).toBeNull()
   })
 
-  it('says when the operator policy leaves the organization without AI', async () => {
+  it('says when the platform shares no AI provider with the organization', async () => {
     const settings = orgSettingsFixture({
       operator_fallback: 'none',
       sources: { ...orgSettingsFixture().sources, 'ai.ai_base_url': 'disabled', 'ai.ai_api_key': 'disabled' },
@@ -110,7 +110,7 @@ describe('Organization › AI', () => {
     renderSection('ai', settings)
 
     expect(await screen.findByText(/its AI is off/)).toBeInTheDocument()
-    expect(screen.getAllByText('Disabled by operator policy')).toHaveLength(2)
+    expect(screen.getAllByText('Not shared by the platform')).toHaveLength(2)
   })
 
   it("probes the organization's own provider", async () => {
@@ -140,7 +140,7 @@ describe('Organization › Email', () => {
     expect(testEmail).toHaveBeenCalledWith('acme')
   })
 
-  it("goes back to the operator's relay as one group", async () => {
+  it("goes back to the platform's relay as one group", async () => {
     const base = orgSettingsFixture()
     const settings = orgSettingsFixture({
       email: { ...base.email, smtp_host: 'smtp.acme.example', smtp_password_configured: false },
@@ -149,30 +149,36 @@ describe('Organization › Email', () => {
     const { update } = renderSection('email', settings)
     await screen.findByDisplayValue('smtp.acme.example')
 
-    fireEvent.click(screen.getByRole('button', { name: "Use the operator's relay" }))
+    fireEvent.click(screen.getByRole('button', { name: 'Use the platform’s relay' }))
     fireEvent.click(screen.getByRole('button', { name: /Save changes/ }))
 
     await waitFor(() => expect(update).toHaveBeenCalledWith('acme', { email: { smtp_host: null } }))
   })
 
   it('names a self-hosted default organization as the operator scope, with no ceilings', async () => {
-    renderSection('limits', orgSettingsFixture({ scope: 'operator' }))
+    renderSection('email', orgSettingsFixture({ scope: 'operator' }))
     const note = await screen.findByText(/these are the platform’s own settings/)
 
-    expect(within(note).getByText(/account mail/, { exact: false })).toBeInTheDocument()
-    expect(screen.queryByText(/Operator maximum/)).toBeNull()
+    // The relay these fields set is the account relay too, and Platform › Mail
+    // relay edits the same values.
+    expect(note).toHaveTextContent(/account mail/)
+    expect(note).toHaveTextContent(/Platform › Mail relay/)
+    expect(screen.queryByText(/Platform maximum/)).toBeNull()
     expect(screen.queryByRole('button', { name: 'Use the inherited value' })).toBeNull()
   })
 })
 
 describe('Organization › Search (F20 PR10)', () => {
-  it("shows the operator's width as fixed and never the operator's endpoint", async () => {
+  it("shows the platform's width as fixed and never the platform's endpoint", async () => {
     renderSection('search')
     await screen.findByDisplayValue('text-embedding-3-small')
 
-    expect(input('Dimensions')).toHaveValue('1536')
-    expect(input('Dimensions')).toHaveAttribute('readonly')
-    // The operator's infrastructure stays hidden from organization admins.
+    // Text, not a read-only input styled like the editable Model beside it.
+    const dimensions = screen.getByRole('group', { name: 'Dimensions' })
+    expect(within(dimensions).getByText('1536')).toBeInTheDocument()
+    expect(within(dimensions).queryByRole('textbox')).toBeNull()
+    expect(within(dimensions).queryByRole('spinbutton')).toBeNull()
+    // The platform's infrastructure stays hidden from organization admins.
     expect(input('Base URL')).toHaveValue('')
     expect(screen.getByText('Env', { selector: '[title]' })).toBeInTheDocument()
     expect(screen.getByText(/re-embeds this organization’s projects, and no one else’s/)).toBeInTheDocument()
@@ -183,11 +189,11 @@ describe('Organization › Search (F20 PR10)', () => {
     await screen.findByDisplayValue('text-embedding-3-small')
 
     fireEvent.change(input('Base URL'), { target: { value: 'https://embed.acme.example/v1' } })
-    expect(screen.getByText(/the operator’s key is never sent to an endpoint set here/)).toBeInTheDocument()
+    expect(screen.getByText(/the platform’s key is never sent to an endpoint set here/)).toBeInTheDocument()
 
     fireEvent.change(input('Model'), { target: { value: 'acme-embed' } })
     fireEvent.change(input('API key'), { target: { value: 'sk-embed' } })
-    expect(screen.queryByText(/the operator’s key is never sent to an endpoint set here/)).toBeNull()
+    expect(screen.queryByText(/the platform’s key is never sent to an endpoint set here/)).toBeNull()
     fireEvent.click(screen.getByRole('button', { name: /Save changes/ }))
 
     await waitFor(() =>
@@ -212,7 +218,7 @@ describe('Organization › Search (F20 PR10)', () => {
     expect(await screen.findByText(/returned 768 dimensions/)).toBeInTheDocument()
   })
 
-  it("goes back to the operator's embeddings as one group", async () => {
+  it("goes back to the platform's embeddings as one group", async () => {
     const base = orgSettingsFixture()
     const settings = orgSettingsFixture({
       search: { ...base.search, search_embedding_model: 'acme-embed', search_embedding_base_url: 'https://embed.acme.example' },
@@ -226,7 +232,7 @@ describe('Organization › Search (F20 PR10)', () => {
     const { update } = renderSection('search', settings)
     await screen.findByDisplayValue('acme-embed')
 
-    fireEvent.click(screen.getByRole('button', { name: "Use the operator's embeddings" }))
+    fireEvent.click(screen.getByRole('button', { name: 'Use the platform’s embeddings' }))
     fireEvent.click(screen.getByRole('button', { name: /Save changes/ }))
 
     await waitFor(() =>
@@ -240,7 +246,7 @@ describe('Organization › Search (F20 PR10)', () => {
     )
   })
 
-  it('says semantic search is off while the operator shares no endpoint', async () => {
+  it('says semantic search is off while the platform shares no endpoint', async () => {
     const base = orgSettingsFixture()
     const settings = orgSettingsFixture({
       operator_fallback: 'none',
@@ -255,14 +261,14 @@ describe('Organization › Search (F20 PR10)', () => {
     renderSection('search', settings)
 
     expect(await screen.findByText(/semantic search is off for it\. Keyword search still works/)).toBeInTheDocument()
-    expect(screen.getAllByText('Disabled by operator policy')).toHaveLength(3)
+    expect(screen.getAllByText('Not shared by the platform')).toHaveLength(3)
   })
 
-  it("keeps the operator's endpoint read-only in the operator scope", async () => {
+  it("shows the platform's endpoint as text in the operator scope", async () => {
     renderSection('search', orgSettingsFixture({ scope: 'operator' }))
     await screen.findByDisplayValue('text-embedding-3-small')
 
-    expect(input('Base URL')).toHaveAttribute('readonly')
+    expect(within(screen.getByRole('group', { name: 'Base URL' })).queryByRole('textbox')).toBeNull()
     expect(screen.getByText(/set by SEARCH_EMBEDDING_BASE_URL/)).toBeInTheDocument()
   })
 })

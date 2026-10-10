@@ -123,7 +123,7 @@ function OrgTrackersForm({ org }: { org: string }) {
       />
       <SCard
         title="Jira"
-        description="Site, account e-mail and API token are one unit: a project that sets any of them uses none of the organization's, so this token never reaches a site a project names."
+        description="Site, account email and API token are one unit: a project that sets any of them uses none of the organization's, so this token never reaches a site a project names."
       >
         {jiraWarning && (
           <p role="note" className="m-0 px-4 pt-2.5 text-caption text-(--warning)">
@@ -137,7 +137,7 @@ function OrgTrackersForm({ org }: { org: string }) {
           placeholder="e.g. https://acme.atlassian.net"
           hint="https only, and it must be a public address."
         />
-        <TrackerTextField {...fieldProps} field="jira.auth_email" label="Account e-mail" placeholder="e.g. bot@acme.com" />
+        <TrackerTextField {...fieldProps} field="jira.auth_email" label="Account email" placeholder="e.g. bot@acme.com" />
         <TrackerSecretField {...fieldProps} field="jira.api_token" label="API token" />
         <TrackerTextField
           {...fieldProps}

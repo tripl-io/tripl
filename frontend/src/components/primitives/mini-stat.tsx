@@ -89,7 +89,7 @@ export function MiniStat({
   const figure = (
     <>
       {/* Sans with tabular digits, not mono: a KPI figure ("1h ago",
-          "4.4K rows", "92%") is a number, not code. */}
+          "4.4k rows", "92%") is a number, not code. */}
       <span
         data-slot="mini-stat-value"
         className="tnum text-heading font-semibold tracking-[-0.01em]"

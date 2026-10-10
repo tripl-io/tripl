@@ -216,3 +216,22 @@ describe('DocShareDialog', () => {
     expect(await screen.findByText(/every such read is recorded in the audit log/)).toBeInTheDocument()
   })
 })
+
+describe('DocShareDialog — unsaved sharing (prelaunch)', () => {
+  it('asks before Cancel drops a changed setting, and closes an untouched one at once', async () => {
+    vi.mocked(docsApi.fileSharing).mockResolvedValue(sharing())
+    const { onClose } = renderDialog()
+    await screen.findByText('Everyone in this project can read this note.')
+
+    fireEvent.click(screen.getByRole('button', { name: 'Cancel' }))
+    expect(onClose).toHaveBeenCalledTimes(1)
+
+    fireEvent.click(radio(/Only me/))
+    fireEvent.click(screen.getByRole('button', { name: 'Cancel' }))
+    expect(onClose).toHaveBeenCalledTimes(1)
+    fireEvent.click(await screen.findByRole('button', { name: 'Keep editing' }))
+    await waitFor(() => expect(screen.queryByRole('alertdialog')).toBeNull())
+    expect(radio(/Only me/)).toBeChecked()
+    expect(docsApi.updateFileSharing).not.toHaveBeenCalled()
+  })
+})

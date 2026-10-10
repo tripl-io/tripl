@@ -22,22 +22,32 @@ uv run python -c "import json; from tripl.main import app; print(json.dumps(app.
 bun run gen:api
 ```
 
-### Incremental adoption
+### Using the generated types
 
-The existing hand-written types under `src/types/` remain the source of truth
-for now. `api.gen.ts` is added alongside them as a drift-guarded reference so we
-can migrate module-by-module. To adopt a generated type, import from the
-generated `paths`/`components` instead of the hand-written file, e.g.:
+`api.gen.ts` is the source of truth for API payloads. The modules under
+`src/types/` (and the request types in `src/api/`) name them for the app, as
+aliases of the generated schemas rather than restatements:
 
 ```ts
-import type { components } from '@/types/api.gen'
+import type { components } from './api.gen'
 
-type MetricResponse = components['schemas']['MetricResponse']
+type Schemas = components['schemas']
+
+export type AlertRule = Schemas['AlertRuleResponse']
 ```
 
-Do this one domain at a time and delete the corresponding hand-written type once
-its consumers are migrated and the build is green. There is no need to convert
-everything at once.
+`metrics`, `alerting`, `branches`, `serviceSettings` and most of `scans` are
+aliased this way. Intersect (`&`) only for a genuine client-side refinement,
+such as typing a `result_summary` the schema serves as an untyped dict.
+
+openapi-typescript marks a field the backend declares with a `None` default as
+optional (`field?: T | null`) even though FastAPI always sends it, so read such
+a field with `== null` or `??`, never `=== null`.
+
+Most hand-written types that are not aliased yet have an entry in
+`src/types/apiDrift.ts`, which fails `tsc` when their field names stop matching
+the generated schema; a few still differ from it and have none. Replace such a
+type with an alias (and drop its entry) when you touch its domain.
 
 ## Linting
 

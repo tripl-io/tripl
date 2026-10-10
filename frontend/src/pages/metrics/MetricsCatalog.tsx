@@ -61,6 +61,7 @@ import { useNow } from '@/hooks/useNow'
 import { useEventsDndSensors } from '@/pages/events/useEventsDndSensors'
 import { formatDateTime, formatRelativeTime } from '@/lib/datetime'
 import { formatNumber } from '@/lib/format'
+import { countOf } from '@/lib/plural'
 import { METRIC_INTERVAL_LABEL, formatMetricValue } from '@/lib/metricFormat'
 import { factOperandConfigToPayload, readFactOperandConfig } from '@/lib/factOperandConfig'
 import { getMetricMonitoringPath } from '@/lib/monitoring'
@@ -85,6 +86,7 @@ import { SILENT_ERROR_META } from '@/lib/errorFeedback'
 import { useCanWriteProject } from '@/lib/permissions'
 import { factTablesKey, metricsCatalogKey, metricsCatalogListKey, usersKey } from '@/lib/queryKeys'
 import { listCatalogPage, type CatalogListParams } from './catalogRequests'
+import { copyName } from './copyName'
 import { usersApi } from '@/api/users'
 import { UserAvatar } from '@/components/ui/user-avatar'
 import { currentOrgSlug, projectPath } from '@/lib/navigation'
@@ -249,20 +251,8 @@ function isStaleMetric(metric: MetricDefinitionListItem, now: number): boolean {
   return now - bucketTs > STALE_INTERVAL_MULTIPLIER * intervalMs
 }
 
-// A metric's internal name is a lowercase [a-z0-9_] identifier. Derive a unique
-// copy name: `<name>_copy`, then `_2` / `_3`… on collision against the loaded
-// catalog. The source name is already a valid identifier, so the suffix keeps it
-// one.
 // Name clashes the duplicate retries through before giving up.
 const MAX_COPY_NAME_ATTEMPTS = 5
-
-function makeCopyName(baseName: string, existing: ReadonlySet<string>): string {
-  const root = `${baseName}_copy`
-  if (!existing.has(root)) return root
-  let suffix = 2
-  while (existing.has(`${root}_${suffix}`)) suffix += 1
-  return `${root}_${suffix}`
-}
 
 /**
  * Map a loaded metric definition to a fresh create payload for "Duplicate as
@@ -382,10 +372,6 @@ async function restoreStatuses(
   for (const [status, metricIds] of byStatus) {
     await metricsCatalogApi.bulkUpdate(slug, { metric_ids: metricIds, status })
   }
-}
-
-function pluralMetrics(count: number): string {
-  return count === 1 ? '1 metric' : `${formatNumber(count)} metrics`
 }
 
 /**
@@ -661,7 +647,7 @@ export function MetricsCatalog({ slug }: { slug?: string }) {
       // One click used to archive N metrics and stop their collection with no
       // way back. The toast carries the way back.
       toast.success(
-        `${pluralMetrics(count)} set to ${METRIC_STATUS_LABEL[status].toLowerCase()}.`,
+        `${countOf(count, 'metric', 'metrics')} set to ${METRIC_STATUS_LABEL[status].toLowerCase()}.`,
         previous.length > 0 && slug
           ? {
               action: {
@@ -695,7 +681,7 @@ export function MetricsCatalog({ slug }: { slug?: string }) {
     onSuccess: count => {
       setSelectedIds(new Set())
       invalidateCatalog(qc, slug)
-      toast.success(`${pluralMetrics(count)} marked reviewed.`)
+      toast.success(`${countOf(count, 'metric', 'metrics')} marked reviewed.`)
     },
   })
 
@@ -753,15 +739,18 @@ export function MetricsCatalog({ slug }: { slug?: string }) {
           retryLabel="Retry"
           compact
         />
-      ) : (
-        <MiniStatStrip boxed phoneGrid className={isEmpty ? 'opacity-60' : undefined}>
+      ) : isEmpty ? null : (
+        // First run: no strip of zeroes over the empty state, as on Events
+        // and Scans.
+        <MiniStatStrip boxed phoneGrid>
           {/* Pending values are a skeleton bar with no tone, never "—" or a
               green 0 that reads as an answer (#237). */}
           <MiniStat label="Metrics" value={summary ? formatNumber(summaryTotal) : <StatValueSkeleton />} />
+          {/* Neutral at zero, not green: no active metric is not praise. */}
           <MiniStat
             label="Active"
             value={summary ? formatNumber(active) : <StatValueSkeleton />}
-            tone={summary ? 'success' : undefined}
+            tone={summary && active > 0 ? 'success' : 'neutral'}
           />
           {/* A pressable stat doubles as a one-click table filter:
               MiniStat renders the <button aria-pressed>
@@ -836,7 +825,7 @@ export function MetricsCatalog({ slug }: { slug?: string }) {
               data
                 ? `${
                     hasFilters && summary
-                      ? `${formatNumber(visibleMetrics.length)} of ${pluralMetrics(summaryTotal)}`
+                      ? `${formatNumber(visibleMetrics.length)} of ${countOf(summaryTotal, 'metric', 'metrics')}`
                       : `${formatNumber(total)} total`
                   }${isRefreshing ? ' · Updating…' : ''}`
                 : undefined
@@ -1284,7 +1273,7 @@ function MetricRowMenu({ metric, slug, existingNames, isCoachTarget }: MetricRow
       // failing the whole action.
       const taken = new Set(existingNames)
       for (let attempt = 1; ; attempt += 1) {
-        const name = makeCopyName(def.name, taken)
+        const name = copyName(def.name, taken)
         try {
           return await metricsCatalogApi.create(
             slug,

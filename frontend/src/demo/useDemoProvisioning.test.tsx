@@ -11,7 +11,7 @@ import { useDemoProvisioning } from './useDemoProvisioning'
 function makeProject(slug = 'demo-1'): Project {
   return {
     id: 'p-1',
-    name: 'Demo workspace',
+    name: 'Demo Project',
     slug,
     description: '',
     app_version_keep_releases: 5,
@@ -344,7 +344,7 @@ describe('useDemoProvisioning', () => {
 
   it('surfaces a 409 (demo limit) as an error without navigating', async () => {
     vi.spyOn(projectsApi, 'createDemo').mockRejectedValue(
-      new ApiError('You already have 3 demo workspaces (the limit is 3).', 409),
+      new ApiError('You already have 3 demo projects (the limit is 3).', 409),
     )
 
     renderHarness()

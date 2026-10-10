@@ -1,6 +1,7 @@
 import { createElement, useCallback, type ReactNode } from 'react'
 
 import { ConfirmImpactMessage } from '@/components/dependencies/ImpactNotice'
+import { selectionQuestion } from './bulkConfirm'
 import type { EventMutations } from './useEventMutations'
 
 type ConfirmFn = (options: {
@@ -37,11 +38,7 @@ export function useEventsBulkDelete({
 }) {
   return useCallback(async () => {
     if (!selectedEventIds.length) return
-    const offScreen = selectedEventIds.length - selectedVisibleEventIds.length
-    const question =
-      offScreen > 0
-        ? `Delete ${selectedEventIds.length} selected events? Only ${selectedVisibleEventIds.length} of them are on screen — ${offScreen} are outside the current filter or page.`
-        : `Delete ${selectedEventIds.length} selected events?`
+    const question = selectionQuestion('Delete', selectedEventIds.length, selectedVisibleEventIds.length)
     const ok = await confirm({
       title: 'Delete selected events',
       message: slug

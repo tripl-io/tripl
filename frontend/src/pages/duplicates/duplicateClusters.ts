@@ -1,4 +1,5 @@
 import type { DuplicateCluster, DuplicateClusterEvent } from '@/types'
+import { formatNumber } from '@/lib/format'
 
 /** A stable key for a cluster: its members, order-independent. */
 export function clusterKey(cluster: DuplicateCluster): string {
@@ -59,5 +60,5 @@ export function proposedKeeper(cluster: DuplicateCluster): DuplicateClusterEvent
 /** "1,234 in 7 days", or what to say when nothing arrived. */
 export function volumeLabel(volume: number): string {
   if (volume <= 0) return 'no data in 7 days'
-  return `${volume.toLocaleString()} in 7 days`
+  return `${formatNumber(volume)} in 7 days`
 }

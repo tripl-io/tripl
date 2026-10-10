@@ -35,6 +35,7 @@ import {
   metricGeneratedSqlForMetricKey,
 } from '@/lib/queryKeys'
 import { currentOrgSlug, projectPath } from '@/lib/navigation'
+import { countOf } from '@/lib/plural'
 
 /** Names are best-effort; when a lookup misses we fall back to a short id. */
 const SHORT_ID_LENGTH = 8
@@ -500,7 +501,7 @@ function GeneratedBatchSqlDisclosure({ slug, metricId }: { slug: string; metricI
             >
               <p className="px-1 text-caption text-fg-tertiary">
                 <span className="font-medium text-foreground">{item.label}</span>
-                {' · '}{item.metric_ids.length} metric{item.metric_ids.length === 1 ? '' : 's'}
+                {' · '}{countOf(item.metric_ids.length, 'metric', 'metrics')}
                 {' · '}{formatDateTime(item.window_from)} → {formatDateTime(item.window_to)}
               </p>
               <LazySqlEditor

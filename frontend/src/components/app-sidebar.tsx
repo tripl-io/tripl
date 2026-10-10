@@ -23,6 +23,7 @@ import {
 import { Kbd } from '@/components/primitives/kbd'
 import { AccountMenuContent } from '@/components/shell/account-menu'
 import { CollapsedSidebar } from '@/components/shell/collapsed-sidebar'
+import { hasMoreBelow, revealCurrentRow } from '@/components/shell/nav-scroll'
 import { OrgSwitcherSlot } from '@/components/shell/org-switcher-slot'
 import { ProjectSwitcher } from '@/components/shell/project-switcher'
 import { EmptyNav, NavGroupSection } from '@/components/shell/sidebar-nav'
@@ -45,10 +46,9 @@ import { commandPaletteShortcutLabel } from '@/lib/platform'
 import type { Project } from '@/types'
 import { eventTypesKey, projectsQueryOptions } from '@/lib/queryKeys'
 import { canWrite, isOwner as isOwnerRole } from '@/lib/permissions'
-import { orgStorageKey } from '@/lib/activeOrg'
+import { LAST_PROJECT_SLUG_KEY, orgStorageKey } from '@/lib/activeOrg'
 
 const SIDEBAR_STORAGE_KEY = 'tripl-sidebar-collapsed'
-const LAST_SLUG_STORAGE_KEY = 'tripl-last-project-slug'
 
 /**
  * Workspace-scoped nav shown on global routes (built per render: its links
@@ -117,23 +117,26 @@ function usePersistLastSlug(slug: string | undefined): void {
   useEffect(() => {
     if (!slug) return
     try {
-      localStorage.setItem(orgStorageKey(LAST_SLUG_STORAGE_KEY), slug)
+      localStorage.setItem(orgStorageKey(LAST_PROJECT_SLUG_KEY), slug)
     } catch {
       /* ignore */
     }
   }, [slug])
 }
 
+/** The height of the nav's bottom fade: the 28px in its mask-image class. */
+const NAV_FADE_PX = 28
+
 /**
- * True while the nav scroller has more below its fold. Drives a bottom fade,
- * the only hint that the list scrolls: without it the last items simply were
- * not there at 1440×900 (#238).
+ * True while the nav scroller has rows hidden below its fold. Drives a bottom
+ * fade, the only hint that the list scrolls: without it the last items simply
+ * were not there at 1440×900 (#238).
  */
 function useMoreBelow(el: HTMLElement | null): boolean {
   const [moreBelow, setMoreBelow] = useState(false)
   useEffect(() => {
     if (!el) return
-    const update = () => setMoreBelow(el.scrollHeight - el.scrollTop - el.clientHeight > 4)
+    const update = () => setMoreBelow(hasMoreBelow(el))
     // No synchronous first call: ResizeObserver reports once on observe, which
     // is the initial measurement.
     el.addEventListener('scroll', update, { passive: true })
@@ -209,6 +212,12 @@ export function AppSidebar({
   })
   const eventTypes = eventTypesQuery.data ?? []
   const currentPath = location.pathname
+  // The current page's row in sight: on a laptop screen the last rows (Audit
+  // log) sit under the fold, and a page opened by its address lit a row no
+  // one could see. Again once the event types load, which push rows down.
+  useEffect(() => {
+    if (scroller) revealCurrentRow(scroller, { bottomInset: NAV_FADE_PX })
+  }, [scroller, currentPath, eventTypes.length])
   const userInitials = initialsOf(auth.user?.name ?? auth.user?.email)
   const userLabel = auth.user?.name ?? auth.user?.email ?? 'Signed in'
   const conceptsActive = !!slug && currentPath === projectPath(currentOrgSlug(), slug, '/concepts')
@@ -251,13 +260,13 @@ export function AppSidebar({
       aria-label="Main navigation"
       className="flex h-full w-[calc(240px+env(safe-area-inset-left))] flex-shrink-0 flex-col border-r pb-[env(safe-area-inset-bottom)] pl-[env(safe-area-inset-left)] bg-bg-sunken border-border"
     >
-      {/* Service logo — the triangle is the Tripl brand, so it lives here (not
+      {/* Service logo — the triangle is the tripl brand, so it lives here (not
           in the project chip) and links back to the workspace overview. */}
       <div className="flex items-center gap-1 px-3 pt-2.5 pb-1.5">
         <Link
           to={workspacePath()}
-          title="Tripl — home"
-          aria-label="Tripl — home"
+          title="tripl — home"
+          aria-label="tripl — home"
           className="flex flex-1 items-center gap-2 rounded-md px-1 py-1 no-underline transition-colors hover:bg-sidebar-hover"
         >
           <TrifoldMark size={24} />

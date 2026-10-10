@@ -7,6 +7,12 @@ import { examplePlaceholder } from '@/components/forms/placeholders'
 import { DisabledReason, disabledReasonAria } from '@/components/states'
 import { SILENT_ERROR_META } from '@/lib/errorFeedback'
 import { getErrorMessage } from '@/lib/utils'
+import {
+  FIELD_COPY,
+  SMTP_CARD_TITLE,
+  SMTP_SECURITY_HINTS,
+  SMTP_SECURITY_OPTIONS,
+} from '@/pages/settings-service/fieldCopy'
 import { StatusBadge } from '@/pages/settings-service/ServiceSettingsPrimitives'
 import {
   SMTP_GROUP,
@@ -14,21 +20,17 @@ import {
   displayValue,
   groupOwned,
   groupWarning,
-  sourceOf,
   type OrgDraft,
 } from './orgSettingsModel'
-import { InheritHint, OrgSourceBadge, OrgTextField, type OrgFieldProps } from './OrgSettingsPrimitives'
-
-const SECURITY_OPTIONS = [
-  { value: 'starttls', label: 'STARTTLS (ports 587, 2525)' },
-  { value: 'implicit_tls', label: 'Implicit TLS (port 465)' },
-  { value: 'none', label: 'None (plaintext)' },
-] as const
+import { InheritHint, OrgFieldBadge, OrgTextField, type OrgFieldProps } from './OrgSettingsPrimitives'
 
 /**
  * Organization › Email: the relay THIS organization's alerts, digests and
  * notifications go out through. Account mail (sign-up, password reset,
- * invitations) always uses the platform's relay, whatever is set here.
+ * invitations) always uses the platform's relay, whatever is set here. The
+ * labels, choices and field order are Platform › Mail relay's (fieldCopy.ts):
+ * on a self-hosted instance the default organization edits that very relay
+ * here.
  */
 export function OrgEmailFields({
   org,
@@ -47,6 +49,7 @@ export function OrgEmailFields({
   const warning = groupWarning(settings, draft, section)
   const owned = settings.scope === 'organization' && groupOwned(settings, section, SMTP_GROUP)
   const passwordConfigured = settings.email.smtp_password_configured
+  const security = String(displayValue(settings, draft, section, 'smtp_security'))
   const testMut = useMutation({
     mutationFn: () => orgSettingsApi.testEmail(org),
     meta: SILENT_ERROR_META,
@@ -60,8 +63,14 @@ export function OrgEmailFields({
   return (
     <>
       <SCard
-        title="SMTP relay"
-        description="Host, port, security, sign-in and sender are one group: once this organization sets any of them it stops inheriting the rest, and the operator's password is never sent to its relay."
+        title={SMTP_CARD_TITLE}
+        // The group rule is about inheriting; the platform's own relay (the
+        // self-hosted default organization's page) inherits from nothing.
+        description={
+          settings.scope === 'organization'
+            ? "Host, port, security, sign-in and sender are one group: once this organization sets any of them it stops inheriting the rest, and the platform's password is never sent to its relay."
+            : undefined
+        }
         footer={
           owned ? (
             <Button
@@ -71,7 +80,7 @@ export function OrgEmailFields({
               onClick={() => setDraft(clearGroup(draft, settings, section, SMTP_GROUP))}
               disabled={saving}
             >
-              Use the operator's relay
+              Use the platform&rsquo;s relay
             </Button>
           ) : undefined
         }
@@ -79,30 +88,46 @@ export function OrgEmailFields({
         {warning && (
           <p role="note" className="m-0 px-4 pt-2.5 text-caption text-(--warning)">
             {warning.starting &&
-              'Saving makes the whole relay this organization’s own: fields you leave as they are take the built-in defaults, not the operator’s values. '}
+              'Saving makes the whole relay this organization’s own: fields you leave as they are take the built-in defaults, not the platform’s values. '}
             {warning.missingSecret &&
               'No password of this organization’s: leave it empty only if the relay needs none.'}
           </p>
         )}
-        <OrgTextField {...props} field="smtp_host" label="SMTP host" grouped placeholder={examplePlaceholder('smtp.example.com')} />
-        <OrgTextField {...props} field="smtp_port" label="Port" grouped number />
+        <OrgTextField
+          {...props}
+          field="smtp_host"
+          label={FIELD_COPY.smtp_host.label}
+          grouped
+          placeholder={examplePlaceholder('smtp.example.com')}
+        />
+        <OrgTextField {...props} field="smtp_port" label={FIELD_COPY.smtp_port.label} grouped number />
         <Field
-          label="Security"
+          label={FIELD_COPY.smtp_security.label}
           htmlFor="org-smtp-security"
-          labelRight={<OrgSourceBadge source={sourceOf(settings, section, 'smtp_security')} />}
+          labelRight={<OrgFieldBadge settings={settings} section={section} field="smtp_security" />}
+          // Stacked with what the mode does, as on Platform › Mail relay: a
+          // mode that disagrees with the port gives no error, the send hangs.
+          stacked
+          hint={SMTP_SECURITY_HINTS[security]}
         >
           <NativeSelect
             id="org-smtp-security"
-            value={String(displayValue(settings, draft, section, 'smtp_security'))}
+            value={security}
             onChange={value => setField('smtp_security', value)}
-            options={SECURITY_OPTIONS}
+            options={SMTP_SECURITY_OPTIONS}
             width="fill"
           />
         </Field>
-        <OrgTextField {...props} field="smtp_username" label="SMTP username" grouped placeholder={examplePlaceholder('tripl@example.com')} />
+        <OrgTextField
+          {...props}
+          field="smtp_username"
+          label={FIELD_COPY.smtp_username.label}
+          grouped
+          placeholder={examplePlaceholder('tripl@example.com')}
+        />
         <Field
-          label="SMTP password"
-          labelRight={<OrgSourceBadge source={sourceOf(settings, section, 'smtp_password')} />}
+          label={FIELD_COPY.smtp_password.label}
+          labelRight={<OrgFieldBadge settings={settings} section={section} field="smtp_password" />}
           hint={<InheritHint {...props} field="smtp_password" grouped />}
         >
           <TextInput
@@ -115,7 +140,7 @@ export function OrgEmailFields({
         <OrgTextField
           {...props}
           field="smtp_from_address"
-          label="Default From address"
+          label={FIELD_COPY.smtp_from_address.label}
           grouped
           placeholder={examplePlaceholder('alerts@example.com')}
           last

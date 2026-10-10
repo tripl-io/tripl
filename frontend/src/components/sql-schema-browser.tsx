@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react'
 import { ChevronRight, Database, Search } from 'lucide-react'
 import type { TableSchema } from '@/types/dataSourceSchema'
 import { SEARCH_DEBOUNCE_MS, useDebouncedValue } from '@/hooks/useDebouncedValue'
-import { formatNumber } from '@/lib/format'
+import { countOf } from '@/lib/plural'
 
 // While searching, every matching table is force-expanded, so one keystroke on
 // a warehouse with hundreds of tables used to mount thousands of column
@@ -166,7 +166,7 @@ export function SqlSchemaBrowser({
                       ))}
                       {hiddenColumns > 0 && (
                         <li className="px-1.5 py-[3px] text-caption text-fg-tertiary">
-                          {formatNumber(hiddenColumns)} more {hiddenColumns === 1 ? 'column' : 'columns'} —
+                          {countOf(hiddenColumns, 'more column', 'more columns')} —
                           refine the filter to see them.
                         </li>
                       )}
@@ -177,8 +177,8 @@ export function SqlSchemaBrowser({
             )}
             {hiddenMatches > 0 && (
               <li className="px-2 py-1.5 text-caption text-fg-tertiary">
-                {formatNumber(hiddenMatches)} more matching{' '}
-                {hiddenMatches === 1 ? 'table' : 'tables'} — refine the filter to see them.
+                {countOf(hiddenMatches, 'more matching table', 'more matching tables')} — refine the filter to see
+                them.
               </li>
             )}
           </ul>

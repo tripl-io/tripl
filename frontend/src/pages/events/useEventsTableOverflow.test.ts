@@ -26,7 +26,8 @@ function makeHeaderCell(options: {
 function catalogHeaderCells(): HTMLTableCellElement[] {
   return [
     makeHeaderCell({ offsetLeft: 0, offsetWidth: 34 }),
-    makeHeaderCell({ offsetLeft: 34, offsetWidth: 40, sticky: true }),
+    // The select-all cell holds the phone card's "Select all" caption.
+    makeHeaderCell({ offsetLeft: 34, offsetWidth: 40, sticky: true, label: 'Select all' }),
     makeHeaderCell({ offsetLeft: 74, offsetWidth: 220, sticky: true, pinned: true, label: 'Event' }),
   ]
 }
@@ -73,6 +74,15 @@ describe('measureOverflow', () => {
     ])
 
     expect(measureOverflow(table)).toBe(1)
+  })
+
+  it('does not count the sticky select-all cell for its caption', () => {
+    // Its "Select all" text read as a column header left of the pinned edge,
+    // so every table claimed one phantom column off-screen — on a phone, where
+    // nothing scrolls sideways, that phantom was the whole count.
+    const table = tableWith(catalogHeaderCells())
+
+    expect(measureOverflow(table)).toBe(0)
   })
 
   it('does not count a header the phone card layout does not show', () => {

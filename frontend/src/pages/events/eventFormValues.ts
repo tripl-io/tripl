@@ -3,6 +3,7 @@
  * stored event, and what goes out of it into a save.
  */
 import type { FieldDefinition } from '@/types'
+import { toLocalDateTimeValue } from '@/lib/datetime'
 
 export function normalizeMetricBreakdownColumns(columns: string[]): string[] {
   const seen = new Set<string>()
@@ -14,8 +15,6 @@ export function normalizeMetricBreakdownColumns(columns: string[]): string[] {
       return true
     })
 }
-
-const pad = (value: number): string => String(value).padStart(2, '0')
 
 /**
  * A stored sunset instant as a `datetime-local` value, in the reader's zone.
@@ -29,8 +28,7 @@ export function sunsetInputValue(iso: string | null | undefined): string {
   if (!iso) return ''
   const date = new Date(iso)
   if (Number.isNaN(date.getTime())) return ''
-  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`
-    + `T${pad(date.getHours())}:${pad(date.getMinutes())}`
+  return toLocalDateTimeValue(date)
 }
 
 /**

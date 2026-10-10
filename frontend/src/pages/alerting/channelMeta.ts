@@ -2,7 +2,6 @@ import { createElement } from 'react'
 import { ClipboardList, Globe, Inbox, Mail, MessageSquare, MessagesSquare, Send, Siren, Ticket, type LucideIcon, type LucideProps } from 'lucide-react'
 
 import { CHANNEL_LABELS, channelLabel } from '@/lib/alertChannels'
-import type { AlertDestinationType } from '@/types'
 
 import type { DestinationChannel } from './constants'
 
@@ -34,8 +33,12 @@ export const CHANNEL_META: ChannelMeta[] = [
 // importing this page module (and its icons); re-exported for page callers.
 export { channelLabel }
 
-/** The channel's icon, or a generic one for the demo sink. */
-export function channelIcon(type: AlertDestinationType): LucideIcon {
+/**
+ * The channel's icon, or a generic one for the demo sink. Takes any string,
+ * like `channelLabel`: the monitors summary's `destination_type` is a plain
+ * string in the API, and an unknown channel gets the generic icon.
+ */
+export function channelIcon(type: string): LucideIcon {
   return CHANNEL_META.find(meta => meta.channel === type)?.Icon ?? Inbox
 }
 
@@ -43,6 +46,6 @@ export function channelIcon(type: AlertDestinationType): LucideIcon {
  * The channel's icon as an element. A component, so call sites render
  * `<ChannelGlyph type=… />` rather than a component picked during render.
  */
-export function ChannelGlyph({ type, ...props }: { type: AlertDestinationType } & LucideProps) {
+export function ChannelGlyph({ type, ...props }: { type: string } & LucideProps) {
   return createElement(channelIcon(type), props)
 }

@@ -148,11 +148,9 @@ describe('AuthPage', () => {
     expect(
       screen.getByRole('button', { name: 'Forgot your password?' }),
     ).toBeInTheDocument()
-    // The old static "contact your owner" copy is gone from the default footer —
-    // it now only appears as a fallback after a request on an email-less instance.
-    expect(
-      screen.queryByText(/Contact your instance owner to reset/),
-    ).not.toBeInTheDocument()
+    // The no-email way back in is not part of the default footer: it appears on
+    // the reset form, and only on an instance that cannot send email.
+    expect(screen.queryByText(/can't send email/)).not.toBeInTheDocument()
   })
 
   it('sends a reset request and shows a neutral confirmation when email is configured', async () => {
@@ -197,7 +195,9 @@ describe('AuthPage', () => {
     expect(screen.getByRole('button', { name: 'Send reset link' })).toBeEnabled()
   })
 
-  it('falls back to the contact-owner copy when the instance has no email configured', async () => {
+  // "Ask your instance owner to reset your password" named someone with no
+  // way to do it. Both ways back in exist now, and the page names them.
+  it('says who can hand over a reset link when the instance has no email configured', async () => {
     mockAuthFetch({ emailConfigured: false })
     renderAuth()
 
@@ -208,8 +208,10 @@ describe('AuthPage', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Send reset link' }))
 
     expect(
-      await screen.findByText(/Contact your instance owner to reset your password/),
-    ).toBeInTheDocument()
+      await screen.findByText(/An owner or admin of your organization can create one for you/),
+    ).toHaveTextContent('Settings › Organization › Members')
+    expect(screen.getByText('tripl-admin password-reset-link <your email>')).toBeInTheDocument()
+    expect(screen.queryByText(/instance owner/)).not.toBeInTheDocument()
   })
 
   it('enters reset mode from an emailed ?reset_token link and confirms a new password', async () => {
@@ -266,10 +268,15 @@ describe('AuthPage', () => {
     renderAuth()
 
     // The policy is stated up front instead of being discovered from a 403 after
-    // the visitor has filled in the form.
+    // the visitor has filled in the form. It names who can reopen it, where
+    // the rail puts the switch: Security & access is a Platform page, which an
+    // owner who is not a platform admin cannot open.
     expect(
-      await screen.findByText(/Sign-ups are closed on this instance/),
+      await screen.findByText(
+        'Sign-ups are closed on this instance. Ask your tripl administrator (a platform admin) to reopen sign-up under Settings → Platform → Security & access.',
+      ),
     ).toBeInTheDocument()
+    expect(screen.queryByText(/Settings → Instance/)).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Create account' })).not.toBeInTheDocument()
     expect(
       screen.queryByRole('button', { name: 'Create your account' }),
@@ -318,8 +325,151 @@ describe('AuthPage', () => {
 
     const password = screen.getByLabelText('Password')
     expect(password).toHaveAttribute('aria-invalid', 'true')
-    expect(await screen.findByText('Use at least 12 characters.')).toBeInTheDocument()
+    expect(
+      await screen.findByText('Use at least 12 characters, with a number and a symbol.'),
+    ).toBeInTheDocument()
     expect(screen.getByLabelText('Email')).not.toHaveAttribute('aria-invalid')
+  })
+
+  // The form checked the length alone, so "correcthorsebattery" went out and
+  // came back as "password: Value error, Password must be…".
+  it('asks for the number and the symbol too, before sending anything', async () => {
+    renderAuth()
+    await waitFor(() => expect(globalThis.fetch).toHaveBeenCalledTimes(1))
+
+    fireEvent.click(screen.getByRole('button', { name: 'Create account' }))
+    fireEvent.change(screen.getByLabelText('Email'), { target: { value: 'new@example.com' } })
+    fireEvent.change(screen.getByLabelText('Password'), {
+      target: { value: 'correcthorsebattery' },
+    })
+    const submit = screen.getByRole('button', { name: 'Create your account' })
+    await waitFor(() => expect(submit).toBeEnabled())
+    fireEvent.click(submit)
+
+    expect(await screen.findByText('Add a number and a symbol.')).toBeInTheDocument()
+    expect(screen.getByLabelText('Password')).toHaveAttribute('aria-invalid', 'true')
+    // Only the status probe: the refused sign-up never reached the API.
+    expect(globalThis.fetch).toHaveBeenCalledTimes(1)
+  })
+
+  it('says a server refusal under the field it names, without Pydantic’s prefix', async () => {
+    vi.spyOn(globalThis, 'fetch').mockImplementation((input: RequestInfo | URL) => {
+      const url = urlOf(input)
+      if (url.endsWith('/api/v1/auth/status')) {
+        return Promise.resolve(jsonResponse({ has_users: true, registration_enabled: true }))
+      }
+      if (url.endsWith('/api/v1/auth/register')) {
+        return Promise.resolve(
+          jsonResponse(
+            {
+              detail: [
+                {
+                  loc: ['body', 'password'],
+                  msg: 'Value error, Password must be at least 12 characters and include a number and a symbol.',
+                  type: 'value_error',
+                },
+              ],
+            },
+            422,
+          ),
+        )
+      }
+      return Promise.reject(new Error(`Unexpected request: ${url}`))
+    })
+    renderAuth()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Create account' }))
+    fireEvent.change(screen.getByLabelText('Email'), { target: { value: 'new@example.com' } })
+    fireEvent.change(screen.getByLabelText('Password'), { target: { value: 'Password123!' } })
+    const submit = screen.getByRole('button', { name: 'Create your account' })
+    await waitFor(() => expect(submit).toBeEnabled())
+    fireEvent.click(submit)
+
+    const password = screen.getByLabelText('Password')
+    await waitFor(() => expect(password).toHaveAttribute('aria-invalid', 'true'))
+    expect(password).toHaveAccessibleDescription(
+      'At least 12 characters, with a number and symbol. Password must be at least 12 characters and include a number and a symbol.',
+    )
+    expect(screen.queryByText(/Value error/)).not.toBeInTheDocument()
+    expect(screen.queryByText(/^password:/)).not.toBeInTheDocument()
+  })
+
+  it('keeps a failed sign-in in the alert above the button', async () => {
+    vi.spyOn(globalThis, 'fetch').mockImplementation((input: RequestInfo | URL) => {
+      const url = urlOf(input)
+      if (url.endsWith('/api/v1/auth/status')) {
+        return Promise.resolve(jsonResponse({ has_users: true, registration_enabled: true }))
+      }
+      if (url.endsWith('/api/v1/auth/login')) {
+        return Promise.resolve(jsonResponse({ detail: 'Invalid email or password' }, 401))
+      }
+      return Promise.reject(new Error(`Unexpected request: ${url}`))
+    })
+    renderAuth()
+
+    fireEvent.change(screen.getByLabelText('Email'), { target: { value: 'who@example.com' } })
+    // Any length: sign-in has no policy to check, and the server answers a
+    // short wrong password the way it answers any wrong one.
+    fireEvent.change(screen.getByLabelText('Password'), { target: { value: 'short' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Sign in' }))
+
+    expect(await screen.findByRole('alert')).toHaveTextContent('Invalid email or password')
+    expect(screen.getByLabelText('Password')).not.toHaveAttribute('aria-invalid')
+  })
+
+  it('states the password rule once, as the hint, not again as the placeholder', () => {
+    renderAuth()
+    expect(screen.getByLabelText('Password')).toHaveAttribute('placeholder', 'Enter your password')
+
+    fireEvent.click(screen.getByRole('button', { name: 'Create account' }))
+    expect(screen.getByLabelText('Password')).not.toHaveAttribute('placeholder')
+    expect(screen.getByText('At least 12 characters, with a number and symbol.')).toBeInTheDocument()
+  })
+
+  it('tells a later sign-up they join as a member and see projects once given access', async () => {
+    renderAuth()
+    await waitFor(() => expect(globalThis.fetch).toHaveBeenCalled())
+
+    fireEvent.click(screen.getByRole('button', { name: 'Create account' }))
+
+    expect(
+      await screen.findByText(
+        'You join as a member: you can create projects of your own, and you see the team’s existing projects once an owner or admin adds you.',
+      ),
+    ).toBeInTheDocument()
+    expect(screen.queryByText(/receive access immediately/)).not.toBeInTheDocument()
+    // The owner note is the first account's alone.
+    expect(
+      screen.queryByText(/The first account on a new instance becomes the owner/),
+    ).not.toBeInTheDocument()
+  })
+
+  it('leaves the first account one note: that it becomes the owner', async () => {
+    mockStatus(false)
+    renderAuth()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Create account' }))
+
+    expect(
+      await screen.findByText(/The first account on a new instance becomes the owner/),
+    ).toBeInTheDocument()
+    expect(screen.queryByText(/You join as a member/)).not.toBeInTheDocument()
+  })
+
+  it('tells the product story the welcome screen tells, from the same pillars', () => {
+    renderAuth()
+
+    expect(
+      screen.getByRole('heading', { level: 1, name: 'Keep your product analytics honest.' }),
+    ).toBeInTheDocument()
+    expect(screen.getByText('Tracking plan operations')).toBeInTheDocument()
+    for (const title of ['Design what should be tracked', 'Watch the real data', 'Stay in control']) {
+      expect(screen.getByText(title)).toBeInTheDocument()
+    }
+    // The lede is the same on either tab: it used to open "Sign in to…" above
+    // the sign-up form too.
+    expect(screen.queryByText(/^Sign in to manage/)).not.toBeInTheDocument()
+    expect(screen.queryByText(/Slack and Telegram/)).not.toBeInTheDocument()
   })
 
   it('holds the sign-up submit until the instance probe settles (F20)', async () => {

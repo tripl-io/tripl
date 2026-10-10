@@ -7,20 +7,23 @@ import { invalidAria } from '@/components/forms/validation'
 import {
   FIELD_COL_CLASS,
   HELP_CLASS,
-  MAX_TRINO_SCHEMA_ALLOWLIST,
+  MAX_SCHEMA_ALLOWLIST,
   SELECT_CLASS,
   TRINO_SCHEME_OPTIONS,
   type ConnectionSettingsForm,
+  type SettingsErrors,
 } from './connection-settings'
+import { ScopeField } from './scope-field'
 
 interface TrinoFieldsProps {
   idPrefix: string
   value: ConnectionSettingsForm
   onChange: (patch: Partial<ConnectionSettingsForm>) => void
+  errors: SettingsErrors
 }
 
 /** Trino / Starburst: the coordinator's scheme, the default schema, what to browse. */
-export function TrinoSettingsFields({ idPrefix, value, onChange }: TrinoFieldsProps) {
+export function TrinoSettingsFields({ idPrefix, value, onChange, errors }: TrinoFieldsProps) {
   return (
     <>
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
@@ -43,47 +46,31 @@ export function TrinoSettingsFields({ idPrefix, value, onChange }: TrinoFieldsPr
             authentication.
           </p>
         </div>
-        <div className={FIELD_COL_CLASS}>
-          <Label htmlFor={`${idPrefix}-trino-schema-name`}>Default schema</Label>
-          <Input
-            id={`${idPrefix}-trino-schema-name`}
-            value={value.schemaName}
-            onChange={(e) => onChange({ schemaName: e.target.value })}
-            placeholder={examplePlaceholder('events')}
-          />
-          <p className={HELP_CLASS}>
-            Where unqualified table names resolve. Empty means every name is schema-qualified.
-          </p>
-        </div>
-      </div>
-      <div className={FIELD_COL_CLASS}>
-        <Label htmlFor={`${idPrefix}-trino-schema-allowlist`}>Schema allowlist</Label>
-        <Input
-          id={`${idPrefix}-trino-schema-allowlist`}
-          value={value.schemaAllowlist}
-          onChange={(e) => onChange({ schemaAllowlist: e.target.value })}
-          placeholder={examplePlaceholder('events, marts')}
+        <ScopeField
+          id={`${idPrefix}-schema-name`}
+          label="Default schema"
+          value={value.schemaName}
+          onChange={(schemaName) => onChange({ schemaName })}
+          placeholder={examplePlaceholder('events')}
+          help="Where unqualified table names resolve. Empty means every name is schema-qualified."
+          error={errors.schemaName}
         />
-        <p className={HELP_CLASS}>
-          Comma-separated schemas of the catalog the schema browser may list. Empty with no
-          default schema lists the whole catalog. At most {MAX_TRINO_SCHEMA_ALLOWLIST}.
-        </p>
       </div>
+      <ScopeField
+        id={`${idPrefix}-schema-allowlist`}
+        label="Schema allowlist"
+        value={value.schemaAllowlist}
+        onChange={(schemaAllowlist) => onChange({ schemaAllowlist })}
+        placeholder={examplePlaceholder('events, marts')}
+        help={`Comma-separated schemas of the catalog the schema browser may list. Empty with no default schema lists the whole catalog. At most ${MAX_SCHEMA_ALLOWLIST}.`}
+        error={errors.schemaAllowlist}
+      />
     </>
   )
 }
 
-interface AthenaFieldsProps extends TrinoFieldsProps {
-  s3OutputError?: string
-}
-
 /** Amazon Athena: the workgroup, where results are written, the catalog, what to browse. */
-export function AthenaSettingsFields({
-  idPrefix,
-  value,
-  onChange,
-  s3OutputError,
-}: AthenaFieldsProps) {
+export function AthenaSettingsFields({ idPrefix, value, onChange, errors }: TrinoFieldsProps) {
   const outputId = `${idPrefix}-athena-output`
   return (
     <>
@@ -108,9 +95,9 @@ export function AthenaSettingsFields({
             value={value.s3OutputLocation}
             onChange={(e) => onChange({ s3OutputLocation: e.target.value })}
             placeholder={examplePlaceholder('s3://my-bucket/athena-results/')}
-            {...invalidAria(outputId, s3OutputError)}
+            {...invalidAria(outputId, errors.s3OutputLocation)}
           />
-          <FieldError inputId={outputId} message={s3OutputError} />
+          <FieldError inputId={outputId} message={errors.s3OutputLocation} />
           <p className={HELP_CLASS}>
             Where Athena writes results. Empty uses the workgroup’s own location.
           </p>
@@ -127,19 +114,15 @@ export function AthenaSettingsFields({
           />
           <p className={HELP_CLASS}>Empty means AwsDataCatalog, the Glue catalog.</p>
         </div>
-        <div className={FIELD_COL_CLASS}>
-          <Label htmlFor={`${idPrefix}-athena-schema-allowlist`}>Database allowlist</Label>
-          <Input
-            id={`${idPrefix}-athena-schema-allowlist`}
-            value={value.schemaAllowlist}
-            onChange={(e) => onChange({ schemaAllowlist: e.target.value })}
-            placeholder={examplePlaceholder('events, marts')}
-          />
-          <p className={HELP_CLASS}>
-            Further Glue databases the schema browser may list. At most{' '}
-            {MAX_TRINO_SCHEMA_ALLOWLIST}.
-          </p>
-        </div>
+        <ScopeField
+          id={`${idPrefix}-schema-allowlist`}
+          label="Database allowlist"
+          value={value.schemaAllowlist}
+          onChange={(schemaAllowlist) => onChange({ schemaAllowlist })}
+          placeholder={examplePlaceholder('events, marts')}
+          help={`Further Glue databases the schema browser may list. At most ${MAX_SCHEMA_ALLOWLIST}.`}
+          error={errors.schemaAllowlist}
+        />
       </div>
     </>
   )

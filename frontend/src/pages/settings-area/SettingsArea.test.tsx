@@ -8,7 +8,7 @@ import { projectsApi } from '@/api/projects'
 import { usersApi } from '@/api/users'
 import { AuthContext, type AuthContextValue } from '@/components/auth-context'
 import type { Project } from '@/types'
-import { QUICK_START_URL } from '@/demo/EndOfDemoLink'
+import { QUICK_START_URL } from '@/lib/docsSite'
 import SettingsArea from './SettingsArea'
 import { at } from '@/test/at'
 
@@ -275,7 +275,7 @@ describe('SettingsArea project binding', () => {
 
     renderArea('api-keys')
 
-    expect(await screen.findByText('All keys')).toBeInTheDocument()
+    expect(await screen.findByText('Your keys')).toBeInTheDocument()
     expect(screen.queryByRole('heading', { name: 'Pick a project' })).not.toBeInTheDocument()
   })
 })
@@ -367,7 +367,7 @@ describe('SettingsArea owner-only sections (#237)', () => {
   })
 
   it.each([
-    ['organization/search', 'Search'],
+    ['organization/search', 'Semantic search'],
     ['organization/trackers', 'Trackers'],
   ])('gates %s behind the organization owner/admin role (F20 PR10, PR12)', async (section, title) => {
     vi.spyOn(projectsApi, 'list').mockResolvedValue(projects)
@@ -387,7 +387,7 @@ describe('SettingsArea owner-only sections (#237)', () => {
 
     expect(await screen.findByRole('heading', { level: 1, name: 'Single sign-on' })).toBeInTheDocument()
     expect(
-      screen.getByRole('heading', { name: 'Single sign-on is part of Tripl Enterprise' }),
+      screen.getByRole('heading', { name: 'Single sign-on: part of tripl Enterprise' }),
     ).toBeInTheDocument()
     expect(screen.getByRole('link', { name: /Compare editions/ })).toBeInTheDocument()
   })
@@ -401,7 +401,7 @@ describe('SettingsArea owner-only sections (#237)', () => {
 
     expect(await screen.findByRole('heading', { level: 1, name: 'Provisioning' })).toBeInTheDocument()
     expect(screen.getByRole('note')).toHaveTextContent(/Owner role is required/)
-    expect(screen.queryByText(/part of Tripl Enterprise/)).toBeNull()
+    expect(screen.queryByText(/part of tripl Enterprise/)).toBeNull()
   })
 
   it('opens the organization audit log as an Enterprise feature for an admin', async () => {
@@ -412,7 +412,7 @@ describe('SettingsArea owner-only sections (#237)', () => {
     renderArea('instance/audit', '', admin)
 
     expect(await screen.findByRole('heading', { level: 1, name: 'Audit log' })).toBeInTheDocument()
-    expect(screen.getByText(/part of Tripl Enterprise/)).toBeInTheDocument()
+    expect(screen.getByText(/part of tripl Enterprise/)).toBeInTheDocument()
   })
 
   it('keeps the Platform console from an organization owner who is not a platform admin (F20 PR9)', async () => {
@@ -446,7 +446,7 @@ describe('SettingsArea platform console (Enterprise teaser)', () => {
     vi.spyOn(projectsApi, 'list').mockResolvedValue(projects)
     renderArea('platform/orgs', '', platformAdmin())
     expect(await screen.findByText(/Every organization on the instance in one list/)).toBeInTheDocument()
-    expect(screen.getByRole('heading', { name: 'Organizations is part of Tripl Enterprise' })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: 'Organizations: part of tripl Enterprise' })).toBeInTheDocument()
     expect(screen.getByRole('link', { name: /User accounts/ })).toHaveAttribute('href', '/settings/platform/users')
   })
 })
@@ -466,7 +466,7 @@ describe('SettingsArea on a public demo', () => {
 
     const rail = await screen.findByRole('navigation', { name: 'Settings' })
     await waitFor(() => expect(within(rail).queryByRole('link', { name: 'Email' })).toBeNull())
-    for (const label of ['AI', 'Search', 'Photos', 'Trackers', 'Limits']) {
+    for (const label of ['AI', 'Semantic search', 'Photos', 'Trackers', 'Limits']) {
       expect(within(rail).queryByRole('link', { name: label }), `public demo listed "${label}"`).toBeNull()
     }
     expect(within(rail).getByRole('link', { name: 'Invitations' })).toBeInTheDocument()

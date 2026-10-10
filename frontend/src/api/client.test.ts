@@ -89,6 +89,31 @@ describe('422 validation mapping', () => {
     expect(apiErr.fields).toEqual(detail)
   })
 
+  // "password: Value error, Password must be…" reached the sign-up form as is.
+  it("drops Pydantic's \"Value error, \" prefix from the message and from each field", async () => {
+    const detail = [
+      {
+        loc: ['body', 'password'],
+        msg: 'Value error, Password must include a number and a symbol.',
+        type: 'value_error',
+      },
+      { loc: ['body'], msg: 'Value error, org_slug is required', type: 'value_error' },
+    ]
+    mockFetchOnce({ status: 422, body: { detail } })
+
+    const err = (await api.post('/auth/register', {}).catch((e: unknown) => e)) as ApiError
+    expect(err.message).toBe(
+      'password: Password must include a number and a symbol.; org_slug is required',
+    )
+    expect(err.fields?.map((field) => field.msg)).toEqual([
+      'Password must include a number and a symbol.',
+      'org_slug is required',
+    ])
+    // Only the message is touched: where it points and what kind it is stay.
+    expect(err.fields?.[0]?.loc).toEqual(['body', 'password'])
+    expect(err.fields?.[0]?.type).toBe('value_error')
+  })
+
   it('drops body/query segments and keeps msg when path is empty', async () => {
     const detail = [{ loc: ['body'], msg: 'invalid payload', type: 'value_error' }]
     mockFetchOnce({ status: 422, body: { detail } })

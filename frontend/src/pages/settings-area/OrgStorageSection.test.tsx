@@ -8,10 +8,10 @@ import { orgSettingsFixture } from '@/test/orgSettings'
 import OrgSettingsSection from './OrgSettingsSection'
 
 /**
- * Organization › Storage (F20 PR11): where the organization's photos go and
+ * Organization › Photos (F20 PR11): where the organization's photos go and
  * what an upload may be. The bucket and its service-account key are one group,
- * the key is write-only, the size cap is at most the operator's and the content
- * types a subset of the operator's list.
+ * the key is write-only, the size cap is at most the platform's and the content
+ * types a subset of the platform's list.
  */
 
 function renderStorage(settings: OrgSettings = orgSettingsFixture()) {
@@ -54,13 +54,13 @@ afterEach(() => {
   vi.restoreAllMocks()
 })
 
-describe('Organization › Storage', () => {
+describe('Organization › Photos', () => {
   it("shows the platform's storage and limits while the organization has none", async () => {
     renderStorage()
     expect(await screen.findByText('Where photos are stored')).toBeInTheDocument()
-    expect(screen.getByText('Operator maximum: 10 MB.')).toBeInTheDocument()
+    expect(screen.getByText('Platform maximum: 10 MB.')).toBeInTheDocument()
     expect(
-      screen.getByText(/The operator allows: image\/jpeg, image\/png, image\/gif, image\/webp\./),
+      screen.getByText(/The platform allows: image\/jpeg, image\/png, image\/gif, image\/webp\./),
     ).toBeInTheDocument()
     // Hosted: the server's disk is not the organization's to choose.
     const local = screen.getByRole('option', { name: /not on a hosted platform/ })
@@ -113,21 +113,21 @@ describe('Organization › Storage', () => {
     )
   })
 
-  it("blocks a content type or a size the operator does not allow", async () => {
+  it("blocks a content type or a size the platform does not allow", async () => {
     const { update } = renderStorage()
     await screen.findByText('Where photos are stored')
 
     fireEvent.change(screen.getByLabelText('Allowed content types'), {
       target: { value: 'image/png, image/svg+xml' },
     })
-    expect(screen.getByText('Not allowed by the operator: image/svg+xml.')).toBeInTheDocument()
+    expect(screen.getByText('Not allowed by the platform: image/svg+xml.')).toBeInTheDocument()
     expect(saveButton()).toBeDisabled()
 
     fireEvent.change(screen.getByLabelText('Allowed content types'), {
       target: { value: 'image/png' },
     })
     fireEvent.change(screen.getByLabelText('Largest photo'), { target: { value: '50' } })
-    expect(screen.getByText("The operator's maximum is 10.")).toBeInTheDocument()
+    expect(screen.getByText("The platform's maximum is 10.")).toBeInTheDocument()
     expect(saveButton()).toBeDisabled()
 
     fireEvent.change(screen.getByLabelText('Largest photo'), { target: { value: '5' } })

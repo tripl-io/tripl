@@ -19,7 +19,7 @@ const EVENT_TYPE_ROW_CAP = 6
 
 /**
  * A nav count: the CountBadge geometry, fed the pre-formatted
- * figure ("1.2K") the nav model carries. Neutral grey for counts; solid red
+ * figure ("1.2k") the nav model carries. Neutral grey for counts; solid red
  * only for unacknowledged alerts (Alerting's open incidents). The figure
  * stays in the link's accessible name ("Anomalies 9"). The neutral pill is
  * --surface with a hairline, not CountBadge's --surface-active: in light that

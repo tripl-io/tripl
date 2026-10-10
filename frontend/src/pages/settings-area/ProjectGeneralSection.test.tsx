@@ -5,6 +5,7 @@ import { MemoryRouter } from 'react-router-dom'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { searchApi } from '@/api/search'
 import { AuthContext, type AuthContextValue } from '@/components/auth-context'
+import { setCurrentOrgSlug } from '@/lib/activeOrg'
 import ProjectGeneralSection from './ProjectGeneralSection'
 import { UnsavedChangesProvider, type UnsavedWork } from '@/components/settings/unsaved-changes'
 import { at } from '@/test/at'
@@ -180,20 +181,26 @@ describe('ProjectGeneralSection', () => {
     expect(reindex).toHaveBeenCalledWith('demo')
   })
 
-  it('prefixes the slug with this instance host, not a stand-in domain', async () => {
+  it('prefixes the slug with this instance host and the organization, not a stand-in domain', async () => {
     vi.spyOn(globalThis, 'fetch').mockImplementation(async (input) => {
       const url = String(input)
-      if (url.endsWith('/api/v1/projects/demo')) return jsonResponse(PROJECT)
+      if (url.endsWith('/projects/demo')) return jsonResponse(PROJECT)
       throw new Error(`Unhandled fetch: ${url}`)
     })
+    setCurrentOrgSlug('acme')
+    try {
+      renderSection()
 
-    renderSection()
-
-    // The affix read a hardcoded "example.com/p/" on every install,
-    // so the one screen that shows a reader their project's address showed
-    // somebody else's. Asserted against the host the tree is served from, which
-    // is the whole point — no literal can satisfy this on two different hosts.
-    expect(await screen.findByText(`${window.location.host}/p/`)).toBeInTheDocument()
+      // The affix read a hardcoded "example.com/p/" on every install,
+      // so the one screen that shows a reader their project's address showed
+      // somebody else's. Asserted against the host the tree is served from, which
+      // is the whole point — no literal can satisfy this on two different hosts.
+      // The path is the one the app links: under the organization, as
+      // Organization › Details says, not the bare legacy `/p/`.
+      expect(await screen.findByText(`${window.location.host}/o/acme/p/`)).toBeInTheDocument()
+    } finally {
+      setCurrentOrgSlug(null)
+    }
   })
 
   it('hides the unfinished "Coming soon" project-config fields for release', async () => {
@@ -229,7 +236,10 @@ describe('ProjectGeneralSection', () => {
       .forEach((select) => expect(select).not.toBeDisabled())
   })
 
-  it('cross-links to the in-app tracking plan and alerting (#238)', async () => {
+  // The settings rail already links "Tracking plan & alerting" and back to
+  // the project (SettingsLayout.test.tsx); header buttons repeating them made
+  // four exits to three pages.
+  it('leaves the ways out of settings to the rail', async () => {
     vi.spyOn(globalThis, 'fetch').mockImplementation(async (input) => {
       const url = String(input)
       if (url.endsWith('/api/v1/projects/demo')) return jsonResponse(PROJECT)
@@ -238,9 +248,9 @@ describe('ProjectGeneralSection', () => {
 
     renderSection()
 
-    expect(
-      await screen.findByRole('button', { name: 'Tracking plan & alerting' }),
-    ).toBeInTheDocument()
+    expect(await screen.findByLabelText('Name')).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Tracking plan & alerting' })).toBeNull()
+    expect(screen.queryByRole('button', { name: 'View project' })).toBeNull()
   })
 
   it('exposes a Delete project danger action for owners', async () => {
@@ -626,7 +636,10 @@ describe('ProjectGeneralSection — #207', () => {
     const zone = await screen.findByLabelText('Timezone')
     expect(zone.tagName).toBe('SELECT')
     await waitFor(() => expect(zone).toHaveValue('UTC'))
-    expect(within(zone).getByRole('option', { name: 'Europe/Moscow' })).toBeInTheDocument()
+    // The offset follows the name, so type-ahead still jumps on "Europe/Moscow".
+    expect(
+      within(zone).getByRole('option', { name: 'Europe/Moscow (UTC+03:00)' }),
+    ).toBeInTheDocument()
 
     fireEvent.change(zone, { target: { value: 'Europe/Moscow' } })
     fireEvent.click(at(screen.getAllByRole('button', { name: /Save/ }), 0))

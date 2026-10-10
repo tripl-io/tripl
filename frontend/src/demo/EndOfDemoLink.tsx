@@ -1,5 +1,6 @@
 /**
- * Where the last chapter leads: out of the demo, into the real product.
+ * Where the demo leads: out of it, into the real product. The last chapter
+ * ends on it, and the demo welcome panel offers it from the first screen.
  *
  * On an instance of one's own that is a real project. A public demo has none
  * to make — the server refuses blank projects there — and testers found
@@ -7,19 +8,24 @@
  * way on is the quick start: tripl on one's own warehouse.
  */
 
+import type { ComponentProps } from 'react'
 import { Link } from 'react-router-dom'
 import { ExternalLink, Plus } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { usePublicDemo } from '@/lib/deploymentMode'
+import { QUICK_START_URL } from '@/lib/docsSite'
 import { workspacePath } from '@/lib/navigation'
 
-export const QUICK_START_URL = 'https://docs.tripl.io/quick-start'
+interface EndOfDemoLinkProps {
+  /** The chapter's end is the call to action; beside other buttons it is quieter. */
+  variant?: ComponentProps<typeof Button>['variant']
+}
 
-export function EndOfDemoLink() {
+export function EndOfDemoLink({ variant }: EndOfDemoLinkProps = {}) {
   const publicDemo = usePublicDemo()
   if (publicDemo) {
     return (
-      <Button asChild size="xs">
+      <Button asChild size="xs" variant={variant}>
         <a
           href={QUICK_START_URL}
           target="_blank"
@@ -34,12 +40,13 @@ export function EndOfDemoLink() {
       </Button>
     )
   }
-  // The dashboard, not Data sources: creating the project comes first, and a
-  // demo-scoped link straight to the global connection page was deliberately
-  // removed.
+  // All projects with its New project dialog already open (`?new=1`), not
+  // Data sources: creating the project comes first, and a demo-scoped link
+  // straight to the global connection page was deliberately removed. The list
+  // alone held only the demo, and the button to press was left to find.
   return (
-    <Button asChild size="xs">
-      <Link to={workspacePath()}>
+    <Button asChild size="xs" variant={variant}>
+      <Link to={`${workspacePath()}?new=1`}>
         <Plus className="h-3 w-3" />
         Create a real project
       </Link>

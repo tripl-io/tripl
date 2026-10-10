@@ -48,6 +48,7 @@ import { usePageTitle } from '@/components/shell-chrome-context'
 import { invalidateAlertingConfig } from './alerting/alertingCache'
 import { monitorDetailKey, monitorHistoryKey } from '@/lib/queryKeys'
 import { currentOrgSlug, projectPath } from '@/lib/navigation'
+import { countOf } from '@/lib/plural'
 
 export default function MonitorDetailPage() {
   const { slug, monitorId } = useParams<{ slug: string; monitorId: string }>()
@@ -426,7 +427,7 @@ function RecencyStrip({ monitor }: { monitor: MonitorDetail }) {
 function FiringNowPanel({ slug, scopes }: { slug?: string; scopes: MonitorFiringScope[] }) {
   if (scopes.length === 0) return null
   return (
-    <Panel title="Firing now" subtitle={`${formatNumber(scopes.length)} ${scopes.length === 1 ? 'scope' : 'scopes'}`}>
+    <Panel title="Firing now" subtitle={countOf(scopes.length, 'scope', 'scopes')}>
       <ul className="m-0 list-none p-0">
         {scopes.map((scope) => (
           <FiringScopeRow

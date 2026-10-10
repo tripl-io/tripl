@@ -4,8 +4,8 @@ import { createContext, useContext } from 'react'
  * A draft a settings section holds in component state and would lose if the
  * rail navigated away from it.
  *
- * Instance settings are the only section with a real one: the draft is plain
- * state in ServiceSettingsPage, so leaving the instance group threw away a
+ * The Platform pages share one draft: it is plain state in
+ * ServiceSettingsPage, so leaving the Platform group threw away a
  * hand-written system prompt with no warning. Switching *within*
  * the group keeps it — InstanceSection is a module-scope lazy() ref rendered
  * without a key, so AI → Email preserves the draft — which is why the guard is
@@ -22,7 +22,7 @@ export type UnsavedWork = {
   message: string
   /**
    * Settings paths (e.g. `instance/security`) whose own edits are unsaved, so
-   * the rail can mark them. Save on Instance is per section, so an edit left
+   * the rail can mark them. Save on Platform is per section, so an edit left
    * in another section needs a pointer back to it.
    */
   dirtyPaths?: readonly string[]

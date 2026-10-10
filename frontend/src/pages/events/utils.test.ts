@@ -4,7 +4,6 @@ import {
   computeWindowDelta,
   describeWindowDelta,
   deriveRowSignalFromMetrics,
-  formatCompactCount,
   formatRelativeTime,
   mapLatestSignals,
   pickLatestSignal,
@@ -12,7 +11,6 @@ import {
   reorderWithSelection,
   applyEventNameFormat,
   resolveTemplateTokens,
-  splitEventName,
   splitTemplateValue,
 } from './utils'
 
@@ -45,6 +43,10 @@ function signal(overrides: Partial<MonitoringSignal>): MonitoringSignal {
     z_score: 0,
     direction: 'drop',
     incident_child: false,
+    muted: false,
+    expected: false,
+    hidden: false,
+    attribution_status: 'not_computed',
     unit: null,
     detected_at: null,
     ...overrides,
@@ -217,40 +219,6 @@ describe('reorderWithSelection', () => {
 
   it('returns null when the block is dropped onto one of its own rows', () => {
     expect(reorderWithSelection(ids, new Set(['a', 'c']), 'a', 'c')).toBeNull()
-  })
-})
-
-describe('splitEventName', () => {
-  it('returns null for ordinary names so they render unchanged', () => {
-    expect(splitEventName('spot:open:fishing')).toBeNull()
-    expect(splitEventName('checkout')).toBeNull()
-  })
-
-  it('splits a name with an empty middle segment (spot::services)', () => {
-    expect(splitEventName('spot::services')).toEqual([
-      { text: 'spot', empty: false },
-      { text: '', empty: true },
-      { text: 'services', empty: false },
-    ])
-  })
-
-  it('treats the serialized "0" sentinel as an empty segment', () => {
-    expect(splitEventName('0:forecast_for_4:0')).toEqual([
-      { text: '0', empty: true },
-      { text: 'forecast_for_4', empty: false },
-      { text: '0', empty: true },
-    ])
-  })
-
-  it('handles leading and trailing empty segments', () => {
-    expect(splitEventName(':services')).toEqual([
-      { text: '', empty: true },
-      { text: 'services', empty: false },
-    ])
-    expect(splitEventName('spot:')).toEqual([
-      { text: 'spot', empty: false },
-      { text: '', empty: true },
-    ])
   })
 })
 
@@ -479,20 +447,6 @@ describe('computeWindowDelta', () => {
 
     expect(computeWindowDelta(lone, NOW).pct).toBeNull()
     expect(computeWindowDelta(lone, NOW).status).toBe('no-series')
-  })
-})
-
-describe('formatCompactCount', () => {
-  // The 48h column sits next to "Last seen", which renders "1m ago"/"1h ago".
-  // A lowercase "1m" volume there reads as one minute, not one million.
-  it('keeps the millions suffix uppercase so it cannot be read as a duration', () => {
-    expect(formatCompactCount(4_000_000)).toBe('4M')
-    expect(formatCompactCount(1_200_000)).toBe('1M')
-  })
-
-  it('leaves the Intl casing alone for thousands and bare counts', () => {
-    expect(formatCompactCount(505_000)).toBe('505K')
-    expect(formatCompactCount(12)).toBe('12')
   })
 })
 

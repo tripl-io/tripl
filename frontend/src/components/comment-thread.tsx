@@ -3,7 +3,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Chip } from '@/components/primitives/chip'
 import { Button } from '@/components/ui/button'
 import { Loader2, MessageCircle, Trash2 } from 'lucide-react'
-import { formatDateTime } from '@/lib/datetime'
+import { formatDateTime, formatTimestamp } from '@/lib/datetime'
 import { isThreadUnanswered, threadStateLabel } from '@/components/commentThreadState'
 import type { EventCommentAction, EventCommentStatus } from '@/types'
 import { useCanWriteProject, useIsOwner } from '@/lib/permissions'
@@ -378,7 +378,11 @@ function CommentItem({
         <div className="flex items-center justify-between gap-2 text-body-sm text-fg-tertiary">
           <span>
             {authorName ? `${authorName(comment)} · ` : ''}
-            {formatDateTime(comment.created_at)}
+            {/* The zone on hover, as the audit log and history give it: a
+                thread is read across offices. */}
+            <time dateTime={comment.created_at} title={formatTimestamp(comment.created_at, { zone: true })}>
+              {formatDateTime(comment.created_at)}
+            </time>
           </span>
           <div className="flex items-center gap-2">
             {/* A thread's state is a status: the shared pill. */}
@@ -439,7 +443,9 @@ function CommentItem({
               <div className="flex items-center justify-between gap-2 text-body-sm text-fg-tertiary">
                 <span>
                   {authorName ? `${authorName(reply)} · ` : ''}
-                  {formatDateTime(reply.created_at)}
+                  <time dateTime={reply.created_at} title={formatTimestamp(reply.created_at, { zone: true })}>
+                    {formatDateTime(reply.created_at)}
+                  </time>
                 </span>
                 {canDelete(reply) && (
                   <button

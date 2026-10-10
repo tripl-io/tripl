@@ -9,6 +9,8 @@
  * mode unchanged, so a hand-written cron is never silently rewritten.
  */
 
+import { APP_LOCALE } from '@/lib/format'
+
 export type CadenceMode = 'immediate' | 'hourly' | 'daily' | 'times_of_day' | 'weekly' | 'custom'
 
 export interface CadenceDraft {
@@ -181,7 +183,7 @@ export function resolveScheduleTimezone(
 /**
  * An absolute instant rendered in the PROJECT's timezone, with the zone named.
  *
- * `toLocaleString()` alone renders in the viewer's zone, which is actively
+ * Formatting without a `timeZone` renders in the viewer's zone, which is actively
  * misleading here: the schedule was written as a wall-clock time in the
  * project's zone, so an operator in another country would read "next digest
  * 07:00" for a schedule they set to 09:00 and reasonably conclude it was wrong.
@@ -191,11 +193,11 @@ export function formatInProjectZone(iso: string, timeZone: string | undefined): 
   if (Number.isNaN(at.getTime())) return iso
   const zone = timeZone || 'UTC'
   try {
-    return `${at.toLocaleString(undefined, { timeZone: zone, dateStyle: 'medium', timeStyle: 'short' })} (${zone})`
+    return `${at.toLocaleString(APP_LOCALE, { timeZone: zone, dateStyle: 'medium', timeStyle: 'short' })} (${zone})`
   } catch {
     // An unresolvable zone must not blank the tooltip; the backend degrades to
     // UTC for the same reason.
-    return `${at.toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' })} (local)`
+    return `${at.toLocaleString(APP_LOCALE, { dateStyle: 'medium', timeStyle: 'short' })} (local)`
   }
 }
 

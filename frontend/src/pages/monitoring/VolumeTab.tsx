@@ -6,7 +6,6 @@ import { Card, CardContent, CardTitle } from '@/components/ui/card'
 import type { PartialWindow } from '@/components/ui/chart'
 import { MetricsChart } from '@/components/ui/chart-lazy'
 import { formatIncidentCount } from '@/lib/alertStatus'
-import { formatNumber } from '@/lib/format'
 import { formatMetricValue } from '@/lib/metricFormat'
 import type { MetricsGranularity } from '@/lib/metrics'
 import type { MonitoringScope } from '@/lib/monitoring'
@@ -18,6 +17,7 @@ import { ChartCardHeader, MetricsRangeControls } from './MetricsRangeControls'
 import { SignalSummary } from './SignalSummary'
 import type { useChartAnnotations } from './useChartAnnotations'
 import { usePlannedEvents } from './usePlannedEvents'
+import { countOf } from '@/lib/plural'
 
 /**
  * The Volume (or, on a catalog metric, Value) tab: the latest signal in one
@@ -96,7 +96,7 @@ export function VolumeTab({
           signal={latestSignal}
           formatActual={value => (isMetricScope
             ? formatMetricValue(value, metricUnit)
-            : `${formatNumber(value)} ${value === 1 ? 'event' : 'events'}`)}
+            : countOf(value, 'event', 'events'))}
           formatExpected={value => (isMetricScope
             ? formatMetricValue(value, metricUnit)
             : // Value-aware: an event count can still carry a

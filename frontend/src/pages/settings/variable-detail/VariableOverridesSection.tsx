@@ -1,7 +1,6 @@
 import { useMemo, useState } from 'react'
-import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Pencil, Trash2 } from 'lucide-react'
-import { eventsApi } from '@/api/events'
 import { type VariableEventOverride, variableOverridesApi } from '@/api/variableOverrides'
 import { ChipListInput } from '@/components/chip-list-input'
 import { CodeToken } from '@/components/primitives/code-token'
@@ -10,11 +9,11 @@ import { Button } from '@/components/ui/button'
 import { IconButton } from '@/components/ui/icon-button'
 import { Input } from '@/components/ui/input'
 import { useConfirm } from '@/hooks/useConfirm'
-import { useDebouncedValue } from '@/hooks/useDebouncedValue'
+import { useEventRoster } from '@/hooks/useEventRoster'
 import { SILENT_ERROR_META } from '@/lib/errorFeedback'
 import { eventNameLabel } from '@/lib/eventName'
 import { countOf } from '@/lib/plural'
-import { eventsPickerKey, variableOverridesKey } from '@/lib/queryKeys'
+import { variableOverridesKey } from '@/lib/queryKeys'
 import { getErrorMessage } from '@/lib/utils'
 import type { Variable, VariableType } from '@/types'
 import { TYPE_LABELS } from '../variablesShared'
@@ -22,17 +21,6 @@ import { invalidValuesFor, valueRuleFor } from '../variableValueValidation'
 
 /** A property entry that carries its own allowed values. */
 type Override = VariableEventOverride & { values: string[] }
-
-// Events offered in the per-event override picker at once. The roster used to
-// be fetched with no params at all, which inherited the endpoint's own default
-// of 200 and left every event past it unreachable — no search, no note, and
-// "Accept for this event" only reaches events that already carry a drift.
-// The cap is small on purpose now that the search below is
-// server-side: /events returns full list rows (tags, field values, meta
-// values), so pulling thousands into a picker to avoid typing is the wrong
-// trade. Anything not in the page is one search away, and the count of what is
-// missing is printed rather than hidden.
-const OVERRIDE_EVENT_PAGE_SIZE = 100
 
 /**
  * Per-event value overrides of ONE variable: the list, and the picker that
@@ -90,29 +78,19 @@ export function VariableOverridesSection({
   )
   const invalidEditedOverrideValues = invalidValuesFor(variableType, overrideValues)
 
-  // Searched SERVER-side, the way the alert-rule event picker already does it
-  // (pages/alerting/FilterEditor.tsx useEventOptions): the backend matches name,
-  // description and source_name with an ILIKE, so any event in the catalog is
-  // reachable by typing part of its name. Narrowing here instead would only
-  // re-filter the page the server already truncated, which is the defect.
-  // `keepPreviousData` holds the current options while the next
-  // search lands, so the select does not flicker empty on every keystroke.
-  const debouncedOverrideEventSearch = useDebouncedValue(overrideEventSearch)
-  const { data: eventsList } = useQuery({
-    queryKey: eventsPickerKey(slug, branchId, 'override-picker', debouncedOverrideEventSearch),
-    queryFn: () => eventsApi.list(
-      slug,
-      { search: debouncedOverrideEventSearch || undefined, limit: OVERRIDE_EVENT_PAGE_SIZE, offset: 0 },
-      branchId,
-    ),
+  // Searched SERVER-side, like every event picker (`useEventRoster`): the
+  // backend matches name, description and source_name with an ILIKE, so any
+  // event in the catalog is reachable by typing part of its name. Narrowing
+  // here instead would only re-filter the page the server already truncated,
+  // which is the defect. `hiddenEventCount` is what the search did not return:
+  // the variables table prints exactly this note for its own truncation, so an
+  // operator can tell a short list from a complete one.
+  const { events: rosterEvents, hiddenCount: hiddenEventCount } = useEventRoster({
+    slug,
+    branchId,
+    search: overrideEventSearch,
     enabled: pickerActive && canWrite,
-    placeholderData: keepPreviousData,
   })
-  const rosterEvents = useMemo(() => eventsList?.items ?? [], [eventsList])
-  // What the search did not return. The variables table prints exactly this
-  // note for its own truncation; the picker printed nothing at all, so an
-  // operator had no way to tell a short list from a complete one.
-  const hiddenEventCount = Math.max(0, (eventsList?.total ?? 0) - rosterEvents.length)
   // The selected event is prepended when the search does not hold it, so Edit on
   // an out-of-roster override shows that event rather than a blank select — and
   // a selection survives retyping the search.

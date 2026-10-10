@@ -5,8 +5,9 @@ import type { MonitoringScope } from '@/lib/monitoring'
 import { plannedEventsRangeKey } from '@/lib/queryKeys'
 
 /**
- * The planned events of one drilldown (F18), shared by the volume chart (the
- * shaded windows) and the Planned events card. Keyed on the range length like
+ * The expected windows of one drilldown (F18; planned events in the API),
+ * shared by the volume chart (the shaded windows) and the Expected windows
+ * card. Keyed on the range length like
  * `useChartAnnotations`, so the live window's moving bounds do not refetch.
  */
 export function usePlannedEvents({

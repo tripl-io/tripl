@@ -2,6 +2,7 @@ import { Fragment } from 'react'
 import { Link } from 'react-router-dom'
 import type { DataSource } from '@/types'
 import { dataSourceUsedBy } from './used-by-scans-model'
+import { formatNumber } from '@/lib/format'
 
 /**
  * The card's "Used by" line: the scans reading this source, each a link
@@ -29,7 +30,7 @@ export function UsedByScans({ ds }: { ds: DataSource }) {
           )}
         </Fragment>
       ))}
-      {usedBy.more > 0 && ` and ${usedBy.more.toLocaleString()} more`}
+      {usedBy.more > 0 && ` and ${formatNumber(usedBy.more)} more`}
     </span>
   )
 }

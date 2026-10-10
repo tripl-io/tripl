@@ -12,7 +12,9 @@ import {
   rootTypeOptions,
   SCHEMA_NODE_TYPE_LABELS,
   SCHEMA_NODE_TYPES,
+  STRING_FORMAT_LABELS,
   STRING_FORMATS,
+  stringFormatLabel,
   type SchemaNodeType,
 } from '@/lib/propertySchema'
 import { cn } from '@/lib/utils'
@@ -155,41 +157,55 @@ function SchemaNodeEditor({
   const patternId = useId()
   const set = (patch: Partial<PropertySchema>) => onChange({ ...node, ...patch })
   const formats = STRING_FORMATS.filter((f) => !rules.noDateFormats || (f !== 'date' && f !== 'date-time'))
+  // A type with one possible answer is already said by the property's Type
+  // (or, for items, by the array type): a greyed copy of it read as a second,
+  // broken picker. Only a real choice gets the select.
+  const chooseType = rules.typeOptions.length > 1
 
   return (
     <div className={cn('grid gap-3', depth > 0 && 'border-l-2 border-border-subtle pl-3')}>
-      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-        <div className="grid gap-1">
-          <Label htmlFor={typeId} className="text-caption text-fg-muted">Schema type</Label>
-          <NativeSelect
-            id={typeId}
-            width="fill"
-            aria-label={`Schema type of ${path}`}
-            value={node.type}
-            disabled={rules.typeOptions.length < 2}
-            onChange={(value) => onChange(nodeOfType(value as SchemaNodeType, node))}
-            options={rules.typeOptions.map((t) => ({ value: t, label: SCHEMA_NODE_TYPE_LABELS[t] }))}
-          />
+      {(chooseType || node.type === 'string') && (
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+          {chooseType && (
+            <div className="grid gap-1">
+              <Label htmlFor={typeId} className="text-caption text-fg-muted">Schema type</Label>
+              <NativeSelect
+                id={typeId}
+                width="fill"
+                aria-label={`Schema type of ${path}`}
+                value={node.type}
+                onChange={(value) => onChange(nodeOfType(value as SchemaNodeType, node))}
+                options={rules.typeOptions.map((t) => ({ value: t, label: SCHEMA_NODE_TYPE_LABELS[t] }))}
+              />
+            </div>
+          )}
+          {node.type === 'string' && (
+            <div className="grid gap-1">
+              <Label htmlFor={formatId} className="text-caption text-fg-muted">Format</Label>
+              <NativeSelect
+                id={formatId}
+                width="fill"
+                aria-label={`Format of ${path}`}
+                value={rules.fixedFormat ?? node.format ?? ''}
+                disabled={!!rules.fixedFormat}
+                onChange={(value) => set({ format: value || undefined })}
+                options={
+                  rules.fixedFormat
+                    ? [{ value: rules.fixedFormat, label: stringFormatLabel(rules.fixedFormat) }]
+                    : [
+                        { value: '', label: 'Any text' },
+                        ...formats.map((f) => ({ value: f, label: STRING_FORMAT_LABELS[f] })),
+                      ]
+                }
+              />
+            </div>
+          )}
         </div>
-        {node.type === 'string' && (
-          <div className="grid gap-1">
-            <Label htmlFor={formatId} className="text-caption text-fg-muted">Format</Label>
-            <NativeSelect
-              id={formatId}
-              width="fill"
-              aria-label={`Format of ${path}`}
-              value={rules.fixedFormat ?? node.format ?? ''}
-              disabled={!!rules.fixedFormat}
-              onChange={(value) => set({ format: value || undefined })}
-              options={
-                rules.fixedFormat
-                  ? [{ value: rules.fixedFormat, label: rules.fixedFormat }]
-                  : [{ value: '', label: 'Any text' }, ...formats.map((f) => ({ value: f, label: f }))]
-              }
-            />
-          </div>
-        )}
-      </div>
+      )}
+
+      {node.type === 'boolean' && !chooseType && (
+        <p className="text-caption text-fg-tertiary">True or false: there is nothing more to describe.</p>
+      )}
 
       {node.type === 'string' && (
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-[minmax(0,2fr)_minmax(0,1fr)_minmax(0,1fr)]">

@@ -2,73 +2,58 @@ import { Suspense } from 'react'
 import { Navigate } from 'react-router-dom'
 import { lazyWithReload } from '@/lib/lazyWithReload'
 import { SHeader } from '@/components/settings/kit'
-import type { ServiceSettingsSectionKey } from '@/pages/serviceSettingsTabs'
+import {
+  PLATFORM_SECTION_KEYS,
+  PLATFORM_SECTION_LABELS,
+  platformSectionPath,
+  type PlatformSectionKey,
+} from '@/components/settings/platform-sections'
 import { InstanceSettingsSkeleton } from '@/pages/settings-service/ServiceSettingsPrimitives'
 
 const ServiceSettingsSection = lazyWithReload(() => import('@/pages/ServiceSettingsPage'))
 
-const META: Record<ServiceSettingsSectionKey, { title: string; description: string }> = {
-  // No "takes effect on the next deploy" line here any more: all three runtime
-  // fields are read fresh at request/task time, so this page was the one page
-  // carrying a redeploy warning that it did not need, while Storage and
-  // Observability — which really are startup-applied — carried none.
-  // Each section now states its own timing from applyNote().
-  runtime: {
-    title: 'Runtime',
-    description:
-      'Core server configuration, and the row limits organizations inherit and may not exceed.',
-  },
-  email: {
-    title: 'Mail relay',
-    description:
-      'The relay account mail (sign-up, password reset, invitations) always uses, and the one every organization without its own sends alerts and digests through.',
-  },
-  ai: {
-    title: 'AI & search',
-    description:
-      'The AI provider every organization without its own inherits, and the search embeddings every organization uses.',
-  },
-  security: {
-    title: 'Security & access',
-    description: 'Authentication and network policy for everyone on this instance.',
-  },
-  storage: { title: 'Storage', description: 'Where ingested events and event photos are persisted.' },
-  observability: {
-    title: 'Observability',
-    description: 'How tripl reports its own health to your monitoring stack.',
-  },
-  system: { title: 'System', description: 'Read-only health and build information for this instance.' },
+/**
+ * What each section is for, under its title. The title is the rail's name for
+ * it (platform-sections.ts), so the two cannot drift apart.
+ *
+ * No "takes effect on the next deploy" line on Runtime: its fields are read
+ * fresh at request/task time. Each section states its own timing in the save
+ * bar instead (applyNote).
+ */
+const DESCRIPTIONS: Record<PlatformSectionKey, string> = {
+  runtime:
+    'Core server configuration, and the row limits organizations inherit and may not exceed.',
+  email:
+    'The relay account mail (sign-up, password reset, invitations) always uses, and the one every organization without its own sends alerts and digests through.',
+  ai: 'The AI provider every organization without its own inherits, and the search embeddings every organization uses.',
+  security: 'Authentication and network policy for everyone on this instance.',
+  // Photos only: events live in the database, and nothing here touches them.
+  storage:
+    'Where event photos are stored, and what an upload may be. Organizations without storage of their own use this store.',
+  observability: 'How tripl reports its own health to your monitoring stack.',
+  system: 'Read-only health and build information for this instance.',
 }
 
-const VALID: ServiceSettingsSectionKey[] = [
-  'runtime',
-  'email',
-  'ai',
-  'security',
-  'storage',
-  'observability',
-  'system',
-]
+function isPlatformSection(section: string): section is PlatformSectionKey {
+  return (PLATFORM_SECTION_KEYS as readonly string[]).includes(section)
+}
 
 /**
- * Platform (platform admins only, F20 PR9). Mirrors the real ServiceSettings sections by reusing
- * the ServiceSettingsSection component wholesale — it self-fetches, owner-gates,
- * and owns all field wiring and mutations. We only frame it with the takeover
- * section header.
+ * Platform (platform admins only, F20 PR9). Frames the ServiceSettingsSection
+ * component, which self-fetches, gates on the platform-admin flag and owns all
+ * field wiring and mutations, with the section header.
  */
 export default function InstanceSection({ section }: { section: string }) {
   // An unknown section used to render Runtime under a URL (and a rail
   // highlight) that said otherwise. Correct the URL instead.
-  if (!VALID.includes(section as ServiceSettingsSectionKey)) {
-    return <Navigate to="/settings/instance/runtime" replace />
+  if (!isPlatformSection(section)) {
+    return <Navigate to={`/settings/${platformSectionPath('runtime')}`} replace />
   }
-  const key = section as ServiceSettingsSectionKey
-  const meta = META[key]
   return (
     <div>
-      <SHeader title={meta.title} description={meta.description} />
+      <SHeader title={PLATFORM_SECTION_LABELS[section]} description={DESCRIPTIONS[section]} />
       <Suspense fallback={<InstanceSettingsSkeleton />}>
-        <ServiceSettingsSection section={key} />
+        <ServiceSettingsSection section={section} />
       </Suspense>
     </div>
   )

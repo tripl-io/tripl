@@ -25,7 +25,7 @@ describe('DemoProvisioningDialog', () => {
     renderDialog({ phaseIndex: 1 })
 
     // Every expected phase is listed…
-    expect(screen.getByText('Creating workspace')).toBeInTheDocument()
+    expect(screen.getByText('Creating project')).toBeInTheDocument()
     expect(screen.getByText('Seeding events')).toBeInTheDocument()
     expect(screen.getByText('Finalizing')).toBeInTheDocument()
     // …and the live region narrates the active one for screen readers.
@@ -62,7 +62,7 @@ describe('DemoProvisioningDialog', () => {
 
   it('says a 409 is the demo limit, claims no rollback and offers no retry', () => {
     const detail =
-      'You already have 3 demo workspaces (the limit is 3). Reset or delete one before generating another.'
+      'You already have 3 demo projects (the limit is 3). Reset or delete one before generating another.'
     renderDialog({ status: 'error', error: new ApiError(detail, 409) })
 
     expect(screen.getByRole('heading', { name: 'Demo limit reached' })).toBeInTheDocument()
@@ -78,7 +78,7 @@ describe('DemoProvisioningDialog', () => {
     // only, so "you need editor access" would be false.
     renderDialog({ status: 'error', error: new ApiError('Demo provisioning is disabled', 403) })
 
-    expect(screen.getByRole('heading', { name: 'Demo workspace not available' })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: 'Demo project not available' })).toBeInTheDocument()
     expect(screen.getByRole('alert')).toHaveTextContent('Demo provisioning is disabled')
     expect(screen.queryByText(/editor access/i)).not.toBeInTheDocument()
     expect(screen.queryByText(/rolled back/i)).not.toBeInTheDocument()
@@ -112,12 +112,12 @@ describe('DemoProvisioningDialog', () => {
   })
 
   it('says so visibly on success and offers a positive action', () => {
-    // Regression: the success frame kept the "Generating demo workspace" title
+    // Regression: the success frame kept the "Generating demo project" title
     // and a greyed-out Cancel; the only "ready" sentence was sr-only.
     renderDialog({ status: 'success', phaseIndex: 4 })
 
-    expect(screen.getByText('Demo workspace is ready')).toBeInTheDocument()
-    expect(screen.queryByText('Generating demo workspace')).not.toBeInTheDocument()
+    expect(screen.getByText('Demo project is ready')).toBeInTheDocument()
+    expect(screen.queryByText('Generating demo project')).not.toBeInTheDocument()
     const open = screen.getByRole('button', { name: /open demo/i })
     expect(open).toBeEnabled()
     expect(screen.queryByRole('button', { name: /^cancel$/i })).not.toBeInTheDocument()
@@ -125,7 +125,9 @@ describe('DemoProvisioningDialog', () => {
 
   it('labels the phase list as an estimate while the request is open', () => {
     renderDialog({ phaseIndex: 3 })
-    expect(screen.getByText(/estimated steps/i)).toBeInTheDocument()
+    expect(screen.getByText(/steps are approximate/i)).toBeInTheDocument()
+    // In the user's terms, not the server's.
+    expect(screen.queryByText(/server reports/i)).not.toBeInTheDocument()
   })
 
   it('confirms a cancel that actually stopped the create', () => {

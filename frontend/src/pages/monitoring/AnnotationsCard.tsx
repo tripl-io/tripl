@@ -1,13 +1,12 @@
 import { useState } from 'react'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
-import { CalendarPlus, ExternalLink, Rocket, Tag, Trash2 } from 'lucide-react'
+import { CalendarPlus } from 'lucide-react'
 import { toast } from 'sonner'
 import { chartAnnotationsApi } from '@/api/chartAnnotations'
 import { ErrorState } from '@/components/error-state'
 import { Chip } from '@/components/primitives/chip'
 import { INPUT_TEXT_CLASS } from '@/components/settings/input-style'
 import { Button } from '@/components/ui/button'
-import { IconButton } from '@/components/ui/icon-button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { DateTimePicker } from '@/components/ui/date-time-picker'
 import { Input } from '@/components/ui/input'
@@ -16,19 +15,17 @@ import { useConfirm } from '@/hooks/useConfirm'
 import {
   ANNOTATION_DEFAULT_COLOR,
   ANNOTATION_LABEL_MAX,
-  annotationMarkerColor,
-  annotationSourceLabel,
-  formatUtcOffset,
-  isAutomaticAnnotation,
-  safeAnnotationUrl,
-  toDatetimeLocalValue,
 } from '@/lib/chartAnnotations'
-import { formatTimestamp } from '@/lib/datetime'
+import { formatUtcOffset, toLocalDateTimeValue } from '@/lib/datetime'
 import { SILENT_ERROR_META } from '@/lib/errorFeedback'
 import type { MonitoringScope } from '@/lib/monitoring'
-import { chartAnnotationsKey } from '@/lib/queryKeys'
-import { getErrorMessage } from '@/lib/utils'
 import type { ChartAnnotation } from '@/types'
+import { AnnotationItem } from './AnnotationItem'
+import {
+  annotationDeleteConfirm,
+  invalidateAnnotationLists,
+  useAnnotationDelete,
+} from './annotationMutations'
 import type { useChartAnnotations } from './useChartAnnotations'
 import { useNow } from '@/hooks/useNow'
 
@@ -57,19 +54,17 @@ export function AnnotationsCard({
 }) {
   const queryClient = useQueryClient()
   const annotations = query.data ?? []
-  const invalidate = () =>
-    queryClient.invalidateQueries({ queryKey: chartAnnotationsKey(slug, scope, scopeId) })
 
   // Prefilled with "now": the usual annotation is "we just deployed".
   const [bucket, setBucket] = useState(() =>
-    toDatetimeLocalValue(prefillBucket ? new Date(prefillBucket) : new Date()))
+    toLocalDateTimeValue(prefillBucket ? new Date(prefillBucket) : new Date()))
   const [label, setLabel] = useState('')
   // Adopt a new prefill during render, not in an effect, so the form never
   // paints the old time first.
   const [appliedPrefill, setAppliedPrefill] = useState(prefillBucket)
   if (prefillBucket && prefillBucket !== appliedPrefill) {
     setAppliedPrefill(prefillBucket)
-    setBucket(toDatetimeLocalValue(new Date(prefillBucket)))
+    setBucket(toLocalDateTimeValue(new Date(prefillBucket)))
   }
   const createMut = useMutation({
     meta: SILENT_ERROR_META,
@@ -83,9 +78,9 @@ export function AnnotationsCard({
         scope_ref: scopeId,
       }),
     onSuccess: created => {
-      setBucket(toDatetimeLocalValue(new Date()))
+      setBucket(toLocalDateTimeValue(new Date()))
       setLabel('')
-      void invalidate()
+      invalidateAnnotationLists(queryClient, slug)
       // The list grows below the fold and the marker may sit at the chart's
       // right edge, so say it worked. The default "now" is usually past
       // the newest collected bucket: the chart then parks the marker on that
@@ -103,27 +98,11 @@ export function AnnotationsCard({
   })
 
   const { confirm, dialog } = useConfirm()
-  const deleteMut = useMutation({
-    meta: SILENT_ERROR_META,
-    mutationFn: (id: string) => chartAnnotationsApi.delete(slug, id),
-    onSuccess: () => {
-      void invalidate()
-    },
-    onError: error => toast.error(`Could not delete the annotation — ${getErrorMessage(error)}`),
-  })
+  const deleteMut = useAnnotationDelete(slug)
   // One click used to delete at once, and the list includes project-wide
   // markers that every chart in the project draws.
   const deleteAnnotation = async (annotation: ChartAnnotation) => {
-    const projectWide = annotation.scope_type === null
-    const ok = await confirm({
-      title: projectWide ? 'Delete project-wide annotation?' : 'Delete annotation?',
-      message: projectWide
-        ? `"${annotation.label}" is shown on every chart in this project, not only this one. Deleting it removes it everywhere.`
-        : `"${annotation.label}" will be removed from this chart.`,
-      variant: 'danger',
-      confirmLabel: 'Delete',
-    })
-    if (ok) deleteMut.mutate(annotation.id)
+    if (await confirm(annotationDeleteConfirm(annotation))) deleteMut.mutate(annotation.id)
   }
   // Re-read each minute, so a page left open across a DST change says so.
   const now = useNow(60_000)
@@ -174,7 +153,7 @@ export function AnnotationsCard({
                   aria-describedby="annotation-bucket-hint"
                 />
                 <span id="annotation-bucket-hint" className="text-micro text-fg-tertiary">
-                  Your local time ({offset})
+                  Local time ({offset})
                 </span>
               </div>
               <div className="flex flex-col gap-0.5">
@@ -212,70 +191,15 @@ export function AnnotationsCard({
             />
           ) : annotations.length > 0 && (
             <ul className="divide-y divide-border text-body-sm">
-              {annotations.map(annotation => {
-                const automatic = isAutomaticAnnotation(annotation)
-                const url = safeAnnotationUrl(annotation.url)
-                return (
-                  <li
-                    key={annotation.id}
-                    className="flex items-center justify-between gap-2 py-2"
-                  >
-                    <div className="flex min-w-0 flex-wrap items-center gap-2">
-                      <span
-                        aria-hidden="true"
-                        className="inline-block h-2.5 w-2.5 shrink-0 rounded-full"
-                        style={{ backgroundColor: annotationMarkerColor(annotation) }}
-                      />
-                      <span className="text-fg-tertiary">
-                        {formatTimestamp(annotation.bucket)}
-                      </span>
-                      <span className={`min-w-0 break-words font-medium${automatic ? ' text-fg-secondary' : ''}`}>
-                        {annotation.label}
-                      </span>
-                      {/* Who made it: the metrics worker or a deploy script,
-                          not someone in this form (#256). */}
-                      {automatic && (
-                        <Chip
-                          variant="outline"
-                          size="xs"
-                          icon={annotation.source === 'release'
-                            ? <Tag aria-hidden="true" />
-                            : <Rocket aria-hidden="true" />}
-                        >
-                          {annotationSourceLabel(annotation.source)}
-                        </Chip>
-                      )}
-                      {annotation.scope_type === null && (
-                        <Chip variant="outline" size="xs">project-wide</Chip>
-                      )}
-                      {url && (
-                        <a
-                          href={url}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          aria-label={`Details for ${annotation.label} (opens in a new tab)`}
-                          className="inline-flex items-center gap-1 text-caption text-fg-tertiary hover:text-fg underline-offset-2 hover:underline"
-                        >
-                          Details
-                          <ExternalLink aria-hidden="true" className="size-3" />
-                        </a>
-                      )}
-                    </div>
-                    {canWrite && (
-                      <IconButton
-                        variant="ghost"
-                        className="h-7 w-7 shrink-0 text-fg-tertiary hover:text-destructive"
-                        onClick={() => void deleteAnnotation(annotation)}
-                        // Only the row being deleted waits, not every row.
-                        disabled={deleteMut.isPending && deleteMut.variables === annotation.id}
-                        label={`Delete annotation ${annotation.label}`}
-                      >
-                        <Trash2 aria-hidden="true" className="h-3.5 w-3.5" />
-                      </IconButton>
-                    )}
-                  </li>
-                )
-              })}
+              {annotations.map(annotation => (
+                <AnnotationItem
+                  key={annotation.id}
+                  annotation={annotation}
+                  scope={annotation.scope_type === null && <Chip variant="outline" size="xs">project-wide</Chip>}
+                  onDelete={canWrite ? () => void deleteAnnotation(annotation) : undefined}
+                  deleting={deleteMut.isPending && deleteMut.variables === annotation.id}
+                />
+              ))}
             </ul>
           )}
         </CardContent>

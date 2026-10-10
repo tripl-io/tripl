@@ -1,6 +1,11 @@
 import { describe, expect, it } from 'vitest'
 import { ApiError } from '@/api/client'
-import type { PlanBranchConflicts, PlanBranchDiffSummary, PlanDiffEntry } from '@/types'
+import type {
+  PlanBranchConflictEntity,
+  PlanBranchConflicts,
+  PlanBranchDiffSummary,
+  PlanDiffEntry,
+} from '@/types'
 import {
   INCOMPLETE_BASE_MESSAGE,
   MERGE_BLOCKED_BY_MAIN,
@@ -213,7 +218,15 @@ describe('describeBranchActionError', () => {
     expect(
       describeBranchActionError(conflict({ insufficient_approvals: { required: 2, current: 1, stale: 1 } })),
     ).toBe(
-      'Not enough approvals to merge: 1 of 2 required. 1 approval(s) went stale after later edits — re-approve.',
+      'Not enough approvals to merge: 1 of 2 required. 1 approval went stale after later edits — re-approve.',
+    )
+  })
+
+  it('counts stale approvals in words, not "approval(s)"', () => {
+    expect(
+      describeBranchActionError(conflict({ insufficient_approvals: { required: 3, current: 0, stale: 2 } })),
+    ).toBe(
+      'Not enough approvals to merge: 0 of 3 required. 2 approvals went stale after later edits — re-approve.',
     )
   })
 
@@ -317,7 +330,7 @@ describe('entityChangeLines', () => {
 describe('update-from-main refusals', () => {
   it('reads the conflicts off an unresolved refusal', () => {
     const conflicts: PlanBranchConflicts = {
-      entities: [{ entity_type: 'variable', name: 'plan', fields: [] }],
+      entities: [{ entity_type: 'variable', name: 'plan', label: 'plan', added_on_both: false, fields: [] }],
       unresolved_count: 1,
     }
     expect(
@@ -352,7 +365,13 @@ describe('update-from-main refusals', () => {
   })
 
   it('keys a choice by entity type, name and field', () => {
-    const entity = { entity_type: 'event', name: 'a', fields: [] }
+    const entity: PlanBranchConflictEntity = {
+      entity_type: 'event',
+      name: 'a',
+      label: 'a',
+      added_on_both: false,
+      fields: [],
+    }
     expect(conflictChoiceKey(entity, 'description')).not.toBe(
       conflictChoiceKey({ ...entity, entity_type: 'variable' }, 'description'),
     )

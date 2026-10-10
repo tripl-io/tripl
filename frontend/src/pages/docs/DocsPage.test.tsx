@@ -152,7 +152,7 @@ describe('DocsPage (F22)', () => {
     renderPage('/p/demo/docs')
     const nav = await screen.findByRole('navigation', { name: 'Docs' })
     expect(within(nav).getByRole('heading', { name: 'Project notes' })).toBeInTheDocument()
-    expect(within(nav).getByRole('heading', { name: 'Organization notes · Acme' })).toBeInTheDocument()
+    expect(within(nav).getByRole('heading', { name: 'Organization notes' })).toBeInTheDocument()
     // Anchored: an editor also gets "New note in references/" and its siblings.
     const projectRoot = within(nav).getByRole('region', { name: 'Project notes' })
     expect(within(projectRoot).getByRole('button', { name: /^references/ })).toHaveAttribute('aria-expanded', 'true')
@@ -504,5 +504,32 @@ describe('DocsPage (F22) states and file actions', () => {
     renderPage('/p/demo/docs')
     fireEvent.click(await screen.findByRole('button', { name: /Open note/ }))
     expect(await screen.findByPlaceholderText('Open a note by title or path…')).toBeInTheDocument()
+  })
+})
+
+describe('DocsPage header (prelaunch)', () => {
+  beforeEach(() => {
+    vi.mocked(docsApi.tree).mockReset().mockResolvedValue(tree())
+    vi.mocked(docsApi.search).mockReset().mockResolvedValue({ items: [], total: 0, truncated: false, semantic_used: false })
+  })
+
+  // The only page header that carried a count; each tree root shows its own.
+  it('puts no note count in the title', async () => {
+    renderPage('/p/demo/docs')
+    expect(await screen.findByRole('heading', { name: 'Docs', level: 1 })).toHaveTextContent(/^Docs$/)
+  })
+
+  it('says whose notes these are in plain words', async () => {
+    renderPage('/p/demo/docs')
+    expect(
+      await screen.findByText(/Notes for people and agents, for this project and for every project in Acme\./),
+    ).toBeInTheDocument()
+  })
+
+  it('says "No notes yet" once on an empty page', async () => {
+    vi.mocked(docsApi.tree).mockResolvedValue(tree({ project_docs: [], organization_docs: [] }))
+    renderPage('/p/demo/docs')
+    expect(await screen.findByText('No notes yet')).toBeInTheDocument()
+    expect(screen.queryByText('No notes yet.')).toBeNull()
   })
 })

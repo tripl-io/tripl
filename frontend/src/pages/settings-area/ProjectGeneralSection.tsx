@@ -41,18 +41,14 @@ import {
   TextArea,
   TextInput,
 } from '@/components/settings/kit'
-import { canManageProject, canWriteProject, isOwner } from '@/lib/permissions'
+import { canManageProject, canWriteProject, useIsOwner } from '@/lib/permissions'
 import { SLUG_ERROR, SLUG_HINT, isValidSlug } from '@/lib/slug'
 import { forgetDemoLocalState } from '@/demo/demoLocalState'
 import { deleteProjectConfirmation } from '@/lib/projectDeletion'
 import { QueryErrorState, ReadOnlyNotice, SectionSkeleton } from '@/components/states'
 import { SILENT_ERROR_META } from '@/lib/errorFeedback'
-import {
-  RESET_PERIODS,
-  SAVED_FEEDBACK_MS,
-  timeZoneOptions,
-  useTransientFlag,
-} from './projectGeneralFields'
+import { RESET_PERIODS, SAVED_FEEDBACK_MS, useTransientFlag } from './projectGeneralFields'
+import { timeZoneOptions } from './timeZones'
 import {
   DANGER_ROW_CLASS,
   DANGER_ROW_CONTAINER_CLASS,
@@ -61,7 +57,7 @@ import {
   DangerRow,
 } from './ProjectDangerRows'
 import { currentOrgSlug, projectPath, workspacePath } from '@/lib/navigation'
-import { orgStorageKey } from '@/lib/activeOrg'
+import { LAST_PROJECT_SLUG_KEY, orgStorageKey } from '@/lib/activeOrg'
 
 const DAY_MS = 24 * 60 * 60 * 1000
 const MAX_APP_VERSION_KEEP_RELEASES = 100
@@ -78,10 +74,11 @@ const MAX_APP_VERSION_KEEP_RELEASES = 100
  * window.location.origin — and the one value that records it, the instance's
  * app_base_url, is owner-only while this page is open to every editor. So take
  * the host the page was actually served from, which is by definition the one in
- * the reader's address bar.
+ * the reader's address bar, and the path the app links the project at: under
+ * its organization (`/o/{org}/p/`), as Organization › Details says.
  */
 function projectUrlPrefix(): string {
-  return `${window.location.host}/p/`
+  return `${window.location.host}${projectPath(currentOrgSlug(), '')}`
 }
 
 // Query prefixes refreshed after a reset so the cleared state is reflected
@@ -157,8 +154,9 @@ function summarizeRetirement(counts: VariableRetirementCounts, committed: boolea
 /**
  * Project · General. Identity (name / slug / description) and the search-index
  * rebuild reuse the real projectsApi + searchApi wiring lifted from GeneralTab.
- * A header cross-link jumps to Project operations (the in-app /p/:slug/settings
- * surfaces) so the two project-config halves stay reachable, and the danger zone
+ * The header has no links out: the settings rail beside it already has
+ * "Tracking plan & alerting" and the way back to the project, and two more
+ * buttons here made four exits to three pages. The danger zone
  * holds the owner-only resets and Delete. Archive and Transfer ownership rows
  * used to sit there as permanently disabled buttons with no backend behind them
  * and no word on why, which read as a permissions problem; they return
@@ -234,7 +232,7 @@ function ProjectGeneralBody({
         // below, or the refresh asks the server for it and gets a 404.
         qc.removeQueries({ queryKey: projectKey(slug) })
         try {
-          localStorage.setItem(orgStorageKey('tripl-last-project-slug'), project.slug)
+          localStorage.setItem(orgStorageKey(LAST_PROJECT_SLUG_KEY), project.slug)
         } catch {
           /* ignore */
         }
@@ -313,7 +311,7 @@ function ProjectGeneralBody({
     const retirable = retirementPreview?.retirable ?? 0
     const ok = await confirm({
       title: 'Retire unused properties',
-      message: `Permanently delete ${retirable} ${retirable === 1 ? 'property' : 'properties'} that no event field value references. Properties you edited, documented, excluded from scans, or that carry observed values or drift are not touched. This cannot be undone.`,
+      message: `Permanently delete ${countOf(retirable, 'property', 'properties')} that no event field value references. Properties you edited, documented, excluded from scans, or that carry observed values or drift are not touched. This cannot be undone.`,
       confirmLabel: 'Retire properties',
       variant: 'danger',
     })
@@ -364,7 +362,7 @@ function ProjectGeneralBody({
 
   const slugError = isValidSlug(slugDraft) ? null : SLUG_ERROR
   // The select offers only zones the browser knows plus the stored value, so
-  // there is nothing to refuse here: a stored zone the browser does not list
+  // there is nothing to refuse here: a stored zone the browser does not know
   // was accepted by the server and is only flagged "(not recognised)".
   const timezoneOptions = useMemo(() => timeZoneOptions(timezone), [timezone])
 
@@ -384,7 +382,7 @@ function ProjectGeneralBody({
   // demo that belongs to someone else shows the button disabled instead of
   // offering a click that can only be refused.
   const canReindex = canWriteProject(user, projectQuery.data)
-  const canDelete = isOwner(user?.role)
+  const canDelete = useIsOwner()
   const appVersionKeepReleasesNumber = Number(appVersionKeepReleases)
   const versionPolicyInvalid =
     !Number.isInteger(appVersionKeepReleasesNumber) ||
@@ -394,7 +392,7 @@ function ProjectGeneralBody({
     appVersionKeepReleasesNumber === projectQuery.data?.app_version_keep_releases
 
   // Either card's unsaved edits arm the settings shell's leave guard: the rail,
-  // "View project", Back and reload all used to drop them silently.
+  // Back and reload all used to drop them silently.
   // A read-only form is never dirty. No settings path keeps this draft: the
   // section is the only one that renders it. `dirtyPaths` puts the rail's
   // unsaved dot on General, as the instance pages have it.
@@ -434,22 +432,6 @@ function ProjectGeneralBody({
       <SHeader
         title="General"
         description="Identity and configuration for this tracking plan. These apply to everyone working in the project."
-        actions={
-          <>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => navigate(projectPath(currentOrgSlug(), slug, '/event-types'))}
-            >
-              {/* Named for what it opens: event types, meta fields, alerting…
-                  "Project operations" described none of them (#238). */}
-              Tracking plan &amp; alerting
-            </Button>
-            <Button variant="outline" size="sm" onClick={() => navigate(projectPath(currentOrgSlug(), slug, '/events'))}>
-              View project
-            </Button>
-          </>
-        }
       />
 
       {/* The two cards' shape while the project loads, and a retry (or the
@@ -504,7 +486,7 @@ function ProjectGeneralBody({
           {canEdit ? (
             <>
               <SCard title="Project details">
-                <Field label="Name" hint="Shown across the workspace and in the project switcher." htmlFor="proj-name">
+                <Field label="Name" hint="Shown across the organization and in the project switcher." htmlFor="proj-name">
                   <TextInput id="proj-name" value={name} onChange={setName} />
                 </Field>
                 {/* A bad slug is an error, red and tied to the input, not the
@@ -532,7 +514,7 @@ function ProjectGeneralBody({
                 <Field
                   label="Timezone"
                   htmlFor="proj-timezone"
-                  hint="The clock alert delivery schedules are read in. Type to jump, e.g. Europe/Moscow."
+                  hint="Alert delivery schedules run on this clock. Type the start of a zone to jump, e.g. Europe/Moscow."
                   last
                 >
                   <NativeSelect

@@ -5,11 +5,11 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { MemoryRouter, Route, Routes } from 'react-router-dom'
 import { metricsCatalogApi } from '@/api/metricsCatalog'
 import { scansApi } from '@/api/scans'
+import { QUICK_START_URL } from '@/lib/docsSite'
 import { authStatusKey } from '@/lib/queryKeys'
 import type { MetricDefinitionDetailResponse, Project, ScanJob } from '@/types'
 import { DemoScenarioProvider } from './DemoScenarioProvider'
 import { DemoScenarioStrip } from './DemoScenarioStrip'
-import { QUICK_START_URL } from './EndOfDemoLink'
 import { ScenarioCoachMark } from './ScenarioCoachMark'
 import {
   CHAPTER_IDS,
@@ -259,9 +259,9 @@ describe('DemoScenarioStrip — dismissal and completion', () => {
     renderStrip(everyChapterCompleted())
 
     expect(screen.getByText(/That was the last one/)).toBeInTheDocument()
-    // The dashboard, where "New project — start empty and connect your own
-    // warehouse" lives; not a demo-scoped link to the global connection page.
-    expect(cta(/Create a real project/)).toHaveAttribute('href', '/workspace')
+    // All projects with the New project dialog open; not a demo-scoped link
+    // to the global connection page.
+    expect(cta(/Create a real project/)).toHaveAttribute('href', '/workspace?new=1')
     expect(screen.queryByRole('link', { name: /^Next: / })).toBeNull()
     // Restarting the walk is still there beside it.
     expect(screen.getByRole('button', { name: /Restart chapter/ })).toBeInTheDocument()

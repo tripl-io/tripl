@@ -8,6 +8,7 @@ import { ChipListInput } from '@/components/chip-list-input'
 import { ErrorState } from '@/components/error-state'
 import { Chip } from '@/components/primitives/chip'
 import { CodeToken } from '@/components/primitives/code-token'
+import { PropertyPresenceCell } from '@/components/property-presence-cell'
 import { Panel } from '@/components/settings/kit'
 import { Button } from '@/components/ui/button'
 import { IconButton } from '@/components/ui/icon-button'
@@ -18,7 +19,6 @@ import { useConfirm } from '@/hooks/useConfirm'
 import { SILENT_ERROR_META } from '@/lib/errorFeedback'
 import {
   DEFAULT_REQUIRED_PRESENCE,
-  formatPresence,
   formatThreshold,
   invalidatePropertyEntries,
 } from '@/lib/propertyEntries'
@@ -61,25 +61,6 @@ function ValuesCell({ entry }: { entry: EventPropertyEntry }) {
           This event
         </Chip>
       )}
-    </span>
-  )
-}
-
-function PresenceCell({ entry, threshold }: { entry: EventPropertyEntry; threshold: number }) {
-  const below = entry.required && entry.suggested_required === false
-  const looksRequired = !entry.required && entry.suggested_required === true
-  return (
-    <span
-      className="tabular-nums"
-      title={
-        entry.presence_rate === null
-          ? 'No scan has measured this yet.'
-          : `Carried by ${formatPresence(entry.presence_rate)} of the event's rows at the last scan; the required threshold is ${formatThreshold(threshold)}.`
-      }
-    >
-      {formatPresence(entry.presence_rate)}
-      {below && <span className="ml-1.5 text-caption text-warning">below threshold</span>}
-      {looksRequired && <span className="ml-1.5 text-caption text-fg-tertiary">looks required</span>}
     </span>
   )
 }
@@ -405,7 +386,12 @@ export function EventPropertiesGrid({
                     )}
                   </TableCell>
                   <TableCell className="text-right">
-                    <PresenceCell entry={entry} threshold={effectiveThreshold} />
+                    <PropertyPresenceCell
+                      presenceRate={entry.presence_rate}
+                      required={entry.required}
+                      suggestedRequired={entry.suggested_required}
+                      threshold={effectiveThreshold}
+                    />
                   </TableCell>
                   {canWrite && (
                     <TableCell>

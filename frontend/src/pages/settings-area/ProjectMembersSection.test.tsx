@@ -251,24 +251,24 @@ describe('Project · Access', () => {
     expect(screen.queryByRole('alertdialog')).toBeNull()
   })
 
-  // Owners/admins always have access; the backend refuses a 'none' row for them
-  // (422), so their row never offers it.
-  it('leaves No access out of the row select of an org owner or admin', async () => {
+  // Owners/admins always have access: the backend answers owner before it
+  // reads their row, so a role select or a Remove on it would change nothing.
+  it('shows an org owner or admin row as always having access, with no controls', async () => {
     vi.mocked(projectMembersApi.list).mockResolvedValue([
       member({ user_id: 'u-root', name: 'Root', email: 'root@example.com', role: 'editor' }),
       ...MEMBERS,
     ])
     renderSection('owner', 'boss-1')
 
-    const rootRole = await screen.findByLabelText('Role for Root')
-    await waitFor(() =>
-      expect(within(rootRole).getAllByRole('option').map((o) => o.textContent)).toEqual([
-        'Viewer',
-        'Editor',
-      ]),
-    )
+    expect(
+      await screen.findByText('Organization owner/admin · always has access'),
+    ).toBeInTheDocument()
+    expect(screen.queryByLabelText('Role for Root')).toBeNull()
+    expect(screen.queryByRole('button', { name: 'Remove Root' })).toBeNull()
+    // Everyone else keeps the full set of controls.
     const graceRole = screen.getByLabelText('Role for Grace')
     expect(within(graceRole).getAllByRole('option').map((o) => o.textContent)).toContain('No access')
+    expect(screen.getByRole('button', { name: 'Remove Grace' })).toBeInTheDocument()
   })
 
   it('shows a leftover No access row of a since-promoted admin as always having access', async () => {
@@ -277,8 +277,54 @@ describe('Project · Access', () => {
     ])
     renderSection('owner', 'boss-1')
 
-    expect(await screen.findByText('Owner/admin · always has access')).toBeInTheDocument()
+    expect(
+      await screen.findByText('Organization owner/admin · always has access'),
+    ).toBeInTheDocument()
     expect(screen.queryByLabelText('Role for Root')).toBeNull()
-    expect(screen.getByRole('button', { name: 'Remove Root' })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Remove Root' })).toBeNull()
+  })
+
+  describe('with nobody left to add', () => {
+    // Owners and admins are never candidates, and Ada and Grace hold rows.
+    const FULL_ROSTER = [
+      user({ id: 'u-ada', name: 'Ada', email: 'ada@example.com' }),
+      user({ id: 'u-grace', name: 'Grace', email: 'grace@example.com' }),
+      user({ id: 'boss-1', name: 'Boss', email: 'boss@example.com', role: 'owner' }),
+    ]
+
+    it('says why to an org owner and links to Invitations, with no dead Add button', async () => {
+      vi.mocked(usersApi.list).mockResolvedValue(FULL_ROSTER)
+      renderSection('owner', 'boss-1')
+
+      expect(
+        await screen.findByText(/No one to add yet: organization owners and admins already see every project/),
+      ).toBeInTheDocument()
+      expect(screen.getByRole('link', { name: 'Organization › Invitations' })).toHaveAttribute(
+        'href',
+        expect.stringMatching(/^\/settings\/invitations/),
+      )
+      expect(screen.queryByRole('button', { name: 'Add member' })).toBeNull()
+      expect(screen.queryByText(/workspace/i)).toBeNull()
+    })
+
+    it('points a project creator who is a plain member at an owner or admin instead', async () => {
+      vi.mocked(usersApi.list).mockResolvedValue(FULL_ROSTER)
+      renderSection('member', CREATOR_ID)
+
+      expect(
+        await screen.findByText(/No one to add yet\. Ask an organization owner or admin to invite more people/),
+      ).toBeInTheDocument()
+      // Invitations is owner/admin-only, so no link to it.
+      expect(screen.queryByRole('link', { name: /Invitations/ })).toBeNull()
+      expect(screen.queryByRole('button', { name: 'Add member' })).toBeNull()
+    })
+  })
+
+  it('names the organization when the roster fails to load', async () => {
+    vi.mocked(usersApi.list).mockRejectedValue(new Error('boom'))
+    renderSection('owner', 'boss-1')
+
+    expect(await screen.findByText("Couldn't load the organization members")).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Add member' })).toBeNull()
   })
 })

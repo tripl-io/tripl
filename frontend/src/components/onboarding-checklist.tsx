@@ -13,7 +13,7 @@ import {
 import { useAuth } from '@/components/auth-context'
 import type { ProjectSummary } from '@/types'
 import { isOwner as isOwnerRole, useCanWriteProject } from '@/lib/permissions'
-import { isOnboardingDismissed, setOnboardingDismissed } from '@/lib/onboardingDismissal'
+import { setOnboardingDismissed, useOnboardingDismissed } from '@/lib/onboardingDismissal'
 import { currentOrgSlug, projectPath } from '@/lib/navigation'
 
 /**
@@ -99,10 +99,10 @@ export function OnboardingChecklist({
   const { user } = useAuth()
   const canWriteHere = useCanWriteProject()
   const stepsId = useId()
-  // A tick to force a re-render (and thus a re-read of localStorage) after
-  // dismissal. Reading dismissal on render also means a slug change is picked up
-  // automatically, with no stale per-project state.
-  const [, setDismissTick] = useState(0)
+  // Follows every write of the flag, not only this card's own: the toast's
+  // Undo and the palette's "Show getting started" bring it back too. Keyed on
+  // the slug and id, so a project switch is picked up with no stale state.
+  const dismissed = useOnboardingDismissed(slug, projectId)
   // Ephemeral: when the slim collapsed bar is expanded back to the full card.
   const [expanded, setExpanded] = useState(false)
 
@@ -115,7 +115,7 @@ export function OnboardingChecklist({
   // "incomplete" steps that would flip to done a moment later.
   if (!summary) return null
 
-  if (isOnboardingDismissed(slug, projectId)) return null
+  if (dismissed) return null
 
   // Every step is an editor's job (scans, review, metrics and alerting are
   // editor-gated, sources owner-only). For a viewer of this project the card was
@@ -145,17 +145,12 @@ export function OnboardingChecklist({
   const isEstablished = onlyOptionalRemains && coverageRatio(summary) >= MATURE_COVERAGE_RATIO
   if (completed >= total || isEstablished) return null
 
-  function setDismissed(dismissed: boolean): void {
-    setOnboardingDismissed(slug, projectId, dismissed)
-    setDismissTick((n) => n + 1)
-  }
-
   function handleDismiss(): void {
-    setDismissed(true)
+    setOnboardingDismissed(slug, projectId, true)
     toast('Getting started hidden', {
       id: `onboarding-dismissed:${projectId ?? slug}`,
       description: 'Bring it back any time with "Show getting started" in search.',
-      action: { label: 'Undo', onClick: () => setDismissed(false) },
+      action: { label: 'Undo', onClick: () => setOnboardingDismissed(slug, projectId, false) },
     })
   }
 

@@ -1,500 +1,154 @@
-import type { MetricScopeType } from './metrics'
+import type { components } from './api.gen'
 
-// 'demo_sink' is the demo-only local sink: it renders + records deliveries with
-// no outbound network. It appears here so existing destinations/deliveries can
-// carry it, but is intentionally kept out of the user-selectable
-// `DestinationChannel` create options in pages/alerting/constants.ts.
-export type AlertDestinationType =
-  | 'slack'
-  | 'telegram'
-  | 'webhook'
-  | 'email'
-  | 'jira'
-  | 'linear'
-  | 'pagerduty'
-  | 'teams'
-  | 'demo_sink'
-export type AlertDeliveryStatus = 'pending' | 'sent' | 'failed'
-export type AlertMessageFormat =
-  | 'plain'
-  | 'slack_mrkdwn'
-  | 'telegram_html'
-  | 'telegram_markdownv2'
+// Alerting payloads, taken from the generated OpenAPI schema (`api.gen.ts`)
+// rather than restated, so a backend change is a compile error where it is
+// read. A field the backend declares with a `None` default is optional here
+// even though the server always sends it: read it with `== null` or `??`.
+type Schemas = components['schemas']
 
-export interface AlertRule {
-  id: string
-  destination_id: string
-  // null means every scan in the project — the default, and what a rule created
-  // before this field existed carries.
-  scan_config_id: string | null
-  name: string
-  enabled: boolean
-  include_project_total: boolean
-  include_event_types: boolean
-  include_events: boolean
-  include_schema_drifts: boolean
-  include_distribution_drifts: boolean
-  include_release_regressions: boolean
-  include_variable_value_drifts: boolean
-  include_metrics: boolean
-  // "Data is late" alerts: one per late/overdue scan (F16, #269).
-  include_source_freshness: boolean
-  // Lifecycle alerts: one per open sunset-watch finding (#258). Optional: a
-  // server that predates the flag omits it, which reads as off.
-  include_lifecycle?: boolean
-  // Property drift alerts: one per open property drift (F23, #306).
-  // Optional: a server that predates the flag omits it, which reads as off.
-  include_property_drifts?: boolean
-  notify_on_spike: boolean
-  notify_on_drop: boolean
-  ai_explanation_enabled: boolean
-  // Also email the owners of each affected event type / catalog metric (F07,
-  // #260). Optional: a server that predates the flag omits it, read as off.
-  notify_owners?: boolean
-  min_percent_delta: number
-  min_absolute_delta: number
-  min_expected_count: number
-  cooldown_minutes: number
-  message_template: string | null
-  items_template: string | null
-  message_format: AlertMessageFormat
-  filters: AlertRuleFilter[]
-  // Manual snooze state, same shape as MonitorSummaryItem: `muted` is the
-  // effective flag, `muted_until` the timestamp it lifts at. Carried on the rule
-  // itself so the destinations list can show a snoozed rule without a second
-  // round-trip to /monitors-summary.
-  muted: boolean
-  muted_until: string | null
-  // Fired-history counters: how often this rule has actually delivered, and how
-  // many incidents it carried. A rule with zero of both is configured but has
-  // never proven itself — worth saying out loud rather than leaving to guesswork.
-  total_deliveries: number
-  incident_count: number
-  last_delivery_at: string | null
-  last_delivery_status: AlertDeliveryStatus | null
-  created_at: string
-  updated_at: string
-}
+/**
+ * Where a rule delivers. `demo_sink` is the demo-only local sink: it renders
+ * and records deliveries with no outbound network, so it is kept out of the
+ * user-selectable create options in pages/alerting/constants.ts.
+ */
+export type AlertDestinationType = Schemas['AlertDestinationType']
+export type AlertDeliveryStatus = Schemas['AlertDeliveryStatus']
+export type AlertMessageFormat = Schemas['AlertMessageFormat']
 
-// `metric` matches a catalog metric's signal by its MetricDefinition id — a
-// catalog signal's scope_ref. Every other signal passes it through.
-export type AlertRuleFilterField = 'event_type' | 'event' | 'direction' | 'metric'
-export type AlertRuleFilterOperator = 'eq' | 'ne' | 'in' | 'not_in'
+/**
+ * An alert rule. `scan_config_id` null means every scan in the project.
+ * `muted`/`muted_until` are the rule's manual snooze, carried here so the
+ * destinations list can show a snoozed rule without a second round-trip.
+ * `total_deliveries` and `incident_count` say whether the rule has ever
+ * delivered: a rule with zero of both is configured but unproven.
+ */
+export type AlertRule = Schemas['AlertRuleResponse']
 
-export interface AlertRuleFilter {
-  id: string
-  field: AlertRuleFilterField
-  operator: AlertRuleFilterOperator
-  values: string[]
-}
+/**
+ * What a rule filter matches. `metric` matches a catalog metric's signal by
+ * its MetricDefinition id (its scope_ref); every other signal passes it.
+ */
+export type AlertRuleFilterField = Schemas['AlertRuleFilterField']
+export type AlertRuleFilterOperator = Schemas['AlertRuleFilterOperator']
+export type AlertRuleFilter = Schemas['AlertRuleFilterResponse']
+export type AlertRuleFilterPayload = Schemas['AlertRuleFilterPayload']
 
-export interface AlertRuleFilterPayload {
-  field: AlertRuleFilterField
-  operator: AlertRuleFilterOperator
-  values: string[]
-}
-
-export interface AlertDestination {
-  id: string
-  project_id: string
-  type: AlertDestinationType
-  name: string
-  enabled: boolean
-  webhook_set: boolean
-  bot_token_set: boolean
-  chat_id: string | null
-  target_url_set: boolean
-  webhook_header_name: string | null
-  email_recipients: string | null
-  email_from_address: string | null
-  email_subject_template: string | null
-  jira_base_url: string | null
-  jira_auth_email: string | null
-  jira_api_token_set: boolean
-  jira_project_key: string | null
-  jira_issue_type: string | null
-  linear_api_key_set: boolean
-  linear_team_id: string | null
-  linear_state_id: string | null
-  linear_label_ids: string | null
-  // PagerDuty's routing key and the Teams URL are write-only: the response
-  // says only whether one is on file.
-  pagerduty_routing_key_set: boolean
-  pagerduty_severity: string | null
-  teams_webhook_set: boolean
-  // Delivery cadence. `null` means immediate — send after every collection,
-  // which is what every destination did before this existed. Otherwise a
-  // 5-field cron expression read in `project_timezone`.
-  delivery_schedule_cron?: string | null
-  project_timezone?: string
-  last_digest_at?: string | null
-  next_digest_at?: string | null
-  // Alerts matched and held for the next digest. A cadence puts a
-  // destination into "on and quiet" for a whole window by design, and
-  // nothing else on the card can tell that from "on and broken".
-  //
-  // REQUIRED, unlike the schedule fields above it: the backend field carries a
-  // default rather than a null, so every response has it. Declared optional it
-  // was worse than merely loose — the card reads it as a falsy count and a
-  // missing field renders "nothing held", which is a claim about the buffer,
-  // not an absence of one. Not representable now.
-  held_count: number
-  // True for a demo_sink: a local, non-sendable sink badged LOCAL SIMULATED.
-  is_local: boolean
-  // Traffic this destination has actually carried. A configured destination that
-  // has delivered nothing looks identical to a working one in the form, which is
-  // the same blind spot the test-send probe closes.
-  delivery_count: number
-  incident_count: number
-  rules: AlertRule[]
-  created_at: string
-  updated_at: string
-}
+/**
+ * An alert destination. Secrets are write-only: the response says only
+ * whether one is on file (`*_set`). `delivery_schedule_cron` null means
+ * immediate; otherwise a 5-field cron read in `project_timezone`.
+ * `held_count` is how many alerts wait for the next digest, so the card can
+ * tell "on and quiet" from "on and broken". `is_local` marks a demo sink.
+ */
+export type AlertDestination = Schemas['AlertDestinationResponse']
 
 /**
  * Result of a manual test send. A channel refusal is an ANSWER, not a server
- * fault — a revoked Telegram token and a healthy one look identical in the
- * destination form — so the route answers 200 with `ok: false`
- * and the channel's own message rather than a 5xx the UI would render as
- * "something went wrong on our side".
+ * fault, so the route answers 200 with `ok: false` and the channel's own
+ * message. `error_kind` (and `http_status` for `http_status`) let the card
+ * read a field rather than the exception text.
  */
-/** What kind of failure a test send's `error` describes. */
-export type DestinationTestErrorKind =
-  | 'config'
-  | 'policy'
-  | 'dns'
-  | 'timeout'
-  | 'tls'
-  | 'network'
-  | 'http_status'
-  | 'smtp'
-  | 'other'
+export type AlertDestinationTestResponse = Schemas['AlertDestinationTestResponse']
 
-export interface AlertDestinationTestResponse {
-  ok: boolean
-  error: string | null
-  sent_at: string | null
-  /** The failure's kind, and the status code when it is `http_status`, so the
-   * card reads a field rather than the exception text. Optional:
-   * servers and fixtures before them send neither. */
-  error_kind?: DestinationTestErrorKind | null
-  http_status?: number | null
-}
+/** What kind of failure a test send's `error` describes. */
+export type DestinationTestErrorKind = NonNullable<AlertDestinationTestResponse['error_kind']>
 
 /**
- * `POST /projects/{slug}/alert-destinations/test`: the destination
- * dialog's settings, tested before they are saved. `destination_id` names the
- * saved destination an edit dialog is open on; a secret left blank then means
- * the stored one. Mirrors `AlertDestinationDraftTestRequest`.
+ * `POST /projects/{slug}/alert-destinations/test`: the destination dialog's
+ * settings, tested before they are saved. `destination_id` names the saved
+ * destination an edit dialog is open on; a secret left blank then means the
+ * stored one.
  */
-export interface AlertDestinationDraftTestRequest {
-  destination_id: string | null
-  type: AlertDestinationType
-  name?: string | null
-  webhook_url?: string | null
-  bot_token?: string | null
-  chat_id?: string | null
-  target_url?: string | null
-  webhook_header_name?: string | null
-  webhook_header_value?: string | null
-  email_recipients?: string | null
-  email_from_address?: string | null
-  jira_base_url?: string | null
-  jira_auth_email?: string | null
-  jira_api_token?: string | null
-  jira_project_key?: string | null
-  jira_issue_type?: string | null
-  linear_api_key?: string | null
-  linear_team_id?: string | null
-  linear_state_id?: string | null
-  linear_label_ids?: string | null
-  pagerduty_routing_key?: string | null
-  pagerduty_severity?: string | null
-  teams_webhook_url?: string | null
-}
+export type AlertDestinationDraftTestRequest = Schemas['AlertDestinationDraftTestRequest']
 
-export interface SimulatedRuleFiring {
-  anomaly_id: string
-  // Distinguishes otherwise identical firings of one scope in different scans.
-  scan_config_id: string | null
-  // Was a five-member subset while the backend has been simulating metric,
-  // release_regression and variable_value_drift firings too — the narrowed union
-  // silently mis-typed the scopes it omitted. Mirror the enum instead.
-  scope_type: MetricScopeType
-  scope_ref: string
-  scope_name: string
-  event_type_id: string | null
-  event_id: string | null
-  drift_field: string | null
-  drift_type: string | null
-  sample_value: string | null
-  bucket: string
-  // Start of the window the comparison was measured over; `bucket` is its end.
-  // Only release regressions carry one — their window is the rollout overlap
-  // rather than a scan bucket — so it is `null` for every other family. The
-  // table does not render it: the backend already folds it into the
-  // `release: … over the 51h rollout overlap` sentence inside `rendered_item`.
-  // It is on the wire because the preview and the delivered message only stay
-  // identical while both know the window.
-  window_from: string | null
-  direction: 'spike' | 'drop'
-  actual_count: number
-  expected_count: number
-  absolute_delta: number
-  // `null` exactly when `expected_count` is 0: the ratio is undefined, and the
-  // replay sends null rather than the stored 0.0 placeholder a consumer cannot
-  // tell apart from a real "no change". The same encoding
-  // `AlertDeliveryItemResponse.percent_delta` and the inbox card already use, so
-  // one incident no longer answers the question two ways depending on whether
-  // you read the delivery it produced or the replay that predicted it.
-  //
-  // No component change came with this: `lib/percentDelta.formatPercentDelta`
-  // already takes `number | null` and is what the replay table renders it
-  // through, so both the null and the frozen 0.0 in older rows read
-  // `no baseline`.
-  percent_delta: number | null
-  rendered_item: string | null
-}
+/**
+ * One firing a rule replay predicts. `window_from` is set only on a release
+ * regression, whose window is the rollout overlap; `percent_delta` is null
+ * exactly when `expected_count` is 0, the same encoding the delivery items
+ * and the inbox card use (render it through `formatPercentDelta`).
+ */
+export type SimulatedRuleFiring = Schemas['SimulatedRuleFiring']
 
-export interface AlertRuleSimulateResponse {
-  rule_id: string
-  rule_name: string
-  days: number
-  window_from: string
-  window_to: string
-  anomalies_considered: number
-  matched_before_cooldown: number
-  firings: SimulatedRuleFiring[]
-  noisy: boolean
-  // Every tunable the simulation can override reports the same pair: `_used` is
-  // the value this run applied, `_saved` the value stored on the rule. Without
-  // both, a preview run and the rule's real behaviour are indistinguishable on
-  // screen and "what would happen if I raised the threshold" cannot be answered.
-  // Sigma is the odd pair: it has no rule-level column at all,
-  // so its `_saved` is the PROJECT's Detection-settings threshold — the same
-  // number the detector scores with. It stays `number | null` only because that
-  // is the shipped wire shape; the server now always sends a
-  // number, so a null here is a contract leftover and not a state to design for.
-  cooldown_minutes_used: number
-  cooldown_minutes_saved: number
-  min_percent_delta_used: number
-  min_percent_delta_saved: number
-  min_expected_count_used: number
-  min_expected_count_saved: number
-  sigma_threshold_used: number | null
-  sigma_threshold_saved: number | null
-  rendered_message: string | null
-}
+/**
+ * A rule replay. Each tunable reports `_used` (what this run applied) and
+ * `_saved` (what the rule stores); sigma's `_saved` is the project's
+ * detection threshold, since a rule has none of its own.
+ */
+export type AlertRuleSimulateResponse = Schemas['AlertRuleSimulateResponse']
 
-export interface AlertDeliveryItem {
-  id: string
-  delivery_id: string
-  // `metric`, `release_regression` and `variable_value_drift` were missing from
-  // the inline union that used to live here while the backend has been
-  // delivering them for releases — the audit table renders whatever arrives, so
-  // nothing crashed and nothing narrowed. Mirroring the enum keeps that from
-  // recurring the next time a scope kind is added.
-  scope_type: MetricScopeType
-  scope_ref: string
-  scope_name: string
-  event_type_id: string | null
-  event_id: string | null
-  bucket: string
-  direction: 'spike' | 'drop'
-  actual_count: number
-  expected_count: number
-  absolute_delta: number
-  // NULL when there was no baseline to divide by — the API has
-  // sent null since then while this said `number`. `formatPercentDelta` in
-  // lib/percentDelta already handles null; go through it rather than coercing to
-  // 0 and printing "0%", which reads as "nothing changed" for exactly the items
-  // that changed most.
-  percent_delta: number | null
-  details_path: string | null
-  monitoring_path: string | null
-  drift_field: string | null
-  drift_type: string | null
-  sample_value: string | null
-  correlation_group_id: string | null
-}
+/**
+ * One item of a delivery. `percent_delta` is null when there was no baseline
+ * to divide by: go through `formatPercentDelta`, never coerce it to 0.
+ */
+export type AlertDeliveryItem = Schemas['AlertDeliveryItemResponse']
 
-export interface AlertDelivery {
-  id: string
-  project_id: string
-  scan_config_id: string
-  scan_job_id: string | null
-  destination_id: string
-  rule_id: string
-  destination_name: string
-  rule_name: string
-  scan_name: string
-  status: AlertDeliveryStatus
-  channel: AlertDestinationType
-  matched_count: number
-  payload_snapshot: Record<string, unknown> | null
-  error_message: string | null
-  // True when a demo_sink recorded this delivery locally (no external send).
-  is_local: boolean
-  is_simulated: boolean
-  created_at: string
-  updated_at: string
-  sent_at: string | null
-}
+/** One delivery. `is_local` is a demo sink's local record (no external send). */
+export type AlertDelivery = Schemas['AlertDeliveryResponse']
 
 /**
  * `pending` is a row claimed by a sender that has not finished yet (the
  * server re-claims one left pending past its lease on the next run).
  */
-export type AlertOwnerNotificationStatus = 'pending' | 'sent' | 'failed' | 'skipped'
+export type AlertOwnerNotificationStatus = Schemas['AlertOwnerNotificationStatus']
 
 /**
  * One owner emailed about a delivery (F07, #260). `user_id` is null once the
  * user was deleted — the row, and the address it went to, stay on record.
  */
-export interface AlertOwnerNotification {
-  user_id: string | null
-  name: string | null
-  email: string
-  status: AlertOwnerNotificationStatus
-  /** Why a `failed`/`skipped` row did not send. Optional: not every server sends it. */
-  error?: string | null
-  /** When the email went out; null until it did. Optional: older servers omit it. */
-  sent_at?: string | null
-}
+export type AlertOwnerNotification = Schemas['AlertOwnerNotificationResponse']
 
-export interface AlertDeliveryDetail extends AlertDelivery {
-  items: AlertDeliveryItem[]
-  /**
-   * The owners this delivery's rule emailed (F07, #260). Optional: a server
-   * that predates owner routing omits it, and an empty list means none.
-   */
-  owner_notifications?: AlertOwnerNotification[]
-}
+/** A delivery with its items and the owners its rule emailed (F07, #260). */
+export type AlertDeliveryDetail = Schemas['AlertDeliveryDetailResponse']
 
 /** An owner of an incident's or signal's event type / metric (F07, #260). */
-export interface SignalOwnerRef {
-  user_id: string
-  name: string
-}
+export type SignalOwnerRef = Schemas['AlertOwnerRef']
 
 /** What a manual "Notify owners" did: one row per owner it tried. */
-export interface NotifyOwnersResponse {
-  owners: AlertOwnerNotification[]
-}
-
-export interface AlertDeliveryListResponse {
-  items: AlertDelivery[]
-  total: number
-  /**
-   * Opaque keyset cursor for the page after this one; `null` on the last page.
-   * The server always sends it; a reader falls back to offset
-   * paging when it is null.
-   */
-  next_cursor: string | null
-}
-
-export type AlertInboxStatus =
-  | 'open'
-  | 'acknowledged'
-  | 'resolved'
-  | 'muted'
-  | 'false_positive'
+export type NotifyOwnersResponse = Schemas['NotifyOwnersResponse']
 
 /**
- * One rule that carried an incident: id AND name, together.
- *
- * Replaces the parallel `rule_ids` / `rule_names` arrays, which could not be
- * zipped — `rule_ids` came back sorted by UUID and `rule_names` by name, so
- * index *i* of one had nothing to do with index *i* of the other and the card
- * linked "Volume rule" to whichever monitor happened to sort first. Two rules
- * in one group can even share a name, so no client-side join could repair it
- * either. Link with `rules`; `rule_names` stays display text.
+ * A page of deliveries. `next_cursor` is the opaque keyset cursor for the
+ * page after this one, null on the last page.
  */
-export interface AlertInboxRuleRef {
-  id: string
-  name: string
-}
+export type AlertDeliveryListResponse = Schemas['AlertDeliveryListResponse']
 
-export interface AlertInboxGroup {
-  correlation_group_id: string
-  status: AlertInboxStatus
-  // `muted` is the effective flag (true iff status === 'muted'); `muted_until`
-  // is null unless that mute is actually in force. The card used to derive
-  // "muted" from a `muted_until` that outlived the mute, so a reopened group
-  // kept rendering as snoozed.
-  muted: boolean
-  muted_until: string | null
-  note: string | null
-  false_positive_count: number
-  item_count: number
-  delivery_count: number
-  latest_bucket: string
-  // Both ends of the incident's life. `first_delivery_at` is what "started 3
-  // days ago" is measured from — an incident with one timestamp cannot be told
-  // apart from one that has been firing all week.
-  first_delivery_at: string
-  latest_delivery_at: string
-  direction: 'spike' | 'drop'
-  // Size of the newest item, so the card can say what actually happened instead
-  // of only how many deliveries it took. percent_delta is NULL when
-  // expected_count is 0 — a zero baseline has no percentage; render "new" /
-  // "from nothing" there, never "0%". max_abs_percent_delta is the worst
-  // magnitude across the group and is null for the same reason.
-  actual_count: number
-  expected_count: number
-  percent_delta: number | null
-  max_abs_percent_delta: number | null
-  // Routable identity of the newest item. `scope_names` is display text, so
-  // these are what the card links with. `scope_types` is the distinct set of
-  // kinds in the group: a mixed incident cannot be described by the newest
-  // item's `scope_type` alone.
-  scope_type: MetricScopeType
-  scope_types: MetricScopeType[]
-  scope_ref: string
-  event_id: string | null
-  scope_names: string[]
-  destination_names: string[]
-  rules: AlertInboxRuleRef[]
-  rule_names: string[]
-  scan_names: string[]
-  acted_at: string | null
-  acted_by: string | null
-  // Resolved display name of `acted_by` (a user id). "Acknowledged by
-  // 3f2a…-c91b" told nobody anything.
-  acted_by_name: string | null
-  /**
-   * Owners of the affected event type / catalog metric (F07, #260) — the
-   * people "Notify owners" would email. Optional: a server that predates
-   * owner routing omits it, which renders as no owners line.
-   */
-  owners?: SignalOwnerRef[]
-}
+export type AlertInboxStatus = Schemas['AlertInboxStatus']
+
+/**
+ * One rule that carried an incident: id AND name, together. Link with
+ * `rules`; `rule_names` stays display text (two rules can share a name).
+ */
+export type AlertInboxRuleRef = Schemas['AlertInboxRuleRef']
+
+/**
+ * One incident in the inbox.
+ *
+ * - `muted` is the effective flag (true iff status is `muted`); `muted_until`
+ *   is null unless that mute is in force.
+ * - `first_delivery_at`/`latest_delivery_at` are both ends of its life.
+ * - `actual_count`/`expected_count`/`percent_delta` size the newest item;
+ *   `percent_delta` is null when `expected_count` is 0 (render "new", never
+ *   "0%"), and `max_abs_percent_delta` is the worst magnitude in the group.
+ * - `scope_type`/`scope_ref`/`event_id` are the newest item's routable
+ *   identity; `scope_types` is the distinct set of kinds in the group.
+ * - `acted_by_name` is the display name of `acted_by` (a user id).
+ * - `owners` (F07, #260) are the people "Notify owners" would email.
+ */
+export type AlertInboxGroup = Schemas['AlertInboxGroupResponse']
 
 /**
  * What an inbox action DID, not only what the group looks like afterwards.
- *
  * `overrides_written` is null for every action except `false_positive`, where
- * it counts the scopes actually tightened. It is zero for release regressions,
- * which the ratchet does not tune — the button promised a detection change it
- * never made on 10 of 57 production groups. Never guess this
- * client-side from `scope_type`; that is only the newest item's.
+ * it counts the scopes actually tightened (zero for release regressions,
+ * which the ratchet does not tune). Never guess it from `scope_type`.
  */
-export interface AlertInboxActionResponse {
-  group: AlertInboxGroup
-  overrides_written: number | null
-}
+export type AlertInboxActionResponse = Schemas['AlertInboxActionResponse']
 
 /**
  * `note` records a comment on the incident and changes nothing else — it does
  * not move `status` and does not stamp `acted_at`.
  */
-export type AlertInboxAction =
-  | 'acknowledge'
-  | 'resolve'
-  | 'mute'
-  | 'reopen'
-  | 'false_positive'
-  | 'note'
+export type AlertInboxAction = Schemas['AlertInboxActionRequest']['action']
 
 /**
  * The actions POST /alert-inbox/bulk-actions will accept.
@@ -523,176 +177,57 @@ export type AlertInboxBulkAction = Exclude<AlertInboxAction, 'false_positive'>
 /**
  * What a bulk triage decision DID — the rebuilt cards, and the audit batch id.
  *
- * A body, not the house 204 that the events/variables/metrics bulk routes
- * answer with: this route replaces cards the operator is LOOKING AT, so the
- * client can redraw N rows without re-listing the whole inbox. The standing
- * precedent for a bulk route with a body is `DeadEventArchiveResponse`.
- *
  * `groups` comes back in REQUEST ORDER with duplicates dropped, and can only be
  * SHORTER than the request when an incident's deliveries were deleted
- * concurrently, leaving no rows to render a card from — the state change still
- * landed and was still audited. Match on `correlation_group_id`, never on
- * position, and never count these to decide how many incidents were acted on.
+ * concurrently. Match on `correlation_group_id`, never on position, and never
+ * count these to decide how many incidents were acted on.
  *
- * `overrides_written` is ALWAYS null here and is always SENT. Null means "not
- * applicable" — `false_positive` is the only action that can ratchet anything
- * and this route refuses it. Never read a missing key as 0 and announce "no
- * scopes tightened" after a bulk acknowledge (a defect once fixed on
- * the single-incident route).
+ * `overrides_written` is ALWAYS null here and is always sent: `false_positive`
+ * is the only action that can ratchet anything and this route refuses it.
+ * Never read it as 0 and announce "no scopes tightened" after a bulk action.
  */
-export interface AlertInboxBulkActionResponse {
-  groups: AlertInboxGroup[]
-  /** The id shared by every audit row this one call wrote — one row per group. */
-  batch_id: string
-  overrides_written: number | null
-}
+export type AlertInboxBulkActionResponse = Schemas['AlertInboxBulkActionResponse']
 
 /** Incidents per effective status, over the whole window. */
-export type AlertInboxStatusCounts = Record<AlertInboxStatus, number>
-
-export interface AlertInboxListResponse {
-  items: AlertInboxGroup[]
-  total: number
-  /**
-   * Incidents per status after every other filter and before the status one,
-   * so a status option can say what picking it would list. Always
-   * sent; optional so fixtures written before it still type.
-   */
-  status_counts?: AlertInboxStatusCounts
-  /**
-   * Where the list's window really starts, or `null` when the documented
-   * 30-day one held.
-   *
-   * Non-null means the server's per-project row cap bit before the window did,
-   * so incidents that last fired before this instant are absent — and absent
-   * looks exactly like handled unless the page says otherwise.
-   * ALWAYS SENT: required here and required in `api.gen.ts`, so the two cannot
-   * disagree about a key the server never omits.
-   */
-  window_truncated_at: string | null
-  /** Opaque keyset cursor for "Load more"; see AlertDeliveryListResponse. */
-  next_cursor: string | null
-}
-
-export type MonitorStatus = 'firing' | 'warning' | 'healthy'
-
-export interface MonitorSummaryItem {
-  rule_id: string
-  rule_name: string
-  destination_id: string
-  destination_name: string
-  destination_type: AlertDestinationType
-  enabled: boolean
-  status: MonitorStatus
-  active_scope_count: number
-  firing_scope_count: number
-  last_anomaly_at: string | null
-  last_notified_at: string | null
-  notify_on_spike: boolean
-  notify_on_drop: boolean
-  min_percent_delta: number
-  min_expected_count: number
-  cooldown_minutes: number
-  // Manual snooze state: `muted` is the effective flag (muted_until in the
-  // future); `muted_until` is the raw timestamp the mute lifts at.
-  muted: boolean
-  muted_until: string | null
-}
+export type AlertInboxStatusCounts = Schemas['AlertInboxStatusCounts']
 
 /**
- * Whether each drift-style scope has any source data at all, PROJECT-wide.
- *
- * Not a per-rule verdict and not a prediction: it answers "could this scope ever
- * produce a candidate here", so a screen can tell an enabled-but-inert toggle
- * from a quiet one.
+ * A page of the inbox. `status_counts` counts incidents per status after
+ * every other filter and before the status one. `window_truncated_at` is
+ * where the list's window really starts when the server's per-project row
+ * cap bit before the 30-day window did, null when that window held.
  */
-export interface AlertScopeReadiness {
-  /**
-   * False when nothing on the MAIN branch documents an allowed-values list —
-   * neither a variable's own list nor a per-event override — for a variable
-   * scans still observe, and no value drift has been collected yet. Collected
-   * rows alone are enough.
-   */
-  variable_value_drift: boolean
-  /**
-   * False when no scan lists distribution drift fields AND no drift has been
-   * collected yet. Collected rows alone are enough.
-   */
-  distribution_drift: boolean
-}
-
-export interface MonitorsSummaryResponse {
-  monitors: MonitorSummaryItem[]
-  firing_count: number
-  warning_count: number
-  healthy_count: number
-  total: number
-  // On the envelope, never on `MonitorSummaryItem`: one project fact, not N
-  // copies of a value that cannot differ between rules.
-  scope_readiness: AlertScopeReadiness
-}
+export type AlertInboxListResponse = Schemas['AlertInboxListResponse']
 
 /**
- * One scope of a monitor that is firing now.
- *
- * Chosen by the same horizon test as `firing_scope_count`, so the list and the
- * count cannot disagree. `scope_name`, `event_id` and `direction` come from the
- * delivery that last notified the scope, and all three are null for a scope the
- * rule has not notified yet (a cooldown or a mute can hold the first message
- * back while the state is already open).
+ * A monitor (one rule) on the monitors list. `muted` is the effective flag;
+ * `muted_until` the raw timestamp the mute lifts at.
  */
-export interface MonitorFiringScope {
-  scope_type: MetricScopeType
-  scope_ref: string
-  scan_config_id: string | null
-  scope_name: string | null
-  event_id: string | null
-  direction: 'spike' | 'drop' | null
-  last_anomaly_bucket: string
-  last_notified_at: string | null
-}
+export type MonitorSummaryItem = Schemas['MonitorSummaryItem']
 
-/** A single monitor with the extra context a drill-in detail view needs. */
-export interface MonitorDetail extends MonitorSummaryItem {
-  // Raw enable flags (the summary `enabled` is the AND of these two).
-  rule_enabled: boolean
-  destination_enabled: boolean
-  /**
-   * Which scan's anomalies this rule can see — same name and same meaning as
-   * `AlertRule.scan_config_id`: null means every scan in the project.
-   * `scan_name` is that scan's display name, null exactly when the id is; the
-   * detail page runs no scans query to resolve an id against.
-   *
-   * NOT an input to `scope_readiness` below, which stays a PROJECT fact. A rule
-   * bound to a scan that feeds nothing can still read ready because a sibling
-   * scan does — a known limitation, which these two fields make
-   * visible rather than fix.
-   */
-  scan_config_id: string | null
-  scan_name: string | null
-  // Which signal kinds this monitor subscribes to.
-  include_project_total: boolean
-  include_event_types: boolean
-  include_events: boolean
-  include_schema_drifts: boolean
-  include_distribution_drifts: boolean
-  include_release_regressions: boolean
-  include_variable_value_drifts: boolean
-  include_metrics: boolean
-  // "Data is late" alerts: one per late/overdue scan (F16, #269).
-  include_source_freshness: boolean
-  // Lifecycle alerts: one per open sunset-watch finding (#258). Optional: a
-  // server that predates the flag omits it, which reads as off.
-  include_lifecycle?: boolean
-  // Property drift alerts (F23, #306). Optional like include_lifecycle.
-  include_property_drifts?: boolean
-  // Quick fired-history stats (full history via GET /alert-deliveries?rule_id=).
-  total_deliveries: number
-  last_delivery_at: string | null
-  last_delivery_status: AlertDeliveryStatus | null
-  // The same block the monitors list carries, under the same name: both screens
-  // render the same two toggles and must not disagree about what feeds them.
-  scope_readiness: AlertScopeReadiness
-  /** The scopes behind `firing_scope_count`, for the "Firing now" panel. */
-  firing_scopes: MonitorFiringScope[]
-}
+export type MonitorStatus = MonitorSummaryItem['status']
+
+/**
+ * Whether each drift-style scope has any source data at all, PROJECT-wide, so
+ * a screen can tell an enabled-but-inert toggle from a quiet one. Not a
+ * per-rule verdict and not a prediction.
+ */
+export type AlertScopeReadiness = Schemas['AlertScopeReadiness']
+
+export type MonitorsSummaryResponse = Schemas['MonitorsSummaryResponse']
+
+/**
+ * One scope of a monitor that is firing now, chosen by the same horizon test
+ * as `firing_scope_count`. `scope_name`, `event_id` and `direction` come from
+ * the delivery that last notified the scope, and are null for a scope the
+ * rule has not notified yet.
+ */
+export type MonitorFiringScope = Schemas['MonitorFiringScope']
+
+/**
+ * A single monitor with what its detail page needs: the raw enable flags
+ * (`enabled` is their AND), the scan it watches (`scan_config_id` null means
+ * every scan, `scan_name` null exactly when the id is), the signal kinds it
+ * subscribes to, its delivery stats and the scopes firing now.
+ */
+export type MonitorDetail = Schemas['MonitorDetailResponse']

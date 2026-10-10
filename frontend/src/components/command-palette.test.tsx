@@ -376,7 +376,7 @@ describe('CommandPalette', () => {
     await screen.findByText('Demo')
 
     expect(screen.queryByText('Audit log')).toBeNull()
-    expect(screen.queryByText('Instance audit log')).toBeNull()
+    expect(screen.queryByText('Organization audit log')).toBeNull()
     // The organization's own settings are its owners' and admins'.
     expect(screen.queryByText('Email')).toBeNull()
     expect(screen.queryByText('AI')).toBeNull()
@@ -406,7 +406,7 @@ describe('CommandPalette', () => {
     expect(screen.getByText('Email')).toBeInTheDocument()
     expect(screen.getByText('AI')).toBeInTheDocument()
     expect(screen.getByText('Limits')).toBeInTheDocument()
-    expect(screen.getByText('Instance audit log')).toBeInTheDocument()
+    expect(screen.getByText('Organization audit log')).toBeInTheDocument()
     for (const label of ['Runtime', 'Mail relay', 'AI & search', 'Storage', 'Observability', 'System', 'Security & access']) {
       expect(screen.queryByText(label), `owner offered "${label}"`).toBeNull()
     }
@@ -1489,6 +1489,37 @@ describe('CommandPalette reach and noise (#238)', () => {
     expect(await screen.findByText('Profile')).toBeInTheDocument()
   })
 
+  it('finds settings sections by the rail\'s words alone, as the settings palette does', async () => {
+    // The palette used to keep a second keyword table of its own: "avatar"
+    // found Profile here and nothing inside Settings, and "tracker" sent
+    // people to API keys, which have nothing to do with trackers.
+    mockDemo()
+    renderHarness('/p/demo/events')
+    fireEvent.click(screen.getByTestId('open-palette'))
+    const input = await screen.findByPlaceholderText(/Search projects/i)
+    await screen.findByText('Demo')
+
+    fireEvent.change(input, { target: { value: 'avatar' } })
+    expect(await screen.findByText('Profile')).toBeInTheDocument()
+
+    fireEvent.change(input, { target: { value: 'tracker' } })
+    expect(await screen.findByText('Trackers')).toBeInTheDocument()
+    expect(screen.queryByText('API keys')).toBeNull()
+  })
+
+  it('finds where a destination is set up by its name', async () => {
+    // Community sets up a PagerDuty destination on Alerting; the Enterprise
+    // escalation teaser answers to the word too, and must not be all there is.
+    mockDemo()
+    renderHarness('/p/demo/events')
+    fireEvent.click(screen.getByTestId('open-palette'))
+    const input = await screen.findByPlaceholderText(/Search projects/i)
+    await screen.findByText('Demo')
+
+    fireEvent.change(input, { target: { value: 'pagerduty' } })
+    expect(await screen.findByText('Alerting')).toBeInTheDocument()
+  })
+
   it('matches a multi-word query word by word, and keeps the old page name as a keyword', async () => {
     mockDemo()
     renderHarness('/p/demo/events')
@@ -1511,6 +1542,59 @@ describe('CommandPalette reach and noise (#238)', () => {
     expect(screen.getByText(/Switch to (light|dark) theme/)).toBeInTheDocument()
   })
 
+  it('offers a project viewer no create commands, from the projects list or the shell', async () => {
+    // Read-only is a project matter: every organization role may write, but a
+    // viewer member of this project lands on "Only editors can add events."
+    const member = { ...authValue, user: { ...ownerUser, role: 'member' as const } }
+    const viewerProject = { ...demoProject(), my_role: 'viewer' as const }
+    vi.spyOn(globalThis, 'fetch').mockImplementation(async (input) => {
+      const url = String(input)
+      if (url.endsWith('/api/v1/projects')) return mockJsonResponse([viewerProject])
+      if (url.endsWith('/api/v1/projects/demo/event-types')) return mockJsonResponse([])
+      throw new Error(`Unhandled fetch: ${url}`)
+    })
+
+    // No shell context: the palette resolves the project from the list alone.
+    const { unmount } = renderHarness('/p/demo/events', member)
+    fireEvent.click(screen.getByTestId('open-palette'))
+    await screen.findByText('Demo')
+    for (const label of ['New event', 'New metric', 'New branch']) {
+      expect(screen.queryByText(label), `viewer offered "${label}"`).toBeNull()
+    }
+    // Reading commands stay.
+    expect(screen.getByText('Switch branch…')).toBeInTheDocument()
+    expect(screen.getByText(/Switch to (light|dark) theme/)).toBeInTheDocument()
+    unmount()
+
+    // The shell's project decides when it carries the server's answer.
+    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+    render(
+      <QueryClientProvider client={queryClient}>
+        <AuthContext.Provider value={member}>
+          <MemoryRouter initialEntries={['/p/demo/events']}>
+            <Routes>
+              <Route
+                path="/p/:slug/events"
+                element={
+                  <ActiveProjectContext.Provider value={{ ...demoProject(), can_mutate: false } as Project}>
+                    <CommandPaletteProvider>
+                      <PaletteOpener />
+                    </CommandPaletteProvider>
+                  </ActiveProjectContext.Provider>
+                }
+              />
+            </Routes>
+          </MemoryRouter>
+        </AuthContext.Provider>
+      </QueryClientProvider>,
+    )
+    fireEvent.click(screen.getByTestId('open-palette'))
+    await screen.findByText('Switch branch…')
+    expect(screen.queryByText('New event')).toBeNull()
+    expect(screen.queryByText('New metric')).toBeNull()
+    expect(screen.queryByText('New branch')).toBeNull()
+  })
+
   it('offers branch and invite commands that open their forms', async () => {
     mockDemo()
     renderHarness('/p/demo/events')
@@ -1526,6 +1610,21 @@ describe('CommandPalette reach and noise (#238)', () => {
       expect(screen.getByTestId('location')).toHaveTextContent('/p/demo/branches')
     })
     expect(screen.getByTestId('location-search')).toHaveTextContent('?new=1')
+  })
+
+  it('opens the docs site in a new tab without leaving the page', async () => {
+    mockDemo()
+    const open = vi.spyOn(window, 'open').mockReturnValue(null)
+    renderHarness('/p/demo/events')
+    fireEvent.click(screen.getByTestId('open-palette'))
+    const input = await screen.findByPlaceholderText(/Search projects/i)
+    await screen.findByText('Demo')
+
+    fireEvent.change(input, { target: { value: 'manual' } })
+    fireEvent.click(await screen.findByText('Documentation'))
+
+    expect(open).toHaveBeenCalledWith('https://docs.tripl.io', '_blank', 'noopener,noreferrer')
+    expect(screen.getByTestId('location')).toHaveTextContent('/p/demo/events')
   })
 
   it('prints no raw route next to a destination', async () => {

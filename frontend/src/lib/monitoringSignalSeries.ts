@@ -9,7 +9,7 @@ export const SIGNAL_SERIES_MAX_SCOPES = 500
 
 /** Unique per open signal: the backend keys signals on scan config + scope + bucket. */
 export function signalRowKey(signal: {
-  scan_config_id: string | null
+  scan_config_id?: string | null
   scope_type: string | null
   scope_ref: string
   bucket: string
@@ -22,7 +22,7 @@ export function signalRowKey(signal: {
  * "…+00:00"): the bucket is compared as an instant.
  */
 export function signalSeriesLookupKey(signal: {
-  scan_config_id: string | null
+  scan_config_id?: string | null
   scope_type: string | null
   scope_ref: string
   bucket: string

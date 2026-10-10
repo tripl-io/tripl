@@ -1,7 +1,8 @@
 import { Panel } from '@/components/settings/kit'
 import { Button } from '@/components/ui/button'
 import { FilterBar, FilterBarItem, FilterSelect } from '@/components/ui/filter-bar'
-import { formatIsoDate } from '@/lib/datetime'
+import { useOffsetPaging, type PagedQueryState } from '@/hooks/useOffsetPaging'
+import { dayBoundaryIso, formatIsoDate } from '@/lib/datetime'
 import { VIEWER_READ_ONLY_NOTICE, useCanWriteProject } from '@/lib/permissions'
 import { ReadOnlyNotice, SectionSkeleton } from '@/components/states'
 import { countOf } from '@/lib/plural'
@@ -20,7 +21,6 @@ import {
   NO_DELIVERY_FILTERS,
   hasActiveDeliveryFilters,
   newerDeliveryOffset,
-  toDayBoundary,
   type DeliveryFilters,
 } from './deliveryFilters'
 
@@ -46,6 +46,9 @@ interface AlertAuditPanelProps {
   // second — see the branch below and IncidentDeliveries.tsx:46-47.
   isLoading: boolean
   isError: boolean
+  // Whether the rows on screen are the page `deliveryOffset` asked for, or the
+  // previous page kept up while it loads (`keepPreviousData`).
+  deliveriesQuery: PagedQueryState
   pinnedDelivery: AlertDeliveryDetail | null
   focusDeliveryId?: string
   focusItemKey?: string
@@ -85,6 +88,7 @@ export function AlertAuditPanel({
   deliveries,
   isLoading,
   isError,
+  deliveriesQuery,
   pinnedDelivery,
   focusDeliveryId,
   focusItemKey,
@@ -113,10 +117,16 @@ export function AlertAuditPanel({
   const canWrite = useCanWriteProject()
   const items = deliveries?.items ?? []
   const total = deliveries?.total ?? 0
-  const rangeStart = deliveryOffset + 1
-  const rangeEnd = deliveryOffset + items.length
-  const hasNewer = deliveryOffset > 0
-  const hasOlder = rangeEnd < total
+  // Counted off the offset the VISIBLE rows came from, not `deliveryOffset`:
+  // see useOffsetPaging for the double click that skipped a page.
+  const {
+    settledOffset,
+    rangeStart,
+    rangeEnd,
+    hasPrev: hasNewer,
+    hasNext: hasOlder,
+    isPaging,
+  } = useOffsetPaging({ query: deliveriesQuery, offset: deliveryOffset, shown: items.length, total })
   const filtersActive = hasActiveDeliveryFilters(deliveryFilters)
   // The range as the date inputs hold it: the reader's calendar days.
   const dateFrom = formatIsoDate(deliveryFilters.date_from)
@@ -125,7 +135,7 @@ export function AlertAuditPanel({
   // retry moved a row out of Status=Failed, or a destination went elsewhere.
   // The rows exist — `total` says so — the page the reader is on just no longer
   // reaches them, and "No deliveries yet." over it would be false.
-  const strandedPastEnd = items.length === 0 && deliveryOffset > 0 && total > 0
+  const strandedPastEnd = items.length === 0 && settledOffset > 0 && total > 0
 
   const clearFilters = () => {
     onDeliveryFiltersChange(NO_DELIVERY_FILTERS)
@@ -170,7 +180,7 @@ export function AlertAuditPanel({
       )
     }
     return (
-      <div className="rounded-lg border">
+      <div className="rounded-lg border" aria-busy={isPaging}>
         {/* Columns and widths live with the row (DeliveryTable), so the
             incident card's nested table cannot drift from this one. */}
         <DeliveryTable>
@@ -273,8 +283,8 @@ export function AlertAuditPanel({
                 to={dateTo}
                 onRangeChange={({ from, to }) =>
                   updateFilters({
-                    ...(from !== dateFrom ? { date_from: toDayBoundary(from, false) } : {}),
-                    ...(to !== dateTo ? { date_to: toDayBoundary(to, true) } : {}),
+                    ...(from !== dateFrom ? { date_from: dayBoundaryIso(from, 'start') ?? '' } : {}),
+                    ...(to !== dateTo ? { date_to: dayBoundaryIso(to, 'end') ?? '' } : {}),
                   })
                 }
               />
@@ -298,13 +308,17 @@ export function AlertAuditPanel({
                   : `Showing the most recent ${items.length} of ${countOf(total, 'delivery', 'deliveries')} — use Older to reach the rest, or narrow the filter.`}
               </p>
               <div className="flex items-center gap-2">
+                {/* The rows stay put while a page is in flight, so the click
+                    needs a word; both buttons are held shut for that window,
+                    as on the Audit log. */}
+                {isPaging && <span className="text-body-sm text-fg-tertiary">Updating…</span>}
                 <Button
                   type="button"
                   variant="outline"
                   size="sm"
                   className="max-sm:h-9"
-                  disabled={!hasNewer}
-                  onClick={() => onDeliveryOffsetChange(newerDeliveryOffset(deliveryOffset, total, deliveryLimit))}
+                  disabled={!hasNewer || isPaging}
+                  onClick={() => onDeliveryOffsetChange(newerDeliveryOffset(settledOffset, total, deliveryLimit))}
                 >
                   Newer
                 </Button>
@@ -313,8 +327,8 @@ export function AlertAuditPanel({
                   variant="outline"
                   size="sm"
                   className="max-sm:h-9"
-                  disabled={!hasOlder}
-                  onClick={() => onDeliveryOffsetChange(deliveryOffset + deliveryLimit)}
+                  disabled={!hasOlder || isPaging}
+                  onClick={() => onDeliveryOffsetChange(settledOffset + deliveryLimit)}
                 >
                   Older
                 </Button>

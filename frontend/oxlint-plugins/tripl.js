@@ -178,6 +178,41 @@ const noMutedForeground = {
   },
 }
 
+// One locale policy (lib/format.ts): numbers and dates print in APP_LOCALE,
+// not in whatever locale the browser has. `toLocaleString()` with no locale,
+// or with `undefined`, takes the browser's, and that is how a German reader
+// saw "1.234" in the Events table beside "1,234" on Overview, and "Oktober
+// 2026" in a calendar under a button reading "Oct 9, 2026". Numbers go
+// through formatNumber (lib/format.ts), counts with a noun through countOf
+// (lib/plural.ts), dates through lib/datetime.ts; a call that needs options of
+// its own passes APP_LOCALE.
+const LOCALE_METHODS = new Set(['toLocaleString', 'toLocaleDateString', 'toLocaleTimeString'])
+
+const noBareLocale = {
+  meta: {
+    type: 'problem',
+    docs: { description: 'Format numbers and dates in APP_LOCALE, not the browser locale.' },
+    messages: {
+      bareLocale:
+        'Pass APP_LOCALE from @/lib/format, or use formatNumber / countOf / lib/datetime, instead of the browser locale.',
+    },
+    schema: [],
+  },
+  create(context) {
+    return {
+      CallExpression(node) {
+        const callee = node.callee
+        if (callee.type !== 'MemberExpression' || callee.computed) return
+        if (!LOCALE_METHODS.has(callee.property.name)) return
+        const locale = node.arguments[0]
+        if (!locale || (locale.type === 'Identifier' && locale.name === 'undefined')) {
+          context.report({ node, messageId: 'bareLocale' })
+        }
+      },
+    }
+  },
+}
+
 export default {
   meta: { name: 'tripl' },
   rules: {
@@ -186,5 +221,6 @@ export default {
     'no-raw-select': noRawSelect,
     'no-arbitrary-sizes': noArbitrarySizes,
     'no-muted-foreground': noMutedForeground,
+    'no-bare-locale': noBareLocale,
   },
 }

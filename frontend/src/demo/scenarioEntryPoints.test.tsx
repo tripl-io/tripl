@@ -17,6 +17,7 @@ import { metricsCatalogApi } from '@/api/metricsCatalog'
 import { scansApi } from '@/api/scans'
 import type { MetricDefinitionDetailResponse, Project, ScanJob } from '@/types'
 import { DemoScenarioProvider } from './DemoScenarioProvider'
+import { QUICK_START_URL } from '@/lib/docsSite'
 import { authStatusKey } from '@/lib/queryKeys'
 import { DemoWelcomePanel } from './DemoWelcomePanel'
 import { ProductTour } from './ProductTour'
@@ -129,7 +130,7 @@ describe('DemoWelcomePanel — how much of the Overview it occupies', () => {
 
     // Expanded, this panel pushed the Overview's own heading ~500-770px down
     // and listed the same seven chapters the "Tour & chapters" dialog does.
-    expect(screen.getByRole('heading', { name: /Welcome to your demo workspace/ })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: /Welcome to your demo project/ })).toBeInTheDocument()
     expect(screen.queryByRole('list', { name: 'Scenario chapters' })).toBeNull()
     expect(screen.queryByRole('button', { name: /Show me around/ })).toBeNull()
     expect(screen.queryByText('Metric building blocks')).toBeNull()
@@ -139,7 +140,7 @@ describe('DemoWelcomePanel — how much of the Overview it occupies', () => {
     renderWithScenario(<DemoWelcomePanel project={demoProject()} />, demoProject())
 
     fireEvent.click(screen.getByRole('button', { name: 'Dismiss demo welcome' }))
-    expect(screen.queryByRole('heading', { name: /Welcome to your demo workspace/ })).toBeNull()
+    expect(screen.queryByRole('heading', { name: /Welcome to your demo project/ })).toBeNull()
 
     // The restore control lives in the demo banner — a different subtree — so
     // the panel has to notice the cleared flag without being remounted.
@@ -147,7 +148,7 @@ describe('DemoWelcomePanel — how much of the Overview it occupies', () => {
       setWelcomeDismissed(SLUG, false)
     })
 
-    expect(screen.getByRole('heading', { name: /Welcome to your demo workspace/ })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: /Welcome to your demo project/ })).toBeInTheDocument()
   })
 
   it('browses the chapters in the tour, at the step stored since the panel mounted', () => {
@@ -159,27 +160,32 @@ describe('DemoWelcomePanel — how much of the Overview it occupies', () => {
     // and its first Next would write that back over the stored step.
     window.localStorage.setItem('tripl-tour:acme', '3')
 
-    fireEvent.click(screen.getByRole('button', { name: /Browse chapters/ }))
+    // Named as the demo bar's button that opens the same dialog.
+    fireEvent.click(screen.getByRole('button', { name: 'Tour & chapters' }))
 
     expect(screen.getByText(/^Step 4 of/)).toBeInTheDocument()
     expect(picker()).toBeInTheDocument()
   })
 
-  it('points at the real product, not only at more demo', () => {
+  it('points at the real product, with the New project dialog open', () => {
     renderWithScenario(<DemoWelcomePanel project={demoProject()} />, demoProject())
 
     expect(screen.getByRole('link', { name: /Create a real project/ })).toHaveAttribute(
       'href',
-      '/workspace',
+      '/workspace?new=1',
     )
   })
 
-  it('offers no real project on a public demo, where the server refuses one', () => {
+  it('points a public demo at the quick start, not at a project the server refuses', () => {
     renderWithScenario(<DemoWelcomePanel project={demoProject()} />, demoProject(), {
       publicDemo: true,
     })
 
     expect(screen.queryByRole('link', { name: /Create a real project/ })).toBeNull()
+    expect(screen.getByRole('link', { name: /Run tripl yourself/ })).toHaveAttribute(
+      'href',
+      QUICK_START_URL,
+    )
   })
 })
 
@@ -188,7 +194,7 @@ describe('DemoWelcomePanel — dismissing it', () => {
     renderWithScenario(<DemoWelcomePanel project={demoProject()} />, demoProject())
 
     fireEvent.click(screen.getByRole('button', { name: 'Dismiss demo welcome' }))
-    expect(screen.queryByRole('heading', { name: /Welcome to your demo workspace/ })).toBeNull()
+    expect(screen.queryByRole('heading', { name: /Welcome to your demo project/ })).toBeNull()
 
     const [message, options] = vi.mocked(toast).mock.calls.at(-1) ?? []
     expect(message).toBe('Demo welcome hidden')
@@ -200,7 +206,7 @@ describe('DemoWelcomePanel — dismissing it', () => {
     expect(action.label).toBe('Undo')
 
     act(() => action.onClick())
-    expect(screen.getByRole('heading', { name: /Welcome to your demo workspace/ })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: /Welcome to your demo project/ })).toBeInTheDocument()
   })
 
   it('follows a dismissal made in another tab', () => {
@@ -213,7 +219,7 @@ describe('DemoWelcomePanel — dismissing it', () => {
       )
     })
 
-    expect(screen.queryByRole('heading', { name: /Welcome to your demo workspace/ })).toBeNull()
+    expect(screen.queryByRole('heading', { name: /Welcome to your demo project/ })).toBeNull()
   })
 
   it('does not repeat the banner\'s "Local synthetic data" badge', () => {

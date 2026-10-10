@@ -1,3 +1,4 @@
+import type { ReactNode } from 'react'
 import type { DataSource, ScanConfig } from '@/types'
 import { Button } from '@/components/ui/button'
 import { Link } from 'react-router-dom'
@@ -7,12 +8,14 @@ import { Ban, CheckCircle2, Clock, Loader2, MinusCircle, Play, XCircle, type Luc
 import { cn } from '@/lib/utils'
 import { Skeleton } from '@/components/ui/skeleton'
 import { friendlyScanError } from '@/lib/scanError'
+import { countOf } from '@/lib/plural'
 import { SCAN_RUN_STATUS } from '@/lib/statusLexicon'
 import { ScenarioCoachMark } from '@/demo/ScenarioCoachMark'
 import { SrcIcon } from './scanLayout'
 import { type RunPillStatus } from './scanRunStatus'
 import { SCAN_MODE_BADGE, scanModeOf } from './scanMode'
 import { formatDueIn, type ScanRunInfo } from './scanUtils'
+import { formatNumber } from '@/lib/format'
 
 // Icon + spin are presentation; the word + colour come from the status lexicon.
 const RUN_PILL_ICON: Record<RunPillStatus, { icon: LucideIcon; spin?: boolean }> = {
@@ -59,7 +62,10 @@ function ScanModeBadge({ sc }: { sc: ScanConfig }) {
   )
 }
 
-// Config badges on the detail header (mode, ⏱ interval, lookback, caps, JSON, etc.).
+/** One outline badge: its words, and a lucide glyph when it has one. */
+type ConfigBadge = { key: string; label: ReactNode; icon?: LucideIcon }
+
+// Config badges on the detail header (mode, interval, lookback, caps, JSON, etc.).
 export function ScanBadges({
   sc,
   intervalLabel,
@@ -82,41 +88,72 @@ export function ScanBadges({
   // nothing applies. Saved values survive: the form keeps them across a mode
   // switch on purpose, this only stops the header advertising them.
   const monitoring = scanModeOf(sc) === 'monitoring'
-  const items: string[] = []
-  if (sc.interval) items.push(`⏱ ${intervalLabel[sc.interval] ?? sc.interval}`)
+  const items: ConfigBadge[] = []
+  // A lucide clock, not the ⏱ character: with no emoji font that drew a
+  // missing-glyph box, and with one a colour emoji among monochrome icons.
+  if (sc.interval) {
+    items.push({ key: 'interval', label: intervalLabel[sc.interval] ?? sc.interval, icon: Clock })
+  }
   // Only a scan the scheduler collects has a next run; the server sends null
   // for any other, and a stale value must not outlive a mode switch.
   const nextRunMs = monitoring && nextRunAt ? Date.parse(nextRunAt) : Number.NaN
   if (!Number.isNaN(nextRunMs)) {
     const due = formatDueIn(nextRunMs)
-    items.push(due === 'due now' ? 'Next run due now' : `Next run ${due}`)
+    items.push({ key: 'next-run', label: due === 'due now' ? 'Next run due now' : `Next run ${due}` })
   }
   // A lookback is the predicate `<time column> >= now() - N`, so with no time
   // column it bounds nothing. Showing it anyway put "Lookback 24h" on the header
   // of a scan whose Source & query panel reads "Time column: None" — leaving the
   // badge as the only surface still claiming a bound the run does not apply.
-  if (sc.scan_lookback_hours && sc.time_column) items.push(`Lookback ${sc.scan_lookback_hours}h`)
-  if (sc.scan_row_limit) items.push(`Scan cap ${sc.scan_row_limit.toLocaleString()}`)
-  if (monitoring && sc.metrics_row_limit) items.push(`Metrics cap ${sc.metrics_row_limit.toLocaleString()}`)
-  if (sc.json_value_paths.length) items.push(`JSON keep ${sc.json_value_paths.length}`)
+  if (sc.scan_lookback_hours && sc.time_column) {
+    items.push({ key: 'lookback', label: `Lookback ${sc.scan_lookback_hours}h` })
+  }
+  if (sc.scan_row_limit) {
+    items.push({ key: 'scan-cap', label: `Scan cap ${formatNumber(sc.scan_row_limit)}` })
+  }
+  if (monitoring && sc.metrics_row_limit) {
+    items.push({ key: 'metrics-cap', label: `Metrics cap ${formatNumber(sc.metrics_row_limit)}` })
+  }
+  if (sc.json_value_paths.length) {
+    items.push({ key: 'json', label: countOf(sc.json_value_paths.length, 'JSON value kept', 'JSON values kept') })
+  }
   if (monitoring && sc.metric_breakdown_columns.length) {
-    items.push(`Breakdowns ${sc.metric_breakdown_columns.length}`)
+    items.push({ key: 'breakdowns', label: `Breakdowns ${sc.metric_breakdown_columns.length}` })
   }
   if (monitoring && sc.distribution_drift_fields.length) {
-    items.push(`Distribution ${sc.distribution_drift_fields.length}`)
+    items.push({ key: 'distribution', label: `Distribution ${sc.distribution_drift_fields.length}` })
   }
+  // The column's own name, in mono and named as a column: "Version
+  // app_version" read like a version number.
   if (sc.app_version_column) {
-    items.push(`Version ${sc.app_version_column}`)
+    items.push({
+      key: 'app-version',
+      label: <>App version column <span className="mono">{sc.app_version_column}</span></>,
+    })
   }
-  if (sc.event_group_rules.length) items.push(`Groups ${sc.event_group_rules.length}`)
+  // The Overview and the editor call these event group rules; "Groups 18"
+  // said neither what was grouped nor that 18 counts rules.
+  if (sc.event_group_rules.length) {
+    items.push({
+      key: 'group-rules',
+      label: countOf(sc.event_group_rules.length, 'event group rule', 'event group rules'),
+    })
+  }
 
   return (
     <div className="flex flex-wrap gap-1.5">
       <ScanModeBadge sc={sc} />
       {/* Late / overdue source (F16, #269); nothing when fresh or unknown. */}
       <FreshnessChip freshness={sc.freshness} />
-      {items.map((label, i) => (
-        <Chip key={i} size="xs" variant="outline">{label}</Chip>
+      {items.map(({ key, label, icon: Icon }) => (
+        <Chip
+          key={key}
+          size="xs"
+          variant="outline"
+          icon={Icon ? <Icon className="size-3" aria-hidden="true" /> : undefined}
+        >
+          {label}
+        </Chip>
       ))}
     </div>
   )

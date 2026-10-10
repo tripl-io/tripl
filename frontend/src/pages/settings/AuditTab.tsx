@@ -10,16 +10,17 @@ import { ErrorState } from '@/components/error-state'
 import { Chip } from '@/components/primitives/chip'
 import { PageContainer } from '@/components/primitives/page-container'
 import { PageHeader } from '@/components/primitives/page-header'
-import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import { FilterBar, FilterBarItem, FilterSearch } from '@/components/ui/filter-bar'
 import { DatePicker } from '@/components/ui/date-time-picker'
 import { Label } from '@/components/ui/label'
+import { OffsetPager } from '@/components/ui/offset-pager'
 import { Skeleton } from '@/components/ui/skeleton'
 import { useDebouncedValue } from '@/hooks/useDebouncedValue'
+import { useOffsetPaging } from '@/hooks/useOffsetPaging'
 import { displayUser, useUsersById } from '@/hooks/useUsersById'
 import { SILENT_ERROR_META } from '@/lib/errorFeedback'
-import { formatTimestamp } from '@/lib/datetime'
+import { dayBoundaryIso, formatTimeOfDay, formatTimestamp, viewerTimeZone } from '@/lib/datetime'
 import { useIsOwner } from '@/lib/permissions'
 import { countOf } from '@/lib/plural'
 import { getErrorMessage } from '@/lib/utils'
@@ -33,10 +34,8 @@ import {
   humanize,
   TARGET_NOUN,
   targetPath,
-  timeOfDay,
-  toIsoOrUndef,
+  payloadKeyLabel,
 } from './auditSentences'
-import { stateKeyLabel } from './branches/branchMeta'
 import { currentOrgSlug, projectPath } from '@/lib/navigation'
 
 // How long the email box waits after the last keystroke before it filters.
@@ -65,7 +64,16 @@ const PAGE_SIZE = 50
  * An entry recorded without a payload — a bulk inbox mute files `{}` — still
  * renders nothing here, so an expanded row looks exactly as it did.
  */
-function AuditPayload({ source, entryId }: { source: AuditSource; entryId: string }) {
+function AuditPayload({
+  source,
+  entryId,
+  targetType,
+}: {
+  source: AuditSource
+  entryId: string
+  /** The entry's `target_type`: a plan entity's keys read as the plan names them. */
+  targetType: string
+}) {
   const detailQuery = useQuery({
     queryKey: auditEntryKey(source.key, entryId),
     queryFn: () => source.get(entryId),
@@ -105,7 +113,7 @@ function AuditPayload({ source, entryId }: { source: AuditSource; entryId: strin
           return (
             <Fragment key={key}>
               <dt className="truncate text-fg-tertiary" title={key}>
-                {stateKeyLabel(key)}
+                {payloadKeyLabel(key, targetType)}
               </dt>
               <dd className="min-w-0 break-words text-fg">
                 {value === null || value === undefined || value === ''
@@ -226,8 +234,8 @@ export function AuditLog({ source }: { source: AuditSource }) {
     () => ({
       action: action || undefined,
       userEmail: emailApplied || undefined,
-      since: toIsoOrUndef(sinceDate, false),
-      until: toIsoOrUndef(untilDate, true),
+      since: dayBoundaryIso(sinceDate, 'start'),
+      until: dayBoundaryIso(untilDate, 'end'),
       limit: PAGE_SIZE,
       offset,
     }),
@@ -246,25 +254,10 @@ export function AuditLog({ source }: { source: AuditSource }) {
 
   const items = listQuery.data?.items ?? []
   const total = listQuery.data?.total ?? 0
-  // `placeholderData` holds the previous page on screen for the whole round
-  // trip, so `offset` — which advances the instant Older is clicked — describes
-  // rows that are not there yet. Every count below is read off the offset the
-  // VISIBLE rows came from instead, or the caption asserted "Showing 51–100"
-  // above rows 1–50 and `hasOlder` kept the button live for a second click that
-  // jumped straight to 100, discarding the page in flight.
-  const [settledOffset, setSettledOffset] = useState(0)
-  const isPaging = listQuery.isPlaceholderData
-  // Adjusted during render, not in an effect: this follows the query the way
-  // React documents following a prop, and an effect would paint one frame with
-  // the fresh rows still described by the previous offset.
-  if (listQuery.isSuccess && !listQuery.isPlaceholderData && settledOffset !== offset) {
-    setSettledOffset(offset)
-  }
-
-  const rangeStart = settledOffset + 1
-  const rangeEnd = settledOffset + items.length
-  const hasNewer = settledOffset > 0
-  const hasOlder = rangeEnd < total
+  // Counted off the offset the VISIBLE rows came from, not `offset`: see
+  // useOffsetPaging for the double-click that skipped a page.
+  const paging = useOffsetPaging({ query: listQuery, offset, shown: items.length, total })
+  const { rangeStart, rangeEnd, hasPrev: hasNewer, hasNext: hasOlder, isPaging } = paging
 
   const toggle = (id: string) => {
     setExpanded((prev) => {
@@ -310,6 +303,11 @@ export function AuditLog({ source }: { source: AuditSource }) {
   // One line in the header; the rest of what a compliance reader needs to know
   // folds under "About this log".
   const summaryLine = "Every change to this project's plan, scans, metrics and alerting."
+  // Rows read in the browser's zone (lib/datetime.ts), and nothing on the row
+  // says so. On a compliance surface a bare "1:35 PM" left the reader to guess
+  // between local, the project's own Timezone setting and UTC.
+  const zone = viewerTimeZone()
+  const timeNote = `Times, day headings and the From and To dates are in your browser's time zone${zone ? ` (${zone})` : ''}.`
   const description = workspace ? (
     <>
       Compliance trail for the whole instance: every project's plan
@@ -317,7 +315,10 @@ export function AuditLog({ source }: { source: AuditSource }) {
       sources, member invitations and roles, API keys — and the projects
       themselves being created, renamed and deleted. A project chip names
       the project an entry was written for; entries with none were not
-      made inside one. Secrets are redacted in stored payloads.
+      made inside one. Secrets are redacted in stored payloads.{' '}
+      {/* Two day boundaries on one page otherwise: the export reads its
+          dates as UTC days, this feed as the browser's. */}
+      {timeNote} An export's From and To are UTC days.
     </>
   ) : (
     <>
@@ -330,7 +331,7 @@ export function AuditLog({ source }: { source: AuditSource }) {
       Field-level before/after values for an event live on that event's
       own history, which is removed with the event; this log records who
       created, edited or deleted it and on which branch, and survives the
-      deletion.
+      deletion. {timeNote}
     </>
   )
 
@@ -364,7 +365,7 @@ export function AuditLog({ source }: { source: AuditSource }) {
           // is the one announcement, so it is not said twice.
           count={
             filtersActive && !rangeInvalid
-              ? `${total} ${total === 1 ? 'entry' : 'entries'} match the filter.`
+              ? `${countOf(total, 'entry', 'entries')} match the filter.`
               : undefined
           }
         >
@@ -393,7 +394,7 @@ export function AuditLog({ source }: { source: AuditSource }) {
                   : 'border-dashed border-input bg-transparent text-fg-muted')
               }
             >
-              <option value="">Action: any</option>
+              <option value="">Action: Any</option>
               {offeredGroups.map((group) => (
                 <optgroup key={group.label} label={group.label}>
                   {group.actions.map((a) => (
@@ -537,9 +538,9 @@ export function AuditLog({ source }: { source: AuditSource }) {
                       )}
                       <span
                         className="tnum text-micro text-fg-tertiary shrink-0 sm:w-16"
-                        title={formatTimestamp(entry.created_at, { seconds: true })}
+                        title={formatTimestamp(entry.created_at, { seconds: true, zone: true })}
                       >
-                        {timeOfDay(entry.created_at)}
+                        {formatTimeOfDay(entry.created_at)}
                       </span>
                       {/* The person, with the address in the title. */}
                       <span
@@ -632,7 +633,7 @@ export function AuditLog({ source }: { source: AuditSource }) {
                             ) : null}
                           </div>
                         ) : null}
-                        <AuditPayload source={source} entryId={entry.id} />
+                        <AuditPayload source={source} entryId={entry.id} targetType={entry.target_type} />
                       </div>
                     )}
                   </li>
@@ -647,43 +648,23 @@ export function AuditLog({ source }: { source: AuditSource }) {
       </Card>
 
       {items.length > 0 && (hasNewer || hasOlder) && (
-        <div className="flex flex-wrap items-center justify-between gap-2">
-          {/* This line used to end "narrow the filter to drill into older
-              actions" — the only way past row 200 was to guess an action type
-              or a date range, on the surface the user guide points at for
-              tracking down a wrong edit or merge. */}
-          <p className="text-body-sm text-fg-tertiary">
-            {hasNewer
+        // The caption used to end "narrow the filter to drill into older
+        // actions": the only way past row 200 was to guess an action type or
+        // a date range, on the surface the user guide points at for tracking
+        // down a wrong edit or merge.
+        <OffsetPager
+          label="Audit log pages"
+          paging={paging}
+          caption={
+            hasNewer
               ? `Showing ${rangeStart}–${rangeEnd} of ${countOf(total, 'entry', 'entries')}.`
-              : `Showing the most recent ${items.length} of ${countOf(total, 'entry', 'entries')} — use Older to reach the rest, or narrow the filter.`}
-          </p>
-          <div className="flex items-center gap-2">
-            {/* The rows do not change while a page is in flight, so without a
-                word here the click looks like it did nothing. Both buttons are
-                held shut for the same window: a second click moved the query key
-                again and the page in flight was dropped unrendered — 0 → 50 →
-                100, with rows 51–100 never shown and nothing saying so. */}
-            {isPaging && <span className="text-body-sm text-fg-tertiary">Updating…</span>}
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              disabled={!hasNewer || isPaging}
-              onClick={() => setOffset((current) => Math.max(0, current - PAGE_SIZE))}
-            >
-              Newer
-            </Button>
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              disabled={!hasOlder || isPaging}
-              onClick={() => setOffset((current) => current + PAGE_SIZE)}
-            >
-              Older
-            </Button>
-          </div>
-        </div>
+              : `Showing the most recent ${items.length} of ${countOf(total, 'entry', 'entries')} — use Older to reach the rest, or narrow the filter.`
+          }
+          prevLabel="Newer"
+          nextLabel="Older"
+          onPrev={() => setOffset((current) => Math.max(0, current - PAGE_SIZE))}
+          onNext={() => setOffset((current) => current + PAGE_SIZE)}
+        />
       )}
     </PageContainer>
   )

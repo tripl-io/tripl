@@ -18,7 +18,10 @@ export interface ApiFieldError {
 
 export class ApiError extends Error {
   status: number
-  /** Structured field errors from a FastAPI 422 response, when present. */
+  /**
+   * Structured field errors from a FastAPI 422 response, when present, each
+   * `msg` without Pydantic's "Value error, " prefix.
+   */
   fields?: ApiFieldError[]
   /** Backend request id (`X-Request-ID` / 500 body) for support references. */
   requestId?: string
@@ -47,6 +50,20 @@ function emitUnauthorized(path: string, status: number) {
   }
 
   window.dispatchEvent(new Event(AUTH_UNAUTHORIZED_EVENT))
+}
+
+/**
+ * Pydantic opens every message a `field_validator` or `model_validator` raises
+ * with "Value error, ". That is how the server declared the rule, not part of
+ * what it says, so it is dropped here, once, for every 422 the app shows:
+ * "password: Value error, Password must be…" reached the sign-up form as is.
+ */
+const PYDANTIC_VALUE_ERROR_PREFIX = 'Value error, '
+
+function withoutValueErrorPrefix(item: ApiFieldError): ApiFieldError {
+  return typeof item.msg === 'string' && item.msg.startsWith(PYDANTIC_VALUE_ERROR_PREFIX)
+    ? { ...item, msg: item.msg.slice(PYDANTIC_VALUE_ERROR_PREFIX.length) }
+    : item
 }
 
 /** Build a readable message from a FastAPI 422 `detail` array. */
@@ -151,8 +168,9 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
     emitUnauthorized(path, res.status)
 
     if (isFieldErrorArray(body.detail)) {
-      const error = new ApiError(formatValidationDetail(body.detail), res.status, requestId)
-      error.fields = body.detail
+      const fields: ApiFieldError[] = body.detail.map(withoutValueErrorPrefix)
+      const error = new ApiError(formatValidationDetail(fields), res.status, requestId)
+      error.fields = fields
       throw error
     }
 

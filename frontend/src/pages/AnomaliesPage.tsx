@@ -3,7 +3,7 @@ import { useQuery } from '@tanstack/react-query'
 import { SignalsHeldNotice } from '@/components/source-freshness/signals-held-notice'
 import { useSourceFreshness } from '@/hooks/useSourceFreshness'
 import { holdingItems } from '@/lib/sourceFreshness'
-import { Activity, ArrowDown, ArrowUp, Play, Settings2 } from 'lucide-react'
+import { Activity, ArrowDown, ArrowUp, Settings2 } from 'lucide-react'
 import { scansApi } from '@/api/scans'
 import { EmptyState } from '@/components/empty-state'
 import { ErrorState } from '@/components/error-state'
@@ -13,12 +13,13 @@ import { PageHeader } from '@/components/primitives/page-header'
 import { TermHint } from '@/components/term-hint'
 import { TERM_HINTS } from '@/lib/termHints'
 import { Button } from '@/components/ui/button'
+import { ConnectDataSourceButton, GoToScansButton } from '@/components/first-scan-actions'
 import { FilterBar, FilterSelect } from '@/components/ui/filter-bar'
 import { Dot } from '@/components/primitives/dot'
 import { MiniStat, MiniStatStrip } from '@/components/primitives/mini-stat'
 import { SectionSkeleton, StatValueSkeleton } from '@/components/states'
-import { formatRelativeTime, formatTimestamp } from '@/lib/datetime'
-import { APP_LOCALE, formatNumber } from '@/lib/format'
+import { formatRelativeTime, formatShortTimestamp, formatUtcOffset } from '@/lib/datetime'
+import { formatNumber } from '@/lib/format'
 import { formatSignalEffect, formatSignalEffectDetail, getMonitoringPath } from '@/lib/monitoring'
 import { currentOrgSlug, getAlertingPath, projectPath } from '@/lib/navigation'
 import { alertInboxStatusLabel } from '@/lib/alertStatus'
@@ -32,8 +33,11 @@ import {
   signalMagnitudeWord,
 } from '@/lib/signalMagnitude'
 import { signalDirectionColor, signalDirectionTone } from '@/lib/statusLexicon'
-import { formatSignalValues } from '@/lib/signalMetricFormat'
+import { formatSignalValues, signalTimeTitle } from '@/lib/signalMetricFormat'
 import { useExpandedSignals } from '@/hooks/useExpandedSignals'
+import { useProjectDataSources } from '@/hooks/useProjectDataSources'
+import { SILENT_ERROR_META } from '@/lib/errorFeedback'
+import { useIsOwner } from '@/lib/permissions'
 import {
   signalScopeLabel,
   signalScopeRefLabel,
@@ -127,7 +131,7 @@ const ALL_SCANS = 'all'
 // and, less kindly, a raw `null` used as a Map key made the label expression
 // call .slice on it and white-screen the whole page.
 const CATALOG_METRICS = 'catalog-metrics'
-const facetKey = (scanConfigId: string | null): string => scanConfigId ?? CATALOG_METRICS
+const facetKey = (scanConfigId: string | null | undefined): string => scanConfigId ?? CATALOG_METRICS
 const facetLabel = (id: string, scanNames: ScanNames): string =>
   id === CATALOG_METRICS ? 'Catalog metrics' : (scanNames.get(id) ?? `Scan ${id.slice(0, 8)}`)
 
@@ -216,6 +220,12 @@ export default function AnomaliesPage() {
   const scanNames: ScanNames = new Map(
     (scansQuery.data ?? []).map((s) => [s.id, s.name]),
   )
+  // With no data source in the project there is nothing to scan from, so
+  // "Run a scan" opened a Scans page that could only send the reader on to
+  // data sources. Connecting one is the first step then, and it is an owner's.
+  const sourcesQuery = useProjectDataSources({ meta: SILENT_ERROR_META })
+  const hasNoSource = sourcesQuery.isSuccess && (sourcesQuery.data ?? []).length === 0
+  const canConnectSource = useIsOwner()
   // Scans whose source is late or overdue hold their drop signals (F16, #269);
   // the notice below says so, or this list reads quieter than the data is.
   const freshnessItems = useSourceFreshness(slug)
@@ -453,9 +463,10 @@ export default function AnomaliesPage() {
           retryLabel="Retry"
           compact
         />
-      ) : monitoringIsOff ? null : (
-        // Hidden when monitoring is off: three zeros say nothing there.
-        <MiniStatStrip boxed className={isEmpty ? 'opacity-60' : undefined}>
+      ) : isEmpty ? null : (
+        // Hidden while nothing is open: three zeros over the empty state say
+        // nothing, whether monitoring is off or the list is clear.
+        <MiniStatStrip boxed>
           {/* Neutral at zero, not green: an empty list is not praise.
               A pending value is a skeleton, never a "0". */}
           <MiniStat
@@ -490,24 +501,16 @@ export default function AnomaliesPage() {
               <EmptyState
                 icon={Activity}
                 title="Monitoring isn’t running yet"
-                description="Anomalies appear once a scan collects volume. Connect a source and run a scan with Catalog + monitoring."
-                action={
-                  slug ? (
-                    <div className="flex flex-wrap justify-center gap-2">
-                      <Button asChild size="sm">
-                        <Link to={projectPath(currentOrgSlug(), slug, '/scans')} className="no-underline">
-                          <Play aria-hidden="true" />
-                          Run a scan
-                        </Link>
-                      </Button>
-                      <Button asChild variant="outline" size="sm">
-                        <Link to={projectPath(currentOrgSlug(), slug, '/settings/monitoring')} className="no-underline">
-                          Detection settings
-                        </Link>
-                      </Button>
-                    </div>
-                  ) : undefined
+                description={
+                  !hasNoSource
+                    ? 'Anomalies appear once a scan collects volume. Run one with Catalog + monitoring from Scans.'
+                    : canConnectSource
+                      ? 'Anomalies appear once a scan collects volume. Connect a data source and run a scan with Catalog + monitoring.'
+                      : 'Anomalies appear once a scan collects volume. An owner has to connect a data source first.'
                 }
+                // One way forward. Detection settings stays in the header: with
+                // nothing collected there is nothing for it to tune yet.
+                action={slug ? monitoringOffAction(slug, hasNoSource, canConnectSource) : undefined}
               />
             ) : (
               <EmptyState
@@ -616,7 +619,7 @@ export default function AnomaliesPage() {
                         ? 'Every open signal has a verdict'
                         : `No open signals marked ${verdictFilterLabel.toLowerCase()}`
                       : scanHasNothingOpen
-                      ? `No open anomalies from ${activeScanLabel}`
+                      ? `No open signals from ${activeScanLabel}`
                       : emptiedByScan
                         ? `Nothing in ${activeScanLabel} at this level`
                         : `Nothing at the ${activePreset.label.toLowerCase()} level`
@@ -708,28 +711,15 @@ export default function AnomaliesPage() {
 }
 
 /**
- * A bucket's start as a short absolute time — "Today 6:00 PM", "Sep 25, 6:00 PM" —
- * which, unlike "1h ago", cannot read as contradicting "found 16m ago" under
- * it. The clock matches `formatTimestamp`, so the row and the signal's own page
- * name the bucket alike.
+ * The monitoring-off state's one button. With a data source the next step is a
+ * scan, set up and run on the Scans page ("Run a scan" promised a run the
+ * button could not start); without one it is connecting a source, which only
+ * an owner can do, so anyone else gets no button rather than one leading to a
+ * page they cannot act on.
  */
-function formatShortWhen(iso: string, now: Date = new Date()): string {
-  const date = new Date(iso)
-  if (Number.isNaN(date.getTime())) return ''
-  const time = date.toLocaleTimeString(APP_LOCALE, { hour: 'numeric', minute: '2-digit' })
-  if (date.toDateString() === now.toDateString()) return `Today ${time}`
-  const dayOptions: Intl.DateTimeFormatOptions = { month: 'short', day: 'numeric' }
-  if (date.getFullYear() !== now.getFullYear()) dayOptions.year = 'numeric'
-  return `${date.toLocaleDateString(APP_LOCALE, dayOptions)}, ${time}`
-}
-
-/** The viewer's own zone, named, since the bucket is shown in it. */
-function localTimeZone(): string {
-  try {
-    return Intl.DateTimeFormat().resolvedOptions().timeZone
-  } catch {
-    return 'local time'
-  }
+function monitoringOffAction(slug: string, hasNoSource: boolean, canConnectSource: boolean) {
+  if (!hasNoSource) return <GoToScansButton slug={slug} />
+  return canConnectSource ? <ConnectDataSourceButton /> : undefined
 }
 
 /**
@@ -775,7 +765,9 @@ function AnomalyRow({
       {label ?? <UnnamedScope signal={signal} />}
     </>
   )
-  const textClass = 'truncate text-body-sm font-medium'
+  // Two lines on a phone rather than "Event · Home Sc…": the kind prefix is
+  // what tells the event Home Screen View from the event type Screen View.
+  const textClass = 'line-clamp-2 break-words text-body-sm font-medium sm:line-clamp-1'
 
   return (
     <div
@@ -888,27 +880,42 @@ function AnomalyRow({
         className="tnum truncate text-caption sm:text-right text-fg-tertiary"
       >
         {formatSignalValues(signal)}
+        {/* The "Actual / expected" header is sm+ only: a phone names the
+            second figure itself. */}
+        <span className="sm:hidden"> expected</span>
       </span>
-      <span role="cell" className="tnum text-right text-caption text-fg-tertiary">
+      {/* On a phone the times take a third line of their own, across both
+          columns: in the change's column they made it as wide as the
+          timestamp, and the scope name lost that width to a "+199%". */}
+      <span
+        role="cell"
+        className="tnum text-caption text-fg-tertiary max-sm:col-span-2 sm:text-right"
+      >
         {/* `relative` lifts it over the row link, so the tooltip naming this as
             the bucket's start is reachable. */}
         <time
           dateTime={signal.bucket}
-          title={`Bucket starting ${formatTimestamp(signal.bucket)} (${localTimeZone()})`}
+          title={signalTimeTitle('Bucket starting', signal.bucket)}
           className="relative"
         >
-          {formatShortWhen(signal.bucket)}
+          {formatShortTimestamp(signal.bucket, { today: true })}
         </time>
+        {/* The zone is in the tooltip, which a phone cannot show. */}
+        <span className="sm:hidden"> {formatUtcOffset(new Date(signal.bucket))}</span>
         {/* When the detector caught it, which can be long after the bucket
-            began — an hourly bucket is flagged at the scan after it. */}
+            began — an hourly bucket is flagged at the scan after it. Under
+            the bucket from sm up, after it on a phone's one line. */}
         {signal.detected_at && (
-          <time
-            dateTime={signal.detected_at}
-            title={`Detected ${formatTimestamp(signal.detected_at)} (${localTimeZone()})`}
-            className="relative block text-micro text-fg-tertiary"
-          >
-            found {formatRelativeTime(signal.detected_at)}
-          </time>
+          <>
+            <span aria-hidden="true" className="sm:hidden"> · </span>
+            <time
+              dateTime={signal.detected_at}
+              title={signalTimeTitle('Detected', signal.detected_at)}
+              className="relative text-micro text-fg-tertiary sm:block"
+            >
+              found {formatRelativeTime(signal.detected_at)}
+            </time>
+          </>
         )}
       </span>
       <span

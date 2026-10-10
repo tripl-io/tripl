@@ -27,7 +27,7 @@ test('a public demo visitor is not offered the settings the demo refuses', async
   await expect(rail.getByRole('link', { name: 'Invitations', exact: true })).toBeVisible()
   // The organization's own mail, AI, search, photos, trackers and limits: the
   // server answers every change on them with 403 here, so the rail leaves them out.
-  for (const label of ['Email', 'AI', 'Search', 'Photos', 'Trackers', 'Limits']) {
+  for (const label of ['Email', 'AI', 'Semantic search', 'Photos', 'Trackers', 'Limits']) {
     await expect(rail.getByRole('link', { name: label, exact: true })).toHaveCount(0)
   }
   // What the demo does take stays.

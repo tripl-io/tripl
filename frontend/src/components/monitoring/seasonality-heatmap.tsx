@@ -8,8 +8,8 @@ import { ErrorState } from '@/components/error-state'
 import { SILENT_ERROR_META } from '@/lib/errorFeedback'
 import type { SeasonalityCell } from '@/types/metrics'
 import { seasonalityKey } from '@/lib/queryKeys'
-import { formatCompactNumber, formatNumber } from '@/lib/format'
-import { pluralize } from '@/lib/plural'
+import { formatCompactNumber } from '@/lib/format'
+import { countOf } from '@/lib/plural'
 
 interface SeasonalityHeatmapProps {
   slug: string
@@ -35,10 +35,6 @@ const MAX_FILL_OPACITY = 0.96
 // Discrete stops used to paint the legend gradient bar.
 const LEGEND_STOPS = [0, 0.25, 0.5, 0.75, 1] as const
 
-// The shared compact count: this file's own copy printed "1.0k" where every
-// chart prints "1k".
-const formatCount = formatCompactNumber
-
 function fillOpacity(intensity: number): number {
   return MIN_FILL_OPACITY + (MAX_FILL_OPACITY - MIN_FILL_OPACITY) * intensity
 }
@@ -49,10 +45,6 @@ function fillOpacity(intensity: number): number {
 function slotLabel(weekday: number, hour: number): string {
   const day = WEEKDAYS_SHORT[weekday] ?? `Day ${weekday}`
   return `${day} ${hour.toString().padStart(2, '0')}:00 UTC`
-}
-
-function eventCount(count: number): string {
-  return `${formatNumber(count)} ${pluralize(count, 'event', 'events')}`
 }
 
 interface HeatScale {
@@ -197,7 +189,7 @@ export function SeasonalityHeatmap({
   const { busiest, quietest } = scale
   const gridSummary =
     busiest && quietest
-      ? `Volume by weekday and hour (UTC). Busiest slot ${slotLabel(busiest.weekday, busiest.hour)} with ${eventCount(busiest.count)}; quietest active slot ${slotLabel(quietest.weekday, quietest.hour)} with ${eventCount(quietest.count)}.`
+      ? `Volume by weekday and hour (UTC). Busiest slot ${slotLabel(busiest.weekday, busiest.hour)} with ${countOf(busiest.count, 'event', 'events')}; quietest active slot ${slotLabel(quietest.weekday, quietest.hour)} with ${countOf(quietest.count, 'event', 'events')}.`
       : 'Volume by weekday and hour (UTC).'
 
   return (
@@ -209,7 +201,7 @@ export function SeasonalityHeatmap({
         <CardDescription>
           Total volume by day-of-week and hour-of-day, in UTC. A red ring and dot mark
           slots with detected anomalies. Total in window:{' '}
-          <span className="font-medium">{formatCount(data.total_count)}</span>.
+          <span className="font-medium">{formatCompactNumber(data.total_count)}</span>.
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-3">
@@ -220,7 +212,7 @@ export function SeasonalityHeatmap({
             unreadable — it means "middle of the pack", not the midpoint of these
             two numbers. */}
         <div className="flex items-center gap-2 text-caption text-fg-tertiary">
-          <span className="tabular-nums">{formatCount(scale.minCount)}</span>
+          <span className="tabular-nums">{formatCompactNumber(scale.minCount)}</span>
           <div
             className="flex h-2 w-24 overflow-hidden rounded-sm ring-1 ring-border/60"
             aria-hidden="true"
@@ -233,7 +225,7 @@ export function SeasonalityHeatmap({
               />
             ))}
           </div>
-          <span className="tabular-nums">{formatCount(scale.maxCount)}</span>
+          <span className="tabular-nums">{formatCompactNumber(scale.maxCount)}</span>
           <span
             className="ml-0.5"
             title="Slots are shaded by rank among the active slots, not linearly by count, so a skewed distribution still spreads across the ramp. Hover or tap a cell for its exact count."
@@ -273,9 +265,9 @@ export function SeasonalityHeatmap({
                     const count = cell?.count ?? 0
                     const anomalyCount = cell?.anomaly_count ?? 0
                     const hasAnomaly = anomalyCount > 0
-                    const tooltipText = `${slotLabel(weekday, hour)} — ${eventCount(count)}${
+                    const tooltipText = `${slotLabel(weekday, hour)} — ${countOf(count, 'event', 'events')}${
                       hasAnomaly
-                        ? ` · ${anomalyCount} ${pluralize(anomalyCount, 'anomaly bucket', 'anomaly buckets')}`
+                        ? ` · ${countOf(anomalyCount, 'anomaly bucket', 'anomaly buckets')}`
                         : ''
                     }`
                     return (

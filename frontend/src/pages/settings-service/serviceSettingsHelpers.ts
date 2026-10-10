@@ -8,18 +8,24 @@ import type {
   ServiceSettingsUpdate,
   StorageSettings,
 } from '@/types'
+import {
+  PLATFORM_SECTION_KEYS,
+  PLATFORM_SECTION_LABELS,
+  type PlatformSectionKey,
+} from '@/components/settings/platform-sections'
+import { formatNumber } from '@/lib/format'
+import { pluralize } from '@/lib/plural'
 
-export type SectionKey = 'runtime' | 'ai' | 'email' | 'security' | 'storage' | 'observability'
+/**
+ * A Platform section with settings of its own: every one but System, which
+ * only reports. Its name is `PLATFORM_SECTION_LABELS[key]`, the rail's.
+ */
+export type SectionKey = Exclude<PlatformSectionKey, 'system'>
 
-/** Section names as the rail and the page header spell them. */
-export const SECTION_LABELS: Record<SectionKey, string> = {
-  runtime: 'Runtime',
-  ai: 'AI',
-  email: 'Email',
-  security: 'Security & access',
-  storage: 'Storage',
-  observability: 'Observability',
-}
+/** Those sections, in rail order. */
+export const SECTION_KEYS: readonly SectionKey[] = PLATFORM_SECTION_KEYS.filter(
+  (key): key is SectionKey => key !== 'system',
+)
 
 /** The three secrets that are stored encrypted and never read back. */
 export type SecretField = 'ai_api_key' | 'search_embedding_api_key' | 'smtp_password'
@@ -287,12 +293,11 @@ export function overrideCount(
  * be the same disagreement in a second viewport.
  */
 export function resetCardDescription(section: SectionKey, overrides: number): string {
-  const label = SECTION_LABELS[section]
+  const label = PLATFORM_SECTION_LABELS[section]
   if (overrides === 0) {
     return `Nothing to clear: no ${label} field on this instance is badged "Override" — every one already comes from the environment or its built-in default.`
   }
-  const noun = overrides === 1 ? 'override' : 'overrides'
-  return `Clears the ${overrides} ${label} ${noun} on this instance at once — every field badged "Override" above falls back to its environment variable, or to its built-in default where none is set.`
+  return `Clears the ${formatNumber(overrides)} ${label} ${pluralize(overrides, 'override', 'overrides')} on this instance at once — every field badged "Override" above falls back to its environment variable, or to its built-in default where none is set.`
 }
 
 export function buildSectionDiff(
@@ -369,9 +374,7 @@ export function pickSection(update: ServiceSettingsUpdate, section: SectionKey):
 
 /** Sections with unsaved edits, in rail order. */
 export function dirtySections(update: ServiceSettingsUpdate): SectionKey[] {
-  return (Object.keys(SECTION_LABELS) as SectionKey[]).filter(
-    section => Object.keys(update[section] ?? {}).length > 0,
-  )
+  return SECTION_KEYS.filter(section => Object.keys(update[section] ?? {}).length > 0)
 }
 
 /**
@@ -437,14 +440,15 @@ const APPLY_NOTES: Record<SectionKey, string> = {
 }
 
 /**
- * What the source badges mean, said once per page above the fields.
- * "Or to the built-in default where none is set" is not hedging: on AI
- * the three system prompts have no environment variable at all — the backend
- * reads them off ai_defaults — and an unset variable falls back to the pydantic
- * default, not to nothing.
+ * What the source badges mean, said once per page above the fields, one short
+ * clause per badge as the organization pages' legend says it (a phone had
+ * three stacked paragraphs above the first field). "Else the built-in
+ * default" is not hedging: on AI the three system prompts have no environment
+ * variable at all — the backend reads them off ai_defaults — and an unset
+ * variable falls back to the pydantic default, not to nothing.
  */
 export const SOURCE_LEGEND =
-  'Fields marked Override are stored here; Env comes from the environment. Unmarked fields fall back to their environment variable, or to the built-in default where none is set.'
+  "Override: saved here. Env: set in the server's environment. No badge: the environment variable, else the built-in default."
 
 export function applyNote(section: SectionKey): string {
   return APPLY_NOTES[section]
@@ -464,7 +468,7 @@ const RESET_STAKES: Record<SectionKey, string> = {
 export type ConfirmCopy = { title: string; message: string; confirmLabel: string }
 
 export function resetConfirm(section: SectionKey, hasSectionDraft = false): ConfirmCopy {
-  const label = SECTION_LABELS[section]
+  const label = PLATFORM_SECTION_LABELS[section]
   // A reset re-reads this section from the server, so an edit made here and not
   // yet saved goes with it. The dialog enumerates every other consequence; it
   // may not stay silent about the one the user can see on screen.

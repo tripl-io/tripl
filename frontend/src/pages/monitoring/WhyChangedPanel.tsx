@@ -1,13 +1,12 @@
 import { useId, type ReactNode } from 'react'
 import { Link } from 'react-router-dom'
 
-import { formatNumber } from '@/lib/format'
+import { formatNumber, formatShare } from '@/lib/format'
 import {
   ATTRIBUTED_SCOPES,
   attributionValueLabel,
   columnRemainder,
   columnScale,
-  formatShare,
   formatSignedCount,
 } from '@/lib/signalAttribution'
 import { signalDirectionColor } from '@/lib/statusLexicon'
@@ -103,7 +102,7 @@ function AttributionBody({
   // carries — so nothing here re-derives a percent or an hour count.
   const headline = attribution.headline ?? null
   const releaseText = attribution.release_line ?? null
-  const columns = attribution.columns
+  const columns = attribution.columns ?? []
   return (
     <>
       {headline ? (
@@ -159,7 +158,7 @@ function AttributionColumn({
         </span>
       </div>
       <ul aria-labelledby={headingId} className="mt-1.5 grid gap-1">
-        {column.values.map(value => {
+        {(column.values ?? []).map(value => {
           const href = valueHref?.(column.column, value.value) ?? null
           const label = attributionValueLabel(value.value)
           const comparison = `actual ${formatNumber(Math.round(value.actual))} vs expected ${formatNumber(Math.round(value.expected))}`

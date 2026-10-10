@@ -1,6 +1,7 @@
 import { Link } from 'react-router-dom'
 import { NotFoundState } from '@/components/not-found-state'
 import { TrifoldMark } from '@/components/states/brand-mark'
+import { PROJECT_NOT_FOUND_TITLE_LABEL } from '@/hooks/useDocumentTitle'
 import { projectHomePath, workspacePath } from '@/lib/navigation'
 import type { Project } from '@/types'
 
@@ -21,7 +22,7 @@ export function ProjectNotFound({ slug, projects }: { slug: string; projects: Pr
     <div className="flex w-full max-w-lg flex-col items-center">
       <Link
         to={workspacePath()}
-        aria-label="Tripl — home"
+        aria-label="tripl — home"
         className="flex items-center gap-2 rounded-control px-1 py-1 no-underline"
       >
         <TrifoldMark size={24} />
@@ -29,12 +30,15 @@ export function ProjectNotFound({ slug, projects }: { slug: string; projects: Pr
           tripl
         </span>
       </Link>
+      {/* Compact: the shell fallback around this already centres the whole
+          group, so the project list sits right under the way back. */}
       <NotFoundState
-        title="Project not found"
+        compact
+        title={PROJECT_NOT_FOUND_TITLE_LABEL}
         description={`No project with the address “${slug}” exists, or you do not have access to it.`}
       />
       {shortlist.length > 0 && (
-        <nav aria-label="Your projects" className="mb-8 w-full max-w-sm">
+        <nav aria-label="Your projects" className="mt-8 mb-8 w-full max-w-sm">
           <h2 className="micro-label mb-2 text-center text-fg-tertiary">Your projects</h2>
           <ul className="m-0 list-none overflow-hidden rounded-card border border-border bg-surface p-0">
             {shortlist.map((project) => (

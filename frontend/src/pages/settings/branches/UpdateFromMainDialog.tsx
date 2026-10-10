@@ -27,7 +27,6 @@ import { getErrorMessage } from '@/lib/utils'
 import type {
   PlanBranchConflicts,
   PlanBranchSummary,
-  PlanDiffEntityType,
   ResolutionChoice,
   UpdateFromMainResolution,
 } from '@/types'
@@ -104,10 +103,10 @@ function UpdateFromMainBody({
   let unresolved = 0
   for (const entity of entities) {
     for (const field of entity.fields) {
-      const choice = choiceOf(conflictChoiceKey(entity, field.field), field.choice)
+      const choice = choiceOf(conflictChoiceKey(entity, field.field), field.choice ?? null)
       if (choice) {
         resolutions.push({
-          entity_type: entity.entity_type as PlanDiffEntityType,
+          entity_type: entity.entity_type,
           entity_name: entity.name,
           field_name: field.field,
           choice,
@@ -281,7 +280,7 @@ function UpdateFromMainBody({
                 <ConflictList
                   entities={entities}
                   choiceOf={(entity, field) =>
-                    choiceOf(conflictChoiceKey(entity, field.field), field.choice)
+                    choiceOf(conflictChoiceKey(entity, field.field), field.choice ?? null)
                   }
                   pending={updateMut.isPending}
                   onResolve={(entity, field, choice) =>

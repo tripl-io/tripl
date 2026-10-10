@@ -181,7 +181,7 @@ describe('ProjectNotFound', () => {
       </MemoryRouter>,
     )
     expect(screen.getByRole('heading', { name: 'Project not found' })).toBeInTheDocument()
-    expect(screen.getByRole('link', { name: 'Tripl — home' })).toHaveAttribute('href', '/workspace')
+    expect(screen.getByRole('link', { name: 'tripl — home' })).toHaveAttribute('href', '/workspace')
     const list = screen.getByRole('navigation', { name: 'Your projects' })
     expect(list.querySelectorAll('a')).toHaveLength(5)
     expect(screen.getByRole('link', { name: /Project 0/ })).toHaveAttribute('href', '/p/project-0/overview')

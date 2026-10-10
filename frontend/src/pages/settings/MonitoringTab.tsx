@@ -25,6 +25,7 @@ import { useCanWriteProject } from "@/lib/permissions"
 import { getErrorMessage } from '@/lib/utils'
 import { anomalyScopeOverridesKey, projectAnomalySettingsKey } from '@/lib/queryKeys'
 import { HolidayCalendarPanel } from './HolidayCalendarPanel'
+import { countOf } from '@/lib/plural'
 
 // How long the "Saved" hint stays up after an autosave lands.
 const SAVED_HINT_MS = 2000
@@ -257,8 +258,7 @@ function ScopeOverridesCard({ slug, canWrite }: { slug: string; canWrite: boolea
                     {SCOPE_TYPE_LABELS[override.scope_type] ?? override.scope_type}
                     {override.scan_config_name ? ` · ${override.scan_config_name}` : ''} · sigma{' '}
                     {override.sigma_threshold} · min expected {override.min_expected_count} ·{' '}
-                    {override.false_positive_count} false positive
-                    {override.false_positive_count === 1 ? '' : 's'}
+                    {countOf(override.false_positive_count, 'false positive', 'false positives')}
                   </p>
                 </div>
                 {canWrite && (
@@ -685,7 +685,7 @@ export function MonitoringTab({ slug }: { slug: string }) {
         </Panel>
       )}
 
-      <HolidayCalendarPanel slug={slug} country={settings.holiday_country} canWrite={canWrite} />
+      <HolidayCalendarPanel slug={slug} country={settings.holiday_country ?? null} canWrite={canWrite} />
 
       <ScopeOverridesCard slug={slug} canWrite={canWrite} />
     </PageContainer>

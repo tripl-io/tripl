@@ -33,6 +33,27 @@ export const STRING_FORMATS = [
   'date', 'date-time', 'time', 'duration', 'email', 'uri', 'uuid', 'hostname', 'ipv4', 'ipv6',
 ] as const
 
+export type StringFormat = (typeof STRING_FORMATS)[number]
+
+/** What a reader sees for each format; the stored value stays the JSON Schema id. */
+export const STRING_FORMAT_LABELS: Record<StringFormat, string> = {
+  date: 'Date (YYYY-MM-DD)',
+  'date-time': 'Date and time (ISO 8601)',
+  time: 'Time',
+  duration: 'Duration (ISO 8601)',
+  email: 'Email address',
+  uri: 'URL',
+  uuid: 'UUID',
+  hostname: 'Hostname',
+  ipv4: 'IPv4 address',
+  ipv6: 'IPv6 address',
+}
+
+/** A format's label; one this client does not know reads as its id. */
+export function stringFormatLabel(format: string): string {
+  return Object.hasOwn(STRING_FORMAT_LABELS, format) ? STRING_FORMAT_LABELS[format as StringFormat] : format
+}
+
 const DATE_FORMATS: Partial<Record<VariableType, string>> = { date: 'date', datetime: 'date-time' }
 
 /** The smallest fragment that says exactly what `variableType` says. */

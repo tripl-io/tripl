@@ -1,7 +1,8 @@
 import { useRef } from 'react'
 import { Link } from 'react-router-dom'
 import { settingsPath } from '@/lib/activeOrg'
-import { LogOut, Palette, Settings, UserCircle } from 'lucide-react'
+import { DOCS_SITE_URL } from '@/lib/docsSite'
+import { BookOpen, ExternalLink, LogOut, Palette, Settings, UserCircle } from 'lucide-react'
 import {
   DropdownMenuContent,
   DropdownMenuItem,
@@ -11,7 +12,10 @@ import {
 
 /**
  * The account menu, shared by the expanded footer and the collapsed rail:
- * Profile, Workspace settings, Appearance, then Sign out behind a separator.
+ * Profile, Settings, Documentation, Appearance, then Sign out behind a
+ * separator. "Settings", not "Workspace settings": the settings rail has no
+ * Workspace group (it reads Project, Organization, Account), and the sidebar's
+ * own link to the same page says Settings.
  */
 export function AccountMenuContent({
   side,
@@ -54,8 +58,21 @@ export function AccountMenuContent({
       <DropdownMenuItem asChild>
         <Link to={settingsPath('/settings')} className="flex items-center gap-2 text-body-sm no-underline">
           <Settings className="size-4" aria-hidden="true" />
-          Workspace settings
+          Settings
         </Link>
+      </DropdownMenuItem>
+      <DropdownMenuItem asChild>
+        <a
+          href={DOCS_SITE_URL}
+          target="_blank"
+          rel="noreferrer"
+          aria-label="Documentation (opens in a new tab)"
+          className="flex items-center gap-2 text-body-sm no-underline"
+        >
+          <BookOpen className="size-4" aria-hidden="true" />
+          <span className="flex-1">Documentation</span>
+          <ExternalLink className="size-3.5 text-fg-subtle" aria-hidden="true" />
+        </a>
       </DropdownMenuItem>
       <DropdownMenuItem
         onSelect={() => {

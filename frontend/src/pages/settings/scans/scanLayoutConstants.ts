@@ -47,24 +47,3 @@ export const SCAN_STATUS_LABEL: Record<ScanStatus, string> = {
   // still in flight, not a run state the backend can report.
   unknown: 'Loading…',
 }
-
-const COUNT_UNITS = [
-  { divisor: 1e3, suffix: 'K', digits: 1 },
-  { divisor: 1e6, suffix: 'M', digits: 2 },
-  { divisor: 1e9, suffix: 'B', digits: 2 },
-] as const
-
-// Format a row/count number compactly (e.g. 1.8M) to mirror the mockup's fmtS.
-// The unit is chosen AFTER rounding: 999,950 rounds to 1000.0 thousands, which
-// used to print as "1000K" instead of moving up to "1M".
-export function formatCount(value: number | null | undefined): string {
-  if (value == null) return '—'
-  if (value < 1e3) return String(value)
-  for (const [index, { divisor, suffix, digits }] of COUNT_UNITS.entries()) {
-    const isLast = index === COUNT_UNITS.length - 1
-    const rounded = (value / divisor).toFixed(digits)
-    if (!isLast && Number(rounded) >= 1000) continue
-    return `${rounded.replace(/\.?0+$/, '')}${suffix}`
-  }
-  return String(value)
-}

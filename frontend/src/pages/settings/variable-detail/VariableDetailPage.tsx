@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState, type ReactNode } from 'react'
-import { Link, useNavigate, useSearchParams } from 'react-router-dom'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
-import { ArrowLeft, ShieldCheck } from 'lucide-react'
+import { ShieldCheck } from 'lucide-react'
 import { propertyEntriesApi } from '@/api/propertyEntries'
 import { variableOverridesApi } from '@/api/variableOverrides'
 import { variablesApi } from '@/api/variables'
@@ -9,7 +9,7 @@ import { EmptyState } from '@/components/empty-state'
 import { ErrorState } from '@/components/error-state'
 import { Chip } from '@/components/primitives/chip'
 import { PageContainer } from '@/components/primitives/page-container'
-import { PageHeader } from '@/components/primitives/page-header'
+import { PageBackLink, PageHeader } from '@/components/primitives/page-header'
 import { Panel } from '@/components/settings/kit'
 import { ImpactNotice } from '@/components/dependencies/ImpactNotice'
 import { UsedBySection } from '@/components/dependencies/UsedBySection'
@@ -26,7 +26,6 @@ import { propertyEventsKey, variableOverridesKey, variablesKey } from '@/lib/que
 import { getErrorMessage } from '@/lib/utils'
 import type { Variable } from '@/types'
 import { bindingExample } from '../bindingExample'
-import { TYPE_LABELS } from '../variablesShared'
 import { useVariableDefinitionDraft } from './useVariableDefinitionDraft'
 import { VariableDefinitionFields } from './VariableDefinitionFields'
 import { VariableDriftSection } from './VariableDriftSection'
@@ -102,15 +101,7 @@ export function VariableDetailPage({ slug, variableId }: { slug: string; variabl
     if (redirectTo) navigate(redirectTo, { replace: true })
   }, [navigate, redirectTo])
 
-  const back = (
-    <Link
-      to={variableListPath(slug, variable?.id)}
-      className="inline-flex items-center gap-1 text-caption text-fg-muted transition-colors hover:text-fg"
-    >
-      <ArrowLeft className="size-3" aria-hidden="true" />
-      Properties
-    </Link>
-  )
+  const back = <PageBackLink label="Properties" to={variableListPath(slug, variable?.id)} />
 
   if (isError && data === undefined) {
     return (
@@ -219,7 +210,9 @@ function VariableDetailBody({
         title={<span className="mono">{`\${${variable.name}}`}</span>}
         titleAddon={
           <>
-            <Chip variant="outline" size="xs">{TYPE_LABELS[variable.variable_type]}</Chip>
+            {/* The schema's own spelling, lowercase mono, as the Properties
+                list shows it; the Type select below keeps the human label. */}
+            <Chip variant="outline" size="xs" className="font-mono">{variable.variable_type}</Chip>
             {variable.excluded_from_scans ? (
               <Chip tone="neutral" size="xs" title="Scans skip this property.">Excluded from scans</Chip>
             ) : null}

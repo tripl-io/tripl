@@ -9,7 +9,9 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Textarea } from "@/components/ui/textarea"
 import { FORMAT_HELP, MESSAGE_FORMAT_OPTIONS, findTemplateVariableToken, unknownTemplateVariables } from "./constants"
-import { fieldErrorId, fieldErrorProps } from "./fieldErrors"
+import { invalidAria } from "@/components/forms/validation"
+import { fieldErrorId } from "@/lib/fieldErrors"
+import { pluralize } from '@/lib/plural'
 
 export function TemplateEditor({
   destinationType,
@@ -237,7 +239,7 @@ export function TemplateEditor({
             aria-autocomplete="list"
             aria-controls={listboxId}
             aria-activedescendant={listOpen ? optionId(highlighted) : undefined}
-            {...fieldErrorProps(textareaId, error)}
+            {...invalidAria(textareaId, error)}
             aria-describedby={describedBy}
             value={value}
             rows={8}
@@ -289,9 +291,9 @@ export function TemplateEditor({
         </div>
         {unknownVariables.length > 0 && (
           <p id={warningId} className="text-body-sm text-warning">
-            {unknownVariables.length === 1 ? 'Unknown variable' : 'Unknown variables'}{' '}
+            {pluralize(unknownVariables.length, 'Unknown variable', 'Unknown variables')}{' '}
             {unknownVariables.map(name => `\${${name}}`).join(', ')} — this template does not
-            offer {unknownVariables.length === 1 ? 'it' : 'them'}, so saving will be refused.
+            offer {pluralize(unknownVariables.length, 'it', 'them')}, so saving will be refused.
             Pick from Variables.
           </p>
         )}

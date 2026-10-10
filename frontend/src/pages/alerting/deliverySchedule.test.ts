@@ -141,6 +141,12 @@ describe('formatInProjectZone', () => {
     expect(formatInProjectZone(nineMoscow, 'UTC')).toContain('6:00')
   })
 
+  it('prints in the app locale, not the browser one', () => {
+    // A German browser used to read "06.09.2026, 09:00" in this tooltip beside
+    // English dates everywhere else.
+    expect(formatInProjectZone(nineMoscow, 'Europe/Moscow')).toMatch(/^Sep 6, 2026, 9:00\sAM \(Europe\/Moscow\)$/)
+  })
+
   it('degrades instead of blanking when the zone is unusable', () => {
     expect(formatInProjectZone(nineMoscow, 'Mars/Olympus_Mons')).toContain('local')
     expect(formatInProjectZone('not-a-date', 'UTC')).toBe('not-a-date')

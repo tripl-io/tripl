@@ -3,6 +3,7 @@ import { arrayMove } from '@dnd-kit/sortable'
 import type {
   EventMetricPoint,
   EventType,
+  EventWindowMetrics,
   MetaFieldDefinition,
   MonitoringSignal,
   Variable,
@@ -40,35 +41,8 @@ export function chunkEventIds(eventIds: string[]): string[][] {
   }
   return buckets
 }
-export const EMPTY_EVENT_WINDOW_METRICS: {
-  event_id: string
-  scan_config_id: string | null
-  interval: string
-  total_count: number
-  data: EventMetricPoint[]
-}[] = []
+export const EMPTY_EVENT_WINDOW_METRICS: EventWindowMetrics[] = []
 export const EMPTY_WINDOW_POINTS: EventMetricPoint[] = []
-
-const compactCountFormatter = new Intl.NumberFormat(APP_LOCALE, {
-  notation: 'compact',
-  compactDisplay: 'short',
-  maximumFractionDigits: 0,
-})
-
-/**
- * Compact volume label for the 48h column — "505K", "4M".
- *
- * Case is load-bearing here and must NOT be lowercased: the neighbouring
- * "Last seen" cell renders relative durations ("1m ago", "1h ago") in a
- * similarly sized tabular-figure cell, so a lowercase "1m" volume under a
- * header that reads only "48h" invited a six-order-of-magnitude misread.
- * Uppercase M also matches every other count formatter in the
- * app (lib/metricFormat.ts, components/ui/chart-format.ts), including the
- * chart directly above this table.
- */
-export function formatCompactCount(value: number): string {
-  return compactCountFormatter.format(value)
-}
 
 const HOUR_MS = 60 * 60 * 1000
 const DAY_MS = 24 * HOUR_MS
@@ -336,28 +310,21 @@ export { formatRelativeTime } from '@/lib/datetime'
 export function getSignalTone(signal: MonitoringSignal) {
   if (signal.state === 'latest_scan') {
     return {
-      compact: 'text-destructive',
-      regular: 'bg-destructive text-destructive-foreground',
       // Outline, not solid red: solid red means "this destroys something",
       // and "View signal" only navigates. The icon carries the danger tone.
       button: 'outline' as const,
       buttonClassName: '',
       iconClassName: 'text-danger',
-      title: 'Open latest scan anomaly',
     }
   }
 
-  // Soft fill rather than the solid amber this used to paint: the tone token
-  // is the AA-safe ink for its own fill in both themes, whereas a solid needs a
-  // foreground that flips with the theme. It also keeps the louder solid
-  // treatment above exclusive to the latest scan, which is the urgent one.
+  // Soft fill rather than a solid amber: the tone token is the AA-safe ink for
+  // its own fill in both themes, whereas a solid needs a foreground that flips
+  // with the theme.
   return {
-    compact: 'text-warning',
-    regular: 'bg-warning-soft text-warning ring-1 ring-warning/40',
     button: 'outline' as const,
     buttonClassName: 'border-warning/50 bg-warning-soft text-warning hover:bg-warning/20',
     iconClassName: '',
-    title: 'Open recent anomaly',
   }
 }
 
@@ -390,7 +357,7 @@ export function deriveRowSignalFromMetrics(
   points: EventMetricPoint[],
 ): MonitoringSignal | null {
   const anomalyPoints = points.filter(
-    point => point.is_anomaly && point.anomaly_direction !== null,
+    point => point.is_anomaly && point.anomaly_direction != null,
   )
   const latestAnomaly = anomalyPoints[anomalyPoints.length - 1]
   if (!latestAnomaly) return null
@@ -416,6 +383,11 @@ export function deriveRowSignalFromMetrics(
     detected_at: null,
     // A per-event row signal is standalone here, never an incident rollup child.
     incident_child: false,
+    // Read off the series, so nobody has triaged it and nothing explains it.
+    muted: false,
+    expected: false,
+    hidden: false,
+    attribution_status: 'not_computed',
   }
 }
 
@@ -423,10 +395,6 @@ export function deriveRowSignalFromMetrics(
 
 const TEMPLATE_TOKEN_SPLIT = /(\$\{[^}{]*\})/g
 const TEMPLATE_TOKEN_MATCH = /^\$\{[^}{]*\}$/
-
-// The name-segment split lives in lib/ now, so components/event-name.tsx no
-// longer imports this page module; re-exported for the page's callers.
-export { NAME_SEGMENT_SEPARATOR, splitEventName, type NameSegment } from '@/lib/eventNameSegments'
 
 export type ValuePart = { text: string; token: boolean; known?: boolean }
 
@@ -481,6 +449,20 @@ export function splitTemplateValue(value: string, variables?: Variable[]): Value
         ...(token && knownByToken ? { known: knownByToken.get(p) ?? false } : {}),
       }
     })
+}
+
+/**
+ * A known `${token}`'s hover text: the property it stands for and, when the
+ * property documents its values, which ones. In a column already named after
+ * the property, `${platform}` alone never said which platforms.
+ */
+export function templateTokenTitle(
+  token: string,
+  variable: Pick<Variable, 'allowed_values'> | null | undefined,
+): string {
+  const documented = variable?.allowed_values ?? []
+  const meaning = `Property ${token}: filled in from observed values`
+  return documented.length > 0 ? `${meaning}. Documented values: ${documented.join(', ')}` : meaning
 }
 
 /** Structural subset of Variable used by the ${} autocomplete surfaces. */

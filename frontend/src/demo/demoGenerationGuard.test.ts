@@ -60,18 +60,25 @@ describe('demoGenerationWarning', () => {
     expect(demoGenerationWarning(0)).toBeNull()
   })
 
-  it('asks before minting a second identical-looking workspace', () => {
+  it('asks before minting a second identical-looking demo project', () => {
     const warning = demoGenerationWarning(1)
 
-    expect(warning?.canProceed).toBe(true)
+    expect(warning?.title).toBe('Generate another demo project?')
+    expect(warning?.message).toContain('You already have 1 demo project.')
     expect(warning?.message).toMatch(/Resetting an existing demo/i)
   })
 
-  it('refuses once the per-creator cap is reached', () => {
-    const warning = demoGenerationWarning(MAX_DEMOS_PER_CREATOR)
+  it('counts the demos the user already has', () => {
+    expect(demoGenerationWarning(2)?.message).toContain('You already have 2 demo projects.')
+  })
 
-    expect(warning?.canProceed).toBe(false)
-    expect(warning?.title).toBe('Demo limit reached')
+  // The demo is a project. This sentence used "workspace" for the demo and for
+  // what holds the projects at once, and read as if a second one were made.
+  it('never calls the demo a workspace', () => {
+    const warning = demoGenerationWarning(1)
+
+    expect(`${warning?.title} ${warning?.message}`).not.toMatch(/workspace/i)
+    expect(warning?.message).toContain('counts towards the totals on All projects')
   })
 })
 

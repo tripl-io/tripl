@@ -3,12 +3,12 @@ import { Link } from "react-router-dom"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { ChevronDown, Loader2, RotateCcw, Sparkles } from "lucide-react"
 import { toast } from "sonner"
-import type { AlertDelivery, AlertDeliveryDetail, AlertDeliveryItem, AlertDestinationType } from "@/types"
+import type { AlertDelivery, AlertDeliveryDetail, AlertDeliveryItem } from "@/types"
 import { alertingApi } from "@/api/alerting"
 import { getScopeMonitoringPath } from "@/lib/monitoring"
 import { useCanWriteProject } from "@/lib/permissions"
 import { cn, getErrorMessage } from "@/lib/utils"
-import { formatDateTime } from "@/lib/datetime"
+import { formatDateTime, shortTimestampParts } from "@/lib/datetime"
 import { formatIncidentCount, scopeKindLabel } from "@/lib/alertStatus"
 import { SILENT_ERROR_META } from "@/lib/errorFeedback"
 import { countOf } from "@/lib/plural"
@@ -20,7 +20,7 @@ import { IconButton } from "@/components/ui/icon-button"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { invalidateAlertingConfig } from "./alertingCache"
 import { TICKET_CHANNELS } from "@/lib/alertChannels"
-import { ChannelGlyph, channelLabel as channelMetaLabel } from "./channelMeta"
+import { ChannelGlyph, channelLabel } from "./channelMeta"
 import { alertDeliveryKey } from "@/lib/queryKeys"
 import { watchRetriedDelivery, type RetryWatchOptions } from "./retryWatch"
 import {
@@ -75,15 +75,6 @@ export function DeliveryTable({ children }: { children: ReactNode }) {
       <TableBody className="max-md:block">{children}</TableBody>
     </Table>
   )
-}
-
-/**
- * A channel as a person names it — "Slack", not "SLACK". `demo_sink`
- * is the demo workspace's local recorder and has no entry in the catalogue of
- * channels a user can add, so it gets its own words.
- */
-function channelLabel(channel: string): string {
-  return channelMetaLabel(channel as AlertDestinationType)
 }
 
 /**
@@ -176,30 +167,6 @@ function expectedBasisNote(item: AlertDeliveryItem): string | null {
   const version = item.drift_field || 'the new release'
   const previous = item.sample_value || 'the previous release'
   return `Adoption-adjusted: ${previous}'s share of this scope at ${version}'s own volume, so the % is share-for-share, not a raw count drop.`
-}
-
-// The delivery time, split into the two lines a 96px column can hold.
-//
-// `formatDateTime` renders one string — "Aug 12, 2026, 2:02 PM" — and in the
-// nine-column table that wrapped over FOUR lines, inflating every row to ~100px
-// so only three and a half fitted on screen. Splitting the date
-// from the time makes the wrap deliberate and exactly two lines deep; the cell
-// keeps the full string on its `title`.
-//
-// The year is dropped for the CURRENT year only. A delivery log is read
-// newest-first and repeating "2026" 50 times is the noise that caused the
-// second wrap — but a row from last year must never read as one from this week.
-function compactDeliveryTime(value: string, now: Date = new Date()): { date: string; time: string } | null {
-  const at = new Date(value)
-  if (Number.isNaN(at.getTime())) return null
-  return {
-    date: at.toLocaleDateString(undefined, {
-      month: 'short',
-      day: 'numeric',
-      ...(at.getFullYear() === now.getFullYear() ? {} : { year: 'numeric' }),
-    }),
-    time: at.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' }),
-  }
 }
 
 /** One frozen anomaly out of `payload_snapshot.items`, as this row reads it. */
@@ -376,7 +343,11 @@ export function AlertDeliveryRow({
     ? { headline: anomalyLine(firstFired), rest: firedAnomalies.length - 1 }
     : null
   const firedTitle = firedAnomalies.map(anomalyLine).join('\n')
-  const compactTime = compactDeliveryTime(delivery.created_at)
+  // The delivery time as the two lines a 96px column can hold. One string —
+  // "Aug 12, 2026, 2:02 PM" — wrapped over FOUR lines in the nine-column
+  // table, inflating every row to ~100px; split, the wrap is deliberate and
+  // exactly two lines deep, and the cell keeps the full string on its `title`.
+  const compactTime = shortTimestampParts(delivery.created_at)
   const aiExplanation = snapshotText(detail?.payload_snapshot ?? null, 'ai_explanation')
   const renderedMessage = snapshotText(detail?.payload_snapshot ?? null, 'rendered_message')
   const payloadItems = Array.isArray(detail?.payload_snapshot?.items)
@@ -440,7 +411,7 @@ export function AlertDeliveryRow({
         <TableCell className="text-body-sm max-md:col-span-3 max-md:row-start-2">
           <div className="flex min-w-0 items-center gap-1.5" title={delivery.destination_name}>
             <ChannelGlyph
-              type={delivery.channel as AlertDestinationType}
+              type={delivery.channel}
               aria-hidden="true"
               className="size-3.5 shrink-0 text-fg-tertiary"
             />

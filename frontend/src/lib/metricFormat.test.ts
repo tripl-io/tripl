@@ -5,6 +5,7 @@ import {
   isIntervalFinerThan,
   isPercentUnit,
   metricAxisFormatter,
+  metricCadence,
 } from './metricFormat'
 
 describe('isPercentUnit', () => {
@@ -104,5 +105,22 @@ describe('interval helpers', () => {
     expect(isIntervalFinerThan('1d', '1w')).toBe(true)
     expect(isIntervalFinerThan('1w', '1d')).toBe(false)
     expect(isIntervalFinerThan('1h', '1h')).toBe(false)
+  })
+})
+
+describe('metricCadence', () => {
+  it('words a known interval for running text', () => {
+    // "collected hourly", never "collected every 1h" or "every hourly".
+    expect(metricCadence('1h')).toBe('hourly')
+    expect(metricCadence('15m')).toBe('every 15 min')
+  })
+
+  it('gives nothing for no interval or a token it does not know', () => {
+    expect(metricCadence(null)).toBeNull()
+    expect(metricCadence(undefined)).toBeNull()
+    expect(metricCadence('')).toBeNull()
+    expect(metricCadence('3h')).toBeNull()
+    // An inherited key is not an interval.
+    expect(metricCadence('toString')).toBeNull()
   })
 })

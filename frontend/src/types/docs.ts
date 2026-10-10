@@ -8,7 +8,6 @@
 
 /** Which root a note lives under: the project's own, or its organization's. */
 export type DocScope = 'project' | 'organization'
-export const DOC_SCOPES: readonly DocScope[] = ['project', 'organization']
 
 /** Who a note is written for. Missing frontmatter reads as `both`. */
 export type DocAudience = 'human' | 'agent' | 'both'
@@ -32,19 +31,6 @@ export type DocLinkKind =
   | 'scan'
   | 'data_source'
   | 'user'
-export const DOC_LINK_KINDS: readonly DocLinkKind[] = [
-  'event',
-  'event_type',
-  'field',
-  'doc',
-  'variable',
-  'metric',
-  'alert_rule',
-  'branch',
-  'scan',
-  'data_source',
-  'user',
-]
 /**
  * `unavailable`: a `[[doc:<id>]]` link to a note the reader may not see, or to
  * no note at all: the server answers both the same (no reason, title, path or
@@ -64,7 +50,6 @@ export type DocImportMode = 'merge' | 'mirror'
  * project or organization is ignored.
  */
 export type DocVisibility = 'private' | 'restricted' | 'level'
-export const DOC_VISIBILITIES: readonly DocVisibility[] = ['private', 'restricted', 'level']
 /** What the caller may do with a note, or what a share grants. */
 export type DocPermission = 'view' | 'edit'
 export type DocSharePrincipalType = 'user' | 'group'
@@ -103,14 +88,6 @@ export interface DocTreeResponse {
   limits: DocTreeLimits
   /** Optional: an older server leaves it out. */
   language_defaults?: DocLanguageDefaults
-}
-
-export interface DocLinkRef {
-  kind: DocLinkKind
-  target: string
-  qualifier: string | null
-  label: string | null
-  raw: string
 }
 
 export interface DocLinkResolution {
@@ -249,10 +226,6 @@ export interface DocTranslationRevisionSummary {
   source_revision: number
   author_name: string | null
   created_at: string
-}
-
-export interface DocTranslationRevisionDetail extends DocTranslationRevisionSummary {
-  content: string
 }
 
 export interface DocWriteRequest {

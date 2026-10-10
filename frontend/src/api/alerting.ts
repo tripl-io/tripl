@@ -1,7 +1,7 @@
 import { api } from './client'
+import type { components } from '../types/api.gen'
 import type {
   AlertDeliveryDetail,
-  AlertInboxAction,
   AlertInboxActionResponse,
   AlertInboxBulkAction,
   AlertInboxBulkActionResponse,
@@ -13,8 +13,8 @@ import type {
   AlertDestination,
   AlertDestinationDraftTestRequest,
   AlertDestinationTestResponse,
+  AlertDestinationType,
   AlertRule,
-  AlertRuleFilterPayload,
   AlertRuleSimulateResponse,
   MetricScopeType,
   MonitorDetail,
@@ -22,6 +22,8 @@ import type {
   NotifyOwnersResponse,
   SignalTriageScope,
 } from '../types'
+
+type Schemas = components['schemas']
 
 /**
  * The owners a manual "Notify owners" tried (F07, #260). Accepts the bare list
@@ -81,36 +83,19 @@ export const MAX_ALERT_RULE_NAME_LENGTH = 255
  * A rule PATCH body. Also what a replay of unsaved edits sends: the simulate
  * route lays it over the saved rule without writing it.
  */
-export interface AlertRuleUpdatePayload {
-  name?: string
-  enabled?: boolean
-  scan_config_id?: string | null
-  include_project_total?: boolean
-  include_event_types?: boolean
-  include_events?: boolean
-  include_schema_drifts?: boolean
-  include_distribution_drifts?: boolean
-  include_release_regressions?: boolean
-  include_variable_value_drifts?: boolean
-  // Accepted by the API and carried on AlertRule, but was missing from both
-  // payloads — a form could show the metric toggle and never save it.
-  include_metrics?: boolean
-  include_source_freshness?: boolean
-  include_lifecycle?: boolean
-  include_property_drifts?: boolean
-  notify_on_spike?: boolean
-  notify_on_drop?: boolean
-  ai_explanation_enabled?: boolean
-  // Also email the owners of each affected event type / metric (F07, #260).
-  notify_owners?: boolean
-  min_percent_delta?: number
-  min_absolute_delta?: number
-  min_expected_count?: number
-  cooldown_minutes?: number
-  message_template?: string | null
-  items_template?: string | null
-  message_format?: 'plain' | 'slack_mrkdwn' | 'telegram_html' | 'telegram_markdownv2'
-  filters?: AlertRuleFilterPayload[]
+export type AlertRuleUpdatePayload = Schemas['AlertRuleUpdate']
+
+/**
+ * A destination create body. The demo-only `demo_sink` is created by the
+ * seeder and never from the UI, so its type is not offered here.
+ */
+export type AlertDestinationCreatePayload = Omit<Schemas['AlertDestinationCreate'], 'type'> & {
+  type: Exclude<AlertDestinationType, 'demo_sink'>
+}
+
+/** An inbox action that may be applied to several incidents at once. */
+export type AlertInboxBulkActionPayload = Omit<Schemas['AlertInboxBulkActionRequest'], 'action'> & {
+  action: AlertInboxBulkAction
 }
 
 export const alertingApi = {
@@ -120,71 +105,11 @@ export const alertingApi = {
   getMonitorsSummary: (slug: string) =>
     api.get<MonitorsSummaryResponse>(`/projects/${slug}/monitors-summary`),
 
-  createDestination: (
-    slug: string,
-    data: {
-      type: 'slack' | 'telegram' | 'webhook' | 'email' | 'jira' | 'linear' | 'pagerduty' | 'teams'
-      name: string
-      enabled?: boolean
-      webhook_url?: string | null
-      bot_token?: string | null
-      chat_id?: string | null
-      target_url?: string | null
-      webhook_header_name?: string | null
-      webhook_header_value?: string | null
-      email_recipients?: string | null
-      email_from_address?: string | null
-      email_subject_template?: string | null
-      jira_base_url?: string | null
-      jira_auth_email?: string | null
-      jira_api_token?: string | null
-      jira_project_key?: string | null
-      jira_issue_type?: string | null
-      linear_api_key?: string | null
-      linear_team_id?: string | null
-      linear_state_id?: string | null
-      linear_label_ids?: string | null
-      pagerduty_routing_key?: string | null
-      pagerduty_severity?: string | null
-      teams_webhook_url?: string | null
-      // null means immediate — send after every collection. Otherwise a
-      // 5-field cron expression read in the project's timezone.
-      delivery_schedule_cron?: string | null
-    },
-  ) => api.post<AlertDestination>(`/projects/${slug}/alert-destinations`, data),
+  createDestination: (slug: string, data: AlertDestinationCreatePayload) =>
+    api.post<AlertDestination>(`/projects/${slug}/alert-destinations`, data),
 
-  updateDestination: (
-    slug: string,
-    destinationId: string,
-    data: {
-      name?: string
-      enabled?: boolean
-      webhook_url?: string | null
-      bot_token?: string | null
-      chat_id?: string | null
-      target_url?: string | null
-      webhook_header_name?: string | null
-      webhook_header_value?: string | null
-      email_recipients?: string | null
-      email_from_address?: string | null
-      email_subject_template?: string | null
-      jira_base_url?: string | null
-      jira_auth_email?: string | null
-      jira_api_token?: string | null
-      jira_project_key?: string | null
-      jira_issue_type?: string | null
-      linear_api_key?: string | null
-      linear_team_id?: string | null
-      linear_state_id?: string | null
-      linear_label_ids?: string | null
-      pagerduty_routing_key?: string | null
-      pagerduty_severity?: string | null
-      teams_webhook_url?: string | null
-      // null means immediate — send after every collection. Otherwise a
-      // 5-field cron expression read in the project's timezone.
-      delivery_schedule_cron?: string | null
-    },
-  ) => api.patch<AlertDestination>(`/projects/${slug}/alert-destinations/${destinationId}`, data),
+  updateDestination: (slug: string, destinationId: string, data: Schemas['AlertDestinationUpdate']) =>
+    api.patch<AlertDestination>(`/projects/${slug}/alert-destinations/${destinationId}`, data),
 
   deleteDestination: (slug: string, destinationId: string) =>
     api.del(`/projects/${slug}/alert-destinations/${destinationId}`),
@@ -208,40 +133,8 @@ export const alertingApi = {
   testDestinationDraft: (slug: string, body: AlertDestinationDraftTestRequest) =>
     api.post<AlertDestinationTestResponse>(`/projects/${slug}/alert-destinations/test`, body),
 
-  createRule: (
-    slug: string,
-    destinationId: string,
-    data: {
-      name: string
-      enabled?: boolean
-      scan_config_id?: string | null
-      include_project_total?: boolean
-      include_event_types?: boolean
-      include_events?: boolean
-      include_schema_drifts?: boolean
-      include_distribution_drifts?: boolean
-      include_release_regressions?: boolean
-      include_variable_value_drifts?: boolean
-      // Accepted by the API and carried on AlertRule, but was missing from both
-      // payloads — a form could show the metric toggle and never save it.
-      include_metrics?: boolean
-      include_source_freshness?: boolean
-      include_lifecycle?: boolean
-      include_property_drifts?: boolean
-      notify_on_spike?: boolean
-      notify_on_drop?: boolean
-      ai_explanation_enabled?: boolean
-      notify_owners?: boolean
-      min_percent_delta?: number
-      min_absolute_delta?: number
-      min_expected_count?: number
-      cooldown_minutes?: number
-      message_template?: string | null
-      items_template?: string | null
-      message_format?: 'plain' | 'slack_mrkdwn' | 'telegram_html' | 'telegram_markdownv2'
-      filters?: AlertRuleFilterPayload[]
-    },
-  ) => api.post<AlertRule>(`/projects/${slug}/alert-destinations/${destinationId}/rules`, data),
+  createRule: (slug: string, destinationId: string, data: Schemas['AlertRuleCreate']) =>
+    api.post<AlertRule>(`/projects/${slug}/alert-destinations/${destinationId}/rules`, data),
 
   updateRule: (
     slug: string,
@@ -427,11 +320,7 @@ export const alertingApi = {
   applyInboxAction: (
     slug: string,
     correlationGroupId: string,
-    data: {
-      action: AlertInboxAction
-      note?: string | null
-      muted_until?: string | null
-    },
+    data: Schemas['AlertInboxActionRequest'],
   ) =>
     api.post<AlertInboxActionResponse>(
       `/projects/${slug}/alert-inbox/${correlationGroupId}/actions`,
@@ -460,20 +349,7 @@ export const alertingApi = {
    * than omitting the key. Every other action nulls the column
    * server-side regardless of what is sent.
    */
-  applyInboxBulkAction: (
-    slug: string,
-    data: {
-      // First, matching the `<entity>_ids`-first convention of every other bulk
-      // body in the repo — and matching the server schema field order, so the
-      // two read side by side. Capped at {@link MAX_BULK_INBOX_ACTION_GROUPS} by
-      // the server (the only bulk id list in the repo that is capped); a longer
-      // list is a 422, not a slow request.
-      correlation_group_ids: string[]
-      action: AlertInboxBulkAction
-      note?: string | null
-      muted_until?: string | null
-    },
-  ) =>
+  applyInboxBulkAction: (slug: string, data: AlertInboxBulkActionPayload) =>
     api.post<AlertInboxBulkActionResponse>(
       `/projects/${slug}/alert-inbox/bulk-actions`,
       data,

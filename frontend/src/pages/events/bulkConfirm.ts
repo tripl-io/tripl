@@ -7,6 +7,23 @@
  * archive, which takes events out of the active plan.
  */
 
+import { formatNumber } from '@/lib/format'
+import { countOf } from '@/lib/plural'
+
+/**
+ * "Delete 3 selected events?", and when part of the selection is off screen,
+ * how much of it the reader can see. `action` is the question's opening verb
+ * phrase ("Delete", "Set status to Live for"). Bulk delete and the bulk
+ * changes ask through this one sentence, so a single event never reads
+ * "1 selected events".
+ */
+export function selectionQuestion(action: string, selectedCount: number, selectedVisibleCount: number): string {
+  const question = `${action} ${countOf(selectedCount, 'selected event', 'selected events')}?`
+  const offScreen = selectedCount - selectedVisibleCount
+  if (offScreen <= 0) return question
+  return `${question} Only ${formatNumber(selectedVisibleCount)} of them are on screen — ${formatNumber(offScreen)} are outside the current filter or page.`
+}
+
 /** A sweep this large is confirmed even when every row is on screen. */
 export const BULK_CONFIRM_THRESHOLD = 50
 
@@ -36,14 +53,9 @@ export function bulkUpdateConfirmation({
 }): BulkConfirmation | null {
   const offScreen = selectedCount - selectedVisibleCount
   if (offScreen <= 0 && selectedCount <= BULK_CONFIRM_THRESHOLD && !archives && !deprecates) return null
-  const noun = `${selectedCount.toLocaleString()} selected event${selectedCount === 1 ? '' : 's'}`
-  const message =
-    offScreen > 0
-      ? `${actionLabel} for ${noun}? Only ${selectedVisibleCount.toLocaleString()} of them are on screen — ${offScreen.toLocaleString()} are outside the current filter or page.`
-      : `${actionLabel} for ${noun}?`
   return {
     title: actionLabel,
-    message,
+    message: selectionQuestion(`${actionLabel} for`, selectedCount, selectedVisibleCount),
     confirmLabel: 'Apply',
     variant: archives ? 'danger' : 'primary',
   }

@@ -15,15 +15,10 @@
 import { useState } from 'react'
 import type { EventFieldObservedValues, ObservedFieldValue } from '@/types'
 import { formatDate } from '@/lib/datetime'
+import { formatShare } from '@/lib/format'
 
 /** Values shown before "+N more". */
 const COLLAPSED_COUNT = 3
-
-function formatShare(share: number | null): string | null {
-  if (share === null) return null
-  if (share > 0 && share < 0.005) return '<1%'
-  return `${Math.round(share * 100)}%`
-}
 
 /** A NULL column reaches the tally as `''`; it is a real share of the rows,
  *  so it is listed, under a name that can be seen. */
@@ -33,7 +28,7 @@ function ValueText({ value }: { value: string }) {
 }
 
 function ValueItem({ item, stored }: { item: ObservedFieldValue; stored: boolean }) {
-  const share = formatShare(item.share)
+  const share = item.share === null ? null : formatShare(item.share)
   return (
     <span>
       <ValueText value={item.value} />
@@ -89,7 +84,7 @@ export function FieldObservedValues({
           <span key={item.value}>
             {i > 0 && ' · '}
             <ValueText value={item.value} />
-            {formatShare(item.share) && ` ${formatShare(item.share)}`}
+            {item.share !== null && ` ${formatShare(item.share)}`}
           </span>
         ))}
         {observed.distinct_count > COLLAPSED_COUNT

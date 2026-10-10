@@ -25,11 +25,17 @@ vi.mock('@/api/scans', () => ({
 vi.mock('@/api/sourceFreshness', () => ({
   sourceFreshnessApi: { list: vi.fn() },
 }))
+// The project's sources decide the monitoring-off state's way forward: with
+// one, "Go to Scans"; with none, connecting one (AnomaliesPage.empty.test.tsx).
+vi.mock('@/api/dataSources', () => ({
+  dataSourcesApi: { list: vi.fn() },
+}))
 
 import { eventMetricsApi } from '@/api/eventMetrics'
 import { eventsApi } from '@/api/events'
 import { scansApi } from '@/api/scans'
 import { sourceFreshnessApi } from '@/api/sourceFreshness'
+import { dataSourcesApi } from '@/api/dataSources'
 
 /**
  * Matches a row's scope label by its full text. The "Spike on" / "Drop on"
@@ -65,6 +71,10 @@ function makeSignal(overrides: Partial<MonitoringSignal>): MonitoringSignal {
     // name the scope (deleted entity), never "still loading".
     scope_name: null,
     incident_child: false,
+    muted: false,
+    expected: false,
+    hidden: false,
+    attribution_status: 'not_computed',
     unit: null,
     detected_at: null,
     ...overrides,
@@ -136,6 +146,10 @@ beforeEach(() => {
   vi.mocked(eventMetricsApi.getSignalSeries).mockResolvedValue([])
   vi.mocked(sourceFreshnessApi.list).mockReset()
   vi.mocked(sourceFreshnessApi.list).mockResolvedValue([])
+  vi.mocked(dataSourcesApi.list).mockReset()
+  vi.mocked(dataSourcesApi.list).mockResolvedValue([
+    { id: 'source-1', name: 'Warehouse', project_id: null },
+  ] as unknown as Awaited<ReturnType<typeof dataSourcesApi.list>>)
 })
 
 afterEach(() => {
@@ -789,7 +803,7 @@ describe('AnomaliesPage — scan facet', () => {
     // ...and the page says why it is empty rather than filling itself with the
     // other scan's rows.
     expect(
-      screen.getByText('No open anomalies from Snowplow Events (iOS)'),
+      screen.getByText('No open signals from Snowplow Events (iOS)'),
     ).toBeInTheDocument()
     expect(screen.queryByText(rowLabel('Spike on Event · Legacy tap'))).not.toBeInTheDocument()
 
@@ -959,14 +973,19 @@ describe('AnomaliesPage — page states', () => {
 
     expect(await screen.findByRole('heading', { name: 'Monitoring isn’t running yet' }))
       .toBeInTheDocument()
-    expect(screen.getByRole('link', { name: 'Run a scan' })).toHaveAttribute('href', '/p/demo/scans')
-    expect(screen.getAllByRole('link', { name: /Detection settings/ }).length).toBeGreaterThan(0)
+    // "Go to Scans": the button opens the page a scan is run from, and
+    // "Run a scan" promised a run it could not start.
+    expect(await screen.findByRole('link', { name: 'Go to Scans' })).toHaveAttribute('href', '/p/demo/scans')
+    expect(screen.queryByRole('link', { name: 'Run a scan' })).not.toBeInTheDocument()
+    // Once, in the header: with nothing collected there is nothing to tune, so
+    // the empty state does not offer it a second time.
+    expect(screen.getAllByRole('link', { name: /Detection settings/ })).toHaveLength(1)
     expect(screen.queryByText('No anomalies right now')).not.toBeInTheDocument()
     // Three zeros say nothing about a project that is not monitored.
     expect(screen.queryByText('Open signals')).not.toBeInTheDocument()
   })
 
-  it('keeps the all-clear, in neutral, for a project whose scans do collect volume', async () => {
+  it('keeps the all-clear, with no zeros above it, for a project whose scans do collect volume', async () => {
     vi.mocked(eventMetricsApi.getActiveSignals).mockResolvedValue([])
     vi.mocked(scansApi.list).mockResolvedValue(
       [{ id: 'scan-1', name: 'Live', interval: '1h' }] as unknown as ScanConfig[],
@@ -976,9 +995,8 @@ describe('AnomaliesPage — page states', () => {
 
     expect(await screen.findByText('No anomalies right now')).toBeInTheDocument()
     expect(screen.queryByText('Monitoring isn’t running yet')).not.toBeInTheDocument()
-    // A green 0 read as praise: zero is neutral.
-    const open = screen.getByText('Open signals').closest('dl') as HTMLElement
-    expect(within(open).getByText('0')).not.toHaveAttribute('data-tone')
+    // Three zeros, dimmed, over the all-clear said nothing it does not say.
+    expect(screen.queryByText('Open signals')).not.toBeInTheDocument()
   })
 
   it('points at Alerting as the place where triage happens', async () => {

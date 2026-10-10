@@ -1,10 +1,11 @@
 import { useMemo, useState, type ReactNode } from 'react'
 import { Link, useParams } from 'react-router-dom'
-import { useInfiniteQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { Copy } from 'lucide-react'
+import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { ArrowRight, Copy, ExternalLink } from 'lucide-react'
 import { toast } from 'sonner'
 import { duplicatesApi } from '@/api/duplicates'
 import { eventsApi } from '@/api/events'
+import { projectsApi } from '@/api/projects'
 import { ConfirmImpactMessage } from '@/components/dependencies/ImpactNotice'
 import { duplicateEventPath, formatDuplicateScore } from '@/components/duplicates/duplicateHints'
 import { EmptyState } from '@/components/empty-state'
@@ -18,14 +19,18 @@ import { ReadOnlyNotice, SectionSkeleton } from '@/components/states'
 import { Button } from '@/components/ui/button'
 import { useActiveBranchId } from '@/hooks/useBranch'
 import { useConfirm } from '@/hooks/useConfirm'
+import { DOCS_SITE_URL } from '@/lib/docsSite'
 import { eventNameLabel } from '@/lib/eventName'
 import { EVENT_STATUS_LABELS, EVENT_STATUS_TONE } from '@/lib/eventStatus'
 import { SILENT_ERROR_META } from '@/lib/errorFeedback'
 import { useCanWriteProject } from '@/lib/permissions'
-import { branchEventsKey, duplicateClustersKey, projectEventKey } from '@/lib/queryKeys'
+import { branchEventsKey, duplicateClustersKey, projectEventKey, projectKey } from '@/lib/queryKeys'
 import type { DuplicateCluster, DuplicateClusterEvent } from '@/types'
 import { clusterKey, proposedKeeper, uniqueClusters, volumeLabel } from './duplicates/duplicateClusters'
 import { currentOrgSlug, projectPath } from '@/lib/navigation'
+
+/** How the view finds and groups duplicates, for a reader looking at none. */
+const DUPLICATES_DOCS_URL = `${DOCS_SITE_URL}/use/duplicates-and-naming#the-duplicates-view`
 
 /**
  * Likely duplicates already in the catalog (F12, #265): events that look
@@ -47,6 +52,12 @@ export default function DuplicatesPage() {
   // proposal. Keyed by cluster so a refetch that reorders keeps the choice.
   const [keepers, setKeepers] = useState<Record<string, string>>({})
 
+  // The plan's size, so an empty project is not told its check came back clean.
+  const projectQuery = useQuery({
+    queryKey: projectKey(slug),
+    queryFn: () => projectsApi.get(slug!),
+    enabled: !!slug,
+  })
   const clustersQuery = useInfiniteQuery({
     queryKey: duplicateClustersKey(slug, branchId),
     queryFn: ({ pageParam, signal }) => duplicatesApi.clusters(slug!, pageParam, branchId, signal),
@@ -135,7 +146,10 @@ export default function DuplicatesPage() {
   }
 
   let body: ReactNode
-  if (clustersQuery.isPending) {
+  // An empty answer waits for the plan's size too, so an empty plan never
+  // flashes the all-clear first.
+  const awaitingPlanSize = !clustersQuery.isError && clusters.length === 0 && projectQuery.isPending
+  if (clustersQuery.isPending || awaitingPlanSize) {
     body = <SectionSkeleton variant="rows" rows={4} label="Looking for likely duplicates…" />
   } else if (clustersQuery.isError) {
     body = (
@@ -145,12 +159,45 @@ export default function DuplicatesPage() {
         onRetry={() => void clustersQuery.refetch()}
       />
     )
+  } else if (clusters.length === 0 && projectQuery.data?.summary.event_count === 0) {
+    // "No likely duplicates" read as a check that passed, on a plan with
+    // nothing in it to compare.
+    body = (
+      <EmptyState
+        icon={Copy}
+        title="No events to compare yet"
+        description="Duplicates are looked for among Live, Implemented and Ready for dev events of the same event type. Add events to your plan, and any that look alike show up here."
+        action={
+          slug ? (
+            <Button asChild size="sm">
+              <Link to={projectPath(currentOrgSlug(), slug, '/events')} className="no-underline">
+                Go to Events
+                <ArrowRight aria-hidden="true" />
+              </Link>
+            </Button>
+          ) : undefined
+        }
+      />
+    )
   } else if (clusters.length === 0) {
+    // The status names as the Events list prints them: "ready" was the
+    // internal ready_for_dev.
     body = (
       <EmptyState
         icon={Copy}
         title="No likely duplicates"
-        description="No two live, implemented or ready events look alike enough to be the same event."
+        description="No two Live, Implemented or Ready for dev events of the same event type look alike enough to be the same event."
+        action={
+          <a
+            href={DUPLICATES_DOCS_URL}
+            target="_blank"
+            rel="noreferrer"
+            className="inline-flex items-center gap-1 text-body-sm text-accent"
+          >
+            How duplicates are found
+            <ExternalLink aria-hidden="true" className="size-3.5" />
+          </a>
+        }
       />
     )
   } else {
@@ -204,8 +251,10 @@ export default function DuplicatesPage() {
         description="Events that look like the same thing under different names. Keep one, and retire the others with it as their successor."
         actions={
           slug ? (
+            // The sibling Govern view, drawn as Coverage draws its link there.
             <Button asChild variant="outline" size="sm">
               <Link to={projectPath(currentOrgSlug(), slug, '/reconciliation')} className="no-underline">
+                <ArrowRight aria-hidden="true" />
                 Reconciliation
               </Link>
             </Button>

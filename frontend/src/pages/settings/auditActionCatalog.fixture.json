@@ -1,0 +1,324 @@
+{
+  "project": [
+    {
+      "label": "Events",
+      "actions": [
+        "event.create",
+        "event.bulk_create",
+        "event.update",
+        "event.bulk_update",
+        "event.delete",
+        "event.bulk_delete",
+        "event.duplicate_dismiss",
+        "event_comment.create",
+        "event_comment.delete",
+        "event_comment.action",
+        "event_photo.upload",
+        "event_photo.figma_attach",
+        "event_photo.reorder",
+        "event_photo.delete",
+        "event_photo.comment_create",
+        "event_photo.comment_delete"
+      ]
+    },
+    {
+      "label": "Schema",
+      "actions": [
+        "event_type.create",
+        "event_type.update",
+        "event_type.delete",
+        "event_type.add_owner",
+        "event_type.remove_owner",
+        "field.create",
+        "field.update",
+        "field.delete",
+        "meta_field.create",
+        "meta_field.update",
+        "meta_field.delete",
+        "relation.create",
+        "relation.update",
+        "relation.delete",
+        "schema_drift.accept",
+        "schema_drift.snooze",
+        "schema_drift.false_positive",
+        "schema_drift.reopen"
+      ]
+    },
+    {
+      "label": "Properties",
+      "actions": [
+        "variable.create",
+        "variable.update",
+        "variable.delete",
+        "variable.bulk_update",
+        "variable.bulk_delete",
+        "variable.values_clear",
+        "variable.override_set",
+        "variable.override_delete",
+        "variable.override_bulk_set",
+        "variable.override_bulk_delete",
+        "variable.drift_action",
+        "variable.property_drift_action"
+      ]
+    },
+    {
+      "label": "Versioning",
+      "actions": [
+        "plan_revision.create",
+        "plan_branch.create",
+        "plan_branch.delete",
+        "plan_branch.submit",
+        "plan_branch.request_changes",
+        "plan_branch.approve",
+        "plan_branch.reopen",
+        "plan_branch.close",
+        "plan_branch.merge",
+        "plan_branch.revert",
+        "plan_branch.update_from_main",
+        "plan_branch.transfer_out",
+        "plan_branch.transfer_in",
+        "plan_branch.add_reviewer",
+        "plan_branch.remove_reviewer",
+        "plan_branch.comment_create",
+        "plan_branch.comment_delete",
+        "plan_branch.resolution_save",
+        "plan_branch.resolution_batch_save",
+        "plan_branch.resolution_delete",
+        "plan_branch_settings.update"
+      ]
+    },
+    {
+      "label": "Scans & reconciliation",
+      "actions": [
+        "scan_config.create",
+        "scan_config.update",
+        "scan_config.delete",
+        "scan_config.run",
+        "scan_config.metrics_replay",
+        "scan_config.event_groups.apply",
+        "scan_job.cancel",
+        "shadow_event.dismiss"
+      ]
+    },
+    {
+      "label": "Metrics & fact tables",
+      "actions": [
+        "metric_definition.create",
+        "metric_definition.update",
+        "metric_definition.bulk_update",
+        "metric_definition.delete",
+        "metric_definition.collect",
+        "fact_table.create",
+        "fact_table.update",
+        "fact_table.delete",
+        "fact_table.preview",
+        "metric.preview",
+        "metric.fact_preview",
+        "metric.series_preview"
+      ]
+    },
+    {
+      "label": "Alerting",
+      "actions": [
+        "alert_destination.create",
+        "alert_destination.update",
+        "alert_destination.delete",
+        "alert_destination.test",
+        "alert_rule.create",
+        "alert_rule.update",
+        "alert_rule.delete",
+        "alert_rule.mute",
+        "alert_rule.unmute",
+        "alert_delivery.retry",
+        "alert_inbox.acknowledge",
+        "alert_inbox.resolve",
+        "alert_inbox.mute",
+        "alert_inbox.reopen",
+        "alert_inbox.false_positive",
+        "alert_inbox.note",
+        "alert_inbox.notify_owners",
+        "anomaly_scope_override.delete",
+        "anomaly_settings.update"
+      ]
+    },
+    {
+      "label": "Signals",
+      "actions": [
+        "signal.acknowledge",
+        "signal.unacknowledge",
+        "signal.mute",
+        "signal.unmute",
+        "signal.mark_expected",
+        "signal.unmark_expected",
+        "signal.verdict",
+        "signal.clear_verdict",
+        "signal.notify_owners"
+      ]
+    },
+    {
+      "label": "Docs",
+      "actions": [
+        "doc.create",
+        "doc.update",
+        "doc.move",
+        "doc.delete",
+        "doc.folder_delete",
+        "doc.restore",
+        "doc.import",
+        "doc.share_update",
+        "doc.break_glass_read",
+        "doc.translate",
+        "doc.translation_edit",
+        "doc.translation_restore",
+        "doc.translation_delete"
+      ]
+    },
+    {
+      "label": "Project",
+      "actions": [
+        "project.create",
+        "project.update",
+        "project.reset",
+        "project.member_add",
+        "project.member_update",
+        "project.member_remove",
+        "project_tracker_config.update",
+        "project.reset_anomalies",
+        "project.reset_drifts",
+        "project.retire_unused_variables",
+        "project.docs_languages",
+        "chart_annotation.create",
+        "chart_annotation.delete",
+        "planned_event.create",
+        "planned_event.update",
+        "planned_event.delete",
+        "api_key.create"
+      ]
+    }
+  ],
+  "workspace": [
+    {
+      "label": "Workspace",
+      "actions": [
+        "data_source.create",
+        "data_source.update",
+        "data_source.delete",
+        "user.invite",
+        "user.invite_revoke",
+        "user.invite_accept",
+        "user.role_update",
+        "user.password_reset_link",
+        "api_key.revoke",
+        "settings.update",
+        "settings.ai_update",
+        "project.delete"
+      ]
+    },
+    {
+      "label": "Organization",
+      "actions": [
+        "org.create",
+        "org.update",
+        "org.rename",
+        "org.delete_request",
+        "org.delete_cancel",
+        "org.delete_complete",
+        "org.member_role_update",
+        "org.member_remove",
+        "org.transfer_ownership",
+        "org.group.create",
+        "org.group.update",
+        "org.group.delete",
+        "org.group.member_add",
+        "org.group.member_remove"
+      ]
+    },
+    {
+      "label": "Audit log",
+      "actions": [
+        "org.audit_export",
+        "org.audit_webhook.create",
+        "org.audit_webhook.update",
+        "org.audit_webhook.delete",
+        "org.audit_webhook.rotate_secret",
+        "org.audit_webhook.test",
+        "org.audit_retention.update"
+      ]
+    },
+    {
+      "label": "Access control",
+      "actions": [
+        "org.project_role.create",
+        "org.project_role.update",
+        "org.project_role.delete",
+        "org.group_grant.create",
+        "org.group_grant.update",
+        "org.group_grant.delete",
+        "org.team_sync.update",
+        "org.team_sync.apply"
+      ]
+    },
+    {
+      "label": "Escalation",
+      "actions": [
+        "org.escalation_policy.create",
+        "org.escalation_policy.update",
+        "org.escalation_policy.delete",
+        "org.alert_route.create",
+        "org.alert_route.update",
+        "org.alert_route.delete"
+      ]
+    },
+    {
+      "label": "Plan governance",
+      "actions": [
+        "org.governance_policy.create",
+        "org.governance_policy.update",
+        "org.governance_policy.delete"
+      ]
+    },
+    {
+      "label": "Single sign-on",
+      "actions": [
+        "org.sso.update",
+        "org.sso.domain_add",
+        "org.sso.domain_verify",
+        "org.sso.domain_remove",
+        "user.sso_login",
+        "user.sso_provision",
+        "user.sso_link",
+        "user.google_sign_in",
+        "user.oidc_sign_in"
+      ]
+    },
+    {
+      "label": "Provisioning (SCIM)",
+      "actions": [
+        "org.scim.token_create",
+        "org.scim.token_revoke",
+        "org.scim.config_update",
+        "org.scim.user_provision",
+        "org.scim.user_link",
+        "org.scim.user_update",
+        "org.scim.user_deactivate",
+        "org.scim.user_reactivate",
+        "org.scim.group_create",
+        "org.scim.group_update",
+        "org.scim.group_delete"
+      ]
+    },
+    {
+      "label": "Platform",
+      "actions": [
+        "org.suspend",
+        "org.unsuspend",
+        "platform.step_in",
+        "platform.step_in_end",
+        "platform.admin_grant",
+        "platform.admin_revoke",
+        "platform.license_set",
+        "platform.license_clear"
+      ]
+    }
+  ]
+}

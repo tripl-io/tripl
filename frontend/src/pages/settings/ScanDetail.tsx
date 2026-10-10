@@ -52,6 +52,7 @@ import { SILENT_ERROR_META } from '@/lib/errorFeedback'
 import { useCanWriteProject, useIsOwner } from '@/lib/permissions'
 import { useConfirm } from '@/hooks/useConfirm'
 import { ScanErrorTechnicalDetails } from './scans/ScanErrorTechnicalDetails'
+import { formatNumber } from '@/lib/format'
 
 function chipList(values: string[]) {
   if (values.length === 0) return <NoneTag />
@@ -358,7 +359,10 @@ export function ScanDetail({
         <div title={jobRowsReadTitle(lastJob)}>
           <MiniStat label="Scanned · last run" value={isLoading ? <StatValueSkeleton /> : formatJobScanned(lastScanned)} />
         </div>
-        <MiniStat label="Events written" value={isLoading ? <StatValueSkeleton /> : lastEvents == null ? '—' : lastEvents.toLocaleString()} />
+        {/* `events_created`: events the scan added to the plan. "Events
+            written" read a 0 as "nothing happened" when every event was
+            simply already there. */}
+        <MiniStat label="New events" value={isLoading ? <StatValueSkeleton /> : lastEvents == null ? '—' : formatNumber(lastEvents)} />
         {/* "Metric points", not "Metric rows": these are time-series points on a
             metric, and "Metrics" is the name of a different surface (Observe ›
             Metrics, the user-defined catalog). The figure is the newest
@@ -371,7 +375,7 @@ export function ScanDetail({
               ? <StatValueSkeleton />
               : mode !== 'monitoring'
                 ? 'Not collected'
-                : lastMetricPoints == null ? '—' : lastMetricPoints.toLocaleString()
+                : lastMetricPoints == null ? '—' : formatNumber(lastMetricPoints)
           }
           delta={isLoading ? undefined : metricsDelta}
           tone={!isLoading && freshness.overdue ? 'warning' : 'neutral'}
@@ -497,17 +501,20 @@ export function ScanDetail({
           </p>
         </Panel>
         <Panel title="Metrics & drift">
-          <KV label="Breakdown columns" value={chipList(scanConfig.metric_breakdown_columns)} />
+          {/* The editor's own labels, which the read-only view uses too. Not
+              "Breakdown columns": a breakdown can be a JSON path. */}
+          <KV label="Metric breakdowns" value={chipList(scanConfig.metric_breakdown_columns)} />
           <KV
-            label="Values limit"
+            label="Value limit"
             // Unset keeps every value, and the form's placeholder calls that
-            // "Unlimited": one word on both screens, not a "default" that
-            // names no value (#247).
+            // "Unlimited": one word on every screen, not a "default" that
+            // names no value (#247). Mono is for a number only; the word is
+            // muted sans like every other empty value here.
             value={scanConfig.metric_breakdown_values_limit ?? <span className="text-fg-tertiary">Unlimited</span>}
-            mono
+            mono={scanConfig.metric_breakdown_values_limit != null}
           />
           <KV label="Distribution drift" value={chipList(scanConfig.distribution_drift_fields)} />
-          <KV label="JSON value paths" value={chipList(scanConfig.json_value_paths)} />
+          <KV label="JSON values kept" value={chipList(scanConfig.json_value_paths)} />
           <KV label="Cardinality threshold" value={scanConfig.cardinality_threshold} mono />
         </Panel>
       </div>
@@ -578,7 +585,7 @@ export function ScanDetail({
                 <TableHead className="px-4">Started</TableHead>
                 <TableHead className={`px-4 text-right ${LOW_VALUE_COLUMN}`}>Duration</TableHead>
                 <TableHead className="px-4 text-right">Scanned</TableHead>
-                <TableHead className={`px-4 text-right ${LOW_VALUE_COLUMN}`}>Events</TableHead>
+                <TableHead className={`px-4 text-right ${LOW_VALUE_COLUMN}`}>New events</TableHead>
                 <TableHead className="px-4">Status</TableHead>
                 <TableHead className="w-8"><span className="sr-only">Actions</span></TableHead>
               </TableRow>
@@ -706,7 +713,7 @@ function JobRow({
             {formatJobScanned(scanned)}
           </TableCell>
           <TableCell className={`tnum px-4 text-right text-caption ${LOW_VALUE_COLUMN} text-fg-secondary`}>
-            {events == null ? '—' : events.toLocaleString()}
+            {events == null ? '—' : formatNumber(events)}
           </TableCell>
           <TableCell className="px-4">
             <RunStatusPill status={runPillStatus(job.status)} title={failedMessage ?? undefined} />

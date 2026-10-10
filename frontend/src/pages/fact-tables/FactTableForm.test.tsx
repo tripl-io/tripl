@@ -690,19 +690,22 @@ describe('FactTableForm delete', () => {
     await waitFor(() => expect(onClose).toHaveBeenCalledTimes(1))
   })
 
-  it('shows which metrics still read the table when the server refuses', async () => {
+  it('shows which metrics still read the table in the dialog when the server refuses', async () => {
     vi.mocked(factTablesApi.remove).mockRejectedValue(
       new ApiError("Cannot delete this fact table. This fact table is read by 1 metric: 'revenue'.", 409),
     )
     const { onClose } = renderForm(SAVED_ORDERS)
 
     fireEvent.click(screen.getByRole('button', { name: 'Delete fact table' }))
-    fireEvent.click(
-      within(await screen.findByRole('alertdialog')).getByRole('button', { name: 'Delete fact table' }),
-    )
+    const dialog = await screen.findByRole('alertdialog')
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Delete fact table' }))
 
-    expect(await screen.findByText('Could not delete fact table')).toBeInTheDocument()
-    expect(screen.getByText(/read by 1 metric: 'revenue'/)).toBeInTheDocument()
+    // In the dialog, as the list row's delete reports it, and the dialog stays
+    // open for another go.
+    expect(
+      await within(dialog).findByText(/^Could not delete the fact table: .*read by 1 metric: 'revenue'/),
+    ).toBeInTheDocument()
+    expect(screen.queryByText('Could not delete fact table')).toBeNull()
     expect(onClose).not.toHaveBeenCalled()
   })
 

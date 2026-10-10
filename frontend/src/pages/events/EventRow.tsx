@@ -23,7 +23,7 @@ import { Dot } from '@/components/primitives/dot'
 import { EVENT_STATUS_DOT_TONE, EVENT_STATUS_LABELS } from '@/lib/eventStatus'
 import type { EventStatus } from '@/lib/eventStatus'
 import { eventNameLabel } from '@/lib/eventName'
-import { SIGNAL_LEVEL, rowSignalLevel } from '@/lib/statusLexicon'
+import { REVIEW_STATUS, rowSignalLevel } from '@/lib/statusLexicon'
 import { getMonitoringPath } from '@/lib/monitoring'
 import { resolveMetaFieldHref } from '@/lib/metaFields'
 import { useActiveBranchId, useBranchLinkProps } from '@/hooks/useBranch'
@@ -48,10 +48,14 @@ import {
   computeWindowDelta,
   describeWindowDelta,
   formatRelativeTime,
+  resolveTemplateTokens,
+  ROW_METRICS_LABEL,
   splitTemplateValue,
+  templateTokenTitle,
 } from './utils'
 import { useCanWriteProject } from '@/lib/permissions'
 import { formatDateTime } from '@/lib/datetime'
+import { countOf } from '@/lib/plural'
 
 /** The one action a row dispatches; the table has no per-row menu. */
 export type RowAction = 'edit'
@@ -59,6 +63,9 @@ export type RowAction = 'edit'
 function renderTemplateValue(value: string, variables?: Variable[]): ReactNode {
   const parts = splitTemplateValue(value, variables)
   if (parts.length === 1 && !parts[0]?.token) return value
+  const variableByToken = new Map<string, Variable | null>(
+    variables ? resolveTemplateTokens(value, variables).map(({ token, variable }) => [token, variable] as const) : [],
+  )
   // A token reads as data, not a link: the quiet sunken CodeToken instead of
   // saturated accent mono, which was the brightest text in the table.
   return parts.map((part, i) =>
@@ -70,7 +77,7 @@ function renderTemplateValue(value: string, variables?: Variable[]): ReactNode {
           {part.text}
         </CodeToken>
       ) : (
-        <CodeToken key={i} className="text-fg-secondary" title="Property: filled in from observed values">
+        <CodeToken key={i} className="text-fg-secondary" title={templateTokenTitle(part.text, variableByToken.get(part.text))}>
           {part.text}
         </CodeToken>
       )
@@ -421,7 +428,7 @@ export const EventRow = memo(function EventRow({
             <Chip
               size="xs"
               className="tnum"
-              title={`${ev.open_question_count} unanswered question${ev.open_question_count === 1 ? '' : 's'} in the discussion`}
+              title={`${countOf(ev.open_question_count ?? 0, 'unanswered question', 'unanswered questions')} in the discussion`}
             >
               ?{ev.open_question_count}
             </Chip>
@@ -463,17 +470,20 @@ export const EventRow = memo(function EventRow({
         </div>
       </TableCell>
       {!hideMonitor && (
-        <TableCell className={rowSignal ? undefined : PHONE_QUIET_CELL}>
+        <TableCell className={signalLevel ? undefined : PHONE_QUIET_CELL}>
           {/* "Open"/"Recent", never "Live": Live is the lifecycle status in
               green one column over, and one word must map to one tone.
               The label comes from SIGNAL_LEVEL. With no open
               signal the cell is a faint dash: a "Monitored" pill on 16 of 17
               rows drowned the one chip the column exists for; the
               coverage stays in the dash's title. A phone card drops the
-              quiet cell: with no column over it the dash was a stray mark. */}
-          {rowSignal ? (
-            <Chip tone={signalLevel?.tone ?? 'danger'} size="xs">
-              {signalLevel?.label ?? SIGNAL_LEVEL.firing.label}
+              quiet cell: with no column over it the dash was a stray mark.
+              A phone card has no "Signal" header either, so there the chip
+              names itself: "Recent signal", not a bare "Recent". */}
+          {signalLevel ? (
+            <Chip tone={signalLevel.tone} size="xs" title={signalLevel.hint}>
+              {signalLevel.label}
+              <span className="md:hidden"> signal</span>
             </Chip>
           ) : (
             <NoData
@@ -489,9 +499,14 @@ export const EventRow = memo(function EventRow({
       {!hideHealth && (
         // The badge opens its breakdown; a click on the cell around it must
         // not open the event as well.
-        <TableCell className={health ? 'w-16' : `w-16 ${PHONE_QUIET_CELL}`} data-no-row-click>
+        <TableCell className={health ? 'w-16 max-md:w-auto' : `w-16 ${PHONE_QUIET_CELL}`} data-no-row-click>
           {health ? (
-            <HealthPopover health={health} />
+            // A bare "89" on a phone card, with no "Health" header over
+            // it, could not be read as a score.
+            <HealthPopover health={health}>
+              <span className="md:hidden">Health </span>
+              {health.score}
+            </HealthPopover>
           ) : (
             <NoData
               title={
@@ -505,6 +520,9 @@ export const EventRow = memo(function EventRow({
       )}
       <TableCell className="w-32 text-right">
         <div className="flex items-center justify-end align-middle">
+          {/* The card's stand-in for the column header: a bare "95k" did not
+              say over what window. */}
+          <span className="mr-1 text-caption text-fg-tertiary md:hidden">{ROW_METRICS_LABEL}</span>
           <EventWindowMetricsCell
             eventName={nameLabel}
             color={eventType?.color}
@@ -612,7 +630,7 @@ export const EventRow = memo(function EventRow({
       {!hideReviewed && (
         <TableCell
           className={`text-center ${PHONE_DROPPED_CELL}`}
-          aria-label={ev.reviewed ? 'Verified' : 'Not verified'}
+          aria-label={ev.reviewed ? REVIEW_STATUS.reviewed.label : REVIEW_STATUS.needs_review.label}
         >
           {ev.reviewed ? (
             <Check
@@ -623,7 +641,7 @@ export const EventRow = memo(function EventRow({
             <span
               aria-hidden="true"
               className="text-caption text-fg-tertiary"
-              title="Not verified"
+              title={REVIEW_STATUS.needs_review.label}
             >
               —
             </span>

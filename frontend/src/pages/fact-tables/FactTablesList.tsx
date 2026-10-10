@@ -15,7 +15,6 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import { useConfirm } from '@/hooks/useConfirm'
-import { ConfirmImpactMessage } from '@/components/dependencies/ImpactNotice'
 import { EmptyState } from '@/components/empty-state'
 import { ErrorState } from '@/components/error-state'
 import { SectionSkeleton, StatValueSkeleton } from '@/components/states'
@@ -27,9 +26,10 @@ import { SILENT_ERROR_META } from '@/lib/errorFeedback'
 import { formatRelativeTime } from '@/lib/datetime'
 import type { FactTableListItem } from '@/types'
 import { countOf } from '@/lib/plural'
-import { dataSourcesKey, factTablesKey, projectFactTableKey } from '@/lib/queryKeys'
+import { dataSourcesKey, factTablesKey } from '@/lib/queryKeys'
 import { useCanWriteProject } from '@/lib/permissions'
 import { buildFactTableCopy } from './factTableCopy'
+import { deleteFactTableConfirmation } from './factTableDelete'
 import { currentOrgSlug, projectPath } from '@/lib/navigation'
 
 const FACT_TABLE_GRID =
@@ -60,37 +60,10 @@ export function FactTablesList({ slug }: { slug?: string }) {
   const qc = useQueryClient()
   const navigate = useNavigate()
   const { confirm, dialog: confirmDialog } = useConfirm()
-  // Delete from the row, as the editor does. The API refuses a table metrics
-  // still read and names them; that refusal renders inside the dialog.
+  // Delete from the row, with the editor's confirmation.
   const deleteTable = (table: FactTableListItem) => {
     if (!slug) return
-    void confirm({
-      title: 'Delete this fact table?',
-      // The metrics that read it, listed before the attempt (#257). These are
-      // the one dependents that DO block: the server refuses with a 409.
-      message: (
-        <ConfirmImpactMessage
-          message={
-            `"${table.display_name}" disappears from every fact metric's picker. A fact table ` +
-            'that metrics still read cannot be deleted; the refusal names them.'
-          }
-          slug={slug}
-          branchId={null}
-          mode="blocks"
-          changes={[{ kind: 'fact_table', id: table.id, change: 'delete' }]}
-        />
-      ),
-      confirmLabel: 'Delete fact table',
-      variant: 'danger',
-      errorPrefix: 'Could not delete the fact table',
-      pendingLabel: 'Deleting…',
-      action: async () => {
-        await factTablesApi.remove(slug, table.id)
-        void qc.invalidateQueries({ queryKey: factTablesKey(slug) })
-        void qc.invalidateQueries({ queryKey: projectFactTableKey(slug) })
-        toast.success('Fact table deleted.')
-      },
-    })
+    void confirm(deleteFactTableConfirmation(table, slug, qc))
   }
   const factTablesQuery = useQuery({
     queryKey: factTablesKey(slug),
@@ -154,15 +127,16 @@ export function FactTablesList({ slug }: { slug?: string }) {
           retryLabel="Retry"
           compact
         />
-      ) : (
-        <MiniStatStrip boxed className={isEmpty ? 'opacity-60' : undefined}>
+      ) : isEmpty ? null : (
+        // First run: no strip of zeroes over the empty state, as on Events
+        // and Scans.
+        <MiniStatStrip boxed>
           <MiniStat
             label="Fact tables"
             value={data ? formatNumber(data.total ?? factTables.length) : <StatValueSkeleton />}
           />
-          {/* Counts the sources fact tables read, not every connected one: the
-              label says so, so an empty project's 0 beside two connected
-              warehouses is not a contradiction. */}
+          {/* Counts the sources fact tables read, not every connected one, and
+              the label says so. */}
           <MiniStat
             label="Sources in use"
             value={

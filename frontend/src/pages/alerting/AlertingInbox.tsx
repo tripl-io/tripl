@@ -13,10 +13,10 @@ import {
   alertInboxStatusLabel,
   alertInboxStatusTone,
   incidentDirectionGlyph,
+  incidentLargestChangeLabel,
   incidentMagnitudeLabel,
   incidentMagnitudeTitle,
   incidentReasonLabel,
-  incidentWorstDeltaLabel,
   isHandledInboxStatus,
   priorDecisionLabel,
 } from '@/lib/alertStatus'
@@ -47,7 +47,8 @@ import type {
 import { noteBudgetLabel } from './constants'
 import { InboxFilterBar } from './InboxFilterBar'
 import { liveInboxActionError, type InboxActionFailure } from './inboxActionErrors'
-import { incidentDeltaBadge, incidentHeadline } from './inboxCardLabels'
+import { incidentDeltaBadge, incidentHeadline, incidentItemsLabel } from './inboxCardLabels'
+import { IncidentScopeNames } from './IncidentScopeNames'
 import {
   EMPTY_INBOX_FILTERS,
   INBOX_LOOKBACK_DAYS,
@@ -611,11 +612,6 @@ const NAVIGATION_DESTINATION: Record<
   },
 }
 
-/** The separator between the meta row's facts; decoration, so not read out. */
-function MetaDot() {
-  return <span aria-hidden="true">·</span>
-}
-
 /** One shared empty list, so a card without siblings keeps a stable prop. */
 const NO_SIBLINGS: readonly AlertInboxGroup[] = []
 
@@ -732,7 +728,12 @@ const IncidentCard = memo(function IncidentCard({
   const reason = incidentReasonLabel(group.direction, group.scope_types)
   const headline = incidentHeadline(group)
   const deltaBadge = incidentDeltaBadge(group)
-  const worstDelta = incidentWorstDeltaLabel(group)
+  // With a badge on the title row the change is already on the card, signed and
+  // rounded the way Anomalies writes it. The line below then keeps only the
+  // counts, and the percent as the alert message printed it moves to the
+  // tooltip: "+62%" beside "62.2%" read as two different facts.
+  const magnitudeTitle = incidentMagnitudeTitle(group, { withPercent: deltaBadge !== null })
+  const largestChange = incidentLargestChangeLabel(group)
   const decision = priorDecisionLabel(group)
   const isMuted = group.status === 'muted'
 
@@ -833,12 +834,7 @@ const IncidentCard = memo(function IncidentCard({
             {headline.more > 0 && (
               <>
                 {' '}
-                <span
-                  className="whitespace-nowrap text-body-sm font-normal text-fg-tertiary"
-                  title={group.scope_names.join(', ')}
-                >
-                  +{headline.more} more
-                </span>
+                <IncidentScopeNames names={group.scope_names} headline={headline} />
               </>
             )}
             {/* A SEPARATE affordance, not the name made clickable.
@@ -878,48 +874,45 @@ const IncidentCard = memo(function IncidentCard({
               size="md"
               tone={deltaBadge.tone}
               className="tnum shrink-0 font-semibold"
-              title={incidentMagnitudeTitle(group)}
+              title={magnitudeTitle}
             >
               {deltaBadge.label}
             </Chip>
           )}
         </div>
-        <div
-          className="mt-1 text-body-sm text-fg-tertiary"
-          title={incidentMagnitudeTitle(group)}
-        >
-          {incidentMagnitudeLabel(group)}
-          {worstDelta && <> · {worstDelta}</>}
+        <div className="mt-1 text-body-sm text-fg-tertiary" title={magnitudeTitle}>
+          {incidentMagnitudeLabel(group, { withPercent: deltaBadge === null })}
+          {largestChange && <> · {largestChange}</>}
         </div>
         {/* The meta row: what kind of signal, how many items, when, and which
-            rule on which scan — at 12.5px, not the 10px it was. */}
-        <div className="mt-1 flex flex-wrap items-center gap-x-1.5 gap-y-0.5 text-body-sm text-fg-tertiary">
+            rule on which scan — at 12.5px, not the 10px it was.
+
+            Each fact is ONE child and the separator is drawn before every child
+            but the first, as on Reconciliation: a wrapped line then starts with
+            "·" and never ends on one. A dot of its own was a flex item that
+            wrapped alone, leaving "· 8 items … ·" and "33m ago ·" on a phone.
+            Below `sm` the facts stack one per line with no dots at all. */}
+        <div className="mt-1 flex flex-col items-start gap-y-0.5 text-body-sm text-fg-tertiary sm:flex-row sm:flex-wrap sm:items-center sm:gap-x-1.5 sm:[&>*+*]:before:mr-1.5 sm:[&>*+*]:before:content-['·']">
           {/* Allowed to wrap: a multi-kind incident's reason reads "↑ spike ·
               volume + event-type volume + metric + project volume", which as
               one nowrap line ran past the card at 375px. */}
           <span className="break-words">
             {incidentDirectionGlyph(group.direction, group.scope_types)} {reason}
           </span>
-          <MetaDot />
-          <span className="font-medium text-foreground">{countOf(group.item_count, 'item', 'items')}</span>
-          {group.item_count > 1 && (
-            <span>
-              ({countOf(group.scope_names.length, 'distinct scope name', 'distinct scope names')} shown)
-            </span>
-          )}
-          <MetaDot />
+          <span
+            className="font-medium text-foreground"
+            title="One item is one scope's firing in one delivery: a scope that fired again, or a firing carried by a second delivery, counts again."
+          >
+            {incidentItemsLabel(group)}
+          </span>
           <span className="whitespace-nowrap" title={formatDateTime(group.latest_delivery_at)}>
             {formatRelativeTime(group.latest_delivery_at)}
           </span>
           {group.false_positive_count > 0 && (
-            <>
-              <MetaDot />
-              <span title="How many times this exact group has already been marked a false positive.">
-                marked false positive {countOf(group.false_positive_count, 'time', 'times')}
-              </span>
-            </>
+            <span title="How many times this exact group has already been marked a false positive.">
+              marked false positive {countOf(group.false_positive_count, 'time', 'times')}
+            </span>
           )}
-          <MetaDot />
           <span className="break-words">
             {/* Each rule is linked by ITS OWN id: `rules` pairs id with name, so
                 the card can no longer send "Volume rule" to whichever monitor
@@ -992,10 +985,13 @@ const IncidentCard = memo(function IncidentCard({
         </p>
       )}
       {/* Who owns the affected event type / metric (F07, #260), readable by
-          everyone; the one-off email to them is an editor's action. */}
+          everyone; the one-off email to them is an editor's action. The
+          server resolves them off the newest item, the one `scope_type`
+          describes. */}
       <OwnersNotify
         className="mt-2"
         owners={group.owners}
+        scopeType={group.scope_type}
         canNotify={canWrite}
         notify={() => alertingApi.notifyIncidentOwners(slug, id)}
         target={target}

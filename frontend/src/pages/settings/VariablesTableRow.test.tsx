@@ -170,3 +170,42 @@ describe('VariablesTableRow property lists (F23)', () => {
     expect(screen.queryByText(/required$/)).toBeNull()
   })
 })
+
+// A phone hides Observed in, Description and both values columns (the table
+// head carries `hidden md:table-cell`), so the name cell says them instead of
+// a desktop table scrolled under the pinned actions.
+describe('VariablesTableRow on a phone', () => {
+  it('folds the description and what scans saw under the name', () => {
+    renderRow(
+      makeSpeakingVariable({
+        description: 'Client platform the event was sent from.',
+        sample_values: ['ios', 'android', 'web', 'tv'],
+      }),
+    )
+
+    const phoneLine = screen.getByText('Seen in 1 event · values: ios, android, web +1')
+    expect(phoneLine).toHaveClass('md:hidden')
+    // The description shows once per layout: the phone line and the wide column.
+    const descriptions = screen.getAllByText('Client platform the event was sent from.')
+    expect(descriptions).toHaveLength(2)
+    expect(descriptions.map((node) => node.tagName)).toEqual(['P', 'TD'])
+    expect(descriptions[0]).toHaveClass('md:hidden')
+    expect(descriptions[1]).toHaveClass('hidden', 'md:table-cell')
+  })
+
+  it('names the values alone when no event is known, and says nothing when scans saw nothing', () => {
+    const { unmount } = renderRow(makeVariable({ id: 'var-2', name: 'build', sample_values: ['a', 'b'] }))
+    expect(screen.getByText('Values: a, b')).toBeInTheDocument()
+    unmount()
+
+    renderRow(makeVariable({ id: 'var-3', name: 'unused' }))
+    expect(screen.queryByText(/^(Seen in|Values:)/)).toBeNull()
+  })
+
+  it('keeps the pinned actions on the first line, with an edge over what they cover', () => {
+    renderRow(makeSpeakingVariable({}))
+    const actions = screen.getByRole('button', { name: 'Edit property variant' }).closest('td')
+    expect(actions).toHaveClass('sticky', 'right-0', 'align-top')
+    expect(actions?.className).toMatch(/shadow-\[/)
+  })
+})

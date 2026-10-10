@@ -4,7 +4,6 @@ import {
   attributionValueLabel,
   columnRemainder,
   columnScale,
-  formatShare,
   formatSignedCount,
 } from './signalAttribution'
 
@@ -26,20 +25,11 @@ describe('formatSignedCount', () => {
   })
 })
 
-describe('formatShare', () => {
-  it('clips to 0..100% and flags a tiny share', () => {
-    expect(formatShare(0.92)).toBe('92%')
-    expect(formatShare(1.4)).toBe('100%')
-    expect(formatShare(-0.2)).toBe('0%')
-    expect(formatShare(0.001)).toBe('<1%')
-  })
-})
-
 describe('columnRemainder / columnScale', () => {
   it('makes the listed values and the remainder sum to the delta', () => {
     const remainder = columnRemainder(platform, -3390)
     expect(remainder).toBe(30)
-    const listed = platform.values.reduce((sum, value) => sum + value.delta, 0)
+    const listed = (platform.values ?? []).reduce((sum, value) => sum + value.delta, 0)
     expect(listed + remainder).toBe(-3390)
     expect(columnScale(platform, -3390)).toBe(3120)
   })

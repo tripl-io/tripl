@@ -43,7 +43,7 @@ describe('BulkActionBar select-all-matching', () => {
     renderBar({ selectedCount: 5, matchingTotal: 12000, onSelectAllMatching: vi.fn() })
 
     expect(
-      screen.getByRole('button', { name: `Select all ${(12000).toLocaleString()}` }),
+      screen.getByRole('button', { name: 'Select all 12,000' }),
     ).toBeInTheDocument()
   })
 

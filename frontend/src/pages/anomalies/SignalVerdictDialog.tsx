@@ -4,12 +4,14 @@ import { Button } from '@/components/ui/button'
 import {
   Dialog,
   DialogBody,
+  DialogClose,
   DialogContent,
   DialogDescription,
   DialogFooter,
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog'
+import { useDirtySinceOpen } from '@/hooks/useUnsavedChangesGuard'
 import { formatTimestamp } from '@/lib/datetime'
 import { VERDICT_OPTIONS, verdictFieldsReady, type ReasonChoice } from '@/lib/signalVerdict'
 import type { SignalExpectedReason, SignalVerdictKind } from '@/types'
@@ -35,7 +37,9 @@ const INCIDENT_EFFECT: Record<SignalVerdictKind, string> = {
  * menu, the dialog asks the rest — the reason for `expected`, and a note for
  * any. On a routed signal it says what the verdict does to the incident, which
  * is where the verdict is really written. Mounted only while open, so its
- * fields start empty each time.
+ * fields start empty each time. A reason or note typed and then Escape, an
+ * outside click or Cancel asks "Leave without saving?" first; confirming the
+ * verdict never does.
  */
 export function SignalVerdictDialog({
   verdict,
@@ -57,11 +61,12 @@ export function SignalVerdictDialog({
 }) {
   const [reason, setReason] = useState<ReasonChoice>('')
   const [note, setNote] = useState('')
+  const dirty = useDirtySinceOpen(true, { reason, note })
   const option = VERDICT_OPTIONS.find((candidate) => candidate.verdict === verdict)
   const ready = verdictFieldsReady(verdict, reason)
   const reasonHintId = useId()
   return (
-    <Dialog open onOpenChange={(open) => { if (!open) onClose() }}>
+    <Dialog open dirty={dirty} onOpenChange={(open) => { if (!open) onClose() }}>
       <DialogContent>
         <form
           noValidate
@@ -90,9 +95,11 @@ export function SignalVerdictDialog({
             />
           </DialogBody>
           <DialogFooter>
-            <Button type="button" variant="outline" onClick={onClose}>
-              Cancel
-            </Button>
+            <DialogClose asChild>
+              <Button type="button" variant="outline">
+                Cancel
+              </Button>
+            </DialogClose>
             <Button
               type="submit"
               disabled={pending || !ready}

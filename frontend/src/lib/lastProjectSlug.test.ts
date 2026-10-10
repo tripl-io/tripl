@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it } from 'vitest'
 
-import { LAST_PROJECT_SLUG_KEY, forgetLastProjectSlug } from './lastProjectSlug'
+import { LAST_PROJECT_SLUG_KEY } from './activeOrg'
+import { forgetLastProjectSlug } from './lastProjectSlug'
 
 describe('forgetLastProjectSlug', () => {
   afterEach(() => {

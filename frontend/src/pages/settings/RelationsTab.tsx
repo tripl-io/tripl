@@ -1,14 +1,16 @@
 import { useId, useState } from "react"
+import { Link } from "react-router-dom"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
-import { Link2, Pencil, Plus, Trash2 } from "lucide-react"
+import { ArrowRight, Link2, Pencil, Plus, Trash2 } from "lucide-react"
 import { eventTypesApi } from "@/api/eventTypes"
 import { relationsApi } from "@/api/relations"
 import { useActiveBranchId } from "@/hooks/useBranch"
+import { useDirtySinceOpen } from "@/hooks/useUnsavedChangesGuard"
 import type { EventType, EventTypeRelation } from "@/types"
 import { useConfirm } from "@/hooks/useConfirm"
 import { Button } from "@/components/ui/button"
 import { IconButton } from "@/components/ui/icon-button"
-import { Dialog, DialogBody, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
+import { Dialog, DialogBody, DialogClose, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { PageContainer } from "@/components/primitives/page-container"
 import { PageHeader } from "@/components/primitives/page-header"
 import { Label } from "@/components/ui/label"
@@ -17,14 +19,20 @@ import { Skeleton } from "@/components/ui/skeleton"
 import { EmptyState } from "@/components/empty-state"
 import { ErrorState } from "@/components/error-state"
 import { NativeSelect, Panel } from "@/components/settings/kit"
-import { getErrorMessage } from '@/lib/utils'
+import { cn, getErrorMessage } from '@/lib/utils'
 import { SILENT_ERROR_META } from '@/lib/errorFeedback'
 import { eventTypesKey, relationsKey } from '@/lib/queryKeys'
 import { useCanWriteProject } from '@/lib/permissions'
-import { ReadOnlyNotice } from '@/components/states'
+import { DisabledReason, ReadOnlyNotice, disabledReasonAria } from '@/components/states'
+import { currentOrgSlug, projectPath } from '@/lib/navigation'
+import { STICKY_ACTIONS_CLASS } from './stickyActions'
+import { countOf } from '@/lib/plural'
 
 /** A stored relation type in words: `belongs_to` -> "belongs to". */
 const relationTypeLabel = (relationType: string) => relationType.replace(/_/g, ' ')
+
+/** Why New relation is off: each end of a join is a field of an event type. */
+const NEW_RELATION_BLOCKER = 'Create an event type with at least one field first.'
 
 export function RelationsTab({ slug }: { slug: string }) {
   const qc = useQueryClient()
@@ -56,6 +64,13 @@ export function RelationsTab({ slug }: { slug: string }) {
   })
   const eventTypes = typesQuery.data ?? []
   const relations = relationsQuery.data ?? []
+
+  // A relation joins two fields, and the backend allows both on one type: the
+  // one prerequisite is a type with a field. Without one the dialog's selects
+  // held nothing to pick, so New relation is off and the empty state points at
+  // the page that fixes it.
+  const canJoin = eventTypes.some((et: EventType) => et.field_definitions.length > 0)
+  const joinBlocker = typesQuery.isSuccess && !canJoin ? NEW_RELATION_BLOCKER : null
 
   const srcEt = eventTypes.find((e: EventType) => e.id === srcEtId)
   const tgtEt = eventTypes.find((e: EventType) => e.id === tgtEtId)
@@ -99,6 +114,9 @@ export function RelationsTab({ slug }: { slug: string }) {
     setTgtEtId(r.target_event_type_id); setTgtFieldId(r.target_field_id)
     setShowForm(true)
   }
+
+  // Picked ends ask before Escape or an outside click drops them.
+  const dirty = useDirtySinceOpen(showForm, { srcEtId, tgtEtId, srcFieldId, tgtFieldId })
 
   const unchanged = editing !== null
     && editing.source_event_type_id === srcEtId && editing.source_field_id === srcFieldId
@@ -147,9 +165,19 @@ export function RelationsTab({ slug }: { slug: string }) {
         description={<>Declare that a field on one event type refers to a field on another, so drift and coverage can follow the join (e.g. <span className="font-mono">click.screen_name → screen_view.screen_name</span>).</>}
         actions={
           canWrite && (
-            <Button size="sm" onClick={openCreate}>
-              <Plus className="size-3.5" />New relation
-            </Button>
+            // The reason New relation is off is a caption under it, not a
+            // `title` a disabled button never shows (#237).
+            <div className="flex flex-col items-end gap-1">
+              <Button
+                size="sm"
+                disabled={!!joinBlocker}
+                {...disabledReasonAria('new-relation', joinBlocker)}
+                onClick={openCreate}
+              >
+                <Plus className="size-3.5" />New relation
+              </Button>
+              <DisabledReason id="new-relation" reason={joinBlocker} />
+            </div>
           )
         }
       />
@@ -158,7 +186,7 @@ export function RelationsTab({ slug }: { slug: string }) {
       {/* Create / edit dialog. Each end of the join is one group — its type, then
           its field — read top to bottom, with a live preview of the join
           instead of a 2x2 grid read diagonally. */}
-      <Dialog open={showForm} onOpenChange={open => { if (!open) closeForm() }}>
+      <Dialog open={showForm} dirty={dirty} onOpenChange={open => { if (!open) closeForm() }}>
         <DialogContent>
           <form className="flex min-h-0 flex-col gap-4" onSubmit={e => { e.preventDefault(); saveMut.mutate() }}>
             <DialogHeader>
@@ -209,7 +237,9 @@ export function RelationsTab({ slug }: { slug: string }) {
               {saveMut.isError && <p role="alert" className="text-body text-destructive">{getErrorMessage(saveMut.error)}</p>}
             </DialogBody>
             <DialogFooter>
-              <Button type="button" variant="outline" onClick={closeForm}>Cancel</Button>
+              <DialogClose asChild>
+                <Button type="button" variant="outline">Cancel</Button>
+              </DialogClose>
               <Button type="submit" disabled={!srcFieldId || !tgtFieldId || unchanged || saveMut.isPending}>
                 {editing ? 'Save' : 'Create'}
               </Button>
@@ -222,7 +252,7 @@ export function RelationsTab({ slug }: { slug: string }) {
         title="All relations"
         subtitle={relationsQuery.isPending
           ? 'Loading…'
-          : `${relations.length} relation${relations.length === 1 ? '' : 's'}`}
+          : countOf(relations.length, 'relation', 'relations')}
       >
         {relationsQuery.isError && relationsQuery.data !== undefined && (
           // A failed REFRESH keeps the rows on screen: replacing them with an
@@ -232,7 +262,7 @@ export function RelationsTab({ slug }: { slug: string }) {
           </p>
         )}
         {relationsQuery.isPending ? (
-          // A pending list is not an empty one: "No relations" used to flash on
+          // A pending list is not an empty one: "No relations yet" used to flash on
           // every cold load.
           <div className="space-y-2 px-4 py-4" aria-busy="true" aria-label="Loading relations">
             {Array.from({ length: 3 }, (_, index) => (
@@ -259,7 +289,7 @@ export function RelationsTab({ slug }: { slug: string }) {
                       column. */}
                   <TableHead>Join</TableHead>
                   <TableHead>Type</TableHead>
-                  <TableHead className="sticky right-0 w-20 bg-surface"><span className="sr-only">Actions</span></TableHead>
+                  <TableHead className={cn(STICKY_ACTIONS_CLASS, 'w-20')}><span className="sr-only">Actions</span></TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -268,16 +298,19 @@ export function RelationsTab({ slug }: { slug: string }) {
                   const target = endpoint(r.target_event_type_id, r.target_field_id)
                   return (
                     <TableRow key={r.id}>
-                      <TableCell className="font-mono text-body-sm">
+                      {/* The join wraps rather than running under the pinned
+                          actions: on a phone the target takes a line of its
+                          own, and a long name breaks where it must. */}
+                      <TableCell className="font-mono text-body-sm wrap-anywhere">
                         <span>{source}</span>
                         <span className="px-1.5 text-fg-tertiary" aria-hidden="true">→</span>
                         <span className="sr-only"> to </span>
-                        <span>{target}</span>
+                        <span className="max-sm:block">{target}</span>
                       </TableCell>
                       {/* The stored key, in words: "belongs_to" was a value
                           nobody chose in the dialog. */}
                       <TableCell className="text-fg-tertiary text-body-sm">{relationTypeLabel(r.relation_type)}</TableCell>
-                      <TableCell className="sticky right-0 bg-surface">
+                      <TableCell className={STICKY_ACTIONS_CLASS}>
                         {canWrite && (
                           <div className="flex items-center justify-end gap-0.5">
                             <IconButton
@@ -313,16 +346,35 @@ export function RelationsTab({ slug }: { slug: string }) {
           </>
         ) : (
           <div className="px-4 py-8">
-            <EmptyState
-              icon={Link2}
-              title="No relations"
-              description="Link event types by a shared field so drift and coverage can follow the join — e.g. connect Purchase.user_id to Signup.user_id."
-              action={canWrite ? (
-                <Button type="button" size="sm" onClick={openCreate}>
-                  <Plus className="size-3.5" />Create your first relation
-                </Button>
-              ) : undefined}
-            />
+            {/* Without a type that has a field there is nothing to join, so
+                the empty state sends the reader to the page that fixes that
+                instead of a dialog whose selects hold nothing. */}
+            {joinBlocker ? (
+              <EmptyState
+                icon={Link2}
+                title="No relations yet"
+                description={`A relation joins a field on one event type to a field on another. ${NEW_RELATION_BLOCKER}`}
+                action={canWrite ? (
+                  <Button asChild size="sm">
+                    <Link to={projectPath(currentOrgSlug(), slug, '/event-types')}>
+                      Go to event types
+                      <ArrowRight className="size-3.5" aria-hidden="true" />
+                    </Link>
+                  </Button>
+                ) : undefined}
+              />
+            ) : (
+              <EmptyState
+                icon={Link2}
+                title="No relations yet"
+                description="A relation joins a field on one event type to a field on another, so drift and coverage can follow the join."
+                action={canWrite ? (
+                  <Button type="button" size="sm" onClick={openCreate}>
+                    <Plus className="size-3.5" />Create your first relation
+                  </Button>
+                ) : undefined}
+              />
+            )}
           </div>
         )}
       </Panel>

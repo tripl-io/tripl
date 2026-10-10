@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useSearchParams } from 'react-router-dom'
 
@@ -14,13 +14,12 @@ import { ErrorState } from '@/components/error-state'
 import { ReadOnlyNotice } from '@/components/states'
 import { Button } from '@/components/ui/button'
 import { FilterSearch } from '@/components/ui/filter-bar'
-import { Input } from '@/components/ui/input'
 import { Skeleton } from '@/components/ui/skeleton'
 import { UserAvatar } from '@/components/ui/user-avatar'
 import { useConfirm } from '@/hooks/useConfirm'
-import { useCopyToClipboard } from '@/hooks/useCopyToClipboard'
 import { Field, NativeSelect, SCard, TextInput } from '@/components/settings/kit'
 import { RoleChip } from '@/components/settings/role-chip'
+import { OneTimeSecretField } from '@/components/settings/one-time-secret'
 import { ROLE_OPTIONS, type Role, type UserListItem } from '@/types'
 import { formatDate } from '@/lib/datetime'
 import { getErrorMessage } from '@/lib/utils'
@@ -30,6 +29,8 @@ import { SILENT_ERROR_META } from '@/lib/errorFeedback'
 import { SAVED_FEEDBACK_MS, useTransientFlag } from './settings-area/projectGeneralFields'
 import { focusFirstInvalid } from '@/components/forms/validation'
 import { usePublicDemo } from '@/lib/deploymentMode'
+import { MemberResetLinkPanel } from './MemberResetLink'
+import { countOf } from '@/lib/plural'
 
 // The format rule said in words, where `type="email"` + `required` showed the
 // browser's bubble instead.
@@ -62,9 +63,6 @@ function roleLabel(role: Role): string {
   return ROLE_OPTIONS.find((r) => r.value === role)?.label ?? role
 }
 
-/** How long the Copy button says "Copied" before it offers to copy again. */
-const COPIED_RESET_MS = 2000
-
 /**
  * Invite one person without opening the instance to the world.
  *
@@ -85,8 +83,6 @@ export function InviteMemberCard({ actorIsOrgOwner }: { actorIsOrgOwner: boolean
   const [role, setRole] = useState<Role>('member')
   const [minted, setMinted] = useState<InvitationCreated | null>(null)
   const [everCopied, setEverCopied] = useState(false)
-  const linkRef = useRef<HTMLInputElement>(null)
-  const { state: copyState, copy, reset: resetCopy } = useCopyToClipboard(linkRef)
   const { confirm, dialog } = useConfirm()
 
   // `?invite=1` is where the command palette's "Invite member" lands: bring
@@ -104,14 +100,6 @@ export function InviteMemberCard({ actorIsOrgOwner }: { actorIsOrgOwner: boolean
     setSearchParams(next, { replace: true })
   }, [wantsInvite, searchParams, setSearchParams])
 
-  // "Copied" is a moment, not a state: it went on saying so forever, so a
-  // second click could not tell whether it had worked again.
-  useEffect(() => {
-    if (copyState !== 'copied') return
-    const timer = window.setTimeout(resetCopy, COPIED_RESET_MS)
-    return () => window.clearTimeout(timer)
-  }, [copyState, resetCopy])
-
   const invitesQuery = useQuery({
     queryKey: invitationsKey(),
     queryFn: () => invitationsApi.list(),
@@ -123,7 +111,6 @@ export function InviteMemberCard({ actorIsOrgOwner }: { actorIsOrgOwner: boolean
     onSuccess: (created) => {
       setMinted(created)
       setEverCopied(false)
-      resetCopy()
       setEmail('')
       qc.invalidateQueries({ queryKey: invitationsKey() })
     },
@@ -146,13 +133,6 @@ export function InviteMemberCard({ actorIsOrgOwner }: { actorIsOrgOwner: boolean
     if (ok) revokeMut.mutate(inv.id)
   }
 
-  const handleCopy = async (url: string) => {
-    // No clipboard (a self-hosted instance on plain HTTP has none) or a refused
-    // write selects the link instead: it is shown exactly once, so claiming a
-    // copy that did not happen loses it outright.
-    if (await copy(url)) setEverCopied(true)
-  }
-
   // Dismiss loses the show-once link as surely as replacing it does, so it
   // asks the same question when nobody copied it.
   const handleDismiss = async () => {
@@ -169,7 +149,6 @@ export function InviteMemberCard({ actorIsOrgOwner }: { actorIsOrgOwner: boolean
       if (!ok) return
     }
     setMinted(null)
-    resetCopy()
   }
 
   const handleCreate = async () => {
@@ -219,7 +198,7 @@ export function InviteMemberCard({ actorIsOrgOwner }: { actorIsOrgOwner: boolean
       <SCard
         title="Invite a member"
         description={publicDemo
-          ? 'Creates a single-use link for a colleague. No email is sent: copy the link and share it yourself. They sign in with Google at this address and receive viewer access to the demo projects of this workspace, including ones generated later.'
+          ? 'Creates a single-use link for a colleague. No email is sent: copy the link and share it yourself. They sign in with Google at this address and receive viewer access to the demo projects of this organization, including ones generated later.'
           : 'Creates a single-use link for one address, at the role you pick. They see no project until they are added to one under Project settings › Access.'}
         footer={
           <div className="flex w-full flex-wrap items-center justify-end gap-2">
@@ -315,36 +294,16 @@ export function InviteMemberCard({ actorIsOrgOwner }: { actorIsOrgOwner: boolean
               This link is shown once and cannot be retrieved later. It expires{' '}
               {formatDate(minted.expires_at)} and works a single time.
             </p>
-            <div className="flex items-center gap-2">
-              <Input
-                ref={linkRef}
-                readOnly
-                aria-label="Invite link"
-                value={acceptUrl}
-                onFocus={(e) => e.currentTarget.select()}
-                // A manual Ctrl/Cmd+C (the no-clipboard path) is a copy too;
-                // otherwise every later invite warns about a link already copied.
-                onCopy={() => setEverCopied(true)}
-                className="mono h-8 flex-1 text-caption"
-              />
-              <Button
-                type="button"
-                size="sm"
-                variant="outline"
-                onClick={() => void handleCopy(acceptUrl)}
-              >
-                {copyState === 'copied' ? 'Copied' : 'Copy'}
-              </Button>
-            </div>
-            {/* The label change alone was never announced. */}
-            <p role="status" className="sr-only">
-              {copyState === 'copied' ? 'Invite link copied to the clipboard.' : ''}
-            </p>
-            {copyState === 'failed' && (
-              <p role="alert" className="text-caption text-danger">
-                Couldn’t reach the clipboard. The link above is selected — press Ctrl/⌘+C to copy it.
-              </p>
-            )}
+            {/* Every copy counts, by hand too; otherwise every later invite
+                warns about a link already copied. Keyed so a new link starts
+                out uncopied. */}
+            <OneTimeSecretField
+              key={acceptUrl}
+              value={acceptUrl}
+              label="Invite link"
+              noun="link"
+              onCopied={() => setEverCopied(true)}
+            />
           </div>
         )}
       </SCard>
@@ -362,47 +321,61 @@ export function InviteMemberCard({ actorIsOrgOwner }: { actorIsOrgOwner: boolean
       )}
 
       {/* Rows styled like the API-key rows: the address, the role chip, when
-          it expires, and a destructive Revoke. */}
-      {invites.length > 0 && (
-        <SCard title="Pending invitations" description={`${invites.length} pending`}>
-          {invites.map((inv: Invitation, index) => (
-            <div
-              key={inv.id}
-              className="flex flex-wrap items-center gap-x-3 gap-y-1 px-4 py-[11px]"
-              style={{
-                borderBottom: index === invites.length - 1 ? 'none' : '1px solid var(--border-subtle)',
-              }}
-            >
-              <span className="min-w-0 flex-1 truncate text-body-sm font-medium" title={inv.email}>
-                {inv.email}
-              </span>
-              <RoleChip role={inv.role} />
-              <span
-                className="w-[120px] shrink-0 text-right text-caption"
-                style={{ color: inv.is_expired ? 'var(--danger)' : 'var(--fg-subtle)' }}
-              >
-                {inv.is_expired ? 'Expired' : `Expires ${formatDate(inv.expires_at)}`}
-              </span>
-              {/* 28px, 40px on phones: a 24px Revoke sat beside other text.
-                  */}
-              <Button
-                type="button"
-                size="sm"
-                variant="danger"
-                className="max-md:min-h-10"
-                onClick={() => {
-                  void handleRevoke(inv)
-                }}
-                disabled={revokeMut.isPending && revokeMut.variables === inv.id}
-              >
-                {revokeMut.isPending && revokeMut.variables === inv.id ? 'Revoking…' : 'Revoke'}
-              </Button>
-            </div>
-          ))}
-          {revokeMut.isError && (
-            <p role="alert" className="m-0 px-4 py-3 text-body-sm text-destructive">
-              {getErrorMessage(revokeMut.error)}
-            </p>
+          it expires, and a destructive Revoke. Shown when there are none too:
+          the card used to vanish, so after the last revoke nothing said that
+          no link was still out there. */}
+      {invitesQuery.isSuccess && (
+        <SCard
+          title="Pending invitations"
+          description={
+            invites.length > 0
+              ? `${invites.length} pending`
+              : 'No pending invitations. A link you create is listed here until it is used or revoked.'
+          }
+        >
+          {/* No body at all when empty: the description says it. */}
+          {(invites.length > 0 || revokeMut.isError) && (
+            <>
+              {invites.map((inv: Invitation, index) => (
+                <div
+                  key={inv.id}
+                  className="flex flex-wrap items-center gap-x-3 gap-y-1 px-4 py-[11px]"
+                  style={{
+                    borderBottom: index === invites.length - 1 ? 'none' : '1px solid var(--border-subtle)',
+                  }}
+                >
+                  <span className="min-w-0 flex-1 truncate text-body-sm font-medium" title={inv.email}>
+                    {inv.email}
+                  </span>
+                  <RoleChip role={inv.role} />
+                  <span
+                    className="w-[120px] shrink-0 text-right text-caption"
+                    style={{ color: inv.is_expired ? 'var(--danger)' : 'var(--fg-subtle)' }}
+                  >
+                    {inv.is_expired ? 'Expired' : `Expires ${formatDate(inv.expires_at)}`}
+                  </span>
+                  {/* 28px, 40px on phones: a 24px Revoke sat beside other text.
+                      */}
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="danger"
+                    className="max-md:min-h-10"
+                    onClick={() => {
+                      void handleRevoke(inv)
+                    }}
+                    disabled={revokeMut.isPending && revokeMut.variables === inv.id}
+                  >
+                    {revokeMut.isPending && revokeMut.variables === inv.id ? 'Revoking…' : 'Revoke'}
+                  </Button>
+                </div>
+              ))}
+              {revokeMut.isError && (
+                <p role="alert" className="m-0 px-4 py-3 text-body-sm text-destructive">
+                  {getErrorMessage(revokeMut.error)}
+                </p>
+              )}
+            </>
           )}
         </SCard>
       )}
@@ -413,27 +386,27 @@ export function InviteMemberCard({ actorIsOrgOwner }: { actorIsOrgOwner: boolean
 /** "2 project memberships and 1 API key went with it." — what a removal took. */
 function removalSummary(who: string, removed: OrgMemberRemoved): string {
   const parts: string[] = []
-  const count = (n: number, one: string, many: string) => `${n} ${n === 1 ? one : many}`
   if (removed.project_memberships_removed > 0) {
-    parts.push(count(removed.project_memberships_removed, 'project membership', 'project memberships'))
+    parts.push(countOf(removed.project_memberships_removed, 'project membership', 'project memberships'))
   }
-  if (removed.api_keys_revoked > 0) parts.push(count(removed.api_keys_revoked, 'API key', 'API keys'))
-  if (removed.invitations_revoked > 0) parts.push(count(removed.invitations_revoked, 'invitation', 'invitations'))
+  if (removed.api_keys_revoked > 0) parts.push(countOf(removed.api_keys_revoked, 'API key', 'API keys'))
+  if (removed.invitations_revoked > 0) parts.push(countOf(removed.invitations_revoked, 'invitation', 'invitations'))
   if (removed.group_memberships_removed > 0) {
-    parts.push(count(removed.group_memberships_removed, 'group membership', 'group memberships'))
+    parts.push(countOf(removed.group_memberships_removed, 'group membership', 'group memberships'))
   }
   return parts.length > 0 ? `Removed ${who}, with ${parts.join(', ')}.` : `Removed ${who}.`
 }
 
 /**
  * Organization › Members (F20 PR7): the active organization's roster, with the
- * role select, removal and ownership transfer of `/orgs/{org}/members`. With no
- * organization known it reads `/users`, the default organization's roster, as
- * before organizations; removal and transfer need the organization and are not
- * offered then.
+ * role select, removal, ownership transfer and password reset links of
+ * `/orgs/{org}/members`. With no organization known it reads `/users`, the
+ * default organization's roster, as before organizations; the actions that
+ * need the organization are not offered then.
  */
 export default function UsersPage() {
   const qc = useQueryClient()
+  const publicDemo = usePublicDemo()
   const { user: currentUser } = useAuth()
   const { slug: org } = useActiveOrg()
   // An org owner or admin manages members; only an owner manages owners.
@@ -491,6 +464,12 @@ export default function UsersPage() {
       return invalidateMembers()
     },
   })
+  // The link it returns is the panel under the member's row; Dismiss resets
+  // the mutation. One link on the page at a time.
+  const resetLinkMut = useMutation({
+    meta: SILENT_ERROR_META,
+    mutationFn: (member: UserListItem) => orgsApi.createPasswordResetLink(org ?? '', member.id),
+  })
 
   const handleRemove = async (member: UserListItem) => {
     const who = member.name ?? member.email
@@ -520,6 +499,24 @@ export default function UsersPage() {
     if (!ok) return
     removeMut.reset()
     transferMut.mutate(member)
+  }
+
+  /**
+   * Without email, "Forgot your password?" sends nothing: this is how a member
+   * gets back in. Whoever opens the link owns the account, so it asks first.
+   */
+  const handleResetLink = async (member: UserListItem) => {
+    const who = member.name ?? member.email
+    const ok = await confirm({
+      title: `Create a password reset link for ${who}?`,
+      message:
+        `Whoever opens the link can set a new password for ${member.email} and sign in as ${who}, `
+        + `so give it to ${who} and no one else. It works once, for a limited time, and any `
+        + 'earlier link for this account stops working.',
+      confirmLabel: 'Create link',
+      variant: 'primary',
+    })
+    if (ok) resetLinkMut.mutate(member)
   }
 
   const users = listQuery.data ?? []
@@ -592,11 +589,13 @@ export default function UsersPage() {
         </p>
       )}
 
-      {/* A titled card with a count, like every other settings list. */}
+      {/* A titled card with a count, like every other settings list, and
+          named as they are ("All keys", "All scans") rather than repeating
+          the page's own "Members" heading. */}
       <SCard
-        title="Members"
+        title="All members"
         description={
-          listQuery.isSuccess ? `${users.length} ${users.length === 1 ? 'person' : 'people'}` : undefined
+          listQuery.isSuccess ? countOf(users.length, 'person', 'people') : undefined
         }
       >
         {users.length > MEMBER_SEARCH_THRESHOLD && (
@@ -676,8 +675,10 @@ export default function UsersPage() {
                   Joined {formatDate(u.created_at)}
                 </span>
                 {/* The same box for the chip as for the select, so the column
-                    does not alternate widths and heights row to row. */}
-                <div className="flex h-8 w-32 shrink-0 items-center justify-end">
+                    does not alternate widths and heights row to row. Not on a
+                    phone, where a fixed box beside a lone chip cut the email
+                    short next to empty space. */}
+                <div className="flex h-8 w-auto shrink-0 items-center justify-end sm:w-32">
                   {isOwner &&
                   u.id !== currentUser?.id &&
                   (actorIsOrgOwner || u.role !== 'owner') ? (
@@ -697,6 +698,20 @@ export default function UsersPage() {
               </div>
               {org && isOwner && u.id !== currentUser?.id && (actorIsOrgOwner || u.role !== 'owner') && (
                 <div className="mt-1.5 flex flex-wrap justify-end gap-2">
+                  {!publicDemo && (
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="ghost"
+                      onClick={() => void handleResetLink(u)}
+                      disabled={resetLinkMut.isPending}
+                      aria-label={`Create reset link for ${u.name ?? u.email}`}
+                    >
+                      {resetLinkMut.isPending && resetLinkMut.variables?.id === u.id
+                        ? 'Creating…'
+                        : 'Create reset link'}
+                    </Button>
+                  )}
                   {actorIsOrgOwner && u.role !== 'owner' && (
                     <Button
                       type="button"
@@ -742,6 +757,19 @@ export default function UsersPage() {
                 <p role="alert" className="m-0 mt-1.5 text-right text-body-sm text-destructive">
                   Could not change the role of {u.name ?? u.email}: {getErrorMessage(updateMut.error)}
                 </p>
+              )}
+              {resetLinkMut.isError && resetLinkMut.variables?.id === u.id && (
+                <p role="alert" className="m-0 mt-1.5 text-right text-body-sm text-destructive">
+                  Could not create a reset link for {u.name ?? u.email}:{' '}
+                  {getErrorMessage(resetLinkMut.error)}
+                </p>
+              )}
+              {resetLinkMut.isSuccess && resetLinkMut.variables?.id === u.id && (
+                <MemberResetLinkPanel
+                  who={u.name ?? u.email}
+                  link={resetLinkMut.data}
+                  onDismiss={() => resetLinkMut.reset()}
+                />
               )}
             </div>
           ))

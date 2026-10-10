@@ -2,7 +2,7 @@ import { fireEvent, render, screen, waitFor, within } from '@testing-library/rea
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { MemoryRouter } from 'react-router-dom'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import type { MonitoringSignal, SignalVerdict } from '@/types'
+import type { MonitoringSignal, SignalVerdictInfo } from '@/types'
 import { SignalVerdictCard } from './SignalVerdictCard'
 
 vi.mock('@/api/eventMetrics', () => ({
@@ -39,13 +39,17 @@ function makeSignal(overrides: Partial<MonitoringSignal> = {}): MonitoringSignal
     direction: 'drop',
     scope_name: 'signup_completed',
     incident_child: false,
+    muted: false,
+    expected: false,
+    hidden: false,
+    attribution_status: 'not_computed',
     unit: null,
     detected_at: null,
     ...overrides,
   }
 }
 
-const VERDICT: SignalVerdict = {
+const VERDICT: SignalVerdictInfo = {
   verdict: 'tracking_bug',
   expected_reason: null,
   note: 'Param renamed in 5.2',
@@ -186,7 +190,7 @@ describe('SignalVerdictCard owners (F07, #260)', () => {
     ])
     renderCard({ signal: makeSignal({ owners }) })
 
-    expect(screen.getByText('Owners: @anna')).toBeInTheDocument()
+    expect(screen.getByText('Event type owner: @anna')).toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: 'Notify owners of signup_completed by email' }))
 
     expect(await screen.findByText('Emailed anna.')).toBeInTheDocument()
@@ -213,7 +217,7 @@ describe('SignalVerdictCard owners (F07, #260)', () => {
     renderCard({
       signal: makeSignal({ owners, incident: { id: 'grp-1', status: 'open' } }),
     })
-    expect(screen.getByText('Owners: @anna')).toBeInTheDocument()
+    expect(screen.getByText('Event type owner: @anna')).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: /Notify owners/ })).toBeNull()
   })
 

@@ -29,17 +29,14 @@ import { signalDirectionTone, type SignalDirectionTone } from '@/lib/statusLexic
 import type { Event as TEvent, EventMetricPoint, EventMetricsResponse, EventType, MonitoringSignal } from '@/types'
 import { computeEventStats, type EventDetailStats } from './eventStats'
 import { SURFACE_STYLE } from './surface'
-
-function formatNum(value: number): string {
-  return value.toLocaleString()
-}
+import { formatNumber } from '@/lib/format'
 
 export function EventDetailHero({
   event,
   eventType,
   metrics,
   onEdit,
-  onMetrics,
+  onOpenCharts,
   onAnnotate,
   discussionCount,
   onDiscuss,
@@ -53,7 +50,8 @@ export function EventDetailHero({
   metrics: EventMetricsResponse | undefined
   /** Omitted for a viewer, who gets no Edit action. */
   onEdit?: () => void
-  onMetrics: () => void
+  /** Brings the page's chart tabs into view, on the Volume chart. */
+  onOpenCharts: () => void
   /** Opens the annotation form at a bucket; omitted for a viewer. */
   onAnnotate?: (bucket: string) => void
   /** Comments on the event's discussion; undefined while they load. */
@@ -77,7 +75,7 @@ export function EventDetailHero({
         eventType={eventType}
         signal={signal}
         onEdit={onEdit}
-        onMetrics={onMetrics}
+        onOpenCharts={onOpenCharts}
         discussionCount={discussionCount}
         onDiscuss={onDiscuss}
         onMarkVerified={onMarkVerified}
@@ -100,7 +98,7 @@ export function EventDetailHero({
           sigmaThreshold={metrics?.sigma_threshold}
           signal={signal}
           color={eventType?.color || undefined}
-          onOpenFullChart={onMetrics}
+          onOpenFullChart={onOpenCharts}
         />
       )}
     </div>
@@ -119,7 +117,7 @@ function EventDetailHeader({
   eventType,
   signal,
   onEdit,
-  onMetrics,
+  onOpenCharts,
   discussionCount,
   onDiscuss,
   onMarkVerified,
@@ -130,7 +128,7 @@ function EventDetailHeader({
   eventType: EventType | undefined
   signal: MonitoringSignal | null
   onEdit?: () => void
-  onMetrics: () => void
+  onOpenCharts: () => void
   discussionCount?: number
   onDiscuss?: () => void
   onMarkVerified?: () => void
@@ -202,9 +200,11 @@ function EventDetailHeader({
           {/* One watch per event (#259): a branch copy watches its twin on
               main when the payload names it, as the discussion is shared. */}
           {slug && <WatchButton slug={slug} entityType="event" entityId={event.main_event_id ?? event.id} />}
-          <Button variant="outline" onClick={onMetrics}>
+          {/* Named for what it opens, the chart tabs below: "Metrics" is the
+              catalog under Observe, which this page lists under "Used by". */}
+          <Button variant="outline" onClick={onOpenCharts}>
             <TrendingUp aria-hidden="true" />
-            Metrics
+            Charts
           </Button>
           {onEdit && (
             <Button onClick={onEdit}>
@@ -350,7 +350,7 @@ function EventSignalBanner({
 /**
  * Compact volume chart rendered beside {@link EventSignalBanner} so the anomaly
  * the banner describes is visible in context, without the extra click into the
- * Metrics tab. Reuses the already-fetched series and the same
+ * Volume tab. Reuses the already-fetched series and the same
  * {@link MetricsChart}; native granularity keeps the flagged point
  * un-aggregated, so its anomaly dot never merges into a neighbouring bucket.
  *
@@ -483,7 +483,7 @@ function EventStatStrip({
         label="Volume · 24h"
         value={pending
           ? <StatValueSkeleton />
-          : stats.volume24h == null ? '—' : formatNum(stats.volume24h)}
+          : stats.volume24h == null ? '—' : formatNumber(stats.volume24h)}
         empty={!pending && stats.volume24h == null}
         hint={!pending && stats.volume24h == null ? 'No events in the last 24h' : undefined}
       />
@@ -510,7 +510,7 @@ function EventStatStrip({
       />
       <EventStat
         label="Schema drifts"
-        value={formatNum(event.drift_count)}
+        value={formatNumber(event.drift_count)}
         tone={event.drift_count > 0 ? 'warning' : undefined}
         // Zero drifts is a real, reassuring count — render "0", not the
         // no-data glyph the empty state would otherwise show.

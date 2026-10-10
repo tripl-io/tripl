@@ -2,12 +2,13 @@
  * Pre-flight guard for "Generate demo project".
  *
  * Generating a demo used to be a single unguarded click, so a cancel/retry loop
- * or a second visit minted another synthetic workspace that then aggregated into
- * the real workspace roll-ups forever. The backend caps demos per creator; this
+ * or a second visit minted another synthetic project that then aggregated into
+ * the All projects roll-ups forever. The backend caps demos per creator; this
  * is the honest warning that comes BEFORE the request, pointing at Reset —
  * which the docs position as the way to refresh a demo — instead.
  */
 
+import { countOf } from '@/lib/plural'
 import type { Project } from '@/types'
 import { MAX_DEMOS_PER_CREATOR } from './useDemoProvisioning'
 
@@ -15,8 +16,6 @@ export interface DemoGenerationWarning {
   title: string
   message: string
   confirmLabel: string
-  /** False when the backend would refuse the create outright (cap reached). */
-  canProceed: boolean
 }
 
 /** Demos this user owns, i.e. the ones that count against their cap. */
@@ -28,29 +27,18 @@ export function ownedDemoCount(projects: readonly Project[], userId: string | un
 
 /**
  * The confirmation to show before generating, or null when the user owns none
- * and the click needs no friction at all.
+ * and the click needs no friction at all. At the cap there is nothing to
+ * confirm: the button is disabled first ({@link demoGenerationBlockedReason}).
  */
 export function demoGenerationWarning(owned: number): DemoGenerationWarning | null {
   if (owned <= 0) return null
-  if (owned >= MAX_DEMOS_PER_CREATOR) {
-    return {
-      title: 'Demo limit reached',
-      message:
-        `You already have ${owned} demo workspaces, which is the limit. ` +
-        "Reset one from its demo banner's Manage demo menu to get a fresh copy, or delete one first.",
-      confirmLabel: 'OK',
-      canProceed: false,
-    }
-  }
-  const plural = owned === 1 ? 'demo workspace' : 'demo workspaces'
   return {
-    title: 'Generate another demo workspace?',
+    title: 'Generate another demo project?',
     message:
-      `You already have ${owned} ${plural}. Resetting an existing demo from its banner's Manage demo menu ` +
+      `You already have ${countOf(owned, 'demo project', 'demo projects')}. Resetting an existing demo from its banner's Manage demo menu ` +
       'refreshes it in place; generating another adds a separate synthetic project that ' +
-      `also counts towards this workspace's totals. You can have ${MAX_DEMOS_PER_CREATOR} at most.`,
+      `also counts towards the totals on All projects. You can have ${MAX_DEMOS_PER_CREATOR} at most.`,
     confirmLabel: 'Generate another',
-    canProceed: true,
   }
 }
 

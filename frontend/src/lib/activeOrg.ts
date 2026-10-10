@@ -226,11 +226,18 @@ export function orgStorageKey(key: string, org: string | null = currentOrgSlug()
 export const ORG_STORAGE_MIGRATED_KEY = 'tripl-org-storage-migrated'
 
 /**
+ * localStorage, under {@link orgStorageKey}: the last project the user opened.
+ * The sidebar, Settings and a slug rename write it; Settings reads it for a
+ * bare address.
+ */
+export const LAST_PROJECT_SLUG_KEY = 'tripl-last-project-slug'
+
+/**
  * The key families {@link orgStorageKey} scopes: an exact key, or a prefix
  * ending in `:` / `.` followed by a project slug or id.
  */
 export const ORG_SCOPED_STORAGE_KEYS: readonly string[] = [
-  'tripl-last-project-slug',
+  LAST_PROJECT_SLUG_KEY,
   'tripl.eventsSavedViews',
 ]
 export const ORG_SCOPED_STORAGE_PREFIXES: readonly string[] = [

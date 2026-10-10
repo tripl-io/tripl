@@ -95,7 +95,8 @@ describe('FilterEditor — event scope picker', () => {
     fireEvent.click(screen.getByRole('button', { name: /1 selected/ }))
 
     await waitFor(() => expect(listCalls(calls)).toHaveLength(1))
-    expect(listCalls(calls)[0]).toContain('limit=50')
+    // The page every event picker shares.
+    expect(listCalls(calls)[0]).toContain('limit=100')
     // No search term yet, so the first page is the plain head of the catalog.
     expect(listCalls(calls)[0]).not.toContain('search=')
 
@@ -122,6 +123,45 @@ describe('FilterEditor — event scope picker', () => {
     )
     // Server-side filtering: the browser never sees the rows it did not ask for.
     expect(await screen.findByText('checkout_completed')).toBeInTheDocument()
+  })
+
+  it('keeps the last page on screen while the next search is on its way', async () => {
+    // Each debounced search is a new query key, and without `keepPreviousData`
+    // the list dropped to "Searching…" on every keystroke.
+    let releaseSearch: () => void = () => {}
+    const calls: string[] = []
+    vi.spyOn(globalThis, 'fetch').mockImplementation(async (input) => {
+      const url = String(input)
+      calls.push(url)
+      if (/\/events\/evt-1(\?|$)/.test(url)) {
+        return jsonResponse({ id: 'evt-1', name: 'checkout_started' })
+      }
+      const page = jsonResponse({
+        items: [
+          { id: 'evt-1', name: 'checkout_started' },
+          { id: 'evt-2', name: 'checkout_completed' },
+        ],
+        total: 2,
+      })
+      if (url.includes('search=')) {
+        return new Promise<Response>((resolve) => {
+          releaseSearch = () => resolve(page)
+        })
+      }
+      return page
+    })
+    renderEventFilter()
+    await screen.findByText('checkout_started')
+
+    fireEvent.click(screen.getByRole('button', { name: /1 selected/ }))
+    expect(await screen.findByText('checkout_completed')).toBeInTheDocument()
+
+    fireEvent.change(screen.getByLabelText('Search values'), { target: { value: 'check' } })
+    await waitFor(() => expect(listCalls(calls).some((url) => url.includes('search=check'))).toBe(true))
+
+    expect(screen.getByText('checkout_completed')).toBeInTheDocument()
+    expect(screen.queryByText('Searching…')).toBeNull()
+    releaseSearch()
   })
 
   it('names an event whose stored name is blank, on the trigger and in the list', async () => {

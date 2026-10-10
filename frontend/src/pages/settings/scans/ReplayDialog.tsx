@@ -17,6 +17,7 @@ import {
 } from '@/components/ui/dialog'
 import { FieldError } from '@/components/forms/FieldError'
 import { REQUIRED_MESSAGE, invalidAria } from '@/components/forms/validation'
+import { toLocalDateTimeValue } from '@/lib/datetime'
 import { getBucketStart, type MetricsGranularity } from '@/lib/metrics'
 import { getErrorMessage } from '@/lib/utils'
 import { scanJobsKey, scansKey } from '@/lib/queryKeys'
@@ -56,11 +57,6 @@ const GRANULARITY_FOR_INTERVAL: Record<IntervalCode, MetricsGranularity> = {
   '1w': 'week',
 }
 
-function toDatetimeLocalValue(date: Date): string {
-  const pad = (value: number) => String(value).padStart(2, '0')
-  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`
-}
-
 /**
  * A period the backend will accept: it ends on the last COMPLETE bucket of this
  * scan's own interval — or, for the first `CLOCK_SKEW_MARGIN_MS` of that bucket,
@@ -88,7 +84,7 @@ function defaultReplayWindow(interval: IntervalCode | null): { from: string; to:
   // the backend is certain to accept.
   const to = now - latest.getTime() < CLOCK_SKEW_MARGIN_MS ? previous : latest
   const from = new Date(to.getTime() - Math.max(DAY_MS, width))
-  return { from: toDatetimeLocalValue(from), to: toDatetimeLocalValue(to) }
+  return { from: toLocalDateTimeValue(from), to: toLocalDateTimeValue(to) }
 }
 
 // Replays metrics for a past time window. Opened from the scan page's header.

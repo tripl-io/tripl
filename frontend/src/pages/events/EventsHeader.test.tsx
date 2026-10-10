@@ -41,25 +41,25 @@ describe('EventsHeader', () => {
     expect(screen.queryByRole('heading', { name: 'Events' })).not.toBeInTheDocument()
   })
 
-  it('says the in-review stat is project-wide, not a slice of Total', () => {
-    // The archived tab rendered "TOTAL 1 · IN REVIEW 6 pending" above a single
-    // archived row. Lifecycle status is single-valued, so 6 of those 1 events
-    // cannot be awaiting review — the row only reads as one sentence because
-    // nothing marked the wider scope.
+  it('counts the review queue on its tab, not again as a stat', () => {
+    // "Review queue 6 · Events 6 · In review 6 project-wide": the stat repeated
+    // the tab's number on every tab, and a third time on the queue itself.
     render(
-      <EventsHeader
-        total={1}
-        inReviewCount={6}
-        projectTotalSignal={null}
-        eventTypeSignals={new Map()}
-      />,
+      <MemoryRouter>
+        <EventsHeader
+          total={1}
+          inReviewCount={6}
+          projectTotalSignal={null}
+          eventTypeSignals={new Map()}
+          activeTab="archived"
+          slug="demo"
+        />
+      </MemoryRouter>,
     )
 
-    const inReviewStat = screen.getByText('6').closest('dl')
-    expect(inReviewStat).toHaveTextContent(/project/i)
-    expect(
-      screen.getByRole('button', { name: /ignores the tab, filters and search/i }),
-    ).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: /Review queue/ })).toHaveTextContent('6')
+    expect(screen.queryByText('In review')).not.toBeInTheDocument()
+    expect(screen.getAllByText('6')).toHaveLength(1)
   })
 
   it('prints the total once, with a thousands separator', () => {
@@ -72,7 +72,7 @@ describe('EventsHeader', () => {
       />,
     )
 
-    expect(screen.getAllByText((5000).toLocaleString())).toHaveLength(1)
+    expect(screen.getAllByText('5,000')).toHaveLength(1)
     expect(screen.queryByText('5000')).not.toBeInTheDocument()
   })
 
@@ -103,9 +103,10 @@ describe('EventsHeader', () => {
     ).toBeInTheDocument()
   })
 
-  it('says "none"/"open" for chart signals, never "live"', () => {
+  it('says "none" when no chart signal is open, and a red figure when one is', () => {
     // "Live" is the lifecycle status in green one column over; an open anomaly
-    // must not borrow the word.
+    // must not borrow the word. Nor repeat the caption: "1 · open" under
+    // "Chart signals".
     const { rerender } = render(
       <EventsHeader
         total={3}
@@ -114,9 +115,12 @@ describe('EventsHeader', () => {
         eventTypeSignals={new Map()}
       />,
     )
-    const stat = () => screen.getByText('Open signals').closest('dl')
+    const stat = () => screen.getByText('Chart signals').closest('dl')
     expect(stat()).toHaveTextContent('none')
     expect(stat()).not.toHaveTextContent(/live|quiet/)
+    // Overview's "Open signals" counts every significant signal; this one
+    // counts only the charted series, so the two do not share a name.
+    expect(screen.queryByText('Open signals')).not.toBeInTheDocument()
 
     rerender(
       <EventsHeader
@@ -126,8 +130,9 @@ describe('EventsHeader', () => {
         eventTypeSignals={new Map()}
       />,
     )
-    expect(stat()).toHaveTextContent('open')
-    expect(stat()).not.toHaveTextContent(/live/)
+    expect(stat()).toHaveTextContent('1')
+    expect(stat()).not.toHaveTextContent(/none|open\b|live/)
+    expect(stat()?.querySelector('[data-slot="mini-stat-value"]')).toHaveAttribute('data-tone', 'danger')
   })
 
   it('puts the nav group in the eyebrow and the stats in the boxed strip under the title', () => {
@@ -158,7 +163,7 @@ describe('EventsHeader', () => {
     )
 
     const stat = screen.getByText('Matching').closest('dl')
-    expect(stat).toHaveTextContent(`12${(400).toLocaleString()} of ${(5000).toLocaleString()} checked`)
+    expect(stat).toHaveTextContent('12400 of 5,000 checked')
     expect(screen.queryByText('Total')).not.toBeInTheDocument()
   })
 
@@ -174,10 +179,9 @@ describe('EventsHeader', () => {
         signalsPending
       />,
     )
-    const signals = screen.getByText('Open signals').closest('dl')
+    const signals = screen.getByText('Chart signals').closest('dl')
     expect(signals).not.toHaveTextContent(/none|0/)
     expect(screen.getByText('Events', { selector: 'dt' }).closest('dl')).not.toHaveTextContent('0')
-    expect(screen.getByText('In review').closest('dl')).not.toHaveTextContent(/0|project-wide/)
   })
 
   it('titles the queues after themselves and links the views', () => {
@@ -205,8 +209,8 @@ describe('EventsHeader', () => {
     expect(review).toHaveAttribute('href', '/p/demo/events/review')
     expect(review).toHaveAttribute('aria-current', 'page')
     expect(screen.getByRole('link', { name: 'All' })).toHaveAttribute('href', '/p/demo/events')
-    // The in-review figure is the way into that queue.
-    expect(screen.getByRole('link', { name: '6' })).toHaveAttribute('href', '/p/demo/events/review')
+    // The tab carries the in-review count and is the way into that queue.
+    expect(review).toHaveTextContent('6')
   })
 
   it('drops the stat strip for a project with no events', () => {

@@ -1,15 +1,9 @@
 import { Fragment, type ReactNode } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
-import {
-  AlertTriangle,
-  Bell,
-  Check,
-  Database,
-  TrendingUp,
-  type LucideIcon,
-} from 'lucide-react'
+import { Database } from 'lucide-react'
 import { activityApi } from '@/api/activity'
+import { ActivityFeed } from '@/components/activity-feed'
 import { useActivityRailInline } from '@/components/activity-rail-store'
 import { ApiError } from '@/api/client'
 import { dataSourcesApi } from '@/api/dataSources'
@@ -22,7 +16,7 @@ import { SyntheticSourceBadge } from '@/demo/capabilityBadges'
 import { DemoWelcomePanel } from '@/demo/DemoWelcomePanel'
 import { Chip } from '@/components/primitives/chip'
 import { Dot } from '@/components/primitives/dot'
-import { MiniStat, MiniStatStrip, type MiniStatTone } from '@/components/primitives/mini-stat'
+import { MiniStat, MiniStatStrip } from '@/components/primitives/mini-stat'
 import { Sparkline } from '@/components/primitives/sparkline'
 import { Panel } from '@/components/settings/kit'
 import { OverviewPlanHealthPanel } from './OverviewPlanHealthPanel'
@@ -30,28 +24,28 @@ import { PageContainer } from '@/components/primitives/page-container'
 import { PageHeader } from '@/components/primitives/page-header'
 import { EmptyState } from '@/components/empty-state'
 import { StatValueSkeleton } from '@/components/states'
-import { Button } from '@/components/ui/button'
+import { ConnectDataSourceButton } from '@/components/first-scan-actions'
 import { SERIES_COLORS } from '@/components/ui/chart-format'
 import { Skeleton } from '@/components/ui/skeleton'
-import { useAuth } from '@/components/auth-context'
 import { useTheme } from '@/components/theme-provider'
-import { isOwner } from '@/lib/permissions'
-import { currentOrgSlug, getAlertingPath, projectPath, settingsPath, withActiveOrg } from '@/lib/navigation'
-import { METRIC_INTERVAL_LABEL } from '@/lib/metricFormat'
-import { formatPlanCoverage, planCoverageRatio } from '@/lib/coverage'
+import { useCanWriteProject, useIsOwner } from '@/lib/permissions'
+import { useOnboardingDismissed } from '@/lib/onboardingDismissal'
+import { currentOrgSlug, getAlertingPath, projectPath, settingsPath } from '@/lib/navigation'
+import { metricCadence } from '@/lib/metricFormat'
+import { formatPlanCoverage, planCoverageTone } from '@/lib/coverage'
 import {
-  coverageTone,
   dataSourceHealthLexeme,
   signalDirectionColor,
   signalDirectionTone,
   type StatusLexeme,
 } from '@/lib/statusLexicon'
-import { formatDateTime, formatRelativeTime } from '@/lib/datetime'
+import { formatDateTime, formatRelativeTime, formatShortTimestamp } from '@/lib/datetime'
 import { APP_LOCALE, formatNumber } from '@/lib/format'
+import { formatRatioDelta } from '@/lib/percentDelta'
+import { countOf } from '@/lib/plural'
 import { formatSignalEffect, formatSignalEffectDetail, getMonitoringPath } from '@/lib/monitoring'
 import { selectSignificantSignals } from '@/lib/signalMagnitude'
-import { formatSignalValues } from '@/lib/signalMetricFormat'
-import { friendlyScanError } from '@/lib/scanError'
+import { formatSignalValues, signalTimeTitle } from '@/lib/signalMetricFormat'
 import { useExpandedSignals } from '@/hooks/useExpandedSignals'
 import { useSourceFreshness } from '@/hooks/useSourceFreshness'
 import { FreshnessChip } from '@/components/source-freshness/freshness-chip'
@@ -65,14 +59,12 @@ import {
   unnamedScopeLabel,
 } from '@/lib/signalScope'
 import { useAdaptiveRefetchInterval } from '@/realtime/streamContext'
-import type {
-  ActivityItem,
-  ActivityItemSeverity,
-  ActivityItemType,
-  DataSource,
-  EventMetricPoint,
-  MonitoringSignal,
-  SourceFreshnessItem,
+import {
+  dbTypeLabel,
+  type DataSource,
+  type EventMetricPoint,
+  type MonitoringSignal,
+  type SourceFreshnessItem,
 } from '@/types'
 import {
   activityPreviewKey,
@@ -99,12 +91,13 @@ const SOURCE_HEALTH_STALE_MS = 24 * 60 * 60 * 1000
 // documented default window for project-total charts.
 const VOLUME_WINDOW_DAYS = 7
 const VOLUME_WINDOW_MS = VOLUME_WINDOW_DAYS * 24 * 60 * 60 * 1000
-const VOLUME_SUBTITLE = 'One scan — not the project’s combined volume across all scans.'
+// Says what the card covers, set against Top events' "Across every scan in
+// this project." below it, rather than what it is not.
+const VOLUME_SUBTITLE = 'This scan only — Top events below counts every scan.'
 
 export default function OverviewPage() {
   const { slug } = useParams<{ slug: string }>()
   const { chartStyle } = useTheme()
-  const { user } = useAuth()
   // Adaptive fallback cadence: the live stream refreshes signals/activity via the
   // invalidation map, so poll only while the stream is unavailable.
   const refetchInterval = useAdaptiveRefetchInterval({ activeMs: 60_000 })
@@ -197,11 +190,6 @@ export default function OverviewPage() {
   // badge (monitoring_signal_count) and the Anomalies page.
   const signalCount = signals.length
   const reviewCount = summary?.review_pending_event_count ?? 0
-  // Coverage is plan coverage (implemented vs active events) rendered through the
-  // canonical formatter, so it reads identically to the projects dashboard (H2).
-  const coveragePct = summary
-    ? planCoverageRatio(summary.implemented_event_count, summary.active_event_count) * 100
-    : undefined
   // Events CREATED per day (main branch) — NOT a history of the "Active events"
   // stat beside it. The series was captioned "Active trend" / "Active events by
   // day" while a single day could exceed the whole active catalog (4,618 on a
@@ -227,10 +215,7 @@ export default function OverviewPage() {
   // newest (partial) bucket, and a caption in dates rather than "167 buckets".
   const volumeSummary = summarizeVolume(volumePoints)
   const volumeInterval = volumeQuery.data?.interval
-  const volumeCadence =
-    volumeInterval && volumeInterval in METRIC_INTERVAL_LABEL
-      ? METRIC_INTERVAL_LABEL[volumeInterval as keyof typeof METRIC_INTERVAL_LABEL].toLowerCase()
-      : null
+  const volumeCadence = metricCadence(volumeInterval)
   const projectTotalPath = volumeScanConfigId
     ? getMonitoringPath(slug!, { scope_type: 'project_total', scope_ref: volumeScanConfigId })
     : null
@@ -239,13 +224,18 @@ export default function OverviewPage() {
   // so the page shows one empty state instead.
   const isBlankProject =
     !!summary && summary.active_event_count === 0 && sourcesQuery.isSuccess && sources.length === 0
-  // Colour only the exception: coverage under the good bar reads as a
-  // warning, never an alarm red, and a good or not-yet-measured one is neutral.
-  const coverageKpiTone: MiniStatTone =
-    summary && summary.active_event_count > 0 && coverageTone(coveragePct) !== 'success'
-      ? 'warning'
-      : 'neutral'
-  const canConnectSource = isOwner(user?.role)
+  // The blank project's own "Connect a data source" button only when the
+  // getting-started checklist above is not already offering it as step 1. The
+  // checklist shows for anyone who can write here until it is dismissed, so
+  // for an owner that is once they have dismissed it. Subscribed, not read
+  // once: dismissing the checklist re-renders this page, so the button shows
+  // the moment the checklist goes.
+  const canWriteHere = useCanWriteProject()
+  // The owner of the organization the app acts in, not of the default one.
+  const isOrgOwner = useIsOwner()
+  const checklistDismissed = useOnboardingDismissed(slug, projectQuery.data?.id)
+  const offerConnectSource =
+    isOrgOwner && (!canWriteHere || (!!slug && checklistDismissed))
 
   // A nonexistent slug is a 404 on the project query itself: replace the whole
   // widget grid with the app's full-page not-found. Non-404 project
@@ -305,13 +295,7 @@ export default function OverviewPage() {
           title="Overview fills in after your first scan"
           description="Connect a data source and run a scan. Volume, top events, anomalies and source health then show up here."
           action={
-            canConnectSource ? (
-              <Button asChild size="sm">
-                <Link to={settingsPath('/settings/data-sources')} className="no-underline">
-                  Connect a data source
-                </Link>
-              </Button>
-            ) : undefined
+            offerConnectSource ? <ConnectDataSourceButton /> : undefined
           }
         />
       ) : (
@@ -352,25 +336,34 @@ export default function OverviewPage() {
               label="Open signals"
               value={signalsQuery.data ? formatNumber(signalCount) : <StatValueSkeleton />}
               tone={signalsQuery.data && signalCount > 0 ? 'danger' : 'neutral'}
-              // The one pulse on the page: the rows below are static.
+              valueTone={signalsQuery.data && signalCount > 0 ? 'danger' : undefined}
+              // The one pulse on the page: the rows below are static. MiniStat
+              // draws its pulse in the delta, so the delta is the dot alone:
+              // a visible word read "Open signals 3 active", the same idea
+              // twice. Screen readers still hear it, in the signal's own word
+              // "open" ("active" is what the events tile counts).
               pulse={signalCount > 0}
-              delta={signalCount > 0 ? 'active' : undefined}
+              delta={signalCount > 0 ? <span className="sr-only">open</span> : undefined}
             />
           </KpiLink>
+          {/* "Plan coverage", as on the Coverage page it opens, in the same
+              colour there and here. */}
           <KpiLink to={slug ? projectPath(currentOrgSlug(), slug, '/coverage') : undefined}>
             <MiniStat
-              label="Coverage"
+              label="Plan coverage"
+              // Nothing planned yet reads "—": no score, rather than a 0%.
               value={
-                !summary ? (
-                  <StatValueSkeleton />
-                ) : summary.active_event_count > 0 ? (
+                summary ? (
                   formatPlanCoverage(summary.implemented_event_count, summary.active_event_count)
                 ) : (
-                  // Nothing planned yet: no score, rather than a red 0%.
-                  '—'
+                  <StatValueSkeleton />
                 )
               }
-              tone={coverageKpiTone}
+              tone={
+                summary
+                  ? planCoverageTone(summary.implemented_event_count, summary.active_event_count)
+                  : 'neutral'
+              }
             />
           </KpiLink>
           {newEventsSeries.length > 1 && (
@@ -538,12 +531,13 @@ export default function OverviewPage() {
                 <span className="tnum text-display font-semibold">
                   {formatNumber(volumeSummary.last24h)}
                 </span>
+                {/* Says what it compares. A bare grey "−6%" under a signal row's
+                    "+62%" read as a contradiction: that one is the newest
+                    bucket against its expected value, this the whole day
+                    against the day before. */}
                 {volumeSummary.changePct != null && (
-                  <span
-                    className="tnum text-caption text-fg-tertiary"
-                    title="Against the 24 hours before"
-                  >
-                    {formatVolumeChange(volumeSummary.changePct)}
+                  <span className="tnum text-caption text-fg-tertiary">
+                    {`${formatRatioDelta(volumeSummary.changePct)} vs prior 24h`}
                   </span>
                 )}
               </span>
@@ -712,11 +706,11 @@ export default function OverviewPage() {
             No recent activity.
           </div>
         )}
+        {/* The rail's own rows, so the feed reads the same with the rail
+            open or closed. */}
         {activity.length > 0 && (
           <div className="divide-y border-border-subtle">
-            {activity.map((item) => (
-              <ActivityRow key={item.id} item={item} />
-            ))}
+            <ActivityFeed items={activity} variant="panel" />
           </div>
         )}
         </div>
@@ -847,13 +841,9 @@ function KpiLink({ to, children }: { to?: string; children: ReactNode }) {
   )
 }
 
-function plural(count: number, one: string, many: string): string {
-  return `${formatNumber(count)} ${count === 1 ? one : many}`
-}
-
 /**
  * The one-line answer to "is everything OK?" under the title: open
- * anomalies, incidents still owed an answer, failing scans, alert destinations
+ * signals, incidents still owed an answer, failing scans, alert destinations
  * whose deliveries fail and source health,
  * each linking where it is dealt with. A clause whose data has not arrived is
  * left out rather than guessed.
@@ -878,28 +868,30 @@ function OverviewStatus({
 }) {
   const linkStyle = { color: 'var(--accent)' }
   const parts: ReactNode[] = []
+  // "Open signals", the KPI's word for this count: the line said "3 open
+  // anomalies" a few pixels above "Open signals 3", which read as two things.
   if (signalCount != null) {
     parts.push(
       signalCount > 0 ? (
         <Link to={projectPath(currentOrgSlug(), slug, '/anomalies')} style={linkStyle}>
-          {plural(signalCount, 'open anomaly', 'open anomalies')}
+          {countOf(signalCount, 'open signal', 'open signals')}
         </Link>
       ) : (
-        'No open anomalies'
+        'No open signals'
       ),
     )
   }
   if (openIncidents > 0) {
     parts.push(
       <Link to={getAlertingPath(slug)} style={linkStyle}>
-        {plural(openIncidents, 'open incident', 'open incidents')}
+        {countOf(openIncidents, 'open incident', 'open incidents')}
       </Link>,
     )
   }
   if (failingScans > 0) {
     parts.push(
       <Link to={projectPath(currentOrgSlug(), slug, '/scans')} style={linkStyle}>
-        {plural(failingScans, 'failing scan', 'failing scans')}
+        {countOf(failingScans, 'failing scan', 'failing scans')}
       </Link>,
     )
   }
@@ -908,14 +900,14 @@ function OverviewStatus({
   if (failingDestinations > 0) {
     parts.push(
       <Link to={getAlertingPath(slug)} style={linkStyle}>
-        {plural(failingDestinations, 'broken alert channel', 'broken alert channels')}
+        {countOf(failingDestinations, 'broken alert channel', 'broken alert channels')}
       </Link>,
     )
   }
   if (sources && sources.length > 0) {
     const tones = sources.map((source) => sourceHealth(source).tone)
     const failing = tones.filter((tone) => tone === 'danger').length
-    if (failing > 0) parts.push(plural(failing, 'source failing', 'sources failing'))
+    if (failing > 0) parts.push(countOf(failing, 'source failing', 'sources failing'))
     else if (tones.every((tone) => tone === 'success')) parts.push('sources healthy')
   }
   if (parts.length === 0) return null
@@ -978,17 +970,11 @@ function summarizeVolume(points: EventMetricPoint[], now: number = Date.now()): 
   }
 }
 
-/** "+2%" / "−14%" with a real minus sign, like the signal rows. */
-function formatVolumeChange(pct: number): string {
-  const rounded = Math.round(pct)
-  return `${rounded < 0 ? '−' : '+'}${formatNumber(Math.abs(rounded))}%`
-}
-
 function volumeHeadlineLabel(summary: VolumeSummary): string {
   const change =
     summary.changePct == null
       ? ''
-      : `, ${formatVolumeChange(summary.changePct)} against the 24 hours before`
+      : `, ${formatRatioDelta(summary.changePct)} against the 24 hours before`
   return `Volume in the last 24 hours: ${formatNumber(summary.last24h)}${change}`
 }
 
@@ -1045,9 +1031,19 @@ function SignalRow({
       <span className="flex-1 truncate text-body-sm font-medium" title={signalTitle}>
         {signalSummary}
       </span>
+      {/* "7,173 vs 2,403 expected" and the bucket it counts, as the Anomalies
+          page's columns say: bare "7,173 vs 2,403" named neither the baseline
+          nor the time. */}
       <span className="tnum hidden shrink-0 text-caption sm:inline text-fg-tertiary">
-        {formatSignalValues(signal)}
+        {`${formatSignalValues(signal)} expected`}
       </span>
+      <time
+        dateTime={signal.bucket}
+        title={signalTimeTitle('Bucket starting', signal.bucket)}
+        className="tnum hidden shrink-0 text-caption md:inline text-fg-tertiary"
+      >
+        {formatShortTimestamp(signal.bucket, { today: true })}
+      </time>
       {/* "+203%", not z=40.7: the change in the reader's terms, with the
           magnitude word and z-score on hover. */}
       <span
@@ -1059,63 +1055,6 @@ function SignalRow({
       </span>
     </Link>
   )
-}
-
-const ACTIVITY_ICON: Record<ActivityItemType, LucideIcon> = {
-  anomaly: AlertTriangle,
-  scan: TrendingUp,
-  alert: Bell,
-  event: Check,
-}
-
-function activitySeverityColor(severity: ActivityItemSeverity): string {
-  if (severity === 'high') return 'var(--danger)'
-  if (severity === 'medium') return 'var(--warning)'
-  return 'var(--fg-muted)'
-}
-
-// A failed-scan activity row carries the raw backend exception in `detail`
-// (host/port/ORM internals). Surface a friendly, leak-free message instead (H3).
-function activityDetail(item: ActivityItem): string {
-  if (item.type === 'scan' && item.title.startsWith('Scan failed')) {
-    return friendlyScanError(item.detail).message
-  }
-  return item.detail
-}
-
-function ActivityRow({ item }: { item: ActivityItem }) {
-  const Icon = ACTIVITY_ICON[item.type]
-  const color = activitySeverityColor(item.severity)
-  const detail = activityDetail(item)
-  const content = (
-    <>
-      <div
-        className="mt-px flex h-[22px] w-[22px] shrink-0 items-center justify-center rounded-sm"
-        style={{ background: 'var(--surface)', color: item.severity === 'low' ? 'var(--fg-muted)' : color }}
-      >
-        <Icon className="h-3 w-3" />
-      </div>
-      <div className="min-w-0 flex-1">
-        <div className="truncate text-body-sm font-medium leading-[1.35]" title={item.title}>{item.title}</div>
-        <div className="mt-0.5 truncate text-caption leading-[1.3] text-fg-tertiary">
-          {detail}
-        </div>
-      </div>
-      <span className="tnum shrink-0 text-micro text-fg-tertiary">
-        {formatRelativeTime(item.occurred_at)}
-      </span>
-    </>
-  )
-  const className =
-    'flex min-h-(--row-h) items-start gap-2.5 py-2 no-underline transition-colors hover:bg-[var(--surface-hover)]'
-  if (item.target_path) {
-    return (
-      <Link to={withActiveOrg(item.target_path)} className={`${className} text-inherit`}>
-        {content}
-      </Link>
-    )
-  }
-  return <div className={className}>{content}</div>
 }
 
 // A green "healthy" badge over a months-old check is misleading. When the last
@@ -1144,11 +1083,13 @@ function SourceRow({
     : 'Never checked'
   // Wraps on a phone. The fixed columns and chips used to take the whole row,
   // leaving the source name ~40px and slicing "checked 1h" off the edge; now
-  // the name keeps an 8rem basis, the uppercase type (the badge already says
+  // the name keeps an 8rem basis, the engine (the badge already says
   // "synthetic") drops below `sm`, and the check time moves to a second line.
   //
   // The engine shows only when it adds something: a synthetic source's badge
   // already says "Synthetic", and printing `synthetic` beside it said it twice.
+  // It is the warehouse's name ("ClickHouse"), as the Data sources page writes
+  // it, not the raw type key.
   // The status is a toned chip, the one status idiom, rather than grey text
   // next to a coloured dot; the row opens the source.
   const showEngine = !(source.is_synthetic && source.db_type === 'synthetic')
@@ -1163,10 +1104,8 @@ function SourceRow({
       </span>
       {source.is_synthetic && <SyntheticSourceBadge />}
       {showEngine && (
-        <span
-          className="mono hidden shrink-0 text-micro sm:inline text-fg-tertiary"
-        >
-          {source.db_type}
+        <span className="hidden shrink-0 text-micro sm:inline text-fg-tertiary">
+          {dbTypeLabel(source.db_type)}
         </span>
       )}
       <Chip tone={tone} className="shrink-0">

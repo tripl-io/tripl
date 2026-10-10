@@ -14,6 +14,7 @@ import { ChipListInput } from '@/components/chip-list-input'
 import { PageSkeleton } from '@/components/states'
 import { useActiveBranchId } from '@/hooks/useBranch'
 import { useUnsavedChangesGuard } from '@/hooks/useUnsavedChangesGuard'
+import { EVENT_ATTRIBUTE_LABEL } from '@/lib/eventAttributes'
 import { EVENT_STATUS_LABELS, EVENT_STATUSES } from '@/lib/eventStatus'
 import type { EventStatus } from '@/lib/eventStatus'
 import { ErrorState } from '@/components/error-state'
@@ -26,8 +27,10 @@ import {
   usersKey,
 } from '@/lib/queryKeys'
 import { useDebouncedValue } from '@/hooks/useDebouncedValue'
-import { AlertTriangle, Check, ChevronLeft, Loader2, Plus, X, type LucideIcon } from 'lucide-react'
-import { EV_INPUT_CLASS, EvField, SelectControl, SurfCard } from './eventFormLayout'
+import { AlertTriangle, Check, Loader2, Plus, X, type LucideIcon } from 'lucide-react'
+import { EV_INPUT_CLASS, EvField, EventsBackButton, SelectControl, SurfCard } from './eventFormLayout'
+import { NoEventTypesNotice } from './NoEventTypesNotice'
+import { bulkFormStatus } from './bulkFormStatus'
 import { nameFormatBaseColumns } from './utils'
 import {
   bulkExtraColumns,
@@ -41,9 +44,12 @@ import { visibleDuplicates } from '@/components/duplicates/duplicateHints'
 import { useDuplicateCheck } from '@/components/duplicates/useDuplicateCheck'
 import { normalizeTag } from './eventFormValues'
 import { rememberCreatedEvents } from './createdEventsHandoff'
+import { ownerFieldHint } from './eventOwner'
+import { useEventTypeOwners } from './useEventTypeOwners'
 import { useCanWriteProject } from '@/lib/permissions'
 import { SILENT_ERROR_META } from '@/lib/errorFeedback'
 import { currentOrgSlug, projectPath } from '@/lib/navigation'
+import { countOf, pluralize } from '@/lib/plural'
 
 const EMPTY_EVENT_TYPES: EventType[] = []
 
@@ -70,9 +76,6 @@ interface ProbeSummary {
 }
 
 const EMPTY_NAMES: ReadonlySet<string> = new Set()
-
-/** Not a blocker: the probe answers within a second or two. */
-const CHECKING_STATUS = 'Checking the names…'
 
 const STATUS_LABEL: Record<BulkRow['status'], string> = {
   ready: 'will be created',
@@ -158,6 +161,12 @@ export default function EventBulkForm() {
   const routedEt = tab && tab !== 'all' ? eventTypes.find(et => et.name === tab) : undefined
   const etId = chosenEtId ?? routedEt?.id ?? ''
   const selectedEt = eventTypes.find(et => et.id === etId)
+  // The single form's hint: with no owner picked, the type's owners answer for
+  // these events. Only main's types have owners.
+  const { owners: typeOwners } = useEventTypeOwners(slug ?? '', etId, {
+    enabled: canWrite && branchId === null && !ownerId,
+  })
+  const ownerHint = ownerFieldHint(ownerId, selectedEt?.display_name, typeOwners, { plural: true })
 
   // The rule comes with the type, resolved by the server, as on the single
   // form. It used to be picked out of the scan configs by event_type_id, which
@@ -278,17 +287,15 @@ export default function EventBulkForm() {
   // Why Create is greyed out, on the sticky bar beside it: a disabled
   // button alone left the reason off screen or unsaid.
   const cannotPaste = !!etId && (!!unsupported || unmappedColumns.length > 0)
-  const blockingReason = !etId
-    ? 'Pick an event type'
-    : cannotPaste
-      ? 'This event type cannot be filled from a pasted list'
-      : rows.length === 0
-        ? 'Paste at least one event name'
-        : checking
-          ? CHECKING_STATUS
-          : ready.length === 0
-            ? 'No line can be created'
-            : null
+  const hasEventTypes = eventTypes.length > 0
+  const barStatus = bulkFormStatus({
+    hasEventTypes,
+    typeChosen: !!etId,
+    cannotPaste,
+    lineCount: rows.length,
+    checking,
+    readyCount: ready.length,
+  })
 
   const createMut = useMutation({
     meta: SILENT_ERROR_META,
@@ -392,35 +399,38 @@ export default function EventBulkForm() {
           className="mb-[18px]"
           eyebrow="Plan · Event"
           title="Add many events"
-          back={
-            <button
-              type="button"
-              onClick={goBack}
-              className="inline-flex items-center gap-1 text-caption transition-colors hover:text-[var(--fg)]"
-              style={{ color: 'var(--fg-muted)' }}
-            >
-              <ChevronLeft className="size-3.5" aria-hidden="true" /> Events
-            </button>
-          }
+          back={<EventsBackButton onClick={goBack} />}
         />
 
         <SurfCard title="What to create">
-          <EvField label="Event type" htmlFor="bulk-event-type" required last={false}>
-            <SelectControl
-              id="bulk-event-type"
-              value={etId}
-              onChange={setEtId}
-              ariaRequired
-            >
-              <option value="">Select type…</option>
-              {eventTypes.map(et => (
-                <option key={et.id} value={et.id}>{et.display_name}</option>
-              ))}
-            </SelectControl>
+          {/* The single event form's labels, from the one attribute map. */}
+          <EvField
+            label={EVENT_ATTRIBUTE_LABEL.event_type_name}
+            // No picker to label when there is nothing to pick: the row holds
+            // the way to make a type instead.
+            htmlFor={hasEventTypes ? 'bulk-event-type' : undefined}
+            required
+            last={false}
+          >
+            {hasEventTypes ? (
+              <SelectControl
+                id="bulk-event-type"
+                value={etId}
+                onChange={setEtId}
+                ariaRequired
+              >
+                <option value="">Select type…</option>
+                {eventTypes.map(et => (
+                  <option key={et.id} value={et.id}>{et.display_name}</option>
+                ))}
+              </SelectControl>
+            ) : (
+              <NoEventTypesNotice slug={slug} />
+            )}
           </EvField>
 
           <EvField
-            label="Status"
+            label={EVENT_ATTRIBUTE_LABEL.status}
             htmlFor="bulk-status"
             hint="Applied to every event created here."
           >
@@ -435,7 +445,7 @@ export default function EventBulkForm() {
             </SelectControl>
           </EvField>
 
-          <EvField label="Owner" htmlFor="bulk-owner" hint="Who answers for these events.">
+          <EvField label={EVENT_ATTRIBUTE_LABEL.owner_id} htmlFor="bulk-owner" hint={ownerHint}>
             <SelectControl id="bulk-owner" value={ownerId} onChange={setOwnerId}>
               <option value="">No owner</option>
               {users.map(u => (
@@ -444,7 +454,12 @@ export default function EventBulkForm() {
             </SelectControl>
           </EvField>
 
-          <EvField label="Tags" htmlFor="bulk-tags" hint="Added to every event created here." last>
+          <EvField
+            label={EVENT_ATTRIBUTE_LABEL.tags}
+            htmlFor="bulk-tags"
+            hint="Added to every event created here."
+            last
+          >
             <ChipListInput
               inputId="bulk-tags"
               values={tags}
@@ -492,14 +507,18 @@ export default function EventBulkForm() {
           </div>
         )}
 
-        {etId && !unsupported && unmappedColumns.length === 0 && (
+        {/* Shown before a type is picked too, locked, so the page says where
+            the events go: it used to open on the type picker alone. */}
+        {hasEventTypes && !cannotPaste && (
           <>
             <SurfCard
               title="Events to add"
               subtitle={
-                nameFormat
-                  ? `${columnHint} Each event is named by the scan rule ${nameFormat}. ${titleHint}`
-                  : `${columnHint} ${titleHint}`
+                !etId
+                  ? 'What each line holds depends on the event type.'
+                  : nameFormat
+                    ? `${columnHint} Each event is named by the scan rule ${nameFormat}. ${titleHint}`
+                    : `${columnHint} ${titleHint}`
               }
             >
               <div className="px-4 py-3">
@@ -509,7 +528,8 @@ export default function EventBulkForm() {
                   className={`${EV_INPUT_CLASS} mono min-h-[180px] py-2 leading-[1.6]`}
                   value={draft}
                   onChange={e => setDraft(e.target.value)}
-                  placeholder={draftPlaceholder}
+                  disabled={!etId}
+                  placeholder={etId ? draftPlaceholder : 'Pick an event type above first'}
                 />
               </div>
             </SurfCard>
@@ -521,7 +541,7 @@ export default function EventBulkForm() {
                   checking
                     ? 'Checking the names against the catalog…'
                     : uncheckedCount > 0
-                      ? `${uncheckedCount === 1 ? '1 name' : `${uncheckedCount} names`} could not be checked against the catalog; the server checks ${uncheckedCount === 1 ? 'it' : 'them'} on submit.`
+                      ? `${countOf(uncheckedCount, 'name', 'names')} could not be checked against the catalog; the server checks ${pluralize(uncheckedCount, 'it', 'them')} on submit.`
                       : undefined
                 }
               >
@@ -617,11 +637,12 @@ export default function EventBulkForm() {
         {/* The sticky action row: the Button primitives rather
             than hand-painted ones, and Create stays on screen however long the
             parsed list gets. */}
-        <SaveBar status={blockingReason} statusTone={blockingReason === CHECKING_STATUS ? 'muted' : 'danger'}>
+        <SaveBar status={barStatus?.text} statusTone={barStatus?.tone}>
           <Button type="button" variant="ghost" onClick={goBack}>
             Cancel
           </Button>
-          {!cannotPaste && (
+          {/* No dead "Create 0 events" where nothing can be created yet. */}
+          {hasEventTypes && !cannotPaste && (
             <Button
               type="button"
               onClick={() => createMut.mutate()}

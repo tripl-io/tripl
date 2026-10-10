@@ -21,7 +21,6 @@ import type {
   DocSharing,
   DocSharingUpdate,
   DocTranslateRequest,
-  DocTranslationRevisionDetail,
   DocTranslationRevisionSummary,
   DocTranslationSummary,
   DocTranslationWrite,
@@ -110,12 +109,6 @@ export const docsApi = {
   translationRevisions: (slug: string, scope: DocScope, path: string, lang: string, signal?: AbortSignal) =>
     api.get<DocTranslationRevisionSummary[]>(
       docsPath(slug, `/translations/revisions${query({ scope, path, lang })}`),
-      signal,
-    ),
-
-  translationRevision: (slug: string, scope: DocScope, path: string, revisionId: string, signal?: AbortSignal) =>
-    api.get<DocTranslationRevisionDetail>(
-      docsPath(slug, `/translations/revisions/${encodeURIComponent(revisionId)}${query({ scope, path })}`),
       signal,
     ),
 

@@ -19,6 +19,7 @@ import { SEARCH_DEBOUNCE_MS } from '@/hooks/useDebouncedValue'
 import { at } from '@/test/at'
 import { type Persona } from '@/test/persona'
 import { PersonaProject } from '@/test/PersonaProject'
+import { APP_LOCALE } from '@/lib/format'
 
 /**
  * A session at one role.
@@ -163,7 +164,7 @@ function renderInbox(
 const TARGET = 'onboarding/reviews_carousel'
 
 describe('AlertingInbox item and scope counts', () => {
-  it('explains when repeated items share the visible scope names', () => {
+  it('counts items across scopes, and lists the scopes behind "and N more"', async () => {
     renderInbox({
       inbox: makeInbox({
         items: [makeGroup({
@@ -173,12 +174,75 @@ describe('AlertingInbox item and scope counts', () => {
       }),
     })
 
-    expect(screen.getByText('8 items')).toBeInTheDocument()
-    expect(screen.getByText('(4 distinct scope names shown)')).toBeInTheDocument()
-    // The headline is the first scope, with the rest counted rather than
-    // listed; the full list stays on the "+N more" title.
+    // It read "8 items (4 distinct scope names shown)" with one name on screen.
+    expect(screen.getByText('8 items across 4 scopes')).toBeInTheDocument()
+    expect(screen.queryByText(/distinct scope names/)).toBeNull()
+    // The headline is the first scope; the rest open from the "and 3 more"
+    // control instead of living only in a hover title.
     expect(screen.getByText('one')).toBeInTheDocument()
-    expect(screen.getByText('+3 more')).toHaveAttribute('title', 'one, two, three, four')
+    const more = screen.getByRole('button', { name: 'and 3 more scopes' })
+    expect(more).toHaveTextContent('and 3 more')
+    fireEvent.click(more)
+    const popover = await screen.findByRole('dialog')
+    expect(within(popover).getAllByRole('listitem').map(item => item.textContent)).toEqual([
+      'one',
+      'two',
+      'three',
+      'four',
+    ])
+  })
+
+  it('says "8+" once the server cut the scope list', async () => {
+    const names = Array.from({ length: 8 }, (_, index) => `scope_${index}`)
+    renderInbox({
+      inbox: makeInbox({ items: [makeGroup({ item_count: 20, scope_names: names })] }),
+    })
+
+    expect(screen.getByText('20 items across 8+ scopes')).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'and 7+ more scopes' }))
+    expect(
+      await screen.findByText('A card lists up to 8 scopes. Search scopes to find any others.'),
+    ).toBeInTheDocument()
+  })
+})
+
+describe('AlertingInbox — one size per card', () => {
+  it('leaves the percent to the badge and keeps it, as sent, in the tooltip', () => {
+    renderInbox({
+      inbox: makeInbox({
+        items: [makeGroup({
+          direction: 'spike',
+          actual_count: 12328,
+          expected_count: 7602,
+          percent_delta: 62.2,
+          item_count: 8,
+          max_abs_percent_delta: 200,
+          scope_names: ['Demo Project', 'Home Screen View', 'Checkout', 'Signup'],
+        })],
+      }),
+    })
+
+    const card = document.getElementById('incident-grp-1')!
+    expect(within(card).getByText('+62%')).toBeInTheDocument()
+    // "+62%" on the badge and "62.2%" on the line below read as two facts.
+    const line = within(card).getByText(/^12,328 vs 7,602 expected/)
+    expect(line).toHaveTextContent('12,328 vs 7,602 expected · largest in this incident: 200%')
+    expect(line).not.toHaveTextContent('62.2%')
+    expect(line).toHaveAttribute(
+      'title',
+      'Unrounded: 12328 actual, 7602 expected · 62.2% in the alert message',
+    )
+  })
+
+  it('colours a spike red, as Anomalies does', () => {
+    renderInbox({
+      inbox: makeInbox({
+        items: [makeGroup({ direction: 'spike', actual_count: 5767, expected_count: 3174, percent_delta: 81.7 })],
+      }),
+    })
+
+    const card = document.getElementById('incident-grp-1')!
+    expect(within(card).getByText('+82%').closest('[data-tone]')).toHaveAttribute('data-tone', 'danger')
   })
 })
 
@@ -1111,7 +1175,7 @@ describe('AlertingInbox — narrowing the list past its status', () => {
     // narrows nothing — a control that accepted one and answered "none" would
     // be describing the project rather than the page.
     // The range and its caveat are one chip now, opened on demand.
-    fireEvent.click(screen.getByRole('button', { name: 'Last fired filter: any' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Last fired filter: Any' }))
     expect(screen.getByText(/Dates narrow the 30 days this list already covers/)).toBeInTheDocument()
 
     // The app's calendar rather than a native date input: the bound
@@ -1127,7 +1191,7 @@ describe('AlertingInbox — narrowing the list past its status', () => {
       fireEvent.click(screen.getByRole('button', { name: 'Previous month' }))
     }
     const dayName = (date: Date) =>
-      date.toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' })
+      date.toLocaleDateString(APP_LOCALE, { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' })
     expect(within(grid).getByRole('button', { name: dayName(bound) })).toBeEnabled()
     if (bound.getDate() > 1) {
       const before = new Date(bound.getFullYear(), bound.getMonth(), bound.getDate() - 1)
@@ -1283,13 +1347,13 @@ describe('AlertingInbox — the filter bar speaks the design system', () => {
     )
   })
 
-  it('maps "any" back to no filter rather than to a sentinel', async () => {
+  it('maps "Any" back to no filter rather than to a sentinel', async () => {
     const { onFiltersChange } = renderInbox({
       filters: { ...EMPTY_INBOX_FILTERS, direction: 'drop' },
     })
 
     fireEvent.click(screen.getByRole('combobox', { name: /^Direction filter/ }))
-    fireEvent.click(await screen.findByRole('option', { name: 'any' }))
+    fireEvent.click(await screen.findByRole('option', { name: 'Any' }))
 
     expect(onFiltersChange).toHaveBeenLastCalledWith(
       expect.objectContaining({ direction: '' }),
@@ -1359,7 +1423,7 @@ describe('AlertingInbox — owners (F07, #260)', () => {
   it('names the owners and offers an editor "Notify owners"', () => {
     renderInbox({ inbox: makeInbox({ items: [makeGroup({ owners })] }) })
 
-    expect(screen.getByText('Owners: @anna, @oleg')).toBeInTheDocument()
+    expect(screen.getByText('Event type owners: @anna, @oleg')).toBeInTheDocument()
     expect(
       screen.getByRole('button', { name: `Notify owners of ${TARGET} by email` }),
     ).toBeInTheDocument()
@@ -1368,12 +1432,12 @@ describe('AlertingInbox — owners (F07, #260)', () => {
   it('shows a viewer the owners without the action', () => {
     renderInbox({ inbox: makeInbox({ items: [makeGroup({ owners })] }) }, 'viewer')
 
-    expect(screen.getByText('Owners: @anna, @oleg')).toBeInTheDocument()
+    expect(screen.getByText('Event type owners: @anna, @oleg')).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: /Notify owners/ })).toBeNull()
   })
 
   it('says nothing about owners on an unowned incident', () => {
     renderInbox()
-    expect(screen.queryByText(/^Owners:/)).toBeNull()
+    expect(screen.queryByText(/^(?:Event type )?Owners?:/)).toBeNull()
   })
 })

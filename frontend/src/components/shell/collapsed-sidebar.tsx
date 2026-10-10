@@ -117,10 +117,10 @@ export function CollapsedSidebar({
         aria-label="Main navigation"
         className="flex h-full w-[calc(52px+env(safe-area-inset-left))] flex-shrink-0 flex-col items-center border-r pt-2.5 pb-[calc(0.625rem+env(safe-area-inset-bottom))] pl-[env(safe-area-inset-left)] bg-bg-sunken border-border"
       >
-        <RailTip label="Tripl — home">
+        <RailTip label="tripl — home">
           <Link
             to={workspacePath()}
-            aria-label="Tripl — home"
+            aria-label="tripl — home"
             className="mb-1.5 flex h-8 w-8 items-center justify-center rounded-md no-underline transition-colors hover:bg-sidebar-hover"
           >
             <TrifoldMark size={22} />

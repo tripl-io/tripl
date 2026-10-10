@@ -38,6 +38,9 @@ function makeRule(overrides: Partial<RuleWithDestination> = {}): RuleWithDestina
     include_variable_value_drifts: false,
     include_metrics: false,
     include_source_freshness: false,
+    include_lifecycle: false,
+    include_property_drifts: false,
+    notify_owners: false,
     notify_on_spike: false,
     notify_on_drop: true,
     ai_explanation_enabled: false,
@@ -70,6 +73,7 @@ function makeDestination(overrides: Partial<AlertDestination> = {}): AlertDestin
     // Zero, not omitted: the API always sends this field, and a double that can
     // leave it out is a claim that a destination with no held count is normal.
     held_count: 0,
+    project_timezone: 'UTC',
     enabled: true,
     webhook_set: false,
     bot_token_set: true,
@@ -255,7 +259,7 @@ describe('MonitorsSection live state', () => {
     // `Never delivered` and `last sent 3h ago` are opposite facts, and the card
     // stated neither before the merge fix — the merge must not lose it again.
     expect(
-      await screen.findByText(/115 deliveries · 57 incidents · last .* · sent/),
+      await screen.findByText(/^115 deliveries · 57 incidents · last sent \S/),
     ).toBeInTheDocument()
   })
 
@@ -825,9 +829,11 @@ describe('MonitorsSection inert scope notice', () => {
 })
 
 describe('MonitorsSection row writes that fail say why', () => {
-  it('toasts a refused enable switch, prefix stripped', async () => {
+  // The API client drops Pydantic's "Value error, " prefix from every 422
+  // (api/client.test.ts), so the toast shows the message as the client hands it.
+  it('toasts a refused enable switch', async () => {
     vi.spyOn(alertingApi, 'getMonitorsSummary').mockResolvedValue(makeSummary())
-    vi.spyOn(alertingApi, 'updateRule').mockRejectedValue(new Error('Value error, Editor role required'))
+    vi.spyOn(alertingApi, 'updateRule').mockRejectedValue(new Error('Editor role required'))
     renderSection()
 
     fireEvent.click(await screen.findByRole('switch', { name: 'Toggle Prod drops' }))
