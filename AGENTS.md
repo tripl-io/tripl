@@ -1,55 +1,47 @@
 # AGENTS.md
 
-_Last updated: 2026-07-15._
-
 ## What This Repo Is
 
 `tripl` is an analytics tracking-plan and monitoring service.
 
 Use it to:
 - manage projects and tracking plans;
-- define event types, fields, relations, meta fields, and reusable variables;
+- define event types, fields, relations, meta fields, and reusable properties;
 - store concrete catalog events with lifecycle, review, ownership, media, and
   change history;
 - connect external analytics DBs — ClickHouse, BigQuery, Databricks, Snowflake, Redshift, Greenplum, Trino, Athena, or PostgreSQL;
-- run scan jobs that infer events and variables from real data;
+- run scan jobs that infer events and properties from real data;
 - collect time-bucketed event and user-defined business metrics;
 - detect anomalies, schema/distribution/value drift, and release regressions;
 - review plan changes on branches and reconcile the plan with live data;
 - route alerts to chat, email, webhook, and issue-tracker destinations.
 
-An optional local [PLAN.md](PLAN.md) contains the internal product plan and is
-intentionally gitignored. Public product/architecture documentation lives under
-[website/docs](website/docs). This file is the fast navigation map for agents
-working in the codebase.
-
-## Agent Workflow
-
-If `mem0` MCP is available in the current session, use it for every task.
-- search or list relevant memories before making assumptions, especially for ongoing work, prior decisions, and user preferences;
-- save durable decisions, preferences, and important implementation findings to `mem0` when they are likely to matter in future sessions;
-- do not start a separate memory service; this project uses the configured `mem0` MCP.
+Public product and architecture documentation lives under
+[website/docs](website/docs); a hosted demo runs at https://demo.tripl.io. This
+file is the fast navigation map for agents working in the codebase.
 
 ## Current Product Scope
 
 Already implemented in code:
-- session auth, owner/editor/viewer RBAC, and scoped API keys;
+- session auth, organization roles (owner/admin/member) and project roles
+  (editor/viewer), and scoped API keys;
 - event catalog CRUD, lifecycle, bulk triage, owners, history, photos/specs, and
   comments;
 - plan branches, review policy, conflicts, merge, revisions, and optional Jira
   implementation tickets;
-- typed variables with documented values, source bindings, per-event overrides,
-  drift review, and scan exclusion;
+- typed properties (formerly *variables*; the code still calls them `Variable`)
+  with documented values, source bindings, per-event overrides, drift review,
+  and scan exclusion;
 - ClickHouse, BigQuery, Databricks, Snowflake, Redshift, Greenplum, Trino, Athena, and PostgreSQL data sources and scan configs;
 - async scan pipeline via Celery + RabbitMQ;
-- auto-generated events/variables from cardinality and JSON-path analysis;
+- auto-generated events/properties from cardinality and JSON-path analysis;
 - event metrics plus a SQL/fact/event-composition metrics catalog;
 - anomaly detection for project total, event type, event, and metric scopes;
-- schema, distribution, variable-value, and app-version regression detection;
+- schema, distribution, value, and app-version regression detection;
 - reconciliation, coverage, monitoring, search/AI, and audit surfaces;
 - alerting with eight destination types, rules, simulation, inbox, retries,
   delivery history, and message templating;
-- workspace/project/instance settings and production hardening.
+- organization, project and platform settings, and production hardening.
 
 Not a safe assumption unless you verify:
 - import/export;
@@ -85,10 +77,14 @@ Local dev runtime in [compose.dev.yaml](compose.dev.yaml) (prod runs the
 published image via [compose.yaml](compose.yaml); see [website/docs/run/release.md](website/docs/run/release.md)):
 - `postgres`
 - `rabbitmq`
+- `redis`
 - `api`
 - `celery-worker`
 - `celery-beat`
 - `frontend`
+- `mcp` (only with `--profile mcp`)
+
+Every published port of the dev stack is bound to `127.0.0.1`.
 
 Important runtime facts:
 - Warehouses (ClickHouse, BigQuery, Databricks, Snowflake, Redshift, Greenplum, Trino, Athena, PostgreSQL) are external. The repo does not run them in Compose.
@@ -138,9 +134,6 @@ Edge / hardening:
 Observability:
 - `LOG_LEVEL`, `LOG_JSON`, `REQUEST_ID_HEADER`.
 
-Frontend:
-- `VITE_API_URL`
-
 Practical notes:
 - `SYNC_DATABASE_URL` is used by Celery tasks and other sync SQLAlchemy code paths.
 - The app refuses to start in non-debug mode with an empty/invalid `ENCRYPTION_KEY`, no resolvable CORS origin, or `SESSION_COOKIE_SECURE=false`. See `Settings.assert_production_ready()`.
@@ -149,7 +142,6 @@ Practical notes:
 ## Repo Layout
 
 Top level:
-- [PLAN.md](PLAN.md): optional, gitignored internal product notes.
 - [README.md](README.md): quick start and user-facing overview.
 - [website/docs](website/docs): public product, operations, API, and architecture
   documentation.
@@ -158,18 +150,23 @@ Top level:
   `tripl` — the names differ so the PyPI name `tripl` can be the operator CLI
   below; the import package is unchanged and stays `tripl`.
 - [frontend](frontend): React app.
-- [cli](cli): the `tripl` operator CLI (import package `tripl_cli`) — the
-  read-only `doctor` / `status` / `watch` diagnostics **and the mutating
-  `scans run|cancel` / `drifts dismiss` verbs**, plus the **shared request
-  layer** (`tripl_cli/api` and the async `TriplClient`) that `mcp-server`
-  imports. Apache-2.0, `httpx` only, no backend imports.
+- [cli](cli): the `tripl` operator CLI (import package `tripl_cli`). It covers
+  instance diagnostics (`doctor` / `status` / `watch` / `whoami`), plan reads
+  (`events` / `plan`), the `scans` and `drifts` verbs, `annotate`,
+  `check` / `codegen` / `export` against the plan, the `docs` notes commands,
+  and `install` / `upgrade` for a self-hosted stack. Its mutating commands are
+  the six in the Write safety table of
+  [website/docs/run/cli.md](website/docs/run/cli.md) (`scans run|cancel`,
+  `drifts dismiss|reopen`, `annotate`, `docs push`). It also holds the **shared
+  request layer** (`tripl_cli/api` and the async `TriplClient`) that
+  `mcp-server` imports. Apache-2.0, `httpx` only, no backend imports.
 - [mcp-server](mcp-server): the `tripl-mcp` MCP server (import package
   `tripl_mcp`). Depends on the `tripl` distribution in `cli/` for its HTTP
   client; there is exactly one `TriplClient` in the repo.
 
 Backend entrypoints:
 - [backend/src/tripl/main.py](backend/src/tripl/main.py): FastAPI app, middleware stack, lifespan, and `/health`.
-- [backend/src/tripl/extensions.py](backend/src/tripl/extensions.py): extension hooks (routers, access gates, lifecycle, audit, worker). Community bundles no extension: single sign-on per organization, SCIM, the organization-wide audit log (`/audit`), audit export and the audit webhook live in the private Enterprise package, which reaches the core only through them. Community still writes every audit row (`services/audit_service.py`) and serves a project's audit history from `api/v1/project_audit.py` ([extension points](website/docs/develop/extension-points.md)).
+- [backend/src/tripl/extensions.py](backend/src/tripl/extensions.py): extension hooks (routers, access gates, project access, lifecycle, audit, demos, tenancy, stored secrets, plan policies, worker). Community bundles no extension: every Enterprise feature ([Editions](website/docs/editions.md)) lives in the private Enterprise package, which uses these hooks and also imports Community modules directly; `backend/src/tripl/tests/test_extension_api_surface.py` pins the names it relies on. Community still writes every audit row (`services/audit_service.py`) and serves a project's audit history from `api/v1/project_audit.py` ([extension points](website/docs/develop/extension-points.md)).
 - [backend/src/tripl/api/v1/router.py](backend/src/tripl/api/v1/router.py): all API router registration.
 - [backend/src/tripl/worker/celery_app.py](backend/src/tripl/worker/celery_app.py): Celery app and beat schedule.
 
@@ -188,7 +185,7 @@ Backend layers:
 
 Frontend layers:
 - `frontend/src/App.tsx`: route table.
-- `frontend/src/extensions/`: frontend extension registry (routes, settings sections, sign-in panels, shell gates). Community registers no frontend extension; `extensions/teasers.ts` shows Enterprise-only features (single sign-on, SCIM, the organization-wide audit log, the audit webhook) as tagged teasers ([extension points](website/docs/develop/extension-points.md)).
+- `frontend/src/extensions/`: frontend extension registry (routes, settings sections, sign-in panels, shell gates, shell banners). Community registers no frontend extension; `extensions/teasers.ts` shows every Enterprise feature that has a settings page as a tagged teaser ([extension points](website/docs/develop/extension-points.md)).
 - `frontend/src/pages`: screen-level UI.
 - `frontend/src/api`: typed HTTP client wrappers.
 - `frontend/src/components`: layout and shared UI.
@@ -212,9 +209,6 @@ CLI layers (`cli/src/tripl_cli`):
   `commands/_write.py` holds the write-safety rules the mutating verbs share
   (`--dry-run`, the confirmation, "never prompt in a pipeline").
 - `runner.py`: the only `asyncio.run`, one connection pool per invocation.
-- `api/`: the shared request layer — every REST path and request body lives
-  here and nowhere else, as frozen `ApiRequest` values. `tripl-mcp` imports it
-  too, which is why it holds facts about the API and never a consumer's policy.
 - `model.py`, `report.py`, `render.py`: the snapshot dataclasses, the `--json`
   contract ("if a key is not built here it does not exist"), and the ASCII
   output. At the package root rather than under `diagnostics/` because they
@@ -234,18 +228,18 @@ CLI layers (`cli/src/tripl_cli`):
 ## Domain Model Cheat Sheet
 
 Core planning entities:
-- `OrganizationGroup`, `OrganizationGroupMember` (F20, `models/organization_group.py`):
+- `OrganizationGroup`, `OrganizationGroupMember` (`models/organization_group.py`):
   named sets of an org's members, `/api/v1/orgs/{org}/groups`. Membership in the
   org is enforced in `services/org_group_service.py`; `org_service.remove_member`
-  drops the user's groups. Consumers (F24 sharing, owners, alert routing) resolve
+  drops the user's groups. Consumers (sharing, owners, alert routing) resolve
   groups with `org_group_service.group_member_ids`; SCIM (Enterprise) maps a group to the admin role through `on_group_change`.
-- `Organization`, `OrganizationMember` (F20): the tenant above projects, with
+- `Organization`, `OrganizationMember`: the tenant above projects, with
   org roles `owner` | `admin` | `member`. Projects, data
   sources, API keys and invitations carry a NOT NULL `organization_id`; every row
   is in the default organization (`DEFAULT_ORG_ID` in `models/organization.py`).
   Org roles and project roles are the only permission source (the old
   instance role, `users.role`, is dropped), and `app_settings` reads must filter `organization_id IS NULL` (operator scope).
-  Org context (F20 PR2): every authenticated request acts in one organization,
+  Org context: every authenticated request acts in one organization,
   bound in `middleware/org_context.py` by `api/deps.py` (`get_current_user` /
   `_resolve_api_key_user` via `services/org_resolution.py`) BEFORE any slug is
   resolved. Order: API key's org (a differing path org is 404); else the path
@@ -326,7 +320,8 @@ Routers currently registered:
 - `/projects/{slug}/event-types/{event_type_id}/fields`
 - `/projects/{slug}/relations`
 - `/projects/{slug}/meta-fields`
-- `/projects/{slug}/variables`
+- `/projects/{slug}/properties` (the same handlers still answer under the
+  deprecated `/projects/{slug}/variables` for older clients)
 - `/projects/{slug}/events`
 - `/data-sources`
 - `/projects/{slug}/scans`
@@ -361,7 +356,7 @@ Useful endpoint groups:
 - Branches: lifecycle, reviewers, comments, diff/conflicts/resolutions/merge;
   revisions snapshot/list/diff.
 - Reconciliation: shadow/dead events and coverage.
-- Health score (F15, main plan only, fixed weights in
+- Health score (main plan only, fixed weights in
   `services/health_weights.py`):
   - `GET /projects/{slug}/health?trend_days=30` (project score, worst five, trend)
   - `GET /projects/{slug}/health/events?ids=...` (batch, 1..150 ids)
@@ -383,7 +378,8 @@ Defined in [frontend/src/App.tsx](frontend/src/App.tsx):
 - `/workspace`
 - `/settings/{members|api-keys|profile|security|data-sources}`
 - `/settings/project/{general|members|plan-rules}`
-- `/settings/instance/:instSection`
+- `/settings/{organization|instance|platform}/:sub` (Organization, Settings →
+  Platform — addressed as `instance/<x>` — and the platform console)
 - `/p/:slug/overview`
 - `/p/:slug/events`
 - `/p/:slug/events/:tab`
@@ -412,9 +408,6 @@ Main pages:
   monitoring, alerting, scans, branches, history, audit.
 - `SettingsArea`: workspace, project-general, data-source, account, and instance
   configuration.
-
-Settings tabs currently include:
-- `monitoring`
 
 ## Async Pipeline Map
 
@@ -588,11 +581,11 @@ Project-specific expectations:
 - prefer extending existing adapters/analyzers/tasks rather than inventing parallel paths;
 - preserve async request paths; sync DB access is already used inside worker tasks and is acceptable there;
 - keep frontend API wrappers typed through `frontend/src/types/index.ts`;
-- when changing schemas or payloads, update both backend Pydantic models and frontend TS types;
+- when changing schemas or payloads, update the backend Pydantic models and run `make sync-types`: the frontend API types are aliases of `components['schemas'][...]` from the regenerated `frontend/src/types/api.gen.ts`, so a backend change shows up as a `tsc` error where the field is read. Any type still written by hand is listed in `frontend/src/types/apiDrift.ts`. Fields with a `None` default come out optional in the generated types; read them with `== null` / `??`;
 - if you change alert message variables or formats, update both backend template logic and `ProjectAlertingTab` helper UI;
 - if you change scan or metrics summaries, check any frontend assumptions around `ScanJob.result_summary`.
 - style status colour with the tone tokens — `bg-<tone>-soft` + `text-<tone>` (success/warning/danger/info), or `<Chip tone>` / `<Badge variant>` — never a raw Tailwind shade like `text-amber-700`. Each `--<tone>` is pinned as the AA-safe ink for its own soft fill in *both* themes, so it needs no `dark:` twin; `frontend/src/theme-contrast.test.ts` measures it and `frontend/src/raw-palette.test.ts` fails the build if a raw shade reappears.
-- **update the docs when you change files**: any change to behavior, the HTTP API, config/env, or a user-facing feature must update the documentation site under `website/docs/` in the SAME change; regenerate the OpenAPI spec with `./bin/dump-openapi.sh` when the HTTP API changed.
+- **update the docs when you change files**: any change to behavior, the HTTP API, config/env, or a user-facing feature must update the documentation site under `website/docs/` in the SAME change; run `make sync-types` when the HTTP API changed.
 
 Operational assumptions to preserve unless intentionally changing them:
 - RabbitMQ is the Celery broker.
@@ -605,15 +598,15 @@ Operational assumptions to preserve unless intentionally changing them:
 Prefer the root `Makefile` — run `make` (or `make help`) for the grouped list.
 It wraps the underlying uv/bun/compose commands so common flows are one keystroke
 from the repo root. The ones you'll reach for most:
-- `make check` — every gate (lint + typecheck + tests), CI parity
-- `make sync-types` — regenerate `backend/openapi.json` + `frontend/src/types/api.gen.ts` after any HTTP API change (guarded by `test_openapi_contract`)
-- `make test-be ARGS="-k diff -v"` / `make test-fe ARGS=BranchesTab` — scoped tests
+- `make check` — the local CI gates: lint + typecheck + tests for the backend, frontend, CLI and MCP server (plus `make test-scripts`), the API-types drift check and the bundle budget. Warehouse conformance, search relevance, PostgreSQL concurrency, migration round-trip, e2e and image jobs run in CI only.
+- `make sync-types` — regenerate `backend/openapi.json`, `website/openapi/tripl.openapi.json` (the docs site's API reference) and `frontend/src/types/api.gen.ts` after any HTTP API change; CI checks all three (`test_openapi_contract`, `bin/check-openapi-docs.py` and the API-types drift check)
+- `make test-be ARGS="-k diff -v"` / `make test-fe ARGS=BranchesTab` / `make test-cli` / `make test-mcp` — scoped tests
 - `make dev` — full stack via `compose.dev.yaml` (watch mode)
 
 The raw commands the targets wrap (still the source of truth):
 
 Backend:
-- `uv sync`
+- `uv sync --extra dev`
 - `uv run pytest`
 - `uv run ruff check`
 - `uv run ruff format --check`
@@ -674,7 +667,7 @@ setup to work around these. Known cases, with the exact workaround:
 
 - **`~/.cache/uv` is read-only.** `uv` / `make` / `./bin/*.sh` die with
   `Could not create temporary file … Read-only file system (os error 30)`
-  (this breaks `make sync-types`, `dump-openapi.sh`, and any `uv run`). Redirect
+  (this breaks `make sync-types` and any `uv run`). Redirect
   the cache to a writable dir: prefix the command with `UV_CACHE_DIR=/tmp/uv-cache`,
   e.g. `UV_CACHE_DIR=/tmp/uv-cache make sync-types`.
 - **Backend `pytest` hangs forever inside the sandbox.** The asyncio loop never
@@ -716,8 +709,8 @@ Minimum checks before finishing:
 - frontend tests for touched frontend domains;
 - lint/type checks for the side you changed;
 - `docker compose config` when Compose or env wiring changes.
-- **docs updated**: behavior / API / config / feature changes are reflected in `website/docs/` (and `./bin/dump-openapi.sh` re-run if the HTTP API changed). Docs are not optional follow-up — they ship with the change.
-- **API types synced**: any change to the HTTP API surface (routes, request/response models, status codes) must regenerate `backend/openapi.json` + `frontend/src/types/api.gen.ts` via `make sync-types` — `test_openapi_contract` fails on a stale snapshot, and the frontend types drift silently otherwise.
+- **docs updated**: behavior / API / config / feature changes are reflected in `website/docs/`. Docs are not optional follow-up — they ship with the change.
+- **API types synced**: any change to the HTTP API surface (routes, request/response models, status codes) must regenerate `backend/openapi.json`, the docs site's `website/openapi/tripl.openapi.json` and `frontend/src/types/api.gen.ts` via `make sync-types`. `test_openapi_contract` fails on a stale snapshot, CI's `bin/check-openapi-docs.py` fails when the docs-site copy differs from `backend/openapi.json`, and because the frontend API types are aliases of the generated schemas, a stale `api.gen.ts` shows up as `tsc` errors where a changed field is read.
 
 Extra checks expected for specific areas:
 - scan/data-source changes: verify connection test or scan execution path;
@@ -727,8 +720,10 @@ Extra checks expected for specific areas:
 
 ## PR Notes
 
-Use PR title format:
-- `[analytics] <Title>`
+Use [Conventional Commits](https://www.conventionalcommits.org/) for the PR
+title: `<type>(<optional scope>): <summary>`, with type one of `feat`, `fix`,
+`docs`, `refactor`, `perf`, `test`, `chore` or `ci` (`chore(release)` and
+`chore(deps)` are in use).
 
 Always call out:
 - API contract changes;
@@ -785,5 +780,5 @@ The JSONL exports are gitignored on purpose: this repository is public, and the 
 
 Before ending a session, leave nothing only on this machine that someone else needs: file beads issues for follow-up work, close what is finished, and make sure committed work is on a pushed branch.
 
-Changes reach `main` through a pull request unless the owner asks for a direct push: a merge happens on green CI and with the owner's go-ahead. Merging `main` does not deploy the product (production is deployed by hand); it does publish the docs site to GitHub Pages. Before every push, `git diff origin/main...HEAD -- .beads/` must be empty — `bd` sometimes commits a config change to local `main` on its own. Pushing a branch is a git operation only; it never includes `bd dolt push`.
+Changes reach `main` through a pull request unless the owner asks for a direct push: a merge happens on green CI and with the owner's go-ahead. Merging `main` does not deploy the product (production is deployed by hand); it does publish the docs site to GitHub Pages and the `ghcr.io/tripl-io/tripl:preview` image, which the public demo follows through the Enterprise preview. Before every push, `git diff origin/main...HEAD -- .beads/` must be empty — `bd` sometimes commits a config change to local `main` on its own. Pushing a branch is a git operation only; it never includes `bd dolt push`.
 <!-- END BEADS INTEGRATION -->

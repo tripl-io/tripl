@@ -2,7 +2,7 @@
 title: Keep team notes next to the plan
 sidebar_label: Keep team notes
 sidebar_position: 10
-description: Write Markdown notes linked to events, organise them in folders, and translate them with AI.
+description: Write Markdown notes linked to events, organize them in folders, and translate them with AI.
 ---
 
 # Keep team notes next to the plan

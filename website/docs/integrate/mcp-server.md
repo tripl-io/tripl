@@ -39,6 +39,11 @@ server imports it from the `tripl` distribution in `cli/`). A shell configured
 for one is configured for the other, so `tripl doctor` is the quickest way to
 prove the URL and key an MCP client is about to use actually work — including
 whether the key is fenced to a single project.
+
+`tripl-mcp` checks `TRIPL_BASE_URL` at startup exactly as the CLI does: a value
+without `http://` or `https://` stops the server with the fix, and a pasted
+trailing `/api/v1` is dropped. Use the final address, usually `https://`: a
+write tool that gets a redirect fails rather than being re-sent as a `GET`.
 :::
 
 ## Running over stdio
@@ -136,6 +141,30 @@ through to the tripl API for that request only — credentials are never stored
 server-side. Different agents can therefore share one MCP server while keeping
 distinct keys, scopes, and project fences.
 
+`--host` is the bind address. The default, `127.0.0.1`, is reachable from the
+same machine only; `--host 0.0.0.0` listens on every interface, which is what
+the `mcp` service of `compose.yaml` uses inside its container (its port is
+published on the host's `127.0.0.1` only; see
+[the compose stack](../run/deployment.md#the-compose-stack)).
+
+On a loopback bind the MCP SDK accepts only the `Host` names `127.0.0.1`,
+`localhost` and `[::1]`, and answers anything else with
+**`421 Invalid Host header`**. This is a guard against DNS rebinding. A reverse
+proxy that forwards the public host name hits it: Caddy and Traefik do by
+default, and nginx does with `proxy_set_header Host $host` (nginx's own default
+sends the `proxy_pass` address, which passes). Name the public host instead of
+turning the check off:
+
+```bash
+tripl-mcp --transport streamable-http --port 8765 --allowed-host mcp.example.com
+```
+
+`--allowed-host` is repeatable and takes an exact name or `HOST:*` for any
+port; `--allowed-origin ORIGIN` (for example `https://agents.example.com`) does
+the same for the `Origin` header, which only browser clients send. Either flag
+turns the checks on whatever `--host` is, and the loopback names stay accepted,
+so on `--host 0.0.0.0` every public name has to be listed.
+
 The dev compose stack includes an optional, profile-gated `mcp` service that
 builds `mcp-server/` and points it at the `api` container. It never starts by
 default:
@@ -182,12 +211,12 @@ and not by the tool schema.
 | Tool | Arguments | Backed by |
 |------|-----------|-----------|
 | `search_plan` | `slug, q, types?, limit?, branch_id?` | `GET /projects/{slug}/search` — `types` is [enumerated](#enumerated-arguments) |
-| `list_events` | `slug, search?, status?, tag?, field_value?, meta_value?, event_type_id?, silent_since_days?, reviewed?, offset?, limit?, order_by?, branch_id?` | `GET /projects/{slug}/events` — `status` and `order_by` are [enumerated](#enumerated-arguments) |
+| `list_events` | `slug, search?, status?, tag?, field_value?, meta_value?, event_type_id?, silent_since_days?, reviewed?, has_open_questions?, property?, offset?, limit?, order_by?, branch_id?` | `GET /projects/{slug}/events` — `status` and `order_by` are [enumerated](#enumerated-arguments); rows keep `title`, `open_question_count` and `last_seen_at` |
 | `get_event` | `slug, event_id, branch_id?` | `GET /projects/{slug}/events/{event_id}` |
 | `get_event_properties` | `slug, event_id, branch_id?` | `GET /projects/{slug}/events/{event_id}/properties` |
-| `list_event_types` | `slug` | `GET /projects/{slug}/event-types` |
-| `get_event_type_fields` | `slug, event_type_id` | Event type + its field definitions, merged |
-| `list_variables` | `slug, branch_id?` | `GET /projects/{slug}/properties` |
+| `list_event_types` | `slug, branch_id?` | `GET /projects/{slug}/event-types` — **trimmed**: identity, `event_name_format` (the naming rule that may replace a sent name) and `field_count` |
+| `get_event_type_fields` | `slug, event_type_id, branch_id?` | Event type + its field definitions, merged |
+| `list_variables` | `slug, branch_id?, offset?, limit?` | `GET /projects/{slug}/properties` |
 | `get_variable_values` | `slug, variable_id, branch_id?` | Property values + event overrides |
 | `list_branches` | `slug` | `GET /projects/{slug}/branches` |
 | `get_branch_diff` | `slug, branch_id` | `GET /projects/{slug}/branches/{branch_id}/diff` |
@@ -195,7 +224,7 @@ and not by the tool schema.
 | `get_scan` | `slug, scan_id` | `GET /projects/{slug}/scans/{scan_id}` — one config in full, including everything `list_scans` trims |
 | `get_scan_status` | `slug, scan_id, job_id?` | Scan job listing, or one job when `job_id` is given |
 | `monitors_summary` | `slug` | Monitors summary + top anomaly signals, combined |
-| `reconciliation_status` | `slug` | Reconciliation coverage + dead/shadow event counts |
+| `reconciliation_status` | `slug` | Reconciliation coverage + dead/shadow events as count + sample, keeping the window (`days`) and the untriaged shadow count (`new_count`) |
 | `list_projects` | — | `GET /api/v1/projects` |
 | `list_docs` | `slug, scope?, audience?` | `GET /projects/{slug}/docs` — both roots unless `scope` narrows it; **trimmed** rows without content. A note marked `both` matches either `audience` |
 | `read_doc` | `slug, scope, path, lang?` | `GET /projects/{slug}/docs/file` — raw Markdown with frontmatter, parsed fields, revision, and every `[[link]]` with its status on the main plan. Without `lang`, the project's agent language when that translation is up to date, else the original; `lang` names a stored translation or `original` ([Translations](../use/docs-catalog.md#translations)) |

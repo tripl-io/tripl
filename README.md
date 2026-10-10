@@ -1,4 +1,4 @@
-# Tripl
+# tripl
 
 <p align="center">
   <img src="assets/tripl-logo.svg" alt="tripl" width="220" />
@@ -9,7 +9,7 @@
 <p align="center">
   <a href="https://docs.tripl.io/">Docs</a> ·
   <a href="website/docs/quick-start.md">Quick start</a> ·
-  <a href="website/docs/use/demo-workspace.md">Try the demo</a>
+  <a href="https://demo.tripl.io">Live demo</a>
 </p>
 
 <picture>
@@ -31,12 +31,15 @@ that actually land in your warehouse. When the two diverge, it tells you.
   arriving.
 - **Anomalies with a cause.** Seasonal baselines per event, schema and value
   drift, release regressions — each signal broken down by the slice that moved.
-- **Alerts where your team works.** Slack, Telegram, email, webhooks, Jira,
-  Linear.
+- **Alerts where your team works.** Slack, Microsoft Teams, Telegram,
+  PagerDuty, email, webhooks, Jira and Linear.
 
 **No SDK.** tripl reads from the warehouse you already have — **ClickHouse**,
 **BigQuery**, **Databricks**, **Snowflake**, **Amazon Redshift**, **Greenplum**, **Trino**,
-**Amazon Athena**, or **PostgreSQL** — and never writes to it.
+**Amazon Athena**, or **PostgreSQL** — and never writes to it. Snowflake,
+Amazon Redshift, Amazon Athena and Trino are in **preview**: their connectors
+have not yet passed the value suite against a live warehouse
+([proven versus believed](website/docs/develop/warehouse-parity.md#read-this-first-proven-versus-believed)).
 
 Built for product managers, analysts, and data engineers who own a tracking
 plan.
@@ -44,6 +47,13 @@ plan.
 ---
 
 ## Quick start
+
+To look around without installing anything, open the hosted demo at
+**[demo.tripl.io](https://demo.tripl.io)**: sign in with Google and you get a
+demo project of your own. It runs the newest code on `main`, which can be ahead
+of the latest release.
+
+To run it yourself:
 
 ```bash
 cp .env.example .env
@@ -55,6 +65,12 @@ demo project**. No warehouse is needed: the demo builds a project with events,
 fields, a week of metrics, and a few anomalies, backed by a local synthetic
 warehouse. Scans, metric collection, anomaly detection, and reconciliation run
 against it for real ([what is synthetic](website/docs/use/demo-workspace.md)).
+
+This trial stack listens on localhost (127.0.0.1) only; from another machine,
+use an SSH tunnel (`ssh -L 5173:127.0.0.1:5173 <host>`) or the production stack
+below. Until you set `ENCRYPTION_KEY` in `.env` (the recipe is in
+`.env.example`), warehouse credentials are stored unencrypted, so set it before
+you connect a real warehouse.
 
 To use your own data, add a warehouse under **Settings → Data sources** and
 follow the **[Quick Start guide](website/docs/quick-start.md)**.
@@ -109,9 +125,15 @@ See [Concepts](website/docs/use/concepts.md) for how the pieces fit together.
 
 The default `compose.yaml` runs the published release image: set your secrets,
 run `docker compose up -d`, and the app comes up on `:8000`. The
-**[deployment guide](website/docs/run/deployment.md)** covers the rest, and
-cutting a release is one command, `bin/release.sh` (see the
-**[release process](website/docs/run/release.md)**).
+**[deployment guide](website/docs/run/deployment.md)** covers the rest.
+
+**Telemetry is on by default in Community.** The server sends one anonymous
+usage ping a day: an instance id, the version and edition, which warehouse
+engines are in use and a few rounded counts, never names, emails, hosts, queries
+or data.
+To turn it off, set `TELEMETRY_ENABLED=false` (or `DO_NOT_TRACK=1`) in `.env`
+and restart with `docker compose up -d`. [Telemetry](website/docs/run/telemetry.md)
+lists every field. Enterprise has it off by default.
 
 ---
 
@@ -126,7 +148,7 @@ cutting a release is one command, `bin/release.sh` (see the
   branches, and monitors, in plain language.
 - **[User guide](website/docs/use/user-guide.md)** — a hands-on walkthrough from
   your first project to a working alert.
-- **[Variables & templates](website/docs/use/variables-and-templates.md)** —
+- **[Properties & templates](website/docs/use/variables-and-templates.md)** —
   documented values, source bindings, per-event overrides, and value drift.
 - **[Agent & API guide](website/docs/integrate/agent-api-guide.md)** — letting an
   LLM agent or a script read and update the plan.
@@ -142,6 +164,8 @@ warehouses, and a React frontend, all runnable locally with Docker Compose.
   `Makefile` collects the common ones; run `make` to list them.
 - **[Architecture](website/docs/develop/architecture.md)** — how the system is
   built, and why.
+- **[Release process](website/docs/run/release.md)** — for maintainers: a
+  release is one command, `bin/release.sh`.
 - **[AGENTS.md](AGENTS.md)** — a navigation map of the repo for coding agents.
 - **[Code of conduct](CODE_OF_CONDUCT.md)** and **[security policy](SECURITY.md)**:
   report vulnerabilities privately, never in a public issue.

@@ -57,7 +57,7 @@ a slow Sunday don't page you.
 
 **Monday.** You open the project and the Overview shows one open signal:
 `add_to_cart` on iOS dropped 40% yesterday afternoon. You click it, see the
-chart, and recognise the shape — it starts exactly when the 4.2 release rolled
+chart, and recognize the shape — it starts exactly when the 4.2 release rolled
 out. You mute the signal for a day, note the release, and ping the mobile team
 with something specific instead of "analytics looks weird".
 
@@ -117,12 +117,12 @@ Being straight about this saves you an evaluation:
 
 ## Try it before you commit to anything
 
-There's a **demo workspace**: one click, no warehouse, no credentials. It seeds a
+There's a **demo project**: one click, no warehouse, no credentials. It seeds a
 realistic project with events, history, live-looking anomalies and a worked
 alerting example, so you can click through the whole product before deciding
 whether to point it at your own data.
 
-See [The demo workspace](./demo-workspace.md).
+See [The demo project](./demo-workspace.md).
 
 When you create your own project, you can start it from an industry template
 (e-commerce, subscriptions, mobile games or B2B SaaS). The template's starter

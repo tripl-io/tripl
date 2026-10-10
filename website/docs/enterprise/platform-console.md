@@ -56,7 +56,7 @@ organization without deleting anything:
   shows a full-page **This organization is suspended** notice instead of the
   workspace, so members know why it stopped rather than finding it gone.
 - Scheduled work stops for its projects: scans and metrics collection, alert
-  evaluation and digests, notification digests, sunset alerts and the
+  evaluation and digests, escalations, notification digests, sunset alerts and the
   search-embedding sweeps all skip projects of an organization that is not
   active. The same rule keeps them off an organization that is being deleted.
 - Nothing is removed. **Unsuspend** makes it active again, and the schedules

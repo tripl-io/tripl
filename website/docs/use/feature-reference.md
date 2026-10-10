@@ -50,8 +50,9 @@ The project sidebar groups every surface into three job-based areas:
 Above the groups sit the **project switcher**, the **branch switcher** (shown
 only inside a project), and the **Search or jump** button (⌘K). The pinned
 footer holds **Project settings** and **Concepts** (the in-app domain primer),
-then your user row: the whole row opens the **account menu** (Profile,
-**Workspace settings**, **Appearance**, **Sign out**); **Appearance** opens as a
+then your user row: the whole row opens the **account menu** (**Profile**,
+**Settings**, **Documentation** — docs.tripl.io in a new tab — **Appearance**,
+**Sign out**); the **Search or jump** palette has a **Documentation** row too; **Appearance** opens as a
 popover beside the button that opened it. The top bar's crumbs are links: the
 project, then the surfaces under it (**Observe › Alerting › Rules** opens the
 Alerting page and then its Rules tab). A nav group (Plan, Observe, Govern) is
@@ -127,8 +128,8 @@ visible on the review tab (`/events/review`). Bulk **Mark as verified** sets the
 flag; it does not move an event out of the review queue.
 
 An event whose name is blank renders as *(unnamed event)* rather than as nothing
-at all, so the row keeps a click target and an accessible name — the one event
-you would most want to clean up used to be the one you could not open. Names with
+at all, so the row keeps a click target and an accessible name, and the event
+you most want to clean up can still be opened. Names with
 **empty segments** (`::`, `onboarding:start:`) are a different case: those are
 real identities and each empty piece still renders as ∅. The same treatment
 follows the name onto the Reconciliation page and the command palette.
@@ -149,7 +150,9 @@ built; it has been removed rather than shown as permanently unavailable.
 *(event type)* › **New event** / **Edit**.
 
 An event belongs to an event type, so a project with none says so in place of
-the picker and links to creating one.
+the picker and links to creating one — on the single-event form and on **Add
+many events** alike. On **Add many events** the paste box stays locked until a
+type is picked.
 
 The event form exposes: **Event type** (required; cannot be changed after
 creation); **Name** (e.g. `checkout:completed`); **Title** — an optional
@@ -160,13 +163,14 @@ identity; **Description** — with a
 enabled; **Status** — one of `draft`, `in_review`, `ready_for_dev`,
 `implemented`, `live`, `deprecated`, `archived` (selecting `deprecated` reveals a
 **Sunset date** and, when editing an existing event, **Replaced by**); **Owner** — a project member, or none, the same value the
-list's bulk bar sets; **Tags**; **Metric breakdowns** (the selected type's scalar
+list's bulk bar sets; with none picked, the hint names the selected event
+type's owners, who answer for the event and count toward its health score; **Tags**; **Metric breakdowns** (the selected type's scalar
 fields and the columns this project's scans collect — `platform` and any
 configured breakdown column — plus any other warehouse column typed in by hand;
 JSON fields are excluded); **Field values**
 (per the event type's schema — boolean/enum selects, a JSON editor for `json`
 fields that validates and saves canonical JSON while preserving complete
-`${variable}` values, variable-aware text inputs; a `number` field takes a
+`${variable}` values, property-aware text inputs; a `number` field takes a
 number or a `${variable}` token, and Save stays disabled while it holds
 anything else); and **Meta fields** values. A tag or breakdown column still
 sitting in its input when you leave the box or save is added, as if you had
@@ -256,7 +260,7 @@ nobody has signed off on. Three things happen with that step:
   with a required field left blank keeps its status even while traffic arrives —
   the data proves the event is sent, not that its spec is complete. Fill the
   field and the next scan that sees volume promotes it. This is a change in
-  behaviour: earlier releases promoted on volume alone, so an event that used to
+  behavior: earlier releases promoted on volume alone, so an event that used to
   go live with a blank required field now waits until the field is filled.
 - **The step is written down.** The event's history gets a `status` row, and the
   project's activity rail an entry, both attributed to **tripl (scan)** rather
@@ -398,7 +402,7 @@ scan that loses the same race adopts the event that won and carries on.
 
 Renaming an event afterwards is safe and deliberately does *not* move the
 identity — collection keeps matching the event it already knew. Once the two
-differ, the event's **Properties** card shows the **Scan identity** row, and
+differ, the event's **Details** card shows the **Scan identity** row, and
 `source_name` carries it in every event response. The human-readable label
 belongs in **Title**, which is free to change and never touches the identity.
 The same card tells **Created** — when the event was authored — apart from
@@ -492,7 +496,7 @@ Fields are defined on an event type (display name, name, type, required, enum
 options, order); each event carries a value per field. Meta fields are
 project-wide; each event carries a meta value per meta field. Tags are free-form
 labels (lower-cased, trimmed, de-duplicated, and at most 100 characters each).
-That normalisation happens on every door now — the form, the API, MCP and the
+That normalization happens on every door now — the form, the API, MCP and the
 bulk paste — where once it happened only in the web form, so a tag written as
 `Checkout` through an API client used to sit beside `checkout` as a second
 label. Tags already stored keep the spelling they were given; nothing rewrites
@@ -671,6 +675,9 @@ threads stay open.
 
 **Where:** Plan › Event types, then open a type.
 
+The list shows each type's key under its display name and, when a scan names
+the type's events, that naming rule (*named by* `pv:{variant}`).
+
 A type's page has three tabs — **Summary**, **Events** and **Settings** — and no
 separate Settings button in its header. A new type opens on its **Settings**
 tab, and its display name defaults to the title-cased name (`page_view` →
@@ -790,7 +797,7 @@ wrong here costs a silent collection outage.
 
 ### Meta fields
 
-**Where:** Plan › Meta fields (it used to be called *Schema & fields*).
+**Where:** Plan › Meta fields.
 Project-scoped attributes every event carries whatever its type — owner team,
 Jira ticket, review date (name, type, enum options, optional link template).
 Per-type fields live on each event type. Create, edit, delete.
@@ -828,8 +835,11 @@ schema describes the object's keys, not one property per nested key — see
 [Nested objects](./variables-and-templates.md#nested-objects).
 
 The table shows documented/observed samples, binding paths, the events a
-property was **Observed in**, and open value drift; type chips show the schema
-key (`string`, `number_array`). Observed samples accumulate across runs — re-sampling merges
+property was **Observed in**, and open value drift; type chips, in the list and on the property's page, show the
+schema key (`string`, `number_array`). Below tablet width the **Observed in**,
+**Description** and values columns fold into the property's cell: its
+description, then how many events scans saw it in and its first observed
+values. Observed samples accumulate across runs — re-sampling merges
 new values into the stored list, under a cap, instead of replacing it — so the
 observed column is a history of what has been seen, not a mirror of the latest
 scan window. It also distinguishes two silences: it reads **No
@@ -897,7 +907,7 @@ than by an "observed in no events" shortcut, so the count sitting under the
 select-all checkbox is exactly the set a run would take — never a superset that
 quietly includes rows a live event value still names. API clients pass
 `usage=all|used|unused` on `GET /api/v1/projects/{slug}/properties`; the default
-is `all` and an unrecognised value is a `422`. See
+is `all` and an unrecognized value is a `422`. See
 [Properties & templates](./variables-and-templates.md).
 
 ### Event-type relations
@@ -906,7 +916,9 @@ is `all` and an unrecognised value is a `422`. See
 delete. Relations are resolved per the active branch. The create dialog groups
 the two ends as **From** and **To** and previews the join it describes; the
 table shows that join in one cell, with the relation type in words (*belongs
-to*).
+to*). Until some event type has at least one field there is nothing to join:
+**New relation** is off, with the reason under it, and the empty page links to
+**Event types**.
 
 All four ids a relation names — two event types and two fields — must exist on
 the branch it is created in, and a request naming one that does not is refused.
@@ -936,7 +948,9 @@ landed work stops burying branches still in flight. `main` is listed on Open but
 not counted — it is the base you work from, notwithstanding that it is stored as
 a merged branch. **Closed** holds both merged and closed branches, each row
 chipped with which. Opening a link to a merged branch selects the Closed tab for
-you. **New branch** checks the name as you type, can switch you onto the branch
+you. The branch the rest of the app is showing (the one picked in the sidebar's
+branch switcher) is marked **Current** in the list, whichever branch is open
+beside it. **New branch** checks the name as you type, can switch you onto the branch
 as soon as it is created (on by default), and also opens from the branch
 switcher's **New branch from main**. A branch name must start with a letter or
 digit, use only letters, digits and `-` `_` `/` `.`, and be at most 64
@@ -946,8 +960,9 @@ A branch's detail shows its name as the page heading (the breadcrumb reads
 **Plan › Plan branches › &lt;name&gt;**), a **Draft · In review · Approved ·
 Merged** progress line with a sentence naming the next step, and **Work on this
 branch**, which switches you onto it. **Merge** sits in the action row with the
-other transitions; **Reopen** on an approved branch reads **Move back to
-draft**, and **Submit for review** is disabled while the branch has no changes.
+other transitions; on an approved branch the reopen action reads **Move back to
+draft**, and on a closed branch **Reopen branch**; **Close branch** asks before
+it closes a branch without merging, and **Submit for review** is disabled while the branch has no changes.
 On a branch with no reviewer, **Submit for review** first asks **Who should
 review this?**: **Add and submit** adds the picked reviewers and submits,
 **Submit without a reviewer** submits as it is, and **Cancel** leaves the branch
@@ -1081,12 +1096,12 @@ as it is on both branches. See
 [Move or copy changes to another branch](user-guide.md#move-or-copy-changes-to-another-branch).
 
 **As merged** shows one event as `main` will hold it once the branch merges:
-its attributes, field values, meta values, tags and properties together, in a
+its attributes, field values, meta fields, tags and properties together, in a
 side panel titled "Event after merge: &lt;name&gt;". It opens from **As merged**
 on an event's diff row, and from **As merged** beside each per-event item of a
 property row's `event_value_overrides` change, so an event whose only change is
 a property is reachable too. Each value is labelled **Added**, **Changed**,
-**Removed**, **Unchanged** or **Conflict** as well as coloured; "before" is
+**Removed**, **Unchanged** or **Conflict** as well as colored; "before" is
 `main` as it is now, shown struck through beside a changed value. A field
 `main` edited after the branch was cut, which the branch left alone, shows
 `main`'s newer value with "changed on main since this branch". A field or a
@@ -1134,7 +1149,7 @@ accepting a setting the ticket worker cannot use.
 
 | Tracker | Settings |
 |---------|----------|
-| **Jira** | Base URL, project key, auth email, API token, issue type (default `Task`) |
+| **Jira** | Base URL, project key, account email, API token, issue type (default `Task`) |
 | **Linear** | Team id, API key |
 
 The credential is handled the same way for both: only an owner can read or
@@ -1148,9 +1163,9 @@ tracker's credential when you switch.
 **Organization defaults.** An organization's owners and admins can set Jira and
 Linear defaults once for every project, under **Settings → Organization →
 Trackers** (`GET/PATCH /api/v1/orgs/{org}/settings/trackers`): the Jira base URL,
-auth email, API token and default project key, and the Linear API key and
+account email, API token and default project key, and the Linear API key and
 default team. A field the project leaves empty uses the organization's default;
-a field the project sets wins. The Jira base URL, auth email and API token are
+a field the project sets wins. The Jira base URL, account email and API token are
 one unit: a project that sets any of the three uses none of the organization's,
 so the organization's token is never sent to a site a project chose. Enabling
 the automation and choosing Jira or Linear stay per project. The project's
@@ -1206,7 +1221,8 @@ explained in [Dependencies & impact](./dependencies-and-impact.md).
 **Used by** lists what depends on the entity, grouped by kind (events, metrics,
 alert rules, relations, properties, fact tables, scans), each item a link to its page
 with a short reason next to it, such as *metric uses event in its composition*
-or *property bound to field*. Items matched only by name, without a stored id
+or *property bound to field* (said once under the group heading when every item
+in the group shares it). Items matched only by name, without a stored id
 (a column name in SQL or a JSON-key literal, a fact-table or `fact` metric
 column, a property binding by column name, a column on a scan with no event
 type), are marked **possible**, with a note that the match is by name and should
@@ -1215,7 +1231,7 @@ nothing depends on says so rather than showing an empty list. On a plan branch
 the list is resolved on that branch: its own relations and property bindings,
 and the metrics and alert rules that use its counterpart on `main`.
 
-**Warnings** name the concrete dependents before you act, summarised as a count
+**Warnings** name the concrete dependents before you act, summarized as a count
 of direct dependents (*2 metrics and 1 alert rule*) with the items listed below
 it, possible matches marked the same way. They appear in:
 
@@ -1249,7 +1265,7 @@ editors who can make the change.
 
 ### Plan rules
 
-**Where:** Workspace settings › Project › **Plan rules** (in the full-takeover
+**Where:** Settings › Project › **Plan rules** (in the full-takeover
 Settings area, route `/settings/project/plan-rules`). The page lists the gates a
 plan change passes in the project, each configured where it lives: approvals
 under **Plan → Plan branches → Merge policy** (`min_approvals`,
@@ -1287,13 +1303,14 @@ creation; later template versions never touch existing projects. See
 
 ### Project general & danger zone
 
-**Where:** Workspace settings › Project › **General**. The rail's Project group
+**Where:** Settings › Project › **General**. The rail's Project group
 also has **Tracking plan & alerting**, which leaves the settings area for the
 project's event types, alerting and the rest of its plan pages; the settings
 search (⌘K inside Settings) finds a section by what it holds, such as
 "timezone" or "delete project". Edit the project name,
-slug, description and timezone (picked from the IANA zones the browser knows;
-alert delivery schedules are read in it); set the project-wide number of app releases retained as
+slug, description and timezone (picked from the IANA zones the browser knows,
+listed under their current names (Asia/Kolkata, Europe/Kyiv) with each zone's
+current UTC offset after the name; alert delivery schedules run on it); set the project-wide number of app releases retained as
 explicit version series; rebuild its search index; or use owner-only destructive
 resets. Version retention applies to event monitoring and standalone catalog
 metrics alike. Renaming the slug refreshes search links for the project's plan
@@ -1308,7 +1325,7 @@ before **Delete project** arms, and a refused delete is reported inside the
 dialog.
 
 The workspace page lists projects as compact rows, each with a **Details** fold;
-**Open incidents** is the figure that used to read *Alerts*, and a project with
+**Open incidents** counts its open incidents, and a project with
 nothing set up yet offers **Continue setup**. A project's latest-run line says
 **N warehouse rows read** for a metrics run and **N combos grouped in the
 warehouse** for a catalog run. When you create a project, its URL
@@ -1319,7 +1336,7 @@ Older releases are combined into **Other**. **Reset anomalies**
 removes metric and breakdown anomaly records (and
 their derived active signals), plus the stored expected-value bands charts draw,
 across every scan/catalog metric. **Reset drifts**
-removes schema and distribution drift, but not variable-value drift. Both can be
+removes schema and distribution drift, but not value drift. Both can be
 limited to a selected historical period and cannot be undone.
 
 **Retire unused properties** applies the same retirement rule a catalog run
@@ -1342,7 +1359,7 @@ so a call that omits it only reports; the response carries `scanned`,
 `retirable`, `retired` and the `kept_*` counters the row renders.
 `mode: "exclude"` tombstones instead of deleting — for a binding still live in
 the warehouse that a later run would otherwise mint again — and is not offered
-in the UI, which always deletes. The route honours `?branch=` and defaults to
+in the UI, which always deletes. The route honors `?branch=` and defaults to
 `main`, records `project.retire_unused_variables` in the audit log when it is
 not a dry run — and that entry names the branch it ran against, so a retirement
 on a working branch is not read later as one on main — and takes the strict owner
@@ -1358,7 +1375,10 @@ branch openings are folded together, and a diff is grouped by entity and can be
 filtered. A merge or a branch opening links to its branch's review by id and
 shows the branch's current name; a revision whose branch has since been deleted
 shows the name it was created under, with no link. Distinct from per-event
-history and the project's audit log.
+history and the project's audit log. The list pages 50 revisions at a time with
+**Newer** and **Older**. A project with no revisions yet shows one empty state
+that links to Plan branches: a revision is recorded when a branch opens or
+merges, or when you save a snapshot.
 
 ### Docs catalog {#docs-catalog}
 
@@ -1411,32 +1431,41 @@ layout.
 ### Overview
 
 **Where:** Observe › Overview (the project's home page, route
-`/p/<slug>/overview`; it used to be called *Live activity*). A status line under
+`/p/<slug>/overview`). A status line under
 the title sums up the project in one sentence — open signals, open incidents,
 failing scans, broken alert channels (enabled destinations whose latest delivery
 failed) and source trouble, each linking to where it is worked on. Below
 it a KPI strip shows Active events, Implemented, **In review**, **Open signals**
-and **Coverage** (on a working branch the plan counts are that branch's, so they
+and **Plan coverage** (on a working branch the plan counts are that branch's, so they
 agree with its Events list); the last three are links to the review queue, the Anomalies
-page and Coverage. Values show a placeholder while they load rather than a
+page and Coverage. Below the 90% bar **Plan coverage** is amber, as on the
+Coverage page it opens, never red; **In review** is neutral on both. Values show a placeholder while they load rather than a
 "0". **Active signals** sits directly under the KPIs (the biggest few, with a
-**View all** link to the Anomalies page carrying the full count). The **volume**
+**View all** link to the Anomalies page carrying the full count); each signal
+row reads *&lt;actual&gt; vs &lt;expected&gt; expected* and names the bucket it
+counts. The **volume**
 card, charted from a single scan and titled with that scan's name, leads with
-the last 24 hours' total and its change against the 24 hours before, over a
+the last 24 hours' total and its change against the 24 hours before, in words
+(*−6% vs prior 24h*), over a
 dated axis with any anomaly marked, and an **Open chart** link to the full
 monitoring detail. Then come a 14-day **new events** series (events added to the
 plan per day on the main branch — not a history of the active-events stat),
 **Top events · 48h** summed across every scan (each row opens its event and
 shows its share of the project's volume in the same window; the shares need not
 add up to 100%, since unmatched traffic counts in the total),
-**Recent activity**, and **Source health**, whose rows carry a status chip and
+**Recent activity** (the activity rail's own rows: an icon per event action,
+scan-generated events named by their values, alert rows opening their
+delivery, and a scan's burst collapsed into one expandable row), and **Source
+health**, whose rows carry a status chip and
 link to the data source. Source health also shows the
 [freshness](#source-freshness) chip of a late or overdue source, and a **Late or
 overdue scans** list naming each such scan and opening its scan page, so a
 delayed warehouse load reads as **Data late** or **Scan overdue** there rather
 than only as a drop on the volume card. A project that has never been scanned shows one
 **Overview fills in after your first scan** state instead of empty panels, and
-each panel loads with its own skeleton. While the activity rail is open beside the page (wide screens), the
+each panel loads with its own skeleton. That state's own **Connect a data
+source** button appears only for an owner who has dismissed the **Get started**
+checklist, whose first step is the same link. While the activity rail is open beside the page (wide screens), the
 page's own Recent activity panel is hidden rather than listing the same items
 twice. Recent activity reads the **main branch** too, like the KPI series: an
 open working branch holds its own copy of every event, and those copies are not
@@ -1491,13 +1520,12 @@ opened it — and edit shows the channel read-only.
 ### Alert rules
 
 **Where:** Observe › Alerting › **Rules** (route
-`/p/<slug>/alerting?section=monitors`; the tab used to be called
-*Monitors*, and the `section=` key kept its old name so saved links still work). Every alert **rule** in the
+`/p/<slug>/alerting?section=monitors`). Every alert **rule** in the
 project, across all destinations, in one list: the **condition** it watches for
 (spike/drop direction, threshold, cooldown), the **destination** it routes to,
 its **state** (firing / warning / healthy), when it **last fired**, and its
-delivery health (`115 deliveries · 57 incidents · last 3h ago · sent`, or *Never
-delivered*). A firing/warning/healthy rollup sits above the list. Each row
+delivery health (`115 deliveries · 57 incidents · last sent 3h ago`, *last
+delivery failed 3h ago*, or *Never delivered*). A firing/warning/healthy rollup sits above the list. Each row
 expands to the full labelled settings — scan binding, scopes, direction,
 cooldown, thresholds, message template, filters. The enable switch stays on the
 row; **replay**, **mute** (**1h / 24h / 7d**), edit and delete sit behind the
@@ -1505,7 +1533,7 @@ row's **…** menu, and opening **replay** runs it straight away. Saving, muting
 and deleting confirm with a toast.
 Open a rule for its detail page, which adds the fired history; its breadcrumb
 reads **Observe › Alerting › Rules › &lt;rule&gt;** and the browser tab
-**&lt;rule&gt; · Alert rule**.
+**&lt;rule&gt; · Alert rule · &lt;project&gt;**.
 
 The rule editor is four numbered steps — **What to watch**, **When**, **Where**,
 and a collapsed **Customize message** — with an **Advanced** section after them.
@@ -1537,11 +1565,8 @@ The Inbox's per-incident mute does offer *indefinitely*, because it silences one
 scope of one rule — see
 [Silencing an incident](./alerting.md#silencing-an-incident).
 
-This used to be a **separate nav item** with its own page, rendering the same
-`AlertRule` rows under a second noun: a rule was read there and edited under
-Alerting, which is how the two screens came to disagree about its mute state.
-"Monitor" and "rule" are the same object, and it now has one home. `/p/<slug>/monitors`
-redirects here.
+A rule is sometimes called a *monitor*; it is the same object, and
+`/p/<slug>/monitors` redirects here.
 
 Distinct from the **Monitoring detail** below: the per-scope volume drilldown
 (chart, forecast, heatmap) is reached from an event or a signal, not from a rule
@@ -1571,7 +1596,7 @@ buckets not scored at all, and the buckets folded into a reported level shift or
 outage show no band (see
 [Anomaly detection](anomaly-detection.md#the-baseline-band-on-the-chart)).
 For an `event` scope it
-additionally renders variable-value drift review and the Photos & specs panel.
+additionally renders value drift review and the Photos & specs panel.
 An event that is not yet `live` also gets a **Spec** card ahead of the charts:
 the scan identity with a copy button, the fields with their required and
 **names the event** marks, documented property values, an example payload, and
@@ -1639,7 +1664,7 @@ picks a **kind** and then reveals kind-specific config; a new metric starts on
 no fact tables to build from, and is faded (still selectable) until it has. A
 project that tracks no events starts a new metric on **From a fact table**
 instead, or on **Custom SQL** when it has no fact tables either. **Description**,
-**colour** and the **internal name** sit under **More options**. Creating a new metric opens a template gallery
+**color** and the **internal name** sit under **More options**. Creating a new metric opens a template gallery
 first: **Start from scratch** skips it, and a **Browse templates** link on the
 form brings it back. The top bar names the edited metric: **Metrics › Active
 Sessions › Edit** (a fact table's editor reads **Metrics › Fact tables ›
@@ -1745,7 +1770,7 @@ table (`?fact_table=<id>`; API clients pass `fact_table_id` on
 `GET /projects/{slug}/metrics`). A row's **⋯** menu has **Edit**, **Duplicate**
 and **Delete**. In the editor, after the first **Preview** the column preview
 re-runs by itself as the SQL changes, and a new table takes the next palette
-colour no other table uses.
+color no other table uses.
 
 A fact table that metrics still read cannot be pulled out from under them.
 **Deleting** it, **unbinding its data source**, **removing or renaming a named
@@ -1859,7 +1884,10 @@ that scope, so it can be opened in a new tab. The scan and magnitude filters
 are dropdowns in the filter bar. When a series drops all the way to zero, the
 Change column reads **dropped to zero** instead of a percentage. A project where
 no monitoring scan has collected yet shows **Monitoring isn’t running yet**
-rather than an empty list. A scope that
+rather than an empty list, with one way forward: **Go to Scans**, or, when the
+project has no data source, **Connect a data source** for an owner (anyone else
+is told an owner has to connect one first). Detection settings stays in the
+page header, and the stat strip is hidden while nothing is open. A scope that
 dropped to zero and has not emitted since stays on this list for as long as it is
 down, rather than ageing out of the open-signal window after a day — the outage
 is announced once, so tripl re-checks whether it is still down instead of judging
@@ -1886,14 +1914,14 @@ request — and the counts on the scan options are taken from the whole stream, 
 raising the magnitude cannot make the option you are standing on disappear.
 **Both are in the page URL.** The magnitude filter is
 `?level=<all|significant|major>`, and the default (**Significant**) writes no
-parameter; a level the page does not recognise degrades to that default. The
+parameter; a level the page does not recognize degrades to that default. The
 scan filter is `?scan=<scan_config_id>`: it opens the page already
 narrowed to that scan, and picking an option writes the parameter back (choosing
 **All scans** removes it), so a narrowed view can be shared or bookmarked, and
 opening a signal to investigate it and pressing Back returns the filters you
 were using rather than resetting them. This
 is where a scan run's **Signals added** counter links to. A scan with nothing
-open right now keeps its selection and says *No open anomalies from &lt;scan&gt;* —
+open right now keeps its selection and says *No open signals from &lt;scan&gt;* —
 a signal closes once the metric comes back to normal, so an older run's link
 lands here — with **Show all scans** one click away. Only an id this project does
 not have — a deleted scan, a stale bookmark, a hand-edited URL — degrades to
@@ -1959,7 +1987,7 @@ something other than a person at the chart:
 
 | Source | Who creates it | How it draws |
 |--------|----------------|--------------|
-| `manual` | Someone using the annotation form on a chart (or **Annotate** on a signal). | As before: the colour it was given. |
+| `manual` | Someone using the annotation form on a chart (or **Annotate** on a signal). | As before: the color it was given. |
 | `release` | The metrics worker, automatically, when a new app version goes live. | Muted, with a tag icon. |
 | `api` | A deploy pipeline, through `POST /projects/{slug}/annotations` or [`tripl annotate`](../run/cli.md#tripl-annotate). | Muted, with a rocket icon. |
 
@@ -2001,15 +2029,17 @@ in this browser, and starts on.
 **The Annotations page.** Observe › **Annotations** lists every annotation in the
 project in one place, newest first, with the series each one is on (linking to
 its chart) or *project-wide*, and a filter by source (manual, releases, API).
-Planned events are listed above them. Editors and owners can delete either from
-here.
+Expected windows are listed above them. Editors and owners can delete either from
+here. The page prints a window's times in your local time with the UTC offset,
+and a holiday as its UTC day (*Oct 3, 2026, all day UTC*).
 
-### Planned events {#planned-events}
+### Expected windows {#planned-events}
 
-A **planned event** names a window in which you expect a series to move — a
-campaign, a sale, a holiday, a maintenance window — so the move is not reported
-as news. The **Planned events** card on the monitoring Volume tab creates one
-for the chart in view: a label, a start and an end in your local time, and what
+An **expected window** (a planned event in the API) names a window in which you
+expect a series to move — a campaign, a sale, a holiday, a maintenance window —
+so the move is not reported as news. The **Expected windows** card under a
+monitoring chart (the Volume tab, or Value for a metric) creates one for the
+chart in view: a label, a start and an end in your local time, and what
 it expects (**a rise**, **a drop**, or **either**). **Starts** and **Ends** each
 open one picker, a calendar with the time under it (**Now** fills in the
 current minute). The card lists the windows from the start of the chart's range
@@ -2017,17 +2047,17 @@ on, upcoming ones included, so next month's sale stays in view after you add it;
 the chart shades a window once its buckets exist.
 
 An anomaly whose bucket falls inside `[start, end)`, whose direction matches,
-and whose series is the event's (or any series, for a project-wide event) is
+and whose series is the window's (or any series, for a project-wide window) is
 still detected, stored and drawn, but it is marked *planned*:
 
 - the chart shades the window, draws the anomaly's marker in a muted ink, and
-  its tooltip reads **Planned: *label* · Expected rise**;
+  its tooltip reads **Expected window: *label* · Expected rise**;
 - it raises **no alert**, no notification, no open signal on the Anomalies page
   and no badge count, and an alert rule's replay does not count it.
 
-A sale that brings a *drop* is still news when the event expects a rise. Where
-two events overlap, the one that started first claims the anomaly. Adding,
-editing or deleting an event re-marks the stored anomalies at once; deleting it
+A sale that brings a *drop* is still news when the window expects a rise. Where
+two windows overlap, the one that started first claims the anomaly. Adding,
+editing or deleting a window re-marks the stored anomalies at once; deleting it
 makes the anomalies inside it ordinary signals again. Every change is recorded
 in the audit log (`planned_event.create`, `.update`, `.delete`).
 
@@ -2035,11 +2065,11 @@ Through the API: `GET`/`POST /projects/{slug}/planned-events` and
 `PATCH`/`DELETE /projects/{slug}/planned-events/{planned_event_id}` (editors and
 owners write; a `tk_w_` key bound to the project may too). The scope pairs like a
 chart annotation's: `scope_type` and `scope_ref` both set, or both null for the
-whole project. The [demo workspace](./demo-workspace.md) seeds one, *Spring promo
+whole project. The [demo project](./demo-workspace.md) seeds one, *Spring promo
 (planned)*, over its catalog-metric spike.
 
 **Holiday calendar.** Detection settings › **Holiday calendar** takes a country,
-and its public holidays become project-wide planned events that expect either
+and its public holidays become project-wide expected windows that expect either
 direction — one UTC day each, for last year, this year and next, rolled into the
 new year by a nightly job. They come from the
 [`holidays`](https://pypi.org/project/holidays/) package, under their English
@@ -2048,15 +2078,19 @@ cannot be edited or deleted one by one (`PATCH`/`DELETE` answers `409`), and
 choosing **None** removes them all. Through the API, `holiday_country` (an
 ISO 3166-1 alpha-2 code, or null) on `PATCH /projects/{slug}/anomaly-settings`;
 `GET /projects/{slug}/anomaly-settings/holiday-countries` lists the codes it
-accepts. Planned events carry `source`: `manual` or `holiday`.
+accepts. Expected windows carry `source`: `manual` or `holiday`.
 
 **Suggested recurring windows.** When signals on one series at the same hour of
 the same weekday (UTC) are marked *expected* in three different weeks within the
 last eight, the Annotations page suggests the move is a schedule: **Plan next
-4** creates the next four one-hour windows at that slot as planned events on the
+4** creates the next four one-hour windows at that slot as expected windows on the
 series, labelled with the newest verdict's note and expecting the direction the
 anomalies moved in (either, if they moved both ways). A suggestion drops out
-once a planned event — on the series or project-wide — covers its next slot.
+once an expected window — on the series or project-wide — covers its next slot.
+The page shows each slot in your local time with its offset (for example
+*Every Monday at 11:00 AM (UTC+2)*), the same clock as the expected windows
+listed under it; the description stored on the windows it creates names the
+slot in UTC.
 Editors and owners see them; through the API,
 `GET /projects/{slug}/planned-events/suggestions`, and accepting one is creating
 its `windows` with `POST /projects/{slug}/planned-events`.
@@ -2064,7 +2098,9 @@ its `windows` with `POST /projects/{slug}/planned-events`.
 ### Alerting
 
 **Where:** Observe › Alerting (Inbox, Rules, Destinations, Delivery log). Destination channels:
-**Slack**, **Telegram**, **Webhook**, **Email**, **Jira**, **Linear**. Routing
+**Slack**, **Microsoft Teams**, **Telegram**, **PagerDuty**, **Email**,
+**Webhook**, **Jira**, **Linear** (see the
+[destination table](./alerting.md#destinations)). Routing
 rules carry a **cooldown** (minutes); an optional **Scan** binding
 (`scan_config_id`, default **All scans**) that narrows a rule to one scan
 configuration — metric-scope anomalies are project-wide and are never delivered
@@ -2117,7 +2153,7 @@ two rules can mean two emails. Each delivery's detail lists its **owner
 notifications** (sent / failed / skipped / pending — pending being a short
 in-progress claim, reclaimed after 15 minutes); a retried delivery re-attempts
 skipped and failed owners. Incident cards and the drilldown **Signal** card show
-**Owners: @…** and, for editors, a **Notify owners** button for a one-off email
+**Event type owners: @…** (a catalog metric's: **Owner: @…**) and, for editors, a **Notify owners** button for a one-off email
 (on a routed signal the button is on its incident card), which also reaches the
 owners of a signal no rule routed; it notifies at most 20 owners and skips an
 owner notified by hand in the last 10 minutes. See
@@ -2164,8 +2200,8 @@ has run yet shows **Nothing to reconcile yet** with a **Go to Scans** button
 instead of empty panels; once a scan has run, the panels (and the shadow inbox's
 Accepted / Dismissed tabs) stay even when nothing was read in the window. In the shadow events inbox each row's
 **Accept** is an outline button, and the bulk accept is the one primary action. Screen readers get a summary (lowest, highest,
-latest, days without data) and a per-day table. The headline percentage carries an inline tooltip spelling out
-that it measures data match — not the Coverage page's plan coverage — so the two
+latest, days without data) and a per-day table. An info button (reachable by keyboard and touch) beside **occurrences matched**
+spells out that it measures data match — not the Coverage page's plan coverage — so the two
 governance numbers are not read as contradictory. The **shadow events inbox** (tabs: `new` / `accepted` /
 `dismissed`) lists events seen in data but missing from the plan — **Accept**
 creates the event on the active branch (you pick an event type when none is
@@ -2202,7 +2238,10 @@ the name *is* built from coincide. Naming the **Event type column** in the
 them — but it is not a guarantee, because an event group rule that rewrites both
 names to one folds them back together anyway.
 **Dead events** (in plan, no data in the last
-30 days) can be selected and archived; archiving asks for confirmation with the
+30 days) can be selected and archived. An implemented event that has never sent
+data counts only once it has been in the plan for 30 days, so a new event is not
+dead before it has had a chance to ship; the weekly plan digest's "Dead
+implemented events" line counts the same events. Archiving asks for confirmation with the
 count and reports how many events it archived. Dead events are computed on the
 project's `main` branch and archiving writes to `main`, so on a working branch
 the panel is labelled "main branch" and does not offer **Archive** — switch to
@@ -2424,11 +2463,14 @@ labelled "not implemented" rather than "pending" because it is the arithmetic
 remainder (active − implemented) and therefore includes draft and ready-for-dev
 events, not just the ones awaiting review. The "N not implemented" figure links
 to the Events list filtered to exactly those statuses, and a line under the bar
-breaks it down ("Not implemented: N in review, M draft, ready for dev or
-deprecated"). An inline tooltip on the
-plan-coverage figure clarifies that it counts implemented events, not events
-seen in warehouse data (Reconciliation's data match), so the two views are not
-confused. **Instrumentation gaps** lists **implemented and live** events with no
+breaks it down ("Not implemented: N in review, M in another status (draft, ready
+for dev or deprecated)"); it says "none in review" when the review queue is
+empty and drops the second clause when everything left is in review. An info
+button beside the plan-coverage figure (reachable by keyboard and touch) says it
+counts active planned events marked implemented, while Reconciliation's data
+match counts tracked event occurrences (warehouse rows) that matched a planned
+event. Plan coverage under 90% is amber here and on the Overview tile (never
+red, neutral when good), and **In review** is neutral on both. **Instrumentation gaps** lists **implemented and live** events with no
 data in the last 30 days (the same dead-events signal Reconciliation acts on),
 excluding events created inside that window; each row shows the event, its type,
 and when it was last seen, with a link to Reconciliation to triage. The panel
@@ -2513,7 +2555,7 @@ raise a signal or send an alert. See
 **Name**, **Data source**, **Base query** (used as a subquery), the **Load
 preview** button, **How events are stored** (the
 [Event + properties](#event-properties-setup) setup or **Custom**),
-[**Parse as JSON**](#parse-as-json) (ClickHouse, BigQuery, Databricks and Snowflake sources), then either
+[**Parse as JSON**](#parse-as-json) (ClickHouse, BigQuery, Databricks, Snowflake, Trino and Athena sources), then either
 **Event column**, **Properties column** and **Event type**, or **Event type**
 and **Event type column**, **Time column**
 (required in Catalog + monitoring, an optional run bound in Catalog only), — in
@@ -2592,7 +2634,7 @@ conflicting `event_name_format`, a non-empty `json_value_paths`, an
 #### Parse as JSON {#parse-as-json}
 
 Some tables keep the properties as JSON *text* in a plain column: `String` on
-ClickHouse, `STRING` on BigQuery, Databricks and Snowflake. Tick such a column under **Parse as JSON**
+ClickHouse, `STRING` on BigQuery, Databricks and Snowflake, `varchar` on Trino and Athena. Tick such a column under **Parse as JSON**
 (it lists the preview's text columns) and the scan reads it as a JSON column,
 in both setups:
 
@@ -2613,10 +2655,10 @@ column, or a plain breakdown or drift field (pick one of its properties
 instead). After ticking or unticking a column, **Reload preview** to see it
 read the new way; the pickers count a ticked column as JSON straight away.
 
-Only ClickHouse, BigQuery, Databricks and Snowflake sources can parse text: the scan wraps
+Only ClickHouse, BigQuery, Databricks, Snowflake, Trino and Athena sources can parse text: the scan wraps
 the base query and parses the column once per row it reads (ClickHouse
 `isValidJSON`/`JSONType` guarding a cast to `JSON`, BigQuery
-`SAFE.PARSE_JSON`, Databricks `try_parse_json` into a `VARIANT`, Snowflake `TRY_PARSE_JSON`), so the rows a run reads are bounded exactly as before.
+`SAFE.PARSE_JSON`, Databricks `try_parse_json` into a `VARIANT`, Snowflake `TRY_PARSE_JSON`, Trino and Athena `try(json_parse(...))`, kept only when it is an object), so the rows a run reads are bounded exactly as before.
 ClickHouse needs a server with the `JSON` type (25.x). PostgreSQL is not
 supported. Through the API, send `json_string_columns: ["<column>", …]` (at
 most 5 plain column names) on `POST`/`PATCH /projects/<slug>/scans`, the
@@ -2846,7 +2888,9 @@ failed run minutes later.
 The scan list heads four figures: **Scans**, **Monitoring** (scans that have
 both a time column and a schedule, so the dispatcher actually picks them up),
 **Failing**, and **Warehouse rows · 24h**. The detail page adds **Scanned · last
-run**, **Events written**, and **Metric points** — which also say when the last collection
+run**, **New events** (events this run added to the plan; 0 means every event
+was already there; the **Recent runs** column is **New events** too), and
+**Metric points** — which also say when the last collection
 landed and when the next is due, both read from the scheduler's own record
 (`last_metrics_run_at` / `next_metrics_run_at` on `GET /projects/{slug}/scans/{scan_id}`)
 rather than guessed from the newest run. On a monitoring scan the header's
@@ -2929,7 +2973,7 @@ Every counter the run reported is still there, verbatim, behind **Show raw
 counters**: *Events created*, *Properties created*, *Properties retired* (on
 every run but a replay, `0` included), *Events skipped*, *Columns analyzed*,
 *Event breakdowns*, *Distribution rows*, *Signals added*, *Alerts queued* — and,
-on a scheduled run, the variable-value sampling sweep: *Paths
+on a scheduled run, the value sampling sweep: *Paths
 sampled* (how many still-unobserved paths this run attempted), *Paths with
 samples* (how many of those came back with a value — sampled high with zero
 back is the signature of a failing sampling query), *Values written* (contexts
@@ -2946,11 +2990,15 @@ keys, a project's deletion) are in the organization-wide audit log, part of the
 [Enterprise edition](../editions.md). Entries
 are grouped under day headers, each reads as a sentence with chips for the
 actor and the object, and an expanded entry shows its payload as labelled values
-with a **Raw JSON** toggle. Each entry also records the
+with a **Raw JSON** toggle. Each action reads as a sentence in the row and in the
+Action filter, which groups them by area (Events, Schema, Properties,
+Versioning, …). Row times, day headings and the From and To filter dates are in
+your browser's time zone, which **About this log** names; hover a time to see
+the full second and its zone. Each entry also records the
 **plan branch** the write was scoped to, so two contradictory edits to the same
 object on two branches are told apart. The rule is exact:
 
-Instance settings changes record the names of changed fields without storing
+Platform settings changes record the names of changed fields without storing
 their secret values. Scan runs and metrics replays record the resulting job ID;
 branch comments and conflict resolutions, photo and annotation changes, and
 project anomaly settings changes record the acting user as well.
@@ -2984,10 +3032,15 @@ Events have a second surface, and the two answer different questions. The audit
 log answers **who, what, when and on which branch**, and it survives the event:
 an `event.delete` row still names what was deleted after the event and its
 history are gone. **Per-event history** on the event's own detail page answers
-the **before/after values** of `status`, `name`, `title`, `description` and
-`sunset_at`, `superseded_by_event_id`, of `tags`, and of each field value (`field:<name>`) and meta value
+the **before/after values** of `status`, `name`, `title`, `description`,
+`required_presence_threshold`, `sunset_at` and `superseded_by_event_id`, of `tags`, and of each field value (`field:<name>`) and meta value
 (`meta:<name>`), opening with a `created` row that names who created the event
-and when; it is removed with the event. Neither is a backup — an `event.delete` row
+and when; it is removed with the event. The event page's **Recent activity**
+reads each row as the page shows the attribute: *Status → Live*, *Required
+presence → 80%*, a removed value as *cleared*, a removed threshold as *default
+(95%)*, the current successor by name, and the first row as *Created as
+&lt;name&gt;*. It credits a person by name and a scan as *tripl (scan)*.
+Neither is a backup — an `event.delete` row
 does not let you reconstruct the deleted event's field values, deliberately, as
 a single field value may be 100 000 characters.
 
@@ -3083,11 +3136,26 @@ for accounts. When the instance has email configured it sends a **single-use
 reset link that expires in one hour** — opening it returns you to the sign-in
 screen in "choose a new password" mode, where the new password must meet the
 same policy as registration (at least 12 characters with a number and a symbol).
-When email is **not** configured, the confirmation instead tells you to contact
-an owner. Completing a reset also signs out the account's other
+When email is **not** configured, no link is sent and the screen says what to do
+instead: an owner or admin of your organization can create a single-use reset
+link for you under **Settings › Organization › Members**, and if nobody who
+could can sign in, whoever runs the server prints one with
+`tripl-admin password-reset-link <email>` (see
+[`tripl-admin`](../run/configuration.md#tripl-admin)). Completing a reset also signs out the account's other
 sessions. Password fields on the sign-in and invitation pages have a
 show-password toggle. See **[Security](../run/security.md)** for the token and delivery
 details.
+
+### Unsaved input in dialogs
+
+A dialog holding a form you have changed but not saved (for example a property,
+a meta field, a relation, the implementation tracker connection, or a note's
+sharing) asks **Leave without saving?** before Escape, a click outside it, its
+✕ or **Cancel** throws the changes away. **Keep editing** returns to the form
+and **Discard changes** closes it. In the property editor, **Open property
+page** asks the same way. Saving closes the dialog without asking, and
+reloading or closing the tab while such a dialog holds changes gets the
+browser's own prompt.
 
 ### Profile › Notifications {#profile-notifications}
 
@@ -3101,7 +3169,7 @@ details.
 - **Email me when I am mentioned**: on by default. Controls email for
   @mentions separately from the frequency.
 
-Email goes through the instance SMTP settings; without SMTP only in-app
+Email goes through the organization's email settings (Settings → Organization → Email, or the platform's when it sets none); without SMTP only in-app
 notifications work: no email is sent, the section says so, and notifications
 still appear under the bell. See
 [Notifications & watching](./notifications.md#email).
@@ -3221,7 +3289,7 @@ matches.**
 ### Activity feed
 
 A toggleable live panel titled **Activity** (opened and closed from the top
-bar's **Activity** button; it used to read "Now") of recent activity for the project,
+bar's **Activity** button) of recent activity for the project,
 or workspace-wide when no project is in scope. It shows up to 20 items of type
 `anomaly`, `scan`, `alert`, or `event`, severity-colored, auto-refreshing roughly
 every 60 seconds, with a manual refresh. An `anomaly` item, from a scan or a
@@ -3257,22 +3325,23 @@ full-width empty column.
 
 ### AI-assisted features
 
-Optional. Enable at Workspace settings › Instance › **AI** (route
-`/settings/instance/ai`) with a provider and API key; a status endpoint gates the
+Optional. Enable at Settings › Platform › **AI & search** (route
+`/settings/instance/ai`) with a provider and API key, and pick the
+organization's model under Settings › Organization › **AI**; a status endpoint gates the
 AI UI. When enabled: **Suggest with AI** drafts an event description on the event
 form, **Ask AI** answers questions in the command palette with linked
 sources, and each alerting incident gets a cited
-[incident summary](./alerting.md#incident-summary) (never in a demo project). Search indexing (and optional embeddings) is rebuilt from Workspace
-settings › Project › **General** via the **Rebuild index** action, which reports
+[incident summary](./alerting.md#incident-summary) (never in a demo project). Search indexing (and optional embeddings) is rebuilt from Settings ›
+Project › **General** via the **Rebuild index** action, which reports
 documents indexed and whether embeddings were queued.
 
 ### Data sources & connection test
 
-**Where:** Workspace settings › Data sources (owner only). Supported types and
+**Where:** Settings › Organization › **Data sources** (owners and admins). Supported types and
 default ports: **ClickHouse** (8123), **PostgreSQL** (5432, **version 14+
 required**), **BigQuery** (project/dataset based), **Snowflake** (443; account identifier, database and virtual warehouse), **Databricks** (443;
 workspace hostname, catalog and SQL warehouse HTTP path), **Amazon Redshift** (5439; no JSON columns),
-**Greenplum** (5432; Greenplum 6 or 7), **Trino** (443; coordinator host, catalog, user, optional password) and
+**Greenplum** (5432; Greenplum 6 or 7), **Trino** (443; coordinator host, catalog, user (required), optional password, which needs `https`) and
 **Amazon Athena** (AWS region, Glue database, access key). Create, edit, and delete
 sources; **Test connection** (the new-source dialog can test the connection
 before you create it, and nothing is stored by that test; a new source is tested
@@ -3306,7 +3375,7 @@ connection settings, shown only for the warehouse they apply to:
 | BigQuery | Location, max billed bytes (cost guard, default 100 GiB), dataset allowlist (schema-browse scope) |
 | Databricks | HTTP path (required), authentication (access token or OAuth machine-to-machine), default schema, schema allowlist (schema-browse scope) |
 | Snowflake | Warehouse (required), authentication (password or key pair), role, default schema, schema allowlist (schema-browse scope) |
-| Trino | Scheme (`https` / `http`; a password is only sent over HTTPS), default schema, schema allowlist (schema-browse scope) |
+| Trino | User (required), scheme (`https` / `http`; a password is only sent over `https`, so a source with a password and `http` cannot connect), default schema, schema allowlist (schema-browse scope) |
 | Athena | Workgroup (default `primary`), query result location (`s3://…`), catalog (default `AwsDataCatalog`), schema allowlist (schema-browse scope) |
 
 :::info Not interchangeable — read the capability matrix

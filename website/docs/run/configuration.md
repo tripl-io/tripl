@@ -8,9 +8,21 @@ sidebar_position: 2
 tripl is configured entirely through environment variables. The backend reads
 them into a single [`Settings`](https://github.com/tripl-io/tripl/blob/main/backend/src/tripl/config.py)
 object (Pydantic `BaseSettings`); values can come from the process environment
-or from a `.env` file in the backend working directory (`model_config = {"env_file": ".env", "extra": "ignore"}`).
+or from a `.env` file in the backend working directory
+(`model_config = {"env_file": ".env", "extra": "ignore", "env_ignore_empty": True}`).
 Unknown variables are ignored, so a single `.env` can hold backend, frontend,
-and Docker Compose values side by side.
+and Docker Compose values side by side, and an empty value counts as unset, so
+the default applies.
+
+Under Docker Compose the containers do not read `.env` themselves: `compose.yaml`
+has no `env_file:`, and only the variables its `x-app-environment` anchor names
+reach the containers. Most are passed as `VAR: ${VAR:-}`, which is safe for a
+variable you never set: Compose passes it as an empty string, and
+`env_ignore_empty` turns that back into the default. A variable the anchor does
+not name never arrives, whatever `.env` says. Four are left out on purpose:
+`DEBUG` (the production stack relies on it being off), `SERVE_FRONTEND` and
+`FRONTEND_DIST_DIR` (baked into the image) and `PHOTO_LOCAL_DIR` (it must be the
+mounted `/app/var/photos`).
 
 The canonical starting point is
 [`.env.example`](https://github.com/tripl-io/tripl/blob/main/.env.example).
@@ -76,6 +88,15 @@ SYNC_DATABASE_URL: postgresql+psycopg://tripl:${POSTGRES_PASSWORD}@postgres:5432
 RABBITMQ_URL: amqp://tripl:${RABBITMQ_PASSWORD}@rabbitmq:5672//
 REDIS_URL: redis://redis:6379/0
 ```
+
+**Your own PostgreSQL.** Pointing tripl at an external or managed PostgreSQL,
+let tripl's database role own its database. The migrations create the `vector`,
+`pg_trgm` and `unaccent` extensions in the `public` schema when they are
+missing (`CREATE EXTENSION IF NOT EXISTS … WITH SCHEMA public`), which needs a
+role that may create extensions; if an administrator creates them first, the
+migrations use them as they are. After a pgvector upgrade, the extension's
+owner (or a superuser) runs `ALTER EXTENSION vector UPDATE`; until then the
+migration logs a warning naming both versions instead of failing.
 
 ---
 
@@ -154,7 +175,7 @@ the backend, so these stay at their defaults.
 
 | Variable | Default | Required in prod? | Purpose |
 | --- | --- | --- | --- |
-| `REGISTRATION_MODE` | `open` | **Decide it** | Who may create an account. `open` (**the default**) allows self-service signup — anyone who can reach the instance becomes a **member** of the default organization, who can read the member roster and create projects of their own. A member sees no existing project until the project's creator or an organization owner or admin adds them (**Settings → Project → Access**). Data source connection details (host, port, username) are for organization owners and admins only. `disabled` refuses `POST /auth/register` with `403` and hides the sign-up form. `open` is the default for historical reasons — it used to be the only way to onboard anyone. An owner can now invite people directly (**Settings → Organization → Invitations → Invite a member**), so `disabled` no longer blocks onboarding; set it once your team has accounts. With `DEPLOYMENT_MODE=self_hosted` the first registration on an **empty** instance is always allowed and becomes the default organization's owner and the platform admin. With `hosted` there is no such exception: `disabled` refuses every sign-up, the first one included, and each sign-up creates an organization of its own instead of joining the default one (see [Hosted sign-up and email verification](../administer/admin-guide.md#hosted-sign-up-and-email-verification)). Self-service sign-up never grants platform admin on a hosted instance, whatever `PLATFORM_ADMIN_EMAILS` lists; a listed address becomes a platform admin only when its account confirms the emailed verification link while signed in as itself. Overridable at runtime in **Settings → Instance → Security & access**, where it applies immediately. See [Security & Hardening](./security.md#self-service-registration). |
+| `REGISTRATION_MODE` | `open` | **Decide it** | Who may create an account. `open` (**the default**) allows self-service signup — anyone who can reach the instance becomes a **member** of the default organization, who can read the member roster and create projects of their own. A member sees no existing project until the project's creator or an organization owner or admin adds them (**Settings → Project → Access**). Data source connection details (host, port, username) are for organization owners and admins only. `disabled` refuses `POST /auth/register` with `403` and hides the sign-up form. `open` is the default for historical reasons — it used to be the only way to onboard anyone. An owner can now invite people directly (**Settings → Organization → Invitations → Invite a member**), so `disabled` no longer blocks onboarding; set it once your team has accounts. With `DEPLOYMENT_MODE=self_hosted` the first registration on an **empty** instance is always allowed and becomes the default organization's owner and the platform admin. With `hosted` there is no such exception: `disabled` refuses every sign-up, the first one included, and each sign-up creates an organization of its own instead of joining the default one (see [Hosted sign-up and email verification](../administer/admin-guide.md#hosted-sign-up-and-email-verification)). Self-service sign-up never grants platform admin on a hosted instance, whatever `PLATFORM_ADMIN_EMAILS` lists; a listed address becomes a platform admin only when its account confirms the emailed verification link while signed in as itself. Overridable at runtime in **Settings → Platform → Security & access**, where it applies immediately. See [Security & Hardening](./security.md#self-service-registration). |
 
 ### Organizations
 
@@ -162,14 +183,14 @@ Every project, data source and API key belongs to an organization, and a user
 can belong to several. An instance starts with one **default organization**;
 access follows the organization role (`owner`, `admin` or
 `member`) and the project role. These settings are environment-only — they
-cannot be changed in **Settings → Instance**.
+cannot be changed in **Settings → Platform**.
 
 | Variable | Default | Required in prod? | Purpose |
 | --- | --- | --- | --- |
 | `DEPLOYMENT_MODE` | `self_hosted` | No | `self_hosted` is one team's instance. `hosted` is a multi-tenant service. `hosted` needs the [Enterprise edition](../editions.md), whose package supplies the multi-tenant policy; a Community server with `hosted` refuses to start. It is read when the database is migrated to decide who becomes a **platform admin** (the operator of the whole instance). When the value is `self_hosted`, every owner of the default organization becomes a platform admin, and so does the first account of an empty instance. When the value is `hosted`, only existing accounts whose address is in `PLATFORM_ADMIN_EMAILS` do. It also decides which organization a request acts in when its URL does not name one (no `/api/v1/orgs/{org}/` prefix): `self_hosted` always acts in the default organization; `hosted` acts in the user's only organization and answers 400 `Organization required` when the user belongs to none or to several (such a user names the organization in the URL). With `hosted`, sign-up creates a new organization, signing up needs the operator's SMTP, and an account must verify its email address before it can use anything beyond the `/api/v1/auth/*` routes; any signed-in user may create an organization. A new account made from an invitation on a hosted instance must verify its address too. With `self_hosted` none of that applies: every account is marked verified when it is created and nothing is ever gated. See [Hosted sign-up and email verification](../administer/admin-guide.md#hosted-sign-up-and-email-verification). Any other value refuses to start. The platform-admin grant runs during the upgrades that add organizations (the organization schema, and again with organization roles). It only adds the flag and never revokes it. Changing the value between upgrades changes nothing until the next such upgrade. After that, platform admins are granted and revoked in the [platform console](../administer/admin-guide.md#platform-console) or with [`tripl-admin`](#tripl-admin). |
 | `OUTBOUND_PUBLIC_HOSTS_ONLY` | `false` | No | `true` makes every outbound request tripl makes on a user's behalf (warehouse connections, identity-provider discovery, key and token requests, webhook deliveries; search-embedding requests then refuse redirects) refuse a host that resolves to a private, loopback, link-local or otherwise internal address, and connect to the very address that was checked. Always on with `DEPLOYMENT_MODE=hosted`, whatever this says. Turn it on for a self-hosted instance whose users must not reach the network it runs in. See [Security & Hardening](./security.md#outbound-requests). |
 | `PLATFORM_ADMIN_EMAILS` | empty | Only when `hosted` | Comma-separated account emails that become platform admins when `DEPLOYMENT_MODE=hosted`. Case and surrounding spaces are ignored. Only accounts that already exist when an organization upgrade runs are flagged, so create them first and set the list before upgrading. Signing up, accepting an invitation or completing a password reset with a listed address **never** grants it. Through the list, the only way is the emailed verification link: when an account with a listed address confirms that link while signed in as itself, it becomes a platform admin at that moment, so the grant follows proof of both the mailbox and the account. Removing an email revokes nothing; revoke in the [platform console](../administer/admin-guide.md#platform-console) or with [`tripl-admin`](#tripl-admin). An operator who cannot receive mail on a listed address can grant the flag with `tripl-admin` instead. |
-| `ORG_SETTINGS_OPERATOR_FALLBACK` | `all` | No | Covers an organization that has not set its own AI, SMTP or search-embedding settings. `all` means it uses the operator's; `none` means those features are off for it (the organization page shows **Disabled by operator policy**) until it sets its own relay, AI endpoint or embedding endpoint and key. With `none`, an organization without its own embedding endpoint has semantic search off; lexical search still works. Non-secret values (row limits, AI timeout and token limits, prompts, the AI switch) fall back to the operator either way. Account mail (email verification, password reset, invitations) always uses the operator's SMTP. On a `self_hosted` instance the default organization's settings **are** the operator's, so this has no effect there; it matters for every other organization. |
+| `ORG_SETTINGS_OPERATOR_FALLBACK` | `all` | No | Covers an organization that has not set its own AI, SMTP or search-embedding settings. `all` means it uses the operator's; `none` means those features are off for it (the organization page shows **Not shared by the platform**) until it sets its own relay, AI endpoint or embedding endpoint and key. With `none`, an organization without its own embedding endpoint has semantic search off; lexical search still works. Non-secret values (row limits, AI timeout and token limits, prompts, the AI switch) fall back to the operator either way. Account mail (email verification, password reset, invitations) always uses the operator's SMTP. On a `self_hosted` instance the default organization's settings **are** the operator's, so this has no effect there; it matters for every other organization. |
 | `GOOGLE_CLIENT_ID` | empty | No | With `GOOGLE_CLIENT_SECRET`, turns on **Continue with Google** on the sign-in page: one Google OAuth client for the whole instance, unlike an organization's own single sign-on. The client's authorized redirect URI is `<APP_BASE_URL>/api/v1/auth/google/callback`. Google must have verified the address. An account with that address signs in; otherwise one is created where sign-up is open (`REGISTRATION_MODE`), joining the default organization when `self_hosted` and getting an organization of its own when `hosted`. |
 | `GOOGLE_CLIENT_SECRET` | empty | With `GOOGLE_CLIENT_ID` | The client's secret. Keep it out of the repository, like every other secret. |
 | `GOOGLE_ALLOWED_DOMAINS` | empty | No | Comma-separated email domains that may **sign up** with Google (`gmail.com,example.com`). Empty allows any. An existing account outside the list is refused too, unless it is a platform admin. |
@@ -181,16 +202,17 @@ cannot be changed in **Settings → Instance**.
 | `OIDC_ALLOWED_DOMAINS` | empty | No | Comma-separated email domains that may sign in through the provider at all — existing accounts and platform admins included (unlike `GOOGLE_ALLOWED_DOMAINS`). Empty allows any address the provider verified. |
 | `OIDC_AUTO_CREATE_USERS` | `true` | No | Whether a first sign-in creates the account (where sign-up is open, `REGISTRATION_MODE`). `false` signs in existing accounts only. |
 | `TELEMETRY_ENABLED` | unset: on in Community, off in Enterprise | No | Anonymous usage telemetry: one small ping a day — instance id, version, edition, warehouse engines, bucketed counts — and never names, emails, hosts, queries or data. `false` turns it off. A public demo never sends. See [Telemetry](./telemetry.md). |
-| `TELEMETRY_ENDPOINT` | `https://telemetry.tripl.io/v1/ping` | No | Where the ping goes. Empty sends nothing. |
+| `TELEMETRY_ENDPOINT` | `https://telemetry.tripl.io/v1/ping` | No | Where the ping goes. Empty or unset means the default; it does not turn the ping off — `TELEMETRY_ENABLED=false` or `DO_NOT_TRACK=1` does. |
 | `DO_NOT_TRACK` | empty | No | The cross-tool opt-out: any true value (`1`, `true`) turns usage telemetry off, whatever `TELEMETRY_ENABLED` says. |
 | `LICENSE_KEY` | empty | Enterprise | **[Enterprise edition](../editions.md)**: its license key (`tripl1.…`), signed by tripl and checked offline. Set, it wins over a key saved in **Settings → Platform → License**, which then shows it read-only. Without a valid key (none, expired, not signed by tripl, or more accounts than its seats) Enterprise keeps running and warns platform admins. See [License key](../enterprise/license.md). Community ignores it. |
+| `KMS_PROVIDER`, `KMS_KEY_ID`, `KMS_*` | empty | Enterprise | **[Enterprise edition](../editions.md)**: keep stored secrets under a key in your own key management service (AWS KMS, Google Cloud KMS, Azure Key Vault, HashiCorp Vault). `compose.yaml` forwards every `KMS_*` setting except `KMS_LOCAL_KEY`, which works only with `DEBUG=true`. See [Key management](../enterprise/kms.md). Community ignores them. |
 | `PUBLIC_DEMO` | `false` | No | **[Enterprise edition](../editions.md)**: read by its package, ignored by Community. A public demo instance: password sign-up is refused (Google only), and so is everything that would reach outside the instance — new warehouse connections, blank projects, further organizations, invitation email, outbound webhooks, tracker integrations, SSO and SCIM, organization AI/SMTP settings — and AI is off whatever the settings say. Owners and admins may create member-only invitation links, within the [public demo limits](./public-demo.md#share-a-demo-with-colleagues); recipients sign in with Google before accepting. Demo projects keep working. See [Running a public demo](./public-demo.md). |
 | `IDLE_ORG_RETENTION_DAYS` | `0` | No | **[Enterprise edition](../editions.md)**: read by its package, ignored by Community. `hosted` only. Every night, organizations created more than this many days ago, with no member signed in and no demo project opened in that time, are deleted as an owner's delete would, and so are accounts left in no organization that have not signed in in that time (never a platform admin). `0` deletes none. The default organization is never deleted. |
 
 Single sign-on per organization (OpenID Connect or SAML 2.0) is part of the
 [Enterprise edition](../editions.md) and has no environment variables.
 
-### Managing platform admins: `tripl-admin` {#tripl-admin}
+### The operator's shell tool: `tripl-admin` {#tripl-admin}
 
 `tripl-admin` is a console command installed with the backend (it is on the
 `PATH` of the tripl image). It works on the database directly, over the same
@@ -198,13 +220,16 @@ Single sign-on per organization (OpenID Connect or SAML 2.0) is part of the
 session and no mail. It is how the operator of a hosted instance makes the
 first platform admin, and the way back in when every platform admin has lost
 access; after that, the [platform console](../administer/admin-guide.md#platform-console)
-does the same from the browser.
+does the same from the browser. It also prints a password reset link for any
+account: the way back in when the instance cannot send email and nobody who
+could hand over a link can sign in (the first owner of a fresh install, say).
 
 ```bash
 # In a compose deployment, from the directory holding compose.yaml and .env:
 docker compose exec app tripl-admin grant-platform-admin ops@example.com
 docker compose exec app tripl-admin list-platform-admins
 docker compose exec app tripl-admin revoke-platform-admin former-ops@example.com
+docker compose exec app tripl-admin password-reset-link ada@example.com
 ```
 
 | Command | What it does |
@@ -212,6 +237,7 @@ docker compose exec app tripl-admin revoke-platform-admin former-ops@example.com
 | `grant-platform-admin EMAIL` | Makes the account with that address a platform admin, and marks its address verified if it was not (recorded as `marked_verified: true` in the audit entry). Granting an existing admin changes nothing. |
 | `revoke-platform-admin EMAIL` | Takes the flag away. Refuses to revoke the **last** platform admin, so the instance always keeps one. |
 | `list-platform-admins` | Prints the address of every platform admin. |
+| `password-reset-link EMAIL` | Prints a single-use password reset link for the account, on `APP_BASE_URL` (or its **Settings → Platform → Runtime** override; when both are blank it prints the path and says so). It is the emailed reset's own token: it expires after an hour, works once and replaces any earlier link. The password keeps working until the link is used, and using it signs the account out everywhere and revokes its API keys. The operator vouches for the address, as for a grant. Audited at platform scope as `user.password_reset_link` with `via: "tripl-admin"`. Exits 1 for an unknown address. |
 
 The address is matched without regard to case and must belong to an existing
 account: create it first (sign up, or accept an invitation). An unknown address
@@ -309,7 +335,7 @@ GCS, and per organization for API responses; a policy set with
 
 **Tracker defaults per organization.** An organization's owners and admins can
 set Jira and Linear defaults under **Settings → Organization → Trackers**: the
-Jira site, account e-mail, API token and default project key, and a Linear API
+Jira site, account email, API token and default project key, and a Linear API
 key and default team. A project's own tracker config overrides each field; a
 project still has to switch the automation on itself. The Jira site, account
 and token are one unit: a project that sets any of the three uses none of the
@@ -324,7 +350,7 @@ must be `https` and public (checked on save and before every call).
 | `PHOTO_LOCAL_DIR`, `GCS_PHOTO_CREDENTIALS_PATH` (server paths) | Operator | **Settings → Platform** |
 | Photo storage: backend, GCS bucket, public URLs, URL lifetime, service-account JSON (organization only) | Organization (inherits the operator's store when unset) | **Settings → Organization → Photos** |
 | `PHOTO_MAX_SIZE_MB`, `PHOTO_ALLOWED_MIME` | Organization (capped by / a subset of the operator's) | **Settings → Organization → Photos** |
-| Search embeddings: switch, provider, model, key, base URL | Organization (the operator's base URL is env-only) | **Settings → Organization → Search** |
+| Search embeddings: switch, provider, model, key, base URL | Organization (the operator's base URL is env-only) | **Settings → Organization → Semantic search** |
 | `SEARCH_EMBEDDING_DIMENSIONS` | Operator, env-only (1536) | read-only |
 | Jira / Linear tracker defaults (site, account, token, project; key, team) | Organization (no operator layer; projects override) | **Settings → Organization → Trackers** |
 | Database, broker, Redis, `ENCRYPTION_KEY`, `SECRET_KEY` (the "system" block) | Operator, env-only | read-only in **Settings → Platform** |
@@ -351,11 +377,14 @@ server restarts; an organization's own apply to its next upload. The API is `GET
 tracker defaults) for an organization's owners and admins, plus
 `GET .../photo-limits` for every member,
 and `GET/PATCH /api/v1/platform/settings` (with the same two probes) for a
-platform admin. The older `/api/v1/settings` still answers with the combined
-view: operator fields as the operator has them and organization fields as the
-caller's organization runs with them. For anyone but a platform admin its
-`security`, `storage`, `observability` and `system` blocks are `null` and the
-embedding base URL is blank unless it is the organization's own.
+platform admin. The older `/api/v1/settings` (GET/PATCH/PUT, with `/ai`,
+`/ai/test` and `/email/test`) is **deprecated**: clients should use
+`/api/v1/platform/settings` and `/api/v1/orgs/{org}/settings`. It still answers
+with the combined view: operator fields as the operator has them and
+organization fields as the caller's organization runs with them. For anyone but
+a platform admin its `security`, `storage`, `observability` and `system` blocks
+are `null` and the embedding base URL is blank unless it is the organization's
+own.
 
 ### Rate limiting
 
@@ -364,16 +393,16 @@ embedding base URL is blank unless it is the organization's own.
 | `RATE_LIMIT_ENABLED` | `true` | No | Master toggle for auth-endpoint rate limiting. |
 | `RATE_LIMIT_LOGIN_PER_MINUTE` | `5` | No | Login attempts per `(ip, route)` per minute. `0` disables this limit. |
 | `RATE_LIMIT_REGISTER_PER_HOUR` | `3` | No | Registrations per `(ip, route)` per hour. `0` disables this limit. |
-| `RATE_LIMIT_TRUST_FORWARDED_FOR` | `false` | No | Derive client IP from `X-Real-IP` / leftmost `X-Forwarded-For` instead of the socket peer. |
+| `RATE_LIMIT_TRUST_FORWARDED_FOR` | `false` | No | Derive client IP from `X-Real-IP`, else the rightmost `X-Forwarded-For` entry (the one the nearest proxy appended), instead of the socket peer. |
 
 :::danger Only trust forwarded headers behind a trusted proxy
 With `REDIS_URL` set the buckets live in Redis and every worker shares one
 quota per client; without Redis each worker keeps its own. Leave
 `RATE_LIMIT_TRUST_FORWARDED_FOR=false` (the default) whenever the API is the
-edge — including the consolidated single container. Enable it only when a
-trusted proxy/LB overwrites `X-Real-IP` on every request; a raw, attacker-
-controlled `X-Forwarded-For` on a directly exposed API lets a caller rotate it
-per request and bypass the limit.
+edge — including the consolidated single container. Enable it only when every
+request reaches the API through a trusted proxy/LB that overwrites `X-Real-IP`
+or appends to `X-Forwarded-For`; on a directly exposed API a caller sets either
+header, rotates it per request and bypasses the limit.
 :::
 
 ---
@@ -402,7 +431,7 @@ failed Celery task contributes one failure count to `tripl_celery_tasks_total`.
 
 ---
 
-## Demo workspace
+## Demo project {#demo-workspace}
 
 Two independent switches control the generated demo project. Both default to
 **on**, and neither affects real projects in any state.
@@ -415,10 +444,14 @@ Two independent switches control the generated demo project. Both default to
 | `DEMO_POOL_MAX_AGE_HOURS` | `20` | No | **[Enterprise edition](../editions.md)**: read by its package, ignored by Community. A pooled demo older than this (1–23 hours) is discarded and seeded again, so its seeded incident is still open when a visitor gets it. |
 
 :::note A demo's two refresh paths run at different rates
-`advance_demos` runs **hourly**: it appends the newest bucket, re-runs the real
-detector for volume anomalies, and records a scan job, so a demo always looks
-live. The full scheduled collection — which additionally produces breakdown
-anomalies and distribution drift — runs at most **every 6 hours** per demo
+`advance_demos` fires every five minutes and does work once an hour, when a new
+bucket is due: it appends that bucket, re-scores the volume scopes through the
+same detection pass a scheduled collection runs (so the demo's own anomaly
+settings, scope toggles and per-scope overrides apply), and records a scan job,
+so a demo always looks live. The ticks in between only record the collection
+time. One sweep runs at a time; a beat that finds the previous sweep still
+running skips. The full scheduled collection — which additionally produces
+breakdown anomalies, distribution drift and catalog-metric anomalies — runs at most **every 6 hours** per demo
 instead of hourly, because it costs 67–141 s against the in-memory dataset and
 every demo on a deployment used to pay that every hour. Both paths additionally
 stop for a demo nobody has opened for **6 hours** and resume on the next visit;
@@ -437,7 +470,7 @@ project create / scan / delete, and the real scan and metric schedulers, are
 untouched by either flag.
 :::
 
-See [The demo workspace](../use/demo-workspace.md) for what a demo contains and
+See [The demo project](../use/demo-workspace.md) for what a demo contains and
 which parts of it are synthetic.
 
 ---
@@ -460,7 +493,7 @@ content sent to the configured provider.
 | `SEARCH_EMBEDDING_MODEL` | `text-embedding-3-small` | Embedding model. |
 | `SEARCH_EMBEDDING_DIMENSIONS` | `1536` | Vector dimensions. |
 | `SEARCH_EMBEDDING_API_KEY` | `""` | Provider API key; falls back to `OPENAI_API_KEY` if empty. |
-| `SEARCH_EMBEDDING_BASE_URL` | `https://api.openai.com/v1` | Base URL of an OpenAI-compatible embeddings endpoint; `/embeddings` is appended. Point it at a self-hosted provider to keep plan text inside your own infrastructure. Env-only for the operator (an organization may set its own under **Settings → Organization → Search**), and changing it after indexing needs a re-index — see [AI and search](./ai-and-search.md). The resolved value is visible read-only under **Settings → Instance → AI**, with a source badge, so a value that never reached the container can be noticed from a browser instead of by diffing the compose file. |
+| `SEARCH_EMBEDDING_BASE_URL` | `https://api.openai.com/v1` | Base URL of an OpenAI-compatible embeddings endpoint; `/embeddings` is appended. Point it at a self-hosted provider to keep plan text inside your own infrastructure. Env-only for the operator (an organization may set its own under **Settings → Organization → Semantic search**), and changing it after indexing needs a re-index — see [AI and search](./ai-and-search.md). The resolved value is visible read-only under **Settings → Platform → AI & search**, with a source badge, so a value that never reached the container can be noticed from a browser instead of by diffing the compose file. |
 | `OPENAI_API_KEY` | `""` | Shared OpenAI key used as fallback for search embeddings and AI features. |
 
 ### AI features (LLM descriptions, Q&A)
@@ -519,7 +552,8 @@ When `SMTP_SECURITY` is unset it is derived from the deprecated `SMTP_USE_TLS`
 (`true` → `starttls`, `false` → `none`), so an existing deployment keeps the
 behaviour it already had. Set `SMTP_SECURITY` instead; it wins.
 
-Settings → Email has a **Send test email** card that sends one message with
+**Settings → Platform → Mail relay** (and an organization's **Settings →
+Organization → Email**) has a **Send test email** card that sends one message with
 the saved settings and shows what the relay answered. It stays disabled until an
 SMTP host and a default From address are saved, and it uses the saved settings, so save your changes first.
 Use it after changing any of these — a failed password-reset send is
@@ -531,12 +565,12 @@ only place the failure surfaces.
 | Variable | Default | Purpose |
 | --- | --- | --- |
 | `PHOTO_STORAGE_BACKEND` | `local` | `local` (filesystem, served via authenticated API endpoint) or `gcs` (Google Cloud Storage). |
-| `PHOTO_LOCAL_DIR` | `./var/photos` | Directory for the `local` backend. In the shipped image this resolves to `/app/var/photos`, which is writable by the image's `app` user and mounted as the `photos` volume by `compose.yaml`. Point it elsewhere only at another mounted, writable volume, or uploads are lost when the container is recreated. |
+| `PHOTO_LOCAL_DIR` | `./var/photos` | Directory for the `local` backend. In the shipped image this resolves to `/app/var/photos`, which is writable by the image's `app` user and mounted as the `photos` volume by `compose.yaml`; `compose.yaml` does not forward this variable, so the containers always use that mount. Point it elsewhere only at another mounted, writable volume, or uploads are lost when the container is recreated. |
 | `PHOTO_MAX_SIZE_MB` | `10` | Max upload size in MB, and the ceiling of every organization's own cap. A request to the photo routes whose body is larger than this plus 1 MiB of multipart framing is refused with `413` without being read past that limit (before any organization is known). |
 | `MAX_REQUEST_BODY_MB` | `2` | App-wide JSON/body limit in MiB. The photo upload route uses `PHOTO_MAX_SIZE_MB` plus multipart framing instead. Oversized requests return `413` before parsing or authentication. |
 | `PHOTO_ALLOWED_MIME` | `image/jpeg,image/png,image/gif,image/webp` | Allowed MIME types (comma-separated). An organization's own list may only narrow it. |
 | `GCS_PHOTO_BUCKET` | `""` | GCS bucket for the `gcs` backend. |
-| `GCS_PHOTO_CREDENTIALS_PATH` | `""` | Service-account JSON path. Empty falls back to Application Default Credentials. Credentials that cannot sign URLs (Application Default Credentials on Compute Engine or workload identity, `gcloud` user credentials) make photos fall back to the authenticated `/file` endpoint instead of signed URLs. |
+| `GCS_PHOTO_CREDENTIALS_PATH` | `""` | Service-account JSON path. It names a file **inside the container**, so under Compose it needs a volume in a `compose.override.yaml`. Empty falls back to Application Default Credentials. Credentials that cannot sign URLs (Application Default Credentials on Compute Engine or workload identity, `gcloud` user credentials) make photos fall back to the authenticated `/file` endpoint instead of signed URLs. |
 | `GCS_PHOTO_PUBLIC` | `false` | Return public URLs instead of time-limited signed URLs. |
 | `GCS_PHOTO_SIGNED_URL_TTL_SECONDS` | `3600` | Signed-URL lifetime when not public. |
 | `PHOTO_ORPHAN_SWEEP_GRACE_HOURS` | `24` | Minimum age, in hours, of a photo file the daily orphan sweep may delete. See below. |
@@ -635,13 +669,13 @@ one `.env` covers the whole stack.
 
 | Variable | Default | Used by | Purpose |
 | --- | --- | --- | --- |
-| `POSTGRES_USER` | `tripl` | PostgreSQL container | DB superuser (compose uses `tripl`). |
-| `POSTGRES_DB` | `tripl` | PostgreSQL container | Database name. |
 | `POSTGRES_PASSWORD` | — (required) | Compose | Builds the DB URLs. The prod stack **requires** a non-default value. |
 | `RABBITMQ_PASSWORD` | — (required) | Compose | Builds `RABBITMQ_URL`; broker user is `tripl`. |
 | `TRIPL_IMAGE` | `ghcr.io/tripl-io/tripl` | Compose | Published image to run. |
 | `TRIPL_VERSION` | `latest` | Compose | Image tag — pin to a released tag in production. |
-| `VITE_API_URL` | `http://127.0.0.1:8000` | Frontend build | Base URL the SPA calls; baked in at build time. |
+
+Both stacks name the database user and the database `tripl`; neither is a
+setting.
 
 :::warning Compose enforces required secrets too
 In `compose.yaml`, `POSTGRES_PASSWORD`, `RABBITMQ_PASSWORD`, `ENCRYPTION_KEY`,

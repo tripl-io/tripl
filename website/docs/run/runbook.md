@@ -269,10 +269,11 @@ ceiling is roughly `N × 5/min`.
 
 If you do put a trusted proxy in front, set `RATE_LIMIT_TRUST_FORWARDED_FOR=true`
 (default `false`) so the limiter keys on the real client IP. It prefers
-`X-Real-IP`, falling back to the leftmost `X-Forwarded-For` entry. Enable this
-**only** behind a proxy that overwrites `X-Real-IP` on every request — a raw
-`X-Forwarded-For` on a directly-exposed API is attacker-controlled and lets a
-caller rotate the header to land each request in a fresh bucket. When the app is
+`X-Real-IP`, falling back to the rightmost `X-Forwarded-For` entry, the one your
+proxy appended. Enable this **only** when every request reaches the API through
+a proxy that overwrites `X-Real-IP` or appends to `X-Forwarded-For` — on a
+directly-exposed API a caller sets either header and rotates it to land each
+request in a fresh bucket. When the app is
 the edge (the default single-container deploy), leave it at `false` so the
 direct socket peer (`request.client.host`) is used.
 
@@ -320,8 +321,8 @@ Releases are image-tagged. To roll back the application, pin `TRIPL_VERSION` to 
 prior released tag in `.env`, pull, and recreate:
 
 ```bash
-# .env
-TRIPL_VERSION=1.3.0
+# .env: X.Y.Z is the release you are going back to
+TRIPL_VERSION=X.Y.Z
 
 docker compose pull
 docker compose up -d
@@ -361,7 +362,7 @@ After any `docker compose up -d` (deploy, rollback, or recovery):
    ```
 
    Then confirm it from the database rather than from the compose file:
-   **Settings → Instance → System** shows the revision this database is actually
+   **Settings → Platform → System** shows the revision this database is actually
    stamped with and whether it equals the head this build ships. The two checks
    above are an *inference* — the app started, so the one-shot it waits on must
    have succeeded — and they are only available where that compose file is what
@@ -405,24 +406,32 @@ After any `docker compose up -d` (deploy, rollback, or recovery):
 If any step fails, see [Troubleshooting](../use/troubleshooting.md) for
 symptom-driven diagnosis, or roll back per the section above.
 
-### The photo-volume release: bring an older `compose.yaml` up to date
+## Upgrading from v0.2.1 or earlier
+
+The five changes below all shipped in **v0.2.2**. An instance already on v0.2.2
+or later has been through them and can skip this section. An instance on
+v0.2.1 or earlier crosses all five in one upgrade: run the
+[search surface-form check](#search-surface-forms-check-before-you-deploy-no-rebuild-after)
+*before* that deploy, and the other steps after it.
+
+### Photo volume: bring an older `compose.yaml` up to date
 
 :::warning `tripl upgrade` does not rewrite `compose.yaml`
-Before this release the image could not create the local photo backend's
+Before v0.2.2 the image could not create the local photo backend's
 directory, so every photo upload failed unless photos went to Google Cloud
 Storage. Now local uploads succeed, and `compose.yaml` mounts the named
 volume `photos` at `/app/var/photos` so they survive a redeploy. `tripl upgrade`
 only moves the version pin, so a stack installed earlier keeps a `compose.yaml`
 without that volume: its uploads land in the container and are lost the next
 time the container is recreated. Before anyone uploads, re-run
-[`tripl install`](./cli.md#tripl-install) from a CLI that ships this release,
+[`tripl install`](./cli.md#tripl-install) from a CLI of v0.2.2 or later,
 with `--force` (the file it replaces is kept as `compose.yaml.bak.<timestamp>`,
 and `--force` never touches `.env`), or add the `volumes:` entry under `app` and the
 top-level `photos:` by hand. After `docker compose up -d`, `docker volume ls`
 lists the prefixed volume (commonly `tripl_photos`).
 :::
 
-### The scan-identity release: look for events tagged `duplicate-identity`
+### Scan identity: look for events tagged `duplicate-identity`
 
 :::note This upgrade may tag events, and deletes none
 Before the baseline squash, the migration that made a scan identity unique
@@ -438,11 +447,11 @@ delete it or keep it as history; either way it no longer receives scan data,
 and the untagged twin does.
 :::
 
-### One-off: rebuild the search index after the ranking release
+### Search ranking: rebuild the search index once
 
 :::warning Required once, per project **and** per plan branch
-The release that fixed search ranking changed **what text is indexed** for a
-document — harvested field values left a variable's keywords, and every
+v0.2.2 changed **what text is indexed** for a
+document — harvested field values left a property's keywords, and every
 snake_case / dotted identifier gained a spaced alias. The migration that ships
 with it re-tokenizes the text already stored, but it does **not** rebuild that
 text. Until a branch is rebuilt, its documents are ranked on the old text, and a
@@ -451,7 +460,7 @@ at once.
 :::
 
 Most branches repair themselves: **any** write to an event, event type, field,
-meta field, variable, relation, metric or fact table rebuilds that branch's
+meta field, property, relation, metric or fact table rebuilds that branch's
 whole index, as do a plan-branch merge, a demo reset, and the scan/catalog
 refresh the Celery worker runs. An actively used project needs nothing from you.
 
@@ -510,14 +519,14 @@ a rebuild is free apart from the CPU it takes.
 
 Verify by searching for an entity whose name contains an underscore, using a
 space instead (`screen home` for `screen_home`): the entity itself should come
-back first rather than the variables that merely mention it.
+back first rather than the properties that merely mention it.
 
-### The surface-form release: check BEFORE you deploy, no rebuild after
+### Search surface forms: check BEFORE you deploy, no rebuild after
 
-The release that indexes a word's **surface form beside its stem** (so that
+v0.2.2 indexes a word's **surface form beside its stem** (so that
 `экран` and `экране` reach the same documents — Snowball over-stems some forms
 of a word onto a lexeme its other forms never produce) rebuilds every stored
-`text_vector` inside its migration. Unlike the ranking release above it does
+`text_vector` inside its migration. Unlike the ranking change above it does
 **not** change what text a document contains, so no `search/reindex` call is
 needed anywhere, archived branches included, and no embedding is discarded or
 re-billed.
@@ -619,25 +628,25 @@ docker compose exec -T postgres psql -U tripl -d tripl -c \
 
 Verify with a Russian noun in two cases — but not just any two. Snowball puts
 `экран`, `экрана` and `экраны` in one class and `экране` in another, so
-`экран`/`экрана` returned the same entities before this release as well and
+`экран`/`экрана` returned the same entities before v0.2.2 as well and
 proves nothing. Use a pair that actually straddles the split:
 
 - `улов` and `уловы`
 - `архив` and `архивы`
 - `экран` and `экране`
 
-Both spellings of a pair should return the same entities. Before this release one
+Both spellings of a pair should return the same entities. Before v0.2.2 one
 of the two returned nothing at all.
 
-### The bucket-alignment release: weekly scans re-phase to Monday
+### Bucket alignment: weekly scans re-phase to Monday
 
 :::warning Weekly (`1w`) scans only — nothing changes for `15m`, `1h`, `6h` or `1d`
 The warehouses always grouped weeks from Monday, but the worker measured the
 **window** it queried from a 2000-01-01 anchor, which is a *Saturday*. The two
 grids did not line up, and only weeks are affected — every shorter interval
 divides a day evenly, so its window boundaries landed on bucket boundaries from
-either anchor. This release measures the window from the same Monday origin the
-buckets use, so a weekly window now opens and closes on a Monday.
+either anchor. v0.2.2 measures the window from the same Monday origin the
+buckets use, so a weekly window opens and closes on a Monday.
 
 **What to expect after the deploy, without doing anything.**
 
@@ -667,7 +676,7 @@ buckets use, so a weekly window now opens and closes on a Monday.
 :::
 
 :::note The replay API refuses a period ending "now"
-In the same release, `POST /projects/{slug}/scans/{scan_id}/metrics/replay`
+Since v0.2.2, `POST /projects/{slug}/scans/{scan_id}/metrics/replay`
 answers **`400`** when `time_to` falls inside the interval that is still filling.
 It previously answered `201` and then produced a failed run. The browser dialog
 already seeds a period that ends on the last complete bucket, so this only

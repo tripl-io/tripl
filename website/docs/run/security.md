@@ -176,7 +176,7 @@ with a `Retry-After` header. To turn rate limiting off entirely, set
 Set an individual route's limit to `0` to disable that route limiter while
 leaving the other one active. Use `RATE_LIMIT_ENABLED=false` to disable both.
 
-**Client-IP source — read this before exposing the API directly.** By default the limiter keys on the real socket peer (`request.client.host`), which is correct when the API is the edge (including the single-container `SERVE_FRONTEND` deploy). `RATE_LIMIT_TRUST_FORWARDED_FOR` defaults to **false** on purpose: a raw `X-Forwarded-For` is attacker-controlled, so trusting it on a directly-exposed API lets an unauthenticated caller rotate the header per request and bypass the limit entirely. Enable it **only** behind a trusted proxy that *overwrites* `X-Real-IP` with the true client address on every request (the shipped nginx config does this). When enabled the limiter prefers `X-Real-IP`, falling back to the leftmost `X-Forwarded-For` entry.
+**Client-IP source — read this before exposing the API directly.** By default the limiter keys on the real socket peer (`request.client.host`), which is correct when the API is the edge (including the single-container `SERVE_FRONTEND` deploy). `RATE_LIMIT_TRUST_FORWARDED_FOR` defaults to **false** on purpose: a raw `X-Forwarded-For` is attacker-controlled, so trusting it on a directly-exposed API lets an unauthenticated caller rotate the header per request and bypass the limit entirely. Enable it **only** when every request reaches the API through a trusted proxy that *overwrites* `X-Real-IP` with the true client address (nginx does this with `proxy_set_header X-Real-IP $remote_addr;`) or appends it to `X-Forwarded-For`. When enabled the limiter prefers `X-Real-IP`, falling back to the rightmost `X-Forwarded-For` entry, the one the nearest proxy appended. Everything to its left came from the client. Behind more than one proxy that entry is the previous hop, so its clients share one allowance; set `X-Real-IP` at the edge to avoid that.
 
 :::warning
 Without Redis the limiter is **per worker, in memory**: with multiple Uvicorn/Gunicorn workers or replicas, each holds its own buckets, so the effective limit is roughly the configured value times the worker count. Set `REDIS_URL` (the shipped compose files do) to make it one aggregate cap.
@@ -188,7 +188,7 @@ Without Redis the limiter is **per worker, in memory**: with multiple Uvicorn/Gu
 
 `POST /api/v1/auth/register` is the only unauthenticated way to obtain an
 account, and it is governed by a single instance setting, `REGISTRATION_MODE`
-(`Settings → Instance → Security & access → Registration`):
+(`Settings → Platform → Security & access → Registration`):
 
 | Mode | Behaviour |
 |---|---|
@@ -221,7 +221,7 @@ registers can still immediately **read**:
 
 …and **write**:
 
-- create **projects of their own** (and demo workspaces), and edit everything in
+- create **projects of their own** (and demo projects), and edit everything in
   them except scan configs, which stay org owner/admin-only.
 
 …and, the part that is easiest to miss:
@@ -357,15 +357,39 @@ Passwords are hashed with **scrypt** (`backend/src/tripl/auth_utils.py`): `N=2^1
 
 Two endpoints back the "Forgot your password?" flow (`backend/src/tripl/api/v1/auth.py`, `services/auth_service.py`):
 
-- `POST /api/v1/auth/password-reset/request` `{ email }` — **always** returns `200` with the same neutral message whether or not the address is registered, so it cannot be used to enumerate accounts. A token is minted and emailed **only** when the instance can actually send — `SMTP_HOST` *and* `SMTP_FROM_ADDRESS` both set — *and* an account matches; otherwise nothing is stored or sent. Both, because the send returns early without a `From:` address, so a host alone would mint a token, drop the mail, and still promise a link. The response also carries an instance-wide `email_configured` flag (identical for every caller) so the UI can fall back to "contact your owner" copy — this reveals nothing about any specific account.
+- `POST /api/v1/auth/password-reset/request` `{ email }` — **always** returns `200` with the same neutral message whether or not the address is registered, so it cannot be used to enumerate accounts. A token is minted and emailed **only** when the instance can actually send — `SMTP_HOST` *and* `SMTP_FROM_ADDRESS` both set — *and* an account matches; otherwise nothing is stored or sent. Both, because account mail goes out under the relay's own sender: a host alone would mint a token for a message that cannot be sent while still promising a link. The response also carries an instance-wide `email_configured` flag (identical for every caller) so the UI can say how to get a link without email — this reveals nothing about any specific account.
 - `POST /api/v1/auth/password-reset/confirm` `{ token, new_password }` — redeems the token and sets the new password. `new_password` must satisfy the **same policy as registration** (enforced at the schema boundary; `≥ 12` chars with a digit and a symbol). Invalid, expired, and already-used tokens are all rejected with an identical `400` so a rejected token never reveals which case it hit.
 
 Token handling mirrors session tokens and never trusts the raw value:
 
 - The token is `secrets.token_urlsafe(32)` (~256 bits). The **raw token is never stored** — only its HMAC-SHA256 digest keyed by `SECRET_KEY` (`auth_utils.hash_session_token`) lands in `password_reset_tokens`, so a leaked column is useless without the secret.
 - **Single-use and short-lived**: each token carries `expires_at` (1 hour, `auth_service.PASSWORD_RESET_TTL_HOURS`) and `used_at`. Confirming marks it used, drops any other outstanding token for that user, clears all of the user's active sessions (a reset ends other logins) and revokes all of the user's API keys, so a key minted by whoever held the old password stops working too. Keys have to be issued again after a reset.
-- **Marks the address verified, grants nothing else**: the link was mailed to the account's address, so a completed reset counts as email verification. It never grants platform admin, even for an address listed in `PLATFORM_ADMIN_EMAILS`; only the [verification link](#email-verification) does.
+- **Marks the address verified, grants nothing else**: a mailed link reached the account's address; a [handed-over link](#reset-links-handed-over-by-hand) is only issued to an account whose address is already verified; and a link printed by `tripl-admin` is the operator vouching for the address. So a completed reset counts as email verification. It never grants platform admin, even for an address listed in `PLATFORM_ADMIN_EMAILS`; only the [verification link](#email-verification) does.
 - Both routes are **rate-limited** via the shared login limiter (see the rate-limiting table above), and email is sent through the existing alert email channel (`worker/tasks/alerts_channels.py`) as a background task — so a slow SMTP round-trip neither blocks the request nor becomes a timing oracle for whether the account exists.
+
+### Reset links handed over by hand
+
+An instance that cannot send email still needs a way back into an account.
+Two routes mint the emailed reset's own token (keyed hash stored, one hour,
+single use, replacing any earlier link of the account) and mail nothing; the
+link is redeemed by the ordinary `POST /api/v1/auth/password-reset/confirm`
+above. The rules live in `services/password_reset_links.py`.
+
+- `POST /api/v1/orgs/{org}/members/{user_id}/password-reset-link`, for an owner
+  or admin of that organization, from a browser session only, and refused on a
+  public demo. It returns `{user_id, email, reset_path, expires_at}` once. It is
+  refused for one's own account; for an owner when the caller is an admin; for
+  an account that also belongs to another organization where the caller could
+  not manage it; for a platform admin unless the caller is one; and for an
+  address that is not verified (`409`), because a confirmed reset records the
+  address as verified.
+- [`tripl-admin password-reset-link EMAIL`](./configuration.md#tripl-admin),
+  for any account: whoever can run it on the server already controls the
+  instance, and vouches for the address.
+
+Both are audited as `user.password_reset_link`: the first in the organization,
+the second at platform scope with `via: "tripl-admin"`. The raw token is never
+in the audit row.
 
 ### Session cookies
 
@@ -458,7 +482,7 @@ there is no row-level security in PostgreSQL. What holds the boundary:
 - **Reserved slugs.** A project cannot take a slug that names a route
   (`demo`, `orgs`, `new`, `settings`, `api`, `p`, `o` and a few more; the list is
   `RESERVED_PROJECT_SLUGS` in `schemas/project.py`): `422`.
-- **Demo limits are per organization.** The cap on live demo workspaces per
+- **Demo limits are per organization.** The cap on live demo projects per
   creator is counted inside each organization.
 
 Enforcement lives in `backend/src/tripl/api/deps.py`. The route-facing FastAPI
@@ -548,7 +572,7 @@ was removed from the project gets `404` like any other non-member.
   any project roles they still held in its projects from an earlier membership
   are deleted, so they start on the organization's default project role rather
   than on a role nobody gave them this time.
-- **Demos belong to their creator.** A demo workspace starts with its creator as
+- **Demos belong to their creator.** A demo project starts with its creator as
   its only member. A reset rebuilds the project row, and the members it had
   before the reset who are still in the organization are granted on the new
   row.
@@ -650,7 +674,7 @@ Additional guards:
 - **Project-scoped API keys are fenced** to their own project: a project-bound key may only touch `/api/v1/projects/{slug}/...` routes for its project. Another project's slug answers `404 Project not found`, the same as a slug that does not exist; any instance-wide route without a project `slug` (`/me/...`, `/users`, ...) is rejected with 403.
 - **Role changes take effect immediately, without signing anyone out.** `PATCH /api/v1/users/{user_id}` (org owner/admin) takes `{"role": "owner" | "admin" | "member"}` and writes the organization role; the instance-era `editor`/`viewer` are `422` (they both map to `member`, and write rights live on the project row). Roles are read from the database on every request, so the next request already sees the change; sessions are kept. An in-flight request that already passed the auth check completes with the old role.
 - **The last owner cannot be demoted** — the API rejects demoting an organization's only remaining `owner` with `400`. The check is serialised per organization by an advisory lock keyed by the organization id, shared with the first-owner decision at registration.
-- Role changes are written to the audit log (`audit_service.record`, action `user.role_update`).
+- Role changes are written to the audit log as `org.member_role_update`, whether `PATCH /api/v1/users/{user_id}` or `PATCH /api/v1/orgs/{org}/members/{user_id}` made them. Entries written before this release carry `user.role_update`.
 
 :::note
 Any member of the organization (a project viewer included) can list its roster (`GET /api/v1/users`), with organization roles; a signed-in account outside the organization gets `403`. Roles gate **mutations and administration**, not visibility of who exists. Treat the roster as visible to every member.
@@ -711,6 +735,16 @@ connection (DNS rebinding) is refused too. Redirects are refused (search
 embeddings included), and a BigQuery key may only exchange tokens with Google. Turn it on when the people
 who configure these hosts must not reach the instance's own network: the
 database, the broker or a cloud metadata endpoint.
+
+**Alert channels and trackers.** Slack, Telegram, webhook, Microsoft Teams,
+PagerDuty, Jira and Linear deliveries, **Test** sends, and implementation-ticket
+creation and polling share one policy. These requests are always `https`, and a
+redirect to a non-`https` URL is refused. With `OUTBOUND_PUBLIC_HOSTS_ONLY` (always
+when hosted), the connection goes to the address that was checked and redirects
+are refused. Without it, a redirect is followed only to a public `https` host,
+its target checked first, and credentials are dropped when the origin changes.
+Response bodies are read up to 1 MiB, and an error message keeps at most 500
+characters of the receiver's answer.
 
 **Databricks is the exception to "the connection goes to the address that was
 checked".** The Databricks SQL connector opens its own HTTPS connection pools
@@ -809,7 +843,7 @@ Operations:
 - [ ] Rate limiting left enabled (`RATE_LIMIT_ENABLED=true`); add a proxy-tier limit if you run multiple workers/replicas.
 - [ ] `/metrics` (if enabled) and any admin surfaces restricted to an internal network.
 - [ ] First-run account created promptly so self-registration cannot grab the default organization's `owner` and the platform admin.
-- [ ] **`REGISTRATION_MODE` decided deliberately. The default is `open`** — anyone who can reach the instance can create an account, read the member roster, and create projects of their own (existing projects stay hidden until someone adds them). Set `REGISTRATION_MODE=disabled` (or Registration → **Disabled** in **Settings → Instance → Security & access**) once your team has accounts. Closing it is not a dead end: an org owner or admin adds people from **Settings → Organization → Invitations**, so you never need to reopen self-registration to onboard someone.
+- [ ] **`REGISTRATION_MODE` decided deliberately. The default is `open`** — anyone who can reach the instance can create an account, read the member roster, and create projects of their own (existing projects stay hidden until someone adds them). Set `REGISTRATION_MODE=disabled` (or Registration → **Disabled** in **Settings → Platform → Security & access**) once your team has accounts. Closing it is not a dead end: an org owner or admin adds people from **Settings → Organization → Invitations**, so you never need to reopen self-registration to onboard someone.
 - [ ] Database and broker on a private network; `ENCRYPTION_KEY` and `SECRET_KEY` not committed to the repo or image.
 
 For symptom-level help (login loops, blocked CORS, 429s), see [Troubleshooting & FAQ](../use/troubleshooting.md).

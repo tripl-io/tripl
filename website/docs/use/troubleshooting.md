@@ -157,7 +157,8 @@ report is still filled in — only the verdict stands as *failed*.
 ## Alerts never fire
 
 **Symptom.** Anomalies show up in the monitoring view (or you expect them to),
-but no Slack/Telegram/email/webhook/Jira/Linear notification ever arrives.
+but no Slack, Microsoft Teams, Telegram, PagerDuty, email, webhook, Jira or
+Linear notification ever arrives.
 
 The delivery chain is: `collect_metrics` → recalculate anomalies → match rules
 and create `AlertDelivery` rows (`pending`) → `send_alert_delivery` actually
@@ -225,8 +226,8 @@ sends. A break anywhere in that chain produces silence.
    **Send test email** reproduces it in one click and prints what the relay
    said. This is also the failure that silently breaks password-reset links,
    since a failed reset send is invisible to the person who requested it.
-7. **Destination credentials are invalid.** Slack/Telegram/webhook/Jira/Linear
-   each re-validate their secret at send time; on failure the delivery is marked
+7. **Destination credentials are invalid.** Slack, Telegram, webhook, Jira,
+   Linear, PagerDuty and Microsoft Teams destinations each re-validate their secret at send time; on failure the delivery is marked
    `failed` with a message like *"Slack destination configuration is invalid.
    Update the webhook URL."* Check the failed delivery's error in the UI/logs.
 8. **The delivery was stranded.** If the worker died between creating the
@@ -403,7 +404,7 @@ a real answer, not a broken panel. Six causes, in the order worth checking:
    whether from a NULL column or from a JSON path those rows do not carry — the
    row is skipped rather than turned into a nameless event, and the panel warns
    *Skipped N rows whose derived event name was empty* (singular *row* when N is
-   1). A real run does the same, so this is not a preview artefact. Fix it in the
+   1). A real run does the same, so this is not a preview artifact. Fix it in the
    format (name a column those rows actually populate, or add a literal segment)
    or in the base query (filter the NULL rows out, or coalesce the column). Note
    that a name with empty **segments** — `::`, `onboarding:start:` — is *not*
@@ -484,6 +485,19 @@ source you have never scanned cannot report a failed scan.
 - *"Connection test failed: authentication was rejected — check the
   credentials."*
 - *"Connection test failed. Check the connection settings and try again."* —
+  anything else.
+
+A catalog metric's dry run and preview, which an editor may run without seeing
+the connection, say the same things in their own words (a SQL error in the
+metric itself is shown as the warehouse reported it, trimmed):
+
+- *"The data source did not respond in time."*
+- *"The data source's server does not offer TLS, and its connection requires
+  it — check its SSL mode."*
+- *"Could not reach the data source — check its host, port, and network."*
+- *"The data source rejected the credentials — check its connection
+  settings."*
+- *"Could not connect to the data source — check its connection settings."* —
   anything else.
 
 The full exception (with host/port/driver detail) is only in the **worker
@@ -891,7 +905,7 @@ run, and click **Signals added** — it opens Anomalies filtered to that scan
 (`/p/<slug>/anomalies?scan=<scan-config-id>`). On a busy project one large scan
 can supply most of the page, so per-scan is often the only readable view. If the
 counter reads `0` it is not a link: that run raised nothing, which is itself the
-answer. If the link opens on *No open anomalies from &lt;scan&gt;*, the signals
+answer. If the link opens on *No open signals from &lt;scan&gt;*, the signals
 that run raised have closed since — the scan stays selected so you can see that
 is what happened, and **Show all scans** widens the view.
 

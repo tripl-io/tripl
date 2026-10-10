@@ -187,7 +187,7 @@ Locally, all of the above (except the warehouses) run under Docker Compose:
   the review state independent from later evidence refreshes. Accepted rows are
   frozen: their stored values are the accepted set, and a scan reopens the row
   only for values outside it.
-- **Property drift** (F23) — compares each event's property list with what a
+- **Property drift** — compares each event's property list with what a
   scan saw (new property, missing required property, per-property type
   change). Its open rows are counted by one implementation
   (`services/_open_signals.py`) for the project summary and the health score,
@@ -328,17 +328,17 @@ Locally, all of the above (except the warehouses) run under Docker Compose:
   both the sidebar and breadcrumbs. Data sources, members, API keys, personal
   security, and instance controls live in the separate Settings surface.
 - **Serving.** In development the **Vite dev server** serves the SPA with HMR and
-  proxies `/api` to the backend. In production there are two options: **(a)
-  consolidated single container** — FastAPI serves the built SPA itself via
-  `app.frontend()` (FastAPI 0.138+) when `SERVE_FRONTEND=true`, so one image
-  serves API + SPA (root `Dockerfile` + the default `compose.yaml`, **no nginx**;
-see [RELEASE.md](../run/release.md)); or
-  **(b) standalone static tier** — `frontend/Dockerfile` serves the build through
-  nginx (`frontend/nginx.conf`) next to the API. Consolidated mode routes the SPA
-  through the API's `SecurityHeadersMiddleware`/`BrotliMiddleware`, so it inherits
-  the same CSP/headers and compression; because the app is then the network edge,
-  `rate_limit_trust_forwarded_for` stays `False` (don't trust client-sent
-  forwarded headers) unless a trusted proxy is added in front.
+  proxies `/api` to the backend (`backend/Dockerfile` and `frontend/Dockerfile`
+  hold only the `dev` targets `compose.dev.yaml` builds). Production has one
+  shape: the root `Dockerfile`'s `runtime` image, where FastAPI serves the built
+  SPA itself via `app.frontend()` when `SERVE_FRONTEND=true`, so one image
+  serves API + SPA (the default `compose.yaml`, **no nginx**; see
+  [Release](../run/release.md)). The SPA goes through the API's
+  `SecurityHeadersMiddleware`/`BrotliMiddleware`, so it gets the same CSP,
+  headers and compression. The same image can sit behind your own reverse
+  proxy; because the app is otherwise the network edge,
+  `RATE_LIMIT_TRUST_FORWARDED_FOR` stays `false` (client-sent forwarded headers
+  are not trusted) unless a trusted proxy is added in front.
 - Plan branch context travels as a `?branch=` query parameter threaded through
   every plan API call and the React Query keys; the active branch is persisted
   in `localStorage` per project slug.
@@ -381,40 +381,43 @@ photos, comments) and merge back via a
 3-way merge that preserves live IDs by natural key. Metrics are deliberately
 **not** branched — they are project-scoped and shared across every branch.
 
-### Organizations (in progress)
+### Organizations
 
-Organizations (F20, GH #273) ship in stages. The first stage adds the schema
-and **changes no behaviour**:
+The organization is the tenant above projects. The schema and the isolation are
+in the core, in both editions:
 
 - `organizations` and `organization_members` tables. The org roles are `owner`,
   `admin` and `member`. `users.is_platform_admin` marks the instance operator.
 - A default organization with a fixed id (`DEFAULT_ORG_ID` in
-  `models/organization.py`). The migration moves every existing row and user
-  into it: owners become org owners, editors and viewers become members.
-  Project memberships are left as they are. The backfill is a one-off
-  snapshot: nothing writes org memberships, `is_platform_admin` or
-  `invitations.org_role` yet, so the stage that starts reading them re-runs
-  the idempotent `backfill_organizations()` in its own migration first.
+  `models/organization.py`).
 - `organization_id` on `projects`, `data_sources`, `api_keys` and `invitations`
   (NOT NULL) and on `audit_log` (nullable, because platform actions have no
-  organization). New rows get the default organization from both the ORM
-  default and a server default. The server default keeps a container on the
-  previous release able to insert during a deploy.
-- `app_settings.organization_id`: NULL is the operator scope. Keys are unique
-  per scope, and every settings read and write filters to the operator scope.
+  organization).
+- `app_settings.organization_id`: NULL is the operator scope (Settings →
+  Platform). Per-organization settings are real routes under
+  `/api/v1/orgs/{org}/settings`.
+- Every authenticated request acts in one organization, resolved from the API
+  key's own organization or the `/api/v1/orgs/{org}/...` path (see the
+  [agent API guide](../integrate/agent-api-guide.md#organizations)). Permission
+  checks read `organization_members` and `project_members`; the owner-set
+  advisory lock and the last-owner rule are per organization.
 
-Later stages resolve the request's organization (`/api/v1/orgs/{org}/...`
-paths, the API key's own organization) and key caches by project id. Since the
-roles stage, permission checks read `organization_members` and
-`project_members` (the old instance role, `users.role`, was dropped by a later
-migration): the roles stage's migration re-ran the backfill, filled
-`invitations.org_role`, and capped the project rows of former instance viewers
-at `viewer`. Registration, invitation acceptance and `PATCH /users/{id}` write
-organization roles; the first account of a self-hosted instance is the default
-organization's owner and the platform admin. The owner-set advisory lock and
-the last-owner rule are per organization. Per-org settings, per-org audit
-filtering and multi-org sign-up come in later stages. The configuration page
-lists the environment settings they will use.
+Community runs **one organization**. `tripl.tenancy.TenancyPolicy` is the
+single-team answer: everyone is in the default organization, the first account
+of an empty instance owns it and is the platform admin, sign-up joins it, and
+`POST /api/v1/orgs` answers `403` because `multi_org` is `False`. More
+organizations, and a multi-tenant service, come from an extension that returns
+its own policy from `Extension.tenancy()` (the Enterprise edition).
+
+### Extensions and editions
+
+The Community server bundles no extension, and every hook in
+`backend/src/tripl/extensions.py` is a no-op until a separately installed
+package supplies one; the web app has a matching registry in
+`frontend/src/extensions`. The Enterprise edition is such a package. Its
+features show in Community as tagged teasers in Settings.
+[Extension points](extension-points.md) documents the hooks, and
+[Editions](../editions.md) lists what each edition has.
 
 ---
 
@@ -595,7 +598,10 @@ session — so `reserved_catalog_columns` can be reused verbatim on it.
 
 ### Metrics flow
 
-1. Beat schedules due-checks.
+1. Beat schedules due-checks. Every polling beat entry (every minute up to
+   hourly) expires after one interval: a tick that cannot start while long
+   scans or collections hold the workers is dropped rather than queued behind
+   them, and the next tick covers it. Daily and weekly entries never expire.
 2. Due scans dispatch metrics collection. A scan is due when the later of its
    newest stored bucket and the window its last **completed** collection
    recorded falls behind the current interval boundary — so a run that found an
@@ -668,6 +674,13 @@ or create a normal anomaly delivery.
    whole-key takes, the status rank, the successor through the landings, the
    variables' `pair_renames`); a parity test merges a previewed branch and
    compares `main` with the preview, so the two cannot drift apart unnoticed.
+   `_apply_merge` (`plan_branch_merge_service.py`) is a thin orchestrator. Each
+   entity kind has an arm of its own (`_plan_branch_merge_events.py`,
+   `_plan_branch_merge_fields.py`, `_plan_branch_merge_variables.py`,
+   `_plan_branch_merge_photos.py`), and the arms run in a fixed order over one
+   `MergeContext` (`_plan_branch_merge_state.py`, which lists that order). The
+   event discussions and their watchers are not plan content and are handed
+   over by the service itself (`_hand_over_event_discussions`).
 3. Search is reindexed after merge. If a project tracker is enabled, creating a
    Jira or Linear implementation ticket is best-effort and cannot roll back the merge.
 4. A periodic worker polls open tickets; a done issue (Jira's Done category, a
@@ -740,7 +753,8 @@ branch is searchable from the next request.
   `compose.yaml` the local backend's files live in the `photos` named volume on
   `app`, which needs backing up alongside PostgreSQL's `pgdata18`.
 - **Alert destinations**: Slack, Telegram, generic webhook, email (SMTP),
-  **Jira** (REST v3 with an ADF body), and **Linear** (GraphQL).
+  **Jira** (REST v3 with an ADF body), **Linear** (GraphQL), **PagerDuty**
+  (Events API v2) and **Microsoft Teams** (Adaptive Cards).
 
 ---
 
@@ -763,4 +777,8 @@ branch is searchable from the next request.
   API surface.
 - **[agent-api-guide.md](../integrate/agent-api-guide.md)** — the API contract for agents and
   scripts.
+- **[Extension points](extension-points.md)** — how a separate package adds to
+  the server and the web app.
+- **[Warehouse capability matrix](warehouse-parity.md)** — what each warehouse
+  supports and how it was verified.
 - **[concepts.md](../use/concepts.md)** — the same system in plain language.

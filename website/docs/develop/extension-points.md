@@ -73,6 +73,8 @@ no-op.
 | `on_org_deleting(session, org_id)` | an organization is being deleted, before its groups | Delete the extension's rows for it. |
 | `on_group_change(session, org_id, group_id, added=, removed=)` | members are added to or removed from an organization group | React to the change, for example by mapping groups to roles. |
 | `on_audit_recorded(session, entry, org_id)` | an organization's audit row is added | Forward it, in the writing transaction. |
+| `claim_ready_demo(session, visitor_id=, organization_id=, name=)` | a signed-in visitor starts a demo project (`demo_service.create_demo_project`) | Return a demo project seeded ahead of time, moved to the visitor in that organization and renamed to `name`, or `None` to seed one now as Community does. Runs in the caller's transaction and must not commit. The first extension returning a project wins. |
+| `on_ready_demo_claimed()` | after a demo from `claim_ready_demo` has been handed out and committed | Called on the extension that supplied it only, for example to refill a pool of ready demos. |
 | `tenancy()` | a decision differs between one team's instance and a multi-tenant service | Return a `tripl.tenancy.TenancyPolicy` to run the instance as a multi-tenant service, or `None`. The first policy returned wins; without one the instance is a single team's, and `DEPLOYMENT_MODE=hosted` refuses to start. |
 | `secret_cipher()` | the first stored secret is encrypted or decrypted, or the API or worker starts | Return a `tripl.crypto.SecretCipher` (`encrypt`, `decrypt`, `check`) to encrypt every stored secret, or `None`. The first cipher returned wins; without one, secrets are Fernet under `ENCRYPTION_KEY`. `decrypt` raises `InvalidToken` for a value it cannot read; `check` runs when the API and the worker start and refuses startup when it raises. |
 | `stored_secret_slots()` | stored secrets are listed (`tripl.services.stored_secrets`) | Return the `ColumnSecret`s and `JsonSecret`s the extension's own tables hold, so re-encrypting every stored secret reaches them. A `*_encrypted` column no slot lists fails Community's tests. |
@@ -127,10 +129,11 @@ the app renders what it lists without knowing what it is:
 
 | Field | What the app does with it |
 |---|---|
-| `routes` | Mounts each as a top-level route outside the app shell, lazily loaded. |
-| `settingsSections` | Adds a rail item to a Settings group (after the item named by `after`) and opens its page at the item's path. `access` decides who may open it: `orgOwner` (owners only) or `owner` (owners and admins). Set the item's `refusedOnPublicDemo` on the page of a router marked `outbound`: a public demo leaves it out of the rail and the palettes, and its address says the demo does not offer it. |
+| `routes` | Mounts each as a top-level route outside the app shell, lazily loaded. `title` sets the browser-tab title; without one the tab reads just "tripl". `skeleton` is deprecated and ignored. |
+| `settingsSections` | Adds a rail item to a Settings group and opens its page at the item's path. The item goes before the item named by `before`, else after the one named by `after`, else at the end of the group. `access` decides who may open it: `orgOwner` (organization owners only), `owner` (owners and admins) or `platform` (platform admins, whatever their organization role); anyone else sees a read-only notice, which for `orgOwner` gives `deniedReason` as what the page is and why it is an owner's. With `subpaths`, the page also answers the paths below its own (`platform/orgs/<slug>`) and gets the rest as its `subpath` prop. Set the item's `refusedOnPublicDemo` on the page of a router marked `outbound`: a public demo leaves it out of the rail and the palettes, and its address says the demo does not offer it. |
 | `authPanels` | Offers a button under the password form on the sign-in page, which opens the panel. |
 | `shellGates` | Called with the app shell's request errors; a gate returns a screen to show instead of the shell, or `null`. |
+| `shellBanners` | Components rendered across the top of the app shell. Each renders nothing when it has nothing to say. |
 
 Frontend extensions come from the `@tripl/extensions` module, a
 build-time alias. By default it points to `src/extensions/none.ts`, which lists
@@ -152,7 +155,16 @@ it exists. The feature does not just disappear from Community.
   links to the [Editions](../editions.md) page. A teaser has the id of the
   section the Enterprise extension registers, and it is hidden whenever an
   installed extension provides that id. An Enterprise build therefore shows
-  the real page.
+  the real page. A teaser may carry `inCommunity: { text, href }`: what
+  Community already has of the same kind, which its page shows with a "How to
+  set it up" link, so someone who searched for the Enterprise feature still
+  finds the Community one.
+- **One definition per feature.** `enterpriseTeaserSection(id)` returns a
+  teaser's `group`, `after`, `before` and `item` without the **Enterprise** tag.
+  The extension that provides the real page builds its section from it and adds
+  only the page, `access` and what the page needs, so both editions share one
+  label, icon, path, placement and keyword list. It throws on an id no teaser
+  has.
 - **Docs.** The [Editions](../editions.md) page lists every Enterprise
   feature. A page that documents one opens with this admonition:
 
@@ -172,7 +184,28 @@ the Editions page, and the admonition on its docs pages.
 
 ## The Enterprise package
 
-Community bundles no extension. Every Enterprise feature (single sign-on per
-organization, SCIM provisioning, the organization-wide audit log, audit export,
-the audit webhook, alert escalation, plan governance and access control) lives in the separately installed, private Enterprise
-package, which reaches the core only through the hooks and the registry above.
+Community bundles no extension. Every Enterprise feature lives in the
+separately installed, private Enterprise package; the
+[Editions](../editions.md) page lists them.
+
+Only the extension named `enterprise` (the Enterprise package's) makes an
+instance report the edition `enterprise`. Any other extension leaves it a
+Community instance.
+
+Besides the hooks and the registry above, the Enterprise package imports
+Community modules directly: models, schemas, services,
+`tripl.middleware.rate_limit`, `tripl.worker.db` and the alert channel
+helpers in `tripl/worker/tasks`. It pins a Community commit in its
+`COMMUNITY_REF` file, and its nightly CI runs against Community `main`.
+`backend/src/tripl/tests/test_extension_api_surface.py` lists the Community
+names it relies on, so renaming one fails Community's own CI: keep the old
+name as an alias or change Enterprise in step.
+
+Two of those helpers are public and meant for any extension:
+
+- `tripl.middleware.rate_limit`: `limiter_for` builds a token-bucket limiter,
+  `enforce(limiter)` is a route dependency that answers `429`, and `allow` and
+  `retry_after_for_key` check a limiter by hand, for an extension's own routes.
+- `tripl.worker.tasks.alerts_plain.send_plain_message` sends a plain message
+  through any alert destination (Slack, Telegram, webhook, email, Jira, Linear,
+  PagerDuty or Microsoft Teams).

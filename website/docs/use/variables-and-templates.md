@@ -11,10 +11,10 @@ tracking plan. An event value can contain a placeholder such as
 every event.
 
 Properties are tripl's typed event properties: the keys an event's JSON carries,
-each with a type, a description and documented values. Until F23 they were
-called **variables**. The API still accepts the former `/variables` paths as a
-deprecated alias for one release, and `tripl plan variables` still works as a
-second name for `tripl plan properties`.
+each with a type, a description and documented values. They were formerly
+called **variables**. The API still answers the former `/variables` paths as a
+deprecated alias for older clients; use `/properties`. `tripl plan variables`
+still works as a second name for `tripl plan properties`.
 
 Use **Plan → Properties** to create and review them. Properties are part of the
 active plan branch, so edits follow the same review and merge workflow as
@@ -113,14 +113,17 @@ fine.
 **Edit it on the property's page.** The **Definition** tab has a **Schema**
 editor that follows the type you picked. A number can be narrowed to an
 integer and given a minimum and maximum. A string can get a format and a
-pattern. The date types pin their format. An array declares its item type, and
+pattern. The date types pin their format. The editor offers a schema type only
+where the property's type leaves a choice (number or integer; object or array
+for `json`), and lists string formats by name (Email address, URL, Date
+(YYYY-MM-DD) and so on), saving their JSON Schema ids. An array declares its item type, and
 a `json` property is an object with nested properties (each with its own type,
 and a **Required** box) or an array. The editor holds **Save** while a minimum
 is above its maximum, a pattern is not a valid regular expression, or a nested
 property has no name. When the API refuses the schema, the reason appears under
 the editor. Changing the type resets the schema to the new type's default,
 except between number and integer. A schema that says no more than the type is
-saved as no schema at all. Viewers see the schema summarised in words.
+saved as no schema at all. Viewers see the schema summarized in words.
 
 **Types a scan infers.** When a scan collects the first sample values for a
 JSON-path property it created, it sets the property's type from the JSON kind
@@ -425,7 +428,7 @@ Scans do not write the list. They record what they observe instead.
 list as a grid, below the form. Each row has:
 
 - the property's name, which opens the property's page;
-- its type, summarised from the schema: `Integer`, `String (email)`,
+- its type, summarized from the schema: `Integer`, `String (email)`,
   `Object {id, price, +2}`, `String[]`, with any constraints on hover;
 - a **Required** switch;
 - the allowed values in force, marked **This event** when the event has its own
@@ -473,7 +476,9 @@ same text, so they never disagree about what is saved.
 **The events a property is on.** The property's page has an **Events** tab
 listing every event whose property list carries it, each with its required
 flag, its own allowed values or the documented list, its presence rate, and its
-threshold. **Show in the events list** opens the events list filtered to those
+threshold. The presence is flagged **below threshold** for a required property
+under the event's threshold, or **looks required** for an optional one that
+reaches it, the same flags the event grid shows. **Show in the events list** opens the events list filtered to those
 events (`?property=<name>`); the filter shows as a **Property** chip that clears
 it. The properties table says the same thing per row: **On 3 events · 1
 required** links to the tab. That count is apart from **Observed in**, which is

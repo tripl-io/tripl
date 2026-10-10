@@ -27,6 +27,21 @@ const config: Config = {
   // Cookie banner and Google Tag Manager, on docs.tripl.io only.
   clientModules: ['./src/clientModules/consent.ts'],
 
+  // Pages that moved keep their old addresses working.
+  plugins: [
+    [
+      '@docusaurus/plugin-client-redirects',
+      {
+        redirects: [
+          {from: '/use-cases/overview', to: '/integrate/agent-api-guide'},
+          {from: '/use-cases/llm-agent', to: '/integrate/agent-api-guide'},
+          {from: '/use-cases/searching-events', to: '/integrate/searching-from-the-api'},
+          {from: '/category/automation--agents', to: '/integrate/agent-api-guide'},
+        ],
+      },
+    ],
+  ],
+
   presets: [
     [
       'classic',
@@ -44,6 +59,9 @@ const config: Config = {
       'redocusaurus',
       {
         specs: [
+          // Generated, never edited: `make sync-types` writes it together with
+          // backend/openapi.json, in the app's own order (Redoc lists
+          // operations in document order), and CI fails when the two differ.
           {id: 'tripl-api', spec: 'openapi/tripl.openapi.json', route: '/integrate/api/'},
         ],
         theme: {primaryColor: '#2563eb'},

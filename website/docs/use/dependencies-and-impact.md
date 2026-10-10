@@ -82,7 +82,8 @@ These are the edges tripl resolves:
 
 Each edge carries a short sentence that says why it exists, such as *metric uses
 event in its composition* or *property bound to field*, and the **Used by** list
-shows that sentence next to the item.
+shows that sentence next to the item, or once under the group's heading when
+every item in the group has the same reason.
 
 ### Direct and possible
 

@@ -9,10 +9,10 @@ sidebar_position: 5
 This page describes a feature of the [Enterprise edition](../editions.md). Community encrypts stored secrets with `ENCRYPTION_KEY`; see [Security](../run/security.md#rotating-the-secrets).
 :::
 
-Tripl stores third-party credentials: warehouse passwords and client keys,
+tripl stores third-party credentials: warehouse passwords and client keys,
 alert-destination webhooks and tokens, tracker API tokens, AI and SMTP
 secrets in settings, photo-storage service accounts, single sign-on client
-secrets, the audit webhook's signing secret and a license key saved in
+secrets, the audit webhook's URL and signing secret and a license key saved in
 Settings. Community encrypts them with one Fernet key, `ENCRYPTION_KEY`, held
 in the server's environment.
 
@@ -85,6 +85,44 @@ Set these on the API and the worker (Compose passes them through):
 | `KMS_VAULT_NAMESPACE` | unset | a Vault Enterprise namespace |
 | `KMS_VAULT_CA_CERT` | system CAs | a CA bundle for the Vault server's certificate |
 
+`compose.yaml` forwards every variable above, and nothing else. The provider
+SDKs' own credentials (`AWS_*` or `AWS_PROFILE`, `GOOGLE_APPLICATION_CREDENTIALS`,
+`AZURE_*`) are **not** forwarded, so out of the box only credentials the
+containers get without a variable work: an instance or task role, instance
+metadata, a workload or managed identity. `KMS_VAULT_TOKEN_FILE` and
+`KMS_VAULT_CA_CERT` are paths **inside the container**, so the files need a
+volume. Add both in a `compose.override.yaml` next to `compose.yaml`, which
+`tripl install` and `tripl upgrade` leave alone
+([deployment](../run/deployment.md#bring-it-up)):
+
+```yaml
+# compose.override.yaml
+x-kms-environment: &kms-environment
+  AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID:-}
+  AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY:-}
+
+x-kms-volumes: &kms-volumes
+  - /etc/tripl/vault:/run/vault:ro   # KMS_VAULT_TOKEN_FILE=/run/vault/token
+
+services:
+  app:
+    environment: *kms-environment
+    volumes: *kms-volumes
+  celery-worker:
+    environment: *kms-environment
+    volumes: *kms-volumes
+  celery-beat:
+    environment: *kms-environment
+    volumes: *kms-volumes
+  migrate:
+    environment: *kms-environment
+    volumes: *kms-volumes
+```
+
+Compose merges an override's `environment` and `volumes` into the service's
+own, so these add to what `compose.yaml` sets. Keep only the lines your provider
+needs.
+
 The permissions the server's identity needs, and nothing more:
 
 - **AWS**: `kms:Encrypt` and `kms:Decrypt` on the key.
@@ -120,10 +158,10 @@ to another provider:
 
 ```bash
 # What would change; writes nothing.
-docker compose exec api python -m tripl_enterprise.secrets rotate --dry-run
+docker compose exec app python -m tripl_enterprise.secrets rotate --dry-run
 
 # Re-encrypt, 500 rows per transaction.
-docker compose exec api python -m tripl_enterprise.secrets rotate --batch-size 500
+docker compose exec app python -m tripl_enterprise.secrets rotate --batch-size 500
 ```
 
 It decrypts each value with whatever it was written under (`ENCRYPTION_KEY`,
@@ -164,7 +202,7 @@ is not usable.
 | Situation | What happens |
 |---|---|
 | The service is unreachable or refuses the credentials at startup | The API and the worker do not start; the log says why. |
-| The service becomes unreachable while running | Values whose data key the process already unwrapped keep working, and so does writing new ones (a process keeps its data key past `KMS_DATA_KEY_TTL_SECONDS` until the service answers again). A value that needs a new unwrap fails with an error (a failed connection test, a failed alert delivery, an error on the page that reads it) rather than being treated as missing; it works again once the service is back. |
+| The service becomes unreachable while running | Values whose data key the process already unwrapped keep working, and so does writing new ones (a process keeps its data key past `KMS_DATA_KEY_TTL_SECONDS` until the service answers again). A value that needs a new unwrap fails with an error (a failed connection test, a failed alert delivery, an error on the page that reads it) rather than being treated as missing; it works again once the service is back. An audit webhook whose URL or secret needs a new unwrap holds back only that organization's deliveries, a minute at a time with no attempt counted, while every other organization's deliveries go on. |
 | The key is disabled or deleted, or its grant revoked | Values under it cannot be read once processes restart: they behave as an unreadable secret (a connection error; settings fall back to the environment's value) until the key is restored or the secrets are entered again. |
 | A stored value was altered or truncated, or names a provider the instance is not configured for | It is unreadable, as with a wrong key; nothing else is affected. |
 | `ENCRYPTION_KEY` is changed or lost before the rotation finished | Values not yet rotated cannot be read. Run the rotation first, keep the key backed up. |

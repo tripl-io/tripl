@@ -1,9 +1,9 @@
 ---
-title: Administration & Instance Settings
+title: Administration & Platform Settings
 sidebar_position: 1
 ---
 
-# Administration & Instance Settings
+# Administration & Platform Settings
 
 This page is for the people who run a tripl instance: managing members, granting
 the right level of access, issuing API keys for agents and scripts, and tuning
@@ -14,15 +14,18 @@ Almost everything an administrator does lives under **Settings**, which has two
 contexts:
 
 - **Organization** — Details, Members, Invitations, Data sources and API keys of
-  the organization you are working in, then your own Profile and Security, and
-  the **Instance** sections (org owners and admins, and the platform admin for
-  the operator ones).
+  the organization you are working in, and its own Email, AI, Semantic search,
+  Photos, Trackers and Limits (owners and admins).
+- **Account** — your own Profile and Password & sessions.
+- **Platform** — the server's own settings (Runtime, Mail relay, AI & search,
+  Security & access, Storage, Observability, System), shown to **platform
+  admins only**.
 - **Project** — per-project configuration (General, Plan rules), covered in the
   user guide rather than here.
 
 :::note Settings vs. environment variables
-The **Instance** sections in the UI let an owner override a subset of the
-server's configuration, stored in the instance database. Everything else —
+The **Platform** sections in the UI let a platform admin override a subset of
+the server's configuration, stored in the instance database. Everything else —
 database/broker URLs, the encryption key, the application secret — is set only
 through environment variables. Sections differ in **when** an override applies —
 some at use-time, some on the next restart (see [When changes take effect](#when-changes-take-effect)).
@@ -45,7 +48,7 @@ Access is decided by two roles and one flag:
 - the **platform admin** flag (`users.is_platform_admin`): the operator of the
   instance, separate from both.
 
-| Who | Projects they see | Edit plan content | Manage project members | Data sources, scan SQL, audit log, delete projects | Members, roles & invitations | Organization settings (row limits, photo storage and MIME types, AI model and prompts) | Operator settings (security, observability, email, storage, AI endpoint, system) |
+| Who | Projects they see | Edit plan content | Manage project members | Data sources, scan SQL, audit log, delete projects | Members, roles & invitations | Organization settings (row limits, photo storage and MIME types, AI model and prompts) | Platform settings (security, observability, email, storage, AI endpoint, system) |
 | --- | --- | --- | --- | --- | --- | --- | --- |
 | **Org owner** | Every project of the org (as project `owner`) | Every project | Every project | Yes | Yes, including other owners | Yes (default org) | No, unless also platform admin |
 | **Org admin** | Every project of the org (as project `owner`) | Every project | Every project | Yes | Yes, except making or unmaking an owner | Yes (default org) | No, unless also platform admin |
@@ -84,7 +87,7 @@ How roles are assigned:
   to `member` and capped each of their project memberships at `viewer`, so
   nobody gained write access in the upgrade.
 - Only an **owner or admin** changes organization roles. The API refuses to
-  **demote the last remaining owner** of an organization (`400 Cannot demote
+  **demote the last remaining owner** of an organization (`400 Cannot remove or demote
   the last remaining owner`), so you cannot lock yourself out.
 
 `PATCH /api/v1/users/{id}` takes the organization vocabulary, `{"role":
@@ -240,7 +243,7 @@ remove members.
 A few things follow from this:
 
 - **Whoever creates a project is an editor member of it**, and can manage its
-  access. The same goes for a demo workspace, which starts with its creator as
+  access. The same goes for a demo project, which starts with its creator as
   the only member; resetting a demo keeps its members.
 - **New accounts get the default.** Under the `none` default, someone who
   registers or accepts an invitation sees no project until they are added to
@@ -304,7 +307,7 @@ A few things follow from this:
 
 ## Members
 
-**Settings → Members** lists the members of the organization, with their
+**Settings → Organization → Members** lists the members of the organization, with their
 organization role. The roster is visible to every member of the organization
 (an account outside it gets `403`); **only owners and admins** see the per-row
 role dropdown and can change roles. Everyone else sees read-only role chips.
@@ -319,6 +322,17 @@ Granting **Owner** and every demotion (Owner → Admin, anything → Member) ask
 for confirmation first and say what changes; a promotion short of Owner
 (Member → Admin) applies at once. If a change is refused, the error appears on
 that member's row. The member stays signed in.
+
+Owners and admins also get **Create reset link** on every other member's row
+(an admin, not on an owner's). It is for an instance that cannot send email:
+after a confirmation it shows a single-use password reset link under the row,
+once, to give to that person yourself. It expires after an hour and replaces
+any earlier link. Their password keeps working until they use it, and using it
+signs them out everywhere and revokes their API keys. It is refused for an
+account that also belongs to an organization you do not manage, for a platform
+admin unless you are one, and for an unverified address. If nobody who could
+create one can sign in, the server operator runs
+[`tripl-admin password-reset-link`](../run/configuration.md#tripl-admin).
 
 :::warning Registration ships open — close it once your team has accounts
 Self-service registration used to be the only way to add a person, which is why
@@ -382,7 +396,7 @@ This works while registration is **Disabled** — that is the point of it.
 
 Adding a member while registration is **Open**: they can also just register
 themselves at the sign-in page (they join as a member), and you adjust their
-role from **Settings → Members**.
+role from **Settings → Organization → Members**.
 
 While registration is disabled the sign-in page shows no sign-up form at all,
 and `POST /auth/register` is refused with a `403` that tells the visitor to ask
@@ -432,22 +446,30 @@ The organization's own settings are in **Settings → Organization**:
   [Default access to projects](#default-access-to-projects)); **Create organization** (for a platform
   admin on a self-hosted instance, for anyone on a hosted one); and the **Danger zone**, where an owner deletes the organization after
   typing its slug. The default organization has no danger zone: it cannot be
-  deleted.
-- **Members** — everyone in the organization, with a role select, **Remove**
-  (after a confirmation) and, for an owner, **Transfer ownership**.
+  deleted. The name and the default access are saved together with **Save
+  changes** in the bar at the top of the page.
+- **Members** — everyone in the organization, with a role select, **Create
+  reset link**, **Remove** (after a confirmation) and, for an owner, **Transfer
+  ownership**.
 - **Invitations** — invite someone at an organization role (owner, admin or
   member), see the pending invitations and revoke them. Owners and admins only.
-- **Data sources** and **API keys** — the organization's own.
+- **Data sources** — the organization's own. **API keys** — your own keys for
+  this organization; each acts as you, and you see only yours (see
+  [API keys & governance](#api-keys--governance)).
 - **Email**, **AI** and **Limits** — the organization's own SMTP relay, AI
   chat provider (endpoint, key, model, timeout, output tokens and the three
   prompts) and default scan/metrics row caps. Owners and admins only. Each
   field shows where its value comes from: **Organization** (set here),
-  **Operator** or **Env** (inherited), or **Disabled by operator policy** when
+  **Platform** or **Env** (inherited), or **Not shared by the platform** when
   the operator runs with `ORG_SETTINGS_OPERATOR_FALLBACK=none` and the
-  organization has not set its own relay or AI endpoint. Setting any endpoint
+  organization has not set its own relay or AI endpoint. On a self-hosted
+  instance the default organization's pages edit the platform's own values, so
+  they badge them as the Platform pages do (**Override** for a stored value,
+  **Env**), and the badge legend appears only while some field on the page
+  wears a badge. Setting any endpoint
   field (SMTP host, AI base URL, model or key) makes that whole group the
   organization's, so the operator's key or password is never sent to the
-  organization's server. Limits and AI timeouts cannot exceed the operator's,
+  organization's server. Limits and AI timeouts cannot exceed the platform's,
   and the SMTP host and AI base URL must be public addresses.
   **Send test email** and **Test AI** probe exactly what the
   organization would use. Alerts, digests, notification emails, AI
@@ -456,9 +478,11 @@ The organization's own settings are in **Settings → Organization**:
   invitation mail always use the operator's relay. See
   [Operator and organization settings](../run/configuration.md#operator-and-organization-settings)
   for the full classification.
-- **Search** — the organization's own semantic-search embeddings: the switch,
-  provider, model, OpenAI-compatible base URL and API key, with the same source
-  badges and **Inherit** actions. The four endpoint fields are one group, like
+- **Semantic search** — the organization's own semantic-search embeddings: the
+  switch, model, OpenAI-compatible base URL and API key, with the same source
+  badges and **Inherit** actions. The provider is shown read-only as
+  **OpenAI-compatible API** (the only one tripl speaks), and so is the vector
+  width (**Dimensions**), set by `SEARCH_EMBEDDING_DIMENSIONS`. The four endpoint fields are one group, like
   the AI endpoint. Saving an own endpoint or model with embeddings on sends one
   test text to it, and the save is refused unless the model answers with
   vectors of the instance's width (1536). A change that moves the
@@ -473,13 +497,16 @@ The organization's own settings are in **Settings → Organization**:
   with the platform's credentials — plus the upload size cap and the allowed
   content types. The cap cannot exceed the platform's and the content types can
   only be a subset of the platform's list. Without storage of its own the
-  organization uses the platform's (the badges say **Operator** or **Env**, and
-  the bucket name is not shown). On a hosted instance an organization cannot
+  organization uses the platform's (the badges say **Platform** or **Env**, and
+  the bucket name is not shown). While the backend is the server's disk, the
+  bucket fields are faded and not used; on the self-hosted default organization
+  the disk directory and the platform's key file are set under **Settings ›
+  Platform › Storage**. On a hosted instance an organization cannot
   pick the local backend. A new bucket or key applies to the next upload;
   photos already stored keep being read with the bucket and key they were
   written with, so keep the old bucket readable until you have copied them.
 - **Trackers** — Jira and Linear defaults for the organization's projects: the
-  Jira site (https, public), account e-mail, API token and default project key;
+  Jira site (https, public), account email, API token and default project key;
   a Linear API key and default team. A project's own **Tracker** settings
   override each field, and a project still switches ticket automation on
   itself. A project that sets its own Jira site, account or token uses none of
@@ -586,8 +613,9 @@ becomes a member loses their pending `owner` and `admin` ones.
 
 A group is a named set of an organization's members, such as *Analysts* or
 *On-call*. Groups are the organization's own: another organization never sees
-them. Sharing notes with a group, and routing event-type ownership and alerts
-to one, build on them in later releases. Groups can also be pushed by your
+them. A note in the [Docs catalog](../use/docs-catalog.md#sharing) can be
+shared with a group, and in the Enterprise edition a group can be a step in an
+[escalation policy](../enterprise/escalation.md). Groups can also be pushed by your
 identity provider over [SCIM](#scim); those are marked **Managed by SCIM**:
 their name and members change, and they are deleted, only through it. Their
 description stays editable here. In the Enterprise edition a group can also
@@ -679,8 +707,9 @@ rename as `org.rename`),
 `org.member_role_update`,
 `org.member_remove`, `org.transfer_ownership`, for groups `org.group.create`,
 `org.group.update`, `org.group.delete`, `org.group.member_add` and
-`org.group.member_remove`, and for invitations
-`user.invite`, `user.invite_revoke` and `user.invite_accept`, and for
+`org.group.member_remove`, for invitations
+`user.invite`, `user.invite_revoke` and `user.invite_accept`, for a
+[handed-over reset link](#members) `user.password_reset_link`, and for
 [single sign-on](#single-sign-on) `org.sso.*`, `user.sso_login`,
 `user.sso_provision` and `user.sso_link` (and `user.google_sign_in` for Sign in
 with Google), and for [SCIM provisioning](#scim)
@@ -730,7 +759,9 @@ Who signs in:
   only; invite people first.
 
 Each sign-in is audited as `user.oidc_sign_in`. A failed one comes back to the
-sign-in page with the reason.
+sign-in page with the reason. **Settings → Platform → Security & access** shows
+a read-only **Instance sign-in** card saying whether OpenID Connect (with its
+button label) and Google are on.
 
 | Provider | `OIDC_ISSUER` | Notes |
 |---|---|---|
@@ -752,7 +783,7 @@ With Single sign-on, an organization's members sign in through its own identity
 provider, using OpenID Connect or SAML 2.0. The organization verifies its email
 domains, and it can require single sign-on for everyone except its owners.
 
-In Community, **Settings → Single sign-on** shows the feature with an
+In Community, **Settings → Organization → Single sign-on** shows the feature with an
 **Enterprise** tag. Signing in with Google or your own OpenID Connect
 provider for the whole instance is in Community; see
 [Signing in through your identity provider](#instance-sign-in).
@@ -801,7 +832,7 @@ and **User accounts** in **Settings → Platform** tagged **Enterprise**.
 
 Without the console, platform admins are granted and revoked with
 [`tripl-admin`](../run/configuration.md#tripl-admin) on the server, and
-**Settings → Instance** stays a platform admin's whatever the edition.
+**Settings → Platform** stays a platform admin's whatever the edition.
 
 ## Profile & account security
 
@@ -811,13 +842,15 @@ signed-in user.
 ### Profile
 
 **Settings → Profile** shows your details pulled from the authenticated account:
-**Name**, **Email**, **Role** (your organization role, "Set by a workspace
-owner") and the **Timezone**
-your timestamps follow, which is read from the browser. All of them are
-read-only here.
+**Name**, **Email**, **Role** (your organization role, set by an organization
+owner or admin) and the **Timezone** your timestamps follow, which is read from
+the browser and shown under its current IANA name (e.g. `Asia/Kolkata`, not
+`Asia/Calcutta`). These are read-only here; the card says so (your name and
+email cannot be changed yet). **Notifications** (email frequency and mention
+emails) can be set.
 
 What is not built yet — avatar upload, editing your name, date format and start
-of week, and personal notifications — is listed in one **Coming later** card
+of week — is listed in one **Coming later** card
 with no controls. Alerts and digests are addressed to a project's destinations
 under Alerting, not to a person.
 
@@ -828,7 +861,10 @@ runs the same password-reset flow as the sign-in screen's **Forgot your
 password?** link (`/auth/password-reset/request`) for your signed-in address.
 When the instance cannot send email, the button is disabled from the start,
 for everyone: a platform admin gets a **Set up email** link beside it, and
-everyone else reads "Ask a platform admin to set it up."
+everyone else reads "Ask a platform admin to set it up." The card then names the
+two ways to a link without email: an owner or admin creates one under
+**Settings → Organization → Members**, or whoever runs the server prints one
+with `tripl-admin password-reset-link <your email>`.
 Your current password keeps working until you choose a new one from the link.
 
 Changing the password in place, two-factor authentication and a list of
@@ -840,7 +876,7 @@ configured TTL (`session_ttl_hours`, default **168 hours / 7 days**).
 ## API keys & governance
 
 API keys are long-lived bearer tokens for non-browser clients — LLM agents and
-CLI scripts. They are managed **per user** at **Settings → API keys** (backed by
+CLI scripts. They are managed **per user** at **Settings → Organization → API keys** (backed by
 `/api/v1/me/api-keys`). Creation and revocation require an interactive session;
 a Bearer API key cannot manage keys. A user only ever sees and revokes **their own** keys;
 there is no cross-user key administration, even for owners. A key belongs to
@@ -918,38 +954,28 @@ commands need a key at all: `install` and `upgrade` need none, the diagnostics
 need `tk_r_`, and three verbs need `tk_w_` behind an editor, admin or owner.
 :::
 
-## Instance settings (owners, admins and the platform admin)
+## Platform settings (platform admins only)
 
-**Settings → Instance** is visible to the **settings admins**: the platform
-admin, and the owners and admins of the default organization. Until each
-organization has its own settings, the instance values are what the default
-organization uses, so no other organization's admin may change them. Anyone
-else who opens an instance page from a link sees the section's title, a lock
-notice ("Owner role is required to view or change instance-level settings. Ask
-an owner, or go to Profile.") and a **Go to Profile** link, and the API rejects
-them (`GET`/`PATCH`/`PUT /api/v1/settings` all require a settings admin's
-browser session). It exposes a curated subset of the server configuration as
-overrides stored in the database.
+**Settings → Platform** holds the server's own settings: Runtime, Mail relay,
+AI & search, Security & access, Storage, Observability and System. The group is
+shown to **platform admins only**, and its API, `GET`/`PATCH
+/api/v1/platform/settings` (with `POST .../ai/test` and `.../email/test`),
+requires a platform admin. Anyone else who opens a Platform page from a link
+sees the section's title, the notice "Platform admin is required to view or
+change platform settings: they configure the server itself and the defaults
+every organization inherits." and a **Go to Profile** link. The pages expose a
+curated subset of the server configuration as overrides stored in the database.
 
-The fields split in two:
-
-| Class | Fields | Who may change them |
-| --- | --- | --- |
-| **Organization** | Runtime row-limit defaults, and AI enabled, model, timeout, output limit, the three system prompts and the search-embeddings switch | Settings admins |
-| **Operator** | Runtime public URL (`app_base_url`), every **Security & access** field (registration mode included), every **Observability** field, every **Email** (SMTP) field, every **Storage** field (this page's Storage section is always the platform's own store; an organization's own storage is under **Settings → Organization → Photos**), the AI base URL and API key, the embedding provider, model and API key, and the **System** section | Platform admin only |
-
-Until each organization has its own values, one value of each field serves
-every organization, so a field that routes another organization's data is
-operator-only: the SMTP relay carries every user's password-reset and
-invitation mail, the photo storage settings decide where every
-organization's photos go and whether they are public, and the AI and
-embedding endpoints receive every organization's plan text.
-
-An org owner or admin who is not the platform admin does not see the Security,
-Email, Observability and System sections; the operator fields of Runtime,
-Storage and AI are shown to them disabled. A write that touches any operator
-field is refused whole (`403 Platform admin required`). The `system` block of
-`GET /api/v1/settings` is `null` for them. The photo and row limits
+These values are the operator's: the public URL, security, observability, the
+storage server paths and the platform's own photo store, the mail relay that
+carries every account's password-reset and invitation mail, and the defaults
+every organization inherits for its Email, AI, Semantic search, Photos and
+Limits. An organization's own values are under **Settings → Organization**
+(see [Organizations in the app](#organizations-in-the-app)). On a self-hosted
+instance the default organization's settings **are** these values, so its
+owners and admins change the limits, timeouts and prompts there, while its SMTP
+relay, AI endpoint, embeddings and storage take a platform admin
+(`403 Platform admin required`). The photo and row limits
 (`/settings/photo-limits`, `/settings/row-limits`) stay readable by every
 signed-in user; they answer with the caller's organization's values, and
 `/orgs/{org}/settings/photo-limits` names the organization.
@@ -981,7 +1007,9 @@ is *not* evidence that it did not.
 
 Fields that depend on a master switch — AI, Search embeddings, HSTS, Rate
 limiting, and the inactive storage backend — fade while that switch is off.
-They stay editable, but they have no effect until the switch is on.
+They stay editable, but they have no effect until the switch is on. The switch
+says so in its hint ("Off: …"); for the storage backend, the inactive card's
+description says so.
 
 :::note Secrets are write-only
 Secret fields — the AI API key, the search-embedding API key, and the SMTP
@@ -999,7 +1027,7 @@ replace it, or use **Clear** to remove the override. Encryption requires `ENCRYP
 Sections apply at one of two times, and each section says which above its fields:
 
 **Use-time (no restart).** The **Runtime** (query limits, app base URL),
-**Email**, and **AI** sections are resolved override → env value on each call, so
+**Mail relay**, and **AI & search** sections are resolved override → env value on each call, so
 edits apply immediately. If the worker cannot read the settings table, it falls
 back to environment values and increments `tripl_settings_read_failures_total`
 with `section=ai`, `email`, or `runtime`. Alert on this metric so a degraded
@@ -1016,7 +1044,7 @@ restart/redeploy**. You no longer need to also set the matching environment
 variable; the env var is just the default the override replaces.
 
 Each section in the UI states its own answer rather than leaving you to work it
-out: Runtime, Email and AI say a saved override applies to the very next
+out: Runtime, Mail relay and AI & search say a saved override applies to the very next
 request or scan task, the next message tripl sends, and the next AI call
 respectively — no restart needed. Security & access, Storage and Observability
 say a saved override applies after the next restart (of the API, and of the
@@ -1049,20 +1077,22 @@ Core server configuration.
   Do check the value anyway: an address left over from setup is invisible in the
   UI and surfaces only as password-reset and alert links that open the wrong host
   (or nothing at all) for whoever clicks them.
+On the **Row limits** card (an organization may lower them, never raise them):
+
 - **Scan row limit default** — default warehouse row cap for scans
   (`scan_row_limit_default`, default 50,000).
 - **Metrics row limit default** — default row cap for metric queries
   (`metrics_row_limit_default`, default 100,000).
 
-### Email
+### Mail relay
 
-SMTP transport for alert delivery, scheduled digests, invitations and
-password-reset links. Leaving **SMTP host** blank disables all of them.
+SMTP transport for account mail (sign-up, password reset, invitations), and the
+relay every organization's alerts, digests and notification mail use unless it
+sets its own. Leaving **SMTP host** blank disables all of them. The fields are
+on one **SMTP relay** card, in the same order as Organization › Email:
 
 - **SMTP host** (`smtp_host`)
 - **Port** (`smtp_port`, default 587) — has to agree with **Security** below.
-- **SMTP username** (`smtp_username`)
-- **SMTP password** (`smtp_password`, secret — write-only)
 - **Security** (`smtp_security`, default STARTTLS) — `starttls` connects in the
   clear and upgrades after the greeting (ports 587/2525); `implicit_tls` wraps
   the socket in TLS before sending anything (SMTPS, port 465); `none` stays
@@ -1070,6 +1100,8 @@ password-reset links. Leaving **SMTP host** blank disables all of them.
   the client waits for a greeting that never arrives. Replaces the old **Use
   TLS** switch, which could only ever mean STARTTLS and so left a 465 relay
   unreachable however it was set.
+- **SMTP username** (`smtp_username`)
+- **SMTP password** (`smtp_password`, secret — write-only)
 - **Default From address** (`smtp_from_address`) — used when a destination
   doesn't override it, and **required** for password-reset mail: without it a
   reset link is minted and then dropped. A display name is allowed
@@ -1077,13 +1109,13 @@ password-reset links. Leaving **SMTP host** blank disables all of them.
   when you **save** rather than hours later by a failed alert. The
   per-destination From: override accepts exactly the same values, so anything
   this field takes can also be set on a single destination.
-- A **Send test email** card that sends one message to your own address and
+- A **Send a test email** card that sends one message to your own address and
   shows what the relay answered. Its button stays disabled until an SMTP host
   and a default From address are saved, and the card reads "Uses the saved settings, so save your changes
   first." — otherwise you are testing what is still stored rather than what is
   on screen.
 
-### AI
+### AI & search
 
 Powers anomaly explanations, schema/description suggestions, and the assistant.
 Disabled by default because plan content is sent to the configured provider when
@@ -1091,22 +1123,24 @@ enabled.
 
 - **Provider:** AI enabled (`ai_enabled`), Base URL (`ai_base_url`, default
   `https://api.openai.com/v1`; http and localhost endpoints such as a local LLM
-  are allowed), Model (`ai_model`, default `gpt-4o-mini`), **AI API key**
+  are allowed), Model (`ai_model`, default `gpt-4o-mini`), **API key**
   (`ai_api_key`, secret), and a **Test AI** button that runs a live connection
   check against the provider. It is disabled while AI is off in the saved
   settings, and while no API key is stored (the `OPENAI_API_KEY` environment
   fallback counts as one).
-- **Generation:** Timeout seconds (`ai_timeout_seconds`, default 30), Max output
+- **Generation:** Timeout (`ai_timeout_seconds`, in seconds, default 30), Max output
   tokens (`ai_max_output_tokens`, default 700), and three editable system
   prompts — **Describe prompt**, **Ask prompt**, **Alert explanation prompt** —
   which fall back to built-in defaults. A prompt that differs from its default
   shows **Restore default**, which puts the built-in text back in the editor
   (read from `GET /api/v1/settings/ai/defaults`); save to keep it.
-- **Search embeddings:** toggle (`search_embeddings_enabled`), read-only
+- **Search embeddings:** **Semantic search enabled** toggle
+  (`search_embeddings_enabled`), read-only
   **Embeddings base URL** (`search_embedding_base_url`, default
   `https://api.openai.com/v1`, env only), read-only
   **Embedding dimensions** (`search_embedding_dimensions`, default 1536, env
-  only), provider (`search_embedding_provider`, default `openai`), model
+  only), read-only **Embedding provider** (`search_embedding_provider`, shown as
+  *OpenAI-compatible API*; any other value turns semantic search off), model
   (`search_embedding_model`, default `text-embedding-3-small`), and **Embedding
   API key** (`search_embedding_api_key`, secret).
 
@@ -1145,11 +1179,14 @@ only: an org owner or admin does not see this section.
 - **Sessions:** Session cookie name (`session_cookie_name`, default
   `tripl_session`), Session TTL hours (`session_ttl_hours`, default 168), Secure
   cookie (`session_cookie_secure`).
+- **Instance sign-in:** a read-only card saying whether OpenID Connect (with
+  its button label) and Google are on; both are set with environment variables
+  ([Signing in through your identity provider](#instance-sign-in)).
 - **Network & headers:** CORS allow origins (`cors_allow_origins`, comma-
   separated), Security headers (`security_headers_enabled`), HSTS
   (`hsts_enabled`) and HSTS max age (`hsts_max_age_seconds`), Content Security
   Policy (`content_security_policy`).
-- **Rate limiting:** master toggle (`rate_limit_enabled`), Login limit
+- **Rate limiting:** **Rate limiting enabled** toggle (`rate_limit_enabled`), Login limit
   (`rate_limit_login_per_minute`, default 5/min), Register limit
   (`rate_limit_register_per_hour`, default 3/hour), and **Trust
   X-Forwarded-For** (`rate_limit_trust_forwarded_for`).
@@ -1163,11 +1200,12 @@ replaces.
 :::
 
 :::danger Trust X-Forwarded-For only behind a trusted proxy
-`rate_limit_trust_forwarded_for` defaults to **false**. Enable it only when a
-trusted proxy/load balancer sits in front and overwrites `X-Real-IP` on every
-request. On a directly-exposed API, a raw `X-Forwarded-For` is
-attacker-controlled — trusting it lets an unauthenticated caller rotate the
-header per request and bypass the rate limit entirely. Set it either way: the
+`rate_limit_trust_forwarded_for` defaults to **false**. Enable it only when
+every request reaches the API through a trusted proxy/load balancer that
+overwrites `X-Real-IP` or appends to `X-Forwarded-For` (the limiter then reads
+`X-Real-IP`, else the rightmost `X-Forwarded-For` entry). On a directly-exposed
+API, either header is attacker-controlled — trusting it lets an unauthenticated
+caller rotate the header per request and bypass the rate limit entirely. Set it either way: the
 `RATE_LIMIT_TRUST_FORWARDED_FOR` env var and the **Security & access** override
 both work, and the override wins. Like the rest of this section it is read once
 at startup, so either route takes effect on the next restart.
@@ -1175,21 +1213,23 @@ at startup, so either route takes effect on the next restart.
 
 ### Storage
 
-Where event photos are persisted (`photo_storage_backend`: **Local filesystem**
-or **Google Cloud Storage**).
+Where event photos are stored (`photo_storage_backend`: **The server's disk** or
+**Google Cloud Storage bucket**), and what an upload may be.
 
-- **Backend:** Photo storage backend, Photo max size (`photo_max_size_mb`,
-  default 10), Allowed MIME types (`photo_allowed_mime`).
-- **Local filesystem:** Local photo directory (`photo_local_dir`, default
+- **Where photos are stored:** Backend (`photo_storage_backend`).
+- **The server's disk:** Local photo directory (`photo_local_dir`, default
   `./var/photos`). In the shipped image the default resolves to
   `/app/var/photos`, which `compose.yaml` mounts as the `photos` volume. Point
   it elsewhere only at another mounted directory the image's `app` user can
   write, or uploads are lost when the container is recreated.
-- **Google Cloud Storage:** GCS bucket (`gcs_photo_bucket`), GCS public URLs
-  (`gcs_photo_public`), GCS credentials path (`gcs_photo_credentials_path`,
-  blank falls back to Application Default Credentials), Signed URL TTL
-  (`gcs_photo_signed_url_ttl_seconds`, default 3600). Credentials that cannot
-  sign URLs serve photos through the authenticated API endpoint instead.
+- **Google Cloud Storage bucket:** GCS bucket (`gcs_photo_bucket`), GCS
+  credentials path (`gcs_photo_credentials_path`, blank falls back to
+  Application Default Credentials), Public URLs (`gcs_photo_public`), Signed
+  link lifetime (`gcs_photo_signed_url_ttl_seconds`, default 3600 seconds).
+  Credentials that cannot sign URLs serve photos through the authenticated API
+  endpoint instead.
+- **Uploads:** Largest photo (`photo_max_size_mb`, default 10 MB), Allowed
+  content types (`photo_allowed_mime`, comma-separated).
 
 These are the platform's own store and ceilings: organizations without storage
 of their own use it (their files under `orgs/{organization id}/`), the size cap
@@ -1216,9 +1256,14 @@ How tripl reports its own health.
 
 ### System (read-only)
 
-A health/build panel. Each tile shows **Configured** or **Unset** for: Debug
-mode, Database URL, Sync database URL, RabbitMQ URL, Redis URL, Encryption key,
-and the OpenAI fallback key. One further tile, **Schema revision**, reports the
+A health/build panel. It starts with a **Version** tile showing the server
+version and edition (Community or Enterprise); quote it in bug reports. Each
+environment tile shows **Configured** or **Unset** and names its variable:
+Debug mode (`DEBUG`), Database URL (`DATABASE_URL`), Sync database URL
+(`SYNC_DATABASE_URL`), RabbitMQ URL (`RABBITMQ_URL`), Redis URL (`REDIS_URL`),
+Encryption key (`ENCRYPTION_KEY`) and the OpenAI fallback key
+(`OPENAI_API_KEY`). A tile that needs action says which variable to set before
+restarting. One further tile, **Schema revision**, reports the
 Alembic revision this instance's database is actually stamped with — the
 `version_num` in its `alembic_version` table — in one of four states:
 

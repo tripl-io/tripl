@@ -154,9 +154,10 @@ checklist in the branch description, but they are **not created automatically**:
 
 - **Metrics need data.** A metric counts events from a scan or reads a table in
   a data source, and a brand-new project has neither.
-- **Alert rules need a destination.** A rule sends to a Slack, Telegram, email
-  or webhook destination that only your workspace can configure.
-- **No synthetic warehouse.** Unlike the [demo workspace](./demo-workspace.md),
+- **Alert rules need a destination.** A rule sends to a
+  [destination](./alerting.md#destinations) (Slack, Microsoft Teams, email, and
+  the rest) with credentials only your team can supply.
+- **No synthetic warehouse.** Unlike the [demo project](./demo-workspace.md),
   a template creates no data source, scan, metric history or alerts, so a real
   project never shows made-up numbers.
 - **Metrics are not branched.** A metric definition lives outside the plan

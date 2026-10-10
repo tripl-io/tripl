@@ -1,9 +1,11 @@
 ---
-title: Searching events
-sidebar_position: 3
+title: Searching from the API
 ---
 
-# Searching events
+# Searching from the API
+
+This page is about finding events through the REST API. Looking for the ⌘K
+palette in the app? See [Searching events](../use/searching-events.md).
 
 tripl gives you two complementary ways to find events in your tracking plan. They
 answer different questions, and using the wrong one wastes time or floods you with
@@ -17,7 +19,7 @@ noise:
   signup completion?" Ranked by relevance, with a tunable cutoff.
 
 Rule of thumb: if you can name the exact string (a ticket key, an ID, a field
-value), use the structured listing. If you're describing a behaviour in words, use
+value), use the structured listing. If you're describing a behavior in words, use
 smart search.
 
 ## Structured listing — `GET /events`
@@ -37,8 +39,9 @@ Available query parameters:
 | `event_type_id` | events of a specific event type (a UUID) |
 | `status` | events in a given lifecycle status — repeatable |
 | `silent_since_days` | events not seen for at least N days |
-| `reviewed` | `true` for events marked reviewed, `false` for those not yet reviewed; omit for either |
-| `order_by` | `catalog` (the default — the authored catalog order) or `volume` (busiest-first by ingested volume over the last 24h) |
+| `property` | events whose property list carries this property (its id or name) |
+| `reviewed` | `true` for events marked reviewed, `false` for those not yet reviewed; omit for either. Independent of `status` — an event can be reviewed and still be `in_review` |
+| `order_by` | `catalog` (the default — the authored catalog order), `volume` (busiest-first by ingested volume over the last 24h) or `health` (least healthy first; main plan only, `400` on a branch); any other value is a `422` |
 | `offset` | skip the first N items (paging) |
 | `limit` | cap the number of items returned (default `200`, max `10000`) |
 
@@ -92,15 +95,18 @@ Query parameters:
 | Param | Meaning |
 | --- | --- |
 | `q` | the natural-language query (1–500 characters) |
-| `types` | restrict the returned hits to any of the `entity_type` values below — repeatable |
+| `types` | restrict the returned hits to `entity_type` values — repeatable; the accepted set is enumerated on the parameter in `/openapi.json` and grows as new kinds are indexed |
 | `include_archived` | include archived entities (default `false`) |
 | `semantic` | `false` skips the embedding leg: a keyword-only answer, sooner, with `semantic_used: false` (default `true`) |
 | `limit` | cap the number of hits (default `20`, max `100`) |
+| `branch` | read a plan branch instead of main (a branch id) |
+| `group_variants` | `true` folds events of one type whose names differ only in one naming-rule placeholder into their best-ranked hit, which carries a `variant_group` (default `false`) |
 
 Each item carries:
 
-- `entity_type` — one of `event`, `event_type`, `field`, `meta_field`, `variable`,
-  `relation`, `tag`, `metric`, `fact_table`, `scan_config`, `alert_rule`, `doc`
+- `entity_type` — the kind of entity (`event`, `event_type`, `field`, `variable`,
+  `metric`, `scan_config`, `doc` and the rest; read the full set from
+  `/openapi.json` rather than hard-coding it)
 - `title`, `subtitle`, `description` (or `snippet`)
 - `confidence` — relevance in `0..1`
 - `semantic_used` — `true` when the **keyword leg did not surface this row inside
@@ -148,11 +154,6 @@ score climbs.
 That ceiling matters if you are thresholding: two partial matches that rank differently
 can both report `0.8`, because above that line the honest answer is "strong, but not
 the thing you named" for both. Use the **order** to tell them apart, not the number.
-
-It used to be normalized to the top hit of the same response, which made the best
-result `1.0` by construction — a keyboard mash was served as a perfect answer. If you
-built a cutoff against that behaviour, re-check it: thresholds now mean the same thing
-on every query, and the numbers are lower than they used to be for weak queries.
 
 When semantic search is on, a hit the **meaning** match found reports that leg's own
 cosine similarity instead, which is already a `0..1` certainty. So a result that no
@@ -218,10 +219,10 @@ unrelated property that merely happens to have observed the string `paywall` in
 production data.
 
 This matters most for **auto-detected properties**, which accumulate whatever your
-app emitted. Before, a property holding a common word thousands of times could
-outrank the event actually named after it. It no longer can.
+app emitted: a property holding a common word thousands of times does not outrank
+the event actually named after it.
 
-A caveat worth knowing: entities whose names are in one language are not favoured
+A caveat worth knowing: entities whose names are in one language are not favored
 by queries in another. An event named `catch_report_created` gains nothing from a
 Russian query, while a field displayed as `Тип улова` does — so for a mixed-language
 plan, search in the language the thing is *named* in.
@@ -235,7 +236,7 @@ There are two flags with this name and they answer two different questions.
 - `true` — embeddings were used (true semantic ranking by meaning).
 - `false` — the organization the project belongs to has no embedding provider
   configured (each organization chooses its own under **Settings → Organization
-  → Search**, or inherits the operator's), so search fell back
+  → Semantic search**, or inherits the operator's), so search fell back
   to keyword/substring matching. `/search` still works, but it ranks by word
   overlap (stemmed, as above) rather than by meaning.
 
@@ -295,4 +296,4 @@ string.
 | List implemented events of one type | listing — `event_type_id=…` + `status=implemented` |
 | List not-yet-implemented events of one type | listing — `event_type_id=…` + `status=draft` |
 | Find "where do we track signup completion?" | smart search — `q=…` |
-| Discover related fields/variables for a feature | smart search — `q=…&types=event&types=field` |
+| Discover related fields and properties for a feature | smart search — `q=…&types=event&types=field` |

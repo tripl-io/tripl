@@ -25,7 +25,7 @@ destination**. Choose the channel and give it what it needs:
 | --- | --- |
 | **Slack** | An incoming webhook URL. |
 | **Telegram** | A bot token and a chat ID. |
-| **Email** | One or more addresses. The instance's mail settings do the sending. |
+| **Email** | One or more addresses. The organization's email settings do the sending. |
 | **Webhook** | A URL that receives a JSON payload, and an optional secret header. |
 | **Jira**, **Linear** | The tracker's credentials. Each alert opens an issue. |
 | **PagerDuty** | An Events API v2 integration key. Each incident pages once and is resolved when tripl closes it. |

@@ -5,14 +5,14 @@ sidebar_position: 2.4
 
 # Editions
 
-Tripl comes in two editions built from the same code.
+tripl comes in two editions built from the same code.
 
 **Community** is free and open source (AGPL-3.0-or-later). It is the whole
 product for a team: tracking plans, scans of your warehouse, monitoring and
 alerts, docs, the CLI and the MCP server, an organization with roles and groups,
 each project's audit history, and Sign in with Google.
 
-**Enterprise** adds what larger organizations need to run Tripl under their
+**Enterprise** adds what larger organizations need to run tripl under their
 own identity and compliance rules. It ships as a separate private image,
 `ghcr.io/tripl-io/tripl-enterprise`, under a commercial license.
 
@@ -36,6 +36,7 @@ own identity and compliance rules. It ships as a separate private image,
 | Group roles in projects, custom project roles, team sync of groups at single sign-on | | ✓ |
 | Stored secrets under your own key management service (AWS KMS, Google Cloud KMS, Azure Key Vault, HashiCorp Vault), key rotation | | ✓ |
 | Platform console: every organization and account, suspension, read-only step-in | | ✓ |
+| Anonymous usage [telemetry](./run/telemetry.md), one ping a day | on by default | off by default |
 | Public demo instance (`PUBLIC_DEMO`), a pool of ready demos, purge of idle organizations | | ✓ |
 | Multi-tenant hosted service (`DEPLOYMENT_MODE=hosted`): each sign-up gets its own organization, verified addresses | | ✓ |
 

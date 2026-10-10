@@ -37,7 +37,7 @@ they already had is kept.
 ## Settings
 
 Settings offers a visitor only what the demo takes. The organization's own
-**Email**, **AI**, **Search**, **Photos**, **Trackers** and **Limits** are left
+**Email**, **AI**, **Semantic search**, **Photos**, **Trackers** and **Limits** are left
 out of the rail and both command palettes, as are, with the Enterprise edition,
 **Single sign-on**, **Provisioning** and **Audit webhook**: the server refuses
 every change to them on a public demo. Opened by its address, such a page says

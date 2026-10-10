@@ -29,7 +29,7 @@ That local sink never fails on its own, so the demo deliberately seeds one
 **failed** earlier attempt at the same incident: the failed-delivery state and
 the **Retry** action below are both reachable without leaving the demo, and
 retrying re-dispatches down the normal path and succeeds. See
-[The demo workspace](./demo-workspace.md).
+[The demo project](./demo-workspace.md).
 :::
 
 ## Where signals come from
@@ -41,7 +41,7 @@ bucket against a seasonal baseline and scores the gap as
 `|z| ≥ sigma_threshold` (default 4) and the expected volume clears
 `min_expected_count` (default 50). It also emits **distribution-drift** signals
 (a value mix shifted) and **release-regression** signals (a new app version
-under-fires an event), plus **variable-value drift** when an event observes
+under-fires an event), plus **value drift** when an event observes
 values outside its effective documented property list, and **property drift**
 when an event's property list and what a scan saw disagree (a new property, a
 required one going missing, a type change — see [Property drift](#property-drift)).
@@ -74,7 +74,7 @@ readers).
 | **Slack** | Incoming webhook URL (must be a `hooks.slack.com` HTTPS hook) | plain, Slack `mrkdwn` |
 | **Telegram** | Bot token + chat ID (numeric, or `@channel`) | plain, HTML, MarkdownV2 |
 | **Webhook** | HTTPS target URL (SSRF-guarded) + one optional custom header | plain JSON |
-| **Email** | Up to 50 recipients, optional From / subject; uses the instance SMTP settings | plain |
+| **Email** | Up to 50 recipients, optional From / subject; uses the organization's email settings | plain |
 | **Jira** | Base URL + project key + issue type (default `Task`) | plain |
 | **Linear** | API token + team, optional initial state and labels | plain |
 | **PagerDuty** | Events API v2 integration key + severity (default `error`) | plain |
@@ -131,7 +131,7 @@ held and collected instead of sent:
 
 Times are read in the **project's timezone**, set on
 *Settings → General → Timezone* (an IANA name such as `Europe/Moscow`; new and
-pre-existing projects are `UTC`). The zone is honoured across daylight-saving
+pre-existing projects are `UTC`). The zone is honored across daylight-saving
 changes: "daily at 09:00" stays 09:00 local as the UTC offset shifts.
 
 **What "collected" means, exactly.** While a destination is on a cadence, each
@@ -170,7 +170,7 @@ URL takes up the line, and the items grouped.
   incident, and ranking by percentage would otherwise pin it to the top —
   an undefined ratio has no magnitude to sort by.
 - **Drifts get a group of their own**, just before that one, and the summary
-  counts them (`2 drifts`). A schema, distribution, variable-value or property
+  counts them (`2 drifts`). A schema, distribution, value or property
   drift went neither up nor down, so its line is its kind and scope, e.g.
   `◆ Schema drift checkout.amount`, with no count pair: those counts are rows
   the scan compared, not the size of the drift.
@@ -392,7 +392,9 @@ stored encrypted and reported only as `teams_webhook_set`.
 The URL is checked like a [Webhook](#what-a-webhook-destination-posts)
 destination's: it must be `https://`, and a host that is or resolves to a
 private or internal address is refused when it is saved and again right before
-every send.
+every send. A destination that answers with a redirect is followed only to a public
+`https` host, and never when `OUTBOUND_PUBLIC_HOSTS_ONLY` is on (always on a
+hosted instance), where the 3xx is reported as a failure.
 
 **What is sent.** `{"type": "message", "attachments": [...]}` with one Adaptive
 Card (schema 1.4): the alert's title, a fact list (project, rule, scan,
@@ -519,7 +521,7 @@ and to the typed `items[]` array of
 `GET /projects/{slug}/alert-deliveries/{id}` — one delivery cannot answer the
 same question two ways.
 
-Deliveries recorded **before this behaviour shipped** still carry `0.0` in their
+Deliveries recorded **before this behavior shipped** still carry `0.0` in their
 stored `payload_snapshot` — a delivery is a frozen record and is not rewritten.
 Read `expected_count == 0` to disambiguate historical zero-baseline rows. A
 delivery recorded against a **negative** baseline before the magnitude rule
@@ -539,7 +541,7 @@ same optional header, but the body is **not** the one above:
 {
   "event": "tripl.destination_test",
   "destination": "Ops Webhook",
-  "message": "…Someone pressed Test in Tripl to check that this channel is reachable. No alert fired and nothing is wrong."
+  "message": "…Someone pressed Test in tripl to check that this channel is reachable. No alert fired and nothing is wrong."
 }
 ```
 
@@ -552,7 +554,10 @@ no rule fired and no scan produced it.
 
 :::note
 The test POST is subject to the same SSRF guard as a real send: the target is
-re-resolved and refused if it points at a private or link-local address.
+re-resolved and refused if it points at a private or link-local address. A
+destination URL must be `https`. A destination that answers with a redirect is followed only to a public
+`https` host, and never when `OUTBOUND_PUBLIC_HOSTS_ONLY` is on (always on a
+hosted instance), where the 3xx is reported as a failure.
 :::
 
 ### The AI note remembers what it already told you
@@ -591,13 +596,17 @@ their rows were written (`created_at`); totals around backfills may therefore
 differ from earlier weekly digests.
 
 The sunset notice is the digest's "deprecated events still receiving data"
-count expanded into named events, each with its sunset date and the day it was
-last seen. Both read the **main** plan branch only, so the count and the list
-always agree, and an open working branch never makes an event appear twice. The
-notice keeps no memory of what it has already said: the same list arrives every
-day until someone retires the event or stops the data reaching it, which is the
-point — data still flowing into an event the plan retired is a standing
-condition, not a moment. A project with nothing overdue is sent nothing.
+count expanded into named events, each with its sunset date and how many events
+it received in the last 24 hours. Both read the open `sunset_overdue` findings
+of the daily [sunset watch](feature-reference.md#sunset-watch), so the count
+and the list always agree with each other and with the catalog's lifecycle
+warnings. The sunset watch checks the **main** plan branch only, so an open
+working branch never makes an event appear twice. The notice keeps no memory of
+what it has already said: the same list arrives every day until someone retires
+the event or stops the data reaching it. Once an event has received no data for
+24 hours, the next daily check closes its finding and the notice stops naming
+it. Data still flowing into an event the plan retired is a standing condition,
+not a moment. A project with nothing overdue is sent nothing.
 
 Both messages are destination-level and independent of routing rules; disable
 the destination if it should receive neither alerts nor either of them.
@@ -640,7 +649,7 @@ the drift and regression signals they behave like a volume anomaly — they carr
 a real spike/drop direction and **do** honor the count thresholds below.
 
 **Direction.** *Notify on spike* and *notify on drop* (at least one must be on).
-Schema, distribution, variable-value and property drift are reported as a **spike**
+Schema, distribution, value and property drift are reported as a **spike**
 (only for this switch: their messages call them neither up nor down, see
 [Message templates](#message-templates));
 release regressions and source freshness are reported as a **drop** — so a
@@ -690,7 +699,7 @@ simulator to see what the new value would have sent.
 
 :::warning
 Thresholds apply to the volume scopes (project total / event type / event) and to
-**metric anomalies**. Schema drift, distribution drift, variable-value drift,
+**metric anomalies**. Schema drift, distribution drift, value drift,
 property drift, release regressions and lifecycle findings **bypass** thresholds — if you enable
 those scopes, they fire regardless of the count thresholds.
 :::
@@ -706,7 +715,7 @@ When a warehouse load is delayed, every scope on a scan looks low at once. The
 **Source freshness** scope reports that delay once, as a problem with the
 source, rather than as a drop on every scope. It is opt-in through the rule's
 **`include_source_freshness`** field, which is off by default. The
-[demo workspace](./demo-workspace.md) seeds a rule with it switched on.
+[demo project](./demo-workspace.md) seeds a rule with it switched on.
 
 Each scan's freshness is `fresh`, `late`, `overdue` or `unknown`. Roughly,
 `late` means the newest event is too old, and `overdue` means the scan itself
@@ -763,7 +772,7 @@ rule editor — which is off by default.
   that has **Lifecycle** on receives them whichever scan it is bound to.
 - **One alert per finding episode.** An alert is keyed on the moment the finding
   opened. While the finding stays open, each scan run offers it again and it is
-  recognised as the same alert, not a new one. A finding that resolves and later
+  recognized as the same alert, not a new one. A finding that resolves and later
   opens again is a new episode and alerts again. A resolved finding produces no
   candidate.
 - **No direction or threshold gates.** Lifecycle alerts ignore *notify on
@@ -902,7 +911,7 @@ about. The verdict itself is still the project's.
 
 The **Scan** picker in the rule editor binds a rule to a single scan
 configuration. **All scans** (the default, and what every rule created before
-this option existed still has) keeps the original project-wide behaviour, so
+this option existed still has) keeps the original project-wide behavior, so
 nothing changes unless you pick a scan.
 
 A rule's binding is also shown on its monitor detail: the **Condition** panel's
@@ -919,7 +928,7 @@ A common shape is two rules on the same destination: one bound to the important
 scan with sensitive thresholds, and one on **All scans** for the drift signals
 you always want.
 
-:::note Metric anomalies do not honour a scan binding
+:::note Metric anomalies do not honor a scan binding
 Catalog **metric** anomalies are project-wide — a metric series is computed for
 the project, not for one scan — so a rule bound to a scan has nothing to say
 about them. On such a rule the **Metrics** scope is inert: metric anomalies are
@@ -946,7 +955,7 @@ because the rule would then save broader than the form showed.
 
 An `event_type` filter narrows **any** signal that carries an event type. For
 most of them the type is stored on the signal's own row; for the ones anchored to
-an event — event scope, variable-value drift and event-scope release regression —
+an event — event scope, value drift and event-scope release regression —
 it is looked up when the rule is matched, because those rows deliberately keep no
 type of their own. An `event` filter is narrower still: it reaches only the
 signals that name one event. **Passes through** below means the filter has
@@ -955,7 +964,7 @@ nothing to say about that signal, so the signal is still delivered.
 | Signal | `event_type` filter | `event` filter | `metric` filter |
 | --- | --- | --- | --- |
 | Event-scope anomaly | Narrows, by the event's type | Narrows | Passes through |
-| Variable-value drift | Narrows, by the event's type | Narrows | Passes through |
+| Value drift | Narrows, by the event's type | Narrows | Passes through |
 | Release regression found on an **event** | Narrows, by the event's type | Narrows | Passes through |
 | Event-type rollup | Narrows | Passes through | Passes through |
 | Schema drift | Narrows | Passes through | Passes through |
@@ -979,7 +988,7 @@ The `event` value picker searches the catalog server-side and shows one page of
 matches at a time, so type to reach an event that isn't in the first page — the
 footer tells you how many matches are still hidden.
 
-Variable-value drift carries its affected `event_id`, so event filters apply;
+Value drift carries its affected `event_id`, so event filters apply;
 its alert item uses the property name as `drift_field` and a bounded novel-value
 sample as `sample_value`. That same `event_id` is what `details:` links to: the
 event's monitoring page carries the **Value drift** panel, which lists the full
@@ -1047,7 +1056,7 @@ Each firing also reports its scan. The preview table shows that scan's name,
 or **Project-wide** when the anomaly has no scan, so similarly named scopes
 from different scans remain distinguishable.
 
-A drift row (schema, distribution, variable-value or property drift) shows
+A drift row (schema, distribution, value or property drift) shows
 **—** under **Dir** and **Δ%**. A drift changes shape rather than rising or
 falling. It is filed under *spike* only so that a rule's **Spikes** toggle gates
 every drift the same way, and its stored percentage compares the two windows'
@@ -1055,7 +1064,7 @@ row counts, not the drift. The line under the scope name says what drifted, and
 hovering the scope shows the whole line the message would carry.
 
 **Every scope a rule can fire on is replayed**, the opt-in ones included: volume
-anomalies, catalog metrics, schema drift, distribution drift, **variable-value
+anomalies, catalog metrics, schema drift, distribution drift, **value
 drift** and **release regressions**. If you had switched those last two on and a
 replay kept coming back empty for them, that was the replay and not your rule —
 those two scopes were not being read at all, so a rule that pages on them daily
@@ -1063,7 +1072,7 @@ replayed as perfectly quiet. They now count everywhere the other scopes do: in
 the anomalies considered, in the firings, in the noisy verdict, and in the
 previewed message.
 
-**A release regression makes the count a floor rather than an estimate.** Tripl
+**A release regression makes the count a floor rather than an estimate.** tripl
 keeps one regression per scope and release — the current verdict, not a record of
 every collection that saw it — so a replay can only place a standing regression
 once, at the window it was measured over. Live, the same regression is re-sent
@@ -1151,7 +1160,7 @@ with the digest's items they own — not once per match. Owner emails are sent
 per **rule delivery**, so a digest that batches two rules can send an owner two
 emails, one for each rule.
 
-**When email is unavailable.** If the instance has no SMTP server or no
+**When email is unavailable.** If the organization's email settings (its own, or the platform's it inherits) have no SMTP server or no
 **Default From** address, or the project is a demo project, owner notification
 is recorded as **skipped**; it never fails the rule's own delivery. A send the
 mail server rejects is recorded as **failed** with its error, the other owners
@@ -1171,7 +1180,8 @@ answer on the delivery itself:
   over from an interrupted send is reclaimed after 15 minutes.
 
 **Notifying owners by hand.** An incident card and a scope's drilldown
-**Signal** card show who owns the affected scope (**Owners: @anna, @oleg**) and,
+**Signal** card show who owns the affected scope (**Event type owners: @anna,
+@oleg**, or **Owner: @anna** for a catalog metric) and,
 for editors, a **Notify owners** button. On an incident it sends a one-off email
 about that incident to its current owners, whether or not the rule has the
 option on. On a signal that no rule routed — the card reads **Not routed** — it
@@ -1237,7 +1247,7 @@ property is rejected, so a typo fails fast rather than sending a broken message)
   there.
 
   **A drift item has no direction and no counts.** A schema, distribution,
-  variable-value or property drift went neither up nor down, and the counts its
+  value or property drift went neither up nor down, and the counts its
   row carries are what the scan compared (a distribution drift's are the two
   windows' row counts), not the size of the drift. On the default item template
   a drift reads as its kind and scope, with the drift line under it:
@@ -1308,7 +1318,8 @@ total, an event type or an event (drift, release regression, catalog metrics).
 | **Delivery log** | Every delivery in the project, filterable, for "did the message actually go out". |
 
 The **Inbox** tab carries the number of open incidents and **Delivery log** the
-number of failed deliveries, in red, whenever either is above zero. On
+number of failed deliveries, worded (*2 failed*), both in red whenever they are
+above zero. On
 **Rules**, the **Firing**, **Warning** and **Healthy** tiles above the table
 filter it to the rules in that state; pressing the lit tile again shows every
 rule.
@@ -1490,8 +1501,13 @@ the *current* latest release, with the comparability verdict; see
 ### The Inbox — one row per incident {#the-inbox}
 
 Each incident card leads with its scope and a signed delta badge (`+203%`,
-`−48%`), then when it last fired as a relative time, with **Acknowledge** among
-its actions. A drift's card (schema, distribution, variable-value or property
+`−48%`) in the same colors as Anomalies (a spike red, a drop amber). The line
+below gives the counts (*12,328 vs 7,602 expected*); its tooltip carries the
+unrounded counts and the percent exactly as the alert message printed it. On an
+incident with more than one item, the line adds *largest in this incident:
+200%* when the biggest change anywhere in the incident differs from the newest
+one. The card then shows when it last fired as a relative time, with **Acknowledge** among
+its actions. A drift's card (schema, distribution, value or property
 drift) has no badge and no percentage, and names its kind with `◆` where
 other cards say `↑ spike` or `↓ drop`: a drift went neither way, and its counts
 are what the scan compared. The bell titles it the same way, e.g.
@@ -1532,14 +1548,20 @@ it, but you no longer have to change an incident's status to write one down:
 saying why something was a false positive used to mean first undoing the false
 positive.
 
-A card whose scope has owners also shows them (**Owners: @anna, @oleg**) with a
+A card whose scope has owners also shows them (**Event type owners: @anna,
+@oleg**) with a
 **Notify owners** button (editors) that emails them about the incident — see
 [Notifying owners by hand](#owner-notifications).
 
-The row counts matched **items**, including repeat firings of the same scope.
-Its scope names are distinct and show at most eight names; the adjacent
-“distinct scope names shown” count describes that displayed list. For example,
-eight items beside four names means some scopes fired more than once.
+A card is titled with the scope of the incident's newest firing, the one its
+badge, counts and link describe. When the incident spans several scopes, the
+title adds **and N more**, which opens the list of its scopes: the headline
+scope first, then the rest by the size of their largest change, up to eight. A
+full list reads **and 7+ more**, and the scope search still finds the others.
+The meta row counts **items** across scopes, e.g. *8 items across 4 scopes*. An
+item is one scope's firing in one delivery, so a scope that fired again, or a
+firing carried by a second delivery, counts again. That is why the number can
+be larger than the signals Anomalies lists.
 
 ### Silencing an incident: acknowledge, mute, resolve, false positive {#silencing-an-incident}
 
@@ -1593,7 +1615,7 @@ moment it was written: accepted, recorded, and silencing nothing. The reverse
 mismatch is refused too: a `muted_until` sent with any action other than
 **mute** (acknowledge, resolve, reopen, …) returns `422` instead of being
 silently dropped, on the single-incident and the bulk routes alike. The same
-rule applies to `snoozed_until` on schema-drift, variable-value-drift and
+rule applies to `snoozed_until` on schema-drift, value-drift and
 comment-thread actions: it is accepted only with **snooze**.
 
 **A rule has 1h / 24h / 7d and no indefinite option**, on purpose. Muting a rule
@@ -1763,8 +1785,10 @@ numbered fact.
 #### What is sent to the model, and what never is
 
 What tripl sends is the project name and the text of those facts. It sends
-nothing else from the project. Each request goes to the provider and model set in
-**Settings → Instance → AI**, the same as the other AI features. The request
+nothing else from the project. Each request goes to the provider and model of
+the project's organization, set under **Settings → Organization → AI** (an
+organization that sets none uses the operator's, under **Settings → Platform →
+AI & search**), the same as the other AI features. The request
 has a fixed instruction and the numbered facts. Fact text is marked as data
 and not as instructions, so a note that says "ignore the rules" is only text.
 
@@ -1978,7 +2002,7 @@ page one by something already triaged; within each run the newest activity leads
 tie-broken on the incident id so paging cannot show one incident twice or skip it.
 A muted, resolved, acknowledged or false-positive incident is therefore reached
 with the **status** filter — `?status=open` / `acknowledged` / `resolved` /
-`muted` / `false_positive`, and an unrecognised value is a 422 rather than a
+`muted` / `false_positive`, and an unrecognized value is a 422 rather than a
 silent empty page — and not by scrolling. A mute that has run out counts as
 `open` again and rejoins the top run on its own; an indefinite mute never runs
 out, so it stays under `?status=muted` until you reopen it.
@@ -1996,7 +2020,7 @@ to a colleague, and opening an incident to check the scope that fired — a page
 off this route entirely — and pressing Back returns the queue you were working
 rather than all of them again. **Clear filters** returns to the default Open
 queue; an empty result's **Show all** asks for every status. Unlike the API, a
-value the page does not recognise degrades quietly to **All**, the same rule
+value the page does not recognize degrades quietly to **All**, the same rule
 `?section=` and `?scan=` already follow.
 
 **Status is not the only filter.** A bar above the list narrows it four more
@@ -2017,7 +2041,7 @@ is the open drops on checkout. The count under the list and the "of N" beside it
 both describe the filtered set, so the number above the cards always counts the
 cards. Each option of the **Status** filter carries its own count ("Open · 3"):
 the response's `status_counts` counts every status after the other filters and
-before the status one, so an option says what picking it would list. An unrecognised `scope_type` or `direction` is a 422 from the API, while
+before the status one, so an option says what picking it would list. An unrecognized `scope_type` or `direction` is a 422 from the API, while
 the page — like `?status=` — drops it quietly rather than turning a stale link
 into a failed request.
 
@@ -2069,8 +2093,9 @@ The fields worth knowing before you read one:
 | Field | Means |
 |---|---|
 | `first_delivery_at` | When the incident first fired **inside the window this reading covers**. `latest_delivery_at` says when it last spoke and nothing about how long it has been going, which is the difference between a blip and a week-old regression. |
-| `actual_count`, `expected_count`, `percent_delta` | The size of the **newest** item in the incident, so the row can state a magnitude without expanding its deliveries. |
+| `actual_count`, `expected_count`, `percent_delta` | The size of the **newest** item in the incident (the largest change, when several scopes fired in that bucket), so the row can state a magnitude without expanding its deliveries. |
 | `max_abs_percent_delta` | The largest deviation **anywhere** in the incident, so "worst first" is orderable without fetching its items. |
+| `scope_names` | The incident's distinct scope names, at most eight: the newest item's scope first (the one `scope_ref` and `actual_count` describe), then the rest by their largest change. |
 | `scope_type`, `scope_ref`, `event_id` | The newest item's scope in routable form — what the row's scope link opens. Always sent; `event_id` may be `null`. |
 | `scope_types` | The **distinct** scope kinds present, sorted. |
 | `rules` | Every rule behind the incident, as `{id, name}` pairs sorted by name. |
@@ -2148,7 +2173,7 @@ Monitoring → Scope overrides**. See
 **Not every scope can be nudged.** Only **project-total**, **event-type**,
 **event** and **metric** scopes are scored against a sigma threshold and a
 minimum expected count, so only those are ratcheted. **Schema drift**,
-**distribution drift**, **variable-value drift** and **release regressions**
+**distribution drift**, **value drift** and **release regressions**
 reach the Inbox and can be marked a false positive — the incident is recorded and
 silenced exactly as it would be — but nothing tunes them, because neither knob is
 what decided they fired. Tighten those at the source instead: the drift bands

@@ -1,7 +1,7 @@
 ---
 title: Connect your warehouse
 sidebar_position: 2
-description: Add a read-only connection to ClickHouse, BigQuery, Databricks, Snowflake, Redshift, Greenplum, Trino, Athena or PostgreSQL and check that tripl can reach it.
+description: Add a read-only connection to ClickHouse, BigQuery, Databricks, PostgreSQL or Greenplum (or, in preview, Snowflake, Redshift, Trino or Athena) and check that tripl can reach it.
 ---
 
 # Connect your warehouse
@@ -16,7 +16,7 @@ raw events.
 
 ## 1. Open Data sources
 
-Open the settings (**Workspace settings** in the account menu at the bottom
+Open the settings (**Settings** in the account menu at the bottom
 left, or **Settings** in the sidebar of **All projects**) and choose **Data
 sources** in the **Organization** group. A connection belongs to the
 organization, so every project in it can scan from it.
@@ -26,7 +26,7 @@ organization, so every project in it can scan from it.
 
 ## 2. Add the connection
 
-Press **Add connection**, give it a name your team will recognise, and pick the
+Press **Add connection**, give it a name your team will recognize, and pick the
 **Type**. The form asks for what that warehouse needs:
 
 | Warehouse | What to fill in |
@@ -35,11 +35,26 @@ Press **Add connection**, give it a name your team will recognise, and pick the
 | **PostgreSQL** | Host, port (5432), database, username, password. Version 14 or newer. |
 | **BigQuery** | GCP project ID, a default dataset, and a service-account JSON key pasted into the form. |
 | **Databricks** | Server hostname, catalog, the SQL warehouse's HTTP path, and an access token (or a service principal's OAuth client ID and secret). See [Databricks](#databricks) below. |
-| **Snowflake** | Account identifier, database, user, the virtual warehouse, and a password or the user's private key. See [Snowflake](#snowflake) below. |
-| **Amazon Redshift** | Endpoint host, port (5439), database, username, password. Serverless and provisioned clusters. No JSON columns. See [Amazon Redshift](#amazon-redshift) below. |
+| **Snowflake** (preview) | Account identifier, database, user, the virtual warehouse, and a password or the user's private key. See [Snowflake](#snowflake) below. |
+| **Amazon Redshift** (preview) | Endpoint host, port (5439), database, username, password. Serverless and provisioned clusters. No JSON columns. See [Amazon Redshift](#amazon-redshift) below. |
 | **Greenplum** | Coordinator host, port (5432), database, username, password. Greenplum 6 or 7, and the Cloudberry, Greengage and WarehousePG forks. See [Greenplum](#greenplum) below. |
-| **Trino** | Coordinator host, port (443), catalog, user, and a password when the coordinator asks for one. Starburst too. See [Trino](#trino) below. |
-| **Amazon Athena** | AWS region, Glue database, an access key ID and secret access key, and optionally a workgroup and S3 result location. See [Amazon Athena](#amazon-athena) below. |
+| **Trino** (preview) | Coordinator host, port (443), catalog, user, and a password when the coordinator asks for one. Starburst too. See [Trino](#trino) below. |
+| **Amazon Athena** (preview) | AWS region, Glue database, an access key ID and secret access key, and optionally a workgroup and S3 result location. See [Amazon Athena](#amazon-athena) below. |
+
+:::note Preview warehouses
+Snowflake, Amazon Redshift, Trino and Amazon Athena are in **preview** until
+their live value-conformance suites pass. The **Type** picker lists them as
+*&lt;name&gt; (preview)* and says under it that support is in preview and has not
+yet been verified against a live warehouse; a connected source of one of these
+types carries a **Preview** chip on its card. See
+[proven versus believed](../develop/warehouse-parity.md#read-this-first-proven-versus-believed)
+for what is and is not proven for each.
+:::
+
+Schema and dataset names — a default schema, a schema allowlist, a BigQuery
+dataset allowlist — are given alone, without a catalog or project prefix (no
+dots). A schema allowlist takes at most 50 entries on Databricks, Snowflake,
+Trino and Athena.
 
 ![The New data source dialog for ClickHouse](/img/screenshots/data-source-add.light.webp#gh-light-mode-only)
 ![The New data source dialog for ClickHouse](/img/screenshots/data-source-add.dark.webp#gh-dark-mode-only)
@@ -67,7 +82,8 @@ Unity Catalog workspace. All-purpose clusters are not supported.
      **Authentication** and paste it into **Access token or OAuth secret**; or
    - a **service principal with OAuth machine-to-machine**. Create an OAuth
      secret for the service principal, choose **OAuth machine-to-machine** under
-     **Authentication**, put its **client ID** in **OAuth client ID** and the
+     **Authentication**, put its **client ID** in **OAuth client ID** (required
+     with this method) and the
      **secret** in **Access token or OAuth secret**. tripl exchanges them for
      short-lived tokens at the workspace's `/oidc/v1/token` endpoint.
 3. **Grant read-only access.** The identity needs `CAN USE` on the SQL warehouse
@@ -143,7 +159,7 @@ you create for it.
    | --- | --- |
    | **Account identifier** | From step 1. |
    | **Database** | The database queries and the schema browser use, for example `ANALYTICS`. |
-   | **User** | The user from step 2. |
+   | **User** | The user from step 2. Required. |
    | **Password or private key** | The password, or, for key-pair sign-in, the whole PEM private key (`-----BEGIN PRIVATE KEY-----` …). |
    | **Warehouse** | The virtual warehouse queries run on. Required. An X-Small one is enough. |
    | **Role** | The role to use. Empty means the user's default role. |
@@ -227,10 +243,13 @@ other catalogs in full (`catalog.schema.table`).
    default; 8443 is common on self-managed clusters). A coordinator without TLS —
    inside a private network, or the `trinodb/trino` container on port 8080 —
    needs **Scheme** set to `http`.
-2. **User.** With password (LDAP / file) authentication, the user and its
-   password. A coordinator without authentication takes only a user name, which
-   Trino records as the query's user. **A password is only ever sent over
-   HTTPS**: the form refuses a password with the `http` scheme.
+2. **User** (required). With password (LDAP / file) authentication, the user
+   and its password. A coordinator without authentication takes only a user
+   name, which Trino records as the query's user. **A password is only ever sent
+   over HTTPS**: a password is accepted only with the `https` scheme, and both
+   the form and the save refuse one with `http`. When you edit a source,
+   **Remove the stored password** clears a stored password; do that before you
+   switch an existing source to `http`.
 3. **Default schema** (optional): where a bare table name resolves, and the
    schema the schema browser lists first. **Schema allowlist** (optional, up to
    50): which schemas the schema browser reads; empty lists every schema in the
@@ -252,9 +271,11 @@ cancels a statement that runs too long.
 
 :::note JSON in Trino
 A `json` column is a JSON column to tripl: its keys are discovered and become
-properties. A `varchar` column holding JSON text can be ticked under **Parse as
-JSON** in the scan form. `row`, `map` and `array` columns are read as values
-(rendered as JSON text), not expanded into properties.
+properties. A `map` column is read the same way, through its JSON cast, so each
+of its keys becomes a property, as with a ClickHouse `Map` or a Databricks
+`map`. A `varchar` column holding JSON text can be ticked under **Parse as
+JSON** in the scan form. `row` and `array` columns are read as values (rendered
+as JSON text), not expanded into properties.
 :::
 
 ### Amazon Athena
@@ -267,7 +288,7 @@ writes the same SQL for both.
    the region code, or the regional endpoint `athena.eu-west-1.amazonaws.com`;
    nothing else is accepted.
 2. **Database**: the Glue database a bare table name resolves in.
-3. **Access key ID** and **secret access key** of an IAM user (or a role's
+3. **Access key ID** (required) and **secret access key** of an IAM user (or a role's
    long-lived key) allowed to run Athena queries. The policy below is the minimum:
 
    ```json
@@ -305,6 +326,11 @@ Every statement runs in UTC. Athena has no per-query timeout setting, so tripl
 stops a statement itself (`StopQueryExecution`) when the source's timeout
 passes. Athena bills by data scanned: give scans a lookback window, and point
 them at partitioned tables where you can.
+
+Athena reports a map column's type without its key and value types, so on
+Athena a `map` column is read as a value (rendered as JSON text), like `row` and
+`array`. `json` columns, and `varchar` columns ticked under **Parse as JSON**,
+are expanded into properties as on Trino.
 
 ## 3. Check it stays healthy
 
