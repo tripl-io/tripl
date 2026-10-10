@@ -731,7 +731,7 @@ describe('Layout landmarks and route changes', () => {
     mockMatchMedia(true)
     localStorage.setItem('tripl-activity-open', '1')
     renderLayout('/p/demo/nowhere', '/p/:slug/*', '', { page: <NotFoundPage /> })
-    await screen.findByText('Page not found')
+    await screen.findByRole('heading', { level: 1, name: 'Page not found' })
 
     expect(screen.queryByTestId('activity-panel')).toBeNull()
     expect(screen.queryByRole('button', { name: 'Toggle activity feed' })).toBeNull()

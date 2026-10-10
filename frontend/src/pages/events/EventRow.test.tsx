@@ -185,6 +185,9 @@ function renderRow(
                   onRowAction={() => {}}
                   reorderable={reorderable}
                   justCreated={justCreated}
+                  /* The Health column is off by default (`hideHealth`
+                     defaults to true); a row given a score shows it. */
+                  hideHealth={health === undefined}
                   health={health}
                 />
               </tbody>

@@ -147,8 +147,9 @@ describe('RuleReplayDialog responsive results', () => {
     expect(table?.parentElement).not.toHaveClass('overflow-x-auto')
     expect(firingRegion).toHaveClass('min-w-0', 'max-w-full', 'overflow-x-auto')
     // Short and in sans with tabular figures, so it no longer runs into
-    // Scope.
-    const when = within(table as HTMLTableElement).getByText(/^Jul 19, \d\d:\d\d$/)
+    // Scope. The app's 12-hour clock, as every other short time prints it
+    // (`formatShortTimestamp`); the year joins only outside the current one.
+    const when = within(table as HTMLTableElement).getByText(/^Jul 19,(?: \d{4},)? \d{1,2}:\d\d\s[AP]M$/)
     expect(when).toHaveClass('whitespace-nowrap', 'tnum')
     expect(when).not.toHaveClass('mono')
 

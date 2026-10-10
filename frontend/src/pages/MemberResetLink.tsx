@@ -34,7 +34,7 @@ export function MemberResetLinkPanel({
           Dismiss
         </Button>
       </div>
-      <p className="m-0 text-caption text-fg-tertiary">
+      <p className="text-caption text-fg-tertiary">
         Give it to {who} yourself: whoever opens it can choose a new password for {link.email}. It
         works once, until {formatDateTime(link.expires_at)}, and is not shown again. Their current
         password keeps working until the link is used; using it signs them out everywhere and

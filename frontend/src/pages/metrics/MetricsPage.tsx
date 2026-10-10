@@ -40,8 +40,10 @@ export default function MetricsPage({ tab = 'catalog' }: { tab?: MetricsTab }) {
           {/* "New table" on a phone, so the button stays beside the title
               as "New metric" does instead of wrapping under it. One span:
               the button is a flex row with a gap, and three loose text
-              items each took that gap ("New  fact  table"). */}
-          <span>New <span className="max-sm:hidden">fact </span>table</span>
+              items each took that gap ("New  fact  table"). The spaces sit
+              outside the hidden word: the accessible name trims an inner
+              element's text, so "fact " inside it read as "New facttable". */}
+          <span>New <span className="max-sm:hidden">fact</span> table</span>
         </Link>
       </Button>
     ) : slug ? (

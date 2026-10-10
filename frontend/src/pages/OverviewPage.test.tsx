@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
+import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { MemoryRouter, Route, Routes } from 'react-router-dom'
 import { afterEach, describe, expect, it, vi } from 'vitest'
@@ -973,6 +973,9 @@ describe('OverviewPage — design review follow-ups', () => {
       )
       expect(screen.queryByRole('list', { name: 'Setup steps' })).not.toBeInTheDocument()
     } finally {
+      // Unmount first: the reset notifies every mounted reader of the flag,
+      // and a re-render after the test is an update outside act().
+      cleanup()
       setOnboardingDismissed('demo', 'project-1', false)
     }
   })
@@ -996,6 +999,9 @@ describe('OverviewPage — design review follow-ups', () => {
         '/settings/data-sources',
       )
     } finally {
+      // Unmount first: the reset notifies every mounted reader of the flag,
+      // and a re-render after the test is an update outside act().
+      cleanup()
       setOnboardingDismissed('demo', 'project-1', false)
     }
   })

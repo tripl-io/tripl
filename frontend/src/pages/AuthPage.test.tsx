@@ -580,7 +580,7 @@ describe('AuthPage', () => {
       fireEvent.change(await screen.findByLabelText('Organization name'), { target: { value: 'Acme' } })
       fireEvent.change(screen.getByLabelText('Organization URL slug'), { target: { value: 'Acme Labs' } })
       fireEvent.change(screen.getByLabelText('Email'), { target: { value: 'founder@example.com' } })
-      fireEvent.change(screen.getByLabelText('Password'), { target: { value: 'a-long-enough-password' } })
+      fireEvent.change(screen.getByLabelText('Password'), { target: { value: 'a-long-enough-password-1' } })
       fireEvent.click(screen.getByRole('button', { name: 'Create your account' }))
 
       expect(screen.getByLabelText('Organization URL slug')).toHaveAttribute('aria-invalid', 'true')
@@ -594,13 +594,13 @@ describe('AuthPage', () => {
 
       fireEvent.change(await screen.findByLabelText('Organization name'), { target: { value: 'Acme Labs' } })
       fireEvent.change(screen.getByLabelText('Email'), { target: { value: 'founder@example.com' } })
-      fireEvent.change(screen.getByLabelText('Password'), { target: { value: 'a-long-enough-password' } })
+      fireEvent.change(screen.getByLabelText('Password'), { target: { value: 'a-long-enough-password-1' } })
       fireEvent.click(screen.getByRole('button', { name: 'Create your account' }))
 
       await waitFor(() => expect(bodies).toHaveLength(1))
       expect(bodies[0]).toEqual({
         email: 'founder@example.com',
-        password: 'a-long-enough-password',
+        password: 'a-long-enough-password-1',
         org_name: 'Acme Labs',
         org_slug: 'acme-labs',
       })

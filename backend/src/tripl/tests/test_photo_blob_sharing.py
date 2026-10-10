@@ -710,7 +710,7 @@ def _keyword(line: str) -> str:
     return line.split(None, 1)[0].upper()
 
 
-@pytest.mark.parametrize("dockerfile", ["Dockerfile", "backend/Dockerfile"])
+@pytest.mark.parametrize("dockerfile", ["Dockerfile"])
 def test_the_runtime_image_can_write_the_default_photo_directory(dockerfile: str) -> None:
     """The default ``photo_local_dir`` resolves under WORKDIR, which is owned
     by root, while the process runs as ``app`` — so the first upload died on

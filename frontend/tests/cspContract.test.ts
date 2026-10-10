@@ -25,15 +25,8 @@ describe('production CSP contract', () => {
     expect(readFrontendFile('public/theme-init.js')).not.toHaveLength(0)
   })
 
-  it('keeps the standalone nginx CSP aligned with the frontend resources', () => {
+  it('points the page at no font host the CSP does not name', () => {
     const indexHtml = readFrontendFile('index.html')
-    const nginxConfig = readFrontendFile('nginx.conf')
-    const nginxCsp = nginxConfig.match(
-      /add_header Content-Security-Policy "([^"]+)" always;/,
-    )?.[1]
-
-    expect(nginxCsp).toBe(EXPECTED_CSP)
-    // Nothing on the page points at a font host the CSP does not name.
     expect(indexHtml).not.toMatch(/fonts\.(googleapis|gstatic)\.com/)
   })
 
@@ -59,9 +52,10 @@ describe('production CSP contract', () => {
     expect(EXPECTED_CSP).not.toMatch(/googleapis|gstatic/)
   })
 
-  // Two deploy shapes serve the SPA: the API's own static handler and the
-  // standalone nginx image. They drifted once — nginx had no frame-src, so the
-  // Figma embed was blocked there only (#194).
+  // The API serves the built SPA itself (app.frontend() in the root
+  // Dockerfile's runtime image); the standalone nginx tier is gone, so the
+  // backend default is the one production CSP. It drifted from the frontend's
+  // needs once — no frame-src, so the Figma embed was blocked (#194).
   it('matches the backend default CSP exactly', () => {
     const backend = readFrontendFile('../backend/src/tripl/middleware/security_headers.py')
     const block = backend.match(/_DEFAULT_SPA_CSP = \(([\s\S]*?)\n\)/)?.[1]
@@ -70,30 +64,20 @@ describe('production CSP contract', () => {
     expect(backendCsp).toBe(EXPECTED_CSP)
   })
 
-  // The same two deploy shapes: the standalone nginx document went out without
-  // the Permissions-Policy the API's own static handler sends.
-  it('sends the backend Permissions-Policy on the SPA document', () => {
+  // The document and the hashed assets both come from app.frontend() behind
+  // SecurityHeadersMiddleware, so the baseline set — Permissions-Policy and
+  // nosniff included — reaches every SPA response, not only index.html. The old
+  // nginx tier had dropped both on some locations.
+  it('sends Permissions-Policy and nosniff on every SPA response', () => {
     const backend = readFrontendFile('../backend/src/tripl/middleware/security_headers.py')
-    const backendPolicy = backend.match(/"permissions-policy": "([^"]+)"/)?.[1]
-    expect(backendPolicy).toBeDefined()
+    const baseline = backend.match(/headers = \{([\s\S]*?)\n {4}\}/)?.[1] ?? ''
+    expect(baseline).toContain('"x-content-type-options": "nosniff"')
+    expect(baseline).toContain(
+      '"permissions-policy": "camera=(), microphone=(), geolocation=(), payment=()"',
+    )
 
-    const nginxConfig = readFrontendFile('nginx.conf')
-    const documentBlock = nginxConfig.match(/location \/ \{([\s\S]*?)\n {8}\}/)?.[1] ?? ''
-    const nginxPolicy = documentBlock.match(/add_header Permissions-Policy "([^"]+)" always;/)?.[1]
-    expect(nginxPolicy).toBe(backendPolicy)
-  })
-
-  it('lets the API accept an event photo as large as the backend allows', () => {
-    const nginxConfig = readFrontendFile('nginx.conf')
-    const apiBlock = nginxConfig.match(/location \/api\/ \{([\s\S]*?)\n {8}\}/)?.[1] ?? ''
-    // photo_max_size_mb = 10 in backend/src/tripl/config.py; nginx defaults to 1m.
-    const limit = apiBlock.match(/client_max_body_size (\d+)m;/)?.[1]
-    expect(Number(limit)).toBeGreaterThanOrEqual(10)
-  })
-
-  it('sends nosniff on hashed assets too, not only on the document', () => {
-    const nginxConfig = readFrontendFile('nginx.conf')
-    const assetsBlock = nginxConfig.match(/location \/assets\/ \{([\s\S]*?)\n {8}\}/)?.[1] ?? ''
-    expect(assetsBlock).toContain('add_header X-Content-Type-Options "nosniff" always;')
+    const main = readFrontendFile('../backend/src/tripl/main.py')
+    expect(main).toContain('app.add_middleware(SecurityHeadersMiddleware)')
+    expect(main).toMatch(/app\.frontend\("\/", directory=settings\.frontend_dist_dir/)
   })
 })

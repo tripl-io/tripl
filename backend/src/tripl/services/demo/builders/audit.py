@@ -220,12 +220,28 @@ async def _authored_plan_entries(session: AsyncSession, ctx: DemoContext) -> lis
             payload={
                 "event_id": str(override.event_id),
                 "event_name": event_names.get(override.event_id, ""),
-                "values": list(override.values or []),
+                **_override_upsert_body(override),
             },
         )
         for override in overrides
     ]
     return entries
+
+
+def _override_upsert_body(override: VariableEventValueOverride) -> dict[str, object]:
+    """The PUT body that writes this entry, as the route files it.
+
+    ``upsert_event_override`` records ``data.model_dump(exclude_unset=True)``,
+    so a row only lists what its request sent: an override's ``values``, a
+    required-only entry's ``required`` — never an empty ``values`` list the
+    route cannot produce for an entry that has no override.
+    """
+    body: dict[str, object] = {}
+    if override.values is not None:
+        body["values"] = list(override.values)
+    if override.required:
+        body["required"] = True
+    return body
 
 
 async def _catalog_entries(session: AsyncSession, ctx: DemoContext) -> list[_Entry]:

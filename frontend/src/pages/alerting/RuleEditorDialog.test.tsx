@@ -4,7 +4,7 @@ import { useState } from 'react'
 import { MemoryRouter } from 'react-router-dom'
 import { describe, expect, it, vi } from 'vitest'
 
-import { ApiError } from '@/api/client'
+import { api, ApiError } from '@/api/client'
 import type { AlertDestination } from '@/types'
 
 import { defaultRuleForm, type RuleFormState } from './constants'
@@ -339,10 +339,31 @@ describe('RuleEditorDialog — an empty filter row is not dropped', () => {
   })
 })
 
+/**
+ * The error the real API client throws for a FastAPI 422 with `detail`: the
+ * client is where Pydantic's "Value error, " prefix is dropped, once, for every
+ * form, so the dialog is fed what it is fed in the app rather than a hand-built
+ * `ApiError` that still carries the prefix.
+ */
+async function rejected422(detail: { loc: (string | number)[]; msg: string; type: string }[]): Promise<ApiError> {
+  vi.spyOn(globalThis, 'fetch').mockResolvedValueOnce({
+    ok: false,
+    status: 422,
+    statusText: 'Unprocessable Entity',
+    headers: new Headers(),
+    json: async () => ({ detail }),
+  } as unknown as Response)
+  const error = await api.post('/projects/demo/alert-rules', {}).catch((caught: unknown) => caught)
+  vi.restoreAllMocks()
+  expect(error).toBeInstanceOf(ApiError)
+  return error as ApiError
+}
+
 describe('RuleEditorDialog — server errors sit beside their fields', () => {
-  it('attaches a field error to its input, without Pydantic\'s prefix', () => {
-    const error = new ApiError('cooldown_minutes: Value error, too short', 422)
-    error.fields = [{ loc: ['body', 'cooldown_minutes'], msg: 'Value error, too short', type: 'value_error' }]
+  it('attaches a field error to its input, without Pydantic\'s prefix', async () => {
+    const error = await rejected422([
+      { loc: ['body', 'cooldown_minutes'], msg: 'Value error, too short', type: 'value_error' },
+    ])
     renderDialog({ onSubmit: vi.fn(), error })
 
     const cooldown = screen.getByLabelText(COOLDOWN_LABEL)
@@ -352,8 +373,10 @@ describe('RuleEditorDialog — server errors sit beside their fields', () => {
     expect(screen.getByRole('alert')).toHaveTextContent('Check the highlighted fields.')
   })
 
-  it('prints anything with no field as one plain sentence', () => {
-    renderDialog({ onSubmit: vi.fn(), error: new Error('Value error, Rule limit reached') })
+  it('prints anything with no field as one plain sentence', async () => {
+    // A model-level validator names no field (`loc: ['body']`).
+    const error = await rejected422([{ loc: ['body'], msg: 'Value error, Rule limit reached', type: 'value_error' }])
+    renderDialog({ onSubmit: vi.fn(), error })
 
     expect(screen.getByRole('alert')).toHaveTextContent('Rule limit reached')
     expect(screen.queryByText(/Value error/)).toBeNull()

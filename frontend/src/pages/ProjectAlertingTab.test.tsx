@@ -641,7 +641,7 @@ describe('ProjectAlertingTab — the Inbox is a queue you can get to the bottom 
     for (const url of inboxUrls) {
       expect(url).not.toContain('status=')
     }
-    expect(screen.getByRole('combobox', { name: /^Status filter/ })).toHaveTextContent(/Status:\s*any/)
+    expect(screen.getByRole('combobox', { name: /^Status filter/ })).toHaveTextContent(/Status:\s*Any/)
   })
 
   it('loads the rest of the queue instead of replacing what is on screen', async () => {

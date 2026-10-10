@@ -77,8 +77,10 @@ describe('CoveragePage — nothing to cover', () => {
 
     renderPage()
 
+    // The tile renders with a skeleton while the project loads, so wait for
+    // the figure itself rather than for the label.
     const tile = (await screen.findByText('Plan coverage')).closest('dl') as HTMLElement
-    expect(within(tile).getByText('—')).toBeInTheDocument()
+    expect(await within(tile).findByText('—')).toBeInTheDocument()
     expect(within(tile).queryByText('0%')).not.toBeInTheDocument()
   })
 })

@@ -44,8 +44,8 @@ export function GateCard({
   return (
     <div className="w-full max-w-md space-y-4 rounded-card border p-6" style={GATE_CARD_STYLE}>
       {icon}
-      <h1 className="m-0 text-heading font-semibold">{title}</h1>
-      <p className="m-0 text-body" style={{ color: 'var(--fg-muted)' }}>
+      <h1 className="text-heading font-semibold">{title}</h1>
+      <p className="text-body" style={{ color: 'var(--fg-muted)' }}>
         {body}
       </p>
       {children}

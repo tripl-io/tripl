@@ -329,7 +329,13 @@ async def test_no_documented_path_takes_a_nul_in_a_parameter(client: AsyncClient
 
 @pytest.mark.asyncio
 async def test_a_path_without_a_nul_is_untouched(anon_client: AsyncClient) -> None:
-    assert (await anon_client.get("/health")).status_code == 200
+    # /health probes the module-level engine, not the suite's database, so it
+    # may answer 503 here; either way the route itself answered, which is all
+    # the guard has to let through.
+    response = await anon_client.get("/health")
+
+    assert response.status_code in {200, 503}
+    assert "status" in response.json()
 
 
 # --------------------------------------------------------------------------- #

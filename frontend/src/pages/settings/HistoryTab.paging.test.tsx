@@ -98,7 +98,9 @@ describe('HistoryTab — a phone-width layout', () => {
     vi.mocked(planRevisionsApi.list).mockResolvedValue(pageAt(0, 1))
     renderHistory()
 
-    const row = await screen.findByText('Snapshot rev-0')
+    // By title: the list row carries the summary as its tooltip; the selected
+    // revision's header repeats the summary as plain text.
+    const row = await screen.findByTitle('Snapshot rev-0')
     // jsdom does no layout; the class is the fix. Without a base template the
     // implicit `auto` track took the meta line's nowrap width.
     const grid = row.closest('.grid')
@@ -126,7 +128,7 @@ describe('HistoryTab — paging', () => {
     // The rows and the caption still describe page 1, and Older is shut: a
     // second click used to move on to 100 and drop 51–100 unrendered.
     expect(await screen.findByText('Updating…')).toBeInTheDocument()
-    expect(screen.getByText('Snapshot rev-0')).toBeInTheDocument()
+    expect(screen.getByTitle('Snapshot rev-0')).toBeInTheDocument()
     expect(screen.getByText('Showing 1–50 of 120 revisions.')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Older' })).toBeDisabled()
     fireEvent.click(screen.getByRole('button', { name: 'Older' }))
@@ -148,7 +150,7 @@ describe('HistoryTab — times name their zone', () => {
     vi.mocked(planRevisionsApi.list).mockResolvedValue(pageAt(0, 2))
     renderHistory()
 
-    await screen.findByText('Snapshot rev-0')
+    await screen.findByTitle('Snapshot rev-0')
     const shown = formatDateTime('2026-10-09T11:35:00Z')
     // Exact text: the header's timestamp, not the list row's meta line, which
     // carries the same time inside a longer string.

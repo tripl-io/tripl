@@ -83,7 +83,7 @@ export function OneTimeSecretField({ value, label, noun, onCopied, className }: 
         {state === 'copied' ? `${label} copied to the clipboard.` : ''}
       </p>
       {state === 'failed' && (
-        <p role="alert" className="m-0 text-caption text-danger">
+        <p role="alert" className="text-caption text-danger">
           Couldn’t reach the clipboard. The {noun} above is selected — press Ctrl/⌘+C to copy it.
         </p>
       )}

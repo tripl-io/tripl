@@ -139,7 +139,8 @@ class Settings(BaseSettings):
     rate_limit_login_per_minute: int = 5
     rate_limit_register_per_hour: int = 3
     # Whether to derive the client IP from proxy-supplied headers (X-Real-IP,
-    # then leftmost X-Forwarded-For) for rate-limit bucketing. Defaults to FALSE:
+    # then the rightmost X-Forwarded-For entry, the one the nearest proxy
+    # appended) for rate-limit bucketing. Defaults to FALSE:
     # use the direct socket peer (request.client.host), which is correct when the
     # API is the edge — including the consolidated single container where FastAPI
     # serves the SPA itself (serve_frontend) with no proxy in front. Enable this

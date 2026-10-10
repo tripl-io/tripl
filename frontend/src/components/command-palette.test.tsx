@@ -1043,8 +1043,10 @@ describe('CommandPalette ranking and filtering', () => {
     fireEvent.change(screen.getByPlaceholderText(/Search projects/i), {
       // One character, so knowledge search never starts (2-char floor), and one
       // that appears in no static label or route — the only shape of query for
-      // which the palette has nothing whatsoever to show.
-      target: { value: 'z' },
+      // which the palette has nothing whatsoever to show. Not a letter: every
+      // letter is one rename away from a label ("z" stopped qualifying when
+      // the audit log row became "Organization audit log").
+      target: { value: '~' },
     })
 
     // The palette's only "we found you nothing" affordance. Asserted PRESENT,

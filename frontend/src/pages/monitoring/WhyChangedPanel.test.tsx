@@ -165,7 +165,9 @@ describe('WhyChangedPanel (#255)', () => {
   })
 
   it('renders nothing for a payload without attribution or a scope it does not cover', () => {
-    const { container, rerender } = renderPanel({ signal: signal() })
+    // `attribution_status` is required on the wire now, so the payload with
+    // no attribution is one whose status claims nothing to note about it.
+    const { container, rerender } = renderPanel({ signal: signal({ attribution: null, attribution_status: 'ready' }) })
     expect(container).toBeEmptyDOMElement()
     rerender(
       <MemoryRouter>

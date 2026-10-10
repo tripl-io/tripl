@@ -402,7 +402,8 @@ describe('App', () => {
 
     renderApp('/totally-unknown')
 
-    expect(await screen.findByText('Page not found')).toBeInTheDocument()
+    // The top bar's crumb also reads "Page not found"; the page's own heading is the subject.
+    expect(await screen.findByRole('heading', { level: 1, name: 'Page not found' })).toBeInTheDocument()
     expect(screen.getByText('Back to all projects')).toBeInTheDocument()
     await waitFor(() => {
       expect(document.title).toBe('Page not found · tripl')
@@ -424,7 +425,8 @@ describe('App', () => {
 
     renderApp('/p/demo/this-route-does-not-exist')
 
-    expect(await screen.findByText('Page not found')).toBeInTheDocument()
+    // The top bar's crumb also reads "Page not found"; the page's own heading is the subject.
+    expect(await screen.findByRole('heading', { level: 1, name: 'Page not found' })).toBeInTheDocument()
     // The project is still in scope: its name heads the breadcrumb trail, and
     // names the tab — by its name, not the slug.
     expect(screen.getAllByText('Demo').length).toBeGreaterThan(0)
