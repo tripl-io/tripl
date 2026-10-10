@@ -28,6 +28,12 @@ from tripl.core.adapters.measure_validator import (
     coerce_aggregation,
     validate_measure_column,
 )
+from tripl.core.adapters.sql_common import (
+    IDENTIFIER_PART_RE,
+    SCHEMA_QUERY_TIMEOUT_SECONDS,
+    SCHEMA_ROW_LIMIT,
+    truncate_sql,
+)
 from tripl.core.bucketing import EPOCH, format_utc_literal, to_utc
 from tripl.core.intervals import IntervalUnit, get_interval
 from tripl.core.warehouse_types import ComplexKind, TimeKind, classify_complex, classify_time
@@ -37,8 +43,6 @@ from tripl.schemas.data_source import MAX_SCHEMA_DATASETS
 
 logger = logging.getLogger(__name__)
 
-_IDENTIFIER_RE = re.compile(r"^[a-zA-Z_][a-zA-Z0-9_.]*$")
-_IDENTIFIER_PART_RE = re.compile(r"^[a-zA-Z_][a-zA-Z0-9_]*$")
 # GCP project ids allow letters/digits/hyphens; dataset ids allow
 # letters/digits/underscores. Validate the model-derived identifiers before
 # interpolating them into the catalog query as defense-in-depth.
@@ -47,12 +51,6 @@ _BQ_DATASET_RE = re.compile(r"^[a-zA-Z0-9_]+$")
 # Sane upper bound so a pathologically long identifier can't reach logs/SQL.
 # This does not tighten the character class above; currently-valid ids still pass.
 _BQ_IDENTIFIER_MAX_LEN = 1024
-
-# Hard cap on catalog rows pulled for SQL-editor autocomplete. Kept generous and
-# in line with the ClickHouse/Postgres adapters so a dataset with thousands of
-# wide tables can't blow up the response. This is the budget for the WHOLE browse,
-# shared across every dataset it spans — not a per-dataset allowance.
-_SCHEMA_ROW_LIMIT = 50000
 
 # How many datasets one schema browse may span. ClickHouse and Postgres cover every
 # non-system database/schema in a SINGLE catalog query; BigQuery's
@@ -71,11 +69,6 @@ _SCHEMA_ROW_LIMIT = 50000
 # because this module imports ``google.cloud.bigquery`` at module scope and the
 # schema layer is imported by every API request.
 _MAX_SCHEMA_DATASETS = MAX_SCHEMA_DATASETS
-
-# Wall-clock cap on the catalog introspection job so a hung BQ job can't block
-# the worker thread forever. Scoped to schema introspection: this is a CAP, not a
-# default — a data source configuring a *shorter* timeout_seconds still wins.
-_SCHEMA_QUERY_TIMEOUT_SECONDS = 30
 
 # GoogleSQL keeps TIMESTAMP/DATETIME/DATE in separate type families, each with its
 # own bucket + trunc functions. Applying the wrong family's function to a column is
@@ -280,9 +273,8 @@ class BigQueryAdapter(BaseAdapter):
     # instance-only attribute read from a query path would blow up with AttributeError
     # in exactly the tests that exist to protect the query paths. Declaring the
     # defaults on the class keeps an un-initialized adapter behaving like an
-    # unconfigured one (no timeout, no cost guard, default dataset only), which is the
-    # pre-existing behavior.
-    _timeout_seconds: float | None = None
+    # unconfigured one (no cost guard, default dataset only, and BaseAdapter's
+    # no-timeout default), which is the pre-existing behavior.
     _maximum_bytes_billed: int | None = None
     _dataset_allowlist: tuple[str, ...] | None = None
 
@@ -379,22 +371,6 @@ class BigQueryAdapter(BaseAdapter):
     def close(self) -> None:
         self._client.close()  # type: ignore[no-untyped-call]
 
-    def _query_deadline(self, cap: float | None = None) -> float | None:
-        """How long this adapter may wait for one job, in seconds (None = forever).
-
-        ``cap`` is an additional per-call ceiling (schema introspection uses one), never
-        a floor: a data source that configures a *shorter* ``timeout_seconds`` than the
-        cap still gets the shorter deadline.
-        """
-        timeout = self._timeout_seconds
-        if timeout is not None and timeout <= 0:
-            timeout = None
-        if timeout is None:
-            return cap
-        if cap is None:
-            return timeout
-        return min(timeout, cap)
-
     def _run_query(
         self, sql: str, *, timeout_cap: float | None = None
     ) -> bigquery.table.RowIterator:
@@ -441,15 +417,6 @@ class BigQueryAdapter(BaseAdapter):
     def test_connection(self) -> bool:
         row = next(iter(self._run_query("SELECT 1 AS ok")))
         return bool(row["ok"] == 1)
-
-    def _validate_column(self, column: str) -> str:
-        if not _IDENTIFIER_RE.match(column):
-            msg = f"Invalid column name: {column}"
-            raise ValueError(msg)
-        if self._allowed_columns and column not in self._allowed_columns:
-            msg = f"Column {column!r} not found in query result"
-            raise ValueError(msg)
-        return column
 
     def _bucket_expression(self, time_column: str, interval_code: str) -> str:
         """Translate an interval code into GoogleSQL bucket SQL.
@@ -584,7 +551,7 @@ class BigQueryAdapter(BaseAdapter):
         parts = [part for part in path.split(".") if part]
         if not parts:
             raise ValueError(f"Invalid JSON path: {path}")
-        if any(not _IDENTIFIER_PART_RE.match(part) for part in parts):
+        if any(not IDENTIFIER_PART_RE.match(part) for part in parts):
             raise ValueError(f"Unsupported JSON path: {path}")
         col = self._validate_column(column)
         if self._complex_kind(col) is ComplexKind.struct:
@@ -626,7 +593,7 @@ class BigQueryAdapter(BaseAdapter):
         admitted, the same way ``_json_path_expression`` builds its own.
         """
         parts = [part for part in path.split(".") if part]
-        if not parts or any(not _IDENTIFIER_PART_RE.match(part) for part in parts):
+        if not parts or any(not IDENTIFIER_PART_RE.match(part) for part in parts):
             raise ValueError(f"Unsupported JSON path: {path}")
         col = self._validate_column(column)
         if self._complex_kind(col) is ComplexKind.struct:
@@ -740,7 +707,7 @@ class BigQueryAdapter(BaseAdapter):
         select_parts = []
         for name in names:
             source_alias = alias_by_name[name]
-            output_alias = name if _IDENTIFIER_PART_RE.match(name) else source_alias
+            output_alias = name if IDENTIFIER_PART_RE.match(name) else source_alias
             select_parts.append(f"`{source_alias}` AS `{output_alias}`")
         group_parts = [f"`{alias_by_name[name]}`" for name in names]
         return select_parts, group_parts
@@ -950,7 +917,7 @@ class BigQueryAdapter(BaseAdapter):
         """
         replacements: list[str] = []
         for column in columns:
-            if not _IDENTIFIER_PART_RE.match(column):
+            if not IDENTIFIER_PART_RE.match(column):
                 msg = f"BigQuery: invalid column name {column!r}"
                 raise ValueError(msg)
             parsed = f"SAFE.PARSE_JSON(`{column}`, wide_number_mode => 'round')"
@@ -1082,7 +1049,7 @@ class BigQueryAdapter(BaseAdapter):
         tables lived in a second dataset simply had no autocomplete.
 
         The cost is bounded on three axes: at most ``_MAX_SCHEMA_DATASETS`` jobs, at most
-        ``_SCHEMA_ROW_LIMIT`` rows across ALL of them (the LIMIT shrinks as the budget is
+        ``SCHEMA_ROW_LIMIT`` rows across ALL of them (the LIMIT shrinks as the budget is
         spent, so the total is a budget rather than a per-dataset allowance), and each job
         deadlined.
 
@@ -1093,7 +1060,7 @@ class BigQueryAdapter(BaseAdapter):
         the wrong thing to tell a user staring at an empty autocomplete.
         """
         datasets = self._schema_datasets()
-        budget = _SCHEMA_ROW_LIMIT
+        budget = SCHEMA_ROW_LIMIT
         columns_by_table: dict[str, list[SchemaColumn]] = {}
         failures: list[tuple[str, Exception]] = []
         succeeded = 0
@@ -1103,7 +1070,7 @@ class BigQueryAdapter(BaseAdapter):
                 logger.warning(
                     "BQ schema introspection: %s-row budget exhausted, skipping dataset %r "
                     "and any after it",
-                    _SCHEMA_ROW_LIMIT,
+                    SCHEMA_ROW_LIMIT,
                     dataset,
                 )
                 break
@@ -1114,7 +1081,7 @@ class BigQueryAdapter(BaseAdapter):
             )
             logger.debug("BQ schema introspection query: %s", sql)
             try:
-                _, rows = self._query_rows(sql, timeout_cap=_SCHEMA_QUERY_TIMEOUT_SECONDS)
+                _, rows = self._query_rows(sql, timeout_cap=SCHEMA_QUERY_TIMEOUT_SECONDS)
             except Exception as exc:
                 logger.warning(
                     "BQ schema introspection skipped dataset %r: %s", dataset, exc, exc_info=True
@@ -1531,8 +1498,7 @@ class BigQueryAdapter(BaseAdapter):
             f"LIMIT {int(limit)}"
         )
 
-        short = sql[:300] + ("..." if len(sql) > 300 else "")
-        logger.info("BQ breakdown query: %s", short)
+        logger.debug("BQ breakdown query: %s", truncate_sql(sql))
         t0 = time.monotonic()
         _, rows = self._query_rows(sql)
         elapsed = time.monotonic() - t0
@@ -1598,16 +1564,13 @@ class BigQueryAdapter(BaseAdapter):
         decoded = self._decode_rows(rows, offset=1, reg_cols=reg_cols, json_cols=json_cols)
         return col_names, json_value_names, self._utc_bucket_rows(decoded)
 
-    def _aggregate_value_sql(self, agg_fn: MetricAggregation, measure_column: str | None) -> str:
-        """Validate + escape the measure and build the safe aggregate fragment."""
-        measure_sql: str | None = None
-        if measure_column is not None:
-            measure_sql = f"`{validate_measure_column(measure_column, self._allowed_columns)}`"
-        return build_aggregate_sql(agg_fn, measure_sql)
+    @override
+    def _quote_ident(self, name: str) -> str:
+        return f"`{name}`"
 
     def _validate_alias(self, alias: str) -> str:
         """Validate a caller-supplied output column alias before interpolation."""
-        if not _IDENTIFIER_PART_RE.match(alias):
+        if not IDENTIFIER_PART_RE.match(alias):
             msg = f"Invalid aggregate key alias: {alias!r}"
             raise ValueError(msg)
         return alias
@@ -1997,35 +1960,6 @@ class BigQueryAdapter(BaseAdapter):
         )
 
         return column_names, self._utc_bucket_rows(rows)
-
-    def get_time_bucketed_breakdown_counts(
-        self,
-        base_query: str,
-        time_column: str,
-        interval: str,
-        breakdown_column: str,
-        regular_columns: list[str],
-        json_columns: list[str],
-        json_value_paths: dict[str, list[str]] | None,
-        time_from: datetime,
-        time_to: datetime,
-        values_limit: int | None = None,
-        limit: int = 100000,
-    ) -> tuple[list[str], list[str], list[tuple[object, ...]]]:
-        col_names, json_value_names, rows = self.get_time_bucketed_breakdown_counts_multi(
-            base_query,
-            time_column,
-            interval,
-            [breakdown_column],
-            regular_columns,
-            json_columns,
-            json_value_paths,
-            time_from,
-            time_to,
-            values_limit=values_limit,
-            limit=limit,
-        )
-        return col_names, json_value_names, [(row[0], row[2], row[3], *row[4:]) for row in rows]
 
     def _query_top_breakdown_values_multi(
         self,

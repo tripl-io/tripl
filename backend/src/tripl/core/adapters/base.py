@@ -4,12 +4,16 @@ import abc
 import logging
 import math
 import re
-from collections.abc import Callable, Iterator
+from collections.abc import Callable, Iterator, Mapping
 from contextlib import AbstractContextManager, contextmanager, nullcontext
 from dataclasses import dataclass
 from datetime import datetime
+from typing import Self
 
 from tripl.core.adapters.errors import WarehouseCapabilityError
+from tripl.core.adapters.measure_validator import build_aggregate_sql, validate_measure_column
+from tripl.core.adapters.sql_common import validate_identifier_column
+from tripl.core.json_string_columns import JSON_STRING_UNSUPPORTED
 from tripl.json_paths import extract_json_path, json_scalar_text, split_property_field
 from tripl.models.domain_enums import MetricAggregation
 
@@ -479,6 +483,72 @@ class BaseAdapter(abc.ABC):
     _top_n_ranking_window: tuple[datetime, datetime] | None = None
     _top_n_ranking_cache: dict[object, object] | None = None
 
+    # Class-level defaults: an adapter is built per task, and the unit tests
+    # build one with ``object.__new__`` and seed only what they use.
+    #: The data source's timeout in seconds; ``None`` waits forever.
+    _timeout_seconds: float | None = None
+    #: The columns ``get_columns`` read for the base query: the allowlist every
+    #: identifier is held to. Empty means nothing was read yet, and holds none.
+    _allowed_columns: set[str] = set()  # noqa: RUF012 - replaced per instance, never mutated
+    #: Each of those columns' type as the warehouse reported it, for an engine
+    #: whose SQL follows a column's declared type (bucket, window literal,
+    #: nested shape). Empty means nothing was read yet.
+    _column_types: dict[str, str] = {}  # noqa: RUF012 - replaced per instance, never mutated
+
+    @classmethod
+    def primed(cls, column_types: Mapping[str, str]) -> Self:
+        """A connectionless instance that knows ``column_types`` as ``get_columns`` leaves them.
+
+        For compiling a statement without a warehouse
+        (``multi_aggregate_sql``): identifiers are held to these columns, and
+        type-directed SQL reads their types here. ``__init__`` never runs, so
+        nothing that executes a statement may be called on it.
+        """
+        adapter = object.__new__(cls)
+        adapter._allowed_columns = set(column_types)
+        adapter._column_types = dict(column_types)
+        return adapter
+
+    def _query_deadline(self, cap: float | None = None) -> float | None:
+        """How long this adapter may wait for one statement, in seconds (None = forever).
+
+        ``cap`` is an additional per-call ceiling (catalog introspection uses
+        one), never a floor: a data source that configures a *shorter*
+        ``timeout_seconds`` than the cap still gets the shorter deadline.
+        """
+        timeout = self._timeout_seconds
+        if timeout is not None and timeout <= 0:
+            timeout = None
+        if timeout is None:
+            return cap
+        if cap is None:
+            return timeout
+        return min(timeout, cap)
+
+    def _validate_column(self, column: str) -> str:
+        """``column``, if it is a plain identifier the introspected result holds."""
+        return validate_identifier_column(column, self._allowed_columns)
+
+    def _quote_ident(self, name: str) -> str:
+        """``name``, already validated, as the dialect's quoted identifier.
+
+        The SQL adapters' shared seam, like ``_query_top_breakdown_values_multi``:
+        every SQL adapter spells it, and the synthetic adapter builds no SQL.
+        """
+        raise NotImplementedError
+
+    def _aggregate_value_sql(self, agg_fn: MetricAggregation, measure_column: str | None) -> str:
+        """The aggregate over the measure column, held to the introspected columns and quoted.
+
+        ``count`` ignores the measure; every other aggregation requires one.
+        """
+        measure_sql: str | None = None
+        if measure_column is not None:
+            measure_sql = self._quote_ident(
+                validate_measure_column(measure_column, self._allowed_columns)
+            )
+        return build_aggregate_sql(agg_fn, measure_sql)
+
     @contextmanager
     def top_n_ranking_window(self, time_from: datetime, time_to: datetime) -> Iterator[None]:
         """Rank every top-N pre-query over ``[time_from, time_to)``, once.
@@ -612,11 +682,7 @@ class BaseAdapter(abc.ABC):
         Callers go through ``core.json_string_columns``, which checks the
         columns' types first and caches the result per adapter.
         """
-        msg = (
-            "This data source cannot parse String columns as JSON; "
-            "only ClickHouse, BigQuery, Databricks, Snowflake, Trino and Athena can."
-        )
-        raise WarehouseCapabilityError(msg)
+        raise WarehouseCapabilityError(JSON_STRING_UNSUPPORTED)
 
     #: Whether ``get_json_path_samples`` returns each value as JSON TEXT
     #: (``'"42"'`` for a string, ``'42'`` for a number) rather than decoded.
@@ -1074,7 +1140,6 @@ class BaseAdapter(abc.ABC):
         """
         ...
 
-    @abc.abstractmethod
     def get_time_bucketed_breakdown_counts(
         self,
         base_query: str,
@@ -1094,13 +1159,29 @@ class BaseAdapter(abc.ABC):
         ``values_limit`` folds the tail into ``'Other'`` under the top-N contract
         on :class:`BaseAdapter`.
 
+        The one-column case of :meth:`get_time_bucketed_breakdown_counts_multi`,
+        with that method's ``_breakdown_column`` cell dropped from every row.
+
         Returns (column_names, json_value_names, rows).
         Row layout: (
             _bucket, _breakdown_value, _is_other,
             col1_val, col2_val, ..., keep_json_value1, ..., count
         ).
         """
-        ...
+        col_names, json_value_names, rows = self.get_time_bucketed_breakdown_counts_multi(
+            base_query,
+            time_column,
+            interval,
+            [breakdown_column],
+            regular_columns,
+            json_columns,
+            json_value_paths,
+            time_from,
+            time_to,
+            values_limit=values_limit,
+            limit=limit,
+        )
+        return col_names, json_value_names, [(row[0], row[2], row[3], *row[4:]) for row in rows]
 
     @abc.abstractmethod
     def get_time_bucketed_breakdown_counts_multi(

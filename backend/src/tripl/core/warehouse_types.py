@@ -30,7 +30,7 @@ class ComplexKind(StrEnum):
     #: Fixed nested schema: paths come from the declared schema, not the rows
     #: (BigQuery ``RECORD``/``STRUCT``, ClickHouse ``Tuple``).
     struct = "struct"
-    #: Key/value container (ClickHouse ``Map``).
+    #: Key/value container (ClickHouse ``Map``, Databricks ``map<>``, Trino ``map(...)``).
     map = "map"
 
 
@@ -100,7 +100,8 @@ def classify_complex(type_name: str) -> ComplexKind | None:
         # `struct<...>` is how Databricks spells a STRUCT.
         return ComplexKind.struct
     if name.startswith(("map(", "map<")):
-        # ClickHouse `Map(K, V)`, Databricks `map<k,v>`.
+        # ClickHouse `Map(K, V)`, Databricks `map<k,v>`, Trino `map(k, v)`. Athena
+        # reports a bare `map`, which matches nothing here: it stays a value.
         return ComplexKind.map
     return None
 

@@ -40,15 +40,6 @@ SETUP_PRESET_EVENT_PROPERTIES: ScanSetupPreset = "event_properties"
 # An event type is a folder, and the preset has one folder's worth of events.
 PRESET_EVENT_TYPE_NAME = "Events"
 
-# The fields the preset derives. A caller that sends one of them with a value
-# the preset would overwrite is refused rather than silently ignored.
-PRESET_DERIVED_FIELDS = (
-    "event_type_column",
-    "event_name_format",
-    "json_value_paths",
-    "event_group_rules",
-)
-
 
 def preset_event_name_format(event_name_column: str) -> str:
     """The name format that names each event by its event column alone."""

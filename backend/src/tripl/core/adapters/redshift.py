@@ -35,12 +35,12 @@ from typing import override
 from tripl.core.adapters.errors import WarehouseCapabilityError
 from tripl.core.adapters.measure_validator import build_aggregate_sql, coerce_aggregation
 from tripl.core.adapters.postgres import (
-    _SCHEMA_ROW_LIMIT,
     PostgresAdapter,
     _quote_ident,
     _validated_search_path,
     epoch_bucket_expression,
 )
+from tripl.core.adapters.sql_common import SCHEMA_ROW_LIMIT
 from tripl.models.domain_enums import MetricAggregation
 
 #: Redshift's own type oids that psycopg's PostgreSQL registry does not know.
@@ -108,7 +108,7 @@ class RedshiftAdapter(PostgresAdapter):
             f"(table_schema = {current}) AS is_current_schema "
             "FROM svv_columns "
             "WHERE table_schema <> 'information_schema' AND left(table_schema, 3) <> 'pg_' "
-            f"ORDER BY table_schema, table_name, ordinal_position LIMIT {_SCHEMA_ROW_LIMIT}"
+            f"ORDER BY table_schema, table_name, ordinal_position LIMIT {SCHEMA_ROW_LIMIT}"
         )
 
     @override

@@ -29,6 +29,7 @@ from typing import Any
 from sqlalchemy import func, select, text
 from sqlalchemy.orm import Session
 
+from tripl.core import plan_scope
 from tripl.core.analyzers._event_field_observations import (
     ValuesSeen,
     record_field_observations,
@@ -64,9 +65,6 @@ from tripl.core.analyzers._event_generator_variables import (
 )
 from tripl.core.analyzers._event_generator_variables import (
     record_variable_contexts as _record_variable_contexts,
-)
-from tripl.core.analyzers._event_generator_variables import (
-    resolve_main_branch_id as _resolve_main_branch_id,
 )
 from tripl.core.analyzers._event_identity import (
     index_events_by_identity,
@@ -124,7 +122,6 @@ __all__ = [
     "_apply_name_format",
     "_ensure_variable",
     "_format_value",
-    "_resolve_main_branch_id",
     "apply_event_group_rules",
     "event_name_format_columns",
     "generate_events",
@@ -246,8 +243,10 @@ def generate_events(
     lock_project_catalog(session, project_id)
     # The scan writes to the project's main branch (Variable inserts default
     # ``branch_id`` to it); resolve it once so variable existence checks are
-    # scoped to the same branch (see ``_ensure_variable``).
-    main_branch_id = _resolve_main_branch_id(session, project_id)
+    # scoped to the same branch (see ``_ensure_variable``). Variable uniqueness
+    # is per branch, so a working branch may hold a same-named row; an unscoped
+    # lookup would find both and raise ``MultipleResultsFound``.
+    main_branch_id = plan_scope.main_branch_id(session, project_id)
     # One token→variable index for the whole run: scan adoption (by name,
     # source_name or user-editable binding), context attribution and token
     # normalization all resolve through it.

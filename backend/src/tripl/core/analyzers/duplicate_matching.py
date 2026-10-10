@@ -310,28 +310,6 @@ def cluster_pairs(
     return clusters
 
 
-def cluster_duplicates(
-    index: NameIndex,
-    *,
-    threshold: float = DUPLICATE_THRESHOLD,
-    dismissed: frozenset[tuple[uuid.UUID, uuid.UUID]] = frozenset(),
-    pair_cosine: Callable[[uuid.UUID, uuid.UUID], float | None] | None = None,
-) -> list[Cluster]:
-    """:func:`scored_pairs` then :func:`cluster_pairs`, in one call.
-
-    A dismissed pair (ordered) never links, though its two events can still
-    meet in one cluster through a third.
-    """
-    candidates, _truncated = scored_pairs(index, threshold=threshold)
-    links = [
-        (pair, combined_score(lexical, pair_cosine(*pair) if pair_cosine else None))
-        for pair, lexical in candidates
-        if pair not in dismissed
-    ]
-    order = {entry.event_id: position for position, entry in enumerate(index.entries)}
-    return cluster_pairs(links, threshold=threshold, order=order)
-
-
 def ordered_pair(a: uuid.UUID, b: uuid.UUID) -> tuple[uuid.UUID, uuid.UUID]:
     return (a, b) if str(a) <= str(b) else (b, a)
 
