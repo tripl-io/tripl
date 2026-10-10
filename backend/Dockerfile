@@ -7,7 +7,7 @@
 
 # uv pinned for a reproducible build; bump it together with the root
 # Dockerfile, mcp-server/Dockerfile and tripl-enterprise's UV_IMAGE.
-FROM ghcr.io/astral-sh/uv:0.12.22-python3.14-trixie-slim AS base
+FROM ghcr.io/astral-sh/uv:0.13.0-python3.14-trixie-slim AS base
 
 WORKDIR /app
 ENV UV_LINK_MODE=copy
