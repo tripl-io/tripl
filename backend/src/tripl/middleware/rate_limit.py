@@ -17,6 +17,7 @@ import logging
 import math
 import threading
 import time
+import weakref
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
 
@@ -69,6 +70,11 @@ class _Bucket:
     updated_at: float
 
 
+# Every limiter built, so :func:`reset_rate_limiters` reaches an extension's
+# too. Weak: a limiter a test builds and drops goes away with it.
+_LIMITERS: weakref.WeakSet[TokenBucketLimiter] = weakref.WeakSet()
+
+
 class TokenBucketLimiter:
     """Refilling token bucket. ``capacity`` is the burst, ``per_seconds`` the refill window.
 
@@ -92,6 +98,7 @@ class TokenBucketLimiter:
         self._buckets: dict[str, _Bucket] = {}
         # Keep memory bounded — eviction is opportunistic on each call.
         self._max_keys = 10_000
+        _LIMITERS.add(self)
 
     def acquire(self, key: str) -> None:
         """Consume one token for ``key``. Raises :class:`RateLimitExceeded` if empty.
@@ -170,26 +177,34 @@ def _client_key(request: Request, route: str) -> str:
     #
     # When trust is enabled we prefer X-Real-IP: the shipped nginx config sets it
     # to $remote_addr on every request, so it carries exactly one value the
-    # client cannot influence. We fall back to the leftmost X-Forwarded-For entry
-    # (the original client as recorded by the trusted proxy) only when X-Real-IP
-    # is absent.
+    # client cannot influence. Only when X-Real-IP is absent do we fall back to
+    # the RIGHTMOST X-Forwarded-For entry, the one the nearest proxy appended.
+    # Everything left of it arrived from the client and may be invented: keying
+    # on the leftmost entry gave a client behind an appending proxy a fresh
+    # bucket per request. Behind more than one proxy the rightmost entry is the
+    # previous hop, so its clients share one bucket; that is the safe failure.
     if settings.rate_limit_trust_forwarded_for:
         real_ip = request.headers.get("x-real-ip", "").strip()
         if real_ip:
             return f"{route}:{real_ip}"
-        forwarded = request.headers.get("x-forwarded-for", "")
-        if forwarded:
-            return f"{route}:{forwarded.split(',')[0].strip()}"
+        nearest = request.headers.get("x-forwarded-for", "").rsplit(",", 1)[-1].strip()
+        if nearest:
+            return f"{route}:{nearest}"
     ip = request.client.host if request.client is not None else "unknown"
     return f"{route}:{ip}"
 
 
-def _limiter_for(configured: int, *, per_seconds: float, name: str) -> TokenBucketLimiter:
+def limiter_for(configured: int, *, per_seconds: float, name: str) -> TokenBucketLimiter:
     """Build a limiter for a configured per-window count.
 
     A configured value of ``0`` disables rate limiting on that route (per the
     ``config`` docstring); it is represented as a disabled limiter whose
     ``acquire`` is a no-op, so callers keep the same wiring either way.
+
+    Public: an extension builds the limiters for its own routes with it and
+    applies them with :func:`enforce`, :func:`allow` or
+    :func:`retry_after_for_key`. ``name`` is the bucket's key prefix (in Redis
+    too), so it must be unique across the core and every extension.
     """
     enabled = configured > 0
     return TokenBucketLimiter(
@@ -200,11 +215,11 @@ def _limiter_for(configured: int, *, per_seconds: float, name: str) -> TokenBuck
     )
 
 
-login_rate_limiter = _limiter_for(
+login_rate_limiter = limiter_for(
     settings.rate_limit_login_per_minute, per_seconds=60.0, name="login"
 )
 
-register_rate_limiter = _limiter_for(
+register_rate_limiter = limiter_for(
     settings.rate_limit_register_per_hour, per_seconds=3600.0, name="register"
 )
 
@@ -216,7 +231,7 @@ register_rate_limiter = _limiter_for(
 # login/register quota (and vice versa).
 STATUS_RATE_LIMIT_PER_MINUTE = 30
 
-status_rate_limiter = _limiter_for(STATUS_RATE_LIMIT_PER_MINUTE, per_seconds=60.0, name="status")
+status_rate_limiter = limiter_for(STATUS_RATE_LIMIT_PER_MINUTE, per_seconds=60.0, name="status")
 
 # ``/auth/verify-email/request`` sends a mail through the operator's relay each
 # time it is accepted, so it gets its own small hourly bucket: resending never
@@ -224,46 +239,20 @@ status_rate_limiter = _limiter_for(STATUS_RATE_LIMIT_PER_MINUTE, per_seconds=60.
 # into a mail cannon. A module constant for the same reason as the status one.
 VERIFY_EMAIL_RATE_LIMIT_PER_HOUR = 10
 
-verify_email_rate_limiter = _limiter_for(
+verify_email_rate_limiter = limiter_for(
     VERIFY_EMAIL_RATE_LIMIT_PER_HOUR, per_seconds=3600.0, name="verify_email"
 )
 
 
-# SSO sign-in (F20): ``/auth/sso/{org}/start`` and ``/callback`` share this
-# bucket, apart from the password-login one, so one round trip through the
-# identity provider (two requests) never eats the 5/min a password sign-in has.
-# The callback answers an exhausted bucket with a redirect, not a 429 body
-# (:func:`allow`): the browser is mid-redirect from the provider there.
+# Signing in through a provider: the instance-wide Google and OIDC sign-in's
+# ``/start`` and ``/callback`` share this bucket (and so does an extension's own
+# provider sign-in), apart from the password-login one, so one round trip
+# through the identity provider (two requests) never eats the 5/min a password
+# sign-in has. The callback answers an exhausted bucket with a redirect, not a
+# 429 body (:func:`allow`): the browser is mid-redirect from the provider there.
 SSO_RATE_LIMIT_PER_MINUTE = 20
 
-sso_rate_limiter = _limiter_for(SSO_RATE_LIMIT_PER_MINUTE, per_seconds=60.0, name="sso")
-
-# An owner's SSO connection test and domain verification make tripl call out
-# (the provider's discovery document, DNS): a small bucket, so neither becomes a
-# probe of other hosts.
-SSO_PROBE_RATE_LIMIT_PER_MINUTE = 10
-
-sso_probe_rate_limiter = _limiter_for(
-    SSO_PROBE_RATE_LIMIT_PER_MINUTE, per_seconds=60.0, name="sso_probe"
-)
-
-# An owner's audit-webhook test sends a request to the URL they typed, and a
-# save resolves its host (hosted): the same small bucket size as the SSO
-# probe, its own key, so neither turns tripl into an outbound request cannon
-# nor ties up the API's worker threads (F20).
-AUDIT_WEBHOOK_PROBE_RATE_LIMIT_PER_MINUTE = 10
-
-audit_webhook_probe_rate_limiter = _limiter_for(
-    AUDIT_WEBHOOK_PROBE_RATE_LIMIT_PER_MINUTE, per_seconds=60.0, name="audit_webhook_probe"
-)
-
-# An audit export streams up to a year of rows and holds a database connection
-# per page it reads: a few per minute is plenty for a person or a SIEM pull.
-AUDIT_EXPORT_RATE_LIMIT_PER_MINUTE = 5
-
-audit_export_rate_limiter = _limiter_for(
-    AUDIT_EXPORT_RATE_LIMIT_PER_MINUTE, per_seconds=60.0, name="audit_export"
-)
+sso_rate_limiter = limiter_for(SSO_RATE_LIMIT_PER_MINUTE, per_seconds=60.0, name="sso")
 
 
 # The note editor's ``[[`` / ``@`` link picker (F24 part 2): keyed on the signed-in
@@ -272,34 +261,23 @@ audit_export_rate_limiter = _limiter_for(
 # ceiling on a script hammering the membership-gated lookups behind it.
 DOC_LINK_SUGGESTIONS_RATE_LIMIT_PER_MINUTE = 240
 
-doc_link_suggestions_rate_limiter = _limiter_for(
+doc_link_suggestions_rate_limiter = limiter_for(
     DOC_LINK_SUGGESTIONS_RATE_LIMIT_PER_MINUTE, per_seconds=60.0, name="doc_link_suggestions"
 )
 
 
-# SCIM provisioning (F20): keyed on the SCIM TOKEN, not the client address, so
-# an identity provider's egress pool (many addresses, one tenant) draws on one
-# quota and two tenants behind one NAT never starve each other. Generous: a
-# first sync of a large directory is a burst of hundreds of requests.
-SCIM_RATE_LIMIT_PER_MINUTE = 600
-
-scim_rate_limiter = _limiter_for(SCIM_RATE_LIMIT_PER_MINUTE, per_seconds=60.0, name="scim")
-
-# Failed SCIM authentication (401s), keyed on the client ADDRESS: only failures
-# draw on it, so identity providers sharing egress addresses are never limited
-# for their valid tokens, while a caller spraying bogus tokens soon gets 429s.
-SCIM_AUTH_FAILURE_RATE_LIMIT_PER_MINUTE = 30
-
-scim_auth_failure_rate_limiter = _limiter_for(
-    SCIM_AUTH_FAILURE_RATE_LIMIT_PER_MINUTE, per_seconds=60.0, name="scim_auth_failure"
-)
+def reset_rate_limiters() -> None:
+    """Drop the bucket state of every limiter alive, the core's and extensions'. For tests."""
+    for limiter in list(_LIMITERS):
+        limiter.reset()
 
 
 async def retry_after_for_key(limiter: TokenBucketLimiter, key: str) -> int | None:
     """Take a token from ``limiter``'s bucket for ``key``; seconds to wait when it is empty.
 
-    For callers keyed on something other than the client address (a SCIM
-    token). ``None`` when the token was taken or limiting is off.
+    For callers keyed on something other than the client address (the
+    signed-in user, a provisioning token). ``None`` when the token was taken or
+    limiting is off.
     """
     if not settings.rate_limit_enabled or not limiter.enabled:
         return None

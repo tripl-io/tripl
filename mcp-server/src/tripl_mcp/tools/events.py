@@ -160,7 +160,9 @@ def register(mcp: MCPServer) -> None:
             "gets) or 'volume' (busiest-first by ingested volume over the last "
             "24h) or 'health' (least healthy first by the health score, main "
             "plan only) - use 'volume' to triage a large catalog by traffic. "
-            "Returns trimmed items + total; follow up with get_event for full detail. "
+            "Returns trimmed items + total: each row keeps its id, name, 'title' (the "
+            "human label), status, reviewed, tags, open_question_count and "
+            "last_seen_at; follow up with get_event for full detail. "
             "Requires a tk_r_ or tk_w_ key."
         ),
     )(list_events)
@@ -197,7 +199,8 @@ def register(mcp: MCPServer) -> None:
             "'meta_field_definition_id' must come from a listing read with the SAME "
             "branch_id you are posting to — a branch holds its own copies under new "
             "ids, and an id from another branch answers 422. When a scan "
-            "naming rule governs the event type the server derives the name from field "
+            "naming rule governs the event type (its 'event_name_format' in "
+            "list_event_types is set) the server derives the name from field "
             "values and may ignore yours with a warning — adopt the returned name/id. "
             "Put the human-readable label in 'title', never in 'name': 'name' is the "
             "identity a scan matches on. "

@@ -62,6 +62,11 @@ function urlOf(input: RequestInfo | URL): string {
   return typeof input === 'string' ? input : input instanceof URL ? input.toString() : input.url
 }
 
+/** The roster read, `GET /users`, which pages with `?limit=…&offset=…`. */
+function isRoster(url: string): boolean {
+  return url.split('?')[0]!.endsWith('/api/v1/users')
+}
+
 afterEach(() => {
   vi.restoreAllMocks()
 })
@@ -93,7 +98,7 @@ describe('UsersPage', () => {
     // A page that by definition contains at least its reader used to answer a
     // failed fetch with "No users yet." — no error, no retry, nowhere to go.
     vi.spyOn(globalThis, 'fetch').mockImplementation((input: RequestInfo | URL) => {
-      if (urlOf(input).endsWith('/api/v1/users')) {
+      if (isRoster(urlOf(input))) {
         return Promise.resolve(jsonResponse({ detail: 'boom' }, 500))
       }
       return Promise.resolve(jsonResponse([]))
@@ -111,7 +116,7 @@ describe('UsersPage', () => {
     vi.spyOn(globalThis, 'fetch').mockImplementation(
       (input: RequestInfo | URL, init?: RequestInit) => {
         const url = urlOf(input)
-        if (url.endsWith('/api/v1/users')) return Promise.resolve(jsonResponse([]))
+        if (isRoster(url)) return Promise.resolve(jsonResponse([]))
         if (url.endsWith('/api/v1/users/invitations') && !init?.method) {
           return Promise.resolve(jsonResponse([INVITATION]))
         }
@@ -140,7 +145,7 @@ describe('UsersPage', () => {
   it('splits the page into titled settings cards with counts', async () => {
     vi.spyOn(globalThis, 'fetch').mockImplementation((input: RequestInfo | URL) => {
       const url = urlOf(input)
-      if (url.endsWith('/api/v1/users')) {
+      if (isRoster(url)) {
         return Promise.resolve(
           jsonResponse([
             { ...OWNER.user, created_at: '2026-01-02T12:00:00Z' },
@@ -164,12 +169,24 @@ describe('UsersPage', () => {
     expect(screen.getByRole('heading', { name: 'Invite a member' })).toBeInTheDocument()
     expect(await screen.findByRole('heading', { name: 'Pending invitations' })).toBeInTheDocument()
     expect(screen.getByText('1 pending')).toBeInTheDocument()
-    expect(screen.getByRole('heading', { name: 'Members' })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: 'All members' })).toBeInTheDocument()
     expect(await screen.findByText('2 people')).toBeInTheDocument()
     // The page's main action is the primary button, and the
     // instance-registration aside is gone.
     expect(screen.getByRole('button', { name: 'Create invite link' })).toHaveClass('bg-accent-solid')
     expect(screen.queryByText(/self-service registration/)).toBeNull()
+  })
+
+  // The card used to vanish with the last invitation, so after a revoke
+  // nothing said that no link was still out there.
+  it('keeps the Pending invitations card when there are none, and says so', async () => {
+    vi.spyOn(globalThis, 'fetch').mockImplementation(() => Promise.resolve(jsonResponse([])))
+
+    renderUsersPage()
+
+    expect(await screen.findByRole('heading', { name: 'Pending invitations' })).toBeInTheDocument()
+    expect(screen.getByText(/^No pending invitations\./)).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Revoke' })).not.toBeInTheDocument()
   })
 
   it('selects the one-time invite link when the clipboard is unavailable', async () => {

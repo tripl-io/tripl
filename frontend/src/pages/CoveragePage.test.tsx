@@ -1,11 +1,11 @@
-import { render, screen } from '@testing-library/react'
+import { render, screen, within } from '@testing-library/react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { MemoryRouter, Route, Routes } from 'react-router-dom'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { projectsApi } from '@/api/projects'
 import { reconciliationApi } from '@/api/reconciliation'
 import type { DeadEventsResponse } from '@/api/reconciliation'
-import { DEAD_EVENT_DAYS } from '@/lib/coverage'
+import { DEAD_EVENT_DAYS, PLAN_COVERAGE_HELP } from '@/lib/coverage'
 import type { Project, ProjectSummary } from '@/types'
 import CoveragePage from './CoveragePage'
 
@@ -119,8 +119,44 @@ describe('CoveragePage', () => {
       '/p/acme-ios/events?status=draft&status=in_review&status=ready_for_dev&status=deprecated',
     )
     expect(
-      screen.getByText('Not implemented: 568 in review, 1 draft, ready for dev or deprecated.'),
+      // The one left over is named as a group: "1 draft, ready for dev or
+      // deprecated" read as one event holding three statuses.
+      screen.getByText(
+        'Not implemented: 568 in review, 1 in another status (draft, ready for dev or deprecated).',
+      ),
     ).toBeInTheDocument()
+  })
+
+  // The clarifier was a `title` on a wrapper beside an aria-hidden icon: out of
+  // reach of a keyboard or a touch screen.
+  it('explains plan coverage in a tip a keyboard can reach', async () => {
+    vi.spyOn(projectsApi, 'get').mockResolvedValue(project())
+    vi.spyOn(reconciliationApi, 'deadEvents').mockResolvedValue(dead)
+
+    renderPage()
+
+    const tip = await screen.findByRole('button', { name: PLAN_COVERAGE_HELP })
+    expect(tip.closest('dl')).toHaveTextContent('Plan coverage')
+  })
+
+  // The Overview's Plan coverage tile links here: the same figure in the same
+  // colour on both, not amber there and alarm red here.
+  it('colours a low plan coverage as a warning, as the Overview does, and the review queue neutral', async () => {
+    vi.spyOn(projectsApi, 'get').mockResolvedValue(
+      project({
+        event_count: 1000,
+        active_event_count: 1000,
+        implemented_event_count: 588,
+        review_pending_event_count: 6,
+      }),
+    )
+    vi.spyOn(reconciliationApi, 'deadEvents').mockResolvedValue(dead)
+
+    renderPage()
+
+    expect(await screen.findByText('58.8%')).toHaveAttribute('data-tone', 'warning')
+    const review = screen.getByText('In review').closest('dl') as HTMLElement
+    expect(within(review).getByText('6')).not.toHaveAttribute('data-tone')
   })
 
   // The bar's remainder (active − implemented) includes draft/ready-for-dev

@@ -222,11 +222,6 @@ def parse_ref(ref: str) -> tuple[DocLinkKind, str, str | None]:
     return kind, target, qualifier
 
 
-def kind_of_syntax(syntax: str) -> DocLinkKind | None:
-    """``event-type`` -> ``event_type``; None for an unknown prefix."""
-    return _KIND_BY_SYNTAX.get(syntax)
-
-
 @dataclass(frozen=True)
 class LinkRef:
     kind: DocLinkKind

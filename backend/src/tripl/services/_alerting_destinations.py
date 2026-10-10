@@ -78,8 +78,8 @@ async def _assert_public_destination_host(url: str | None, *, field: str) -> Non
     (``alerts_channels._reject_private_target``) as the DNS-rebinding defence.
 
     ``_reject_private_target`` is the same helper, reached the same way, as in
-    ``_alerting_test_send`` — the one place in this package that already had
-    this right. The import is deferred for the reason it is deferred there:
+    the Test button's plain send (``worker.tasks.alerts_plain``). The import is
+    deferred for the reason it is deferred there:
     ``worker.tasks.alerts_channels`` drags in the whole outbound-channel stack
     (urllib, smtplib, ``app_settings_service``), which the request path must not
     pay for at module import.
@@ -97,31 +97,17 @@ async def _assert_public_destination_host(url: str | None, *, field: str) -> Non
         raise HTTPException(status_code=422, detail=str(exc)) from exc
 
 
-async def _refresh_main_search_index(
-    session: AsyncSession, project_id: uuid.UUID, slug: str
-) -> None:
-    """Refresh the search index after an alert-rule mutation.
+async def _reindex_main_branch(session: AsyncSession, project_id: uuid.UUID, slug: str) -> None:
+    """``search_service.reindex_main_branch`` after an alert-rule write.
 
-    Alert rules are global (they reach their project through their destination,
-    not through a branch), so only the MAIN branch index is refreshed eagerly;
-    feature-branch indexes pick the change up on their next rebuild. Same rule
-    metrics, fact tables and scan configs already follow.
-
-    Without this a rule the user just created stayed unfindable in the command
-    palette until some unrelated reindex happened to fire.
-
-    The imports are deferred because the module graph is cyclic here:
-    ``search_service`` imports ``project_service``, which imports
-    ``alerting_service``, which imports this module. Same reason
-    ``plan_branch_merge_service`` defers its own reindex import.
+    Imported late because the module graph is cyclic here: ``search_service``
+    imports ``project_service``, which imports ``alerting_service``, which
+    imports this module. Same reason ``plan_branch_merge_service`` defers its
+    own reindex import.
     """
-    from tripl.services.plan_branch_service import resolve_branch_id
-    from tripl.services.search_service import reindex_project_branch
+    from tripl.services.search_service import reindex_main_branch
 
-    main_branch_id = await resolve_branch_id(session, project_id, None)
-    await reindex_project_branch(
-        session, project_id=project_id, branch_id=main_branch_id, slug=slug
-    )
+    await reindex_main_branch(session, project_id, slug=slug)
 
 
 def _destination_query(project_id: uuid.UUID) -> Select[AlertDestination]:
@@ -1098,7 +1084,7 @@ async def delete_destination(
     # destination owned with it — and each of those was an indexed document.
     # Creating or renaming a destination needs no such refresh: no document kind
     # carries a destination's own text.
-    await _refresh_main_search_index(session, project.id, slug)
+    await _reindex_main_branch(session, project.id, slug)
     return name
 
 
@@ -1174,7 +1160,7 @@ async def create_rule(
         filters=data.filters,
     )
     await session.commit()
-    await _refresh_main_search_index(session, project.id, slug)
+    await _reindex_main_branch(session, project.id, slug)
     _destination, refreshed_rule = await get_rule(
         session,
         project_id=project.id,
@@ -1327,7 +1313,7 @@ async def update_rule(
         )
 
     await session.commit()
-    await _refresh_main_search_index(session, project.id, slug)
+    await _reindex_main_branch(session, project.id, slug)
     _destination, refreshed_rule = await get_rule(
         session,
         project_id=project.id,
@@ -1365,5 +1351,5 @@ async def delete_rule(
     await clear_rule_states(session, [rule.id])
     await session.delete(rule)
     await session.commit()
-    await _refresh_main_search_index(session, project.id, slug)
+    await _reindex_main_branch(session, project.id, slug)
     return name

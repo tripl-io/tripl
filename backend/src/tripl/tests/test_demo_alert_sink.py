@@ -32,11 +32,7 @@ from tripl.models.scan_config import ScanConfig
 from tripl.services import alerting_service
 from tripl.services.demo_service import create_demo_project
 from tripl.tests.conftest import TestSessionLocal
-
-# Import the ``metrics`` package (not ``tasks.alerts`` directly) so the celery
-# task graph initialises in the right order — importing ``tasks.alerts`` first
-# triggers a circular import via celery_app -> tasks.metrics -> tasks.alerts.
-from tripl.worker.tasks import metrics as alerts_task
+from tripl.worker.tasks import alerts as alerts_task
 
 
 class NetworkAccessError(RuntimeError):
@@ -115,7 +111,7 @@ def _seed_demo_sink_delivery(
         id=uuid.uuid4(),
         project_id=project.id,
         type=destination_type,
-        name="Local demo sink (no external delivery)",
+        name="Local demo sink",
         enabled=True,
         webhook_url_encrypted=encrypt_value(webhook_url) if webhook_url else None,
     )

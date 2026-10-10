@@ -254,14 +254,14 @@ export function aggregateMetricPoints(
       // against a full-count aggregate produces an expected ~1/N of the count
       // and a nonsensical tooltip, so drop expected/stddev instead of
       // reporting a corrupt one.
-      const hasFullExpected = bucketPoints.every(point => point.expected_count !== null)
+      const hasFullExpected = bucketPoints.every(point => point.expected_count != null)
       const expectedCount = hasFullExpected
         ? bucketPoints.reduce((sum, point) => sum + (point.expected_count ?? 0), 0)
         : null
       // Buckets are treated as independent samples, so variance adds —
       // stddev for the aggregate is sqrt(Σ σᵢ²). Null unless every source
       // bucket carried a stddev.
-      const hasFullStddev = bucketPoints.every(point => point.stddev !== null)
+      const hasFullStddev = bucketPoints.every(point => point.stddev != null)
       const stddev = hasFullStddev
         ? Math.sqrt(
             bucketPoints.reduce((sum, point) => {

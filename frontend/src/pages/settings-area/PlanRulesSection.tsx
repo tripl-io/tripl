@@ -73,7 +73,7 @@ export default function PlanRulesSection({ slug }: { slug?: string } = {}) {
                   <Chip tone="accent" size="sm">
                     Enterprise
                   </Chip>
-                  <span>Organization rules are part of Tripl Enterprise.</span>
+                  <span>Organization rules are part of tripl Enterprise.</span>
                 </p>
                 <p>
                   This instance runs the Community edition, which keeps the per-project gates above.

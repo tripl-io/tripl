@@ -11,10 +11,6 @@ from tripl.models.domain_enums import AlertInboxStatus
 from tripl.models.enum_types import db_enum
 
 ALERT_GROUP_STATUS_OPEN = AlertInboxStatus.open.value
-ALERT_GROUP_STATUS_ACKNOWLEDGED = AlertInboxStatus.acknowledged.value
-ALERT_GROUP_STATUS_RESOLVED = AlertInboxStatus.resolved.value
-ALERT_GROUP_STATUS_MUTED = AlertInboxStatus.muted.value
-ALERT_GROUP_STATUS_FALSE_POSITIVE = AlertInboxStatus.false_positive.value
 
 
 class AlertCorrelationState(UUIDMixin, TimestampMixin, Base):

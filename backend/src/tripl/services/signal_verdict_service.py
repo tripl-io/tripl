@@ -35,6 +35,7 @@ from datetime import datetime
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from tripl.core.bucketing import to_utc
 from tripl.models.chart_annotation import ChartAnnotation
 from tripl.models.domain_enums import (
     MetricScopeType,
@@ -514,9 +515,7 @@ def _stamp_points[P: (EventMetricPoint, MetricSeriesPoint)](
         return points
     out: list[P] = []
     for point in points:
-        info = (
-            verdicts.get(signal_triage_service.as_utc(point.bucket)) if point.is_anomaly else None
-        )
+        info = verdicts.get(to_utc(point.bucket)) if point.is_anomaly else None
         out.append(point if info is None else point.model_copy(update={"verdict": info}))
     return out
 

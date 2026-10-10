@@ -1,6 +1,7 @@
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { afterEach, describe, expect, it, vi } from 'vitest'
+import { authApi } from '@/api/auth'
 import { serviceSettingsApi } from '@/api/serviceSettings'
 import { AuthContext, type AuthContextValue } from '@/components/auth-context'
 import type { ServiceSettings } from '@/types'
@@ -102,6 +103,8 @@ const SETTINGS = {
     search_embedding_base_url: 'https://api.openai.com/v1',
   },
   system: {
+    version: '0.0.0+test',
+    edition: 'community',
     debug: false,
     database_url_configured: true,
     sync_database_url_configured: true,
@@ -117,11 +120,17 @@ const SETTINGS = {
   sources: OVERRIDDEN_SOURCES,
 } as ServiceSettings
 
+/** Security & access reads the sign-in status probe for its Instance sign-in card. */
+function stubAuthStatus() {
+  vi.spyOn(authApi, 'status').mockResolvedValue({ has_users: true, registration_enabled: true })
+}
+
 function renderSection(
   section: 'ai' | 'security' | 'storage' | 'email',
   sources: ServiceSettings['sources'] = OVERRIDDEN_SOURCES,
 ) {
   vi.spyOn(serviceSettingsApi, 'get').mockResolvedValue({ ...SETTINGS, sources })
+  stubAuthStatus()
   // spyOn hands back the SAME spy for a property already spied, so without this
   // the call history accumulates across tests and "not.toHaveBeenCalled" reads
   // the previous test's reset.
@@ -214,6 +223,7 @@ describe('Instance settings write-through vs the unsaved draft', () => {
    */
   function renderInstanceSettings(section: 'ai' | 'email' | 'security') {
     vi.spyOn(serviceSettingsApi, 'get').mockResolvedValue(SETTINGS)
+    stubAuthStatus()
     const update = vi.spyOn(serviceSettingsApi, 'update').mockResolvedValue(SETTINGS)
     update.mockClear()
     const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
@@ -293,7 +303,7 @@ describe('Instance settings write-through vs the unsaved draft', () => {
     // The confirm enumerates every other consequence; it may not stay silent
     // about the one the user can see on screen.
     expect(await screen.findByRole('alertdialog')).toHaveTextContent(
-      /Changes you made in AI but have not saved are dropped as well/,
+      /Changes you made in AI & search but have not saved are dropped as well/,
     )
   })
 })
@@ -309,14 +319,17 @@ describe('Instance settings reset card', () => {
   it('counts the overrides that exist, not the fields it could reset', async () => {
     renderSection('email', { 'email.smtp_host': 'override', 'email.smtp_port': 'override' })
 
-    expect(await screen.findByText(/Clears the 2 Email overrides/)).toBeInTheDocument()
+    // The section's name is the rail's: the page headed Mail relay used to
+    // offer "Reset Email to defaults".
+    expect(await screen.findByText(/Clears the 2 Mail relay overrides/)).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: 'Reset Mail relay to defaults' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: /Reset to defaults/ })).toBeEnabled()
   })
 
   it('agrees with the badges when a single field is overridden', async () => {
     renderSection('email', { 'email.smtp_host': 'override' })
 
-    expect(await screen.findByText(/Clears the 1 Email override on this instance/)).toBeInTheDocument()
+    expect(await screen.findByText(/Clears the 1 Mail relay override on this instance/)).toBeInTheDocument()
   })
 
   it('offers no reset card at all when nothing in the section is overridden', async () => {
@@ -337,8 +350,8 @@ describe('Instance settings reset card', () => {
   it('does not claim the environment delivered fields it cannot vouch for', async () => {
     renderSection('email', {})
 
-    const legend = await screen.findByText(/Fields marked Override are stored here/)
-    expect(legend).toHaveTextContent(/built-in default where none is set/i)
+    const legend = await screen.findByText(/^Override: saved here\./)
+    expect(legend).toHaveTextContent(/else the built-in default/i)
     expect(screen.queryByText('Env')).toBeNull()
     // A value at its default carries no badge at all.
     expect(screen.queryByText('Default')).toBeNull()
@@ -381,8 +394,8 @@ describe('Instance settings save row', () => {
   it('does not promise an environment fallback for fields that have no property', async () => {
     renderSection('ai')
 
-    const legend = await screen.findByText(/Fields marked Override are stored here/)
-    expect(legend).toHaveTextContent(/built-in default where none is set/i)
+    const legend = await screen.findByText(/^Override: saved here\./)
+    expect(legend).toHaveTextContent(/else the built-in default/i)
   })
 
   it('keeps the sticky note to one line about when saving takes effect', async () => {
@@ -469,7 +482,7 @@ describe('Instance settings numeric fields', () => {
   it('keeps an emptied number empty and blocks Save until it is valid', async () => {
     renderSection('ai')
 
-    const timeout = await screen.findByLabelText('Timeout seconds')
+    const timeout = await screen.findByLabelText('Timeout')
     fireEvent.change(timeout, { target: { value: '' } })
 
     expect(timeout).toHaveValue(null)
@@ -503,9 +516,9 @@ describe('Instance storage backend cards', () => {
     renderSection('storage')
 
     expect(
-      await screen.findByText(/Inactive — the backend above is Local filesystem/),
+      await screen.findByText(/Inactive — photos go to the server's disk/),
     ).toBeInTheDocument()
-    expect(screen.queryByText(/Inactive — the backend above is Google Cloud Storage/)).toBeNull()
+    expect(screen.queryByText(/Inactive — photos go to the Google Cloud Storage bucket/)).toBeNull()
   })
 })
 
@@ -552,7 +565,7 @@ describe('Instance settings follow-ups', () => {
 
     fireEvent.change(await screen.findByLabelText('Ask prompt'), { target: { value: 'Be brief.' } })
 
-    expect(screen.getByLabelText('Timeout seconds')).not.toHaveAttribute('aria-invalid')
+    expect(screen.getByLabelText('Timeout')).not.toHaveAttribute('aria-invalid')
     expect(screen.getByRole('button', { name: /Save changes/ })).toBeEnabled()
   })
 })

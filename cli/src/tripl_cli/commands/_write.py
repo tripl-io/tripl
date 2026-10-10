@@ -1,9 +1,9 @@
-"""The write-safety rules, in one place, for the CLI's first mutating commands.
+"""The write-safety rules and the write output, in one place, for every mutating command.
 
 ``doctor``, ``status`` and ``watch`` are all read-only and a ``tk_r_`` key
 suffices for every one of them. ``scans run``, ``scans cancel``,
-``drifts dismiss`` and ``drifts reopen`` change the instance, which is a new
-category and needs rules rather than habits:
+``drifts dismiss``, ``drifts reopen``, ``annotate`` and ``docs push`` change the
+instance, which is a different category and needs rules rather than habits:
 
 * THE SERVER IS THE AUTHORITY ON SCOPE. The ``tk_r_``/``tk_w_`` prefix is derived
   in ``api_key_service.py`` from the scope's first letter and says NOTHING about
@@ -19,22 +19,28 @@ category and needs rules rather than habits:
   put prose inside the ``--json`` document contract.
 * DECLINING EXITS 1. A script must never be able to read "the operator said no"
   as "the mutation happened".
+* ONE OUTPUT SHAPE. ``emit_mutation`` prints every write's header and summary
+  and its single ``--json`` document, so the stream rule cannot differ by verb.
 """
 
 from __future__ import annotations
 
 import argparse
+import json
 import sys
 from typing import Any
 
 from tripl_cli.api.request import ApiRequest
+from tripl_cli.config import Config
 from tripl_cli.errors import TriplConfigError, TriplError
-from tripl_cli.model import JsonDict
+from tripl_cli.model import JsonDict, MutationOutcome
+from tripl_cli.render import render_header, render_mutation
+from tripl_cli.report import mutation_document
 
-# ``require_single_project`` used to live here. It moved to ``commands`` in
-# four read verbs need it now, and "this command acts on one
-# project" is an argument rule rather than a write-safety one — leaving it here
-# would have had `tripl plan fields` importing the write-safety module.
+# ``require_single_project`` is not here but in ``commands``: read verbs need it
+# too, and "this command acts on one project" is an argument rule rather than a
+# write-safety one. Keeping it here would have had `tripl plan fields` importing
+# the write-safety module.
 
 
 def add_write_flags(parser: argparse.ArgumentParser, *, prompts: bool) -> None:
@@ -108,3 +114,28 @@ def request_document(request: ApiRequest) -> JsonDict:
         "params": params,
         "body": request.json_body,
     }
+
+
+def emit_mutation(
+    outcome: MutationOutcome,
+    *,
+    base_url: str,
+    config: Config,
+    as_json: bool,
+    human: str | None = None,
+) -> None:
+    """The header, the summary, and at most one JSON document. The write-side ``_plan.emit``.
+
+    Under ``--json`` every human line goes to stderr, header included, so stdout
+    carries the mutation document and nothing else. ``human`` replaces the
+    default ``render_mutation`` summary for a verb with more to say: ``docs
+    push`` lists what the import created, updated and deleted.
+    """
+    stream = sys.stderr if as_json else sys.stdout
+    source = config.sources.get("base_url", "unknown")
+    print(render_header(outcome.command, base_url, source), file=stream)
+    print(file=stream)
+    print(render_mutation(outcome) if human is None else human, file=stream)
+    if as_json:
+        json.dump(mutation_document(outcome), sys.stdout)
+        sys.stdout.write("\n")

@@ -3,14 +3,16 @@ import { Mail } from 'lucide-react'
 
 import { Button } from '@/components/ui/button'
 import { getErrorMessage } from '@/lib/utils'
-import type { AlertOwnerNotification, SignalOwnerRef } from '@/types'
+import type { AlertOwnerNotification, MetricScopeType, SignalOwnerRef } from '@/types'
 
-import { notifyOwnersResultSummary, ownersLabel } from './ownerNotifications'
+import { notifyOwnersResultSummary, ownerSourceOf, ownersLabel } from './ownerNotifications'
 
 /**
- * "Owners: @anna, @oleg" and, for an editor, a "Notify owners" button that
- * emails them once, now (F07, #260). Shared by the incident card and the
- * drilldown's Signal card.
+ * "Event type owners: @anna, @oleg" (or a metric's "Owner: @anna") and, for an
+ * editor, a "Notify owners" button that emails them once, now (F07, #260).
+ * Shared by the incident card and the drilldown's Signal card. The line names
+ * whose owners they are because an event's page also shows the event's own
+ * owner, who is not one of them.
  *
  * Renders nothing when the payload names no owners: an unowned type behaves
  * exactly as before, and a server that predates owner routing omits the field.
@@ -20,12 +22,15 @@ import { notifyOwnersResultSummary, ownersLabel } from './ownerNotifications'
  */
 export function OwnersNotify({
   owners,
+  scopeType,
   canNotify,
   notify,
   target,
   className,
 }: {
   owners: readonly SignalOwnerRef[] | null | undefined
+  /** The scope the owners were resolved from: a metric's owner, else event type owners. */
+  scopeType: MetricScopeType
   /** False hides the button (a viewer, or a signal its incident owns). */
   canNotify: boolean
   notify: () => Promise<AlertOwnerNotification[]>
@@ -34,7 +39,7 @@ export function OwnersNotify({
   className?: string
 }) {
   const mutation = useMutation({ mutationFn: notify })
-  const label = ownersLabel(owners)
+  const label = ownersLabel(owners, ownerSourceOf(scopeType))
   if (!label) return null
 
   return (

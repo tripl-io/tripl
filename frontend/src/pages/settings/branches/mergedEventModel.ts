@@ -128,20 +128,3 @@ export function paramsWithTarget(
   }
   return next
 }
-
-const ATTRIBUTE_LABEL: Record<string, string> = {
-  title: 'Title',
-  description: 'Description',
-  status: 'Status',
-  source_name: 'Scan identity',
-  owner_id: 'Owner',
-  reviewed: 'Reviewed',
-  sunset_at: 'Sunset',
-  superseded_by: 'Replaced by',
-  metric_breakdown_columns: 'Metric breakdown',
-  required_presence_threshold: 'Required presence',
-}
-
-export function attributeLabel(key: string): string {
-  return ATTRIBUTE_LABEL[key] ?? key
-}

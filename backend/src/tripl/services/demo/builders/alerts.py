@@ -23,7 +23,7 @@ from __future__ import annotations
 
 import uuid
 from collections.abc import Sequence
-from datetime import UTC, datetime, timedelta
+from datetime import datetime, timedelta
 from statistics import median
 
 from sqlalchemy import select
@@ -31,6 +31,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from tripl.alert_templates import DEMO_SINK_LOCAL_NOTICE
 from tripl.core.adapters.synthetic_traffic import REFERENCE_RELEASE, version_label
+from tripl.core.bucketing import to_utc
 from tripl.models.alert_correlation_state import AlertCorrelationState
 from tripl.models.alert_delivery import AlertDelivery, AlertDeliveryStatus
 from tripl.models.alert_delivery_item import AlertDeliveryItem
@@ -76,7 +77,7 @@ from tripl.services.release_annotations import (
 # a given project id (mirrors dispatch._CORRELATION_NAMESPACE's intent).
 _DEMO_ALERT_NAMESPACE = uuid.uuid5(uuid.NAMESPACE_URL, "tripl-demo-alert-sink")
 
-_DEMO_SINK_NAME = "Local demo sink (no external delivery)"
+_DEMO_SINK_NAME = "Local demo sink"
 _DISABLED_EXTERNAL_NAME = "Slack (disabled — connect a webhook to enable)"
 _FIRING_RULE_NAME = "Spike & drift watch (demo)"
 _HEALTHY_RULE_NAME = "Weekly release health (quiet)"
@@ -684,7 +685,7 @@ async def _build_firings(
         #
         # SQLite drops tz on round-trip while freshly-built rows stay tz-aware;
         # normalise so every firing bucket is comparable (max/last_seen_at).
-        bucket = anomaly.bucket if anomaly.bucket.tzinfo else anomaly.bucket.replace(tzinfo=UTC)
+        bucket = to_utc(anomaly.bucket)
         firings.append(
             SimulatedRuleFiring.from_candidate(
                 anomaly,

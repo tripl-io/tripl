@@ -10,6 +10,7 @@ import { Checkbox } from '@/components/ui/checkbox'
 import {
   Dialog,
   DialogBody,
+  DialogClose,
   DialogContent,
   DialogDescription,
   DialogFooter,
@@ -19,6 +20,8 @@ import {
 import { IconButton } from '@/components/ui/icon-button'
 import { Input } from '@/components/ui/input'
 import { SegmentedControl } from '@/components/ui/segmented-control'
+import { useDialogDirty } from '@/components/ui/dialog-guard'
+import { useDirtySinceOpen } from '@/hooks/useUnsavedChangesGuard'
 import { getErrorMessage } from '@/lib/utils'
 import type {
   DocPermission,
@@ -28,6 +31,7 @@ import type {
   DocVisibility,
 } from '@/types/docs'
 import { useDocSharing, useUpdateDocSharing, type DocSharingTarget } from './useDocs'
+import { countOf } from '@/lib/plural'
 
 /** How many people and groups the "Add" list offers at once. */
 const MAX_CANDIDATES = 8
@@ -160,6 +164,10 @@ function SharingForm({
   const [error, setError] = useState<string | null>(null)
   const update = useUpdateDocSharing(slug)
   const canManage = initial.can_manage ?? canManageGuess
+  // People picked one by one are work: Escape, an outside click or Cancel asks
+  // before dropping a change that was not saved.
+  const dirty = useDirtySinceOpen(canManage, { inherited, visibility, shares })
+  useDialogDirty(dirty)
   const locked = !canManage || inherited
   const everyone = target.scope === 'organization' ? `Everyone in ${organizationName}` : 'Everyone in this project'
 
@@ -295,9 +303,9 @@ function SharingForm({
         )}
       </DialogBody>
       <DialogFooter>
-        <Button variant="outline" onClick={onClose}>
-          {canManage ? 'Cancel' : 'Done'}
-        </Button>
+        <DialogClose asChild>
+          <Button variant="outline">{canManage ? 'Cancel' : 'Done'}</Button>
+        </DialogClose>
         {canManage && (
           <Button onClick={() => void onSave()} disabled={update.isPending}>
             {update.isPending && <Loader2 className="animate-spin" aria-hidden />}
@@ -329,8 +337,8 @@ function AccessSummary({
     const people = shares.filter(share => share.principal_type === 'user').length
     const groups = shares.length - people
     const parts = [
-      people > 0 ? `${people} ${people === 1 ? 'person' : 'people'}` : null,
-      groups > 0 ? `${groups} ${groups === 1 ? 'group' : 'groups'}` : null,
+      people > 0 ? countOf(people, 'person', 'people') : null,
+      groups > 0 ? countOf(groups, 'group', 'groups') : null,
     ].filter(Boolean)
     text = parts.length > 0 ? `The author and ${parts.join(' and ')} can read ${subject}.` : `Only the author can read ${subject} until you add someone.`
   } else {

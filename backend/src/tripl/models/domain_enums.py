@@ -3,6 +3,11 @@ from __future__ import annotations
 import enum
 
 
+def enum_text(value: object) -> str:
+    """The stored text of an enum column value, whether it is read back as a member or a string."""
+    return str(getattr(value, "value", value))
+
+
 class FieldDefinitionType(enum.StrEnum):
     string = "string"
     number = "number"

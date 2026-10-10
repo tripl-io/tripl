@@ -1,8 +1,8 @@
 import { REQUIRED_MESSAGE } from '@/components/forms/validation'
+import type { SplitFieldErrors } from '@/lib/apiFieldErrors'
 
 import type { DestinationFormState } from './constants'
 import { DESTINATION_FIELD_LABELS } from './destinationForm'
-import type { SplitFieldErrors } from './fieldErrors'
 
 type FieldKey = keyof DestinationFormState
 

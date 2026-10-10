@@ -15,7 +15,7 @@ If you cannot use GitHub, write to security@tripl.io.
 Include in the report:
 
 - the version, which is the image tag or the commit;
-- how Tripl is deployed;
+- how tripl is deployed;
 - the steps to reproduce the problem;
 - what an attacker gains.
 

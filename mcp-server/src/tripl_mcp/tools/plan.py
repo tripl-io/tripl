@@ -142,8 +142,10 @@ def register(mcp: MCPServer) -> None:
             "List the project's event types (schemas events belong to) with a "
             "field_count each — field definitions are NOT embedded; call "
             "get_event_type_fields for one type's fields. Use before creating events "
-            "to pick the right event_type_id. Pass branch_id to read a plan branch "
-            "instead of main. Requires a tk_r_ or tk_w_ key."
+            "to pick the right event_type_id. 'event_name_format', when set, is the "
+            "scan naming rule that derives an event's name from its field values, "
+            "so the server may replace the name you send. Pass branch_id to read a "
+            "plan branch instead of main. Requires a tk_r_ or tk_w_ key."
         ),
     )(list_event_types)
     mcp.tool(
@@ -152,8 +154,10 @@ def register(mcp: MCPServer) -> None:
         description=(
             "Fetch one event type merged with its field definitions (name, "
             "display_name, field_type, is_required, enum_options, sensitivity) under "
-            "a 'fields' key. Consult this before writing field_values so payloads "
-            "validate. Pass branch_id to read a plan branch instead of main. "
+            "a 'fields' key, and its 'event_name_format' (the naming rule that "
+            "derives an event's name from these fields, when set). Consult this "
+            "before writing field_values so payloads validate. Pass branch_id to "
+            "read a plan branch instead of main. "
             "Requires a tk_r_ or tk_w_ key."
         ),
     )(get_event_type_fields)

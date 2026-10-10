@@ -62,7 +62,7 @@ from tripl.core.adapters.measure_validator import (
 from tripl.core.bucketing import floor_to_bucket, to_utc
 from tripl.core.intervals import get_interval
 from tripl.models.data_source import DataSource
-from tripl.models.domain_enums import MetricComposition, MetricKind
+from tripl.models.domain_enums import MetricComposition, MetricKind, enum_text
 from tripl.models.event_metric import EventMetric
 from tripl.models.fact_table import FactTable
 from tripl.models.metric_definition import MetricDefinition
@@ -81,9 +81,16 @@ from tripl.schemas.metric_definition import (
 )
 from tripl.services.fact_table_service import get_fact_table
 from tripl.services.project_lookup import resolve_project_id
+from tripl.services.warehouse_failure import (
+    FailureKind,
+    probe_failure_kind,
+    statement_failure_kind,
+)
 
 if TYPE_CHECKING:
-    # Type-only: the worker package stays out of this module's import graph.
+    # Type-only: the worker package stays out of this module's import graph,
+    # and the adapter base is only named in annotations.
+    from tripl.core.adapters.base import BaseAdapter
     from tripl.worker.tasks.metrics._fact_conditions import _FactOperand
 
 logger = logging.getLogger(__name__)
@@ -124,30 +131,62 @@ MAX_SAVED_FACT_FILTER_CHARS = 32768
 # kilobyte-long dump never reaches the client (full context stays in logs).
 _ERROR_MESSAGE_MAX_CHARS = 500
 
-# Driver strings that mean the statement never ran: we could not reach or could
-# not authenticate against the warehouse. Those messages routinely carry the
-# host, the port and the user (that is exactly why
-# ``datasource_service._friendly_test_error`` masks them), so they are replaced
-# wholesale rather than echoed. Deliberately narrow — bare "connection", "host",
-# "port" or "permission" appear in legitimate SQL diagnostics ("permission denied
-# for table orders") and masking those would destroy the actionability that is
-# the entire point of a dry run.
-_UNREACHABLE_HINTS: tuple[str, ...] = (
-    "getaddrinfo",
-    "name or service not known",
-    "connection refused",
-    "could not connect",
-    "connection reset",
-    "network is unreachable",
-)
-_AUTH_HINTS: tuple[str, ...] = (
-    "authentication failed",
-    "password authentication",
-    "access denied",
-    "invalid credentials",
-    "invalid_grant",
-)
-_TIMEOUT_HINTS: tuple[str, ...] = ("timed out", "timeout")
+# What a dry run says for each kind of warehouse failure it must not quote
+# (``services.warehouse_failure``): the driver's own text names the host, the
+# port and the user, which an editor may not see.
+_FAILURE_MESSAGES: dict[FailureKind, str] = {
+    "auth": "The data source rejected the credentials — check its connection settings.",
+    "timeout": "The data source did not respond in time.",
+    "tls": (
+        "The data source's server does not offer TLS, and its connection requires it — "
+        "check its SSL mode."
+    ),
+    "unreachable": "Could not reach the data source — check its host, port, and network.",
+}
+_CONNECT_FAILED = "Could not connect to the data source — check its connection settings."
+
+
+class _ConnectFailure(Exception):
+    """Opening the warehouse connection failed, so no statement of the user's ran.
+
+    The driver's exception is the ``__cause__``; its text is logged, never shown.
+    """
+
+
+def _connect(ds: DataSource) -> BaseAdapter:
+    """``build_adapter``, with a failure to connect marked as one.
+
+    Most drivers connect while the adapter is built, and their failure text is
+    about the connection, never about the SQL, so none of it is echoed. A
+    ``WarehouseCapabilityError`` is tripl's own sentence and passes through.
+    """
+    from tripl.core.adapters.registry import build_adapter
+
+    try:
+        return build_adapter(ds)
+    except WarehouseCapabilityError:
+        raise
+    except Exception as exc:
+        raise _ConnectFailure from exc
+
+
+def _connect_and_probe(ds: DataSource) -> BaseAdapter:
+    """:func:`_connect`, then the adapter's connection probe, both marked the same way.
+
+    The distinct-user collector probes before it queries. The probe runs no
+    statement of the user's, and a driver that connects lazily reaches the
+    warehouse for the first time there, so its failure is a failure to connect.
+    """
+    adapter = _connect(ds)
+    try:
+        adapter.test_connection()
+    except WarehouseCapabilityError:
+        adapter.close()
+        raise
+    except Exception as exc:
+        adapter.close()
+        raise _ConnectFailure from exc
+    return adapter
 
 
 def _trimmed_error(exc: Exception) -> str:
@@ -167,24 +206,23 @@ def _warehouse_error_message(exc: Exception) -> str:
     * A ``WarehouseCapabilityError`` is a message tripl authored about a
       configuration the operator can act on ("PostgreSQL 13 is too old"). It holds
       no host, port or credential — surfaced verbatim (see ``core/adapters/errors``).
-    * A connection / auth / timeout failure is a DRIVER string that routinely names
-      the host, the port and the user. It is replaced with a generic sentence, the
-      same rule ``datasource_service._friendly_test_error`` enforces; the full text
-      stays in the server log.
-    * Anything else is the ENGINE's own diagnosis of the user's SQL ("Unrecognized
-      name: amont at [1:8]") — the whole reason to execute a dry run — and is
-      surfaced trimmed. It names the user's query, not our infrastructure.
+    * A failure to connect (``_ConnectFailure``) is never echoed: nothing of the
+      user's ran, so its text can only be about the connection. It is named by
+      kind, the reading ``datasource_service._friendly_test_error`` gives a
+      connection probe; the full text stays in the server log.
+    * A failure while the statement ran is the ENGINE's own diagnosis of the
+      user's SQL ("Unrecognized name: amont at [1:8]") — the whole reason to
+      execute a dry run — and is surfaced trimmed, unless it reads as a sign-in,
+      timeout or connection failure: a driver that connects on its first query
+      raises those here too.
     """
     if isinstance(exc, WarehouseCapabilityError):
         return _trimmed_error(exc)
-    lowered = str(exc).lower()
-    if any(hint in lowered for hint in _TIMEOUT_HINTS):
-        return "The data source did not respond in time."
-    if any(hint in lowered for hint in _UNREACHABLE_HINTS):
-        return "Could not reach the data source — check its host, port, and network."
-    if any(hint in lowered for hint in _AUTH_HINTS):
-        return "The data source rejected the credentials — check its connection settings."
-    return _trimmed_error(exc)
+    if isinstance(exc, _ConnectFailure):
+        kind = probe_failure_kind(exc.__cause__ or exc)
+        return _CONNECT_FAILED if kind is None else _FAILURE_MESSAGES[kind]
+    kind = statement_failure_kind(exc)
+    return _trimmed_error(exc) if kind is None else _FAILURE_MESSAGES[kind]
 
 
 def _error_response(message: str, *, columns: list[str] | None = None) -> MetricPreviewResponse:
@@ -219,9 +257,7 @@ def _run_preview_query(
     the sync warehouse driver never blocks the event loop. ``build_adapter``
     applies the data source's ``timeout_seconds`` to the connect/query budget.
     """
-    from tripl.core.adapters.registry import build_adapter
-
-    adapter = build_adapter(ds)
+    adapter = _connect(ds)
     try:
         return adapter.get_preview_rows(
             sql,
@@ -665,12 +701,11 @@ def _run_fact_series(
     measure and condition columns are checked against what the warehouse
     returns today rather than what was recorded when the table was saved.
     """
-    from tripl.core.adapters.registry import build_adapter
     from tripl.worker.tasks.metrics.metric_collect import _aggregate_fact_window
 
     series: list[dict[datetime, float]] = []
     for operand, fact_table, ds, dialect in targets:
-        adapter = build_adapter(ds)
+        adapter = _connect(ds)
         try:
             allowed_columns = {column.name for column in adapter.get_columns(fact_table.sql)}
             values, _base_query, _measure = _aggregate_fact_window(
@@ -842,6 +877,7 @@ def _run_distinct_user_series(
         user_id_column=user_id_column,
         time_from=time_from,
         time_to=time_to,
+        connect=_connect_and_probe,
     )
 
 
@@ -897,7 +933,7 @@ async def _preview_event_composition_series(
     scan_config = await session.get(ScanConfig, scan_config_id)
     if scan_config is None or scan_config.interval is None:  # pragma: no cover - joined above
         return _error_response("The scan these counts came from no longer exists.")
-    interval_code = str(getattr(scan_config.interval, "value", scan_config.interval))
+    interval_code = enum_text(scan_config.interval)
     delta = get_interval(interval_code).delta
     floor = head - delta * (PREVIEW_WINDOW_BUCKETS - 1)
 
@@ -1054,12 +1090,11 @@ async def get_saved_fact_metric_sql(
                         )
                     raw_operands.append(raw)
             elif definition.fact_table_id is not None and definition.aggregation is not None:
-                aggregation = getattr(definition.aggregation, "value", definition.aggregation)
                 raw_operands.append(
                     {
                         **config,
                         "fact_table_id": str(definition.fact_table_id),
-                        "aggregation": str(aggregation),
+                        "aggregation": enum_text(definition.aggregation),
                     }
                 )
             else:

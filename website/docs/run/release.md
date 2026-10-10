@@ -48,7 +48,7 @@ From a clean `main` that is green on CI:
 bin/release.sh patch     # 0.1.0 -> 0.1.1   (bug fixes)
 bin/release.sh minor     # 0.1.0 -> 0.2.0   (features, back-compatible)
 bin/release.sh major     # 0.1.0 -> 1.0.0   (breaking changes)
-bin/release.sh 1.4.0     # set an explicit version
+bin/release.sh 0.4.0     # set an explicit version
 bin/release.sh -n patch  # dry-run: print the plan, change nothing
 bin/release.sh -y minor  # skip the confirmation prompt
 bin/release.sh --no-wait minor  # do not wait for PyPI; print the mcp-v command
@@ -67,24 +67,33 @@ does:
    its project's own version, and the CI and publish workflows run `uv
    --locked`. `mcp-server` resolves `tripl` from `../cli`, so this needs no
    published CLI.
-4. Commits `chore(release): vX.Y.Z` (skipped if every file is already at the
-   target version — it then just tags the current `HEAD`). An explicit version
-   equal to the service's current one still brings the CLI and the MCP server
-   up to it.
-5. Creates **annotated** tags `vX.Y.Z`, `cli-vX.Y.Z` and `mcp-vX.Y.Z`, and
-   pushes the branch, `vX.Y.Z` and `cli-vX.Y.Z` to `origin`.
-6. Waits (up to 30 minutes) for `tripl` X.Y.Z on PyPI, then pushes
+4. Writes the version into the committed OpenAPI documents,
+   `backend/openapi.json` and `website/openapi/tripl.openapi.json`
+   (`info.version`).
+5. Commits `chore(release): vX.Y.Z` with all of the above (skipped if every
+   file is already at the target version — it then just tags the current
+   `HEAD`). An explicit version equal to the service's current one still brings
+   the CLI and the MCP server up to it.
+6. Creates **annotated** tags `vX.Y.Z`, `cli-vX.Y.Z` and `mcp-vX.Y.Z`, and
+   pushes `main`, `vX.Y.Z` and `cli-vX.Y.Z` to `origin` in **one atomic push**:
+   origin takes all three or none. If anything fails before that push goes
+   through, the local release commit and tags are undone, so running it again
+   starts clean.
+7. Waits (up to 30 minutes) for `tripl` X.Y.Z on PyPI, then pushes
    `mcp-vX.Y.Z`. If it is not there yet, or with `--no-wait`, it prints the
    `git push origin mcp-vX.Y.Z` to run later.
 
 It runs from the repo root regardless of where you invoke it, and requires GNU
-`sed`, `curl` and `uv`.
+`sed`, `curl`, `python3` and `uv`. [`bin/test-release.sh`](https://github.com/tripl-io/tripl/blob/main/bin/test-release.sh)
+tests the script, in CI's `scripts` job.
 
 :::warning Preconditions
-The script **refuses to run** if the working tree is dirty (uncommitted or
-staged changes) or if any of the three tags already exists. It **warns** (but
-does not stop) if you are not on `main`. Unless you pass `-n`/`--dry-run` or
-`-y`/`--yes`, it prompts for confirmation before pushing.
+The script **refuses to run** unless you are on `main`, the working tree is
+clean (no uncommitted or staged changes), and `main` is exactly `origin/main`
+(it fetches first, and refuses a `main` that is ahead or behind). It also
+refuses if any of the three tags already exists, on `origin` or only locally.
+`-n`/`--dry-run` runs the same checks. Unless you pass `-n` or `-y`/`--yes`, it
+prompts for confirmation before pushing.
 :::
 
 Use `-n` first if you are unsure — it prints exactly which version it would set
@@ -94,18 +103,36 @@ and what it would commit, tag, and push, without changing anything.
 
 Pushing a `v*` tag starts the
 [Release workflow](https://github.com/tripl-io/tripl/blob/main/.github/workflows/release.yml),
-which has two jobs:
+which has four jobs:
 
-1. **CI gate (`ci`)** — reuses
+1. **Release tag (`tag`)** — resolves the tag to its commit. It refuses a tag
+   that is not `vX.Y.Z`, and a commit whose `backend/pyproject.toml` does not
+   carry that version (a tag `bin/release.sh` did not make).
+2. **CI gate (`ci`)** — runs the whole
    [`ci.yml`](https://github.com/tripl-io/tripl/blob/main/.github/workflows/ci.yml)
-   via `workflow_call`: the backend job (`ruff` + `mypy` + `pytest`) and the
-   frontend job (`bun run lint` + `bun run build` + `bun run test`). The image job
-   `needs: ci`, so **no image is ever published from red code**.
-2. **Build & push image (`image`)** — after CI is green:
+   via `workflow_call` on that commit (input `ref`): backend, CLI, MCP, the
+   `bin/` scripts, warehouse conformance (PostgreSQL, ClickHouse, the BigQuery
+   emulator, Greenplum, Trino), search relevance, digest concurrency, the
+   Alembic round trip, frontend, end-to-end tests and the image builds. Both
+   image jobs need it, so **no image is ever published from red code**.
+3. **Build & push image (`image`)** — needs `tag` and `ci`:
    - Sets up QEMU + Buildx and logs in to GHCR.
-   - Builds the root `Dockerfile` `runtime` stage for **`linux/amd64` and
-     `linux/arm64`** and pushes to `ghcr.io/<owner>/tripl`.
+   - Builds the tagged commit's root `Dockerfile` `runtime` stage for
+     **`linux/amd64` and `linux/arm64`** and pushes to `ghcr.io/<owner>/tripl`.
    - Creates a **GitHub Release** from the tag with auto-generated notes.
+4. **Build & push the MCP image (`mcp-image`)** — needs `tag` and `ci`, and
+   builds the same commit for both platforms as `ghcr.io/<owner>/tripl-mcp`.
+
+The `sha-<short>` image tag and the `org.opencontainers.image.revision` label
+name the tagged commit, on a tag push and on a manual re-run alike.
+
+The same `v*` tag also starts the five cloud value-conformance workflows
+(`athena-`, `bigquery-`, `databricks-`, `redshift-` and
+`snowflake-value-conformance.yml`). Each is off until its
+`*_VALUE_CONFORMANCE_ENABLED` repository variable is `true`, then needs its
+repository secrets; none of them gates the release. Their results are what
+moves a warehouse from believed to proven in the
+[capability matrix](../develop/warehouse-parity.md#read-this-first-proven-versus-believed).
 
 Authentication uses the built-in `GITHUB_TOKEN` (`packages: write` to push to
 GHCR, `contents: write` to create the Release) — no extra secrets to manage.
@@ -122,9 +149,11 @@ Tags are computed by `docker/metadata-action`:
 | `sha-<short>` | commit | the exact build commit |
 
 :::note arm64 is cross-built via QEMU
-arm64 is emulated on the amd64 runner, so release builds are slower than a
-native build (`bun run build` and `uv sync` especially). This is acceptable for
-tagged releases. For faster builds later, move to a native arm64 runner.
+The SPA is built natively on the runner's own platform (`$BUILDPLATFORM`) and
+copied into both images; only `uv sync` and the runtime stages run emulated for
+arm64. That still makes release builds slower than a native build, which is
+acceptable for tagged releases. For faster builds later, move to a native arm64
+runner.
 :::
 
 :::note First publish is private
@@ -161,7 +190,7 @@ version: `bin/release.sh` bumps and tags them together with the service.
 
 | Distribution | Tag | Workflow | What it is |
 |---|---|---|---|
-| `tripl` | `cli-v*` | [`publish-cli.yml`](https://github.com/tripl-io/tripl/blob/main/.github/workflows/publish-cli.yml) | The [operator CLI](./cli.md) — `install`, `upgrade`, `doctor`, `status`, `watch`, `scans`, `drifts` |
+| `tripl` | `cli-v*` | [`publish-cli.yml`](https://github.com/tripl-io/tripl/blob/main/.github/workflows/publish-cli.yml) | The [operator CLI](./cli.md) — `install`, `upgrade`, diagnostics, plan reads, scans and drifts, `check`, `codegen`, `export` and team notes |
 | `tripl-mcp` | `mcp-v*` | [`publish-mcp.yml`](https://github.com/tripl-io/tripl/blob/main/.github/workflows/publish-mcp.yml) | The [MCP server](../integrate/mcp-server.md) for LLM agents |
 
 The tags stay separate so that a failed publish can be re-run for one artifact
@@ -228,11 +257,14 @@ If a push-triggered build fails transiently (e.g. a flaky network step), you do
 not need to re-tag. The Release workflow also accepts **`workflow_dispatch`**:
 
 1. Open the **Release** workflow in the GitHub Actions tab.
-2. Click **Run workflow** and pass the existing tag, e.g. `v1.4.0`.
+2. Click **Run workflow** and pass the existing tag, e.g. `v0.3.1`.
 
-On `workflow_dispatch` the workflow checks out the requested tag and passes it
-into the metadata action, so `X.Y.Z` / `X.Y` / `latest` still resolve
-correctly. This re-runs the full CI gate before rebuilding.
+On `workflow_dispatch` the `tag` job checks out the given tag and refuses
+anything that is not `vX.Y.Z` or whose `backend/pyproject.toml` does not carry
+that version. The CI gate and both image jobs then run on that tag's commit,
+whichever branch **Use workflow from** names, and the tag goes into the
+metadata action, so `X.Y.Z` / `X.Y` / `latest` still resolve correctly. The
+`sha-<short>` image tag and the revision label name the tagged commit.
 
 ## Post-release smoke check
 
@@ -242,11 +274,11 @@ After the workflow goes green:
 # 1. Watch / confirm the run finished
 gh run watch
 
-# 2. Confirm the Release was cut
-gh release view v1.4.0
+# 2. Confirm the Release was cut (X.Y.Z is the version you released)
+gh release view vX.Y.Z
 
 # 3. Confirm the multi-arch image is published (should list amd64 + arm64)
-docker buildx imagetools inspect ghcr.io/tripl-io/tripl:1.4.0
+docker buildx imagetools inspect ghcr.io/tripl-io/tripl:X.Y.Z
 
 # 4. Confirm the floating tags point at it
 docker buildx imagetools inspect ghcr.io/tripl-io/tripl:latest
@@ -255,15 +287,17 @@ docker buildx imagetools inspect ghcr.io/tripl-io/tripl:latest
 Then do a real pull-and-run on a throwaway host or locally, pinning the new tag:
 
 ```bash
-TRIPL_VERSION=1.4.0 docker compose pull
-TRIPL_VERSION=1.4.0 docker compose up -d
-docker compose ps        # migrate one-shot Completed; app/workers healthy/Up
+TRIPL_VERSION=X.Y.Z docker compose pull
+TRIPL_VERSION=X.Y.Z docker compose up -d
+docker compose ps -a     # migrate and metrics-init one-shots Completed; app/workers healthy/Up
 ```
 
 The stack from [`compose.yaml`](https://github.com/tripl-io/tripl/blob/main/compose.yaml)
 is `postgres`, `rabbitmq`, `redis`, a one-shot `migrate` (`alembic upgrade head`
-before anything starts), the `app` (API + SPA on `:8000`), and
-`celery-worker` / `celery-beat` — all from the same image. The `migrate`
+before anything starts), a one-shot `metrics-init` (clears stale Prometheus
+multiprocess files from the shared volume, then exits like `migrate`), the `app`
+(API + SPA on `:8000`), and `celery-worker` / `celery-beat` — all from the same
+image. The `migrate`
 one-shot must reach **Completed** before `app`/workers start, so a multi-worker
 deploy never races the schema upgrade.
 
@@ -301,7 +335,7 @@ and every approval given after the upgrade, are unaffected.
 The release that records which main row each branch copy came from (branch copy
 origin ids) also fixes the order two **namesakes** — two events of one event
 type sharing a name, or two relations linking the same pair of fields — take in
-the plan snapshot, and the order of two variable overrides on such events.
+the plan snapshot, and the order of two property overrides on such events.
 Before it, namesakes came back in whatever order the database returned them, so their
 place in the approval digest was never fixed; now they are ordered by id. An
 approval recorded **before** that upgrade, on a branch holding namesakes, can
@@ -309,4 +343,14 @@ therefore read as `stale` afterwards even though nobody edited the plan, and the
 branch needs approving again before it will merge. Nothing is lost and no data
 is wrong; a digest cannot be recomputed backwards. Branches without namesakes,
 and every approval given after the upgrade, are unaffected.
+:::
+
+:::note One-off: the CLI and MCP server read `/properties`
+From the release after 0.3.1, `tripl` and `tripl-mcp` call
+`/projects/{slug}/properties…` instead of the deprecated `/variables` alias.
+`tripl plan properties`, and the MCP tools `list_variables` and
+`get_variable_values`, need a server at v0.2.2 or later; against v0.2.1 and
+older they answer `404`. From the same release, a CLI or MCP write that gets a
+`3xx` fails with the redirect target named, instead of being re-sent as a
+`GET`. Both belong in that release's notes.
 :::

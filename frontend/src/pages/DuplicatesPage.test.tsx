@@ -2,9 +2,10 @@ import { act, fireEvent, render, screen, waitFor, within } from '@testing-librar
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { MemoryRouter, Route, Routes } from 'react-router-dom'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import type { DuplicateClustersResponse } from '@/types'
+import type { DuplicateClustersResponse, Project } from '@/types'
 import { duplicatesApi } from '@/api/duplicates'
 import { eventsApi } from '@/api/events'
+import { projectsApi } from '@/api/projects'
 import { AuthContext, type AuthContextValue } from '@/components/auth-context'
 import { BranchContext } from '@/components/branch-context-internal'
 import DuplicatesPage from './DuplicatesPage'
@@ -18,6 +19,11 @@ vi.mock('@/api/duplicates', () => ({
 vi.mock('@/api/events', () => ({ eventsApi: { update: vi.fn() } }))
 vi.mock('@/api/dependencies', () => ({
   dependenciesApi: { impact: vi.fn().mockResolvedValue({ items: [] }), get: vi.fn() },
+}))
+// The page reads the plan's size to tell an empty plan from an all-clear
+// (DuplicatesPage.empty.test.tsx); these tests are about a plan with events.
+vi.mock('@/api/projects', () => ({
+  projectsApi: { get: vi.fn() },
 }))
 vi.mock('sonner', () => ({ toast: { success: vi.fn(), error: vi.fn() } }))
 
@@ -60,6 +66,7 @@ function renderPage(auth: AuthContextValue | null = null) {
 }
 
 beforeEach(() => {
+  vi.mocked(projectsApi.get).mockResolvedValue({ summary: { event_count: 2 } } as Project)
   vi.mocked(duplicatesApi.clusters).mockResolvedValue(PAGE)
   vi.mocked(duplicatesApi.dismiss).mockResolvedValue({
     event_a_id: 'ev-main',

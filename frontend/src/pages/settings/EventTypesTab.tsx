@@ -3,7 +3,6 @@ import { Fragment, useEffect, useId, useRef, useState, type CSSProperties, type 
 import { Link, useNavigate } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import {
-  ArrowLeft,
   ChevronDown,
   ChevronRight,
   ChevronUp,
@@ -41,7 +40,7 @@ import {
 } from '@/components/settings/field-control-id'
 import { Chip } from '@/components/primitives/chip'
 import { PageContainer } from '@/components/primitives/page-container'
-import { PageHeader } from '@/components/primitives/page-header'
+import { PageBackLink, PageHeader } from '@/components/primitives/page-header'
 import { FieldError } from '@/components/forms/FieldError'
 import { SaveBar } from '@/components/forms/SaveBar'
 import { REQUIRED_MESSAGE, attentionSummary, focusFirstInvalid } from '@/components/forms/validation'
@@ -199,7 +198,7 @@ export function EventTypesTab({ slug }: { slug: string }) {
       <PageHeader
         eyebrow="Plan"
         title="Event types"
-        description="Categories that group your events and define their shared schema, ownership and naming. Settings here apply to every event of that type."
+        description="Categories that group your events and define their shared fields, ownership and naming. Settings here apply to every event of that type."
         actions={
           canWrite && (
             <Button size="sm" onClick={() => setCreating(true)}>
@@ -296,8 +295,20 @@ export function EventTypesTab({ slug }: { slug: string }) {
                         >
                           {et.display_name}
                         </Link>
+                        {/* The type's own key, as the detail header shows it. A
+                            naming rule appears only when a scan really names
+                            this type's events: a made-up `name_*` glob read as
+                            a convention no event follows. */}
                         <div className="mono text-caption text-fg-tertiary">
-                          {et.name}_*
+                          {et.name}
+                          {et.event_name_format && (
+                            <>
+                              <span className="font-sans"> · named by </span>
+                              <span title="The scan rule this type's events are named by">
+                                {et.event_name_format}
+                              </span>
+                            </>
+                          )}
                         </div>
                       </div>
                     </div>
@@ -444,7 +455,7 @@ function CreateEventTypeView({ slug, branchId, onDone }: CreateEventTypeViewProp
   return (
     <PageContainer width="narrow" className="space-y-[18px]">
       <PageHeader
-        back={<BackLink label="Event types" onClick={onDone} />}
+        back={<PageBackLink label="Event types" onClick={onDone} />}
         eyebrow="Plan · Event type"
         title="New event type"
       />
@@ -1133,7 +1144,11 @@ function FieldEditPage({ field, pending, error, onCancel, onSubmit }: FieldEditP
       }}
     >
       {unsaved.dialog}
-      <BackLink label="Fields" onClick={cancel} />
+      {/* Back to the type's field list, through the same unsaved-changes
+          check as Cancel: the editor is a section of the page, not a route. */}
+      <div className="mb-3.5 flex">
+        <PageBackLink label="Fields" onClick={cancel} />
+      </div>
       {/* A section of the event type page, under its h1: a heading-size h2,
           not a second 19px page title. */}
       <h2 className="mb-[18px] text-heading font-semibold">
@@ -1658,20 +1673,6 @@ export function SSelect({
         options={options}
       />
     </div>
-  )
-}
-
-function BackLink({ label, onClick }: { label: string; onClick: () => void }) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      className="mb-3.5 inline-flex items-center gap-1 text-caption transition-colors hover:text-[var(--fg)]"
-      style={{ color: 'var(--fg-muted)' }}
-    >
-      <ArrowLeft className="size-3" />
-      {label}
-    </button>
   )
 }
 

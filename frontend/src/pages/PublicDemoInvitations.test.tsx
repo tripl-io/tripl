@@ -61,7 +61,7 @@ describe('public demo invitations', () => {
     const signIn = await screen.findByRole('button', { name: 'Sign in with Google' })
     expect(screen.queryByLabelText('Password')).not.toBeInTheDocument()
     expect(screen.queryByLabelText('Your name')).not.toBeInTheDocument()
-    expect(screen.getByText(/viewer access to the demo projects of this workspace/)).toBeInTheDocument()
+    expect(screen.getByText(/viewer access to the demo projects of this organization/)).toBeInTheDocument()
     fireEvent.click(signIn)
     expect(await screen.findByText('{"from":{"pathname":"/invite/demo-token"}}')).toBeInTheDocument()
   })

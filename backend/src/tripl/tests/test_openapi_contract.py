@@ -92,7 +92,7 @@ def test_branch_override_is_a_declared_parameter() -> None:
 def test_live_schema_carries_no_servers_block(monkeypatch: pytest.MonkeyPatch) -> None:
     """``app.openapi()`` must stay independent of the environment.
 
-    It is what ``bin/sync-api-types.sh`` and ``bin/dump-openapi.sh`` call, with
+    It is what ``bin/sync-api-types.sh`` calls, with
     no database and whatever env the generating machine happens to have, so a
     ``servers`` entry baked in here would make the committed artifact above
     differ between contributors purely by APP_BASE_URL.

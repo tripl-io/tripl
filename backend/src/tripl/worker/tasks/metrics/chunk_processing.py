@@ -53,6 +53,7 @@ from tripl.worker.tasks.metrics.metric_rows import (
     _upsert_shadow_event_candidates,
 )
 from tripl.worker.tasks.metrics.shared_breakdown import TickRows
+from tripl.worker.utils.scan_naming import group_column_index
 
 logger = logging.getLogger(__name__)
 
@@ -272,7 +273,6 @@ def process_chunk(
     gen_results: dict[str, GenerationResult],
     single_result: GenerationResult | None,
     et_by_name: dict[str, EventType],
-    et_col_idx: int | None,
     reg_index: dict[str, int],
     json_index: dict[str, int],
     n_reg: int,
@@ -360,6 +360,8 @@ def process_chunk(
     coverage_agg: dict[datetime, list[int]] = {}
     # (event_type_id | None, event_name) -> [count, first_bucket, last_bucket, samples]
     shadow_agg: dict[tuple[uuid.UUID | None, str], list[object]] = {}
+    # Set only for a grouped scan; a chosen Event type names every row.
+    et_col_idx = group_column_index(config, reg_index)
 
     for row in rows:
         bucket = stored_bucket(row[0])
@@ -377,7 +379,7 @@ def process_chunk(
         coverage_entry[0] += cnt
 
         # Determine event type and get the matching gen result
-        if config.event_type_column and et_col_idx is not None:
+        if et_col_idx is not None:
             et_name = str(data_row[et_col_idx])
             event_type = et_by_name.get(et_name)
             if event_type is None:

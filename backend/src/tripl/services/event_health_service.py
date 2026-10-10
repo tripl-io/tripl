@@ -30,13 +30,14 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from tripl import cache
 from tripl.core.bucketing import to_utc
+from tripl.core.drift_activity import active_drift_clauses, retention_cutoff
 from tripl.core.property_contracts import (
     ListingRow,
     property_contract_expectations,
     typed_properties_by_type,
 )
 from tripl.models.distribution_drift import DistributionDrift
-from tripl.models.domain_enums import DistributionDriftBand
+from tripl.models.domain_enums import DistributionDriftBand, enum_text
 from tripl.models.event import Event, EventStatus
 from tripl.models.event_metric import EventMetric
 from tripl.models.event_type import EventType
@@ -59,7 +60,6 @@ from tripl.schemas.health import (
     ProjectHealthTrendPoint,
 )
 from tripl.services import health_weights as hw
-from tripl.services import schema_drift_service, variable_value_drift_service
 from tripl.services._id_chunks import chunked
 from tripl.services._open_event_signals import open_unverdicted_event_signals
 from tripl.services._open_signals import open_property_drift_counts_by_event
@@ -127,10 +127,6 @@ def _row(values: Sequence[Any]) -> EventHealthRow:
     )
 
 
-def _enum_value(value: object) -> str:
-    return str(getattr(value, "value", value))
-
-
 # --------------------------------------------------------------------------- #
 # Fact loading
 # --------------------------------------------------------------------------- #
@@ -158,7 +154,7 @@ def _contract_expectations(
         expectations = out[event_type_id]
         if is_required:
             expectations.append((name, "required_null_violation"))
-        if _enum_value(field_type) == "enum" and enum_options:
+        if enum_text(field_type) == "enum" and enum_options:
             expectations.append((name, "enum_violation"))
         if contract_regex:
             expectations.append((name, "regex_violation"))
@@ -238,7 +234,7 @@ async def _load_configs(session: AsyncSession, project_id: uuid.UUID) -> list[_C
             id=row[0],
             name=row[1],
             event_type_id=row[2],
-            interval=None if row[3] is None else _enum_value(row[3]),
+            interval=None if row[3] is None else enum_text(row[3]),
             time_column=row[4],
             last_event_at=row[5],
             last_collection_at=row[6],
@@ -295,7 +291,7 @@ async def load_facts(
             )
         )
         for event_id, kind in lifecycle_result.all():
-            lifecycle[event_id].add(_enum_value(kind))
+            lifecycle[event_id].add(enum_text(kind))
 
     expectations = _contract_expectations(
         (
@@ -324,13 +320,13 @@ async def load_facts(
         select(SchemaDrift.event_type_id, SchemaDrift.field_name, SchemaDrift.drift_type)
         .where(
             SchemaDrift.event_type_id.in_(type_ids),
-            SchemaDrift.detected_at >= schema_drift_service.retention_cutoff(now),
-            *schema_drift_service.active_drift_predicates(now),
+            SchemaDrift.detected_at >= retention_cutoff(now),
+            *active_drift_clauses(SchemaDrift, now),
         )
         .group_by(SchemaDrift.event_type_id, SchemaDrift.field_name, SchemaDrift.drift_type)
     )
     for event_type_id, field_name, drift_type in schema_rows.all():
-        active_schema[event_type_id].add((field_name, _enum_value(drift_type)))
+        active_schema[event_type_id].add((field_name, enum_text(drift_type)))
 
     value_drifts: dict[uuid.UUID, int] = {}
     for chunk in chunked(event_ids):
@@ -339,9 +335,8 @@ async def load_facts(
             .where(
                 VariableValueDrift.project_id == project_id,
                 VariableValueDrift.event_id.in_(list(chunk)),
-                VariableValueDrift.detected_at
-                >= variable_value_drift_service.retention_cutoff(now),
-                *variable_value_drift_service.active_drift_predicates(now),
+                VariableValueDrift.detected_at >= retention_cutoff(now),
+                *active_drift_clauses(VariableValueDrift, now),
             )
             .group_by(VariableValueDrift.event_id)
         )
@@ -415,6 +410,7 @@ async def load_facts(
             lifecycle_kinds=frozenset(lifecycle.get(event.id, set())),
             has_description=bool((event.description or "").strip()),
             has_owner=event.owner_id is not None or event.event_type_id in owned_types,
+            owner_from_type=event.owner_id is None and event.event_type_id in owned_types,
             contract_total=len(type_expectations),
             contract_violated=len(violations),
             contract_violations=violations,

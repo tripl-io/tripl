@@ -16,6 +16,7 @@ from html import unescape
 
 from sqlalchemy import and_, func, or_, select
 from sqlalchemy.orm import Session, object_session
+from sqlalchemy.sql.elements import ColumnElement
 
 from tripl.alert_templates import (
     ALERT_MESSAGE_FORMAT_PLAIN,
@@ -61,7 +62,11 @@ from tripl.anomaly_context import (
     SCOPE_PROJECT_TOTAL,
     build_alert_item_context,
 )
+from tripl.core import plan_scope
 from tripl.core.alert_schedule import resolve_timezone
+from tripl.core.bucketing import to_utc
+from tripl.core.dead_events import DEAD_EVENT_DAYS, dead_event_clause
+from tripl.core.drift_activity import active_drift_clauses
 from tripl.models.alert_delivery import AlertDelivery, AlertDeliveryStatus
 from tripl.models.alert_delivery_item import AlertDeliveryItem
 from tripl.models.alert_destination import AlertDestination
@@ -70,9 +75,9 @@ from tripl.models.distribution_drift import DistributionDrift
 from tripl.models.domain_enums import DistributionDriftBand
 from tripl.models.event import Event, EventStatus
 from tripl.models.event_type import EventType
+from tripl.models.lifecycle_finding import LifecycleFinding, LifecycleFindingKind
 from tripl.models.metric_anomaly import MetricAnomaly
 from tripl.models.metric_definition import MetricDefinition
-from tripl.models.plan_branch import BranchKind, PlanBranch
 from tripl.models.project import Project
 from tripl.models.scan_config import ScanConfig
 from tripl.models.schema_drift import SchemaDrift
@@ -84,7 +89,6 @@ from tripl.worker.tasks.alerts_health_digest import _health_digest_lines
 logger = logging.getLogger(__name__)
 
 DIGEST_WINDOW_DAYS = 7
-DEAD_EVENT_DAYS = 30
 
 # How many overdue events the daily sunset alert NAMES. Its "Count:" line is the
 # true total either way, resolved by its own COUNT(*) — the same split
@@ -93,15 +97,13 @@ DEAD_EVENT_DAYS = 30
 #
 # Capped because that message is an outbound payload on a timer: beat's
 # "check-deprecated-sunset-events" entry sends it once a day to every enabled
-# Slack and email destination, and the list only grows — nothing takes an event
-# off it but retiring the event or clearing its sunset_at, since last_seen_at is
-# monotonic (metrics.collect._bump_event_last_seen only ever moves it forward).
+# Slack and email destination, one line per open ``sunset_overdue`` finding.
 # Uncapped, the size of that daily payload is bounded by nothing except how many
 # deprecated events the project has left running.
 #
 # 50 and not the digest's 5, because naming the events is the whole reason this
 # message exists beside the count. 50 and not more, because ``events.name`` is
-# String(500): at 50 lines even all-maximum-width names render under 28k
+# String(500): at 50 lines even all-maximum-width names render under 29k
 # characters and stay inside the 40,000 Slack accepts in a "text" field. Past
 # that ceiling the POST is REJECTED rather than truncated, and
 # check_deprecated_sunset_events turns the raise into a logger.warning and a
@@ -522,14 +524,8 @@ def _digest_window_label(items: list[AlertDeliveryItem], timezone_name: str | No
     if not buckets:
         return ""
     zone = resolve_timezone(timezone_name)
-    first = min(buckets)
-    last = max(buckets)
-    if first.tzinfo is None:
-        first = first.replace(tzinfo=UTC)
-    if last.tzinfo is None:
-        last = last.replace(tzinfo=UTC)
-    start = first.astimezone(zone)
-    end = last.astimezone(zone)
+    start = to_utc(min(buckets)).astimezone(zone)
+    end = to_utc(max(buckets)).astimezone(zone)
     if start.date() == end.date():
         return f"{start:%b %d, %H:%M}–{end:%H:%M} {zone.key}"
     return f"{start:%b %d %H:%M} – {end:%b %d %H:%M} {zone.key}"
@@ -1051,8 +1047,7 @@ def _recent_alert_history(
             continue
         # SQLite hands back naive datetimes where PostgreSQL is tz-aware; the
         # subtraction below would raise on the mix.
-        if sent_at.tzinfo is None:
-            sent_at = sent_at.replace(tzinfo=UTC)
+        sent_at = to_utc(sent_at)
         snapshot = past.payload_snapshot if isinstance(past.payload_snapshot, dict) else {}
         said = str(snapshot.get("ai_explanation") or "").strip()
         scopes = ", ".join(sorted({item.scope_name for item in past.items if item.scope_name})[:4])
@@ -1373,12 +1368,7 @@ def _build_plan_digest_message(
     # Event counts are scoped to the MAIN plan branch, mirroring the API read
     # paths (resolve_branch_id): an open working branch deep-copies every event
     # row, so an unscoped count reports each event once per branch.
-    main_branch_id = session.scalar(
-        select(PlanBranch.id).where(
-            PlanBranch.project_id == project.id,
-            PlanBranch.kind == BranchKind.main.value,
-        )
-    )
+    main_branch_id = plan_scope.main_branch_id(session, project.id)
 
     schema_drifts = session.execute(
         select(func.count(SchemaDrift.id))
@@ -1386,10 +1376,7 @@ def _build_plan_digest_message(
         .where(
             EventType.project_id == project.id,
             SchemaDrift.detected_at >= window_from,
-            SchemaDrift.status.in_(("open", "snoozed")),
-            (SchemaDrift.status != "snoozed")
-            | (SchemaDrift.snoozed_until.is_(None))
-            | (SchemaDrift.snoozed_until <= now),
+            *active_drift_clauses(SchemaDrift, now),
         )
     ).scalar_one()
     # Catalog metric anomalies are project-global: ``metric``-scope rows carry a
@@ -1459,25 +1446,17 @@ def _build_plan_digest_message(
             Event.last_seen_at.is_not(None),
         )
     ).scalar_one()
+    # The same events Govern -> Reconciliation -> Dead events lists
+    # (``core.dead_events``), so the number mailed here is the page's count.
     dead_events = session.execute(
         select(func.count(Event.id)).where(
             Event.project_id == project.id,
             Event.branch_id == main_branch_id,
-            Event.status != "archived",
-            Event.status.in_(["implemented", "live"]),
-            (Event.last_seen_at.is_(None)) | (Event.last_seen_at < dead_cutoff),
+            dead_event_clause(dead_cutoff),
         )
     ).scalar_one()
     sunset_overdue = session.execute(
-        select(func.count(Event.id)).where(
-            Event.project_id == project.id,
-            Event.branch_id == main_branch_id,
-            Event.status == EventStatus.deprecated,
-            Event.sunset_at.is_not(None),
-            Event.sunset_at < now,
-            Event.last_seen_at.is_not(None),
-            Event.last_seen_at > Event.sunset_at,
-        )
+        select(func.count(LifecycleFinding.id)).where(*_sunset_overdue_scope(project.id, now))
     ).scalar_one()
 
     top_rows = session.execute(
@@ -1528,6 +1507,36 @@ def _build_plan_digest_message(
     return "\n".join(lines)
 
 
+def _sunset_overdue_scope(project_id: uuid.UUID, now: datetime) -> tuple[ColumnElement[bool], ...]:
+    """The project's open ``sunset_overdue`` findings, each joined to its event.
+
+    The sunset watch (``tasks.lifecycle``) is the one definition of "a deprecated
+    event still receiving data": past its ``sunset_at``, with volume in the last
+    24 hours. The weekly digest's counter and the daily sunset alert both read
+    its open findings through this, so they agree with each other and with the
+    catalog chip, the health score and the Lifecycle alert family, and an event
+    whose data stops leaves all of them when the next sweep resolves its finding.
+    They used to test ``last_seen_at > sunset_at`` themselves, which can never
+    stop holding (``last_seen_at`` only moves forward), so the alert kept naming
+    an event every day after the rest of the product called it fixed.
+
+    No branch predicate: the sweep only judges MAIN-branch events, so a working
+    branch's copy of an event never has a finding. The event-side terms guard a
+    finding the plan has moved past since the sweep ran (the event retired, its
+    sunset cleared or pushed out): neither message names it, and the next sweep
+    resolves it.
+    """
+    return (
+        LifecycleFinding.project_id == project_id,
+        LifecycleFinding.kind == LifecycleFindingKind.sunset_overdue.value,
+        LifecycleFinding.resolved_at.is_(None),
+        Event.id == LifecycleFinding.event_id,
+        Event.status == EventStatus.deprecated,
+        Event.sunset_at.is_not(None),
+        Event.sunset_at <= now,
+    )
+
+
 def _build_sunset_alert_message(
     session: Session,
     *,
@@ -1537,60 +1546,32 @@ def _build_sunset_alert_message(
     """Return a plaintext alert message when deprecated events are still
     receiving data past their sunset_at, or None when there are none.
 
-    Scoped to the MAIN plan branch, for the same reason and by the same
-    resolution as the event counts in :func:`_build_plan_digest_message` above:
-    an open working branch deep-copies every event row and carries ``status``,
-    ``sunset_at`` and ``last_seen_at`` across unchanged
-    (``plan_branch_service``), so an unscoped query returns one row per branch.
     This message is the digest's "Deprecated events still receiving data" line
-    expanded into named events — the first ``_SUNSET_ALERT_MAX_EVENTS`` of them,
-    see below — and that line is already main-scoped, so without this predicate
-    the pair disagreed about one project: the digest said 1 while the alert said
-    "Count: 2" and listed the same event twice.
-
-    A project with no main branch row resolves no id, the predicate becomes
-    ``branch_id IS NULL``, and ``Event.branch_id`` is NOT NULL — so the alert
-    stays silent instead of listing every branch's copy. That is the right way
-    to fail here: the message exists to be acted on, and one that repeats each
-    event once per open branch is worse than none.
+    expanded into named events, each with its sunset date and the volume the
+    sunset watch measured over the last 24 hours. Both read the same open
+    findings (:func:`_sunset_overdue_scope`), so ``Count:`` always equals the
+    digest's number for the same project.
 
     The named list is capped and ``Count:`` is not. The count is its own
-    COUNT(*) over the same predicates, so it stays the true total and stays
-    equal to the digest's counter however long the list runs; the lines under it
-    are a capped page of what that counted, because this message goes out daily
-    to real destinations and the argument for its cap is with the constant. When
-    the cap bites, the message ends in an "… and N more not shown" tail: a
-    silently shortened list reads exactly like a complete one, and the list IS
-    the work item.
+    COUNT(*) over the same scope, so it stays the true total however long the
+    list runs; the lines under it are a capped page of what that counted,
+    because this message goes out daily to real destinations and the argument
+    for its cap is with the constant. When the cap bites, the message ends in an
+    "… and N more not shown" tail: a silently shortened list reads exactly like a
+    complete one, and the list IS the work item.
     """
-    main_branch_id = session.scalar(
-        select(PlanBranch.id).where(
-            PlanBranch.project_id == project.id,
-            PlanBranch.kind == BranchKind.main.value,
-        )
-    )
-    # Named once and used by both queries below, so the total and the lines
-    # under it cannot come to disagree about what "overdue" means: the equality
-    # the digest is held to is asserted against the COUNT(*), and the rendered
-    # lines have to be a page of exactly what that counted.
-    overdue_scope = (
-        Event.project_id == project.id,
-        Event.branch_id == main_branch_id,
-        Event.status == EventStatus.deprecated,
-        Event.sunset_at.is_not(None),
-        Event.sunset_at < now,
-        Event.last_seen_at.is_not(None),
-        Event.last_seen_at > Event.sunset_at,
-    )
-    total = session.execute(select(func.count(Event.id)).where(*overdue_scope)).scalar_one()
+    overdue_scope = _sunset_overdue_scope(project.id, now)
+    total = session.execute(
+        select(func.count(LifecycleFinding.id)).where(*overdue_scope)
+    ).scalar_one()
 
     if not total:
         return None
 
     overdue_events = session.execute(
-        select(Event.id, Event.name, Event.sunset_at, Event.last_seen_at)
+        select(Event.name, Event.sunset_at, LifecycleFinding.volume_24h)
         .where(*overdue_scope)
-        .order_by(Event.name)
+        .order_by(Event.name, Event.id)
         .limit(_SUNSET_ALERT_MAX_EVENTS)
     ).all()
 
@@ -1599,8 +1580,9 @@ def _build_sunset_alert_message(
         f"Count: {total}",
         "",
     ]
-    for _eid, name, sunset_at, last_seen_at in overdue_events:
-        lines.append(f"- {name} (sunset {sunset_at:%Y-%m-%d}, last seen {last_seen_at:%Y-%m-%d})")
+    for name, sunset_at, volume_24h in overdue_events:
+        received = "" if volume_24h is None else f", {volume_24h:,} events in the last 24 hours"
+        lines.append(f"- {name} (sunset {sunset_at:%Y-%m-%d}{received})")
     not_shown = total - len(overdue_events)
     if not_shown:
         lines.append(

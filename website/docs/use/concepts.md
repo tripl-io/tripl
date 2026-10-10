@@ -38,8 +38,8 @@ A **project** is one tracking plan and everything around it. If your company has
 an iOS app, an Android app, and a website that share the same analytics, that's
 usually one project. If you run two products that have nothing to do with each
 other, that's two projects. Each project has its own plan, scans, metrics, and
-alerts. Users and data-source connections belong to the workspace; an API key
-can still be restricted to one project slug.
+alerts. Users and data-source connections belong to the organization; an API
+key can still be restricted to one project slug.
 
 ---
 
@@ -64,9 +64,10 @@ past their sunset date or whose replacement stays silent.
 
 ### Event type
 
-An **event type** is a folder for related events — a way to keep a catalog of
-hundreds of events organised. For example, a `Commerce` event type might contain
-`cart_opened`, `checkout_started`, and `checkout_completed`.
+An **event type** groups related events and defines their shared fields,
+ownership and naming — a way to keep a catalog of hundreds of events
+organized. For example, a `Commerce` event type might contain `cart_opened`,
+`checkout_started`, and `checkout_completed`.
 
 ### Field
 
@@ -76,9 +77,10 @@ carrying **personal or sensitive data** so everyone knows to handle it carefully
 
 ### Meta field
 
-A **meta field** is data that rides along with *every* event, not just one — the
-app version, the platform, the user's country. You define it once at the project
-level instead of repeating it on every event.
+A **meta field** is a documentation attribute every event can carry, whatever
+its type — the owning team, a Jira ticket, a review date. You define it once at
+the project level (**Plan › Meta fields**) and fill it in per event; the fields
+an event sends in its payload are defined on its event type instead.
 
 ### Property
 
@@ -98,10 +100,10 @@ one a person renamed, edited, documented, or excluded from scans is kept. See
 
 ### Relation
 
-A **relation** records how events connect to each other — for example, that
-`checkout_started` is expected to be followed by `checkout_completed`. It
-captures the structure of a flow, not just the individual events. Relations
-are created, edited in place (**Edit** on a relation's row) and deleted from
+A **relation** declares a join between event types: a field on one holds the
+same value as a field on another (for example `purchase.user_id →
+signup.user_id`), so drift and coverage can follow the join. Relations are
+created, edited in place (**Edit** on a relation's row) and deleted from
 **Plan › Relations**.
 
 ### Metric
@@ -127,6 +129,14 @@ archiving one (or putting it back in draft) stops its collection, closes any ope
 signal on every surface and withdraws it from alerting, while the anomalies it
 already recorded stay on its chart as history. Unlike the rest of the plan,
 metrics are **project-wide and aren't branched**.
+
+### Docs
+
+**Docs** are Markdown notes kept next to the plan for what the plan cannot say:
+warehouse gotchas, query recipes, how a funnel is meant to be read. Each project
+has its own, and the organization's are shared. A note links plan entities
+with `[[event:name]]`, and agents read notes through MCP and the CLI. See
+[Docs catalog](./docs-catalog.md).
 
 ---
 
@@ -227,13 +237,14 @@ A catalog-only scan has no schedule, so it contributes none of this history.
 tripl itself learns what "normal" looks like for every event — including the
 fact that traffic is higher at lunchtime than at 3am, and higher on weekdays
 than weekends — and raises a **signal** when the real numbers stray too far
-from that expectation. Signals come in flavours: a sudden **spike**, an
-unexpected **drop**, or a change in **shape**. This detection is automatic;
-there is nothing to set up.
+from that expectation. Signals come in flavors: a sudden **spike**, an
+unexpected **drop**, or a change in **shape**. This detection is automatic once
+a monitoring scan is collecting metrics; nothing else has to be set up, and
+Detection settings only tune its sensitivity.
 
 A **monitor** is an [alert rule](#alert-rule) attached to a scope, together
 with its live state — firing, warning, or healthy (a monitor can also be
-muted, which is an independent flag). The **Observe → Alerting → Monitors**
+muted, which is an independent flag). The **Observe → Alerting → Rules**
 tab lists them. A monitor doesn't detect anything itself: it decides which
 signals matter and where they go. "Monitor" and "rule" name the same object,
 and they share one screen.
@@ -242,6 +253,13 @@ Detection watches three levels: the **whole project**, an **event type**, or a
 single **event** — and each active **metric** is watched the same way, as its
 own scope. The per-event volume drilldown — chart, forecast, heatmap — is the
 **monitoring detail**, reached from an event or one of its signals.
+
+### Annotations
+
+**Annotations** are markers on monitoring charts — a deploy, a release, a note —
+and **expected windows**: a campaign or a sale during which a spike or a drop is
+expected rather than news. **Observe › Annotations** lists every one in the
+project, newest first.
 
 ### Schema drift
 
@@ -265,7 +283,8 @@ drift when it sees a value outside that set.
 at once:
 
 - **Dead events** — documented in the plan, but no longer arriving in the data.
-- **Undocumented events** — arriving in the data, but missing from the plan.
+- **Shadow events** (undocumented) — arriving in the data, but missing from the
+  plan.
 
 It's the fastest way to find the gaps between what you think you track and what
 you actually track.
@@ -317,8 +336,9 @@ as before — no per-version series, no regressions, nothing extra to see.
 ### Alert destination
 
 An **alert destination** is somewhere a notification can be sent: **Slack**,
-**Telegram**, **email**, a generic **webhook**, **Jira**, or **Linear**. You set
-these up once per project.
+**Microsoft Teams**, **Telegram**, **PagerDuty**, **email**, a generic
+**webhook**, **Jira**, or **Linear**. You set these up once per project; the
+[destination table](./alerting.md#destinations) lists what each one needs.
 
 ### Alert rule
 
@@ -331,7 +351,7 @@ says.
 
 An alert rule and a [monitor](#monitor--signal) are two views of the same
 thing: the rule is the configuration, and the monitor is that rule as you see
-it live on the Monitors page, together with its current state. Detection and
+it live on the Rules tab, together with its current state. Detection and
 rules work in sequence: tripl's automatic detection decides *whether* something
 looks wrong (it raises signals), while an **alert rule** decides *whether a
 signal is worth telling you about* and *where to send it* — it routes signals
@@ -355,17 +375,40 @@ for everything tripl has told the team.
 
 ### Roles
 
-Every workspace member has a **role** that applies across the instance:
+Access is decided at two levels.
 
+Everyone belongs to the **organization** with one role:
+
+- **Owner** — holds every project, and manages people, data sources, scan SQL
+  and the organization's settings.
+- **Admin** — the same as an owner, except that an admin cannot make someone an
+  owner or remove an owner.
+- **Member** — sees only the projects they have access to.
+
+A member's access to each **project** is one of:
+
+- **Editor** — can change the plan and alerts, and run scans.
 - **Viewer** — can look, can't change anything. Pages show a viewer what there
   is to read and leave out the buttons that change it, with one line saying so.
-- **Editor** — can change the plan and alerts, and run scans, in the projects
-  an owner created and in their own. A demo, or a project another editor
-  created, is that person's to change (and an owner's). A project's own name,
-  slug and retention can be changed only by the person who created it or an
-  owner.
-- **Owner** — full control, including data sources, writing and changing scans,
-  managing people, and deleting the project.
+- **None** — the project is hidden from them.
+
+A member starts with the organization's **default access to projects**, which
+can be overridden per project under **Settings → Project → Access**. A
+project's own name, slug and retention can be changed by the person who created
+it, or by an owner or admin.
+
+Separately, the **platform admin** is the operator of the instance: the
+instance-wide settings (security, email, storage, the AI endpoint) are theirs,
+and the flag grants no access to any project. On a self-hosted instance the
+first account to register is both the organization's owner and the platform
+admin. The full table is in the admin guide's
+[Roles & permissions](../administer/admin-guide.md#roles--permissions).
+
+### Duplicates
+
+**Duplicates** (**Govern › Duplicates**) are events that look like the same
+thing under different names. Keep one and retire the others with it as their
+successor. See [Duplicates & naming](./duplicates-and-naming.md).
 
 ### API key
 

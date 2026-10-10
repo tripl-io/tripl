@@ -41,6 +41,8 @@ describe('Organization › Trackers', () => {
     expect(get).toHaveBeenCalledWith('acme')
     expect(screen.getByLabelText('API token')).toHaveValue('')
     expect(screen.getByLabelText('API token')).toHaveAttribute('placeholder', 'Configured — leave blank to keep')
+    // The project tracker dialog names the same Jira field "Account email" too.
+    expect(screen.getByLabelText('Account email')).toBeInTheDocument()
     // Five of the six fields are the organization's; the project key is unset.
     expect(screen.getAllByText('Organization', { selector: '[title]' })).toHaveLength(5)
   })

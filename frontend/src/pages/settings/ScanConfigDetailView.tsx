@@ -13,7 +13,7 @@ import type { DataSource, ScanConfig, ScanJob } from '@/types'
 import { Button } from '@/components/ui/button'
 import { Dot } from '@/components/primitives/dot'
 import { PageContainer } from '@/components/primitives/page-container'
-import { PageHeader } from '@/components/primitives/page-header'
+import { PageBackLink, PageHeader } from '@/components/primitives/page-header'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { ErrorState } from '@/components/error-state'
 import { EntityNotFound } from '@/components/states'
@@ -25,7 +25,6 @@ import { ScanCausalNote } from './scans/ScanCausalNote'
 import { ScanConfigurationTab } from './scans/ScanConfigForm'
 import { ReplayDialog } from './scans/ReplayDialog'
 import { ScanBadges } from './scans/ScanConfigRow'
-import { BackLink } from './scans/scanLayout'
 import { INTERVAL_LABEL, SCAN_STATUS_LABEL, STATUS_META } from './scans/scanLayoutConstants'
 import { deriveScanRunInfo } from './scans/scanUtils'
 import { useMetricsSchedule } from './scans/useMetricsSchedule'
@@ -121,14 +120,18 @@ export function ScanConfigDetail({ slug, scanConfigId }: { slug: string; scanCon
     },
   })
 
-  const goBack = () => navigate(projectPath(currentOrgSlug(), slug, '/scans'))
+  const scansListPath = projectPath(currentOrgSlug(), slug, '/scans')
+  const goBack = () => navigate(scansListPath)
+  // A real link: it can be opened in a new tab, and the unsaved-changes guard
+  // is a router blocker, so it stops this navigation like any other.
+  const backLink = <PageBackLink label="Scans" to={scansListPath} />
 
   // Loading the config list errored — surface it with a retry instead of a
   // blank screen.
   if (scansError) {
     return (
       <div className="space-y-4">
-        <BackLink onClick={goBack} />
+        <div className="flex">{backLink}</div>
         <ErrorState
           compact
           title="Couldn't load this scan"
@@ -146,7 +149,7 @@ export function ScanConfigDetail({ slug, scanConfigId }: { slug: string; scanCon
     return (
       <EntityNotFound
         title="Scan not found"
-        back={{ to: projectPath(currentOrgSlug(), slug, '/scans'), label: 'Back to Scans' }}
+        back={{ to: scansListPath, label: 'Back to Scans' }}
       />
     )
   }
@@ -154,7 +157,7 @@ export function ScanConfigDetail({ slug, scanConfigId }: { slug: string; scanCon
   if (!sc) {
     return (
       <div className="space-y-4" aria-busy="true" aria-label="Loading scan">
-        <BackLink onClick={goBack} />
+        <div className="flex">{backLink}</div>
         <Skeleton className="h-8 w-64" />
         <Skeleton className="h-40 w-full" />
       </div>
@@ -174,7 +177,7 @@ export function ScanConfigDetail({ slug, scanConfigId }: { slug: string; scanCon
       {/* The shared page header: the scan's name is the page's h1 under
           the "Govern · Scan" eyebrow, with its run status beside it. */}
       <PageHeader
-        back={<BackLink onClick={goBack} />}
+        back={backLink}
         eyebrow="Govern · Scan"
         title={sc.name}
         titleAddon={

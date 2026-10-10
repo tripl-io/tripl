@@ -5,17 +5,25 @@ agent-safe toolset over a **running tripl instance**. It is a pure HTTP client
 of the tripl REST API (`/api/v1`) — it imports no backend code and is not
 mounted into the FastAPI app.
 
-- 18 curated tools (15 read, 3 write): plan search, event read/write, event
-  types & fields, variables, branches & diffs, scans, monitors, reconciliation,
-  projects.
-- Read tools carry `readOnlyHint`; write tools require a `tk_w_` API key.
-- Plan-mutating tools **require `branch_id`** so an agent never edits the live
-  main plan by accident. Operators can override with `TRIPL_MCP_ALLOW_MAIN=1`.
+- Curated tools, not a mirror of the API: plan search; events (read, create,
+  update) and their properties; event types and their fields; properties
+  (variables) and their values; branches and branch diffs; scans (list, read,
+  trigger, job status); monitors; reconciliation; projects; and the team's
+  notes (list, read, search, write). Every tool and its arguments:
+  <https://docs.tripl.io/integrate/mcp-server#toolset>.
+- Read tools carry `readOnlyHint`. The write tools — `create_event`,
+  `update_event`, `trigger_scan` and `write_doc` — need a `tk_w_` API key backed
+  by an editor or owner.
+- The two plan-mutating tools, `create_event` and `update_event`, **require
+  `branch_id`** so an agent never edits the live main plan by accident.
+  Operators can override with `TRIPL_MCP_ALLOW_MAIN=1`. The other two writes
+  take effect at once: `write_doc` creates or replaces a note live (notes are
+  not branch-aware), and `trigger_scan` starts a scan job.
 - Branch merge/revert/transition, SSE streams, and photo upload are
-  intentionally not exposed in v1.
+  intentionally not exposed.
 - The HTTP client is **not in this package**. It lives in the `tripl`
-  distribution (`../cli`) and is imported from there, so the CLI and this server
-  share one implementation rather than two that drift.
+  distribution (`cli/` in the repository) and is imported from there, so the
+  CLI and this server share one implementation rather than two that drift.
 
 ## stdio (Claude Code / Claude Desktop)
 
@@ -97,11 +105,36 @@ In this mode the server holds **no credentials**. Every incoming MCP request
 must carry `Authorization: Bearer tk_...`; the header is forwarded verbatim to
 the tripl API and never stored. Requests without it get a clear tool error.
 
+`--host` is the bind address. The default, `127.0.0.1`, is reachable from this
+machine only; `--host 0.0.0.0` listens on every interface, which is what the
+`mcp` service in tripl's `compose.yaml` runs with inside its container.
+
+On a loopback bind the MCP SDK also checks each request's `Host` header against
+the loopback names (`127.0.0.1`, `localhost`, `[::1]`) and answers anything else
+with **`421 Invalid Host header`**. This guards against DNS rebinding, and it is
+what a reverse proxy in front of the server runs into when it forwards the
+public host name — Caddy and Traefik do by default, nginx does with
+`proxy_set_header Host $host` (by default nginx sends the `proxy_pass` address,
+which passes when that is `127.0.0.1:8765`). Name the public host instead of
+turning the check off:
+
+```bash
+TRIPL_BASE_URL=https://tripl.example.com \
+  tripl-mcp --transport streamable-http --port 8765 --allowed-host mcp.example.com
+```
+
+`--allowed-host HOST` (repeatable) accepts that `Host` value exactly, or any
+port of it as `HOST:*`. `--allowed-origin ORIGIN` (repeatable, e.g.
+`https://agents.example.com`) does the same for the `Origin` header, which only
+browser-based clients send. Either flag turns the checks on whatever `--host`
+is, and the loopback names stay accepted — so on `--host 0.0.0.0` every name
+clients use to reach the server must be listed.
+
 ## Environment
 
 | Variable | Meaning |
 |----------|---------|
-| `TRIPL_BASE_URL` | Base URL of the tripl instance (required) |
+| `TRIPL_BASE_URL` | Base URL of the tripl instance (required). Checked at startup the same way `tripl` checks it; a trailing `/api/v1` is dropped. Use the final address, usually `https://`: a write tool that gets a redirect fails rather than being re-sent as a GET |
 | `TRIPL_API_KEY` | API key for stdio mode (required for stdio) |
 | `TRIPL_MCP_ALLOW_MAIN` | Set to `1` to allow plan writes without `branch_id` (edits main) |
 
@@ -130,6 +163,8 @@ docker build -f mcp-server/Dockerfile .   # `docker build ./mcp-server` no longe
 
 ## Docs
 
-Full agent workflow guidance lives in the website docs:
-`website/docs/integrate/agent-api-guide.md` and
-`website/docs/use-cases/llm-agent.md`.
+- Setup, every tool and its arguments:
+  <https://docs.tripl.io/integrate/mcp-server>
+- Agent workflow guidance:
+  <https://docs.tripl.io/integrate/agent-api-guide#read-draft-write> and
+  <https://docs.tripl.io/integrate/searching-from-the-api>

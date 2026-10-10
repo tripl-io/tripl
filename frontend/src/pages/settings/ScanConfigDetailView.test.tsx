@@ -82,6 +82,15 @@ const scanConfig: ScanConfig = {
   app_version_prerelease_pattern: null,
   app_version_active_share_min: null,
   platform_column: null,
+  setup_preset: 'custom',
+  monitoring_enabled: true,
+  freshness: {
+    status: 'unknown',
+    lag_seconds: null,
+    last_event_at: null,
+    last_collection_at: null,
+    expected_by: null,
+  },
   created_at: '2026-01-01T00:00:00Z',
   updated_at: '2026-01-01T00:00:00Z',
 }
@@ -241,6 +250,18 @@ describe('ScanConfigDetail — a scan that does not exist (#237)', () => {
     expect(await screen.findByRole('heading', { name: 'Scan not found' })).toBeInTheDocument()
     expect(screen.getByRole('link', { name: 'Back to Scans' })).toHaveAttribute('href', '/p/demo/scans')
     expect(screen.queryByRole('alert')).toBeNull()
+  })
+})
+
+describe('ScanConfigDetail — the way back', () => {
+  it('heads the page with a real link to Scans, like every other detail page', async () => {
+    // It was a button drawing a "←" glyph, so it could not be opened in a new
+    // tab and looked unlike the back link on the sibling Plan pages.
+    setupFetch()
+    renderDetail(demoProject({ is_demo: false }))
+
+    expect(await screen.findByRole('heading', { level: 1, name: 'Main scan' })).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: 'Scans' })).toHaveAttribute('href', '/p/demo/scans')
   })
 })
 

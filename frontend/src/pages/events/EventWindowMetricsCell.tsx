@@ -3,7 +3,7 @@ import type { EventMetricPoint } from '@/types'
 import { MiniMetricsChart } from '@/components/ui/chart-lazy'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { Sparkline } from '@/components/primitives/sparkline'
-import { formatCompactCount } from './utils'
+import { formatCompactNumber } from '@/lib/format'
 
 export const EventWindowMetricsCell = memo(function EventWindowMetricsCell({
   eventName,
@@ -47,7 +47,7 @@ export const EventWindowMetricsCell = memo(function EventWindowMetricsCell({
   // A no-data cell ("—") and a real zero both recede; only a populated count
   // carries the regular muted weight so live volume stands out.
   const isEmptyOrZero = noData || totalCount === 0
-  const label = noData ? '—' : formatCompactCount(totalCount)
+  const label = noData ? '—' : formatCompactNumber(totalCount)
   const counts = data.map((p) => p.count)
   // The line keeps its series hue whatever the signal: an anomaly is
   // the red dot at `anomalyIdx`, and the tone only colours the count. An unset
@@ -100,7 +100,7 @@ export const EventWindowMetricsCell = memo(function EventWindowMetricsCell({
             <p className="break-words text-body-sm font-medium">{eventName}</p>
             <div className="flex items-center justify-between gap-3 text-caption text-fg-tertiary">
               <span>Last 48 hours</span>
-              <span>{noData ? 'No data' : `${formatCompactCount(totalCount)} events`}</span>
+              <span>{noData ? 'No data' : `${formatCompactNumber(totalCount)} events`}</span>
             </div>
           </div>
           <MiniMetricsChart data={data} color={sparkColor} height={104} label="Event volume trend" />

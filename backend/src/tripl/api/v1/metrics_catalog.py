@@ -29,6 +29,7 @@ from tripl.schemas.metric_series import (
     MetricSeriesResponse,
     MetricVersionSeriesResponse,
 )
+from tripl.schemas.pagination import Offset
 from tripl.schemas.text_filters import FreeTextFilter
 from tripl.services import (
     audit_service,
@@ -85,7 +86,7 @@ async def list_metric_definitions(
     owner_id: uuid.UUID | None = None,
     # Metrics that read this fact table, as either operand (F7).
     fact_table_id: uuid.UUID | None = None,
-    offset: int = Query(0, ge=0),
+    offset: Offset = 0,
     limit: int = Query(200, ge=1, le=1000),
 ) -> MetricDefinitionListResponse:
     items, total = await metric_definition_service.list_metric_definitions_enriched(

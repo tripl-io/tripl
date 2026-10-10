@@ -3,7 +3,12 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import { planBranchesApi } from '@/api/planBranches'
-import type { PlanBranchConflicts, PlanBranchMergeResolution, PlanBranchSummary } from '@/types'
+import type {
+  PlanBranchConflictEntity,
+  PlanBranchConflicts,
+  PlanBranchMergeResolution,
+  PlanBranchSummary,
+} from '@/types'
 import { ConflictsPanel } from './ConflictsPanel'
 import { withChoice } from './conflictModel'
 
@@ -33,11 +38,12 @@ const BRANCH: PlanBranchSummary = {
 }
 
 const CONFLICTS: PlanBranchConflicts = {
-  entities: ['home', 'paywall'].map((name) => ({
+  entities: ['home', 'paywall'].map((name): PlanBranchConflictEntity => ({
     entity_type: 'event',
     name,
     parent: 'screen_view',
     label: name,
+    added_on_both: false,
     fields: [
       { field: 'description', base: 'old', ours: 'main', theirs: 'branch', choice: null, dependents: 0 },
     ],
@@ -158,6 +164,7 @@ const BULK: PlanBranchConflicts = {
       name: 'paywall',
       parent: 'screen_view',
       label: 'paywall',
+      added_on_both: false,
       fields: [
         { field: 'title', base: 'a', ours: 'b', theirs: 'c', choice: null, dependents: 0 },
         { field: 'tags', base: [], ours: ['x'], theirs: ['y'], choice: null, dependents: 0 },
@@ -168,6 +175,7 @@ const BULK: PlanBranchConflicts = {
       name: 'legacy',
       parent: 'screen_view',
       label: 'legacy',
+      added_on_both: false,
       fields: [
         {
           field: '@presence',

@@ -354,6 +354,26 @@ def test_every_shared_endpoint_exists_in_openapi(openapi_paths: dict[str, Any]) 
     )
 
 
+def test_no_endpoint_the_clients_call_is_deprecated(openapi_paths: dict[str, Any]) -> None:
+    """A deprecated route is one the server means to remove.
+
+    Existence alone let the CLI and tripl-mcp sit on the `/variables` alias,
+    which the backend keeps only for clients released before `/properties`.
+    A client that calls the alias keeps it alive, so the published packages
+    must call the canonical route.
+    """
+    deprecated: list[str] = []
+    for section, endpoints in (*SHARED_ENDPOINTS.items(), *DECLARED.items()):
+        for method, path in endpoints:
+            operation = openapi_paths.get(f"{API_PREFIX}{path}", {}).get(method, {})
+            if operation.get("deprecated"):
+                deprecated.append(f"{section}: {method.upper()} {API_PREFIX}{path}")
+    assert not deprecated, (
+        "the CLI or tripl-mcp calls operations backend/openapi.json marks deprecated; "
+        "switch to the canonical route:\n  " + "\n  ".join(sorted(set(deprecated)))
+    )
+
+
 def test_no_rest_path_literal_lives_outside_the_shared_layer() -> None:
     """A module cannot spell a path the shared layer does not declare.
 

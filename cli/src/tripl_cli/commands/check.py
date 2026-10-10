@@ -32,17 +32,21 @@ import argparse
 import json
 import sys
 import time
-from pathlib import Path
 
 import httpx
 
 from tripl_cli.check import payloads as payloads_mod
 from tripl_cli.check import scan as scan_mod
-from tripl_cli.check.config import CheckConfig, find_config, load
 from tripl_cli.check.model import MODE_PAYLOADS, MODE_STATIC, CheckItem, CheckReport, CheckResult
 from tripl_cli.check.render import render_text, sarif_document
 from tripl_cli.check.validate import validate
 from tripl_cli.commands import add_json, add_timeout
+from tripl_cli.commands._check_config import (
+    add_check_config,
+    add_project_flag,
+    check_config_of,
+    project_of,
+)
 from tripl_cli.commands._plan import Branch, add_branch, begin, resolve_branch
 from tripl_cli.config import Config
 from tripl_cli.diagnostics.collect import instance_of
@@ -74,29 +78,14 @@ def register(
             "Exits 1 on any error (or warning, with --strict)."
         ),
     )
-    parser.add_argument(
-        "--check-config",
-        dest="check_config",
-        metavar="PATH",
-        type=Path,
-        help=(
-            "the check config (default: the nearest .tripl/check.yml, .yaml or .json "
-            "at or above the current directory, up to the repository root)"
-        ),
-    )
+    add_check_config(parser)
     parser.add_argument(
         "--payloads",
         dest="payloads",
         metavar="FILE",
         help="validate captured events (NDJSON, or a JSON array; - for stdin) instead of source",
     )
-    parser.add_argument(
-        "--project",
-        dest="project",
-        metavar="SLUG",
-        action="append",
-        help="project slug; overrides `project:` in the check config",
-    )
+    add_project_flag(parser)
     add_branch(parser)
     parser.add_argument(
         "--strict",
@@ -124,32 +113,11 @@ def _format(args: argparse.Namespace) -> str:
     return chosen or FORMAT_TEXT
 
 
-def _check_config(args: argparse.Namespace) -> CheckConfig | None:
-    path: Path | None = args.check_config
-    if path is not None:
-        return load(path)
-    found = find_config(Path.cwd())
-    return load(found) if found is not None else None
-
-
-def _project(args: argparse.Namespace, check_config: CheckConfig | None) -> str:
-    slugs: list[str] = list(args.project or ())
-    if len(slugs) > 1:
-        raise TriplConfigError(
-            f"--project was given {len(slugs)} times; tripl check validates one project."
-        )
-    if slugs:
-        return slugs[0]
-    if check_config is not None and check_config.project:
-        return check_config.project
-    raise TriplConfigError("name the project: `project:` in .tripl/check.yml, or --project <slug>.")
-
-
 def run(args: argparse.Namespace, config: Config) -> int:
     output = _format(args)
     # Connection settings first: "no URL configured" is exit 2 before any file is read.
     context = begin(config)
-    check_config = _check_config(args)
+    check_config = check_config_of(args)
     if args.payloads is None and check_config is None:
         # Before the project question: a missing config is the actual problem.
         raise TriplConfigError(
@@ -157,7 +125,7 @@ def run(args: argparse.Namespace, config: Config) -> int:
             "and the CLI docs), pass --check-config PATH, or validate captured events "
             "with --payloads FILE."
         )
-    project = _project(args, check_config)
+    project = project_of(args, check_config, "check")
     selector: str | None = args.branch
     if selector is None and check_config is not None:
         selector = check_config.branch

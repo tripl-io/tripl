@@ -9,36 +9,12 @@ adapter never loads it.
 from __future__ import annotations
 
 import logging
-import re
 from types import ModuleType
-
-#: The adapters' shared identifier grammar: a column, optionally dot-qualified.
-IDENTIFIER_RE = re.compile(r"^[a-zA-Z_][a-zA-Z0-9_.]*$")
-#: One path segment (or one plain column name).
-IDENTIFIER_PART_RE = re.compile(r"^[a-zA-Z_][a-zA-Z0-9_]*$")
-
-# Cap on how much generated SQL reaches a log line; statements go to DEBUG.
-_SQL_LOG_MAX_CHARS = 300
-
-
-def truncate_sql(sql: str) -> str:
-    return sql[:_SQL_LOG_MAX_CHARS] + ("..." if len(sql) > _SQL_LOG_MAX_CHARS else "")
 
 
 def quote_ident(name: str) -> str:
     """A back-quoted Databricks identifier; a back-quote inside is doubled."""
     return "`" + name.replace("`", "``") + "`"
-
-
-def validate_identifier_column(column: str, allowed_columns: set[str]) -> str:
-    """The column, if it is a plain identifier the introspected result holds."""
-    if not IDENTIFIER_RE.match(column):
-        msg = f"Invalid column name: {column}"
-        raise ValueError(msg)
-    if allowed_columns and column not in allowed_columns:
-        msg = f"Column {column!r} not found in query result"
-        raise ValueError(msg)
-    return column
 
 
 def json_text(expr: str) -> str:

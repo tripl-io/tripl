@@ -450,6 +450,17 @@ describe('SettingsSaveBar', () => {
     expect(screen.getByRole('button', { name: 'Save changes' })).toBeDisabled()
   })
 
+  it('gives disabled Save the same neutral surface as disabled Discard', () => {
+    // Save used to opt out of the shared disabled style, so with nothing to save
+    // it was faint text while Discard beside it still looked like a button.
+    render(<SettingsSaveBar dirty={false} onDiscard={() => {}} onSave={() => {}} />)
+    for (const name of ['Discard', 'Save changes']) {
+      const button = screen.getByRole('button', { name })
+      expect(button).toHaveClass('disabled:bg-[var(--surface-hover)]', 'disabled:text-[var(--fg-muted)]')
+      expect(button).not.toHaveClass('disabled:bg-[var(--bg-sunken)]')
+    }
+  })
+
   it('saves and discards a dirty draft', () => {
     const onSave = vi.fn()
     const onDiscard = vi.fn()

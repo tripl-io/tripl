@@ -4,7 +4,7 @@ import { expect, signInAsOwner, test } from './fixtures'
 
 /**
  * Project settings › Plan rules lists the gates a plan change passes in the
- * project and, in Community, says organization rules are Tripl Enterprise's;
+ * project and, in Community, says organization rules are tripl Enterprise's;
  * Organization settings carry the Plan governance teaser where its page would
  * be. All real stack: nothing here is mocked.
  */
@@ -27,7 +27,7 @@ test('Plan rules lists the project gates and the organization rules are an Enter
   await expect(page.getByText(/needs one of its owners’ approval/)).toBeVisible()
 
   await expect(page.getByRole('heading', { name: 'Across the organization', exact: true })).toBeVisible()
-  await expect(page.getByText('Organization rules are part of Tripl Enterprise.', { exact: true })).toBeVisible()
+  await expect(page.getByText('Organization rules are part of tripl Enterprise.', { exact: true })).toBeVisible()
   await expect(page.getByRole('link', { name: 'Compare editions', exact: true })).toHaveAttribute(
     'href',
     'https://docs.tripl.io/editions',
@@ -41,7 +41,7 @@ test('Plan rules lists the project gates and the organization rules are an Enter
 
   await page.goto('/settings/organization/governance')
   await expect(
-    page.getByRole('heading', { name: 'Plan governance is part of Tripl Enterprise', exact: true }),
+    page.getByRole('heading', { name: 'Plan governance: part of tripl Enterprise', exact: true }),
   ).toBeVisible({ timeout: 60_000 })
   await expect(page.getByRole('link', { name: 'Compare editions', exact: true })).toBeVisible()
 })

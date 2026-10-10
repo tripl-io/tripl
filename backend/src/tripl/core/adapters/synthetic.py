@@ -92,6 +92,7 @@ from tripl.core.adapters.base import (
 )
 from tripl.core.adapters.errors import WarehouseCapabilityError
 from tripl.core.adapters.measure_validator import coerce_aggregation, requires_measure
+from tripl.core.adapters.sql_common import IDENTIFIER_RE
 from tripl.core.adapters.synthetic_traffic import DemoTraffic
 from tripl.core.bucketing import floor_to_bucket, to_utc
 from tripl.json_paths import is_property_field
@@ -114,7 +115,6 @@ SYNTHETIC_HISTORY_DAYS = 30
 # ``test_synthetic_dataset_stays_within_row_budget`` pins the margin.
 SYNTHETIC_MAX_ROWS = 65000
 
-_IDENT_RE = re.compile(r"^[a-zA-Z_][a-zA-Z0-9_.]*$")
 # ``SELECT <projection> FROM ...`` — the only projection shape recognized.
 _SELECT_LIST_RE = re.compile(r"^\s*select\s+(.+?)\s+from\b", re.IGNORECASE | re.DOTALL)
 # Aggregate / join / function tokens that make a query more than a plain table
@@ -180,7 +180,7 @@ _ORDERS_COLUMNS: tuple[tuple[str, str], ...] = (
 _EVENTS_NULLABLE = frozenset({"button_id", "product_id", "amount", "currency"})
 
 # The column allowlist per table, in ONE place. Both gates that hold a caller to
-# a real column answer to it — ``_validate_column`` for the STRUCTURED params and
+# a real column answer to it — ``_validate_table_column`` for the STRUCTURED params and
 # ``_filter_column`` for a name parsed out of a WHERE fragment — so the two
 # cannot drift into disagreeing about what the tables hold.
 _TABLE_COLUMN_NAMES: dict[str, frozenset[str]] = {
@@ -400,7 +400,7 @@ def _projection_columns(base_query: str) -> tuple[str, ...] | None:
     if match is None:
         return None
     items = [item.strip() for item in match.group(1).split(",")]
-    if not items or any(not _IDENT_RE.match(item) for item in items):
+    if not items or any(not IDENTIFIER_RE.match(item) for item in items):
         return None
     return tuple(items)
 
@@ -1353,7 +1353,7 @@ class SyntheticAdapter(BaseAdapter):
         table = self._table_for_query(base_query)
         column_names = [name for name, _ in self._columns_for_query(base_query, table)]
         if time_column is not None:
-            self._validate_column(table, time_column)
+            self._validate_table_column(table, time_column)
         rows = self._windowed_rows(
             self._scan_rows(base_query, table), time_column, time_from, time_to
         )
@@ -1378,9 +1378,9 @@ class SyntheticAdapter(BaseAdapter):
     ) -> tuple[list[str], list[str], list[str], list[tuple[object, ...]]]:
         self._reject_json(json_columns)
         table = self._table_for_query(base_query)
-        reg = [self._validate_column(table, column) for column in regular_columns]
+        reg = [self._validate_table_column(table, column) for column in regular_columns]
         if time_column is not None:
-            self._validate_column(table, time_column)
+            self._validate_table_column(table, time_column)
         windowed = self._windowed_rows(
             self._scan_rows(base_query, table), time_column, time_from, time_to
         )
@@ -1408,8 +1408,8 @@ class SyntheticAdapter(BaseAdapter):
     ) -> tuple[list[str], list[str], list[tuple[object, ...]]]:
         self._reject_json(json_columns)
         table = self._table_for_query(base_query)
-        reg = [self._validate_column(table, column) for column in regular_columns]
-        self._validate_column(table, time_column)
+        reg = [self._validate_table_column(table, column) for column in regular_columns]
+        self._validate_table_column(table, time_column)
         groups = self._bucket_groups(
             base_query, table, time_column, interval, reg, time_from, time_to
         )
@@ -1435,9 +1435,9 @@ class SyntheticAdapter(BaseAdapter):
         self._reject_json(json_columns)
         self._reject_property_breakdowns([breakdown_column])
         table = self._table_for_query(base_query)
-        reg = [self._validate_column(table, column) for column in regular_columns]
-        self._validate_column(table, time_column)
-        breakdown = self._validate_column(table, breakdown_column)
+        reg = [self._validate_table_column(table, column) for column in regular_columns]
+        self._validate_table_column(table, time_column)
+        breakdown = self._validate_table_column(table, breakdown_column)
         windowed = self._windowed_rows(
             self._scan_rows(base_query, table), time_column, time_from, time_to
         )
@@ -1475,9 +1475,9 @@ class SyntheticAdapter(BaseAdapter):
         if not breakdown_columns:
             return [], [], []
         table = self._table_for_query(base_query)
-        reg = [self._validate_column(table, column) for column in regular_columns]
-        self._validate_column(table, time_column)
-        breakdowns = [self._validate_column(table, column) for column in breakdown_columns]
+        reg = [self._validate_table_column(table, column) for column in regular_columns]
+        self._validate_table_column(table, time_column)
+        breakdowns = [self._validate_table_column(table, column) for column in breakdown_columns]
         windowed = self._windowed_rows(
             self._scan_rows(base_query, table), time_column, time_from, time_to
         )
@@ -1516,8 +1516,8 @@ class SyntheticAdapter(BaseAdapter):
     ) -> tuple[list[str], list[str], list[tuple[object, ...]]]:
         self._reject_json(json_columns)
         table = self._table_for_query(base_query)
-        reg = [self._validate_column(table, column) for column in regular_columns]
-        self._validate_column(table, time_column)
+        reg = [self._validate_table_column(table, column) for column in regular_columns]
+        self._validate_table_column(table, time_column)
         measure = self._validate_measure(table, agg_fn, measure_column)
         groups = self._bucket_groups(
             base_query, table, time_column, interval, reg, time_from, time_to
@@ -1545,9 +1545,9 @@ class SyntheticAdapter(BaseAdapter):
     ) -> tuple[list[str], list[str], list[tuple[object, ...]]]:
         self._reject_json(json_columns)
         table = self._table_for_query(base_query)
-        reg = [self._validate_column(table, column) for column in regular_columns]
-        self._validate_column(table, time_column)
-        breakdown = self._validate_column(table, breakdown_column)
+        reg = [self._validate_table_column(table, column) for column in regular_columns]
+        self._validate_table_column(table, time_column)
+        breakdown = self._validate_table_column(table, breakdown_column)
         measure = self._validate_measure(table, agg_fn, measure_column)
         windowed = self._windowed_rows(
             self._scan_rows(base_query, table), time_column, time_from, time_to
@@ -1592,7 +1592,7 @@ class SyntheticAdapter(BaseAdapter):
         limit: int = 100000,
     ) -> tuple[list[str], list[tuple[object, ...]]]:
         table = self._table_for_query(base_query)
-        self._validate_column(table, time_column)
+        self._validate_table_column(table, time_column)
         windowed = self._windowed_rows(
             self._scan_rows(base_query, table), time_column, time_from, time_to
         )
@@ -1620,8 +1620,8 @@ class SyntheticAdapter(BaseAdapter):
         limit: int = 100000,
     ) -> tuple[list[str], list[tuple[object, ...]]]:
         table = self._table_for_query(base_query)
-        self._validate_column(table, time_column)
-        breakdown = self._validate_column(table, breakdown_column)
+        self._validate_table_column(table, time_column)
+        breakdown = self._validate_table_column(table, breakdown_column)
         windowed = self._windowed_rows(
             self._scan_rows(base_query, table), time_column, time_from, time_to
         )
@@ -1712,7 +1712,7 @@ class SyntheticAdapter(BaseAdapter):
             return "orders"
         return "events"
 
-    def _validate_column(self, table: str, name: str) -> str:
+    def _validate_table_column(self, table: str, name: str) -> str:
         """Hold a STRUCTURED column parameter to the table's columns.
 
         Raises ``ValueError``, which is this module's contract for a parameter the
@@ -1721,7 +1721,7 @@ class SyntheticAdapter(BaseAdapter):
         raises the capability error, because there the adapter is declining to
         read something, not rejecting an argument.
         """
-        if not _IDENT_RE.match(name):
+        if not IDENTIFIER_RE.match(name):
             msg = f"Invalid column name: {name!r}"
             raise ValueError(msg)
         if name not in _table_columns(table):
@@ -1733,7 +1733,7 @@ class SyntheticAdapter(BaseAdapter):
         """Resolve a column named inside a WHERE fragment, or refuse.
 
         Strips the dialect identifier quoting the collector emits, then answers to
-        the SAME allowlist ``_validate_column`` uses. Without the membership check
+        the SAME allowlist ``_validate_table_column`` uses. Without the membership check
         an unknown name simply read as ``None`` on every row, so the filter
         matched nothing and the metric collected NULL for every bucket with no
         error anywhere.
@@ -1751,7 +1751,7 @@ class SyntheticAdapter(BaseAdapter):
             if measure_column is None:
                 msg = f"aggregation {coerce_aggregation(agg_fn).value!r} requires a measure column"
                 raise ValueError(msg)
-            return self._validate_column(table, measure_column)
+            return self._validate_table_column(table, measure_column)
         # ``count`` ignores any measure column.
         return None
 
@@ -1764,7 +1764,7 @@ class SyntheticAdapter(BaseAdapter):
         """Refuse a property breakdown (``<json_column>.<path>``, F23 #306) by name.
 
         The SQL adapters extract one from its JSON column; this warehouse has no
-        JSON column to extract it from, and ``_validate_column`` would otherwise
+        JSON column to extract it from, and ``_validate_table_column`` would otherwise
         report the entry as a column missing from the table.
         """
         properties = [column for column in breakdown_columns if is_property_field(column)]
@@ -1951,7 +1951,9 @@ class SyntheticAdapter(BaseAdapter):
     def _spec_value(
         self, table: str, spec: AggregateSpec, members: list[dict[str, object]]
     ) -> object:
-        measure = self._validate_column(table, spec.column) if spec.column is not None else None
+        measure = (
+            self._validate_table_column(table, spec.column) if spec.column is not None else None
+        )
         if spec.filter_sql:
             matching = [
                 row for row in members if self._row_matches_filter(table, row, spec.filter_sql)

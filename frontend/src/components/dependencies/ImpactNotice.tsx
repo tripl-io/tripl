@@ -6,6 +6,7 @@ import { countOf } from '@/lib/plural'
 import type { ImpactChange } from '@/types'
 import { UsedByList } from './UsedByList'
 import { useImpact } from './useDependencies'
+import { formatNumber } from '@/lib/format'
 
 /**
  * What happens to the dependents, so the sentence under "This affects …" is
@@ -67,7 +68,7 @@ export function ImpactNotice({
   const items = query.data.items
   const affected = dedupeEdges(items.flatMap((item) => item.affected))
   const truncatedNote = query.truncated
-    ? ` Checked the first ${countOf(query.checkedCount, 'item', 'items')} of ${changes.length.toLocaleString()}.`
+    ? ` Checked the first ${countOf(query.checkedCount, 'item', 'items')} of ${formatNumber(changes.length)}.`
     : ''
 
   if (affected.length === 0) {

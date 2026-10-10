@@ -2,6 +2,7 @@ import * as React from "react"
 import { createPortal } from "react-dom"
 import { Search, SlidersHorizontal, X } from "lucide-react"
 import { cn } from "@/lib/utils"
+import { useMediaQuery } from "@/hooks/useMediaQuery"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import {
@@ -42,19 +43,6 @@ import {
 /** Below `sm` (640px) the chips fold into the sheet. */
 const COLLAPSE_QUERY = "(max-width: 639.98px)"
 
-function subscribeCollapse(onChange: () => void): () => void {
-  if (typeof window === "undefined" || typeof window.matchMedia !== "function") return () => {}
-  const query = window.matchMedia(COLLAPSE_QUERY)
-  query.addEventListener("change", onChange)
-  return () => query.removeEventListener("change", onChange)
-}
-
-function readCollapse(): boolean {
-  return typeof window !== "undefined" && typeof window.matchMedia === "function"
-    ? window.matchMedia(COLLAPSE_QUERY).matches
-    : false
-}
-
 type FilterBarContextValue = {
   collapsed: boolean
   /** The open sheet's body, where folded items render; null while closed. */
@@ -87,7 +75,7 @@ function FilterBar({
   onClear?: () => void
   className?: string
 }) {
-  const collapsed = React.useSyncExternalStore(subscribeCollapse, readCollapse, () => false)
+  const collapsed = useMediaQuery(COLLAPSE_QUERY)
   const [sheetOpen, setSheetOpen] = React.useState(false)
   // Growing past 640px drops an open sheet, so it does not pop back open the
   // next time the bar folds.
@@ -280,9 +268,10 @@ function FilterSearch({
 export type FilterOption = { value: string; label: string }
 
 /**
- * One filter as a chip that shows its current value: "Status: any" while
+ * One filter as a chip that shows its current value: "Status: Any" while
  * unset (dashed, quiet), "Status: live" once set (solid border, accent tint).
- * `anyValue` is the option that means "no filter" (default "any").
+ * `anyValue` is the option that means "no filter" (default "any"); `anyLabel`
+ * is what the chip says for it, the same on every list page.
  */
 function FilterSelect({
   label,
@@ -290,7 +279,7 @@ function FilterSelect({
   onValueChange,
   options,
   anyValue = "any",
-  anyLabel = "any",
+  anyLabel = "Any",
   className,
 }: {
   label: string

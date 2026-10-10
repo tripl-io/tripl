@@ -29,7 +29,6 @@ import { useDemoScenarioActions } from '@/demo/demoScenarioContext'
 import { SCENARIO_SEEDED } from '@/demo/scenarioModel'
 import { useConfirm } from '@/hooks/useConfirm'
 import { SILENT_ERROR_META, surfaceError } from '@/lib/errorFeedback'
-import { stripValueErrorPrefix } from '@/lib/alertStatus'
 import { formatDateTime, formatRelativeTime } from '@/lib/datetime'
 import { countOf } from '@/lib/plural'
 import { MUTE_PRESETS, muteChoiceName, muteUntilIso, unmuteName } from '@/lib/mutePresets'
@@ -68,6 +67,7 @@ import {
 import { describeDeletionImpact } from './deletionImpact'
 import { RuleEditorDialog } from './RuleEditorDialog'
 import { RuleReplayDialog } from './RuleReplayDialog'
+import { ruleDeliveryHealthLabel } from './ruleDeliveryLabel'
 import { monitorsSummaryKey, projectAnomalySettingsKey } from '@/lib/queryKeys'
 import { currentOrgSlug, projectPath } from '@/lib/navigation'
 
@@ -310,7 +310,7 @@ export function MonitorsSection({
   // fail with nothing on screen: the switch snapped back, the bin did nothing.
   // They say why in a toast that keeps the global backstop's 401
   // silence, request reference and dedupe (`surfaceError`).
-  const reportRowWriteError = (error: unknown) => surfaceError(error, stripValueErrorPrefix)
+  const reportRowWriteError = (error: unknown) => surfaceError(error)
 
   const deleteRuleMut = useMutation({
     meta: SILENT_ERROR_META,
@@ -828,18 +828,7 @@ function RuleRow({
             sent 3h ago`, and it followed the rule off the destination card
             rather than being dropped in the move. */}
         <span className="break-words pl-6 text-caption text-fg-tertiary">
-          {rule.total_deliveries === 0 ? (
-            'Never delivered'
-          ) : (
-            <>
-              {countOf(rule.total_deliveries, 'delivery', 'deliveries')}
-              {' · '}
-              {countOf(rule.incident_count, 'incident', 'incidents')}
-              {' · last '}
-              {formatRelativeTime(rule.last_delivery_at)}
-              {rule.last_delivery_status ? ` · ${rule.last_delivery_status}` : ''}
-            </>
-          )}
+          {ruleDeliveryHealthLabel(rule)}
         </span>
         {/* Where it routes, until `lg` gives it a column of its own. */}
         <span className="flex min-w-0 items-center gap-1 pl-6 text-caption lg:hidden text-fg-tertiary">

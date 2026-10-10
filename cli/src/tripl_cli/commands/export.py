@@ -31,16 +31,14 @@ from typing import Any
 
 from tripl_cli.api import plan_export
 from tripl_cli.commands import add_json, add_timeout
-from tripl_cli.commands._plan import add_branch
-from tripl_cli.commands.codegen import (
+from tripl_cli.commands._check_config import (
     add_check_config,
     add_project_flag,
-    branch_document,
     check_config_of,
-    display_path,
-    fetch_export,
     project_of,
 )
+from tripl_cli.commands._plan import add_branch
+from tripl_cli.commands.codegen import branch_document, display_path, fetch_export
 from tripl_cli.config import Config
 from tripl_cli.errors import EXIT_OK, TriplConfigError, TriplError
 from tripl_cli.model import JsonDict, as_dict

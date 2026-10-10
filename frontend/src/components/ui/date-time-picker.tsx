@@ -4,7 +4,15 @@ import { Button } from "@/components/ui/button"
 import { IconButton } from "@/components/ui/icon-button"
 import { Input } from "@/components/ui/input"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
-import { formatDate, formatDateTime } from "@/lib/datetime"
+import {
+  formatClockTime,
+  formatDate,
+  formatDateTime,
+  parseClockTime,
+  toDateKey,
+  toLocalDateTimeValue,
+} from "@/lib/datetime"
+import { APP_LOCALE } from "@/lib/format"
 import { cn } from "@/lib/utils"
 import { useNow } from "@/hooks/useNow"
 
@@ -16,7 +24,12 @@ import { useNow } from "@/hooks/useNow"
  *
  * The value keeps the `datetime-local` wire format, `YYYY-MM-DDTHH:mm` in the
  * viewer's local time, so a form that used the native input keeps parsing it
- * the same way.
+ * the same way (lib/datetime's `toLocalDateTimeValue` builds it from a Date).
+ *
+ * Everything it prints is in the app locale, like every other date on the page:
+ * month and weekday names in the calendar, and the time field in the trigger's
+ * own 12-hour clock. A native `type="time"` field followed the browser instead,
+ * so a German browser showed "22:00" under a button reading "10:00 PM".
  */
 
 const DATE_PART = /^(\d{4})-(\d{2})-(\d{2})$/
@@ -26,14 +39,6 @@ const TIME_PART = /^\d{2}:\d{2}$/
 const WEEK_START = 1
 /** 2024-01-01 was a Monday — any known Monday names the weekday columns. */
 const WEEKDAYS = Array.from({ length: 7 }, (_, index) => new Date(2024, 0, 1 + index))
-
-function pad(value: number): string {
-  return String(value).padStart(2, "0")
-}
-
-function toDateKey(date: Date): string {
-  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`
-}
 
 function parseDateKey(key: string): Date | null {
   const match = DATE_PART.exec(key)
@@ -113,7 +118,7 @@ function CalendarGrid({
   max?: string
 }) {
   const today = new Date(useNow(60_000))
-  const monthLabel = focused.toLocaleDateString(undefined, { month: "long", year: "numeric" })
+  const monthLabel = focused.toLocaleDateString(APP_LOCALE, { month: "long", year: "numeric" })
   // Set by a key press, so the effect below moves DOM focus only when the
   // keyboard moved the roving day — not on the popover's first render.
   const moveFocus = React.useRef(false)
@@ -179,10 +184,10 @@ function CalendarGrid({
               <th
                 key={day.getDay()}
                 scope="col"
-                abbr={day.toLocaleDateString(undefined, { weekday: "long" })}
+                abbr={day.toLocaleDateString(APP_LOCALE, { weekday: "long" })}
                 className="text-fg-tertiary pb-1 text-center text-caption font-normal"
               >
-                {day.toLocaleDateString(undefined, { weekday: "narrow" })}
+                {day.toLocaleDateString(APP_LOCALE, { weekday: "narrow" })}
               </th>
             ))}
           </tr>
@@ -201,7 +206,7 @@ function CalendarGrid({
                       ref={isFocused ? focusRef : undefined}
                       type="button"
                       tabIndex={isFocused ? 0 : -1}
-                      aria-label={day.toLocaleDateString(undefined, {
+                      aria-label={day.toLocaleDateString(APP_LOCALE, {
                         weekday: "long",
                         month: "long",
                         day: "numeric",
@@ -228,6 +233,55 @@ function CalendarGrid({
         </tbody>
       </table>
     </div>
+  )
+}
+
+/**
+ * The time under the calendar: a text field in the app's 12-hour clock. It
+ * shows the value formatted ("9:30 AM") and takes what is typed in either
+ * clock; each keystroke that reads as a time is sent, and leaving the field
+ * puts back the formatted value of the last one that did.
+ */
+function TimeField({
+  value,
+  onChange,
+  onEnter,
+  label,
+  inputRef,
+}: {
+  /** `HH:mm`. */
+  value: string
+  onChange: (time: string) => void
+  onEnter: () => void
+  label: string
+  inputRef: React.RefObject<HTMLInputElement | null>
+}) {
+  // What is being typed; null while the field shows the value itself.
+  const [draft, setDraft] = React.useState<string | null>(null)
+  const invalid = draft !== null && draft.trim() !== "" && parseClockTime(draft) === null
+  return (
+    <Input
+      ref={inputRef}
+      type="text"
+      autoComplete="off"
+      spellCheck={false}
+      aria-label={label}
+      aria-invalid={invalid || undefined}
+      value={draft ?? formatClockTime(value)}
+      onChange={event => {
+        setDraft(event.target.value)
+        const time = parseClockTime(event.target.value)
+        if (time) onChange(time)
+      }}
+      onBlur={() => setDraft(null)}
+      onKeyDown={event => {
+        if (event.key !== "Enter") return
+        event.preventDefault()
+        setDraft(null)
+        onEnter()
+      }}
+      className="h-8 w-[104px] text-body md:text-body tnum"
+    />
   )
 }
 
@@ -284,15 +338,15 @@ export function DateTimePicker({
     timeRef.current?.focus()
   }
 
+  // TimeField sends only a whole `HH:mm`: a cleared or half-typed time sends
+  // nothing, and the last full value stands.
   const changeTime = (nextTime: string) => {
-    // A cleared time field has nothing to send; the last full value stands.
-    if (!TIME_PART.test(nextTime)) return
     onChange(`${date || toDateKey(focused)}T${nextTime}`)
   }
 
   const pickNow = () => {
     const current = new Date()
-    onChange(`${toDateKey(current)}T${pad(current.getHours())}:${pad(current.getMinutes())}`)
+    onChange(toLocalDateTimeValue(current))
     setFocused(current)
   }
 
@@ -341,19 +395,13 @@ export function DateTimePicker({
           focusRef={focusRef}
         />
         <div className="mt-3 flex items-center gap-2 border-t border-border pt-3">
-          <Input
-            ref={timeRef}
-            type="time"
-            aria-label={`${label}, time`}
+          <TimeField
+            inputRef={timeRef}
+            label={`${label}, time`}
             value={shownTime}
-            onChange={event => changeTime(event.target.value)}
-            onKeyDown={event => {
-              if (event.key !== "Enter") return
-              // Enter confirms, as in a form field, without submitting the form.
-              event.preventDefault()
-              setOpen(false)
-            }}
-            className="h-8 w-[104px] text-body md:text-body tnum"
+            onChange={changeTime}
+            // Enter confirms, as in a form field, without submitting the form.
+            onEnter={() => setOpen(false)}
           />
           <Button type="button" variant="ghost" onClick={pickNow}>
             Now

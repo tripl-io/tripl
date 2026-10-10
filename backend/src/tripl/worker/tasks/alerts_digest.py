@@ -228,23 +228,19 @@ def check_deprecated_sunset_events() -> dict[str, int]:
 
     Runs daily from beat (``check-deprecated-sunset-events`` in celery_app.py,
     where the cadence is argued). It keeps no per-event state, so a project
-    whose overdue list has not changed receives the same message every day
-    until someone edits the PLAN — intended, not an oversight: the list IS the
-    work item, and there is nothing else in the product that chases it.
+    whose overdue list has not changed receives the same message every day —
+    intended, not an oversight: the list IS the work item.
 
-    Editing the plan is the only exit, because stopping the data is not one.
-    ``metrics.collect._bump_event_last_seen`` only ever moves ``last_seen_at``
-    forward (documented as monotonic, and enforced by its own
-    ``last_seen_at < bucket`` guard), so an event that was still receiving data
-    past its sunset stays past it forever after. What clears the row is moving
-    its ``status`` off ``deprecated``, clearing ``sunset_at``, or pushing
-    ``sunset_at`` out beyond the data already seen.
+    The list is the sunset watch's open ``sunset_overdue`` findings
+    (``tasks.lifecycle``, swept daily just before this runs), so an event leaves
+    it the way it leaves the catalog chip and the Lifecycle alerts: when its data
+    stops for 24 hours, or when the plan retires it or moves its sunset out.
 
-    It reads only MAIN-branch events (:func:`_build_sunset_alert_message`), so
-    its "Count:" agrees with the ``sunset_overdue`` line of the weekly digest
-    above. This message is that line expanded: the count, then the first
-    ``_SUNSET_ALERT_MAX_EVENTS`` events by name, then a tail saying how many it
-    is not showing.
+    Its "Count:" agrees with the ``sunset_overdue`` line of the weekly digest
+    above, because both read the same findings
+    (:func:`_build_sunset_alert_message`). This message is that line expanded:
+    the count, then the first ``_SUNSET_ALERT_MAX_EVENTS`` events by name, then
+    a tail saying how many it is not showing.
 
     Its email carries its own subject (``subject_title`` above). Sharing the
     send helper with the weekly digest used to mean sharing its subject too, so

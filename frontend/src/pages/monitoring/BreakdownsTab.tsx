@@ -14,15 +14,15 @@ import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from '@/components/ui/select'
 import { SILENT_ERROR_META } from '@/lib/errorFeedback'
-import { formatNumber } from '@/lib/format'
+import { formatNumber, formatPercent } from '@/lib/format'
 import { adaptMetricBreakdowns } from '@/lib/metricAdapters'
 import type { MetricRollupMode, MetricsGranularity } from '@/lib/metrics'
 import { monitoringBreakdownsColumnKey } from '@/lib/queryKeys'
+import { signalDirectionTone } from '@/lib/statusLexicon'
 import {
   BREAKDOWN_SERIES_CAP,
   breakdownLabel,
   buildBreakdownEntries,
-  formatPercent,
   legendValueKindFor,
   selectBreakdownChartSeries,
   type BreakdownSeriesEntry,
@@ -244,12 +244,12 @@ export function BreakdownsTab({
                 </p>
                 <div className="flex flex-wrap gap-2">
                   {latestParityAnomalies.map(({ series, anomaly }) => (
-                    // A status flag in the one pill idiom: a drop in the
-                    // danger tone, a spike in the warning tone.
+                    // A status flag in the one pill idiom, in the app's one
+                    // direction colour: a spike red, a drop amber.
                     <Chip
                       key={`${series.breakdown_value}-${anomaly.bucket}`}
                       aria-label={`${breakdownLabel(series)} share ${anomaly.direction}: ${formatPercent(anomaly.expected_share)} -> ${formatPercent(anomaly.actual_share)}`}
-                      tone={anomaly.direction === 'drop' ? 'danger' : 'warning'}
+                      tone={signalDirectionTone(anomaly.direction)}
                     >
                       {breakdownLabel(series)}
                       {' share '}{anomaly.direction}:{' '}

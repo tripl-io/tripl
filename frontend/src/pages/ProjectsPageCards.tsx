@@ -36,6 +36,7 @@ import type {
   ProjectSummary,
 } from '@/types'
 import { TONE_VARS, type StatTone } from './ProjectsPagePortfolio'
+import { formatNumber } from '@/lib/format'
 
 /**
  * An action-needed stat. The surface stays neutral in every state: a 3px
@@ -561,7 +562,7 @@ function LatestScanJobSummary({
             className="tnum"
             title="Warehouse rows this run read from the data source. Not an event count."
           >
-            {scanned.value.toLocaleString()}{' '}
+            {formatNumber(scanned.value)}{' '}
             warehouse rows read
           </p>
         )}
@@ -655,7 +656,7 @@ function LatestSignalSummary({
           className="text-caption text-fg-tertiary"
           title="What the detector measured in this one bucket, against the baseline it expected. Not a row count."
         >
-          <span className="tnum">{signal.actual_count.toLocaleString()}</span> events in this
+          <span className="tnum">{formatNumber(signal.actual_count)}</span> events in this
           bucket vs <span className="tnum">{formatIncidentCount(signal.expected_count)}</span>{' '}
           expected
         </p>

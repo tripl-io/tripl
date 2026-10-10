@@ -62,13 +62,15 @@ function TableRow({ className, ...props }: React.ComponentProps<"tr">) {
 // One header typography for every table idiom: the 10.5px semibold uppercase
 // caption `.tripl-table th` (index.css) and the settings tables use. This one
 // was 12px medium with wide tracking, so a ui/Table and a data table on the
-// same page captioned their columns differently.
+// same page captioned their columns differently. A button in the header (a
+// sort toggle) inherits the uppercase: the browser's own stylesheet resets
+// text-transform on a <button>, so its label stood in mixed case otherwise.
 function TableHead({ className, ...props }: React.ComponentProps<"th">) {
   return (
     <th
       data-slot="table-head"
       className={cn(
-        "text-fg-tertiary h-10 px-(--cell-px) text-left align-middle micro-label whitespace-nowrap [&:has([role=checkbox])]:pr-0 [&>[role=checkbox]]:translate-y-[2px]",
+        "text-fg-tertiary h-10 px-(--cell-px) text-left align-middle micro-label [&_button]:[text-transform:inherit] whitespace-nowrap [&:has([role=checkbox])]:pr-0 [&>[role=checkbox]]:translate-y-[2px]",
         className
       )}
       {...props}

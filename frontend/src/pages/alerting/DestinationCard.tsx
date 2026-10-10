@@ -10,7 +10,6 @@ import { Card, CardContent } from "@/components/ui/card"
 import { Switch } from "@/components/ui/switch"
 import { cn, getErrorMessage } from '@/lib/utils'
 import { SILENT_ERROR_META, surfaceError } from "@/lib/errorFeedback"
-import { stripValueErrorPrefix } from "@/lib/alertStatus"
 import { formatDateTime } from "@/lib/datetime"
 import { countOf } from "@/lib/plural"
 import { formatInProjectZone } from "./deliverySchedule"
@@ -67,7 +66,7 @@ export function DestinationCard({
       alertingApi.updateDestination(slug, destination.id, data),
     onSuccess: () => invalidateAlertingConfig(qc, slug),
     onError: error => {
-      surfaceError(error, stripValueErrorPrefix)
+      surfaceError(error)
     },
   })
 

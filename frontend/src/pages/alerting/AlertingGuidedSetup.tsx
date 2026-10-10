@@ -1,8 +1,7 @@
 import type { ReactNode } from 'react'
 import { Check } from 'lucide-react'
-import { Link } from 'react-router-dom'
 
-import { Button } from '@/components/ui/button'
+import { GoToScansButton } from '@/components/first-scan-actions'
 import { Panel } from '@/components/settings/kit'
 import { ReadOnlyNotice } from '@/components/states'
 import { useCanWriteProject } from '@/lib/permissions'
@@ -10,7 +9,6 @@ import { cn } from '@/lib/utils'
 
 import type { ChannelMeta } from './channelMeta'
 import type { DestinationChannel } from './constants'
-import { currentOrgSlug, projectPath } from '@/lib/navigation'
 
 interface AlertingGuidedSetupProps {
   slug: string
@@ -122,13 +120,12 @@ export function AlertingGuidedSetup({ slug, channels, hasScans, onPickChannel }:
             <Step
               n={1}
               state="current"
-              title="Connect data and run a scan"
+              title="Connect a data source and run a scan"
               body="Alerts come from anomalies, and anomalies come from scans. This project has none yet, so nothing can alert."
             >
+              {/* The same next step Reconciliation and Anomalies offer. */}
               <div>
-                <Button asChild size="sm" variant="outline">
-                  <Link to={projectPath(currentOrgSlug(), slug, '/scans')}>Go to Scans</Link>
-                </Button>
+                <GoToScansButton slug={slug} />
               </div>
             </Step>
           )}

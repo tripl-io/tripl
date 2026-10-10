@@ -30,6 +30,13 @@ from tripl.models.user import User
 from tripl.schemas.auth import UserListItem
 from tripl.services import auth_service, invitation_service
 
+# The roster routes (``GET /users`` and ``GET /orgs/{org}/members``) answer a
+# bare array, one page of ``limit`` rows at a time, with no total. A client that
+# needs the whole roster reads on until a page comes back short; the web app
+# does so at the largest page (``ROSTER_PAGE_LIMIT`` in frontend/src/api/users.ts).
+ROSTER_PAGE_DEFAULT = 200
+ROSTER_PAGE_MAX = 1000
+
 
 class LastOwnerError(Exception):
     """Raised when a demotion would leave the organization with no owner at all."""
@@ -52,7 +59,11 @@ def _item(user: User, role: str) -> UserListItem:
 async def list_org_users(
     session: AsyncSession, org_id: uuid.UUID, *, limit: int, offset: int
 ) -> list[UserListItem]:
-    """The members of ``org_id`` with their organization role, oldest account first."""
+    """The members of ``org_id`` with their organization role, oldest account first.
+
+    Ordered by ``(created_at, id)``, a total order, so consecutive pages neither
+    repeat nor skip a member.
+    """
     rows = await session.execute(
         select(User, OrganizationMember.role)
         .join(OrganizationMember, OrganizationMember.user_id == User.id)
@@ -100,7 +111,7 @@ async def update_org_role(
     # see the other as the survivor, both pass, and the organization is left
     # with no owner at all — recoverable only from the database.
     await auth_service.acquire_owner_set_xact_lock(session, org_id)
-    actor_role = await org_role_under_lock(session, org_id, actor_id)
+    actor_role = await org_role(session, org_id, actor_id)
     if actor_role not in (OrganizationRole.owner.value, OrganizationRole.admin.value):
         raise OwnerManagementError
 
@@ -159,13 +170,12 @@ def _outranks(role: str, other: str) -> bool:
     return _RANK[role] > _RANK[other]
 
 
-async def org_role_under_lock(
-    session: AsyncSession, org_id: uuid.UUID, user_id: uuid.UUID
-) -> str | None:
+async def org_role(session: AsyncSession, org_id: uuid.UUID, user_id: uuid.UUID) -> str | None:
     """``user_id``'s current role in ``org_id``; ``None`` for a non-member.
 
-    For owner-set mutations: call it after ``acquire_owner_set_xact_lock`` so
-    the answer cannot change before the transaction commits.
+    It takes no lock. An owner-set mutation calls it after
+    ``auth_service.acquire_owner_set_xact_lock``, so the answer cannot change
+    before the transaction commits.
     """
     role: str | None = await session.scalar(
         select(OrganizationMember.role).where(

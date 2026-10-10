@@ -9,7 +9,11 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
+from tripl.core.name_template import variable_tokens
+from tripl.core.variable_retirement import tokens_of
 from tripl.models.event import Event
+from tripl.models.event_field_value import EventFieldValue
+from tripl.models.event_meta_value import EventMetaValue
 from tripl.models.field_definition import FieldDefinition
 from tripl.models.variable import Variable
 from tripl.models.variable_value import VariableValue, VariableValueKind
@@ -41,6 +45,45 @@ def _extend_unique(target: list[str], values: Iterable[str], *, limit: int) -> N
         target.append(value)
         if len(target) >= limit:
             break
+
+
+async def get_value_event_counts(
+    session: AsyncSession,
+    variables: list[Variable],
+) -> dict[uuid.UUID, int]:
+    """How many events name each variable's ``${token}`` in a field or meta value.
+
+    Read on each variable's own branch, over both value tables and with the
+    tokens ``core.variable_retirement.tokens_of`` gives: the same scan that
+    decides the list's ``usage`` filter (``plan_project_retirement``), so a
+    variable counted here is never offered as unused. Only values holding a
+    ``${`` are read back.
+    """
+    by_branch: dict[tuple[uuid.UUID, uuid.UUID], list[Variable]] = defaultdict(list)
+    for variable in variables:
+        by_branch[(variable.project_id, variable.branch_id)].append(variable)
+    counts: dict[uuid.UUID, int] = {}
+    for (project_id, branch_id), group in by_branch.items():
+        events_by_token: dict[str, set[uuid.UUID]] = defaultdict(set)
+        for model in (EventFieldValue, EventMetaValue):
+            rows = await session.execute(
+                select(model.event_id, model.value)
+                .join(Event, model.event_id == Event.id)
+                .where(
+                    Event.project_id == project_id,
+                    Event.branch_id == branch_id,
+                    model.value.contains("${"),
+                )
+            )
+            for event_id, value in rows:
+                for token in variable_tokens(value or ""):
+                    events_by_token[token].add(event_id)
+        for variable in group:
+            events: set[uuid.UUID] = set()
+            for token in tokens_of(variable):
+                events |= events_by_token.get(token, set())
+            counts[variable.id] = len(events)
+    return counts
 
 
 async def attach_variable_summaries(
@@ -84,6 +127,7 @@ async def attach_variable_summaries(
 
     drift_counts = await get_open_drift_counts(session, variable_ids)
     listed_counts = await get_listed_event_counts(session, variables)
+    value_counts = await get_value_event_counts(session, variables)
 
     # Where ``excluded_from_scans`` bites on this row, and where it must not.
     #
@@ -108,6 +152,8 @@ async def attach_variable_summaries(
         listed, required = listed_counts.get(variable.id, (0, 0))
         variable.listed_event_count = listed  # type: ignore[attr-defined]
         variable.required_event_count = required  # type: ignore[attr-defined]
+        # What the plan's own values name, apart from both of the above.
+        variable.value_event_count = value_counts.get(variable.id, 0)  # type: ignore[attr-defined]
         variable.low_context_count = low_counts.get(variable.id, 0)  # type: ignore[attr-defined]
         variable.high_context_count = high_counts.get(variable.id, 0)  # type: ignore[attr-defined]
         variable.sample_values = sample_values.get(variable.id, [])  # type: ignore[attr-defined]

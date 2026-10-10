@@ -64,8 +64,9 @@ def register(mcp: MCPServer) -> None:
         annotations=READ_ONLY,
         description=(
             "Plan-vs-warehouse reconciliation health: coverage, dead events "
-            "(documented but silent) and shadow events (observed but undocumented), "
-            "each as count + sample. Use to ground 'is the plan accurate?' answers. "
+            "(documented but silent for 'days' days) and shadow events (observed but "
+            "undocumented; 'new_count' of them still untriaged), each as count + "
+            "sample. Use to ground 'is the plan accurate?' answers. "
             "Requires a tk_r_ or tk_w_ key."
         ),
     )(reconciliation_status)

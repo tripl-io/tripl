@@ -1,5 +1,5 @@
 /**
- * Tripl service mark — a single triangle split into three teal facets ("tri").
+ * tripl service mark — a single triangle split into three teal facets ("tri").
  * Built on the active `--accent` so it re-tints with the chosen accent theme:
  * a lightened facet, the accent itself, and a darkened facet. Shared by the
  * sidebar and the shell-less states (project not found).

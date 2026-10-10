@@ -3,10 +3,12 @@ import { fireEvent, render as rtlRender, screen, waitFor, within } from '@testin
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import ProfileSection from './ProfileSection'
+import { currentZoneName } from './timeZones'
 
-const { getPrefs, updatePrefs } = vi.hoisted(() => ({
+const { getPrefs, updatePrefs, session } = vi.hoisted(() => ({
   getPrefs: vi.fn(),
   updatePrefs: vi.fn(),
+  session: { role: 'owner' as 'owner' | 'admin' | 'member' },
 }))
 
 vi.mock('@/api/notifications', () => ({
@@ -19,6 +21,7 @@ function render(ui: ReactElement) {
 }
 
 beforeEach(() => {
+  session.role = 'owner'
   getPrefs.mockReset().mockResolvedValue({ email_mode: 'daily', mentions_email: true, email_available: true })
   updatePrefs.mockReset().mockImplementation(async (patch: object) => ({
     email_mode: 'daily',
@@ -34,7 +37,7 @@ vi.mock('@/components/auth-context', () => ({
       id: 'u1',
       email: 'ada@example.com',
       name: 'Ada Lovelace',
-      role: 'owner',
+      role: session.role,
       created_at: '2026-01-01T00:00:00Z',
       updated_at: '2026-01-01T00:00:00Z',
     },
@@ -47,10 +50,27 @@ vi.mock('@/components/auth-context', () => ({
 }))
 
 describe('Account · Profile', () => {
-  it('says once that nothing here is editable (#237)', () => {
+  // A lock banner over the whole page said nothing here could change, above
+  // the Notifications card, which can; the read-only note is the details'.
+  it('says on the details card, not over the page, that they cannot be changed', () => {
     render(<ProfileSection />)
 
-    expect(screen.getByRole('note')).toHaveTextContent(/can't be changed here yet/)
+    expect(screen.queryByRole('note')).toBeNull()
+    const details = screen.getByRole('region', { name: 'Your details' })
+    expect(within(details).getByText("Your name and email can't be changed here yet.")).toBeInTheDocument()
+    // The owner is who sets roles, so they are not told someone else does.
+    expect(screen.queryByText(/sets your role/)).toBeNull()
+    expect(screen.queryByText(/workspace/i)).toBeNull()
+  })
+
+  it('tells anyone but an owner who sets their role', () => {
+    session.role = 'member'
+    render(<ProfileSection />)
+
+    const details = screen.getByRole('region', { name: 'Your details' })
+    expect(
+      within(details).getByText(/An organization owner or admin sets your role\./),
+    ).toBeInTheDocument()
   })
 
   it('shows the account’s real details', () => {
@@ -73,7 +93,7 @@ describe('Account · Profile', () => {
     render(<ProfileSection />)
 
     expect(
-      screen.getByText(Intl.DateTimeFormat().resolvedOptions().timeZone),
+      screen.getByText(currentZoneName(Intl.DateTimeFormat().resolvedOptions().timeZone)),
     ).toBeInTheDocument()
   })
 

@@ -23,68 +23,16 @@ verified against a live account: the release-tag workflow
 
 from __future__ import annotations
 
-import logging
-import threading
 from typing import Any, override
 
 from tripl.core.adapters.errors import WarehouseCapabilityError
 from tripl.core.adapters.trino import TrinoAdapter
-
-logger = logging.getLogger(__name__)
 
 #: The data catalog Athena reads unless told otherwise (the Glue catalog).
 DEFAULT_ATHENA_CATALOG = "AwsDataCatalog"
 
 #: The workgroup every AWS account has.
 DEFAULT_ATHENA_WORKGROUP = "primary"
-
-
-#: How often a deadline that passed before the query had an id looks again.
-_DEADLINE_RECHECK_SECONDS = 0.25
-
-
-class _Deadline:
-    """Stop a running Athena query when the deadline passes.
-
-    The cursor has no query id until ``StartQueryExecution`` returns, which a
-    slow or retried call can delay past the deadline. A deadline that passes
-    first keeps looking until the id appears and stops the query then: given up
-    on, the query would run on, billed, up to the workgroup's own limit.
-    """
-
-    def __init__(self, cursor: Any, seconds: float | None) -> None:
-        self._cursor = cursor
-        self.fired = False
-        self._done = False
-        self._lock = threading.Lock()
-        self._timer: threading.Timer | None = None
-        if seconds is not None:
-            self._arm(seconds)
-
-    def _arm(self, seconds: float) -> None:
-        timer = threading.Timer(seconds, self._stop)
-        timer.daemon = True
-        self._timer = timer
-        timer.start()
-
-    def _stop(self) -> None:
-        with self._lock:
-            if self._done:
-                return
-            self.fired = True
-            if not getattr(self._cursor, "query_id", None):
-                self._arm(_DEADLINE_RECHECK_SECONDS)
-                return
-        try:
-            self._cursor.cancel()
-        except Exception:
-            logger.warning("Athena: could not stop a query past its deadline", exc_info=True)
-
-    def cancel(self) -> None:
-        with self._lock:
-            self._done = True
-            if self._timer is not None:
-                self._timer.cancel()
 
 
 class AthenaAdapter(TrinoAdapter):
@@ -163,51 +111,6 @@ class AthenaAdapter(TrinoAdapter):
 
     @override
     def _is_timeout(self, exc: Exception) -> bool:
+        # Athena has no server-side deadline to report: the only one is this
+        # client's timer, which ``_cursor_under_deadline`` already knows fired.
         return False
-
-    def _execute(self, sql: str, deadline: float | None) -> tuple[Any, _Deadline]:
-        cursor = self._conn.cursor()
-        guard = _Deadline(cursor, deadline)
-        try:
-            cursor.execute(sql)
-        except BaseException as exc:
-            # BaseException too: a worker's soft time limit or a shutdown must
-            # not leave the timer to fire on a closed cursor.
-            guard.cancel()
-            self._close_cursor(cursor)
-            if isinstance(exc, Exception) and guard.fired and deadline is not None:
-                raise self._timeout_error(deadline, exc) from exc
-            raise
-        return cursor, guard
-
-    def _close_cursor(self, cursor: Any) -> None:
-        try:
-            cursor.close()
-        except Exception:
-            logger.debug("Athena: cursor close failed", exc_info=True)
-
-    @override
-    def _run(
-        self, sql: str, *, timeout_cap: float | None = None
-    ) -> tuple[list[str], list[tuple[object, ...]]]:
-        """Execute one statement under the deadline; every statement goes through here."""
-        deadline = self._query_deadline(timeout_cap)
-        cursor, guard = self._execute(sql, deadline)
-        try:
-            rows = [tuple(row) for row in cursor.fetchall()]
-            names = [str(column[0]) for column in cursor.description or []]
-        finally:
-            guard.cancel()
-            self._close_cursor(cursor)
-        return names, rows
-
-    @override
-    def _describe(self, sql: str) -> list[tuple[str, str]]:
-        deadline = self._query_deadline()
-        cursor, guard = self._execute(sql, deadline)
-        try:
-            description = list(cursor.description or [])
-        finally:
-            guard.cancel()
-            self._close_cursor(cursor)
-        return [(str(column[0]), str(column[1])) for column in description]

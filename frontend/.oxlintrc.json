@@ -322,6 +322,7 @@
         "tripl/no-query-key-literals": "error",
         "tripl/no-arbitrary-sizes": "error",
         "tripl/no-muted-foreground": "error",
+        "tripl/no-bare-locale": "error",
         "no-useless-assignment": "error"
       },
       "plugins": [

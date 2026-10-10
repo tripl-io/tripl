@@ -131,6 +131,28 @@ describe('Account · Security', () => {
     expect(screen.getByRole('button', { name: 'Email me a reset link' })).toBeDisabled()
   })
 
+  // A disabled button over "Coming later" was a dead end: without email
+  // nothing on the page led to a new password.
+  it('names the two ways to a reset link when the instance cannot send email', async () => {
+    mockApi({ emailConfigured: false })
+    renderSection()
+
+    const help = await screen.findByText(/Without email, an owner or admin of your organization/)
+    expect(help).toHaveTextContent('Settings › Organization › Members')
+    expect(
+      screen.getByText('tripl-admin password-reset-link ada@example.com'),
+    ).toBeInTheDocument()
+  })
+
+  it('leaves the no-email ways out while email works', async () => {
+    mockApi({ emailConfigured: true })
+    renderSection()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Email me a reset link' }))
+    expect(await screen.findByText(/check ada@example.com for a link/i)).toBeInTheDocument()
+    expect(screen.queryByText(/Without email/)).toBeNull()
+  })
+
   it('shows a failed request in place', async () => {
     mockApi({ reset: jsonResponse({ detail: 'Too many requests' }, 429) })
     renderSection()

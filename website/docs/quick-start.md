@@ -21,6 +21,9 @@ This guide takes you from nothing to a working tripl setup:
 Steps 1–3 need nothing but Docker and take about fifteen minutes. Steps 4–8 need
 read access to a warehouse (**ClickHouse**, **BigQuery**, **Databricks**, **Snowflake**, **Amazon Redshift**, **Greenplum**, **Trino**, **Amazon Athena**, or **PostgreSQL**)
 where analytics events already land; budget half an hour the first time.
+Snowflake, Amazon Redshift, Amazon Athena and Trino are in **preview**: their
+connectors have not yet passed the value suite against a live warehouse (see
+[proven versus believed](./develop/warehouse-parity.md#read-this-first-proven-versus-believed)).
 
 If a term is unfamiliar along the way, [Concepts](./use/concepts.md) defines
 every idea in plain language.
@@ -51,7 +54,15 @@ The dev stack runs over plain HTTP with default credentials — perfect for a
 laptop, wrong for anything shared. To deploy for your team, use the hardened
 production stack (`compose.yaml`, published release image, real secrets,
 HTTPS in front): follow **[Self-hosting & Deployment](./run/deployment.md)**.
-Steps 2 onward are identical either way.
+Steps 2 onward are identical either way. The production stack sends one
+anonymous [usage ping](./run/telemetry.md) a day unless you turn it off; on
+this trial stack it is off.
+
+The trial stack listens on localhost (127.0.0.1) only. To reach it from another
+machine, use an SSH tunnel (`ssh -L 5173:127.0.0.1:5173 <host>`) or the
+production stack. Without `ENCRYPTION_KEY`, the warehouse credentials you add in
+step 4 are stored unencrypted: if you will connect a real warehouse, set
+`ENCRYPTION_KEY` in `.env` (the recipe is in `.env.example`) before `up`.
 
 Hacking on tripl itself? `CONTRIBUTING.md` in the repository covers hot-reload
 (`--watch`), tests, and the rest of the contributor setup.
@@ -64,18 +75,24 @@ becomes an owner**; everyone who registers after that joins as a member.
 Owner matters for later steps: only owners and admins manage data sources and
 members.
 
-After signing in you land on the workspace dashboard with two ways forward:
+After signing in you land on **All projects**. Until a project exists it shows
+a welcome screen, with two ways forward in the middle of the page:
 
 - **Generate demo project** — a complete synthetic project to explore. Start here.
 - **New project** — an empty project for your real work.
 
-![All projects, with Generate demo project and New project at the top right](/img/screenshots/workspace.light.webp#gh-light-mode-only)
-![All projects, with Generate demo project and New project at the top right](/img/screenshots/workspace.dark.webp#gh-dark-mode-only)
+Someone who joins an existing organization as a member sees a note there
+instead of the team's projects: a member sees a project once an owner or admin
+adds them (**Settings › Project › Access**), unless the organization's
+**Default access** gives every member the projects.
+
+![All projects on a first sign-in: the welcome screen with Generate demo project and New project](/img/screenshots/workspace.light.webp#gh-light-mode-only)
+![All projects on a first sign-in: the welcome screen with Generate demo project and New project](/img/screenshots/workspace.dark.webp#gh-dark-mode-only)
 
 ## Step 3 — Explore the demo project
 
 Click **Generate demo project**. tripl builds a realistic project — event types,
-events, fields, variables, collected metrics, a few anomalies, some schema
+events, fields, properties, collected metrics, a few anomalies, some schema
 drift — backed by a **local synthetic warehouse**. Nothing leaves the server and
 no connection is made anywhere, but the product is not faked around it: real
 scans, metric collection, anomaly detection, and reconciliation run over that
@@ -88,7 +105,7 @@ synthetic source, and a background clock keeps it fresh.
 opens the first of the chapters — short hands-on lessons, one per product area,
 each coached by a strip under the demo banner, a ring and a small tag on the
 exact button to press, and the demo guide in a corner of the window.
-**Browse chapters** lists them all. **Run the live loop** is the
+**Tour & chapters** lists them all. **Run the live loop** is the
 product's core loop end to end:
 
 1. **Run a scan** — press **Run now** on any scan.
@@ -105,7 +122,7 @@ Product ID value with `prod_monthly`; the guide advances automatically, then
 asks you to type `$`, select `${product_id}`, and save), **Properties & value
 drift**, **Review a branch**, **Reconcile the plan**, **Route an alert**, and
 **Explore the rest**.
-(Prefer to read first? **Browse chapters** → **Quick overview** walks the same
+(Prefer to read first? **Tour & chapters** → **Quick overview** walks the same
 surfaces without asking you to do anything.)
 
 Then look around in roughly this order:
@@ -122,20 +139,20 @@ Then look around in roughly this order:
 
 Reset or delete the demo any time — it never touches real projects. The full
 list of what is synthetic, what really executes, and what is intentionally
-unavailable is in **[The demo workspace](./use/demo-workspace.md)**.
+unavailable is in **[The demo project](./use/demo-workspace.md)**.
 
 :::tip Done exploring?
 If the demo answered your questions, you already know the product. The rest of
 this guide repeats the same loop against **your** data. The demo says the same
 thing where you finish: completing the last coached chapter offers **Create a
 real project**, and the same link sits in the expanded welcome panel. Both go to
-the dashboard, where **New project** starts an empty one to connect your own
+**All projects**, where **New project** starts an empty one to connect your own
 warehouse.
 :::
 
 ## Step 4 — Connect your warehouse
 
-Create a project for your real work (**New project** on the dashboard), then
+Create a project for your real work (**New project** on **All projects**), then
 point tripl at your warehouse. tripl only ever **reads** from it — it never
 writes, and it stores only the aggregated counts it needs, never your raw
 events.
@@ -168,10 +185,12 @@ See **[Project templates](./use/project-templates.md)**.
    ![The New data source dialog, with the fields for ClickHouse](/img/screenshots/data-source-add.light.webp#gh-light-mode-only)
    ![The New data source dialog, with the fields for ClickHouse](/img/screenshots/data-source-add.dark.webp#gh-dark-mode-only)
 
-:::info The three warehouses are not interchangeable
-They support the same features with different guarantees and dialect details.
+:::info Warehouses are not interchangeable
+They support the same features with different guarantees and dialect details,
+and the preview ones (Snowflake, Amazon Redshift, Amazon Athena, Trino) have not
+yet passed their value suite against a live warehouse.
 Before committing to one, skim the
-**[warehouse capability matrix](./develop/warehouse-parity.md)** — it states
+**[warehouse capability matrix](./develop/warehouse-parity.md#the-matrix)** — it states
 per capability what is proven, what is believed, and what is bounded, plus
 per-warehouse permissions and setup requirements.
 :::
@@ -307,7 +326,7 @@ happens the page says so, and keeps the scan selected rather than quietly
 showing you a different scan's anomalies.
 
 :::note Scanning is optional — you can also write the plan by hand
-Events, event types, fields, and variables can all be created manually under
+Events, event types, fields, and properties can all be created manually under
 **Plan**, and most teams do a bit of both: scan to bootstrap, edit by hand to
 polish. See [the user guide](./use/user-guide.md#plan-write-down-what-should-be-tracked)
 for the manual route, and note that once the plan is live you should make
@@ -404,10 +423,10 @@ numbers move. From here:
 - **[How-to guides](./how-to/index.md)** — the everyday jobs, one page each,
   with screenshots.
 - **[User guide](./use/user-guide.md)** — the full task-oriented walkthrough,
-  including plan branches with review, variables, event lifecycle, and a
+  including plan branches with review, properties, event lifecycle, and a
   realistic first-week rollout plan.
 - **[Concepts](./use/concepts.md)** — every idea defined in plain language.
-- **[Variables & templates](./use/variables-and-templates.md)** — reusable
+- **[Properties & templates](./use/variables-and-templates.md)** — reusable
   documented values and drift review.
 - **[Agent & API guide](./integrate/agent-api-guide.md)** — drive tripl from
   scripts and LLM agents with scoped API keys.

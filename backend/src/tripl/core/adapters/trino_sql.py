@@ -21,26 +21,13 @@ is written twice — there is nothing else a value could use to leave the litera
 
 from __future__ import annotations
 
-import json
-import re
-from datetime import UTC, date, datetime
-from decimal import Decimal
+from datetime import datetime
 from types import ModuleType
 
 from tripl.core.bucketing import to_utc
 
-#: A catalog or schema name as the connection form accepts it.
-OBJECT_NAME_RE = re.compile(r"^[A-Za-z0-9_][A-Za-z0-9_-]{0,254}$")
-
-# Cap on how much generated SQL reaches a log line; statements go to DEBUG.
-_SQL_LOG_MAX_CHARS = 300
-
 _TS_LITERAL_FMT = "%Y-%m-%d %H:%M:%S.%f"
 _DATE_LITERAL_FMT = "%Y-%m-%d"
-
-
-def truncate_sql(sql: str) -> str:
-    return sql[:_SQL_LOG_MAX_CHARS] + ("..." if len(sql) > _SQL_LOG_MAX_CHARS else "")
 
 
 def quote_ident(name: str) -> str:
@@ -56,6 +43,18 @@ def quote_literal(value: object) -> str:
     module docstring for why values are not bound instead).
     """
     return "'" + str(value).replace("'", "''") + "'"
+
+
+class LiteralParams:
+    """A Trino statement's value binder: each value becomes a quoted literal.
+
+    The shared statement builders hand every value to a binder; on Trino the
+    binding is the rendering itself (see the module docstring), so nothing is
+    left to send beside the statement.
+    """
+
+    def bind(self, value: str) -> str:
+        return quote_literal(value)
 
 
 def utc_timestamp_tz_literal(value: datetime) -> str:
@@ -94,10 +93,6 @@ def is_zoned_type(type_name: str) -> bool:
     return name.startswith("timestamp") and name.endswith("with time zone")
 
 
-def is_date_type(type_name: str) -> bool:
-    return _norm(type_name) == "date"
-
-
 def is_text_type(type_name: str) -> bool:
     name = _norm(type_name)
     return name.startswith(("varchar", "char"))
@@ -112,77 +107,5 @@ def is_container_type(type_name: str) -> bool:
     return _norm(type_name).startswith(("array", "map", "row"))
 
 
-def is_array_type(type_name: str) -> bool:
-    return _norm(type_name).startswith("array")
-
-
 def is_json_type(type_name: str) -> bool:
     return _norm(type_name) == "json"
-
-
-# --------------------------------------------------------------------------- #
-# result cells
-# --------------------------------------------------------------------------- #
-
-
-def as_utc_bucket(value: object) -> object:
-    """One ``_bucket`` cell as an aware UTC ``datetime``.
-
-    Every bucket expression returns a zone-less ``timestamp(3)`` holding the UTC
-    wall clock, which the drivers hand back naive (pyathena may hand it back as
-    text); it is stamped as UTC. ``datetime`` is tested before ``date`` because
-    it is a subclass of it.
-    """
-    if isinstance(value, str):
-        try:
-            value = datetime.fromisoformat(value)
-        except ValueError:
-            return value
-    if isinstance(value, datetime):
-        return to_utc(value)
-    if isinstance(value, date):
-        return datetime(value.year, value.month, value.day, tzinfo=UTC)
-    return value
-
-
-def count_cell(value: object) -> int:
-    """A COUNT cell as an int; an aggregate over no rows is 0, never NULL."""
-    if value is None:
-        return 0
-    if isinstance(value, int | float | str | Decimal):
-        return int(value)
-    msg = f"Trino: expected a count, got {type(value).__name__}"
-    raise ValueError(msg)
-
-
-def decode_json_list(value: object) -> object:
-    """A grouped key list (``json_format`` of a sorted array) back as a list."""
-    if value is None or isinstance(value, list):
-        return value
-    if isinstance(value, tuple):
-        return list(value)
-    if not isinstance(value, str):
-        msg = f"Trino: expected a JSON array string, got {type(value).__name__}"
-        raise ValueError(msg)
-    try:
-        decoded = json.loads(value)
-    except json.JSONDecodeError as exc:
-        msg = f"Trino: could not decode a grouped key list {value!r}: {exc}"
-        raise ValueError(msg) from exc
-    if decoded is not None and not isinstance(decoded, list):
-        msg = f"Trino: a grouped key list decoded to {type(decoded).__name__}, not a list"
-        raise ValueError(msg)
-    return decoded
-
-
-def decode_array_value(value: object) -> object:
-    """An ARRAY regular column as a list (pyathena may return it as text)."""
-    if isinstance(value, tuple):
-        return list(value)
-    if isinstance(value, str):
-        try:
-            decoded = json.loads(value)
-        except json.JSONDecodeError:
-            return value
-        return decoded if isinstance(decoded, list) else value
-    return value

@@ -1,6 +1,5 @@
-import { ChevronLeft } from 'lucide-react'
 import { PageContainer } from '@/components/primitives/page-container'
-import { PageHeader } from '@/components/primitives/page-header'
+import { PageBackLink, PageHeader } from '@/components/primitives/page-header'
 import { CodeToken } from '@/components/primitives/code-token'
 import { SCard } from '@/components/settings/kit'
 import { UsedBySection } from '@/components/dependencies/UsedBySection'
@@ -93,15 +92,9 @@ export function FactTableReadView({
   return (
     <div className="h-full overflow-y-auto">
       <PageContainer width="narrow">
-        <button
-          type="button"
-          onClick={onClose}
-          className="mb-[14px] inline-flex items-center gap-1 text-caption text-fg-muted transition-colors hover:text-fg"
-        >
-          <ChevronLeft className="size-3.5" aria-hidden="true" /> Fact tables
-        </button>
         <PageHeader
           className="mb-[18px]"
+          back={<PageBackLink label="Fact tables" onClick={onClose} />}
           eyebrow="Observe · Fact table"
           title={factTable.display_name || factTable.name}
         />

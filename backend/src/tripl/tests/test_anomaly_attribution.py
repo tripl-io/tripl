@@ -51,11 +51,12 @@ from tripl.tests.test_metrics_tasks import (
     _seed_anomaly_scan_state,
 )
 from tripl.worker.tasks import demo_runtime
+from tripl.worker.tasks.alerts import send_alert_delivery
+from tripl.worker.tasks.metrics import detect as metrics_detect
 from tripl.worker.tasks.metrics import tasks as metrics_tasks
 from tripl.worker.tasks.metrics.attribution import (
     recompute_anomaly_attributions,
     scan_breakdown_columns,
-    stored_attribution_payload,
 )
 
 # ── worker ───────────────────────────────────────────────────────────────────
@@ -254,15 +255,6 @@ def test_worker_stores_the_split_and_the_release(sync_session: Session) -> None:
     assert row.release["share"] == pytest.approx(0.5)
     assert datetime.fromisoformat(row.release["reached_at"]) == _BASE + timedelta(hours=2)
 
-    stored = stored_attribution_payload(
-        sync_session,
-        scan_config_id=config.id,
-        scope_type="event",
-        scope_ref=str(event.id),
-        bucket=_FLAGGED,
-    )
-    assert stored is not None and stored["delta"] == pytest.approx(-500)
-
 
 def test_rerun_upserts_and_replay_recomputes(sync_session: Session) -> None:
     config, event = _seed_scan(sync_session, app_version_column=None)
@@ -424,14 +416,16 @@ def test_a_demo_tick_re_attributes_the_anomalies_it_replaced(
                 )
                 for point in points
                 if point.bucket == _FLAGGED
-            ]
+            ],
+            suppressed_ranges=(),
+            # ``None`` leaves the stored chart bands alone.
+            baselines=None,
         )
 
-    monkeypatch.setattr(demo_runtime, "detect_anomalies", flag_the_same_bucket)
+    # The tick scores through the collection's own volume pass.
+    monkeypatch.setattr(metrics_detect, "detect_anomalies", flag_the_same_bucket)
     # Tick.
-    demo_runtime._recompute_anomalies(
-        sync_session, config.project_id, config.id, _FLAGGED + timedelta(hours=1)
-    )
+    demo_runtime._recompute_anomalies(sync_session, config, _FLAGGED + timedelta(hours=1))
     sync_session.flush()
 
     (current,) = sync_session.execute(select(MetricAnomaly)).scalars().all()
@@ -558,7 +552,7 @@ def test_collect_metrics_stores_the_attribution_before_the_alert_snapshot(
     monkeypatch.setattr(metrics_tasks, "_recalculate_metric_anomalies", with_platform_split)
     monkeypatch.setattr(metrics_tasks, "_prepare_alert_deliveries", prepare_spy)
     monkeypatch.setattr(
-        metrics_tasks.send_alert_delivery, "delay", lambda delivery_id: queued.append(delivery_id)
+        send_alert_delivery, "delay", lambda delivery_id: queued.append(delivery_id)
     )
 
     result = metrics_tasks.collect_metrics.run(config_id)

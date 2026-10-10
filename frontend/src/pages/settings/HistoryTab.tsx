@@ -1,7 +1,7 @@
 import { useId, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { Bookmark, ChevronRight, Download, GitBranch, GitMerge, Plus } from 'lucide-react'
+import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { Bookmark, ChevronRight, Download, GitBranch, GitMerge, History, Plus } from 'lucide-react'
 
 import { planBranchesApi } from '@/api/planBranches'
 import { planExportApi } from '@/api/planExport'
@@ -9,12 +9,14 @@ import { planRevisionsApi } from '@/api/planRevisions'
 import { Chip } from '@/components/primitives/chip'
 import { PageContainer } from '@/components/primitives/page-container'
 import { PageHeader } from '@/components/primitives/page-header'
+import { EmptyState } from '@/components/empty-state'
 import { ErrorState } from '@/components/error-state'
 import { SectionSkeleton } from '@/components/states'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { OffsetPager } from '@/components/ui/offset-pager'
 import { Skeleton } from '@/components/ui/skeleton'
 import {
   Dialog,
@@ -26,6 +28,7 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog'
 import { useActiveBranchId } from '@/hooks/useBranch'
+import { useOffsetPaging } from '@/hooks/useOffsetPaging'
 import { displayUser, useUsersById } from '@/hooks/useUsersById'
 import type {
   PlanDiff,
@@ -37,7 +40,7 @@ import type {
 } from '@/types'
 import { SILENT_ERROR_META } from '@/lib/errorFeedback'
 import { getErrorMessage } from '@/lib/utils'
-import { formatDateTime } from '@/lib/datetime'
+import { formatDateTime, formatTimestamp } from '@/lib/datetime'
 import { countOf } from '@/lib/plural'
 import { KIND_META } from './branches/branchMeta'
 import { PlanFieldChangeList } from './PlanFieldChangeList'
@@ -109,14 +112,21 @@ export function HistoryTab({ slug }: { slug: string }) {
     // revision" whenever older ones existed.
     queryFn: () => planRevisionsApi.list(slug, { offset, limit: PAGE_SIZE + 1 }),
     enabled: !!slug,
+    // The page being left stays on screen until the next one lands. Without
+    // it the list blanked to a skeleton on every step, and the pager under it
+    // read "Showing 51–50 of 0 revisions" for the length of the round trip.
+    placeholderData: keepPreviousData,
     // Rendered in the list card, with a retry.
     meta: SILENT_ERROR_META,
   })
   const fetched = useMemo(() => listQuery.data?.items ?? [], [listQuery.data])
   const revisions = useMemo(() => fetched.slice(0, PAGE_SIZE), [fetched])
   const total = listQuery.data?.total ?? 0
-  const hasNewer = offset > 0
-  const hasOlder = offset + revisions.length < total
+  // Counted off the offset the VISIBLE rows came from; see useOffsetPaging.
+  const paging = useOffsetPaging({ query: listQuery, offset, shown: revisions.length, total })
+  const { rangeStart, rangeEnd, hasPrev: hasNewer, hasNext: hasOlder } = paging
+  // Nothing recorded at all, as the server says it: not loading, not failed.
+  const historyEmpty = listQuery.isSuccess && total === 0
 
   const baseCount = revisions.filter((r) => r.kind === 'branch_base').length
   const showBases = showBasesPicked ?? baseCount === revisions.length
@@ -124,9 +134,16 @@ export function HistoryTab({ slug }: { slug: string }) {
     ? revisions
     : revisions.filter((r) => r.kind !== 'branch_base')
 
-  // Default the diff selection to the latest revision on the page once data lands.
-  const effectiveSelected =
-    selectedRevisionId ?? shownRevisions[0]?.id ?? null
+  // Default the diff selection to the latest revision on the page once data
+  // lands. A pick that is not among the fetched rows — made on the page that
+  // was still on screen while the next one loaded — falls back the same way,
+  // or the diff card would call it "the oldest revision" for want of a row
+  // after it.
+  const pickedOnPage =
+    selectedRevisionId !== null && fetched.some((r) => r.id === selectedRevisionId)
+      ? selectedRevisionId
+      : null
+  const effectiveSelected = pickedOnPage ?? shownRevisions[0]?.id ?? null
   const selectedRevision = fetched.find((r) => r.id === effectiveSelected) ?? null
   const compareTo = useMemo(() => {
     if (!effectiveSelected) return null
@@ -182,7 +199,12 @@ export function HistoryTab({ slug }: { slug: string }) {
       <PageHeader
         eyebrow="Plan"
         title="Plan history"
-        description="Every merge, every branch opened and every snapshot you save. Select a revision to see what changed since the one before."
+        // No "Select a revision" over an empty history: there is none to select.
+        description={
+          historyEmpty
+            ? 'Every merge, every branch opened and every snapshot you save.'
+            : 'Every merge, every branch opened and every snapshot you save. Select a revision to see what changed since the one before.'
+        }
         actions={
           <>
             {/* The schema bundle for validators and codegen outside tripl
@@ -214,11 +236,31 @@ export function HistoryTab({ slug }: { slug: string }) {
         </p>
       )}
 
-      {/* 2:3, not 1:2. A revision's identity is its summary — product-generated
-          ones read "Base snapshot for branch '<name>'" (~300px) — and at 1fr the
-          list card was ~250px, clipping the branch name mid-word while the diff
-          card next to it held one empty-state sentence in ~590px. */}
-      <div className="grid gap-4 lg:grid-cols-[minmax(0,2fr)_minmax(0,3fr)]">
+      {historyEmpty ? (
+        // One empty state across both cards. The two-card layout used to say
+        // "No revisions yet" on the left and "Pick a revision to view its diff"
+        // on the right, with nothing to pick. Revisions come from branches —
+        // a snapshot is the exception — so the way forward is a branch.
+        <EmptyState
+          icon={History}
+          title="No revisions yet"
+          description="A revision is recorded when a branch opens or merges, and when you save a snapshot. Each one shows what changed since the one before."
+          action={
+            <Button asChild size="sm" variant="outline">
+              <Link to={projectPath(currentOrgSlug(), slug, '/branches')}>Open plan branches</Link>
+            </Button>
+          }
+        />
+      ) : (
+      // 2:3 from `lg`, not 1:2. A revision's identity is its summary —
+      // product-generated ones read "Base snapshot for branch '<name>'"
+      // (~300px) — and at 1fr the list card was ~250px, clipping the branch
+      // name mid-word while the diff card next to it held one empty-state
+      // sentence in ~590px. Below `lg` one column, held to the screen by
+      // `grid-cols-1` (minmax(0, 1fr)): the implicit `auto` track grew to the
+      // revision meta line's nowrap width and pushed both cards past a phone's
+      // edge, clipped mid-word with no ellipsis.
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-[minmax(0,2fr)_minmax(0,3fr)]">
         <Card>
           <CardContent className="p-0">
             {listQuery.isError && listQuery.data !== undefined && (
@@ -241,9 +283,11 @@ export function HistoryTab({ slug }: { slug: string }) {
                 />
               </div>
             ) : revisions.length === 0 ? (
+              // Only reachable with rows elsewhere — an empty history renders
+              // the page-wide empty state instead — or with a failed refresh
+              // of an empty page, whose error is said just above.
               <div className="p-4 text-body text-fg-tertiary">
-                No revisions yet. Revisions are recorded when a branch merges or opens, or when
-                you save a snapshot.
+                {total > 0 ? 'Nothing on this page.' : 'No revisions yet.'}
               </div>
             ) : (
               <>
@@ -279,31 +323,20 @@ export function HistoryTab({ slug }: { slug: string }) {
               </>
             )}
             {(hasNewer || hasOlder) && (
-              <div className="flex flex-wrap items-center justify-between gap-2 border-t px-3 py-2">
-                <p className="text-body-sm text-fg-tertiary">
-                  {`Showing ${offset + 1}–${offset + revisions.length} of ${countOf(total, 'revision', 'revisions')}.`}
-                </p>
-                <div className="flex items-center gap-2">
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    disabled={!hasNewer || listQuery.isFetching}
-                    onClick={() => goToOffset(Math.max(0, offset - PAGE_SIZE))}
-                  >
-                    Newer
-                  </Button>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    disabled={!hasOlder || listQuery.isFetching}
-                    onClick={() => goToOffset(offset + PAGE_SIZE)}
-                  >
-                    Older
-                  </Button>
-                </div>
-              </div>
+              <OffsetPager
+                label="Plan history pages"
+                className="border-t px-3 py-2"
+                paging={paging}
+                caption={
+                  revisions.length === 0
+                    ? `Past the end of ${countOf(total, 'revision', 'revisions')}.`
+                    : `Showing ${rangeStart}–${rangeEnd} of ${countOf(total, 'revision', 'revisions')}.`
+                }
+                prevLabel="Newer"
+                nextLabel="Older"
+                onPrev={() => goToOffset(Math.max(0, offset - PAGE_SIZE))}
+                onNext={() => goToOffset(offset + PAGE_SIZE)}
+              />
             )}
           </CardContent>
         </Card>
@@ -333,6 +366,7 @@ export function HistoryTab({ slug }: { slug: string }) {
           </CardContent>
         </Card>
       </div>
+      )}
 
       <Dialog open={snapshotOpen} onOpenChange={setSnapshotOpen}>
         <DialogContent className="max-w-md">
@@ -390,9 +424,9 @@ function RevisionRow({
   const metaLine = [
     formatDateTime(rev.created_at),
     ...(author ? [`by ${author}`] : []),
-    `${rev.entity_counts.event_types} types`,
-    `${rev.entity_counts.fields} fields`,
-    `${rev.entity_counts.events} events`,
+    `${rev.entity_counts.event_types ?? 0} types`,
+    `${rev.entity_counts.fields ?? 0} fields`,
+    `${rev.entity_counts.events ?? 0} events`,
   ].join(' · ')
 
   return (
@@ -531,9 +565,9 @@ const OPEN_ALL_BELOW = 6
 function HistoryDiff({ diff }: { diff: PlanDiff }) {
   const [kinds, setKinds] = useState<ReadonlySet<PlanDiffKind>>(() => new Set(KIND_ORDER))
   const counts: Record<PlanDiffKind, number> = {
-    added: diff.summary.added,
-    removed: diff.summary.removed,
-    changed: diff.summary.changed,
+    added: diff.summary.added ?? 0,
+    removed: diff.summary.removed ?? 0,
+    changed: diff.summary.changed ?? 0,
   }
   const shown = diff.entries.filter((entry) => kinds.has(entry.kind))
   const groups = GROUP_ORDER.map((type) => ({
@@ -606,7 +640,7 @@ function HistoryEntryRow({ entry, defaultOpen }: { entry: PlanDiffEntry; default
   const [open, setOpen] = useState(defaultOpen)
   const detailId = useId()
   const meta = KIND_META[entry.kind]
-  const hasDetail = (entry.field_changes?.length ?? 0) > 0 || entry.changes.length > 0
+  const hasDetail = (entry.field_changes?.length ?? 0) > 0 || (entry.changes?.length ?? 0) > 0
   return (
     <li className="border-b last:border-b-0 border-border-subtle">
       <button
@@ -649,7 +683,7 @@ function HistoryEntryRow({ entry, defaultOpen }: { entry: PlanDiffEntry; default
             <PlanFieldChangeList changes={entry.field_changes ?? []} />
           ) : (
             <ul className="space-y-0.5 text-caption text-fg-tertiary">
-              {entry.changes.map((change) => (
+              {(entry.changes ?? []).map((change) => (
                 <li key={change} className="font-mono">{change}</li>
               ))}
             </ul>
@@ -692,7 +726,8 @@ function RevisionHeader({
       ) : (
         <span className="font-medium">{rev.summary || 'Snapshot'}</span>
       )}
-      <span className="text-caption text-fg-tertiary">
+      {/* The browser's zone, named on hover: on screen it is a bare time. */}
+      <span className="text-caption text-fg-tertiary" title={formatTimestamp(rev.created_at, { zone: true })}>
         {formatDateTime(rev.created_at)}
       </span>
     </div>

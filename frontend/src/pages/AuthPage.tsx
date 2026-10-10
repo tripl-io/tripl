@@ -1,20 +1,28 @@
 import { Suspense, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useLocation, useNavigate, useSearchParams } from 'react-router-dom'
-import { ArrowRight, LockKeyhole, LogIn, Radar, UserPlus } from 'lucide-react'
+import { ArrowRight, LockKeyhole, LogIn, UserPlus } from 'lucide-react'
 import { authApi } from '@/api/auth'
 import { googleStartUrl, oidcStartUrl, signInErrorMessage } from '@/api/signIn'
 import { FieldError } from '@/components/forms/FieldError'
 import { REQUIRED_MESSAGE, focusFirstInvalid, invalidAria } from '@/components/forms/validation'
+import { Chip } from '@/components/primitives/chip'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { TrifoldMark } from '@/components/states/brand-mark'
 import { PasswordInput } from '@/components/ui/password-input'
+import { PRODUCT_STORY, WELCOME_PILLARS } from '@/components/workspace-welcome-pillars'
 import { cn } from '@/lib/utils'
+import { splitApiFieldErrors } from '@/lib/apiFieldErrors'
 import { postLoginDestination } from '@/lib/authRedirect'
-import { PASSWORD_MIN_LENGTH, PASSWORD_POLICY_HINT } from '@/lib/passwordPolicy'
+import {
+  PASSWORD_MIN_LENGTH,
+  PASSWORD_POLICY_HINT,
+  passwordPolicyError,
+} from '@/lib/passwordPolicy'
+import { RESET_LINK_COMMAND, RESET_LINK_PLACE } from '@/lib/passwordReset'
 import { SLUG_ERROR, foldSlug, isValidSlug } from '@/lib/slug'
 import type { AuthUser } from '@/types'
 import { SILENT_ERROR_META } from '@/lib/errorFeedback'
@@ -50,7 +58,7 @@ const CARD_COPY: Record<CoreMode, { title: string; description: string }> = {
 /** Sign-in on the public demo, where Google is the only way in. */
 const DEMO_CARD_COPY = {
   title: 'Try the tripl demo',
-  description: 'Sign in with Google and get a demo workspace of your own.',
+  description: 'Sign in with Google and get a demo project of your own.',
 }
 
 // Just enough to catch a missing @ before the server's 422 would; the backend
@@ -63,11 +71,23 @@ function emailError(value: string): string | null {
   return null
 }
 
-function passwordError(value: string, minLength: number): string | null {
+/**
+ * Sign-in takes whatever password the account has; a password being set
+ * (sign-up, reset) must meet the policy the server enforces, all of it, not
+ * just its length.
+ */
+function passwordError(value: string, kind: 'current' | 'new'): string | null {
   if (!value) return REQUIRED_MESSAGE
-  if (value.length < minLength) return `Use at least ${minLength} characters.`
-  return null
+  return kind === 'new' ? passwordPolicyError(value) : null
 }
+
+/**
+ * The request fields the sign-in and sign-up form shows an input for: a 422
+ * naming one of them is said under that input, not as "password: …" above
+ * the button.
+ */
+const AUTH_SERVER_FIELDS = ['email', 'password', 'name'] as const
+const RESET_SERVER_FIELDS = ['new_password'] as const
 
 function orgNameError(value: string): string | null {
   return value.trim() ? null : REQUIRED_MESSAGE
@@ -80,7 +100,22 @@ function orgSlugError(value: string): string | null {
   return null
 }
 
-/** `aria-describedby` for a control with a standing hint and a possible error. */
+/**
+ * What to do when the instance cannot email a reset link, said before the
+ * request and again after it. It used to send people to "your instance owner",
+ * who had no way to help.
+ */
+function NoEmailResetHelp() {
+  return (
+    <>
+      This instance can't send email, so no reset link will arrive. An owner or admin of your
+      organization can create one for you under {RESET_LINK_PLACE}. If no one can sign in,
+      whoever runs the server can print one with{' '}
+      <code className="mono">{`${RESET_LINK_COMMAND} <your email>`}</code>.
+    </>
+  )
+}
+
 /** Google's "G", in its own colours as its sign-in guidelines ask. */
 function GoogleMark() {
   return (
@@ -93,6 +128,7 @@ function GoogleMark() {
   )
 }
 
+/** `aria-describedby` for a control with a standing hint and a possible error. */
 function describedBy(...ids: Array<string | false | null | undefined>): string | undefined {
   const list = ids.filter(Boolean)
   return list.length > 0 ? list.join(' ') : undefined
@@ -240,11 +276,17 @@ export default function AuthPage() {
     panel ?? (googleOnly && mode === 'login' ? DEMO_CARD_COPY : CARD_COPY[mode as CoreMode])
 
   const submitted = submittedMode === mode
+  const passwordKind = mode === 'register' ? 'new' : 'current'
+  const authServer = splitApiFieldErrors(authMutation.error, AUTH_SERVER_FIELDS)
+  const resetServer = splitApiFieldErrors(resetMutation.error, RESET_SERVER_FIELDS)
   // Register enforces the shared policy; login stays lenient so pre-policy
-  // accounts can still sign in.
+  // accounts can still sign in. The form's own check first, then what the
+  // server said about the same input.
   const authErrors = {
-    email: submitted ? emailError(email) : null,
-    password: submitted ? passwordError(password, mode === 'register' ? PASSWORD_MIN_LENGTH : 1) : null,
+    name: authServer.fields.name ?? null,
+    email: (submitted ? emailError(email) : null) ?? authServer.fields.email ?? null,
+    password:
+      (submitted ? passwordError(password, passwordKind) : null) ?? authServer.fields.password ?? null,
   }
   const askOrg = mode === 'register' && hosted
   // Until the probe settles the page cannot know whether this is a hosted
@@ -256,7 +298,8 @@ export default function AuthPage() {
     slug: submitted && askOrg ? orgSlugError(orgSlug) : null,
   }
   const forgotEmailError = submitted ? emailError(email) : null
-  const newPasswordError = submitted ? passwordError(newPassword, PASSWORD_MIN_LENGTH) : null
+  const newPasswordError =
+    (submitted ? passwordError(newPassword, 'new') : null) ?? resetServer.fields.new_password ?? null
 
   return (
     // Theme tokens throughout: the page used to be hard-coded slate and teal,
@@ -287,38 +330,41 @@ export default function AuthPage() {
         </div>
         {/* Below lg the form comes first: the pitch stacked above it put the
             sign-in card about a screen and a half down on a phone. */}
+        {/* The product's own story, as the welcome screen right after it
+            tells it: the same eyebrow, headline and three pillars. This page
+            used to carry a third version (Catalog / Monitoring / Alerting)
+            that had drifted from both the welcome screen and the docs. */}
         <section className="order-last space-y-8 lg:order-none">
-          <div className="inline-flex items-center gap-2 rounded-full border border-border bg-surface px-3 py-1 text-body-sm uppercase tracking-[0.28em] text-accent">
-            <Radar className="h-3.5 w-3.5" aria-hidden="true" />
-            Tracking operations
+          <div>
+            <Chip tone="accent" size="sm">
+              {PRODUCT_STORY.eyebrow}
+            </Chip>
           </div>
           <div className="max-w-2xl space-y-4">
             <h1 className="text-4xl font-semibold tracking-tight text-fg sm:text-5xl">
-              Operate the tracking plan before the data drifts.
+              {PRODUCT_STORY.headline}.
             </h1>
+            {/* The same in either mode: it used to open "Sign in to…" above
+                the sign-up form as well. */}
             <p className="max-w-xl text-heading leading-7 text-fg-muted">
               {publicDemo
                 ? 'Walk a ready-made workspace — a tracking plan, live scans, anomalies and alerts on a synthetic warehouse — with a guide that shows you where to click.'
-                : 'Sign in to manage catalog coverage, scan production data, review anomalies, and route alerts without losing the operational context of the workspace.'}
+                : 'Write down what you intend to track, check it against what your apps actually send, and hear about it the moment the numbers look wrong.'}
             </p>
           </div>
-          <div className="hidden gap-4 sm:grid sm:grid-cols-3">
-            <FeatureCard
-              eyebrow="Catalog"
-              title="Track intent"
-              description="Keep event definitions, properties, and metadata aligned with the real implementation surface."
-            />
-            <FeatureCard
-              eyebrow="Monitoring"
-              title="Catch drift"
-              description="Surface the latest scan outcomes and anomaly signals as soon as collection diverges."
-            />
-            <FeatureCard
-              eyebrow="Alerting"
-              title="Route action"
-              description="Move from suspicious metrics to Slack and Telegram delivery without leaving the product."
-            />
-          </div>
+          {/* Names only: the welcome screen's descriptions run to forty words,
+              too long for three cards side by side. */}
+          <ul className="hidden gap-4 sm:grid sm:grid-cols-3">
+            {WELCOME_PILLARS.map((pillar) => (
+              <li key={pillar.id} className="rounded-2xl border border-border bg-surface p-4">
+                <div className="flex items-center gap-2 text-caption font-semibold uppercase tracking-[0.22em] text-accent">
+                  <pillar.icon className="h-3.5 w-3.5" aria-hidden="true" />
+                  {pillar.eyebrow}
+                </div>
+                <div className="mt-3 text-heading font-semibold text-fg">{pillar.title}</div>
+              </li>
+            ))}
+          </ul>
         </section>
 
         <Card className="order-first border-border bg-bg-elevated shadow-lg lg:order-none">
@@ -435,9 +481,8 @@ export default function AuthPage() {
                 onSubmit={(event) => {
                   event.preventDefault()
                   setSubmittedMode(mode)
-                  const minLength = mode === 'register' ? PASSWORD_MIN_LENGTH : 1
                   const orgInvalid = askOrg && (orgNameError(orgName) || orgSlugError(orgSlug))
-                  if (emailError(email) || passwordError(password, minLength) || orgInvalid) {
+                  if (emailError(email) || passwordError(password, passwordKind) || orgInvalid) {
                     focusFirstInvalidSoon(event.currentTarget)
                     return
                   }
@@ -455,6 +500,13 @@ export default function AuthPage() {
                       onChange={event => setName(event.target.value)}
                       placeholder="Your name"
                       autoComplete="name"
+                      {...invalidAria('auth-name', authErrors.name)}
+                    />
+                    <FieldError
+                      inputId="auth-name"
+                      message={authErrors.name}
+                      announce
+                      className="mt-0"
                     />
                   </div>
                 )}
@@ -473,7 +525,14 @@ export default function AuthPage() {
                     aria-required
                     {...invalidAria('auth-email', authErrors.email)}
                   />
-                  <FieldError inputId="auth-email" message={authErrors.email} className="mt-0" />
+                  {/* Announced when it is the server's: it arrives after the
+                      submit, with focus already elsewhere. */}
+                  <FieldError
+                    inputId="auth-email"
+                    message={authErrors.email}
+                    announce={authMutation.isError}
+                    className="mt-0"
+                  />
                 </div>
 
                 <div className="space-y-2">
@@ -485,7 +544,9 @@ export default function AuthPage() {
                     autoComplete={mode === 'login' ? 'current-password' : 'new-password'}
                     value={password}
                     onChange={event => setPassword(event.target.value)}
-                    placeholder={mode === 'register' ? PASSWORD_POLICY_HINT : 'Enter your password'}
+                    // The rule is the hint under the field; as the placeholder
+                    // too, it was said twice.
+                    placeholder={mode === 'register' ? undefined : 'Enter your password'}
                     aria-required
                     // Kept for password managers; the form checks it itself.
                     minLength={mode === 'register' ? PASSWORD_MIN_LENGTH : 1}
@@ -500,7 +561,12 @@ export default function AuthPage() {
                       {PASSWORD_POLICY_HINT}
                     </p>
                   )}
-                  <FieldError inputId="auth-password" message={authErrors.password} className="mt-0" />
+                  <FieldError
+                    inputId="auth-password"
+                    message={authErrors.password}
+                    announce={authMutation.isError}
+                    className="mt-0"
+                  />
                 </div>
 
                 {askOrg && (
@@ -558,12 +624,12 @@ export default function AuthPage() {
                   </p>
                 )}
 
-                {authMutation.isError && (
+                {authServer.message && (
                   <div
                     role="alert"
                     className="rounded-lg border border-danger/25 bg-danger-soft px-3 py-2 text-body text-danger"
                   >
-                    {authMutation.error.message}
+                    {authServer.message}
                   </div>
                 )}
 
@@ -622,7 +688,7 @@ export default function AuthPage() {
                   >
                     {forgotMutation.data?.email_configured
                       ? 'If an account exists for that email, a password reset link is on its way. The link expires in one hour.'
-                      : 'Self-service password reset is not available on this instance. Contact your instance owner to reset your password.'}
+                      : <NoEmailResetHelp />}
                   </div>
                   <button
                     type="button"
@@ -665,8 +731,7 @@ export default function AuthPage() {
 
                   {emailOff && (
                     <p className="rounded-lg border border-warning/25 bg-warning-soft px-3 py-2 text-body leading-6 text-fg">
-                      This instance can't send email, so no reset link will arrive. Ask your
-                      instance owner to reset your password.
+                      <NoEmailResetHelp />
                     </p>
                   )}
 
@@ -725,7 +790,7 @@ export default function AuthPage() {
                   onSubmit={(event) => {
                     event.preventDefault()
                     setSubmittedMode(mode)
-                    if (passwordError(newPassword, PASSWORD_MIN_LENGTH)) {
+                    if (passwordError(newPassword, 'new')) {
                       focusFirstInvalidSoon(event.currentTarget)
                       return
                     }
@@ -741,7 +806,6 @@ export default function AuthPage() {
                       autoComplete="new-password"
                       value={newPassword}
                       onChange={event => setNewPassword(event.target.value)}
-                      placeholder={PASSWORD_POLICY_HINT}
                       aria-required
                       minLength={PASSWORD_MIN_LENGTH}
                       aria-invalid={newPasswordError ? true : undefined}
@@ -753,15 +817,20 @@ export default function AuthPage() {
                     <p id="reset-password-hint" className="text-body-sm leading-5 text-fg-subtle">
                       {PASSWORD_POLICY_HINT}
                     </p>
-                    <FieldError inputId="reset-password" message={newPasswordError} className="mt-0" />
+                    <FieldError
+                      inputId="reset-password"
+                      message={newPasswordError}
+                      announce={resetMutation.isError}
+                      className="mt-0"
+                    />
                   </div>
 
-                  {resetMutation.isError && (
+                  {resetServer.message && (
                     <div
                       role="alert"
                       className="rounded-lg border border-danger/25 bg-danger-soft px-3 py-2 text-body text-danger"
                     >
-                      {resetMutation.error.message}
+                      {resetServer.message}
                     </div>
                   )}
 
@@ -791,8 +860,8 @@ export default function AuthPage() {
                 role="status"
                 className="rounded-lg border border-border bg-bg-sunken px-3 py-2 text-body leading-6 text-fg-muted"
               >
-                Sign-ups are closed on this instance. Ask an owner to reopen registration
-                under Settings → Instance → Security &amp; access so you can sign up.
+                Sign-ups are closed on this instance. Ask your tripl administrator (a platform
+                admin) to reopen sign-up under Settings → Platform → Security &amp; access.
               </p>
             )}
 
@@ -809,36 +878,22 @@ export default function AuthPage() {
               </div>
             )}
 
-            {mode === 'register' && (
+            {/* What the new account is. On a fresh instance the owner note in
+                the form already says it, so this stays out of the way. A
+                teammate who signs up later is a member: they may start
+                projects of their own, but the team's projects stay out of
+                their list until someone lets them in, and this used to
+                promise "access immediately". */}
+            {mode === 'register' && (hosted || !isFreshInstance) && (
               <p className="text-body leading-6 text-fg-subtle">
                 {hosted
                   ? 'You become the owner of the new organization. We will email you a link to verify your address before you can start.'
-                  : 'New accounts are created inside this tripl workspace and receive access immediately.'}
+                  : 'You join as a member: you can create projects of your own, and you see the team’s existing projects once an owner or admin adds you.'}
               </p>
             )}
           </CardContent>
         </Card>
       </div>
-    </div>
-  )
-}
-
-function FeatureCard({
-  eyebrow,
-  title,
-  description,
-}: {
-  eyebrow: string
-  title: string
-  description: string
-}) {
-  return (
-    <div className="rounded-2xl border border-border bg-surface p-4">
-      <div className="text-caption font-semibold uppercase tracking-[0.22em] text-accent">
-        {eyebrow}
-      </div>
-      <div className="mt-3 text-heading font-semibold text-fg">{title}</div>
-      <p className="mt-2 text-body leading-6 text-fg-muted">{description}</p>
     </div>
   )
 }

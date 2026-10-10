@@ -179,7 +179,7 @@ describe('EventEditPage duplicating an event (tripl-4zzc.7)', () => {
 
   it('remounts the form when Duplicate is pressed on a cached source', async () => {
     const router = renderAt('/p/demo/events/all/ev-1/edit?tag=checkout')
-    expect(await screen.findByRole('heading', { name: 'Edit event' })).toBeInTheDocument()
+    expect(await screen.findByRole('heading', { name: 'Edit · checkout_started' })).toBeInTheDocument()
     expect(screen.getByLabelText(/^Status/)).toHaveValue('live')
     // The source is in the cache: no skeleton unmounts the form between the two.
     expect(queryClient.getQueryData(eventKey('demo', null, 'ev-1'))).toBeTruthy()

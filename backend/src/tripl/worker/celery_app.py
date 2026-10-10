@@ -66,6 +66,13 @@ celery_app.conf.worker_prefetch_multiplier = 1
 # Celery reads default_retry_delay from the Task class, not app configuration.
 celery_app.Task.default_retry_delay = 30
 
+# Every entry that polls for due work around the clock (every minute up to every
+# hour) carries an ``expires`` equal to its interval. All tasks share one queue,
+# so while long scans or collections hold every worker slot, each tick that
+# cannot start would wait there, one more per interval, and they would all run
+# back to back once a slot frees. With the expiry, a tick not started within its
+# interval is dropped, and the next one does what it would have done. Daily and
+# weekly entries carry none: a late run is better than a skipped day.
 celery_app.conf.beat_schedule = {
     "check-metrics-due": {
         "task": "tripl.worker.tasks.metrics.check_metrics_due",
@@ -73,6 +80,7 @@ celery_app.conf.beat_schedule = {
         # polling is more than enough and leaves headroom if the dispatcher
         # itself becomes slow against a growing scan_configs table.
         "schedule": crontab(minute="*/5"),
+        "options": {"expires": 5 * 60},
     },
     "check-metric-definitions-due": {
         "task": "tripl.worker.tasks.metrics.check_metric_definitions_due",
@@ -80,6 +88,7 @@ celery_app.conf.beat_schedule = {
         # scans, so a 5-minute dispatcher tick is plenty. Runs independently of
         # check-metrics-due (separate task + advisory lock).
         "schedule": crontab(minute="*/5"),
+        "options": {"expires": 5 * 60},
     },
     "cleanup-schema-drifts": {
         "task": "tripl.worker.tasks.maintenance.cleanup_schema_drifts",
@@ -107,6 +116,7 @@ celery_app.conf.beat_schedule = {
         # STRANDED_DELIVERY_MINUTES, so this just bounds detection latency for
         # rows the worker/broker failed to dispatch.
         "schedule": crontab(minute="*/5"),
+        "options": {"expires": 5 * 60},
     },
     "requeue-stranded-org-deletions": {
         "task": "tripl.worker.tasks.org_delete.requeue_stranded_org_deletions",
@@ -114,6 +124,7 @@ celery_app.conf.beat_schedule = {
         # (2 h, above the task time limit) without a purge job touching it, and
         # all it costs meanwhile is a slug and some storage.
         "schedule": crontab(minute=17),
+        "options": {"expires": 60 * 60},
     },
     "sync-holiday-calendars": {
         "task": "tripl.worker.tasks.holiday_calendar.sync_holiday_calendars",
@@ -130,16 +141,15 @@ celery_app.conf.beat_schedule = {
         # task was registered but on nobody's timer, so its output could not
         # reach a reader. Kept because the feature is already half-shipped —
         # the weekly digest above renders the identical counter from the
-        # identical predicate to the identical set of destinations
+        # identical findings to the identical set of destinations
         # ("- Deprecated events still receiving data: N", built by
         # alerts_messages._build_plan_digest_message). What a count cannot do is
         # NAME the events, and "3" once a week is not something an operator can
         # act on. This task is that line expanded.
         #
-        # Daily, and not tighter, because both sides of the comparison move
-        # slowly: ``sunset_at`` is a date an owner typed into the plan, and
-        # ``last_seen_at`` is refreshed by a scan, so at most once per scan
-        # interval. A sub-daily tick could only re-send an unchanged list.
+        # Daily, and not tighter, because what it reads is daily: the open
+        # ``sunset_overdue`` findings of the lifecycle sweep below. A sub-daily
+        # tick could only re-send an unchanged list.
         #
         # Daily, and not weekly, because the task holds no per-event
         # suppression state — every run re-sends the same true count and the
@@ -154,7 +164,10 @@ celery_app.conf.beat_schedule = {
     "check-lifecycle-findings": {
         "task": "tripl.worker.tasks.lifecycle.check_lifecycle_findings",
         # Daily (#258), ahead of the 06:00 sunset alert and the Monday 08:00
-        # digest so both read today's findings. Both sides of each condition
+        # digest, which both read the open findings. Beat does not wait for one
+        # task to finish before starting another, so they read the latest
+        # COMPLETED sweep: today's on a normal day, yesterday's if this run is
+        # slow or fails. Both sides of each condition
         # move slowly — a sunset date an owner typed, volume windows of 24h and
         # 7d — so a tighter tick could only rewrite unchanged rows.
         "schedule": crontab(hour=5, minute=45),
@@ -179,6 +192,7 @@ celery_app.conf.beat_schedule = {
         # (a dev finishing a Jira issue), so tighter polling buys nothing and only
         # adds load against the tracker's REST API.
         "schedule": crontab(minute="*/5"),
+        "options": {"expires": 5 * 60},
     },
     "reindex-stale-search-documents": {
         "task": "tripl.worker.tasks.search.reindex_stale_search_documents",
@@ -189,6 +203,7 @@ celery_app.conf.beat_schedule = {
         # same order as the delay main already has (it waits for the next scan).
         # Between bumps the query matches nothing and a pass is one indexed lookup.
         "schedule": crontab(minute="*/10"),
+        "options": {"expires": 10 * 60},
     },
     "requeue-stranded-search-embeddings": {
         "task": "tripl.worker.tasks.search.requeue_stranded_search_embeddings",
@@ -196,6 +211,7 @@ celery_app.conf.beat_schedule = {
         # this chaser only bounds how long a lost queue message or an exhausted
         # batch retry can leave documents pending (STRANDED_EMBEDDING_MINUTES).
         "schedule": crontab(minute="*/15"),
+        "options": {"expires": 15 * 60},
     },
     "flush-due-alert-digests": {
         "task": "tripl.worker.tasks.alert_flush.flush_due_alert_digests",
@@ -211,6 +227,7 @@ celery_app.conf.beat_schedule = {
         # check-metrics-due, which does a grouped max(bucket) over the metrics
         # table every 300s.
         "schedule": crontab(minute="*"),
+        "options": {"expires": 60},
     },
     "sweep-overdue-sources": {
         "task": "tripl.worker.tasks.metrics.sweep_overdue_sources",
@@ -221,15 +238,18 @@ celery_app.conf.beat_schedule = {
         # latency at one interval past the threshold. Idempotent per outage —
         # the AlertRuleState gate sends each stopped scan once.
         "schedule": crontab(minute="*/15"),
+        "options": {"expires": 15 * 60},
     },
     "advance-demos": {
         "task": "tripl.worker.tasks.demo_runtime.advance_demos",
         # Every 5 minutes — demos advance on hourly bucket boundaries, so 5-minute
-        # polling keeps them inside the freshness horizon with headroom, and the
-        # per-demo tick is idempotent so an early/overlapping run is a no-op. A
-        # no-op entirely when demo_runtime_enabled is false. Independent of the
-        # metrics dispatchers (own task + per-project advisory lock).
+        # polling keeps them inside the freshness horizon with headroom. A tick
+        # with no new hour only stamps the demo's collection time; one sweep runs
+        # at a time (a run that finds another holding the sweep lock skips), and
+        # a per-project lock keeps a demo's writes serial. A no-op entirely when
+        # demo_runtime_enabled is false.
         "schedule": crontab(minute="*/5"),
+        "options": {"expires": 5 * 60},
     },
     "send-instant-notification-emails": {
         "task": "tripl.worker.tasks.notification_email.send_notification_emails",
@@ -239,6 +259,7 @@ celery_app.conf.beat_schedule = {
         # the last 24h. The emailed_at claim makes an overlap with the enqueued
         # run harmless.
         "schedule": crontab(minute="*"),
+        "options": {"expires": 60},
     },
     "send-notification-digest-daily": {
         "task": "tripl.worker.tasks.notification_email.send_notification_digest",

@@ -117,13 +117,20 @@ describe('ratioDelta', () => {
 describe('formatRatioDelta', () => {
   it('signs the percentage and rounds to whole percent by default', () => {
     expect(formatRatioDelta(137.4)).toBe('+137%')
-    expect(formatRatioDelta(-42.6)).toBe('-43%')
+    expect(formatRatioDelta(-42.6)).toBe('−43%')
     expect(formatRatioDelta(12.3, 1)).toBe('+12.3%')
+  })
+
+  it('signs a drop with the typographic minus and leaves a rounded zero unsigned', () => {
+    expect(formatRatioDelta(-12.34, 1)).toBe('−12.3%')
+    expect(formatRatioDelta(-0.4)).toBe('0%')
+    expect(formatRatioDelta(0.04, 1)).toBe('0.0%')
+    expect(formatRatioDelta(1234)).toBe('+1,234%')
   })
 
   it('reads as a drop for a fall below a negative baseline', () => {
     // End to end: the number the banner actually prints beside its down arrow.
-    expect(formatRatioDelta(ratioDelta(-9, -3))).toBe('-200%')
+    expect(formatRatioDelta(ratioDelta(-9, -3))).toBe('−200%')
     expect(formatRatioDelta(ratioDelta(-1, -3))).toBe('+67%')
   })
 

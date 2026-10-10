@@ -5,6 +5,7 @@ import { List, Pencil, Plus, Trash2, X } from "lucide-react"
 import { metaFieldsApi } from "@/api/metaFields"
 import { metaFieldDeleteMessage } from "./metaFieldDelete"
 import { useActiveBranchId } from "@/hooks/useBranch"
+import { useDirtySinceOpen } from "@/hooks/useUnsavedChangesGuard"
 import type { MetaFieldDefinition, MetaFieldUsage, Sensitivity } from "@/types"
 import { SENSITIVITY_OPTIONS } from "@/types"
 import { SensitivityChip } from "@/components/primitives/sensitivity-chip"
@@ -18,7 +19,7 @@ import { REQUIRED_MESSAGE, focusFirstInvalid, invalidAria } from "@/components/f
 import { Button } from "@/components/ui/button"
 import { IconButton } from "@/components/ui/icon-button"
 import { Checkbox } from "@/components/ui/checkbox"
-import { Dialog, DialogBody, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
+import { Dialog, DialogBody, DialogClose, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
@@ -33,11 +34,13 @@ import {
   MULTI_VALUE_META_FIELD_TYPES,
   metaFieldLinkExample,
 } from "@/lib/metaFields"
-import { getErrorMessage } from '@/lib/utils'
+import { cn, getErrorMessage } from '@/lib/utils'
 import { useCanWriteProject } from '@/lib/permissions'
 import { ReadOnlyNotice } from '@/components/states'
 import { metaFieldsKey, projectMetaFieldsKey } from '@/lib/queryKeys'
 import { currentOrgSlug, projectPath } from '@/lib/navigation'
+import { STICKY_ACTIONS_CLASS } from './stickyActions'
+import { countOf } from '@/lib/plural'
 
 /**
  * A link template as it will be saved. `{value}` without the dollar sign is
@@ -180,11 +183,24 @@ export function MetaFieldsTab({ slug }: { slug: string }) {
     }, branchId),
     onSuccess: () => {
       invalidateMetaFields()
-      setCreateSubmitted(false)
-      setShowForm(false); setName(''); setDisplayName(''); setFieldType('string')
-      setIsRequired(false); setAllowMultiple(false); setEnumOptions([]); setEnumInput(''); setDefaultValue('')
-      setDisplayAsLink(false); setLinkTemplate(''); setSensitivity('none')
+      setShowForm(false)
     },
+  })
+
+  // Every New meta field starts from an empty form, the way the edit dialog
+  // starts from the saved field. Closing used to keep the last draft (and its
+  // error) for the next open; now a typed draft asks before it goes.
+  const openCreate = () => {
+    createMut.reset()
+    setCreateSubmitted(false)
+    setName(''); setDisplayName(''); setFieldType('string')
+    setIsRequired(false); setAllowMultiple(false); setEnumOptions([]); setEnumInput(''); setDefaultValue('')
+    setDisplayAsLink(false); setLinkTemplate(''); setSensitivity('none')
+    setShowForm(true)
+  }
+  const createDirty = useDirtySinceOpen(showForm, {
+    name, displayName, fieldType, isRequired, allowMultiple, enumOptions, enumInput,
+    defaultValue, displayAsLink, linkTemplate, sensitivity,
   })
 
   const updateMut = useMutation({
@@ -225,6 +241,11 @@ export function MetaFieldsTab({ slug }: { slug: string }) {
     })
     if (ok) deleteMut.mutate(mf.id)
   }
+
+  const editDirty = useDirtySinceOpen(!!editingMf, {
+    editDisplayName, editFieldType, editIsRequired, editAllowMultiple, editEnumOptions, editEnumInput,
+    editDefaultValue, editDisplayAsLink, editLinkTemplate, editSensitivity,
+  })
 
   const startEdit = (mf: MetaFieldDefinition) => {
     setEditSubmitted(false)
@@ -278,7 +299,7 @@ export function MetaFieldsTab({ slug }: { slug: string }) {
         }
         actions={
           canWrite && (
-            <Button size="sm" onClick={() => setShowForm(true)}>
+            <Button size="sm" onClick={openCreate}>
               <Plus className="size-3.5" />New meta field
             </Button>
           )
@@ -287,7 +308,7 @@ export function MetaFieldsTab({ slug }: { slug: string }) {
       {!canWrite && <ReadOnlyNotice />}
 
       {/* Create dialog */}
-      <Dialog open={showForm} onOpenChange={setShowForm}>
+      <Dialog open={showForm} dirty={createDirty} onOpenChange={setShowForm}>
         <DialogContent>
           <form
             noValidate
@@ -382,7 +403,9 @@ export function MetaFieldsTab({ slug }: { slug: string }) {
               {createMut.isError && <p className="text-body text-destructive">{getErrorMessage(createMut.error)}</p>}
             </DialogBody>
             <DialogFooter>
-              <Button type="button" variant="outline" onClick={() => setShowForm(false)}>Cancel</Button>
+              <DialogClose asChild>
+                <Button type="button" variant="outline">Cancel</Button>
+              </DialogClose>
               <Button type="submit" disabled={createMut.isPending}>Create</Button>
             </DialogFooter>
           </form>
@@ -390,7 +413,7 @@ export function MetaFieldsTab({ slug }: { slug: string }) {
       </Dialog>
 
       {/* Edit dialog */}
-      <Dialog open={!!editingMf} onOpenChange={v => { if (!v) setEditingMf(null) }}>
+      <Dialog open={!!editingMf} dirty={editDirty} onOpenChange={v => { if (!v) setEditingMf(null) }}>
         <DialogContent>
           <form
             noValidate
@@ -483,7 +506,9 @@ export function MetaFieldsTab({ slug }: { slug: string }) {
               {updateMut.isError && <p className="text-body text-destructive">{getErrorMessage(updateMut.error)}</p>}
             </DialogBody>
             <DialogFooter>
-              <Button type="button" variant="outline" onClick={() => setEditingMf(null)}>Cancel</Button>
+              <DialogClose asChild>
+                <Button type="button" variant="outline">Cancel</Button>
+              </DialogClose>
               <Button type="submit" disabled={updateMut.isPending}>Save</Button>
             </DialogFooter>
           </form>
@@ -494,7 +519,7 @@ export function MetaFieldsTab({ slug }: { slug: string }) {
         title="All meta fields"
         subtitle={metaFieldsQuery.isPending
           ? 'Loading…'
-          : `${metaFields.length} field${metaFields.length === 1 ? '' : 's'}`}
+          : countOf(metaFields.length, 'field', 'fields')}
       >
         {metaFieldsQuery.isError && metaFieldsQuery.data !== undefined && (
           // A failed REFRESH keeps the rows on screen: replacing them with an
@@ -504,7 +529,7 @@ export function MetaFieldsTab({ slug }: { slug: string }) {
           </p>
         )}
         {metaFieldsQuery.isPending ? (
-          // A pending list is not an empty one: "No meta fields" used to flash
+          // A pending list is not an empty one: "No meta fields yet" used to flash
           // on every cold load and stay up on a 500.
           <div className="space-y-2 px-4 py-4" aria-busy="true" aria-label="Loading meta fields">
             {Array.from({ length: 3 }, (_, index) => (
@@ -534,7 +559,7 @@ export function MetaFieldsTab({ slug }: { slug: string }) {
                 <TableHead>Default</TableHead>
                 {/* Pinned right, so the row actions stay on screen on a
                     phone. */}
-                <TableHead className="sticky right-0 w-24 bg-surface"><span className="sr-only">Actions</span></TableHead>
+                <TableHead className={cn(STICKY_ACTIONS_CLASS, 'w-24')}><span className="sr-only">Actions</span></TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -545,7 +570,9 @@ export function MetaFieldsTab({ slug }: { slug: string }) {
                     <div className="space-y-1">
                       <div className="text-fg-tertiary">{mf.display_name}</div>
                       {mf.link_template && (
-                        <div className="font-mono text-caption text-fg-tertiary/80">
+                        // A URL has no spaces to wrap at: it breaks where it
+                        // must instead of running under the pinned actions.
+                        <div className="font-mono text-caption text-fg-tertiary/80 wrap-anywhere">
                           Link: {mf.link_template}
                         </div>
                       )}
@@ -561,7 +588,7 @@ export function MetaFieldsTab({ slug }: { slug: string }) {
                   </TableCell>
                   <TableCell>{mf.is_required ? <span className="text-success font-medium text-body-sm">✓</span> : <span className="text-fg-tertiary">—</span>}</TableCell>
                   <TableCell className="text-body-sm text-fg-tertiary">{mf.default_value ?? '—'}</TableCell>
-                  <TableCell className="sticky right-0 bg-surface">
+                  <TableCell className={STICKY_ACTIONS_CLASS}>
                     {canWrite && (
                       <div className="flex gap-1 justify-end">
                         <IconButton variant="ghost" className="h-7 w-7" label={`Edit ${mf.display_name}`} onClick={() => startEdit(mf)}><Pencil className="h-3 w-3" aria-hidden="true" /></IconButton>
@@ -583,10 +610,10 @@ export function MetaFieldsTab({ slug }: { slug: string }) {
           <div className="px-4 py-8">
             <EmptyState
               icon={List}
-              title="No meta fields"
+              title="No meta fields yet"
               description="Meta fields are attributes every event carries, like an owner team or a Jira ticket."
               action={canWrite ? (
-                <Button type="button" size="sm" onClick={() => setShowForm(true)}>
+                <Button type="button" size="sm" onClick={openCreate}>
                   <Plus className="size-3.5" />Create your first meta field
                 </Button>
               ) : undefined}

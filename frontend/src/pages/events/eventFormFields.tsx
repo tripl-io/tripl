@@ -219,6 +219,40 @@ export function FieldTemplateHints({
   )
 }
 
+const BOOLEAN_CHOICES: readonly string[] = ['true', 'false']
+
+/**
+ * A boolean or enum value's picker: "—" for none, then the choices. A stored
+ * value the choices do not list — a `${platform}` token a scan or the API
+ * wrote — gets an option of its own. A controlled <select> has nothing to show
+ * for it, so the form read "—" for a field the events table showed as
+ * `${platform}`, while Save still kept the token.
+ */
+function ChoiceSelect({
+  id,
+  choices,
+  value,
+  onChange,
+  ariaRequired,
+  invalid = false,
+}: {
+  id?: string
+  choices: readonly string[]
+  value: string
+  onChange: (value: string) => void
+  ariaRequired?: boolean
+  invalid?: boolean
+}) {
+  const unlisted = value !== '' && !choices.includes(value)
+  return (
+    <SelectControl id={id} value={value} onChange={onChange} ariaRequired={ariaRequired} aria-invalid={invalid}>
+      <option value="">—</option>
+      {unlisted && <option value={value}>{value}</option>}
+      {choices.map(choice => <option key={choice} value={choice}>{choice}</option>)}
+    </SelectControl>
+  )
+}
+
 type FieldValueControlProps = {
   field: FieldDefinition
   value: string
@@ -253,21 +287,19 @@ export function FieldValueControl({
   coached,
 }: FieldValueControlProps) {
   const required = requiredOverride ?? field.is_required
-  if (field.field_type === 'boolean') {
+  const choices = field.field_type === 'boolean'
+    ? BOOLEAN_CHOICES
+    : field.field_type === 'enum' ? field.enum_options : null
+  if (choices) {
     return (
-      <SelectControl id={inputId} value={value} onChange={onChange} ariaRequired={required} aria-invalid={flagged}>
-        <option value="">—</option>
-        <option value="true">true</option>
-        <option value="false">false</option>
-      </SelectControl>
-    )
-  }
-  if (field.field_type === 'enum' && field.enum_options) {
-    return (
-      <SelectControl id={inputId} value={value} onChange={onChange} ariaRequired={required} aria-invalid={flagged}>
-        <option value="">—</option>
-        {field.enum_options.map(opt => <option key={opt} value={opt}>{opt}</option>)}
-      </SelectControl>
+      <ChoiceSelect
+        id={inputId}
+        choices={choices}
+        value={value}
+        onChange={onChange}
+        ariaRequired={required}
+        invalid={flagged}
+      />
     )
   }
   if (field.field_type === 'json') {
@@ -384,21 +416,12 @@ export function MetaFieldControl({
       </div>
     )
   }
-  if (metaField.field_type === 'boolean') {
+  const choices = metaField.field_type === 'boolean'
+    ? BOOLEAN_CHOICES
+    : metaField.field_type === 'enum' ? metaField.enum_options : null
+  if (choices) {
     return (
-      <SelectControl id={inputId} value={value} onChange={setOne} ariaRequired={ariaRequired}>
-        <option value="">—</option>
-        <option value="true">true</option>
-        <option value="false">false</option>
-      </SelectControl>
-    )
-  }
-  if (metaField.field_type === 'enum' && metaField.enum_options) {
-    return (
-      <SelectControl id={inputId} value={value} onChange={setOne} ariaRequired={ariaRequired}>
-        <option value="">—</option>
-        {metaField.enum_options.map(opt => <option key={opt} value={opt}>{opt}</option>)}
-      </SelectControl>
+      <ChoiceSelect id={inputId} choices={choices} value={value} onChange={setOne} ariaRequired={ariaRequired} />
     )
   }
   // A pasted address is reduced to the key the template wraps, as the server

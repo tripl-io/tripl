@@ -51,13 +51,17 @@ def admin_ids_for_update() -> Select[uuid.UUID]:
     return select(User.id).where(User.is_platform_admin.is_(True)).with_for_update()
 
 
-def admin_audit_row(
-    target: User, *, grant: bool, actor: User | None, via: str, marked_verified: bool = False
+def platform_audit_row(
+    target: User, *, action: str, actor: User | None, payload: dict[str, object]
 ) -> AuditLog:
-    """The platform-scope audit row of a grant or revoke (``organization_id`` NULL)."""
-    payload: dict[str, object] = {"email": target.email, "via": via}
-    if marked_verified:
-        payload["marked_verified"] = True
+    """A platform-scope audit row about ``target`` (``organization_id`` NULL).
+
+    Built here instead of through ``audit_service.record``. Used by the
+    ``tripl-admin`` shell, a sync session where ``actor`` is ``None`` because
+    the shell is not an account, and by ``admin_audit_row``, which also builds
+    the Enterprise console's grant/revoke row with the acting admin as
+    ``actor``.
+    """
     entry = AuditLog(
         user_id=actor.id if actor else None,
         user_email=actor.email if actor else "",
@@ -65,7 +69,7 @@ def admin_audit_row(
         project_slug="",
         branch_id=None,
         branch_name="",
-        action="platform.admin_grant" if grant else "platform.admin_revoke",
+        action=action,
         target_type="user",
         target_id=target.id,
         target_name=target.email[:255],
@@ -73,6 +77,21 @@ def admin_audit_row(
     )
     entry.organization_id = null()
     return entry
+
+
+def admin_audit_row(
+    target: User, *, grant: bool, actor: User | None, via: str, marked_verified: bool = False
+) -> AuditLog:
+    """The platform-scope audit row of a grant or revoke."""
+    payload: dict[str, object] = {"email": target.email, "via": via}
+    if marked_verified:
+        payload["marked_verified"] = True
+    return platform_audit_row(
+        target,
+        action="platform.admin_grant" if grant else "platform.admin_revoke",
+        actor=actor,
+        payload=payload,
+    )
 
 
 def set_platform_admin_sync(session: Session, email: str, *, grant: bool) -> AdminChange:

@@ -312,14 +312,15 @@ describe('Layout breadcrumbs', () => {
   })
 
   it('keeps the project crumb but stops claiming "Overview" on an unmatched path', async () => {
-    renderLayout('/p/demo/this-route-does-not-exist', '/p/:slug/*', 'Page not found')
-    await screen.findByText('Page not found')
+    renderLayout('/p/demo/this-route-does-not-exist', '/p/:slug/*', 'Not-found page body')
+    await screen.findByText('Not-found page body')
 
     // The slug is valid, so the trail still names the project …
     expect(screen.getByText('Demo', { ignore: CRUMB_IGNORE })).toBeInTheDocument()
-    // … but the page half must not name a real surface the user is not on.
+    // … but the page half must not name a real surface the user is not on. It
+    // says what the page's own heading and the browser tab say.
     expect(screen.queryByText('Overview')).toBeNull()
-    expect(screen.getByText('Not found')).toBeInTheDocument()
+    expect(within(screen.getByRole('banner')).getByText('Page not found')).toBeInTheDocument()
   })
 })
 
@@ -730,7 +731,7 @@ describe('Layout landmarks and route changes', () => {
     mockMatchMedia(true)
     localStorage.setItem('tripl-activity-open', '1')
     renderLayout('/p/demo/nowhere', '/p/:slug/*', '', { page: <NotFoundPage /> })
-    await screen.findByText('Page not found')
+    await screen.findByRole('heading', { level: 1, name: 'Page not found' })
 
     expect(screen.queryByTestId('activity-panel')).toBeNull()
     expect(screen.queryByRole('button', { name: 'Toggle activity feed' })).toBeNull()

@@ -1,4 +1,5 @@
-import { formatNumber } from '@/lib/format'
+import { formatNumber, formatPercent } from '@/lib/format'
+import { countOf } from '@/lib/plural'
 import { Link } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import { PackageX, TrendingDown } from 'lucide-react'
@@ -19,16 +20,6 @@ interface ReleaseRegressionPanelProps {
   slug: string
   scanConfigId: string
   enabled?: boolean
-}
-
-// The app locale, not the browser's: the chart beside this list already
-// prints its numbers in it.
-function formatCount(value: number): string {
-  return formatNumber(Math.round(value))
-}
-
-function formatPct(value: number): string {
-  return `${(value * 100).toFixed(1)}%`
 }
 
 function versionPair(verdict: ReleaseComparabilityItem): string {
@@ -52,8 +43,8 @@ function withheldReason(verdict: ReleaseComparabilityItem): string {
     case 'population_mismatch':
       return (
         `The new release is still drawing a different population than the baseline` +
-        `${versionPair(verdict)}: ${formatPct(verdict.emerging_share)} of its volume sits in ` +
-        `scopes the baseline barely visited, above the ${formatPct(verdict.max_emerging_share)} ` +
+        `${versionPair(verdict)}: ${formatPercent(verdict.emerging_share)} of its volume sits in ` +
+        `scopes the baseline barely visited, above the ${formatPercent(verdict.max_emerging_share)} ` +
         `bound. Composition-normalized findings are withheld until the mix settles; events that ` +
         `went completely silent are still reported.`
       )
@@ -103,7 +94,7 @@ function RegressionRow({ slug, item }: { slug: string; item: ReleaseRegressionIt
           : <Chip variant="outline" size="xs">{`-${dropPct}%`}</Chip>}
         {/* Counts, so sans with tabular digits. */}
         <span className="tnum text-fg-tertiary">
-          {formatCount(item.observed_count)} / {formatCount(item.expected_count)}
+          {formatNumber(Math.round(item.observed_count))} / {formatNumber(Math.round(item.expected_count))}
         </span>
       </div>
     </div>
@@ -163,7 +154,7 @@ export function ReleaseRegressionPanel({
           <span className="inline-flex items-center">
             <CountBadge count={items.length} urgent />
             <span className="sr-only">
-              {`${items.length} ${items.length === 1 ? 'regression' : 'regressions'}`}
+              {countOf(items.length, 'regression', 'regressions')}
             </span>
           </span>
         )}

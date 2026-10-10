@@ -1,9 +1,11 @@
 import { Activity, Building, FileSearch, History, KeyRound, RefreshCw, ScrollText, ShieldCheck, Siren, UserCog, Webhook } from 'lucide-react'
 import type { SettingsNavItem } from '@/components/settings/nav'
+import { EDITIONS_DOCS_URL, INSTANCE_SIGN_IN_DOCS_URL } from '@/lib/docsSite'
 import type { ExtensionSettingsSection } from './types'
 
-/** Where the docs say what each edition has. */
-export const EDITIONS_DOCS_URL = 'https://docs.tripl.io/editions'
+/** Where the docs say what each edition has; defined with the other docs-site
+ *  links in `lib/docsSite.ts`, and still importable from here. */
+export { EDITIONS_DOCS_URL }
 
 /**
  * A feature of the Enterprise edition, as Community shows it: a rail item
@@ -18,6 +20,13 @@ export interface EnterpriseTeaser {
   item: SettingsNavItem
   /** One or two sentences: what the feature does for the organization. */
   summary: string
+  /**
+   * What Community already has of the same kind, and where the docs say how
+   * to set it up: someone who searched for "OIDC" and landed on the
+   * organization's single sign-on must not leave thinking the instance cannot
+   * sign anyone in through their identity provider at all.
+   */
+  inCommunity?: { text: string; href: string }
 }
 
 const tagged = (item: Omit<SettingsNavItem, 'tag' | 'ownerOnly'>): SettingsNavItem => ({
@@ -90,7 +99,11 @@ export const ENTERPRISE_TEASERS: readonly EnterpriseTeaser[] = [
       keywords: ['sso', 'oidc', 'saml', 'openid', 'identity provider', 'domain verification'],
     }),
     summary:
-      "Members sign in through your organization's identity provider (OpenID Connect or SAML 2.0), with verified email domains and single sign-on required for everyone but owners.",
+      'Each organization signs its members in through its own identity provider (OpenID Connect or SAML 2.0), with verified email domains and single sign-on required for everyone but owners.',
+    inCommunity: {
+      text: 'Signing everyone on this instance in through one OpenID Connect provider (Okta, Entra ID, Keycloak and others) or Google is in Community, set with environment variables.',
+      href: INSTANCE_SIGN_IN_DOCS_URL,
+    },
   },
   {
     group: 'Organization',
@@ -113,7 +126,7 @@ export const ENTERPRISE_TEASERS: readonly EnterpriseTeaser[] = [
       label: 'Escalation',
       icon: Siren,
       path: 'organization/escalation',
-      keywords: ['on-call', 'escalation policy', 'paging', 'routing', 'unacknowledged'],
+      keywords: ['on-call', 'escalation policy', 'paging', 'routing', 'unacknowledged', 'pagerduty'],
     }),
     summary:
       'When an alert is not acknowledged in time, notify the next destination, member or group, with routes that pick a policy across all projects.',
@@ -142,7 +155,7 @@ export const ENTERPRISE_TEASERS: readonly EnterpriseTeaser[] = [
       keywords: ['activity', 'who changed', 'log', 'export', 'csv', 'download'],
     }),
     summary:
-      "The organization's whole audit log in one place: every project's changes and the actions outside projects (data sources, members and roles, API keys, deleted projects), searchable and exportable as CSV or NDJSON. Each project's own history stays in its settings.",
+      "The organization's whole audit log in one place: every project's changes and the actions outside projects (data sources, members and roles, API keys, deleted projects), searchable and exportable as CSV or NDJSON. Each project's own audit log stays in Community, under Govern › Audit log in that project.",
   },
 
   {
@@ -166,7 +179,7 @@ export const ENTERPRISE_TEASERS: readonly EnterpriseTeaser[] = [
       label: 'Audit retention',
       icon: History,
       path: 'organization/audit-retention',
-      keywords: ['retention', 'legal hold', 'compliance', 'delete old entries'],
+      keywords: ['legal hold', 'compliance', 'delete old entries', 'purge', 'gdpr'],
     }),
     summary:
       "How long the organization's audit log is kept, with a legal hold that keeps every entry while a dispute or investigation needs it.",
@@ -214,6 +227,29 @@ export const ORG_CREATION_TEASER: EnterpriseTeaser = {
   }),
   summary:
     'Separate organizations on one instance, each with its own members, projects, data sources, API keys and settings: for departments, clients or teams that must not see each other’s work. Community runs one organization.',
+}
+
+/** Where an Enterprise section sits in the rail, and its rail item. */
+export type EnterpriseTeaserSection = Pick<ExtensionSettingsSection, 'group' | 'after' | 'before' | 'item'>
+
+/**
+ * The Enterprise feature `id` as its real section registers: the teaser's
+ * group, anchor and item (label, icon, path, keywords, who sees it) without
+ * the "Enterprise" tag. The Enterprise extension builds its sections from
+ * this and adds only the page and what the page needs, so the two editions
+ * cannot name, place or find one feature differently. Throws on an id no
+ * teaser has: that is a typo, not a feature to show nowhere.
+ */
+export function enterpriseTeaserSection(id: string): EnterpriseTeaserSection {
+  const teaser = ENTERPRISE_TEASERS.find((entry) => entry.item.id === id)
+  if (!teaser) throw new Error(`No Enterprise teaser has the id "${id}".`)
+  const { tag: _tag, ...item } = teaser.item
+  return {
+    group: teaser.group,
+    ...(teaser.after === undefined ? {} : { after: teaser.after }),
+    ...(teaser.before === undefined ? {} : { before: teaser.before }),
+    item,
+  }
 }
 
 /** The teasers no installed extension provides a section for. */

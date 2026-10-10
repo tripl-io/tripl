@@ -1,5 +1,0 @@
-{
-  "label": "Automation & agents",
-  "position": 4,
-  "link": {"type": "generated-index", "description": "Driving the tracking plan from scripts and LLM agents instead of by hand: querying the catalog, keeping it in sync from an agent, and discovering events with smart search. Working in the app rather than through the API? 'Using tripl' is the section you want."}
-}

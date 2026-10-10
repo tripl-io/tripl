@@ -17,7 +17,7 @@ from sqlalchemy import or_, select
 
 from tripl.core.name_template import variable_tokens
 from tripl.core.variable_retirement import tokens_of
-from tripl.models.domain_enums import MetricKind
+from tripl.models.domain_enums import MetricKind, enum_text
 from tripl.models.event import Event
 from tripl.models.event_field_value import EventFieldValue
 from tripl.models.event_meta_value import EventMetaValue
@@ -137,7 +137,7 @@ async def _field_metric_edges(
     )
     edges: list[Edge] = []
     for metric in await scope.metrics():
-        kind = str(getattr(metric.kind, "value", metric.kind))
+        kind = enum_text(metric.kind)
         if kind == MetricKind.event_composition.value:
             reads_type = (
                 metric.numerator_event_type_id in type_ids

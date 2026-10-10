@@ -17,6 +17,8 @@ commit; the plan copy itself reuses the service's non-committing
 
 from __future__ import annotations
 
+from datetime import timedelta
+
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -44,8 +46,19 @@ CHANGED_EVENT_DESCRIPTION = (
     "copy changes from 'Buy now' to 'Start free trial', moved above the fold."
 )
 
+# The branch's story on the seed clock, in the order it happened: opened (the
+# base snapshot and the branch share the instant), the branch-side edit, then
+# the kick-off comment. Dated back from ``ctx.now`` like the rest of the recipe,
+# never ahead of it, instead of left to the database's transaction time: the
+# audit builder dates its branch rows off these columns, and the audit log, Plan
+# history and the branch list then name the same moments.
+_BRANCH_OPENED_BEFORE_SEED = timedelta(minutes=21)
+_BRANCH_EDITED_BEFORE_SEED = timedelta(minutes=14)
+_BRANCH_COMMENTED_BEFORE_SEED = timedelta(minutes=7)
+
 
 async def build_branches(session: AsyncSession, ctx: DemoContext) -> None:
+    opened_at = ctx.now - _BRANCH_OPENED_BEFORE_SEED
     # Merge base: a snapshot of the (now fully-seeded) main plan.
     base_payload = await build_plan_snapshot(session, ctx.project_id, branch_id=ctx.branch_id)
     base_revision = PlanRevision(
@@ -54,6 +67,7 @@ async def build_branches(session: AsyncSession, ctx: DemoContext) -> None:
         summary=f"Base snapshot for branch '{_BRANCH_NAME}'",
         kind=PlanRevisionKind.branch_base.value,
         payload=base_payload,
+        created_at=opened_at,
     )
     session.add(base_revision)
     await session.flush()
@@ -66,6 +80,8 @@ async def build_branches(session: AsyncSession, ctx: DemoContext) -> None:
         description=_BRANCH_DESCRIPTION,
         base_revision_id=base_revision.id,
         created_by=ctx.created_by,
+        created_at=opened_at,
+        updated_at=opened_at,
     )
     session.add(branch)
     await session.flush()
@@ -90,13 +106,18 @@ async def build_branches(session: AsyncSession, ctx: DemoContext) -> None:
         )
     ).scalar_one()
     branch_event.description = CHANGED_EVENT_DESCRIPTION
+    # Set explicitly, so the UPDATE carries it instead of ``onupdate``'s now().
+    branch_event.updated_at = ctx.now - _BRANCH_EDITED_BEFORE_SEED
 
+    commented_at = ctx.now - _BRANCH_COMMENTED_BEFORE_SEED
     session.add(
         PlanBranchComment(
             branch_id=branch.id,
             parent_id=None,
             user_id=ctx.created_by,
             body=_COMMENT_BODY,
+            created_at=commented_at,
+            updated_at=commented_at,
         )
     )
     await session.flush()

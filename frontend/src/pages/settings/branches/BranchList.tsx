@@ -23,6 +23,9 @@ interface BranchListProps {
 
 type BranchListTab = 'active' | 'merged'
 
+const CURRENT_BRANCH_HINT =
+  'The branch the rest of the app is showing. Switch it from the branch picker in the sidebar.'
+
 export function BranchList({
   items,
   selectedId,
@@ -121,12 +124,17 @@ export function BranchList({
                   >
                     {branch.name}
                   </span>
+                  {/* The switcher's branch, not the row open on the right:
+                      "You’re here" sat on main while another branch was
+                      open and read as a wrong selection. "Current" is the
+                      switcher's own word for it ("current: main"). */}
                   {branch.id === workingOnId ? (
                     <span
                       className="inline-flex shrink-0 items-center gap-0.5 text-micro text-accent"
+                      title={CURRENT_BRANCH_HINT}
                     >
                       <Check className="size-3" aria-hidden="true" />
-                      You’re here
+                      Current
                     </span>
                   ) : null}
                 </div>

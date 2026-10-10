@@ -1,9 +1,21 @@
 # tripl (CLI)
 
-Operator CLI for a **running tripl instance** — diagnostics, health and live
-monitoring. Like [`tripl-mcp`](../mcp-server), it is a pure HTTP client of the
-tripl REST API (`/api/v1`): it imports no backend code and never touches the
-database.
+Command-line client for [tripl](https://docs.tripl.io), the tracking-plan
+service. With it you can:
+
+- check and follow a **running instance** (`doctor`, `status`, `watch`, `whoami`);
+- read its tracking plan (`events`, `plan`);
+- run and cancel scans, and triage schema drifts (`scans`, `drifts`);
+- put a deploy marker on the monitoring charts (`annotate`);
+- check the tracking calls in your code against the plan, and generate typed
+  tracking code or JSON Schemas from it (`check`, `codegen`, `export`);
+- pull and push the team's notes (`docs`);
+- install and upgrade a self-hosted stack on a Docker host (`install`, `upgrade`).
+
+Like [`tripl-mcp`](https://docs.tripl.io/integrate/mcp-server), it is a pure
+HTTP client of the tripl REST API (`/api/v1`): it imports no backend code and
+never touches the database. `install` and `upgrade` are the exception: they act
+on a directory and the local Docker daemon, not on an instance.
 
 The distribution is **`tripl`**, the console script is **`tripl`**, and the
 import package is **`tripl_cli`**. The last one is deliberate: the service's own
@@ -29,7 +41,6 @@ From PyPI — `tripl` is published, so this is the ordinary path:
 
 ```bash
 uvx tripl --version
-# tripl 0.1.0
 
 pip install tripl
 ```
@@ -50,17 +61,20 @@ uvx --from "git+https://github.com/tripl-io/tripl.git#subdirectory=cli" tripl --
 ## Commands
 
 A command acting on the instance as a whole is one word; a command acting on a
-class of objects is `<plural-noun> <verb>`. Every verb takes `--json` and
-`--timeout SECONDS`; the ones that report on many projects also take
-`--project SLUG` (repeatable) and `--include-demo`. The ones that name a single
-object require `--project` **exactly once**. A bare `tripl scans` or
-`tripl drifts` prints that group's help on stderr and exits 2.
+class of objects is `<plural-noun> <verb>`. Every command takes `--json`, and
+every command that talks to an instance takes `--timeout SECONDS`. The ones that
+report on many projects also take `--project SLUG` (repeatable) and
+`--include-demo`. The ones that name a single object, and every `events`,
+`plan` and `docs` verb, require `--project` **exactly once**. A bare group
+(`tripl scans`, `tripl drifts`, `tripl events`, `tripl plan`, `tripl docs`)
+prints that group's help on stderr and exits 2.
 
 ```bash
 tripl doctor              # check the instance and report what is broken
 tripl doctor --json       # one JSON document on stdout, human lines on stderr
 tripl doctor --strict     # exit 3 on warnings too (never on skipped checks)
 tripl status              # projects, events, scans, signals, coverage
+tripl whoami              # the account, organization and scope the API key acts as
 tripl watch               # follow jobs, signals and delivery failures live
 tripl watch --json        # JSON Lines on stdout, one object per event
 tripl scans list          # scan configs, their schedule, and whether they dispatch
@@ -70,6 +84,13 @@ tripl scans cancel <scan> <job-id> --project SLUG   # cancel an active job (WRIT
 tripl drifts list         # schema drifts; untriaged by default
 tripl drifts dismiss <drift-id> --project SLUG      # false_positive or snooze (WRITE)
 tripl drifts reopen <drift-id> --project SLUG       # back to open; drops the note (WRITE)
+tripl events list --project SLUG            # the event catalog, with the API's own filters
+tripl events show <event-id> --project SLUG # one event, field values by field name
+tripl plan types --project SLUG             # event types, with a field count each
+tripl plan fields <event-type> --project SLUG   # one event type's field definitions
+tripl plan properties --project SLUG        # properties, and how many events use each
+tripl plan branches --project SLUG          # plan branches and how far ahead each is
+tripl plan search <query> --project SLUG    # search the whole plan, ids to read next
 tripl annotate "Deployed web 2026.09.25" --project SLUG --url URL   # deploy marker on monitoring charts (WRITE)
 tripl check               # validate the tracking calls in this checkout against the plan
 tripl check --payloads events.ndjson   # validate captured events; a missing required field fails
@@ -77,29 +98,40 @@ tripl check --format sarif > tripl.sarif   # SARIF 2.1.0 for code scanning
 tripl codegen             # typed tracking code (Swift, Kotlin, TypeScript) from the plan
 tripl codegen --check     # CI: exit 1 when the committed generated files are out of date
 tripl export --out plan-schemas   # one JSON Schema (2020-12) per event, plus the bundle
-tripl install --app-url https://tripl.example.com --version 1.5.0   # provision a stack and start it (HOST)
+tripl docs ls --project SLUG                # the team's notes, in both scopes
+tripl docs cat <path> --project SLUG        # print one note exactly as stored
+tripl docs pull <dir> --project SLUG        # write one scope's notes into a folder
+tripl docs push <dir> --project SLUG        # upload a folder of notes in one import (WRITE)
+tripl install --app-url https://tripl.example.com --version X.Y.Z   # provision a stack and start it (HOST)
 tripl install --app-url https://tripl.example.com --dry-run   # print the plan, write nothing
-tripl upgrade --to 1.6.0  # move an installed stack to a new image tag (HOST)
+tripl upgrade --to X.Y.Z  # move an installed stack to a new image tag (HOST)
 ```
 
-`--version` defaults to `latest`; pin a released tag in production so a re-run
-cannot move you onto an image you have not read the notes for. The command says
-so on stderr when you leave it at the default.
+`X.Y.Z` stands for a released version, listed at
+<https://github.com/tripl-io/tripl/releases>. The image, this CLI and `tripl-mcp`
+are released together under one version, so `tripl --version` names a tag that
+exists. `--version` defaults to `latest`; pin a released tag in production so a
+re-run cannot move you onto an image you have not read the notes for. The command
+says so on stderr when you leave it at the default.
 
-`doctor`, `status`, `watch`, `scans list`, `scans jobs` and `drifts list` are
-**read-only** — a `tk_r_` key is enough. The five marked WRITE need a `tk_w_`
-key backed by an editor or owner, and the CLI does not pre-judge that: the key
-prefix is derived from the scope's first letter server-side and says nothing
-about the user's role, so the request is sent and the API's own 403 is printed.
+Every command that talks to an instance and is not marked WRITE is
+**read-only**, and a `tk_r_` key is enough for it. `check` sends a `POST`, but
+only to carry the calls it found to the validator; it changes nothing.
+`codegen`, `export` and `docs pull` write local files only. The commands marked
+WRITE need a `tk_w_` key backed by an editor or owner, and the CLI does not
+pre-judge that: the key prefix is derived from the scope's first letter
+server-side and says nothing about the user's role, so the request is sent and
+the API's own 403 is printed.
 
-`scans cancel`, `drifts dismiss` and `drifts reopen` prompt on a terminal and
-take `--yes`; when stdin is **not** a terminal and `--yes` was not given they
-refuse with exit 2 rather than hanging a cron job or proceeding silently.
-`scans run` and `annotate` do not prompt and have no `--yes` at all — passing one
-is exit 2, because a no-op flag here is a flag a script author will assume works
-on the next command too. All five writes take `--dry-run`, which resolves everything, prints
-the exact request (method, path, params, body — never a credential) and sends
-nothing.
+`scans cancel`, `drifts dismiss`, `drifts reopen` and `docs push` prompt on a
+terminal and take `--yes` (`docs push` first sends a dry-run import and shows
+what would be created, updated and deleted); when stdin is **not** a terminal and
+`--yes` was not given they refuse with exit 2 rather than hanging a cron job or
+proceeding silently. `scans run` and `annotate` do not prompt and have no `--yes`
+at all — passing one is exit 2, because a no-op flag here is a flag a script
+author will assume works on the next command too. Every write takes `--dry-run`,
+which resolves everything, prints the exact request (method, path, params, body —
+never a credential) and sends nothing.
 
 `annotate` posts a chart marker with source `api`, for a deploy step in CI. On
 this one command `--url` is the release link the marker opens, not the instance:
@@ -131,7 +163,7 @@ event_types:
 Presets: `segment_track`, `amplitude_log_event`, `snowplow_structured`,
 `snowplow_screen_view`, `snowplow_self_describing`. Swift, Objective-C, Kotlin,
 Java and TypeScript/JavaScript are read; enum shorthand (`.home`) and qualified
-cases resolve through the enum files, interpolated names become plan variables
+cases resolve through the enum files, interpolated names become plan properties
 (`"promo_sheet_\(id)_shown"` is `promo_sheet_${id}_shown`), Kotlin/Java
 `.name` / `name()` and Swift `.description` read an enum case's own name, and a
 value only known at runtime is sent as unknown, never as an error (`--strict`
@@ -150,7 +182,7 @@ It never imports an SDK.
 
 | `style` | What is generated |
 |---------|-------------------|
-| `structured` | an enum per plan field (its cases are the plan's values; a variable-backed value contributes its allowed values; free text stays `String`), your wrapper's call with its argument types narrowed — `log(category: Category, action: Action, label: String, properties:)` — and a compiler-checked `knownEvents` list |
+| `structured` | an enum per plan field (its cases are the plan's values; a property-backed value contributes its allowed values; free text stays `String`), your wrapper's call with its argument types narrowed — `log(category: Category, action: Action, label: String, properties:)` — and a compiler-checked `knownEvents` list |
 | `screen_view` | the same, with `ScreenType` / `ScreenId` enums |
 | `named` | one generic `track(event)`: Swift `enum LegacyEvent { case homeScreenView(HomeScreenView) … }` with `name` and `properties`; Kotlin a sealed interface of data classes/objects; TypeScript `track<K extends LegacyEventName>(name: K, props: LegacyEventProps[K])` |
 | `self_describing` | one data class per schema with its fields, sharing one `track` |
@@ -184,7 +216,7 @@ literal with `object_arg`. `type_names` renames `namespace`, `event` (the named
 
 An event's parameters are the fields it does not fix plus one per `${token}` in
 its name (`promo_sheet_${sheet_id}_shown` takes `sheetId`, typed by the
-variable's allowed values). Plan strings become identifiers by splitting on
+property's allowed values). Plan strings become identifiers by splitting on
 anything that is not a letter or digit and on camelCase: `Home Screen View` ->
 `homeScreenView` (`HOME_SCREEN_VIEW` for Kotlin enum entries), `checkout:start`
 -> `checkoutStart`; a leading digit gets `_` (`_1stRun`), a reserved word a
@@ -235,11 +267,22 @@ entirely). Note that the health poll targets the **public** `--app-url`, so on a
 host whose TLS terminator is not up yet, use `--wait 0` and curl
 `http://127.0.0.1:8000/health` from the box.
 
+`.env` is written before `docker compose pull`, because compose cannot read
+`compose.yaml` without it. When that pull fails on a run that created `.env` —
+a `--version` that was never published is the usual cause — nothing has
+started and nothing has read the generated secrets, so `install` removes that
+`.env` again and says so: run it again with a corrected `--version` and it
+starts clean. A `.env` that was already there is never removed, and once
+`up -d` has run the file stays whatever happens.
+
 `upgrade --to` is required and a **downgrade is refused outright** with no
-override flag; an unorderable pair (`latest`, `sha-abc1234`, `1.4`) says so and
-demands `--yes`. It pulls, *then* moves the `TRIPL_VERSION` pin in `.env`
-keeping a 0600 `.env.bak.<UTC>` copy, *then* restarts — the pull is first so a
-bad tag leaves `.env` untouched. The `pg_dump` backup command is printed for
+override flag. An unorderable pair (`latest`, `sha-abc1234`, `1.4`) has no
+ordering to check, so it says so and demands `--allow-unordered-tag` — not
+`--yes`, which only answers the backup prompt and which every non-interactive
+run passes anyway. The first upgrade of an install left at `latest` is such a
+pair; `--dry-run` previews the refusal. `upgrade` pulls, *then* moves the
+`TRIPL_VERSION` pin in `.env` keeping a 0600 `.env.bak.<UTC>` copy, *then*
+restarts — the pull is first so a bad tag leaves `.env` untouched. The `pg_dump` backup command is printed for
 **you** to run and always prompts: a dump this tool invoked and then called
 "your backup" would be a promise it cannot keep, not least because the dump does
 not contain `ENCRYPTION_KEY`. Your database lives in the named volume
@@ -327,24 +370,24 @@ not moved).
 
 | Exit | Meaning |
 |------|---------|
-| 0 | Every check passed, or only warned and `--strict` was not given. `status`, whenever it completed. `watch`, whenever the run completed — a failed job or a new signal is still 0. The `scans` / `drifts` verbs and `annotate`, whenever every read arrived or the write was accepted (`--dry-run` included, and a de-duplicated `annotate` too). |
-| 1 | The tool itself broke (doctor turns every API failure into a finding), or any other command could not complete a request — unreachable, or the API refused it. For `watch` this includes a key revoked mid-run. For `scans list` / `drifts list` it includes **any** failed read in the fan-out; for `scans run`, a job returned already `failed`; for `scans cancel` / `drifts dismiss` / `drifts reopen`, a declined prompt. |
-| 2 | Usage or configuration error. For `doctor` and `status` that is resolved before any socket opens; `watch` also refuses after reading the listings, when `--scan` matches nothing or more than 24 scan configs are selected. The `scans` / `drifts` verbs add a bare group, a missing or repeated `--project`, an unresolved or ambiguous `<scan>`, and a prompting write on a non-TTY without `--yes`; `annotate` adds a `--url` that is not http(s), an `--at` that is not RFC 3339, and half a scope. Either way **no JSON is emitted** and no write is sent. |
+| 0 | Every check passed, or only warned and `--strict` was not given. `status` and `whoami`, whenever they completed. `watch`, whenever the run completed — a failed job or a new signal is still 0. The `scans`, `drifts`, `events`, `plan` and `docs` verbs and `annotate`, whenever every read arrived or the write was accepted (`--dry-run` included, and a de-duplicated `annotate` too). |
+| 1 | The tool itself broke (doctor turns every API failure into a finding), or any other command could not complete a request — unreachable, or the API refused it. For `watch` this includes a key revoked mid-run. For `scans list` / `drifts list` it includes **any** failed read in the fan-out; for `scans run`, a job returned already `failed`; for `scans cancel` / `drifts dismiss` / `drifts reopen` / `docs push`, a declined prompt. For `install` and `upgrade`, a `docker compose` command that failed or a `/health` that did not answer in time. |
+| 2 | Usage or configuration error. For `doctor` and `status` that is resolved before any socket opens; `watch` also refuses after reading the listings, when `--scan` matches nothing or more than 24 scan configs are selected. The object verbs add a bare group, a missing or repeated `--project`, an unresolved or ambiguous selector, and a prompting write on a non-TTY without `--yes`; `annotate` adds a `--url` that is not http(s), an `--at` that is not RFC 3339, and half a scope; `upgrade` adds a refused downgrade and an unorderable pair without `--allow-unordered-tag`. Either way **no JSON is emitted** and no write is sent. |
 | 3 | `doctor` only: at least one check failed, or `--strict` and at least one warning. Nothing else ever exits 3. |
+| 130 | Interrupted (SIGINT). For `watch` this is the **normal** ending — a run without `--duration` has no other way to stop. |
 
 `check` uses 0, 1 and 2: 1 when any call site or event has an error (or, with
 `--strict`, a warning), and 2 for a bad check config or payload file.
 `codegen` uses them too: 1 for drift under `--check` (or a plan without a
 configured event type), 2 for a bad check config or template.
-| 130 | Interrupted (SIGINT). For `watch` this is the **normal** ending — a run without `--duration` has no other way to stop. |
 
 An unreachable instance therefore exits **3** out of `doctor`, not 1 — it
 becomes a finding like everything else doctor reads, which is what makes an exit
 1 out of `doctor` a meaningful bug signal. **Every other command exits 1** on an
 unreachable instance, because none of them turns a failed read into a verdict.
 
-`doctor` and `status` put exactly one JSON document on stdout, and so do the
-`scans` / `drifts` verbs — but only when the command completes: a write the API
+`doctor` and `status` put exactly one JSON document on stdout, and so does every
+other command except `watch` — but only when the command completes: a write the API
 refused, a read that failed outright and a declined prompt all leave stdout
 **empty** and put the reason on stderr, so a consumer checks the exit code
 before it parses. `watch --json`
@@ -359,7 +402,7 @@ Full reference — every check, every finding code with its `evidence` keys, eve
 `watch` event token and the JSON Lines envelope, and what an operator should
 actually do about each one:
 <https://docs.tripl.io/run/cli> (source:
-[`website/docs/run/cli.md`](../website/docs/run/cli.md)).
+[`website/docs/run/cli.md`](https://github.com/tripl-io/tripl/blob/main/website/docs/run/cli.md)).
 
 ## Configuration
 
@@ -374,7 +417,7 @@ from the config file works.
 
 | Variable | Meaning |
 |----------|---------|
-| `TRIPL_BASE_URL` | Base URL of the tripl instance (the same variable `tripl-mcp` reads) |
+| `TRIPL_BASE_URL` | Base URL of the tripl instance (the same variable `tripl-mcp` reads). Use the final address, usually `https://`: a write that gets a redirect fails rather than being re-sent as a GET |
 | `TRIPL_API_KEY` | API key — `tk_r_` for read-only, `tk_w_` for write |
 | `XDG_CONFIG_HOME` | Overrides the config file location on every platform |
 

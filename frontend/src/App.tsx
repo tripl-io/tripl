@@ -14,13 +14,13 @@ import { ThemeProvider } from './components/theme-provider'
 import { Button } from './components/ui/button'
 import { Toaster } from './components/ui/sonner'
 import { PageSkeleton, ShellSkeleton, type PageSkeletonVariant } from './components/states/skeletons'
+import { GateCard, ShellStandIn } from './components/states/shell-stand-in'
 import {
-  NOT_FOUND_TITLE_LABEL,
-  entityTitleLabel,
-  resolveEntityKind,
-  resolveTitleFromPath,
-  useDocumentTitle,
-} from './hooks/useDocumentTitle'
+  LEGACY_SETTINGS_REDIRECTS,
+  SETTINGS_STORAGE_KEY,
+  SETTINGS_SUB_ROUTED_FAMILIES,
+} from './components/settings/nav'
+import { useDocumentTitle } from './hooks/useDocumentTitle'
 import { DocumentEntityTitleContext } from './components/shell-chrome-context'
 import { postLoginDestination } from './lib/authRedirect'
 import { lazyWithReload } from './lib/lazyWithReload'
@@ -117,6 +117,22 @@ function FullScreenFallback({ label }: { label: string }) {
   )
 }
 
+/**
+ * Suspense for a page that renders OUTSIDE the app shell — sign-in, an
+ * invitation, the emailed verification link, an extension's public page.
+ * The in-shell page skeleton has no shell around it there: it drew a bare,
+ * unbranded admin form against the top-left corner before the page's own
+ * centred card, the first thing a new visitor saw. These wait on the same
+ * quiet centred line as the session check instead.
+ */
+function withStandaloneSuspense(pageKey: string, element: ReactNode) {
+  return (
+    <Suspense key={pageKey} fallback={<FullScreenFallback label="Loading…" />}>
+      {element}
+    </Suspense>
+  )
+}
+
 function SessionFallback() {
   return <FullScreenFallback label="Checking session…" />
 }
@@ -166,15 +182,11 @@ function SignedInInterstitial({ purpose }: { purpose: string }) {
   const auth = useAuth()
   const who = auth.user?.email ?? auth.user?.name ?? 'another account'
   return (
-    <div className="flex min-h-screen items-center justify-center bg-background px-6">
-      <div
-        className="w-full max-w-md space-y-4 rounded-card border p-6"
-        style={{ borderColor: 'var(--border)', background: 'var(--surface)' }}
+    <ShellStandIn>
+      <GateCard
+        title="You are already signed in"
+        body={<>You are signed in as <strong>{who}</strong>. Sign out to {purpose}.</>}
       >
-        <h1 className="text-heading font-semibold">You are already signed in</h1>
-        <p className="text-body" style={{ color: 'var(--fg-muted)' }}>
-          You are signed in as <strong>{who}</strong>. Sign out to {purpose}.
-        </p>
         <div className="flex flex-wrap gap-2">
           <Button
             type="button"
@@ -187,8 +199,8 @@ function SignedInInterstitial({ purpose }: { purpose: string }) {
             <Link to="/">Back to the app</Link>
           </Button>
         </div>
-      </div>
-    </div>
+      </GateCard>
+    </ShellStandIn>
   )
 }
 
@@ -255,7 +267,7 @@ function InviteRoute() {
         signOut: () => void auth.logout(),
       }
     : undefined
-  return withSuspense('invite', <InvitePage signedIn={signedIn} />, 'form')
+  return withStandaloneSuspense('invite', <InvitePage signedIn={signedIn} />)
 }
 
 /** /auth — a password-reset link keeps its token when someone is signed in. */
@@ -264,7 +276,7 @@ function AuthRoute() {
   const resetting = searchParams.has('reset_token')
   return (
     <AnonymousOnly signedInPurpose={resetting ? 'reset the password' : undefined}>
-      {withSuspense('auth', <AuthPage />, 'form')}
+      {withStandaloneSuspense('auth', <AuthPage />)}
     </AnonymousOnly>
   )
 }
@@ -464,8 +476,6 @@ function projectRoutes() {
   )
 }
 
-const SETTINGS_STORAGE_KEY = 'tripl.settings'
-
 /**
  * /settings index: resume the last-visited section if it's a known config path,
  * otherwise land on Members (the first workspace section).
@@ -508,9 +518,6 @@ function Takeover({ section }: { section: string }) {
     </RequireAuth>
   )
 }
-
-/** Pre-takeover `/settings/<x>` addresses of what is now `/settings/instance/<x>`. */
-const LEGACY_INSTANCE_SECTIONS = ['runtime', 'ai', 'email', 'storage', 'observability', 'system']
 
 /**
  * A two-segment section's takeover (`instance/<x>`, `organization/<x>`): reads
@@ -571,33 +578,10 @@ function HomeRoute() {
  * root (inside AuthProvider, beside <Routes>), it reacts to EVERY navigation —
  * including the full-takeover Settings pages and /auth that render OUTSIDE the
  * app shell (Layout) — so every route gets a descriptive title and none is ever
- * left stale from the previous page.
+ * left stale from the previous page. The scheme is in hooks/useDocumentTitle.ts.
  */
 function DocumentTitle({ entityTitle }: { entityTitle: string | null }) {
-  const { pathname } = useLocation()
-  const { label, slug } = resolveTitleFromPath(pathname)
-  // `enabled: false` — this only READS the shared `['projects']` cache that the
-  // shell already populates; it must never fetch, because DocumentTitle is also
-  // mounted on `/auth` where there is no session. Until the cache fills, an
-  // unknown slug is indistinguishable from a not-yet-loaded one and the
-  // path-derived title stands.
-  const { data: projects } = useQuery({ ...projectsQueryOptions(), enabled: false })
-  const slugIsUnknown = !!slug && !!projects && !projects.some((p) => p.slug === slug)
-
-  // An invented slug must not be echoed back as if it named a real workspace —
-  // the shell shows a not-found state for it, so the tab has to agree.
-  //
-  // A detail page that has loaded its entity names the tab after it instead,
-  // "Screen View · Event type volume · tripl": three open monitoring
-  // tabs used to read "Monitoring · acme · tripl" alike.
-  const entityLabel =
-    entityTitle && !slugIsUnknown
-      ? entityTitleLabel(entityTitle, resolveEntityKind(pathname) ?? label)
-      : null
-  useDocumentTitle(
-    entityLabel ?? (slugIsUnknown ? NOT_FOUND_TITLE_LABEL : label),
-    entityLabel || slugIsUnknown ? undefined : slug,
-  )
+  useDocumentTitle(entityTitle)
   return null
 }
 
@@ -630,18 +614,22 @@ export default function App() {
               {/* The emailed verification link (F20). Public: it works signed
                   out, and signed in it is how an unverified account gets past
                   "Check your inbox". */}
-              <Route path="/verify-email" element={withSuspense('verify-email', <VerifyEmailPage />, 'form')} />
+              <Route path="/verify-email" element={withStandaloneSuspense('verify-email', <VerifyEmailPage />)} />
               {/* Extensions' own top-level pages (single sign-on's account
                   link): outside the app shell, each says who may open it. */}
-              {extensionRoutes.map(({ path, key, skeleton, Component }) => (
-                <Route key={key} path={path} element={withSuspense(key, <Component />, skeleton ?? 'form')} />
+              {extensionRoutes.map(({ path, key, Component }) => (
+                <Route key={key} path={path} element={withStandaloneSuspense(key, <Component />)} />
               ))}
               {/* Full-takeover Settings area — its own viewport shell, so each route
                   mounts OUTSIDE the app Layout (no app sidebar) but requires auth. */}
               <Route path="/settings" element={<SettingsIndexRedirect />} />
               <Route path="/o/:org/settings/*" element={<RequireAuth><OrgSettingsRedirect /></RequireAuth>} />
-              {/* Details, Email, AI, Limits; SettingsArea sends an unknown one to Details. */}
-              <Route path="/settings/organization/:sub" element={<TakeoverSub group="organization" />} />
+              {/* Organization, Platform (`instance/<x>`) and the platform
+                  console: SettingsArea answers any section, redirecting an
+                  unknown one to a page of the family. */}
+              {SETTINGS_SUB_ROUTED_FAMILIES.map((family) => (
+                <Route key={family} path={`/settings/${family}/:sub`} element={<TakeoverSub group={family} />} />
+              ))}
               <Route path="/settings/invitations" element={<Takeover section="invitations" />} />
               <Route path="/settings/members" element={<Takeover section="members" />} />
               <Route path="/settings/api-keys" element={<Takeover section="api-keys" />} />
@@ -652,19 +640,15 @@ export default function App() {
               <Route path="/settings/project/general" element={<Takeover section="project/general" />} />
               <Route path="/settings/project/plan-rules" element={<Takeover section="project/plan-rules" />} />
               <Route path="/settings/project/members" element={<Takeover section="project/members" />} />
-              <Route path="/settings/instance/:sub" element={<TakeoverSub group="instance" />} />
-              {/* The platform console (F20): Organizations, Users, one organization. */}
+              {/* The platform console (F20): one organization. */}
               <Route path="/settings/platform/orgs/:orgSlug" element={<PlatformOrgTakeover />} />
-              <Route path="/settings/platform/:sub" element={<TakeoverSub group="platform" />} />
               <Route path="/platform/*" element={<PlatformRedirect />} />
               {/* Legacy → takeover redirects. */}
-              <Route path="/settings/users" element={<Navigate to="/settings/members" replace />} />
-              <Route path="/settings/account" element={<Navigate to="/settings/profile" replace />} />
-              {LEGACY_INSTANCE_SECTIONS.map(section => (
+              {Object.entries(LEGACY_SETTINGS_REDIRECTS).map(([legacy, section]) => (
                 <Route
-                  key={section}
-                  path={`/settings/${section}`}
-                  element={<Navigate to={`/settings/instance/${section}`} replace />}
+                  key={legacy}
+                  path={`/settings/${legacy}`}
+                  element={<Navigate to={`/settings/${section}`} replace />}
                 />
               ))}
               {/* Legacy project addresses: moved under the organization that

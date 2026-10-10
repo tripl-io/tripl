@@ -2,8 +2,8 @@
 
 - prune SchemaDrift rows past their retention horizon. The drift table only
   re-upserts rows that still represent live drift, so anything older than
-  DRIFT_RETENTION_DAYS no longer corresponds to anything the catalog should
-  surface.
+  ``core.drift_activity.DRIFT_RETENTION_DAYS`` no longer corresponds to anything
+  the catalog should surface.
 - re-enqueue AlertDelivery rows stranded in `pending`. Deliveries are
   committed as pending and dispatched via ``send_alert_delivery.delay()``
   after the outer commit; if the worker crashes between commit and dispatch,
@@ -33,6 +33,7 @@ from sqlalchemy import delete, func, select
 from sqlalchemy.orm import Session
 
 from tripl.config import settings
+from tripl.core.drift_activity import retention_cutoff
 from tripl.models.alert_delivery import AlertDelivery, AlertDeliveryStatus
 from tripl.models.alert_destination import AlertDestination, AlertDestinationType
 from tripl.models.distribution_drift import DistributionDrift
@@ -50,7 +51,6 @@ from tripl.services.photo_storage_service import (
     operator_store_identity,
     org_key_prefix,
 )
-from tripl.services.schema_drift_service import DRIFT_RETENTION_DAYS
 from tripl.storage import PhotoStorage, storage_for
 from tripl.worker.celery_app import celery_app
 from tripl.worker.db import _get_sync_session
@@ -82,7 +82,7 @@ AUTO_RETRY_FAILED_HORIZON = timedelta(hours=6)
     name="tripl.worker.tasks.maintenance.cleanup_schema_drifts",
 )
 def cleanup_schema_drifts() -> dict[str, object]:
-    cutoff = datetime.now(UTC) - timedelta(days=DRIFT_RETENTION_DAYS)
+    cutoff = retention_cutoff()
     session = _get_sync_session()
     try:
         result = session.execute(delete(SchemaDrift).where(SchemaDrift.detected_at < cutoff))

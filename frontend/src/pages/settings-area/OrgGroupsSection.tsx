@@ -20,14 +20,17 @@ import { useConfirm } from '@/hooks/useConfirm'
 import { SILENT_ERROR_META } from '@/lib/errorFeedback'
 import { useIsOwner } from '@/lib/permissions'
 import { getErrorMessage } from '@/lib/utils'
+import { countOf } from '@/lib/plural'
 
 const CREATE_FORM_ID = 'create-group-form'
 const EDIT_FORM_ID = 'edit-group-form'
 
 /**
- * Organization › Groups (F20): named sets of the organization's members, which
- * note sharing and owner routing will name. Every member sees them; owners and
- * admins create, rename and delete them and choose who is in each.
+ * Organization › Groups (F20): named sets of the organization's members. In
+ * Community a Docs note is shared with one (DocShareDialog); the Enterprise
+ * edition also names them in escalation policies. The page says what they are
+ * for, or an owner has no reason to make one. Every member sees them; owners
+ * and admins create, rename and delete them and choose who is in each.
  */
 export default function OrgGroupsSection() {
   const { slug } = useActiveOrg()
@@ -35,7 +38,7 @@ export default function OrgGroupsSection() {
     <div>
       <SHeader
         title="Groups"
-        description="Named sets of this organization's members. Only its members can be in a group; someone who leaves the organization leaves its groups."
+        description="Named sets of this organization's members, such as Analysts or On-call. Share a Docs note with a group instead of person by person. Only members of the organization can be in a group; someone who leaves the organization leaves its groups."
       />
       {slug ? (
         <OrgGroups key={slug} org={slug} />
@@ -73,7 +76,7 @@ function OrgGroups({ org }: { org: string }) {
       title: `Delete ${group.name}?`,
       message:
         group.member_count > 0
-          ? `The group and its ${group.member_count} membership${group.member_count === 1 ? '' : 's'} are deleted. Its members stay in the organization.`
+          ? `The group and its ${countOf(group.member_count, 'membership', 'memberships')} are deleted. Its members stay in the organization.`
           : 'The group is deleted.',
       confirmLabel: 'Delete group',
       variant: 'danger',
@@ -96,7 +99,16 @@ function OrgGroups({ org }: { org: string }) {
         </ReadOnlyNotice>
       )}
       {canManage && <CreateGroupCard org={org} onCreated={setSelected} />}
-      <SCard title="Groups" description={groups.length ? undefined : 'No groups yet.'}>
+      <SCard
+        title="Groups"
+        description={
+          groups.length
+            ? undefined
+            : canManage
+              ? 'No groups yet. Create one above, then choose it when you share a note in Docs.'
+              : 'No groups yet.'
+        }
+      >
         {groups.map((group, index) => (
           <div
             key={group.id}
@@ -113,7 +125,7 @@ function OrgGroups({ org }: { org: string }) {
               )}
             </div>
             <span className="shrink-0 text-caption text-fg-tertiary">
-              {group.member_count} member{group.member_count === 1 ? '' : 's'}
+              {countOf(group.member_count, 'member', 'members')}
             </span>
             <Button
               type="button"

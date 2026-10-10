@@ -1,12 +1,18 @@
 import { Chip } from '@/components/primitives/chip'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
-import { WELCOME_PILLARS } from '@/components/workspace-welcome-pillars'
+import { PRODUCT_STORY, WELCOME_PILLARS } from '@/components/workspace-welcome-pillars'
 import { DEMO_PROVISION_ESTIMATE } from '@/demo/provisioningPhases'
-import { ExternalLink, Plus, Sparkles } from 'lucide-react'
+import { CONCEPTS_DOCS_URL } from '@/lib/docsSite'
+import { ExternalLink, Plus, Sparkles, Users } from 'lucide-react'
 
 interface WorkspaceWelcomeProps {
-  canCreateProject: boolean
+  /**
+   * The viewer is a member who sees a project only once they are added to it:
+   * not an owner or admin, in an organization whose default project access is
+   * none. Their list can be empty while the team's projects exist.
+   */
+  memberSeesOnlyAddedProjects: boolean
   isProvisioningDemo: boolean
   onGenerateDemo: () => void
   /** Absent where blank projects are not offered (a public demo). */
@@ -19,7 +25,7 @@ interface WorkspaceWelcomeProps {
  * empty project. Replaces the all-zero stat band until the first project exists.
  */
 export function WorkspaceWelcome({
-  canCreateProject,
+  memberSeesOnlyAddedProjects,
   isProvisioningDemo,
   onGenerateDemo,
   onCreateProject,
@@ -30,11 +36,12 @@ export function WorkspaceWelcome({
   return (
     <section className="flex flex-col gap-10 py-6">
       <div className="mx-auto flex max-w-2xl flex-col items-center gap-4 text-center">
+        {/* The sign-in page tells the same story from the same words. */}
         <Chip tone="accent" size="sm">
-          Tracking plan operations
+          {PRODUCT_STORY.eyebrow}
         </Chip>
         <h2 className="m-0 text-display font-semibold leading-tight tracking-[-0.02em]">
-          Keep your product analytics honest
+          {PRODUCT_STORY.headline}
         </h2>
         <p className="m-0 text-lead text-fg-secondary">
           tripl is the single place where your team writes down what you <em>intend</em> to track,
@@ -47,39 +54,45 @@ export function WorkspaceWelcome({
         </p>
       </div>
 
-      {canCreateProject ? (
-        <div className="mx-auto flex max-w-2xl flex-col justify-center gap-x-10 gap-y-5 sm:flex-row sm:items-start">
+      {/* An empty list is not an empty organization for a member: the team's
+          projects stay out of it until someone adds them. Said here, or the
+          teammate who just joined reads a fresh instance and makes a second
+          copy of a project that already exists. */}
+      {memberSeesOnlyAddedProjects && (
+        <div className="mx-auto flex max-w-2xl items-start gap-2.5 rounded-card border px-4 py-3 text-body-sm bg-surface border-border text-fg-secondary">
+          <Users className="mt-0.5 h-4 w-4 shrink-0 text-fg-tertiary" aria-hidden="true" />
+          <p className="m-0">
+            You see a project here once you are added to it. If your team already has projects,
+            ask an organization owner or admin to add you under Settings › Project › Access, or
+            start one of your own below.
+          </p>
+        </div>
+      )}
+
+      <div className="mx-auto flex max-w-2xl flex-col justify-center gap-x-10 gap-y-5 sm:flex-row sm:items-start">
+        <div className="flex flex-col gap-2 sm:items-center sm:text-center">
+          {/* Empty-state CTAs take the large control size. */}
+          <Button size="lg" onClick={onGenerateDemo} disabled={isProvisioningDemo}>
+            <Sparkles className="size-3.5" aria-hidden="true" />
+            {isProvisioningDemo ? 'Generating…' : 'Generate demo project'}
+          </Button>
+          <p className="m-0 max-w-[280px] text-caption text-fg-tertiary">
+            Builds a complete example in {DEMO_PROVISION_ESTIMATE} — local synthetic data, real
+            scans and alert rules. Reset or delete it any time.
+          </p>
+        </div>
+        {onCreateProject && (
           <div className="flex flex-col gap-2 sm:items-center sm:text-center">
-            {/* Empty-state CTAs take the large control size. */}
-            <Button size="lg" onClick={onGenerateDemo} disabled={isProvisioningDemo}>
-              <Sparkles className="size-3.5" aria-hidden="true" />
-              {isProvisioningDemo ? 'Generating…' : 'Generate demo project'}
+            <Button size="lg" variant="outline" onClick={onCreateProject}>
+              <Plus className="h-3.5 w-3.5" />
+              New project
             </Button>
             <p className="m-0 max-w-[280px] text-caption text-fg-tertiary">
-              Builds a complete example in {DEMO_PROVISION_ESTIMATE} — local synthetic data, real
-              scans and alert rules. Reset or delete it any time.
+              Start empty or from an industry template, then connect your own warehouse.
             </p>
           </div>
-          {onCreateProject && (
-            <div className="flex flex-col gap-2 sm:items-center sm:text-center">
-              <Button size="lg" variant="outline" onClick={onCreateProject}>
-                <Plus className="h-3.5 w-3.5" />
-                New project
-              </Button>
-              <p className="m-0 max-w-[280px] text-caption text-fg-tertiary">
-                Start empty or from an industry template, then connect your own warehouse.
-              </p>
-            </div>
-          )}
-        </div>
-      ) : (
-        <p
-          className="mx-auto max-w-md text-center text-body-sm text-fg-tertiary"
-        >
-          Ask a workspace owner or editor to create the first project — you&apos;ll see it here as
-          soon as it exists.
-        </p>
-      )}
+        )}
+      </div>
 
       <div className="grid gap-4 lg:grid-cols-3">
         {WELCOME_PILLARS.map((pillar) => (
@@ -111,12 +124,14 @@ export function WorkspaceWelcome({
       <div
         className="flex flex-wrap items-center justify-center gap-x-3 gap-y-1 rounded-card border px-4 py-3 text-center text-body-sm bg-surface border-border text-fg-secondary"
       >
+        {/* Not "the loop your real project runs": on this screen the reader
+            has no project yet. */}
         <span>
-          Scan the warehouse → collect metrics → watch the charts — the same loop your real
-          project runs on a schedule.
+          What a project does on a schedule: scan the warehouse → collect metrics → watch the
+          charts.
         </span>
         <a
-          href="https://docs.tripl.io/"
+          href={CONCEPTS_DOCS_URL}
           target="_blank"
           rel="noreferrer"
           className="inline-flex items-center gap-1 font-medium hover:underline text-accent"

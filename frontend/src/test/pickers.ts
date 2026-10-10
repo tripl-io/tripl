@@ -1,10 +1,12 @@
 import { fireEvent, screen, within } from '@testing-library/react'
+import { APP_LOCALE } from '@/lib/format'
 
 /**
  * Picks a day through a `DatePicker` / `DateTimePicker` the way a user does:
  * open it by its `<Label>`, page to the month, click the day. `isoDate` is
- * `YYYY-MM-DD`; with `time` (`HH:mm`) the time field is set too and the
- * popover closed with Done.
+ * `YYYY-MM-DD`; with `time` (`HH:mm`, which the time field reads like a typed
+ * "9:30 PM") the time field is set too and the popover closed with Done. The
+ * calendar names months and days in the app locale, so the lookups here do too.
  *
  * Queries pass `hidden: true`: inside a Dialog, jsdom cannot position the
  * nested popover, and Testing Library then counts it as inaccessible.
@@ -12,7 +14,7 @@ import { fireEvent, screen, within } from '@testing-library/react'
 export async function pickDate(label: string, isoDate: string, time?: string): Promise<void> {
   const [year, month, day] = isoDate.split('-').map(Number) as [number, number, number]
   const target = new Date(year, month - 1, day)
-  const monthName = target.toLocaleDateString(undefined, { month: 'long', year: 'numeric' })
+  const monthName = target.toLocaleDateString(APP_LOCALE, { month: 'long', year: 'numeric' })
 
   fireEvent.click(screen.getByLabelText(label))
   let grid = await screen.findByRole('grid', { hidden: true })
@@ -23,7 +25,7 @@ export async function pickDate(label: string, isoDate: string, time?: string): P
     fireEvent.click(screen.getByRole('button', { name: shown < target ? 'Next month' : 'Previous month', hidden: true }))
     grid = await screen.findByRole('grid', { hidden: true })
   }
-  const dayName = target.toLocaleDateString(undefined, {
+  const dayName = target.toLocaleDateString(APP_LOCALE, {
     weekday: 'long',
     month: 'long',
     day: 'numeric',

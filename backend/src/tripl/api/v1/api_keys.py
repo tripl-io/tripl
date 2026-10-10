@@ -17,6 +17,7 @@ from tripl.api.deps import (
     CurrentUserDep,
     SessionDep,
     WriteUserDep,
+    require_browser_session,
     require_org_member,
 )
 from tripl.middleware.org_context import current_org, require_org_id
@@ -31,6 +32,9 @@ from tripl.services.project_access import member_role
 from tripl.services.project_lookup import PROJECT_NOT_FOUND
 
 router = APIRouter(prefix="/me/api-keys", tags=["api-keys"])
+
+# A key never mints or revokes keys, its own included.
+SESSION_REQUIRED = "API key management requires a user session"
 
 
 @router.get("", response_model=list[ApiKeyResponse])
@@ -47,7 +51,7 @@ async def create_api_key(
     current_user: WriteUserDep,
     data: ApiKeyCreate,
 ) -> ApiKeyCreateResponse:
-    _require_session_auth(request)
+    require_browser_session(request, SESSION_REQUIRED)
     if data.scope == "write":
         # A write key needs membership of the organization it will act in; what
         # it may write inside a project is still decided per request by the
@@ -108,7 +112,7 @@ async def create_api_key(
 async def revoke_api_key(
     request: Request, session: SessionDep, current_user: WriteUserDep, key_id: uuid.UUID
 ) -> None:
-    _require_session_auth(request)
+    require_browser_session(request, SESSION_REQUIRED)
     revoked = await api_key_service.revoke_key(session, current_user.id, key_id)
     if revoked is None:
         return
@@ -138,11 +142,3 @@ def _sso_org_of_session(request: Request) -> uuid.UUID | None:
     ):
         return org_id
     return None
-
-
-def _require_session_auth(request: Request) -> None:
-    if getattr(request.state, "api_key_scope", None) is not None:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="API key management requires a user session",
-        )

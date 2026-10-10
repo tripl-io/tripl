@@ -1,440 +1,208 @@
-export interface PlanRevisionEntityCounts {
-  event_types: number
-  fields: number
-  events: number
-  variables: number
-  meta_fields: number
-  relations: number
-}
+import type { components } from './api.gen'
 
-export interface PlanRevisionSummary {
-  id: string
-  project_id: string
-  summary: string
-  created_at: string
-  created_by: string | null
-  /** What produced it: a user snapshot, a branch's merge base, or a merge. */
-  kind: PlanRevisionKind
-  /** The branch behind a `branch_base` or `merge`; null once that branch is deleted. */
-  branch_id: string | null
-  entity_counts: PlanRevisionEntityCounts
-}
+// Plan branch, revision, diff and audit payloads, taken from the generated
+// OpenAPI schema (`api.gen.ts`) rather than restated, so a backend change is a
+// compile error where it is read. A field the backend declares with a `None`
+// default is optional here even though the server always sends it: read it
+// with `== null` or `??`.
+type Schemas = components['schemas']
 
-export type PlanRevisionKind = 'snapshot' | 'branch_base' | 'merge'
+/**
+ * A plan revision. `kind` says what produced it: a user snapshot, a branch's
+ * merge base, or a merge; `branch_id` is the branch behind a `branch_base` or
+ * `merge`, null once that branch is deleted. `entity_counts` is keyed by
+ * entity collection (`event_types`, `fields`, `events`, `variables`,
+ * `meta_fields`, `relations`).
+ */
+export type PlanRevisionSummary = Schemas['PlanRevisionSummary']
+export type PlanRevisionKind = Schemas['PlanRevisionKind']
+export type PlanRevisionDetail = Schemas['PlanRevisionDetail']
+export type PlanRevisionList = Schemas['PlanRevisionList']
 
-export interface PlanRevisionDetail extends PlanRevisionSummary {
-  payload: Record<string, unknown>
-}
+export type PlanBranchKind = Schemas['BranchKind']
+export type PlanBranchStatus = Schemas['BranchStatus']
+export type PlanBranchTransitionAction = Schemas['BranchTransitionRequest']['action']
 
-export type PlanBranchKind = 'main' | 'working'
+/**
+ * A branch row. `ahead` / `behind_base` are filled only when the list is asked
+ * for them (`include_diff_counts`), and then only for open feature branches;
+ * merged, closed and main rows keep them null, as does every row of a plain
+ * list. `ahead` is the backend's raw count of reviewable entries — a rename
+ * still counts as its removal plus its addition.
+ */
+export type PlanBranchSummary = Schemas['PlanBranchResponse']
+export type PlanBranchList = Schemas['PlanBranchList']
 
-export type PlanBranchStatus =
-  | 'draft'
-  | 'ready_for_review'
-  | 'changes_requested'
-  | 'approved'
-  | 'merged'
-  | 'closed'
+export type PlanBranchReviewer = Schemas['BranchReviewerResponse']
 
-export type PlanBranchTransitionAction =
-  | 'submit'
-  | 'request_changes'
-  | 'approve'
-  | 'reopen'
-  | 'close'
+/**
+ * One approval. `stale` means the branch changed after it, so the merge gate
+ * does not count it: counting rows without checking this shows a quota the
+ * merge endpoint rejects (see the approvals chip in BranchesTab).
+ */
+export type PlanBranchApproval = Schemas['BranchApprovalResponse']
 
-export interface PlanBranchSummary {
-  id: string
-  project_id: string
-  name: string
-  kind: PlanBranchKind
-  status: PlanBranchStatus
-  description: string
-  base_revision_id: string | null
-  created_by: string | null
-  merged_at: string | null
-  merged_by: string | null
-  created_at: string
-  updated_at: string
-}
+export type PlanBranchDetail = Schemas['PlanBranchDetailResponse']
 
-export interface PlanBranchReviewer {
-  id: string
-  user_id: string
-  created_at: string
-}
+export type ResolutionChoice = Schemas['MergeResolutionChoice']
 
-export interface PlanBranchApproval {
-  user_id: string | null
-  approved_at: string
-  /**
-   * The branch changed after this approval, so the merge gate does not count
-   * it. Counting rows without checking this shows a quota the merge endpoint
-   * rejects — see the approvals chip in BranchesTab.
-   */
-  stale: boolean
-}
+/**
+ * One conflicting field. `field` is a field of the entity, or `@presence`
+ * when one side deleted the entity (or its parent) while the other edited or
+ * added it; `base`/`ours`/`theirs` are then `"present"` or `"absent"`.
+ * `dependents`, on a presence row whose "take main" deletes an event type, is
+ * how many fields, events and relations this branch added or edited under it
+ * go with it; 0 everywhere else.
+ */
+export type PlanBranchConflictField = Schemas['ConflictField']
 
-export type ResolutionChoice = 'ours' | 'theirs'
+/**
+ * One conflicting entity. `parent` is the owning entity's name (the event
+ * type of a field definition, for one); `label` a display name for the row
+ * ("checkout.amount"); `added_on_both` that both sides added it since the
+ * branch opened — typically an event authored here whose twin a scan made on
+ * main.
+ */
+export type PlanBranchConflictEntity = Schemas['ConflictEntity']
 
-export interface PlanBranchConflictField {
-  /** A field of the entity, or `@presence` when one side deleted the entity
-   * (or its parent) while the other edited or added it; `base`/`ours`/`theirs`
-   * are then `"present"` or `"absent"`. */
-  field: string
-  base: unknown
-  ours: unknown
-  theirs: unknown
-  choice: ResolutionChoice | null
-  /** On a presence row whose "take main" deletes an event type: how many
-   * fields, events and relations this branch added or edited under it go with
-   * it. 0 everywhere else (the backend's `ConflictField.dependents`). */
-  dependents: number
-}
+/** The fields `behindNote` reads as absent from an instance that predates them. */
+type ConflictsOverlapField = 'behind' | 'overlap_count' | 'merge_blocked' | 'updatable'
 
-export interface PlanBranchConflictEntity {
-  entity_type: string
-  name: string
-  /** The owning entity's name — the event type of a field definition, for
-   * one. Absent on responses from an older instance. */
-  parent?: string | null
-  /** A display name for the row ("checkout.amount"). Absent on responses from
-   * an older instance; fall back to `name`. */
-  label?: string
-  /** Both sides added it since the branch opened — typically an event authored
-   * here whose twin a scan made on main. Absent on responses from an older
-   * instance (false). */
-  added_on_both?: boolean
-  fields: PlanBranchConflictField[]
-}
-
-export interface PlanBranchConflicts {
-  entities: PlanBranchConflictEntity[]
-  unresolved_count: number
-  /** Main changed since the branch's base: the same test as the list's
-   * `behind_base`. Absent on responses from an older instance. */
-  behind?: boolean
-  /** Distinct entities changed both here and on main. */
-  overlap_count?: number
-  /** The merge would refuse as things stand — main changed an entity this
-   * branch also changes in a way no field choice resolves for the merge.
-   * Update from main clears it. */
-  merge_blocked?: boolean
-  /** Whether "Update from main" can run at all: false for a branch whose base
-   * predates complete merge baselines. Anything else that would stop an
-   * update is the preview's `blockers`. Absent on older instances (true). */
-  updatable?: boolean
-}
+/**
+ * A branch's conflicts with main (`GET /branches/{id}/conflicts`): the
+ * generated `BranchConflictsResponse`, with the overlap fields optional because
+ * `behindNote` deliberately reads an answer without them as "cannot say" (and
+ * never as "safe to merge"). `behind` is the list's `behind_base` test;
+ * `overlap_count` the distinct entities changed both here and on main;
+ * `merge_blocked` that the merge would refuse as things stand (Update from
+ * main clears it); `updatable` false for a branch whose base predates
+ * complete merge baselines.
+ */
+export type PlanBranchConflicts = Omit<Schemas['BranchConflictsResponse'], ConflictsOverlapField> &
+  Partial<Pick<Schemas['BranchConflictsResponse'], ConflictsOverlapField>>
 
 /** Something that stops an update whatever is chosen (the preview's `blockers`). */
-export interface UpdateBlocker {
-  kind: 'incomplete_base_snapshot' | 'ambiguous' | 'identity_clash'
-  entity_type: PlanDiffEntityType | null
-  name: string | null
-  message: string
-}
+export type UpdateBlocker = Schemas['UpdateBlocker']
 
 /** What main brought (preview) or what an update applied, per entity type. */
-export interface EntityChangeCount {
-  entity_type: PlanDiffEntityType
-  added: number
-  changed: number
-  removed: number
-  renamed: number
-}
+export type EntityChangeCount = Schemas['EntityChangeCount']
 
-/** `GET /branches/{id}/update-from-main`: a read-only look at the update. */
-export interface UpdateFromMainPreview {
-  behind: boolean
-  /** False while `blockers` is non-empty: the update would refuse. */
-  updatable: boolean
-  blockers: UpdateBlocker[]
-  base_revision_id: string | null
-  /** Main's plan hash as the preview saw it; sent back so the update refuses
-   * (409 `main_moved`) if main changed in between. */
-  main_hash: string
-  main_changes: EntityChangeCount[]
+/**
+ * `GET /branches/{id}/update-from-main`: a read-only look at the update.
+ * `updatable` is false while `blockers` is non-empty; `main_hash` is sent
+ * back so the update refuses (409 `main_moved`) if main changed in between.
+ * Its `conflicts` are read as PlanBranchConflicts.
+ */
+export type UpdateFromMainPreview = Omit<Schemas['UpdateFromMainPreview'], 'conflicts'> & {
   conflicts: PlanBranchConflicts
 }
 
-export interface UpdateFromMainResolution {
-  entity_type: PlanDiffEntityType
-  entity_name: string
-  field_name: string
-  choice: ResolutionChoice
-}
+export type UpdateFromMainResolution = Schemas['ResolutionCreate']
 
-export interface UpdateFromMainRequest {
-  /** The preview's `main_hash`. Choices stored earlier count only with it. */
-  expected_main_hash?: string | null
-  resolutions?: UpdateFromMainResolution[]
-}
+/** `expected_main_hash` is the preview's `main_hash`; stored choices count only with it. */
+export type UpdateFromMainRequest = Schemas['UpdateFromMainRequest']
 
-export interface UpdateFromMainResult {
-  /** False when the branch already had everything on main: nothing written. */
-  updated: boolean
-  branch: PlanBranchDetail
-  applied: EntityChangeCount[]
-  previous_base_revision_id: string | null
-  base_revision_id: string | null
-}
+/** `updated` is false when the branch already had everything on main. */
+export type UpdateFromMainResult = Schemas['UpdateFromMainResult']
 
-export interface PlanBranchMergeResolution {
-  id: string
-  branch_id: string
-  entity_type: string
-  entity_name: string
-  field_name: string
-  choice: ResolutionChoice
-  resolved_by: string | null
-  created_at: string
-}
+export type PlanBranchMergeResolution = Schemas['ResolutionResponse']
 
 /** `POST /branches/{id}/resolutions/batch`: 1..5000 choices, all or none. */
-export interface PlanBranchResolutionBatchCreate {
-  resolutions: UpdateFromMainResolution[]
-}
+export type PlanBranchResolutionBatchCreate = Schemas['ResolutionBatchCreate']
 
 /** One stored row per (entity_type, entity_name, field_name) of the batch. */
-export interface PlanBranchResolutionBatchResponse {
-  resolutions: PlanBranchMergeResolution[]
-}
+export type PlanBranchResolutionBatchResponse = Schemas['ResolutionBatchResponse']
 
-export interface PlanBranchDetail extends PlanBranchSummary {
-  reviewers: PlanBranchReviewer[]
-  approvals: PlanBranchApproval[]
-}
+/**
+ * `null` `id`/`created_at`/`updated_at` while the project rides the defaults
+ * (the row materializes on the first PATCH).
+ */
+export type ProjectBranchSettings = Schemas['ProjectBranchSettingsResponse']
 
-export interface PlanBranchList {
-  items: PlanBranchSummary[]
-  total: number
-}
+export type PlanBranchComment = Schemas['BranchCommentResponse']
 
-export interface ProjectBranchSettings {
-  /** Null while the project rides the defaults (row materializes on first PATCH). */
-  id: string | null
-  project_id: string
-  min_approvals: number
-  block_self_approval: boolean
-  created_at: string | null
-  updated_at: string | null
-}
-
-export interface PlanBranchComment {
-  id: string
-  branch_id: string
-  parent_id: string | null
-  user_id: string | null
-  body: string
-  created_at: string
-  updated_at: string
-}
-
-export interface PlanBranchDiffSummary {
-  entries: PlanDiffEntry[]
-  /** `housekeeping` counts the entries carrying a `housekeeping` reason; they
-   * are left out of the other three. Absent on responses from an older instance. */
-  summary: { added: number; removed: number; changed: number; housekeeping?: number }
-  behind_base: boolean
-  /** Removed/added pairs the merge will treat as one rename, computed by the
-   * same function the merge applies — so the UI reports the merge's decision
-   * rather than guessing at it. Absent on responses from an older instance. */
-  renames?: PlanDiffRename[]
-}
+/**
+ * A branch's diff against its base. `summary` counts `added`, `removed` and
+ * `changed`, plus `housekeeping` for the entries carrying a housekeeping
+ * reason, which are left out of the other three. `renames` are the
+ * removed/added pairs the merge will treat as one rename, computed by the same
+ * function the merge applies.
+ */
+export type PlanBranchDiffSummary = Schemas['PlanBranchDiff']
 
 /** One removed/added pair the merge has already decided is a rename. */
-export interface PlanDiffRename {
-  entity_type: PlanDiffEntityType
-  parent: string | null
-  removed_name: string
-  added_name: string
-}
+export type PlanDiffRename = Schemas['PlanDiffRename']
 
-/** "As merged": one value's place in the event main will hold after the merge.
- * Mirrors `MergedValue` in `schemas/plan_branch.py`. */
-export type MergedState = 'added' | 'changed' | 'unchanged' | 'removed' | 'conflict'
+/**
+ * "As merged": one value's place in the event main will hold after the merge.
+ * `value` is absent on a conflict (the merge refuses); `previous` is main as
+ * it is now; `branch_value` is the branch's side, set on a conflict or where
+ * the merge drops it; `main_moved` means main changed it after the cut and
+ * the branch did not.
+ */
+export type MergedValue = Schemas['MergedValue']
+export type MergedState = MergedValue['state']
+export type MergedPropertyValue = Schemas['MergedPropertyValue']
+export type MergedProperty = Schemas['MergedProperty']
 
-export interface MergedValue {
-  key: string
-  /** Null on a conflict: the merge refuses, so there is no merged value. */
-  value: unknown
-  /** Main as it is now. */
-  previous: unknown
-  /** The branch's side, set on a conflict or where the merge drops it. */
-  branch_value?: unknown
-  state: MergedState
-  /** Main changed this after the cut and the branch did not. */
-  main_moved?: boolean
-  note?: string | null
-}
-
-export interface MergedPropertyValue {
-  value: string
-  state: MergedState
-}
-
-export interface MergedProperty {
-  name: string
-  variable_type: string
-  required?: boolean
-  previous_required?: boolean | null
-  override?: boolean
-  values?: MergedPropertyValue[]
-  state: MergedState
-  variable_state?: MergedState
-  main_moved?: boolean
-}
-
-export type MergedEventOutcome = 'added' | 'changed' | 'unchanged' | 'removed' | 'skipped'
-
-/** `GET /branches/{id}/merge-preview/event`. */
-export interface MergedEventPreview {
-  event_id?: string | null
-  main_event_id?: string | null
-  /** The id a `?merged=` link names: the branch's, else main's, else the base's. */
-  ref_id: string
-  event_type_name: string
-  name: string
-  previous_name?: string | null
-  outcome: MergedEventOutcome
-  behind_base?: boolean
-  /** This event, its type, its fields or one of its properties blocks the merge. */
-  blocked?: boolean
-  /** The merge refuses for some reason, here or elsewhere. */
-  branch_merge_blocked?: boolean
-  other_blocking_count?: number
-  notes?: string[]
-  attributes?: MergedValue[]
-  field_values?: MergedValue[]
-  meta_values?: MergedValue[]
-  tags?: MergedValue[]
-  properties?: MergedProperty[]
-}
+/**
+ * `GET /branches/{id}/merge-preview/event`. `ref_id` is the id a `?merged=`
+ * link names: the branch's, else main's, else the base's. `blocked` means
+ * this event, its type, its fields or one of its properties blocks the merge;
+ * `branch_merge_blocked` that the merge refuses for some reason, here or
+ * elsewhere.
+ */
+export type MergedEventPreview = Schemas['MergedEventPreview']
+export type MergedEventOutcome = MergedEventPreview['outcome']
 
 /** Which event the preview is for: by any side's id, or by type and name. */
 export type MergePreviewTarget = { eventId: string } | { eventType: string; eventName: string }
 
-export interface PlanRevisionList {
-  items: PlanRevisionSummary[]
-  total: number
-}
-
-export type PlanDiffEntityType =
-  | 'event_type'
-  | 'field_definition'
-  | 'event'
-  | 'variable'
-  | 'meta_field'
-  | 'relation'
-
-export type PlanDiffKind = 'added' | 'removed' | 'changed'
-
-/** One member of a collection-valued field (an event field value, a tag, a
- * per-event override) that moved. `key` is the member's natural identifier;
- * `before`/`after` carry its value with the key stripped out. */
-export interface PlanValueChange {
-  key: string
-  kind: PlanDiffKind
-  before: unknown
-  after: unknown
-}
-
-/** Raw before/after values for a single changed field (structured mirror of
- * the human-readable `changes` strings). Present on `changed` entries. */
-export interface PlanFieldChange {
-  field: string
-  before: unknown
-  after: unknown
-  /** Per-member breakdown for collection-valued fields; empty for scalars. */
-  items?: PlanValueChange[]
-}
-
-export interface PlanDiffEntry {
-  entity_type: PlanDiffEntityType
-  kind: PlanDiffKind
-  name: string
-  parent: string | null
-  /** Id of the entity the entry describes — branch-side for added/changed,
-   * base-side for removed. Null on legacy snapshots that predate id capture. */
-  entity_id?: string | null
-  changes: string[]
-  /** Things a reviewer should know that are not a change between the two sides
-   * — an event on a scan-governed type with no scan identity, or a name more
-   * than one event (or a pair of fields more than one relation) holds, which
-   * the diff, the merge and a revert cannot tell apart. Plain sentences.
-   * Absent on responses from an older instance. */
-  warnings?: string[]
-  /** Set when the entry is the machine's doing rather than the author's — a
-   * scan-minted variable nobody used being retired, or a removal main has
-   * already made — with the reason in words. Left out of `summary`'s counts
-   * and folded in the UI. Absent on responses from an older
-   * instance. */
-  housekeeping?: string | null
-  /** Per-field before/after for `changed` entries; empty/absent otherwise.
-   * Optional to match the OpenAPI shape (Pydantic default → not required). */
-  field_changes?: PlanFieldChange[]
-  /** Full entity state on the base side; null/absent for `added` entries. */
-  before?: Record<string, unknown> | null
-  /** Full entity state on the branch side; null/absent for `removed` entries. */
-  after?: Record<string, unknown> | null
-}
-
-export interface PlanDiff {
-  revision_id: string
-  compare_to: string
-  entries: PlanDiffEntry[]
-  summary: { added: number; removed: number; changed: number }
-}
+/**
+ * One entry of a plan diff. `entity_id` is the entity's id — branch-side for
+ * added/changed, base-side for removed; null on legacy snapshots. `warnings`
+ * are things a reviewer should know that are not a change between the two
+ * sides. `housekeeping` is set when the entry is the machine's doing rather
+ * than the author's, with the reason in words; such entries are left out of
+ * `summary`'s counts and folded in the UI. `field_changes` carry the raw
+ * before/after of a `changed` entry; `before`/`after` the full entity state.
+ */
+export type PlanDiffEntry = Schemas['PlanDiffEntry']
+export type PlanDiffEntityType = PlanDiffEntry['entity_type']
+export type PlanDiffKind = PlanDiffEntry['kind']
 
 /**
- * One row of the audit list, with no `payload` — the list response does not
- * carry one. AuditTab renders a payload only for the rows a reader expanded, so
- * a page of them crossed the wire to be displayed nowhere; the row now fetches
- * its own on expand.
+ * One member of a collection-valued field (an event field value, a tag, a
+ * per-event override) that moved. `key` is the member's natural identifier;
+ * `before`/`after` carry its value with the key stripped out.
  */
-export interface AuditEntry {
-  id: string
-  created_at: string
-  user_id: string | null
-  user_email: string
-  project_id: string | null
-  project_slug: string
-  /**
-   * The plan branch the write was scoped to. Null/empty means the write was NOT
-   * made through a branch-scoped request — main, or an action with no
-   * plan-branch dimension at all (alerting, scans, data sources, users, API
-   * keys) — so it must never be rendered as "main". `branch_id`
-   * is nulled when the branch is deleted; `branch_name` is kept verbatim so the
-   * trail outlives it.
-   */
-  branch_id: string | null
-  branch_name: string
-  action: string
-  target_type: string
-  target_id: string | null
-  target_name: string
-}
+export type PlanValueChange = Schemas['PlanValueChange']
+
+/** Raw before/after for one changed field; `items` break a collection down per member. */
+export type PlanFieldChange = Schemas['PlanFieldChange']
+
+export type PlanDiff = Schemas['PlanDiff']
+
+/**
+ * One row of the audit list, with no `payload`: AuditTab fetches a row's
+ * payload only when it is expanded.
+ *
+ * `branch_id` null/empty means the write was NOT made through a branch-scoped
+ * request — main, or an action with no plan-branch dimension at all — so it
+ * must never be rendered as "main". `branch_id` is nulled when the branch is
+ * deleted; `branch_name` is kept verbatim so the trail outlives it.
+ */
+export type AuditEntry = Schemas['AuditEntryResponse']
 
 /** One entry WITH the request payload that produced it: `GET /audit/{id}`. */
-export interface AuditEntryDetail extends AuditEntry {
-  payload: Record<string, unknown>
-}
+export type AuditEntryDetail = Schemas['AuditEntryDetailResponse']
 
-// Mirrors AuditActionGroup / AuditActionCatalog (schemas/audit.py), served by
-// GET /audit/actions: the filter's action vocabulary, owned by the backend.
-export interface AuditActionGroup {
-  label: string
-  actions: string[]
-}
+/**
+ * The filter's action vocabulary, served by GET /audit/actions. `project`
+ * lists actions recorded with a project (the only ones a project-scoped query
+ * matches); `workspace` those recorded with none.
+ */
+export type AuditActionGroup = Schemas['AuditActionGroup']
+export type AuditActionCatalog = Schemas['AuditActionCatalog']
 
-export interface AuditActionCatalog {
-  /** Actions recorded with a project: the only ones a project-scoped query matches. */
-  project: AuditActionGroup[]
-  /** Actions recorded with no project: only the unfiltered workspace feed matches them. */
-  workspace: AuditActionGroup[]
-}
-
-export interface AuditListResponse {
-  items: AuditEntry[]
-  total: number
-}
+export type AuditListResponse = Schemas['AuditListResponse']

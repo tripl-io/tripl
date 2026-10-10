@@ -64,6 +64,7 @@ from sqlalchemy.orm import Session
 
 from tripl.alerting_matching import AlertMatchCandidate, DriftAlertCandidate
 from tripl.core.alert_schedule import previous_fire_at
+from tripl.core.bucketing import optional_to_utc
 from tripl.models.alert_delivery import AlertDelivery
 from tripl.models.alert_destination import AlertDestination
 from tripl.models.alert_pending_item import AlertPendingItem
@@ -73,15 +74,12 @@ from tripl.models.scan_config import ScanConfig
 from tripl.services.active_org_scope import in_active_org
 from tripl.worker.celery_app import celery_app
 from tripl.worker.db import _get_sync_session
-
-# Everything from ``tripl.worker.tasks.metrics`` is imported INSIDE the
-# functions below, never at module load. ``celery_app`` imports this module
-# from its own bottom-of-file task registration, which can itself be reached
-# from a partially-initialized ``tripl.worker.tasks.alerts`` — and a
-# ``from tripl.worker.tasks.metrics.x import y`` at that moment resolves
-# ``metrics/__init__``, which does ``from ...alerts import send_alert_delivery``
-# against the half-built module and raises. ``maintenance.py`` defers its
-# ``send_alert_delivery`` import for exactly this reason (see its comment).
+from tripl.worker.tasks.metrics.dispatch import (
+    _create_deliveries,
+    _suppressed_correlation_group_ids,
+)
+from tripl.worker.tasks.metrics.urls import _get_project_slug
+from tripl.worker.utils.advisory_lock import release_advisory_lock, try_acquire_advisory_lock
 
 logger = logging.getLogger(__name__)
 
@@ -153,13 +151,6 @@ def _build_digest(
     commit of its own, because the claim (the DELETE) and the deliveries have
     to land or roll back together.
     """
-    from tripl.worker.tasks.metrics.dispatch import (
-        _as_utc,
-        _create_deliveries,
-        _suppressed_correlation_group_ids,
-    )
-    from tripl.worker.tasks.metrics.urls import _get_project_slug
-
     claimed = list(
         session.execute(
             select(AlertPendingItem)
@@ -292,7 +283,7 @@ def _build_digest(
         # ``AlertRule.muted_until``.
         if not rule.enabled:
             continue
-        muted_until = _as_utc(rule.muted_until)
+        muted_until = optional_to_utc(rule.muted_until)
         if muted_until is not None and muted_until > now:
             continue
 
@@ -376,14 +367,9 @@ def flush_due_alert_digests() -> dict[str, int]:
     """Send the digest for every destination whose cadence has come round."""
     from tripl.worker.tasks.alert_digest_send import COMBINABLE_CHANNELS, send_alert_digest
     from tripl.worker.tasks.alerts import send_alert_delivery
-    from tripl.worker.tasks.metrics.dispatch import _as_utc
-    from tripl.worker.tasks.metrics.schedule import (
-        _release_advisory_lock,
-        _try_acquire_advisory_lock,
-    )
 
     session = _get_sync_session()
-    lock_conn, acquired = _try_acquire_advisory_lock(session, _ALERT_FLUSH_ADVISORY_LOCK_KEY)
+    lock_conn, acquired = try_acquire_advisory_lock(session, _ALERT_FLUSH_ADVISORY_LOCK_KEY)
     if not acquired:
         logger.info("flush_due_alert_digests: another run holds the lock; skipping this tick")
         session.close()
@@ -475,7 +461,7 @@ def flush_due_alert_digests() -> dict[str, int]:
             cron = destination.delivery_schedule_cron
             if cron is None:  # pragma: no cover - filtered in SQL
                 continue
-            last = _as_utc(destination.last_flushed_at)
+            last = optional_to_utc(destination.last_flushed_at)
 
             if last is None:
                 # First tick after a cadence was attached: adopt the clock and
@@ -591,5 +577,7 @@ def flush_due_alert_digests() -> dict[str, int]:
             "swept": swept,
         }
     finally:
-        _release_advisory_lock(lock_conn, _ALERT_FLUSH_ADVISORY_LOCK_KEY)
+        release_advisory_lock(
+            lock_conn, _ALERT_FLUSH_ADVISORY_LOCK_KEY, name="flush_due_alert_digests"
+        )
         session.close()

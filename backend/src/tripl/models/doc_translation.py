@@ -33,10 +33,6 @@ from sqlalchemy.orm import Mapped, mapped_column
 
 from tripl.models.base import Base, TimestampMixin, UUIDMixin
 
-#: ``pending`` while the task runs, ``ready`` once it holds text, ``failed``
-#: when the last AI run did not produce one (``content`` keeps the text it had).
-DOC_TRANSLATION_STATUSES: tuple[str, ...] = ("pending", "ready", "failed")
-
 
 class DocTranslation(UUIDMixin, TimestampMixin, Base):
     """One language of one note."""
@@ -53,6 +49,8 @@ class DocTranslation(UUIDMixin, TimestampMixin, Base):
         ForeignKey("doc_files.id", ondelete="CASCADE"), index=True
     )
     lang: Mapped[str] = mapped_column(String(35))
+    # ``pending`` while the task runs, ``ready`` once it holds text, ``failed``
+    # when the last AI run did not produce one (``content`` keeps the text it had).
     status: Mapped[str] = mapped_column(String(8), default="pending")
     content: Mapped[str] = mapped_column(Text, default="")
     content_sha256: Mapped[str] = mapped_column(String(64), default="")

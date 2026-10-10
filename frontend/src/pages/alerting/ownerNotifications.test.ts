@@ -6,21 +6,38 @@ import {
   ownerNotificationStatusLabel,
   ownerNotificationTone,
   ownerNotificationWho,
+  ownerSourceOf,
   ownersLabel,
 } from './ownerNotifications'
 
 describe('ownersLabel', () => {
-  it('names each owner with an @', () => {
+  it('names each owner with an @, as the event type owners they are', () => {
     expect(ownersLabel([
       { user_id: 'u-1', name: 'anna' },
       { user_id: 'u-2', name: 'oleg' },
-    ])).toBe('Owners: @anna, @oleg')
+    ], 'event_type')).toBe('Event type owners: @anna, @oleg')
+    expect(ownersLabel([{ user_id: 'u-1', name: 'anna' }], 'event_type')).toBe('Event type owner: @anna')
+  })
+
+  it("names a catalog metric's owner plainly", () => {
+    expect(ownersLabel([{ user_id: 'u-1', name: 'anna' }], 'metric')).toBe('Owner: @anna')
   })
 
   it('is null when there is nobody to name', () => {
-    expect(ownersLabel([])).toBeNull()
-    expect(ownersLabel(undefined)).toBeNull()
-    expect(ownersLabel(null)).toBeNull()
+    expect(ownersLabel([], 'event_type')).toBeNull()
+    expect(ownersLabel(undefined, 'metric')).toBeNull()
+    expect(ownersLabel(null, 'event_type')).toBeNull()
+  })
+})
+
+describe('ownerSourceOf', () => {
+  it("reads a metric's owner, and an event type's owners for everything about an event", () => {
+    expect(ownerSourceOf('metric')).toBe('metric')
+    // Owner routing never reads an event's own owner: an event scope, and the
+    // drift, release and lifecycle signals about one, go to its type's owners.
+    for (const scope of ['event', 'event_type', 'schema', 'release_regression', 'lifecycle'] as const) {
+      expect(ownerSourceOf(scope)).toBe('event_type')
+    }
   })
 })
 

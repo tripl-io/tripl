@@ -41,6 +41,7 @@ from tripl.tests._tenancy import use_multi_tenant
 from tripl.tests.conftest import TestSessionLocal
 from tripl.worker.tasks import alerts as alerts_task
 from tripl.worker.tasks import alerts_channels
+from tripl.worker.tasks.alerts_plain import ChannelTarget, send_plain_message
 
 OWN_RELAY_ORG = uuid.UUID("00000000-0000-0000-0000-00000000c0a1")
 INHERITING_ORG = uuid.UUID("00000000-0000-0000-0000-00000000c0b2")
@@ -280,29 +281,12 @@ def test_the_digest_path_ignores_the_override_on_the_operator_relay(
     assert [call["from_address"] for call in sent] == [OPERATOR_SENDER]
 
 
-def _test_target(org_id: uuid.UUID) -> _alerting_test_send._TestTarget:
-    return _alerting_test_send._TestTarget(
-        destination_id=None,
+def _test_target(org_id: uuid.UUID) -> ChannelTarget:
+    return ChannelTarget(
         destination_type="email",
         destination_name="Ops",
-        message="test",
-        webhook_url=None,
-        bot_token=None,
-        chat_id=None,
-        target_url=None,
-        webhook_header_name=None,
-        webhook_header_value=None,
         email_recipients="oncall@example.com",
         email_from_address=SPOOFED,
-        jira_base_url=None,
-        jira_auth_email=None,
-        jira_api_token=None,
-        jira_project_key=None,
-        jira_issue_type=None,
-        linear_api_key=None,
-        linear_team_id=None,
-        linear_state_id=None,
-        linear_label_ids=None,
         organization_id=org_id,
     )
 
@@ -320,7 +304,10 @@ def test_the_test_send_follows_the_same_rule(
     expected: str,
 ) -> None:
     monkeypatch.setattr(app_settings_service, "_open_sync_session", sync_factory)
-    _alerting_test_send._send_email(_test_target(org_id))
+    send_plain_message(
+        _test_target(org_id),
+        _alerting_test_send._test_message(project_name="Shop", destination_name="Ops"),
+    )
     assert [msg["From"] for msg in smtp.sent] == [expected]
 
 

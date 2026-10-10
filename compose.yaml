@@ -100,6 +100,28 @@ x-app-environment: &app-environment
   # The Enterprise license key (read by the Enterprise image only).
   LICENSE_KEY: ${LICENSE_KEY:-}
   IDLE_ORG_RETENTION_DAYS: ${IDLE_ORG_RETENTION_DAYS:-}
+  # Enterprise: stored secrets under a key in your own KMS
+  # (website/docs/enterprise/kms.md). Read by the Enterprise package only;
+  # without these lines KMS_PROVIDER set in .env never arrives and every secret
+  # silently stays under ENCRYPTION_KEY. KMS_LOCAL_KEY is left out on purpose:
+  # it works only with DEBUG=true. KMS_VAULT_TOKEN_FILE and KMS_VAULT_CA_CERT
+  # name files inside the container, so they also need a volume in a
+  # compose.override.yaml; the cloud SDKs' own credentials (AWS_*,
+  # GOOGLE_APPLICATION_CREDENTIALS, AZURE_*) are not forwarded either.
+  KMS_PROVIDER: ${KMS_PROVIDER:-}
+  KMS_KEY_ID: ${KMS_KEY_ID:-}
+  KMS_TIMEOUT_SECONDS: ${KMS_TIMEOUT_SECONDS:-}
+  KMS_DATA_KEY_TTL_SECONDS: ${KMS_DATA_KEY_TTL_SECONDS:-}
+  KMS_AWS_REGION: ${KMS_AWS_REGION:-}
+  KMS_AWS_ENDPOINT_URL: ${KMS_AWS_ENDPOINT_URL:-}
+  KMS_AZURE_ALGORITHM: ${KMS_AZURE_ALGORITHM:-}
+  KMS_AZURE_OTHER_HOSTS: ${KMS_AZURE_OTHER_HOSTS:-}
+  KMS_VAULT_ADDR: ${KMS_VAULT_ADDR:-}
+  KMS_VAULT_TOKEN: ${KMS_VAULT_TOKEN:-}
+  KMS_VAULT_TOKEN_FILE: ${KMS_VAULT_TOKEN_FILE:-}
+  KMS_VAULT_MOUNT: ${KMS_VAULT_MOUNT:-}
+  KMS_VAULT_NAMESPACE: ${KMS_VAULT_NAMESPACE:-}
+  KMS_VAULT_CA_CERT: ${KMS_VAULT_CA_CERT:-}
   CORS_ALLOW_ORIGINS: ${CORS_ALLOW_ORIGINS:-}
   CONTENT_SECURITY_POLICY: ${CONTENT_SECURITY_POLICY:-}
   MAX_REQUEST_BODY_MB: ${MAX_REQUEST_BODY_MB:-}
@@ -132,6 +154,8 @@ x-app-environment: &app-environment
   AI_BASE_URL: ${AI_BASE_URL:-}
   AI_MODEL: ${AI_MODEL:-}
   AI_API_KEY: ${AI_API_KEY:-}
+  AI_TIMEOUT_SECONDS: ${AI_TIMEOUT_SECONDS:-}
+  AI_MAX_OUTPUT_TOKENS: ${AI_MAX_OUTPUT_TOKENS:-}
   OPENAI_API_KEY: ${OPENAI_API_KEY:-}
   SEARCH_EMBEDDINGS_ENABLED: ${SEARCH_EMBEDDINGS_ENABLED:-}
   SEARCH_EMBEDDING_PROVIDER: ${SEARCH_EMBEDDING_PROVIDER:-}
@@ -144,6 +168,21 @@ x-app-environment: &app-environment
   # DIMENSIONS — after documents are indexed requires a re-index, since vectors
   # from two embedding spaces are not comparable.
   SEARCH_EMBEDDING_BASE_URL: ${SEARCH_EMBEDDING_BASE_URL:-}
+  # Warehouse query row caps, used where a scan config sets none of its own.
+  SCAN_ROW_LIMIT_DEFAULT: ${SCAN_ROW_LIMIT_DEFAULT:-}
+  METRICS_ROW_LIMIT_DEFAULT: ${METRICS_ROW_LIMIT_DEFAULT:-}
+  # Event photo storage. PHOTO_LOCAL_DIR is left out on purpose: the local
+  # backend must write under /app/var/photos, the volume mounted below, or a
+  # redeploy discards the files. GCS_PHOTO_CREDENTIALS_PATH names a file inside
+  # the container, so the key file needs a volume in a compose.override.yaml;
+  # left empty, the GCS client uses Application Default Credentials.
+  PHOTO_STORAGE_BACKEND: ${PHOTO_STORAGE_BACKEND:-}
+  PHOTO_MAX_SIZE_MB: ${PHOTO_MAX_SIZE_MB:-}
+  PHOTO_ALLOWED_MIME: ${PHOTO_ALLOWED_MIME:-}
+  GCS_PHOTO_BUCKET: ${GCS_PHOTO_BUCKET:-}
+  GCS_PHOTO_CREDENTIALS_PATH: ${GCS_PHOTO_CREDENTIALS_PATH:-}
+  GCS_PHOTO_PUBLIC: ${GCS_PHOTO_PUBLIC:-}
+  GCS_PHOTO_SIGNED_URL_TTL_SECONDS: ${GCS_PHOTO_SIGNED_URL_TTL_SECONDS:-}
 
 services:
   postgres:

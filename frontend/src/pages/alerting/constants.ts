@@ -473,7 +473,7 @@ export function ruleToForm(rule: AlertRule): RuleFormState {
       uid: filter.id,
       field: filter.field,
       operator: filter.operator,
-      values: [...filter.values],
+      values: [...(filter.values ?? [])],
     })),
   }
 }

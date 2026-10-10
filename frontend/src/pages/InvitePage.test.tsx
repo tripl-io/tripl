@@ -133,7 +133,7 @@ describe('InvitePage', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Try again' }))
     expect(await screen.findByText('invitee@example.com')).toBeInTheDocument()
     expect(
-      screen.getByRole('heading', { level: 1, name: 'Join this tripl workspace' }),
+      screen.getByRole('heading', { level: 1, name: 'Join this organization on tripl' }),
     ).toBeInTheDocument()
   })
 
@@ -213,6 +213,72 @@ describe('InvitePage', () => {
     expect(password).toHaveAccessibleDescription(/Required/)
     await waitFor(() => expect(password).toHaveFocus())
     expect(accepted).not.toHaveBeenCalled()
+  })
+
+  // The form checked the length alone, so a long password with no number
+  // went out and came back as "password: Value error, Password must be…".
+  it('checks the number and the symbol as well as the length, before sending', async () => {
+    const accepted = vi.fn()
+    vi.spyOn(globalThis, 'fetch').mockImplementation((input: RequestInfo | URL) => {
+      const url = urlOf(input)
+      if (url.includes(`/auth/invitations/${TOKEN}/accept`)) {
+        accepted()
+        return Promise.reject(new Error('should not submit'))
+      }
+      if (url.includes(`/auth/invitations/${TOKEN}`)) {
+        return Promise.resolve(
+          jsonResponse({ email: 'invitee@example.com', role: 'member', expires_at: '2026-08-01T00:00:00Z' }),
+        )
+      }
+      return Promise.reject(new Error(`Unexpected request: ${url}`))
+    })
+    renderInvitePage()
+
+    const password = await screen.findByLabelText('Password')
+    fireEvent.change(password, { target: { value: 'correcthorsebattery' } })
+    fireEvent.click(screen.getByRole('button', { name: /accept invitation/i }))
+
+    expect(password).toHaveAttribute('aria-invalid', 'true')
+    expect(password).toHaveAccessibleDescription(/Add a number and a symbol\./)
+    expect(accepted).not.toHaveBeenCalled()
+  })
+
+  it('says what the server refused under the field it names, in plain words', async () => {
+    vi.spyOn(globalThis, 'fetch').mockImplementation((input: RequestInfo | URL) => {
+      const url = urlOf(input)
+      if (url.includes(`/auth/invitations/${TOKEN}/accept`)) {
+        return Promise.resolve(
+          jsonResponse(
+            {
+              detail: [
+                {
+                  loc: ['body', 'name'],
+                  msg: 'String should have at most 255 characters',
+                  type: 'string_too_long',
+                },
+              ],
+            },
+            422,
+          ),
+        )
+      }
+      if (url.includes(`/auth/invitations/${TOKEN}`)) {
+        return Promise.resolve(
+          jsonResponse({ email: 'invitee@example.com', role: 'member', expires_at: '2026-08-01T00:00:00Z' }),
+        )
+      }
+      return Promise.reject(new Error(`Unexpected request: ${url}`))
+    })
+    renderInvitePage()
+
+    fireEvent.change(await screen.findByLabelText('Password'), { target: { value: 'Password123!' } })
+    fireEvent.change(screen.getByLabelText(/Your name/i), { target: { value: 'N'.repeat(300) } })
+    fireEvent.click(screen.getByRole('button', { name: /accept invitation/i }))
+
+    const name = screen.getByLabelText(/Your name/i)
+    await waitFor(() => expect(name).toHaveAttribute('aria-invalid', 'true'))
+    expect(name).toHaveAccessibleDescription('String should have at most 255 characters')
+    expect(screen.queryByText(/name: String/)).not.toBeInTheDocument()
   })
 
   it('lets the new user check the password they typed', async () => {

@@ -1,4 +1,5 @@
-import { createContext, useCallback, useContext, useEffect, useState, useSyncExternalStore } from "react"
+import { createContext, useContext, useEffect, useState } from "react"
+import { useMediaQuery } from "@/hooks/useMediaQuery"
 
 export type Theme = "dark" | "light" | "system"
 export type Accent = "teal" | "violet" | "lime" | "indigo" | "magenta"
@@ -56,21 +57,6 @@ const CHART_STYLES: ChartStyle[] = ["line", "line-only", "bar"]
 
 const DARK_QUERY = "(prefers-color-scheme: dark)"
 
-/** Whether the OS asks for dark, kept current while it changes. */
-function useSystemPrefersDark(): boolean {
-  const subscribe = useCallback((onChange: () => void) => {
-    const query = typeof window.matchMedia === "function" ? window.matchMedia(DARK_QUERY) : null
-    if (!query) return () => {}
-    query.addEventListener("change", onChange)
-    return () => query.removeEventListener("change", onChange)
-  }, [])
-  return useSyncExternalStore(
-    subscribe,
-    () => (typeof window.matchMedia === "function" ? window.matchMedia(DARK_QUERY).matches : false),
-    () => false,
-  )
-}
-
 function readLocal<T extends string>(key: string, valid: readonly T[], fallback: T): T {
   try {
     const value = localStorage.getItem(key)
@@ -118,8 +104,9 @@ export function ThemeProvider({
 
   // "System" follows the OS for as long as it is chosen, not just at load:
   // switching the OS to dark at sunset used to leave the app light until a
-  // reload, beside a Toaster that did follow.
-  const systemDark = useSystemPrefersDark()
+  // reload, beside a Toaster that did follow. Light where there is no
+  // matchMedia.
+  const systemDark = useMediaQuery(DARK_QUERY)
   const resolvedTheme: "dark" | "light" =
     theme === "system" ? (systemDark ? "dark" : "light") : theme
 

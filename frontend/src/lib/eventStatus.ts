@@ -18,10 +18,12 @@ export const EVENT_STATUSES: EventStatus[] = [
   'archived',
 ]
 
+// Sentence case, like every other label in the app, so a status chip and the
+// stat or help text beside it on the same screen spell the status the same way.
 export const EVENT_STATUS_LABELS: Record<EventStatus, string> = {
   draft: 'Draft',
-  in_review: 'In Review',
-  ready_for_dev: 'Ready for Dev',
+  in_review: 'In review',
+  ready_for_dev: 'Ready for dev',
   implemented: 'Implemented',
   live: 'Live',
   deprecated: 'Deprecated',
@@ -39,7 +41,7 @@ export const EVENT_STATUS_TONE: Record<EventStatus, ChipTone> = {
   ready_for_dev: 'info',
   implemented: 'success',
   live: 'success',
-  // Neutral, not warning: In Review is already amber, and a deprecated event
+  // Neutral, not warning: In review is already amber, and a deprecated event
   // needs no action, so the two no longer share one colour.
   deprecated: 'neutral',
   archived: 'neutral',

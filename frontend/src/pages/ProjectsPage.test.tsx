@@ -1235,9 +1235,7 @@ describe('ProjectsPage', () => {
 
     expect(await screen.findByText('Keep your product analytics honest')).toBeInTheDocument()
     expect(await screen.findByRole('button', { name: /Generate demo project/i })).toBeInTheDocument()
-    expect(
-      screen.queryByText(/Ask a workspace owner or editor to create the first project/),
-    ).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /New project/i })).toBeInTheDocument()
   })
 
   it('returns the stat band and header CTAs once the first project exists', async () => {
@@ -1296,7 +1294,7 @@ describe('ProjectsPage on a public demo', () => {
 
     // The sign-in card promised a demo of their own: the create is under way,
     // and the dialog says so.
-    expect(await screen.findByRole('dialog')).toHaveTextContent('Generating demo workspace')
+    expect(await screen.findByRole('dialog')).toHaveTextContent('Generating demo project')
     expect(creates()).toBe(1)
   })
 

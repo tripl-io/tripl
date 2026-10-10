@@ -1,17 +1,12 @@
 import { useMemo, useState } from 'react'
-import { keepPreviousData, useQuery } from '@tanstack/react-query'
+import { useQuery } from '@tanstack/react-query'
 import { eventsApi } from '@/api/events'
-import { useDebouncedValue } from '@/hooks/useDebouncedValue'
-import { eventKey, eventsPickerKey } from '@/lib/queryKeys'
+import { useEventRoster } from '@/hooks/useEventRoster'
+import { EVENT_ATTRIBUTE_LABEL } from '@/lib/eventAttributes'
+import { eventKey } from '@/lib/queryKeys'
 import type { EventType } from '@/types'
 import { EvField, EvInput, SelectControl } from './eventFormLayout'
 import { disambiguate, type SuccessorCandidate } from './successorLabels'
-
-// Replacement candidates offered at once. Deliberately small, for the reason
-// the variables tab spells out: the search below is server-side,
-// so anything outside the page is one keystroke away, and the count of what is
-// missing is printed rather than hidden.
-const SUCCESSOR_PAGE_SIZE = 100
 
 const NO_TYPES: readonly EventType[] = []
 
@@ -43,17 +38,9 @@ export function SuccessorPicker({
   // states at length: /events returns full list rows, so pulling a
   // whole catalog into a <select> to spare the user typing is the wrong trade,
   // and narrowing a page the server already truncated is the defect itself.
-  const debouncedSearch = useDebouncedValue(search, 350)
-  const { data: roster } = useQuery({
-    queryKey: eventsPickerKey(slug, branchId, 'successor-picker', debouncedSearch),
-    queryFn: () =>
-      eventsApi.list(
-        slug,
-        { search: debouncedSearch || undefined, limit: SUCCESSOR_PAGE_SIZE, offset: 0 },
-        branchId,
-      ),
-    placeholderData: keepPreviousData,
-  })
+  // What the search did not return is printed rather than hidden — a short
+  // list and a complete one are otherwise indistinguishable.
+  const { events: roster, hiddenCount } = useEventRoster({ slug, branchId, search, debounceMs: 350 })
   // Same key shape as the detail page's own event query, so the successor is
   // read from cache when it has already been opened.
   const { data: successor } = useQuery({
@@ -72,7 +59,7 @@ export function SuccessorPicker({
       const typeName = item.event_type_id ? typeNames.get(item.event_type_id) : undefined
       return typeName ? `${item.name} · ${typeName}` : item.name
     }
-    const items: SuccessorCandidate[] = (roster?.items ?? [])
+    const items: SuccessorCandidate[] = roster
       // An event cannot replace itself; the server answers 400, but offering it
       // at all invites the trip.
       .filter(item => item.id !== eventId)
@@ -84,13 +71,10 @@ export function SuccessorPicker({
       : [successor, ...items]
     return disambiguate(candidates, base)
   }, [roster, successor, eventId, eventTypes])
-  // What the search did not return, printed rather than hidden — a short list
-  // and a complete one are otherwise indistinguishable.
-  const hiddenCount = Math.max(0, (roster?.total ?? 0) - (roster?.items.length ?? 0))
 
   return (
     <EvField
-      label="Replaced by"
+      label={EVENT_ATTRIBUTE_LABEL.superseded_by}
       htmlFor="form-superseded"
       hint="What to send instead. Documentation only: nothing is matched, collected or counted through it."
       last

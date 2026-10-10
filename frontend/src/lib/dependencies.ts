@@ -21,7 +21,8 @@ export const DEPENDENCY_KIND_LABELS: Record<DependencyKind, { one: string; many:
   event: { one: 'event', many: 'events' },
   event_type: { one: 'event type', many: 'event types' },
   field: { one: 'field', many: 'fields' },
-  variable: { one: 'variable', many: 'variables' },
+  // The UI's name for a variable everywhere else: the Properties catalog.
+  variable: { one: 'property', many: 'properties' },
   metric: { one: 'metric', many: 'metrics' },
   fact_table: { one: 'fact table', many: 'fact tables' },
   alert_rule: { one: 'alert rule', many: 'alert rules' },

@@ -176,9 +176,10 @@ def _load_file(path: Path, *, explicit: bool) -> dict[str, Any] | None:
     _warn_if_world_readable(path, data)
     # Unknown keys and unknown tables are IGNORED, not rejected: an older CLI
     # must keep working against a file written by a newer one, and a future
-    # [profiles.staging] table has to fit without a format change. The cost — a
-    # typo doing nothing — is paid off by `tripl doctor`, which reports unknown
-    # keys and the full provenance table.
+    # [profiles.staging] table has to fit without a format change. The cost is a
+    # misspelt key that does nothing. `tripl doctor` names the source of the base
+    # URL (and, in its --json report, of the API key), so the value the key was
+    # meant to set shows up as coming from somewhere else, or as missing.
     return data
 
 

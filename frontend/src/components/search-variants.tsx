@@ -5,6 +5,7 @@ import { ChevronDown, ChevronRight } from 'lucide-react'
 import { PALETTE_ITEM_CLASS } from '@/components/palette-item'
 import { cn } from '@/lib/utils'
 import type { SearchVariant, SearchVariantGroup } from '@/types'
+import { countOf } from '@/lib/plural'
 
 /**
  * Variant groups in the command palette's search results (#238).
@@ -32,10 +33,6 @@ import type { SearchVariant, SearchVariantGroup } from '@/types'
  * and groups, so the region cannot sit inside the list.
  */
 
-function variantNoun(count: number): string {
-  return count === 1 ? 'variant' : 'variants'
-}
-
 /**
  * The "+ N variants" suffix on a representative's label. The leading space
  * sits outside the styled span, so the accessible name reads
@@ -46,7 +43,7 @@ export function SearchVariantCount({ count }: { count: number }) {
     <>
       {' '}
       <span className="text-fg-tertiary">
-        + {count} {variantNoun(count)}
+        + {countOf(count, 'variant', 'variants')}
       </span>
     </>
   )
@@ -85,7 +82,7 @@ export function SearchVariantRows({
     const next = !expanded
     setExpanded(next)
     setAnnouncement(
-      `${count} ${variantNoun(count)} of ${group.pattern} ${next ? 'expanded' : 'collapsed'}`,
+      `${countOf(count, 'variant', 'variants')} of ${group.pattern} ${next ? 'expanded' : 'collapsed'}`,
     )
   }
   return (
@@ -100,7 +97,7 @@ export function SearchVariantRows({
       >
         <Chevron className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
         <span className="min-w-0 flex-1 truncate">
-          {expanded ? 'Hide' : 'Show'} {count} {variantNoun(count)}
+          {expanded ? 'Hide' : 'Show'} {countOf(count, 'variant', 'variants')}
         </span>
         <span className="mono hidden max-w-[40%] shrink-0 truncate text-micro text-fg-tertiary sm:block">
           {`{${group.placeholder}}`}

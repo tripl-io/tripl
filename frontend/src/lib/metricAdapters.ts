@@ -14,30 +14,8 @@ import type {
   MetricBreakdownsResponse,
   MetricSeriesPoint,
   MetricSeriesResponse,
-  MetricSignalResponse,
   MetricVersionSeriesResponse,
-  MonitoringSignal,
-  SignalIncidentRef,
-  SignalVerdict,
 } from '@/types'
-
-/**
- * The verdict fields (#254) the metric payloads carry on a flagged point and
- * on the latest signal. Read structurally: the generated catalog types gain
- * them only once the OpenAPI schema is regenerated, and until then an older
- * payload simply has neither.
- */
-interface VerdictFields {
-  verdict?: SignalVerdict | null
-  incident?: SignalIncidentRef | null
-}
-
-// Left undefined, not null, when the payload has none: an absent verdict is
-// "unknown", and the points stay the shape they always were.
-function verdictFieldsOf(source: object): VerdictFields {
-  const { verdict, incident } = source as VerdictFields
-  return { verdict, incident }
-}
 import {
   coarserGranularity,
   defaultGranularityForRange,
@@ -116,30 +94,10 @@ export function metricPointToEventPoint(point: MetricSeriesPoint): EventMetricPo
     is_anomaly: point.is_anomaly,
     anomaly_direction: point.anomaly_direction ?? null,
     z_score: point.z_score ?? null,
-    ...verdictFieldsOf(point),
+    // Left undefined, not null, when the payload has none: only a flagged
+    // bucket somebody gave a verdict carries one (#254).
+    verdict: point.verdict,
     ...(point.planned_event_id ? { planned_event_id: point.planned_event_id } : {}),
-  }
-}
-
-export function metricSignalToMonitoringSignal(signal: MetricSignalResponse): MonitoringSignal {
-  return {
-    scan_config_id: signal.scan_config_id ?? '',
-    scope_type: signal.scope_type,
-    scope_ref: signal.scope_ref,
-    state: signal.state === 'recent' ? 'recent' : 'latest_scan',
-    event_id: signal.event_id ?? null,
-    event_type_id: signal.event_type_id ?? null,
-    bucket: signal.bucket,
-    actual_count: signal.actual_count,
-    expected_count: signal.expected_count,
-    stddev: signal.stddev,
-    z_score: signal.z_score,
-    direction: signal.direction,
-    unit: signal.unit ?? null,
-    detected_at: signal.detected_at ?? null,
-    // Catalog metric-scope signals are never an incident rollup child.
-    incident_child: false,
-    ...verdictFieldsOf(signal),
   }
 }
 
@@ -150,7 +108,8 @@ export function adaptMetricSeries(res: MetricSeriesResponse): EventMetricsRespon
     event_id: null,
     event_type_id: null,
     interval: res.interval ?? null,
-    latest_signal: res.latest_signal ? metricSignalToMonitoringSignal(res.latest_signal) : null,
+    // The catalog serves its signals in the open-signal shape itself.
+    latest_signal: res.latest_signal ?? null,
     data: res.data.map(metricPointToEventPoint),
     // Per-metric forecasting renders a dashed tail that trends toward 0, which
     // is misleading for fractional (ratio/avg) catalog metrics. Drop it for the
@@ -163,7 +122,14 @@ export function adaptMetricSeries(res: MetricSeriesResponse): EventMetricsRespon
   }
 }
 
-export function adaptMetricVersions(res: MetricVersionSeriesResponse): AppVersionSeriesResponse {
+/**
+ * The version series in the event shape the Versions tab renders. The catalog
+ * serves no sigma threshold for it, and the tab draws no band from one, so the
+ * shape leaves that field out rather than invent a value.
+ */
+export function adaptMetricVersions(
+  res: MetricVersionSeriesResponse,
+): Omit<AppVersionSeriesResponse, 'sigma_threshold'> {
   // Both res.series and res.versions carry is_active, and the backend fills them
   // from the same gate. Read it off the versions catalog because that is the list
   // this adapter walks below, so the metric scope gets the same pre-release

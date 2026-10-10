@@ -83,7 +83,7 @@ Every other result has `variant_group: null`.
 
 Besides matching words, search can also match by **meaning** when semantic
 search is on for your organization. Each organization chooses its own
-embedding provider under **Settings → Organization → Search**: an
+embedding provider under **Settings → Organization → Semantic search**: an
 OpenAI-compatible endpoint, model and API key, or the operator's, which it
 inherits by default. Your projects' text is only ever sent to your
 organization's endpoint, and a query is only compared with vectors your

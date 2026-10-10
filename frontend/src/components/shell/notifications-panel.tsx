@@ -40,6 +40,8 @@ import { SILENT_ERROR_META } from '@/lib/errorFeedback'
 import { alertDeliveriesKey, topbarDeliveriesKey, topbarInboxKey } from '@/lib/queryKeys'
 import { useTopbarDeliveries } from './notifications-queries'
 import { NotificationsInbox } from './notifications-inbox'
+import { formatNumber } from '@/lib/format'
+import { countOf } from '@/lib/plural'
 
 export type BellTab = 'notifications' | 'signals'
 
@@ -232,9 +234,9 @@ function ProjectAttentionRow({ project }: { project: Project }) {
   const signals = project.summary.monitoring_signal_count
   const drifts = openPropertyDrifts(project)
   const parts = [
-    incidents > 0 ? `${incidents} open ${incidents === 1 ? 'incident' : 'incidents'}` : null,
-    signals > 0 ? `${signals} ${signals === 1 ? 'signal' : 'signals'}` : null,
-    drifts > 0 ? `${drifts} property ${drifts === 1 ? 'drift' : 'drifts'}` : null,
+    incidents > 0 ? countOf(incidents, 'open incident', 'open incidents') : null,
+    signals > 0 ? countOf(signals, 'signal', 'signals') : null,
+    drifts > 0 ? countOf(drifts, 'property drift', 'property drifts') : null,
   ].filter((part): part is string => part !== null)
   return (
     <Link
@@ -510,7 +512,7 @@ function SignalNotification({
           className="tnum mt-0.5 text-micro text-fg-tertiary"
           title={formatSignalEffectDetail(signal)}
         >
-          {signal.actual_count.toLocaleString()} actual vs{' '}
+          {formatNumber(signal.actual_count)} actual vs{' '}
           {formatIncidentCount(signal.expected_count)} expected · {formatSignalEffect(signal)}
         </div>
       </div>

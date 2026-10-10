@@ -1231,12 +1231,6 @@ async def test_demo_seeds_a_retryable_failed_delivery(
     # its no-broker contract (CONTRIBUTING: pytest needs no RabbitMQ) — the same
     # pattern test_alerting.py uses — while still asserting the endpoint resolves
     # and hands this delivery to the worker.
-    #
-    # The celery app is imported FIRST for the same reason the service does it
-    # (services/_alerting_deliveries.py): the task graph is cyclic, so entering
-    # at ``tasks.alerts`` in a process that has not loaded the app yet lands
-    # mid-cycle and raises ImportError.
-    import tripl.worker.celery_app  # noqa: F401
     from tripl.worker.tasks.alerts import send_alert_delivery
 
     enqueued: list[str] = []

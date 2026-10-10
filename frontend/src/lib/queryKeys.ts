@@ -541,13 +541,17 @@ export const eventNameSampleKey = (
   eventTypeId: string,
 ) => [...branchEventsKey(slug, branchId), 'nameSample', eventTypeId] as const
 
-/** A search-as-you-type event picker; `picker` names which one. */
+/**
+ * One page of the event roster every search-as-you-type picker reads
+ * (`eventRosterQuery`). The pickers share it: the same search asks for the same
+ * page. The fixed `'picker'` segment keeps a typed search from landing on a
+ * sibling key such as `inReviewCount`.
+ */
 export const eventsPickerKey = (
   slug: string | undefined,
   branchId: string | null | undefined,
-  picker: 'alert-filter' | 'override-picker' | 'successor-picker' | 'metric-picker' | 'property-picker',
   search: string,
-) => [...branchEventsKey(slug, branchId), picker, search] as const
+) => [...branchEventsKey(slug, branchId), 'picker', search] as const
 
 /** How many events on a branch wait for review. */
 export const eventsInReviewCountKey = (slug: string | undefined, branchId: string | null | undefined) =>
@@ -613,13 +617,6 @@ export const eventMigrationKey = (
   eventId: string,
 ) => [...orgRoot(), 'eventMigration', slug, branchId, eventId] as const
 
-/** The identities a bulk create would collide with. */
-export const bulkIdentitiesKey = (
-  slug: string | undefined,
-  branchId: string | null | undefined,
-  eventTypeId: string,
-) => [...orgRoot(), 'bulkIdentities', slug, branchId, eventTypeId] as const
-
 export const eventCommentsKey = (slug: string, eventId: string) =>
   [...orgRoot(), 'eventComments', slug, eventId] as const
 export const eventPhotosKey = (slug: string, eventId: string) =>
@@ -647,10 +644,6 @@ export const expandedSignalsKey = (slug: string | undefined) =>
   [...activeSignalsKey(slug), 'expanded'] as const
 export const eventsTabSignalsKey = (slug: string | undefined) =>
   [...activeSignalsKey(slug), 'tabs'] as const
-/** Verdict counts per project (#254, read by the health score); under the
- * signals family, so a verdict or a signals.updated refreshes it with the lists. */
-export const signalVerdictCountsKey = (slug: string | undefined) =>
-  [...activeSignalsKey(slug), 'verdictCounts'] as const
 export const eventRowSignalsKey = (slug: string | undefined, bucketIds: readonly string[]) =>
   [...activeSignalsKey(slug), 'rows', bucketIds.join(',')] as const
 /** Anomalies row sparklines: a signals invalidation refreshes them too. */
@@ -848,13 +841,6 @@ export const demoScenarioCollectWatchKey = (
   startedAt: number | undefined,
 ) => [...orgRoot(), 'demo-scenario-collect-watch', slug, metricId, startedAt] as const
 
-/** The watcher that follows a metric collection to its end. */
-export const metricCollectWatchKey = (
-  slug: string | undefined,
-  metricId: string | undefined,
-  startedAt: number | undefined,
-) => [...orgRoot(), 'metric-collect-watch', slug, metricId, startedAt] as const
-
 // ---------------------------------------------------------------------------
 // Metrics, fact tables and monitoring
 // ---------------------------------------------------------------------------
@@ -968,13 +954,6 @@ export const shadowEventsPagesKey = (
   branchId: string | null | undefined,
   status: string,
 ) => [...shadowEventsKey(slug, branchId, status), 'pages'] as const
-/** One page size of a shadow-events list; "Show more" raises `limit`. */
-export const shadowEventsPageKey = (
-  slug: string | undefined,
-  branchId: string | null | undefined,
-  status: string,
-  limit: number,
-) => [...shadowEventsKey(slug, branchId, status), limit] as const
 
 /** Dependency graph (F04, #257). One family, so a plan write can refresh every
  * "Used by" list, confirm-dialog impact and branch Impact panel at once. */

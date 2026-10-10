@@ -1495,7 +1495,12 @@ def _seed_snapshot_config(
         id=uuid.uuid4(),
         project_id=project_id,
         data_source_id=data_source_id,
-        event_type_id=event_type.id,
+        # A grouped config names its types by the column's values and carries no
+        # chosen Event type: when both are set the chosen type wins
+        # (``worker/utils/scan_naming.scan_group_column``) and the scan is a
+        # single-type one. The ``pv`` type still exists — it is the type the
+        # column's ``pv`` value named.
+        event_type_id=None if event_type_column else event_type.id,
         event_type_column=event_type_column,
         name="Hourly",
         base_query="SELECT * FROM events",

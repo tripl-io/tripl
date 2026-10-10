@@ -18,7 +18,7 @@ import re
 from collections.abc import Iterable, Mapping
 from datetime import datetime
 
-from tripl.semver import is_prerelease, order_versions
+from tripl.semver import is_prerelease
 
 logger = logging.getLogger(__name__)
 
@@ -162,25 +162,3 @@ def active_release_versions(
         ):
             active.add(version)
     return active
-
-
-def latest_active_version(
-    per_bucket_totals_by_version: Mapping[str, Mapping[datetime, float]],
-    all_by_bucket: Mapping[datetime, float] | None = None,
-    *,
-    share_min: float = DEFAULT_ACTIVE_SHARE_MIN,
-    min_buckets: int = DEFAULT_ACTIVATION_MIN_BUCKETS,
-    min_volume: float = DEFAULT_MIN_RELEASE_VOLUME,
-) -> str | None:
-    """SemVer-max version among the activated releases, or ``None`` when none
-    have activated (callers fall back to the raw SemVer-max in that case)."""
-    active = active_release_versions(
-        per_bucket_totals_by_version,
-        all_by_bucket,
-        share_min=share_min,
-        min_buckets=min_buckets,
-        min_volume=min_volume,
-    )
-    if not active:
-        return None
-    return order_versions(active, reverse=True)[0]

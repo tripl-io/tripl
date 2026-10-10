@@ -16,8 +16,9 @@ organization, a non-member, an API key of another organization — gets the same
   the account's first organization the same way.
 * ``GET /orgs/{org}`` and ``GET /orgs/{org}/members`` — any member.
 * ``PATCH /orgs/{org}`` (the name and the default project role; the slug is
-  permanent), member role change and removal — an owner or admin. Owners are
-  managed by owners only, and the last owner can be neither demoted nor removed.
+  permanent), member role change and removal, and a member's password reset
+  link — an owner or admin. Owners are managed by owners only, and the last
+  owner can be neither demoted nor removed.
 * ``DELETE /orgs/{org}`` and ``POST /orgs/{org}/transfer-ownership`` — an owner.
 
 Invitations into an organization stay where they were: ``/orgs/{org}/users/
@@ -42,9 +43,15 @@ from tripl.api.deps import (
     refuse_on_public_demo,
     require_org_creator,
 )
+from tripl.api.v1._members import (
+    LAST_OWNER,
+    MEMBER_NOT_FOUND,
+    OWNER_MANAGEMENT_REQUIRED,
+    change_member_role,
+)
 from tripl.models.domain_enums import OrganizationRole, OrganizationStatus
 from tripl.models.user import User
-from tripl.schemas.auth import UserListItem, UserRoleUpdate
+from tripl.schemas.auth import MemberPasswordResetLink, UserListItem, UserRoleUpdate
 from tripl.schemas.organization import (
     OrgCreate,
     OrgDeleteRequest,
@@ -53,10 +60,12 @@ from tripl.schemas.organization import (
     OrgTransferOwnership,
     OrgUpdate,
 )
+from tripl.schemas.pagination import Offset
 from tripl.services import (
     audit_service,
     org_deletion_service,
     org_service,
+    password_reset_links,
     user_service,
 )
 from tripl.services._celery_dispatch import dispatch
@@ -65,11 +74,6 @@ from tripl.services.org_resolution import ORG_NOT_FOUND, suspended_error
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/orgs", tags=["organizations"])
-
-OWNER_MANAGEMENT_REQUIRED = "Only an owner can manage owners"
-BROWSER_SESSION_REQUIRED = "A browser session is required"
-LAST_OWNER = "Cannot remove or demote the last remaining owner"
-MEMBER_NOT_FOUND = "Member not found"
 
 
 @router.get("", response_model=list[OrgResponse])
@@ -242,9 +246,10 @@ async def list_members(
     session: SessionDep,
     current_user: PathOrgMemberUserDep,
     org: ManagedOrgDep,
-    limit: int = Query(200, ge=1, le=1000),
-    offset: int = Query(0, ge=0),
+    limit: int = Query(user_service.ROSTER_PAGE_DEFAULT, ge=1, le=user_service.ROSTER_PAGE_MAX),
+    offset: Offset = 0,
 ) -> list[UserListItem]:
+    """``org``'s members with their organization role, as ``GET /users`` pages them."""
     del current_user
     return await user_service.list_org_users(session, org.id, limit=limit, offset=offset)
 
@@ -257,35 +262,16 @@ async def update_member_role(
     current_user: PathOrgAdminUserDep,
     org: ManagedOrgDep,
 ) -> UserListItem:
-    """Change a member's organization role (owner | admin | member)."""
-    try:
-        target, old_role, invitations = await user_service.update_org_role(
-            session, org.id, user_id, data.role, actor_id=current_user.id
-        )
-    except LookupError:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail=MEMBER_NOT_FOUND
-        ) from None
-    except user_service.LastOwnerError:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=LAST_OWNER) from None
-    except user_service.OwnerManagementError:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN, detail=OWNER_MANAGEMENT_REQUIRED
-        ) from None
-    await audit_service.record(
-        session,
-        user=current_user,
-        action="org.member_role_update",
-        target_type="user",
-        target_id=target.id,
-        target_name=target.email,
-        payload={
-            "old_role": old_role,
-            "new_role": OrganizationRole(data.role).value,
-            "invitations_revoked": invitations,
-        },
+    """Change a member's organization role (owner | admin | member).
+
+    404 for an account outside the organization, 400 when it would leave the
+    organization without an owner, 403 when an admin tries to make or unmake an
+    owner. The same change, errors and ``org.member_role_update`` audit row as
+    ``PATCH /users/{id}``, for the organization the path names.
+    """
+    return await change_member_role(
+        session, org_id=org.id, user_id=user_id, role=data.role, actor=current_user
     )
-    return target
 
 
 @router.delete("/{org}/members/{user_id}", response_model=OrgMemberRemoved)
@@ -332,6 +318,58 @@ async def remove_member(
         api_keys_revoked=removed.api_keys,
         invitations_revoked=removed.invitations,
         group_memberships_removed=removed.group_memberships,
+    )
+
+
+@router.post(
+    "/{org}/members/{user_id}/password-reset-link",
+    response_model=MemberPasswordResetLink,
+    status_code=status.HTTP_201_CREATED,
+    dependencies=[
+        Depends(refuse_on_public_demo("issue password reset links; members sign in with Google"))
+    ],
+)
+async def create_member_password_reset_link(
+    session: SessionDep,
+    user_id: uuid.UUID,
+    current_user: PathOrgAdminUserDep,
+    org: ManagedOrgDep,
+) -> MemberPasswordResetLink:
+    """A single-use password reset link for a member, for the caller to hand over.
+
+    For a member who forgot their password on an instance that cannot send
+    email. The link is in the body and nowhere else: nothing is mailed. It is
+    the emailed reset's token, with its expiry, and it replaces any earlier
+    link of the account; the member's password keeps working until the link is
+    used. Audited as ``user.password_reset_link``.
+
+    404 for an account outside the organization; 403 for the caller's own
+    account, an owner when the caller is an admin, a member of an organization
+    the caller does not manage, or a platform admin when the caller is not one;
+    409 when the account has not verified its address. The rules are
+    ``password_reset_links``'s.
+    """
+    try:
+        issued = await password_reset_links.issue_for_member(
+            session, org.id, user_id, actor=current_user
+        )
+    except LookupError:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail=MEMBER_NOT_FOUND
+        ) from None
+    except user_service.OwnerManagementError:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN, detail=OWNER_MANAGEMENT_REQUIRED
+        ) from None
+    except password_reset_links.ResetLinkForbiddenError as exc:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=str(exc)) from None
+    except password_reset_links.UnverifiedAccountError as exc:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(exc)) from None
+    return MemberPasswordResetLink(
+        user_id=issued.user.id,
+        email=issued.user.email,
+        reset_path=issued.path,
+        expires_at=issued.expires_at,
     )
 
 

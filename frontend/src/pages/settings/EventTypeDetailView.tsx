@@ -3,7 +3,7 @@ import { Panel } from '@/components/settings/kit'
 import { useCallback, useEffect, useState, type ReactNode } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { ArrowLeft, ExternalLink, Trash2 } from 'lucide-react'
+import { ExternalLink, Trash2 } from 'lucide-react'
 import { eventsApi } from '@/api/events'
 import { eventTypeOwnersApi } from '@/api/eventTypeOwners'
 import { eventTypesApi } from '@/api/eventTypes'
@@ -25,7 +25,7 @@ import { WatchButton } from '@/components/watch-button'
 import { Chip } from '@/components/primitives/chip'
 import { MiniStat, MiniStatStrip } from '@/components/primitives/mini-stat'
 import { PageContainer } from '@/components/primitives/page-container'
-import { PageHeader } from '@/components/primitives/page-header'
+import { PageBackLink, PageHeader } from '@/components/primitives/page-header'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { EVENT_STATUSES } from '@/lib/eventStatus'
 import { getErrorMessage } from '@/lib/utils'
@@ -122,7 +122,8 @@ export function EventTypeDetail({ slug, eventTypeId }: { slug: string; eventType
     if (redirectTo) navigate(redirectTo, { replace: true })
   }, [navigate, redirectTo])
 
-  const goBack = () => navigate(projectPath(currentOrgSlug(), slug, '/event-types'))
+  const listPath = projectPath(currentOrgSlug(), slug, '/event-types')
+  const goBack = () => navigate(listPath)
   const goEvents = () => navigate(projectPath(currentOrgSlug(), slug, `/events/${et?.name ?? 'all'}`))
 
   // Only a load that never answered replaces the page. A failed refetch keeps
@@ -132,7 +133,7 @@ export function EventTypeDetail({ slug, eventTypeId }: { slug: string; eventType
   if (isError && data === undefined) {
     return (
       <div className="space-y-4">
-        <BackLink label="Event types" onClick={goBack} />
+        <PageBackLink label="Event types" to={listPath} />
         <ErrorState
           compact
           title="Couldn't load this event type"
@@ -154,7 +155,7 @@ export function EventTypeDetail({ slug, eventTypeId }: { slug: string; eventType
             ? 'This event type does not exist on main. It may have been deleted or renamed.'
             : 'This event type does not exist on the selected branch. It may have been deleted, renamed, or only exist on another branch.'
         }
-        back={{ to: projectPath(currentOrgSlug(), slug, '/event-types'), label: 'Back to event types' }}
+        back={{ to: listPath, label: 'Back to event types' }}
       />
     )
   }
@@ -168,7 +169,7 @@ export function EventTypeDetail({ slug, eventTypeId }: { slug: string; eventType
           eyebrow names the parent collection. Its actions wrap under the title
           on a phone. */}
       <PageHeader
-        back={<BackLink label="Event types" onClick={goBack} />}
+        back={<PageBackLink label="Event types" to={listPath} />}
         eyebrow="Plan · Event type"
         title={
           <span className="inline-flex items-center gap-2.5">
@@ -645,19 +646,5 @@ function MergeGateChip({ slug, eventType }: { slug: string; eventType: EventType
       {/* Who must approve a merge, in words. */}
       {gated ? 'Owner approval' : 'Open to merge'}
     </Chip>
-  )
-}
-
-function BackLink({ label, onClick }: { label: string; onClick: () => void }) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      className="inline-flex items-center gap-1 text-caption transition-colors hover:text-[var(--fg)]"
-      style={{ color: 'var(--fg-muted)' }}
-    >
-      <ArrowLeft className="size-3" />
-      {label}
-    </button>
   )
 }

@@ -31,6 +31,7 @@ from tripl.core.adapters.measure_validator import (
     coerce_aggregation,
     validate_measure_column,
 )
+from tripl.core.adapters.sql_common import IDENTIFIER_PART_RE, SCHEMA_ROW_LIMIT, truncate_sql
 from tripl.core.bucketing import EPOCH, WEEK_ORIGIN, format_utc_literal
 from tripl.core.intervals import IntervalUnit, get_interval
 from tripl.json_paths import split_property_field
@@ -38,35 +39,15 @@ from tripl.models.domain_enums import MetricAggregation
 
 logger = logging.getLogger(__name__)
 
-# Hard cap on catalog rows pulled for SQL-editor autocomplete so a schema with
-# thousands of wide tables can't blow up the response. The cap is generous
-# because introspection now spans every non-system schema (one row per column
-# per table across all of them), so a multi-schema database needs plenty of
-# headroom before its visible tables get truncated.
-_SCHEMA_ROW_LIMIT = 50000
-
 # System schemas that hold Postgres internals, not user data. They are excluded
 # from catalog introspection so autocomplete only surfaces queryable user tables.
 _SYSTEM_SCHEMAS = ("pg_catalog", "information_schema")
-
-# Cap on how much user-supplied SQL (which may embed warehouse credentials or
-# PII column names) we ever emit to logs. Query logs go to DEBUG so the full
-# statement never lands at INFO.
-_SQL_LOG_MAX_CHARS = 300
-
-
-def _truncate_sql(sql: str) -> str:
-    return sql[:_SQL_LOG_MAX_CHARS] + ("..." if len(sql) > _SQL_LOG_MAX_CHARS else "")
-
 
 # date_bin() — which every PostgreSQL bucket expression depends on — was added in
 # PostgreSQL 14. libpq reports the server version as MMmmmm (140005 == 14.5), so
 # this is the integer floor of a supported server. The dialect subclasses that
 # bucket without date_bin (``greenplum``, ``redshift``) set their own floor.
 _MIN_SERVER_VERSION = 140000
-
-_IDENTIFIER_RE = re.compile(r"^[a-zA-Z_][a-zA-Z0-9_.]*$")
-_IDENTIFIER_PART_RE = re.compile(r"^[a-zA-Z_][a-zA-Z0-9_]*$")
 
 
 def _quote_ident(name: str) -> str:
@@ -681,7 +662,7 @@ class PostgresAdapter(BaseAdapter):
         # "bare vs qualified" decision tracks the connection's default schema
         # (the first existing entry of search_path, typically `public`).
         sql = self._schema_columns_sql()
-        logger.debug("PG schema introspection query: %s", _truncate_sql(sql))
+        logger.debug("PG schema introspection query: %s", truncate_sql(sql))
         with self._conn.cursor() as cur:
             cur.execute(sql)
             rows = cur.fetchall()
@@ -710,7 +691,7 @@ class PostgresAdapter(BaseAdapter):
             "(table_schema = current_schema()) AS is_current_schema "
             "FROM information_schema.columns "
             f"WHERE table_schema NOT IN ({excluded}) "
-            f"ORDER BY table_schema, table_name, ordinal_position LIMIT {_SCHEMA_ROW_LIMIT}"
+            f"ORDER BY table_schema, table_name, ordinal_position LIMIT {SCHEMA_ROW_LIMIT}"
         )
 
     def get_preview_rows(
@@ -724,21 +705,12 @@ class PostgresAdapter(BaseAdapter):
     ) -> tuple[list[str], list[tuple[object, ...]]]:
         where_clause = self._time_window_where_clause(time_column, time_from, time_to)
         sql = f"SELECT * FROM ({base_query}) AS _src{where_clause} LIMIT {int(limit)}"
-        logger.debug("PG preview query: %s", _truncate_sql(sql))
+        logger.debug("PG preview query: %s", truncate_sql(sql))
         with self._conn.cursor() as cur:
             cur.execute(sql)
             names = [d.name for d in cur.description or []]
             rows = [tuple(r) for r in cur.fetchall()]
         return names, rows
-
-    def _validate_column(self, column: str) -> str:
-        if not _IDENTIFIER_RE.match(column):
-            msg = f"Invalid column name: {column}"
-            raise ValueError(msg)
-        if self._allowed_columns and column not in self._allowed_columns:
-            msg = f"Column {column!r} not found in query result"
-            raise ValueError(msg)
-        return column
 
     def _bucket_expression(self, time_column: str, interval_code: str) -> str:
         """Dialect seam: translate an interval code into PostgreSQL bucket SQL.
@@ -764,7 +736,7 @@ class PostgresAdapter(BaseAdapter):
         parts = [part for part in path.split(".") if part]
         if not parts:
             raise ValueError(f"Invalid JSON path: {path}")
-        if any(not _IDENTIFIER_PART_RE.match(part) for part in parts):
+        if any(not IDENTIFIER_PART_RE.match(part) for part in parts):
             raise ValueError(f"Unsupported JSON path: {path}")
 
         expr = _quote_ident(self._validate_column(column))
@@ -789,7 +761,7 @@ class PostgresAdapter(BaseAdapter):
         ``_json_path_expression``'s grammar and quoted with ``_quote_string``.
         """
         parts = [part for part in path.split(".") if part]
-        if not parts or any(not _IDENTIFIER_PART_RE.match(part) for part in parts):
+        if not parts or any(not IDENTIFIER_PART_RE.match(part) for part in parts):
             raise ValueError(f"Unsupported JSON path: {path}")
         quoted = _quote_ident(self._validate_column(column))
         path_array = ", ".join(self._quote_string(part) for part in parts)
@@ -987,7 +959,7 @@ class PostgresAdapter(BaseAdapter):
                 f"WHERE _prank <= {int(path_limit)} AND _vrank <= {int(sample_limit)} "
                 "ORDER BY _path, _vrank"
             )
-            logger.debug("PG JSON path discovery query: %s", _truncate_sql(sql))
+            logger.debug("PG JSON path discovery query: %s", truncate_sql(sql))
             with self._conn.cursor() as cur:
                 cur.execute(sql)
                 rows = cur.fetchall()
@@ -1285,7 +1257,7 @@ class PostgresAdapter(BaseAdapter):
                 for index, (expectation, condition) in enumerate(chunk)
             )
             sql = f"SELECT {selects} FROM ({base_query}) AS _src{where_clause}"
-            logger.debug("PG field contract query: %s", _truncate_sql(sql))
+            logger.debug("PG field contract query: %s", truncate_sql(sql))
             with self._conn.cursor() as cur:
                 cur.execute(sql)
                 rows = cur.fetchall()
@@ -1359,7 +1331,7 @@ class PostgresAdapter(BaseAdapter):
             f"LIMIT {int(limit)}"
         )
 
-        logger.debug("PG breakdown query: %s", _truncate_sql(sql))
+        logger.debug("PG breakdown query: %s", truncate_sql(sql))
         t0 = time.monotonic()
         with self._conn.cursor() as cur:
             cur.execute(sql)
@@ -1420,7 +1392,7 @@ class PostgresAdapter(BaseAdapter):
             f"LIMIT {int(limit)}"
         )
 
-        logger.debug("PG bucketed query: %s", _truncate_sql(sql))
+        logger.debug("PG bucketed query: %s", truncate_sql(sql))
         t0 = time.monotonic()
         with self._conn.cursor() as cur:
             cur.execute(sql)
@@ -1430,14 +1402,9 @@ class PostgresAdapter(BaseAdapter):
 
         return col_names, json_value_names, rows
 
-    def _aggregate_value_sql(self, agg_fn: MetricAggregation, measure_column: str | None) -> str:
-        """Validate + escape the measure and build the safe aggregate fragment."""
-        measure_sql: str | None = None
-        if measure_column is not None:
-            measure_sql = _quote_ident(
-                validate_measure_column(measure_column, self._allowed_columns)
-            )
-        return build_aggregate_sql(agg_fn, measure_sql)
+    @override
+    def _quote_ident(self, name: str) -> str:
+        return _quote_ident(name)
 
     def get_time_bucketed_aggregate(
         self,
@@ -1493,7 +1460,7 @@ class PostgresAdapter(BaseAdapter):
             f"LIMIT {int(limit)}"
         )
 
-        logger.debug("PG bucketed aggregate query: %s", _truncate_sql(sql))
+        logger.debug("PG bucketed aggregate query: %s", truncate_sql(sql))
         t0 = time.monotonic()
         with self._conn.cursor() as cur:
             cur.execute(sql)
@@ -1621,7 +1588,7 @@ class PostgresAdapter(BaseAdapter):
         )
 
         logger.debug(
-            "PG bucketed aggregate breakdown query for %s: %s", breakdown, _truncate_sql(sql)
+            "PG bucketed aggregate breakdown query for %s: %s", breakdown, truncate_sql(sql)
         )
         t0 = time.monotonic()
         with self._conn.cursor() as cur:
@@ -1733,7 +1700,7 @@ class PostgresAdapter(BaseAdapter):
             limit=limit,
         )
 
-        logger.debug("PG bucketed multi-aggregate query: %s", _truncate_sql(sql))
+        logger.debug("PG bucketed multi-aggregate query: %s", truncate_sql(sql))
         t0 = time.monotonic()
         with self._conn.cursor() as cur:
             cur.execute(sql)
@@ -1795,7 +1762,7 @@ class PostgresAdapter(BaseAdapter):
         logger.debug(
             "PG bucketed multi-aggregate breakdown query for %s: %s",
             breakdown,
-            _truncate_sql(sql),
+            truncate_sql(sql),
         )
         t0 = time.monotonic()
         with self._conn.cursor() as cur:
@@ -1807,35 +1774,6 @@ class PostgresAdapter(BaseAdapter):
         )
 
         return col_names, rows
-
-    def get_time_bucketed_breakdown_counts(
-        self,
-        base_query: str,
-        time_column: str,
-        interval: str,
-        breakdown_column: str,
-        regular_columns: list[str],
-        json_columns: list[str],
-        json_value_paths: dict[str, list[str]] | None,
-        time_from: datetime,
-        time_to: datetime,
-        values_limit: int | None = None,
-        limit: int = 100000,
-    ) -> tuple[list[str], list[str], list[tuple[object, ...]]]:
-        col_names, json_value_names, rows = self.get_time_bucketed_breakdown_counts_multi(
-            base_query,
-            time_column,
-            interval,
-            [breakdown_column],
-            regular_columns,
-            json_columns,
-            json_value_paths,
-            time_from,
-            time_to,
-            values_limit=values_limit,
-            limit=limit,
-        )
-        return col_names, json_value_names, [(row[0], row[2], row[3], *row[4:]) for row in rows]
 
     def _query_top_breakdown_values_multi(
         self,
@@ -1896,7 +1834,7 @@ class PostgresAdapter(BaseAdapter):
             ") AS _ranked "
             f"WHERE rn <= {int(limit)}"
         )
-        logger.debug("PG breakdown top-values query: %s", _truncate_sql(sql))
+        logger.debug("PG breakdown top-values query: %s", truncate_sql(sql))
         top: dict[str, list[str]] = {c: [] for c in cols}
         with self._conn.cursor() as cur:
             cur.execute(sql)
@@ -2038,7 +1976,7 @@ class PostgresAdapter(BaseAdapter):
         logger.debug(
             "PG bucketed breakdown GROUPING SETS query for %s: %s",
             ", ".join(breakdown_cols),
-            _truncate_sql(sql),
+            truncate_sql(sql),
         )
         t0 = time.monotonic()
         with self._conn.cursor() as cur:

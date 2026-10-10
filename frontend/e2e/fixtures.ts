@@ -48,7 +48,7 @@ export async function signInAsOwner(page: Page): Promise<void> {
 export async function generateDemo(page: Page): Promise<string> {
   await page.goto('/')
   await page.getByRole('button', { name: 'Generate demo project' }).click()
-  await expect(page.getByRole('heading', { name: 'Generating demo workspace' })).toBeVisible()
+  await expect(page.getByRole('heading', { name: 'Generating demo project' })).toBeVisible()
   await page.waitForURL(/\/p\/demo-[a-z0-9-]+\/overview$/, { timeout: 150_000 })
   const slug = /\/p\/(demo-[a-z0-9-]+)\//.exec(page.url())?.[1]
   expect(slug, page.url()).toBeTruthy()

@@ -37,6 +37,7 @@ import { countOf, pluralize } from '@/lib/plural'
 import { projectKey, variablesKey, variablesUsagePageKey } from '@/lib/queryKeys'
 import { currentOrgSlug, projectPath } from '@/lib/navigation'
 import { PropertyDriftList } from '@/pages/events/PropertyDriftList'
+import { STICKY_ACTIONS_CLASS } from './stickyActions'
 
 // Rows rendered at once. The whole set arrives in one request, but a governance
 // project can hold >1k variables and painting them all froze the tab for
@@ -211,7 +212,7 @@ export function VariablesTab({
       // (#257); a warning, Delete stays armed.
       message: (
         <ConfirmImpactMessage
-          message={`Delete ${selectedIds.size} selected ${selectedIds.size === 1 ? 'property' : 'properties'}? Event fields referencing them will keep the literal text.`}
+          message={`Delete ${countOf(selectedIds.size, 'selected property', 'selected properties')}? Event fields referencing them will keep the literal text.`}
           slug={slug}
           branchId={branchId}
           changes={[...selectedIds].map(id => ({ kind: 'variable' as const, id, change: 'delete' as const }))}
@@ -519,8 +520,9 @@ export function VariablesTab({
       <PageHeader
         eyebrow="Plan"
         title="Properties"
-        // One sentence of purpose, like its siblings.
-        description={<>Placeholders like <CodeToken>{'${platform}'}</CodeToken> that stand in for a value family in event field values. Scans learn which values each one takes.</>}
+        // One sentence of purpose, like its siblings, and the definition the
+        // Concepts glossary gives.
+        description={<>Typed, reusable values that event field values reference as placeholders like <CodeToken>{'${platform}'}</CodeToken>. Scans learn which values each one takes.</>}
         actions={
           canWrite && (
             <Button size="sm" onClick={() => setShowForm(true)}>
@@ -559,7 +561,7 @@ export function VariablesTab({
         title="All properties"
         subtitle={variablesPending
           ? 'Loading…'
-          : `${activeVariables.length} ${activeVariables.length === 1 ? 'property' : 'properties'}`}
+          : countOf(activeVariables.length, 'property', 'properties')}
       >
         {variablesPending ? (
           // A pending list is NOT an empty list — rendering the empty state here
@@ -655,17 +657,21 @@ export function VariablesTab({
                           its pills no longer wrap and would otherwise be squeezed
                           out. Doc/Observed values share whatever is left. */}
                       <TableHead className="w-[24%]">Property</TableHead>
+                      {/* Below `md` these four fold into the Property cell
+                          (VariablesTableRow), so a phone reads one column
+                          instead of a desktop table scrolled under the pinned
+                          actions. */}
                       {/* The events a scan has SEEN this variable in (its value
                           contexts), not every event whose template names it:
                           "Events" read as the latter and undercounted. */}
-                      <TableHead className="w-[13%]" title="Events a scan observed this property in">Observed in</TableHead>
-                      <TableHead className="w-[20%]">Description</TableHead>
-                      <TableHead>Documented values</TableHead>
-                      <TableHead>Observed values</TableHead>
+                      <TableHead className="hidden w-[13%] md:table-cell" title="Events a scan observed this property in">Observed in</TableHead>
+                      <TableHead className="hidden w-[20%] md:table-cell">Description</TableHead>
+                      <TableHead className="hidden md:table-cell">Documented values</TableHead>
+                      <TableHead className="hidden md:table-cell">Observed values</TableHead>
                       {/* Pinned to the right edge, so on a phone the row actions
                           are on screen without discovering the sideways
                           scroll. */}
-                      <TableHead className="sticky right-0 w-24 bg-surface"><span className="sr-only">Actions</span></TableHead>
+                      <TableHead className={cn(STICKY_ACTIONS_CLASS, 'w-24')}><span className="sr-only">Actions</span></TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -777,7 +783,7 @@ export function VariablesTab({
       {excludedVariables.length > 0 && (
         <Panel
           title="Excluded from scans"
-          subtitle={`${excludedVariables.length} ${excludedVariables.length === 1 ? 'property' : 'properties'} — scans will not re-create these`}
+          subtitle={`${countOf(excludedVariables.length, 'property', 'properties')} — scans will not re-create these`}
         >
           <ul className="divide-y">
             {excludedVariables.map(v => (

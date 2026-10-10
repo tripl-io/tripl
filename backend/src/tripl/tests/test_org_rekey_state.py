@@ -169,8 +169,6 @@ def test_two_projects_never_share_a_key(name: str) -> None:
         realtime._seq_key,
         realtime._epoch_key,
         realtime.read_resume_point,
-        realtime.replay_buffered_events,
-        realtime.redis_message_iterator,
         realtime.subscribed_messages,
         deps.hold_main_plan_for_write,
     ],

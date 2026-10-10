@@ -1,9 +1,10 @@
 /**
- * Signal value formatting, kept out of `signalMagnitude.ts` on purpose: that
- * module is on the first-load path (the top-bar bell reads it), and this one
- * pulls in the metric and incident formatters.
+ * Signal value and time formatting, kept out of `signalMagnitude.ts` on
+ * purpose: that module is on the first-load path (the top-bar bell reads it),
+ * and this one pulls in the metric and incident formatters.
  */
 import { formatNumber } from '@/lib/format'
+import { formatTimestamp, formatUtcOffset } from '@/lib/datetime'
 import { formatIncidentCount } from '@/lib/alertStatus'
 import { formatMetricValue } from '@/lib/metricFormat'
 import type { MonitoringSignal } from '@/types'
@@ -23,4 +24,16 @@ export function formatSignalValues(
     return `${formatMetricValue(signal.actual_count, signal.unit)} vs ${formatMetricValue(signal.expected_count, signal.unit)}`
   }
   return `${formatNumber(signal.actual_count)} vs ${formatIncidentCount(signal.expected_count)}`
+}
+
+/**
+ * The tooltip for a signal's time: what it is, the full timestamp and the zone
+ * it is in, named the way every local time beside UTC is named, since the short
+ * form (`formatShortTimestamp`) is shown in it —
+ * "Bucket starting Sep 25, 2026, 6:00 PM (UTC+2)".
+ */
+export function signalTimeTitle(what: string, iso: string): string {
+  const date = new Date(iso)
+  if (Number.isNaN(date.getTime())) return what
+  return `${what} ${formatTimestamp(iso)} (${formatUtcOffset(date)})`
 }

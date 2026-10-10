@@ -4,6 +4,7 @@ import { HealthWorstList } from '@/components/health/health-worst-list'
 import { Panel } from '@/components/settings/kit'
 import { HEALTH_GRADE_LABEL, gradeForScore } from '@/lib/health'
 import { useEventTypesHealth } from './useEventTypesHealth'
+import { countOf } from '@/lib/plural'
 
 /**
  * An event type's health on the main plan (F15, #268): the mean score of its
@@ -30,7 +31,7 @@ export function EventTypeHealthSummary({
     <Panel
       className={className}
       title="Health"
-      subtitle={`Mean of ${health.scored_events.toLocaleString()} scored event${health.scored_events === 1 ? '' : 's'} on the main plan`}
+      subtitle={`Mean of ${countOf(health.scored_events, 'scored event', 'scored events')} on the main plan`}
       right={
         <span className="flex items-center gap-2 text-caption text-fg-secondary">
           <HealthBadge score={health.score} grade={grade} size="sm" />

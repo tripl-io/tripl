@@ -8,11 +8,16 @@
 #
 # The in-image layout mirrors the repo (/app/cli, /app/mcp-server) so the
 # ../cli path recorded in uv.lock resolves unchanged.
-FROM python:3.14-slim-trixie
 
 # Pinned on purpose: :latest makes the image non-reproducible, and uv.lock
-# declares revision = 3, which needs uv >= 0.8. Bump deliberately.
-COPY --from=ghcr.io/astral-sh/uv:0.12.22 /uv /usr/local/bin/uv
+# declares revision = 3, which needs uv >= 0.8. A stage of its own rather than
+# `COPY --from=<image>` because Dependabot bumps FROM lines only. Bump it
+# together with the uv images of the root Dockerfile and backend/Dockerfile.
+FROM ghcr.io/astral-sh/uv:0.12.22 AS uv
+
+FROM python:3.14-slim-trixie
+
+COPY --from=uv /uv /usr/local/bin/uv
 
 WORKDIR /app/mcp-server
 ENV UV_COMPILE_BYTECODE=1 UV_LINK_MODE=copy
@@ -31,9 +36,14 @@ RUN --mount=type=bind,source=backend/scripts/third_party_licenses.py,target=/tmp
 
 ENV PATH="/app/mcp-server/.venv/bin:$PATH"
 
-# Drop privileges, matching backend/Dockerfile and the root Dockerfile. The
-# venv is built as root and stays read-only to this user; UV_COMPILE_BYTECODE
-# above already wrote the .pyc files, so nothing needs to write at runtime.
+# UV_COMPILE_BYTECODE above compiles what uv installs into the venv, `tripl`
+# from ../cli included, but not tripl-mcp itself: the project is installed
+# editable and runs from ./src.
+RUN python -m compileall -q src
+
+# Drop privileges, matching the root Dockerfile. The venv and the source are
+# built as root and stay read-only to this user, with their .pyc files already
+# written, so nothing needs to write at runtime.
 RUN groupadd --system --gid 1000 app \
     && useradd --system --uid 1000 --gid 1000 --no-create-home app
 USER app

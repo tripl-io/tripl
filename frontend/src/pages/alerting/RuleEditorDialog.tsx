@@ -6,17 +6,18 @@ import type { AlertDestination, AlertScopeReadiness, EventType, ScanConfig } fro
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
-import { Dialog, DialogBody, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
+import { Dialog, DialogBody, DialogClose, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { ScenarioCoachMark } from "@/demo/ScenarioCoachMark"
-import { useDirtySinceOpen, useUnsavedDialogGuard } from "@/hooks/useUnsavedChangesGuard"
+import { useDirtySinceOpen } from "@/hooks/useUnsavedChangesGuard"
 import { FieldError } from "@/components/forms/FieldError"
-import { REQUIRED_MESSAGE, focusFirstInvalid } from "@/components/forms/validation"
+import { REQUIRED_MESSAGE, focusFirstInvalid, invalidAria } from "@/components/forms/validation"
+import { splitApiFieldErrors } from "@/lib/apiFieldErrors"
+import { fieldErrorId } from "@/lib/fieldErrors"
 
 import { channelLabel } from "./channelMeta"
-import { fieldErrorId, fieldErrorProps, splitApiFieldErrors } from "./fieldErrors"
 import { FilterEditor } from "./FilterEditor"
 import { InertScopeNotice } from "./InertScopeNotice"
 import { TemplateEditor } from "./TemplateEditor"
@@ -346,10 +347,9 @@ export function RuleEditorDialog({
 
   // Two 8-row templates, filters and thresholds: Escape, a stray overlay click
   // or Cancel used to drop all of it at once. They ask first now,
-  // while the form differs from what it opened with.
+  // while the form differs from what it opened with: <Dialog dirty> guards
+  // every way out.
   const dirty = useDirtySinceOpen(open, { ruleForm, destinationId })
-  const unsaved = useUnsavedDialogGuard(dirty)
-  const requestClose = () => unsaved.requestClose(onClose)
 
   const checkbox = (key: keyof RuleFormState & `include_${string}`, label: string, hint: string) => (
     <label key={key} className="flex items-start gap-2 text-body" title={hint}>
@@ -363,9 +363,7 @@ export function RuleEditorDialog({
   )
 
   return (
-    <>
-    {unsaved.dialog}
-    <Dialog open={open} onOpenChange={value => { if (!value) requestClose() }}>
+    <Dialog open={open} dirty={dirty} onOpenChange={value => { if (!value) onClose() }}>
       <DialogContent
         className="max-w-3xl"
         // An open variable-suggestion list takes Escape first: TemplateEditor
@@ -411,7 +409,7 @@ export function RuleEditorDialog({
                 onChange={event => setRuleForm(current => ({ ...current, name: event.target.value }))}
                 onBlur={() => touch('name')}
                 aria-required="true"
-                {...fieldErrorProps('rule-name', nameError)}
+                {...invalidAria('rule-name', nameError)}
               />
               <FieldError inputId="rule-name" message={nameError} />
             </div>
@@ -534,7 +532,7 @@ export function RuleEditorDialog({
                         value={ruleForm[field]}
                         onChange={event => setRuleForm(current => ({ ...current, [field]: event.target.value }))}
                         onBlur={() => touch(field)}
-                        {...fieldErrorProps(id, numericError(field))}
+                        {...invalidAria(id, numericError(field))}
                         aria-describedby={numericError(field) ? `${fieldErrorId(id)} ${id}-hint` : `${id}-hint`}
                       />
                       <span className="text-body-sm text-fg-subtle">{unit}</span>
@@ -568,7 +566,7 @@ export function RuleEditorDialog({
                     value={cooldownDraft.amount}
                     onChange={event => setCooldown(event.target.value, cooldownDraft.unit)}
                     onBlur={() => touch('cooldown_minutes')}
-                    {...fieldErrorProps('rule-cooldown', numericError('cooldown_minutes'))}
+                    {...invalidAria('rule-cooldown', numericError('cooldown_minutes'))}
                   />
                   <Select
                     value={cooldownDraft.unit}
@@ -606,7 +604,7 @@ export function RuleEditorDialog({
                   <SelectTrigger
                     id="rule-destination"
                     aria-required={!isEditing || undefined}
-                    {...fieldErrorProps('rule-destination', destinationError)}
+                    {...invalidAria('rule-destination', destinationError)}
                   >
                     <SelectValue placeholder="Pick a destination" />
                   </SelectTrigger>
@@ -819,7 +817,9 @@ export function RuleEditorDialog({
             </p>
           )}
           <DialogFooter>
-            <Button type="button" variant="outline" onClick={requestClose}>Cancel</Button>
+            <DialogClose asChild>
+              <Button type="button" variant="outline">Cancel</Button>
+            </DialogClose>
             {/* The demo's create-rule step goes on in here: its ring was on
                 Add rule, under this dialog now. The tag hangs below the
                 footer: on the step's own side, the left, it covered Cancel. */}
@@ -839,6 +839,5 @@ export function RuleEditorDialog({
         </form>
       </DialogContent>
     </Dialog>
-    </>
   )
 }

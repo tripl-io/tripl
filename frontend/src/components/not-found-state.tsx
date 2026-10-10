@@ -27,6 +27,12 @@ interface NotFoundStateProps {
    * elsewhere, since that workspace is the thing that is missing.
    */
   homeHref?: string
+  /**
+   * Inside a container that already centres it (the bare unknown-project
+   * screen): drop the panel's own 60vh of vertical centring, which left
+   * whatever followed it floating far below the buttons.
+   */
+  compact?: boolean
 }
 
 /**
@@ -39,9 +45,16 @@ export function NotFoundState({
   description = DEFAULT_DESCRIPTION,
   project,
   homeHref,
+  compact = false,
 }: NotFoundStateProps) {
   return (
-    <div className="flex min-h-[60vh] flex-col items-center justify-center px-6 text-center">
+    <div
+      className={
+        compact
+          ? 'flex flex-col items-center px-6 pt-10 text-center'
+          : 'flex min-h-[60vh] flex-col items-center justify-center px-6 text-center'
+      }
+    >
       <p className="tnum text-body-sm font-semibold tracking-wide text-fg-tertiary">
         404
       </p>

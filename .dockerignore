@@ -7,9 +7,10 @@
 # NOTE: the Dockerfiles copy backend/src, backend/alembic*, the whole frontend/
 # tree, and cli/ + mcp-server/src — do NOT ignore those. We only drop deps,
 # caches, and outputs that the images rebuild themselves (node_modules, .venv,
-# dist). In particular `*.md` below is a ROOT-LEVEL pattern (`*` does not match
-# `/`), so cli/README.md and mcp-server/README.md still ship — both are declared
-# as `readme` in their pyproject and `uv sync` fails without them.
+# dist), plus the backend's tests inside backend/src. In particular `*.md`
+# below is a ROOT-LEVEL pattern (`*` does not match `/`), so cli/README.md and
+# mcp-server/README.md still ship — both are declared as `readme` in their
+# pyproject and `uv sync` fails without them.
 
 # VCS
 .git/
@@ -26,6 +27,9 @@
 # Built Python artifacts (`uv build` output, never installed from in-image)
 cli/dist/
 mcp-server/dist/
+
+# The backend's test suite lives inside the package; the image runs none of it.
+backend/src/tripl/tests/
 
 # Node (image runs `bun install` + `bun run build` itself)
 **/node_modules/

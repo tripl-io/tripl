@@ -517,14 +517,6 @@ export interface ScenarioStep {
   coach?: ScenarioCoachPlacement
 }
 
-export interface ScenarioChapter {
-  id: ChapterId
-  title: string
-  /** One line of what this chapter demonstrates — the picker's subtitle. */
-  blurb: string
-  steps: ScenarioStep[]
-}
-
 export const CHAPTER_TITLES: Record<ChapterId, string> = {
   'live-loop': 'Run the live loop',
   'edit-event': 'Edit an event',
@@ -855,19 +847,6 @@ export function buildChapterList(slug: string, state: ScenarioState): ChapterLis
     status: chapterStatus(state, chapterId),
     to: buildChapterSteps(slug, chapterId, state)[0].to,
   }))
-}
-
-export function buildChapter(
-  slug: string,
-  chapterId: ChapterId,
-  state: ScenarioState,
-): ScenarioChapter {
-  return {
-    id: chapterId,
-    title: CHAPTER_TITLES[chapterId],
-    blurb: CHAPTER_BLURBS[chapterId],
-    steps: buildChapterSteps(slug, chapterId, state),
-  }
 }
 
 /** The active chapter's current step (first step of live-loop as a fallback,

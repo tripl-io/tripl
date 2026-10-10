@@ -16,10 +16,11 @@ its life.
 
 - **A new event:** open **Plan → Events** and press **New event** (or **c** on
   the keyboard).
-- **An existing one:** open the event and press **Edit**.
+- **An existing one:** open the event and press **Edit**; the editor's heading
+  reads **Edit · &lt;event name&gt;**.
 
-![The Edit event form: event type, name, title, description, status and owner](/img/screenshots/event-edit.light.webp#gh-light-mode-only)
-![The Edit event form: event type, name, title, description, status and owner](/img/screenshots/event-edit.dark.webp#gh-dark-mode-only)
+![The event editor: event type, name, title, description, status and owner](/img/screenshots/event-edit.light.webp#gh-light-mode-only)
+![The event editor: event type, name, title, description, status and owner](/img/screenshots/event-edit.dark.webp#gh-dark-mode-only)
 
 ## 2. Fill it in
 
@@ -29,7 +30,7 @@ its life.
 | **Name** | Exactly what the app sends. Monitoring matches data on it, so copy it, do not paraphrase it. |
 | **Title** | Optional. A readable label such as *Order paid*, shown beside the name. Change it any time. |
 | **Description** | When it fires and what it means, in a sentence a newcomer understands. With AI on, **Suggest with AI** drafts one. |
-| **Status** | Where it is in its life: *Draft*, *In Review*, *Ready for Dev*, *Implemented*, *Live*, *Deprecated*. |
+| **Status** | Where it is in its life: *Draft*, *In review*, *Ready for dev*, *Implemented*, *Live*, *Deprecated*. |
 | **Owner** | The person who answers for it. |
 | **Tags** | Words to find it by: `checkout`, `onboarding`. |
 | **Fields** | The values the event carries, laid out by its event type. Use `${property}` to reuse a documented property. |
@@ -48,7 +49,7 @@ identity. The copy starts as *Draft*. Its property list and discussion start
 empty.
 
 You do not have to move an event to *Live* yourself. The first time a scan sees
-data for an event that is *Ready for Dev* or *Implemented* (with its required
+data for an event that is *Ready for dev* or *Implemented* (with its required
 fields filled in), tripl marks it *Live* and records when it first arrived.
 
 :::tip Changing a plan people already rely on?

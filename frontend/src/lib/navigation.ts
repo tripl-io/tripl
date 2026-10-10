@@ -1,4 +1,5 @@
 import { formatCompactNumber } from '@/lib/format'
+import { countOf } from '@/lib/plural'
 import {
   Activity,
   AlertTriangle,
@@ -74,14 +75,6 @@ export type NavItem = {
 export type NavGroup = { label: string; items: NavItem[] }
 
 /**
- * A sidebar badge count: the shared compact formatter. The local copy
- * printed "1.0k" for 1,000 and "1500k" for 1.5 million.
- */
-export function formatCount(n: number): string {
-  return formatCompactNumber(n)
-}
-
-/**
  * Build the three job-based groups for a project. Each item maps to a route that
  * already exists — the IA redesign gives every major surface a first-class home
  * instead of burying it under a flat "Settings" tab list. Counts/tones come from
@@ -129,7 +122,7 @@ export function buildNavGroups(slug: string, summary: ProjectSummary | undefined
             p === base
             || p.startsWith(`${base}/events`)
             || p.startsWith(`${base}/monitoring/event/`),
-          count: summary ? formatCount(summary.active_event_count) : undefined,
+          count: summary ? formatCompactNumber(summary.active_event_count) : undefined,
         },
         {
           id: 'event-types',
@@ -137,7 +130,7 @@ export function buildNavGroups(slug: string, summary: ProjectSummary | undefined
           icon: Tag,
           href: `${base}/event-types`,
           match: (p) => p.startsWith(`${base}/event-types`),
-          count: summary ? formatCount(summary.event_type_count) : undefined,
+          count: summary ? formatCompactNumber(summary.event_type_count) : undefined,
         },
         {
           id: 'schema',
@@ -156,9 +149,9 @@ export function buildNavGroups(slug: string, summary: ProjectSummary | undefined
           icon: Variable,
           href: `${base}/variables`,
           match: (p) => p.startsWith(`${base}/variables`),
-          count: summary ? formatCount(summary.variable_count) : undefined,
+          count: summary ? formatCompactNumber(summary.variable_count) : undefined,
           attention: openPropertyDrifts > 0
-            ? `${openPropertyDrifts} open property ${openPropertyDrifts === 1 ? 'drift' : 'drifts'}`
+            ? countOf(openPropertyDrifts, 'open property drift', 'open property drifts')
             : undefined,
         },
         {
@@ -255,7 +248,7 @@ export function buildNavGroups(slug: string, summary: ProjectSummary | undefined
           // information about what detection found; the work somebody owes is
           // the incident on Alerting, which keeps danger (#240). Omitted
           // when nothing is open.
-          count: openSignals > 0 ? formatCount(openSignals) : undefined,
+          count: openSignals > 0 ? formatCompactNumber(openSignals) : undefined,
           tone: openSignals > 0 ? 'warning' : undefined,
         },
         {
@@ -291,7 +284,7 @@ export function buildNavGroups(slug: string, summary: ProjectSummary | undefined
           // counts. The backend computes open_incident_count over the same
           // 30-day window and mute-expiry rules as list_alert_inbox precisely so
           // the two cannot disagree. Omitted when the inbox is clear.
-          count: openIncidents > 0 ? formatCount(openIncidents) : undefined,
+          count: openIncidents > 0 ? formatCompactNumber(openIncidents) : undefined,
           tone: openIncidents > 0 ? 'danger' : undefined,
           urgent: openIncidents > 0 || undefined,
         },
@@ -342,8 +335,8 @@ export function buildNavGroups(slug: string, summary: ProjectSummary | undefined
           // THIS project's changes: the page asks /audit with project_slug
           // (AuditTab), so "who changed my plan?" is answered for this plan
           // alone. Actions that belong to no project (members, API keys, a
-          // project's deletion) are in Settings › Instance › Audit log
-          // (#238). Owner-only because the endpoint is.
+          // project's deletion) are in the Enterprise Settings › Organization
+          // › Audit log (#238). Owner-only because the endpoint is.
           ownerOnly: true,
         },
       ],
@@ -511,6 +504,44 @@ export function resolveNavLocation(
     }
   }
   return null
+}
+
+/** A create or edit page under a project surface, as it names itself. */
+export type ProjectEditorPage = {
+  /** "New metric", "Edit event": the top bar's title and the browser tab's. */
+  title: string
+  /**
+   * Set on an editor: once the page names its entity (`editPageTitle(name)`),
+   * the top bar reads "… › <entity> › <entityAction>" (#246).
+   */
+  entityAction?: string
+  /** A list between the surface and the page ("Metrics › Fact tables › …"), by its path under the project. */
+  parent?: { label: string; path: string }
+}
+
+const FACT_TABLES_LIST = { label: 'Fact tables', path: '/metrics/fact-tables' }
+
+// Keyed by the path under `/p/:slug`. A fact-table pattern comes before the
+// metric one that would also match it.
+const PROJECT_EDITOR_PAGES: ReadonlyArray<readonly [RegExp, ProjectEditorPage]> = [
+  [/^\/events\/[^/]+\/new$/, { title: 'New event' }],
+  [/^\/events\/[^/]+\/bulk$/, { title: 'Add many events' }],
+  [/^\/events\/[^/]+\/[^/]+\/edit$/, { title: 'Edit event', entityAction: 'Edit' }],
+  [/^\/metrics\/fact-tables\/new$/, { title: 'New fact table', parent: FACT_TABLES_LIST }],
+  [/^\/metrics\/fact-tables\/[^/]+\/edit$/, { title: 'Edit fact table', entityAction: 'Edit', parent: FACT_TABLES_LIST }],
+  [/^\/metrics\/new$/, { title: 'New metric' }],
+  [/^\/metrics\/[^/]+\/edit$/, { title: 'Edit metric', entityAction: 'Edit' }],
+]
+
+/**
+ * The create or edit page a project path opens, or null. The top bar and the
+ * browser tab both read this one table, so the two cannot name a page
+ * differently — the event editor used to pass for the Events list in both.
+ */
+export function resolveProjectEditorPage(pathname: string): ProjectEditorPage | null {
+  const rest = /^\/p\/[^/]+(\/.+)$/.exec(stripOrgPrefix(pathname))?.[1]
+  if (!rest) return null
+  return PROJECT_EDITOR_PAGES.find(([pattern]) => pattern.test(rest))?.[1] ?? null
 }
 
 /**

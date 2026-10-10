@@ -802,8 +802,8 @@ async def _metric_signal_surfaces(
 async def test_daily_catalog_metric_is_open_on_every_surface(client: AsyncClient) -> None:
     """A daily metric's signal must not depend on which surface is asking.
 
-    The badge (``_count_active_metric_signals_by_project``) never selected
-    ``MetricDefinition.interval`` and never passed it to ``classify_signal_state``,
+    The badge's batched query (``_active_metric_signals_by_project``) once never
+    selected ``MetricDefinition.interval`` nor passed it to ``classify_signal_state``,
     so it judged every catalog metric against a bare 24h window while the
     Anomalies page, the metrics list and the drilldown all used the metric's own
     grid. A daily metric therefore read OPEN on the page and ZERO on the badge.

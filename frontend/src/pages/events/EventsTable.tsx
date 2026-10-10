@@ -59,8 +59,11 @@ import {
 import { useFillViewportHeight } from './useFillViewportHeight'
 import type { EventsSortOrder } from './useEventsQuery'
 import { EMPTY_WINDOW_POINTS, ROW_METRICS_LABEL } from './utils'
+import { EVENT_ATTRIBUTE_LABEL } from '@/lib/eventAttributes'
 import { variablesKey } from '@/lib/queryKeys'
 import { useCanWriteProject } from '@/lib/permissions'
+import { formatNumber } from '@/lib/format'
+import { pluralize } from '@/lib/plural'
 
 /** Cap the cluster list so the summary header stays compact; the rest fold into a count. */
 const MAX_VISIBLE_CLUSTERS = 6
@@ -71,6 +74,12 @@ const MAX_VISIBLE_CLUSTERS = 6
 // and the per-cell tooltip is only reachable once you already suspect something.
 const DELTA_HEAD_HELP =
   'Δ · 24h — change in volume versus the previous 24-hour window. A dotted underline marks a window the collected series does not fully cover; hover the value for what it does cover.'
+
+// A sortable header's toggle restates the header's uppercase: the browser's
+// own stylesheet resets text-transform on a <button>, so "Health" and "48h"
+// stood in mixed case among the uppercase headers.
+const SORT_HEAD_BUTTON_CLASS =
+  'inline-flex items-center gap-1 rounded-sm uppercase hover:text-fg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50'
 
 /** Under the scroller: its 30px footer, the card border and the page gutter. */
 const TABLE_SCROLLER_RESERVE_PX = 64
@@ -276,14 +285,14 @@ export function EventsTable({
   const lastVisible = visibleRange ? visibleRange.last + 1 : events.length
   const rangeLabel =
     firstVisible === lastVisible
-      ? firstVisible.toLocaleString()
-      : `${firstVisible.toLocaleString()}–${lastVisible.toLocaleString()}`
+      ? formatNumber(firstVisible)
+      : `${formatNumber(firstVisible)}–${formatNumber(lastVisible)}`
   // What the footer says. Under a column filter the server total is not the
   // number of matches, so it reports the matches among the rows checked so far
   // instead of "Showing 1–40 of 5,000".
   const footerLabel = isClientFiltered
-    ? `${events.length.toLocaleString()} matching · ${loadedCount.toLocaleString()} of ${total.toLocaleString()} checked`
-    : `Showing ${rangeLabel} of ${total.toLocaleString()} events`
+    ? `${formatNumber(events.length)} matching · ${formatNumber(loadedCount)} of ${formatNumber(total)} checked`
+    : `Showing ${rangeLabel} of ${formatNumber(total)} events`
 
   const renderEventRow = (ev: EventListItem, virtualIndex?: number) => {
     const expandedFieldId =
@@ -388,9 +397,9 @@ export function EventsTable({
                 <Layers className="size-3.5" aria-hidden />
                 <span>
                   <span className="tnum text-fg-secondary">
-                    {nameClusters.length.toLocaleString()}
+                    {formatNumber(nameClusters.length)}
                   </span>{' '}
-                  similar-name {nameClusters.length === 1 ? 'cluster' : 'clusters'} detected
+                  similar-name {pluralize(nameClusters.length, 'cluster', 'clusters')} detected
                   {clustersArePartial && ' among loaded rows'}
                 </span>
               </button>
@@ -408,7 +417,7 @@ export function EventsTable({
                         <span className="text-fg-tertiary">…</span>
                       </span>
                       <span className="tnum whitespace-nowrap">
-                        · {group.count.toLocaleString()} events
+                        · {formatNumber(group.count)} events
                       </span>
                       <div className="flex-1" />
                       <Button
@@ -423,7 +432,7 @@ export function EventsTable({
                   ))}
                   {nameClusters.length > MAX_VISIBLE_CLUSTERS && (
                     <li className="px-5 py-1 text-fg-tertiary">
-                      and {(nameClusters.length - MAX_VISIBLE_CLUSTERS).toLocaleString()} more…
+                      and {formatNumber(nameClusters.length - MAX_VISIBLE_CLUSTERS)} more…
                     </li>
                   )}
                 </ul>
@@ -524,7 +533,7 @@ export function EventsTable({
                         <button
                           type="button"
                           onClick={() => onSortOrderChange?.(leastHealthyFirst ? 'catalog' : 'health')}
-                          className="inline-flex items-center gap-1 rounded-sm hover:text-fg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
+                          className={SORT_HEAD_BUTTON_CLASS}
                           aria-label={leastHealthyFirst ? 'Health, least healthy first. Sort by catalog order' : 'Health. Sort least healthy first'}
                         >
                           {leastHealthyFirst && <ArrowUp className="size-3" aria-hidden="true" />}
@@ -536,7 +545,9 @@ export function EventsTable({
                     </TableHead>
                   )}
                   {/* The busiest-first toggle lives on the column it sorts by:
-                      readers clicked "48h" expecting it to sort. */}
+                      readers clicked "48h" expecting it to sort. A duration
+                      keeps its lowercase unit here and in Δ · 24h, where the
+                      header style would make it "48H". */}
                   <TableHead
                     className="w-32 text-right"
                     aria-sort={sortable ? (busiestFirst ? 'descending' : 'none') : undefined}
@@ -546,14 +557,14 @@ export function EventsTable({
                       <button
                         type="button"
                         onClick={() => onSortOrderChange?.(busiestFirst ? 'catalog' : 'volume')}
-                        className="inline-flex items-center gap-1 rounded-sm hover:text-fg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
+                        className={SORT_HEAD_BUTTON_CLASS}
                         aria-label={busiestFirst ? `${ROW_METRICS_LABEL}, busiest first. Sort by catalog order` : `${ROW_METRICS_LABEL}. Sort busiest first`}
                       >
                         {busiestFirst && <ArrowDown className="size-3" aria-hidden="true" />}
-                        {ROW_METRICS_LABEL}
+                        <span className="normal-case">{ROW_METRICS_LABEL}</span>
                       </button>
                     ) : (
-                      ROW_METRICS_LABEL
+                      <span className="normal-case">{ROW_METRICS_LABEL}</span>
                     )}
                   </TableHead>
                   {!hideDelta && (
@@ -561,7 +572,7 @@ export function EventsTable({
                       className="w-20 text-right text-caption"
                       title={DELTA_HEAD_HELP}
                     >
-                      Δ · 24h
+                      Δ · <span className="normal-case">24h</span>
                     </TableHead>
                   )}
                   {!hideLastSeen && (
@@ -570,7 +581,9 @@ export function EventsTable({
                   {!hideStatus && <TableHead>Status</TableHead>}
                   {!activeEt && <TableHead>Type</TableHead>}
                   {!hideReviewed && (
-                    <TableHead className="w-20 text-center text-caption">Verified</TableHead>
+                    <TableHead className="w-20 text-center text-caption">
+                      {EVENT_ATTRIBUTE_LABEL.reviewed}
+                    </TableHead>
                   )}
                   {!hideTags && (
                     <FilterableHead
@@ -712,7 +725,7 @@ export function EventsTable({
                           className="flex items-center justify-center gap-2 py-16 text-body text-fg-tertiary"
                         >
                           <Loader2 className="size-4 animate-spin" aria-hidden="true" />
-                          {`Searching… ${loadedCount.toLocaleString()} of ${total.toLocaleString()} events checked`}
+                          {`Searching… ${formatNumber(loadedCount)} of ${formatNumber(total)} events checked`}
                         </div>
                       ) : (
                         <EmptyState

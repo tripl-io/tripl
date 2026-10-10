@@ -58,7 +58,7 @@ only what the role allows. The permissions:
 
 | Permission | What it covers |
 |---|---|
-| Edit the tracking plan (`plan.edit`) | Events, event types, fields, properties, relations, planned events, branches and their reviews, reconciliation |
+| Edit the tracking plan (`plan.edit`) | Events, event types, fields, properties, relations, expected windows, branches and their reviews, reconciliation |
 | Merge branches (`plan.merge`) | Merging a branch into the plan, reverting a merge |
 | Comment (`comments.write`) | Comments on events, screenshots and branches |
 | Edit docs (`docs.edit`) | The project's notes, folders, translations and sharing |

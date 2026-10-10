@@ -3,14 +3,14 @@
 from __future__ import annotations
 
 import uuid
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, datetime
 
 from fastapi import HTTPException
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.sql.elements import ColumnElement
 
 from tripl import cache
+from tripl.core.drift_activity import active_drift_clauses, retention_cutoff
 from tripl.core.warehouse_types import is_complex_type
 from tripl.models.event_type import EventType
 from tripl.models.field_definition import FieldDefinition
@@ -28,32 +28,6 @@ from tripl.services.scan_config_lookup import (
     scan_configs_blocking_field_removal,
 )
 from tripl.services.search_service import reindex_project_branch
-
-# Drift rows older than this are filtered out at read time. The writer
-# upserts on (event_type_id, field_name, drift_type) so a drift that
-# clears naturally just stops being refreshed and ages out of view.
-DRIFT_RETENTION_DAYS = 30
-ACTIVE_DRIFT_STATUSES = {"open", "snoozed"}
-
-
-def _retention_cutoff(now: datetime | None = None) -> datetime:
-    now = now or datetime.now(UTC)
-    return now - timedelta(days=DRIFT_RETENTION_DAYS)
-
-
-def _active_drift_predicates(now: datetime) -> list[ColumnElement[bool]]:
-    return [
-        SchemaDrift.status.in_(ACTIVE_DRIFT_STATUSES),
-        (SchemaDrift.status != "snoozed")
-        | (SchemaDrift.snoozed_until.is_(None))
-        | (SchemaDrift.snoozed_until <= now),
-    ]
-
-
-# Public names for readers outside this module (the health score, F15 #268):
-# they must judge "active" exactly as the drift lists do.
-retention_cutoff = _retention_cutoff
-active_drift_predicates = _active_drift_predicates
 
 
 def _logical_type_from_observed(observed_type: str | None) -> str:
@@ -160,13 +134,13 @@ async def list_drifts_for_event_type(
     slug: str,
     event_type_id: uuid.UUID,
 ) -> SchemaDriftListResponse:
-    project_id = await resolve_project_id(session, slug, detail=f"Project '{slug}' not found")
+    project_id = await resolve_project_id(session, slug)
 
     event_type = await session.get(EventType, event_type_id)
     if event_type is None or event_type.project_id != project_id:
         raise HTTPException(status_code=404, detail="Event type not found")
 
-    cutoff = _retention_cutoff()
+    cutoff = retention_cutoff()
     rows = (
         (
             await session.execute(
@@ -193,7 +167,7 @@ async def apply_drift_action(
     data: SchemaDriftActionRequest,
     user: User,
 ) -> SchemaDriftResponse:
-    project_id = await resolve_project_id(session, slug, detail=f"Project '{slug}' not found")
+    project_id = await resolve_project_id(session, slug)
     row = (
         await session.execute(
             select(SchemaDrift, EventType)
@@ -286,7 +260,7 @@ async def get_drift_counts_by_event_type(
     if not event_type_ids:
         return {}
     now = datetime.now(UTC)
-    cutoff = _retention_cutoff(now)
+    cutoff = retention_cutoff(now)
     rows = (
         await session.execute(
             select(SchemaDrift.event_type_id, func.count(SchemaDrift.id))
@@ -295,7 +269,7 @@ async def get_drift_counts_by_event_type(
                 EventType.project_id == project_id,
                 SchemaDrift.event_type_id.in_(event_type_ids),
                 SchemaDrift.detected_at >= cutoff,
-                *_active_drift_predicates(now),
+                *active_drift_clauses(SchemaDrift, now),
             )
             .group_by(SchemaDrift.event_type_id)
         )

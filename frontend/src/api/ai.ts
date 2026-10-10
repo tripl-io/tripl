@@ -36,12 +36,6 @@ export const aiApi = {
       { event_id: eventId },
     ),
 
-  describeEventType: (slug: string, eventTypeId: string, branchId?: string | null) =>
-    api.post<AiDescribeResponse>(
-      withBranch(`/projects/${slug}/ai/describe-event-type`, branchId),
-      { event_type_id: eventTypeId },
-    ),
-
   ask: (slug: string, question: string, branchId?: string | null) =>
     api.post<AiAskResponse>(
       withBranch(`/projects/${slug}/ai/ask`, branchId),

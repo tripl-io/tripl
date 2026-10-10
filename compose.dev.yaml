@@ -7,6 +7,12 @@
 # image via the default compose.yaml (`docker compose up -d`), which builds the
 # `runtime` stage (non-root, HEALTHCHECK) in CI — see compose.yaml, Dockerfile,
 # and website/docs/run/release.md.
+#
+# Every published port is bound to 127.0.0.1. This stack runs with DEBUG on,
+# the default credentials (tripl:tripl, guest:guest, a Redis without auth) and,
+# unless .env sets ENCRYPTION_KEY, warehouse passwords stored unencrypted, so
+# nothing here may be reachable from the network. From another machine, use an
+# SSH tunnel (ssh -L 5173:127.0.0.1:5173 <host>) or run compose.yaml instead.
 x-backend-build: &backend-build
   context: ./backend
   target: dev
@@ -80,7 +86,7 @@ services:
       POSTGRES_DB: tripl
       PGDATA: /var/lib/postgresql/18/docker
     ports:
-      - "5432:5432"
+      - "127.0.0.1:5432:5432"
     volumes:
       - pgdata18:/var/lib/postgresql
     healthcheck:
@@ -98,8 +104,8 @@ services:
     volumes:
       - ./infra/rabbitmq/rabbitmq.conf:/etc/rabbitmq/rabbitmq.conf:ro
     ports:
-      - "5672:5672"
-      - "15672:15672"
+      - "127.0.0.1:5672:5672"
+      - "127.0.0.1:15672:15672"
     healthcheck:
       # As the rabbitmq user: run as root, a probe that fires before the server
       # has written its Erlang cookie writes a root-owned one, and the server then
@@ -116,7 +122,7 @@ services:
     image: redis:8.8.3-alpine
     command: ["redis-server", "--maxmemory", "256mb", "--maxmemory-policy", "allkeys-lru", "--save", ""]
     ports:
-      - "6379:6379"
+      - "127.0.0.1:6379:6379"
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 5s
@@ -129,7 +135,7 @@ services:
     build: *backend-build
     command: ["sh", "-c", "alembic upgrade head && uvicorn tripl.main:app --host 0.0.0.0 --port 8000 --reload"]
     ports:
-      - "8000:8000"
+      - "127.0.0.1:8000:8000"
     environment:
       <<: *backend-environment
       DEBUG: "true"
@@ -177,8 +183,9 @@ services:
   celery-worker:
     build: *backend-build
     # One fork per core by default: eight ~250 MB forks overrun the 1 GB limit
-    # below and the kernel kills them mid-task.
-    command: ["sh", "-c", "exec celery -A tripl.worker.celery_app worker --loglevel=info --concurrency=$${CELERY_WORKER_CONCURRENCY:-2}"]
+    # below and the kernel kills them mid-task. Compose fills in
+    # CELERY_WORKER_CONCURRENCY from the shell or .env when it reads this file.
+    command: ["sh", "-c", "exec celery -A tripl.worker.celery_app worker --loglevel=info --concurrency=${CELERY_WORKER_CONCURRENCY:-2}"]
     environment: *backend-environment
     volumes:
       - prometheus-multiproc:/app/var/prometheus
@@ -222,7 +229,7 @@ services:
 
   celery-beat:
     build: *backend-build
-    command: ["celery", "-A", "tripl.worker.celery_app", "beat", "--loglevel=info"]
+    command: ["celery", "-A", "tripl.worker.celery_app", "beat", "--loglevel=info", "--schedule", "/tmp/celerybeat-schedule"]
     environment: *backend-environment
     volumes:
       - prometheus-multiproc:/app/var/prometheus
@@ -261,9 +268,8 @@ services:
       context: ./frontend
       target: dev
     ports:
-      - "5173:5173"
+      - "127.0.0.1:5173:5173"
     environment:
-      VITE_API_URL: http://localhost:8000
       VITE_PROXY_TARGET: http://api:8000
       CHOKIDAR_USEPOLLING: "true"
       CHOKIDAR_INTERVAL: "200"
@@ -331,7 +337,10 @@ services:
       retries: 3
     profiles: [mcp]
     ports:
-      - "8765:8765"
+      # Bound to the host loopback like every port here, and for a stronger
+      # reason: this proxy forwards write-capable tk_w_ keys verbatim and has
+      # no auth of its own.
+      - "127.0.0.1:8765:8765"
     environment:
       TRIPL_BASE_URL: http://api:8000
       TRIPL_MCP_ALLOW_MAIN: ${TRIPL_MCP_ALLOW_MAIN:-0}

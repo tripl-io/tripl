@@ -11,6 +11,7 @@ import { ScenarioCoachMark } from '@/demo/ScenarioCoachMark'
 import { SCENARIO_SEEDED } from '@/demo/scenarioModel'
 import type { ScenarioStepId } from '@/demo/scenarioModel'
 import { useActiveBranchId, useBranchLinkProps } from '@/hooks/useBranch'
+import { EVENT_ATTRIBUTE_LABEL } from '@/lib/eventAttributes'
 import { FieldError } from '@/components/forms/FieldError'
 import { EvField, EvInput, SurfCard } from './eventFormLayout'
 import {
@@ -57,7 +58,7 @@ export function TagsBreakdownsCard({
       // What each half is for, which the form never said.
       subtitle="Tags are labels for finding events in the list; breakdowns decide which columns metrics are split by."
     >
-      <EvField label="Tags" htmlFor="form-tags" hint="Press Enter or comma to add. Anything left typed is added on save.">
+      <EvField label={EVENT_ATTRIBUTE_LABEL.tags} htmlFor="form-tags" hint="Press Enter or comma to add. Anything left typed is added on save.">
         {tags.length > 0 && (
           <div className="mb-2 flex flex-wrap gap-[6px]">
             {tags.map(t => (
@@ -98,7 +99,7 @@ export function TagsBreakdownsCard({
       </EvField>
 
       <EvField
-        label="Metric breakdowns"
+        label={EVENT_ATTRIBUTE_LABEL.metric_breakdown_columns}
         htmlFor="form-breakdown-column"
         hint="Warehouse columns to roll metrics up by. Click a column to toggle it; type any other below."
         last
@@ -197,7 +198,7 @@ export function FieldValuesCard({
   if (fields.length === 0) return null
   return (
     <SurfCard
-      title="Field values"
+      title={EVENT_ATTRIBUTE_LABEL.field_values}
       subtitle={
         // What these are and where they come from: the columns a scan
         // matches the event on, defined by the type, and that `${` opens the
@@ -332,7 +333,7 @@ export function MetaFieldsCard({
   if (metaFields.length === 0) return null
   return (
     <SurfCard
-      title="Meta fields"
+      title={EVENT_ATTRIBUTE_LABEL.meta_values}
       // How these differ from the type's field values: the
       // same project-wide set on every event, for people rather than scans.
       subtitle={

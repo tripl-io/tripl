@@ -1,5 +1,7 @@
 import { Button } from '@/components/ui/button'
 import { Field, NativeSelect, SCard, TextArea, ToggleRow } from '@/components/settings/kit'
+import { FIELD_COPY, PHOTO_BACKEND_OPTIONS } from '@/pages/settings-service/fieldCopy'
+import { InactiveGroup } from '@/pages/settings-service/ServiceSettingsPrimitives'
 import {
   STORAGE_GROUP,
   clearGroup,
@@ -7,19 +9,21 @@ import {
   groupOwned,
   groupWarning,
   mimeListError,
-  sourceOf,
   type OrgDraft,
 } from './orgSettingsModel'
-import { InheritHint, OrgSourceBadge, OrgTextField, type OrgFieldProps } from './OrgSettingsPrimitives'
+import { InheritHint, OrgFieldBadge, OrgTextField, type OrgFieldProps } from './OrgSettingsPrimitives'
+import { formatNumber } from '@/lib/format'
 
 /**
- * Organization › Storage (F20 PR11): where the organization's event photos are
+ * Organization › Photos (F20 PR11): where the organization's event photos are
  * written, and what an upload may be. Backend, bucket, service-account JSON,
  * public URLs and URL lifetime are one group: an own bucket is only ever
  * written with the organization's own key. The size cap is at most the
- * operator's and the content types a subset of the operator's list. The
- * server paths (local directory, the operator's credentials file) are not
- * shown: they are the operator's alone.
+ * platform's and the content types a subset of the platform's list. The
+ * server paths (local directory, the platform's credentials file) are not
+ * shown: they are the platform's alone, set under Platform › Storage, and the
+ * page says so where they would be. Labels, units and backend choices are
+ * Platform › Storage's (fieldCopy.ts).
  */
 export default function OrgStorageFields({
   settings,
@@ -42,15 +46,20 @@ export default function OrgStorageFields({
   const mimeDraft = draft.photo_allowed_mime
   const mimeError =
     organizationScope && mimeDraft !== undefined ? mimeListError(mimeDraft, operatorMime) : null
-  const backendOptions = [
-    { value: 'gcs', label: 'Google Cloud Storage bucket' },
-    {
-      value: 'local',
-      label: localAllowed ? "The server's disk" : "The server's disk (not on a hosted platform)",
-      disabled: !localAllowed,
-    },
-  ]
+  const backendOptions = PHOTO_BACKEND_OPTIONS.map(option =>
+    option.value === 'local' && !localAllowed
+      ? { ...option, label: `${option.label} (not on a hosted platform)`, disabled: true }
+      : option,
+  )
   const credentialsConfigured = settings.storage.gcs_photo_credentials_configured
+  // The bucket rows stay editable on the disk backend (preparing a bucket
+  // before switching is valid), but faded, and the Backend row says why.
+  const onDisk = backend === 'local'
+  const diskNote = onDisk
+    ? organizationScope
+      ? "Photos go to the server's disk. The bucket fields below are not used until you switch."
+      : "Photos go to the server's disk, in the directory set under Platform › Storage. The bucket fields below are not used until you switch."
+    : null
 
   return (
     <>
@@ -59,7 +68,7 @@ export default function OrgStorageFields({
         description={
           organizationScope
             ? "Backend, bucket, key, public URLs and URL lifetime are one group: once this organization sets any of them its photos go to its own storage, and the platform's credentials are never used on it. Without it, photos use the platform's storage."
-            : "The platform's own store: organizations without storage of their own use it. Takes effect when the server restarts."
+            : "The platform's own store: organizations without storage of their own use it."
         }
         footer={
           owned ? (
@@ -85,9 +94,15 @@ export default function OrgStorageFields({
           </p>
         )}
         <Field
-          label="Backend"
-          labelRight={<OrgSourceBadge source={sourceOf(settings, section, 'photo_storage_backend')} />}
-          hint={<InheritHint {...props} field="photo_storage_backend" grouped />}
+          label={FIELD_COPY.photo_storage_backend.label}
+          labelRight={<OrgFieldBadge settings={settings} section={section} field="photo_storage_backend" />}
+          hint={
+            <>
+              {diskNote}
+              {diskNote && organizationScope ? ' ' : null}
+              <InheritHint {...props} field="photo_storage_backend" grouped />
+            </>
+          }
         >
           <NativeSelect
             value={backend}
@@ -96,88 +111,93 @@ export default function OrgStorageFields({
             width="fill"
           />
         </Field>
-        <OrgTextField
-          {...props}
-          field="gcs_photo_bucket"
-          label="GCS bucket"
-          grouped
-          placeholder={organizationScope ? 'e.g. acme-tripl-photos' : undefined}
-          hint={
-            organizationScope && !owned
-              ? 'Blank while this organization uses the platform’s storage.'
-              : undefined
-          }
-        />
-        {organizationScope ? (
-          <Field
-            label="Service-account JSON key"
-            labelRight={<OrgSourceBadge source={sourceOf(settings, section, 'gcs_photo_credentials_json')} />}
-            hint="The key file’s content, with write access to the bucket. Stored encrypted and never shown again."
-          >
-            <TextArea
-              value={String(displayValue(settings, draft, section, 'gcs_photo_credentials_json'))}
-              onChange={value => setField('gcs_photo_credentials_json', value)}
-              placeholder={
-                credentialsConfigured
-                  ? 'Configured — leave blank to keep'
-                  : '{ "type": "service_account", … }'
+        <InactiveGroup inactive={onDisk}>
+          <OrgTextField
+            {...props}
+            field="gcs_photo_bucket"
+            label={FIELD_COPY.gcs_photo_bucket.label}
+            grouped
+            placeholder={organizationScope ? 'e.g. acme-tripl-photos' : undefined}
+            hint={
+              organizationScope && !owned
+                ? 'Blank while this organization uses the platform’s storage.'
+                : undefined
+            }
+          />
+          {organizationScope ? (
+            <Field
+              label="Service-account JSON key"
+              labelRight={
+                <OrgFieldBadge settings={settings} section={section} field="gcs_photo_credentials_json" />
               }
-              rows={4}
-              mono
-            />
-          </Field>
-        ) : (
-          <Field
-            label="GCS credentials"
-            hint="The platform’s key is GCS_PHOTO_CREDENTIALS_PATH on the server (or its own identity), not a setting."
-          >
-            <p className="m-0 text-body-sm text-fg-tertiary">Set on the server.</p>
-          </Field>
-        )}
-        <ToggleRow
-          label="Public URLs"
-          labelRight={<OrgSourceBadge source={sourceOf(settings, section, 'gcs_photo_public')} />}
-          hint="On, photos load from the bucket’s public address; off, from signed links that expire."
-          value={displayValue(settings, draft, section, 'gcs_photo_public') === true}
-          onChange={value => setField('gcs_photo_public', value)}
-        />
-        <OrgTextField
-          {...props}
-          field="gcs_photo_signed_url_ttl_seconds"
-          label="Signed link lifetime"
-          number
-          suffix="seconds"
-          grouped
-          last
-        />
+              hint="The key file’s content, with write access to the bucket. Stored encrypted and never shown again."
+            >
+              <TextArea
+                value={String(displayValue(settings, draft, section, 'gcs_photo_credentials_json'))}
+                onChange={value => setField('gcs_photo_credentials_json', value)}
+                placeholder={
+                  credentialsConfigured
+                    ? 'Configured — leave blank to keep'
+                    : '{ "type": "service_account", … }'
+                }
+                rows={4}
+                mono
+              />
+            </Field>
+          ) : (
+            <Field
+              label="GCS credentials"
+              hint="The path of the platform’s key file (GCS credentials path), or GCS_PHOTO_CREDENTIALS_PATH on the server. Without one, the server’s own identity is used."
+              htmlFor={false}
+            >
+              <p className="m-0 text-body-sm text-fg-tertiary">Set under Platform › Storage.</p>
+            </Field>
+          )}
+          <ToggleRow
+            label={FIELD_COPY.gcs_photo_public.label}
+            labelRight={<OrgFieldBadge settings={settings} section={section} field="gcs_photo_public" />}
+            hint={FIELD_COPY.gcs_photo_public.hint}
+            value={displayValue(settings, draft, section, 'gcs_photo_public') === true}
+            onChange={value => setField('gcs_photo_public', value)}
+          />
+          <OrgTextField
+            {...props}
+            field="gcs_photo_signed_url_ttl_seconds"
+            label={FIELD_COPY.gcs_photo_signed_url_ttl_seconds.label}
+            number
+            suffix={FIELD_COPY.gcs_photo_signed_url_ttl_seconds.suffix}
+            grouped
+            last
+          />
+        </InactiveGroup>
       </SCard>
       <SCard
         title="Uploads"
         description={
           organizationScope
             ? 'What an upload to this organization’s events may be. Lower than the platform’s limits, never higher.'
-            : 'The platform’s limits: every organization’s maximum. Takes effect when the server restarts.'
+            : 'The platform’s limits: every organization’s maximum.'
         }
       >
         <OrgTextField
           {...props}
           field="photo_max_size_mb"
-          label="Largest photo"
+          label={FIELD_COPY.photo_max_size_mb.label}
           number
-          suffix="MB"
+          suffix={FIELD_COPY.photo_max_size_mb.suffix}
           hint={
             organizationScope
-              ? `Operator maximum: ${settings.ceilings.photo_max_size_mb.toLocaleString('en-US')} MB.`
+              ? `Platform maximum: ${formatNumber(settings.ceilings.photo_max_size_mb)} MB.`
               : undefined
           }
         />
         <Field
-          label="Allowed content types"
-          labelRight={<OrgSourceBadge source={sourceOf(settings, section, 'photo_allowed_mime')} />}
+          label={FIELD_COPY.photo_allowed_mime.label}
+          labelRight={<OrgFieldBadge settings={settings} section={section} field="photo_allowed_mime" />}
           hint={
             <>
-              Comma-separated.
-              {organizationScope && ` The operator allows: ${operatorMime.join(', ')}.`}{' '}
+              {FIELD_COPY.photo_allowed_mime.hint}
+              {organizationScope && ` The platform allows: ${operatorMime.join(', ')}.`}{' '}
               <InheritHint {...props} field="photo_allowed_mime" />
             </>
           }

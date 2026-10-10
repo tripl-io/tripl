@@ -10,6 +10,7 @@ from tripl.core.adapters.measure_validator import (
     validate_select_sql_safety,
     validate_sql_fragment,
 )
+from tripl.schemas.integers import INT32_MAX
 from tripl.schemas.not_null_update import reject_explicit_nulls
 
 
@@ -230,7 +231,7 @@ class FactTableUpdate(BaseModel):
     display_name: str | None = Field(default=None, min_length=1, max_length=255)
     description: str | None = None
     color: str | None = Field(default=None, pattern=r"^#[0-9a-fA-F]{6}$")
-    order: int | None = Field(default=None, ge=0)
+    order: int | None = Field(default=None, ge=0, le=INT32_MAX)
     data_source_id: uuid.UUID | None = None
     sql: str | None = Field(default=None, min_length=1)
     timestamp_column: str | None = Field(default=None, min_length=1, max_length=255)

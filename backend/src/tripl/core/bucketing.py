@@ -69,6 +69,15 @@ def to_utc(value: datetime) -> datetime:
     return value.astimezone(UTC)
 
 
+def optional_to_utc(value: datetime | None) -> datetime | None:
+    """:func:`to_utc` for a nullable column: ``None`` passes through unchanged.
+
+    For the readers of a ``muted_until`` / ``last_notified_at`` style column,
+    where NULL carries its own meaning and must reach the caller as ``None``.
+    """
+    return None if value is None else to_utc(value)
+
+
 def stored_bucket(value: object) -> datetime:
     """A warehouse ``_bucket`` cell as the aware UTC instant it is STORED at.
 

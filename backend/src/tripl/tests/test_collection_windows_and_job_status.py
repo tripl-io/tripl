@@ -52,9 +52,6 @@ from tripl.worker.tasks import metrics
 from tripl.worker.tasks._errors import ScanError, user_facing_error
 from tripl.worker.tasks.metrics import schedule as metrics_schedule
 from tripl.worker.tasks.metrics import tasks as metrics_tasks
-from tripl.worker.tasks.metrics._helpers import (
-    TERMINAL_SCAN_JOB_STATUSES as _HELPERS_TERMINAL_SCAN_JOB_STATUSES,
-)
 from tripl.worker.tasks.metrics._helpers import _ceil_to_interval, _floor_to_interval
 from tripl.worker.tasks.metrics.generation import _iter_window_chunks
 from tripl.worker.utils import job_status
@@ -390,22 +387,12 @@ def test_collect_metrics_skips_a_job_that_is_already_finished(
         assert reloaded.error_message == error_message
 
 
-def test_the_two_terminal_status_tuples_have_not_drifted_apart() -> None:
-    """One definition is live; the other is a leftover that must not diverge.
+def test_running_is_not_a_terminal_job_status() -> None:
+    """``running`` stays out: an ``acks_late`` redelivery re-enters its own running job.
 
-    ``worker.utils.job_status`` is the tuple the scan tasks and ``collect_metrics``
-    both import — it lives there so ``worker.tasks.scan`` can guard its job rows
-    without importing a metrics task module and dragging the whole
-    ``collect_metrics`` graph into its import path.
-    ``worker.tasks.metrics._helpers`` still declares the name because it sits in
-    that module's published ``__all__`` and removing it is a wider change than
-    the one that moved the definition. It has no production consumer left, so
-    nothing but this assertion would notice it being edited into disagreement
-    with the tuple the tasks actually enforce.
+    ``worker.utils.job_status`` holds the one tuple the scan tasks and
+    ``collect_metrics`` both enforce.
     """
-    assert set(_HELPERS_TERMINAL_SCAN_JOB_STATUSES) == set(job_status.TERMINAL_SCAN_JOB_STATUSES)
-    # ``running`` stays out of both: an ``acks_late`` redelivery legitimately
-    # re-enters its own running job.
     assert ScanJobStatus.running.value not in job_status.TERMINAL_SCAN_JOB_STATUSES
 
 

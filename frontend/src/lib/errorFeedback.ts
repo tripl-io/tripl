@@ -44,21 +44,17 @@ export function errorToastId(error: unknown): string {
  * quoted for support, and a repeat replaces the toast instead of stacking.
  *
  * Exported for a `SILENT_ERROR_META` write that has no inline place to report
- * but wants its message reworded (alerting strips Pydantic's "Value error, "
- * prefix): `formatMessage` rewrites the text and nothing else, so the
- * toast keeps the backstop's behaviour. The dedupe id stays keyed on the raw
- * error, so the same failure still replaces its own toast.
+ * its failure (an alerting row's switch or delete), so it says why the same
+ * way the backstop would. Pydantic's "Value error, " prefix never reaches it:
+ * `api/client.ts` drops it from every 422.
  */
-export function surfaceError(
-  error: unknown,
-  formatMessage: (message: string) => string = message => message,
-): void {
+export function surfaceError(error: unknown): void {
   // A 401 triggers the dedicated re-auth flow (see AUTH_UNAUTHORIZED_EVENT); a
   // toast there would be noise on top of the redirect.
   if (error instanceof ApiError && error.status === 401) return
   const reference =
     error instanceof ApiError && error.requestId ? `\nReference: ${error.requestId}` : ''
-  toast.error(`${formatMessage(getErrorMessage(error))}${reference}`, {
+  toast.error(`${getErrorMessage(error)}${reference}`, {
     id: errorToastId(error),
   })
 }

@@ -3,6 +3,7 @@ import { Field, NativeSelect } from '@/components/settings/kit'
 import { CodeToken } from '@/components/primitives/code-token'
 import { FieldError } from '@/components/forms/FieldError'
 import { invalidAria } from '@/components/forms/validation'
+import { formatShare } from '@/lib/format'
 import { countOf } from '@/lib/plural'
 import {
   PRESET_EVENT_TYPE_LABEL,
@@ -192,10 +193,6 @@ export function PresetColumnFields({
   )
 }
 
-function percent(share: number): string {
-  return `${Math.round(share * 100)}%`
-}
-
 /**
  * What the preset makes of the preview's sample: the events, and each one's
  * properties with how often it carried them and the type a run would set.
@@ -244,7 +241,7 @@ export function EventPropertiesPreview({ summary }: { summary: ScanPreviewEventP
                   <li key={property.path} className="flex flex-wrap items-baseline gap-x-2">
                     <span className="font-mono text-fg">{property.path}</span>
                     <span className="text-fg-tertiary">{property.type ?? 'type unknown'}</span>
-                    <span className="text-fg-tertiary">in {percent(property.presence)}</span>
+                    <span className="text-fg-tertiary">in {formatShare(property.presence)}</span>
                     {property.sample_values.length > 0 && (
                       <span className="truncate text-fg-subtle">
                         e.g. {property.sample_values.join(', ')}

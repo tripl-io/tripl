@@ -1,8 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { NAME_SEGMENT_SEPARATOR, splitEventName } from './eventNameSegments'
 
-// The shared EventName component reads these from lib/, not from a page module;
-// the behaviour is the one pages/events/utils.ts had.
+// The shared EventName component reads these from lib/, not from a page module.
 describe('splitEventName', () => {
   it('splits on a colon', () => {
     expect(NAME_SEGMENT_SEPARATOR).toBe(':')
@@ -26,6 +25,17 @@ describe('splitEventName', () => {
       { text: '0', empty: true },
       { text: 'forecast_for_4', empty: false },
       { text: '0', empty: true },
+    ])
+  })
+
+  it('handles leading and trailing empty segments', () => {
+    expect(splitEventName(':services')).toEqual([
+      { text: '', empty: true },
+      { text: 'services', empty: false },
+    ])
+    expect(splitEventName('spot:')).toEqual([
+      { text: 'spot', empty: false },
+      { text: '', empty: true },
     ])
   })
 })

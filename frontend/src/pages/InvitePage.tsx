@@ -6,7 +6,7 @@ import { useNavigate, useParams } from 'react-router-dom'
 import { ApiError } from '@/api/client'
 import { invitationsApi } from '@/api/invitations'
 import { FieldError } from '@/components/forms/FieldError'
-import { REQUIRED_MESSAGE, focusFirstInvalid } from '@/components/forms/validation'
+import { REQUIRED_MESSAGE, focusFirstInvalid, invalidAria } from '@/components/forms/validation'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -14,7 +14,12 @@ import { TrifoldMark } from '@/components/states/brand-mark'
 import { ROLE_OPTIONS, type AuthUser, type Role } from '@/types'
 import { getErrorMessage } from '@/lib/utils'
 import { SILENT_ERROR_META } from '@/lib/errorFeedback'
-import { PASSWORD_MIN_LENGTH, PASSWORD_POLICY_HINT } from '@/lib/passwordPolicy'
+import { splitApiFieldErrors } from '@/lib/apiFieldErrors'
+import {
+  PASSWORD_MIN_LENGTH,
+  PASSWORD_POLICY_HINT,
+  passwordPolicyError,
+} from '@/lib/passwordPolicy'
 import { invitationPreviewKey } from '@/lib/queryKeys'
 import { AUTH_QUERY_KEY } from '@/components/auth-context'
 import { orgHomePath } from '@/lib/activeOrg'
@@ -37,6 +42,9 @@ const ROLE_BLURB: Readonly<Record<Role, string>> = {
  * so a future route change cannot turn a dead link into a "try again".
  */
 const DEAD_LINK_STATUSES: ReadonlySet<number> = new Set([400, 404, 410])
+
+/** The accept request's fields this form has an input for. */
+const INVITE_SERVER_FIELDS = ['password', 'name'] as const
 
 function isDeadLinkError(error: unknown): boolean {
   return error instanceof ApiError && DEAD_LINK_STATUSES.has(error.status)
@@ -118,18 +126,19 @@ export default function InvitePage({ signedIn }: { signedIn?: InviteSignedInAcco
   })
 
   const preview = previewQuery.data
-  const passwordProblem = !password
-    ? REQUIRED_MESSAGE
-    : password.length < PASSWORD_MIN_LENGTH
-      ? `Use at least ${PASSWORD_MIN_LENGTH} characters.`
-      : null
-  const passwordError = submitted ? passwordProblem : null
+  // The whole policy, as sign-up checks it: the length alone let a password
+  // without a number through to a 422.
+  const passwordProblem = password ? passwordPolicyError(password) : REQUIRED_MESSAGE
+  // What the server refused, beside the input it names.
+  const acceptServer = splitApiFieldErrors(acceptMut.error, INVITE_SERVER_FIELDS)
+  const passwordError = (submitted ? passwordProblem : null) ?? acceptServer.fields.password ?? null
+  const nameError = acceptServer.fields.name ?? null
 
   const roleLabel = preview
     ? ROLE_OPTIONS.find((r) => r.value === preview.role)?.label ?? preview.role
     : null
   const roleBlurb = publicDemo
-    ? 'receives viewer access to the demo projects of this workspace, including ones generated later. Use a verified Google account matching the invited email address.'
+    ? 'receives viewer access to the demo projects of this organization, including ones generated later. Use a verified Google account matching the invited email address.'
     : preview ? ROLE_BLURB[preview.role] : undefined
   // Only the API's invalid-token answer means the link is dead. A network
   // failure, a 5xx or a rate limit says nothing about the link, and telling a
@@ -140,7 +149,7 @@ export default function InvitePage({ signedIn }: { signedIn?: InviteSignedInAcco
     ? 'This invite link no longer works'
     : checkFailed
       ? 'Could not check this invitation'
-      : 'Join this tripl workspace'
+      : 'Join this organization on tripl'
 
   return (
     // The sign-in page's shell — accent wash, the product mark, one card — so
@@ -269,7 +278,7 @@ export default function InvitePage({ signedIn }: { signedIn?: InviteSignedInAcco
             <div className="space-y-4">
               <p className="text-body text-fg-tertiary">
                 You were invited as <strong>{preview.email}</strong>. Sign in with Google using
-                this email address to accept the invitation and receive viewer access to the demo projects of this workspace, including ones generated later.
+                this email address to accept the invitation and receive viewer access to the demo projects of this organization, including ones generated later.
               </p>
               <Button
                 type="button"
@@ -324,7 +333,9 @@ export default function InvitePage({ signedIn }: { signedIn?: InviteSignedInAcco
                     autoComplete="name"
                     value={name}
                     onChange={(e) => setName(e.target.value)}
+                    {...invalidAria('invite-name', nameError)}
                   />
+                  <FieldError inputId="invite-name" message={nameError} announce className="mt-0" />
                 </div>
                 <div className="space-y-1.5">
                   <Label htmlFor="invite-password">Password</Label>
@@ -345,12 +356,17 @@ export default function InvitePage({ signedIn }: { signedIn?: InviteSignedInAcco
                   <p id="invite-password-hint" className="text-body-sm text-fg-tertiary">
                     {PASSWORD_POLICY_HINT}
                   </p>
-                  <FieldError inputId="invite-password" message={passwordError} className="mt-0" />
+                  <FieldError
+                    inputId="invite-password"
+                    message={passwordError}
+                    announce={acceptMut.isError}
+                    className="mt-0"
+                  />
                 </div>
 
-                {acceptMut.isError && (
+                {acceptServer.message && (
                   <p role="alert" className="text-body-sm text-destructive">
-                    {getErrorMessage(acceptMut.error)}
+                    {acceptServer.message}
                   </p>
                 )}
 

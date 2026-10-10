@@ -7,6 +7,7 @@ import { Field, SCard, TextArea, TextInput, ToggleRow } from '@/components/setti
 import { DisabledReason, disabledReasonAria } from '@/components/states'
 import { SILENT_ERROR_META } from '@/lib/errorFeedback'
 import { getErrorMessage } from '@/lib/utils'
+import { FIELD_COPY, PROMPT_FIELDS } from '@/pages/settings-service/fieldCopy'
 import { StatusBadge } from '@/pages/settings-service/ServiceSettingsPrimitives'
 import {
   AI_ENDPOINT_GROUP,
@@ -14,20 +15,14 @@ import {
   displayValue,
   groupOwned,
   groupWarning,
-  sourceOf,
   type OrgDraft,
 } from './orgSettingsModel'
-import { InheritHint, OrgSourceBadge, OrgTextField, type OrgFieldProps } from './OrgSettingsPrimitives'
-
-const PROMPTS = [
-  { field: 'describe_system_prompt', label: 'Describe prompt' },
-  { field: 'ask_system_prompt', label: 'Ask prompt' },
-  { field: 'alert_explanation_system_prompt', label: 'Alert explanation prompt' },
-] as const
+import { InheritHint, OrgFieldBadge, OrgTextField, type OrgFieldProps } from './OrgSettingsPrimitives'
+import { formatNumber } from '@/lib/format'
 
 /**
  * Organization › AI: the chat provider this organization's plan text is sent
- * to, its prompts, and its timeouts within the operator's maxima. Search
+ * to, its prompts, and its timeouts within the platform's maxima. Search
  * embeddings are their own section (OrgSearchFields).
  */
 export function OrgAiFields({
@@ -62,7 +57,13 @@ export function OrgAiFields({
     <>
       <SCard
         title="Provider"
-        description="Base URL, model and key are one group: once this organization sets any of them it stops inheriting the rest, and the operator's key is never sent to its endpoint."
+        // The group rule is about inheriting; the platform's own provider (the
+        // self-hosted default organization's page) inherits from nothing.
+        description={
+          organizationScope
+            ? "Base URL, model and key are one group: once this organization sets any of them it stops inheriting the rest, and the platform's key is never sent to its endpoint."
+            : undefined
+        }
         footer={
           owned ? (
             <Button
@@ -72,14 +73,14 @@ export function OrgAiFields({
               onClick={() => setDraft(clearGroup(draft, settings, section, AI_ENDPOINT_GROUP))}
               disabled={saving}
             >
-              Use the operator's provider
+              Use the platform&rsquo;s provider
             </Button>
           ) : undefined
         }
       >
         <ToggleRow
-          label="AI enabled"
-          labelRight={<OrgSourceBadge source={sourceOf(settings, section, 'ai_enabled')} />}
+          label={FIELD_COPY.ai_enabled.label}
+          labelRight={<OrgFieldBadge settings={settings} section={section} field="ai_enabled" />}
           hint={<InheritHint {...props} field="ai_enabled" />}
           value={enabled}
           onChange={value => setField('ai_enabled', value)}
@@ -87,9 +88,9 @@ export function OrgAiFields({
         {warning && (
           <p role="note" className="m-0 px-4 pt-2.5 text-caption text-(--warning)">
             {warning.starting &&
-              'Saving makes the whole provider this organization’s own: fields you leave as they are take the built-in defaults, not the operator’s values. '}
+              'Saving makes the whole provider this organization’s own: fields you leave as they are take the built-in defaults, not the platform’s values. '}
             {warning.missingSecret &&
-              'No API key of this organization’s: the operator’s key is never sent to an endpoint set here, so add one.'}
+              'No API key of this organization’s: the platform’s key is never sent to an endpoint set here, so add one.'}
           </p>
         )}
         <AiProviderPicker
@@ -103,15 +104,21 @@ export function OrgAiFields({
         <OrgTextField
           {...props}
           field="ai_base_url"
-          label="Base URL"
+          label={FIELD_COPY.ai_base_url.label}
           grouped
           placeholder="e.g. https://api.openai.com/v1"
           hint={organizationScope ? 'Must be a public address.' : undefined}
         />
-        <OrgTextField {...props} field="ai_model" label="Model" grouped placeholder="e.g. gpt-4o-mini" />
+        <OrgTextField
+          {...props}
+          field="ai_model"
+          label={FIELD_COPY.ai_model.label}
+          grouped
+          placeholder="e.g. gpt-4o-mini"
+        />
         <Field
-          label="API key"
-          labelRight={<OrgSourceBadge source={sourceOf(settings, section, 'ai_api_key')} />}
+          label={FIELD_COPY.ai_api_key.label}
+          labelRight={<OrgFieldBadge settings={settings} section={section} field="ai_api_key" />}
           hint={<InheritHint {...props} field="ai_api_key" grouped />}
         >
           <TextInput
@@ -124,19 +131,23 @@ export function OrgAiFields({
         <OrgTextField
           {...props}
           field="ai_timeout_seconds"
-          label="Timeout"
+          label={FIELD_COPY.ai_timeout_seconds.label}
           number
-          suffix="s"
-          hint={organizationScope ? `Operator maximum: ${settings.ceilings.ai_timeout_seconds} s.` : undefined}
+          suffix={FIELD_COPY.ai_timeout_seconds.suffix}
+          hint={
+            organizationScope
+              ? `Platform maximum: ${formatNumber(settings.ceilings.ai_timeout_seconds)} seconds.`
+              : undefined
+          }
         />
         <OrgTextField
           {...props}
           field="ai_max_output_tokens"
-          label="Max output tokens"
+          label={FIELD_COPY.ai_max_output_tokens.label}
           number
           hint={
             organizationScope
-              ? `Operator maximum: ${settings.ceilings.ai_max_output_tokens.toLocaleString('en-US')}.`
+              ? `Platform maximum: ${formatNumber(settings.ceilings.ai_max_output_tokens)}.`
               : undefined
           }
           last
@@ -144,14 +155,14 @@ export function OrgAiFields({
       </SCard>
 
       <SCard title="Prompts" description="The system prompts this organization's AI features send.">
-        {PROMPTS.map(({ field, label }, index) => (
+        {PROMPT_FIELDS.map((field, index) => (
           <Field
             key={field}
-            label={label}
+            label={FIELD_COPY[field].label}
             stacked
-            labelRight={<OrgSourceBadge source={sourceOf(settings, section, field)} />}
+            labelRight={<OrgFieldBadge settings={settings} section={section} field={field} />}
             hint={<InheritHint {...props} field={field} />}
-            last={index === PROMPTS.length - 1}
+            last={index === PROMPT_FIELDS.length - 1}
           >
             <TextArea
               value={String(displayValue(settings, draft, section, field))}

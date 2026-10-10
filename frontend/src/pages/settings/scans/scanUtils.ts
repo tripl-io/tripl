@@ -1,5 +1,7 @@
 import type { IntervalCode, ScanConfigPreview, ScanJob } from '@/types'
 import { formatRelativeTime } from '@/lib/datetime'
+import { formatNumber } from '@/lib/format'
+import { pluralize } from '@/lib/plural'
 import type { ScanStatus } from './scanLayoutConstants'
 
 // Derive a canonical scan status from its most recent job. The real ScanConfig
@@ -105,13 +107,13 @@ export function jobScanned(job: Pick<ScanJob, 'result_summary'> | null): JobScan
  */
 export function formatJobScanned(
   scanned: JobScanned | null,
-  format: (value: number) => string = value => value.toLocaleString(),
+  format: (value: number) => string = formatNumber,
 ): string {
   if (!scanned) return '—'
   const { value, unit } = scanned
   const noun = unit === 'rows'
-    ? (value === 1 ? 'row' : 'rows')
-    : (value === 1 ? 'combo' : 'combos')
+    ? pluralize(value, 'row', 'rows')
+    : pluralize(value, 'combo', 'combos')
   return `${format(value)} ${noun}`
 }
 
@@ -404,7 +406,3 @@ export function shareError(value: string): string | null {
 export function isJsonPreviewType(typeName: string) {
   return typeName.toLowerCase().includes('json')
 }
-
-// One shared native-select class, focus ring included: this copy had
-// none, so keyboard focus on the scan form's selects was invisible.
-export { SELECT_CLASS } from '@/components/data-sources/connection-settings'

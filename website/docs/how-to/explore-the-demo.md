@@ -38,7 +38,7 @@ A chapter is a short hands-on lesson. A strip under the banner names the next
 step, a ring and a small tag mark the button to press, and the demo guide in a
 corner of the window says what to do and where to go. The first chapter runs the
 loop the whole product is built on: run a scan, watch it land, collect a metric,
-see the chart move. **Browse chapters** lists the others: editing an event,
+see the chart move. **Tour & chapters** lists the others: editing an event,
 properties and value drift, reviewing a branch, reconciling the plan, routing an
 alert.
 
@@ -70,6 +70,6 @@ other projects. When you are ready for your own data, go back to **All
 projects**, press **New project**, then
 [connect your warehouse](./connect-your-warehouse.md).
 
-**More detail:** [The demo workspace](../use/demo-workspace.md) lists exactly what
+**More detail:** [The demo project](../use/demo-workspace.md) lists exactly what
 is synthetic, what really runs, and what the demo deliberately cannot do (such as
 send a real Slack message).

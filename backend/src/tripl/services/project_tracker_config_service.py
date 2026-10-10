@@ -6,7 +6,6 @@ from collections.abc import Callable
 
 from fastapi import HTTPException
 from sqlalchemy import select
-from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from tripl.alerting_validation import (
@@ -24,6 +23,7 @@ from tripl.schemas.project_tracker_config import (
     ProjectTrackerConfigResponse,
     ProjectTrackerConfigUpdate,
 )
+from tripl.services._project_settings_rows import get_or_create_project_row
 from tripl.services.org_tracker_defaults_service import (
     NO_DEFAULTS,
     OrgTrackerDefaults,
@@ -114,34 +114,6 @@ def _defaults_response(
     )
 
 
-async def _ensure_config(
-    session: AsyncSession,
-    project_id: uuid.UUID,
-) -> ProjectTrackerConfig:
-    config = await session.scalar(
-        select(ProjectTrackerConfig).where(ProjectTrackerConfig.project_id == project_id)
-    )
-    if config is not None:
-        return config
-
-    config = ProjectTrackerConfig(project_id=project_id)
-    session.add(config)
-    try:
-        await session.commit()
-    except IntegrityError:
-        # Lost a concurrent first-write race on uq_project_tracker_config_project;
-        # the winner's row is what we want.
-        await session.rollback()
-        winner: ProjectTrackerConfig | None = await session.scalar(
-            select(ProjectTrackerConfig).where(ProjectTrackerConfig.project_id == project_id)
-        )
-        if winner is None:  # pragma: no cover — row vanished between commit and re-read
-            raise
-        return winner
-    await session.refresh(config)
-    return config
-
-
 async def get_project_tracker_config(
     session: AsyncSession,
     slug: str,
@@ -164,7 +136,7 @@ async def update_project_tracker_config(
     data: ProjectTrackerConfigUpdate,
 ) -> ProjectTrackerConfigResponse:
     project_id = await resolve_project_id(session, slug)
-    config = await _ensure_config(session, project_id)
+    config = await get_or_create_project_row(session, ProjectTrackerConfig, project_id)
     payload = data.model_dump(exclude_unset=True)
 
     # Resolve the tracker FIRST: it decides how the token and the destination

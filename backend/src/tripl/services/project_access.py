@@ -139,12 +139,6 @@ async def is_org_admin(session: AsyncSession, user: User, org_id: uuid.UUID | No
     return is_org_admin_role(await org_role_of(session, user.id, target))
 
 
-async def is_org_owner(session: AsyncSession, user: User, org_id: uuid.UUID | None = None) -> bool:
-    """Whether ``user`` is an owner of ``org_id`` (default: the bound org)."""
-    target = org_id if org_id is not None else require_org_id()
-    return await org_role_of(session, user.id, target) == OrganizationRole.owner
-
-
 #: ``project_members.role`` / ``organizations.default_project_role`` for "no access".
 NO_ACCESS = ProjectMemberRole.none.value
 
@@ -398,15 +392,6 @@ async def member_roles(
         if role is not None:
             roles[row[0]] = role
     return roles
-
-
-async def is_project_org_admin(session: AsyncSession, user: User, project_id: uuid.UUID) -> bool:
-    """Whether ``user`` is owner/admin of the organization owning ``project_id``.
-
-    That is exactly project role ``"owner"``: comment moderation, the member
-    manager check and data-source redaction ask this.
-    """
-    return await member_role(session, user, project_id) == OWNER
 
 
 def project_member_clause(

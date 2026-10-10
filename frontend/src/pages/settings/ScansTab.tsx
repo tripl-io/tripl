@@ -23,7 +23,8 @@ import { TermHint } from '@/components/term-hint'
 import { TERM_HINTS } from '@/lib/termHints'
 import { PageContainer } from '@/components/primitives/page-container'
 import { MiniStat, MiniStatStrip } from '@/components/primitives/mini-stat'
-import { INTERVAL_LABEL, formatCount } from "./scans/scanLayoutConstants"
+import { formatCompactNumber } from "@/lib/format"
+import { INTERVAL_LABEL } from "./scans/scanLayoutConstants"
 import { LOADING_SCAN_RUN_INFO, consecutiveFailedRuns, deriveScanRunInfo, formatJobScanned, jobDurationSeconds, jobScanned, scanJobsHaveActiveWork, summarizeScanChanges, type JobScanned, type ScanChange, type ScanRunInfo } from "./scans/scanUtils"
 import { useAdaptiveRefetchIntervalFn } from "@/realtime/streamContext"
 import { friendlyScanError } from "@/lib/scanError"
@@ -245,8 +246,8 @@ export function ScansTab({ slug }: { slug: string }) {
   }, [scanConfigs, jobsByScan, failingStreakById])
 
   // Null until the activity has arrived: "0" while loading contradicted the
-  // completed runs already listed in the activity rail.
-  // `formatCount(null)` renders "—". Exact, not a floor: the server sums every
+  // completed runs already listed in the activity rail, so the tile reads "—"
+  // until then. Exact, not a floor: the server sums every
   // job in the window rather than the capped page this list loads.
   // Warehouse rows and catalog combinations are summed apart: they are
   // different units, and adding them made the tile a number with no name
@@ -360,11 +361,11 @@ export function ScansTab({ slug }: { slug: string }) {
               <div
                 title={
                   catalogCombinations24h
-                    ? `Warehouse rows read by runs in the last 24 hours. Catalog runs that report no warehouse rows also read back ${formatCount(catalogCombinations24h)} column combinations.`
+                    ? `Warehouse rows read by runs in the last 24 hours. Catalog runs that report no warehouse rows also read back ${formatCompactNumber(catalogCombinations24h)} column combinations.`
                     : 'Warehouse rows read by runs in the last 24 hours.'
                 }
               >
-                <MiniStat label="Warehouse rows · 24h" value={formatCount(warehouseRows24h)} />
+                <MiniStat label="Warehouse rows · 24h" value={warehouseRows24h == null ? '—' : formatCompactNumber(warehouseRows24h)} />
               </div>
             </MiniStatStrip>
           )
@@ -496,6 +497,8 @@ export function ScansTab({ slug }: { slug: string }) {
                 {recentRuns.map(run => {
                   const isFailed = run.status === 'failed'
                   const friendly = isFailed ? friendlyScanError(run.errorMessage).message : null
+                  const showStreak = isFailed && run.failingStreak > 1
+                  const showRunAgain = isFailed && canRun && run.latestSettled
                   return (
                     <ScenarioCoachMark
                       key={run.jobId}
@@ -510,11 +513,17 @@ export function ScansTab({ slug }: { slug: string }) {
                           happened on the next, a failed run's actions under that —
                           because the fixed 150px name and 52px duration left a
                           375px screen nothing for the rest, and "3h ago" ran into
-                          "4.8K rows". */}
+                          "4.8k rows". */}
                       <div
                         className="flex min-h-(--row-h) flex-wrap items-center gap-x-3 gap-y-1.5 border-t px-4 py-2.5 first:border-t-0 sm:flex-nowrap border-border-subtle"
                       >
-                        <RunStatusPill status={runPillStatus(run.status)} title={friendly ?? undefined} />
+                        {/* A fixed slot as wide as the widest label
+                            ("Succeeded"), so the name, time and figures start
+                            at the same x on every row: a narrower "Failed"
+                            pulled its row's columns left of the rows above. */}
+                        <span data-slot="run-status" className="shrink-0 sm:w-24">
+                          <RunStatusPill status={runPillStatus(run.status)} title={friendly ?? undefined} />
+                        </span>
                         <span className="min-w-0 flex-1 truncate text-body-sm font-medium sm:w-[150px] sm:flex-none sm:shrink-0">
                           {run.scanName}
                         </span>
@@ -538,14 +547,17 @@ export function ScansTab({ slug }: { slug: string }) {
                             </div>
                           )}
                         </div>
-                        {isFailed ? (
+                        {/* A failed run's actions take the figures' place; a
+                            failed run with none to offer keeps the figures,
+                            so its row does not end in a blank. */}
+                        {showStreak || showRunAgain ? (
                           <div className="order-last flex shrink-0 flex-wrap items-center gap-2 sm:order-none">
-                            {run.failingStreak > 1 && (
+                            {showStreak && (
                               <Chip tone="danger" size="xs" className="whitespace-nowrap">
                                 failed last {run.failingStreak} runs
                               </Chip>
                             )}
-                            {canRun && run.latestSettled && (
+                            {showRunAgain && (
                               <Button
                                 size="xs"
                                 variant="outline"

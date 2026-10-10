@@ -1,5 +1,6 @@
 import type { ServiceSettings } from '@/types'
 import { Field, SCard, TextInput } from '@/components/settings/kit'
+import { FIELD_COPY } from './fieldCopy'
 import { NumberSettingInput, OperatorFields, SourceBadge } from './ServiceSettingsPrimitives'
 import type { EditableSettings, SectionKey } from './serviceSettingsHelpers'
 import { sourceFor } from './serviceSettingsHelpers'
@@ -37,9 +38,14 @@ export function RuntimeSection({
         </OperatorFields>
       </SCard>
 
-      <SCard title="Query limits">
+      {/* The card Organization › Limits shows for the same two values, under
+          the same name. */}
+      <SCard
+        title="Row limits"
+        description="Used when a scan or metrics configuration sets no limit of its own. An organization may lower them, never raise them."
+      >
         <Field
-          label="Scan row limit default"
+          label={FIELD_COPY.scan_row_limit_default.label}
           labelRight={<SourceBadge source={sourceFor(settings, 'runtime', 'scan_row_limit_default')} />}
         >
           <NumberSettingInput
@@ -52,7 +58,7 @@ export function RuntimeSection({
           />
         </Field>
         <Field
-          label="Metrics row limit default"
+          label={FIELD_COPY.metrics_row_limit_default.label}
           labelRight={<SourceBadge source={sourceFor(settings, 'runtime', 'metrics_row_limit_default')} />}
           last
         >

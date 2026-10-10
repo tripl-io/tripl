@@ -40,6 +40,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session, selectinload
 
 from tripl.alert_templates import ALERT_MESSAGE_FORMAT_PLAIN
+from tripl.core.bucketing import optional_to_utc, to_utc
 from tripl.models.alert_delivery import AlertDelivery, AlertDeliveryStatus
 from tripl.models.alert_delivery_item import AlertDeliveryItem
 from tripl.models.alert_owner_notification import (
@@ -70,12 +71,8 @@ def notify_owners(self: object, delivery_id: str) -> dict[str, object]:
 
 
 def _rule_is_muted(rule: AlertRule, now: datetime) -> bool:
-    muted_until = rule.muted_until
-    if muted_until is None:
-        return False
-    if muted_until.tzinfo is None:
-        muted_until = muted_until.replace(tzinfo=UTC)
-    return muted_until > now
+    muted_until = optional_to_utc(rule.muted_until)
+    return muted_until is not None and muted_until > now
 
 
 def _owned_items(
@@ -114,10 +111,6 @@ def _items_text(
     )
 
 
-def _as_aware(value: datetime) -> datetime:
-    return value.replace(tzinfo=UTC) if value.tzinfo is None else value
-
-
 def _existing_rows(
     session: Session, delivery_id: uuid.UUID
 ) -> dict[uuid.UUID, AlertOwnerNotification]:
@@ -138,7 +131,7 @@ def _holds_claim(row: AlertOwnerNotification, now: datetime) -> bool:
         return True
     if row.status == AlertOwnerNotificationStatus.pending.value:
         stamp = row.updated_at or row.created_at
-        return stamp is None or _as_aware(stamp) > now - OWNER_NOTIFICATION_PENDING_LEASE
+        return stamp is None or to_utc(stamp) > now - OWNER_NOTIFICATION_PENDING_LEASE
     return False
 
 

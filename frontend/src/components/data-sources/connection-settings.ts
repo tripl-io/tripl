@@ -9,6 +9,7 @@ import type {
 } from '@/types'
 import { REQUIRED_MESSAGE } from '@/components/forms/validation'
 import { INPUT_INVALID_CLASS, INPUT_PLACEHOLDER_CLASS, INPUT_TEXT_CLASS } from '@/components/settings/input-style'
+import { countOf } from '@/lib/plural'
 
 // Form state for the typed, per-warehouse connection settings. Kept as strings
 // (what inputs produce) and converted to the API shape by
@@ -77,8 +78,11 @@ export const TRINO_SCHEME_OPTIONS: { value: TrinoHttpScheme; label: string }[] =
   { value: 'http', label: 'HTTP (no authentication; local or in-cluster only)' },
 ]
 
-// Mirrors MAX_TRINO_SCHEMA_ALLOWLIST in backend/src/tripl/schemas/data_source.py.
-export const MAX_TRINO_SCHEMA_ALLOWLIST = 50
+// How many schemas one schema allowlist may name: Databricks, Snowflake, Trino
+// and Athena alike. Their browse is one information_schema query whatever the
+// count, so the cap is about the statement's size, not its cost. Mirrors
+// MAX_SCHEMA_ALLOWLIST in backend/src/tripl/schemas/connection_settings_base.py.
+export const MAX_SCHEMA_ALLOWLIST = 50
 
 // Mirrors _S3_URI_RE on the backend: where Athena writes query results.
 const S3_URI_RE = /^s3:\/\/[a-z0-9][a-z0-9.-]{1,61}[a-z0-9](\/[^\s'"\\]{0,900})?$/
@@ -103,9 +107,6 @@ export const SNOWFLAKE_AUTH_OPTIONS: { value: SnowflakeAuthType; label: string }
   { value: 'key_pair', label: 'Key pair (private key in the secret field)' },
 ]
 
-// Mirrors MAX_SNOWFLAKE_SCHEMA_ALLOWLIST in backend/src/tripl/schemas/data_source.py.
-export const MAX_SNOWFLAKE_SCHEMA_ALLOWLIST = 50
-
 // Mirrors _SF_OBJECT_RE on the backend: a warehouse, role or schema name.
 const SNOWFLAKE_OBJECT_RE = /^[A-Za-z0-9_$-]{1,255}$/
 
@@ -118,11 +119,6 @@ export function snowflakeWarehouseError(value: string, requiredMessage: string):
   }
   return null
 }
-
-// Mirrors MAX_DATABRICKS_SCHEMA_ALLOWLIST in backend/src/tripl/schemas/data_source.py.
-// The browse is one information_schema query whatever the count, so the cap is
-// about the statement's size, not its cost.
-export const MAX_DATABRICKS_SCHEMA_ALLOWLIST = 50
 
 // Mirrors _DBX_HTTP_PATH_RE on the backend: a path, not a URL.
 const DATABRICKS_HTTP_PATH_RE = /^\/[A-Za-z0-9_\-./?=&]{1,499}$/
@@ -244,44 +240,114 @@ export function pemError(value: string, kind: PemKind): string | null {
   return null
 }
 
-export type PemField = 'sslrootcert' | 'sslcert' | 'sslkey'
 /**
- * Inline errors for the settings fields, by field: the Postgres PEM blocks, and
- * the Databricks HTTP path and the Snowflake warehouse (the required settings).
+ * Why a schema or dataset name cannot be saved, or null. Only the commonest
+ * mistake is caught here, a name qualified by what holds it (`hive.events`,
+ * `my-project.analytics`): no warehouse's names take a dot, and the server
+ * checks the rest.
  */
-export type PemErrors = Partial<
-  Record<PemField | 'httpPath' | 'warehouse' | 's3OutputLocation', string>
->
+export function qualifiedNameError(value: string): string | null {
+  const trimmed = value.trim()
+  const dot = trimmed.lastIndexOf('.')
+  if (dot < 0) return null
+  const name = trimmed.slice(dot + 1)
+  return name ? `Use the name alone, like ${name}, not ${trimmed}.` : 'Use the name alone, without a dot.'
+}
 
 /**
- * Inline errors for the settings fields: the Postgres PEM blocks, the
- * Databricks HTTP path and the Snowflake warehouse. Empty for other warehouses.
+ * Why a comma-separated allowlist cannot be saved, or null: a qualified entry,
+ * or more distinct entries than `limit` (the server drops repeats first too).
+ */
+export function allowlistError(value: string, limit: number, noun: [string, string]): string | null {
+  const entries = parseAllowlist(value)
+  for (const entry of entries) {
+    const qualified = qualifiedNameError(entry)
+    if (qualified) return qualified
+  }
+  const count = new Set(entries).size
+  return count > limit ? `At most ${countOf(limit, ...noun)}: this lists ${count}.` : null
+}
+
+export type PemField = 'sslrootcert' | 'sslcert' | 'sslkey'
+export type SettingsField =
+  | PemField
+  | 'httpPath'
+  | 'warehouse'
+  | 's3OutputLocation'
+  | 'schemaName'
+  | 'schemaAllowlist'
+  | 'datasetAllowlist'
+/** Inline errors for the settings fields, by field. */
+export type SettingsErrors = Partial<Record<SettingsField, string>>
+
+// The settings a warehouse cannot connect without.
+const REQUIRED_SETTINGS: ReadonlySet<SettingsField> = new Set<SettingsField>(['httpPath', 'warehouse'])
+
+// The warehouses with a default schema, and those with a schema allowlist.
+const SCHEMA_NAME_TYPES: ReadonlySet<DbType> = new Set<DbType>(['databricks', 'snowflake', 'trino'])
+const SCHEMA_ALLOWLIST_TYPES: ReadonlySet<DbType> = new Set<DbType>([
+  'databricks',
+  'snowflake',
+  'trino',
+  'athena',
+])
+
+/**
+ * Inline errors for the settings fields that apply to `dbType`: the Postgres
+ * PEM blocks, the Databricks HTTP path, the Snowflake warehouse, the Athena
+ * result location, and the schema and dataset names and allowlists.
  */
 export function connectionSettingsErrors(
   dbType: DbType,
   form: ConnectionSettingsForm,
   requiredMessage = REQUIRED_MESSAGE,
-): PemErrors {
-  if (dbType === 'databricks') {
-    const httpPath = httpPathError(form.httpPath, requiredMessage)
-    return httpPath ? { httpPath } : {}
+): SettingsErrors {
+  const errors: SettingsErrors = {}
+  const flag = (field: SettingsField, message: string | null) => {
+    if (message) errors[field] = message
   }
-  if (dbType === 'snowflake') {
-    const warehouse = snowflakeWarehouseError(form.warehouse, requiredMessage)
-    return warehouse ? { warehouse } : {}
+  if (dbType === 'bigquery') {
+    flag(
+      'datasetAllowlist',
+      allowlistError(form.datasetAllowlist, MAX_DATASET_ALLOWLIST, ['dataset', 'datasets']),
+    )
+  } else if (dbType === 'databricks') {
+    flag('httpPath', httpPathError(form.httpPath, requiredMessage))
+  } else if (dbType === 'snowflake') {
+    flag('warehouse', snowflakeWarehouseError(form.warehouse, requiredMessage))
+  } else if (dbType === 'athena') {
+    flag('s3OutputLocation', s3OutputLocationError(form.s3OutputLocation))
+  } else if (usesPostgresSettings(dbType)) {
+    flag('sslrootcert', pemError(form.sslrootcert, 'certificate'))
+    flag('sslcert', pemError(form.sslcert, 'certificate'))
+    if (!form.clearSslkey) flag('sslkey', pemError(form.sslkey, 'private key'))
   }
-  if (dbType === 'athena') {
-    const s3OutputLocation = s3OutputLocationError(form.s3OutputLocation)
-    return s3OutputLocation ? { s3OutputLocation } : {}
+  if (SCHEMA_NAME_TYPES.has(dbType)) flag('schemaName', qualifiedNameError(form.schemaName))
+  if (SCHEMA_ALLOWLIST_TYPES.has(dbType)) {
+    const noun: [string, string] = dbType === 'athena' ? ['database', 'databases'] : ['schema', 'schemas']
+    flag('schemaAllowlist', allowlistError(form.schemaAllowlist, MAX_SCHEMA_ALLOWLIST, noun))
   }
-  if (!usesPostgresSettings(dbType)) return {}
-  const errors: PemErrors = {}
-  const root = pemError(form.sslrootcert, 'certificate')
-  if (root) errors.sslrootcert = root
-  const cert = pemError(form.sslcert, 'certificate')
-  if (cert) errors.sslcert = cert
-  const key = form.clearSslkey ? null : pemError(form.sslkey, 'private key')
-  if (key) errors.sslkey = key
+  return errors
+}
+
+/**
+ * `connectionSettingsErrors` for a form opened over `baseline` (the stored
+ * settings on edit, the empty form on create). A field is only checked once it
+ * differs from the baseline, so a value saved before a check existed cannot
+ * block an unrelated edit. The required settings are checked whatever is
+ * stored: without them there is no warehouse to connect to.
+ */
+export function editedSettingsErrors(
+  dbType: DbType,
+  form: ConnectionSettingsForm,
+  baseline: ConnectionSettingsForm,
+  requiredMessage = REQUIRED_MESSAGE,
+): SettingsErrors {
+  const errors: SettingsErrors = {}
+  const all = connectionSettingsErrors(dbType, form, requiredMessage)
+  for (const [field, error] of Object.entries(all) as [SettingsField, string][]) {
+    if (REQUIRED_SETTINGS.has(field) || form[field] !== baseline[field]) errors[field] = error
+  }
   return errors
 }
 
@@ -297,6 +363,12 @@ function parseAllowlist(value: string): string[] {
     .split(/[\s,]+/)
     .map((entry) => entry.trim())
     .filter(Boolean)
+}
+
+/** An allowlist as the API takes it: its names, or null for none. */
+function allowlistSetting(value: string): string[] | null {
+  const names = parseAllowlist(value)
+  return names.length > 0 ? names : null
 }
 
 function nullable(value: string): string | null {
@@ -319,51 +391,46 @@ export function buildConnectionSettings(
 ): ConnectionSettings | undefined {
   if (dbType === 'bigquery') {
     const maxBytes = form.maximumBytesBilled.trim()
-    const datasets = parseAllowlist(form.datasetAllowlist)
     return {
       location: nullable(form.location),
       maximum_bytes_billed: maxBytes ? Number(maxBytes) : null,
-      dataset_allowlist: datasets.length > 0 ? datasets : null,
+      dataset_allowlist: allowlistSetting(form.datasetAllowlist),
     }
   }
 
   if (dbType === 'databricks') {
-    const schemas = parseAllowlist(form.schemaAllowlist)
     return {
       http_path: form.httpPath.trim(),
       auth_type: form.authType,
       schema_name: nullable(form.schemaName),
-      schema_allowlist: schemas.length > 0 ? schemas : null,
+      schema_allowlist: allowlistSetting(form.schemaAllowlist),
     }
   }
 
   if (dbType === 'snowflake') {
-    const schemas = parseAllowlist(form.schemaAllowlist)
     return {
       warehouse: form.warehouse.trim(),
       auth_type: form.snowflakeAuthType,
       role: nullable(form.role),
       schema_name: nullable(form.schemaName),
-      schema_allowlist: schemas.length > 0 ? schemas : null,
+      schema_allowlist: allowlistSetting(form.schemaAllowlist),
     }
   }
 
   if (dbType === 'trino') {
-    const schemas = parseAllowlist(form.schemaAllowlist)
     return {
       http_scheme: form.httpScheme,
       schema_name: nullable(form.schemaName),
-      schema_allowlist: schemas.length > 0 ? schemas : null,
+      schema_allowlist: allowlistSetting(form.schemaAllowlist),
     }
   }
 
   if (dbType === 'athena') {
-    const schemas = parseAllowlist(form.schemaAllowlist)
     return {
       work_group: nullable(form.workGroup),
       s3_output_location: nullable(form.s3OutputLocation),
       catalog_name: nullable(form.catalogName),
-      schema_allowlist: schemas.length > 0 ? schemas : null,
+      schema_allowlist: allowlistSetting(form.schemaAllowlist),
     }
   }
 

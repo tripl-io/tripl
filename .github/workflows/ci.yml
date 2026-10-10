@@ -6,6 +6,22 @@ on:
     branches: [main]
   # Allow the release workflow to run CI as a gate before publishing an image.
   workflow_call:
+    inputs:
+      # The commit to test. release.yml passes the commit its tag points at, so
+      # the gate runs on exactly what is published, whichever branch a manual
+      # re-run starts from. Empty (every other event) means the event's own
+      # commit, which is what every checkout below falls back to.
+      ref:
+        type: string
+        required: false
+        default: ""
+
+# Read-only, whatever the repository's default token scope is. No job here
+# writes through GITHUB_TOKEN: the images job builds with push: false, and the
+# Actions cache and artifacts use the runner's own token. Called from
+# release.yml, this can only narrow what the caller grants.
+permissions:
+  contents: read
 
 # A new push to a pull request cancels that pull request's run in flight: only
 # the newest head can merge, and every superseded run spends Actions minutes.
@@ -23,10 +39,12 @@ jobs:
       run:
         working-directory: backend
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ inputs.ref }}
 
       - name: Install uv
-        uses: astral-sh/setup-uv@v10.2.0
+        uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0
         with:
           enable-cache: true
           # uv reads backend/.python-version itself during `uv sync`; setup-uv
@@ -99,10 +117,12 @@ jobs:
       run:
         working-directory: cli
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ inputs.ref }}
 
       - name: Install uv
-        uses: astral-sh/setup-uv@v10.2.0
+        uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0
         with:
           enable-cache: true
 
@@ -138,10 +158,12 @@ jobs:
         # backend/openapi.json.
         working-directory: mcp-server
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ inputs.ref }}
 
       - name: Install uv
-        uses: astral-sh/setup-uv@v10.2.0
+        uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0
         with:
           enable-cache: true
 
@@ -155,6 +177,25 @@ jobs:
 
       - name: Pytest
         run: uv run --locked --group dev pytest -q
+
+  # The scripts in bin/ that releases and the gates below depend on.
+  # bin/release.sh pushes the tag that publishes to PyPI, which cannot be
+  # undone, so its refusals and its undo-on-failure are tested on throwaway
+  # repositories rather than discovered while cutting a release. A gate's
+  # post-check that passes on anything would turn the gate into a no-op.
+  scripts:
+    name: bin/ scripts (release, CI checks)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ inputs.ref }}
+
+      - name: Test bin/release.sh
+        run: bin/test-release.sh
+
+      - name: Test bin/check-junit.py and bin/check-openapi-docs.py
+        run: bin/test-ci-checks.sh
 
   conformance:
     # Executable warehouse gates. Every other adapter test asserts generated SQL
@@ -201,10 +242,12 @@ jobs:
           CLICKHOUSE_PASSWORD: tripl
           CLICKHOUSE_DB: tripl_conformance
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ inputs.ref }}
 
       - name: Install uv
-        uses: astral-sh/setup-uv@v10.2.0
+        uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0
         with:
           enable-cache: true
 
@@ -275,47 +318,12 @@ jobs:
         # into a no-op that reports green. Zero tests run, or any test skipped, is a
         # failure here — the gate is only a gate if it is proven to have executed.
         if: always()
-        run: |
-          python3 - <<'PY'
-          import sys, xml.etree.ElementTree as ET
-          try:
-              root = ET.parse("conformance.xml").getroot()
-          except (OSError, ET.ParseError) as exc:
-              sys.exit(f"::error::no conformance JUnit report: {exc}. The gates did not run.")
-          suites = root.iter("testsuite")
-          tests = errors = failures = skipped = 0
-          for suite in suites:
-              tests += int(suite.get("tests", 0))
-              errors += int(suite.get("errors", 0))
-              failures += int(suite.get("failures", 0))
-              skipped += int(suite.get("skipped", 0))
-          print(f"conformance: {tests} collected, {failures} failed, {errors} errored, {skipped} skipped")
-          if tests == 0:
-              sys.exit("::error::0 conformance tests ran. A gate that collects nothing is a no-op reporting green.")
-          if skipped:
-              sys.exit(f"::error::{skipped} conformance test(s) SKIPPED in CI. A warehouse was unreachable; the gate tested nothing.")
-          if failures or errors:
-              sys.exit(f"::error::{failures} failed / {errors} errored conformance test(s).")
-          PY
+        run: python3 ../bin/check-junit.py conformance.xml conformance
 
       - name: Emulator logs (on failure)
         if: failure()
         run: docker logs bqemu 2>&1 | tail -100 || true
 
-  # The search ranking had NO executable coverage at all. The backend suite runs on
-  # in-memory SQLite, and search keeps a Python fallback (`_search_query.sqlite_search`)
-  # for exactly that reason — so `postgres_lexical_search`'s ts_rank_cd/trigram/boost
-  # arithmetic, `merge_results`, and the `tripl_search` text-search configuration were
-  # executed by nothing, and any weight in them could be changed without a single test
-  # noticing. This job ranks a fixed corpus with the real SQL on a real PostgreSQL.
-  #
-  # NO case is xfailed today. The harness and the four ranking fixes landed together in
-  # one commit, so the "delete an xfail to prove the fix" workflow the case table
-  # describes has never actually been exercised here — every case is expected to PASS.
-  # The xfail counting in the post-check below stays because RelevanceCase still carries
-  # the field for the next measured fault (write the case first, fix it second, delete
-  # the marker as the proof), and because pytest reports an xfail as a skip in the JUnit
-  # XML — so the check has to tell the two apart before it can trust a skip count.
   greenplum:
     # The PostgreSQL gates, executed again on Greenplum through GreenplumAdapter.
     # Greenplum 6 is PostgreSQL 9.4 and Greenplum 7 is PostgreSQL 12, so both
@@ -340,10 +348,12 @@ jobs:
       run:
         working-directory: backend
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ inputs.ref }}
 
       - name: Install uv
-        uses: astral-sh/setup-uv@v10.2.0
+        uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0
         with:
           enable-cache: true
 
@@ -395,27 +405,7 @@ jobs:
 
       - name: Prove the Greenplum gates actually ran
         if: always()
-        run: |
-          python3 - <<'PY'
-          import sys, xml.etree.ElementTree as ET
-          try:
-              root = ET.parse("greenplum-conformance.xml").getroot()
-          except (OSError, ET.ParseError) as exc:
-              sys.exit(f"::error::no Greenplum JUnit report: {exc}. The gates did not run.")
-          tests = errors = failures = skipped = 0
-          for suite in root.iter("testsuite"):
-              tests += int(suite.get("tests", 0))
-              errors += int(suite.get("errors", 0))
-              failures += int(suite.get("failures", 0))
-              skipped += int(suite.get("skipped", 0))
-          print(f"Greenplum conformance: {tests} collected, {failures} failed, {errors} errored, {skipped} skipped")
-          if tests == 0:
-              sys.exit("::error::0 Greenplum conformance tests ran.")
-          if skipped:
-              sys.exit(f"::error::{skipped} Greenplum conformance test(s) skipped.")
-          if failures or errors:
-              sys.exit(f"::error::{failures} failed / {errors} errored Greenplum conformance test(s).")
-          PY
+        run: python3 ../bin/check-junit.py greenplum-conformance.xml "Greenplum conformance"
 
   trino:
     # The value contract executed on a real Trino coordinator. Trino is
@@ -431,10 +421,12 @@ jobs:
       run:
         working-directory: backend
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ inputs.ref }}
 
       - name: Install uv
-        uses: astral-sh/setup-uv@v10.2.0
+        uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0
         with:
           enable-cache: true
 
@@ -474,32 +466,25 @@ jobs:
 
       - name: Prove the Trino gates actually ran
         if: always()
-        run: |
-          python3 - <<'PY'
-          import sys, xml.etree.ElementTree as ET
-          try:
-              root = ET.parse("trino-conformance.xml").getroot()
-          except (OSError, ET.ParseError) as exc:
-              sys.exit(f"::error::no Trino JUnit report: {exc}. The gates did not run.")
-          tests = errors = failures = skipped = 0
-          for suite in root.iter("testsuite"):
-              tests += int(suite.get("tests", 0))
-              errors += int(suite.get("errors", 0))
-              failures += int(suite.get("failures", 0))
-              skipped += int(suite.get("skipped", 0))
-          print(f"Trino conformance: {tests} collected, {failures} failed, {errors} errored, {skipped} skipped")
-          if tests == 0:
-              sys.exit("::error::0 Trino conformance tests ran.")
-          if skipped:
-              sys.exit(f"::error::{skipped} Trino conformance test(s) skipped.")
-          if failures or errors:
-              sys.exit(f"::error::{failures} failed / {errors} errored Trino conformance test(s).")
-          PY
+        run: python3 ../bin/check-junit.py trino-conformance.xml "Trino conformance"
 
       - name: Trino logs (on failure)
         if: failure()
         run: docker logs trino 2>&1 | tail -100 || true
 
+  # The search ranking had NO executable coverage at all. The backend suite runs on
+  # in-memory SQLite, and search keeps a Python fallback (`_search_query.sqlite_search`)
+  # for exactly that reason — so `postgres_lexical_search`'s ts_rank_cd/trigram/boost
+  # arithmetic, `merge_results`, and the `tripl_search` text-search configuration were
+  # executed by nothing, and any weight in them could be changed without a single test
+  # noticing. This job ranks a fixed corpus with the real SQL on a real PostgreSQL.
+  #
+  # NO case is xfailed today. The harness and the four ranking fixes landed together in
+  # one commit, so the "delete an xfail to prove the fix" workflow the case table
+  # describes has never actually been exercised here — every case is expected to PASS.
+  # The post-check below still accepts xfails because RelevanceCase carries the field
+  # for the next measured fault (write the case first, fix it second, delete the
+  # marker as the proof).
   relevance:
     name: Search relevance harness (postgres)
     runs-on: ubuntu-latest
@@ -529,10 +514,12 @@ jobs:
           --health-timeout 5s
           --health-retries 24
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ inputs.ref }}
 
       - name: Install uv
-        uses: astral-sh/setup-uv@v10.2.0
+        uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0
         with:
           enable-cache: true
 
@@ -582,60 +569,14 @@ jobs:
             src/tripl/tests/relevance
 
       - name: Prove the harness actually ran
-        # The belt to TRIPL_RELEVANCE_REQUIRED's braces, and it has to be smarter than
-        # the conformance job's version: pytest reports an xfail AS a skip in the JUnit
-        # XML. Today that count is 0 (no case is marked), but it must be separated out
-        # anyway — the moment the next fault is written down as an xfail, a check that
-        # treated it as a real skip would fail the job for the harness working exactly
-        # as designed. So skips are counted by `type`: `pytest.xfail` is expected,
-        # anything else is a database that never came up and a gate that tested nothing.
+        # The belt to TRIPL_RELEVANCE_REQUIRED's braces. --allow-xfail because
+        # pytest reports an xfail AS a skip in the JUnit XML: today none is marked,
+        # but the next fault written down as an xfail must not fail the job for
+        # the harness working as designed. Any other skip is a database that
+        # never came up and a gate that tested nothing.
         if: always()
-        run: |
-          python3 - <<'PY'
-          import sys, xml.etree.ElementTree as ET
-          try:
-              root = ET.parse("relevance.xml").getroot()
-          except (OSError, ET.ParseError) as exc:
-              sys.exit(f"::error::no relevance JUnit report: {exc}. The harness did not run.")
-          total = xfailed = 0
-          skipped: list[str] = []
-          broken: list[str] = []
-          for case in root.iter("testcase"):
-              total += 1
-              name = case.get("name") or "<unnamed>"
-              for node in case.findall("skipped"):
-                  if node.get("type") == "pytest.xfail":
-                      xfailed += 1
-                  else:
-                      skipped.append(name)
-              if case.find("failure") is not None or case.find("error") is not None:
-                  broken.append(name)
-          print(f"relevance: {total} collected, {xfailed} xfailed, "
-                f"{len(skipped)} skipped, {len(broken)} failed/errored")
-          if total == 0:
-              sys.exit("::error::0 relevance tests ran. A gate that collects nothing is a no-op.")
-          if skipped:
-              sys.exit(
-                  "::error::relevance test(s) SKIPPED in CI: "
-                  + ", ".join(skipped)
-                  + ". PostgreSQL was unreachable; the ranking SQL was not executed."
-              )
-          if broken:
-              sys.exit("::error::relevance failures: " + ", ".join(broken))
-          PY
+        run: python3 ../bin/check-junit.py relevance.xml relevance --allow-xfail
 
-  # Static lint and revision-graph tests cannot prove PostgreSQL accepts a
-  # migration or that its downgrade leaves a replayable schema. The separate
-  # migration job executes the baseline on real PostgreSQL whenever Alembic
-  # changes, just as the deployment entrypoint runs `alembic upgrade head`.
-  #
-  # Two jobs rather than one, deliberately. The scope probe always runs and always
-  # reports, so the expensive job can be gated without the "skipped but required"
-  # trap: a workflow-level `paths:` filter produces NO check at all, and a PR that
-  # requires it sits on "Expected — Waiting for status to be reported" forever,
-  # whereas a job skipped by an `if:` reports a conclusion that branch protection
-  # accepts. bigquery-value-conformance.yml gates its credentialed job the same
-  # way, for the same reason.
   digest-concurrency:
     name: Alert digest flush concurrency (postgres)
     runs-on: ubuntu-latest
@@ -669,10 +610,12 @@ jobs:
       # TRIPL_CONFORMANCE_REQUIRED and TRIPL_RELEVANCE_REQUIRED do.
       TRIPL_TEST_PG_REQUIRED: "1"
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ inputs.ref }}
 
       - name: Install uv
-        uses: astral-sh/setup-uv@v10.2.0
+        uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0
         with:
           enable-cache: true
 
@@ -686,14 +629,27 @@ jobs:
         # read.
         run: uv run pytest -q -m "pg_concurrency or postgres" -p no:randomly
 
+  # Static lint and revision-graph tests cannot prove PostgreSQL accepts a
+  # migration or that its downgrade leaves a replayable schema. The separate
+  # migration job executes the baseline on real PostgreSQL whenever Alembic
+  # changes, just as the deployment entrypoint runs `alembic upgrade head`.
+  #
+  # Two jobs rather than one, deliberately. The scope probe always runs and always
+  # reports, so the expensive job can be gated without the "skipped but required"
+  # trap: a workflow-level `paths:` filter produces NO check at all, and a PR that
+  # requires it sits on "Expected — Waiting for status to be reported" forever,
+  # whereas a job skipped by an `if:` reports a conclusion that branch protection
+  # accepts. bigquery-value-conformance.yml gates its credentialed job the same
+  # way, for the same reason.
   migration-scope:
     name: Detect alembic changes
     runs-on: ubuntu-latest
     outputs:
       alembic: ${{ steps.scope.outputs.alembic }}
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
+          ref: ${{ inputs.ref }}
           # Both sides of the PR are needed to diff it; the default shallow fetch
           # has neither.
           fetch-depth: 0
@@ -723,9 +679,9 @@ jobs:
             echo "::warning::no merge base with $BASE_SHA; running the round trip anyway."
             exit 0
           fi
-          # The workflow and parity helper are in the filter: a PR that edits
-          # this gate must run the gate it edited.
-          changed=$(git diff --name-only "$merge_base" HEAD -- backend/alembic .github/workflows/ci.yml bin/compare-migration-schema.py)
+          # The workflow is in the filter: a PR that edits this gate must run the
+          # gate it edited.
+          changed=$(git diff --name-only "$merge_base" HEAD -- backend/alembic .github/workflows/ci.yml)
           if [ -n "$changed" ]; then
             echo "alembic=true" >> "$GITHUB_OUTPUT"
             echo "migration-relevant changes:"
@@ -772,10 +728,12 @@ jobs:
       # driver would fail at connect. SYNC_DATABASE_URL is not read by migrations.
       DATABASE_URL: postgresql+asyncpg://tripl:tripl@localhost:5432/tripl
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ inputs.ref }}
 
       - name: Install uv
-        uses: astral-sh/setup-uv@v10.2.0
+        uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0
         with:
           enable-cache: true
           # Same setup as the backend job above: uv reads backend/.python-version
@@ -783,18 +741,6 @@ jobs:
 
       - name: Install dependencies
         run: uv sync --extra dev
-
-      - id: baseline
-        name: Detect the single baseline revision
-        run: |
-          revision_count=$(find alembic/versions -maxdepth 1 -name '*.py' | wc -l)
-          head=$(uv run alembic heads | awk 'NR==1 {print $1}')
-          if [ "$revision_count" -eq 1 ] && [ "$head" = a1c3e5f7b9d2 ]; then
-            echo "compare=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "compare=false" >> "$GITHUB_OUTPUT"
-            echo "::notice::the historical schema comparison applies only to the a1c3e5f7b9d2 baseline"
-          fi
 
       - name: Wait for an EMPTY Postgres
         # pg_isready answers happily on a server that will still reject the login,
@@ -844,60 +790,8 @@ jobs:
             exit 1
           fi
 
-      # This pins the pre-squash chain to an immutable main commit. Its final
-      # schema must match the new baseline exactly, including indexes, checks,
-      # enum types, functions, and extension state. The comparison is relevant
-      # only while a1c3e5f7b9d2 is the sole revision; later migrations keep the
-      # round-trip gate above and below without comparing to historical head.
-      - uses: actions/checkout@v7
-        if: steps.baseline.outputs.compare == 'true'
-        with:
-          ref: 19eea9a9a433a05c97a03e371f06b4bb16759fdc
-          path: legacy
-
-      - name: Upgrade the pre-squash chain in a second database
-        if: steps.baseline.outputs.compare == 'true'
-        working-directory: legacy/backend
-        env:
-          DATABASE_URL: postgresql+asyncpg://tripl:tripl@localhost:5432/tripl_legacy
-          POSTGRES_CONTAINER: ${{ job.services.postgres.id }}
-        run: |
-          docker exec "$POSTGRES_CONTAINER" createdb -U tripl tripl_legacy
-          uv sync --extra dev
-          uv run alembic upgrade head
-          head=$(uv run alembic heads | awk 'NR==1 {print $1}')
-          current=$(uv run alembic current | awk 'NR==1 {print $1}')
-          if [ "$head" != a1c3e5f7b9d2 ] || [ "$current" != "$head" ]; then
-            echo "::error::pre-squash chain ended at '$current', expected a1c3e5f7b9d2"
-            exit 1
-          fi
-
-      - name: Compare pre-squash and baseline PostgreSQL schemas
-        if: steps.baseline.outputs.compare == 'true'
-        env:
-          POSTGRES_CONTAINER: ${{ job.services.postgres.id }}
-        run: |
-          docker exec "$POSTGRES_CONTAINER" pg_dump -U tripl --schema-only --no-owner --no-privileges --restrict-key=triplcischemacompare2026 --exclude-table=public.alembic_version tripl_legacy > "$RUNNER_TEMP/legacy-schema.sql"
-          docker exec "$POSTGRES_CONTAINER" pg_dump -U tripl --schema-only --no-owner --no-privileges --restrict-key=triplcischemacompare2026 --exclude-table=public.alembic_version tripl > "$RUNNER_TEMP/baseline-schema.sql"
-          # pg_dump can print the same varchar[] CHECK ANY expression with a
-          # whole-array text[] cast or per-element text casts after restore.
-          # The helper normalizes only that exact expression; all other DDL
-          # and every constraint value/name still receive a strict comparison.
-          if ! uv run python ../bin/compare-migration-schema.py "$RUNNER_TEMP/legacy-schema.sql" "$RUNNER_TEMP/baseline-schema.sql"; then
-            echo "::error::baseline schema differs from the pre-squash migration chain"
-            exit 1
-          fi
-          expected='00000000-0000-0000-0000-00000000d0f1|default|Default organization'
-          for database in tripl_legacy tripl; do
-            actual=$(docker exec "$POSTGRES_CONTAINER" psql -U tripl -d "$database" -Atc "SELECT id, slug, name FROM organizations ORDER BY id")
-            if [ "$actual" != "$expected" ]; then
-              echo "::error::$database default organization seed differs from the pre-squash chain"
-              exit 1
-            fi
-          done
-
       - name: Downgrade to base and prove nothing is left behind
-        # Unwind the current chain (the baseline alone, until later revisions).
+        # Unwind the whole chain, the baseline included.
         # An apparently successful downgrade can leave tables or enum types
         # behind, so both the revision marker and physical schema are checked.
         #
@@ -967,20 +861,22 @@ jobs:
       run:
         working-directory: frontend
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ inputs.ref }}
 
       # Bun installs the dependencies and runs the scripts (vite, vitest,
       # openapi-typescript) on its own runtime; the version comes from
       # frontend/package.json "packageManager".
       - name: Install Bun
-        uses: oven-sh/setup-bun@v2.2.0
+        uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
         with:
           bun-version-file: frontend/package.json
 
       # Node runs one step only: the project lint-rule tests. Oxlint's
       # RuleTester refuses any runtime but Node.
       - name: Install Node (lint-rule tests)
-        uses: actions/setup-node@v7
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version-file: frontend/.node-version
 
@@ -996,6 +892,13 @@ jobs:
         run: |
           bun run gen:api
           git diff --exit-code -- src/types/api.gen.ts
+
+      # The docs site renders its own copy of the spec, in the app's order
+      # rather than sorted. Nothing used to compare it with the snapshot, and it
+      # fell behind: no Trino or Athena settings, a usage ping still described
+      # as opt-in. `make sync-types` writes both; this proves it was run.
+      - name: Docs-site API reference matches backend/openapi.json
+        run: python3 ../bin/check-openapi-docs.py
 
       - name: Lint
         run: bun run lint
@@ -1020,7 +923,7 @@ jobs:
       # be compared against the numbers without re-running locally.
       - name: Upload coverage summary
         if: ${{ !cancelled() }}
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: frontend-coverage-summary
           path: frontend/coverage/coverage-summary.json
@@ -1036,7 +939,9 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ inputs.ref }}
 
       - name: Start the dev stack
         env:
@@ -1051,7 +956,7 @@ jobs:
           exit 1
 
       - name: Install Bun
-        uses: oven-sh/setup-bun@v2.2.0
+        uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
         with:
           bun-version-file: frontend/package.json
 
@@ -1073,7 +978,7 @@ jobs:
 
       - name: Upload the screenshot baselines
         if: ${{ always() && contains(github.event.pull_request.labels.*.name, 'update-snapshots') }}
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: e2e-snapshots
           path: frontend/e2e/*-snapshots
@@ -1086,7 +991,7 @@ jobs:
 
       - name: Upload the Playwright report
         if: ${{ failure() }}
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: playwright-report
           path: |
@@ -1101,8 +1006,9 @@ jobs:
     outputs:
       images: ${{ steps.scope.outputs.images }}
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
+          ref: ${{ inputs.ref }}
           # Both sides of the PR are needed to diff it; the default shallow fetch
           # has neither.
           fetch-depth: 0
@@ -1164,12 +1070,14 @@ jobs:
       # after every other gate had gone green. amd64 only and push: false — this
       # gate is about whether the images still build, not about publishing them;
       # release.yml keeps the arm64 leg and the registry credentials.
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ inputs.ref }}
 
-      - uses: docker/setup-buildx-action@v4
+      - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
 
       - name: Build the app image
-        uses: docker/build-push-action@v7
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
         with:
           context: .
           file: ./Dockerfile
@@ -1199,7 +1107,7 @@ jobs:
           '
 
       - name: Build the MCP image
-        uses: docker/build-push-action@v7
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
         with:
           context: .
           file: ./mcp-server/Dockerfile

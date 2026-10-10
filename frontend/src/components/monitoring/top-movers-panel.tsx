@@ -35,12 +35,6 @@ interface TopMoversPanelProps {
   timeRange?: { from: string; to: string }
 }
 
-// The app locale, not the browser's: the chart beside this list already
-// prints its numbers in it.
-function formatCount(value: number): string {
-  return formatNumber(Math.round(value))
-}
-
 /**
  * What the chip beside a top-mover row says: a signed percentage, the words
  * `no baseline`, or '' when there is genuinely nothing to add.
@@ -202,7 +196,7 @@ function TopMoverRow({
             </span>
           </p>
           <p className="text-body-sm text-fg-tertiary">
-            actual {formatCount(item.actual_count)} · expected {formatCount(item.expected_count)}
+            actual {formatNumber(Math.round(item.actual_count))} · expected {formatNumber(Math.round(item.expected_count))}
           </p>
         </div>
       </div>
@@ -217,7 +211,7 @@ function TopMoverRow({
           icon={<Icon aria-hidden="true" />}
           title={formatSignalEffectDetail(item)}
         >
-          {delta > 0 ? '+' : ''}{formatCount(delta)}
+          {delta > 0 ? '+' : ''}{formatNumber(Math.round(delta))}
         </Chip>
         {pct && (
           <span

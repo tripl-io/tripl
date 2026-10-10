@@ -47,6 +47,7 @@ from sqlalchemy.orm import Session
 
 from tripl.alerting_property_drift import active_property_drift_filters, property_drift_sample
 from tripl.core.bucketing import to_utc
+from tripl.core.drift_activity import DRIFT_RETENTION_DAYS
 from tripl.models.domain_enums import MetricScopeType, SignalTriageAction
 from tripl.models.event import Event
 from tripl.models.event_type import EventType
@@ -78,9 +79,9 @@ ALREADY_TOLD_WINDOW = timedelta(days=7)
 # The query parameter carrying a property drift's id on its notification URL.
 PROPERTY_DRIFT_URL_PARAM = "property_drift"
 # A property drift stays open until someone triages it, so its dedup looks back
-# over the whole drift retention (``variable_value_drift_service``'s 30 days)
-# rather than a week: an untriaged drift is not re-announced every run.
-PROPERTY_DRIFT_TOLD_WINDOW = timedelta(days=30)
+# over the whole drift retention (``core.drift_activity``) rather than a week:
+# an untriaged drift is not re-announced every run.
+PROPERTY_DRIFT_TOLD_WINDOW = timedelta(days=DRIFT_RETENTION_DAYS)
 
 
 @dataclass(frozen=True)

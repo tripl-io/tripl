@@ -3,6 +3,7 @@ import { DOC_LINK_KIND_NOUN } from '@/lib/docLinks'
 import { cn } from '@/lib/utils'
 import { DOC_LINK_KIND_ICON } from './docLinkIcons'
 import type { DocLinkPicker } from './useDocLinkPicker'
+import { countOf } from '@/lib/plural'
 
 /** Where the popup sits: under the `[[` / `@`, in viewport pixels. */
 export interface PickerPosition {
@@ -37,7 +38,7 @@ export function DocLinkPickerPopup({
     ? 'Searching…'
     : items.length === 0
       ? trigger.query ? 'No matches' : 'Type to search'
-      : `${items.length} ${items.length === 1 ? 'suggestion' : 'suggestions'}`
+      : countOf(items.length, 'suggestion', 'suggestions')
 
   return (
     <div

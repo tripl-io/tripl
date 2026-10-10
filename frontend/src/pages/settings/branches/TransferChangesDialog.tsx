@@ -13,20 +13,23 @@ import { Button } from '@/components/ui/button'
 import {
   Dialog,
   DialogBody,
+  DialogClose,
   DialogContent,
   DialogDescription,
   DialogFooter,
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog'
+import { useDialogDirty, useDialogLeave } from '@/components/ui/dialog-guard'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { SegmentedControl } from '@/components/ui/segmented-control'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Textarea } from '@/components/ui/textarea'
+import { useDirtySinceOpen } from '@/hooks/useUnsavedChangesGuard'
 import { SILENT_ERROR_META } from '@/lib/errorFeedback'
 import { currentOrgSlug, projectPath } from '@/lib/navigation'
-import { countOf } from '@/lib/plural'
+import { countOf, pluralize } from '@/lib/plural'
 import { planBranchesKey, planBranchTransferPreviewKey } from '@/lib/queryKeys'
 import type { PlanBranchSummary, PlanDiffEntry } from '@/types'
 import { BRANCH_NAME_HINT, branchNameProblem } from './branchMeta'
@@ -126,6 +129,12 @@ function TransferBody({
   // A branch this dialog created whose transfer was then refused: it stays
   // the selected target, so a retry does not cut a second one.
   const [created, setCreated] = useState<PlanBranchSummary | null>(null)
+  // The body mounts with the dialog, so its first render is the baseline. A
+  // picked target or a typed branch name asks before Escape, an outside click,
+  // the X or Cancel drops it; a finished transfer closes without asking.
+  const dirty = useDirtySinceOpen(true, { mode, target, newName, newDescription })
+  useDialogDirty(dirty)
+  const leave = useDialogLeave()
 
   const branches = useQuery({
     queryKey: planBranchesKey(slug),
@@ -232,7 +241,7 @@ function TransferBody({
     data.applied.length + data.carried.length + data.skipped.length > 0
   const verb = mode === 'move' ? 'Move' : 'Copy'
   const changeCount = countTransferChanges(entries, renamePairs)
-  const changes = `${countOf(changeCount, 'change', 'changes')} ${changeCount === 1 ? 'lands' : 'land'}`
+  const changes = `${countOf(changeCount, 'change', 'changes')} ${pluralize(changeCount, 'lands', 'land')}`
 
   return (
     <div className="flex min-h-0 flex-col gap-4">
@@ -242,14 +251,14 @@ function TransferBody({
           {mode === 'move' ? (
             <>
               The {changes} on the branch you pick and{' '}
-              {changeCount === 1 ? 'is' : 'are'} undone on{' '}
+              {pluralize(changeCount, 'is', 'are')} undone on{' '}
               <span className="mono">{branch.name}</span>.
             </>
           ) : (
             <>
               The {changes} on the branch you pick;{' '}
               <span className="mono">{branch.name}</span> keeps{' '}
-              {changeCount === 1 ? 'it' : 'them'} too.
+              {pluralize(changeCount, 'it', 'them')} too.
             </>
           )}
         </DialogDescription>
@@ -371,7 +380,15 @@ function TransferBody({
                   key={id}
                   to={projectPath(currentOrgSlug(), slug, `/branches/${id}`)}
                   className="text-accent hover:underline"
-                  onClick={onClose}
+                  onClick={(event) => {
+                    // A modified click opens another tab and leaves this dialog as it is.
+                    if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey || event.button !== 0) return
+                    event.preventDefault()
+                    leave(() => {
+                      onClose()
+                      navigate(projectPath(currentOrgSlug(), slug, `/branches/${id}`))
+                    })
+                  }}
                 >
                   Open {id === branch.id ? branch.name : (targets.find((t) => t.id === id)?.name ?? 'the branch')} to update it
                 </Link>
@@ -392,9 +409,12 @@ function TransferBody({
         ) : null}
       </DialogBody>
       <DialogFooter>
-        <Button type="button" variant="outline" onClick={onClose}>
-          Cancel
-        </Button>
+        {/* A close request like Escape, so it asks first when something is picked. */}
+        <DialogClose asChild>
+          <Button type="button" variant="outline">
+            Cancel
+          </Button>
+        </DialogClose>
         <Button type="button" disabled={!canConfirm} onClick={() => transferMut.mutate()}>
           {transferMut.isPending ? (
             <>
@@ -412,6 +432,7 @@ function TransferBody({
 
 function TransferPreview({ result }: { result: BranchTransferResult }) {
   const verb = result.mode === 'move' ? 'Will move' : 'Will copy'
+  const warnings = result.warnings ?? []
   return (
     <div className="grid gap-3" data-testid="transfer-preview">
       <ItemList title={verb} items={result.applied.map(describeTransferItem)} />
@@ -420,11 +441,11 @@ function TransferPreview({ result }: { result: BranchTransferResult }) {
         title="Skipped (already on target)"
         items={result.skipped.map(describeTransferItem)}
       />
-      {result.warnings.length > 0 ? (
+      {warnings.length > 0 ? (
         <section className="grid gap-1">
           <h3 className="text-body-sm font-medium text-fg">Good to know</h3>
           <ul className="list-disc space-y-0.5 pl-5 text-caption text-fg-secondary">
-            {result.warnings.map((warning) => (
+            {warnings.map((warning) => (
               <li key={warning}>{warning}</li>
             ))}
           </ul>

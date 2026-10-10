@@ -14,15 +14,8 @@ from __future__ import annotations
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from tripl.config import settings
-from tripl.models.user import User
 from tripl.services import instance_login
-from tripl.services.instance_login import (
-    ERR_SIGNUP_CLOSED,
-    STATE_TTL,
-    Provider,
-    StartedLogin,
-    home_org_id,
-)
+from tripl.services.instance_login import Provider, StartedLogin, home_org_id
 from tripl.services.oidc.id_tokens import IdTokenClaims
 
 GOOGLE_ISSUER = "https://accounts.google.com"
@@ -31,15 +24,11 @@ CALLBACK_PATH = "/api/v1/auth/google/callback"
 
 __all__ = [
     "CALLBACK_PATH",
-    "ERR_SIGNUP_CLOSED",
     "GOOGLE_ISSUER",
-    "STATE_TTL",
     "callback",
     "enabled",
     "home_org_id",
     "provider",
-    "redirect_uri",
-    "sign_in_verified",
     "start",
 ]
 
@@ -61,10 +50,6 @@ def provider() -> Provider:
 
 def enabled() -> bool:
     return provider().configured
-
-
-def redirect_uri(app_base_url: str) -> str:
-    return provider().redirect_uri(app_base_url)
 
 
 async def start(*, next_path: str | None, app_base_url: str) -> StartedLogin:
@@ -99,8 +84,3 @@ async def callback(
         # Looked up at call time: the tests replace it.
         authenticate=lambda **kwargs: _authenticate(**kwargs),
     )
-
-
-async def sign_in_verified(session: AsyncSession, *, email: str, name: str | None) -> User:
-    """The account a Google-verified ``email`` signs in to, created if it may be. No commit."""
-    return await instance_login.sign_in_verified(provider(), session, email=email, name=name)

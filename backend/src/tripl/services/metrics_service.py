@@ -33,7 +33,6 @@ from tripl.models.metric_anomaly import MetricAnomaly
 from tripl.models.metric_baseline import MetricBaseline
 from tripl.models.metric_breakdown_anomaly import MetricBreakdownAnomaly
 from tripl.models.plan_branch import BranchKind, PlanBranch
-from tripl.models.project import Project
 from tripl.models.project_anomaly_settings import (
     DEFAULT_SIGMA_THRESHOLD,
     ProjectAnomalySettings,
@@ -86,10 +85,6 @@ from tripl.services.version_activation import (
     released_versions,
     resolve_share_min,
 )
-
-
-async def _resolve_project(session: AsyncSession, slug: str) -> Project:
-    return await resolve_project(session, slug, detail=f"Project '{slug}' not found")
 
 
 async def _resolve_event(
@@ -1090,7 +1085,7 @@ async def get_event_metrics(
     time_from: datetime | None = None,
     time_to: datetime | None = None,
 ) -> EventMetricsResponse:
-    project = await _resolve_project(session, slug)
+    project = await resolve_project(session, slug)
     event = await _resolve_event(session, project.id, event_id)
     scan_config_id = await _resolve_scope_scan_config_id(
         session,
@@ -1178,7 +1173,7 @@ async def get_event_metric_breakdowns(
     time_from: datetime | None = None,
     time_to: datetime | None = None,
 ) -> EventMetricBreakdownsResponse:
-    project = await _resolve_project(session, slug)
+    project = await resolve_project(session, slug)
     event = await _resolve_event(session, project.id, event_id)
     scan_config_id = await _resolve_scope_scan_config_id(
         session,
@@ -1618,7 +1613,7 @@ async def get_app_version_series(
     time_from: datetime | None = None,
     time_to: datetime | None = None,
 ) -> AppVersionSeriesResponse:
-    project = await _resolve_project(session, slug)
+    project = await resolve_project(session, slug)
     config = await _resolve_scan_config(session, project.id, scan_config_id)
     resolved_scope_ref = _validate_app_version_scope_ref(
         scope_type=scope_type,
@@ -1699,7 +1694,7 @@ async def get_app_version_adoption(
     time_from: datetime | None = None,
     time_to: datetime | None = None,
 ) -> AppVersionAdoptionResponse:
-    project = await _resolve_project(session, slug)
+    project = await resolve_project(session, slug)
     config = await _resolve_scan_config(session, project.id, scan_config_id)
     scope_ref = str(config.id)
     if not config.app_version_column:
@@ -1763,7 +1758,7 @@ async def get_release_regressions(
     ``items`` can be read as either "nothing regressed" or "the release cannot
     be judged yet"; without it the two payloads are identical.
     """
-    project = await _resolve_project(session, slug)
+    project = await resolve_project(session, slug)
     config = await _resolve_scan_config(session, project.id, scan_config_id)
     if not config.app_version_column:
         return ReleaseRegressionsResponse(
@@ -1889,7 +1884,7 @@ async def get_platform_presence(
     The database folds them now; ``Event.name`` rides along
     functionally dependent on ``event_id``, so it adds no rows of its own.
     """
-    project = await _resolve_project(session, slug)
+    project = await resolve_project(session, slug)
     config = await _resolve_scan_config(session, project.id, scan_config_id)
     if not config.platform_column:
         return PlatformPresenceResponse(
@@ -2038,7 +2033,7 @@ async def get_events_metrics(
     time_to: datetime | None = None,
     branch_id: uuid.UUID | None = None,
 ) -> EventMetricsResponse:
-    project = await _resolve_project(session, slug)
+    project = await resolve_project(session, slug)
     # Filled on every return, like every sibling metrics endpoint:
     # the points below carry no band today, but a served field left at the
     # schema default claims a threshold the project may not use.
@@ -2175,7 +2170,7 @@ async def get_overview_kpi_series(
     Mirrors project_service._get_project_summaries' scoping so
     the sparkline and the stat describe the same plan.
     """
-    project = await _resolve_project(session, slug)
+    project = await resolve_project(session, slug)
     start_day = (datetime.now(UTC) - timedelta(days=days - 1)).date()
     time_from = datetime(start_day.year, start_day.month, start_day.day, tzinfo=UTC)
     main_branch_ids = select(PlanBranch.id).where(
@@ -2217,7 +2212,7 @@ async def get_top_events_by_volume(
     events by volume" widget, computed server-side so the client need not fetch
     window metrics for every event just to show a handful.
     """
-    project = await _resolve_project(session, slug)
+    project = await resolve_project(session, slug)
     time_from = datetime.now(UTC) - timedelta(hours=window_hours)
     total = func.coalesce(func.sum(EventMetric.count), 0)
     rows = (
@@ -2343,7 +2338,7 @@ async def get_events_window_metrics(
     if not event_ids:
         return []
 
-    project = await _resolve_project(session, slug)
+    project = await resolve_project(session, slug)
 
     # Branch copies read through to their main twins: the batch
     # runs on the twin ids and each response is stamped with the id asked for.
@@ -2548,7 +2543,7 @@ async def get_event_type_metrics(
     time_from: datetime | None = None,
     time_to: datetime | None = None,
 ) -> EventMetricsResponse:
-    project = await _resolve_project(session, slug)
+    project = await resolve_project(session, slug)
     event_type = await _resolve_event_type(session, project.id, event_type_id)
     scan_config_id = await _resolve_scope_scan_config_id(
         session,
@@ -2635,7 +2630,7 @@ async def get_project_total_metrics(
     time_from: datetime | None = None,
     time_to: datetime | None = None,
 ) -> EventMetricsResponse:
-    project = await _resolve_project(session, slug)
+    project = await resolve_project(session, slug)
     resolved_scan_config_id = scan_config_id or await _get_default_scan_config_id(
         session, project.id
     )

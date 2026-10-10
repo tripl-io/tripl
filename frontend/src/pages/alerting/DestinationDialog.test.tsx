@@ -16,6 +16,7 @@ function makeSlack(overrides: Partial<AlertDestination> = {}): AlertDestination 
     type: 'slack',
     name: 'Ops Slack',
     held_count: 0,
+    project_timezone: 'UTC',
     enabled: true,
     webhook_set: true,
     bot_token_set: false,

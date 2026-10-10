@@ -5,11 +5,10 @@ import { Check, ChevronDown, X } from 'lucide-react'
 import { eventsApi } from '@/api/events'
 import { INPUT_BASE, INPUT_CLASS, INPUT_DISABLED } from '@/components/settings/input-style'
 import { AnchoredListbox } from '@/components/ui/anchored-listbox'
-import { useDebouncedValue } from '@/hooks/useDebouncedValue'
+import { useEventRoster } from '@/hooks/useEventRoster'
 import { SILENT_ERROR_META } from '@/lib/errorFeedback'
 import { DEFAULT_ENTITY_COLOR, type EventType } from '@/types'
 import { eventKey } from '@/lib/queryKeys'
-import { eventRosterQuery } from './eventRoster'
 import {
   eventOption,
   moreText,
@@ -75,11 +74,16 @@ export function EventRefPicker({
   const [open, setOpen] = useState(false)
   const [search, setSearch] = useState('')
   const [highlight, setHighlight] = useState(0)
-  const debouncedSearch = useDebouncedValue(search.trim())
 
   const types = useMemo(() => typeLookup(eventTypes), [eventTypes])
-  const rosterQuery = useQuery(eventRosterQuery(slug, debouncedSearch))
-  const roster = useMemo(() => rosterQuery.data?.items ?? [], [rosterQuery.data])
+  // Metrics are project-level, so the roster is main's. The error is rendered
+  // inline under the picker, with a retry.
+  const { query: rosterQuery, events: roster, debouncedSearch } = useEventRoster({
+    slug,
+    branchId: null,
+    search: search.trim(),
+    meta: SILENT_ERROR_META,
+  })
   const selectedInRoster = !!value.eventId && roster.some(event => event.id === value.eventId)
   // Same key shape as the event detail page, so an opened event is read from cache.
   const selectedEventQuery = useQuery({

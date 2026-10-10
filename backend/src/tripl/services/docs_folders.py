@@ -22,7 +22,7 @@ from tripl.models.doc_file import DocFile
 from tripl.models.doc_share import DocFolderSetting, DocFolderShare, DocShare
 from tripl.models.project import Project
 from tripl.models.user import User
-from tripl.services.docs_access import effective_folder_id, effective_visibility
+from tripl.services.docs_access import effective_folder_id, effective_visibility, scope_filter
 from tripl.services.docs_paths import DocScope, path_key
 
 
@@ -31,12 +31,6 @@ def folder_scope_filter(project: Project, scope: DocScope) -> ColumnElement[bool
     if scope == "project":
         return DocFolderSetting.project_id == project.id
     return DocFolderSetting.organization_id == project.organization_id
-
-
-def doc_scope_filter(project: Project, scope: DocScope) -> ColumnElement[bool]:
-    if scope == "project":
-        return DocFile.project_id == project.id
-    return DocFile.organization_id == project.organization_id
 
 
 def _at_or_under(folder: str) -> ColumnElement[bool]:
@@ -143,7 +137,7 @@ async def carry_folder_settings(
         bystander = await session.scalar(
             select(DocFile.id)
             .where(
-                doc_scope_filter(project, scope),
+                scope_filter(project, scope),
                 DocFile.path_key.startswith(key + "/", autoescape=True),
                 DocFile.id.not_in(moving),
             )
@@ -286,7 +280,7 @@ async def drop_orphan_folder_settings(
                 folder_scope_filter(project, scope),
                 _at_or_under(folder),
                 ~exists().where(
-                    doc_scope_filter(project, scope),
+                    scope_filter(project, scope),
                     # substr, not LIKE: a folder name may hold "_" or "%".
                     func.substr(DocFile.path_key, 1, func.length(DocFolderSetting.path_key) + 1)
                     == DocFolderSetting.path_key + "/",

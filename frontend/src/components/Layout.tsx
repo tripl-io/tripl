@@ -6,7 +6,6 @@ import {
   useMemo,
   useRef,
   useState,
-  useSyncExternalStore,
   type ReactNode,
 } from 'react'
 import { Outlet, useLocation, useParams } from 'react-router-dom'
@@ -26,19 +25,16 @@ import { DemoBannerPlaceholder } from '@/demo/DemoBannerPlaceholder'
 import { ShellSkeleton } from '@/components/states/skeletons'
 import { ProjectNotFound } from '@/components/states/project-not-found'
 import { OrgSuspendedState } from '@/components/states/org-suspended'
+import { ShellStandIn } from '@/components/states/shell-stand-in'
 import { PublicDemoBanner } from '@/components/shell/public-demo-banner'
 import { useActiveOrg } from '@/components/active-org-context'
 import { extensionShellBanners, extensionShellGates } from '@/extensions'
 import { orgIsSuspended } from '@/lib/orgStatus'
-import {
-  DocumentEntityTitleContext,
-  EDIT_PAGE_TITLE_PREFIX,
-  ShellChromeContext,
-} from '@/components/shell-chrome-context'
+import { DocumentEntityTitleContext, ShellChromeContext } from '@/components/shell-chrome-context'
 import { ProjectEventStreamProvider } from '@/realtime/ProjectEventStreamProvider'
-import { currentOrgSlug, projectHomePath, projectPath, resolveNavLocation, stripOrgPrefix } from '@/lib/navigation'
-import { navCrumb, type Crumb } from '@/components/shell/crumbs'
+import { resolveCrumbs, topBarHeading } from '@/components/shell/crumbs'
 import { useShellShortcuts } from '@/components/shell/shell-shortcuts'
+import { useMediaQuery } from '@/hooks/useMediaQuery'
 import { SILENT_ERROR_META } from '@/lib/errorFeedback'
 import { projectQueryOptions, projectsQueryOptions } from '@/lib/queryKeys'
 import { lazyWithReload } from '@/lib/lazyWithReload'
@@ -106,32 +102,6 @@ const ACTIVITY_INLINE_QUERY = `(min-width: ${ACTIVITY_INLINE_MIN_WIDTH}px)`
 // `lg:` utilities on the sidebar wrapper, the backdrop and the hamburger.
 const NAV_PERSISTENT_QUERY = '(min-width: 1024px)'
 
-/**
- * Subscribe to a CSS media query. Uses `useSyncExternalStore` so the value is
- * read consistently and updates on viewport changes without tripping the
- * `set-state-in-effect` lint. When `matchMedia` is unavailable (jsdom/SSR) it
- * answers `fallback`: narrow for the rail, so it never blocks the content
- * column; wide for the sidebar, so it is never made inert unmeasured.
- */
-function useMediaQuery(query: string, fallback = false): boolean {
-  const subscribe = useCallback(
-    (onChange: () => void) => {
-      if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') {
-        return () => {}
-      }
-      const mql = window.matchMedia(query)
-      mql.addEventListener('change', onChange)
-      return () => mql.removeEventListener('change', onChange)
-    },
-    [query],
-  )
-  const getSnapshot = () =>
-    typeof window !== 'undefined' && typeof window.matchMedia === 'function'
-      ? window.matchMedia(query).matches
-      : fallback
-  return useSyncExternalStore(subscribe, getSnapshot, () => fallback)
-}
-
 function focusedElement(): HTMLElement | null {
   const active = document.activeElement
   return active instanceof HTMLElement ? active : null
@@ -144,158 +114,13 @@ function firstFocusable(root: HTMLElement | null): HTMLElement | null {
   ) ?? null
 }
 
-type Crumbs = {
-  crumbs: Crumb[]
-  title: string
-  /**
-   * An editor route: once the page names itself `editPageTitle(name)`, the
-   * entity becomes a crumb and this word the title ("Metrics › Active
-   * Sessions › Edit", #246).
-   */
-  entityAction?: string
-}
-
-/** A detail route's own crumb before its entity has loaded. */
-const DETAIL_PENDING_TITLE = ''
-
-// Workspace-level surfaces: the portfolio dashboard reachable at three paths.
-// None of them is inside a project, so none gets a project root crumb — `/`
-// already rendered a bare "Overview" and `/workspace` is the identical page.
-const WORKSPACE_PATHS: readonly string[] = ['/', '/workspace', '/projects']
-// The page's own name, the sidebar's and the palette's: one name per route.
-// It used to be "Overview" here, a word a project page also uses.
-const WORKSPACE_TITLE = 'All projects'
-
-// Concepts sits below the sidebar divider rather than inside the Plan / Observe
-// / Govern nav, so `resolveNavLocation` cannot name it. Without this it fell
-// through to the catch-all and claimed to be "Overview". The
-// area label matches the page's own eyebrow (ConceptsPage `PageHead`).
-const CONCEPTS_AREA = 'Help & reference'
-
-function resolveCrumbs(fullPathname: string, slug?: string, projectName?: string): Crumbs {
-  // `/o/{org}/p/…` reads as `/p/…`, and `/o/{org}` as the workspace (F20 PR7).
-  const pathname = stripOrgPrefix(fullPathname)
-  if (WORKSPACE_PATHS.includes(pathname)) return { crumbs: [], title: WORKSPACE_TITLE }
-  if (pathname.startsWith('/settings') || pathname.startsWith('/data-sources')) {
-    return { crumbs: [], title: 'Settings' }
-  }
-  if (pathname.startsWith('/auth')) return { crumbs: [], title: 'Sign in' }
-
-  // No invented root crumb: a path outside any project simply has no project
-  // segment. The literal placeholder this used to emit read as an untranslated
-  // template leaking into the UI.
-  // Plain strings are nav groups (not pages); a surface passes a Crumb with
-  // its link. The project crumb opens the project's home.
-  const withProject = (...rest: (string | Crumb)[]): Crumb[] => {
-    const trail = rest.map((crumb) => (typeof crumb === 'string' ? { label: crumb } : crumb))
-    if (!projectName) return trail
-    return [{ label: projectName, ...(slug ? { to: projectHomePath(slug) } : {}) }, ...trail]
-  }
-  const nav = (label: string): Crumb => navCrumb(slug, label)
-
-  // Detail surfaces carry their nav area so the breadcrumb reads
-  // "project › Area › Page › <entity>"; the page names the entity through
-  // usePageTitle, and until it has, the crumb stays blank rather than flash
-  // a generic "Detail"; Layout then shows the area's page as the
-  // title. An event's catalog detail is served under
-  // /monitoring/event/<id> (the canonical event route), but it belongs to
-  // Plan › Events — only project-total/event-type signal detail falls through
-  // to the generic branch. Check the event scope first.
-  if (pathname.includes('/monitoring/event/') || pathname.includes('/events/detail/')) {
-    return { crumbs: withProject('Plan', nav('Events')), title: DETAIL_PENDING_TITLE }
-  }
-  // Catalog-metric drilldowns belong to the Metrics surface, so their
-  // breadcrumb reads "… › Observe › Metrics" (matching the metrics list nav).
-  // Check before the generic /monitoring/ branch.
-  if (pathname.includes('/monitoring/metric/')) {
-    return { crumbs: withProject('Observe', nav('Metrics')), title: DETAIL_PENDING_TITLE }
-  }
-  // What is left — event-type and project-total volume drilldowns — is named
-  // from the entity, not from the route the reader happened to arrive by: the
-  // trail said "Observe › Anomalies" even when the page was opened from the
-  // sidebar or an event type (#241). An event type's volume sits under
-  // "Plan › Event types", where the nav files Event types; the project total
-  // is its own page ("Total volume").
-  if (pathname.includes('/monitoring/event-type/')) {
-    return { crumbs: withProject('Plan', nav('Event types')), title: DETAIL_PENDING_TITLE }
-  }
-  if (pathname.includes('/monitoring/')) {
-    return { crumbs: withProject('Observe'), title: DETAIL_PENDING_TITLE }
-  }
-  // One branch: "Plan › Plan branches › <name>", the page naming the branch
-  // once it has loaded (#243). The bare list keeps its nav crumb.
-  if (/^\/p\/[^/]+\/branches\/[^/]+/.test(pathname)) {
-    return { crumbs: withProject('Plan', nav('Plan branches')), title: DETAIL_PENDING_TITLE }
-  }
-  // An alert rule's history: "Observe › Alerting › Rules › <rule>", the tab
-  // the rule lives on, instead of "Observe › <rule>" (#241, #238).
-  if (/^\/p\/[^/]+\/monitors\/[^/]+/.test(pathname)) {
-    const alerting = nav('Alerting')
-    const rules: Crumb = alerting.to ? { label: 'Rules', to: `${alerting.to}?section=monitors` } : { label: 'Rules' }
-    return { crumbs: withProject('Observe', alerting, rules), title: DETAIL_PENDING_TITLE }
-  }
-  // Metric and fact-table editors name themselves under the Metrics surface
-  // instead of passing for the list: "Metrics › New metric", "Metrics › Edit
-  // metric", "Metrics › Fact tables › Edit fact table" (#246).
-  const metricsSub = /^\/p\/[^/]+\/metrics\/(.+)$/.exec(pathname)?.[1]
-  const factTables: Crumb = slug
-    ? { label: 'Fact tables', to: projectPath(currentOrgSlug(), slug, '/metrics/fact-tables') }
-    : { label: 'Fact tables' }
-  if (metricsSub === 'new') {
-    return { crumbs: withProject('Observe', nav('Metrics')), title: 'New metric' }
-  }
-  if (metricsSub === 'fact-tables/new') {
-    return { crumbs: withProject('Observe', nav('Metrics'), factTables), title: 'New fact table' }
-  }
-  if (metricsSub && /^fact-tables\/[^/]+\/edit$/.test(metricsSub)) {
-    return {
-      crumbs: withProject('Observe', nav('Metrics'), factTables),
-      title: 'Edit fact table',
-      entityAction: 'Edit',
-    }
-  }
-  if (metricsSub && /^[^/]+\/edit$/.test(metricsSub)) {
-    return { crumbs: withProject('Observe', nav('Metrics')), title: 'Edit metric', entityAction: 'Edit' }
-  }
-
-  // Map the route to its grouped-nav area (Plan / Observe / Govern / Connect)
-  // using the same model the sidebar renders from.
-  const navLocation = slug ? resolveNavLocation(slug, pathname) : null
-  if (navLocation) {
-    // A sub-surface names itself: the nav item it matched is its parent, not the
-    // page. Without the leaf, Detection settings presented itself as Anomalies.
-    // `leaf` is absent everywhere else, so nothing else moves.
-    return navLocation.leaf
-      ? { crumbs: withProject(navLocation.area, nav(navLocation.label)), title: navLocation.leaf }
-      : { crumbs: withProject(navLocation.area), title: navLocation.label }
-  }
-
-  if (pathname.endsWith('/concepts')) {
-    return { crumbs: withProject(CONCEPTS_AREA), title: 'Concepts' }
-  }
-  if (pathname.includes('/settings')) {
-    return { crumbs: withProject(), title: 'Settings' }
-  }
-  // Nothing claimed this path, which is exactly what the catch-all route renders
-  // NotFoundPage for — so the trail says so instead of naming a page ("Overview")
-  // the user is not on.
-  return { crumbs: withProject(), title: 'Not found' }
-}
-
 /**
- * Full-viewport stand-in for the app shell, used for the project lookup error
- * and the project-not-found state. Keeps the app background/colour so neither
- * reads as a broken page. `justify-center-safe`: the not-found state lists
- * projects and can outgrow a phone screen, and plain centring clipped its top.
+ * The stand-in for the app shell around the project lookup error and the
+ * project-not-found state, in the app's background and body text so neither
+ * reads as a broken page.
  */
 function ShellFallback({ children }: { children: ReactNode }) {
-  return (
-    <div
-      className="flex h-screen flex-col items-center justify-center-safe overflow-y-auto px-6 py-8 text-body supports-[height:100dvh]:h-dvh bg-background text-fg-secondary"
-    >
-      {children}
-    </div>
-  )
+  return <ShellStandIn className="text-body text-fg-secondary">{children}</ShellStandIn>
 }
 
 export default function Layout() {
@@ -328,7 +153,9 @@ export default function Layout() {
   // Below the inline width the rail would squeeze the content column, so it
   // collapses to an off-canvas drawer with its own open state (mirroring the
   // sidebar's drawer). Above it, `activityOpen` drives the inline rail. A
-  // single top-bar toggle drives whichever mode is active.
+  // single top-bar toggle drives whichever mode is active. Unmeasured (no
+  // `matchMedia`), the rail guesses narrow so it never blocks the content
+  // column, and the sidebar guesses wide so it is never made inert.
   const isWideActivity = useMediaQuery(ACTIVITY_INLINE_QUERY)
   const isWideNav = useMediaQuery(NAV_PERSISTENT_QUERY, true)
   const [activityDrawerOpen, setActivityDrawerOpen] = useState(false)
@@ -485,40 +312,25 @@ export default function Layout() {
     if (projectMissing && slug) forgetLastProjectSlug(slug)
   }, [projectMissing, slug])
 
-  const { crumbs, title, entityAction } = useMemo(
+  const routeCrumbs = useMemo(
     () => resolveCrumbs(location.pathname, slug, project?.name ?? slug),
     [location.pathname, project?.name, slug],
   )
-  // A detail route whose entity has not named itself (still loading, or it
-  // failed to load) promotes its last crumb to the title: "Plan › Events"
-  // rather than "Plan › Events ›" with nothing after the chevron, and a page
-  // name on phones, where the crumbs are hidden.
-  const entityTitle = pageTitle ?? title
-  // An editor that has named its entity reads "… › <entity> › Edit".
-  const editedEntity =
-    entityAction && pageTitle?.startsWith(EDIT_PAGE_TITLE_PREFIX)
-      ? pageTitle.slice(EDIT_PAGE_TITLE_PREFIX.length)
-      : null
-  const headerCrumbs = editedEntity
-    ? [...crumbs, { label: editedEntity }]
-    : entityTitle ? crumbs : crumbs.slice(0, -1)
-  const headerTitle = editedEntity && entityAction
-    ? entityAction
-    : entityTitle || (crumbs[crumbs.length - 1]?.label ?? '')
+  // What the page has named itself (usePageTitle) settles the trail's end.
+  const { crumbs: headerCrumbs, title: headerTitle } = topBarHeading(routeCrumbs, pageTitle)
+
+  // What an organization gate names, and the organizations it offers instead.
+  const gateOrgName = activeOrg.membership?.name ?? activeOrg.slug ?? 'This organization'
+  const gateOtherOrgs = activeOrg.orgs.filter(
+    (org) => org.slug !== activeOrg.slug && org.status !== 'suspended',
+  )
 
   // A suspended organization (F20) refuses every request inside it, so the
   // shell would only be a wall of failing panels: say what happened instead.
   // Known from the membership when the session carries its status, otherwise
   // from the server's refusal of the first request.
   if (orgIsSuspended(activeOrg.membership, projectsQuery.error, confirmProject.error)) {
-    return (
-      <OrgSuspendedState
-        orgName={activeOrg.membership?.name ?? activeOrg.slug ?? 'This organization'}
-        otherOrgs={activeOrg.orgs.filter(
-          (org) => org.slug !== activeOrg.slug && org.status !== 'suspended',
-        )}
-      />
-    )
+    return <OrgSuspendedState orgName={gateOrgName} otherOrgs={gateOtherOrgs} />
   }
 
   // An extension may replace the shell when the shell's own requests are
@@ -528,12 +340,10 @@ export default function Layout() {
   for (const gate of extensionShellGates) {
     const screen = gate({
       errors: [projectsQuery.error, confirmProject.error],
-      orgName: activeOrg.membership?.name ?? activeOrg.slug ?? 'This organization',
+      orgName: gateOrgName,
       orgSlug: activeOrg.slug,
       returnTo: `${location.pathname}${location.search}${location.hash}`,
-      otherOrgs: activeOrg.orgs.filter(
-        (org) => org.slug !== activeOrg.slug && org.status !== 'suspended',
-      ),
+      otherOrgs: gateOtherOrgs,
     })
     if (screen) return screen
   }
@@ -621,7 +431,8 @@ export default function Layout() {
           )}
 
           <div className="flex min-w-0 flex-1 flex-col" inert={drawerActive}>
-            {/* The extensions' banners (a platform admin's read-only step-in). */}
+            {/* The extensions' banners (Enterprise: a platform admin's read-only
+                step-in, the license notice). */}
             {extensionShellBanners.map((Banner, index) => (
               <Banner key={index} />
             ))}
@@ -643,8 +454,9 @@ export default function Layout() {
               <div className="relative min-w-0 flex-1 overflow-y-auto pb-[env(safe-area-inset-bottom)]">
                 <div className="p-3 sm:p-5 lg:p-8">
                   {/* Persistent demo marker across every surface of a demo
-                      project — synthetic/local data, recipe version, freshness,
-                      and creator/owner reset + delete controls. */}
+                      project — synthetic/local data, freshness (the demo data
+                      version is under "What's simulated"), and creator/owner
+                      reset + delete controls. */}
                   {project?.is_demo && (
                     // Its own boundary: this chrome sits outside the route
                     // boundary, so a chunk that fails to load (or a render

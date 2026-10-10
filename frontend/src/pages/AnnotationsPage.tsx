@@ -1,8 +1,7 @@
 import { useMemo, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { CalendarRange, ExternalLink, Rocket, StickyNote, Tag, Trash2 } from 'lucide-react'
-import { toast } from 'sonner'
+import { useQuery } from '@tanstack/react-query'
+import { CalendarRange, StickyNote } from 'lucide-react'
 import { chartAnnotationsApi } from '@/api/chartAnnotations'
 import { plannedEventsApi } from '@/api/plannedEvents'
 import { EmptyState } from '@/components/empty-state'
@@ -12,31 +11,18 @@ import { PageContainer } from '@/components/primitives/page-container'
 import { PageHeader } from '@/components/primitives/page-header'
 import { Panel } from '@/components/settings/kit'
 import { SectionSkeleton } from '@/components/states'
-import { IconButton } from '@/components/ui/icon-button'
 import { SegmentedControl } from '@/components/ui/segmented-control'
 import { useConfirm } from '@/hooks/useConfirm'
-import {
-  annotationMarkerColor,
-  annotationSourceLabel,
-  isAutomaticAnnotation,
-  safeAnnotationUrl,
-} from '@/lib/chartAnnotations'
-import { formatTimestamp } from '@/lib/datetime'
-import { SILENT_ERROR_META } from '@/lib/errorFeedback'
 import { getMonitoringPath } from '@/lib/monitoring'
+import { currentOrgSlug, projectPath } from '@/lib/navigation'
 import { useCanWriteProject } from '@/lib/permissions'
-import { plannedEventExpectation } from '@/lib/plannedEvents'
-import {
-  activeSignalsKey,
-  allChartAnnotationsKey,
-  allPlannedEventsKey,
-  projectChartAnnotationsKey,
-  projectMonitoringSeriesKey,
-  projectPlannedEventsKey,
-} from '@/lib/queryKeys'
-import { getErrorMessage } from '@/lib/utils'
+import { allChartAnnotationsKey, allPlannedEventsKey } from '@/lib/queryKeys'
 import type { ChartAnnotation, MetricScopeType, PlannedEvent } from '@/types'
 import { PlannedWindowSuggestions } from './annotations/PlannedWindowSuggestions'
+import { AnnotationItem } from './monitoring/AnnotationItem'
+import { annotationDeleteConfirm, useAnnotationDelete } from './monitoring/annotationMutations'
+import { ExpectedWindowItem } from './monitoring/ExpectedWindowItem'
+import { plannedEventDeleteConfirm, usePlannedEventDelete } from './monitoring/plannedEventMutations'
 
 type SourceFilter = 'all' | 'manual' | 'release' | 'api'
 
@@ -81,14 +67,14 @@ function ScopeCell({ slug, row }: { slug: string; row: ScopedRow }) {
 }
 
 /**
- * Every chart annotation and planned event of the project on one page: the
- * deploys, releases and notes that charts show one series at a time, and the
- * windows in which anomalies are expected (F18). Each scoped row links to its
- * chart; editors can delete from here.
+ * Every chart annotation and expected window (a `planned_event` in the API) of
+ * the project on one page: the deploys, releases and notes that charts show
+ * one series at a time, and the windows in which anomalies are expected (F18).
+ * Each scoped row links to its chart; editors can delete from here, with the
+ * same confirm and the same refresh as from the chart.
  */
 export default function AnnotationsPage() {
   const { slug } = useParams<{ slug: string }>()
-  const qc = useQueryClient()
   const canWrite = useCanWriteProject()
   const { confirm, dialog } = useConfirm()
   const [source, setSource] = useState<SourceFilter>('all')
@@ -117,41 +103,13 @@ export default function AnnotationsPage() {
     [plannedQuery.data],
   )
 
-  const deleteAnnotation = useMutation({
-    meta: SILENT_ERROR_META,
-    mutationFn: (id: string) => chartAnnotationsApi.delete(slug!, id),
-    onSuccess: () => void qc.invalidateQueries({ queryKey: projectChartAnnotationsKey(slug) }),
-    onError: error => toast.error(`Could not delete the annotation — ${getErrorMessage(error)}`),
-  })
-  const deletePlanned = useMutation({
-    meta: SILENT_ERROR_META,
-    mutationFn: (id: string) => plannedEventsApi.delete(slug!, id),
-    onSuccess: () => {
-      // Deleting a window re-marks anomalies: refresh what reads them too.
-      void qc.invalidateQueries({ queryKey: projectPlannedEventsKey(slug) })
-      void qc.invalidateQueries({ queryKey: projectMonitoringSeriesKey(slug) })
-      void qc.invalidateQueries({ queryKey: activeSignalsKey(slug) })
-    },
-    onError: error => toast.error(`Could not delete the planned event — ${getErrorMessage(error)}`),
-  })
-
+  const deleteAnnotation = useAnnotationDelete(slug)
+  const deletePlanned = usePlannedEventDelete(slug)
   const confirmDeleteAnnotation = async (row: ChartAnnotation) => {
-    const ok = await confirm({
-      title: 'Delete annotation?',
-      message: `"${row.label}" will be removed from ${row.scope_type ? 'its chart' : 'every chart in this project'}.`,
-      variant: 'danger',
-      confirmLabel: 'Delete',
-    })
-    if (ok) deleteAnnotation.mutate(row.id)
+    if (await confirm(annotationDeleteConfirm(row))) deleteAnnotation.mutate(row.id)
   }
   const confirmDeletePlanned = async (row: PlannedEvent) => {
-    const ok = await confirm({
-      title: 'Delete planned event?',
-      message: `Anomalies inside "${row.label}" will raise signals and alerts again.`,
-      variant: 'danger',
-      confirmLabel: 'Delete',
-    })
-    if (ok) deletePlanned.mutate(row.id)
+    if (await confirm(plannedEventDeleteConfirm(row))) deletePlanned.mutate(row.id)
   }
 
   if (!slug) return null
@@ -162,52 +120,56 @@ export default function AnnotationsPage() {
       <PageHeader
         eyebrow="Observe"
         title="Annotations"
-        description="Every chart marker in the project — deploys, releases and notes — and the planned events in which anomalies are expected rather than alerted."
+        description="Every chart marker in the project — deploys, releases and notes — and the expected windows, in which anomalies are drawn but never become a signal or an alert."
       />
 
       {canWrite && <PlannedWindowSuggestions slug={slug} />}
 
+      {/* "Expected windows", not "planned events": in a tracking-plan product
+          that name already belongs to the events of the plan. */}
       <Panel
-        title={`Planned events (${planned.length})`}
-        subtitle="Windows in which a move is expected: anomalies inside them are drawn but raise no alert. Add one from a chart's Volume tab."
+        title={`Expected windows (${planned.length})`}
+        subtitle="A campaign, sale or holiday you expect to move a chart. Anomalies inside one are drawn muted and never become a signal or an alert. Add one under any event or metric chart."
       >
         {plannedQuery.isPending ? (
           <SectionSkeleton />
         ) : plannedQuery.isError ? (
           <ErrorState
             compact
-            title="Could not load planned events"
+            title="Could not load expected windows"
             error={plannedQuery.error}
             onRetry={() => void plannedQuery.refetch()}
           />
         ) : planned.length === 0 ? (
-          <EmptyState icon={CalendarRange} title="No planned events" size="sm" />
+          <EmptyState
+            icon={CalendarRange}
+            title="No expected windows"
+            description={
+              <>
+                Once a scan collects volume, mark one under any event or metric chart, or add a
+                country&rsquo;s public holidays from{' '}
+                <Link
+                  to={projectPath(currentOrgSlug(), slug, '/settings/monitoring')}
+                  className="text-accent"
+                >
+                  Detection settings
+                </Link>
+                .
+              </>
+            }
+            size="sm"
+          />
         ) : (
           <ul className="divide-y divide-border text-body-sm" data-testid="planned-events-list">
             {planned.map(row => (
-              <li key={row.id} className="flex items-center justify-between gap-2 px-4 py-2">
-                <div className="flex min-w-0 flex-wrap items-center gap-2">
-                  <span className="text-fg-tertiary">
-                    {formatTimestamp(row.starts_at)} – {formatTimestamp(row.ends_at)}
-                  </span>
-                  <span className="min-w-0 break-words font-medium">{row.label}</span>
-                  <Chip variant="outline" size="xs">{plannedEventExpectation(row.direction)}</Chip>
-                  <ScopeCell slug={slug} row={row} />
-                  {row.source === 'holiday' && <Chip variant="outline" size="xs">Holiday</Chip>}
-                </div>
-                {/* The holiday calendar owns its rows: changed in Detection settings. */}
-                {canWrite && row.source !== 'holiday' && (
-                  <IconButton
-                    variant="ghost"
-                    className="h-7 w-7 shrink-0 text-fg-tertiary hover:text-destructive"
-                    onClick={() => void confirmDeletePlanned(row)}
-                    disabled={deletePlanned.isPending && deletePlanned.variables === row.id}
-                    label={`Delete planned event ${row.label}`}
-                  >
-                    <Trash2 aria-hidden="true" className="h-3.5 w-3.5" />
-                  </IconButton>
-                )}
-              </li>
+              <ExpectedWindowItem
+                key={row.id}
+                inset
+                event={row}
+                scope={<ScopeCell slug={slug} row={row} />}
+                onDelete={canWrite ? () => void confirmDeletePlanned(row) : undefined}
+                deleting={deletePlanned.isPending && deletePlanned.variables === row.id}
+              />
             ))}
           </ul>
         )}
@@ -243,58 +205,16 @@ export default function AnnotationsPage() {
           />
         ) : (
           <ul className="divide-y divide-border text-body-sm" data-testid="annotations-list">
-            {annotations.map(row => {
-              const automatic = isAutomaticAnnotation(row)
-              const url = safeAnnotationUrl(row.url)
-              return (
-                <li key={row.id} className="flex items-center justify-between gap-2 px-4 py-2">
-                  <div className="flex min-w-0 flex-wrap items-center gap-2">
-                    <span
-                      aria-hidden="true"
-                      className="inline-block h-2.5 w-2.5 shrink-0 rounded-full"
-                      style={{ backgroundColor: annotationMarkerColor(row) }}
-                    />
-                    <span className="text-fg-tertiary">{formatTimestamp(row.bucket)}</span>
-                    <span className={`min-w-0 break-words font-medium${automatic ? ' text-fg-secondary' : ''}`}>
-                      {row.label}
-                    </span>
-                    {automatic && (
-                      <Chip
-                        variant="outline"
-                        size="xs"
-                        icon={row.source === 'release' ? <Tag aria-hidden="true" /> : <Rocket aria-hidden="true" />}
-                      >
-                        {annotationSourceLabel(row.source)}
-                      </Chip>
-                    )}
-                    <ScopeCell slug={slug} row={row} />
-                    {url && (
-                      <a
-                        href={url}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        aria-label={`Details for ${row.label} (opens in a new tab)`}
-                        className="inline-flex items-center gap-1 text-caption text-fg-tertiary hover:text-fg underline-offset-2 hover:underline"
-                      >
-                        Details
-                        <ExternalLink aria-hidden="true" className="size-3" />
-                      </a>
-                    )}
-                  </div>
-                  {canWrite && (
-                    <IconButton
-                      variant="ghost"
-                      className="h-7 w-7 shrink-0 text-fg-tertiary hover:text-destructive"
-                      onClick={() => void confirmDeleteAnnotation(row)}
-                      disabled={deleteAnnotation.isPending && deleteAnnotation.variables === row.id}
-                      label={`Delete annotation ${row.label}`}
-                    >
-                      <Trash2 aria-hidden="true" className="h-3.5 w-3.5" />
-                    </IconButton>
-                  )}
-                </li>
-              )
-            })}
+            {annotations.map(row => (
+              <AnnotationItem
+                key={row.id}
+                inset
+                annotation={row}
+                scope={<ScopeCell slug={slug} row={row} />}
+                onDelete={canWrite ? () => void confirmDeleteAnnotation(row) : undefined}
+                deleting={deleteAnnotation.isPending && deleteAnnotation.variables === row.id}
+              />
+            ))}
           </ul>
         )}
       </Panel>

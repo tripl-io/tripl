@@ -2,6 +2,7 @@ import { useId, type ReactNode } from 'react'
 import type { OrgSettings, OrgSettingSource } from '@/api/orgSettings'
 import { Chip, type ChipTone, type ChipVariant } from '@/components/primitives/chip'
 import { Field, TextInput } from '@/components/settings/kit'
+import { ReadOnlyValue, SourceBadge } from '@/pages/settings-service/ServiceSettingsPrimitives'
 import {
   type DraftValue,
   type OrgDraft,
@@ -14,6 +15,7 @@ import {
   savedValue,
   sourceOf,
 } from './orgSettingsModel'
+import { formatNumber } from '@/lib/format'
 
 const SOURCE_BADGE: Record<
   Exclude<OrgSettingSource, 'default'>,
@@ -25,11 +27,13 @@ const SOURCE_BADGE: Record<
     variant: 'soft',
     title: "This organization's own value.",
   },
+  // "Platform", the rail's name for the layer above every organization: the
+  // value set under Settings › Platform.
   override: {
-    label: 'Operator',
+    label: 'Platform',
     tone: 'info',
     variant: 'soft',
-    title: "Set by the platform operator. Organizations without a value of their own use it.",
+    title: 'Set under Settings › Platform. Organizations without a value of their own use it.',
   },
   env: {
     label: 'Env',
@@ -38,11 +42,11 @@ const SOURCE_BADGE: Record<
     title: "Delivered to the server by an environment variable, differing from the built-in default.",
   },
   disabled: {
-    label: 'Disabled by operator policy',
+    label: 'Not shared by the platform',
     tone: 'warning',
     variant: 'soft',
     title:
-      "The operator does not share this with organizations (ORG_SETTINGS_OPERATOR_FALLBACK=none). Set this organization's own to use it.",
+      "The platform does not share this with organizations (ORG_SETTINGS_OPERATOR_FALLBACK=none). Set this organization's own to use it.",
   },
 }
 
@@ -60,8 +64,29 @@ export function OrgSourceBadge({ source }: { source: OrgSettingSource }) {
   )
 }
 
-export const ORG_SOURCE_LEGEND =
-  "Organization: this organization's own value. Operator: the platform's value, used while the organization has none. Env: the server's environment. No badge: the built-in default."
+/**
+ * The badge of one field, in its scope's own words. An organization's page
+ * says where an inherited value comes from (Organization, Platform, Env). The
+ * self-hosted default organization's page edits the platform's own values,
+ * with nothing above them to inherit from, so it badges them the way
+ * Platform › Mail relay and the rest badge the very same rows: Override for
+ * one stored in the settings table, Env for one the environment delivered.
+ */
+export function OrgFieldBadge({
+  settings,
+  section,
+  field,
+}: {
+  settings: OrgSettings
+  section: OrgSection
+  field: string
+}) {
+  const source = sourceOf(settings, section, field)
+  if (settings.scope === 'operator' && (source === 'override' || source === 'env')) {
+    return <SourceBadge source={source} />
+  }
+  return <OrgSourceBadge source={source} />
+}
 
 export type OrgFieldProps = {
   settings: OrgSettings
@@ -71,7 +96,7 @@ export type OrgFieldProps = {
 
 function formatInherited(value: string | number | boolean): string {
   if (typeof value === 'boolean') return value ? 'on' : 'off'
-  if (typeof value === 'number') return value.toLocaleString('en-US')
+  if (typeof value === 'number') return formatNumber(value)
   if (value === '') return 'empty'
   // A system prompt runs to paragraphs; its opening says which one it is.
   return value.length > 60 ? `${value.slice(0, 60)}…` : value
@@ -146,7 +171,10 @@ export function OrgTextField({
   number?: boolean
   suffix?: string
   grouped?: boolean
-  /** Shown, never edited here (e.g. the operator's embedding endpoint, an env value). */
+  /**
+   * Shown, never edited here (the platform's embedding endpoint, an env
+   * value): rendered as text, not as an input that looks editable.
+   */
   readOnly?: boolean
   last?: boolean
 }) {
@@ -166,7 +194,7 @@ export function OrgTextField({
   return (
     <Field
       label={label}
-      labelRight={<OrgSourceBadge source={sourceOf(settings, section, field)} />}
+      labelRight={<OrgFieldBadge settings={settings} section={section} field={field} />}
       hint={
         hint || settings.scope === 'organization' ? (
           <>
@@ -177,18 +205,22 @@ export function OrgTextField({
         ) : undefined
       }
       last={last}
+      htmlFor={readOnly ? false : undefined}
     >
-      <TextInput
-        type={number ? 'number' : 'text'}
-        value={String(value)}
-        onChange={next => setField(field, next)}
-        placeholder={placeholder}
-        suffix={suffix}
-        mono
-        readOnly={readOnly}
-        aria-invalid={error !== null}
-        aria-describedby={error ? errorId : undefined}
-      />
+      {readOnly ? (
+        <ReadOnlyValue value={String(value)} />
+      ) : (
+        <TextInput
+          type={number ? 'number' : 'text'}
+          value={String(value)}
+          onChange={next => setField(field, next)}
+          placeholder={placeholder}
+          suffix={suffix}
+          mono
+          aria-invalid={error !== null}
+          aria-describedby={error ? errorId : undefined}
+        />
+      )}
       {error && (
         <p id={errorId} className="mt-1 text-caption text-danger">
           {error}

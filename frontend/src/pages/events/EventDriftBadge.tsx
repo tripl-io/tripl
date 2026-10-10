@@ -15,6 +15,7 @@ import { cn, getErrorMessage } from '@/lib/utils'
 import { eventTypeDriftsKey, projectEventsKey, projectEventTypesKey } from '@/lib/queryKeys'
 import { SILENT_ERROR_META } from '@/lib/errorFeedback'
 import { useCanWriteProject } from '@/lib/permissions'
+import { countOf, pluralize } from '@/lib/plural'
 
 const DRIFT_LABEL: Record<string, string> = {
   new_field: 'new',
@@ -108,11 +109,11 @@ export function EventDriftBadge({
         <button
           type="button"
           className={cn(chipVariants({ tone: 'warning', size: 'xs' }), 'hover:bg-warning/25')}
-          aria-label={`${count} schema drift${count === 1 ? '' : 's'} on ${typeLabel ? `event type ${typeLabel}` : 'this event type'}`}
+          aria-label={`${countOf(count, 'schema drift', 'schema drifts')} on ${typeLabel ? `event type ${typeLabel}` : 'this event type'}`}
         >
           <GitCompare aria-hidden />
           <span className="tnum">{count}</span>
-          <span>schema drift{count === 1 ? '' : 's'}</span>
+          <span>{pluralize(count, 'schema drift', 'schema drifts')}</span>
           {typeLabel && <span className="max-w-[14ch] truncate">· {typeLabel}</span>}
         </button>
       </PopoverTrigger>

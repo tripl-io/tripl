@@ -2,7 +2,10 @@
 
 An account proves it owns its address by opening a single-use, expiring link
 (:func:`issue_token` / :func:`confirm`) while signed in as that account, or by
-a confirmed password reset (the reset link was mailed to the address). A
+a confirmed password reset: a mailed link reached the address, a link an
+organization owner or admin hands over is only issued to an account already
+verified, and one printed by ``tripl-admin password-reset-link`` is the server
+operator vouching for the address (``password_reset_links``). A
 self-hosted instance records every new account as verified at creation: it
 enforces nothing, and may have no SMTP to verify with. Every path goes through
 :func:`mark_verified`.

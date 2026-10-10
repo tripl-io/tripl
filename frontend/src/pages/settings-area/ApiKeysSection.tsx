@@ -1,6 +1,6 @@
-import { useRef, useState } from 'react'
+import { useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { Copy, KeyRound, Lock, Plus } from 'lucide-react'
+import { KeyRound, Lock, Plus } from 'lucide-react'
 import { apiKeysApi } from '@/api/apiKeys'
 import { apiKeysKey, projectsQueryOptions } from '@/lib/queryKeys'
 import { useAuth } from '@/components/auth-context'
@@ -8,23 +8,15 @@ import { EmptyState } from '@/components/empty-state'
 import { ErrorState } from '@/components/error-state'
 import { Chip } from '@/components/primitives/chip'
 import { Button } from '@/components/ui/button'
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/dialog'
 import { Skeleton } from '@/components/ui/skeleton'
 import { INPUT_BASE, INPUT_CLASS } from '@/components/settings/input-style'
 import { REQUIRED_MESSAGE, focusFirstInvalid, invalidAria } from '@/components/forms/validation'
 import { useConfirm } from '@/hooks/useConfirm'
-import { useCopyToClipboard } from '@/hooks/useCopyToClipboard'
 import { formatIsoDate } from '@/lib/datetime'
 import { SILENT_ERROR_META } from '@/lib/errorFeedback'
 import { getErrorMessage } from '@/lib/utils'
 import { Field, SCard, SHeader, NativeSelect, TextInput } from '@/components/settings/kit'
+import { OneTimeSecretDialog } from '@/components/settings/one-time-secret'
 import { describeKeyCounts, describeRevealedKey, isKeyInactive } from './apiKeyStatus'
 import type { ApiKey, ApiKeyScope, ApiKeyWithToken } from '@/types'
 import { canWrite } from '@/lib/permissions'
@@ -43,9 +35,14 @@ function expiryError(raw: string): string | null {
 }
 
 /**
- * Workspace · API keys. Reuses the real apiKeysApi wiring (the same create /
- * reveal-once / revoke flow as AccountPage) rendered in the takeover idiom: a
- * "shown once" warning banner plus a card of active keys with scope chips.
+ * Organization · API keys: the create / reveal-once / revoke flow over
+ * apiKeysApi, rendered in the takeover idiom: a "shown once" warning banner
+ * plus a card of active keys with scope chips.
+ *
+ * A key belongs to the person who made it and to this organization: the list
+ * (`/me/api-keys`) holds only the caller's own keys, an owner's included. The
+ * page says so, since the rail files it under the organization: "All keys ·
+ * 0 active" read to an owner as the whole organization's count.
  */
 export default function ApiKeysSection() {
   const qc = useQueryClient()
@@ -63,8 +60,6 @@ export default function ApiKeysSection() {
   const [revealed, setRevealed] = useState<ApiKeyWithToken | null>(null)
   // Revoked keys stay listed forever; they fold away behind a count.
   const [showRevoked, setShowRevoked] = useState(false)
-  const tokenRef = useRef<HTMLInputElement>(null)
-  const { state: copyState, copy, reset: resetCopy } = useCopyToClipboard(tokenRef)
 
   const listQuery = useQuery({
     queryKey: apiKeysKey(),
@@ -97,7 +92,6 @@ export default function ApiKeysSection() {
     onSuccess: (created) => {
       qc.invalidateQueries({ queryKey: apiKeysKey() })
       setShowForm(false)
-      resetCopy()
       setRevealed(created)
       resetDraft()
     },
@@ -192,7 +186,7 @@ export default function ApiKeysSection() {
       {dialog}
       <SHeader
         title="API keys"
-        description="Long-lived bearer tokens for non-browser clients (LLM agents, CLI scripts)."
+        description="Long-lived bearer tokens for agents and scripts. Each key acts as you, with your access, in this organization only. You see only the keys you created."
         actions={
           // Off while the form is open: pressing it again did nothing visible.
           // Marked for the `c` shortcut, which otherwise looks for "New …".
@@ -343,7 +337,7 @@ export default function ApiKeysSection() {
       )}
 
       <SCard
-        title="All keys"
+        title="Your keys"
         // No count until there is a list to count: "0 active" above a failed
         // load reads as "you have no credentials".
         description={listQuery.isSuccess ? describeKeyCounts(activeCount, inactiveCount) : undefined}
@@ -517,81 +511,28 @@ export default function ApiKeysSection() {
         })}
       </SCard>
 
-      {/* One-time token reveal. Only "Done" closes it: Esc or a stray click
-          outside used to discard a token the server never returns again. */}
-      <Dialog open={revealed != null}>
-        <DialogContent
-          showCloseButton={false}
-          onEscapeKeyDown={(event) => event.preventDefault()}
-          onInteractOutside={(event) => event.preventDefault()}
-        >
-          <DialogHeader>
-            <DialogTitle>Copy your API key now</DialogTitle>
-            <DialogDescription>
-              This token is shown only once. Copy it now and store it somewhere safe.
-            </DialogDescription>
-            {/* Which key this is, while the overlay hides its row. */}
-            {revealed && (
-              <p className="m-0 text-body-sm text-fg-secondary">
-                {describeRevealedKey(
-                  revealed,
-                  revealed.project_id ? projectNameById[revealed.project_id] : undefined,
-                )}
-              </p>
-            )}
-          </DialogHeader>
-          <div className="space-y-2 py-2">
-            <div className="flex items-center gap-2">
-              <input
-                ref={tokenRef}
-                readOnly
-                aria-label="API key"
-                value={revealed?.token ?? ''}
-                onFocus={(e) => e.currentTarget.select()}
-                className="mono h-9 min-w-0 flex-1 rounded-md border px-2 text-body-sm border-border bg-background text-fg"
-              />
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                onClick={() => {
-                  if (revealed) void copy(revealed.token)
-                }}
-              >
-                <Copy aria-hidden="true" className="h-3.5 w-3.5" />
-                {copyState === 'copied' ? 'Copied' : 'Copy'}
-              </Button>
-            </div>
-            <div aria-live="polite" aria-atomic="true">
-              {copyState === 'copied' && (
-                <p className="text-caption text-success">
-                  Copied to the clipboard.
-                </p>
+      <OneTimeSecretDialog
+        secret={revealed?.token ?? null}
+        title="Copy your API key now"
+        description="This token is shown only once. Copy it now and store it somewhere safe."
+        label="API key"
+        noun="key"
+        details={
+          revealed && (
+            <p className="m-0 text-body-sm text-fg-secondary">
+              {describeRevealedKey(
+                revealed,
+                revealed.project_id ? projectNameById[revealed.project_id] : undefined,
               )}
-            </div>
-            {copyState === 'failed' && (
-              <p role="alert" className="text-caption text-danger">
-                Couldn’t reach the clipboard. The key above is selected — press Ctrl/⌘+C to copy it.
-              </p>
-            )}
-            <p className="text-caption text-fg-tertiary">
-              Send it as <code className="mono">Authorization: Bearer &lt;key&gt;</code>.
             </p>
-          </div>
-          <DialogFooter>
-            <Button
-              onClick={() => {
-                setRevealed(null)
-                resetCopy()
-              }}
-            >
-              {/* Until Copy has worked, closing is a claim the reader makes
-                  about a token that is never shown again. */}
-              {copyState === 'copied' ? 'Done' : 'I’ve saved it'}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+          )
+        }
+        onDone={() => setRevealed(null)}
+      >
+        <p className="text-caption text-fg-tertiary">
+          Send it as <code className="mono">Authorization: Bearer &lt;key&gt;</code>.
+        </p>
+      </OneTimeSecretDialog>
     </div>
   )
 }

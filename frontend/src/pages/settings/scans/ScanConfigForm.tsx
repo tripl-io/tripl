@@ -1,4 +1,4 @@
-import { PageHeader } from '@/components/primitives/page-header'
+import { PageBackLink, PageHeader } from '@/components/primitives/page-header'
 import { PageContainer } from '@/components/primitives/page-container'
 import { SaveBar } from '@/components/forms/SaveBar'
 import { SCard } from '@/components/settings/kit'
@@ -323,15 +323,7 @@ export function ScanCreatePage({
         eyebrow="Govern · Scan"
         title="New scan"
         description="Point a warehouse query at tripl, and choose what it does with the rows."
-        back={
-          <button
-            type="button"
-            onClick={onBack}
-            className="inline-flex items-center gap-1 text-caption text-fg-secondary"
-          >
-            <span aria-hidden>←</span> Scans
-          </button>
-        }
+        back={<PageBackLink label="Scans" onClick={onBack} />}
       />
 
       <ScanEssentialsSection {...sectionProps} />

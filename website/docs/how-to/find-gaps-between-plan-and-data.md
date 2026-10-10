@@ -40,8 +40,9 @@ the likely duplicates. Tick several rows to accept or dismiss them together.
 
 ## Retire what stopped arriving
 
-**Dead events** lists events the plan says are implemented, with no data in the
-last 30 days. Some are genuinely gone, and some are seasonal or rare, so check
+**Dead events** lists events the plan says are implemented or live, with no data
+in the last 30 days; one that has never sent data is listed only once it has
+been in the plan for 30 days. Some are genuinely gone, and some are seasonal or rare, so check
 before you act. Tick the ones that are truly retired and press **Archive
 selected**. An archived event is put away: scans stop updating it, and it no
 longer counts in data match.

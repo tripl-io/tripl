@@ -24,13 +24,14 @@ import re
 import uuid
 from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import dataclass, replace
-from datetime import UTC, datetime, timedelta
+from datetime import datetime, timedelta
 from typing import Any
 
 from sqlalchemy import and_, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from tripl.core.analyzers.attribution import attribution_headline, release_line
+from tripl.core.bucketing import to_utc
 from tripl.models.alert_delivery import AlertDelivery
 from tripl.models.alert_delivery_item import AlertDeliveryItem
 from tripl.models.chart_annotation import ChartAnnotation
@@ -140,12 +141,8 @@ class _Scope:
 # --- formatting ------------------------------------------------------------
 
 
-def as_utc(value: datetime) -> datetime:
-    return value.replace(tzinfo=UTC) if value.tzinfo is None else value.astimezone(UTC)
-
-
 def fmt_time(value: datetime) -> str:
-    return as_utc(value).strftime("%Y-%m-%d %H:%M UTC")
+    return to_utc(value).strftime("%Y-%m-%d %H:%M UTC")
 
 
 def fmt_number(value: float) -> str:
@@ -338,7 +335,7 @@ async def _load_scopes(
     scopes: dict[tuple[str, str], _Scope] = {}
     first_bucket: datetime | None = None
     for item, scan_config_id in rows:
-        bucket = as_utc(item.bucket)
+        bucket = to_utc(item.bucket)
         first_bucket = bucket if first_bucket is None else min(first_bucket, bucket)
         key = (str(item.scope_type), item.scope_ref)
         if key in scopes or len(scopes) >= MAX_SCOPES:
@@ -652,7 +649,7 @@ async def _comment_drafts(
 ) -> list[_Draft]:
     if group.event_id is None or str(group.scope_type) != MetricScopeType.event.value:
         return []
-    since = as_utc(group.first_delivery_at) - COMMENT_LOOKBACK
+    since = to_utc(group.first_delivery_at) - COMMENT_LOOKBACK
     rows = (
         await session.execute(
             select(EventPhotoComment.body, EventPhotoComment.created_at)
@@ -687,8 +684,8 @@ async def gather_incident_facts(
     group = await alerting_service.get_alert_inbox_group(session, slug, correlation_group_id)
     project = await resolve_project(session, slug)
     scopes, first_bucket = await _load_scopes(session, project.id, correlation_group_id)
-    first_bucket = first_bucket or as_utc(group.latest_bucket)
-    latest_bucket = as_utc(group.latest_bucket)
+    first_bucket = first_bucket or to_utc(group.latest_bucket)
+    latest_bucket = to_utc(group.latest_bucket)
 
     drafts: list[_Draft] = [_incident_draft(slug, group)]
     if group.note:

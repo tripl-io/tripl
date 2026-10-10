@@ -4,11 +4,12 @@
  * Both are single blocking POSTs of ~10 s with no server-side stage feed, so the
  * list narrates *expected* phases on a timer. Passed phases are deliberately NOT
  * ticked while the request is open — the client cannot observe that the server
- * finished them — and the caption says so.
+ * finished them — and the caption calls the steps approximate. It used to
+ * explain why, in the server's terms, on the first dialog a newcomer sees.
  */
 
 import { useEffect, useState } from 'react'
-import { Check, Loader2 } from 'lucide-react'
+import { Check, Loader2, Minus } from 'lucide-react'
 import { DEMO_PROVISION_SLOW_MS, PROVISIONING_PHASES } from './provisioningPhases'
 
 const DEFAULT_SLOW_MESSAGE =
@@ -75,7 +76,7 @@ export function ProvisioningPhaseList({
       </ol>
       {!complete && (
         <p className="text-caption text-fg-tertiary">
-          Estimated steps — the server reports only the final result, not the stage it is on.
+          Steps are approximate — the demo opens as soon as it is ready.
         </p>
       )}
       {slow && (
@@ -98,13 +99,13 @@ function PhaseIcon({ state }: { state: PhaseState }) {
       </span>
     )
   }
+  // Probably passed, never confirmed: a muted dash, not the check that only
+  // the finished request earns. A dot in a grey circle read as a selected
+  // radio button.
   if (state === 'estimated') {
     return (
-      <span
-        aria-hidden="true"
-        className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-surface-hover"
-      >
-        <span className="h-1.5 w-1.5 rounded-full bg-fg-tertiary" />
+      <span aria-hidden="true" className="flex h-5 w-5 shrink-0 items-center justify-center">
+        <Minus className="h-3 w-3 text-fg-tertiary" />
       </span>
     )
   }

@@ -30,14 +30,11 @@ Email is not sent here. Rows carry ``emailed_at = NULL`` and the email paths
 
 from __future__ import annotations
 
-import base64
-import binascii
 import uuid
-from collections.abc import Iterable, Sequence
+from collections.abc import Iterable
 from datetime import UTC, datetime, timedelta
 from typing import NotRequired, TypedDict, Unpack
 
-from fastapi import HTTPException
 from sqlalchemy import and_, func, or_, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import Session
@@ -63,6 +60,10 @@ from tripl.schemas.notification import (
     NotificationResponse,
 )
 from tripl.services import app_settings_service
+from tripl.services._alerting_cursors import (
+    decode_notification_cursor,
+    encode_notification_cursor,
+)
 from tripl.services.project_access import member_project_ids, members_among_stmt
 from tripl.services.subscription_service import (
     EntityRef,
@@ -245,20 +246,6 @@ def _visible(visible: set[uuid.UUID] | None) -> ColumnElement[bool] | None:
     return Notification.project_id.in_(visible)
 
 
-def _encode_cursor(created_at: datetime, notification_id: uuid.UUID) -> str:
-    raw = f"{created_at.astimezone(UTC).isoformat()}|{notification_id}"
-    return base64.urlsafe_b64encode(raw.encode()).decode()
-
-
-def _decode_cursor(cursor: str) -> tuple[datetime, uuid.UUID]:
-    try:
-        raw = base64.urlsafe_b64decode(cursor.encode()).decode()
-        stamp, _, ident = raw.partition("|")
-        return datetime.fromisoformat(stamp), uuid.UUID(ident)
-    except (ValueError, binascii.Error, UnicodeDecodeError) as exc:
-        raise HTTPException(status_code=422, detail="Invalid cursor") from exc
-
-
 async def list_notifications(
     session: AsyncSession,
     user: User,
@@ -289,7 +276,7 @@ async def list_notifications(
     if unread:
         stmt = stmt.where(Notification.read_at.is_(None))
     if cursor:
-        at, ident = _decode_cursor(cursor)
+        at, ident = decode_notification_cursor(cursor)
         stmt = stmt.where(
             or_(
                 Notification.created_at < at,
@@ -325,7 +312,7 @@ async def list_notifications(
     next_cursor = None
     if len(rows) > limit and page:
         last = page[-1][0]
-        next_cursor = _encode_cursor(last.created_at, last.id)
+        next_cursor = encode_notification_cursor(last.created_at, last.id)
     return NotificationPage(items=items, next_cursor=next_cursor)
 
 
@@ -421,21 +408,3 @@ async def update_prefs(
         row.mentions_email = data.mentions_email
     await session.commit()
     return await get_prefs(session, user)
-
-
-def prefs_for_users_sync(
-    session: Session, user_ids: Sequence[uuid.UUID]
-) -> dict[uuid.UUID, tuple[str, bool]]:
-    """user id → (email_mode, mentions_email), defaults filled in. For the email paths."""
-    rows = session.execute(
-        select(
-            UserNotificationPrefs.user_id,
-            UserNotificationPrefs.email_mode,
-            UserNotificationPrefs.mentions_email,
-        ).where(UserNotificationPrefs.user_id.in_(list(user_ids)))
-    ).all()
-    found = {user_id: (mode, mentions) for user_id, mode, mentions in rows}
-    return {
-        user_id: found.get(user_id, (DEFAULT_EMAIL_MODE, DEFAULT_MENTIONS_EMAIL))
-        for user_id in user_ids
-    }

@@ -2,11 +2,20 @@ import { useEffect, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 
-import { orgsApi } from '@/api/orgs'
+import { orgsApi, type OrgUpdate } from '@/api/orgs'
 import { AUTH_QUERY_KEY } from '@/components/auth-context'
 import { useActiveOrg } from '@/components/active-org-context'
 import { ErrorState } from '@/components/error-state'
-import { Field, InfoRow, NativeSelect, SCard, SHeader, TextInput } from '@/components/settings/kit'
+import {
+  Field,
+  InfoRow,
+  NativeSelect,
+  SCard,
+  SettingsSaveBar,
+  SHeader,
+  TextInput,
+} from '@/components/settings/kit'
+import { useUnsavedChanges } from '@/components/settings/unsaved-changes'
 import { ReadOnlyNotice, SectionSkeleton } from '@/components/states'
 import { Button } from '@/components/ui/button'
 import { useConfirm } from '@/hooks/useConfirm'
@@ -24,8 +33,9 @@ import { DangerRow } from './ProjectDangerRows'
 /** The organization slug's shape: the backend's `ORG_SLUG_PATTERN`. */
 const ORG_SLUG_SHAPE = /^[a-z0-9]+(?:-[a-z0-9]+)*$/
 const CREATE_FORM_ID = 'create-organization-form'
-const RENAME_FORM_ID = 'rename-organization-form'
-const PROJECT_ACCESS_FORM_ID = 'organization-project-access-form'
+
+const UNSAVED_MESSAGE =
+  'Organization details you edited here have not been saved. Leaving this page drops them.'
 
 /** What each default means, under the select. */
 const DEFAULT_ACCESS_HINTS: Readonly<Record<DefaultProjectRole, string>> = {
@@ -39,7 +49,8 @@ const DEFAULT_ACCESS_HINTS: Readonly<Record<DefaultProjectRole, string>> = {
  * renames it), its slug (read-only: it is in every address, `/o/{slug}/…`, and
  * links already sent must keep working), its default access to projects (F20
  * PR15: what a member gets on a project with no row of theirs; an owner or
- * admin sets it), "Create organization" (where the edition creates more than
+ * admin sets it) — name and default access saved together by the page's save
+ * bar — "Create organization" (where the edition creates more than
  * one: a platform admin's, or anyone's in hosted mode; Community shows a
  * platform admin that it is Enterprise's), and the danger zone, where an owner deletes it. The default
  * organization cannot be deleted, so its danger zone is not drawn.
@@ -53,7 +64,7 @@ export default function OrganizationGeneralSection() {
     <div>
       <SHeader
         title="Details"
-        description="The organization this workspace belongs to. Its projects, data sources, API keys and members are its own."
+        description="This organization's name, address and default access to projects. Its projects, data sources, API keys and members are its own."
       />
       {slug ? <OrganizationCards org={slug} /> : (
         <ReadOnlyNotice className="mb-5">You are not a member of any organization.</ReadOnlyNotice>
@@ -71,24 +82,54 @@ export default function OrganizationGeneralSection() {
 function OrganizationCards({ org }: { org: string }) {
   const qc = useQueryClient()
   const navigate = useNavigate()
-  const canRename = useIsOwner()
+  const canEdit = useIsOwner()
   const isOrgOwner = useIsOrgOwner()
   const { confirm, dialog } = useConfirm()
+  const { registerUnsaved } = useUnsavedChanges()
   const orgQuery = useQuery({ queryKey: orgKey(org), queryFn: () => orgsApi.get(org) })
-  const [draft, setDraft] = useState<string | null>(null)
-  const name = draft ?? orgQuery.data?.name ?? ''
+  // One draft for both cards, saved by one bar: they PATCH the same
+  // organization, and two footer Save buttons on one page were the only ones
+  // left after Project › General moved to the bar.
+  const [nameDraft, setNameDraft] = useState<string | null>(null)
+  const [accessDraft, setAccessDraft] = useState<DefaultProjectRole | null>(null)
 
-  const renameMut = useMutation({
+  const loaded = orgQuery.data
+  const name = nameDraft ?? loaded?.name ?? ''
+  const trimmed = name.trim()
+  const access = accessDraft ?? loaded?.default_project_role ?? 'none'
+  const nameDirty = !!loaded && trimmed !== loaded.name
+  const accessDirty = !!loaded && access !== loaded.default_project_role
+  const dirty = canEdit && (nameDirty || accessDirty)
+
+  const saveMut = useMutation({
     meta: SILENT_ERROR_META,
-    mutationFn: (next: string) => orgsApi.update(org, { name: next }),
-    onSuccess: (renamed) => {
-      qc.setQueryData(orgKey(org), renamed)
-      setDraft(null)
-      // The switcher and every "which organization" label read the session.
-      void qc.invalidateQueries({ queryKey: AUTH_QUERY_KEY })
-      void qc.invalidateQueries({ queryKey: orgsKey() })
+    mutationFn: (patch: OrgUpdate) => orgsApi.update(org, patch),
+    onSuccess: (updated, patch) => {
+      qc.setQueryData(orgKey(org), updated)
+      setNameDraft(null)
+      setAccessDraft(null)
+      if (patch.name !== undefined) {
+        // The switcher and every "which organization" label read the session.
+        void qc.invalidateQueries({ queryKey: AUTH_QUERY_KEY })
+        void qc.invalidateQueries({ queryKey: orgsKey() })
+      }
+      // Which projects a member sees, and what they may do in them, follow it.
+      if (patch.default_project_role !== undefined) {
+        void qc.invalidateQueries({ queryKey: orgRootKey(org) })
+      }
     },
   })
+
+  // The bar's edits arm the settings shell's leave guard, as Project ›
+  // General's do; no other settings path keeps this draft.
+  useEffect(() => {
+    registerUnsaved(
+      dirty
+        ? { keptBy: () => false, message: UNSAVED_MESSAGE, dirtyPaths: ['organization/general'] }
+        : null,
+    )
+    return () => registerUnsaved(null)
+  }, [dirty, registerUnsaved])
 
   if (orgQuery.isPending) return <SectionSkeleton variant="form" label="Loading organization…" />
   if (orgQuery.isError) {
@@ -103,8 +144,20 @@ function OrganizationCards({ org }: { org: string }) {
     )
   }
   const current = orgQuery.data
-  const trimmed = name.trim()
-  const dirty = trimmed !== current.name
+
+  const save = () => {
+    if (!dirty || !trimmed || saveMut.isPending) return
+    saveMut.mutate({
+      ...(nameDirty ? { name: trimmed } : {}),
+      ...(accessDirty ? { default_project_role: access } : {}),
+    })
+  }
+
+  const discard = () => {
+    setNameDraft(null)
+    setAccessDraft(null)
+    saveMut.reset()
+  }
 
   const handleDelete = async () => {
     await confirm({
@@ -129,58 +182,71 @@ function OrganizationCards({ org }: { org: string }) {
   return (
     <>
       {dialog}
-      <SCard
-        title="General"
-        footer={
-          canRename ? (
-            <div className="flex w-full flex-wrap items-center justify-end gap-2">
-              {renameMut.isError && (
-                <p role="alert" className="m-0 mr-auto text-body-sm text-destructive">
-                  {getErrorMessage(renameMut.error)}
-                </p>
-              )}
-              {renameMut.isSuccess && !dirty && (
-                <p role="status" className="m-0 mr-auto text-body-sm text-success">Saved</p>
-              )}
-              <Button
-                type="submit"
-                form={RENAME_FORM_ID}
-                size="sm"
-                disabled={!dirty || !trimmed || renameMut.isPending}
-              >
-                {renameMut.isPending ? 'Saving…' : 'Save'}
-              </Button>
-            </div>
-          ) : undefined
-        }
-      >
+      {canEdit && (
+        // The one save model for a settings page, the bar Project › General
+        // and the Platform pages use: Discard and Save changes for both cards.
+        <SettingsSaveBar
+          className="mb-4"
+          note={
+            saveMut.isSuccess && !dirty ? (
+              <span className="text-success">Saved</span>
+            ) : dirty ? (
+              <span className="text-warning">Unsaved changes</span>
+            ) : (
+              'Saves the organization’s name and its default access to projects together.'
+            )
+          }
+          error={saveMut.isError ? getErrorMessage(saveMut.error) : undefined}
+          dirty={dirty}
+          invalid={nameDirty && !trimmed}
+          invalidMessage="Give the organization a name to save."
+          pending={saveMut.isPending}
+          onDiscard={discard}
+          onSave={save}
+        />
+      )}
+      {/* Named for what it holds: "General" inside a page called Details
+          repeated Project › General's label for a different thing. */}
+      <SCard title="Name and slug">
         <form
-          id={RENAME_FORM_ID}
           noValidate
           onSubmit={(event) => {
             event.preventDefault()
-            if (dirty && trimmed) renameMut.mutate(trimmed)
+            save()
           }}
         >
-          {canRename ? (
+          {canEdit ? (
             <Field label="Name" htmlFor="org-name">
-              <TextInput id="org-name" value={name} onChange={setDraft} aria-required />
+              <TextInput
+                id="org-name"
+                value={name}
+                onChange={(next) => {
+                  saveMut.reset()
+                  setNameDraft(next)
+                }}
+                aria-required
+              />
             </Field>
           ) : (
             <InfoRow label="Name" value={current.name} mono={false} />
           )}
-          <Field
-            label="Slug"
-            htmlFor="org-slug"
-            hint={`Part of every address in this organization (/o/${current.slug}/…), so it cannot be changed.`}
-            last
-          >
-            <TextInput id="org-slug" value={current.slug} readOnly mono />
-          </Field>
+          {/* Text, not a read-only input: a bordered box under an editable
+              Name looked editable too, beside a hint saying it is not. */}
+          <InfoRow label="Slug" value={current.slug} last />
+          <p className="m-0 px-4 pb-3 text-caption text-fg-tertiary">
+            Part of every address in this organization (/o/{current.slug}/…), so it cannot be changed.
+          </p>
         </form>
       </SCard>
 
-      <ProjectAccessCard org={current.slug} current={current.default_project_role} canEdit={canRename} />
+      <ProjectAccessCard
+        value={access}
+        canEdit={canEdit}
+        onChange={(next) => {
+          saveMut.reset()
+          setAccessDraft(next)
+        }}
+      />
 
       {isOrgOwner && !current.is_default && (
         <SCard title="Danger zone" tone="danger">
@@ -202,92 +268,42 @@ function OrganizationCards({ org }: { org: string }) {
 
 /**
  * Default access to projects (F20 PR15): what a member of the organization gets
- * on a project where they have no row. An owner or admin changes it; everyone
- * else reads it. Owners and admins see every project whatever it says, and a
- * project's own rows (Project › Access) override it, "No access" included.
+ * on a project where they have no row. An owner or admin changes it (saved by
+ * the page's bar with the name); everyone else reads it. Owners and admins see
+ * every project whatever it says, and a project's own rows (Project › Access)
+ * override it, "No access" included.
  */
 function ProjectAccessCard({
-  org,
-  current,
+  value,
   canEdit,
+  onChange,
 }: {
-  org: string
-  current: DefaultProjectRole
+  value: DefaultProjectRole
   canEdit: boolean
+  onChange: (next: DefaultProjectRole) => void
 }) {
-  const qc = useQueryClient()
-  const [draft, setDraft] = useState<DefaultProjectRole | null>(null)
-  const value = draft ?? current
-  const dirty = value !== current
-
-  const saveMut = useMutation({
-    meta: SILENT_ERROR_META,
-    mutationFn: (next: DefaultProjectRole) => orgsApi.update(org, { default_project_role: next }),
-    onSuccess: (updated) => {
-      qc.setQueryData(orgKey(org), updated)
-      setDraft(null)
-      // Which projects a member sees, and what they may do in them, follow it.
-      void qc.invalidateQueries({ queryKey: orgRootKey(org) })
-    },
-  })
-
   const label = PROJECT_ROLE_OPTIONS.find((option) => option.value === value)?.label ?? value
 
   return (
     <SCard
       title="Default access to projects"
       description="What a member of this organization gets on a project they have not been added to. Owners and admins always see every project, and a project's Access settings can give someone more, less, or no access."
-      footer={
-        canEdit ? (
-          <div className="flex w-full flex-wrap items-center justify-end gap-2">
-            {saveMut.isError && (
-              <p role="alert" className="m-0 mr-auto text-body-sm text-destructive">
-                {getErrorMessage(saveMut.error)}
-              </p>
-            )}
-            {saveMut.isSuccess && !dirty && (
-              <p role="status" className="m-0 mr-auto text-body-sm text-success">Saved</p>
-            )}
-            <Button
-              type="submit"
-              form={PROJECT_ACCESS_FORM_ID}
-              size="sm"
-              aria-label="Save default access"
-              disabled={!dirty || saveMut.isPending}
-            >
-              {saveMut.isPending ? 'Saving…' : 'Save'}
-            </Button>
-          </div>
-        ) : undefined
-      }
     >
       {canEdit ? (
-        <form
-          id={PROJECT_ACCESS_FORM_ID}
-          noValidate
-          onSubmit={(event) => {
-            event.preventDefault()
-            if (dirty && !saveMut.isPending) saveMut.mutate(value)
-          }}
+        <Field
+          label="Default access"
+          htmlFor="org-default-project-role"
+          hint={DEFAULT_ACCESS_HINTS[value]}
+          last
         >
-          <Field
-            label="Default access"
-            htmlFor="org-default-project-role"
-            hint={DEFAULT_ACCESS_HINTS[value]}
-            last
-          >
-            <NativeSelect
-              id="org-default-project-role"
-              value={value}
-              onChange={(next) => {
-                saveMut.reset()
-                setDraft(next as DefaultProjectRole)
-              }}
-              options={PROJECT_ROLE_OPTIONS}
-              width="fill"
-            />
-          </Field>
-        </form>
+          <NativeSelect
+            id="org-default-project-role"
+            value={value}
+            onChange={(next) => onChange(next as DefaultProjectRole)}
+            options={PROJECT_ROLE_OPTIONS}
+            width="fill"
+          />
+        </Field>
       ) : (
         <>
           <InfoRow label="Default access" value={label} mono={false} />

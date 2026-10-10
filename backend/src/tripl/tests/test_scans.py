@@ -1123,7 +1123,7 @@ class TestScanConfigsCRUD:
         curated = scan_tasks.ScanError(
             "The scan query reached the configured row limit (60000); increase scan_row_limit"
         )
-        assert scan_tasks._user_facing_error(curated) == f"Scan failed: {curated}"
+        assert scan_tasks.user_facing_error(curated) == f"Scan failed: {curated}"
 
         # The metrics row-limit guards are the real producers of that shape, and
         # they must raise ScanError — as bare ValueErrors their (already
@@ -1136,7 +1136,7 @@ class TestScanConfigsCRUD:
         monkeypatch.setattr(metric_collect, "METRIC_QUERY_ROW_LIMIT", 2)
         with pytest.raises(scan_tasks.ScanError) as excinfo:
             metric_collect._reject_truncated_rows([1, 2, 3], what="Fact metric aggregate")
-        row_limit_message = scan_tasks._user_facing_error(excinfo.value)
+        row_limit_message = scan_tasks.user_facing_error(excinfo.value)
         assert row_limit_message == f"Scan failed: {excinfo.value}"
         assert "Fact metric aggregate reached the metric query row limit (2)" in row_limit_message
         assert row_limit_message != "Scan failed due to an internal error."
@@ -1145,7 +1145,7 @@ class TestScanConfigsCRUD:
         timeout = TimeoutError(
             "HTTPConnectionPool(host='warehouse.internal', port=8123): Read timed out."
         )
-        timeout_msg = scan_tasks._user_facing_error(timeout)
+        timeout_msg = scan_tasks.user_facing_error(timeout)
         assert timeout_msg == "Scan failed: the data source did not respond in time."
         assert "warehouse.internal" not in timeout_msg
         assert "8123" not in timeout_msg
@@ -1159,13 +1159,13 @@ class TestScanConfigsCRUD:
             "soft time limit (300s) exceeded",
         ):
             assert (
-                scan_tasks._user_facing_error(Exception(limit_text))
+                scan_tasks.user_facing_error(Exception(limit_text))
                 == "Scan failed: the data source did not respond in time."
             )
 
         # A connection failure (ClickHouse driver text) -> friendly summary.
         refused = ConnectionError("clickhouse-connect: Connection refused to 10.0.0.4:9000")
-        refused_msg = scan_tasks._user_facing_error(refused)
+        refused_msg = scan_tasks.user_facing_error(refused)
         assert refused_msg == "Scan failed: could not connect to the data source."
         assert "10.0.0.4" not in refused_msg
         assert "clickhouse" not in refused_msg.lower()
@@ -1176,7 +1176,7 @@ class TestScanConfigsCRUD:
             "exception during flush. (Background on this error at: "
             "https://sqlalche.me/e/20/7s2a)"
         )
-        orm_msg = scan_tasks._user_facing_error(orm)
+        orm_msg = scan_tasks.user_facing_error(orm)
         # Self-hosted: the operator is support, so the message drops the
         # "contact support" line and keeps only the actionable fact.
         assert orm_msg == "Scan failed due to an internal error."
@@ -1203,7 +1203,7 @@ class TestScanConfigsCRUD:
             ConnectionError("clickhouse-connect: Connection refused to 10.0.0.4:9000"),
             RuntimeError("sqlalchemy rolled the transaction back"),
         ):
-            message = scan_tasks._user_facing_error(exc)
+            message = scan_tasks.user_facing_error(exc)
             assert message.startswith(task_errors.SCAN_FAILED_PREFIX), (
                 f"{type(exc).__name__}: {message}"
             )
@@ -1218,11 +1218,11 @@ class TestScanConfigsCRUD:
         characters of a budget that was computed without them.
         """
         already = scan_tasks.ScanError("Scan failed: the event name format references unknown keys")
-        assert scan_tasks._user_facing_error(already) == str(already)
+        assert scan_tasks.user_facing_error(already) == str(already)
 
         # Capped AFTER prefixing: the cap bounds what a UI row renders, and that
         # is the final string rather than the body it was assembled from.
-        assert len(scan_tasks._user_facing_error(scan_tasks.ScanError("x" * 600))) == (
+        assert len(scan_tasks.user_facing_error(scan_tasks.ScanError("x" * 600))) == (
             task_errors._MAX_CURATED_LEN
         )
 
@@ -1656,7 +1656,7 @@ class TestScanConfigsCRUD:
         # scan.py re-exports the canonical implementations from worker.tasks._errors
         # so the metrics task sanitises with identical logic.
         assert scan_tasks.ScanError is task_errors.ScanError
-        assert scan_tasks._user_facing_error is task_errors.user_facing_error
+        assert scan_tasks.user_facing_error is task_errors.user_facing_error
 
 
 async def _create_scan(client: AsyncClient, project: dict, data_source: dict, name: str) -> str:

@@ -1,13 +1,14 @@
-import { render, screen } from '@testing-library/react'
-import { describe, expect, it } from 'vitest'
-import { PageHeader } from './page-header'
+import { fireEvent, render, screen } from '@testing-library/react'
+import { MemoryRouter } from 'react-router-dom'
+import { describe, expect, it, vi } from 'vitest'
+import { PageBackLink, PageHeader } from './page-header'
 
 // One header component instead of two "canonical" ones and a
 // dozen hand-rolled h1s.
 describe('PageHeader', () => {
-  it('renders the title as the page heading with its count', () => {
-    render(<PageHeader eyebrow="Observe" title="Events" count="17" />)
-    expect(screen.getByRole('heading', { level: 1 })).toHaveTextContent('Events 17')
+  it('renders the title as the page heading under its eyebrow', () => {
+    render(<PageHeader eyebrow="Observe" title="Events" />)
+    expect(screen.getByRole('heading', { level: 1, name: 'Events' })).toBeInTheDocument()
     expect(screen.getByText('Observe')).toBeInTheDocument()
   })
 
@@ -41,7 +42,6 @@ describe('PageHeader', () => {
       <PageHeader
         eyebrow="Plan"
         title="Properties"
-        count={4}
         description="Template placeholders used in event field values."
         actions={<button type="button">Add property</button>}
         stats={<span>Stat row</span>}
@@ -53,8 +53,56 @@ describe('PageHeader', () => {
     expect(container.firstElementChild?.lastElementChild).toBe(stats)
   })
 
+  it('gives the title block the full row below sm, so the actions always wrap under it', () => {
+    render(
+      <PageHeader
+        title="Scans"
+        description="A long description that a phone should not squeeze beside a button."
+        actions={<button type="button">New scan</button>}
+      />,
+    )
+    const titleBlock = screen.getByRole('heading', { level: 1 }).parentElement?.parentElement
+    expect(titleBlock).toHaveClass('basis-full', 'sm:basis-60')
+  })
+
   it('renders no stats wrapper without stats', () => {
     const { container } = render(<PageHeader title="Scans" />)
     expect(container.querySelector('[data-slot="page-stats"]')).toBeNull()
+  })
+})
+
+// One back link for every page: it names where it leads and draws the same
+// chevron whether it is a link or a button.
+describe('PageBackLink', () => {
+  it('is a real link to the parent collection when given an address', () => {
+    render(
+      <MemoryRouter>
+        <PageBackLink label="Properties" to="/p/demo/variables" />
+      </MemoryRouter>,
+    )
+    const link = screen.getByRole('link', { name: 'Properties' })
+    expect(link).toHaveAttribute('href', '/p/demo/variables')
+    expect(link.querySelector('svg')).toHaveAttribute('aria-hidden', 'true')
+  })
+
+  it('is a button that calls back when the page decides where back is', () => {
+    const onClick = vi.fn()
+    render(<PageBackLink label="Metrics" onClick={onClick} />)
+    const button = screen.getByRole('button', { name: 'Metrics' })
+    expect(button).toHaveAttribute('type', 'button')
+    fireEvent.click(button)
+    expect(onClick).toHaveBeenCalledTimes(1)
+  })
+
+  it('draws the same icon either way', () => {
+    const { container } = render(
+      <MemoryRouter>
+        <PageBackLink label="Event types" to="/p/demo/event-types" />
+        <PageBackLink label="Events" onClick={() => {}} />
+      </MemoryRouter>,
+    )
+    const icons = Array.from(container.querySelectorAll('svg')).map((svg) => svg.getAttribute('class'))
+    expect(icons).toHaveLength(2)
+    expect(icons[0]).toBe(icons[1])
   })
 })

@@ -26,9 +26,9 @@ test('the create returns a seeding shell and the page waits for the worker', asy
 
   // The dialog narrates while the page re-reads the shell, and lands on the
   // ready demo's overview.
-  await expect(page.getByRole('heading', { name: 'Generating demo workspace' })).toBeVisible()
+  await expect(page.getByRole('heading', { name: 'Generating demo project' })).toBeVisible()
   await page.waitForURL(new RegExp(`/p/${shell.slug}/overview$`), { timeout: 150_000 })
-  await expect(page.locator('[data-demo-banner]').getByText('Demo workspace', { exact: true })).toBeVisible()
+  await expect(page.locator('[data-demo-banner]').getByText('Demo project', { exact: true })).toBeVisible()
 
   const ready = await page.request.get(`/api/v1/projects/${shell.slug}`)
   expect(ready.status()).toBe(200)

@@ -1,3 +1,4 @@
+import re
 import uuid
 from typing import Annotated, Literal
 
@@ -10,6 +11,7 @@ from tripl.models.property_drift import PropertyDriftKind
 from tripl.models.variable import Variable
 from tripl.models.variable_event_value_override import VariableEventValueOverride
 from tripl.models.variable_value import VariableValue
+from tripl.schemas.pagination import Offset
 from tripl.schemas.property_drift import (
     PropertyDriftActionRequest,
     PropertyDriftListResponse,
@@ -220,7 +222,7 @@ async def list_variables(
     session: SessionDep,
     slug: str,
     branch_id: BranchIdDep,
-    offset: int = Query(0, ge=0),
+    offset: Offset = 0,
     # Ceiling sized above the largest known project's variable count so a
     # single-page fetch stays possible; the default keeps unaware clients off
     # the multi-hundred-KB payload.
@@ -534,12 +536,28 @@ async def delete_variable(
     )
 
 
+_VARIABLE_WORD = re.compile(r"([Vv])ariable(s?)")
+
+
+def _in_property_words(text: str) -> str:
+    """``text`` with the product's word: "variable(s)" becomes "property" / "properties"."""
+    return _VARIABLE_WORD.sub(
+        lambda match: ("P" if match[1] == "V" else "p") + ("roperties" if match[2] else "roperty"),
+        text,
+    )
+
+
 def _properties_router() -> APIRouter:
     """Every route above again under ``/properties``, the name the product uses (F23).
 
     A property IS a variable (owner decision 1); only the word changed. The
-    ``/variables`` paths stay for one release, marked deprecated in the OpenAPI
-    document, so an older CLI or an agent pinned to them keeps working.
+    ``/variables`` paths are marked deprecated in the OpenAPI document and stay
+    until the oldest supported CLI and MCP server call ``/properties``, so an
+    older client or an agent pinned to them keeps working.
+
+    Each copy is named in the product's word too (``list_variables`` becomes
+    ``list_properties``), so the reference shows "List Properties" and the
+    operation id has the same shape as every other route's.
     """
     aliased = APIRouter()
     for route in list(router.routes):
@@ -550,10 +568,10 @@ def _properties_router() -> APIRouter:
             methods=sorted(route.methods or ()),
             response_model=route.response_model,
             status_code=route.status_code,
-            summary=route.summary,
+            summary=None if route.summary is None else _in_property_words(route.summary),
             description=route.description,
             response_description=route.response_description,
-            name=f"{route.name}__properties",
+            name=_in_property_words(route.name),
             tags=["properties"],
         )
         route.deprecated = True

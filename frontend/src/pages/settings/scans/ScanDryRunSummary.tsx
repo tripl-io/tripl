@@ -4,6 +4,7 @@ import { duplicateEventPath, formatDuplicateScore } from '@/components/duplicate
 import { formatDateTime } from '@/lib/datetime'
 import { countOf } from '@/lib/plural'
 import { dryRunNameExplosion, type NameExplosion, type NamingFixTarget } from './scanDryRunWarnings'
+import { formatNumber } from '@/lib/format'
 
 /**
  * "What this scan would create" — the answer the quick-start guide has promised
@@ -355,7 +356,7 @@ function EventList({ events }: { events: ScanDryRunResponse['events'] }) {
       </ul>
       {events.length > shown.length && (
         <Note>
-          Showing the {shown.length} most common of {events.length.toLocaleString()}.
+          Showing the {shown.length} most common of {formatNumber(events.length)}.
         </Note>
       )}
     </>
@@ -392,7 +393,7 @@ function FieldList({ fields }: { fields: ScanDryRunResponse['fields'] }) {
         ))}
       </ul>
       {fields.length > shown.length && (
-        <Note>Showing {shown.length} of {fields.length.toLocaleString()}.</Note>
+        <Note>Showing {shown.length} of {formatNumber(fields.length)}.</Note>
       )}
     </>
   )
@@ -430,7 +431,7 @@ export function ScanDryRunSummary({
   const readNothing = dryRun.sampled_rows === 0
   const sampleSentence =
     `${countOf(dryRun.sampled_rows, 'row', 'rows')} in the`
-    + ` ${dryRun.breakdown_combinations.toLocaleString()} most common column combinations.`
+    + ` ${formatNumber(dryRun.breakdown_combinations)} most common column combinations.`
 
   return (
     <div data-testid="scan-dry-run-summary" className="space-y-3">
@@ -487,7 +488,7 @@ export function ScanDryRunSummary({
             )}
             {dryRun.max_events_reached && (
               <Note tone="warning">
-                Stopped at {events.length.toLocaleString()} events. The real scan stops there too.
+                Stopped at {formatNumber(events.length)} events. The real scan stops there too.
               </Note>
             )}
           </div>
@@ -511,7 +512,7 @@ export function ScanDryRunSummary({
         <div className="space-y-1">
           {dryRun.templated_columns.map(templated => (
             <Note key={templated.column}>
-              {templated.column} has more than {templated.threshold.toLocaleString()} distinct
+              {templated.column} has more than {formatNumber(templated.threshold)} distinct
               values, so its events are named with a {'{'}{templated.column}{'}'} template instead
               of one event per value.
             </Note>

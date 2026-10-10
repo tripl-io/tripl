@@ -1,14 +1,16 @@
 import type { ServiceSettings } from '@/types'
-import { Field, RadioCards, SCard, TextInput, ToggleRow } from '@/components/settings/kit'
+import { Field, RadioCards, SCard, TextArea, TextInput, ToggleRow } from '@/components/settings/kit'
+import { FIELD_COPY, PHOTO_BACKEND_OPTIONS, inactiveBackendNote } from './fieldCopy'
 import { InactiveGroup, NumberSettingInput, OperatorFields, SourceBadge } from './ServiceSettingsPrimitives'
 import type { EditableSettings, SectionKey } from './serviceSettingsHelpers'
 import { sourceFor } from './serviceSettingsHelpers'
 
-const PHOTO_STORAGE_BACKEND_OPTIONS = [
-  { value: 'local', label: 'Local filesystem' },
-  { value: 'gcs', label: 'Google Cloud Storage' },
-] as const
-
+/**
+ * Platform › Storage: where event photos are written, and what an upload may
+ * be. Labels, units and the backend choices are the ones Organization › Photos
+ * shows for the same values (fieldCopy.ts), and the upload limits sit on their
+ * own "Uploads" card there and here.
+ */
 export function StorageSection({
   form,
   settings,
@@ -19,8 +21,9 @@ export function StorageSection({
   settings: ServiceSettings
   setField: (section: SectionKey, field: string, value: string | number | boolean) => void
   /**
-   * Every storage field but the MIME allow-list is operator-only (backend
-   * `OPERATOR_FIELDS`): one value serves every organization until each has its own.
+   * Every storage field but the content-type allow-list is operator-only
+   * (backend `OPERATOR_FIELDS`): one value serves every organization until each
+   * has its own.
    */
   platformAdmin: boolean
 }) {
@@ -28,57 +31,32 @@ export function StorageSection({
   // switching), but the one not selected above says so: with both always
   // looking live it was unclear which fields mattered.
   const backend = form.storage.photo_storage_backend
-  const inactiveNote = (active: string) =>
-    `Inactive — the backend above is ${active}, so these fields are not used until you switch.`
   return (
     <>
-      <SCard title="Backend">
+      <SCard title="Where photos are stored">
         <OperatorFields locked={!platformAdmin}>
         <Field
-          label="Photo storage backend"
+          label={FIELD_COPY.photo_storage_backend.label}
           labelRight={
             <SourceBadge source={sourceFor(settings, 'storage', 'photo_storage_backend')} />
           }
           stacked
+          last
         >
           <RadioCards
             groupLabel="Photo storage backend"
-            value={form.storage.photo_storage_backend}
+            value={backend}
             onChange={value => setField('storage', 'photo_storage_backend', value)}
-            options={PHOTO_STORAGE_BACKEND_OPTIONS}
+            options={PHOTO_BACKEND_OPTIONS}
             columns={2}
           />
         </Field>
-        <Field
-          label="Photo max size"
-          labelRight={<SourceBadge source={sourceFor(settings, 'storage', 'photo_max_size_mb')} />}
-        >
-          <NumberSettingInput
-            section="storage"
-            field="photo_max_size_mb"
-            value={form.storage.photo_max_size_mb}
-            saved={settings.storage.photo_max_size_mb}
-            setField={setField}
-            suffix="MB"
-          />
-        </Field>
         </OperatorFields>
-        <Field
-          label="Allowed MIME types"
-          labelRight={<SourceBadge source={sourceFor(settings, 'storage', 'photo_allowed_mime')} />}
-          last
-        >
-          <TextInput
-            value={form.storage.photo_allowed_mime}
-            onChange={value => setField('storage', 'photo_allowed_mime', value)}
-            mono
-          />
-        </Field>
       </SCard>
 
       <SCard
-        title="Local filesystem"
-        description={backend === 'local' ? undefined : inactiveNote('Google Cloud Storage')}
+        title={PHOTO_BACKEND_OPTIONS[0].label}
+        description={backend === 'local' ? undefined : inactiveBackendNote(backend)}
       >
         {/* Faded as well as described: the note alone left every field looking
             live. */}
@@ -100,13 +78,13 @@ export function StorageSection({
       </SCard>
 
       <SCard
-        title="Google Cloud Storage"
-        description={backend === 'gcs' ? undefined : inactiveNote('Local filesystem')}
+        title={PHOTO_BACKEND_OPTIONS[1].label}
+        description={backend === 'gcs' ? undefined : inactiveBackendNote(backend)}
       >
         <OperatorFields locked={!platformAdmin}>
         <InactiveGroup inactive={backend !== 'gcs'}>
         <Field
-          label="GCS bucket"
+          label={FIELD_COPY.gcs_photo_bucket.label}
           labelRight={<SourceBadge source={sourceFor(settings, 'storage', 'gcs_photo_bucket')} />}
         >
           <TextInput
@@ -115,12 +93,9 @@ export function StorageSection({
             mono
           />
         </Field>
-        <ToggleRow
-          label="GCS public URLs"
-          labelRight={<SourceBadge source={sourceFor(settings, 'storage', 'gcs_photo_public')} />}
-          value={form.storage.gcs_photo_public}
-          onChange={value => setField('storage', 'gcs_photo_public', value)}
-        />
+        {/* The platform's key is a file on the server, not its content: an
+            organization's own bucket takes its key's JSON on Organization ›
+            Photos instead. */}
         <Field
           label="GCS credentials path"
           labelRight={
@@ -133,8 +108,15 @@ export function StorageSection({
             mono
           />
         </Field>
+        <ToggleRow
+          label={FIELD_COPY.gcs_photo_public.label}
+          labelRight={<SourceBadge source={sourceFor(settings, 'storage', 'gcs_photo_public')} />}
+          hint={FIELD_COPY.gcs_photo_public.hint}
+          value={form.storage.gcs_photo_public}
+          onChange={value => setField('storage', 'gcs_photo_public', value)}
+        />
         <Field
-          label="Signed URL TTL"
+          label={FIELD_COPY.gcs_photo_signed_url_ttl_seconds.label}
           labelRight={
             <SourceBadge
               source={sourceFor(settings, 'storage', 'gcs_photo_signed_url_ttl_seconds')}
@@ -148,11 +130,45 @@ export function StorageSection({
             value={form.storage.gcs_photo_signed_url_ttl_seconds}
             saved={settings.storage.gcs_photo_signed_url_ttl_seconds}
             setField={setField}
-            suffix="seconds"
+            suffix={FIELD_COPY.gcs_photo_signed_url_ttl_seconds.suffix}
           />
         </Field>
         </InactiveGroup>
         </OperatorFields>
+      </SCard>
+
+      <SCard
+        title="Uploads"
+        description="What an upload may be: every organization's maximum. An organization may set lower limits of its own."
+      >
+        <OperatorFields locked={!platformAdmin}>
+        <Field
+          label={FIELD_COPY.photo_max_size_mb.label}
+          labelRight={<SourceBadge source={sourceFor(settings, 'storage', 'photo_max_size_mb')} />}
+        >
+          <NumberSettingInput
+            section="storage"
+            field="photo_max_size_mb"
+            value={form.storage.photo_max_size_mb}
+            saved={settings.storage.photo_max_size_mb}
+            setField={setField}
+            suffix={FIELD_COPY.photo_max_size_mb.suffix}
+          />
+        </Field>
+        </OperatorFields>
+        <Field
+          label={FIELD_COPY.photo_allowed_mime.label}
+          labelRight={<SourceBadge source={sourceFor(settings, 'storage', 'photo_allowed_mime')} />}
+          hint={FIELD_COPY.photo_allowed_mime.hint}
+          last
+        >
+          <TextArea
+            value={form.storage.photo_allowed_mime}
+            onChange={value => setField('storage', 'photo_allowed_mime', value)}
+            rows={2}
+            mono
+          />
+        </Field>
       </SCard>
     </>
   )

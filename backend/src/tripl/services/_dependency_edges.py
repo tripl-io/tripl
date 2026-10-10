@@ -28,6 +28,7 @@ from tripl.core.variable_retirement import tokens_of
 from tripl.models.alert_rule import AlertRule
 from tripl.models.alert_rule_filter import AlertRuleFilter
 from tripl.models.anomaly_scope_override import AnomalyScopeOverride
+from tripl.models.domain_enums import enum_text
 from tripl.models.event import Event
 from tripl.models.event_field_value import EventFieldValue
 from tripl.models.event_meta_value import EventMetaValue
@@ -69,6 +70,8 @@ __all__ = [
 Pair = tuple[list[Edge], list[Edge]]
 
 # The sentences an edge carries. One place, so the UI reads one vocabulary.
+# A variable is a "property" on every screen, so its sentences say property;
+# the constant names keep the model's word.
 METRIC_USES_EVENT = "metric uses event in its composition"
 METRIC_USES_EVENT_TYPE = "metric uses event type in its composition"
 METRIC_READS_FACT_TABLE = "metric reads fact table"
@@ -87,13 +90,13 @@ SCAN_BREAKDOWN_COLUMN = "scan metric breakdown uses column"
 SCAN_BOUND_TO_TYPE = "scan is bound to event type"
 RELATION_LINKS_TYPE = "relation links event type"
 RELATION_LINKS_FIELD = "relation links field"
-VARIABLE_BOUND_TO_FIELD = "variable bound to field"
-VARIABLE_BINDING_SAME_NAME = "variable binding names a column with the same name"
-VARIABLE_ON_EVENT = "variable observed on event"
-VARIABLE_OVERRIDE_ON_EVENT = "event overrides variable values"
-VARIABLE_IN_EVENT_VALUE = "event uses variable in a field value"
-VARIABLE_IN_FIELD_VALUE = "field value uses variable"
-VARIABLE_IN_META_VALUE = "event uses variable in a meta value"
+VARIABLE_BOUND_TO_FIELD = "property bound to field"
+VARIABLE_BINDING_SAME_NAME = "property binding names a column with the same name"
+VARIABLE_ON_EVENT = "property observed on event"
+VARIABLE_OVERRIDE_ON_EVENT = "event overrides property values"
+VARIABLE_IN_EVENT_VALUE = "event uses property in a field value"
+VARIABLE_IN_FIELD_VALUE = "field value uses property"
+VARIABLE_IN_META_VALUE = "event uses property in a meta value"
 EVENT_SUPERSEDED_BY = "superseded by"
 EVENT_SUPERSEDES = "supersedes"
 DETECTION_OVERRIDE_EVENT = "detection sensitivity override on event"
@@ -272,7 +275,7 @@ async def _relation_edges(
 
 
 def _is_filter(flt: AlertRuleFilter, field_name: str) -> bool:
-    return str(getattr(flt.field, "value", flt.field)) == field_name
+    return enum_text(flt.field) == field_name
 
 
 async def _alerts_naming(
@@ -303,8 +306,7 @@ async def _overrides_on(
     return [
         _override_edge(scope, override, relation)
         for override in await scope.detection_overrides()
-        if str(getattr(override.scope_type, "value", override.scope_type)) == scope_type
-        and override.scope_ref in refs
+        if enum_text(override.scope_type) == scope_type and override.scope_ref in refs
     ]
 
 

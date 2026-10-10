@@ -10,6 +10,7 @@ import { getMonitoringPath } from '@/lib/monitoring'
 import { eventMigrationKey } from '@/lib/queryKeys'
 import type { Event as TEvent, EventMigration, LifecycleFinding } from '@/types'
 import { SURFACE_CARD, SURFACE_STYLE } from './surface'
+import { countOf } from '@/lib/plural'
 
 /** A daily average as a whole count: "1,240/day". */
 function perDay(value: number): string {
@@ -29,11 +30,11 @@ function findingText(finding: LifecycleFinding, event: TEvent): { title: string;
     const sunset = event.sunset_at ? ` (sunset ${formatTimestamp(event.sunset_at)})` : ''
     return {
       title: 'Past its sunset date and still receiving data',
-      detail: `${formatNumber(volume)} event${volume === 1 ? '' : 's'} in the last 24h${sunset}.`,
+      detail: `${countOf(volume, 'event', 'events')} in the last 24h${sunset}.`,
     }
   }
   const volume = finding.successor_volume_7d ?? 0
-  const count = `${formatNumber(volume)} event${volume === 1 ? '' : 's'} in the last 7 days.`
+  const count = `${countOf(volume, 'event', 'events')} in the last 7 days.`
   const isSuccessorPage = finding.related_event_id != null
     && finding.related_event_id === event.id
     && finding.event_id !== event.id

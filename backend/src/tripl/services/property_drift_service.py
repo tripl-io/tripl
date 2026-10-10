@@ -1,9 +1,9 @@
 """Read and triage ``PropertyDrift`` rows (F23, #306).
 
-Mirrors ``variable_value_drift_service``: the same 30-day read-time retention
-and the same notion of active, and an ``accept`` that changes the plan on the
-variable's branch (main: property drift, like value drift, is only detected
-against main).
+Mirrors ``variable_value_drift_service``: the same read-time retention and the
+same notion of active (``core.drift_activity``), and an ``accept`` that changes
+the plan on the variable's branch (main: property drift, like value drift, is
+only detected against main).
 """
 
 from __future__ import annotations
@@ -14,8 +14,8 @@ from datetime import UTC, datetime
 from fastapi import HTTPException
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.sql.elements import ColumnElement
 
+from tripl.core.drift_activity import active_drift_clauses, retention_cutoff
 from tripl.core.property_schema import PropertySchemaError, check_schema_matches_type
 from tripl.models.property_drift import PropertyDrift, PropertyDriftKind
 from tripl.models.user import User
@@ -28,7 +28,6 @@ from tripl.schemas.property_drift import (
 )
 from tripl.services.project_lookup import resolve_project_id
 from tripl.services.search_service import reindex_project_branch
-from tripl.services.variable_value_drift_service import retention_cutoff
 
 
 async def list_property_drifts(
@@ -57,20 +56,10 @@ async def list_property_drifts(
     if kind is not None:
         query = query.where(PropertyDrift.kind == kind.value)
     if active_only:
-        query = query.where(*_active(now))
+        query = query.where(*active_drift_clauses(PropertyDrift, now))
     drifts = list((await session.execute(query)).scalars().all())
     items = [PropertyDriftResponse.model_validate(drift) for drift in drifts]
     return PropertyDriftListResponse(items=items, total=len(items))
-
-
-def _active(now: datetime) -> list[ColumnElement[bool]]:
-    """Active as value drift judges it: open, or snoozed until a past instant."""
-    return [
-        PropertyDrift.status.in_({"open", "snoozed"}),
-        (PropertyDrift.status != "snoozed")
-        | (PropertyDrift.snoozed_until.is_(None))
-        | (PropertyDrift.snoozed_until <= now),
-    ]
 
 
 async def _accept(session: AsyncSession, drift: PropertyDrift, variable: Variable) -> None:

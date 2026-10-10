@@ -47,11 +47,11 @@ from tripl.alert_templates import (
     LIFECYCLE_KIND_SUNSET_OVERDUE,
 )
 from tripl.alerting_matching import SCOPE_LIFECYCLE, DriftAlertCandidate
+from tripl.core.bucketing import optional_to_utc
 from tripl.models.event import Event
 from tripl.models.lifecycle_finding import LifecycleFinding
 from tripl.models.scan_config import ScanConfig
-
-from .urls import _trim_alert_text
+from tripl.services.alerting_rendering import trim_alert_text
 
 logger = logging.getLogger(__name__)
 
@@ -69,14 +69,6 @@ def format_per_day(value: float | int | None) -> str:
     return f"{round(float(value or 0)):,}"
 
 
-def _as_utc(value: datetime | None) -> datetime | None:
-    if value is None:
-        return None
-    if value.tzinfo is None:
-        return value.replace(tzinfo=UTC)
-    return value.astimezone(UTC)
-
-
 def _lifecycle_detail(
     *,
     kind: str,
@@ -90,7 +82,7 @@ def _lifecycle_detail(
     """
     if kind == LIFECYCLE_KIND_SUNSET_OVERDUE:
         detail = f"{event_name} still receives {format_per_day(volume_24h)}/day"
-        sunset = _as_utc(sunset_at)
+        sunset = optional_to_utc(sunset_at)
         if sunset is not None:
             detail += f", sunset {sunset.date().isoformat()}"
         return detail
@@ -180,7 +172,7 @@ def _load_lifecycle_candidates(
                 name = related_name
             elif superseded_by_event_id is not None and successor_name:
                 name = successor_name
-        bucket = _as_utc(first_seen_at) or datetime.now(UTC)
+        bucket = optional_to_utc(first_seen_at) or datetime.now(UTC)
         candidate = DriftAlertCandidate(
             # Lands on ``source_anomaly_id`` (no FK): the finding row.
             id=finding_id,
@@ -199,9 +191,9 @@ def _load_lifecycle_candidates(
             direction="spike" if is_sunset else "drop",
             actual_count=float(volume_24h or 0) if is_sunset else 0.0,
             expected_count=0.0,
-            drift_field=_trim_alert_text(name, max_length=255),
+            drift_field=trim_alert_text(name, max_length=255),
             drift_type=kind_value,
-            sample_value=_trim_alert_text(
+            sample_value=trim_alert_text(
                 _lifecycle_detail(
                     kind=kind_value,
                     event_name=name,

@@ -35,11 +35,10 @@ _FIGMA_URL = "https://www.figma.com/file/DEMO0paywall/Paywall-Spec?node-id=0-1"
 # per field but a single audit row per PATCH, so anything grouped here stays
 # grouped there.
 #
-# Only fields ``event_service._TRACKED_FIELDS`` records may appear here — six of
-# them since 9fbc5811: status, name, title, description, sunset_at and
-# superseded_by_event_id. (This comment said "the four fields" and quoted docs
-# wording, "and nothing else", that no longer exists; the count was stale, not
-# the rule.) The history used to carry a
+# Only fields ``event_service._TRACKED_FIELDS`` records may appear here — seven
+# of them: status, name, title, description, required_presence_threshold,
+# sunset_at and superseded_by_event_id. (Earlier versions of this comment gave
+# four, then six; the count went stale, not the rule.) The history used to carry a
 # ``metric_breakdown_columns`` edit, which is a row the product cannot produce,
 # so the demo was teaching a capability that does not exist. Harmless while it
 # sat on one page; not harmless once the audit builder began deriving

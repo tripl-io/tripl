@@ -237,9 +237,10 @@ describe('Property catalog: events tab (F23)', () => {
     expect(within(panel).getByText('On 2 events · 1 required · 1 override')).toBeInTheDocument()
     expect(within(panel).getByText('Documented list')).toBeInTheDocument()
     expect(within(panel).getByText('50%')).toBeInTheDocument()
-    expect(within(panel).getByText('· below 95%')).toBeInTheDocument()
+    // The event grid's wording: the threshold has its own column here.
+    expect(within(panel).getByText('below threshold')).toBeInTheDocument()
     expect(within(panel).getByText('90%')).toBeInTheDocument()
-    expect(within(panel).getByText('· looks required')).toBeInTheDocument()
+    expect(within(panel).getByText('looks required')).toBeInTheDocument()
     expect(within(panel).getByRole('link', { name: /Show in the events list/ })).toHaveAttribute(
       'href',
       '/p/demo/events?property=currency',

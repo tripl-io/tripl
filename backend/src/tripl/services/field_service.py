@@ -246,7 +246,8 @@ async def delete_field(
     # would make the branch useless for staging "drop the column and rewrite the
     # scan's name format", which is the repair this guard tells operators to do.
     # The branch's deletion becomes real when it merges, and the merge has its
-    # own guard (``plan_branch_merge_service``) — the third door.
+    # own guard (``_plan_branch_merge_fields._reject_removals_a_scan_names_events_by``)
+    # — the third door.
     if is_main:
         await _reject_if_a_scan_names_events_by(session, event_type=et, field_name=field.name)
     await session.delete(field)

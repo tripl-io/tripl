@@ -76,12 +76,12 @@ from tripl.services.metrics_service import (
     _apply_scope_sigma_override,
     _get_project_recent_signal_window,
     _get_project_sigma_threshold,
-    _resolve_project,
     _retained_versions,
     _served_stddev,
     _signal_from_anomaly,
 )
 from tripl.services.monitoring_utils import classify_signal_state, scan_interval_to_timedelta
+from tripl.services.project_lookup import resolve_project
 from tripl.services.version_activation import (
     DEFAULT_ACTIVE_SHARE_MIN,
     active_release_versions,
@@ -493,7 +493,7 @@ async def get_metric_series(
     time_from: datetime | None = None,
     time_to: datetime | None = None,
 ) -> MetricSeriesResponse:
-    project = await _resolve_project(session, slug)
+    project = await resolve_project(session, slug)
     metric = await _resolve_metric(session, project, metric_id)
     interval, scan_config_id = await _resolve_metric_interval(session, metric)
 
@@ -646,7 +646,7 @@ async def get_metric_breakdowns(
     time_from: datetime | None = None,
     time_to: datetime | None = None,
 ) -> MetricBreakdownsResponse:
-    project = await _resolve_project(session, slug)
+    project = await resolve_project(session, slug)
     metric = await _resolve_metric(session, project, metric_id)
     interval, scan_config_id = await _resolve_metric_interval(session, metric)
     columns = list(dict.fromkeys(metric.breakdown_columns or []))
@@ -1050,7 +1050,7 @@ async def get_metric_version_series(
     time_from: datetime | None = None,
     time_to: datetime | None = None,
 ) -> MetricVersionSeriesResponse:
-    project = await _resolve_project(session, slug)
+    project = await resolve_project(session, slug)
     metric = await _resolve_metric(session, project, metric_id)
     interval, scan_config_id = await _resolve_metric_interval(session, metric)
     if not metric.app_version_column:

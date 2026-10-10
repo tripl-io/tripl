@@ -15,6 +15,8 @@
  * so they have to say the same thing.
  */
 
+import { MINUS_SIGN, formatNumber } from '@/lib/format'
+
 /** What the percentage is called when there is nothing to divide by. */
 export const NO_BASELINE_LABEL = 'no baseline'
 
@@ -121,9 +123,17 @@ export function ratioDelta(actual: number, expected: number): number | null {
  *
  * The `+` stays a real statement about direction because {@link ratioDelta} now
  * signs by `actual - expected`; feed this a bare magnitude and every drop would
- * read "+".
+ * read "+". A drop takes the typographic minus ("−43%"), as the other signed
+ * figures on the monitoring pages do. {@link formatPercentDelta} keeps the
+ * ASCII "-" on purpose: it reprints the alert message as it was sent.
  */
 export function formatRatioDelta(percent: number | null, digits = 0): string {
   if (percent === null) return NO_BASELINE_LABEL
-  return `${percent > 0 ? '+' : ''}${percent.toFixed(digits)}%`
+  const magnitude = formatNumber(Math.abs(percent), {
+    minimumFractionDigits: digits,
+    maximumFractionDigits: digits,
+  })
+  // Signed by what is printed: -0.4 rounds to "0%", not "-0%".
+  if (/^[0.]+$/.test(magnitude)) return `${magnitude}%`
+  return `${percent > 0 ? '+' : MINUS_SIGN}${magnitude}%`
 }

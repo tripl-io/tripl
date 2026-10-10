@@ -88,7 +88,7 @@ async def test_an_unsaved_destination_is_tested_without_being_saved(
     assert [url for url, _body, _headers in posted] == [SLACK_WEBHOOK]
     text = posted[0][1]["text"]
     assert isinstance(text, str)
-    assert "Tripl test message" in text
+    assert "tripl test message" in text
     assert "Destination: Ops Slack" in text
 
     async with TestSessionLocal() as session:

@@ -1,4 +1,5 @@
-"""What every OpenID Connect sign-in flow shares: its error codes, PKCE, ``next``.
+"""What every OpenID Connect sign-in flow shares: its error codes, PKCE, ``next``
+and the authorization request URL.
 
 A failed sign-in comes back to the app as ``/auth?sso_error=<code>``; the codes
 here are the ones any provider's flow can end with, and the SPA maps them to
@@ -11,6 +12,8 @@ import asyncio
 import base64
 import hashlib
 import secrets
+from collections.abc import Mapping
+from urllib.parse import urlencode, urlsplit, urlunsplit
 
 from tripl.auth_utils import hash_password
 from tripl.services.oidc.idp_http import IdpError
@@ -67,6 +70,17 @@ def pkce_challenge(verifier: str) -> str:
     """The S256 code challenge of a PKCE ``verifier``."""
     digest = hashlib.sha256(verifier.encode("ascii")).digest()
     return base64.urlsafe_b64encode(digest).rstrip(b"=").decode("ascii")
+
+
+def authorization_url(endpoint: str, params: Mapping[str, str]) -> str:
+    """The provider's ``authorization_endpoint`` with the request's ``params`` added.
+
+    RFC 6749 3.1: a query the endpoint already has (Azure AD B2C's ``?p=<policy>``,
+    say) is kept, and the parameters are appended to it.
+    """
+    parts = urlsplit(endpoint)
+    query = "&".join(part for part in (parts.query, urlencode(dict(params))) if part)
+    return urlunsplit(parts._replace(query=query))
 
 
 async def unusable_password_hash() -> str:

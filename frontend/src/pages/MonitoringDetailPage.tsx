@@ -129,7 +129,7 @@ export default function MonitoringDetailPage() {
   // Tab, range, granularity and filters live in the URL.
   const [search, searchActions] = useMonitoringDetailSearch()
   const { rangeDays } = search
-  const metricsRef = useRef<HTMLDivElement>(null)
+  const chartsRef = useRef<HTMLDivElement>(null)
 
   const branchId = useActiveBranchId()
   const branchLink = useBranchLinkProps()
@@ -604,9 +604,9 @@ export default function MonitoringDetailPage() {
             link.onClick()
             navigate(link.to)
           } : undefined}
-          onMetrics={() => {
+          onOpenCharts={() => {
             searchActions.setTab('volume')
-            metricsRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+            chartsRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
           }}
           onAnnotate={canWrite ? startAnnotation : undefined}
           discussionCount={discussionQuery.data?.length}
@@ -731,10 +731,10 @@ export default function MonitoringDetailPage() {
         <EventSpecCard slug={slug} event={event} eventType={eventType} metaFieldMap={metaFieldMap} />
       )}
 
-      {/* The hero's "Metrics" action scrolls here. The anchor used to be a
+      {/* The hero's "Charts" action scrolls here. The anchor used to be a
           separate span with -mt-5, which cancelled the page gap and glued the
           tab strip to the card above it. */}
-      <div ref={metricsRef} className="min-w-0 scroll-mt-4">
+      <div ref={chartsRef} className="min-w-0 scroll-mt-4">
         <Tabs value={selectedTab} onValueChange={value => searchActions.setTab(value as MonitoringDetailTab)}>
           {/* The strip scrolls on its own on a phone instead of widening the
               page: five triggers do not fit 375px. */}
@@ -923,8 +923,10 @@ export default function MonitoringDetailPage() {
         <DocNotesSection slug={slug} kind="metric" name={metricDefinition.name} />
       )}
 
+      {/* A viewer reads the drift without the review buttons, as on the
+          property's page and in the property-drift list below. */}
       {scope === 'event' && scopeId && (
-        <EventValueDriftPanel slug={slug!} eventId={scopeId} />
+        <EventValueDriftPanel slug={slug!} eventId={scopeId} canWrite={canWrite} />
       )}
       {/* Property drift (F23): detected against main, and Accept edits main. */}
       {scope === 'event' && scopeId && branchId === null && (

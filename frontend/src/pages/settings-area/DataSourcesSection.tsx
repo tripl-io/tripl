@@ -6,7 +6,7 @@ import { SectionSkeleton } from '@/components/states'
 const DataSourcesPage = lazyWithReload(() => import('@/pages/DataSourcesPage'))
 
 /**
- * Workspace · Data sources. Reuses the existing DataSourcesPage wiring verbatim
+ * Organization · Data sources. Reuses the existing DataSourcesPage wiring verbatim
  * (it reads dsId from the route and navigates back to /settings/data-sources),
  * wrapped in the takeover section header.
  */

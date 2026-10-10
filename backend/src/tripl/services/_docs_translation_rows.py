@@ -12,6 +12,7 @@ import uuid
 from collections.abc import Callable
 from datetime import UTC, datetime, timedelta
 
+from tripl.core.bucketing import to_utc
 from tripl.models.doc_translation import DocTranslation, DocTranslationRevision
 
 #: A run still ``pending`` after this long has died (a lost queue message, a
@@ -27,9 +28,8 @@ def effective_status(translation: DocTranslation, now: datetime | None = None) -
     updated = translation.updated_at
     if updated is None:
         return "pending"
-    if updated.tzinfo is None:  # SQLite hands timestamps back naive
-        updated = updated.replace(tzinfo=UTC)
-    if (now or datetime.now(UTC)) - updated > PENDING_STALE_AFTER:
+    # SQLite hands timestamps back naive.
+    if (now or datetime.now(UTC)) - to_utc(updated) > PENDING_STALE_AFTER:
         return "failed"
     return "pending"
 

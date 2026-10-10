@@ -4,6 +4,7 @@ import type {
   PlatformPresenceResponse,
   ScanActivityResponse,
   ScanConfig,
+  ScanConfigDetail,
   ScanConfigPreview,
   ScanDryRunJob,
   ScanDryRunRequest,
@@ -106,7 +107,7 @@ export const scansApi = {
     api.get<ScanConfig[]>(`/projects/${slug}/scans`),
 
   get: (slug: string, scanId: string) =>
-    api.get<ScanConfig>(`/projects/${slug}/scans/${scanId}`),
+    api.get<ScanConfigDetail>(`/projects/${slug}/scans/${scanId}`),
 
   getPlatformPresence: (slug: string, scanId: string) =>
     api.get<PlatformPresenceResponse>(`/projects/${slug}/scans/${scanId}/platform-presence`),

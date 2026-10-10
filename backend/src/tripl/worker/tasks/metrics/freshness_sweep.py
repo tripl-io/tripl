@@ -40,7 +40,7 @@ from sqlalchemy import exists, select
 from sqlalchemy.orm import Session
 
 from tripl.alerting_matching import AlertMatchCandidate, rule_matches_anomaly
-from tripl.core.bucketing import to_utc
+from tripl.core.bucketing import optional_to_utc, to_utc
 from tripl.models.alert_destination import AlertDestination
 from tripl.models.alert_rule import AlertRule
 from tripl.models.alert_rule_state import AlertRuleState
@@ -56,7 +56,6 @@ from tripl.worker.tasks.metrics.alert_payload import (
     _load_enabled_alert_destinations,
 )
 from tripl.worker.tasks.metrics.dispatch import (
-    _as_utc,
     _bucket_is_newer,
     _buffer_pending_items,
     _claim_rule_state,
@@ -69,6 +68,7 @@ from tripl.worker.tasks.metrics.dispatch import (
 )
 from tripl.worker.tasks.metrics.signals import _get_source_freshness_candidates
 from tripl.worker.tasks.metrics.urls import _get_project_slug
+from tripl.worker.utils.advisory_lock import release_advisory_lock, try_acquire_advisory_lock
 
 logger = logging.getLogger(__name__)
 
@@ -220,7 +220,7 @@ def _deliver_freshness_candidates(
             if not anomalies_to_send:
                 continue
             # Same NULL-means-not-muted reading as the dispatch.
-            rule_muted_until = _as_utc(rule.muted_until)
+            rule_muted_until = optional_to_utc(rule.muted_until)
             if rule_muted_until is not None and rule_muted_until > now:
                 continue
 
@@ -310,17 +310,11 @@ def _sweep_overdue_sources(
 def sweep_overdue_sources() -> dict[str, int]:
     """Beat entry point: alert on every scheduled scan that stopped collecting."""
     from tripl.worker.tasks.alerts import send_alert_delivery
-    from tripl.worker.tasks.metrics.schedule import (
-        _release_advisory_lock,
-        _try_acquire_advisory_lock,
-    )
 
     session = _get_sync_session()
     lock_conn = None
     try:
-        lock_conn, acquired = _try_acquire_advisory_lock(
-            session, _FRESHNESS_SWEEP_ADVISORY_LOCK_KEY
-        )
+        lock_conn, acquired = try_acquire_advisory_lock(session, _FRESHNESS_SWEEP_ADVISORY_LOCK_KEY)
         if not acquired:
             logger.info("sweep_overdue_sources: another sweep holds the lock; skipping")
             return {"checked": 0, "overdue": 0, "alerts_queued": 0, "alerts_buffered": 0}
@@ -331,5 +325,7 @@ def sweep_overdue_sources() -> dict[str, int]:
             send_alert_delivery.delay(str(delivery_id))
         return summary
     finally:
-        _release_advisory_lock(lock_conn, _FRESHNESS_SWEEP_ADVISORY_LOCK_KEY)
+        release_advisory_lock(
+            lock_conn, _FRESHNESS_SWEEP_ADVISORY_LOCK_KEY, name="sweep_overdue_sources"
+        )
         session.close()

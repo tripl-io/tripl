@@ -1,23 +1,22 @@
 import { render, screen } from '@testing-library/react'
 import { describe, expect, it } from 'vitest'
-import { InactiveGroup } from './ServiceSettingsPrimitives'
+import { InactiveGroup, ReadOnlyValue } from './ServiceSettingsPrimitives'
 
 describe('InactiveGroup', () => {
   it('passes the rows through untouched while its switch is on', () => {
     const { container } = render(
-      <InactiveGroup inactive={false} reason="Not used while AI is off.">
+      <InactiveGroup inactive={false}>
         <input aria-label="Model" />
       </InactiveGroup>,
     )
 
     expect(screen.getByLabelText('Model')).toBeEnabled()
-    expect(screen.queryByText('Not used while AI is off.')).toBeNull()
     expect(container.querySelector('[data-inactive]')).toBeNull()
   })
 
-  it('marks the rows inactive and says why, but leaves them editable', () => {
+  it('marks the rows inactive but leaves them editable', () => {
     const { container } = render(
-      <InactiveGroup inactive reason="Not used while AI is off.">
+      <InactiveGroup inactive>
         <input aria-label="Model" />
       </InactiveGroup>,
     )
@@ -25,19 +24,32 @@ describe('InactiveGroup', () => {
     const group = container.querySelector('[data-inactive="true"]')
     expect(group).not.toBeNull()
     expect(group).toContainElement(screen.getByLabelText('Model'))
-    expect(screen.getByText('Not used while AI is off.')).toBeInTheDocument()
     // De-emphasised, not disabled: preparing a config before switching it on is valid.
     expect(screen.getByLabelText('Model')).toBeEnabled()
   })
 
-  it('draws no reason line when the card already says so', () => {
+  it('draws no caption of its own: the switch or the card says why', () => {
     const { container } = render(
       <InactiveGroup inactive>
         <input aria-label="Model" />
       </InactiveGroup>,
     )
 
-    expect(container.querySelector('[data-inactive="true"]')).not.toBeNull()
-    expect(container.querySelector('[data-inactive] > p')).toBeNull()
+    expect(container.querySelector('[data-inactive] p')).toBeNull()
+  })
+})
+
+describe('ReadOnlyValue', () => {
+  it('reports a value as text, not as an input that cannot move', () => {
+    const { container } = render(<ReadOnlyValue value="https://embed.example/v1" />)
+
+    expect(screen.getByText('https://embed.example/v1')).toHaveAttribute('title', 'https://embed.example/v1')
+    expect(container.querySelector('input')).toBeNull()
+  })
+
+  it('shows a dash for an empty value', () => {
+    render(<ReadOnlyValue value="" />)
+
+    expect(screen.getByText('—')).toBeInTheDocument()
   })
 })

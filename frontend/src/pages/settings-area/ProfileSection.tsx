@@ -2,17 +2,19 @@ import { useAuth } from '@/components/auth-context'
 import { InfoRow, SCard, SHeader } from '@/components/settings/kit'
 import { RoleChip } from '@/components/settings/role-chip'
 import { UserAvatar } from '@/components/ui/user-avatar'
+import { activeOrgRole } from '@/lib/permissions'
 import { ComingLaterCard } from './ComingLaterCard'
 import { NotificationPrefsCard } from './NotificationPrefsCard'
-import { ReadOnlyNotice } from '@/components/states'
+import { currentZoneName } from './timeZones'
 
 /**
  * Timestamps render in *your browser's* timezone, so that is what this page
  * shows. It used to render a hardcoded "Europe/Berlin" from a five-city list,
  * which a reader in Tokyo could only read as their account being set wrong.
+ * Under its current name: the browser may report `Asia/Calcutta` for Kolkata.
  */
 function browserTimezone(): string {
-  return Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC'
+  return currentZoneName(Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC')
 }
 
 
@@ -25,33 +27,36 @@ const UNBUILT = [
 ] as const
 
 /**
- * Account · Profile: what the account really holds — name, email, role — and
- * one card for what is not built.
+ * Account · Profile: what the account really holds — name, email, role — the
+ * one editable card, Notifications (#259), and one card for what is not built.
  *
- * The preference and notification controls have no backend and nothing reads
- * them. They were first six live controls that persisted nowhere,
- * then the same controls disabled: honest, but a page of controls that do
- * nothing. "Weekly digest" could never have been a per-person switch at all —
- * the digest is fanned out per project alert destination.
+ * The details are read-only: there is no endpoint to rename yourself, and the
+ * organization role is set on Members. The card says so itself; a lock banner
+ * over the whole page used to say nothing here could change, above the
+ * Notifications card, which can. The display preferences have no backend;
+ * they were first live controls that persisted nowhere, then the same
+ * controls disabled, and are now named in the Coming later card.
  */
 export default function ProfileSection() {
   const { user } = useAuth()
+  // The role in the organization the app acts in, the one Members shows:
+  // `user.role` is the default organization's.
+  const role = activeOrgRole(user)
+  // An owner is who sets roles; anyone else is told who sets theirs.
+  const detailsNote =
+    role === 'owner'
+      ? "Your name and email can't be changed here yet."
+      : "Your name and email can't be changed here yet. An organization owner or admin sets your role."
 
   return (
     <div>
       <SHeader title="Profile" description="Your personal details across every project you belong to." />
-      {/* Nothing on this page is editable; say so once, the way every other
-          read-only section does, rather than leave a page of values that look
-          like they should be (#237). */}
-      <ReadOnlyNotice className="mb-5">
-        Your details can't be changed here yet. A workspace owner sets your role.
-      </ReadOnlyNotice>
 
       {/* Read-only values in read-only rows: editable-form Field rows
           top-aligned each value about 6px off its label and made four facts
           380px tall. The avatar and name head the card; the rest are InfoRows,
           in the body font — mono is for machine identifiers. */}
-      <SCard title="Your details">
+      <SCard title="Your details" description={detailsNote}>
         <div
           className="flex items-center gap-3 px-4 py-[13px] border-b border-b-border-subtle"
         >
@@ -67,7 +72,7 @@ export default function ProfileSection() {
           </div>
         </div>
         <InfoRow label="Email" value={user?.email ?? '—'} mono={false} />
-        <InfoRow label="Role" value={user?.role ? <RoleChip role={user.role} /> : '—'} mono={false} />
+        <InfoRow label="Role" value={role ? <RoleChip role={role} /> : '—'} mono={false} />
         <InfoRow
           label="Timezone"
           value={
@@ -81,7 +86,6 @@ export default function ProfileSection() {
         />
       </SCard>
 
-      {/* The one editable card: how your own notifications reach you (#259). */}
       <NotificationPrefsCard />
 
       <ComingLaterCard items={UNBUILT} />

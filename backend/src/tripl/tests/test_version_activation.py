@@ -10,14 +10,13 @@ the raw SemVer-max only when nothing has activated.
 import re
 from datetime import datetime
 
-from tripl.semver import APP_VERSION_OTHER_LABEL
+from tripl.semver import APP_VERSION_OTHER_LABEL, order_versions
 from tripl.services.metrics_service import _build_app_version_series, _retained_versions
 from tripl.services.version_activation import (
     activation_bucket,
     active_release_versions,
     compile_prerelease_pattern,
     is_prerelease_version,
-    latest_active_version,
     released_versions,
     resolve_share_min,
 )
@@ -67,33 +66,35 @@ def test_active_release_versions_volume_floor_alone_excludes() -> None:
     assert active_release_versions(per_version, total, min_volume=200) == set()
 
 
-def test_latest_active_version_prefers_active_over_higher_semver() -> None:
+def test_active_release_versions_skips_a_higher_semver_inactive_build() -> None:
     per_version = {
         "1.0.0": {d: 1000 for d in DAYS},
         "2.0.0": {d: 10 for d in DAYS},  # higher SemVer, but inactive
     }
     total = {d: 1010 for d in DAYS}
-    assert latest_active_version(per_version, total) == "1.0.0"
+    assert active_release_versions(per_version, total) == {"1.0.0"}
 
 
-def test_latest_active_version_none_when_nothing_activates() -> None:
+def test_active_release_versions_empty_when_nothing_activates() -> None:
     per_version = {
         "1.0.0": {d: 10 for d in DAYS},
         "2.0.0": {d: 5 for d in DAYS},
     }
     total = {d: 15 for d in DAYS}
-    assert latest_active_version(per_version, total) is None
+    assert active_release_versions(per_version, total) == set()
 
 
-def test_latest_active_version_semver_max_among_active() -> None:
+def test_latest_pick_is_the_semver_max_among_active_releases() -> None:
     per_version = {
         "2.2.0": {d: 500 for d in DAYS},
         "2.10.0": {d: 500 for d in DAYS},  # SemVer-max, also active
         "2.9.0": {d: 500 for d in DAYS},
     }
     total = {d: 1500 for d in DAYS}
+    active = active_release_versions(per_version, total)
+    assert active == set(per_version)
     # Lexical max would be "2.9.0"; SemVer max is "2.10.0".
-    assert latest_active_version(per_version, total) == "2.10.0"
+    assert order_versions(active, reverse=True)[0] == "2.10.0"
 
 
 # --- _build_app_version_series integration ---------------------------------

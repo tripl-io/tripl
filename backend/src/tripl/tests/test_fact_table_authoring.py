@@ -950,7 +950,7 @@ async def test_a_data_source_owned_by_another_project_is_refused_even_if_nobody_
     """Ownership is the rule, and ``project_id`` states it outright.
 
     A non-NULL ``data_sources.project_id`` scopes a source to one project — the
-    column exists for generated demo workspaces, so their synthetic warehouse is
+    column exists for generated demo projects, so their synthetic warehouse is
     cleaned up with the project instead of leaking a workspace-wide orphan. Such
     a source is another project's whether or not a scan config points at it, so
     the absence of a scan must not make it borrowable.

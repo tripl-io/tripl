@@ -155,8 +155,15 @@ async def test_unsaved_data_source_connection(
     """Test a connection before it is saved.
 
     The create gate (org owner/admin, browser session) and the create body's validation,
-    host format included; nothing is stored and no stored secret is read. Always
-    200: a refused connection is the answer the caller asked for.
+    host format included; nothing is stored and no stored secret is read.
+
+    A config Create would refuse is a 422, as it is on Create: invalid
+    ``connection_settings``, a missing Databricks ``http_path`` or Snowflake
+    ``warehouse``, an empty user name (Trino, Snowflake, Athena, and Databricks
+    with ``oauth_m2m`` sign-in), a Trino password over ``http``, or the
+    ``synthetic`` type. A valid config is always 200, with ``success`` false when
+    the warehouse cannot be reached or refuses the sign-in: that is the answer the
+    caller asked for.
     """
     return await datasource_service.test_unsaved_connection(data)
 

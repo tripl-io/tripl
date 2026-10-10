@@ -22,6 +22,7 @@ import asyncio
 import json
 import logging
 import math
+import re
 import uuid
 from collections.abc import Mapping, Sequence
 from datetime import UTC, datetime, timedelta
@@ -52,6 +53,7 @@ from tripl.core.analyzers.name_similarity import (
     suggest,
     with_prefix,
 )
+from tripl.models.domain_enums import enum_text
 from tripl.models.duplicate_dismissal import DuplicateDismissal
 from tripl.models.event import Event, EventStatus
 from tripl.models.event_field_value import EventFieldValue
@@ -73,6 +75,7 @@ from tripl.schemas.duplicates import (
     NamingConventionOut,
 )
 from tripl.services import app_settings_service
+from tripl.services._id_chunks import chunked
 from tripl.services.lifecycle_rules import lookback_start, window_volume
 
 logger = logging.getLogger(__name__)
@@ -101,10 +104,6 @@ CLUSTER_STATUSES = (
 CONVENTION_STATUSES = frozenset({EventStatus.live.value, EventStatus.implemented.value})
 
 
-def _status(value: object) -> str:
-    return str(getattr(value, "value", value))
-
-
 async def _dismissal_anchors(
     session: AsyncSession,
     project_id: uuid.UUID,
@@ -119,8 +118,7 @@ async def _dismissal_anchors(
     """
     wanted = sorted({origin for origin in origins.values() if origin is not None}, key=str)
     existing: set[uuid.UUID] = set()
-    for start in range(0, len(wanted), 500):
-        chunk = wanted[start : start + 500]
+    for chunk in chunked(wanted):
         existing.update(
             (
                 await session.execute(
@@ -158,7 +156,7 @@ async def _catalog(
     entries: list[CatalogName] = []
     origins: dict[uuid.UUID, uuid.UUID | None] = {}
     for event_id, name, event_type_id, status, origin_id in rows[:MAX_CATALOG_EVENTS]:
-        entries.append(CatalogName(event_id, name or "", event_type_id, _status(status)))
+        entries.append(CatalogName(event_id, name or "", event_type_id, enum_text(status)))
         origins[event_id] = origin_id
     keys = await _dismissal_anchors(session, project_id, origins)
     return entries, keys, truncated
@@ -251,8 +249,7 @@ async def _event_vectors(
     """
     vectors: dict[uuid.UUID, list[float]] = {}
     ids = list(dict.fromkeys(event_ids))
-    for start in range(0, len(ids), 500):
-        chunk = ids[start : start + 500]
+    for chunk in chunked(ids):
         rows = await session.execute(
             select(SearchDocument.entity_id, cast(SearchDocument.embedding, Text)).where(
                 SearchDocument.project_id == project_id,
@@ -573,7 +570,7 @@ async def _volumes_7d(
     )
     return window_volume(
         (
-            (event_id, bucket, int(count), None if interval is None else _status(interval))
+            (event_id, bucket, int(count), None if interval is None else enum_text(interval))
             for event_id, bucket, count, interval in rows.all()
             if event_id is not None
         ),
@@ -597,10 +594,16 @@ def _clusters(
     return cluster_pairs(links, threshold=threshold, order=order)
 
 
+#: A ``next_cursor``: one to nine ASCII digits. ``str.isdigit`` alone also passed
+#: "²" and digit strings past ``int``'s 4300-digit limit, and ``int`` then raised.
+_CURSOR = re.compile(r"[0-9]{1,9}")
+
+
 def _parse_cursor(cursor: str | None) -> int:
+    """The cluster offset a cursor carries; 422 for anything that is not one."""
     if not cursor:
         return 0
-    if not cursor.isdigit():
+    if _CURSOR.fullmatch(cursor) is None:
         raise HTTPException(status_code=422, detail="Invalid cursor")
     return int(cursor)
 

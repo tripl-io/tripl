@@ -4,9 +4,14 @@ from __future__ import annotations
 
 from tripl_cli.api.request import ApiRequest
 
-LIST = "/projects/{slug}/variables"
-VALUES = "/projects/{slug}/variables/{variable_id}/values"
-EVENT_OVERRIDES = "/projects/{slug}/variables/{variable_id}/event-overrides"
+# The canonical `/properties` routes. The server still answers the same
+# handlers under `/variables`, marked deprecated, for clients released before
+# this switch; calling the alias from here would keep it alive forever. Servers
+# older than v0.2.2 have no `/properties` and answer these with a 404. The
+# contract test fails if any shared endpoint is a deprecated operation.
+LIST = "/projects/{slug}/properties"
+VALUES = "/projects/{slug}/properties/{variable_id}/values"
+EVENT_OVERRIDES = "/projects/{slug}/properties/{variable_id}/event-overrides"
 
 ENDPOINTS: tuple[tuple[str, str], ...] = (
     ("get", LIST),

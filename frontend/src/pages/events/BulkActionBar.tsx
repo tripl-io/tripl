@@ -9,6 +9,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
+import { formatNumber } from '@/lib/format'
 
 // A stand-in for "no owner" inside the picker. Radix treats an empty
 // SelectItem value as "clear the selection" and throws on it, and this Select
@@ -106,7 +107,7 @@ export function BulkActionBar({
             ? 'Selecting…'
             : matchingTotal === null
               ? 'Select all matching'
-              : `Select all ${matchingTotal.toLocaleString()}`}
+              : `Select all ${formatNumber(matchingTotal)}`}
         </Button>
         </>
       )}

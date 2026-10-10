@@ -8,6 +8,7 @@ tests assert on it directly for the same reason.
 
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass, field
 from pathlib import Path
 
@@ -127,12 +128,38 @@ class InstallPlan:
 
 
 # How the two versions compare. `unknown` is not a failure - it is what a tag
-# like `latest` or `sha-abc1234` honestly produces, and it is why --yes is
-# required in that case rather than an ordering being invented.
+# like `latest` or `sha-abc1234` honestly produces, and it is why
+# FLAG_ALLOW_UNORDERED is required in that case rather than an ordering being
+# invented.
 ORDER_SAME = "same"
 ORDER_UPGRADE = "upgrade"
 ORDER_DOWNGRADE = "downgrade"
 ORDER_UNKNOWN = "unknown"
+
+# The override for `unknown`, next to the ordering it overrides, because two
+# commands name it: `tripl upgrade` defines the flag, and `tripl install` tells
+# an operator to pass it when the pin a kept .env holds can only be moved with
+# it. Not `--yes`: every non-interactive upgrade must pass `--yes` to answer the
+# backup prompt, so a CI log showing `--yes` says "this run is automated" and
+# nothing about downgrades.
+FLAG_ALLOW_UNORDERED = "--allow-unordered-tag"
+
+# A released tag: strict three-part semver, digits only. `1.4`, `v1.4.0` and
+# `sha-abc1234` all fail it deliberately: a partial match would be an invented
+# ordering.
+RELEASE_TAG = re.compile(r"(\d+)\.(\d+)\.(\d+)")
+
+
+def compare(current: str, target: str) -> str:
+    """How moving from ``current`` to ``target`` orders, or ``unknown`` when it does not."""
+    if current == target:
+        return ORDER_SAME
+    left, right = RELEASE_TAG.fullmatch(current), RELEASE_TAG.fullmatch(target)
+    if left is None or right is None:
+        return ORDER_UNKNOWN
+    low = tuple(int(part) for part in left.groups())
+    high = tuple(int(part) for part in right.groups())
+    return ORDER_UPGRADE if high > low else ORDER_DOWNGRADE
 
 
 @dataclass(frozen=True)

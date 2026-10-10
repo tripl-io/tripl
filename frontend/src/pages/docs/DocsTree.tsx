@@ -135,10 +135,21 @@ export function DocsTree({
   const [filter, setFilter] = useState('')
   const [dragging, setDragging] = useState<DragItem | null>(null)
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 4 } }))
-  const roots: { scope: DocScope; label: string; docs: DocSummary[] }[] = [
-    { scope: 'project', label: 'Project notes', docs: tree.project_docs },
-    { scope: 'organization', label: `Organization notes · ${tree.organization.name}`, docs: tree.organization_docs },
+  // The root names the docs use. The organization's name is the heading's
+  // hover text, not part of it: in a 260px rail "Organization notes · Default
+  // organization" was cut off mid-name with no way to read the rest.
+  const roots: { scope: DocScope; label: string; hint: string; docs: DocSummary[] }[] = [
+    { scope: 'project', label: 'Project notes', hint: `Notes for ${tree.project.name} only`, docs: tree.project_docs },
+    {
+      scope: 'organization',
+      label: 'Organization notes',
+      hint: `Notes for every project in ${tree.organization.name}`,
+      docs: tree.organization_docs,
+    },
   ]
+  // With no notes anywhere the page's own empty state says so once; a "No
+  // notes yet." under each root as well said it three times.
+  const treeEmpty = tree.project_docs.length + tree.organization_docs.length === 0
 
   const onDragStart = (event: DragStartEvent) => setDragging(event.active.data.current as DragItem)
   const onDragEnd = (event: DragEndEvent) => {
@@ -175,7 +186,9 @@ export function DocsTree({
             slug={slug}
             scope={root.scope}
             label={root.label}
+            hint={root.hint}
             docs={root.docs}
+            treeEmpty={treeEmpty}
             filter={filter}
             active={active?.scope === root.scope ? active.path : null}
             actions={actions}
@@ -226,7 +239,9 @@ function ScopeRoot({
   slug,
   scope,
   label,
+  hint,
   docs,
+  treeEmpty,
   filter,
   active,
   actions,
@@ -234,7 +249,11 @@ function ScopeRoot({
   slug: string
   scope: DocScope
   label: string
+  /** Whose notes these are, on hover over the heading. */
+  hint: string
   docs: DocSummary[]
+  /** Neither root holds a note: the page's empty state speaks for both. */
+  treeEmpty: boolean
   filter: string
   active: string | null
   actions?: FolderActions
@@ -293,7 +312,7 @@ function ScopeRoot({
         ) : (
           <FileText className="size-3.5 shrink-0 text-fg-tertiary" aria-hidden />
         )}
-        <h2 id={headingId} className="micro-label m-0 min-w-0 flex-1 truncate text-fg-tertiary">
+        <h2 id={headingId} title={hint} className="micro-label m-0 min-w-0 flex-1 truncate text-fg-tertiary">
           {label}
         </h2>
         <span className="tnum text-caption text-fg-faint">{docs.length}</span>
@@ -309,9 +328,11 @@ function ScopeRoot({
         )}
       </div>
       {visible.length === 0 ? (
-        <p className="m-0 px-2 py-1 text-caption text-fg-tertiary">
-          {filtering ? 'No match.' : 'No notes yet.'}
-        </p>
+        filtering || !treeEmpty ? (
+          <p className="m-0 px-2 py-1 text-caption text-fg-tertiary">
+            {filtering ? 'No match.' : 'No notes yet.'}
+          </p>
+        ) : null
       ) : (
         <FolderList
           slug={slug}

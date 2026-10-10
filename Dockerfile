@@ -6,8 +6,9 @@
 #
 #     docker build -t tripl .
 #
-# The standalone backend/Dockerfile + frontend/Dockerfile (two containers, with
-# nginx) remain as an alternative deploy.
+# This is the one image tripl ships (release.yml and preview.yml push its
+# `runtime` target, and CI builds it). backend/Dockerfile and frontend/Dockerfile
+# are the development images compose.dev.yaml runs.
 
 # ---- frontend build -> dist/ ----
 # On the build machine's own platform: dist/ is static files, the same for
@@ -25,7 +26,9 @@ RUN bun run build
 RUN bun scripts/third-party-licenses.mjs /app/licenses
 
 # ---- backend deps + source ----
-FROM ghcr.io/astral-sh/uv:python3.14-trixie-slim AS backend-base
+# uv pinned for a reproducible build; bump it together with backend/Dockerfile,
+# mcp-server/Dockerfile and tripl-enterprise's UV_IMAGE.
+FROM ghcr.io/astral-sh/uv:0.12.22-python3.14-trixie-slim AS backend-base
 WORKDIR /app
 ENV UV_LINK_MODE=copy
 COPY backend/pyproject.toml backend/uv.lock backend/.python-version ./
@@ -57,6 +60,16 @@ ENV PATH="/app/.venv/bin:$PATH"
 ENV UVICORN_WORKERS=4
 ENV SERVE_FRONTEND=true
 ENV FRONTEND_DIST_DIR=/app/frontend_dist
+
+# The bytecode of the server, its migrations and every installed package. The
+# app user cannot write to the source or the virtualenv, so without it every
+# process (each uvicorn worker, Celery, the migrate one-shot) compiles everything
+# it imports, in memory, at each start. uv's own bytecode option would skip the
+# editable /app/src. Tests are left out. A third-party file that does not
+# compile is skipped too (-qq, and its exit status ignored), as pip and uv do;
+# Python reports it if it is ever imported.
+RUN python -m compileall -q -j 0 -x '/tests/' /app/src /app/alembic \
+    && { python -m compileall -qq -j 0 -x '/tests/' /app/.venv/lib || true; }
 
 # The local photo backend's default root is ./var/photos under WORKDIR, and the
 # app user cannot create anything under the root-owned /app, so every photo

@@ -14,6 +14,7 @@ from tripl.core.analyzers.anomaly_detector import (
     SCOPE_METRIC,
     SCOPE_PROJECT_TOTAL,
 )
+from tripl.core.bucketing import to_utc
 from tripl.middleware.org_context import require_org_id
 from tripl.models.alert_delivery import AlertDelivery, AlertDeliveryStatus
 from tripl.models.alert_destination import AlertDestination
@@ -488,7 +489,7 @@ async def _populate_monitoring_signals(
     # metric_definition_id, so the ScanConfig-joined query in
     # _open_signals.open_counted_scan_signals silently drops them. Fold them
     # into the count here by reusing the exact open-signal logic the
-    # AnomaliesPage uses (metrics_insights_service._count_active_metric_signals_by_project,
+    # AnomaliesPage uses (metrics_insights_service._active_metric_signals_by_project,
     # the batched sibling of _get_active_metric_signals, which classifies each
     # metric's newest anomaly against its latest stored value bucket ON THAT
     # METRIC'S OWN GRID), so the sidebar / ProjectsPage badge agrees with the
@@ -769,8 +770,7 @@ def _should_touch_demo_access(project: Project) -> bool:
     last = project.demo_last_accessed_at
     if last is None:
         return True
-    last_aware = last if last.tzinfo is not None else last.replace(tzinfo=UTC)
-    return (datetime.now(UTC) - last_aware).total_seconds() >= _DEMO_ACCESS_TOUCH_SECONDS
+    return (datetime.now(UTC) - to_utc(last)).total_seconds() >= _DEMO_ACCESS_TOUCH_SECONDS
 
 
 async def create_project(

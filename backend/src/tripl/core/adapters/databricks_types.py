@@ -191,10 +191,6 @@ def declared_struct_paths(type_name: str) -> dict[str, bool]:
     return dict(sorted(paths.items()))
 
 
-def is_array_type(type_name: str) -> bool:
-    return parse_spark_type(type_name).kind == "array"
-
-
 def is_ntz_type(type_name: str) -> bool:
     """``timestamp_ntz``: a zone-less wall clock, compared against a zone-less literal."""
     return type_name.strip().lower().startswith("timestamp_ntz")

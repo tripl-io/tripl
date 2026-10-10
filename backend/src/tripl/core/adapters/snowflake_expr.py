@@ -1,17 +1,17 @@
-"""Snowflake SQL expressions: time windows, buckets, nested paths and field contracts.
+"""Snowflake SQL expressions: time windows, buckets, nested paths, text and contract tests.
 
-The statement-free half of :class:`~tripl.core.adapters.snowflake.SnowflakeAdapter`,
-kept apart so the adapter module stays readable. Everything here reads only the
-introspected column types (``_column_types``) and builds SQL text; nothing runs a
-statement except the regex probe the adapter supplies.
+The statement-free half of :class:`~tripl.core.adapters.snowflake.SnowflakeAdapter`:
+how Snowflake spells what the statements in
+:mod:`~tripl.core.adapters.dialect_sql_adapter` ask for. Everything here reads
+only the introspected column types (``_column_types``) and builds SQL text;
+nothing runs a statement.
 """
 
 from __future__ import annotations
 
 from datetime import datetime
 
-from tripl.core.adapters.base import FieldContractExpectation, contract_bound_literal
-from tripl.core.adapters.databricks_sql import IDENTIFIER_PART_RE, validate_identifier_column
+from tripl.core.adapters.dialect_sql_adapter import DialectSqlAdapter
 from tripl.core.adapters.errors import WarehouseCapabilityError
 from tripl.core.adapters.snowflake_sql import (
     Params,
@@ -19,6 +19,7 @@ from tripl.core.adapters.snowflake_sql import (
     is_zoned_type,
     quote_ident,
 )
+from tripl.core.adapters.sql_common import json_path_parts
 from tripl.core.bucketing import EPOCH, WEEK_ORIGIN, to_utc
 from tripl.core.intervals import IntervalUnit, get_interval
 from tripl.core.warehouse_types import ComplexKind, TimeKind, classify_complex, classify_time
@@ -56,20 +57,30 @@ def utc_date_literal(value: datetime) -> str:
     return f"TO_DATE('{to_utc(value).strftime(_DATE_LITERAL_FMT)}', 'YYYY-MM-DD')"
 
 
-class SnowflakeExpressions:
-    """SQL text for one adapter's introspected columns."""
+class SnowflakeExpressions(DialectSqlAdapter):
+    """Snowflake's spelling of the shared statements, for one adapter's introspected columns."""
 
-    # Class-level defaults: the unit tests build adapters with ``object.__new__``
-    # and seed only what they use.
-    _allowed_columns: set[str] = set()  # noqa: RUF012 - replaced per instance, never mutated
-    _column_types: dict[str, str] = {}  # noqa: RUF012 - replaced per instance, never mutated
+    engine_label = "Snowflake"
+
+    _COUNT = "COUNT"
+    _COUNT_IF = "COUNT_IF"
+    _IF = "IFF"
+    _MIN = "MIN"
+    _ROW_NUMBER = "ROW_NUMBER"
+
+    # ------------------------------------------------------------------ #
+    # values and identifiers
+    # ------------------------------------------------------------------ #
+
+    def _new_params(self) -> Params:
+        return Params()
+
+    def _quote_ident(self, name: str) -> str:
+        return quote_ident(name)
 
     # ------------------------------------------------------------------ #
     # columns and time
     # ------------------------------------------------------------------ #
-
-    def _validate_column(self, column: str) -> str:
-        return validate_identifier_column(column, self._allowed_columns)
 
     def _time_kind(self, time_column: str) -> TimeKind:
         type_name = self._column_types.get(time_column)
@@ -101,22 +112,6 @@ class SnowflakeExpressions:
         if is_ntz_type(self._column_types.get(time_column, "")):
             return utc_ntz_literal(value)
         return utc_tz_literal(value)
-
-    def _time_condition(
-        self, time_column: str | None, time_from: datetime | None, time_to: datetime | None
-    ) -> str:
-        if time_column is None or time_from is None or time_to is None:
-            return ""
-        quoted = quote_ident(self._validate_column(time_column))
-        lower = self._time_literal(time_column, time_from)
-        upper = self._time_literal(time_column, time_to)
-        return f"{quoted} >= {lower} AND {quoted} < {upper}"
-
-    def _time_window_where_clause(
-        self, time_column: str | None, time_from: datetime | None, time_to: datetime | None
-    ) -> str:
-        condition = self._time_condition(time_column, time_from, time_to)
-        return f" WHERE {condition}" if condition else ""
 
     def _utc_wall_clock(self, time_column: str) -> str:
         """The column as a ``TIMESTAMP_NTZ`` holding the UTC wall clock of each value.
@@ -186,9 +181,7 @@ class SnowflakeExpressions:
         but brackets need no quoting rules). Every segment holds to the
         identifier grammar before it is spelled.
         """
-        parts = [part for part in path.split(".") if part]
-        if not parts or any(not IDENTIFIER_PART_RE.match(part) for part in parts):
-            raise ValueError(f"Unsupported JSON path: {path}")
+        parts = json_path_parts(path)
         col = self._validate_column(column)
         self._require_document(col)
         return f"{quote_ident(col)}::VARIANT" + "".join(f"['{part}']" for part in parts)
@@ -217,127 +210,33 @@ class SnowflakeExpressions:
     def _string_value_expression(self, column: str) -> str:
         return f"COALESCE({quote_ident(self._validate_column(column))}::STRING, '')"
 
-    def _field_operand(self, field: str) -> str:
-        prop = split_property_field(field)
-        if prop is None:
-            return quote_ident(self._validate_column(field))
-        return self._property_value_expression(*prop)
-
     def _field_value_expression(self, field: str) -> str:
         if split_property_field(field) is None:
             return self._string_value_expression(field)
         return f"COALESCE({self._field_operand(field)}, '')"
 
-    def _validate_breakdown_field(self, field: str) -> str:
-        prop = split_property_field(field)
-        if prop is None:
-            return self._validate_column(field)
-        self._validate_column(prop[0])
-        return field
+    def _json_object_or_null(self, quoted: str) -> str:
+        parsed = f"TRY_PARSE_JSON({quoted})"
+        return f"IFF(IS_OBJECT({parsed}), {parsed}, NULL)"
 
-    def _nested_source(
-        self,
-        base_query: str,
-        where_clause: str,
-        json_cols: list[str],
-        json_value_paths: dict[str, list[str]],
-    ) -> tuple[str, dict[str, str], list[str]]:
-        """The FROM source with every nested expression computed once, under an alias."""
-        prepared: list[str] = []
-        alias_by_name: dict[str, str] = {}
-        json_value_names: list[str] = []
-        for index, column in enumerate(json_cols):
-            alias = f"__np_{index}"
-            prepared.append(f"{self._json_paths_expression(column)} AS {alias}")
-            alias_by_name[column] = alias
-        for column in json_cols:
-            for path in json_value_paths.get(column, []):
-                full_path = f"{column}.{path}"
-                alias = f"__nv_{len(json_value_names)}"
-                prepared.append(f"{self._json_path_expression(column, path)} AS {alias}")
-                alias_by_name[full_path] = alias
-                json_value_names.append(full_path)
-        if not prepared:
-            return f"({base_query}) AS _src{where_clause}", alias_by_name, json_value_names
-        inner = f"SELECT _src.*, {', '.join(prepared)} FROM ({base_query}) AS _src{where_clause}"
-        return f"({inner}) AS _prepared", alias_by_name, json_value_names
+    def _cast_text(self, expr: str) -> str:
+        return f"{expr}::STRING"
 
     # ------------------------------------------------------------------ #
     # field contracts
     # ------------------------------------------------------------------ #
 
-    def _contract_where_clause(
-        self,
-        params: Params,
-        time_column: str | None,
-        time_from: datetime | None,
-        time_to: datetime | None,
-        group_column: str | None,
-        group_value: str | None,
-    ) -> str:
-        conditions: list[str] = []
-        window = self._time_condition(time_column, time_from, time_to)
-        if window:
-            conditions.append(window)
-        if group_column is not None:
-            expected = params.bind(group_value or "")
-            conditions.append(f"{self._string_value_expression(group_column)} = {expected}")
-        if not conditions:
-            return ""
-        return " WHERE " + " AND ".join(conditions)
+    def _contract_text(self, field: str) -> str:
+        return f"COALESCE({self._cast_text(self._field_operand(field))}, '')"
 
-    def _contract_bad_predicate(
-        self,
-        expectation: FieldContractExpectation,
-        operand: str,
-        params: Params,
-        regex_ok: bool,
-    ) -> str | None:
-        """The predicate that makes one row BAD; ``None`` when the type has none.
+    def _regex_mismatch(self, value: str, pattern: str) -> str:
+        # REGEXP_LIKE matches the WHOLE string; REGEXP_INSTR finds, like re.search.
+        return f"REGEXP_INSTR({value}, {pattern}) = 0"
 
-        Mirrors ``PostgresAdapter._contract_bad_condition`` clause for clause:
-        ``required_null`` counts NULLs, every other drift type skips them, and a
-        range value that does not parse as a number is BAD.
-        """
-        value_expr = f"COALESCE({operand}::STRING, '')"
-        present = f"{operand} IS NOT NULL"
-        drift_type = expectation.drift_type
-        if drift_type == "required_null_violation":
-            return f"{operand} IS NULL"
-        if drift_type == "enum_violation":
-            options = ", ".join(params.bind(option) for option in expectation.enum_options)
-            return f"{present} AND {value_expr} NOT IN ({options})"
-        if drift_type == "regex_violation":
-            assert expectation.regex is not None
-            if not regex_ok:
-                return None
-            # REGEXP_LIKE matches the WHOLE string; REGEXP_INSTR finds, like re.search.
-            return f"{present} AND REGEXP_INSTR({value_expr}, {params.bind(expectation.regex)}) = 0"
-        if drift_type == "range_violation":
-            number = f"TRY_TO_DOUBLE({value_expr})"
-            outside: list[str] = []
-            if expectation.min_value is not None:
-                outside.append(f"{number} < {contract_bound_literal(expectation.min_value)}")
-            if expectation.max_value is not None:
-                outside.append(f"{number} > {contract_bound_literal(expectation.max_value)}")
-            # Unparseable is BAD; NaN is never compared (Snowflake sorts it above
-            # every number and makes it equal to itself, Python compares it false).
-            return (
-                f"{present} AND ({number} IS NULL OR "
-                f"({number} <> 'NaN'::FLOAT AND ({' OR '.join(outside)})))"
-            )
-        return None
+    def _try_double(self, value: str) -> str:
+        return f"TRY_TO_DOUBLE({value})"
 
-    def _contract_aggregate_sql(
-        self, expectation: FieldContractExpectation, bad: str, *, index: int
-    ) -> str:
-        """``_bad_{i}``, ``_total_{i}``, ``_sample_{i}`` — the layout every engine shares."""
-        operand = self._field_operand(expectation.field_name)
-        is_required = expectation.drift_type == "required_null_violation"
-        total = "COUNT(*)" if is_required else f"COUNT_IF({operand} IS NOT NULL)"
-        sample = "'<NULL>'" if is_required else f"COALESCE({operand}::STRING, '')"
-        return (
-            f"COUNT_IF({bad}) AS _bad_{index}, "
-            f"{total} AS _total_{index}, "
-            f"MIN(IFF({bad}, {sample}, NULL)) AS _sample_{index}"
-        )
+    def _nan_guard(self, number: str) -> str:
+        # Snowflake sorts NaN above every number and makes it equal to itself;
+        # Python compares it false both ways, so it is never compared at all.
+        return f"{number} <> 'NaN'::FLOAT"

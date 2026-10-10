@@ -30,9 +30,9 @@ and they have one implementation here too: :func:`open_property_drift_counts`
 (per project, the ``open_property_drift_count`` the sidebar and the bell show)
 and :func:`open_property_drift_counts_by_event` (the health score's drifts
 component). Both apply the same rule as property-drift alert candidates
-(``alerting_property_drift.active_property_drift_filters``) inside the
-value-drift retention window, so a count, a score and an alert cannot disagree
-about which drifts are open. They are NOT folded into the scan-signal count:
+(``alerting_property_drift.active_property_drift_filters``) inside the drift
+retention window (``core.drift_activity``), so a count, a score and an alert
+cannot disagree about which drifts are open. They are NOT folded into the scan-signal count:
 that number badges the Anomalies page and must equal what it lists.
 
 Queries are batched: one for the anomalies, one for the metric buckets, one for
@@ -60,6 +60,7 @@ from tripl.core.analyzers.anomaly_detector import (
     SCOPE_EVENT_TYPE,
     SCOPE_PROJECT_TOTAL,
 )
+from tripl.core.drift_activity import retention_cutoff
 from tripl.models.event_metric import EventMetric
 from tripl.models.metric_anomaly import MetricAnomaly
 from tripl.models.property_drift import PropertyDrift
@@ -74,7 +75,6 @@ from tripl.services.monitoring_utils import (
     latest_bucket_by_scan,
     scan_interval_to_timedelta,
 )
-from tripl.services.variable_value_drift_service import retention_cutoff
 
 SCAN_SCOPES: tuple[str, ...] = (SCOPE_PROJECT_TOTAL, SCOPE_EVENT_TYPE, SCOPE_EVENT)
 

@@ -29,8 +29,7 @@ class NameRule:
 
     ``parts`` is the format as ``(is_slot, text)`` pieces with adjacent
     placeholders merged into one slot (``{a}{b}`` cannot be split, so it is one
-    value); ``slots`` is the placeholder text of each slot, for labels;
-    ``separators`` the distinct literals BETWEEN slots.
+    value); ``slots`` is the placeholder text of each slot, for labels.
     """
 
     name_format: str
@@ -40,15 +39,6 @@ class NameRule:
     @property
     def slots(self) -> tuple[str, ...]:
         return tuple(text for is_slot, text in self.parts if is_slot)
-
-    @property
-    def separators(self) -> tuple[str, ...]:
-        found: list[str] = []
-        for position, (is_slot, text) in enumerate(self.parts):
-            inner = 0 < position < len(self.parts) - 1
-            if not is_slot and inner and text not in found:
-                found.append(text)
-        return tuple(found)
 
     def split(self, name: str) -> tuple[str, ...] | None:
         """The slot values of ``name``, or None when it does not follow the rule."""
@@ -94,9 +84,3 @@ def compile_rule(name_format: str | None) -> NameRule | None:
         parts=tuple(parts),
         pattern=re.compile(regex, re.IGNORECASE | re.DOTALL),
     )
-
-
-def rule_separators(name_format: str | None) -> tuple[str, ...]:
-    """The literal separators between the placeholders of ``name_format``."""
-    rule = compile_rule(name_format)
-    return rule.separators if rule is not None else ()

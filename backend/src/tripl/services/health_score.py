@@ -53,7 +53,11 @@ class EventHealthFacts:
     last_seen_at: datetime | None = None
     lifecycle_kinds: frozenset[str] = frozenset()
     has_description: bool = False
+    # An owner on the event or at least one owner on its event type.
     has_owner: bool = False
+    # ``has_owner`` holds only through the event type's owners: the event has
+    # none of its own. The score is the same; the detail says where it came from.
+    owner_from_type: bool = False
     contract_total: int = 0
     contract_violated: int = 0
     # ``(field_name, drift_type)`` of each violated expectation, sorted.
@@ -239,7 +243,14 @@ def _documentation(facts: EventHealthFacts) -> _Part:
         )
         if not present
     ]
-    detail = ", ".join(missing) if missing else "Description and owner set"
+    if missing:
+        detail = ", ".join(missing)
+    elif facts.owner_from_type:
+        # Only the type's owners: a bare "owner set" sent the reader looking
+        # for an owner on the event, which has none.
+        detail = "Description set; owner from event type"
+    else:
+        detail = "Description and owner set"
     return _Part(
         applies=True,
         value=value,

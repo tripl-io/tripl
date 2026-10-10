@@ -4,6 +4,7 @@ import { Chip } from '@/components/primitives/chip'
 import { PageContainer } from '@/components/primitives/page-container'
 import { PageHead, Panel } from '@/components/settings/kit'
 import { PRODUCT_PILLARS, type PillarId } from '@/components/workspace-welcome-pillars'
+import { PLAN_COVERAGE_HELP } from '@/lib/coverage'
 import { termAnchor } from '@/lib/glossary'
 import { currentOrgSlug, projectPath } from '@/lib/navigation'
 
@@ -58,20 +59,20 @@ const AREAS: readonly Area[] = [
         term: 'Events',
         // No backticks: TermRow prints `definition` as a bare text node, so the
         // grave accents that once wrapped the example rendered as literal
-        // characters on the finished reference page. The example
-        // itself is the one the New event form models in its name placeholder
-        // ("e.g. checkout:completed", EventForm.tsx) and the shape scan rules
-        // generate from an `event_name_format` — the glossary used to teach a
-        // third convention, leaving a first-time user with no idea which the
-        // product expects.
+        // characters on the finished reference page. The example names an
+        // action, not an event name: the New event form dropped its
+        // "e.g. checkout:completed" placeholder because a sample name teaches
+        // one naming convention to catalogs that use another, and tripl
+        // expects whatever name the app actually sends.
         definition:
-          'A single tracked action in your plan — checkout:completed, for example. Events are the atomic unit you instrument, observe, and govern.',
+          'A single tracked action in your plan, under the exact name your app sends — a completed purchase or a screen view, for example. Events are the atomic unit you instrument, observe, and govern.',
         path: '/events',
       },
       {
+        // The Event types page's own description, so the two say the same.
         term: 'Event types',
         definition:
-          'Categories that group related events (for example lifecycle or commerce) so they can be organised and colour-coded together.',
+          'Categories that group your events and define their shared fields, ownership and naming.',
         path: '/event-types',
       },
       {
@@ -83,16 +84,26 @@ const AREAS: readonly Area[] = [
         path: '/meta-fields',
       },
       {
+        // What the Properties page and the docs describe: typed placeholders
+        // in event field values, not free-standing constants.
         term: 'Properties',
         definition:
-          'Reusable named values (thresholds, identifiers, constants) referenced across the plan so a value is defined once and used everywhere.',
+          'Typed, reusable values that event field values reference as ${name} placeholders. Each has a type and a description, and optionally documented values and the warehouse columns or JSON paths scans recognize it by.',
         path: '/variables',
       },
       {
+        // A relation joins two fields, not two events, as the Relations page
+        // and the docs describe it.
         term: 'Relations',
         definition:
-          'Declared links between events — one event follows, depends on, or belongs with another — describing how the plan fits together.',
+          'Declared joins between event types: a field on one holds the same value as a field on another, so drift and coverage can follow the join.',
         path: '/relations',
+      },
+      {
+        term: 'Docs',
+        definition:
+          "Markdown notes kept next to the plan, for what the plan cannot say: warehouse gotchas, query recipes, how a funnel is meant to be read. Each project has its own, and the organization's are shared. Notes link plan entities as [[event:name]], and agents read them through MCP and the CLI.",
+        path: '/docs',
       },
       {
         term: 'Plan branches',
@@ -153,7 +164,7 @@ const AREAS: readonly Area[] = [
       {
         term: 'Signals',
         definition:
-          'An open anomaly at a given scope — a spike or drop tripl found in the volume. Signals are raised automatically by detection on every scan; no alert rule has to exist for one to appear.',
+          'An open anomaly at a given scope — a spike or drop tripl found in the volume. Overview and the sidebar count them as open signals. Signals are raised automatically by detection on every scan; no alert rule has to exist for one to appear.',
         path: '/anomalies',
         surface: 'Anomalies',
       },
@@ -168,6 +179,12 @@ const AREAS: readonly Area[] = [
         definition:
           'How sensitive anomaly detection is for this project: the thresholds and minimum volumes a spike or drop must pass before it becomes a signal.',
         path: '/settings/monitoring',
+      },
+      {
+        term: 'Annotations',
+        definition:
+          'Markers on the monitoring charts — a deploy, a release, a note — and expected windows: windows such as a campaign or a sale in which a spike or drop is expected, so it is not reported as news. The Annotations page lists every one in the project, newest first.',
+        path: '/annotations',
       },
       {
         // One name for the object (#238). The glossary used to explain
@@ -188,7 +205,7 @@ const AREAS: readonly Area[] = [
       {
         term: 'Alerting',
         definition:
-          'Everything that turns a signal into a notification somebody owes an answer on: the incident Inbox, the rules that route, the destinations (Slack, Telegram, webhooks, email, Jira, Linear) they route to, and the delivery log behind them.',
+          'Everything that turns a signal into a notification somebody owes an answer on: the incident Inbox, the rules that route, the destinations (Slack, Microsoft Teams, Telegram, PagerDuty, email, webhooks, Jira, Linear) they route to, and the delivery log behind them.',
         path: '/alerting',
       },
     ],
@@ -220,6 +237,12 @@ const AREAS: readonly Area[] = [
         surface: 'Reconciliation',
       },
       {
+        term: 'Duplicates',
+        definition:
+          'Events that look like the same thing under different names. Keep one, and retire the others with it as their successor.',
+        path: '/duplicates',
+      },
+      {
         // The glossary is where someone who does not understand scans arrives on
         // purpose — often straight off a Telegram alert naming one. It has to
         // carry the same chain the scans list, the scan form and a scan's own
@@ -246,15 +269,16 @@ const AREAS: readonly Area[] = [
         workspace: true,
       },
       {
+        // The Coverage page's own help, so the glossary names the data match
+        // in its unit (warehouse rows), not as a second catalog measure.
         term: 'Coverage',
-        definition:
-          'The share of active planned events marked implemented. Different from the data match on Reconciliation, which compares the plan with what actually arrives.',
+        definition: PLAN_COVERAGE_HELP,
         path: '/coverage',
       },
       {
         term: 'Audit log',
         definition:
-          "A chronological record of who changed what in this project's plan, so every adoption, edit, and archive is traceable. Workspace-level changes (members, API keys) are in the instance audit log.",
+          "A chronological record of who changed what in this project's plan, so every adoption, edit, and archive is traceable. Changes outside any project (members, API keys, data sources) are in the organization audit log, part of tripl Enterprise.",
         path: '/audit',
       },
     ],

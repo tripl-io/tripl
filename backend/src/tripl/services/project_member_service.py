@@ -129,11 +129,6 @@ async def list_members(session: AsyncSession, project_id: uuid.UUID) -> list[Pro
     return [_serialize(member, user) for member, user in rows.all()]
 
 
-async def is_member(session: AsyncSession, project_id: uuid.UUID, user_id: uuid.UUID) -> bool:
-    """Whether ``user_id`` holds a membership row (an organization owner/admin may not)."""
-    return await _get_member(session, project_id, user_id) is not None
-
-
 async def grant_membership(
     session: AsyncSession,
     *,

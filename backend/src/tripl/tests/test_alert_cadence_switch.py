@@ -772,9 +772,9 @@ def test_the_rule_mute_comment_reads_as_history_and_the_model_agrees() -> None:
     """
     dispatch_source = inspect.getsource(metrics_dispatch)
     assert "# A muted monitor delivers nothing." in dispatch_source
-    assert "rule_muted_until = _as_utc" in dispatch_source
+    assert "rule_muted_until = optional_to_utc" in dispatch_source
     mute_block = dispatch_source.split("# A muted monitor delivers nothing.")[1].split(
-        "rule_muted_until = _as_utc"
+        "rule_muted_until = optional_to_utc"
     )[0]
     # Verbatim from before the fix.
     assert 'model comment called worker-side suppression "a separate' not in mute_block

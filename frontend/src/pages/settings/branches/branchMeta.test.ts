@@ -1,5 +1,33 @@
 import { describe, expect, it } from 'vitest'
-import { branchNameProblem, suggestBranchName } from './branchMeta'
+import { eventAttributeLabel } from '@/lib/eventAttributes'
+import { ACTION_LABEL, branchNameProblem, stateKeyLabel, suggestBranchName } from './branchMeta'
+
+describe('stateKeyLabel', () => {
+  it('names an event key the way the "as merged" sheet and the event page do', () => {
+    for (const key of ['superseded_by', 'source_name', 'sunset_at', 'reviewed', 'meta_values']) {
+      expect(stateKeyLabel(key)).toBe(eventAttributeLabel(key))
+    }
+    expect(stateKeyLabel('superseded_by')).toBe('Replaced by')
+    expect(stateKeyLabel('source_name')).toBe('Scan identity')
+    expect(stateKeyLabel('reviewed')).toBe('Verified')
+  })
+
+  it('keeps the words of the keys only other entities carry', () => {
+    expect(stateKeyLabel('variable_type')).toBe('Property type')
+    expect(stateKeyLabel('json_schema')).toBe('JSON Schema')
+  })
+
+  it('reads a key nothing names as words', () => {
+    expect(stateKeyLabel('display_name')).toBe('Display name')
+  })
+})
+
+describe('ACTION_LABEL', () => {
+  it('names the branch on the transitions a bare verb made read as closing the panel', () => {
+    expect(ACTION_LABEL.close).toBe('Close branch')
+    expect(ACTION_LABEL.reopen).toBe('Reopen branch')
+  })
+})
 
 describe('branchNameProblem', () => {
   it('accepts ref-like names, ticket keys included', () => {

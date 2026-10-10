@@ -608,6 +608,31 @@ describe('MetricsCatalog — the stat strip uses the app locale', () => {
   })
 })
 
+describe('MetricsCatalog — the stat strip on a first run', () => {
+  it('shows no strip of zeroes over the empty catalog', async () => {
+    vi.mocked(metricsCatalogApi.list).mockResolvedValue({ items: [], total: 0, active_total: 0 })
+    renderCatalog(NOT_A_DEMO)
+
+    expect(await screen.findByText('No metrics yet')).toBeInTheDocument()
+    expect(screen.queryByText('Metrics', { selector: 'dt' })).toBeNull()
+    expect(screen.queryByRole('button', { name: /^With anomalies\b/ })).toBeNull()
+  })
+
+  it('leaves Active neutral at zero: no active metric is not praise', async () => {
+    vi.mocked(metricsCatalogApi.list).mockResolvedValue({
+      items: [makeItem({ id: 'm-1', name: 'signups', display_name: 'Signups', status: 'draft' })],
+      total: 1,
+      active_total: 0,
+    })
+    renderCatalog(NOT_A_DEMO)
+
+    await screen.findByRole('link', { name: 'Signups' })
+    const active = screen.getByText('Active', { selector: 'dt' }).closest('dl') as HTMLElement
+    await waitFor(() => expect(within(active).getByRole('definition')).toHaveTextContent('0'))
+    expect(active.querySelector('[data-slot="mini-stat-value"]')).not.toHaveAttribute('data-tone')
+  })
+})
+
 describe('MetricsCatalog — the stat strip summarises the whole catalog', () => {
   it('keeps the project counts while a search narrows the table', async () => {
     vi.mocked(metricsCatalogApi.list).mockImplementation(async (_slug, params) =>

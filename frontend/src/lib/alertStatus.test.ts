@@ -9,16 +9,15 @@ import {
   bulkMuteConfirmMessage,
   inboxActionSuccessMessage,
   incidentDirectionGlyph,
+  incidentLargestChangeLabel,
   incidentMagnitudeLabel,
   incidentMagnitudeTitle,
   incidentReasonLabel,
-  incidentWorstDeltaLabel,
   isDriftOnly,
   isHandledInboxStatus,
   muteConfirmMessage,
   priorDecisionLabel,
   scopeHasDirection,
-  stripValueErrorPrefix,
 } from './alertStatus'
 
 function makeGroup(overrides: Partial<AlertInboxGroup> = {}): AlertInboxGroup {
@@ -121,7 +120,12 @@ describe('what fired, on the card', () => {
       incidentMagnitudeLabel({ actual_count: 1, expected_count: 0, percent_delta: null, scope_types: ['schema'] }),
     ).toBe('1 actual, none expected')
     expect(
-      incidentWorstDeltaLabel({ item_count: 3, max_abs_percent_delta: 0, scope_types: ['distribution'] }),
+      incidentLargestChangeLabel({
+        item_count: 3,
+        max_abs_percent_delta: 0,
+        percent_delta: 0,
+        scope_types: ['distribution'],
+      }),
     ).toBeNull()
   })
 
@@ -199,12 +203,47 @@ describe('what fired, on the card', () => {
     expect(label).not.toContain('0%')
   })
 
-  it('reports the worst magnitude only when the group holds more than one item', () => {
-    expect(incidentWorstDeltaLabel({ item_count: 1, max_abs_percent_delta: 92.4 })).toBeNull()
-    expect(incidentWorstDeltaLabel({ item_count: 6, max_abs_percent_delta: 92.4 })).toBe(
-      'worst 92.4% in this group',
+  it('reports the largest change only when the group holds more than one item', () => {
+    const latest = { percent_delta: 40 }
+    expect(incidentLargestChangeLabel({ ...latest, item_count: 1, max_abs_percent_delta: 92.4 })).toBeNull()
+    expect(incidentLargestChangeLabel({ ...latest, item_count: 6, max_abs_percent_delta: 92.4 })).toBe(
+      'largest in this incident: 92%',
     )
-    expect(incidentWorstDeltaLabel({ item_count: 6, max_abs_percent_delta: null })).toBeNull()
+    expect(incidentLargestChangeLabel({ ...latest, item_count: 6, max_abs_percent_delta: null })).toBeNull()
+  })
+
+  it('writes the largest change the way the signal lists do', () => {
+    // Whole percent from 10% up, one decimal below: "200.0%" beside the
+    // Anomalies page's "+199%" read as a third number for one spike.
+    const group = { item_count: 8, percent_delta: 62.2 }
+    expect(incidentLargestChangeLabel({ ...group, max_abs_percent_delta: 200 })).toBe(
+      'largest in this incident: 200%',
+    )
+    expect(incidentLargestChangeLabel({ ...group, percent_delta: 1.2, max_abs_percent_delta: 4.56 })).toBe(
+      'largest in this incident: 4.6%',
+    )
+  })
+
+  it('says nothing extra when the newest firing is the largest one', () => {
+    // A scope delivered to two destinations is two items of one size; the
+    // badge already says it.
+    expect(
+      incidentLargestChangeLabel({ item_count: 2, percent_delta: 62.2, max_abs_percent_delta: 62.2 }),
+    ).toBeNull()
+    // An older row may still hold a signed value; the size is what compares.
+    expect(
+      incidentLargestChangeLabel({ item_count: 2, percent_delta: -59.2, max_abs_percent_delta: 59.2 }),
+    ).toBeNull()
+  })
+
+  it('can leave the percent to a badge and keep it, as sent, in the tooltip', () => {
+    const group = makeGroup({ actual_count: 12328, expected_count: 7602, percent_delta: 62.2 })
+    expect(incidentMagnitudeLabel(group, { withPercent: false })).toBe('12,328 vs 7,602 expected')
+    expect(incidentMagnitudeTitle(group, { withPercent: true })).toBe(
+      'Unrounded: 12328 actual, 7602 expected · 62.2% in the alert message',
+    )
+    // The default is unchanged for the surfaces that show no badge.
+    expect(incidentMagnitudeLabel(group)).toBe('12,328 vs 7,602 expected · 62.2%')
   })
 
   it('surfaces a decision that the auto-reopen has undone', () => {
@@ -418,35 +457,5 @@ describe('a batch says what it did, in the plural', () => {
   it('says where a note landed', () => {
     expect(bulkInboxActionSuccessMessage('note', 1, null)).toBe('Note saved on 1 incident.')
     expect(bulkInboxActionSuccessMessage('note', 5, null)).toBe('Note saved on 5 incidents.')
-  })
-})
-
-describe('a server rule reaches the toast as English', () => {
-  it('drops the "Value error, " Pydantic prepends to a model_validator message', () => {
-    // The one message a bulk caller can realistically provoke is the long
-    // false-positive refusal, which ends by naming the way to do it anyway, one
-    // incident at a time. Prefixed, that well-argued policy reads like the page
-    // broke.
-    expect(
-      stripValueErrorPrefix(
-        'Value error, false_positive cannot be applied in bulk — mark them one incident at a time.',
-      ),
-    ).toBe('false_positive cannot be applied in bulk — mark them one incident at a time.')
-  })
-
-  it('leaves a message that never carried the prefix exactly as it is', () => {
-    // The other 422 this route can raise is the length cap, which comes from a
-    // field constraint and is not prefixed at all.
-    expect(stripValueErrorPrefix('List should have at most 200 items after validation')).toBe(
-      'List should have at most 200 items after validation',
-    )
-  })
-
-  it('only strips a LEADING prefix, and only one', () => {
-    // Anywhere but the front, those two words are the server's own text.
-    expect(stripValueErrorPrefix('Rejected: Value error, nope')).toBe(
-      'Rejected: Value error, nope',
-    )
-    expect(stripValueErrorPrefix('Value error, Value error, nope')).toBe('Value error, nope')
   })
 })

@@ -3,6 +3,13 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { variableDriftsApi } from '@/api/variableDrifts'
 import { formatDateTime } from '@/lib/datetime'
+import { SILENT_ERROR_META } from '@/lib/errorFeedback'
+import {
+  branchPropertyEntriesKey,
+  branchVariableDriftsKey,
+  branchVariableOverridesKey,
+  variablesKey,
+} from '@/lib/queryKeys'
 import { EventValueDriftPanel } from './EventValueDriftPanel'
 
 vi.mock('@/api/variableDrifts', () => ({
@@ -12,13 +19,14 @@ vi.mock('@/api/variableDrifts', () => ({
   },
 }))
 
-function renderPanel() {
+function renderPanel({ canWrite = true }: { canWrite?: boolean } = {}) {
   const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
-  return render(
+  const view = render(
     <QueryClientProvider client={queryClient}>
-      <EventValueDriftPanel slug="demo" eventId="ev-1" />
+      <EventValueDriftPanel slug="demo" eventId="ev-1" canWrite={canWrite} />
     </QueryClientProvider>,
   )
+  return { ...view, queryClient }
 }
 
 afterEach(() => {
@@ -177,5 +185,59 @@ describe('EventValueDriftPanel', () => {
     } finally {
       vi.useRealTimers()
     }
+  })
+
+  it('shows a viewer the drift without the review buttons', async () => {
+    // The route behind every button takes an editor, so a viewer's click only
+    // ever ended in a 403. The property's page already left them out; the
+    // event's page now reads the same shared review.
+    const accepted = { ...DRIFT, id: 'drift-5', status: 'accepted' as const, observed_values: ['q'] }
+    vi.mocked(variableDriftsApi.list).mockResolvedValue({ items: [DRIFT, accepted], total: 2 })
+
+    renderPanel({ canWrite: false })
+
+    expect(await screen.findByText('${variant}')).toBeInTheDocument()
+    expect(screen.getByText('x')).toBeInTheDocument()
+    for (const name of ['Accept', 'Accept for event', 'Snooze 7d', 'False positive']) {
+      expect(screen.queryByRole('button', { name })).not.toBeInTheDocument()
+    }
+    expect(screen.queryByText('Each action applies at once.')).not.toBeInTheDocument()
+
+    // The collapsed rows stay readable, without the button that reopens them.
+    fireEvent.click(screen.getByRole('button', { name: 'Show 1 resolved' }))
+    expect(await screen.findByText('q')).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Reopen' })).not.toBeInTheDocument()
+  })
+
+  it('refreshes both drift lists, the badge and the property entries after a verdict', async () => {
+    // Accept for event writes the event's own property entry, so the event's
+    // property grid and the property's overrides list are stale after it; the
+    // event copy of the review used to refresh only the drift and variable lists.
+    vi.mocked(variableDriftsApi.list).mockResolvedValue({ items: [DRIFT], total: 1 })
+    vi.mocked(variableDriftsApi.action).mockResolvedValue({ ...DRIFT, status: 'accepted' })
+
+    const { queryClient } = renderPanel()
+    const invalidate = vi.spyOn(queryClient, 'invalidateQueries')
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Accept for event' }))
+
+    await waitFor(() =>
+      expect(invalidate).toHaveBeenCalledWith({ queryKey: branchPropertyEntriesKey('demo', null) }),
+    )
+    expect(invalidate).toHaveBeenCalledWith({ queryKey: branchVariableDriftsKey('demo', null) })
+    expect(invalidate).toHaveBeenCalledWith({ queryKey: variablesKey('demo', null) })
+    expect(invalidate).toHaveBeenCalledWith({ queryKey: branchVariableOverridesKey('demo', null) })
+  })
+
+  it('reports a failed verdict once, inline', async () => {
+    // Without the silent meta the global toast said it as well as the line here.
+    vi.mocked(variableDriftsApi.list).mockResolvedValue({ items: [DRIFT], total: 1 })
+    vi.mocked(variableDriftsApi.action).mockRejectedValue(new Error('Drift already resolved'))
+
+    const { queryClient } = renderPanel()
+    fireEvent.click(await screen.findByRole('button', { name: 'False positive' }))
+
+    expect(await screen.findByRole('alert')).toHaveTextContent('Drift already resolved')
+    expect(queryClient.getMutationCache().getAll()[0]?.options.meta).toEqual(SILENT_ERROR_META)
   })
 })

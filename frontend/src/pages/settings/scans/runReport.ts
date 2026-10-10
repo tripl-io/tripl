@@ -2,6 +2,7 @@ import type { ScanJob, ScanJobResultSummary } from '@/types'
 import type { ScanMode } from './scanMode'
 import { countOf } from '@/lib/plural'
 import { jobMetricPoints, jobScanned } from './scanUtils'
+import { formatNumber } from '@/lib/format'
 
 /**
  * Which population a run's "Rows read" figure counts.
@@ -74,7 +75,7 @@ function openSignalsLine(openSignals: number): string {
   if (openSignals === 0) return 'None from this scan are open now.'
   return openSignals === 1
     ? '1 signal from this scan is open now.'
-    : `${openSignals.toLocaleString()} signals from this scan are open now.`
+    : `${formatNumber(openSignals)} signals from this scan are open now.`
 }
 
 /**
@@ -170,7 +171,7 @@ export function buildRunReport(
   if (eventsCreated === 0 && eventsSkipped > 0) {
     lines.push({
       id: 'events-none-new',
-      text: `No new events — all ${eventsSkipped.toLocaleString()} were already in your plan.`,
+      text: `No new events — all ${formatNumber(eventsSkipped)} were already in your plan.`,
     })
   }
   if (eventsSkipped > 0 && eventsCreated != null && eventsCreated > 0) {
@@ -178,7 +179,7 @@ export function buildRunReport(
       id: 'events-skipped',
       text: eventsSkipped === 1
         ? '1 event was already in your plan and was left as it is.'
-        : `${eventsSkipped.toLocaleString()} events were already in your plan and were left as they are.`,
+        : `${formatNumber(eventsSkipped)} events were already in your plan and were left as they are.`,
     })
   }
 

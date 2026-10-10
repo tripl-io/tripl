@@ -34,6 +34,7 @@ from tripl.alerting_property_drift import (
     property_drift_candidate,
     property_drift_scope_name,
 )
+from tripl.core.drift_activity import active_drift_clauses
 from tripl.models.domain_enums import DistributionDriftBand, MetricScopeType
 from tripl.models.metric_anomaly import MetricAnomaly
 from tripl.models.project_anomaly_settings import (
@@ -97,15 +98,11 @@ from tripl.services._alerting_test_send import (
 )
 from tripl.services.alerting_rendering import (
     SCOPE_SCHEMA_DRIFT,
-)
-from tripl.services.alerting_rendering import (
-    format_distribution_drift_sample as _format_distribution_drift_sample,
+    format_distribution_drift_sample,
+    trim_alert_text,
 )
 from tripl.services.alerting_rendering import (
     render_firings_message as _render_firings_message,
-)
-from tripl.services.alerting_rendering import (
-    trim_alert_text as _trim_alert_text,
 )
 from tripl.services.project_links import project_org_slugs
 from tripl.services.project_lookup import resolve_project as _get_project
@@ -410,10 +407,7 @@ async def _load_schema_drift_candidates(
                     SchemaDrift.scan_config_id.is_not(None),
                     SchemaDrift.detected_at >= window_from,
                     SchemaDrift.detected_at < window_to,
-                    SchemaDrift.status.in_(("open", "snoozed")),
-                    (SchemaDrift.status != "snoozed")
-                    | (SchemaDrift.snoozed_until.is_(None))
-                    | (SchemaDrift.snoozed_until <= datetime.now(UTC)),
+                    *active_drift_clauses(SchemaDrift, datetime.now(UTC)),
                 )
                 .order_by(SchemaDrift.detected_at)
             )
@@ -435,7 +429,7 @@ async def _load_schema_drift_candidates(
             expected_count=0.0,
             drift_field=drift.field_name,
             drift_type=drift.drift_type,
-            sample_value=_trim_alert_text(drift.sample_value),
+            sample_value=trim_alert_text(drift.sample_value),
         )
         for drift in rows
     ]
@@ -486,7 +480,7 @@ async def _load_distribution_drift_candidates(
                 expected_count=float(drift.baseline_total),
                 drift_field=drift.field_name,
                 drift_type="distribution_shift",
-                sample_value=_format_distribution_drift_sample(drift),
+                sample_value=format_distribution_drift_sample(drift),
             )
         )
     return candidates
@@ -541,10 +535,7 @@ async def _load_variable_value_drift_candidates(
                 Variable.excluded_from_scans.is_(False),
                 VariableValueDrift.detected_at >= window_from,
                 VariableValueDrift.detected_at < window_to,
-                VariableValueDrift.status.in_(("open", "snoozed")),
-                (VariableValueDrift.status != "snoozed")
-                | (VariableValueDrift.snoozed_until.is_(None))
-                | (VariableValueDrift.snoozed_until <= datetime.now(UTC)),
+                *active_drift_clauses(VariableValueDrift, datetime.now(UTC)),
             )
             .order_by(VariableValueDrift.detected_at)
         )
@@ -563,7 +554,7 @@ async def _load_variable_value_drift_candidates(
             expected_count=0.0,
             drift_field=variable_name,
             drift_type="value_drift",
-            sample_value=_trim_alert_text(", ".join(drift.observed_values or [])),
+            sample_value=trim_alert_text(", ".join(drift.observed_values or [])),
         )
         for drift, variable_name in rows
     ]

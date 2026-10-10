@@ -13,7 +13,7 @@ vi.mock('@/api/planBranches', () => ({
 import { planBranchesApi } from '@/api/planBranches'
 
 function value(overrides: Partial<MergedValue>): MergedValue {
-  return { key: 'title', value: 'x', previous: 'x', state: 'unchanged', ...overrides }
+  return { key: 'title', value: 'x', previous: 'x', state: 'unchanged', main_moved: false, ...overrides }
 }
 
 function preview(overrides: Partial<MergedEventPreview> = {}): MergedEventPreview {
@@ -24,6 +24,10 @@ function preview(overrides: Partial<MergedEventPreview> = {}): MergedEventPrevie
     event_type_name: 'track',
     name: 'checkout_started',
     outcome: 'changed',
+    behind_base: false,
+    blocked: false,
+    branch_merge_blocked: false,
+    other_blocking_count: 0,
     attributes: [
       value({ key: 'title', value: 'Start checkout', previous: 'checkout started', state: 'changed' }),
       value({
@@ -48,6 +52,7 @@ function preview(overrides: Partial<MergedEventPreview> = {}): MergedEventPrevie
         ],
         state: 'changed',
         variable_state: 'unchanged',
+        main_moved: false,
       },
     ],
     ...overrides,
@@ -92,6 +97,28 @@ describe('MergedEventSheet', () => {
     expect(within(values).getByText('Added')).toBeInTheDocument()
   })
 
+  it('names attributes and sections as the event form and page do', async () => {
+    vi.mocked(planBranchesApi.mergePreview).mockResolvedValue(
+      preview({
+        attributes: [
+          value({ key: 'reviewed', value: true, previous: false, state: 'changed' }),
+          value({ key: 'sunset_at', value: '2026-12-31', previous: null, state: 'added' }),
+          value({ key: 'superseded_by', value: 'checkout_v2', previous: null, state: 'added' }),
+          value({ key: 'source_name', value: 'checkout_started', previous: 'checkout_started' }),
+        ],
+        meta_values: [value({ key: 'team', value: 'growth', previous: 'growth' })],
+      }),
+    )
+    renderSheet()
+    const sheet = await dialog()
+    const attributes = await within(sheet).findByRole('region', { name: 'Attributes' })
+    for (const label of ['Verified', 'Sunset date', 'Replaced by', 'Scan identity']) {
+      expect(within(attributes).getByText(label)).toBeInTheDocument()
+    }
+    expect(within(sheet).getByRole('region', { name: 'Meta fields' })).toBeInTheDocument()
+    expect(within(sheet).queryByRole('region', { name: 'Meta values' })).toBeNull()
+  })
+
   it('marks a value main changed after the cut', async () => {
     vi.mocked(planBranchesApi.mergePreview).mockResolvedValue(preview())
     renderSheet()
@@ -110,7 +137,7 @@ describe('MergedEventSheet', () => {
     )
     renderSheet()
     const sheet = await dialog()
-    expect(await within(sheet).findByText('variable conflicts with main')).toBeInTheDocument()
+    expect(await within(sheet).findByText('property conflicts with main')).toBeInTheDocument()
   })
 
   it('shows both sides of a conflict and the blocked banner', async () => {

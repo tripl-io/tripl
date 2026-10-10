@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
-import { CalendarRange, Trash2 } from 'lucide-react'
+import { CalendarRange } from 'lucide-react'
 import { toast } from 'sonner'
 import { plannedEventsApi } from '@/api/plannedEvents'
 import { ErrorState } from '@/components/error-state'
@@ -9,29 +9,21 @@ import { INPUT_TEXT_CLASS } from '@/components/settings/input-style'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { DateTimePicker } from '@/components/ui/date-time-picker'
-import { IconButton } from '@/components/ui/icon-button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { useConfirm } from '@/hooks/useConfirm'
-import { formatUtcOffset, toDatetimeLocalValue } from '@/lib/chartAnnotations'
-import { formatTimestamp } from '@/lib/datetime'
+import { formatUtcOffset, toLocalDateTimeValue } from '@/lib/datetime'
 import { SILENT_ERROR_META } from '@/lib/errorFeedback'
 import type { MonitoringScope } from '@/lib/monitoring'
-import {
-  PLANNED_EVENT_LABEL_MAX,
-  isValidPlannedWindow,
-  plannedEventExpectation,
-} from '@/lib/plannedEvents'
-import {
-  activeSignalsKey,
-  projectKey,
-  projectMonitoringSeriesKey,
-  projectPlannedEventsKey,
-  projectsKey,
-} from '@/lib/queryKeys'
-import { getErrorMessage } from '@/lib/utils'
+import { PLANNED_EVENT_LABEL_MAX, isValidPlannedWindow } from '@/lib/plannedEvents'
 import type { PlannedEvent } from '@/types'
+import { ExpectedWindowItem } from './ExpectedWindowItem'
+import {
+  invalidatePlannedEventEffects,
+  plannedEventDeleteConfirm,
+  usePlannedEventDelete,
+} from './plannedEventMutations'
 import type { usePlannedEvents } from './usePlannedEvents'
 import { useNow } from '@/hooks/useNow'
 
@@ -46,10 +38,14 @@ const DIRECTION_OPTIONS: { value: DirectionChoice; label: string }[] = [
 const DAY_MS = 24 * 60 * 60 * 1000
 
 /**
- * Planned events (F18): a campaign, a sale or a holiday the reader expects to
- * move this series. Anomalies inside a window are still drawn, muted, but raise
- * no alert, notification or open signal. Created here for the chart in view;
- * the list also shows project-wide events, which cover every chart.
+ * Expected windows (F18; a `planned_event` in the API): a campaign, a sale or
+ * a holiday the reader expects to move this series. Anomalies inside a window
+ * are still drawn, muted, but raise no alert, notification or open signal.
+ * Created here for the chart in view; the list also shows project-wide
+ * windows, which cover every chart.
+ *
+ * Not "planned events": in a tracking-plan product that already means the
+ * events of the plan, as Coverage and Reconciliation use it.
  */
 export function PlannedEventsCard({
   slug,
@@ -66,20 +62,10 @@ export function PlannedEventsCard({
 }) {
   const queryClient = useQueryClient()
   const events = query.data ?? []
-  // Creating or deleting a window retags anomalies on the server, so every
-  // surface that reads them refreshes: the series dots, the signals and the
-  // sidebar badge.
-  const invalidate = () => {
-    void queryClient.invalidateQueries({ queryKey: projectPlannedEventsKey(slug) })
-    void queryClient.invalidateQueries({ queryKey: projectMonitoringSeriesKey(slug) })
-    void queryClient.invalidateQueries({ queryKey: activeSignalsKey(slug) })
-    void queryClient.invalidateQueries({ queryKey: projectKey(slug) })
-    void queryClient.invalidateQueries({ queryKey: projectsKey() })
-  }
 
   // A day from now by default: the usual entry is "the promo runs today".
-  const [startsAt, setStartsAt] = useState(() => toDatetimeLocalValue(new Date()))
-  const [endsAt, setEndsAt] = useState(() => toDatetimeLocalValue(new Date(Date.now() + DAY_MS)))
+  const [startsAt, setStartsAt] = useState(() => toLocalDateTimeValue(new Date()))
+  const [endsAt, setEndsAt] = useState(() => toLocalDateTimeValue(new Date(Date.now() + DAY_MS)))
   const [label, setLabel] = useState('')
   const [direction, setDirection] = useState<DirectionChoice>('spike')
   const windowValid = isValidPlannedWindow(startsAt, endsAt)
@@ -97,31 +83,17 @@ export function PlannedEventsCard({
       }),
     onSuccess: () => {
       setLabel('')
-      invalidate()
-      toast.success('Planned event added', {
-        description: 'Anomalies inside the window are shown but not alerted on.',
+      invalidatePlannedEventEffects(queryClient, slug)
+      toast.success('Expected window added', {
+        description: 'Anomalies inside it are drawn muted and never become a signal or an alert.',
       })
     },
   })
 
   const { confirm, dialog } = useConfirm()
-  const deleteMut = useMutation({
-    meta: SILENT_ERROR_META,
-    mutationFn: (id: string) => plannedEventsApi.delete(slug, id),
-    onSuccess: invalidate,
-    onError: error => toast.error(`Could not delete the planned event — ${getErrorMessage(error)}`),
-  })
+  const deleteMut = usePlannedEventDelete(slug)
   const deleteEvent = async (event: PlannedEvent) => {
-    const projectWide = event.scope_type === null
-    const ok = await confirm({
-      title: 'Delete planned event?',
-      message: projectWide
-        ? `"${event.label}" covers every chart in this project. Anomalies inside it will raise signals and alerts again.`
-        : `Anomalies inside "${event.label}" will raise signals and alerts again.`,
-      variant: 'danger',
-      confirmLabel: 'Delete',
-    })
-    if (ok) deleteMut.mutate(event.id)
+    if (await confirm(plannedEventDeleteConfirm(event))) deleteMut.mutate(event.id)
   }
 
   // Re-read each minute, so a page left open across a DST change says so.
@@ -135,12 +107,13 @@ export function PlannedEventsCard({
       <CardHeader>
         <div className="flex items-center gap-2">
           <CalendarRange aria-hidden="true" className="size-4 text-fg-tertiary" />
-          <CardTitle as="h2">Planned events</CardTitle>
+          <CardTitle as="h2">Expected windows</CardTitle>
           <span className="tnum text-caption text-fg-tertiary">({events.length})</span>
         </div>
         <CardDescription>
           A campaign, sale or holiday you expect to move this series. Anomalies
-          inside the window stay on the chart but raise no alert or signal.
+          inside the window stay on the chart, muted, but never become a signal
+          or an alert.
           {!canWrite && ' Planning them is up to an editor or owner.'}
         </CardDescription>
       </CardHeader>
@@ -178,7 +151,7 @@ export function PlannedEventsCard({
                   />
                 </div>
                 <div className="flex flex-col gap-0.5">
-                  <Label htmlFor="planned-event-label" className="sr-only">Planned event label</Label>
+                  <Label htmlFor="planned-event-label" className="sr-only">Expected window label</Label>
                   <Input
                     id="planned-event-label"
                     placeholder="Label (e.g. Black Friday sale)"
@@ -200,7 +173,7 @@ export function PlannedEventsCard({
                     ))}
                   </SelectContent>
                 </Select>
-                <Button type="submit" variant="outline" disabled={!canSubmit} aria-label="Add planned event">
+                <Button type="submit" variant="outline" disabled={!canSubmit} aria-label="Add expected window">
                   Add
                 </Button>
               </form>
@@ -219,44 +192,26 @@ export function PlannedEventsCard({
           )}
           {createMut.isError && (
             <p role="alert" className="text-body-sm text-destructive">
-              {createMut.error instanceof Error ? createMut.error.message : 'Failed to add the planned event.'}
+              {createMut.error instanceof Error ? createMut.error.message : 'Failed to add the expected window.'}
             </p>
           )}
           {query.isError ? (
             <ErrorState
               compact
-              title="Could not load planned events"
+              title="Could not load expected windows"
               error={query.error}
               onRetry={() => void query.refetch()}
             />
           ) : events.length > 0 && (
             <ul className="divide-y divide-border text-body-sm">
               {events.map(event => (
-                <li key={event.id} className="flex items-center justify-between gap-2 py-2">
-                  <div className="flex min-w-0 flex-wrap items-center gap-2">
-                    <span className="text-fg-tertiary">
-                      {formatTimestamp(event.starts_at)} – {formatTimestamp(event.ends_at)}
-                    </span>
-                    <span className="min-w-0 break-words font-medium">{event.label}</span>
-                    <Chip variant="outline" size="xs">{plannedEventExpectation(event.direction)}</Chip>
-                    {event.scope_type === null && (
-                      <Chip variant="outline" size="xs">project-wide</Chip>
-                    )}
-                    {event.source === 'holiday' && <Chip variant="outline" size="xs">Holiday</Chip>}
-                  </div>
-                  {/* The holiday calendar owns its rows: changed in Detection settings. */}
-                  {canWrite && event.source !== 'holiday' && (
-                    <IconButton
-                      variant="ghost"
-                      className="h-7 w-7 shrink-0 text-fg-tertiary hover:text-destructive"
-                      onClick={() => void deleteEvent(event)}
-                      disabled={deleteMut.isPending && deleteMut.variables === event.id}
-                      label={`Delete planned event ${event.label}`}
-                    >
-                      <Trash2 aria-hidden="true" className="h-3.5 w-3.5" />
-                    </IconButton>
-                  )}
-                </li>
+                <ExpectedWindowItem
+                  key={event.id}
+                  event={event}
+                  scope={event.scope_type === null && <Chip variant="outline" size="xs">project-wide</Chip>}
+                  onDelete={canWrite ? () => void deleteEvent(event) : undefined}
+                  deleting={deleteMut.isPending && deleteMut.variables === event.id}
+                />
               ))}
             </ul>
           )}

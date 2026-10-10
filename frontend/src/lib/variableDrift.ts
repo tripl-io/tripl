@@ -23,8 +23,8 @@ export type DriftReviewState = 'active' | 'snoozed' | 'resolved'
 /**
  * Statuses that close review. Such a row comes back only through Reopen — or,
  * for `accepted`, when a scan observes a value OUTSIDE the accepted set (the
- * backend reopens the row itself). Both review panels therefore have to keep
- * resolved rows reachable.
+ * backend reopens the row itself). The review therefore has to keep resolved
+ * rows reachable.
  */
 const RESOLVED_DRIFT_STATUSES: ReadonlySet<VariableValueDriftStatus> = new Set([
   'accepted',
@@ -46,14 +46,14 @@ function snoozeDeadline(drift: Pick<VariableValueDrift, 'status' | 'snoozed_unti
 /**
  * Mirrors `_active_drift_predicates` in `variable_value_drift_service.py`, which
  * is the query behind the table's drift badge — the two must give the same
- * answer or the badge and the panels contradict each other again.
+ * answer or the badge and the review contradict each other again.
  *
  * Note what the backend does NOT say: a snooze whose time has already PASSED is
  * active again, and so is a `snoozed` row carrying no `snoozed_until` at all.
  * Both land back in the open list here exactly as they do in the count.
  *
  * `now` is a parameter rather than a call, so that one instant classifies a
- * whole render and the caller owns when it advances. Both panels take theirs
+ * whole render and the caller owns when it advances. The review takes its own
  * from `useDriftReviewClock`, which moves it the moment the nearest snooze runs
  * out.
  */
@@ -98,8 +98,9 @@ export function nextDriftSnoozeExpiry(
 export const MAX_DRIFT_TIMER_DELAY_MS = 2_147_483_647
 
 /**
- * The instant both review panels classify their drifts against, advanced exactly
- * when the nearest snooze runs out.
+ * The instant the drift review (`DriftReviewList`, on the property's page and
+ * the event's) classifies its drifts against, advanced exactly when the nearest
+ * snooze runs out.
  *
  * The clock used to be a bare `useState(() => Date.now())` on each panel. A lazy
  * initializer runs ONCE per mount, so that `now` was frozen for the life of the
@@ -116,9 +117,10 @@ export const MAX_DRIFT_TIMER_DELAY_MS = 2_147_483_647
  * during render — `react-hooks/purity` governs render only — and the seed keeps
  * this repo's lazy-`useState` render-clock idiom (see `useLiveWindowEnd`).
  *
- * It lives here, shared, rather than on either panel, because the two have to
- * classify identically: a guard that exists on one of two sibling surfaces is
- * how they fell out of step to begin with.
+ * It lives here, beside `driftReviewState` and the `snoozeDeadline` both read,
+ * so the clock cannot wake for an instant the classification ignores. The
+ * review used to exist twice, and a guard on one of the two copies is how they
+ * fell out of step to begin with.
  */
 export function useDriftReviewClock(
   drifts: readonly Pick<VariableValueDrift, 'status' | 'snoozed_until'>[],
@@ -126,7 +128,7 @@ export function useDriftReviewClock(
   const [now, setNow] = useState(() => Date.now())
   // A primitive, so the timer is re-armed when the nearest deadline really moves
   // and left alone by a refetch that returns the same rows — the `?? []` array
-  // the panels hand over changes identity on every single render.
+  // the callers hand over changes identity on every single render.
   const nextExpiry = nextDriftSnoozeExpiry(drifts, now)
   useEffect(() => {
     if (nextExpiry === null) return

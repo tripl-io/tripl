@@ -1,4 +1,6 @@
 import type { ReactNode } from 'react'
+import { Link } from 'react-router-dom'
+import { ChevronLeft } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
 type PageHeaderProps = {
@@ -12,9 +14,7 @@ type PageHeaderProps = {
    * already carries that.
    */
   eyebrow?: string
-  /** A count shown after the title in the muted colour ("Events 17"). */
-  count?: ReactNode
-  /** Inline after the title and count: badges, identity chips. */
+  /** Inline after the title: badges, identity chips. */
   titleAddon?: ReactNode
   description?: ReactNode
   /** Right-hand slot: buttons. Wraps under the title on phones. */
@@ -25,7 +25,7 @@ type PageHeaderProps = {
    * one page and a loose row of tiles on the next.
    */
   stats?: ReactNode
-  /** Above everything, e.g. a back link. */
+  /** Above everything: a {@link PageBackLink}. */
   back?: ReactNode
   className?: string
 }
@@ -46,7 +46,6 @@ type PageHeaderProps = {
 export function PageHeader({
   title,
   eyebrow,
-  count,
   titleAddon,
   description,
   actions,
@@ -58,7 +57,11 @@ export function PageHeader({
     <div className={cn('flex flex-col gap-3', className)}>
       {back && <div className="flex">{back}</div>}
       <div className="flex flex-wrap items-end justify-between gap-4">
-        <div className="min-w-0 flex-1 basis-60">
+        {/* Full width below `sm`, so the actions always wrap under the title
+            block there: with a 240px basis a narrow button stayed beside a
+            squeezed description and a wide one wrapped, so the primary action
+            landed somewhere different on each phone page. */}
+        <div className="min-w-0 flex-1 basis-full sm:basis-60">
           {eyebrow && (
             <div
               data-slot="page-eyebrow"
@@ -70,14 +73,6 @@ export function PageHeader({
           <div className={cn('flex flex-wrap items-center gap-x-2.5 gap-y-1', eyebrow && 'mt-1')}>
             <h1 className="m-0 min-w-0 break-words text-title font-semibold tracking-[-0.01em]">
               {title}
-              {count != null && (
-                <>
-                  {' '}
-                  <span className="tnum font-normal text-fg-tertiary">
-                    {count}
-                  </span>
-                </>
-              )}
             </h1>
             {titleAddon}
           </div>
@@ -93,5 +88,44 @@ export function PageHeader({
       </div>
       {stats && <div data-slot="page-stats">{stats}</div>}
     </div>
+  )
+}
+
+type PageBackLinkProps = {
+  /** Where it leads, the parent collection: "Events", "Metrics". */
+  label: string
+} & (
+  | { to: string; onClick?: never }
+  /** For a page that returns to wherever the reader came from. */
+  | { onClick: () => void; to?: never }
+)
+
+const BACK_LINK_CLASS =
+  'inline-flex items-center gap-1 text-caption text-fg-muted transition-colors hover:text-fg'
+
+/**
+ * The one back link above a page header. It names where it leads, never the
+ * page it sits on, and every page draws it with the same chevron: the editors
+ * used a chevron and the detail pages an arrow, and the event editor's
+ * carried the event's own name.
+ */
+export function PageBackLink({ label, to, onClick }: PageBackLinkProps) {
+  const content = (
+    <>
+      <ChevronLeft className="size-3.5" aria-hidden="true" />
+      {label}
+    </>
+  )
+  if (to !== undefined) {
+    return (
+      <Link to={to} className={BACK_LINK_CLASS}>
+        {content}
+      </Link>
+    )
+  }
+  return (
+    <button type="button" onClick={onClick} className={BACK_LINK_CLASS}>
+      {content}
+    </button>
   )
 }

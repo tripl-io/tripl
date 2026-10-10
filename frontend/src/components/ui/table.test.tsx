@@ -1,6 +1,6 @@
 import { render } from '@testing-library/react'
 import { describe, expect, it } from 'vitest'
-import { Table, TableBody, TableCell, TableRow } from './table'
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from './table'
 
 describe('Table container', () => {
   it('carries the horizontal-overflow affordance on the element that scrolls', () => {
@@ -55,5 +55,27 @@ describe('Table density', () => {
     )
     expect(container.querySelector('[data-slot="table-row"]')).toHaveClass('h-(--row-h)')
     expect(container.querySelector('[data-slot="table-cell"]')).toHaveClass('px-(--cell-px)')
+  })
+})
+
+describe('Table header', () => {
+  it('passes its uppercase caption on to a sort button inside it', () => {
+    const { container } = render(
+      <Table>
+        <TableHeader>
+          <TableRow>
+            <TableHead>
+              <button type="button">Health</button>
+            </TableHead>
+          </TableRow>
+        </TableHeader>
+      </Table>,
+    )
+    // The browser's stylesheet resets text-transform on a <button>; without
+    // this a sortable column read "Health" among "VOLUME" and "OWNER".
+    expect(container.querySelector('[data-slot="table-head"]')).toHaveClass(
+      'micro-label',
+      '[&_button]:[text-transform:inherit]',
+    )
   })
 })

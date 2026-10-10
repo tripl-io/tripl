@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react"
-import { useQueries, useQuery } from "@tanstack/react-query"
+import { keepPreviousData, useQueries, useQuery } from "@tanstack/react-query"
 import { ChevronDown, Loader2, Plus, Trash2, X } from "lucide-react"
 import type {
   AlertRuleFilterField,
@@ -10,6 +10,7 @@ import { eventsApi } from "@/api/events"
 import { metricsCatalogApi } from "@/api/metricsCatalog"
 import { useActiveBranchId } from "@/hooks/useBranch"
 import { useDebouncedValue } from "@/hooks/useDebouncedValue"
+import { useEventRoster } from "@/hooks/useEventRoster"
 import { eventNameLabel } from "@/lib/eventName"
 import { Chip } from "@/components/primitives/chip"
 import { Button } from "@/components/ui/button"
@@ -29,7 +30,6 @@ import {
 } from "./constants"
 import {
   eventKey,
-  eventsPickerKey,
   metricDefinitionKey,
   metricsCatalogListKey,
 } from "@/lib/queryKeys"
@@ -37,12 +37,11 @@ import {
 type PickerOption = { value: string; label: string }
 
 // Event catalogs are unbounded — production projects hold 2,400+ events — so the
-// event picker queries the server per keystroke instead of the alerting tab
-// downloading the whole catalog on mount to filter it in the browser.
-// Anything past this page is reachable by typing, and the
+// event picker queries the server per keystroke (the shared `useEventRoster`)
+// instead of the alerting tab downloading the whole catalog on mount to filter
+// it in the browser. Anything past the page is reachable by typing, and the
 // footer says how much is hidden rather than truncating silently.
-const EVENT_PAGE_SIZE = 50
-
+//
 // The metric catalog is searched the same way, for the same reason: it has no
 // upper bound either, and the picker only needs the page that matches.
 const METRIC_PAGE_SIZE = 50
@@ -148,19 +147,7 @@ function useEventOptions({
   selectedValues: string[]
 }): ServerOptions {
   const branchId = useActiveBranchId()
-  const debouncedSearch = useDebouncedValue(search)
-
-  const listQuery = useQuery({
-    queryKey: eventsPickerKey(slug, branchId, 'alert-filter', debouncedSearch),
-    queryFn: () =>
-      eventsApi.list(
-        slug,
-        { search: debouncedSearch || undefined, limit: EVENT_PAGE_SIZE, offset: 0 },
-        branchId,
-      ),
-    enabled,
-    staleTime: 60_000,
-  })
+  const { query: listQuery, events: items, hiddenCount } = useEventRoster({ slug, branchId, search, enabled })
 
   const selectedLabels = useQueries({
     queries: selectedValues.map(eventId => ({
@@ -176,7 +163,6 @@ function useEventOptions({
       ),
   })
 
-  const items = useMemo(() => listQuery.data?.items ?? [], [listQuery.data])
   // A stored name of "" paints an option with no text and no accessible name —
   // a picker row a screen reader announces as nothing but "button", on the one
   // event a user would most want to find in order to clean it up.
@@ -198,7 +184,7 @@ function useEventOptions({
     // A stale page stays visible while the next search lands, so report fetching
     // rather than loading — otherwise the list flickers empty on every keystroke.
     loading: listQuery.isFetching,
-    hiddenCount: Math.max(0, (listQuery.data?.total ?? 0) - items.length),
+    hiddenCount,
   }
 }
 
@@ -235,7 +221,8 @@ function useMetricOptions({
         offset: 0,
       }),
     enabled,
-    staleTime: 60_000,
+    // Same as the event roster above: keep the last page on screen between keys.
+    placeholderData: keepPreviousData,
   })
 
   const selectedLabels = useQueries({

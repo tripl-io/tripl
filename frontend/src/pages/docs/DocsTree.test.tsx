@@ -111,12 +111,12 @@ describe('DocsTree', () => {
     fireEvent.click(refs)
     expect(folder(/^references/)).toHaveAttribute('aria-expanded', 'true')
     expect(within(projectRoot()).queryByRole('link', { name: 'Checkout skill' })).toBeNull()
-    expect(within(screen.getByRole('region', { name: 'Organization notes · Acme' })).getByText('No match.')).toBeInTheDocument()
+    expect(within(screen.getByRole('region', { name: 'Organization notes' })).getByText('No match.')).toBeInTheDocument()
   })
 
   it('says an empty root has no notes yet', () => {
     renderTree({ tree: tree({ organization_docs: [] }) })
-    expect(within(screen.getByRole('region', { name: 'Organization notes · Acme' })).getByText('No notes yet.')).toBeInTheDocument()
+    expect(within(screen.getByRole('region', { name: 'Organization notes' })).getByText('No notes yet.')).toBeInTheDocument()
   })
 
   it('gives an editor root and folder actions', () => {
@@ -286,5 +286,33 @@ describe('DocsTree drag and drop', () => {
       vi.useRealTimers()
       await act(() => new Promise(resolve => setTimeout(resolve, 20)))
     })
+  })
+})
+
+describe('DocsTree roots (prelaunch)', () => {
+  // "Organization notes · Default organization" was cut off in the 260px rail
+  // with no way to read the rest; the name is the heading's hover text now.
+  it('names each root the way the docs do and says whose notes they are on hover', () => {
+    renderTree()
+    expect(screen.getByRole('heading', { name: 'Project notes' })).toHaveAttribute('title', 'Notes for Demo only')
+    expect(screen.getByRole('heading', { name: 'Organization notes' })).toHaveAttribute(
+      'title',
+      'Notes for every project in Acme',
+    )
+  })
+
+  // The page's own empty state already says there are no notes; one line
+  // under each root as well said it three times.
+  it('leaves the roots quiet when neither holds a note', () => {
+    renderTree({ tree: tree({ project_docs: [], organization_docs: [] }) })
+    expect(screen.getByRole('heading', { name: 'Project notes' })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: 'Organization notes' })).toBeInTheDocument()
+    expect(screen.queryByText('No notes yet.')).toBeNull()
+  })
+
+  it('still says "No match." under an empty root while filtering an empty tree', () => {
+    renderTree({ tree: tree({ project_docs: [], organization_docs: [] }) })
+    fireEvent.change(screen.getByLabelText('Filter notes'), { target: { value: 'x' } })
+    expect(screen.getAllByText('No match.')).toHaveLength(2)
   })
 })

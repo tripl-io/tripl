@@ -5,24 +5,23 @@ import { Chip, type ChipTone, type ChipVariant } from '@/components/primitives/c
 import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
 import { SCard, TextInput } from '@/components/settings/kit'
-import {
-  SECTION_LABELS,
-  numberFieldError,
-  resetCardDescription,
-  type SectionKey,
-} from './serviceSettingsHelpers'
+import { PLATFORM_SECTION_LABELS } from '@/components/settings/platform-sections'
+import { cn } from '@/lib/utils'
+import { numberFieldError, resetCardDescription, type SectionKey } from './serviceSettingsHelpers'
 
 /**
- * Small shared bits for the Instance (service) settings sections. The card
- * chrome, fields and controls now come from the redesign kit
- * (`@/components/settings/kit`): each section is composed of titled `SCard`
- * sub-cards with `Field` / `ToggleRow` / `TextInput` / `Select` / `RadioCards`.
- * What stays here is the setting-source badge, the AI connection-test status
- * badge, and the section-level "reset to defaults" card.
+ * Small shared bits for the Platform settings sections. The card chrome,
+ * fields and controls come from the settings kit (`@/components/settings/kit`):
+ * each section is composed of titled `SCard` sub-cards with `Field` /
+ * `ToggleRow` / `TextInput` / `Select` / `RadioCards`. What stays here is the
+ * setting-source badge, the connection-test status badge, the read-only value,
+ * and the section-level "reset to defaults" card. The Organization settings
+ * pages reuse the source badge, the status badge, the read-only value and
+ * InactiveGroup.
  */
 
 const SOURCE_BADGE: Record<
-  Exclude<SettingSource, 'default'>,
+  'override' | 'env',
   { label: string; tone: ChipTone; variant: ChipVariant; title: string }
 > = {
   override: {
@@ -54,9 +53,12 @@ const SOURCE_BADGE: Record<
  * the rare rows that matter. The page's legend says what an unbadged
  * row means, including that "at the default" and "delivered, but equal to the
  * default" cannot be told apart from here.
+ *
+ * `org` and `disabled` are the organization view's sources, which
+ * OrgSourceBadge words; the Platform view never sends them.
  */
 export function SourceBadge({ source }: { source: SettingSource }) {
-  if (source === 'default') return null
+  if (source !== 'override' && source !== 'env') return null
   const { label, tone, variant, title } = SOURCE_BADGE[source]
   // The badge taxonomy's pill: the size comes from `size`.
   return (
@@ -87,34 +89,36 @@ export function StatusBadge({ active, label }: { active: boolean; label: string 
 }
 
 /**
- * The rows that depend on a master switch, de-emphasised while it is off.
- * They stay editable — preparing a config before switching it on is
- * valid — but with every field looking live, "Test AI" and the HSTS max age
- * read as working while their switch said otherwise. `data-inactive` lets a
- * test (or a style) find the state without reading opacity.
+ * The rows that depend on a master switch (or on the photo backend),
+ * de-emphasised while it is off. They stay editable — preparing a config
+ * before switching it on is valid — but with every field looking live, "Test
+ * AI" and the HSTS max age read as working while their switch said otherwise.
+ * `data-inactive` lets a test (or a style) find the state without reading
+ * opacity.
+ *
+ * Why the rows are idle is said by what decides it: the switch's own hint
+ * ("Off: …") or the card's description. A caption of its own here floated
+ * between the switch and the first row, belonging to neither.
  */
-export function InactiveGroup({
-  inactive,
-  reason,
-  children,
-}: {
-  inactive: boolean
-  /** "Not used while <switch> is off." Omit when the card already says so. */
-  reason?: string
-  children: ReactNode
-}) {
+export function InactiveGroup({ inactive, children }: { inactive: boolean; children: ReactNode }) {
   if (!inactive) return <>{children}</>
   return (
-    <div data-inactive="true">
-      {reason && (
-        <p className="m-0 px-4 pt-2.5 text-caption text-fg-tertiary">
-          {reason}
-        </p>
-      )}
-      <div className="opacity-60 transition-opacity focus-within:opacity-100 hover:opacity-100">
-        {children}
-      </div>
+    <div data-inactive="true" className="opacity-60 transition-opacity focus-within:opacity-100 hover:opacity-100">
+      {children}
     </div>
+  )
+}
+
+/**
+ * A value the page reports but does not edit (one the environment sets, or the
+ * only one there is): text, not a bordered input that looks editable and
+ * cannot move. Goes inside a `Field` with `htmlFor={false}`.
+ */
+export function ReadOnlyValue({ value, mono = true }: { value: string; mono?: boolean }) {
+  return (
+    <span className={cn('block truncate pt-1.5 text-body-sm', mono && 'mono')} title={value}>
+      {value || '—'}
+    </span>
   )
 }
 
@@ -246,7 +250,7 @@ export function ResetSectionCard({
   onReset: () => void
   resetting: boolean
 }) {
-  const label = SECTION_LABELS[section]
+  const label = PLATFORM_SECTION_LABELS[section]
   // Nothing stored, nothing to clear: no card. On a fresh instance a full card
   // holding a disabled button ended all six pages, as tall as Runtime's
   // settings themselves; red with a live button before that, it taught

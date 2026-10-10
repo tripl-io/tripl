@@ -1,26 +1,27 @@
-"""Trino SQL expressions: time windows, buckets, JSON paths and field contracts.
+"""Trino SQL expressions: time windows, buckets, JSON paths, text and contract tests.
 
 The statement-free half of :class:`~tripl.core.adapters.trino.TrinoAdapter`
-(and of Athena, whose engine version 3 is Trino), kept apart so the adapter
-module stays readable. Everything here reads only the introspected column types
-(``_column_types``) and builds SQL text; nothing runs a statement.
+(and of Athena, whose engine version 3 is Trino): how Trino spells what the
+statements in :mod:`~tripl.core.adapters.dialect_sql_adapter` ask for.
+Everything here reads only the introspected column types (``_column_types``)
+and builds SQL text; nothing runs a statement.
 """
 
 from __future__ import annotations
 
 from datetime import datetime
 
-from tripl.core.adapters.base import FieldContractExpectation, contract_bound_literal
-from tripl.core.adapters.databricks_sql import IDENTIFIER_PART_RE, validate_identifier_column
+from tripl.core.adapters.dialect_sql_adapter import DialectSqlAdapter
 from tripl.core.adapters.errors import WarehouseCapabilityError
+from tripl.core.adapters.sql_common import json_path_parts
 from tripl.core.adapters.trino_sql import (
+    LiteralParams,
     is_container_type,
     is_float_type,
     is_json_type,
     is_text_type,
     is_zoned_type,
     quote_ident,
-    quote_literal,
     utc_date_literal,
     utc_timestamp_literal,
     utc_timestamp_tz_literal,
@@ -46,23 +47,28 @@ _EPOCH_NAIVE = "TIMESTAMP '1970-01-01 00:00:00.000'"
 _AS_OBJECT = "try_cast({doc} AS map(varchar, json))"
 
 
-class TrinoExpressions:
-    """SQL text for one adapter's introspected columns."""
+class TrinoExpressions(DialectSqlAdapter):
+    """Trino's spelling of the shared statements, for one adapter's introspected columns."""
 
     #: Error prefix and product name in messages; Athena overrides it.
     engine_label = "Trino"
 
-    # Class-level defaults: the unit tests build adapters with ``object.__new__``
-    # and seed only what they use.
-    _allowed_columns: set[str] = set()  # noqa: RUF012 - replaced per instance, never mutated
-    _column_types: dict[str, str] = {}  # noqa: RUF012 - replaced per instance, never mutated
+    # Trino refuses an output alias in GROUP BY.
+    _GROUP_BY_ORDINAL = True
+
+    # ------------------------------------------------------------------ #
+    # values and identifiers
+    # ------------------------------------------------------------------ #
+
+    def _new_params(self) -> LiteralParams:
+        return LiteralParams()
+
+    def _quote_ident(self, name: str) -> str:
+        return quote_ident(name)
 
     # ------------------------------------------------------------------ #
     # columns and time
     # ------------------------------------------------------------------ #
-
-    def _validate_column(self, column: str) -> str:
-        return validate_identifier_column(column, self._allowed_columns)
 
     def _time_kind(self, time_column: str) -> TimeKind:
         type_name = self._column_types.get(time_column)
@@ -94,22 +100,6 @@ class TrinoExpressions:
         if type_name is not None and not is_zoned_type(type_name):
             return utc_timestamp_literal(value)
         return utc_timestamp_tz_literal(value)
-
-    def _time_condition(
-        self, time_column: str | None, time_from: datetime | None, time_to: datetime | None
-    ) -> str:
-        if time_column is None or time_from is None or time_to is None:
-            return ""
-        quoted = quote_ident(self._validate_column(time_column))
-        lower = self._time_literal(time_column, time_from)
-        upper = self._time_literal(time_column, time_to)
-        return f"{quoted} >= {lower} AND {quoted} < {upper}"
-
-    def _time_window_where_clause(
-        self, time_column: str | None, time_from: datetime | None, time_to: datetime | None
-    ) -> str:
-        condition = self._time_condition(time_column, time_from, time_to)
-        return f" WHERE {condition}" if condition else ""
 
     def _utc_wall_clock(self, time_column: str) -> str:
         """The column as a value whose calendar fields are its UTC wall clock.
@@ -166,33 +156,36 @@ class TrinoExpressions:
     # JSON columns
     # ------------------------------------------------------------------ #
 
-    def _require_document(self, column: str) -> None:
-        type_name = self._column_types.get(column)
-        if type_name is None:
-            return
-        if classify_complex(type_name) is not ComplexKind.json:
-            msg = (
-                f"{self.engine_label}: column {column!r} has type {type_name} and holds no "
-                "nested paths. Only json columns can be path-expanded (or a varchar "
-                "column the scan parses as JSON)."
-            )
-            raise ValueError(msg)
-
     def _json_path_literal(self, path: str) -> str:
-        """``'$["a"]["b"]'``: bracketed keys match exactly, case included.
-
-        Every segment holds to the identifier grammar before it is spelled, so
-        neither a quote nor a bracket can reach the path text.
-        """
-        parts = [part for part in path.split(".") if part]
-        if not parts or any(not IDENTIFIER_PART_RE.match(part) for part in parts):
-            raise ValueError(f"Unsupported JSON path: {path}")
-        return "'$" + "".join(f'["{part}"]' for part in parts) + "'"
+        """``'$["a"]["b"]'``: bracketed keys match exactly, case included."""
+        return "'$" + "".join(f'["{part}"]' for part in json_path_parts(path)) + "'"
 
     def _document(self, column: str) -> str:
+        """A nested column as the ``json`` value every path expression reads.
+
+        A ``json`` column is one already. A ``map`` is cast to one, the JSON
+        object of its entries (the cast ``_text`` renders it with), so its keys
+        are properties the way a ClickHouse ``Map`` or a Databricks ``map<>``
+        are: the scan's split (``core.warehouse_types.classify_complex``) routes
+        every map column here, and refusing it would fail the whole scan.
+        ``row`` and ``array`` columns are values, never documents.
+        """
         col = self._validate_column(column)
-        self._require_document(col)
-        return quote_ident(col)
+        quoted = quote_ident(col)
+        type_name = self._column_types.get(col)
+        if type_name is None:
+            return quoted
+        kind = classify_complex(type_name)
+        if kind is ComplexKind.json:
+            return quoted
+        if kind is ComplexKind.map:
+            return f"CAST({quoted} AS json)"
+        msg = (
+            f"{self.engine_label}: column {column!r} has type {type_name} and holds no "
+            "nested paths. Only json and map columns can be path-expanded (or a varchar "
+            "column the scan parses as JSON)."
+        )
+        raise ValueError(msg)
 
     def _json_path_expression(self, column: str, path: str) -> str:
         """The value at ``path`` as JSON text — the grouped ``keep_json_value`` column.
@@ -221,6 +214,15 @@ class TrinoExpressions:
         keys = f"map_keys({_AS_OBJECT.format(doc=self._document(column))})"
         return f"COALESCE(json_format(CAST(array_sort({keys}) AS json)), '[]')"
 
+    def _json_object_or_null(self, quoted: str) -> str:
+        """``try(json_parse(...))``, kept only when it is an object (a map of its keys)."""
+        parsed = f"try(json_parse({quoted}))"
+        return f"IF(try_cast({parsed} AS map(varchar, json)) IS NULL, NULL, {parsed})"
+
+    # ------------------------------------------------------------------ #
+    # text
+    # ------------------------------------------------------------------ #
+
     def _text(self, column: str) -> str:
         """A column's value as varchar, rendered the way the other engines render it.
 
@@ -244,12 +246,6 @@ class TrinoExpressions:
     def _string_value_expression(self, column: str) -> str:
         return f"COALESCE({self._text(column)}, '')"
 
-    def _field_operand(self, field: str) -> str:
-        prop = split_property_field(field)
-        if prop is None:
-            return quote_ident(self._validate_column(field))
-        return self._property_value_expression(*prop)
-
     def _field_text(self, field: str) -> str:
         """A field's value as varchar: a column rendered by type, a property as is."""
         prop = split_property_field(field)
@@ -260,112 +256,20 @@ class TrinoExpressions:
     def _field_value_expression(self, field: str) -> str:
         return f"COALESCE({self._field_text(field)}, '')"
 
-    def _validate_breakdown_field(self, field: str) -> str:
-        prop = split_property_field(field)
-        if prop is None:
-            return self._validate_column(field)
-        self._validate_column(prop[0])
-        return field
-
-    def _nested_source(
-        self,
-        base_query: str,
-        where_clause: str,
-        json_cols: list[str],
-        json_value_paths: dict[str, list[str]],
-    ) -> tuple[str, dict[str, str], list[str]]:
-        """The FROM source with every nested expression computed once, under an alias."""
-        prepared: list[str] = []
-        alias_by_name: dict[str, str] = {}
-        json_value_names: list[str] = []
-        for index, column in enumerate(json_cols):
-            alias = f"__np_{index}"
-            prepared.append(f"{self._json_paths_expression(column)} AS {alias}")
-            alias_by_name[column] = alias
-        for column in json_cols:
-            for path in json_value_paths.get(column, []):
-                full_path = f"{column}.{path}"
-                alias = f"__nv_{len(json_value_names)}"
-                prepared.append(f"{self._json_path_expression(column, path)} AS {alias}")
-                alias_by_name[full_path] = alias
-                json_value_names.append(full_path)
-        if not prepared:
-            return f"({base_query}) AS _src{where_clause}", alias_by_name, json_value_names
-        inner = f"SELECT _src.*, {', '.join(prepared)} FROM ({base_query}) AS _src{where_clause}"
-        return f"({inner}) AS _prepared", alias_by_name, json_value_names
+    def _cast_text(self, expr: str) -> str:
+        return f"CAST({expr} AS varchar)"
 
     # ------------------------------------------------------------------ #
     # field contracts
     # ------------------------------------------------------------------ #
 
-    def _contract_where_clause(
-        self,
-        time_column: str | None,
-        time_from: datetime | None,
-        time_to: datetime | None,
-        group_column: str | None,
-        group_value: str | None,
-    ) -> str:
-        conditions: list[str] = []
-        window = self._time_condition(time_column, time_from, time_to)
-        if window:
-            conditions.append(window)
-        if group_column is not None:
-            expected = quote_literal(group_value or "")
-            conditions.append(f"{self._string_value_expression(group_column)} = {expected}")
-        if not conditions:
-            return ""
-        return " WHERE " + " AND ".join(conditions)
+    def _contract_text(self, field: str) -> str:
+        return self._field_value_expression(field)
 
-    def _contract_bad_predicate(
-        self, expectation: FieldContractExpectation, regex_ok: bool
-    ) -> str | None:
-        """The predicate that makes one row BAD; ``None`` when the type has none.
+    def _regex_mismatch(self, value: str, pattern: str) -> str:
+        # regexp_like FINDS the pattern anywhere, like re.search.
+        return f"NOT regexp_like({value}, {pattern})"
 
-        Mirrors ``PostgresAdapter._contract_bad_condition`` clause for clause:
-        ``required_null`` counts NULLs, every other drift type skips them, and a
-        range value that does not parse as a number is BAD.
-        """
-        field = expectation.field_name
-        operand = self._field_operand(field)
-        value_expr = f"COALESCE({self._field_text(field)}, '')"
-        present = f"{operand} IS NOT NULL"
-        drift_type = expectation.drift_type
-        if drift_type == "required_null_violation":
-            return f"{operand} IS NULL"
-        if drift_type == "enum_violation":
-            options = ", ".join(quote_literal(option) for option in expectation.enum_options)
-            return f"{present} AND {value_expr} NOT IN ({options})"
-        if drift_type == "regex_violation":
-            assert expectation.regex is not None
-            if not regex_ok:
-                return None
-            # regexp_like FINDS the pattern anywhere, like re.search.
-            return (
-                f"{present} AND NOT regexp_like({value_expr}, {quote_literal(expectation.regex)})"
-            )
-        if drift_type == "range_violation":
-            number = f"try_cast({value_expr} AS double)"
-            outside: list[str] = []
-            if expectation.min_value is not None:
-                outside.append(f"{number} < {contract_bound_literal(expectation.min_value)}")
-            if expectation.max_value is not None:
-                outside.append(f"{number} > {contract_bound_literal(expectation.max_value)}")
-            # Unparseable is BAD. NaN compares false both ways, as in Python.
-            return f"{present} AND ({number} IS NULL OR {' OR '.join(outside)})"
-        return None
-
-    def _contract_aggregate_sql(
-        self, expectation: FieldContractExpectation, bad: str, *, index: int
-    ) -> str:
-        """``_bad_{i}``, ``_total_{i}``, ``_sample_{i}`` — the layout every engine shares."""
-        field = expectation.field_name
-        operand = self._field_operand(field)
-        is_required = expectation.drift_type == "required_null_violation"
-        total = "count(*)" if is_required else f"count_if({operand} IS NOT NULL)"
-        sample = "'<NULL>'" if is_required else f"COALESCE({self._field_text(field)}, '')"
-        return (
-            f"count_if({bad}) AS _bad_{index}, "
-            f"{total} AS _total_{index}, "
-            f"min(IF({bad}, {sample}, NULL)) AS _sample_{index}"
-        )
+    def _try_double(self, value: str) -> str:
+        # NaN compares false both ways here, as in Python: no guard is needed.
+        return f"try_cast({value} AS double)"

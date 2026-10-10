@@ -355,7 +355,7 @@ describe('ProjectAlertingTab — guided setup', () => {
     mockAlertingFetch([], { scanCount: 0 })
     renderTab()
 
-    expect(await screen.findByText('Connect data and run a scan')).toBeInTheDocument()
+    expect(await screen.findByText('Connect a data source and run a scan')).toBeInTheDocument()
     expect(screen.getByRole('link', { name: 'Go to Scans' })).toHaveAttribute('href', '/p/demo/scans')
   })
 
@@ -364,7 +364,7 @@ describe('ProjectAlertingTab — guided setup', () => {
     renderTab()
 
     expect(await screen.findByText('Set up alerting')).toBeInTheDocument()
-    await waitFor(() => expect(screen.queryByText('Connect data and run a scan')).toBeNull())
+    await waitFor(() => expect(screen.queryByText('Connect a data source and run a scan')).toBeNull())
   })
 
   it('explains an Inbox that cannot hold anything yet, rather than listing nothing', async () => {
@@ -579,7 +579,7 @@ describe('ProjectAlertingTab — the Inbox is a queue you can get to the bottom 
 
     // Back to All: a fresh first page, never an offset left pointing into a
     // set that no longer exists.
-    await pickInboxStatus('any')
+    await pickInboxStatus('Any')
     await waitFor(() => {
       expect(inboxUrls.at(-1)).not.toContain('status=')
       expect(inboxUrls.at(-1)).toContain('offset=0')
@@ -621,7 +621,7 @@ describe('ProjectAlertingTab — the Inbox is a queue you can get to the bottom 
     ).toBeInTheDocument()
 
     // ...and "All" is spelled out, because no key now means Open...
-    await pickInboxStatus('any')
+    await pickInboxStatus('Any')
     expect(
       await screen.findByText('alerting-location:/p/demo/alerting?section=inbox&status=all'),
     ).toBeInTheDocument()
@@ -641,7 +641,7 @@ describe('ProjectAlertingTab — the Inbox is a queue you can get to the bottom 
     for (const url of inboxUrls) {
       expect(url).not.toContain('status=')
     }
-    expect(screen.getByRole('combobox', { name: /^Status filter/ })).toHaveTextContent(/Status:\s*any/)
+    expect(screen.getByRole('combobox', { name: /^Status filter/ })).toHaveTextContent(/Status:\s*Any/)
   })
 
   it('loads the rest of the queue instead of replacing what is on screen', async () => {
@@ -1323,7 +1323,7 @@ describe('ProjectAlertingTab — several incidents, one decision', () => {
     // …and it does not come back when the row does. A selection that survives a
     // round trip through a filter is a selection the operator has forgotten
     // making.
-    await pickInboxStatus('any')
+    await pickInboxStatus('Any')
     expect(await screen.findByText('Showing 2 of 2 · last 30 days + still silenced')).toBeInTheDocument()
     expect(screen.queryByRole('group', { name: BULK_BAR })).toBeNull()
     expect(screen.getByRole('checkbox', { name: SELECT_FIRST })).not.toBeChecked()
@@ -1531,7 +1531,7 @@ describe('ProjectAlertingTab — a note that is wrong can be taken back', () => 
   })
 })
 
-describe('ProjectAlertingTab — demo workspaces are zero-egress', () => {
+describe('ProjectAlertingTab — demo projects are zero-egress', () => {
   it('offers no external channel to add, and says why', async () => {
     mockAlertingFetch([makeDestination({ rules: [makeRule()] })], { isDemo: true })
     renderTab('destinations')
@@ -2952,7 +2952,10 @@ describe('ProjectAlertingTab — counts on the section tabs', () => {
     renderTab('inbox')
 
     expect(await screen.findByRole('tab', { name: 'Inbox (3)' })).toBeInTheDocument()
-    expect(screen.getByRole('tab', { name: 'Delivery log (2)' })).toBeInTheDocument()
+    // Worded, on screen and in the name: a bare red "2" beside "Inbox 3" read as
+    // more incidents, and it counts deliveries that failed.
+    const deliveryLog = screen.getByRole('tab', { name: 'Delivery log (2 failed)' })
+    expect(deliveryLog).toHaveTextContent('2 failed')
     // Rules and Destinations carry no count of their own.
     expect(screen.getByRole('tab', { name: 'Rules' })).toBeInTheDocument()
     expect(screen.getByRole('tab', { name: 'Destinations' })).toBeInTheDocument()

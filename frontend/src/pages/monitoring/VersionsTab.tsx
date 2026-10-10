@@ -15,14 +15,13 @@ import { Card, CardContent, CardTitle } from '@/components/ui/card'
 import { SegmentedControl } from '@/components/ui/segmented-control'
 import { MetricsMultiSeriesChart } from '@/components/ui/chart-lazy'
 import { SILENT_ERROR_META } from '@/lib/errorFeedback'
-import { formatNumber } from '@/lib/format'
+import { formatNumber, formatPercent } from '@/lib/format'
 import { adaptMetricVersions } from '@/lib/metricAdapters'
 import type { MetricRollupMode, MetricsGranularity } from '@/lib/metrics'
 import { appVersionAdoptionKey, appVersionSeriesRangeKey } from '@/lib/queryKeys'
 import type { MonitoringScope } from '@/lib/monitoring'
 import {
   buildVersionChartSeries,
-  formatPercent,
   legendValueKindFor,
   type LegendValueKind,
   type VersionChartSeries,

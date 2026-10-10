@@ -63,10 +63,6 @@ COMBINABLE_CHANNELS = frozenset(
 _SECTION_SEPARATOR = "\n\n"
 
 
-def _combinable(destination_type: str) -> bool:
-    return destination_type in COMBINABLE_CHANNELS
-
-
 @celery_app.task(  # type: ignore[untyped-decorator]
     name="tripl.worker.tasks.alert_digest_send.send_alert_digest",
     bind=True,

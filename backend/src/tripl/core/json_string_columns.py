@@ -27,17 +27,39 @@ from __future__ import annotations
 import logging
 import re
 from collections.abc import Iterable, Sequence
-from typing import Protocol
+from typing import TYPE_CHECKING, Protocol
 
-from tripl.core.adapters.base import BaseAdapter
 from tripl.core.adapters.errors import WarehouseCapabilityError
 from tripl.core.warehouse_types import is_string_type
 
+if TYPE_CHECKING:
+    # Annotations only: ``adapters.base`` imports this module for its message.
+    from tripl.core.adapters.base import BaseAdapter
+
 logger = logging.getLogger(__name__)
 
-#: The data source types whose adapters implement ``json_string_source``.
-JSON_STRING_DB_TYPES = frozenset(
-    {"clickhouse", "bigquery", "databricks", "snowflake", "trino", "athena"}
+#: The data source types whose adapters implement ``json_string_source``, each
+#: with the name messages call it by, in the order they list them. Written out
+#: rather than read off the adapter classes' ``supports_json_string_columns``:
+#: an adapter module imports its warehouse driver, and the scan config schemas
+#: import this module. A test holds the two to the same set.
+_JSON_STRING_ENGINES: dict[str, str] = {
+    "clickhouse": "ClickHouse",
+    "bigquery": "BigQuery",
+    "databricks": "Databricks",
+    "snowflake": "Snowflake",
+    "trino": "Trino",
+    "athena": "Athena",
+}
+
+JSON_STRING_DB_TYPES = frozenset(_JSON_STRING_ENGINES)
+
+#: Those engines as messages name them: "ClickHouse, BigQuery, ... and Athena".
+JSON_STRING_ENGINE_NAMES = " and ".join(", ".join(_JSON_STRING_ENGINES.values()).rsplit(", ", 1))
+
+#: What an adapter without ``json_string_source`` says when asked to parse.
+JSON_STRING_UNSUPPORTED = (
+    f"This data source cannot parse String columns as JSON; only {JSON_STRING_ENGINE_NAMES} can."
 )
 
 #: How many columns one scan may parse. Each is one parse per row read, and a
@@ -127,7 +149,7 @@ def check_json_string_db_type(db_type: str, json_string_columns: Sequence[str]) 
     if json_string_columns and str(db_type) not in JSON_STRING_DB_TYPES:
         msg = (
             "Parsing String columns as JSON (json_string_columns) is supported on "
-            "ClickHouse, BigQuery, Databricks, Snowflake, Trino and Athena data sources only"
+            f"{JSON_STRING_ENGINE_NAMES} data sources only"
         )
         raise ValueError(msg)
 
@@ -156,11 +178,7 @@ def resolve_json_string_source(
     if cache is not None and key in cache:
         return cache[key]
     if not getattr(adapter, "supports_json_string_columns", False):
-        msg = (
-            "This data source cannot parse String columns as JSON; only ClickHouse, "
-            "BigQuery, Databricks, Snowflake, Trino and Athena can. Clear the scan's "
-            "'Parse as JSON' columns."
-        )
+        msg = f"{JSON_STRING_UNSUPPORTED} Clear the scan's 'Parse as JSON' columns."
         raise WarehouseCapabilityError(msg)
     raw_types = {column.name: column.type_name for column in adapter.get_columns(base_query)}
     parsed: list[str] = []

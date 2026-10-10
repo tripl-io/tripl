@@ -22,7 +22,7 @@ present in only one series is treated as ``0`` in the other.
 
 from __future__ import annotations
 
-from collections.abc import Iterable, Mapping
+from collections.abc import Mapping
 from datetime import datetime
 
 from tripl.core.bucketing import to_utc
@@ -57,13 +57,6 @@ def union_buckets(*series: Mapping[datetime, float]) -> list[datetime]:
     for one in series:
         buckets.update(to_utc(bucket) for bucket in one)
     return sorted(buckets)
-
-
-def densify_series(
-    series: Mapping[datetime, float], buckets: Iterable[datetime]
-) -> dict[datetime, float]:
-    """Project ``series`` onto ``buckets``, filling missing buckets with ``0.0``."""
-    return {bucket: float(series.get(bucket, 0.0)) for bucket in buckets}
 
 
 def _divide_over_buckets(

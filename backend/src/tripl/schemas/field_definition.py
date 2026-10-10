@@ -5,6 +5,7 @@ from typing import Any
 from pydantic import BaseModel, Field, field_validator, model_validator
 
 from tripl.models.domain_enums import FieldDefinitionType, Sensitivity
+from tripl.schemas.integers import Int32
 from tripl.schemas.not_null_update import reject_explicit_nulls
 
 
@@ -15,7 +16,7 @@ class FieldDefinitionCreate(BaseModel):
     is_required: bool = False
     enum_options: list[str] | None = None
     description: str = ""
-    order: int = 0
+    order: Int32 = 0
     sensitivity: Sensitivity = Sensitivity.none
     contract_required_max_null_rate: float | None = Field(None, ge=0, le=1)
     contract_regex: str | None = Field(None, min_length=1, max_length=500)
@@ -24,9 +25,9 @@ class FieldDefinitionCreate(BaseModel):
     # section of `core/adapters/base.py`, where such a bound is declared inert on
     # all four engines. This is the belt, not the fix — branch copy
     # (`plan_branch_service`), branch revert (`plan_branch_revert_service`) and
-    # branch merge (`plan_branch_merge_service`, via `setattr`) all write this
-    # column straight onto the ORM model without passing through this schema, and
-    # rows predating the rule exist.
+    # branch merge (`_plan_branch_merge_fields.apply_field_definitions`, via
+    # `setattr`) all write this column straight onto the ORM model without
+    # passing through this schema, and rows predating the rule exist.
     contract_min_value: float | None = Field(None, allow_inf_nan=False)
     contract_max_value: float | None = Field(None, allow_inf_nan=False)
     contract_max_bad_rate: float = Field(0.0, ge=0, le=1)
@@ -98,7 +99,7 @@ class FieldDefinitionUpdate(BaseModel):
     is_required: bool | None = None
     enum_options: list[str] | None = None
     description: str | None = None
-    order: int | None = None
+    order: Int32 | None = None
     sensitivity: Sensitivity | None = None
     contract_required_max_null_rate: float | None = Field(None, ge=0, le=1)
     contract_regex: str | None = Field(None, min_length=1, max_length=500)

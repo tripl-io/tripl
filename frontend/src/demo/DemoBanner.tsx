@@ -2,10 +2,11 @@
  * Persistent demo banner.
  *
  * Shown across every surface of a demo project (mounted in the app Layout). It
- * makes the workspace's synthetic/local nature unmistakable, shows the recipe
- * version and runtime freshness, and exposes Reset / Delete behind a "Manage
+ * makes the project's synthetic/local nature unmistakable, shows how fresh the
+ * data is (and, under "What’s simulated", the demo data version it was built
+ * from), and exposes Reset / Delete behind a "Manage
  * demo" menu — both confirmed, both scoped to the demo endpoints, both offered
- * only to the demo's creator or a workspace owner. On delete it returns to the
+ * only to the demo's creator or an organization owner or admin. On delete it returns to the
  * Projects list.
  *
  * It also owns the one way back into the guided onboarding: being
@@ -29,7 +30,6 @@ import { ChevronDown, Compass, FlaskConical, Info, MoreHorizontal, RotateCcw, Tr
 import { ApiError } from '@/api/client'
 import { projectsApi } from '@/api/projects'
 import { clearProtectedQueries, useAuth } from '@/components/auth-context'
-import { Chip } from '@/components/primitives/chip'
 import { Button } from '@/components/ui/button'
 import {
   Dialog,
@@ -88,7 +88,7 @@ function DemoResetProgressDialog() {
     <Dialog open>
       <DialogContent className="max-w-md" showCloseButton={false}>
         <DialogHeader>
-          <DialogTitle>Re-seeding demo workspace</DialogTitle>
+          <DialogTitle>Re-seeding demo project</DialogTitle>
           <DialogDescription>
             Replacing this demo&apos;s content with a fresh synthetic dataset. This takes{' '}
             {DEMO_PROVISION_ESTIMATE}.
@@ -144,6 +144,15 @@ const DEMO_LIMITS: readonly string[] = [
   'The synthetic warehouse supports common SQL; unsupported queries return a clear capability error instead of silently failing.',
   'Implementation-ticket creation and AI features stay off until you connect a real tracker / enable AI on the server.',
 ]
+
+/**
+ * The recipe version a demo was seeded from, as a number to read: the server
+ * sends "4", and a "v4" must not come out as "version v4".
+ */
+function demoDataVersion(recipeVersion: string | null | undefined): string | null {
+  const version = recipeVersion?.trim().replace(/^v/i, '')
+  return version ? version : null
+}
 
 export function DemoBanner({
   project,
@@ -333,7 +342,7 @@ export function DemoBanner({
   const handleReset = async () => {
     clearMutationError()
     const ok = await confirm({
-      title: 'Reset demo workspace',
+      title: 'Reset demo project',
       message:
         'Re-seed this demo from scratch. All current events, metrics and alert rules in the demo are replaced with a fresh synthetic dataset. ' +
         `This runs in one go and takes ${DEMO_PROVISION_ESTIMATE}. It cannot be undone.`,
@@ -346,7 +355,7 @@ export function DemoBanner({
   const handleDelete = async () => {
     clearMutationError()
     const ok = await confirm({
-      title: 'Delete demo workspace',
+      title: 'Delete demo project',
       message: `Permanently delete “${project.name}” and its synthetic warehouse. You'll be returned to the projects list.`,
       confirmLabel: 'Delete demo',
       variant: 'danger',
@@ -358,10 +367,12 @@ export function DemoBanner({
   // grid to it — so using it as a freshness stamp made a demo created at 10:59
   // read "refreshed 59m ago" the instant it appeared, and runtime ticks never
   // moved it. demo_last_tick_at is when the data was actually last advanced;
-  // until the first tick there is nothing to claim, so say so.
+  // until the first tick there is nothing to claim, so say so. "Generated",
+  // not "created": a reset lands here too.
   const freshnessLabel = project.demo_last_tick_at
     ? `updated ${formatRelativeTime(project.demo_last_tick_at)}`
-    : 'freshly seeded'
+    : 'just generated'
+  const dataVersion = demoDataVersion(project.demo_recipe_version)
 
   // A timed-out reset is told by its own dialog, not the one-line alert.
   const resetStalled = resetMut.isError && isTimeout(resetMut.error)
@@ -387,9 +398,9 @@ export function DemoBanner({
         aria-expanded={expanded}
         aria-controls={panelId}
         // An aria-label, not a hidden span: a name is built from each
-        // element's trimmed text, so a span's " workspace tools" came out as
-        // "Demoworkspace tools". It starts with the visible word.
-        aria-label="Demo workspace tools"
+        // element's trimmed text, so a span's " project tools" came out as
+        // "Demoproject tools". It starts with the visible word.
+        aria-label="Demo project tools"
         className="inline-flex min-h-8 items-center gap-1.5 rounded-full border px-3 py-1 text-body-sm font-medium lg:hidden bg-warning-soft border-warning"
       >
         <FlaskConical className="h-3.5 w-3.5" aria-hidden="true" />
@@ -416,16 +427,12 @@ export function DemoBanner({
               freshness cut, Reset half-shown, the owner's Delete off-screen. */}
           <div className="flex flex-wrap items-center gap-x-3 gap-y-1 lg:shrink-0 lg:flex-nowrap">
             <DemoDataBadge />
-            <span className={cn('shrink-0 text-body-sm font-medium', LABEL_WHEN_ROOMY)}>Demo workspace</span>
-            {/* Details, not controls: the first thing to go when the row is
-                shared, and still on the phone panel, which has room. */}
-            {project.demo_recipe_version && (
-              <span className={cn('inline-flex', DETAIL_WHEN_ROOMY)}>
-                <Chip tone="neutral" size="xs" title="Demo recipe version">
-                  recipe {project.demo_recipe_version}
-                </Chip>
-              </span>
-            )}
+            <span className={cn('shrink-0 text-body-sm font-medium', LABEL_WHEN_ROOMY)}>Demo project</span>
+            {/* A detail, not a control: the first thing to go when the row is
+                shared, and still on the phone panel, which has room. The data
+                version is under "What’s simulated": a bare "recipe 4" chip
+                here was the first thing a newcomer read, and read as a debug
+                leftover. */}
             <span
               className={cn('inline-flex text-caption whitespace-nowrap', DETAIL_WHEN_ROOMY, 'text-fg-secondary')}
             >
@@ -480,7 +487,7 @@ export function DemoBanner({
                 demo surface, and a keyboard user walked through two
                 destructive buttons before reaching the page. Now it is one
                 stop, and both still open a confirm. Only the demo's creator or
-                a workspace owner is offered them. While a reset or delete runs
+                an organization owner or admin is offered them. While a reset or delete runs
                 the trigger says so, as the buttons used to. */}
             {canManage && (
               <DropdownMenu>
@@ -533,6 +540,17 @@ export function DemoBanner({
                 <span>{limit}</span>
               </li>
             ))}
+            {/* Kept for telling an older demo apart: Reset is how one is
+                brought up to date. */}
+            {dataVersion && (
+              <li className="flex gap-1.5">
+                <span aria-hidden="true">·</span>
+                <span>
+                  Built from demo data version {dataVersion}. Reset rebuilds it from the current
+                  version.
+                </span>
+              </li>
+            )}
           </ul>
         )}
       </div>

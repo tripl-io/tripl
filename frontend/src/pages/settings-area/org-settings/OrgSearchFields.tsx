@@ -1,28 +1,37 @@
 import { Button } from "@/components/ui/button";
 import { Field, SCard, TextInput, ToggleRow } from "@/components/settings/kit";
 import {
+  FIELD_COPY,
+  embeddingProviderText,
+} from "@/pages/settings-service/fieldCopy";
+import { ReadOnlyValue } from "@/pages/settings-service/ServiceSettingsPrimitives";
+import {
   EMBEDDING_GROUP,
   clearGroup,
   displayValue,
   groupOwned,
   groupWarning,
-  sourceOf,
   type OrgDraft,
 } from "./orgSettingsModel";
 import {
   InheritHint,
-  OrgSourceBadge,
+  OrgFieldBadge,
   OrgTextField,
   type OrgFieldProps,
 } from "./OrgSettingsPrimitives";
+import { formatNumber } from '@/lib/format'
 
 /**
- * Organization › Search (F20 PR10): the embedding endpoint this organization's
- * indexed plan text is sent to for semantic search. Provider, model, endpoint
- * and key are one credential group; the vector width is the operator's, so the
+ * Organization › Semantic search (F20 PR10): the embedding endpoint this
+ * organization's indexed plan text is sent to. Provider, model, endpoint and
+ * key are one credential group; the vector width is the platform's, so the
  * save embeds one test text with the organization's model and is refused
  * (422) unless the width matches. A change that moves the organization's
  * vector space re-embeds this organization's projects only.
+ *
+ * What cannot be edited here (the provider, the width, the platform's own
+ * endpoint) is text, not a read-only input that looks like the editable ones
+ * around it.
  */
 export function OrgSearchFields({
   settings,
@@ -50,8 +59,14 @@ export function OrgSearchFields({
 
   return (
     <SCard
-      title="Semantic search"
-      description="Provider, model, base URL and key are one group: once this organization sets any of them it stops inheriting the rest, and the operator's key is never sent to its endpoint."
+      title="Embeddings"
+      // The group rule is about inheriting; the platform's own endpoint (the
+      // self-hosted default organization's page) inherits from nothing.
+      description={
+        organizationScope
+          ? "Provider, model, base URL and key are one group: once this organization sets any of them it stops inheriting the rest, and the platform's key is never sent to its endpoint."
+          : undefined
+      }
       footer={
         owned ? (
           <Button
@@ -63,16 +78,18 @@ export function OrgSearchFields({
             }
             disabled={saving}
           >
-            Use the operator's embeddings
+            Use the platform&rsquo;s embeddings
           </Button>
         ) : undefined
       }
     >
       <ToggleRow
-        label="Semantic search enabled"
+        label={FIELD_COPY.search_embeddings_enabled.label}
         labelRight={
-          <OrgSourceBadge
-            source={sourceOf(settings, section, "search_embeddings_enabled")}
+          <OrgFieldBadge
+            settings={settings}
+            section={section}
+            field="search_embeddings_enabled"
           />
         }
         hint={
@@ -90,21 +107,23 @@ export function OrgSearchFields({
           className="m-0 px-4 pt-2.5 text-caption text-(--warning)"
         >
           {warning.starting &&
-            "Saving makes the whole embedding endpoint this organization’s own: fields you leave as they are take the built-in defaults, not the operator’s values. "}
+            "Saving makes the whole embedding endpoint this organization’s own: fields you leave as they are take the built-in defaults, not the platform’s values. "}
           {warning.missingSecret &&
-            "No API key of this organization’s: the operator’s key is never sent to an endpoint set here, so add one."}
+            "No API key of this organization’s: the platform’s key is never sent to an endpoint set here, so add one."}
         </p>
       )}
       <Field
         label="Provider"
         labelRight={
-          <OrgSourceBadge
-            source={sourceOf(settings, section, "search_embedding_provider")}
+          <OrgFieldBadge
+            settings={settings}
+            section={section}
+            field="search_embedding_provider"
           />
         }
-        hint="An OpenAI-compatible embeddings API."
+        htmlFor={false}
       >
-        <TextInput value={provider || "openai"} readOnly mono />
+        <ReadOnlyValue value={embeddingProviderText(provider)} mono={false} />
       </Field>
       <OrgTextField
         {...props}
@@ -112,7 +131,7 @@ export function OrgSearchFields({
         label="Model"
         grouped
         placeholder="e.g. text-embedding-3-small"
-        hint={`Must return vectors of ${dimensions.toLocaleString("en-US")} values: saving embeds one test text with it and is refused otherwise.`}
+        hint={`Must return vectors of ${formatNumber(dimensions)} values: saving embeds one test text with it and is refused otherwise.`}
       />
       <OrgTextField
         {...props}
@@ -122,20 +141,22 @@ export function OrgSearchFields({
         readOnly={!organizationScope}
         placeholder={
           organizationScope
-            ? "Blank: the provider's default with your own model or key, else the operator's endpoint"
+            ? "Blank: the provider's default with your own model or key, else the platform's endpoint"
             : undefined
         }
         hint={
           organizationScope
             ? "Must be a public address."
-            : "The operator’s endpoint is set by SEARCH_EMBEDDING_BASE_URL on the server, not here."
+            : "The platform’s endpoint is set by SEARCH_EMBEDDING_BASE_URL on the server, not here."
         }
       />
       <Field
         label="API key"
         labelRight={
-          <OrgSourceBadge
-            source={sourceOf(settings, section, "search_embedding_api_key")}
+          <OrgFieldBadge
+            settings={settings}
+            section={section}
+            field="search_embedding_api_key"
           />
         }
         hint={
@@ -157,10 +178,11 @@ export function OrgSearchFields({
       </Field>
       <Field
         label="Dimensions"
-        hint="Fixed by the operator for every organization: the width of the search index."
+        hint="Set by SEARCH_EMBEDDING_DIMENSIONS on the server, for every organization: the width of the search index."
+        htmlFor={false}
         last
       >
-        <TextInput value={String(dimensions)} readOnly mono />
+        <ReadOnlyValue value={String(dimensions)} />
       </Field>
     </SCard>
   );

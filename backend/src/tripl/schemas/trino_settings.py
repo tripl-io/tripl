@@ -11,16 +11,17 @@ from typing import Literal
 
 from pydantic import Field, field_validator
 
-from tripl.schemas.connection_settings_base import _ConnectionSettingsBase
+from tripl.schemas.connection_settings_base import (
+    MAX_SCHEMA_ALLOWLIST,
+    _ConnectionSettingsBase,
+    object_name,
+    object_name_list,
+)
 
 # Trino: the coordinator's scheme. HTTPS is the default and the only scheme a
 # password is ever sent over; plain HTTP is for an unauthenticated local or
 # in-cluster coordinator.
 TrinoHttpScheme = Literal["https", "http"]
-
-# How many extra schemas one Trino or Athena schema browse may span: one
-# ``information_schema.columns`` statement whatever the count, like Databricks.
-MAX_TRINO_SCHEMA_ALLOWLIST = 50
 
 # A Trino/Athena catalog, schema (Glue database) or workgroup name. Letters,
 # digits, ``_`` and ``-`` (Glue database names and Athena workgroups carry
@@ -31,27 +32,17 @@ _S3_URI_RE = re.compile(r"^s3://[a-z0-9][a-z0-9.\-]{1,61}[a-z0-9](/[^\s'\"\\]{0,
 
 
 def _trino_object(value: str | None, *, label: str) -> str | None:
-    if value is None:
-        return None
-    trimmed = value.strip()
-    if not trimmed:
-        return None
-    if not _TRINO_OBJECT_RE.match(trimmed):
-        raise ValueError(f"{label} {trimmed!r} is not a valid name")
-    return trimmed
+    return object_name(value, pattern=_TRINO_OBJECT_RE, label=label, kind="name")
 
 
 def _trino_schemas(value: list[str] | None) -> list[str] | None:
-    if value is None:
-        return None
-    cleaned: list[str] = []
-    for raw in value:
-        schema = _trino_object(raw, label="schema_allowlist entry")
-        if schema is not None and schema not in cleaned:
-            cleaned.append(schema)
-    if len(cleaned) > MAX_TRINO_SCHEMA_ALLOWLIST:
-        raise ValueError(f"schema_allowlist accepts at most {MAX_TRINO_SCHEMA_ALLOWLIST} schemas")
-    return cleaned or None
+    return object_name_list(
+        value,
+        pattern=_TRINO_OBJECT_RE,
+        label="schema_allowlist",
+        kind="name",
+        limit=MAX_SCHEMA_ALLOWLIST,
+    )
 
 
 class TrinoSettings(_ConnectionSettingsBase):

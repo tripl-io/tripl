@@ -33,16 +33,8 @@ export type EventTypeDrift = {
 // about "incident rollup" and "Significant threshold". The point that matters:
 // this count covers the charted series (project total + event types), so it can
 // differ from the sidebar Anomalies badge in either direction.
-const OPEN_SIGNALS_HELP =
+const CHART_SIGNALS_HELP =
   'Open anomalies on the volume the chart shows — the project total and each event type.'
-
-// The one stat in this row that does NOT follow the tab, filters or search: it
-// is a separate project-wide query (useEventsPageData `inReviewCount`), while
-// "Events" beside it is the filtered list count. Unlabelled, the row read as one
-// sentence — the archived tab showed "TOTAL 1 · IN REVIEW 6 pending" over a
-// single archived row — so the delta names the wider scope.
-const IN_REVIEW_HELP =
-  'Events with status In review across the whole project; it ignores the tab, filters and search.'
 
 /**
  * The `(i)` affordance beside a stat whose scope is not self-evident. A Radix
@@ -211,19 +203,6 @@ export function EventsHeader({
 }) {
   const openSignalCount = eventTypeSignals.size + (projectTotalSignal ? 1 : 0)
   const hasOpenSignal = openSignalCount > 0
-  const inReviewValue = inReviewPending ? (
-    <StatValueSkeleton />
-  ) : slug ? (
-    // The queue this number counts is one click away.
-    <Link
-      to={projectPath(currentOrgSlug(), slug, '/events/review')}
-      className="underline-offset-4 hover:underline"
-    >
-      {formatNumber(inReviewCount)}
-    </Link>
-  ) : (
-    formatNumber(inReviewCount)
-  )
 
   return (
     <PageHeader
@@ -241,6 +220,10 @@ export function EventsHeader({
       stats={
         hideStats ? undefined : (
           <div className="flex flex-col gap-3">
+            {/* The project-wide in-review count lives on the Review queue
+                tab, which is also the way into that queue. An "In review" stat
+                beside it repeated the same number on every tab, and a third
+                time on the queue itself. */}
             {slug && (
               <EventViewTabs
                 slug={slug}
@@ -269,34 +252,27 @@ export function EventsHeader({
               )}
               {/* The help icon rides on the caption it explains: beside the whole
                   stat it sat far from the label, next to the following stat.
-                  "Open"/"none", not "live"/"quiet": "Live" is the
-                  lifecycle status of a shipped event, in green, one column over.
-                  */}
+                  "Chart signals", not "Open signals": it counts only what the
+                  chart shows, so it differs from Overview's Open signals.
+                  An open signal is a red figure with no word under it: "1 ·
+                  open" read as a second caption. "None" stays as the all-clear,
+                  not "quiet" or "live": "Live" is the lifecycle status of a
+                  shipped event, in green, one column over. */}
               {signalsPending ? (
                 <MiniStat
-                  label="Open signals"
+                  label="Chart signals"
                   value={<StatValueSkeleton />}
-                  labelAddon={<StatHelp help={OPEN_SIGNALS_HELP} />}
+                  labelAddon={<StatHelp help={CHART_SIGNALS_HELP} />}
                 />
               ) : (
                 <MiniStat
-                  label="Open signals"
+                  label="Chart signals"
                   value={String(openSignalCount)}
-                  delta={hasOpenSignal ? 'open' : 'none'}
+                  delta={hasOpenSignal ? undefined : 'none'}
                   tone={hasOpenSignal ? 'danger' : 'success'}
-                  pulse={hasOpenSignal}
-                  labelAddon={<StatHelp help={OPEN_SIGNALS_HELP} />}
+                  labelAddon={<StatHelp help={CHART_SIGNALS_HELP} />}
                 />
               )}
-              {/* "In review", the one name for this count app-wide. */}
-              <MiniStat
-                label="In review"
-                value={inReviewValue}
-                delta={inReviewPending ? undefined : 'project-wide'}
-                tone="neutral"
-                valueTone={!inReviewPending && inReviewCount > 0 ? 'warning' : undefined}
-                labelAddon={<StatHelp help={IN_REVIEW_HELP} />}
-              />
             </MiniStatStrip>
           </div>
         )

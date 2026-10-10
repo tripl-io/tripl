@@ -58,7 +58,7 @@ test('Duplicate starts a new Draft from an existing event, on the same branch', 
   const { slug, branchId, eventId } = await seed(page)
 
   await page.goto(`/p/${slug}/events/all/${eventId}/edit?branch=${branchId}`)
-  await expect(page.getByRole('heading', { name: 'Edit event', exact: true })).toBeVisible({ timeout: 60_000 })
+  await expect(page.getByRole('heading', { name: 'Edit · checkout_started', exact: true })).toBeVisible({ timeout: 60_000 })
   await page.getByRole('button', { name: 'Duplicate', exact: true }).click()
 
   await expect(page).toHaveURL(new RegExp(`/p/${slug}/events/all/new\\?branch=${branchId}&from=${eventId}$`))

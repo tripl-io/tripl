@@ -12,6 +12,7 @@ from pydantic import BaseModel, Field, field_validator
 from sqlalchemy import ColumnElement, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from tripl.core.dead_events import DEAD_EVENT_DAYS, dead_event_clause
 from tripl.models.coverage_metric import CoverageMetric
 from tripl.models.event import Event, EventStatus
 from tripl.models.event_type import EventType
@@ -41,7 +42,8 @@ from tripl.services import event_service
 from tripl.services.plan_branch_service import resolve_branch_id
 from tripl.services.project_lookup import resolve_project_id
 
-DEFAULT_DEAD_EVENT_DAYS = 30
+# The Dead events page's default window: the one the weekly digest counts with.
+DEFAULT_DEAD_EVENT_DAYS = DEAD_EVENT_DAYS
 DEFAULT_COVERAGE_DAYS = 14
 
 # Terminal lifecycle states a dead event may be retired into. Kept here (rather
@@ -522,17 +524,7 @@ async def list_dead_events(
             .where(
                 Event.project_id == project_id,
                 Event.branch_id == main_branch_id,
-                Event.status.in_(["implemented", "live"]),
-                # An event that HAS been seen and then went quiet is dead
-                # regardless of when its plan row was written. The grace period
-                # covers only the never-seen case, where a freshly authored
-                # event legitimately has no data yet. Gating both cases on
-                # created_at hid genuinely stale events behind a young plan row
-                # and made every backdated demo event permanently unflaggable.
-                (
-                    (Event.last_seen_at.is_(None) & (Event.created_at < cutoff))
-                    | (Event.last_seen_at < cutoff)
-                ),
+                dead_event_clause(cutoff),
             )
             .order_by(Event.last_seen_at.asc().nulls_first(), Event.name)
         )

@@ -3,8 +3,12 @@ import { useEffect, useMemo, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 
 import { serviceSettingsApi } from '@/api/serviceSettings'
-import type { ServiceSettingsSectionKey } from './serviceSettingsTabs'
 import { useAuth } from '@/components/auth-context'
+import {
+  PLATFORM_SECTION_LABELS,
+  platformSectionPath,
+  type PlatformSectionKey,
+} from '@/components/settings/platform-sections'
 import { useUnsavedChanges } from '@/components/settings/unsaved-changes'
 import { ErrorState } from '@/components/error-state'
 import { SettingsSaveBar } from '@/components/settings/kit'
@@ -31,7 +35,6 @@ import {
   type SecretField,
   type SectionKey,
   EMPTY_SECRET_DRAFTS,
-  SECTION_LABELS,
   SOURCE_LEGEND,
   adoptSection,
   adoptSectionKeepingEdits,
@@ -94,7 +97,7 @@ function payloadFor(write: SettingsWrite): ServiceSettingsUpdate {
 export default function ServiceSettingsSection({
   section,
 }: {
-  section: ServiceSettingsSectionKey
+  section: PlatformSectionKey
 }) {
   const { user } = useAuth()
   // The Platform console (F20 PR9): every section is the operator's. An
@@ -169,7 +172,7 @@ export default function ServiceSettingsSection({
   // (AI_TIMEOUT_SECONDS=0, say) must not block an unrelated edit.
   const sectionInvalid = activeSection !== null && updateHasInvalidNumber(sectionUpdate, activeSection)
   // One string so the effect below re-registers only when the set changes.
-  const dirtyPathKey = dirtyKeys.map(key => `instance/${key}`).join('|')
+  const dirtyPathKey = dirtyKeys.map(platformSectionPath).join('|')
 
   // buildUpdate spans every section, and switching between two instance
   // sections keeps this component mounted, so only leaving the instance group
@@ -297,7 +300,7 @@ export default function ServiceSettingsSection({
           note={applyNote(section)}
           warning={
             otherDirty.length > 0
-              ? `Also unsaved: ${otherDirty.map(key => SECTION_LABELS[key]).join(', ')}. Save changes here saves ${SECTION_LABELS[section]} only.`
+              ? `Also unsaved: ${otherDirty.map(key => PLATFORM_SECTION_LABELS[key]).join(', ')}. Save changes here saves ${PLATFORM_SECTION_LABELS[section]} only.`
               : undefined
           }
           // The mutation is shared by every section, but its error belongs

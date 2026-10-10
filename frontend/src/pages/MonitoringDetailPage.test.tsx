@@ -654,7 +654,7 @@ function eventFixture() {
     event_type: { id: 'type-1', name: 'page', display_name: 'Page', color: '#0ea5e9' },
     name: 'checkout_completed',
     // The API always sends the key; equal to the name here, which is the case
-    // where the Properties card deliberately shows no separate row.
+    // where the Details card deliberately shows no separate row.
     source_name: 'checkout_completed',
     description: 'Fired on checkout.',
     order: 0,
@@ -770,7 +770,7 @@ describe('MonitoringDetailPage event detail', () => {
       }
       if (url.includes('/api/v1/projects/demo/events/event-1/photos')) return mockJsonResponse([])
       if (url.includes('/api/v1/projects/demo/events/event-1/comments')) return mockJsonResponse([])
-      if (url.endsWith('/api/v1/users')) return mockJsonResponse([])
+      if (url.includes('/api/v1/users?')) return mockJsonResponse([])
       if (url.endsWith('/api/v1/settings/photo-limits')) return mockJsonResponse({ photo_max_size_mb: 10 })
       if (url.endsWith('/api/v1/projects/demo/events/event-1')) return mockJsonResponse(eventFixture())
       if (url.endsWith('/api/v1/projects/demo/scans/scan-1')) {
@@ -814,6 +814,8 @@ function installEventDetailFetch(
     migration?: Record<string, unknown>
     /** GET /events/event-1/history; defaults to no entries. */
     history?: Record<string, unknown>[]
+    /** GET /event-type-owners, the project's event-type owners; defaults to none. */
+    typeOwners?: Record<string, unknown>[]
     sigmaThreshold?: number
   } = {},
 ) {
@@ -857,7 +859,10 @@ function installEventDetailFetch(
     }
     if (url.includes('/api/v1/projects/demo/events/event-1/photos')) return mockJsonResponse([])
     if (url.includes('/api/v1/projects/demo/events/event-1/comments')) return mockJsonResponse([])
-    if (url.endsWith('/api/v1/users')) return mockJsonResponse([])
+    if (url.includes('/api/v1/users?')) return mockJsonResponse([])
+    if (url.endsWith('/api/v1/projects/demo/event-type-owners')) {
+      return mockJsonResponse(opts.typeOwners ?? [])
+    }
     if (url.endsWith('/api/v1/settings/photo-limits')) return mockJsonResponse({ photo_max_size_mb: 10 })
     if (url.includes('/api/v1/projects/demo/events/event-1/migration')) {
       return opts.migration
@@ -944,7 +949,7 @@ describe('MonitoringDetailPage event-detail header and semantics', () => {
     await screen.findByRole('heading', { name: 'checkout_completed' })
 
     // Live actions stay in the primary row, enabled.
-    expect(screen.getByRole('button', { name: 'Metrics' })).toBeEnabled()
+    expect(screen.getByRole('button', { name: 'Charts' })).toBeEnabled()
     expect(screen.getByRole('button', { name: 'Edit' })).toBeEnabled()
 
     // Coming-soon actions no longer sit in the primary row as inert disabled buttons.
@@ -1020,7 +1025,7 @@ describe('MonitoringDetailPage event-detail header and semantics', () => {
     expect(panel.queryByText(/vs\. baseline/i)).toBeNull()
     // Locale-safe: the page groups through toLocaleString, like every other count.
     expect(
-      panel.getByText(`baseline ${(2915).toLocaleString()} at the flagged bucket`),
+      panel.getByText('baseline 2,915 at the flagged bucket'),
     ).toBeInTheDocument()
   })
 
@@ -1038,7 +1043,7 @@ describe('MonitoringDetailPage event-detail header and semantics', () => {
 
     const panel = within(await screen.findByTestId('signal-volume-chart'))
     expect(
-      panel.getByText(`baseline ${(0.4).toLocaleString()} at the flagged bucket`),
+      panel.getByText('baseline 0.4 at the flagged bucket'),
     ).toBeInTheDocument()
     expect(panel.queryByText(/baseline 0 at the flagged bucket/)).toBeNull()
   })
@@ -1381,14 +1386,14 @@ describe('MonitoringDetailPage event-detail header and semantics', () => {
     ).toBeInTheDocument()
   })
 
-  it('exposes table semantics for the Fields and Properties tables', async () => {
+  it('exposes table semantics for the Fields and Details tables', async () => {
     installEventDetailFetch()
     renderEventDetail()
     await screen.findByRole('heading', { name: 'checkout_completed' })
 
     expect(screen.getByRole('table', { name: 'Fields' })).toBeInTheDocument()
 
-    const properties = screen.getByRole('table', { name: 'Properties' })
+    const properties = screen.getByRole('table', { name: 'Details' })
     expect(properties).toBeInTheDocument()
     expect(within(properties).getAllByRole('row').length).toBeGreaterThan(0)
     expect(within(properties).getAllByRole('rowheader')[0]).toHaveTextContent('Event type')
@@ -1414,7 +1419,7 @@ describe('MonitoringDetailPage event-detail header and semantics', () => {
 
     // Once they differ this row is the only place that says which event the
     // warehouse is still feeding.
-    const properties = screen.getByRole('table', { name: 'Properties' })
+    const properties = screen.getByRole('table', { name: 'Details' })
     expect(within(properties).getByText('Scan identity')).toBeInTheDocument()
     expect(within(properties).getByText('checkout_completed')).toBeInTheDocument()
   })
@@ -1426,12 +1431,14 @@ describe('MonitoringDetailPage event-detail header and semantics', () => {
     renderEventDetail()
     await screen.findByRole('heading', { name: 'checkout_completed' })
 
-    const properties = screen.getByRole('table', { name: 'Properties' })
+    const properties = screen.getByRole('table', { name: 'Details' })
     const row = (label: string) =>
       within(properties).getByText(label).closest('[role="row"]') as HTMLElement
     expect(within(row('Created')).getByText(/2026/)).toHaveTextContent(/Jan 1|01/)
     expect(within(row('First seen in data')).getByText(/2026/)).toHaveTextContent(/Jan 3|03/)
-    expect(within(row('Owner')).getByText('—')).toBeInTheDocument()
+    // No owner on the event and none on its type: the type's owners are asked
+    // for first, so the row settles on "—" once they answer.
+    expect(await within(row('Owner')).findByText('—')).toBeInTheDocument()
   })
 
   it('says an unseen event has not been seen, rather than naming its authoring date', async () => {
@@ -1439,7 +1446,7 @@ describe('MonitoringDetailPage event-detail header and semantics', () => {
     renderEventDetail()
     await screen.findByRole('heading', { name: 'checkout_completed' })
 
-    const properties = screen.getByRole('table', { name: 'Properties' })
+    const properties = screen.getByRole('table', { name: 'Details' })
     const firstSeen = within(properties)
       .getByText('First seen in data')
       .closest('[role="row"]') as HTMLElement
@@ -1454,7 +1461,7 @@ describe('MonitoringDetailPage event-detail header and semantics', () => {
     renderEventDetail()
     await screen.findByRole('heading', { name: 'checkout_completed' })
 
-    const properties = screen.getByRole('table', { name: 'Properties' })
+    const properties = screen.getByRole('table', { name: 'Details' })
     const link = await within(properties).findByRole('link', { name: 'checkout_finished' })
     expect(link).toHaveAttribute('href', '/p/demo/monitoring/event/event-2')
   })
@@ -1469,7 +1476,7 @@ describe('MonitoringDetailPage event-detail header and semantics', () => {
     renderEventDetail()
     await screen.findByRole('heading', { name: 'checkout_completed' })
 
-    const properties = screen.getByRole('table', { name: 'Properties' })
+    const properties = screen.getByRole('table', { name: 'Details' })
     expect(await within(properties).findByText('event-2')).toBeInTheDocument()
     expect(within(properties).queryByRole('link')).toBeNull()
   })
@@ -1668,7 +1675,7 @@ describe('MonitoringDetailPage event-detail header and semantics', () => {
     renderEventDetail()
     await screen.findByRole('heading', { name: 'checkout_completed' })
 
-    const properties = screen.getByRole('table', { name: 'Properties' })
+    const properties = screen.getByRole('table', { name: 'Details' })
     const ownerRow = within(properties).getByText('Owner').closest('[role="row"]') as HTMLElement
     expect(await within(ownerRow).findByText('Unknown user')).toBeInTheDocument()
   })
@@ -2558,7 +2565,9 @@ describe('MonitoringDetailPage catalog-metric drilldown', () => {
       /^\w{3} \d{1,2}, \d{4}, \d{1,2}:\d{2} [AP]M$/,
     )
     expect(document.querySelector('input[type="datetime-local"]')).toBeNull()
-    expect(screen.getByText(/Your local time \(UTC/)).toBeInTheDocument()
+    // One wording for every form that takes local time (Expected windows says it too).
+    expect(screen.getAllByText(/^Local time \(UTC/).length).toBeGreaterThan(0)
+    expect(screen.queryByText(/Your local time/)).not.toBeInTheDocument()
     expect(screen.queryByText('YYYY-MM-DD HH:mm')).not.toBeInTheDocument()
     const label = screen.getByPlaceholderText('Label (e.g. v1.4 deploy)')
     expect(label).toHaveAttribute('maxLength', '200')

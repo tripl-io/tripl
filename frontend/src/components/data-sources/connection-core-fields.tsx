@@ -1,4 +1,4 @@
-import type { DbType, JsonPathDiscovery } from '@/types'
+import type { DatabricksAuthType, DbType, JsonPathDiscovery } from '@/types'
 import { Upload } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -17,7 +17,7 @@ import {
   SELECT_CLASS,
   TEXTAREA_CLASS,
 } from './connection-settings'
-import type { ConnectionCoreForm, CoreMissing } from './connection-core'
+import { usernameRequired, type ConnectionCoreForm, type CoreMissing } from './connection-core'
 
 // ClickHouse JSON path discovery options (the preview step that enumerates
 // candidate JSON paths). Defaults to "dynamic" — the effective backend default
@@ -50,8 +50,16 @@ interface ConnectionCoreFieldsProps {
   mode: 'create' | 'edit'
   /** True when the source already stores a password / service-account key. */
   secretSet?: boolean
-  /** Why the typed secret cannot be saved (a malformed key file), shown inline. */
+  /**
+   * Why the secret cannot be saved (a malformed key file, a Trino password
+   * over HTTP), shown inline.
+   */
   secretError?: string | null
+  /**
+   * The Databricks sign-in, a connection setting: with OAuth the client ID in
+   * the username box is required.
+   */
+  databricksAuth?: DatabricksAuthType
   /**
    * Required fields left empty on the last submit or test, from
    * `connectionCoreMissing`. The inputs carry `aria-required` rather than
@@ -78,9 +86,11 @@ export function ConnectionCoreFields({
   mode,
   secretSet = false,
   secretError = null,
+  databricksAuth = 'pat',
   missing = {},
 }: ConnectionCoreFieldsProps) {
   const isEdit = mode === 'edit'
+  const needsUsername = usernameRequired(dbType, databricksAuth)
   const secretErrorId = useId()
   const secretName =
     dbType === 'bigquery'
@@ -201,6 +211,7 @@ export function ConnectionCoreFields({
           isEdit={isEdit}
           secretSet={secretSet}
           secretStatus={secretStatus}
+          needsUsername={needsUsername}
           missing={missing}
         />
       ) : dbType === 'snowflake' ? (
@@ -211,6 +222,7 @@ export function ConnectionCoreFields({
           isEdit={isEdit}
           secretSet={secretSet}
           secretStatus={secretStatus}
+          needsUsername={needsUsername}
           missing={missing}
         />
       ) : dbType === 'athena' ? (
@@ -221,6 +233,7 @@ export function ConnectionCoreFields({
           isEdit={isEdit}
           secretSet={secretSet}
           secretStatus={secretStatus}
+          needsUsername={needsUsername}
           missing={missing}
         />
       ) : (
@@ -270,13 +283,18 @@ export function ConnectionCoreFields({
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <div className={FIELD_COL_CLASS}>
               <Label htmlFor={`${idPrefix}-username`}>Username</Label>
+              {/* Required for Trino alone: the others here fall back to the
+                  driver's default user. */}
               <Input
                 id={`${idPrefix}-username`}
                 value={value.username}
                 onChange={(e) => onChange({ username: e.target.value })}
-                placeholder={examplePlaceholder('default')}
+                aria-required={needsUsername || undefined}
+                placeholder={examplePlaceholder(dbType === 'trino' ? 'tripl' : 'default')}
+                {...invalidAria(`${idPrefix}-username`, missing.username)}
                 {...SECRET_INPUT_PROPS}
               />
+              <FieldError inputId={`${idPrefix}-username`} message={missing.username} />
             </div>
             <div className={FIELD_COL_CLASS}>
               <Label htmlFor={`${idPrefix}-password`}>Password</Label>
@@ -286,9 +304,28 @@ export function ConnectionCoreFields({
                 value={value.secret}
                 onChange={(e) => onChange({ secret: e.target.value })}
                 placeholder={passwordPlaceholder}
+                disabled={value.clearSecret}
+                {...invalidAria(`${idPrefix}-password`, keyError)}
                 {...PASSWORD_INPUT_PROPS}
               />
-              {secretStatus}
+              <FieldError inputId={`${idPrefix}-password`} message={keyError} />
+              {value.clearSecret ? (
+                <p className={HELP_CLASS}>The stored password is removed when you save.</p>
+              ) : (
+                secretStatus
+              )}
+              {/* These warehouses may go without a password, so a stored one
+                  can be removed here, as the PostgreSQL client key can. */}
+              {isEdit && secretSet && (
+                <label className="flex items-center gap-2 text-body-sm text-fg-tertiary">
+                  <input
+                    type="checkbox"
+                    checked={value.clearSecret}
+                    onChange={(e) => onChange({ clearSecret: e.target.checked, secret: '' })}
+                  />
+                  Remove the stored password
+                </label>
+              )}
             </div>
           </div>
         </>
@@ -343,6 +380,8 @@ interface DatabricksCoreFieldsProps {
   isEdit: boolean
   secretSet: boolean
   secretStatus: ReactNode
+  /** Whether the username box (whatever this warehouse calls it) is required. */
+  needsUsername: boolean
   missing: CoreMissing
 }
 
@@ -359,6 +398,7 @@ function DatabricksCoreFields({
   isEdit,
   secretSet,
   secretStatus,
+  needsUsername,
   missing,
 }: DatabricksCoreFieldsProps) {
   return (
@@ -400,9 +440,12 @@ function DatabricksCoreFields({
             id={`${idPrefix}-client-id`}
             value={value.username}
             onChange={(e) => onChange({ username: e.target.value })}
+            aria-required={needsUsername || undefined}
             placeholder="Service principal only"
+            {...invalidAria(`${idPrefix}-client-id`, missing.username)}
             {...SECRET_INPUT_PROPS}
           />
+          <FieldError inputId={`${idPrefix}-client-id`} message={missing.username} />
           <p className={HELP_CLASS}>
             Only for OAuth machine-to-machine. Leave empty with an access token.
           </p>
@@ -443,6 +486,7 @@ function SnowflakeCoreFields({
   isEdit,
   secretSet,
   secretStatus,
+  needsUsername,
   missing,
 }: DatabricksCoreFieldsProps) {
   return (
@@ -485,9 +529,12 @@ function SnowflakeCoreFields({
             id={`${idPrefix}-sf-user`}
             value={value.username}
             onChange={(e) => onChange({ username: e.target.value })}
+            aria-required={needsUsername || undefined}
             placeholder={examplePlaceholder('TRIPL_READER')}
+            {...invalidAria(`${idPrefix}-sf-user`, missing.username)}
             {...SECRET_INPUT_PROPS}
           />
+          <FieldError inputId={`${idPrefix}-sf-user`} message={missing.username} />
         </div>
         <div className={FIELD_COL_CLASS}>
           <Label htmlFor={`${idPrefix}-sf-secret`}>Password or private key</Label>
@@ -528,6 +575,7 @@ function AthenaCoreFields({
   isEdit,
   secretSet,
   secretStatus,
+  needsUsername,
   missing,
 }: DatabricksCoreFieldsProps) {
   return (
@@ -572,9 +620,12 @@ function AthenaCoreFields({
             id={`${idPrefix}-athena-key-id`}
             value={value.username}
             onChange={(e) => onChange({ username: e.target.value })}
+            aria-required={needsUsername || undefined}
             placeholder={examplePlaceholder('AKIA…')}
+            {...invalidAria(`${idPrefix}-athena-key-id`, missing.username)}
             {...SECRET_INPUT_PROPS}
           />
+          <FieldError inputId={`${idPrefix}-athena-key-id`} message={missing.username} />
         </div>
         <div className={FIELD_COL_CLASS}>
           <Label htmlFor={`${idPrefix}-athena-secret`}>Secret access key</Label>

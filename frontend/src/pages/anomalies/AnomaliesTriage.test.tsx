@@ -2,7 +2,7 @@ import { fireEvent, render, screen, waitFor, within } from '@testing-library/rea
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { MemoryRouter, Route, Routes, useLocation } from 'react-router-dom'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import type { MonitoringSignal, SignalTriageState, SignalVerdict } from '@/types'
+import type { MonitoringSignal, SignalTriageState, SignalVerdictInfo } from '@/types'
 import AnomaliesPage from '../AnomaliesPage'
 
 vi.mock('@/api/eventMetrics', () => ({
@@ -53,6 +53,10 @@ function makeSignal(overrides: Partial<MonitoringSignal>): MonitoringSignal {
     direction: 'spike',
     scope_name: 'Signup',
     incident_child: false,
+    muted: false,
+    expected: false,
+    hidden: false,
+    attribution_status: 'not_computed',
     unit: null,
     detected_at: null,
     ...overrides,
@@ -116,7 +120,7 @@ beforeEach(() => {
   vi.mocked(eventMetricsApi.clearSignalVerdict).mockResolvedValue(undefined)
 })
 
-const VERDICT: SignalVerdict = {
+const VERDICT: SignalVerdictInfo = {
   verdict: 'tracking_bug',
   expected_reason: null,
   note: 'Param renamed',

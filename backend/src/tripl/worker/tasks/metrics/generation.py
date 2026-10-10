@@ -30,6 +30,7 @@ from tripl.core.analyzers.cardinality import _is_json_type
 from tripl.core.analyzers.event_generator import GenerationResult, event_name_format_columns
 from tripl.core.intervals import get_interval
 from tripl.core.name_template import VARIABLE_TOKEN_PATTERN
+from tripl.core.plan_scope import main_branch_id
 from tripl.json_paths import format_json_path_value
 from tripl.models.event import Event
 from tripl.models.event_field_value import EventFieldValue
@@ -39,9 +40,10 @@ from tripl.models.scan_config import ScanConfig
 from tripl.models.scan_job import ScanJob, ScanJobStatus
 from tripl.models.variable import Variable
 from tripl.models.variable_value import VariableValue, VariableValueKind
-from tripl.worker.plan_scope import main_branch_id
+from tripl.services._id_chunks import chunked
 from tripl.worker.tasks.metrics.metric_rows import _get_scan_json_value_path_map
 from tripl.worker.utils.event_types import ensure_event_type_with_fields
+from tripl.worker.utils.scan_naming import scan_group_column
 
 logger = logging.getLogger(__name__)
 
@@ -692,14 +694,9 @@ def _live_ids(
     catalog size. Chunked because a snapshot's event list is unbounded and
     PostgreSQL caps a statement at 65,535 bind parameters.
     """
-    ordered = sorted(candidates)
     found: set[uuid.UUID] = set()
-    for start in range(0, len(ordered), _SNAPSHOT_IDENTITY_CHUNK):
-        found.update(
-            session.execute(
-                select(column).where(column.in_(ordered[start : start + _SNAPSHOT_IDENTITY_CHUNK]))
-            ).scalars()
-        )
+    for chunk in chunked(sorted(candidates), _SNAPSHOT_IDENTITY_CHUNK):
+        found.update(session.execute(select(column).where(column.in_(chunk))).scalars())
     return found
 
 
@@ -795,8 +792,7 @@ def _resolve_snapshot_event_identities(
 
     live_id_by_identity: dict[tuple[uuid.UUID, str], uuid.UUID] = {}
     if stale_event_type_ids and stale_identities:
-        for start in range(0, len(stale_identities), _SNAPSHOT_IDENTITY_CHUNK):
-            chunk = stale_identities[start : start + _SNAPSHOT_IDENTITY_CHUNK]
+        for chunk in chunked(stale_identities, _SNAPSHOT_IDENTITY_CHUNK):
             rows = session.execute(
                 select(Event.id, Event.event_type_id, Event.source_name, Event.name).where(
                     Event.project_id == project_id,
@@ -978,7 +974,7 @@ def _load_latest_generation_snapshot(
         project_id=config.project_id,
     )
 
-    if config.event_type_column:
+    if scan_group_column(config) is not None:
         group_results_raw = snapshot.get("group_results")
         if not isinstance(group_results_raw, dict):
             return {}, None, None
@@ -1113,7 +1109,7 @@ def _load_existing_generation_results(
     columns: list[ColumnInfo],
 ) -> tuple[dict[str, GenerationResult], GenerationResult | None]:
     """Build replay-time event matching metadata without warehouse cardinality scans."""
-    if config.event_type_column:
+    if scan_group_column(config) is not None:
         # Branch-scoped, like catalog_sync's own lookup. A working branch
         # deep-copies event types under the SAME names, so an unscoped query
         # feeding a name-keyed dict lets the branch copy win: the main-plan

@@ -11,12 +11,21 @@ from pydantic import (
     Field,
     SecretStr,
     ValidationError,
+    ValidationInfo,
+    ValidatorFunctionWrapHandler,
     field_validator,
     model_validator,
 )
+from pydantic_core import PydanticCustomError
 
 from tripl.models.data_source import DBType, TestStatus
-from tripl.schemas.connection_settings_base import _ConnectionSettingsBase
+from tripl.schemas.connection_settings_base import (
+    MAX_SCHEMA_ALLOWLIST,
+    _ConnectionSettingsBase,
+    object_name,
+    object_name_list,
+)
+from tripl.schemas.integers import INT32_MAX
 from tripl.schemas.not_null_update import reject_explicit_nulls
 from tripl.schemas.trino_settings import (
     AthenaSettings,
@@ -97,11 +106,6 @@ DEFAULT_BIGQUERY_MAXIMUM_BYTES_BILLED = 100 * 1024**3
 # nothing said so.
 MAX_SCHEMA_DATASETS = 20
 
-# How many extra schemas one Databricks schema browse may span. A browse is a single
-# ``information_schema.columns`` statement whatever the count, so this bounds the
-# IN list and the autocomplete payload rather than a number of billed jobs.
-MAX_DATABRICKS_SCHEMA_ALLOWLIST = 50
-
 # Databricks authentication: a personal access token, or a service principal's
 # OAuth client ID (``username``) and secret (``password``) exchanged for a token.
 DatabricksAuthType = Literal["pat", "oauth_m2m"]
@@ -109,10 +113,6 @@ DatabricksAuthType = Literal["pat", "oauth_m2m"]
 # Snowflake authentication: the user's password, or key-pair sign-in with the
 # user's PEM private key in the ``password`` slot.
 SnowflakeAuthType = Literal["password", "key_pair"]
-
-# How many extra schemas one Snowflake schema browse may span: one
-# ``INFORMATION_SCHEMA.COLUMNS`` statement whatever the count, like Databricks.
-MAX_SNOWFLAKE_SCHEMA_ALLOWLIST = 50
 
 _BQ_LOCATION_RE = re.compile(r"^[A-Za-z0-9-]{2,40}$")
 # A SQL warehouse's HTTP path (``/sql/1.0/warehouses/<id>``), or a cluster's
@@ -247,29 +247,21 @@ class BigQuerySettings(_ConnectionSettingsBase):
     @field_validator("dataset_allowlist")
     @classmethod
     def _check_datasets(cls, value: list[str] | None) -> list[str] | None:
-        if value is None:
-            return None
-        cleaned: list[str] = []
-        for raw in value:
-            dataset = raw.strip()
-            if not dataset:
-                continue
-            if not _BQ_DATASET_RE.match(dataset):
-                raise ValueError(
-                    f"dataset_allowlist entry {dataset!r} is not a valid BigQuery dataset id"
-                )
-            if dataset not in cleaned:
-                cleaned.append(dataset)
-        if len(cleaned) > _MAX_DATASET_ALLOWLIST:
+        return object_name_list(
+            value,
+            pattern=_BQ_DATASET_RE,
+            label="dataset_allowlist",
+            kind="BigQuery dataset id",
+            limit=_MAX_DATASET_ALLOWLIST,
             # The reason travels with the limit: the previous message named a number
             # (50) that the schema browser would never honour, so an operator who
             # trimmed to exactly 50 still lost 30 datasets with no further word.
-            raise ValueError(
+            too_many=(
                 f"dataset_allowlist accepts at most {_MAX_DATASET_ALLOWLIST} datasets — "
                 f"a schema browse covers {MAX_SCHEMA_DATASETS} and the connection's "
                 "default dataset takes one of them"
-            )
-        return cleaned or None
+            ),
+        )
 
 
 class DatabricksSettings(_ConnectionSettingsBase):
@@ -301,45 +293,22 @@ class DatabricksSettings(_ConnectionSettingsBase):
     @field_validator("schema_name")
     @classmethod
     def _check_schema_name(cls, value: str | None) -> str | None:
-        if value is None:
-            return None
-        trimmed = value.strip()
-        if not trimmed:
-            return None
-        if not _DBX_SCHEMA_RE.match(trimmed):
-            raise ValueError(f"schema_name {trimmed!r} is not a valid schema name")
-        return trimmed
+        return object_name(value, pattern=_DBX_SCHEMA_RE, label="schema_name", kind="schema name")
 
     @field_validator("schema_allowlist")
     @classmethod
     def _check_schemas(cls, value: list[str] | None) -> list[str] | None:
-        if value is None:
-            return None
-        cleaned: list[str] = []
-        for raw in value:
-            schema = raw.strip()
-            if not schema:
-                continue
-            if not _DBX_SCHEMA_RE.match(schema):
-                raise ValueError(f"schema_allowlist entry {schema!r} is not a valid schema name")
-            if schema not in cleaned:
-                cleaned.append(schema)
-        if len(cleaned) > MAX_DATABRICKS_SCHEMA_ALLOWLIST:
-            raise ValueError(
-                f"schema_allowlist accepts at most {MAX_DATABRICKS_SCHEMA_ALLOWLIST} schemas"
-            )
-        return cleaned or None
+        return object_name_list(
+            value,
+            pattern=_DBX_SCHEMA_RE,
+            label="schema_allowlist",
+            kind="schema name",
+            limit=MAX_SCHEMA_ALLOWLIST,
+        )
 
 
 def _snowflake_object(value: str | None, *, label: str) -> str | None:
-    if value is None:
-        return None
-    trimmed = value.strip()
-    if not trimmed:
-        return None
-    if not _SF_OBJECT_RE.match(trimmed):
-        raise ValueError(f"{label} {trimmed!r} is not a valid Snowflake object name")
-    return trimmed
+    return object_name(value, pattern=_SF_OBJECT_RE, label=label, kind="Snowflake object name")
 
 
 class SnowflakeSettings(_ConnectionSettingsBase):
@@ -381,24 +350,23 @@ class SnowflakeSettings(_ConnectionSettingsBase):
     @field_validator("schema_allowlist")
     @classmethod
     def _check_schemas(cls, value: list[str] | None) -> list[str] | None:
-        if value is None:
-            return None
-        cleaned: list[str] = []
-        for raw in value:
-            schema = _snowflake_object(raw, label="schema_allowlist entry")
-            if schema is not None and schema not in cleaned:
-                cleaned.append(schema)
-        if len(cleaned) > MAX_SNOWFLAKE_SCHEMA_ALLOWLIST:
-            raise ValueError(
-                f"schema_allowlist accepts at most {MAX_SNOWFLAKE_SCHEMA_ALLOWLIST} schemas"
-            )
-        return cleaned or None
+        return object_name_list(
+            value,
+            pattern=_SF_OBJECT_RE,
+            label="schema_allowlist",
+            kind="Snowflake object name",
+            limit=MAX_SCHEMA_ALLOWLIST,
+        )
 
 
-# The write-side union. Every member forbids extras, so a key that belongs to no
-# warehouse at all is rejected by FastAPI before the service is reached; the
-# service then checks the parsed settings against the row's db_type (a BigQuery
-# key on a PostgreSQL source is a 422, not a silent drop).
+# The write-side union: the request models' type, and so the OpenAPI shape of
+# ``connection_settings``. The settings a request sends are never validated as
+# the union, though: pydantic answers a union that matches no member with every
+# member's errors, so one dotted schema name came back as twenty-odd complaints
+# about ClickHouse and PostgreSQL settings. ``_request_settings`` validates
+# against the one model the request is for instead, and refuses with one
+# sentence. The service then checks the parsed settings against the row's
+# db_type (a BigQuery key on a PostgreSQL source is a 422, not a silent drop).
 ConnectionSettings = (
     ClickHouseSettings
     | PostgresSettings
@@ -459,6 +427,72 @@ def parse_connection_settings(
         raise ConnectionSettingsError(_explain(db_type, model, exc)) from exc
 
 
+# Each settings model once, in declaration order, with the first db_type that
+# uses it (PostgreSQL's settings serve Greenplum and Redshift too).
+_DB_TYPE_OF_MODEL: dict[type[_ConnectionSettingsBase], str] = {
+    model: next(db_type for db_type, other in CONNECTION_SETTINGS_MODELS.items() if other is model)
+    for model in CONNECTION_SETTINGS_MODELS.values()
+}
+
+
+def infer_connection_settings(raw: Mapping[str, object]) -> _ConnectionSettingsBase:
+    """Validate ``raw`` for a request that does not say which warehouse it is for.
+
+    A PATCH that leaves ``db_type`` alone carries settings only, and the row's
+    type is the service's to read. The candidates are the models that take
+    every key sent: every model forbids extras, so the payload the form builds
+    for a warehouse fits that warehouse's model alone. A payload several models
+    take (``{"schema_name": ...}`` alone) is answered by the first that accepts
+    it, or else in the words of the one it came closest to, the fewest errors.
+    The service validates the result against the row's type afterwards.
+    """
+    keys = set(raw)
+    candidates = [model for model in _DB_TYPE_OF_MODEL if keys <= set(model.model_fields)]
+    if not candidates:
+        unknown = sorted(keys - _ALL_SETTING_NAMES)
+        if unknown:
+            raise ConnectionSettingsError(
+                f"Invalid connection settings — unknown connection settings: {', '.join(unknown)}"
+            )
+        raise ConnectionSettingsError(
+            f"Invalid connection settings — no one warehouse takes all of {', '.join(sorted(keys))}"
+        )
+    failures: list[tuple[type[_ConnectionSettingsBase], ValidationError]] = []
+    for model in candidates:
+        try:
+            return model.model_validate(dict(raw))
+        except ValidationError as exc:
+            failures.append((model, exc))
+    closest, error = min(failures, key=lambda failure: failure[1].error_count())
+    raise ConnectionSettingsError(_explain(_DB_TYPE_OF_MODEL[closest], closest, error)) from error
+
+
+def _request_settings(
+    value: object, handler: ValidatorFunctionWrapHandler, db_type: object
+) -> object:
+    """``connection_settings`` of a request body, validated for one warehouse.
+
+    ``db_type`` is the request's own, when it carries a valid one. A refusal is
+    one error at ``connection_settings`` that says what is wrong, never the
+    union's error for every member.
+    """
+    if value is None or isinstance(value, _ConnectionSettingsBase):
+        # Nothing sent, or a settings model built in Python: the union's own check.
+        return handler(value)
+    if not isinstance(value, Mapping):
+        raise PydanticCustomError(
+            "connection_settings", "connection_settings must be an object of settings"
+        )
+    try:
+        if isinstance(db_type, DBType):
+            return parse_connection_settings(db_type.value, value)
+        return infer_connection_settings(value)
+    except ConnectionSettingsError as exc:
+        # The reason travels in the context, so braces in it are never read as
+        # template fields.
+        raise PydanticCustomError("connection_settings", "{reason}", {"reason": str(exc)}) from exc
+
+
 def _explain(db_type: str, model: type[_ConnectionSettingsBase], exc: ValidationError) -> str:
     """Turn a pydantic ValidationError into one clear sentence for the operator."""
     inapplicable: list[str] = []
@@ -468,6 +502,10 @@ def _explain(db_type: str, model: type[_ConnectionSettingsBase], exc: Validation
         field = ".".join(str(part) for part in error["loc"]) or "connection_settings"
         if error["type"] == "extra_forbidden":
             (inapplicable if field in _ALL_SETTING_NAMES else unknown).append(field)
+        elif error["type"] == "value_error" and "error" in error.get("ctx", {}):
+            # A settings validator's own message, which names its setting
+            # already, without pydantic's "Value error, " in front.
+            other.append(str(error["ctx"]["error"]))
         else:
             other.append(f"{field}: {error['msg']}")
 
@@ -551,7 +589,9 @@ class DataSourceCreate(BaseModel):
     # encrypted, in a Text column.
     username: str = Field("", max_length=255)
     password: str = ""
-    timeout_seconds: int | None = Field(None, ge=1)
+    # Capped at what ``data_sources.timeout_seconds`` (an INTEGER) can store, so
+    # an overlong value is a 422 naming the field, not a 500 out of the INSERT.
+    timeout_seconds: int | None = Field(None, ge=1, le=INT32_MAX)
     json_path_discovery: JsonPathDiscovery | None = None
     connection_settings: ConnectionSettings | None = None
 
@@ -561,6 +601,14 @@ class DataSourceCreate(BaseModel):
         validated = _validate_host_format(value)
         assert validated is not None  # host is required on create
         return validated
+
+    @field_validator("connection_settings", mode="wrap")
+    @classmethod
+    def _check_connection_settings(
+        cls, value: object, handler: ValidatorFunctionWrapHandler, info: ValidationInfo
+    ) -> object:
+        # ``db_type`` is declared first, so it is in ``info.data`` when it is valid.
+        return _request_settings(value, handler, info.data.get("db_type"))
 
 
 # The update fields whose DataSource column is NOT NULL, so an explicit ``null``
@@ -585,7 +633,7 @@ class DataSourceUpdate(BaseModel):
     # Same bound as on create: the PATCH writes the same column.
     username: str | None = Field(None, max_length=255)
     password: str | None = None
-    timeout_seconds: int | None = Field(None, ge=1)
+    timeout_seconds: int | None = Field(None, ge=1, le=INT32_MAX)
     json_path_discovery: JsonPathDiscovery | None = None
     # Replaces the stored settings wholesale (a field left out is cleared), with
     # one exception: an omitted ``sslkey`` keeps the stored key, exactly like an
@@ -601,6 +649,15 @@ class DataSourceUpdate(BaseModel):
     @classmethod
     def _check_host(cls, value: str | None) -> str | None:
         return _validate_host_format(value)
+
+    @field_validator("connection_settings", mode="wrap")
+    @classmethod
+    def _check_connection_settings(
+        cls, value: object, handler: ValidatorFunctionWrapHandler, info: ValidationInfo
+    ) -> object:
+        # A PATCH usually leaves ``db_type`` out: then the keys sent say which
+        # warehouse the settings are for (``infer_connection_settings``).
+        return _request_settings(value, handler, info.data.get("db_type"))
 
 
 # "Used by" links listed per source; past this the card says "and N more".

@@ -36,15 +36,9 @@ from tripl_mcp.tools._common import (
     DOC_WRITE_FIELDS,
     READ_ONLY,
     WRITE_REPLACE,
+    hoist_warnings,
     trim,
 )
-
-# What a `both` note matches: it is written for either reader.
-_AUDIENCE_MATCHES: dict[str, tuple[str, ...]] = {
-    "human": ("human", "both"),
-    "agent": ("agent", "both"),
-    "both": ("both",),
-}
 
 
 async def list_docs(
@@ -55,9 +49,7 @@ async def list_docs(
 ) -> dict[str, Any]:
     client = client_for(ctx)
     data = await send(client, docs.list_docs(slug))
-    rows = docs.tree_docs(data, scope)
-    if audience is not None:
-        rows = [row for row in rows if row.get("audience") in _AUDIENCE_MATCHES[audience]]
+    rows = docs.filter_by_audience(docs.tree_docs(data, scope), audience)
     return {
         "items": [trim(row, DOC_LIST_FIELDS) for row in rows],
         "total": len(rows),
@@ -119,18 +111,13 @@ def with_link_warnings(data: Any) -> Any:
     does not have is kept as written and shows as broken in the app, so the
     agent should fix the name now rather than leave a dead link for a reader.
     """
-    if isinstance(data, dict) and data.get("warnings"):
-        return {
-            "IMPORTANT_warnings": data["warnings"],
-            "note": (
-                "The note was saved, but these [[links]] do not resolve to exactly one "
-                "entity. Check the names with search_plan (a broken link's "
-                "'suggestions' in 'links' are the closest current names) and write the "
-                "note again with base_revision set to the revision below."
-            ),
-            "result": {k: v for k, v in data.items() if k != "warnings"},
-        }
-    return data
+    return hoist_warnings(
+        data,
+        "The note was saved, but these [[links]] do not resolve to exactly one "
+        "entity. Check the names with search_plan (a broken link's 'suggestions' "
+        "in 'links' are the closest current names) and write the note again with "
+        "base_revision set to the revision below.",
+    )
 
 
 def register(mcp: MCPServer) -> None:

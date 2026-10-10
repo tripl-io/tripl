@@ -50,6 +50,15 @@ ENDPOINTS: tuple[tuple[str, str], ...] = (
 SCOPES: tuple[str, ...] = ("project", "organization")
 # `DocAudience`, verbatim: who a note is written for, from its frontmatter.
 AUDIENCES: tuple[str, ...] = ("human", "agent", "both")
+# What an audience filter keeps. A note marked `both` is written for either
+# reader, so it matches `human` and `agent`; `both` itself keeps only those
+# notes. The tree route takes no audience, so this rule lives on the client side
+# and is applied by `filter_by_audience` alone.
+AUDIENCE_MATCHES: dict[str, tuple[str, ...]] = {
+    "human": ("human", "both"),
+    "agent": ("agent", "both"),
+    "both": ("both",),
+}
 # The import route's `mode`. "mirror" also DELETES every note of the scope that
 # the bundle does not carry.
 IMPORT_MODES: tuple[str, ...] = ("merge", "mirror")
@@ -184,6 +193,18 @@ def tree_docs(payload: Any, scope: str | None = None) -> JsonList:
     if scope in (None, "organization"):
         rows.extend(as_list(tree.get("organization_docs")))
     return rows
+
+
+def filter_by_audience(rows: JsonList, audience: str | None) -> JsonList:
+    """The rows written for ``audience``, or all of them when it is ``None``.
+
+    The second half of ``tree_docs`` for both surfaces: ``tripl docs ls
+    --audience`` and the MCP's ``list_docs`` narrow the same rows the same way.
+    """
+    if audience is None:
+        return rows
+    wanted = AUDIENCE_MATCHES[audience]
+    return [row for row in rows if row.get("audience") in wanted]
 
 
 def bundle_files(payload: Any) -> JsonList:

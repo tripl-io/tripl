@@ -465,7 +465,9 @@ describe('DataSourcesPage', () => {
 
     expect(await screen.findByText('Warehouse')).toBeInTheDocument()
     expect(screen.queryByText(/:0\//)).not.toBeInTheDocument()
-    expect(screen.getByText('clickhouse')).toBeInTheDocument()
+    // The warehouse by name, not its wire id.
+    expect(screen.getByText('ClickHouse')).toBeInTheDocument()
+    expect(screen.queryByText('clickhouse')).not.toBeInTheDocument()
   })
 
   it('presents a recent successful health check as healthy', async () => {
@@ -933,11 +935,14 @@ describe('DataSourcesPage', () => {
     expect(screen.queryByLabelText('Host')).not.toBeInTheDocument()
     expect(screen.queryByLabelText('Port')).not.toBeInTheDocument()
     expect(screen.queryByLabelText('Password')).not.toBeInTheDocument()
+    // The synthetic adapter ignores a timeout, so the dialog offers none.
+    expect(screen.queryByLabelText('Timeout (seconds)')).not.toBeInTheDocument()
+    expect(screen.getByText(/no connection or timeout to configure/)).toBeInTheDocument()
     fireEvent.change(screen.getByLabelText('Name'), { target: { value: 'Renamed demo' } })
     fireEvent.click(screen.getByRole('button', { name: 'Save' }))
 
     await waitFor(() => expect(patchPayload).toBeDefined())
-    expect(patchPayload).toEqual({ name: 'Renamed demo', timeout_seconds: null })
+    expect(patchPayload).toEqual({ name: 'Renamed demo' })
   })
 
   it('sends a new BigQuery service account key only once the operator types one', async () => {
@@ -1135,7 +1140,7 @@ describe('DataSourcesPage', () => {
 
     expect(await screen.findByText('Warehouse')).toBeInTheDocument()
     expect(screen.getByText('Untested')).toBeInTheDocument()
-    expect(screen.getByText('clickhouse')).toBeInTheDocument()
+    expect(screen.getByText('ClickHouse')).toBeInTheDocument()
   })
 
   // The dialog must not read as a login form, and no secret
@@ -1543,6 +1548,26 @@ describe('DataSourcesPage design review (#248)', () => {
     fireEvent.change(screen.getByLabelText('Port'), { target: { value: '9440' } })
     fireEvent.change(type, { target: { value: 'postgres' } })
     expect(screen.getByLabelText('Port')).toHaveValue(9440)
+  })
+
+  it('marks a connector not yet verified against a live warehouse as a preview', async () => {
+    vi.spyOn(globalThis, 'fetch').mockImplementation(listFetchMock([DATA_SOURCE]))
+    renderDataSourcesPage('/settings/data-sources', 'owner')
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Add connection' }))
+    const type = await screen.findByLabelText('Type')
+    expect(within(type).getByRole('option', { name: 'Snowflake (preview)' })).toBeInTheDocument()
+    expect(within(type).getByRole('option', { name: 'ClickHouse' })).toBeInTheDocument()
+    expect(screen.queryByText(/support is in preview/)).not.toBeInTheDocument()
+
+    fireEvent.change(type, { target: { value: 'athena' } })
+    expect(
+      screen.getByText(
+        'Amazon Athena support is in preview. It has not yet been verified against a live warehouse.',
+      ),
+    ).toBeInTheDocument()
+    // The name placeholder still builds on the bare warehouse name.
+    expect(screen.getByLabelText('Name').getAttribute('placeholder')).toContain('Production Amazon Athena')
   })
 
   // a 422 used to land as "host: String should …" at the foot of the

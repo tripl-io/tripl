@@ -40,6 +40,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.sql.elements import ColumnElement
 
 from tripl import cache
+from tripl.core.bucketing import to_utc
 from tripl.models.chart_annotation import ChartAnnotation
 from tripl.models.domain_enums import MetricScopeType, SignalTriageAction
 from tripl.models.metric_anomaly import MetricAnomaly
@@ -94,13 +95,6 @@ ScopeKey = tuple[uuid.UUID | None, str, str]
 SignalKey = tuple[uuid.UUID | None, str, str, datetime]
 
 
-def _as_utc(value: datetime) -> datetime:
-    return value.replace(tzinfo=UTC) if value.tzinfo is None else value.astimezone(UTC)
-
-
-as_utc = _as_utc
-
-
 def scope_key(scan_config_id: uuid.UUID | None, scope_type: str, scope_ref: str) -> ScopeKey:
     scope = str(scope_type)
     # A catalog metric is project-global whatever config a caller names.
@@ -110,7 +104,7 @@ def scope_key(scan_config_id: uuid.UUID | None, scope_type: str, scope_ref: str)
 def signal_key(
     scan_config_id: uuid.UUID | None, scope_type: str, scope_ref: str, bucket: datetime
 ) -> SignalKey:
-    return (*scope_key(scan_config_id, scope_type, scope_ref), _as_utc(bucket))
+    return (*scope_key(scan_config_id, scope_type, scope_ref), to_utc(bucket))
 
 
 @dataclass(frozen=True)
@@ -178,7 +172,7 @@ async def load_triage_indexes(
     ]
     if min_bucket is not None:
         conditions.append(
-            or_(SignalTriage.bucket.is_(None), SignalTriage.bucket >= _as_utc(min_bucket))
+            or_(SignalTriage.bucket.is_(None), SignalTriage.bucket >= to_utc(min_bucket))
         )
     rows = (await session.execute(select(SignalTriage).where(*conditions))).scalars()
     indexes: dict[uuid.UUID, TriageIndex] = defaultdict(TriageIndex)
@@ -194,7 +188,7 @@ async def load_triage_indexes(
             continue
         key = signal_key(row.scan_config_id, row.scope_type, row.scope_ref, row.bucket)
         if action == SignalTriageAction.acknowledged.value:
-            index.acknowledged[key] = _as_utc(row.created_at)
+            index.acknowledged[key] = to_utc(row.created_at)
             continue
         if action == SignalTriageAction.expected.value:
             index.expected[key] = _Expected(note=row.note)
@@ -205,7 +199,7 @@ async def load_triage_indexes(
                 row.expected_reason,
                 row.note,
                 row.created_by_user_id,
-                _as_utc(set_at) if set_at is not None else None,
+                to_utc(set_at) if set_at is not None else None,
             )
             current = index.verdicts.get(key)
             # One verdict per signal is the rule; should a race leave two, the
@@ -243,7 +237,7 @@ async def earliest_mute_expiry(
             )
         )
     ).scalar_one_or_none()
-    return None if expiry is None else _as_utc(expiry)
+    return None if expiry is None else to_utc(expiry)
 
 
 def _signal_key_of(signal: MetricSignalResponse) -> SignalKey:
@@ -275,7 +269,7 @@ async def apply_triage(
     """
     if not signals:
         return signals
-    oldest = min(_as_utc(signal.bucket) for signal in signals)
+    oldest = min(to_utc(signal.bucket) for signal in signals)
     index = (await load_triage_indexes(session, [project_id], min_bucket=oldest)).get(
         project_id
     ) or TriageIndex()
@@ -688,7 +682,7 @@ async def _delete_verdict(
     scope = str(scope_type)
     _validate_scope_shape(scope, scan_config_id)
     key = scope_key(scan_config_id, scope, scope_ref)
-    row = await _find(session, project.id, key, action, None if bucket is None else _as_utc(bucket))
+    row = await _find(session, project.id, key, action, None if bucket is None else to_utc(bucket))
     if row is None:
         return project, None
     if row.annotation_id is not None:

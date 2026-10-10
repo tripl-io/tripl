@@ -1,7 +1,7 @@
 import { useCallback, useMemo, useState } from 'react'
 import { Link, Navigate, useLocation, useParams } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
-import { FileQuestion, ListPlus, Plus, Radar } from 'lucide-react'
+import { FileQuestion } from 'lucide-react'
 import { toast } from 'sonner'
 import { usersApi } from '@/api/users'
 import { useConfirm } from '@/hooks/useConfirm'
@@ -19,6 +19,7 @@ import { BulkActionBar } from './events/BulkActionBar'
 import { bulkUpdateConfirmation } from './events/bulkConfirm'
 import { EventsHeader, EventTypeDriftBadges, type EventTypeDrift } from './events/EventsHeader'
 import { EventsTable } from './events/EventsTable'
+import { EventsFirstRun } from './events/EventsFirstRun'
 import { EventsToolbar } from './events/EventsToolbar'
 import { TabMetricsCard } from './events/TabMetricsCard'
 import {
@@ -67,6 +68,7 @@ import { useCanWriteProject } from '@/lib/permissions'
 import { ReadOnlyNotice } from '@/components/states'
 import { usersKey } from '@/lib/queryKeys'
 import { currentOrgSlug, projectPath } from '@/lib/navigation'
+import { countOf } from '@/lib/plural'
 
 interface EventsPageProps {
   /** Lock the page to a single event type (by name), decoupling it from the
@@ -116,7 +118,7 @@ function bulkUpdateSummary(
   patch: BulkUpdatePatch,
   ownerName: (id: string) => string,
 ): string {
-  const events = `${count.toLocaleString()} event${count === 1 ? '' : 's'}`
+  const events = countOf(count, 'event', 'events')
   if (patch.status) return `Set ${events} to ${EVENT_STATUS_LABELS[patch.status]}`
   if (patch.reviewed) return `Marked ${events} reviewed`
   if (patch.owner_id === null) return `Unassigned ${events}`
@@ -767,40 +769,12 @@ function EventsListPage({ lockType, embedded = false }: EventsPageProps) {
         <>
           {!canWrite && <ReadOnlyNotice className="mb-3" />}
           {hasNoEvents ? (
-            // First run: no stat strip of zeroes, no table frame with
-            // column headers over nothing, and one place to start — including
-            // the scan path, which is how most events arrive.
-            <EmptyState
-              icon={ListPlus}
-              title="No events yet"
-              description="Define events by hand, paste a list, or let a warehouse scan discover them."
-              action={
-                <div className="flex flex-col items-center gap-3">
-                  <div className="flex flex-wrap justify-center gap-2">
-                    {canWrite && (
-                      <Button onClick={openNewEvent} size="sm">
-                        <Plus />
-                        New event
-                      </Button>
-                    )}
-                    <Button asChild size="sm" variant="outline">
-                      <Link to={projectPath(currentOrgSlug(), slug, '/scans')}>
-                        <Radar />
-                        Import from a scan
-                      </Link>
-                    </Button>
-                  </div>
-                  {canWrite && (
-                    <button
-                      type="button"
-                      onClick={() => setShowBulk(true)}
-                      className="text-body-sm text-primary underline-offset-4 hover:underline"
-                    >
-                      Add many events…
-                    </button>
-                  )}
-                </div>
-              }
+            <EventsFirstRun
+              slug={slug}
+              canWrite={canWrite}
+              noEventTypes={eventTypesLoaded && eventTypes.length === 0}
+              onNewEvent={openNewEvent}
+              onBulkNew={() => setShowBulk(true)}
             />
           ) : (
             <EventsToolbar

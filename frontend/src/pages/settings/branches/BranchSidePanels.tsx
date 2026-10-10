@@ -13,6 +13,7 @@ import { SILENT_ERROR_META } from '@/lib/errorFeedback'
 import type { PlanBranchSummary } from '@/types'
 import { planBranchCommentsKey, planBranchTicketsKey, trackerConfigKey } from '@/lib/queryKeys'
 import { TICKET_POLL_MS, TICKET_POLL_WINDOW_MS } from './branchQueryKeys'
+import { pluralize } from '@/lib/plural'
 
 /**
  * The tracker ticket a merge opened for this branch.
@@ -85,7 +86,7 @@ export function ImplementationTicketsPanel({
 
   return (
     <Panel
-      title={tickets.length === 1 ? 'Implementation ticket' : 'Implementation tickets'}
+      title={pluralize(tickets.length, 'Implementation ticket', 'Implementation tickets')}
       subtitle="opened in the tracker when this branch merged"
     >
       {tickets.map((ticket) => (

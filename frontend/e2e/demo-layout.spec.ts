@@ -59,7 +59,7 @@ async function openDemo(browser: Browser, viewport: typeof DESKTOP, theme: Theme
 
 /** On a phone the banner's actions sit in a panel its pill opens. */
 async function openBannerPanel(page: Page): Promise<void> {
-  const pill = page.locator('[data-demo-banner]').getByRole('button', { name: 'Demo workspace tools' })
+  const pill = page.locator('[data-demo-banner]').getByRole('button', { name: 'Demo project tools' })
   if ((await pill.isVisible()) && (await pill.getAttribute('aria-expanded')) !== 'true') await pill.click()
 }
 
@@ -251,7 +251,7 @@ for (const theme of ['light', 'dark'] as const) {
     // over its spot in every screenshot, the tour's included, so only here.
     await expect.soft(banner).toHaveScreenshot(`banner-${theme}.png`, {
       ...shot,
-      mask: [banner.getByText(/^(freshly seeded|updated )/)],
+      mask: [banner.getByText(/^(just generated|updated )/)],
     })
 
     const tour = await openTour(page)

@@ -1,10 +1,10 @@
 """Side-effect-free compilation of fact metric primary batch queries.
 
 The collection worker executes the concrete adapter's
-``get_time_bucketed_multi_aggregate`` method. Those methods now delegate their
-statement construction to ``build_time_bucketed_multi_aggregate_sql``; this
-module primes a connection-free adapter instance from the FactTable's persisted
-column metadata and invokes that exact builder for API disclosure.
+``get_time_bucketed_multi_aggregate`` method, which builds its statement with
+``build_time_bucketed_multi_aggregate_sql``. This module primes a
+connection-free instance of the same adapter class from the FactTable's
+persisted column metadata and calls that exact builder for API disclosure.
 """
 
 from __future__ import annotations
@@ -13,6 +13,26 @@ from collections.abc import Mapping
 from datetime import datetime
 
 from tripl.core.adapters.base import AggregateSpec, BaseAdapter
+from tripl.core.adapters.registry import adapter_class
+
+
+def _sql_adapter_class(db_type: str) -> type[BaseAdapter]:
+    """The adapter class a ``db_type`` source is built with, if it builds warehouse SQL.
+
+    A ``ValueError`` (shown as a 422) for a type with no adapter, and for one
+    whose adapter keeps ``BaseAdapter``'s builder: the synthetic warehouse
+    computes its rows in memory and has no statement to disclose.
+    """
+    cls: type[BaseAdapter] | None
+    try:
+        cls = adapter_class(db_type)
+    except ValueError:
+        cls = None
+    builder = BaseAdapter.build_time_bucketed_multi_aggregate_sql
+    if cls is None or cls.build_time_bucketed_multi_aggregate_sql is builder:
+        msg = f"Generated batch SQL is unavailable for data source type {db_type!r}"
+        raise ValueError(msg)
+    return cls
 
 
 def compile_time_bucketed_multi_aggregate_sql(
@@ -27,78 +47,16 @@ def compile_time_bucketed_multi_aggregate_sql(
     column_types: Mapping[str, str],
     limit: int = 100000,
 ) -> tuple[list[str], str]:
-    """Compile the exact primary batch statement without opening a connection."""
-    adapter: BaseAdapter
-    if db_type == "clickhouse":
-        from tripl.core.adapters.clickhouse import ClickHouseAdapter
+    """Compile the exact primary batch statement without opening a connection.
 
-        clickhouse = object.__new__(ClickHouseAdapter)
-        # ClickHouse's nested-shape SQL is type-directed (JSON / Map / Tuple each
-        # need a different shape function), so the primed instance carries the same
-        # type map a real ``get_columns`` would have left behind. The multi-aggregate
-        # builder itself takes no nested columns today; priming both fields keeps
-        # this stand-in a faithful replica of a connected adapter rather than one
-        # that happens to be right only for the statement we ask it for.
-        clickhouse._column_types = dict(column_types)
-        clickhouse._allowed_columns = set(column_types)
-        adapter = clickhouse
-    elif db_type in ("postgres", "greenplum", "redshift"):
-        from tripl.core.adapters.greenplum import GreenplumAdapter
-        from tripl.core.adapters.postgres import PostgresAdapter
-        from tripl.core.adapters.redshift import RedshiftAdapter
-
-        libpq_class: type[PostgresAdapter] = {
-            "postgres": PostgresAdapter,
-            "greenplum": GreenplumAdapter,
-            "redshift": RedshiftAdapter,
-        }[db_type]
-        postgres = object.__new__(libpq_class)
-        postgres._allowed_columns = set(column_types)
-        adapter = postgres
-    elif db_type == "bigquery":
-        from tripl.core.adapters.bigquery import BigQueryAdapter
-
-        bigquery = object.__new__(BigQueryAdapter)
-        # BigQuery's bucket and bound literal families are driven by the
-        # timestamp column's declared type (TIMESTAMP / DATETIME / DATE).
-        bigquery._column_types = dict(column_types)
-        bigquery._allowed_columns = set(column_types)
-        adapter = bigquery
-    elif db_type == "databricks":
-        from tripl.core.adapters.databricks import DatabricksAdapter
-
-        databricks = object.__new__(DatabricksAdapter)
-        # Databricks' window literal follows the time column's declared type
-        # (TIMESTAMP / TIMESTAMP_NTZ / DATE), like BigQuery's.
-        databricks._column_types = dict(column_types)
-        databricks._allowed_columns = set(column_types)
-        adapter = databricks
-    elif db_type == "snowflake":
-        from tripl.core.adapters.snowflake import SnowflakeAdapter
-
-        snowflake = object.__new__(SnowflakeAdapter)
-        # Snowflake's window literal and bucket follow the time column's declared
-        # type too (TIMESTAMP_NTZ / TIMESTAMP_LTZ / TIMESTAMP_TZ / DATE).
-        snowflake._column_types = dict(column_types)
-        snowflake._allowed_columns = set(column_types)
-        adapter = snowflake
-    elif db_type in ("trino", "athena"):
-        from tripl.core.adapters.athena import AthenaAdapter
-        from tripl.core.adapters.trino import TrinoAdapter
-
-        trino = object.__new__(AthenaAdapter if db_type == "athena" else TrinoAdapter)
-        # Trino's window literal and bucket follow the time column's declared type
-        # (timestamp / timestamp with time zone / date), and Athena is Trino SQL.
-        trino._column_types = dict(column_types)
-        trino._allowed_columns = set(column_types)
-        adapter = trino
-    else:
-        msg = f"Generated batch SQL is unavailable for data source type {db_type!r}"
-        raise ValueError(msg)
-
-    # Measure and timestamp identifiers go through the exact adapter allowlist
-    # guard used during collection, but the endpoint never introspects or queries
-    # the warehouse. FactTable columns are refreshed by its normal Check flow.
+    The primed adapter knows the stored columns and their types the way
+    ``get_columns`` leaves them: identifiers go through the same allowlist
+    guard as during collection, and an engine whose bucket or window literal
+    follows the time column's declared type reads it from there. The warehouse
+    is never introspected or queried; FactTable columns are refreshed by its
+    Check flow.
+    """
+    adapter = _sql_adapter_class(db_type).primed(column_types)
     return adapter.build_time_bucketed_multi_aggregate_sql(
         base_query,
         time_column,

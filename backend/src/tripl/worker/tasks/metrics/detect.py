@@ -1582,7 +1582,16 @@ def _recalculate_metric_anomalies(
     settling_delay: timedelta = NO_INGESTION_SETTLING,
     hold_drops: bool = False,
     held: list[int] | None = None,
+    catalog_metrics: bool = True,
 ) -> int:
+    """Re-score this scan's volume scopes, then the project's catalog metrics.
+
+    ``catalog_metrics=False`` stops after the volume scopes (project total,
+    event types, events) and leaves the ``metric`` scopes alone, including their
+    purge when detection is off. The demo runtime tick re-scores the volume
+    scopes every hour with it and leaves the project-global metric rows to the
+    scheduled collection.
+    """
     # Entry boundary: a replay, a conformance harness or a test may hand in a
     # naive window and a hand-built naive coverage set. Stamp both once here.
     evaluation_start, evaluation_end = _canonical_window(evaluation_start, evaluation_end)
@@ -1591,7 +1600,8 @@ def _recalculate_metric_anomalies(
     if project_settings is None or not project_settings.anomaly_detection_enabled:
         session.execute(delete(MetricAnomaly).where(MetricAnomaly.scan_config_id == config.id))
         session.execute(delete(MetricBaseline).where(MetricBaseline.scan_config_id == config.id))
-        _purge_project_metric_anomalies(session, config)
+        if catalog_metrics:
+            _purge_project_metric_anomalies(session, config)
         session.flush()
         return 0
 
@@ -1847,7 +1857,7 @@ def _recalculate_metric_anomalies(
             )
         )
 
-    if project_settings.detect_metrics:
+    if catalog_metrics and project_settings.detect_metrics:
         anomalies_detected += _recalculate_project_metric_anomalies(
             session,
             config,
@@ -1858,7 +1868,7 @@ def _recalculate_metric_anomalies(
             scan_covered_buckets=covered_buckets,
             settling_delay=settling_delay,
         )
-    else:
+    elif catalog_metrics:
         _purge_disabled_metric_scope(
             session,
             config,

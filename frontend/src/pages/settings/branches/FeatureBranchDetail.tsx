@@ -36,7 +36,7 @@ import { branchTicket } from '@/lib/branchTicket'
 import { formatRelativeTime } from '@/lib/datetime'
 import { SILENT_ERROR_META } from '@/lib/errorFeedback'
 import { useCanWriteProject } from '@/lib/permissions'
-import { countOf } from '@/lib/plural'
+import { countOf, pluralize } from '@/lib/plural'
 import {
   branchSettingsKey,
   planBranchConflictsKey,
@@ -530,8 +530,8 @@ function FeatureBranchDetail({ slug, branch, diff, diffLoad, confirm }: FeatureB
           ? 'submit'
           : null
   const actionLabel = (action: PlanBranchTransitionAction): string => {
-    // "Reopen" on an approved branch read as "open it again"; it moves it back
-    // to draft.
+    // "Reopen branch" on an approved branch would read as "open it again"; it
+    // moves it back to draft.
     if (action === 'reopen' && branch.status !== 'closed') return 'Move back to draft'
     if (action === 'approve' && myApproval?.stale) return 'Approve again'
     return ACTION_LABEL[action]
@@ -576,7 +576,7 @@ function FeatureBranchDetail({ slug, branch, diff, diffLoad, confirm }: FeatureB
                 size="xs"
                 title={
                   staleApprovals > 0
-                    ? `${staleApprovals} approval(s) no longer match this branch's contents and do not count. Approve again to refresh the review.`
+                    ? `${countOf(staleApprovals, 'approval no longer matches', 'approvals no longer match')} this branch's contents and ${pluralize(staleApprovals, 'does', 'do')} not count. Approve again to refresh the review.`
                     : `${countOf(requiredApprovals, 'approval', 'approvals')} required by the merge policy`
                 }
               >

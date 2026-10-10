@@ -17,7 +17,9 @@ WHAT IT DELIBERATELY DOES NOT DO:
   instead and prints next steps that are true of THAT instance.
 * It does not overwrite ``.env``, and no flag makes it. ``--force`` reaches
   ``compose.yaml`` and ``rabbitmq.conf`` only. Losing ``ENCRYPTION_KEY``
-  permanently destroys every stored warehouse credential.
+  permanently destroys every stored warehouse credential. The one ``.env`` it
+  ever removes is one this same run created, when the pull then failed and
+  nothing had read it - see ``withdraw_unused_env``.
 * It does not capture the output of ``pull``/``up -d``. See ``install/shell.py``.
 """
 
@@ -27,6 +29,7 @@ import argparse
 import json
 import sys
 import time
+from dataclasses import replace
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import TextIO
@@ -344,6 +347,49 @@ def command_failure(result: CommandResult) -> TriplError:
     )
 
 
+# The note the --json document carries for a .env removed by withdraw_unused_env.
+ENV_WITHDRAWN_NOTE = "removed: the pull failed before anything read it"
+
+
+def withdraw_unused_env(
+    plan: InstallPlan, failure: CommandResult
+) -> tuple[InstallPlan, TriplError]:
+    """Remove the ``.env`` this run created, after a pull failed. Returns the error to raise.
+
+    The one time this command deletes a ``.env``, and it breaks no promise: this
+    run wrote the file seconds ago and ``up -d`` never ran, so nothing has read
+    the database password or the keys in it. Kept, it would keep its
+    TRIPL_VERSION too, because a re-run never rewrites ``.env``: the obvious
+    retry with a corrected ``--version`` would be told its tag was NOT applied,
+    and ``tripl upgrade`` refuses to move a pin that looks like a downgrade. A
+    tag that was never published would then cost the operator a hand edit of a
+    secrets file. Removed, the retry starts clean.
+
+    Not after a failed ``up -d``: by then Postgres may have initialised its
+    volume with the generated password, and the file is the only copy.
+    """
+    env = plan.directory / files.ENV_NAME
+    failed = f"`{' '.join(failure.argv)}` failed (exit {failure.returncode}); its output is above."
+    try:
+        env.unlink()
+    except OSError as exc:
+        return plan, TriplError(
+            f"{failed} Nothing was started, but {env}, which this run generated, could not be "
+            f"removed ({exc}). Delete it, then run `tripl install` again: a .env that is kept "
+            f"keeps its {files.VERSION_KEY}."
+        )
+    writes = tuple(
+        replace(write, note=ENV_WITHDRAWN_NOTE) if write.path == env else write
+        for write in plan.writes
+    )
+    return replace(plan, writes=writes), TriplError(
+        f"{failed} Nothing was started, so the {files.ENV_NAME} this run generated has been "
+        "removed and `tripl install` can simply be run again. If the output says the manifest "
+        f"is unknown, {plan.image}:{plan.version} is not a published tag: pass a released one, "
+        f"such as --version {files.example_tag()}."
+    )
+
+
 def emit(document: JsonDict) -> None:
     json.dump(document, sys.stdout)
     sys.stdout.write("\n")
@@ -428,8 +474,8 @@ def run_install(args: argparse.Namespace, config: Config) -> int:
         # one for a production box, and only the operator knows which this is.
         print(
             f"tripl: note: TRIPL_VERSION={files.DEFAULT_VERSION} follows every release. In "
-            "production pin a released tag (`--version 1.5.0`) so a re-run cannot move you "
-            "onto an image you have not read the notes for.",
+            f"production pin a released tag (`--version {files.example_tag()}`) so a re-run "
+            "cannot move you onto an image you have not read the notes for.",
             file=sys.stderr,
         )
     if plan.image == files.ENTERPRISE_IMAGE:
@@ -508,11 +554,17 @@ def run_install(args: argparse.Namespace, config: Config) -> int:
     bootstrap: JsonDict | None = None
     exit_code = EXIT_OK
     failure: CommandResult | None = None
+    error: TriplError | None = None
     if start:
         print(file=human)
         codes, failure = run_commands(plan.commands, runner, human=human)
         if failure is not None:
             exit_code = EXIT_FAILURE
+            error = command_failure(failure)
+            # `up -d` is the last command, so fewer results than commands means
+            # it never ran: no container has read the .env this run created.
+            if creating_env and len(codes) < len(plan.commands):
+                plan, error = withdraw_unused_env(plan, failure)
         else:
             health = wait_for_health(app_base_url, deadline_seconds=wait_seconds)
             print(file=human)
@@ -547,6 +599,6 @@ def run_install(args: argparse.Namespace, config: Config) -> int:
                 exit_code=exit_code,
             )
         )
-    if failure is not None:
-        raise command_failure(failure)
+    if error is not None:
+        raise error
     return exit_code

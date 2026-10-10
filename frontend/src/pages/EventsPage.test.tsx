@@ -134,7 +134,7 @@ describe('EventsPage', () => {
       if (url.endsWith('/api/v1/projects/demo/event-types')) return mockJsonResponse([])
       if (url.endsWith('/api/v1/projects/demo/meta-fields')) return mockJsonResponse([])
       if (url.endsWith('/api/v1/projects/demo/scans')) return mockJsonResponse([])
-      if (url.endsWith('/api/v1/users')) return mockJsonResponse([])
+      if (url.includes('/api/v1/users?')) return mockJsonResponse([])
       if (url.includes('/api/v1/projects/demo/properties')) return mockJsonResponse({ items: [], total: 0 })
       // Before the event itself: `includes` would otherwise answer the
       // discussion request with an event object.
@@ -346,7 +346,8 @@ describe('EventsPage', () => {
     // The trailing sticky "Actions" column and its hover cluster were removed;
     // reordering is now drag-handle only.
     expect(headers).not.toContain('Actions')
-    expect(screen.getByText('48h')).toBeInTheDocument()
+    // By its header: each row's phone card also says "48h", over its count.
+    expect(screen.getByRole('columnheader', { name: /48h/ })).toBeInTheDocument()
     // The volume chart starts collapsed; opening it shows its controls.
     fireEvent.click(screen.getByRole('button', { name: /Show chart/ }))
     expect(await screen.findByRole('button', { name: '7d' })).toBeInTheDocument()
@@ -356,7 +357,7 @@ describe('EventsPage', () => {
     expect(screen.queryByRole('combobox', { name: 'Time granularity' })).not.toBeInTheDocument()
     // An image, not a button: pressing it did nothing, so it was a dead tab
     // stop on every row.
-    const metricsButton = await screen.findByRole('img', { name: /Homepage View metrics: 1K events in last 48 hours/ })
+    const metricsButton = await screen.findByRole('img', { name: /Homepage View metrics: 1.2k events in last 48 hours/ })
     expect(metricsButton).toBeInTheDocument()
     // The row exposes no inline action buttons — Edit/Metrics/Archive/Delete and
     // move/status now live on the event detail page, not on the row.
@@ -386,7 +387,7 @@ describe('EventsPage', () => {
     fireEvent.mouseOver(metricsButton)
     fireEvent.focus(metricsButton)
     expect((await screen.findAllByText('Last 48 hours')).length).toBeGreaterThan(0)
-    expect(screen.getAllByText('1K events').length).toBeGreaterThan(0)
+    expect(screen.getAllByText('1.2k events').length).toBeGreaterThan(0)
 
     // The hover action cluster was removed entirely — no move up/down buttons
     // and no per-row status select.
@@ -407,10 +408,11 @@ describe('EventsPage', () => {
     // the fixture's project_total + event_type rows give 2 and its event row is
     // ignored. The label must not read as a project-wide anomaly count, which is
     // what the sidebar "Anomalies" badge reports on a different basis.
-    const chartSignalsStat = screen.getByText('Open signals').closest('dl')
+    const chartSignalsStat = screen.getByText('Chart signals').closest('dl')
     expect(chartSignalsStat).not.toBeNull()
     expect(chartSignalsStat).toHaveTextContent('2')
-    expect(chartSignalsStat).toHaveTextContent('open')
+    // Open is the red figure itself, not a word repeating the caption.
+    expect(chartSignalsStat?.querySelector('[data-slot="mini-stat-value"]')).toHaveAttribute('data-tone', 'danger')
     expect(screen.queryByText('Active signals')).not.toBeInTheDocument()
     // The scope note is a focusable button, not hover-only chrome.
     expect(
@@ -521,7 +523,7 @@ describe('EventsPage', () => {
       if (url.endsWith('/api/v1/projects/demo/meta-fields')) return mockJsonResponse([])
       if (url.includes('/api/v1/projects/demo/properties')) return mockJsonResponse({ items: [], total: 0 })
       if (url.endsWith('/api/v1/projects/demo/events/tags')) return mockJsonResponse([])
-      if (url.endsWith('/api/v1/users')) return mockJsonResponse([])
+      if (url.includes('/api/v1/users?')) return mockJsonResponse([])
       if (url.includes('/api/v1/projects/demo/events-metrics')) {
         return mockJsonResponse({
           scope: 'events_total',
@@ -568,7 +570,7 @@ describe('EventsPage', () => {
       if (url.endsWith('/api/v1/projects/demo/event-types')) return mockJsonResponse([])
       if (url.endsWith('/api/v1/projects/demo/meta-fields')) return mockJsonResponse([])
       if (url.endsWith('/api/v1/projects/demo/scans')) return mockJsonResponse([])
-      if (url.endsWith('/api/v1/users')) return mockJsonResponse([])
+      if (url.includes('/api/v1/users?')) return mockJsonResponse([])
       if (url.includes('/api/v1/projects/demo/properties')) return mockJsonResponse({ items: [], total: 0 })
       if (url.endsWith('/api/v1/projects/demo/events/ev-1/comments')) return mockJsonResponse([])
       if (url.includes('/api/v1/projects/demo/events/ev-1')) {
@@ -1130,7 +1132,7 @@ function mockCatalogFetch({
     if (url.endsWith('/api/v1/projects/demo/meta-fields')) return mockJsonResponse([])
     if (url.includes('/api/v1/projects/demo/properties')) return mockJsonResponse({ items: [], total: 0 })
     if (url.endsWith('/api/v1/projects/demo/events/tags')) return mockJsonResponse([])
-    if (url.endsWith('/api/v1/users')) return mockJsonResponse([])
+    if (url.includes('/api/v1/users?')) return mockJsonResponse([])
     // An event's own property list, read by the editor an event link opens.
     if (/\/events\/[^/?]+\/properties/.test(url)) return mockJsonResponse([])
     if (/\/events\/ev-1(\?|$)/.test(url)) return mockJsonResponse(makeEvent({ id: 'ev-1' }))

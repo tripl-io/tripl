@@ -11,6 +11,8 @@ import {
   orderedAverages,
 } from '@/lib/health'
 import type { ComponentAverage, HealthGrade } from '@/types/health'
+import { formatNumber } from '@/lib/format'
+import { countOf } from '@/lib/plural'
 
 export type GradeCountsValue = {
   healthy_count: number
@@ -33,7 +35,7 @@ export function HealthGradeCounts({ counts, className }: { counts: GradeCountsVa
           className={chipVariants({ tone: HEALTH_GRADE_TONE[grade], size: 'xs' })}
           data-grade={grade}
         >
-          <span className="tnum">{count.toLocaleString()}</span> {HEALTH_GRADE_LABEL[grade].toLowerCase()}
+          <span className="tnum">{formatNumber(count)}</span> {HEALTH_GRADE_LABEL[grade].toLowerCase()}
         </li>
       ))}
     </ul>
@@ -70,7 +72,7 @@ export function HealthComponentAverages({
                   {formatHealthValue(average.value)}
                   <span className="text-fg-tertiary">
                     {' '}
-                    · {average.applies_count.toLocaleString()} event{average.applies_count === 1 ? '' : 's'}
+                    · {countOf(average.applies_count, 'event', 'events')}
                   </span>
                 </>
               )}
@@ -129,7 +131,7 @@ export function AggregateHealthPopover({
         <div className="flex flex-col gap-2.5">
           <p className="text-body-sm">
             <span className="tnum font-semibold">{health.score}</span>
-            <span className="text-fg-tertiary">/100 · mean of {health.scored_events.toLocaleString()} event{health.scored_events === 1 ? '' : 's'}</span>
+            <span className="text-fg-tertiary">/100 · mean of {countOf(health.scored_events, 'event', 'events')}</span>
           </p>
           <HealthGradeCounts counts={health} />
           <HealthComponentAverages averages={health.component_averages} />

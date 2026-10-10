@@ -1,6 +1,7 @@
 import { useId, useState } from 'react'
 import { ArrowDownUp, ChevronDown, Download, ListFilter, ListPlus, MoreHorizontal, Plus, X } from 'lucide-react'
 import type { FieldDefinition, MetaFieldDefinition } from '@/types'
+import { EVENT_ATTRIBUTE_LABEL } from '@/lib/eventAttributes'
 import { EVENT_STATUS_LABELS, EVENT_STATUSES, type EventStatus } from '@/lib/eventStatus'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
@@ -24,6 +25,7 @@ import { ColumnsMenu } from './ColumnsMenu'
 import { SavedViewsMenu } from './SavedViewsMenu'
 import type { EventsSavedView } from './savedViews'
 import type { EventsSortOrder } from './useEventsQuery'
+import { pluralize } from '@/lib/plural'
 
 /**
  * The Status trigger in the FilterSelect chip geometry: 28px, caption
@@ -43,7 +45,7 @@ const ANY = '__all__'
 
 /** Plain words for a silent-days preset: "Silent > 1d" was jargon. */
 function silentDaysLabel(days: number): string {
-  return `No events for ${days}+ day${days === 1 ? '' : 's'}`
+  return `No events for ${days}+ ${pluralize(days, 'day', 'days')}`
 }
 
 export function EventsToolbar({
@@ -176,11 +178,14 @@ export function EventsToolbar({
     // action buttons draw over the Activity and Reviewed chips at 390, and at
     // 768/1024 squeezed the filters into a five-row column.
     //   phone: search + New event / Filters (n) + Views + Columns + More / chips
-    //   sm-lg: search … Views + Columns + More + New event / chips
-    //   lg+:   search, chips, then the actions, on one line where they fit
+    //   sm+:   search … Views + Columns + More + New event / chips
+    // The chips keep a line of their own at every width. Squeezed between the
+    // search and the actions they never fitted with the sidebar open, even at
+    // 1440: the chips wrapped inside their own box and the search floated
+    // between the two chip rows.
     <div className="mb-3 flex flex-wrap items-center gap-2">
       {/* Primary — find: full-text filter */}
-      <div className="relative order-1 flex min-w-0 flex-1 basis-40 sm:max-w-[320px] lg:flex-none lg:basis-[240px]">
+      <div className="relative order-1 flex min-w-0 flex-1 basis-40 sm:max-w-[320px]">
         <FilterSearch
           things="events"
           value={search}
@@ -207,7 +212,7 @@ export function EventsToolbar({
       {/* Ends the phone's first line, so the secondary controls start a new one. */}
       <div aria-hidden="true" className="order-2 basis-full sm:hidden" />
 
-      <div className="order-3 flex flex-wrap items-center gap-2 sm:ml-auto lg:order-3">
+      <div className="order-3 flex flex-wrap items-center gap-2 sm:ml-auto">
         <Button
           type="button"
           variant="outline"
@@ -287,10 +292,10 @@ export function EventsToolbar({
 
       {/* The shared filter bar: "{Label}: {value}" chips that apply
           instantly, then "Clear filters" while anything is set. A full line of
-          its own below lg, between search and actions from lg up. */}
+          its own under the search and the actions. */}
       <FilterBar
         className={cn(
-          'order-5 w-full lg:order-2 lg:w-auto lg:min-w-0 lg:flex-1',
+          'order-5 w-full',
           !filtersOpen && 'max-sm:hidden',
         )}
         active={anythingToClear}
@@ -327,15 +332,12 @@ export function EventsToolbar({
           onValueChange={value => onFilterSilentDaysChange(value === ANY ? undefined : Number(value))}
           options={silentDayOptions}
           anyValue={ANY}
-          anyLabel="Any"
         />
-        {/* Reviewed is a separate axis from status (an event can be reviewed
-            and still in_review), and until now it had no readable surface at
-            all: no filter, no counter, and a column hidden by default. Without
-            this control "Mark reviewed" wrote a flag the operator could never
-            see or isolate. */}
+        {/* Verified is a separate axis from status (an event can be verified
+            and still in review). Without this control "Mark as verified"
+            wrote a flag the operator could never see or isolate. */}
         <FilterSelect
-          label="Verified"
+          label={EVENT_ATTRIBUTE_LABEL.reviewed}
           value={filterReviewed === undefined ? ANY : String(filterReviewed)}
           onValueChange={value => onFilterReviewedChange(value === ANY ? undefined : value === 'true')}
           options={[
@@ -343,7 +345,6 @@ export function EventsToolbar({
             { value: 'false', label: 'No' },
           ]}
           anyValue={ANY}
-          anyLabel="Any"
         />
         {/* The discussion gave events a place to raise a
             question; until threads could be resolved there was no way to ask
@@ -361,7 +362,6 @@ export function EventsToolbar({
             { value: 'false', label: 'None open' },
           ]}
           anyValue={ANY}
-          anyLabel="Any"
         />
         {/* Sort orders the rows, it filters nothing, so it does not wear the
             dashed filter-chip look: a quiet ghost control with a sort
@@ -416,7 +416,7 @@ function StatusFilter({
   const toggle = (status: EventStatus, checked: boolean) => {
     // Kept in the canonical order, so the URL a combination produces does not
     // depend on the order the boxes were ticked in. Built on what is applied,
-    // so ticking Draft on the review tab means In Review and Draft.
+    // so ticking Draft on the review tab means In review and Draft.
     onChange(EVENT_STATUSES.filter(s => (s === status ? checked : applied.includes(s))))
   }
   return (

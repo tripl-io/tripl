@@ -1,18 +1,20 @@
 import {
   useCallback,
   useEffect,
+  useLayoutEffect,
   useMemo,
   useRef,
   useState,
-  useSyncExternalStore,
   type ReactNode,
 } from 'react'
 import { Link, useBlocker, useNavigate, type Location } from 'react-router-dom'
 import { ArrowUpRight, Check, ChevronLeft, ChevronsUpDown, LogOut, Menu, X } from 'lucide-react'
 import { useAuth } from '@/components/auth-context'
 import { useConfirm } from '@/hooks/useConfirm'
+import { useMediaQuery } from '@/hooks/useMediaQuery'
 import { UserAvatar } from '@/components/ui/user-avatar'
 import { Chip } from '@/components/primitives/chip'
+import { revealCurrentRow } from '@/components/shell/nav-scroll'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -39,25 +41,8 @@ const RAIL_TITLE_ID = 'settings-rail-title'
 const RAIL_ID = 'settings-rail'
 /** From here up the rail is pinned in flow; below it, it is an off-canvas drawer. */
 const RAIL_PINNED_QUERY = '(min-width: 768px)'
-
-/**
- * Whether the rail is pinned (`md` and up). Without `matchMedia` it answers
- * "pinned", so the rail is never made inert unmeasured — the same fallback the
- * app shell's sidebar uses.
- */
-function useRailPinned(): boolean {
-  const subscribe = useCallback((onChange: () => void) => {
-    if (typeof window.matchMedia !== 'function') return () => {}
-    const mql = window.matchMedia(RAIL_PINNED_QUERY)
-    mql.addEventListener('change', onChange)
-    return () => mql.removeEventListener('change', onChange)
-  }, [])
-  return useSyncExternalStore(
-    subscribe,
-    () => (typeof window.matchMedia === 'function' ? window.matchMedia(RAIL_PINNED_QUERY).matches : true),
-    () => true,
-  )
-}
+/** The height of the rail's bottom fade: the 24px in its mask-image class. */
+const RAIL_FADE_PX = 24
 
 function firstFocusable(root: HTMLElement | null): HTMLElement | null {
   return (
@@ -138,7 +123,9 @@ export function SettingsLayout({
   // pin the rail to static flow regardless of this flag.
   const [railOpen, setRailOpen] = useState(false)
   const closeRail = useCallback(() => setRailOpen(false), [])
-  const railPinned = useRailPinned()
+  // Without `matchMedia` the rail counts as pinned, so it is never made inert
+  // unmeasured — the same fallback the app shell's sidebar uses.
+  const railPinned = useMediaQuery(RAIL_PINNED_QUERY, true)
   // The drawer behaves like the modal it looks like, as the app shell's does:
   // below `md` a closed rail is `inert`, so its ~20 links and Sign out
   // leave the Tab order and the accessibility tree instead of being walked
@@ -188,6 +175,23 @@ export function SettingsLayout({
     if (railOpen) setRailOpen(false)
   }
 
+  // The current section's row in sight. The rail is taller than a laptop
+  // screen, so a Platform or audit page opened by its address (a docs link,
+  // `/settings` resuming the last section) lit a row below the fold. Before
+  // paint, so the rail never shows its top first; again on every move and
+  // when the phone drawer opens. A row already in sight, as a clicked one is,
+  // stays where it is. On arrival the row goes a third of the way down, with
+  // what follows it in view; after that just clear of the fade, so a row
+  // clicked half under it does not jump away from the pointer.
+  const navRef = useRef<HTMLElement | null>(null)
+  const railArrived = useRef(false)
+  useLayoutEffect(() => {
+    const nav = navRef.current
+    if (!nav) return
+    revealCurrentRow(nav, { bottomInset: RAIL_FADE_PX, align: railArrived.current ? 'nearest' : 'upper-third' })
+    railArrived.current = true
+  }, [activePath, railOpen])
+
   // Draft held by the section currently rendered in the content column, so the
   // rail can warn before it navigates that draft out of existence.
   const [unsaved, setUnsaved] = useState<UnsavedWork | null>(null)
@@ -219,7 +223,7 @@ export function SettingsLayout({
    *
    * Accepting deliberately does not clear the registration. The section that
    * registered the draft owns it and drops it as it unmounts, and the leaves
-   * that keep it mounted — AI → Email, a Back that lands inside the instance
+   * that keep it mounted — AI → Email, a Back that lands inside the Platform
    * group — would otherwise leave the shell believing a live draft was gone:
    * beforeunload unregistered, no entry parked, every rail link silent, and the
    * next exit discarding the draft with no warning at all.
@@ -426,7 +430,7 @@ export function SettingsLayout({
               opened with a level-2 skip. It names the nav
               landmark instead. */}
           {/* No subtitle: "Workspace & account configuration" left out the
-              Project and Instance groups, which describe themselves. */}
+              Project and Platform groups, which describe themselves. */}
           <div id={RAIL_TITLE_ID} className="mx-1 mt-2.5 text-heading font-semibold tracking-[-0.01em]">
             Settings
           </div>
@@ -436,6 +440,7 @@ export function SettingsLayout({
         {/* The bottom fade says the list goes on under the footer: in the
             phone drawer the last items sat cut off with no hint. */}
         <nav
+          ref={navRef}
           aria-labelledby={RAIL_TITLE_ID}
           className="flex-1 overflow-y-auto px-3 pb-6 pt-1 [mask-image:linear-gradient(to_bottom,black_calc(100%_-_24px),transparent)]"
         >

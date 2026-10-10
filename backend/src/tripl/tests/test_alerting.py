@@ -31,8 +31,9 @@ from tripl.models.scan_config import ScanConfig
 from tripl.models.schema_drift import SchemaDrift
 from tripl.models.user import User
 from tripl.services._alerting_deliveries import InboxFilters
+from tripl.tests._sunset_findings import open_sunset_finding
 from tripl.tests.conftest import TestSessionLocal
-from tripl.worker.tasks import metrics
+from tripl.worker.tasks import alerts as alerts_task
 from tripl.worker.tasks.alerts import check_deprecated_sunset_events
 
 
@@ -1280,12 +1281,12 @@ def test_send_alert_delivery_fails_with_invalid_stored_telegram_token(
         delivery_id = str(delivery.id)
 
     monkeypatch.setitem(
-        metrics.send_alert_delivery.run.__globals__,
+        alerts_task.send_alert_delivery.run.__globals__,
         "_get_sync_session",
         sync_session_factory,
     )
 
-    result = metrics.send_alert_delivery.run(delivery_id)
+    result = alerts_task.send_alert_delivery.run(delivery_id)
 
     assert result["status"] == "failed"
     assert "Telegram destination configuration is invalid" in result["error"]
@@ -1386,17 +1387,17 @@ def test_send_alert_delivery_renders_telegram_html_template(
         sent_payload["body"] = body
 
     monkeypatch.setitem(
-        metrics.send_alert_delivery.run.__globals__,
+        alerts_task.send_alert_delivery.run.__globals__,
         "_get_sync_session",
         sync_session_factory,
     )
     monkeypatch.setitem(
-        metrics.send_alert_delivery.run.__globals__,
+        alerts_task.send_alert_delivery.run.__globals__,
         "_post_json",
         capture_post_json,
     )
 
-    result = metrics.send_alert_delivery.run(delivery_id)
+    result = alerts_task.send_alert_delivery.run(delivery_id)
 
     assert result["status"] == "sent"
     assert sent_payload["url"] == "https://api.telegram.org/bot123456:ABC_def/sendMessage"
@@ -1518,17 +1519,17 @@ def test_send_alert_delivery_uses_default_template_for_selected_format(
         sent_payload["body"] = body
 
     monkeypatch.setitem(
-        metrics.send_alert_delivery.run.__globals__,
+        alerts_task.send_alert_delivery.run.__globals__,
         "_get_sync_session",
         sync_session_factory,
     )
     monkeypatch.setitem(
-        metrics.send_alert_delivery.run.__globals__,
+        alerts_task.send_alert_delivery.run.__globals__,
         "_post_json",
         capture_post_json,
     )
 
-    result = metrics.send_alert_delivery.run(delivery_id)
+    result = alerts_task.send_alert_delivery.run(delivery_id)
 
     assert result["status"] == "sent"
     assert sent_payload["body"] == {
@@ -1651,17 +1652,17 @@ def test_send_alert_delivery_persists_rendered_message_on_send_failure(
         raise ValueError("HTTP 400 from https://api.telegram.org/bot***/sendMessage: Bad Request")
 
     monkeypatch.setitem(
-        metrics.send_alert_delivery.run.__globals__,
+        alerts_task.send_alert_delivery.run.__globals__,
         "_get_sync_session",
         sync_session_factory,
     )
     monkeypatch.setitem(
-        metrics.send_alert_delivery.run.__globals__,
+        alerts_task.send_alert_delivery.run.__globals__,
         "_post_json",
         fail_post_json,
     )
 
-    result = metrics.send_alert_delivery.run(delivery_id)
+    result = alerts_task.send_alert_delivery.run(delivery_id)
 
     assert result["status"] == "failed"
     assert "Bad Request" in result["error"]
@@ -1772,12 +1773,12 @@ def test_send_alert_delivery_falls_back_from_telegram_markdownv2_to_plain(
             )
 
     monkeypatch.setitem(
-        metrics.send_alert_delivery.run.__globals__,
+        alerts_task.send_alert_delivery.run.__globals__,
         "_get_sync_session",
         sync_session_factory,
     )
     monkeypatch.setitem(
-        metrics.send_alert_delivery.run.__globals__,
+        alerts_task.send_alert_delivery.run.__globals__,
         "_post_json",
         flaky_post_json,
     )
@@ -1797,7 +1798,7 @@ def test_send_alert_delivery_falls_back_from_telegram_markdownv2_to_plain(
 
     monkeypatch.setattr(alerts_messages_module, "build_alert_item_context", counting_build_context)
 
-    result = metrics.send_alert_delivery.run(delivery_id)
+    result = alerts_task.send_alert_delivery.run(delivery_id)
 
     assert build_context_calls == 1
     assert result["status"] == "sent"
@@ -1979,17 +1980,17 @@ def test_send_alert_delivery_splits_a_long_telegram_delivery_across_messages(
             )
 
     monkeypatch.setitem(
-        metrics.send_alert_delivery.run.__globals__,
+        alerts_task.send_alert_delivery.run.__globals__,
         "_get_sync_session",
         sync_session_factory,
     )
     monkeypatch.setitem(
-        metrics.send_alert_delivery.run.__globals__,
+        alerts_task.send_alert_delivery.run.__globals__,
         "_post_json",
         telegram_post_json,
     )
 
-    result = metrics.send_alert_delivery.run(delivery_id)
+    result = alerts_task.send_alert_delivery.run(delivery_id)
 
     bodies = [str(payload["text"]) for payload in sent_payloads]
     delivered = "\n".join(bodies)
@@ -2060,24 +2061,24 @@ def test_send_alert_delivery_never_re_renders_telegram_at_a_bigger_budget(
             )
 
     monkeypatch.setitem(
-        metrics.send_alert_delivery.run.__globals__,
+        alerts_task.send_alert_delivery.run.__globals__,
         "_get_sync_session",
         sync_session_factory,
     )
     monkeypatch.setitem(
-        metrics.send_alert_delivery.run.__globals__,
+        alerts_task.send_alert_delivery.run.__globals__,
         "_post_json",
         telegram_post_json,
     )
     # AI is enabled on the rule but the provider returns nothing — the exact
     # asymmetry the old retry arithmetic keyed on.
     monkeypatch.setitem(
-        metrics.send_alert_delivery.run.__globals__,
+        alerts_task.send_alert_delivery.run.__globals__,
         "_build_ai_explanation",
         lambda *args, **kwargs: None,
     )
 
-    result = metrics.send_alert_delivery.run(delivery_id)
+    result = alerts_task.send_alert_delivery.run(delivery_id)
 
     lengths = [_telegram_units(str(payload["text"])) for payload in sent_payloads]
     refused = [length for length in lengths if length > 4096]
@@ -2161,18 +2162,18 @@ def test_send_alert_delivery_resumes_a_partly_sent_telegram_split(
         accepted.append(text)
 
     monkeypatch.setitem(
-        metrics.send_alert_delivery.run.__globals__,
+        alerts_task.send_alert_delivery.run.__globals__,
         "_get_sync_session",
         sync_session_factory,
     )
     monkeypatch.setitem(
-        metrics.send_alert_delivery.run.__globals__,
+        alerts_task.send_alert_delivery.run.__globals__,
         "_post_json",
         telegram_post_json,
     )
 
     attempts.append([])
-    first = metrics.send_alert_delivery.run(delivery_id)
+    first = alerts_task.send_alert_delivery.run(delivery_id)
     assert first["status"] == "failed"
     assert len(attempts[0]) > 1, (
         "the delivery did not split into several messages, so this test is not "
@@ -2189,7 +2190,7 @@ def test_send_alert_delivery_resumes_a_partly_sent_telegram_split(
     fail_after_first = False
     _retry_from_inbox(sync_session_factory, delivery_id)
     attempts.append([])
-    second = metrics.send_alert_delivery.run(delivery_id)
+    second = alerts_task.send_alert_delivery.run(delivery_id)
     assert second["status"] == "sent"
 
     resent = [name for name in first_message_names if any(name in body for body in attempts[1])]
@@ -2239,12 +2240,12 @@ def test_send_alert_delivery_retry_of_a_fully_sent_telegram_split_sends_nothing(
         attempts[-1].append(str(body["text"]))
 
     monkeypatch.setitem(
-        metrics.send_alert_delivery.run.__globals__,
+        alerts_task.send_alert_delivery.run.__globals__,
         "_get_sync_session",
         sync_session_factory,
     )
     monkeypatch.setitem(
-        metrics.send_alert_delivery.run.__globals__,
+        alerts_task.send_alert_delivery.run.__globals__,
         "_post_json",
         telegram_post_json,
     )
@@ -2256,20 +2257,20 @@ def test_send_alert_delivery_retry_of_a_fully_sent_telegram_split_sends_nothing(
             raise RuntimeError("worker died before the status commit")
 
     monkeypatch.setitem(
-        metrics.send_alert_delivery.run.__globals__,
+        alerts_task.send_alert_delivery.run.__globals__,
         "_stamp_rule_state",
         stamp_rule_state,
     )
 
     attempts.append([])
-    first = metrics.send_alert_delivery.run(delivery_id)
+    first = alerts_task.send_alert_delivery.run(delivery_id)
     assert first["status"] == "failed"
     assert len(attempts[0]) > 1
 
     fail_after_all = False
     _retry_from_inbox(sync_session_factory, delivery_id)
     attempts.append([])
-    second = metrics.send_alert_delivery.run(delivery_id)
+    second = alerts_task.send_alert_delivery.run(delivery_id)
 
     assert attempts[1] == [], (
         f"the retry re-sent {len(attempts[1])} message(s) the reader already had"
@@ -2378,17 +2379,17 @@ def test_send_alert_delivery_posts_generic_webhook(
         sent["headers"] = headers
 
     monkeypatch.setitem(
-        metrics.send_alert_delivery.run.__globals__,
+        alerts_task.send_alert_delivery.run.__globals__,
         "_get_sync_session",
         sync_session_factory,
     )
     monkeypatch.setitem(
-        metrics.send_alert_delivery.run.__globals__,
+        alerts_task.send_alert_delivery.run.__globals__,
         "_post_json",
         capture_post_json,
     )
 
-    result = metrics.send_alert_delivery.run(delivery_id)
+    result = alerts_task.send_alert_delivery.run(delivery_id)
 
     assert result["status"] == "sent"
     assert sent["url"] == "https://example.com/hook"
@@ -3535,7 +3536,6 @@ async def test_send_alert_delivery_attaches_top_movers_and_sparkline(
 
     from tripl.models.event_metric import EventMetric
     from tripl.models.metric_breakdown_anomaly import MetricBreakdownAnomaly
-    from tripl.worker.tasks import metrics
 
     engine = create_engine(f"sqlite:///{tmp_path / 'explain.db'}")
     Base.metadata.create_all(engine)
@@ -3674,17 +3674,17 @@ async def test_send_alert_delivery_attaches_top_movers_and_sparkline(
         sent_bodies.append(body)
 
     monkeypatch.setitem(
-        metrics.send_alert_delivery.run.__globals__,
+        alerts_task.send_alert_delivery.run.__globals__,
         "_get_sync_session",
         sync_session_factory,
     )
     monkeypatch.setitem(
-        metrics.send_alert_delivery.run.__globals__,
+        alerts_task.send_alert_delivery.run.__globals__,
         "_post_json",
         capture_post_json,
     )
 
-    result = metrics.send_alert_delivery.run(delivery_id)
+    result = alerts_task.send_alert_delivery.run(delivery_id)
     assert result["status"] == "sent"
     assert len(sent_bodies) == 1
 
@@ -3949,7 +3949,7 @@ def test_send_alert_delivery_sends_email(monkeypatch, tmp_path) -> None:
 
     from tripl.config import settings as live_settings
 
-    alerts_globals = metrics.send_alert_delivery.run.__globals__
+    alerts_globals = alerts_task.send_alert_delivery.run.__globals__
     fake_smtplib = type("FakeSmtplibModule", (), {"SMTP": FakeSMTP})
     monkeypatch.setitem(alerts_globals, "_get_sync_session", sync_session_factory)
     monkeypatch.setitem(alerts_globals, "smtplib", fake_smtplib)
@@ -3960,7 +3960,7 @@ def test_send_alert_delivery_sends_email(monkeypatch, tmp_path) -> None:
     monkeypatch.setattr(live_settings, "smtp_use_tls", True)
     monkeypatch.setattr(live_settings, "smtp_from_address", "alerts@tripl-app.io")
 
-    result = metrics.send_alert_delivery.run(delivery_id)
+    result = alerts_task.send_alert_delivery.run(delivery_id)
     assert result["status"] == "sent"
 
     # Connect → TLS → login → send.
@@ -4046,13 +4046,13 @@ def test_send_alert_delivery_email_fails_without_smtp(monkeypatch, tmp_path) -> 
     from tripl.config import settings as live_settings
 
     monkeypatch.setitem(
-        metrics.send_alert_delivery.run.__globals__,
+        alerts_task.send_alert_delivery.run.__globals__,
         "_get_sync_session",
         sync_session_factory,
     )
     monkeypatch.setattr(live_settings, "smtp_host", "")
 
-    result = metrics.send_alert_delivery.run(delivery_id)
+    result = alerts_task.send_alert_delivery.run(delivery_id)
     assert result["status"] == "failed"
     assert "SMTP" in result["error"]
 
@@ -4225,17 +4225,17 @@ def test_send_alert_delivery_creates_jira_issue(monkeypatch, tmp_path) -> None:
         sent["headers"] = headers
 
     monkeypatch.setitem(
-        metrics.send_alert_delivery.run.__globals__,
+        alerts_task.send_alert_delivery.run.__globals__,
         "_get_sync_session",
         sync_session_factory,
     )
     monkeypatch.setitem(
-        metrics.send_alert_delivery.run.__globals__,
+        alerts_task.send_alert_delivery.run.__globals__,
         "_post_json",
         capture_post_json,
     )
 
-    result = metrics.send_alert_delivery.run(delivery_id)
+    result = alerts_task.send_alert_delivery.run(delivery_id)
     assert result["status"] == "sent"
 
     assert sent["url"] == "https://example.atlassian.net/rest/api/3/issue"
@@ -4407,17 +4407,17 @@ def test_send_alert_delivery_creates_linear_issue(monkeypatch, tmp_path) -> None
         sent["headers"] = headers
 
     monkeypatch.setitem(
-        metrics.send_alert_delivery.run.__globals__,
+        alerts_task.send_alert_delivery.run.__globals__,
         "_get_sync_session",
         sync_session_factory,
     )
     monkeypatch.setitem(
-        metrics.send_alert_delivery.run.__globals__,
+        alerts_task.send_alert_delivery.run.__globals__,
         "_post_json",
         capture_post_json,
     )
 
-    result = metrics.send_alert_delivery.run(delivery_id)
+    result = alerts_task.send_alert_delivery.run(delivery_id)
     assert result["status"] == "sent"
 
     assert sent["url"] == "https://api.linear.app/graphql"
@@ -5060,27 +5060,27 @@ def test_send_alert_delivery_is_idempotent_on_resend(monkeypatch, tmp_path) -> N
 
     # No-op the SSRF send-time re-check so the test doesn't hit real DNS.
     monkeypatch.setitem(
-        metrics.send_alert_delivery.run.__globals__,
+        alerts_task.send_alert_delivery.run.__globals__,
         "_reject_private_target",
         lambda url, *, field: None,
     )
     monkeypatch.setitem(
-        metrics.send_alert_delivery.run.__globals__,
+        alerts_task.send_alert_delivery.run.__globals__,
         "_get_sync_session",
         sync_session_factory,
     )
     monkeypatch.setitem(
-        metrics.send_alert_delivery.run.__globals__,
+        alerts_task.send_alert_delivery.run.__globals__,
         "_post_json",
         counting_post_json,
     )
 
-    first = metrics.send_alert_delivery.run(delivery_id)
+    first = alerts_task.send_alert_delivery.run(delivery_id)
     assert first["status"] == "sent"
     assert call_count["n"] == 1
 
     # Re-run (simulating an acks_late re-queue) — must be a no-op.
-    second = metrics.send_alert_delivery.run(delivery_id)
+    second = alerts_task.send_alert_delivery.run(delivery_id)
     assert second["status"] == "already_sent"
     assert call_count["n"] == 1  # no second outbound HTTP call
 
@@ -5192,22 +5192,22 @@ def test_send_alert_delivery_skips_ticket_creation_when_external_id_present(
         return {"id": "20002", "key": "ENG-2"}
 
     monkeypatch.setitem(
-        metrics.send_alert_delivery.run.__globals__,
+        alerts_task.send_alert_delivery.run.__globals__,
         "_reject_private_target",
         lambda url, *, field: None,
     )
     monkeypatch.setitem(
-        metrics.send_alert_delivery.run.__globals__,
+        alerts_task.send_alert_delivery.run.__globals__,
         "_get_sync_session",
         sync_session_factory,
     )
     monkeypatch.setitem(
-        metrics.send_alert_delivery.run.__globals__,
+        alerts_task.send_alert_delivery.run.__globals__,
         "_post_json",
         counting_post_json,
     )
 
-    result = metrics.send_alert_delivery.run(delivery_id)
+    result = alerts_task.send_alert_delivery.run(delivery_id)
 
     assert result["status"] == "sent"
     assert call_count["n"] == 0  # no ticket creation — guard skipped it
@@ -5257,8 +5257,9 @@ def _make_sunset_project(
 def test_check_deprecated_sunset_events_fires_when_event_alive_past_sunset(
     monkeypatch, tmp_path
 ) -> None:
-    """A deprecated event with sunset_at in the past and last_seen_at > sunset_at
-    triggers a Slack message."""
+    """A deprecated event past its sunset_at with an open ``sunset_overdue``
+    finding (the sunset watch saw data in the last 24 hours) triggers a Slack
+    message."""
     engine = create_engine(f"sqlite:///{tmp_path / 'sunset_alert_fires.db'}")
     Base.metadata.create_all(engine)
     sync_session_factory = sessionmaker(engine, expire_on_commit=False)
@@ -5279,6 +5280,8 @@ def test_check_deprecated_sunset_events_fires_when_event_alive_past_sunset(
             last_seen_at=last_seen,
         )
         session.add(event)
+        session.flush()
+        session.add(open_sunset_finding(event, at=last_seen))
         session.commit()
 
     def fake_send_digest(
@@ -5314,7 +5317,7 @@ def test_check_deprecated_sunset_events_fires_when_event_alive_past_sunset(
 
 
 def test_check_deprecated_sunset_events_silent_when_no_recent_data(monkeypatch, tmp_path) -> None:
-    """A deprecated event whose last_seen_at is before sunset_at does NOT fire."""
+    """A deprecated event the sunset watch holds no open finding for does NOT fire."""
     engine = create_engine(f"sqlite:///{tmp_path / 'sunset_alert_silent.db'}")
     Base.metadata.create_all(engine)
     sync_session_factory = sessionmaker(engine, expire_on_commit=False)
@@ -7938,7 +7941,7 @@ async def test_destination_test_send_reaches_the_channel_and_logs_no_delivery(
     assert isinstance(text, str)
     # Unmistakably a test to whoever reads the channel: nobody in that channel
     # asked for this message.
-    assert "Tripl test message" in text
+    assert "tripl test message" in text
     assert "No alert fired" in text
 
     async with TestSessionLocal() as session:

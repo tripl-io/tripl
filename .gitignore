@@ -37,6 +37,11 @@ frontend/dist-ssr/
 # Logs
 *.log
 
+# Celery beat's runtime state (a SQLite file plus its -shm/-wal), written to
+# the working directory by a `celery beat` run without --schedule.
+celerybeat-schedule*
+celerybeat.pid
+
 # Environment
 .env
 .env.local

@@ -10,10 +10,12 @@ import type { ServiceSettings } from '@/types'
 import { Button } from '@/components/ui/button'
 import { Field, SCard, TextArea, TextInput, ToggleRow } from '@/components/settings/kit'
 import { DisabledReason, disabledReasonAria } from '@/components/states'
+import { FIELD_COPY, PROMPT_FIELDS, embeddingProviderText } from './fieldCopy'
 import {
   InactiveGroup,
   NumberSettingInput,
   OperatorFields,
+  ReadOnlyValue,
   SourceBadge,
   StatusBadge,
 } from './ServiceSettingsPrimitives'
@@ -86,14 +88,15 @@ export function AiSection({
     <>
       <SCard title="Provider">
         <ToggleRow
-          label="AI enabled"
+          label={FIELD_COPY.ai_enabled.label}
           labelRight={<SourceBadge source={sourceFor(settings, 'ai', 'ai_enabled')} />}
+          hint={form.ai.ai_enabled ? undefined : 'Off: the provider settings below are not used.'}
           value={form.ai.ai_enabled}
           onChange={value => setField('ai', 'ai_enabled', value)}
         />
         {/* Still editable — preparing a config before switching it on is
             valid — but visibly idle while the switch is off. */}
-        <InactiveGroup inactive={!form.ai.ai_enabled} reason="Not used while AI is off.">
+        <InactiveGroup inactive={!form.ai.ai_enabled}>
         <OperatorFields locked={!platformAdmin}>
         <AiProviderPicker
           baseUrl={form.ai.ai_base_url}
@@ -104,7 +107,7 @@ export function AiSection({
           }}
         />
         <Field
-          label="Base URL"
+          label={FIELD_COPY.ai_base_url.label}
           labelRight={<SourceBadge source={sourceFor(settings, 'ai', 'ai_base_url')} />}
         >
           <TextInput
@@ -115,7 +118,7 @@ export function AiSection({
         </Field>
         </OperatorFields>
         <Field
-          label="Model"
+          label={FIELD_COPY.ai_model.label}
           labelRight={<SourceBadge source={sourceFor(settings, 'ai', 'ai_model')} />}
         >
           <TextInput
@@ -133,7 +136,7 @@ export function AiSection({
             already reveals more. */}
         <OperatorFields locked={!platformAdmin} quiet>
         <Field
-          label="AI API key"
+          label={FIELD_COPY.ai_api_key.label}
           labelRight={<SourceBadge source={sourceFor(settings, 'ai', 'ai_api_key')} />}
         >
           <div className="flex gap-2">
@@ -151,17 +154,20 @@ export function AiSection({
                 }
               />
             </div>
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              onClick={() => onClearSecret('ai', 'ai_api_key')}
-              // Nothing stored, nothing to delete: this opened a red "start
-              // failing at once" confirm for a key that did not exist.
-              disabled={saving || !form.ai.ai_api_key_configured}
-            >
-              Delete stored key
-            </Button>
+            {/* Only with a key stored: with none there is nothing to delete,
+                and the button once opened a red "start failing at once"
+                confirm for a key that did not exist. */}
+            {form.ai.ai_api_key_configured && (
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => onClearSecret('ai', 'ai_api_key')}
+                disabled={saving}
+              >
+                Delete stored key
+              </Button>
+            )}
           </div>
         </Field>
         </OperatorFields>
@@ -203,7 +209,7 @@ export function AiSection({
 
       <SCard title="Generation">
         <Field
-          label="Timeout seconds"
+          label={FIELD_COPY.ai_timeout_seconds.label}
           labelRight={<SourceBadge source={sourceFor(settings, 'ai', 'ai_timeout_seconds')} />}
         >
           <NumberSettingInput
@@ -212,11 +218,11 @@ export function AiSection({
             value={form.ai.ai_timeout_seconds}
             saved={settings.ai.ai_timeout_seconds}
             setField={setField}
-            suffix="seconds"
+            suffix={FIELD_COPY.ai_timeout_seconds.suffix}
           />
         </Field>
         <Field
-          label="Max output tokens"
+          label={FIELD_COPY.ai_max_output_tokens.label}
           labelRight={<SourceBadge source={sourceFor(settings, 'ai', 'ai_max_output_tokens')} />}
         >
           <NumberSettingInput
@@ -227,60 +233,41 @@ export function AiSection({
             setField={setField}
           />
         </Field>
-        <Field
-          label="Describe prompt"
-          labelRight={promptLabelRight('describe_system_prompt', 'Describe prompt')}
-          stacked
-        >
-          {/* Prose, so the body font, and a box that grows with it: four
-              fixed lines cut a prompt mid-line. */}
-          <TextArea
-            value={form.ai.describe_system_prompt}
-            onChange={value => setField('ai', 'describe_system_prompt', value)}
-            rows={6}
-            autoGrow
-          />
-        </Field>
-        <Field
-          label="Ask prompt"
-          labelRight={promptLabelRight('ask_system_prompt', 'Ask prompt')}
-          stacked
-        >
-          <TextArea
-            value={form.ai.ask_system_prompt}
-            onChange={value => setField('ai', 'ask_system_prompt', value)}
-            rows={6}
-            autoGrow
-          />
-        </Field>
-        <Field
-          label="Alert explanation prompt"
-          labelRight={promptLabelRight('alert_explanation_system_prompt', 'Alert explanation prompt')}
-          stacked
-          last
-        >
-          <TextArea
-            value={form.ai.alert_explanation_system_prompt}
-            onChange={value => setField('ai', 'alert_explanation_system_prompt', value)}
-            rows={6}
-            autoGrow
-          />
-        </Field>
+        {PROMPT_FIELDS.map((field, index) => (
+          <Field
+            key={field}
+            label={FIELD_COPY[field].label}
+            labelRight={promptLabelRight(field, FIELD_COPY[field].label)}
+            stacked
+            last={index === PROMPT_FIELDS.length - 1}
+          >
+            {/* Prose, so the body font, and a box that grows with it: four
+                fixed lines cut a prompt mid-line. */}
+            <TextArea
+              value={form.ai[field]}
+              onChange={value => setField('ai', field, value)}
+              rows={6}
+              autoGrow
+            />
+          </Field>
+        ))}
       </SCard>
 
       <SCard title="Search embeddings">
         <ToggleRow
-          label="Search embeddings"
+          label={FIELD_COPY.search_embeddings_enabled.label}
           labelRight={
             <SourceBadge source={sourceFor(settings, 'ai', 'search_embeddings_enabled')} />
+          }
+          hint={
+            form.ai.search_embeddings_enabled
+              ? undefined
+              : 'Off: search matches words only, and the settings below are not used.'
           }
           value={form.ai.search_embeddings_enabled}
           onChange={value => setField('ai', 'search_embeddings_enabled', value)}
         />
-        <InactiveGroup
-          inactive={!form.ai.search_embeddings_enabled}
-          reason="Not used while Search embeddings is off."
-        >
+        <InactiveGroup inactive={!form.ai.search_embeddings_enabled}>
         {/* Where indexed plan text is actually POSTed. It was configurable but
             unreportable: nothing in the running system said which endpoint the
             vectors came from, so a compose allowlist slip that dropped
@@ -305,7 +292,7 @@ export function AiSection({
           }
           htmlFor={false}
         >
-          <EnvOnlyValue value={form.ai.search_embedding_base_url} />
+          <ReadOnlyValue value={form.ai.search_embedding_base_url} />
         </Field>
         {/* The other inert control on this page. It carried `disabled` and
             nothing else — no badge, no hint — so it read as an editable number
@@ -323,19 +310,20 @@ export function AiSection({
           }
           htmlFor={false}
         >
-          <EnvOnlyValue value={String(form.ai.search_embedding_dimensions)} />
+          <ReadOnlyValue value={String(form.ai.search_embedding_dimensions)} />
         </Field>
-        <OperatorFields locked={!platformAdmin}>
+        {/* Text, not an input: tripl speaks one embeddings API, and any other
+            value turns semantic search off for every organization that
+            inherits it, with nothing but a server log line to say so
+            (embedding_service.can_embed). */}
         <Field
           label="Embedding provider"
           labelRight={<SourceBadge source={sourceFor(settings, 'ai', 'search_embedding_provider')} />}
+          htmlFor={false}
         >
-          <TextInput
-            value={form.ai.search_embedding_provider}
-            onChange={value => setField('ai', 'search_embedding_provider', value)}
-            mono
-          />
+          <ReadOnlyValue value={embeddingProviderText(form.ai.search_embedding_provider)} mono={false} />
         </Field>
+        <OperatorFields locked={!platformAdmin}>
         <Field
           label="Embedding model"
           labelRight={<SourceBadge source={sourceFor(settings, 'ai', 'search_embedding_model')} />}
@@ -371,15 +359,17 @@ export function AiSection({
                 }
               />
             </div>
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              onClick={() => onClearSecret('ai', 'search_embedding_api_key')}
-              disabled={saving || !form.ai.search_embedding_api_key_configured}
-            >
-              Delete stored key
-            </Button>
+            {form.ai.search_embedding_api_key_configured && (
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => onClearSecret('ai', 'search_embedding_api_key')}
+                disabled={saving}
+              >
+                Delete stored key
+              </Button>
+            )}
           </div>
         </Field>
         </OperatorFields>
@@ -399,15 +389,6 @@ function EnvOnlyHint({ variable, children }: { variable: string; children: React
         <p className="m-0 mt-1">{children}</p>
       </details>
     </>
-  )
-}
-
-/** A value the environment sets and this page only reports: text, not an input. */
-function EnvOnlyValue({ value }: { value: string }) {
-  return (
-    <span className="mono block truncate pt-1.5 text-body-sm" title={value}>
-      {value || '—'}
-    </span>
   )
 }
 

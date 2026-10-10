@@ -1,5 +1,6 @@
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
+import { MemoryRouter } from 'react-router-dom'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { AuthContextValue } from '@/components/auth-context'
 import { AuthContext } from '@/components/auth-context'
@@ -96,12 +97,12 @@ describe('RelationsTab', () => {
     expect(await screen.findByRole('alert')).toHaveTextContent('Relation is in use')
   })
 
-  it('shows a skeleton, not "No relations", while the list loads', async () => {
+  it('shows a skeleton, not "No relations yet", while the list loads', async () => {
     vi.mocked(relationsApi.list).mockReturnValue(new Promise(() => {}))
     renderTab(authAs('member'), { seed: false })
 
     expect(await screen.findByLabelText('Loading relations')).toBeInTheDocument()
-    expect(screen.queryByText('No relations')).not.toBeInTheDocument()
+    expect(screen.queryByText('No relations yet')).not.toBeInTheDocument()
   })
 
   it('shows a failed load as an error with a retry, not as an empty list', async () => {
@@ -110,7 +111,7 @@ describe('RelationsTab', () => {
 
     expect(await screen.findByText("Couldn't load relations")).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Retry' })).toBeInTheDocument()
-    expect(screen.queryByText('No relations')).not.toBeInTheDocument()
+    expect(screen.queryByText('No relations yet')).not.toBeInTheDocument()
   })
 
   it('shows the relation type in words and the join in one cell', async () => {
@@ -119,6 +120,18 @@ describe('RelationsTab', () => {
     const source = await screen.findByText('purchase.user_id')
     expect(screen.getByText('shared field')).toBeInTheDocument()
     expect(source.closest('td')).toHaveTextContent('purchase.user_id→ to signup.user_id')
+  })
+
+  it('lets the join wrap on a phone instead of running under the pinned actions', async () => {
+    renderTab(authAs('member'))
+
+    const target = await screen.findByText('signup.user_id')
+    // The target takes a line of its own below `sm`; a long name breaks where it must.
+    expect(target).toHaveClass('max-sm:block')
+    expect(target.closest('td')).toHaveClass('wrap-anywhere')
+    const actions = target.closest('tr')?.lastElementChild
+    expect(actions).toHaveClass('sticky', 'right-0')
+    expect(actions?.className).toMatch(/shadow-\[/)
   })
 
   it('groups each end of a new relation and previews the join', async () => {
@@ -175,5 +188,72 @@ describe('RelationsTab', () => {
       null,
     ))
     expect(relationsApi.create).not.toHaveBeenCalled()
+  })
+
+  describe('with no relations yet', () => {
+    function renderEmpty(types: EventType[]) {
+      vi.mocked(relationsApi.list).mockResolvedValue([])
+      vi.mocked(eventTypesApi.list).mockResolvedValue(types)
+      const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+      const auth = authAs('member')
+      return render(
+        <QueryClientProvider client={queryClient}>
+          <AuthContext.Provider value={auth}>
+            <SessionProject session={auth}>
+              <MemoryRouter>
+                <RelationsTab slug="demo" />
+              </MemoryRouter>
+            </SessionProject>
+          </AuthContext.Provider>
+        </QueryClientProvider>,
+      )
+    }
+
+    it('sends a project with no fielded event type to Event types, not to an empty dialog', async () => {
+      renderEmpty([{ id: 'et-1', name: 'purchase', display_name: 'Purchase', field_definitions: [] }] as unknown as EventType[])
+
+      // Both lists have to load: until the types do, nothing is known to block.
+      expect(await screen.findByRole('link', { name: 'Go to event types' })).toHaveAttribute(
+        'href',
+        '/p/demo/event-types',
+      )
+      expect(screen.getByText('No relations yet')).toBeInTheDocument()
+      expect(screen.queryByRole('button', { name: /Create your first relation/ })).not.toBeInTheDocument()
+      // New relation is off, and says why next to it.
+      const create = screen.getByRole('button', { name: /New relation/ })
+      expect(create).toBeDisabled()
+      expect(create).toHaveAccessibleDescription('Create an event type with at least one field first.')
+    })
+
+    it('invites the first relation once a type has a field, with one example on the page', async () => {
+      renderEmpty(TYPES)
+
+      expect(await screen.findByRole('button', { name: /Create your first relation/ })).toBeInTheDocument()
+      await waitFor(() => expect(eventTypesApi.list).toHaveBeenCalled())
+      expect(screen.getByRole('button', { name: /New relation/ })).toBeEnabled()
+      expect(screen.queryByText(/Purchase\.user_id/)).not.toBeInTheDocument()
+    })
+  })
+})
+
+describe('RelationsTab — unsaved relation (prelaunch)', () => {
+  it('asks before Escape drops picked ends, and closes an untouched dialog at once', async () => {
+    renderTab(authAs('member'))
+    await screen.findByText('purchase.user_id')
+
+    fireEvent.click(screen.getByRole('button', { name: /New relation/ }))
+    let dialog = await screen.findByRole('dialog', { name: 'New relation' })
+    fireEvent.keyDown(dialog, { key: 'Escape' })
+    await waitFor(() => expect(screen.queryByRole('dialog', { name: 'New relation' })).not.toBeInTheDocument())
+    expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: /New relation/ }))
+    dialog = await screen.findByRole('dialog', { name: 'New relation' })
+    fireEvent.change(within(dialog).getByRole('combobox', { name: 'From event type' }), { target: { value: 'et-1' } })
+    fireEvent.keyDown(dialog, { key: 'Escape' })
+    expect(await screen.findByRole('alertdialog')).toHaveTextContent('Leave without saving?')
+    fireEvent.click(screen.getByRole('button', { name: 'Keep editing' }))
+    await waitFor(() => expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument())
+    expect(within(screen.getByRole('dialog', { name: 'New relation' })).getByRole('combobox', { name: 'From event type' })).toHaveValue('et-1')
   })
 })

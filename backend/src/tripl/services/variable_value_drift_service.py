@@ -1,20 +1,20 @@
 """Read/action helpers for VariableValueDrift records.
 
-Mirrors ``schema_drift_service``: 30-day read-time retention, active =
-open or snooze-expired, and an accept action that mutates the plan (the
+Mirrors ``schema_drift_service``: the same read-time retention and "active"
+rule (``core.drift_activity``), and an accept action that mutates the plan (the
 variable's documented values) rather than just resolving the row.
 """
 
 from __future__ import annotations
 
 import uuid
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, datetime
 
 from fastapi import HTTPException
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.sql.elements import ColumnElement
 
+from tripl.core.drift_activity import active_drift_clauses, retention_cutoff
 from tripl.models.user import User
 from tripl.models.variable import Variable
 from tripl.models.variable_event_value_override import VariableEventValueOverride
@@ -27,29 +27,6 @@ from tripl.schemas.variable_value_drift import (
 from tripl.services.project_lookup import resolve_project_id
 from tripl.services.search_service import reindex_project_branch
 
-DRIFT_RETENTION_DAYS = 30
-ACTIVE_DRIFT_STATUSES = {"open", "snoozed"}
-
-
-def _retention_cutoff(now: datetime | None = None) -> datetime:
-    now = now or datetime.now(UTC)
-    return now - timedelta(days=DRIFT_RETENTION_DAYS)
-
-
-def _active_drift_predicates(now: datetime) -> list[ColumnElement[bool]]:
-    return [
-        VariableValueDrift.status.in_(ACTIVE_DRIFT_STATUSES),
-        (VariableValueDrift.status != "snoozed")
-        | (VariableValueDrift.snoozed_until.is_(None))
-        | (VariableValueDrift.snoozed_until <= now),
-    ]
-
-
-# Public names for readers outside this module (the health score, F15 #268):
-# they must judge "active" exactly as the drift lists do.
-retention_cutoff = _retention_cutoff
-active_drift_predicates = _active_drift_predicates
-
 
 async def list_value_drifts(
     session: AsyncSession,
@@ -58,7 +35,7 @@ async def list_value_drifts(
     event_id: uuid.UUID | None = None,
 ) -> VariableValueDriftListResponse:
     project_id = await resolve_project_id(session, slug)
-    cutoff = _retention_cutoff()
+    cutoff = retention_cutoff()
     query = (
         select(VariableValueDrift)
         .where(
@@ -198,14 +175,14 @@ async def get_open_drift_counts(
     if not variable_ids:
         return {}
     now = datetime.now(UTC)
-    cutoff = _retention_cutoff(now)
+    cutoff = retention_cutoff(now)
     rows = (
         await session.execute(
             select(VariableValueDrift.variable_id, func.count(VariableValueDrift.id))
             .where(
                 VariableValueDrift.variable_id.in_(variable_ids),
                 VariableValueDrift.detected_at >= cutoff,
-                *_active_drift_predicates(now),
+                *active_drift_clauses(VariableValueDrift, now),
             )
             .group_by(VariableValueDrift.variable_id)
         )

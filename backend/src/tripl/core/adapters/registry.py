@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import importlib
 from collections.abc import Callable
 from typing import TYPE_CHECKING, Any
 
@@ -24,6 +25,8 @@ from tripl.schemas.trino_settings import AthenaSettings, TrinoSettings
 AdapterFactory = Callable[[DataSource, str], BaseAdapter]
 
 _REGISTRY: dict[str, AdapterFactory] = {}
+#: Each registered type's adapter class, as ``"module.Class"`` (see ``register_adapter``).
+_CLASS_PATHS: dict[str, str] = {}
 
 # Fallback connect/query budget when a data source leaves timeout_seconds unset.
 # Comfortably under Celery's 55/60-min hard limit so a runaway query is cut off
@@ -61,8 +64,17 @@ def _stored_sslkey(ds: DataSource) -> str | None:
     return decrypt_value(ciphertext) or None
 
 
-def register_adapter(db_type: str, factory: AdapterFactory) -> None:
+def register_adapter(db_type: str, factory: AdapterFactory, class_path: str | None = None) -> None:
+    """Register how a ``db_type`` source connects, and which adapter class it builds.
+
+    ``class_path`` is that class as ``"module.Class"`` under ``tripl.core.adapters``
+    (see :func:`adapter_class`). It is named rather than imported, the way each
+    factory imports its class only when it runs: an adapter module imports its
+    warehouse driver, and registering every type must load none of them.
+    """
     _REGISTRY[db_type] = factory
+    if class_path is not None:
+        _CLASS_PATHS[db_type] = class_path
 
 
 def supported_db_types() -> list[str]:
@@ -78,6 +90,23 @@ def build_adapter(ds: DataSource) -> BaseAdapter:
     return factory(ds, password)
 
 
+def adapter_class(db_type: str) -> type[BaseAdapter]:
+    """The adapter class a ``db_type`` source is built with, imported now; nothing connects.
+
+    For work that needs the class and no warehouse: compiling a statement from
+    stored column types (:meth:`BaseAdapter.primed`), or reading a class-level
+    capability. Raises ``ValueError`` for a type registered without a class.
+    """
+    class_path = _CLASS_PATHS.get(db_type)
+    if class_path is None:
+        msg = f"Unsupported db_type: {db_type}"
+        raise ValueError(msg)
+    module_name, _, class_name = class_path.rpartition(".")
+    module = importlib.import_module(f"tripl.core.adapters.{module_name}")
+    cls: type[BaseAdapter] = getattr(module, class_name)
+    return cls
+
+
 def vetted_address(ds: DataSource) -> str | None:
     """The address to connect to, after the host is checked; None when unchecked.
 
@@ -91,6 +120,15 @@ def vetted_address(ds: DataSource) -> str | None:
     connection. Without that setting an operator may point at an internal
     warehouse on purpose.
     """
+    return _public_or_refuse(ds.host, ds.port)
+
+
+def _public_or_refuse(hostname: str, port: int) -> str | None:
+    """:func:`vetted_address` for any hostname, the ones a factory derives itself included.
+
+    The vetted public address, ``None`` when outbound hosts need not be public,
+    and a :class:`WarehouseCapabilityError` when the name resolves privately.
+    """
     from tripl.config import settings
     from tripl.core.adapters.errors import WarehouseCapabilityError
     from tripl.services.safe_http import PrivateHostError, public_address
@@ -98,7 +136,7 @@ def vetted_address(ds: DataSource) -> str | None:
     if not settings.public_hosts_only:
         return None
     try:
-        return public_address(ds.host, ds.port, field="host")
+        return public_address(hostname, port, field="host")
     except PrivateHostError:
         raise WarehouseCapabilityError(
             "this instance only connects to warehouses on the public internet, "
@@ -245,7 +283,7 @@ def _build_snowflake(ds: DataSource, password: str) -> BaseAdapter:
     # privately, which is what a PrivateLink account does. Like the Databricks
     # driver, the connector opens its own connection pools from the hostname.
     target = resolve_host(ds.host)
-    _vet_hostname(target.hostname, 443)
+    _public_or_refuse(target.hostname, 443)
 
     return SnowflakeAdapter(
         host=target.hostname,
@@ -295,7 +333,7 @@ def _build_athena(ds: DataSource, password: str) -> BaseAdapter:
     # ``athena.<region>.amazonaws.com``, the name boto3 itself derives from the
     # region, and the address check refuses one that resolves privately.
     endpoint = resolve_endpoint(ds.host)
-    _vet_hostname(endpoint.hostname, 443)
+    _public_or_refuse(endpoint.hostname, 443)
 
     return AthenaAdapter(
         host=endpoint.hostname,
@@ -310,23 +348,6 @@ def _build_athena(ds: DataSource, password: str) -> BaseAdapter:
         schema_allowlist=settings.schema_allowlist,
         timeout_seconds=_effective_timeout_seconds(ds),
     )
-
-
-def _vet_hostname(hostname: str, port: int) -> None:
-    """:func:`vetted_address` for a hostname the factory derived itself."""
-    from tripl.config import settings
-    from tripl.core.adapters.errors import WarehouseCapabilityError
-    from tripl.services.safe_http import PrivateHostError, public_address
-
-    if not settings.public_hosts_only:
-        return
-    try:
-        public_address(hostname, port, field="host")
-    except PrivateHostError:
-        raise WarehouseCapabilityError(
-            "this instance only connects to warehouses on the public internet, "
-            "and the host resolves to a private or internal address."
-        ) from None
 
 
 def _build_synthetic(ds: DataSource, password: str) -> BaseAdapter:
@@ -347,13 +368,13 @@ def _build_synthetic(ds: DataSource, password: str) -> BaseAdapter:
     )
 
 
-register_adapter("clickhouse", _build_clickhouse)
-register_adapter("postgres", _build_postgres)
-register_adapter("greenplum", _build_greenplum)
-register_adapter("redshift", _build_redshift)
-register_adapter("bigquery", _build_bigquery)
-register_adapter("databricks", _build_databricks)
-register_adapter("snowflake", _build_snowflake)
-register_adapter("trino", _build_trino)
-register_adapter("athena", _build_athena)
-register_adapter("synthetic", _build_synthetic)
+register_adapter("clickhouse", _build_clickhouse, "clickhouse.ClickHouseAdapter")
+register_adapter("postgres", _build_postgres, "postgres.PostgresAdapter")
+register_adapter("greenplum", _build_greenplum, "greenplum.GreenplumAdapter")
+register_adapter("redshift", _build_redshift, "redshift.RedshiftAdapter")
+register_adapter("bigquery", _build_bigquery, "bigquery.BigQueryAdapter")
+register_adapter("databricks", _build_databricks, "databricks.DatabricksAdapter")
+register_adapter("snowflake", _build_snowflake, "snowflake.SnowflakeAdapter")
+register_adapter("trino", _build_trino, "trino.TrinoAdapter")
+register_adapter("athena", _build_athena, "athena.AthenaAdapter")
+register_adapter("synthetic", _build_synthetic, "synthetic.SyntheticAdapter")

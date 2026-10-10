@@ -30,6 +30,7 @@ from tripl.api.deps import (
     PathOrgMemberUserDep,
     SessionDep,
 )
+from tripl.api.v1._members import MEMBER_NOT_FOUND
 from tripl.models.organization_group import OrganizationGroup
 from tripl.schemas.organization_group import (
     OrgGroupCreate,
@@ -44,9 +45,6 @@ from tripl.services import audit_service, org_group_service
 router = APIRouter(prefix="/orgs/{org}/groups", tags=["organizations"])
 
 GROUP_NOT_FOUND = "Group not found"
-MEMBER_NOT_FOUND = "Member not found"
-
-
 MANAGED_BY_SCIM = "This group is managed by SCIM provisioning; change it in the identity provider"
 
 

@@ -24,9 +24,9 @@ from sqlalchemy.orm import Session
 from tripl.core.adapters.base import ColumnInfo
 from tripl.core.analyzers.cardinality import _is_json_type
 from tripl.core.analyzers.event_generator import lock_project_catalog
+from tripl.core.plan_scope import main_branch_id
 from tripl.models.event_type import EventType
 from tripl.models.field_definition import FieldDefinition
-from tripl.worker.plan_scope import main_branch_id
 
 # ``worker.tasks._errors`` is a LEAF: it imports ``core.name_template`` and
 # nothing else, and ``worker/tasks/__init__.py`` is empty, so naming it here

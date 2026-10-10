@@ -61,7 +61,7 @@ describe('orgSettingsModel', () => {
 
   it("refuses a value above the operator's ceiling, only in an organization's scope", () => {
     const settings = orgSettingsFixture()
-    expect(numberError('scan_row_limit_default', '60000', settings)).toBe("The operator's maximum is 50,000.")
+    expect(numberError('scan_row_limit_default', '60000', settings)).toBe("The platform's maximum is 50,000.")
     expect(numberError('ai_timeout_seconds', '60', settings)).toBeNull()
     expect(numberError('ai_timeout_seconds', '0', settings)).toMatch(/at least 1/)
     expect(numberError('smtp_port', '70000', settings)).toMatch(/65535/)

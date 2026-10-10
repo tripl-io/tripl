@@ -145,12 +145,7 @@ async def resolve_managed_org(
     )
     if org is None or (key_org_id is not None and key_org_id != org.id):
         raise OrgNotFoundError(slug)
-    role: str | None = await session.scalar(
-        select(OrganizationMember.role).where(
-            OrganizationMember.organization_id == org.id,
-            OrganizationMember.user_id == user_id,
-        )
-    )
+    role = await user_service.org_role(session, org.id, user_id)
     step_in = False
     if role is None:
         if key_org_id is not None or not platform_admin:
@@ -336,7 +331,7 @@ async def remove_member(
     :class:`user_service.LastOwnerError`. Does NOT commit.
     """
     await auth_service.acquire_owner_set_xact_lock(session, org_id)
-    actor_role = await user_service.org_role_under_lock(session, org_id, actor_id)
+    actor_role = await user_service.org_role(session, org_id, actor_id)
     if actor_role not in (OrganizationRole.owner.value, OrganizationRole.admin.value):
         raise user_service.OwnerManagementError
     return await _remove_member_locked(session, org_id, user_id, actor_role=actor_role)

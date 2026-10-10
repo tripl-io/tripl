@@ -13,6 +13,7 @@ import { FactFilterEditor } from './FactFilterEditor'
 import { IntervalField } from './IntervalField'
 import { errorAria, type FieldErrors } from '@/lib/fieldErrors'
 import {
+  AGGREGATION_LABEL,
   FACT_COMPOSITIONS,
   needsDistinct,
   needsMeasure,
@@ -24,15 +25,6 @@ import {
 import { toOperandPayload, withAggregation, withFactTable } from './metricPayload'
 import type { FactTableDetails, OperandDetailState } from './useFactTableDetails'
 import { currentOrgSlug, projectPath } from '@/lib/navigation'
-
-const AGGREGATION_LABEL: Record<MetricAggregation, string> = {
-  count: 'Count',
-  sum: 'Sum',
-  avg: 'Average',
-  min: 'Min',
-  max: 'Max',
-  count_distinct: 'Count distinct',
-}
 
 function toOptions(prefix: string, items: { value: string; label: string }[]): SelectOption[] {
   return [{ value: '', label: prefix }, ...items]

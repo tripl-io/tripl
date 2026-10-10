@@ -50,6 +50,15 @@ const scanConfig: ScanConfig = {
   app_version_prerelease_pattern: null,
   app_version_active_share_min: null,
   platform_column: null,
+  setup_preset: 'custom',
+  monitoring_enabled: true,
+  freshness: {
+    status: 'unknown',
+    lag_seconds: null,
+    last_event_at: null,
+    last_collection_at: null,
+    expected_by: null,
+  },
   created_at: '2026-01-01T00:00:00Z',
   updated_at: '2026-01-01T00:00:00Z',
 }
@@ -768,7 +777,9 @@ describe('ScanDetail — streak past the loaded page', () => {
 
     const headers = await screen.findAllByRole('columnheader')
     expect(headers.map(header => header.textContent)).toEqual([
-      'Started', 'Duration', 'Scanned', 'Events', 'Status', 'Actions',
+      // "New events": what the run added to the plan, so a 0 reads as
+      // "nothing new", not "nothing happened".
+      'Started', 'Duration', 'Scanned', 'New events', 'Status', 'Actions',
     ])
   })
 })

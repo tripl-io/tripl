@@ -5,7 +5,6 @@ import { toast } from 'sonner'
 import {
   Activity,
   AlertTriangle,
-  ChevronLeft,
   ChevronRight,
   Code2,
   Loader2,
@@ -13,12 +12,11 @@ import {
   Save,
   Table2,
 } from 'lucide-react'
-import { dataSourcesApi } from '@/api/dataSources'
 import { usersApi } from '@/api/users'
 import { metricsCatalogApi } from '@/api/metricsCatalog'
 import { ErrorState } from '@/components/error-state'
 import { PageSkeleton, QueryErrorState, ReadOnlyNotice } from '@/components/states'
-import { PageHeader } from '@/components/primitives/page-header'
+import { PageBackLink, PageHeader } from '@/components/primitives/page-header'
 import { PageContainer } from '@/components/primitives/page-container'
 import { SaveBar } from '@/components/forms/SaveBar'
 import { examplePlaceholder } from '@/components/forms/placeholders'
@@ -35,6 +33,8 @@ import {
 } from '@/components/settings/kit'
 import { useConfirm } from '@/hooks/useConfirm'
 import { useDataSourceSchema } from '@/hooks/useDataSourceSchema'
+import { eventRosterQuery } from '@/hooks/useEventRoster'
+import { useProjectDataSources } from '@/hooks/useProjectDataSources'
 import { useUnsavedChangesGuard } from '@/hooks/useUnsavedChangesGuard'
 import { editPageTitle, usePageTitle } from '@/components/shell-chrome-context'
 import { SILENT_ERROR_META } from '@/lib/errorFeedback'
@@ -43,7 +43,6 @@ import { getMetricMonitoringPath } from '@/lib/monitoring'
 import { useCanWriteProject } from '@/lib/permissions'
 import {
   activeSignalsKey,
-  dataSourcesKey,
   metricDefinitionKey,
   metricDrilldownKeys,
   metricGeneratedSqlKey,
@@ -67,7 +66,6 @@ import { SqlDefinitionFields } from './SqlDefinitionFields'
 import { TemplateGallery } from './TemplateGallery'
 import { ColorSwatches } from './ColorSwatches'
 import { SeriesPreviewCard } from './SeriesPreviewCard'
-import { eventRosterQuery } from './eventRoster'
 import { errorAria, focusField } from '@/lib/fieldErrors'
 import {
   NEW_METRIC_KIND,
@@ -264,8 +262,9 @@ export function MetricForm({
 
   const facts = useFactTableDetails(slug, draft, dataSources, { loadList: isNew })
   // The unfiltered first page of the event picker, shared with it by key: a
-  // new metric's kind step says when the project has no events.
-  const eventRoster = useQuery({ ...eventRosterQuery(slug, ''), enabled: isNew })
+  // new metric's kind step says when the project has no events. Silent: the
+  // picker reports a roster that will not load, with a retry.
+  const eventRoster = useQuery({ ...eventRosterQuery(slug, null, ''), enabled: isNew, meta: SILENT_ERROR_META })
   const noEvents = eventRoster.isSuccess && eventRoster.data.total === 0
 
   const [kindChosen, setKindChosen] = useState(!isNew)
@@ -624,17 +623,7 @@ export function MetricForm({
       >
         <PageHeader
           className="mb-[18px]"
-          back={
-            <button
-              type="button"
-              onClick={onBack ?? onClose}
-              className="inline-flex items-center gap-1 text-caption transition-colors hover:text-[var(--fg)]"
-              style={{ color: 'var(--fg-muted)' }}
-            >
-              {/* Names where it leads, like the fact-table editor's. */}
-              <ChevronLeft size={14} /> Metrics
-            </button>
-          }
+          back={<PageBackLink label="Metrics" onClick={onBack ?? onClose} />}
           eyebrow="Observe · Metric"
           // The edited metric is named, so two open editors are told apart.
           title={metric ? `${canWrite ? 'Edit' : 'Metric'} · ${metric.display_name}` : 'New metric'}
@@ -1053,12 +1042,10 @@ export default function MetricEditPage() {
     else goBack()
   }
 
-  const dataSourcesQuery = useQuery({
-    queryKey: dataSourcesKey(),
-    queryFn: () => dataSourcesApi.list(),
-    // Rendered inline in the SQL Source card.
-    meta: SILENT_ERROR_META,
-  })
+  // Only the sources this project may use: the server refuses a SQL metric
+  // bound to another project's warehouse. A failure is rendered inline in the
+  // SQL Source card.
+  const dataSourcesQuery = useProjectDataSources({ meta: SILENT_ERROR_META })
   const metricQuery = useQuery({
     queryKey: metricDefinitionKey(slug, metricId ?? 'new'),
     queryFn: () => metricsCatalogApi.get(slug!, metricId!),

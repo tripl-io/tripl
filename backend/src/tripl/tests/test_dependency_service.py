@@ -393,10 +393,10 @@ async def test_field_relation_and_variable_binding(client: AsyncClient) -> None:
 
     down = _by_id(deps.downstream)
     assert down[s.relation].relation == "relation links field"
-    assert down[s.variable].relation == "variable bound to field"
+    assert down[s.variable].relation == "property bound to field"
     assert down[s.variable].certainty == "direct"
     # The field's stored value names the variable with a ${token}.
-    assert _by_id(deps.upstream)[s.variable].relation == "field value uses variable"
+    assert _by_id(deps.upstream)[s.variable].relation == "field value uses property"
 
 
 @pytest.mark.asyncio
@@ -407,7 +407,7 @@ async def test_variable_edges(client: AsyncClient) -> None:
     down = _by_id(deps.downstream)
     assert down[s.purchase].kind == "event"
     assert down[s.cart_id].kind == "field"
-    assert down[s.cart_id].relation == "variable bound to field"
+    assert down[s.cart_id].relation == "property bound to field"
     assert deps.upstream == []
 
 
@@ -608,10 +608,10 @@ async def test_meta_value_token_is_a_variable_reference(client: AsyncClient) -> 
     variable = await _resolve(s, "variable", promo)
     edge = _by_id(variable.downstream)[checkout]
     assert edge.kind == "event"
-    assert edge.relation == "event uses variable in a meta value"
+    assert edge.relation == "event uses property in a meta value"
 
     event = await _resolve(s, "event", checkout)
-    assert _by_id(event.upstream)[promo].relation == "event uses variable in a meta value"
+    assert _by_id(event.upstream)[promo].relation == "event uses property in a meta value"
 
 
 def _scan(project_id: uuid.UUID, name: str, **extra: object) -> ScanConfig:

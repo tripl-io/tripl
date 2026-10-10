@@ -42,7 +42,7 @@ from tripl_cli.commands import (
     group_help,
     require_single_project,
 )
-from tripl_cli.commands._write import add_write_flags, confirm, request_document
+from tripl_cli.commands._write import add_write_flags, confirm, emit_mutation, request_document
 from tripl_cli.config import Config, require_base_url
 from tripl_cli.diagnostics.collect import (
     DEFAULT_MAX_EVENT_TYPES,
@@ -65,8 +65,8 @@ from tripl_cli.model import (
     as_dict,
     text_of,
 )
-from tripl_cli.render import render_drifts, render_header, render_mutation
-from tripl_cli.report import drifts_document, mutation_document
+from tripl_cli.render import render_drifts, render_header
+from tripl_cli.report import drifts_document
 from tripl_cli.runner import gather_bounded, run_async
 
 # The default, and the reason the flag exists: a drift is interesting when
@@ -425,16 +425,7 @@ def _run_drift_action(
         action=action,
         result=result,
     )
-    human = sys.stderr if as_json else sys.stdout
-    print(
-        render_header(command, base_url, config.sources.get("base_url", "unknown")),
-        file=human,
-    )
-    print(file=human)
-    print(render_mutation(outcome), file=human)
-    if as_json:
-        json.dump(mutation_document(outcome), sys.stdout)
-        sys.stdout.write("\n")
+    emit_mutation(outcome, base_url=base_url, config=config, as_json=as_json)
     return EXIT_OK
 
 

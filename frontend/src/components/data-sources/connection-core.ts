@@ -1,4 +1,10 @@
-import type { DataSource, DbType, JsonPathDiscovery } from '@/types'
+import type {
+  DataSource,
+  DatabricksAuthType,
+  DbType,
+  JsonPathDiscovery,
+  TrinoHttpScheme,
+} from '@/types'
 
 /**
  * Form state for the *core* connection fields — the ones that live on the data
@@ -26,7 +32,8 @@ import type { DataSource, DbType, JsonPathDiscovery } from '@/types'
  *
  * `secret` is write-only. The API never returns a password or a service-account
  * key (only the `password_set` boolean), so it always starts empty on edit and
- * an untouched field keeps whatever is stored.
+ * an untouched field keeps whatever is stored. `clearSecret` asks for the stored
+ * password to be removed instead, for the warehouses that may go without one.
  */
 export interface ConnectionCoreForm {
   host: string
@@ -34,6 +41,7 @@ export interface ConnectionCoreForm {
   databaseName: string
   username: string
   secret: string
+  clearSecret: boolean
   timeoutSeconds: string
   jsonPathDiscovery: JsonPathDiscovery
 }
@@ -44,6 +52,7 @@ export const EMPTY_CONNECTION_CORE_FORM: ConnectionCoreForm = {
   databaseName: '',
   username: '',
   secret: '',
+  clearSecret: false,
   timeoutSeconds: '',
   jsonPathDiscovery: 'dynamic',
 }
@@ -60,6 +69,7 @@ export function dataSourceToCoreForm(ds: DataSource): ConnectionCoreForm {
     databaseName: ds.database_name,
     username: ds.username,
     secret: '',
+    clearSecret: false,
     timeoutSeconds: ds.timeout_seconds == null ? '' : String(ds.timeout_seconds),
     jsonPathDiscovery: ds.json_path_discovery ?? 'dynamic',
   }
@@ -79,6 +89,20 @@ export const DATABRICKS_PORT = 443
 export function isHttpsOnly(dbType: DbType): boolean {
   return dbType === 'databricks' || dbType === 'snowflake' || dbType === 'athena'
 }
+
+/**
+ * Whether `dbType` cannot sign in without a username, as its adapter refuses
+ * to connect without one: the Trino and Snowflake user, the Athena access key
+ * ID, and the Databricks client ID when it signs in with OAuth.
+ */
+export function usernameRequired(dbType: DbType, databricksAuth: DatabricksAuthType): boolean {
+  if (dbType === 'databricks') return databricksAuth === 'oauth_m2m'
+  return dbType === 'trino' || dbType === 'snowflake' || dbType === 'athena'
+}
+
+/** What a Trino password over plain HTTP gets: the adapter never sends one. */
+export const TRINO_PASSWORD_OVER_HTTP =
+  'A password is only sent over HTTPS. Switch the scheme to HTTPS, or remove the password.'
 
 interface CoreCreatePayload {
   host: string
@@ -127,19 +151,21 @@ export function buildCoreCreatePayload(
  * BigQuery omits `port` and `username` entirely — the adapter deletes them, so
  * the edit dialog does not show them and must not write them back. The secret is
  * only sent when the operator actually typed one; omitting it keeps the stored
- * password / service-account key, exactly like an omitted `sslkey`.
+ * password / service-account key, exactly like an omitted `sslkey`. An empty
+ * one, sent when the operator asked to remove the stored password, clears it.
  */
 export function buildCoreUpdatePayload(
   dbType: DbType,
   form: ConnectionCoreForm,
 ): CoreUpdatePayload {
   const timeout_seconds = parseTimeoutSeconds(form.timeoutSeconds)
+  const secret = form.secret ? { password: form.secret } : form.clearSecret ? { password: '' } : {}
 
   if (dbType === 'bigquery') {
     return {
       host: form.host,
       database_name: form.databaseName,
-      ...(form.secret ? { password: form.secret } : {}),
+      ...secret,
       timeout_seconds,
     }
   }
@@ -149,7 +175,7 @@ export function buildCoreUpdatePayload(
     port: isHttpsOnly(dbType) ? DATABRICKS_PORT : form.port,
     database_name: form.databaseName,
     username: form.username,
-    ...(form.secret ? { password: form.secret } : {}),
+    ...secret,
     timeout_seconds,
     ...(dbType === 'clickhouse' ? { json_path_discovery: form.jsonPathDiscovery } : {}),
   }
@@ -183,7 +209,9 @@ export function serviceAccountKeyError(value: string): string | null {
 }
 
 /** The core fields a connection cannot be tested or saved without. */
-export type CoreMissing = Partial<Record<'host' | 'port' | 'databaseName' | 'secret', string>>
+export type CoreMissing = Partial<
+  Record<'host' | 'port' | 'databaseName' | 'username' | 'secret', string>
+>
 
 /**
  * Which required core fields are empty, each mapped to the inline message
@@ -192,18 +220,24 @@ export type CoreMissing = Partial<Record<'host' | 'port' | 'databaseName' | 'sec
  * and Test connection used to send the empty draft and come back with the
  * backend's "host: String should have at least 1 character".
  *
- * BigQuery and Databricks have no port box, and their key or token is required
- * only on create: on edit an empty field keeps the stored one.
+ * BigQuery and the HTTPS-only warehouses have no port box, and their key or
+ * token is required only on create: on edit an empty field keeps the stored
+ * one. The username is required where `usernameRequired` says so, which for
+ * Databricks depends on its sign-in (`databricksAuth`, a connection setting).
  */
 export function connectionCoreMissing(
   dbType: DbType,
   form: ConnectionCoreForm,
   mode: 'create' | 'edit',
   message: string,
+  databricksAuth: DatabricksAuthType = 'pat',
 ): CoreMissing {
   const missing: CoreMissing = {}
   if (!form.host.trim()) missing.host = message
   if (!form.databaseName.trim()) missing.databaseName = message
+  if (usernameRequired(dbType, databricksAuth) && !form.username.trim()) {
+    missing.username = message
+  }
   if (dbType === 'bigquery' || isHttpsOnly(dbType)) {
     // None has a port box; all need their credential up front.
     if (mode === 'create' && !form.secret.trim()) missing.secret = message
@@ -219,7 +253,21 @@ const API_FIELD_TO_CORE: Readonly<Record<string, keyof CoreMissing>> = {
   host: 'host',
   port: 'port',
   database_name: 'databaseName',
+  username: 'username',
   password: 'secret',
+}
+
+// API fields whose refusal is a sentence that names what it is about: shown
+// without the field name in front ("Invalid connection settings — schema_name
+// 'a.b' is not a valid name", not "connection_settings: Invalid …").
+const SELF_NAMED_FIELDS: ReadonlySet<string> = new Set(['connection_settings'])
+
+/** Whether `dbType` renders a control for core field `key`. */
+function showsCoreField(dbType: DbType, key: keyof CoreMissing): boolean {
+  // BigQuery and the HTTPS-only warehouses have no port box, BigQuery no username.
+  if (key === 'port') return dbType !== 'bigquery' && !isHttpsOnly(dbType)
+  if (key === 'username') return dbType !== 'bigquery'
+  return true
 }
 
 // Pydantic's "empty string" family, reworded as the inline required message.
@@ -257,25 +305,33 @@ export function serverCoreErrors(
   for (const item of items) {
     const last = item.loc[item.loc.length - 1]
     const mapped = typeof last === 'string' ? API_FIELD_TO_CORE[last] : undefined
-    // Only controls the type actually shows: BigQuery and Databricks have no
-    // port, and only their key or token field (not the password box) renders an
-    // inline error.
-    const shown =
-      dbType === 'bigquery' || isHttpsOnly(dbType) ? mapped !== 'port' : mapped !== 'secret'
-    const key = shown ? mapped : undefined
+    // Only controls the type actually shows.
+    const key = mapped && showsCoreField(dbType, mapped) ? mapped : undefined
     if (key && !fields[key]) {
       fields[key] = EMPTY_VALUE_TYPES.has(item.type) ? requiredMessage : item.msg
     } else if (!key) {
       const path = item.loc.filter((seg) => seg !== 'body' && seg !== 'query').join('.')
-      rest.push(path ? `${path}: ${item.msg}` : item.msg)
+      rest.push(path && !SELF_NAMED_FIELDS.has(path) ? `${path}: ${item.msg}` : item.msg)
     }
   }
   return { fields, rest: rest.length > 0 ? rest.join('; ') : null }
 }
 
-/** Inline error for the core secret field, or null. Only BigQuery's is checked. */
-export function connectionCoreSecretError(dbType: DbType, form: ConnectionCoreForm): string | null {
-  return dbType === 'bigquery' ? serviceAccountKeyError(form.secret) : null
+/**
+ * Inline error for the core secret field, or null: a BigQuery key that is not
+ * a service-account key file, or a Trino password with the HTTP scheme, which
+ * the adapter would never send, so the source could never connect. On edit a
+ * stored password counts too, unless the operator asked to remove it.
+ */
+export function connectionCoreSecretError(
+  dbType: DbType,
+  form: ConnectionCoreForm,
+  { httpScheme, passwordSet }: { httpScheme: TrinoHttpScheme; passwordSet: boolean },
+): string | null {
+  if (dbType === 'bigquery') return serviceAccountKeyError(form.secret)
+  const hasPassword = form.secret !== '' || (passwordSet && !form.clearSecret)
+  if (dbType === 'trino' && httpScheme === 'http' && hasPassword) return TRINO_PASSWORD_OVER_HTTP
+  return null
 }
 
 /**
@@ -284,7 +340,7 @@ export function connectionCoreSecretError(dbType: DbType, form: ConnectionCoreFo
  * change is not a connection change.
  */
 export function coreConnectionChanged(ds: DataSource, form: ConnectionCoreForm): boolean {
-  if (form.secret) return true
+  if (form.secret || form.clearSecret) return true
   if (form.host !== ds.host || form.databaseName !== ds.database_name) return true
   if (ds.db_type === 'bigquery') return false
   return form.port !== ds.port || form.username !== ds.username

@@ -30,9 +30,14 @@ import { DocLanguageBar, DocLanguagesDialog, DocTranslationNotice, TranslationHi
 import { DocView } from './DocView'
 import { useDeleteDoc, useDeleteDocFolder, useDocFile, useDocTree, useMoveDoc, type DocSharingTarget } from './useDocs'
 import { currentOrgSlug, projectPath } from '@/lib/navigation'
+import { shortcutLabel } from '@/lib/platform'
+import { countOf } from '@/lib/plural'
 
 // The editor carries CodeMirror and its Markdown grammar; readers never load it.
 const DocEditor = lazyWithReload(() => import('./DocEditor').then(m => ({ default: m.DocEditor })))
+
+/** Quick open's key in this reader's own spelling; the handler takes either. */
+const QUICK_OPEN_SHORTCUT = shortcutLabel('P')
 
 /**
  * The docs catalog (F22, GH #299): Markdown notes for people and AI agents,
@@ -186,7 +191,7 @@ export default function DocsPage() {
   const onDeleteFolder = async (folderScope: DocScope, prefix: string, count: number) => {
     const ok = await confirm({
       title: `Delete ${prefix}?`,
-      message: `All ${count} ${count === 1 ? 'note' : 'notes'} under this folder are deleted with their history.`,
+      message: `All ${countOf(count, 'note', 'notes')} under this folder are deleted with their history.`,
       confirmLabel: 'Delete folder',
       requireText: count > 5 ? prefix : undefined,
       action: () => deleteFolder.mutateAsync({ scope: folderScope, prefix }),
@@ -254,19 +259,18 @@ export default function DocsPage() {
       }
     : undefined
 
-  const total = data.project_docs.length + data.organization_docs.length
-
   return (
     <PageContainer>
+      {/* No count beside the title: no other page header carries one, and
+          each tree root already shows its own. */}
       <PageHeader
         eyebrow="Plan"
         title="Docs"
-        count={total}
         description={
           <>
-            Notes for people and agents: this project's and {data.organization.name}'s. Link plan entities with{' '}
-            <span className="mono">[[event:name]]</span>, <span className="mono">[[event-type:name]]</span> or{' '}
-            <span className="mono">[[field:type/name]]</span>.
+            Notes for people and agents, for this project and for every project in {data.organization.name}. Link
+            plan entities with <span className="mono">[[event:name]]</span>,{' '}
+            <span className="mono">[[event-type:name]]</span> or <span className="mono">[[field:type/name]]</span>.
           </>
         }
         actions={
@@ -274,7 +278,9 @@ export default function DocsPage() {
             <Button variant="outline" size="sm" onClick={() => setQuickOpen(true)} aria-keyshortcuts="Control+P Meta+P">
               <Search aria-hidden />
               Open note
-              <Kbd className="ml-1">Ctrl P</Kbd>
+              {/* The key this reader presses, and none on a phone, which has
+                  no keyboard to press it on. */}
+              <Kbd className="ml-1 max-sm:hidden">{QUICK_OPEN_SHORTCUT}</Kbd>
             </Button>
             <Button variant="outline" size="sm" onClick={() => setLanguagesOpen(true)}>
               <Languages aria-hidden />

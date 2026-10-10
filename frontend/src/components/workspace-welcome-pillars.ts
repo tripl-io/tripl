@@ -21,6 +21,15 @@ export const PRODUCT_PILLARS: Readonly<
   govern: { label: 'Govern', tagline: 'keep plan & reality in sync', icon: ShieldCheck },
 }
 
+/**
+ * The product's one-line story, told the same way on the sign-in page and the
+ * welcome screen.
+ */
+export const PRODUCT_STORY = {
+  eyebrow: 'Tracking plan operations',
+  headline: 'Keep your product analytics honest',
+} as const
+
 /** Product pillars shown on the empty-workspace welcome hero. */
 export const WELCOME_PILLARS: ReadonlyArray<{
   id: PillarId

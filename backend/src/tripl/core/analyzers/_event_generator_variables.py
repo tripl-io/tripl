@@ -16,7 +16,6 @@ from sqlalchemy.orm import Session, lazyload
 
 from tripl.core.name_template import VARIABLE_TOKEN_PATTERN
 from tripl.models.event import Event
-from tripl.models.plan_branch import BranchKind, PlanBranch
 from tripl.models.variable import Variable
 from tripl.models.variable_value import VariableValue, VariableValueKind
 
@@ -563,28 +562,6 @@ def insert_variable_contexts(
         if values and values != prior.get(key):
             variable_values_written += 1
     return variable_values_written
-
-
-def resolve_main_branch_id(session: Session, project_id: uuid.UUID) -> uuid.UUID | None:
-    """Return the project's existing main-branch id, or ``None`` if not created yet.
-
-    Scans write plan entities to the main branch (see ``default_branch_id``).
-    Variable uniqueness is enforced per branch — ``(project_id, branch_id,
-    source_name)`` — so the working copies a project's plan branches hold can
-    legitimately share a ``source_name``. Scoping the scan's existence checks to
-    the main branch keeps that constraint meaningful and stops a same-name row on
-    another branch from making the lookup raise ``MultipleResultsFound``.
-    """
-    return (
-        session.execute(
-            select(PlanBranch.id).where(
-                PlanBranch.project_id == project_id,
-                PlanBranch.kind == BranchKind.main.value,
-            )
-        )
-        .scalars()
-        .first()
-    )
 
 
 _NAME_CLEAN_PATTERN = re.compile(r"[^a-z0-9_]+")

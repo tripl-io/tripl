@@ -7,41 +7,65 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from tripl.models.anomaly_scope_override import AnomalyScopeOverride
-from tripl.models.project_anomaly_settings import ProjectAnomalySettings
+from tripl.models.project_anomaly_settings import (
+    DEFAULT_ANOMALY_DETECTION_ENABLED,
+    DEFAULT_ANOMALY_INGESTION_SETTLING_MINUTES,
+    DEFAULT_BASELINE_WINDOW_BUCKETS,
+    DEFAULT_DETECT_SCOPE,
+    DEFAULT_MIN_EXPECTED_COUNT,
+    DEFAULT_MIN_HISTORY_BUCKETS,
+    DEFAULT_RECENT_SIGNAL_WINDOW_HOURS,
+    DEFAULT_SIGMA_THRESHOLD,
+    ProjectAnomalySettings,
+)
 from tripl.models.scan_config import ScanConfig
 from tripl.schemas.project_anomaly_settings import (
     AnomalyScopeOverrideListResponse,
     AnomalyScopeOverrideResponse,
+    ProjectAnomalySettingsResponse,
     ProjectAnomalySettingsUpdate,
     settling_window_conflict,
 )
+from tripl.services._project_settings_rows import get_or_create_project_row
 from tripl.services.holiday_calendar import sync_project_holidays
 from tripl.services.project_lookup import resolve_project_id
 
 
-async def _ensure_settings(
-    session: AsyncSession,
-    project_id: uuid.UUID,
-) -> ProjectAnomalySettings:
-    settings = await session.scalar(
-        select(ProjectAnomalySettings).where(ProjectAnomalySettings.project_id == project_id)
-    )
-    if settings is not None:
-        return settings
+def _defaults_response(project_id: uuid.UUID) -> ProjectAnomalySettingsResponse:
+    """The settings of a project that never saved its own, with no row written.
 
-    settings = ProjectAnomalySettings(project_id=project_id)
-    session.add(settings)
-    await session.commit()
-    await session.refresh(settings)
-    return settings
+    Built from the constants the columns default to: a transient row would read
+    ``None`` everywhere, since column defaults apply only at flush.
+    """
+    return ProjectAnomalySettingsResponse(
+        project_id=project_id,
+        anomaly_detection_enabled=DEFAULT_ANOMALY_DETECTION_ENABLED,
+        detect_project_total=DEFAULT_DETECT_SCOPE,
+        detect_event_types=DEFAULT_DETECT_SCOPE,
+        detect_events=DEFAULT_DETECT_SCOPE,
+        detect_metrics=DEFAULT_DETECT_SCOPE,
+        baseline_window_buckets=DEFAULT_BASELINE_WINDOW_BUCKETS,
+        min_history_buckets=DEFAULT_MIN_HISTORY_BUCKETS,
+        sigma_threshold=DEFAULT_SIGMA_THRESHOLD,
+        min_expected_count=DEFAULT_MIN_EXPECTED_COUNT,
+        recent_signal_window_hours=DEFAULT_RECENT_SIGNAL_WINDOW_HOURS,
+        anomaly_ingestion_settling_minutes=DEFAULT_ANOMALY_INGESTION_SETTLING_MINUTES,
+    )
 
 
 async def get_project_anomaly_settings(
     session: AsyncSession,
     slug: str,
-) -> ProjectAnomalySettings:
+) -> ProjectAnomalySettingsResponse:
+    """Read-only: a project that never saved its settings gets the defaults back
+    without a row being written (GETs must not mutate the database)."""
     project_id = await resolve_project_id(session, slug)
-    return await _ensure_settings(session, project_id)
+    settings = await session.scalar(
+        select(ProjectAnomalySettings).where(ProjectAnomalySettings.project_id == project_id)
+    )
+    if settings is None:
+        return _defaults_response(project_id)
+    return ProjectAnomalySettingsResponse.model_validate(settings)
 
 
 _PAIRED_TIMING_FIELDS = ("anomaly_ingestion_settling_minutes", "recent_signal_window_hours")
@@ -101,7 +125,7 @@ async def update_project_anomaly_settings(
     data: ProjectAnomalySettingsUpdate,
 ) -> ProjectAnomalySettings:
     project_id = await resolve_project_id(session, slug)
-    settings = await _ensure_settings(session, project_id)
+    settings = await get_or_create_project_row(session, ProjectAnomalySettings, project_id)
     patch = data.model_dump(exclude_unset=True, exclude_none=True)
     _reject_incoherent_timings(patch, settings)
     _reject_incoherent_history(patch, settings)

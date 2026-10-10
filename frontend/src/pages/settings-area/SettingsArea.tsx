@@ -5,7 +5,7 @@ import { useQuery } from '@tanstack/react-query'
 import { ExternalLink } from 'lucide-react'
 import { projectsQueryOptions } from '@/lib/queryKeys'
 import { usePublicDemoAnswer } from '@/lib/deploymentMode'
-import { QUICK_START_URL } from '@/demo/EndOfDemoLink'
+import { QUICK_START_URL } from '@/lib/docsSite'
 import { projectHomePath, workspacePath } from '@/lib/navigation'
 import { OnboardingReturnBar } from '@/components/onboarding-return-bar'
 import { useAuth } from '@/components/auth-context'
@@ -17,7 +17,7 @@ import { ReadOnlyNotice, SectionSkeleton } from '@/components/states'
 import { LEAVE_CONFIRMED } from '@/components/settings/unsaved-changes'
 import type { Project } from '@/types'
 import { activeOrgRole, isOwner as isOwnerRole, isPlatformAdmin } from '@/lib/permissions'
-import { orgStorageKey } from '@/lib/activeOrg'
+import { LAST_PROJECT_SLUG_KEY, orgStorageKey } from '@/lib/activeOrg'
 import { ORG_SECTION_PATHS, orgSectionForPath } from './org-settings/orgSettingsModel'
 import { ORG_TRACKERS_PATH } from './org-settings/orgTrackersModel'
 import {
@@ -50,8 +50,6 @@ function railPathFor(section: string): string {
   return extensionSettingsSection(section)?.item.path ?? section
 }
 
-const LAST_SLUG_STORAGE_KEY = 'tripl-last-project-slug'
-
 /**
  * Resolve the project the Project-scoped settings target. Prefer the slug in the
  * URL — a route param, or the `?project=` every in-app link to these sections
@@ -78,7 +76,7 @@ function useSettingsSlug(pickedSlug: string | null): string | undefined {
   if (pickedSlug) return pickedSlug
   let last: string | null = null
   try {
-    last = localStorage.getItem(orgStorageKey(LAST_SLUG_STORAGE_KEY))
+    last = localStorage.getItem(orgStorageKey(LAST_PROJECT_SLUG_KEY))
   } catch {
     /* ignore */
   }
@@ -111,8 +109,8 @@ function StateHeader({ section }: { section: string }) {
 /**
  * The full-takeover Settings area. A single page mounted at /settings/* routes;
  * it reads the active section from the URL, renders the matching config section
- * inside the takeover layout, persists the last section, and gates Instance
- * sections to owners.
+ * inside the takeover layout, persists the last section, and gates owner-only
+ * sections to owners and Platform sections to platform admins.
  */
 export default function SettingsArea({ section }: { section: string }) {
   const auth = useAuth()
@@ -135,7 +133,7 @@ export default function SettingsArea({ section }: { section: string }) {
   // app does.
   const pickProject = (picked: string) => {
     try {
-      localStorage.setItem(orgStorageKey(LAST_SLUG_STORAGE_KEY), picked)
+      localStorage.setItem(orgStorageKey(LAST_PROJECT_SLUG_KEY), picked)
     } catch {
       /* ignore */
     }
@@ -526,7 +524,7 @@ function OrgOwnerOnly({ section, reason }: { section: string; reason: string }) 
 
 /**
  * An owner-only section opened by a non-owner (a shared link, a bookmark). The
- * rail hides the Instance group from them, so the page has to say where they
+ * rail hides owner-only items from them, so the page has to say where they
  * are itself: the section's title, the one read-only notice, and a way out
  * (#237).
  */

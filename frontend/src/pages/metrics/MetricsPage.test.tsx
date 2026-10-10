@@ -880,6 +880,20 @@ describe('MetricsPage', () => {
       expect(links[0]).toHaveAttribute('href', '/p/demo/metrics/fact-tables/new')
     })
 
+    it('keeps the header action label one flex item, so its words are not gapped apart', async () => {
+      mockFactTables({ items: [], total: 0 })
+
+      renderMetrics('fact-tables')
+
+      // The header's action comes first; the empty state's own button follows.
+      const [headerAction] = await screen.findAllByRole('link', { name: /New fact table/ })
+      const looseText = [...headerAction!.childNodes].filter(
+        node => node.nodeType === Node.TEXT_NODE && node.textContent!.trim() !== '',
+      )
+      expect(looseText).toEqual([])
+      expect(headerAction!.querySelector(':scope > span')).toHaveTextContent('New fact table')
+    })
+
     it('hints what a fact table is beside the header only on the Fact tables tab', async () => {
       mockFactTables({ items: [], total: 0 })
 

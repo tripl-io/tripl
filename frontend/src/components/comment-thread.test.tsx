@@ -283,6 +283,22 @@ describe('CommentThread authors', () => {
     expect(screen.getByText(/Grace ·/)).toBeInTheDocument()
   })
 
+  it('gives each timestamp its zone on hover', async () => {
+    renderThread([
+      comment({ id: 'c-1', body: 'Is this still shipping?', user_id: 'u-1' }),
+      comment({ id: 'c-2', parent_id: 'c-1', body: 'Yes, in March.', user_id: 'u-2' }),
+    ])
+
+    await screen.findByText('Is this still shipping?')
+    const times = document.querySelectorAll('time[datetime="2026-09-08T10:00:00Z"]')
+    expect(times).toHaveLength(2)
+    for (const time of times) {
+      // The visible text, then the zone the reader's clock is in.
+      const title = time.getAttribute('title') ?? ''
+      expect(title.length).toBeGreaterThan((time.textContent ?? '').length)
+    }
+  })
+
   it('stays anonymous when no resolver is given', async () => {
     renderThread([comment({ id: 'c-1', body: 'hi', user_id: 'u-1' })])
 

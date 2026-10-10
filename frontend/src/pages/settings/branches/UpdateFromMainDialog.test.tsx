@@ -42,6 +42,7 @@ const OVERLAPS: PlanBranchConflicts = {
       name: 'plan',
       parent: null,
       label: 'plan',
+      added_on_both: false,
       fields: [
         {
           field: 'description',
@@ -58,6 +59,7 @@ const OVERLAPS: PlanBranchConflicts = {
       name: 'checkout.paid',
       parent: 'checkout',
       label: 'paid',
+      added_on_both: false,
       fields: [
         {
           field: '@presence',
@@ -330,6 +332,7 @@ describe('UpdateFromMainDialog', () => {
               name: 'checkout',
               parent: null,
               label: 'checkout',
+              added_on_both: false,
               fields: [
                 {
                   field: '@presence',

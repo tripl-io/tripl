@@ -172,6 +172,7 @@ export function SignalVerdictCard({
       <OwnersNotify
         className="mt-2"
         owners={signal.owners}
+        scopeType={signal.scope_type}
         canNotify={canWrite && !incidentId}
         notify={() => alertingApi.notifySignalOwners(slug, triageScopeOf(signal))}
         target={signal.scope_name ?? 'this signal'}

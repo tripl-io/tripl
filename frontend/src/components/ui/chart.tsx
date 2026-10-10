@@ -22,7 +22,6 @@ import {
   dayBoundaryTicks,
   EVENTS_NOUN,
   formatAnomalyCount,
-  formatCount,
   formatDayTick,
   formatSeriesValue,
   formatTick,
@@ -34,8 +33,8 @@ import {
   summarizeForecastRange,
   type SeriesNoun,
 } from '@/components/ui/chart-format'
-import { formatDateTime } from '@/lib/datetime'
-import { APP_LOCALE, formatNumber } from '@/lib/format'
+import { formatDateTime, formatUtcOffset } from '@/lib/datetime'
+import { formatCompactNumber, formatNumber } from '@/lib/format'
 import type { MetricsGranularity } from '@/lib/metrics'
 import { ratioDelta } from '@/lib/percentDelta'
 import { verdictLabel } from '@/lib/signalVerdict'
@@ -46,7 +45,7 @@ import type {
   EventMetricPoint,
   ForecastPoint,
   PlannedEvent,
-  SignalVerdict,
+  SignalVerdictInfo,
 } from '@/types'
 import { plannedEventExpectation, snapPlannedEventsToBuckets } from '@/lib/plannedEvents'
 import {
@@ -75,8 +74,9 @@ interface MetricsChartProps {
   forecast?: ForecastPoint[]
   annotations?: ChartAnnotation[]
   /**
-   * Planned events (F18): each window is shaded, and a flagged bucket one of
-   * them expected is drawn muted and named in the tooltip.
+   * Expected windows (F18; planned events in the API): each window is
+   * shaded, and a flagged bucket inside one is drawn muted and named in the
+   * tooltip.
    */
   plannedEvents?: PlannedEvent[]
   className?: string
@@ -295,7 +295,7 @@ interface ChartDataPoint {
   anomaly_direction?: 'spike' | 'drop' | null
   z_score?: number | null
   /** The verdict on this flagged bucket's signal (#254), shown in the tooltip. */
-  verdict?: SignalVerdict | null
+  verdict?: SignalVerdictInfo | null
   /** The planned event that expected this flagged bucket (F18). */
   planned_event_id?: string | null
   /** That event's label and expectation, for the tooltip; set by the chart. */
@@ -397,7 +397,7 @@ export function buildChartData(
   const points: ChartDataPoint[] = data.map(point => {
     const baseline = bandSource(point)
     if (baseline == null) {
-      return { ...point }
+      return { ...point, expected_count: point.expected_count ?? null, stddev: point.stddev ?? null }
     }
     const [expected, stddev] = baseline
     const offset = k * stddev
@@ -610,7 +610,7 @@ const TOOLTIP_NOTE_MAX = 80
  * What somebody decided the flagged bucket was (#254): "Verdict: Expected ·
  * campaign", its note beneath, cut short — the Signal card has it whole.
  */
-function VerdictTooltipLine({ verdict }: { verdict: SignalVerdict }) {
+function VerdictTooltipLine({ verdict }: { verdict: SignalVerdictInfo }) {
   const note = verdict.note?.trim()
   return (
     <>
@@ -626,7 +626,7 @@ function VerdictTooltipLine({ verdict }: { verdict: SignalVerdict }) {
 
 /**
  * The tooltip's bucket label. A sub-day bucket is an instant in the viewer's
- * zone, so it names the zone ("Sep 22, 06:00 PM GMT+3"); calendar
+ * zone, so it names the zone ("Sep 22, 06:00 PM UTC+3"); calendar
  * buckets are UTC days and keep the plain label.
  */
 function formatTooltipHeading(bucket: string, granularity: MetricsGranularity): string {
@@ -634,10 +634,7 @@ function formatTooltipHeading(bucket: string, granularity: MetricsGranularity): 
   if (!isSubDayGranularity(granularity)) return text
   const date = new Date(bucket)
   if (Number.isNaN(date.getTime())) return text
-  const zone = new Intl.DateTimeFormat(APP_LOCALE, { timeZoneName: 'short' })
-    .formatToParts(date)
-    .find(part => part.type === 'timeZoneName')?.value
-  return zone ? `${text} ${zone}` : text
+  return `${text} ${formatUtcOffset(date)}`
 }
 
 /** "27–37" with the unit once, at the end: "3–7%", not "3%–7%". */
@@ -995,7 +992,7 @@ export function MetricsChart({
   )
   const { ref: containerRef, ready: containerReady } = useChartContainerReady()
   const yAxisWidth = useMemo(
-    () => axisWidthForValues(collectChartYValues(chartData), valueFormatter ?? formatCount),
+    () => axisWidthForValues(collectChartYValues(chartData), valueFormatter ?? formatCompactNumber),
     [chartData, valueFormatter],
   )
   const xAxisTicks = useTimeAxisTicks(chartData, granularity)
@@ -1074,7 +1071,7 @@ export function MetricsChart({
               <Fragment key={window.id}>
                 {index > 0 && '; '}
                 <span data-testid="planned-window">
-                  Planned: {window.label}, {formatTooltipLabel(window.x1, granularity)} to{' '}
+                  Expected window: {window.label}, {formatTooltipLabel(window.x1, granularity)} to{' '}
                   {formatTooltipLabel(window.x2, granularity)}
                 </span>
               </Fragment>
@@ -1123,7 +1120,7 @@ export function MetricsChart({
             tickMargin={8}
           />
           <YAxis
-            tickFormatter={valueFormatter ?? formatCount}
+            tickFormatter={valueFormatter ?? formatCompactNumber}
             className="text-body-sm fill-fg-tertiary"
             tickLine={false}
             axisLine={false}
@@ -1140,8 +1137,11 @@ export function MetricsChart({
               />
             }
           />
-          {/* Planned events (F18): a soft wash over each expected window,
-              behind everything else, labelled at its top. */}
+          {/* Expected windows (F18): a soft wash over each window, behind
+              everything else, labelled near its top. The label sits one line
+              below the top edge, where release, API and manual markers put
+              theirs: on a phone a marker just left of a window drew its label
+              over the window's, and both read as garbage. */}
           {plannedWindows.map(window => (
             <ReferenceArea
               key={window.id}
@@ -1156,6 +1156,8 @@ export function MetricsChart({
               label={{
                 value: truncateAnnotationLabel(window.label),
                 position: 'insideTop',
+                // recharts' default is 5, the marker labels' row.
+                offset: 18,
                 fill: 'var(--fg-tertiary)',
                 fontSize: 'var(--text-micro)',
               }}
@@ -1469,7 +1471,7 @@ export function MetricsMultiSeriesChart({
   }, [chartSeries, from, to, granularity])
   const { ref: containerRef, ready: containerReady } = useChartContainerReady()
   const yAxisWidth = useMemo(
-    () => axisWidthForValues(collectMultiSeriesYValues(chartData), valueFormatter ?? formatCount),
+    () => axisWidthForValues(collectMultiSeriesYValues(chartData), valueFormatter ?? formatCompactNumber),
     [chartData, valueFormatter],
   )
   const xAxisTicks = useTimeAxisTicks(chartData, granularity)
@@ -1520,7 +1522,7 @@ export function MetricsMultiSeriesChart({
             tickMargin={8}
           />
           <YAxis
-            tickFormatter={valueFormatter ?? formatCount}
+            tickFormatter={valueFormatter ?? formatCompactNumber}
             className="text-body-sm fill-fg-tertiary"
             tickLine={false}
             axisLine={false}
@@ -1684,7 +1686,7 @@ export function AnomalyMark({
   cy?: number
   direction?: 'spike' | 'drop' | null
   mini: boolean
-  /** Expected by a planned event (F18): drawn in a muted ink, not a signal colour. */
+  /** Inside an expected window (F18): drawn in a muted ink, not a signal colour. */
   planned?: boolean
 }) {
   if (cx === undefined || cy === undefined) return <></>
@@ -1720,13 +1722,13 @@ export function AnomalyMark({
   )
 }
 
-/** The ink of an anomaly a planned event expected (F18): present, not alarming. */
+/** The ink of an anomaly an expected window covers (F18): present, not alarming. */
 const PLANNED_MARK_COLOR = 'var(--fg-subtle)'
 
 /**
- * Name the planned event on each flagged bucket it expected, for the tooltip.
- * An event the chart was not handed (outside the listed range) still says the
- * bucket was planned, without its name.
+ * Name the expected window on each flagged bucket it covers, for the tooltip.
+ * A window the chart was not handed (outside the listed range) still says the
+ * bucket was expected, without its name.
  */
 function withPlannedNotes(rows: ChartDataPoint[], events: PlannedEvent[] | undefined): ChartDataPoint[] {
   if (!rows.some(row => row.planned_event_id)) return rows
@@ -1735,8 +1737,8 @@ function withPlannedNotes(rows: ChartDataPoint[], events: PlannedEvent[] | undef
     if (!row.planned_event_id) return row
     const event = byId.get(row.planned_event_id)
     const note = event
-      ? `Planned: ${event.label} · ${plannedEventExpectation(event.direction)}`
-      : 'Expected by a planned event'
+      ? `Expected window: ${event.label} · ${plannedEventExpectation(event.direction)}`
+      : 'Inside an expected window'
     return { ...row, planned_note: note }
   })
 }

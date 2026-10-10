@@ -28,14 +28,6 @@ from tripl.models.schema_drift import SCHEMA_DRIFT_STATUS_ACCEPTED, SCHEMA_DRIFT
 from tripl.models.variable import Variable
 from tripl.models.variable_event_value_override import VariableEventValueOverride
 from tripl.models.variable_value_drift import VariableValueDrift
-from tripl.services._alerting_scope_readiness import (
-    _ACTIVE_DRIFT_STATUSES,
-    _DRIFT_RETENTION_DAYS,
-)
-from tripl.services.variable_value_drift_service import (
-    ACTIVE_DRIFT_STATUSES,
-    DRIFT_RETENTION_DAYS,
-)
 from tripl.tests.conftest import TestSessionLocal
 
 
@@ -424,20 +416,6 @@ async def test_scope_readiness_ignores_a_value_drift_on_an_excluded_variable(
 
     # Assert
     assert (await _readiness(client, "readiness-excluded-row"))["variable_value_drift"] is True
-
-
-def test_the_readiness_probe_and_the_drift_service_agree_on_active_and_stale() -> None:
-    """The probe restates the window and the status set; nothing checks that but this.
-
-    ``variable_value_drift_service`` cannot be imported from
-    ``_alerting_scope_readiness`` — it reaches ``alerting_service`` through
-    search_service → project_service, and ``alerting_service`` imports
-    ``_alerting_monitors``, which imports the readiness module — so the values
-    are duplicated deliberately. Let them drift and the notice starts lying
-    again, silently, in the direction this fix came from.
-    """
-    assert _DRIFT_RETENTION_DAYS == DRIFT_RETENTION_DAYS
-    assert set(_ACTIVE_DRIFT_STATUSES) == ACTIVE_DRIFT_STATUSES
 
 
 @pytest.mark.asyncio

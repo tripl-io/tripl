@@ -257,7 +257,7 @@ describe('SettingsLayout nav accessibility', () => {
 
 describe('SettingsLayout on a public demo', () => {
   // The organization's own settings a public demo answers with 403.
-  const REFUSED = ['Email', 'AI', 'Search', 'Photos', 'Trackers', 'Limits']
+  const REFUSED = ['Email', 'AI', 'Semantic search', 'Photos', 'Trackers', 'Limits']
 
   it('leaves the sections the demo refuses out of the rail and the palette', async () => {
     render(
@@ -666,11 +666,16 @@ describe('SettingsLayout landmarks and headings', () => {
 
 describe('SettingsLayout content width', () => {
   it('gives a table section the wide column and keeps forms narrow', () => {
-    const { container, unmount } = renderSettings('members')
+    const { container, unmount } = renderSettings('api-keys')
     expect(container.querySelector('[data-width]')).toHaveAttribute('data-width', 'wide')
     unmount()
 
     const narrow = renderSettings('profile')
     expect(narrow.container.querySelector('[data-width]')).toHaveAttribute('data-width', 'narrow')
+  })
+
+  it('keeps the members roster in the form column: it lists rows, not a table', () => {
+    const { container } = renderSettings('members')
+    expect(container.querySelector('[data-width]')).toHaveAttribute('data-width', 'narrow')
   })
 })

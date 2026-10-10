@@ -61,7 +61,10 @@ logger = logging.getLogger(__name__)
 #   ``system``, ``security``, ``storage`` and ``observability`` are ``None``
 #   and the embedding endpoint is blank unless it is the organization's own.
 #
-# The per-scope surfaces are ``/orgs/{org}/settings`` and ``/platform/settings``.
+# The per-scope surfaces are ``/orgs/{org}/settings`` and ``/platform/settings``;
+# the web app uses those, so the combined view, the AI view and the two probes
+# here are marked deprecated in the contract. The prompt defaults and the two
+# limits are not: the web app still reads them from here.
 router = APIRouter(prefix="/settings", tags=["settings"])
 
 
@@ -153,7 +156,7 @@ async def _combined_payload(session: AsyncSession, org_id: uuid.UUID | None) -> 
     return await app_settings_service.resolved_settings_payload(session, resolved)
 
 
-@router.get("", response_model=CombinedSettingsResponse)
+@router.get("", response_model=CombinedSettingsResponse, deprecated=True)
 async def get_service_settings(
     request: Request,
     session: SessionDep,
@@ -163,7 +166,7 @@ async def get_service_settings(
     return _for_caller(await _combined_payload(session, org_id), current_user)
 
 
-@router.patch("", response_model=CombinedSettingsResponse)
+@router.patch("", response_model=CombinedSettingsResponse, deprecated=True)
 async def patch_service_settings(
     request: Request,
     session: SessionDep,
@@ -236,7 +239,7 @@ async def patch_service_settings(
     return _for_caller(await _combined_payload(session, org_id), current_user)
 
 
-@router.put("", response_model=CombinedSettingsResponse)
+@router.put("", response_model=CombinedSettingsResponse, deprecated=True)
 async def put_service_settings(
     request: Request,
     session: SessionDep,
@@ -300,7 +303,7 @@ async def get_ai_prompt_defaults(_current_user: SettingsAdminUserDep) -> AiPromp
     return AiPromptDefaultsResponse(**app_settings_service.ai_prompt_defaults())
 
 
-@router.get("/ai", response_model=AiSettingsResponse)
+@router.get("/ai", response_model=AiSettingsResponse, deprecated=True)
 async def get_ai_settings(
     request: Request,
     session: SessionDep,
@@ -310,7 +313,7 @@ async def get_ai_settings(
     return _ai_response(await _combined_payload(session, org_id))
 
 
-@router.post("/ai/test", response_model=SettingsTestResponse)
+@router.post("/ai/test", response_model=SettingsTestResponse, deprecated=True)
 async def test_ai_settings(
     request: Request,
     session: SessionDep,
@@ -322,7 +325,7 @@ async def test_ai_settings(
     return await _settings_probe.probe_ai(config, payload.prompt)
 
 
-@router.post("/email/test", response_model=SettingsTestResponse)
+@router.post("/email/test", response_model=SettingsTestResponse, deprecated=True)
 async def test_email_settings(
     request: Request,
     session: SessionDep,

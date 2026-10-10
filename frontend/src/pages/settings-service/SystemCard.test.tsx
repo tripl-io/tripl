@@ -9,6 +9,8 @@ const APPLIED = 'abc123def456'
 const NEWER = 'fed654cba321'
 
 const HEALTHY: SystemSettings = {
+  version: '9.8.7',
+  edition: 'community',
   debug: false,
   database_url_configured: true,
   sync_database_url_configured: true,
@@ -96,6 +98,44 @@ describe('Instance System card', () => {
     // Whatever the tile says past its label and its one-word value.
     const explanation = (row.textContent ?? '').replace(label, '').replace(value, '').trim()
     expect(explanation).not.toBe('')
+  })
+
+  /**
+   * The page promised "build information" and showed none: every bug report
+   * after launch needs the version, and the API already knew it.
+   */
+  it('leads with the version and edition this instance runs', () => {
+    renderCard({ edition: 'enterprise' })
+
+    const row = tile('Version')
+    expect(within(row).getByText('9.8.7 · Enterprise')).toBeInTheDocument()
+    expect(row).toHaveTextContent(/bug reports/i)
+  })
+
+  /**
+   * The card says "set the variable", so a tile that needs action has to say
+   * which one: Debug and Encryption key never named DEBUG or ENCRYPTION_KEY.
+   */
+  it('names the variable to set on every tile that needs action', () => {
+    renderCard({ debug: true, encryption_key_configured: false, database_url_configured: false })
+
+    expect(tile('Debug mode')).toHaveTextContent(/Set DEBUG=false and restart/)
+    expect(tile('Encryption key')).toHaveTextContent(/Set ENCRYPTION_KEY and restart/)
+    expect(tile('Database URL')).toHaveTextContent(/Set DATABASE_URL and restart/)
+  })
+
+  it.each([
+    ['Debug mode', 'DEBUG'],
+    ['Database URL', 'DATABASE_URL'],
+    ['Sync database URL', 'SYNC_DATABASE_URL'],
+    ['RabbitMQ URL', 'RABBITMQ_URL'],
+    ['Redis URL', 'REDIS_URL'],
+    ['Encryption key', 'ENCRYPTION_KEY'],
+    ['OpenAI fallback key', 'OPENAI_API_KEY'],
+  ])('names the variable behind %s on a healthy instance too', (label, env) => {
+    renderCard()
+
+    expect(within(tile(label)).getByText(env)).toBeInTheDocument()
   })
 
   it('says these values are read from the environment, not editable here', () => {

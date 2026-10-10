@@ -164,12 +164,12 @@ describe('MetaFieldsTab — read-only visitors', () => {
 describe('MetaFieldsTab — load and delete states', () => {
   const FIELD = metaField({ id: 'mf-1', name: 'jira_link', display_name: 'Jira link' })
 
-  it('shows a skeleton, not "No meta fields", while the list loads', async () => {
+  it('shows a skeleton, not "No meta fields yet", while the list loads', async () => {
     vi.mocked(metaFieldsApi.list).mockReturnValue(new Promise(() => {}))
     renderTab(null)
 
     expect(await screen.findByLabelText('Loading meta fields')).toBeInTheDocument()
-    expect(screen.queryByText('No meta fields')).not.toBeInTheDocument()
+    expect(screen.queryByText('No meta fields yet')).not.toBeInTheDocument()
   })
 
   it('shows a failed load as an error with a retry, not as an empty list', async () => {
@@ -178,7 +178,7 @@ describe('MetaFieldsTab — load and delete states', () => {
 
     expect(await screen.findByText("Couldn't load meta fields")).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Retry' })).toBeInTheDocument()
-    expect(screen.queryByText('No meta fields')).not.toBeInTheDocument()
+    expect(screen.queryByText('No meta fields yet')).not.toBeInTheDocument()
   })
 
   it('says a failed delete failed', async () => {
@@ -300,5 +300,58 @@ describe('MetaFieldsTab — link template (#244)', () => {
         null,
       ),
     )
+  })
+})
+
+describe('MetaFieldsTab — phone width', () => {
+  it('lets a long link template wrap, and edges the pinned actions over what they cover', async () => {
+    renderTab([metaField({ id: 'mf-1', name: 'jira', link_template: 'https://jira.example.com/browse/PROJ-1' })])
+
+    const link = await screen.findByText('Link: https://jira.example.com/browse/PROJ-1')
+    expect(link).toHaveClass('wrap-anywhere')
+    const actions = link.closest('tr')?.lastElementChild
+    expect(actions).toHaveClass('sticky', 'right-0')
+    expect(actions?.className).toMatch(/shadow-\[/)
+  })
+})
+
+describe('MetaFieldsTab — unsaved dialogs (prelaunch)', () => {
+  const FIELD = metaField({ id: 'mf-1', name: 'jira_link', display_name: 'Jira link' })
+
+  it('asks before Escape drops a typed new meta field, and opens the next one empty', async () => {
+    renderTab([], { auth: authAs('member') })
+    // Worded like its siblings: "No event types yet", "No relations yet".
+    expect(await screen.findByText('No meta fields yet')).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: /New meta field/i }))
+    fireEvent.change(screen.getByLabelText('Name'), { target: { value: 'owner_team' } })
+    fireEvent.keyDown(screen.getByRole('dialog', { name: 'New meta field' }), { key: 'Escape' })
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Keep editing' }))
+    await waitFor(() => expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument())
+    expect(screen.getByLabelText('Name')).toHaveValue('owner_team')
+
+    fireEvent.click(screen.getByRole('button', { name: 'Cancel' }))
+    fireEvent.click(await screen.findByRole('button', { name: 'Discard changes' }))
+    await waitFor(() => expect(screen.queryByRole('dialog', { name: 'New meta field' })).not.toBeInTheDocument())
+
+    // Discarded means discarded: the next New meta field starts empty.
+    fireEvent.click(screen.getAllByRole('button', { name: /New meta field/i })[0]!)
+    expect(screen.getByLabelText('Name')).toHaveValue('')
+  })
+
+  it('asks before Escape drops an edited meta field, and not when nothing changed', async () => {
+    renderTab([FIELD], { auth: authAs('member') })
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Edit Jira link' }))
+    fireEvent.keyDown(screen.getByRole('dialog'), { key: 'Escape' })
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
+    expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Edit Jira link' }))
+    fireEvent.change(screen.getByLabelText('Display name'), { target: { value: 'Ticket' } })
+    fireEvent.keyDown(screen.getByRole('dialog'), { key: 'Escape' })
+    expect(await screen.findByRole('alertdialog')).toHaveTextContent('Leave without saving?')
+    expect(metaFieldsApi.update).not.toHaveBeenCalled()
   })
 })

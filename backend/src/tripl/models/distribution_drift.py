@@ -63,3 +63,15 @@ class DistributionDrift(UUIDMixin, Base):
         DateTime(timezone=True),
         server_default=func.now(),
     )
+
+
+def mover_float(value: object) -> float:
+    """One numeric cell of a ``top_movers`` entry as a float; ``0.0`` when absent.
+
+    The column is free-form JSON: a number or numeric text is read as written,
+    and a missing cell (or a list, a dict, a null) reads as zero rather than
+    failing the Distribution tab or the alert.
+    """
+    if isinstance(value, (int, float, str)):
+        return float(value)
+    return 0.0

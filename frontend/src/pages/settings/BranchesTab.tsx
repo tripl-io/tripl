@@ -4,7 +4,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { MoreHorizontal, Plus, Settings2, Ticket } from 'lucide-react'
 import { toast } from 'sonner'
 
-import { planBranchesApi, type PlanBranchListResponse } from '@/api/planBranches'
+import { planBranchesApi } from '@/api/planBranches'
 import { ReadOnlyNotice, SectionSkeleton } from '@/components/states'
 import { PageContainer } from '@/components/primitives/page-container'
 import { PageHeader } from '@/components/primitives/page-header'
@@ -22,7 +22,7 @@ import { SILENT_ERROR_META } from '@/lib/errorFeedback'
 import { useCanWriteProject } from '@/lib/permissions'
 import { planBranchCountsKey, planBranchDiffKey, planBranchesKey } from '@/lib/queryKeys'
 import { getErrorMessage } from '@/lib/utils'
-import type { PlanBranchSummary } from '@/types'
+import type { PlanBranchList, PlanBranchSummary } from '@/types'
 import { DIFF_STALE_MS, rowBadgeCounts } from './branchDiffFanout'
 import { TrackerConfigDialog } from './TrackerConfigDialog'
 import { BranchList } from './branches/BranchList'
@@ -110,7 +110,7 @@ export function BranchesTab({ slug, branchId }: { slug: string; branchId?: strin
     onSuccess: (branch) => {
       // In the list before the route points at it, or the pane would call a
       // branch that was just created "not found" until the refetch lands.
-      qc.setQueryData<PlanBranchListResponse>(planBranchesKey(slug), (old) =>
+      qc.setQueryData<PlanBranchList>(planBranchesKey(slug), (old) =>
         old ? { items: [...old.items, branch], total: old.total + 1 } : old,
       )
       void qc.invalidateQueries({ queryKey: planBranchesKey(slug) })

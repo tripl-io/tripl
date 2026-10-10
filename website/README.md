@@ -25,11 +25,13 @@ from each folder's `_category_.json`):
 - `how-to/` — task-sized guides with screenshots, one job per page
 - `use/` — using tripl (concepts, user guide, variables, monitoring, alerting,
   troubleshooting)
-- `use-cases/` — task-specific guides for search and agent-driven workflows
 - `administer/` — instance administration & settings
 - `run/` — self-hosting, deployment, operations, release process
-- `develop/` — architecture & contributing
-- `integrate/` — API & integration guide and the generated OpenAPI reference
+- `enterprise/` — features of the Enterprise edition (`editions.md` says what
+  each edition has)
+- `develop/` — architecture, extension points and the warehouse capability matrix
+- `integrate/` — API & integration guide, agent API guide, searching from the
+  API, MCP server, codegen, tripl-check, and the generated OpenAPI reference
 
 ## Screenshots
 
@@ -49,8 +51,13 @@ hand: retake them with the script when the UI they show changes. See
 
 The `/integrate/api` page is a [Redoc](https://github.com/Redocly/redoc) render of
 `openapi/tripl.openapi.json` (via [redocusaurus](https://github.com/rohit-gohri/redocusaurus)).
-Regenerate that spec from the FastAPI app after API changes:
+That file is generated, never edited by hand. Regenerate it from the repo root
+after API changes:
 
 ```bash
-./bin/dump-openapi.sh   # writes website/openapi/tripl.openapi.json
+make sync-types   # writes it together with backend/openapi.json and the frontend's api.gen.ts
 ```
+
+It keeps the app's own order (Redoc lists operations in document order), while
+`backend/openapi.json` has sorted keys. CI fails when the two say different
+things (`bin/check-openapi-docs.py`).

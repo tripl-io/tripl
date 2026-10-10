@@ -24,6 +24,7 @@ from sqlalchemy.orm import Session
 
 from tripl.core.adapters.base import ColumnInfo
 from tripl.core.analyzers.cardinality import _is_json_type
+from tripl.core.json_string_columns import JSON_STRING_ENGINE_NAMES
 from tripl.core.scan_setup_preset import PRESET_EVENT_TYPE_NAME, is_event_properties_preset
 from tripl.core.warehouse_types import is_string_type
 from tripl.models.event_type import EventType
@@ -58,8 +59,7 @@ def preset_column_problem(config: ScanConfig, columns: list[ColumnInfo]) -> str 
     # config did not ask to parse, and the message says how to ask.
     if not _is_json_type(column.type_name):
         hint = (
-            " or tick 'Parse as JSON' for it (ClickHouse, BigQuery, Databricks, Snowflake, "
-            "Trino and Athena)"
+            f" or tick 'Parse as JSON' for it ({JSON_STRING_ENGINE_NAMES})"
             if is_string_type(column.type_name)
             else ""
         )

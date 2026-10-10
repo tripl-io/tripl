@@ -28,12 +28,13 @@ from __future__ import annotations
 import uuid
 from collections.abc import Iterable
 from dataclasses import dataclass
-from datetime import UTC, datetime
+from datetime import datetime
 from typing import Protocol
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from tripl.core.bucketing import to_utc
 from tripl.models.domain_enums import (
     AlertInboxStatus,
     SignalExpectedReason,
@@ -135,10 +136,6 @@ def status_agrees(status: str, verdict: SignalVerdict | str) -> bool:
     return SignalVerdict(str(verdict)) in STATUS_AGREES_WITH.get(str(status), frozenset())
 
 
-def _utc(value: datetime) -> datetime:
-    return value.replace(tzinfo=UTC) if value.tzinfo is None else value.astimezone(UTC)
-
-
 def record_prevails(record: VerdictRecord | None, ref: IncidentLike | None) -> bool:
     """Whether the signal's own row wins over its incident's status.
 
@@ -152,7 +149,7 @@ def record_prevails(record: VerdictRecord | None, ref: IncidentLike | None) -> b
         return False
     if record.set_at is None or ref.routed_at is None:
         return False
-    return _utc(record.set_at) <= _utc(ref.routed_at)
+    return to_utc(record.set_at) <= to_utc(ref.routed_at)
 
 
 def incident_brief(ref: IncidentLike | None) -> SignalIncidentBrief | None:

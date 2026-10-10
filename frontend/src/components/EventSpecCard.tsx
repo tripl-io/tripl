@@ -12,6 +12,7 @@ import { buildExamplePayload, buildSpecMarkdown, specIdentity, type SpecRow } fr
 import { nameFormatBaseColumns } from '@/pages/events/utils'
 import type { Event, EventType, MetaFieldDefinition } from '@/types'
 import { currentOrgSlug, projectPath } from '@/lib/navigation'
+import { countOf } from '@/lib/plural'
 
 const CARD = 'overflow-hidden rounded-card border'
 const CARD_STYLE = { background: 'var(--surface)', borderColor: 'var(--border)' } as const
@@ -268,7 +269,7 @@ export function EventSpecCard({
             <ChevronDown className={`transition-transform ${showUnset ? 'rotate-180' : ''}`} aria-hidden="true" />
             {showUnset
               ? 'Hide optional fields that are not set'
-              : `+${unsetRows.length} optional field${unsetRows.length === 1 ? '' : 's'} not set`}
+              : `+${countOf(unsetRows.length, 'optional field', 'optional fields')} not set`}
           </Button>
         </div>
       )}

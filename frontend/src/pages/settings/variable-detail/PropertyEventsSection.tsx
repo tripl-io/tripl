@@ -1,9 +1,8 @@
 import { useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { ListFilter } from 'lucide-react'
 import { toast } from 'sonner'
-import { eventsApi } from '@/api/events'
 import {
   PROPERTY_BULK_EVENT_LIMIT,
   propertyEntriesApi,
@@ -14,6 +13,7 @@ import { ChipListInput } from '@/components/chip-list-input'
 import { EmptyState } from '@/components/empty-state'
 import { ErrorState } from '@/components/error-state'
 import { CodeToken } from '@/components/primitives/code-token'
+import { PropertyPresenceCell } from '@/components/property-presence-cell'
 import { Panel } from '@/components/settings/kit'
 import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
@@ -22,38 +22,18 @@ import { Switch } from '@/components/ui/switch'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { useBranchLinkProps } from '@/hooks/useBranch'
 import { useConfirm } from '@/hooks/useConfirm'
-import { useDebouncedValue } from '@/hooks/useDebouncedValue'
+import { useEventRoster } from '@/hooks/useEventRoster'
 import { SILENT_ERROR_META } from '@/lib/errorFeedback'
 import { eventNameLabel } from '@/lib/eventName'
 import { currentOrgSlug, projectPath } from '@/lib/navigation'
 import { countOf } from '@/lib/plural'
-import { formatPresence, formatThreshold, invalidatePropertyEntries } from '@/lib/propertyEntries'
-import { eventsPickerKey, propertyEventsKey } from '@/lib/queryKeys'
+import { formatThreshold, invalidatePropertyEntries } from '@/lib/propertyEntries'
+import { propertyEventsKey } from '@/lib/queryKeys'
 import { getErrorMessage } from '@/lib/utils'
 import type { Variable } from '@/types'
 import { TYPE_LABELS } from '../variablesShared'
 import { invalidValuesFor, valueRuleFor } from '../variableValueValidation'
 import { eventsWithPropertyPath } from './variableDetailPath'
-
-const ADD_PICKER_PAGE_SIZE = 50
-
-function PresenceCell({ entry }: { entry: PropertyEventEntry }) {
-  const hint =
-    entry.suggested_required === null
-      ? 'No scan has measured this yet.'
-      : `${entry.suggested_required ? 'At or above' : 'Below'} the event's required threshold of ${formatThreshold(entry.required_presence_threshold)}.`
-  return (
-    <span className="tabular-nums" title={hint}>
-      {formatPresence(entry.presence_rate)}
-      {entry.suggested_required === true && !entry.required ? (
-        <span className="ml-1.5 text-caption text-fg-tertiary">· looks required</span>
-      ) : null}
-      {entry.required && entry.suggested_required === false ? (
-        <span className="ml-1.5 text-caption text-warning">· below {formatThreshold(entry.required_presence_threshold)}</span>
-      ) : null}
-    </span>
-  )
-}
 
 /**
  * The events a property is on (F23): the catalog's answer to "where is this
@@ -317,7 +297,14 @@ export function PropertyEventsSection({
                         </span>
                       )}
                     </TableCell>
-                    <TableCell className="text-right"><PresenceCell entry={entry} /></TableCell>
+                    <TableCell className="text-right">
+                      <PropertyPresenceCell
+                        presenceRate={entry.presence_rate}
+                        required={entry.required}
+                        suggestedRequired={entry.suggested_required}
+                        threshold={entry.required_presence_threshold}
+                      />
+                    </TableCell>
                     <TableCell className="text-right tabular-nums text-fg-muted">
                       {formatThreshold(entry.required_presence_threshold)}
                     </TableCell>
@@ -365,16 +352,9 @@ function AddToEventsPanel({
   const [picked, setPicked] = useState<Set<string>>(() => new Set())
   const [required, setRequired] = useState(false)
   const [active, setActive] = useState(false)
-  const debounced = useDebouncedValue(search)
-  const { data } = useQuery({
-    queryKey: eventsPickerKey(slug, branchId, 'property-picker', debounced),
-    queryFn: () => eventsApi.list(slug, { search: debounced || undefined, limit: ADD_PICKER_PAGE_SIZE, offset: 0 }, branchId),
-    enabled: active,
-    placeholderData: keepPreviousData,
-  })
+  const { events, hiddenCount: hidden } = useEventRoster({ slug, branchId, search, enabled: active })
   const onList = useMemo(() => new Set(listed.map(entry => entry.event_id)), [listed])
-  const candidates = (data?.items ?? []).filter(event => !onList.has(event.id))
-  const hidden = Math.max(0, (data?.total ?? 0) - (data?.items.length ?? 0))
+  const candidates = events.filter(event => !onList.has(event.id))
   const pickedIds = [...picked].slice(0, PROPERTY_BULK_EVENT_LIMIT)
 
   return (

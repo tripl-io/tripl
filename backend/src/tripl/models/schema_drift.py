@@ -21,7 +21,6 @@ from tripl.models.enum_types import db_enum
 SCHEMA_DRIFT_STATUS_OPEN = SchemaDriftStatus.open.value
 SCHEMA_DRIFT_STATUS_ACCEPTED = SchemaDriftStatus.accepted.value
 SCHEMA_DRIFT_STATUS_SNOOZED = SchemaDriftStatus.snoozed.value
-SCHEMA_DRIFT_STATUS_FALSE_POSITIVE = SchemaDriftStatus.false_positive.value
 
 
 class SchemaDrift(UUIDMixin, Base):

@@ -2,10 +2,61 @@ import * as React from "react"
 import * as DialogPrimitive from "@radix-ui/react-dialog"
 import { X } from "lucide-react"
 import { keepOpenForDemoGuide } from "@/components/ui/demo-guide-layer"
+import { useUnsavedDialogGuard } from "@/hooks/useUnsavedChangesGuard"
+import { DialogGuardContext, type DialogGuard } from "@/components/ui/dialog-guard"
 import { cn } from "@/lib/utils"
 
-const Dialog = DialogPrimitive.Root
-const DialogTrigger = DialogPrimitive.Trigger
+/**
+ * The dialog root. A form dialog says it holds unsaved input with `dirty`
+ * (when the component rendering the dialog owns the form state) or with
+ * `useDialogDirty` from ./dialog-guard (when a body inside it does). While either is true,
+ * every close request — Escape, an outside click, the X and a
+ * <DialogClose> Cancel — asks "Leave without saving?" first, and a reload or
+ * tab close gets the browser's own prompt. One stray click outside used to
+ * throw a typed form away with no word.
+ *
+ * The guard needs a controlled `open`: the parent closes the dialog from
+ * `onOpenChange(false)`, which only arrives once the user has agreed. Closing
+ * it by setting `open` (after a save) never asks.
+ */
+function Dialog({
+  dirty = false,
+  onOpenChange,
+  children,
+  ...props
+}: React.ComponentProps<typeof DialogPrimitive.Root> & {
+  /** The form in this dialog holds input that has not been saved. */
+  dirty?: boolean
+}) {
+  const [dirtyParts, setDirtyParts] = React.useState<ReadonlySet<string>>(() => new Set())
+  const { dialog: confirmDialog, requestClose } = useUnsavedDialogGuard(dirty || dirtyParts.size > 0)
+  const report = React.useCallback((id: string, partDirty: boolean) => {
+    setDirtyParts(prev => {
+      if (prev.has(id) === partDirty) return prev
+      const next = new Set(prev)
+      if (partDirty) next.add(id)
+      else next.delete(id)
+      return next
+    })
+  }, [])
+  const guard = React.useMemo<DialogGuard>(() => ({ report, requestLeave: requestClose }), [report, requestClose])
+  const handleOpenChange = React.useCallback(
+    (next: boolean) => {
+      if (next) onOpenChange?.(true)
+      else requestClose(() => onOpenChange?.(false))
+    },
+    [onOpenChange, requestClose],
+  )
+  return (
+    <>
+      {confirmDialog}
+      <DialogPrimitive.Root onOpenChange={handleOpenChange} {...props}>
+        <DialogGuardContext.Provider value={guard}>{children}</DialogGuardContext.Provider>
+      </DialogPrimitive.Root>
+    </>
+  )
+}
+
 const DialogClose = DialogPrimitive.Close
 const DialogPortal = DialogPrimitive.Portal
 
@@ -143,8 +194,5 @@ export {
   DialogDescription,
   DialogFooter,
   DialogHeader,
-  DialogOverlay,
-  DialogPortal,
   DialogTitle,
-  DialogTrigger,
 }

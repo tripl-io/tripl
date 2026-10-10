@@ -2,6 +2,7 @@ import type {
   PlanBranchConflictEntity,
   PlanBranchConflictField,
   PlanBranchConflicts,
+  PlanDiffEntityType,
   ResolutionChoice,
 } from '@/types'
 
@@ -12,7 +13,7 @@ export const PRESENCE_FIELD = '@presence'
 /** One field's choice, keyed the way the backend stores it. `null` clears it
  * (a rollback). */
 export interface ConflictPick {
-  entity_type: string
+  entity_type: PlanDiffEntityType
   entity_name: string
   field: string
   choice: ResolutionChoice | null
@@ -129,7 +130,7 @@ export function withChoices(
     }
   })
   const unresolved_count = entities.reduce(
-    (count, entity) => count + entity.fields.filter((field) => field.choice === null).length,
+    (count, entity) => count + entity.fields.filter((field) => field.choice == null).length,
     0,
   )
   return { ...conflicts, entities, unresolved_count }
@@ -138,7 +139,7 @@ export function withChoices(
 /** `withChoices` for one field. */
 export function withChoice(
   conflicts: PlanBranchConflicts,
-  target: { entity_type: string; entity_name: string; field: string },
+  target: Omit<ConflictPick, 'choice'>,
   choice: ResolutionChoice | null,
 ): PlanBranchConflicts {
   return withChoices(conflicts, [{ ...target, choice }])

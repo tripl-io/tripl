@@ -70,7 +70,7 @@ def test_get_columns_selects_table_from_query() -> None:
     # returned by the call above, and is still refused for an `orders` query on the
     # same instance. This replaces an assertion on a `_allowed_columns` attribute
     # that `get_columns` wrote and nothing read — its comment claimed the allowlist
-    # fed "downstream measure validation", which `_validate_column` never consulted.
+    # fed "downstream measure validation", which `_validate_table_column` never consulted.
     with pytest.raises(ValueError, match="not found in orders query result"):
         adapter.get_preview_rows("SELECT * FROM orders", limit=1, time_column="session_id")
 

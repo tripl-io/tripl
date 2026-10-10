@@ -20,6 +20,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 
 from tripl.api.deps import SessionDep, get_owner_user
 from tripl.schemas.audit import AuditActionCatalog, AuditEntryDetailResponse, AuditListResponse
+from tripl.schemas.pagination import Offset
 from tripl.schemas.text_filters import FreeTextFilter
 from tripl.services import audit_actions, audit_service
 
@@ -40,7 +41,7 @@ async def list_project_audit(
     since: Annotated[datetime | None, Query()] = None,
     until: Annotated[datetime | None, Query()] = None,
     limit: Annotated[int, Query(ge=1, le=200)] = 50,
-    offset: Annotated[int, Query(ge=0)] = 0,
+    offset: Offset = 0,
 ) -> AuditListResponse:
     """The project's entries, newest first. A deleted project's rows stay
     reachable by its last slug while no live project answers to it."""

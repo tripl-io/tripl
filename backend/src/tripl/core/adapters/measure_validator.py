@@ -6,6 +6,7 @@ from collections.abc import Mapping
 from datetime import datetime
 from enum import StrEnum
 
+from tripl.core.adapters.sql_common import IDENTIFIER_RE
 from tripl.core.bucketing import format_utc_literal, to_utc
 from tripl.core.warehouse_types import TimeKind, classify_time
 from tripl.models.domain_enums import MetricAggregation
@@ -25,11 +26,10 @@ from tripl.models.domain_enums import MetricAggregation
 # rules on every warehouse. ``lint_dialect_sql`` below only ever *adds* a rejection
 # on top of that gate — it can never admit SQL the gate rejected.
 
-# Mirrors the adapters' ``_IDENTIFIER_RE``: a leading letter/underscore followed
-# by letters/digits/underscores and dots (for qualified names). This rejects
-# whitespace, quotes, semicolons, parentheses, comment markers, and operators,
-# so injection attempts never reach the SQL string.
-_IDENTIFIER_RE = re.compile(r"^[a-zA-Z_][a-zA-Z0-9_.]*$")
+# Identifiers are held to the adapters' own grammar (``sql_common.IDENTIFIER_RE``):
+# a leading letter/underscore followed by letters/digits/underscores and dots
+# (for qualified names). It rejects whitespace, quotes, semicolons, parentheses,
+# comment markers, and operators, so injection attempts never reach the SQL string.
 _NUMERIC_LITERAL_RE = re.compile(r"^[+-]?(?:\d+(?:\.\d*)?|\.\d+)(?:[eE][+-]?\d+)?$")
 
 # Aggregations that require a measure column. ``count`` is the only member that
@@ -658,7 +658,7 @@ def validate_identifier(name: str) -> str:
     regex shared with ``validate_measure_column``. Raises ``ValueError`` (English)
     on any violation.
     """
-    if not _IDENTIFIER_RE.match(name):
+    if not IDENTIFIER_RE.match(name):
         msg = f"Invalid identifier: {name!r}"
         raise ValueError(msg)
     return name
@@ -966,7 +966,7 @@ def validate_measure_column(column: str, allowed_columns: set[str]) -> str:
     validated raw column name (unescaped) so the caller can quote it with its
     own dialect helper.
     """
-    if not _IDENTIFIER_RE.match(column):
+    if not IDENTIFIER_RE.match(column):
         msg = f"Invalid measure column: {column!r}"
         raise ValueError(msg)
     if allowed_columns and column not in allowed_columns:

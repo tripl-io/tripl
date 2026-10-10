@@ -11,6 +11,7 @@ from sqlalchemy import create_engine, func, insert, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session, sessionmaker
 
+from tripl.core import plan_scope
 from tripl.core.adapters.base import ColumnInfo
 from tripl.core.analyzers._event_generator_variables import (
     SCAN_PROVENANCE_DESCRIPTION,
@@ -23,7 +24,6 @@ from tripl.core.analyzers._event_identity import (
 from tripl.core.analyzers.cardinality import BreakdownAnalysis, CardinalityResult
 from tripl.core.analyzers.event_generator import (
     _ensure_variable,
-    _resolve_main_branch_id,
     generate_events,
     merge_existing_events_for_group_rules,
 )
@@ -397,7 +397,7 @@ class TestEventGeneration:
         """
         project, et, fds = project_and_type
         identity = "screen=/home | action=click"
-        main_branch_id = _resolve_main_branch_id(sync_session, project.id)
+        main_branch_id = plan_scope.main_branch_id(sync_session, project.id)
         assert main_branch_id is not None
         competitor_id = uuid.uuid4()
         original_begin_nested = sync_session.begin_nested
@@ -478,7 +478,7 @@ class TestEventGeneration:
         error the caller sees must be the ``IntegrityError`` its own row earned.
         """
         project, et, _fds = project_and_type
-        main_branch_id = _resolve_main_branch_id(sync_session, project.id)
+        main_branch_id = plan_scope.main_branch_id(sync_session, project.id)
         assert main_branch_id is not None
         taken = "screen=/home | action=click"
         sync_session.add(
@@ -540,7 +540,7 @@ class TestEventGeneration:
         for the same reason.
         """
         project, et, fds = project_and_type
-        main_branch_id = _resolve_main_branch_id(sync_session, project.id)
+        main_branch_id = plan_scope.main_branch_id(sync_session, project.id)
         assert main_branch_id is not None
         source = Event(
             id=uuid.uuid4(),
@@ -1940,7 +1940,7 @@ class TestEventGeneration:
         # main branch must find exactly the main-branch row (regression test).
         project, _et, _fds = project_and_type
         # The fixture's ORM inserts already auto-created the project's main branch.
-        main_branch_id = _resolve_main_branch_id(sync_session, project.id)
+        main_branch_id = plan_scope.main_branch_id(sync_session, project.id)
         assert main_branch_id is not None
         working_branch = PlanBranch(
             id=uuid.uuid4(),
@@ -1965,7 +1965,7 @@ class TestEventGeneration:
             )
         sync_session.commit()
 
-        resolved = _resolve_main_branch_id(sync_session, project.id)
+        resolved = plan_scope.main_branch_id(sync_session, project.id)
         assert resolved == main_branch_id
 
         # Scoped lookup finds the existing main-branch variable without raising.
@@ -1989,7 +1989,7 @@ class TestEventGeneration:
     ):
         """Concurrent inserts should be treated as 'already exists' (no exception)."""
         project, _et, _fds = project_and_type
-        main_branch_id = _resolve_main_branch_id(sync_session, project.id)
+        main_branch_id = plan_scope.main_branch_id(sync_session, project.id)
         assert main_branch_id is not None
 
         original_flush = sync_session.flush

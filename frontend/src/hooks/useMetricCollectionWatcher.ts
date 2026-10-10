@@ -1,10 +1,8 @@
-import { useEffect, useRef, useState, useSyncExternalStore } from 'react'
-import { useQuery } from '@tanstack/react-query'
+import { useSyncExternalStore } from 'react'
 import { toast } from 'sonner'
 import { ApiError, AUTH_SIGNED_OUT_EVENT, AUTH_UNAUTHORIZED_EVENT } from '@/api/client'
 import { metricsCatalogApi } from '@/api/metricsCatalog'
 import type { MetricDefinitionDetailResponse } from '@/types'
-import { metricCollectWatchKey } from '@/lib/queryKeys'
 
 /** How often to re-check the watched metric's persisted collection status. */
 const DEFAULT_POLL_INTERVAL_MS = 3000
@@ -15,9 +13,8 @@ const DEFAULT_POLL_INTERVAL_MS = 3000
  */
 const WATCH_TIMEOUT_MS = 5 * 60_000
 /**
- * Consecutive failed polls (5xx, network) after which the watch gives up. A
- * failing poll used to error the query, which kept refetching on the interval
- * — a global error toast every 3 s and a collect spinner that never stopped.
+ * Consecutive failed polls (5xx, network) after which the watch gives up,
+ * rather than polling, and showing the collect spinner, forever.
  */
 const MAX_POLL_FAILURES = 3
 
@@ -27,8 +24,7 @@ const STATUS_ERROR = 'error'
 
 /**
  * Toast how a watch ended and return the terminal run status, or `null` when
- * the watch was abandoned before the run reported one. Shared by the
- * component-scoped hook and the detached watch so both say the same thing.
+ * the watch was abandoned before the run reported one.
  */
 function reportOutcome(
   displayName: string,
@@ -61,7 +57,7 @@ function reportOutcome(
   return 'success'
 }
 
-export interface MetricWatchRequest<TContext> {
+export interface MetricWatchRequest {
   /**
    * The project the collect was fired against. Captured with the watch rather
    * than read live from the route: otherwise navigating to another project
@@ -71,156 +67,17 @@ export interface MetricWatchRequest<TContext> {
   slug: string
   metricId: string
   displayName: string
-  /**
-   * Caller-supplied ids/state captured at collect-start (e.g. the route's
-   * scope/scopeId). Threaded back to `onSettled` on completion so the settle
-   * always acts on the metric it was actually collecting — never whatever the
-   * page has since navigated to mid-watch.
-   */
-  context?: TContext
-}
-
-interface WatchTarget<TContext> extends MetricWatchRequest<TContext> {
-  startedAt: number
 }
 
 /** How a watch ended without the run reaching a terminal status. */
 type WatchAbandoned = 'timeout' | 'missing' | 'unreachable'
 
-export interface MetricCollectionWatcherOptions {
-  /** Poll cadence override — tests only. */
-  pollIntervalMs?: number
-}
-
-export interface MetricCollectionWatcher<TContext = void> {
-  /**
-   * Start watching a metric whose manual collect was just accepted (202). The
-   * whole request — project slug included — is captured now and handed back
-   * verbatim to `onSettled`.
-   */
-  watch: (request: MetricWatchRequest<TContext>) => void
-  /** True while a watched collection is still running. */
-  isWatching: boolean
-  /**
-   * The metric currently being watched, or `null`. Callers key their own
-   * "collecting" UI to this so an in-flight watch on metric A does not render as
-   * "collecting" after the page navigates to metric B.
-   */
-  watchingMetricId: string | null
-}
-
-/**
- * Watches a manually-triggered metric collection until it reaches a terminal
- * state and reports the outcome as a toast.
- *
- * `POST /metrics/{id}/collect` stamps `last_collection_status="running"` before
- * it queues the Celery task, and the worker stamps `success` / `error` (plus
- * `last_collection_error`) when the run settles — the definition itself is the
- * queryable run status, so no extra job model is needed. This hook polls the
- * definition until the status leaves `running`, toasts "collected" or the
- * persisted failure reason, and calls `onSettled` so the caller can refresh its
- * series / list queries.
- */
-export function useMetricCollectionWatcher<TContext = void>(
-  onSettled?: (
-    metricId: string,
-    status: 'success' | 'error',
-    context: TContext | undefined,
-  ) => void,
-  options?: MetricCollectionWatcherOptions,
-): MetricCollectionWatcher<TContext> {
-  const [target, setTarget] = useState<WatchTarget<TContext> | null>(null)
-
-  // Latest-callback ref so callers can pass inline closures without the poll
-  // resubscribing on every render.
-  const onSettledRef = useRef(onSettled)
-  useEffect(() => {
-    onSettledRef.current = onSettled
-  }, [onSettled])
-
-  // Guards double-reporting if a poll resolves right as the watch is torn down.
-  const reportedRef = useRef<number | null>(null)
-
-  // Consecutive failed polls for the current watch (reset by a good poll).
-  const failuresRef = useRef(0)
-
-  const settle = (
-    watched: WatchTarget<TContext>,
-    outcome: MetricDefinitionDetailResponse | WatchAbandoned,
-  ): void => {
-    if (reportedRef.current === watched.startedAt) return
-    reportedRef.current = watched.startedAt
-    setTarget(null)
-    const status = reportOutcome(watched.displayName, outcome)
-    if (status) onSettledRef.current?.(watched.metricId, status, watched.context)
-  }
-
-  useQuery({
-    // `startedAt` keys each watch to a fresh cache entry so a previous run's
-    // terminal status never short-circuits a new watch with stale data. The slug
-    // comes from the target, not the route, so the poll follows the collect it
-    // started rather than the page the user has since walked to.
-    queryKey: metricCollectWatchKey(target?.slug, target?.metricId, target?.startedAt),
-    enabled: Boolean(target),
-    refetchInterval: options?.pollIntervalMs ?? DEFAULT_POLL_INTERVAL_MS,
-    // The one-off watch entry is useless once the run settles.
-    gcTime: 0,
-    retry: false,
-    // Terminal-state detection lives in the poll itself (an async callback, not
-    // an effect): each fetch inspects the persisted status and settles the watch
-    // as soon as it leaves "running".
-    //
-    // The poll never throws: every failure is counted and settled here, so no
-    // error reaches the query (and its global toast) on each interval.
-    queryFn: async () => {
-      if (!target) return null
-      // Checked before fetching, so the watch ends on time even while every
-      // poll is failing.
-      if (Date.now() - target.startedAt >= WATCH_TIMEOUT_MS) {
-        settle(target, 'timeout')
-        return null
-      }
-      let definition: MetricDefinitionDetailResponse
-      try {
-        definition = await metricsCatalogApi.get(target.slug, target.metricId)
-      } catch (error) {
-        if (error instanceof ApiError && error.status === 404) {
-          settle(target, 'missing')
-        } else {
-          failuresRef.current += 1
-          if (failuresRef.current >= MAX_POLL_FAILURES) settle(target, 'unreachable')
-        }
-        return null
-      }
-      failuresRef.current = 0
-      const status = definition.last_collection_status
-      if (status === STATUS_RUNNING || status === null) return definition
-      settle(target, definition)
-      return definition
-    },
-  })
-
-  return {
-    watch: (request) => {
-      failuresRef.current = 0
-      setTarget({ ...request, startedAt: Date.now() })
-    },
-    isWatching: target !== null,
-    watchingMetricId: target?.metricId ?? null,
-  }
-}
-
-// ---------------------------------------------------------------------------
-// Detached watches
-// ---------------------------------------------------------------------------
-
 /*
- * The hook above lives and dies with the component that called it. That is
- * right for a detail page whose spinner is the watch, and wrong for a list row:
- * the catalog unmounts a row on every search keystroke, filter change or page
- * leave, which silently dropped the "you will be notified" promise.
- * A detached watch is owned by this module instead, so it outlives any
- * component; components only read whether one is running.
+ * A watch is owned by this module, not by the component that started it, so
+ * it outlives any component: the catalog unmounts a row on every search
+ * keystroke, filter change or page leave, and a watch that died with the row
+ * silently dropped the "you will be notified" promise. Components only read
+ * whether one is running.
  */
 
 interface DetachedWatch {
@@ -257,13 +114,24 @@ export interface DetachedMetricWatchOptions {
 }
 
 /**
- * Start watching a metric whose manual collect was just accepted, independent
- * of any component. Same polling, timeout, failure budget and toasts as
- * {@link useMetricCollectionWatcher}. A second watch of the same metric in the
- * same project replaces the first.
+ * Start watching a metric whose manual collect was just accepted (202),
+ * independent of any component, until the run reaches a terminal state, and
+ * report the outcome as a toast.
+ *
+ * `POST /metrics/{id}/collect` stamps `last_collection_status="running"` before
+ * it queues the Celery task, and the worker stamps `success` / `error` (plus
+ * `last_collection_error`) when the run settles — the definition itself is the
+ * queryable run status, so no extra job model is needed. The watch polls the
+ * definition until the status leaves `running`, toasts "collected" or the
+ * persisted failure reason, and calls `onSettled`. It gives up with a toast on
+ * timeout, on a deleted metric and after repeated failed polls, and ends
+ * silently once the session ends or access is lost (a 401 or 403 poll, a
+ * sign-out).
+ *
+ * A second watch of the same metric in the same project replaces the first.
  */
 export function startMetricCollectionWatch(
-  request: MetricWatchRequest<void>,
+  request: MetricWatchRequest,
   options: DetachedMetricWatchOptions = {},
 ): void {
   const key = detachedWatchKey(request.slug, request.metricId)

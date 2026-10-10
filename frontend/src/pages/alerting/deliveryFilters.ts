@@ -1,4 +1,4 @@
-import { formatIsoDate } from '@/lib/datetime'
+import { dayBoundaryIso, formatIsoDate } from '@/lib/datetime'
 
 import { CHANNEL_META } from './channelMeta'
 
@@ -8,11 +8,11 @@ export interface DeliveryFilters {
   destination_id: string
   rule_id: string
   scan_config_id: string
-  // ISO instants, not the `YYYY-MM-DD` the <input type="date"> shows. The page
+  // ISO instants, not the `YYYY-MM-DD` the day picker shows. The page
   // forwards these straight to `date_from`/`date_to`, and a bare date pins
   // `date_to` to midnight — which drops the whole day the reader just asked
-  // for. `toDayBoundary` below converts; `formatIsoDate` converts back for the
-  // input. '' means unset.
+  // for. `dayBoundaryIso` converts; `formatIsoDate` converts back for the
+  // picker. '' means unset.
   date_from: string
   date_to: string
 }
@@ -62,21 +62,6 @@ export const DELIVERY_FILTER_PARAM_KEYS: readonly string[] = [
   DELIVERY_OFFSET_PARAM,
 ]
 
-/**
- * The `YYYY-MM-DD` from a native date input, as the instant that bounds the day.
- *
- * Mirrors `settings/AuditTab.tsx`'s `toIsoOrUndef`: the end of the range has to
- * be the END of its day or "To: Aug 12" excludes every delivery sent on Aug 12,
- * which is exactly the day a reader chasing a fresh alert asks for. Returns ''
- * (not undefined) because `DeliveryFilters` spells "unset" as an empty string.
- */
-export function toDayBoundary(localDate: string, endOfDay: boolean): string {
-  if (!localDate) return ''
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(localDate)) return ''
-  const at = new Date(`${localDate}T${endOfDay ? '23:59:59.999' : '00:00:00.000'}`)
-  return Number.isNaN(at.getTime()) ? '' : at.toISOString()
-}
-
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 
 /**
@@ -111,8 +96,8 @@ export function readDeliveryFilters(params: URLSearchParams, scanId: string | un
     destination_id: readId(params.get(PARAM_KEYS.destination_id)),
     rule_id: readId(params.get(PARAM_KEYS.rule_id)),
     scan_config_id: readId(scanId),
-    date_from: toDayBoundary(params.get(PARAM_KEYS.date_from) ?? '', false),
-    date_to: toDayBoundary(params.get(PARAM_KEYS.date_to) ?? '', true),
+    date_from: dayBoundaryIso(params.get(PARAM_KEYS.date_from) ?? '', 'start') ?? '',
+    date_to: dayBoundaryIso(params.get(PARAM_KEYS.date_to) ?? '', 'end') ?? '',
   }
 }
 

@@ -93,10 +93,11 @@ def disabled_email_config() -> EmailConfig:
 def email_can_send(email_config: EmailConfig) -> bool:
     """Whether this instance can actually deliver mail.
 
-    Both the host and a From: address, not just the host: the password-reset
-    sender returns without sending when there is no From: address, so a relay
-    with no sender would mint a token, drop the mail, and still have the UI
-    promise a link was on its way.
+    Both the host and a From: address, not just the host: account mail goes out
+    under the relay's own sender, and every account-mail caller checks this
+    before it issues a token or queues a message (``services/account_mail.py``).
+    A relay with no sender must not count, or a reset token would be minted for
+    a message that cannot be sent while the UI promises a link is on its way.
     """
     return bool(email_config.smtp_host and email_config.smtp_from_address)
 

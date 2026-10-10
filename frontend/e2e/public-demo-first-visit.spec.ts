@@ -48,7 +48,7 @@ test('a newcomer to the public demo gets their demo without looking for the butt
   // Signed in with Google, they land on their empty workspace — and the demo
   // the sign-in card promised is already being made.
   await page.goto('/')
-  await expect(page.getByRole('heading', { name: 'Generating demo workspace' })).toBeVisible()
+  await expect(page.getByRole('heading', { name: 'Generating demo project' })).toBeVisible()
   // The route handler counts in this process, a hop behind the page.
   await expect.poll(() => creates).toBe(1)
 
@@ -61,7 +61,7 @@ test('a newcomer to the public demo gets their demo without looking for the butt
   // A start would follow the list and the status within a tick; give it room
   // to show, so the absence below is not just a check made too early.
   await page.waitForTimeout(500)
-  await expect(page.getByRole('heading', { name: 'Generating demo workspace' })).toHaveCount(0)
+  await expect(page.getByRole('heading', { name: 'Generating demo project' })).toHaveCount(0)
   expect(creates).toBe(1)
   assertAllMocked()
 })

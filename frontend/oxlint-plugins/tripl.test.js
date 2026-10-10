@@ -88,3 +88,25 @@ tester.run('no-muted-foreground', plugin.rules['no-muted-foreground'], {
     { code: "const color = 'var(--muted-foreground)'", errors: [{ messageId: 'mutedForeground' }] },
   ],
 })
+
+tester.run('no-bare-locale', plugin.rules['no-bare-locale'], {
+  valid: [
+    'count.toLocaleString(APP_LOCALE)',
+    "date.toLocaleDateString(APP_LOCALE, { month: 'short' })",
+    "date.toLocaleTimeString('en-US', { hour: 'numeric' })",
+    'formatNumber(count)',
+    'value.toString()',
+    // Reading the browser's zone is not formatting in its locale.
+    'Intl.DateTimeFormat().resolvedOptions().timeZone',
+  ],
+  invalid: [
+    { code: 'total.toLocaleString()', errors: [{ messageId: 'bareLocale' }] },
+    { code: '`${(n - 1).toLocaleString()} more`', errors: [{ messageId: 'bareLocale' }] },
+    { code: 'row.count?.toLocaleString()', errors: [{ messageId: 'bareLocale' }] },
+    {
+      code: "day.toLocaleDateString(undefined, { weekday: 'long' })",
+      errors: [{ messageId: 'bareLocale' }],
+    },
+    { code: 'at.toLocaleTimeString()', errors: [{ messageId: 'bareLocale' }] },
+  ],
+})

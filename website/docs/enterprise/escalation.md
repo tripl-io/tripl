@@ -60,7 +60,9 @@ optional:
 - **Alert rules**: one or more alert rules (API);
 - **Kind of signal**: the scope that fired (`event`, `event_type`, `metric`,
   `schema`, …);
-- **Direction**: spikes or drops.
+- **Direction**: spikes or drops. A drift (schema drift, distribution drift,
+  property value drift or property drift) counts as a spike, as for the rule's Spikes toggle, so a
+  route for drops never matches a drift.
 
 A condition left empty matches anything, so a route with no conditions matches
 every incident. Routes are tried in ascending **order** (ties: the oldest
@@ -77,9 +79,16 @@ escalation policy:
   Inbox and is not already escalating gets an escalation, with the policy its
   routes pick. Its clock starts at its first delivery. Demo projects never
   escalate.
-- **Steps.** Each step is sent once, when its minute comes. A step that was
-  already more than 10 minutes overdue when the escalation started is not sent:
-  adding a policy does not page anyone about an incident that opened hours ago.
+- **Steps.** Each step is sent once, when its minute comes. A step more than
+  10 minutes overdue is never sent, neither when the escalation starts nor when
+  it resumes: adding a policy does not page anyone about an incident that
+  opened hours ago.
+- **Pause.** While the organization is suspended its escalations pause and none
+  starts, because its members cannot open the Inbox to acknowledge. After
+  unsuspend, or after a worker outage, a running escalation goes on at its
+  first step no more than 10 minutes overdue; steps that fell due meanwhile are
+  skipped, not sent at once. If every remaining step fell due, the escalation
+  ends (exhausted).
 - **Stop.** Before each step, the incident is read again. The escalation stops
   when the incident is **acknowledged**, **resolved** (or marked a false
   positive) or **muted** in the Inbox, when its signal **clears** (the scope
@@ -103,7 +112,7 @@ step's position ("step 2 of 3"), and a link to the incident when tripl knows its
 public address (`APP_BASE_URL`).
 
 - **Webhook**: a JSON body with `"event": "tripl.escalation"`, the project,
-  the incident (`correlation_group_id`, `scope_name`, `direction`,
+  the incident (`correlation_group_id`, `scope_type`, `scope_name`, `direction`,
   `started_at`, `link`), `escalation_id`, `subject` and `message`.
 - **PagerDuty**: a `trigger` event with the dedup key
   `tripl-escalation-<escalation_id>`, so every step and repeat of one

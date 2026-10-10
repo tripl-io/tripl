@@ -8,13 +8,13 @@ import { scansApi } from '@/api/scans'
 import { ActiveProjectContext } from '@/components/active-project-context'
 import { AuthContext } from '@/components/auth-context'
 import { MAIN_CONTENT_ID, SIDEBAR_ID } from '@/components/landmarks'
+import { QUICK_START_URL } from '@/lib/docsSite'
 import { authStatusKey } from '@/lib/queryKeys'
 import type { MetricDefinitionDetailResponse, Project, ScanJob } from '@/types'
 import { at } from '@/test/at'
 import { personaAuth, type Persona } from '@/test/persona'
 import { DemoGuideHost } from './DemoGuideHost'
 import { DemoScenarioProvider } from './DemoScenarioProvider'
-import { QUICK_START_URL } from './EndOfDemoLink'
 import { ScenarioCoachMark } from './ScenarioCoachMark'
 import {
   CHAPTER_IDS,
@@ -266,8 +266,8 @@ describe('DemoGuideHost — a step with no mark on screen', () => {
       within(note).getByText('Open its page first — the highlighted sidebar item, or Take me there.'),
     ).toBeInTheDocument()
     expect(ring()).not.toBeNull()
-    // Beside the item, towards the page.
-    expect(tag()).toHaveAttribute('data-coach-tag', 'right')
+    // Under the item, inside the sidebar: beside it, the tag sat on the page.
+    expect(tag()).toHaveAttribute('data-coach-tag', 'bottom')
     expect(tag()).toHaveTextContent('Click here')
   })
 

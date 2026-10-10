@@ -43,7 +43,7 @@ token is thrown away, not even common ones such as `screen`.
 
 ### The lexical score
 
-Two normalised names get a **lexical score** between 0 and 1. It starts as the
+Two normalized names get a **lexical score** between 0 and 1. It starts as the
 higher of two measures:
 
 - **token overlap** (Jaccard): shared tokens divided by all distinct tokens of
@@ -130,7 +130,7 @@ Each match carries its reasons, from this list:
 
 | Reason | When |
 | --- | --- |
-| `same name` | The two names normalise to the same tokens. |
+| `same name` | The two names normalize to the same tokens. |
 | `similar name` | Otherwise, when the lexical score alone reaches the threshold. |
 | `semantic match` | The embeddings' cosine similarity is 0.85 or higher. |
 | `same event type` / `different event type` | Always one of the two. |
@@ -225,6 +225,10 @@ clusters already in the catalog. It looks at events that are `live`,
 events of the same event type**, scored the same way as above. Pairs at or above
 the threshold are grouped into **clusters**: if A looks like B and B looks like
 C, all three are one cluster.
+
+A project with no events shows **No events to compare yet** with **Go to
+Events**. When nothing looks alike it shows **No likely duplicates**, with a
+**How duplicates are found** link to this section.
 
 Each cluster's heading reads *3 events · 93% alike*, where the percentage is the
 strongest pair inside it. Each event shows its status and 7-day volume

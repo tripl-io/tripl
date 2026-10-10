@@ -1,5 +1,6 @@
 import type { ServiceSettings } from '@/types'
 import { Field, SCard, NativeSelect, TextArea, TextInput, ToggleRow } from '@/components/settings/kit'
+import { InstanceSignInCard } from './InstanceSignInCard'
 import { InactiveGroup, NumberSettingInput, SourceBadge } from './ServiceSettingsPrimitives'
 import type { EditableSettings, SectionKey } from './serviceSettingsHelpers'
 import { sourceFor } from './serviceSettingsHelpers'
@@ -50,7 +51,7 @@ export function SecuritySection({
           stacked
           hint={
             registrationOpen
-              ? 'Open: anyone who can reach this instance can create an account. A new account joins as editor — it can read the whole tracking plan and the member roster, and edit any shared project. Data source connection details stay owner-only. Close this once your team has accounts.'
+              ? 'Open: anyone who can reach this instance can create an account. A new account joins as a member: it can read the member roster and create projects of its own, but sees no existing project until someone adds it, unless the organization’s default access to projects lets every member in. Data source connection details stay with organization owners and admins. Close this once your team has accounts.'
               : 'Disabled: POST /auth/register is refused with a 403 — except the very first account on an instance with no users, which always works and becomes owner. You can still add people while this is off: Settings → Organization → Invitations issues a single-use link for one address, at a role you pick.'
           }
           last
@@ -64,6 +65,8 @@ export function SecuritySection({
           />
         </Field>
       </SCard>
+
+      <InstanceSignInCard />
 
       <SCard title="Sessions">
         <Field
@@ -126,11 +129,12 @@ export function SecuritySection({
         <ToggleRow
           label="HSTS"
           labelRight={<SourceBadge source={sourceFor(settings, 'security', 'hsts_enabled')} />}
+          hint={form.security.hsts_enabled ? undefined : 'Off: the max age below is not sent.'}
           value={form.security.hsts_enabled}
           onChange={value => setField('security', 'hsts_enabled', value)}
         />
         {/* Editable, but visibly idle while its switch is off. */}
-        <InactiveGroup inactive={!form.security.hsts_enabled} reason="Not used while HSTS is off.">
+        <InactiveGroup inactive={!form.security.hsts_enabled}>
           <Field
             label="HSTS max age"
             labelRight={<SourceBadge source={sourceFor(settings, 'security', 'hsts_max_age_seconds')} />}
@@ -163,15 +167,13 @@ export function SecuritySection({
 
       <SCard title="Rate limiting">
         <ToggleRow
-          label="Rate limiting"
+          label="Rate limiting enabled"
           labelRight={<SourceBadge source={sourceFor(settings, 'security', 'rate_limit_enabled')} />}
+          hint={form.security.rate_limit_enabled ? undefined : 'Off: the limits below are not enforced.'}
           value={form.security.rate_limit_enabled}
           onChange={value => setField('security', 'rate_limit_enabled', value)}
         />
-        <InactiveGroup
-          inactive={!form.security.rate_limit_enabled}
-          reason="Not used while Rate limiting is off."
-        >
+        <InactiveGroup inactive={!form.security.rate_limit_enabled}>
         <Field
           label="Login limit"
           labelRight={

@@ -5,7 +5,7 @@ import { Panel } from '@/components/settings/kit'
 import { Button } from '@/components/ui/button'
 import { SILENT_ERROR_META } from '@/lib/errorFeedback'
 import { useCanWriteProject } from '@/lib/permissions'
-import { countOf } from '@/lib/plural'
+import { countOf, pluralize } from '@/lib/plural'
 import { getErrorMessage } from '@/lib/utils'
 import type {
   PlanBranchConflictEntity,
@@ -122,7 +122,7 @@ export function ConflictList({
       {deletionsLeft > 0 ? (
         <p className="text-caption text-fg-tertiary" data-testid="deletions-left">
           {countOf(deletionsLeft, 'deletion', 'deletions')} still{' '}
-          {deletionsLeft === 1 ? 'needs' : 'need'} a choice — a deletion is always picked on its own row.
+          {pluralize(deletionsLeft, 'needs', 'need')} a choice — a deletion is always picked on its own row.
         </p>
       ) : null}
       {[...groups.entries()].map(([groupKey, group]) => (
@@ -210,7 +210,7 @@ function BulkActions({
 }
 
 interface ResolveVars {
-  entity_type: string
+  entity_type: PlanDiffEntityType
   entity_name: string
   field: string
   choice: ResolutionChoice
@@ -291,7 +291,7 @@ export function ConflictsPanel({ slug, branch }: { slug: string; branch: PlanBra
     mutationFn: (picks: ResolveVars[]) =>
       planBranchesApi.saveResolutions(slug, branch.id, {
         resolutions: picks.map(({ entity_type, entity_name, field, choice }) => ({
-          entity_type: entity_type as PlanDiffEntityType,
+          entity_type,
           entity_name,
           field_name: field,
           choice,
@@ -338,7 +338,7 @@ export function ConflictsPanel({ slug, branch }: { slug: string; branch: PlanBra
         </p>
         <ConflictList
           entities={conflicts.entities}
-          choiceOf={(_entity, field) => field.choice}
+          choiceOf={(_entity, field) => field.choice ?? null}
           pendingOf={(entity, field) =>
             savingFields.some(
               (vars) =>

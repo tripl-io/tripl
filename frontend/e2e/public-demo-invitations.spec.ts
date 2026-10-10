@@ -99,12 +99,12 @@ test('a demo owner copies a colleague link and the colleague accepts into the in
 
   session = colleague
   await page.goto(invite)
-  await expect(page.getByText(/viewer access to the demo projects of this workspace/)).toBeVisible()
+  await expect(page.getByText(/viewer access to the demo projects of this organization/)).toBeVisible()
   await page.getByRole('button', { name: 'Accept with this account' }).click()
   await expect(page).toHaveURL(/\/o\/shared-demo$/)
   await expect(page.getByText(project.name, { exact: true }).first()).toBeVisible()
   await page.goto('/o/shared-demo/p/demo-shared/overview')
   await expect(page.getByRole('heading', { name: 'Overview', exact: true })).toBeVisible()
-  await expect(page.locator('[data-demo-banner]').getByText('Demo workspace', { exact: true })).toBeVisible()
+  await expect(page.locator('[data-demo-banner]').getByText('Demo project', { exact: true })).toBeVisible()
   assertAllMocked()
 })

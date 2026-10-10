@@ -73,7 +73,11 @@ export function scalarColumnNames(
   return preview.columns.map(column => column.name).filter(name => !json.has(name))
 }
 
-/** The data source types whose scans can parse a text column as JSON. */
+/**
+ * The data source types whose scans can parse a text column as JSON. Mirrors
+ * the backend's core/json_string_columns.JSON_STRING_DB_TYPES (a backend test
+ * holds that set to the adapters' own flags); change both together.
+ */
 export const JSON_STRING_DB_TYPES: readonly string[] = [
   'clickhouse',
   'bigquery',

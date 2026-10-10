@@ -1,5 +1,7 @@
 import { fireEvent, render, screen } from '@testing-library/react'
-import { describe, expect, it, vi } from 'vitest'
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
+import { afterEach, describe, expect, it, vi } from 'vitest'
+import { authApi, type AuthStatusResponse } from '@/api/auth'
 import type { ServiceSettings } from '@/types'
 import { SecuritySection } from './SecuritySection'
 import { COMPARE_FIELDS, RESET_FIELDS, editableFromSettings } from './serviceSettingsHelpers'
@@ -71,6 +73,8 @@ function settingsFixture(
       search_embedding_base_url: 'https://api.openai.com/v1',
     },
     system: {
+      version: '0.0.0+test',
+      edition: 'community',
       debug: false,
       database_url_configured: true,
       sync_database_url_configured: true,
@@ -87,16 +91,28 @@ function settingsFixture(
   } as ServiceSettings
 }
 
-function renderSection(settings: ServiceSettings, setField = vi.fn()) {
+function renderSection(
+  settings: ServiceSettings,
+  setField = vi.fn(),
+  authStatus: AuthStatusResponse = { has_users: true, registration_enabled: true },
+) {
+  vi.spyOn(authApi, 'status').mockResolvedValue(authStatus)
+  const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
   const view = render(
-    <SecuritySection
-      form={editableFromSettings(settings)}
-      settings={settings}
-      setField={setField}
-    />,
+    <QueryClientProvider client={queryClient}>
+      <SecuritySection
+        form={editableFromSettings(settings)}
+        settings={settings}
+        setField={setField}
+      />
+    </QueryClientProvider>,
   )
   return { setField, ...view }
 }
+
+afterEach(() => {
+  vi.restoreAllMocks()
+})
 
 describe('Instance Security & access — registration', () => {
   it('exposes registration_mode as an owner control', () => {
@@ -112,16 +128,19 @@ describe('Instance Security & access — registration', () => {
     renderSection(settingsFixture({ registration_mode: 'open' }))
 
     const hint = screen.getByText(/anyone who can reach this instance can create an account/i)
-    expect(hint).toHaveTextContent(/tracking plan/i)
+    // Sign-up adds an organization MEMBER, and an organization's default
+    // access to projects is "none" until an admin changes it: the hint names
+    // what a member can do and that existing projects stay out of sight. It
+    // used to say "joins as editor … edit any shared project", which overstated
+    // the exposure.
+    expect(hint).toHaveTextContent(/joins as a member/i)
     expect(hint).toHaveTextContent(/roster/i)
-    // A new account joins as EDITOR, so the hint has to name the write
-    // capability too — "can read X" alone reads as harmless.
-    expect(hint).toHaveTextContent(/edit any shared project/i)
-    // ...and must NOT keep claiming connection metadata is exposed: this branch
-    // made host/port/username owner-only, so the old wording
-    // now overstates the blast radius.
+    expect(hint).toHaveTextContent(/sees no existing project until someone adds it/i)
+    expect(hint).toHaveTextContent(/default access to projects/i)
+    expect(hint).not.toHaveTextContent(/editor|edit any shared project/i)
+    // Connection details stay with the organization's owners and admins.
     expect(hint).not.toHaveTextContent(/connection metadata/i)
-    expect(hint).toHaveTextContent(/owner-only/i)
+    expect(hint).toHaveTextContent(/organization owners and admins/i)
   })
 
   it('points a closed instance at invitations rather than at reopening the door', () => {

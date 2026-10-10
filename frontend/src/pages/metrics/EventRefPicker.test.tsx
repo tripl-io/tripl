@@ -110,7 +110,7 @@ describe('EventRefPicker combobox', () => {
     expect(within(listbox).getByRole('option', { name: 'Every App event' })).toBeInTheDocument()
     expect(within(listbox).queryByRole('option', { name: 'Every Web event' })).toBeNull()
     await waitFor(() =>
-      expect(eventsApi.list).toHaveBeenCalledWith('demo', expect.objectContaining({ search: 'app' })),
+      expect(eventsApi.list).toHaveBeenCalledWith('demo', expect.objectContaining({ search: 'app' }), null),
     )
   })
 
@@ -184,7 +184,7 @@ describe('EventRefPicker combobox', () => {
     expect(await within(listbox).findByRole('option', { name: /event_000/ })).toBeInTheDocument()
     expect(within(listbox).getByRole('option', { name: /event_002/ })).toBeInTheDocument()
     await waitFor(() =>
-      expect(eventsApi.list).toHaveBeenCalledWith('demo', expect.objectContaining({ search: 'event_00' })),
+      expect(eventsApi.list).toHaveBeenCalledWith('demo', expect.objectContaining({ search: 'event_00' }), null),
     )
   })
 
@@ -242,7 +242,7 @@ describe('EventRefPicker combobox', () => {
   it('keeps an unknown stored type visible instead of painting it unset', () => {
     serve([])
     const { input } = renderPicker({ eventId: '', eventTypeId: 'gone-type-id' })
-    expect(input).toHaveValue('Every event of type gone-typ')
+    expect(input).toHaveValue('Every event of an unknown type')
   })
 
   it('says so when a project has no events', async () => {

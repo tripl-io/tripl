@@ -69,7 +69,7 @@ class DataSource(UUIDMixin, TimestampMixin, Base):
 
     # Ownership. NULL = workspace-global source (the normal case, shared across
     # projects). A non-NULL owner scopes this source to one project — used by
-    # generated demo workspaces so their synthetic warehouse is cleaned up with
+    # generated demo projects so their synthetic warehouse is cleaned up with
     # the project (ON DELETE CASCADE) instead of leaking a workspace-wide orphan.
     project_id: Mapped[uuid.UUID | None] = mapped_column(
         ForeignKey("projects.id", ondelete="CASCADE"), nullable=True, default=None, index=True

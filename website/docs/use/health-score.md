@@ -65,7 +65,12 @@ What each component counts:
   so does a verdict on the incident the signal was routed to. *Acknowledged* is
   not a verdict, so an acknowledged signal still counts.
 - **Owner** means an owner on the event or at least one owner on its event type.
-  A description made only of spaces does not count.
+  A description made only of spaces does not count. When the only owners are the
+  event type's, the Documentation detail reads *Description set; owner from
+  event type* (the score is the same). The event page's **Owner** row then names
+  those owners, marked *(event type owner)*, and the event form's Owner hint
+  names them while no owner is picked. An event type's owners belong to
+  `main`'s type, so on a branch an event without its own owner shows none.
 
 ## Excluded components
 

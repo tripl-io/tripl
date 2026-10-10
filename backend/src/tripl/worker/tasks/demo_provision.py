@@ -1,4 +1,4 @@
-"""Seed a demo workspace on the worker (phase 2 of demo provisioning).
+"""Seed a demo project on the worker (phase 2 of demo provisioning).
 
 ``POST /projects/demo`` commits a hidden ``seeding`` shell and returns at once;
 this task seeds it and promotes it to ``ready`` (or marks it ``failed``) through

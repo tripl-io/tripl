@@ -29,17 +29,6 @@ export const TRACKER_SECRET_KEYS: ReadonlySet<TrackerDefaultKey> = new Set<Track
   'linear.api_key',
 ])
 
-/**
- * Jira's site, account and token are one unit: a project that sets any of
- * them in its own config inherits none of the three, so the organization's
- * token never goes to a site the project named (critique #13).
- */
-export const JIRA_ENDPOINT_KEYS: readonly TrackerDefaultKey[] = [
-  'jira.base_url',
-  'jira.auth_email',
-  'jira.api_token',
-]
-
 function split(key: TrackerDefaultKey): [TrackerKind, string] {
   const [tracker, field] = key.split('.') as [TrackerKind, string]
   return [tracker, field]
@@ -172,8 +161,20 @@ export function trackerUpdateEmpty(update: OrgTrackerDefaultsUpdate): boolean {
 }
 
 /**
- * The Jira group note: the organization will have a site or account without a
- * token of its own after this save (projects inheriting the site then have no
+ * Jira's site, account and token are one unit: a project that sets any of
+ * them in its own config inherits none of the three, so the organization's
+ * token never goes to a site the project named (critique #13).
+ */
+const JIRA_ENDPOINT_KEYS: readonly TrackerDefaultKey[] = [
+  'jira.base_url',
+  'jira.auth_email',
+  'jira.api_token',
+]
+
+/**
+ * The Jira group note: the organization will hold some of
+ * {@link JIRA_ENDPOINT_KEYS} but not all three after this save, such as a
+ * site or account without a token (projects inheriting the site then have no
  * credential for it), or a token with no site.
  */
 export function jiraGroupWarning(defaults: OrgTrackerDefaults, draft: TrackerDraft): string | null {
@@ -186,10 +187,7 @@ export function jiraGroupWarning(defaults: OrgTrackerDefaults, draft: TrackerDra
     }
     return trackerSource(defaults, key) === 'org'
   }
-  const site = will('jira.base_url')
-  const account = will('jira.auth_email')
-  const token = will('jira.api_token')
-  if (!site && !account && !token) return null
-  if (site && account && token) return null
-  return 'The Jira site, account e-mail and API token go together: projects that inherit them need all three, and a project that sets any of them in its own config uses none of the organization’s.'
+  const held = JIRA_ENDPOINT_KEYS.filter(will).length
+  if (held === 0 || held === JIRA_ENDPOINT_KEYS.length) return null
+  return 'The Jira site, account email and API token go together: projects that inherit them need all three, and a project that sets any of them in its own config uses none of the organization’s.'
 }

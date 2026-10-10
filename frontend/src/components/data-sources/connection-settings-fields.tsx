@@ -8,10 +8,9 @@ import {
   ERROR_CLASS,
   FIELD_COL_CLASS,
   HELP_CLASS,
-  MAX_DATABRICKS_SCHEMA_ALLOWLIST,
   MAX_DATASET_ALLOWLIST,
+  MAX_SCHEMA_ALLOWLIST,
   MAX_SCHEMA_DATASETS,
-  MAX_SNOWFLAKE_SCHEMA_ALLOWLIST,
   SECRET_INPUT_PROPS,
   SELECT_CLASS,
   SNOWFLAKE_AUTH_OPTIONS,
@@ -19,10 +18,11 @@ import {
   TEXTAREA_CLASS,
   usesPostgresSettings,
   type ConnectionSettingsForm,
-  type PemErrors,
   type PemField,
+  type SettingsErrors,
 } from './connection-settings'
 import { AthenaSettingsFields, TrinoSettingsFields } from './connection-settings-trino-fields'
+import { ScopeField } from './scope-field'
 import { examplePlaceholder } from '@/components/forms/placeholders'
 import { FieldError } from '@/components/forms/FieldError'
 import { invalidAria } from '@/components/forms/validation'
@@ -38,8 +38,8 @@ interface ConnectionSettingsFieldsProps {
   onChange: (patch: Partial<ConnectionSettingsForm>) => void
   /** True when the source already has a stored client private key. */
   sslkeySet?: boolean
-  /** Inline errors for malformed PEM content, by field. */
-  pemErrors?: PemErrors
+  /** Inline errors, by field: malformed PEM content, a missing required setting, a bad name. */
+  errors?: SettingsErrors
 }
 
 /**
@@ -53,19 +53,19 @@ export function ConnectionSettingsFields({
   value,
   onChange,
   sslkeySet = false,
-  pemErrors = {},
+  errors = {},
 }: ConnectionSettingsFieldsProps) {
   // Every PEM textarea: no spellcheck or autofill, and its inline
   // format error wired to it.
   const pemProps = (field: PemField) => ({
     ...SECRET_INPUT_PROPS,
-    'aria-invalid': pemErrors[field] ? true : undefined,
-    'aria-describedby': pemErrors[field] ? `${idPrefix}-${field}-error` : undefined,
+    'aria-invalid': errors[field] ? true : undefined,
+    'aria-describedby': errors[field] ? `${idPrefix}-${field}-error` : undefined,
   })
   const pemError = (field: PemField): ReactNode =>
-    pemErrors[field] ? (
+    errors[field] ? (
       <p id={`${idPrefix}-${field}-error`} role="alert" className={ERROR_CLASS}>
-        {pemErrors[field]}
+        {errors[field]}
       </p>
     ) : null
   if (dbType === 'bigquery') {
@@ -102,20 +102,21 @@ export function ConnectionSettingsFields({
             </p>
           </div>
         </div>
-        <div className={FIELD_COL_CLASS}>
-          <Label htmlFor={`${idPrefix}-dataset-allowlist`}>Dataset allowlist</Label>
-          <Input
-            id={`${idPrefix}-dataset-allowlist`}
-            value={value.datasetAllowlist}
-            onChange={(e) => onChange({ datasetAllowlist: e.target.value })}
-            placeholder={examplePlaceholder('analytics, marts, events_raw')}
-          />
-          <p className={HELP_CLASS}>
-            Comma-separated datasets the schema browser may list. Empty means the default dataset
-            only. At most {MAX_DATASET_ALLOWLIST} — a browse covers {MAX_SCHEMA_DATASETS} datasets
-            and the default dataset takes one of them.
-          </p>
-        </div>
+        <ScopeField
+          id={`${idPrefix}-dataset-allowlist`}
+          label="Dataset allowlist"
+          value={value.datasetAllowlist}
+          onChange={(datasetAllowlist) => onChange({ datasetAllowlist })}
+          placeholder={examplePlaceholder('analytics, marts, events_raw')}
+          help={
+            <>
+              Comma-separated datasets the schema browser may list. Empty means the default
+              dataset only. At most {MAX_DATASET_ALLOWLIST} — a browse covers{' '}
+              {MAX_SCHEMA_DATASETS} datasets and the default dataset takes one of them.
+            </>
+          }
+          error={errors.datasetAllowlist}
+        />
       </>
     )
   }
@@ -132,9 +133,9 @@ export function ConnectionSettingsFields({
             onChange={(e) => onChange({ httpPath: e.target.value })}
             aria-required
             placeholder={examplePlaceholder('/sql/1.0/warehouses/1234abcd')}
-            {...invalidAria(httpPathId, pemErrors.httpPath)}
+            {...invalidAria(httpPathId, errors.httpPath)}
           />
-          <FieldError inputId={httpPathId} message={pemErrors.httpPath} />
+          <FieldError inputId={httpPathId} message={errors.httpPath} />
           <p className={HELP_CLASS}>
             The SQL warehouse’s HTTP path, from its Connection details tab. tripl only uses SQL
             warehouses, not all-purpose clusters.
@@ -159,32 +160,25 @@ export function ConnectionSettingsFields({
               OAuth uses the client ID and secret above and fetches short-lived tokens itself.
             </p>
           </div>
-          <div className={FIELD_COL_CLASS}>
-            <Label htmlFor={`${idPrefix}-schema-name`}>Default schema</Label>
-            <Input
-              id={`${idPrefix}-schema-name`}
-              value={value.schemaName}
-              onChange={(e) => onChange({ schemaName: e.target.value })}
-              placeholder={examplePlaceholder('default')}
-            />
-            <p className={HELP_CLASS}>
-              Where unqualified table names resolve. Empty means the catalog’s default schema.
-            </p>
-          </div>
-        </div>
-        <div className={FIELD_COL_CLASS}>
-          <Label htmlFor={`${idPrefix}-schema-allowlist`}>Schema allowlist</Label>
-          <Input
-            id={`${idPrefix}-schema-allowlist`}
-            value={value.schemaAllowlist}
-            onChange={(e) => onChange({ schemaAllowlist: e.target.value })}
-            placeholder={examplePlaceholder('analytics, marts')}
+          <ScopeField
+            id={`${idPrefix}-schema-name`}
+            label="Default schema"
+            value={value.schemaName}
+            onChange={(schemaName) => onChange({ schemaName })}
+            placeholder={examplePlaceholder('default')}
+            help="Where unqualified table names resolve. Empty means the catalog’s default schema."
+            error={errors.schemaName}
           />
-          <p className={HELP_CLASS}>
-            Comma-separated schemas of the catalog the schema browser may list. Empty means the
-            default schema only. At most {MAX_DATABRICKS_SCHEMA_ALLOWLIST}.
-          </p>
         </div>
+        <ScopeField
+          id={`${idPrefix}-schema-allowlist`}
+          label="Schema allowlist"
+          value={value.schemaAllowlist}
+          onChange={(schemaAllowlist) => onChange({ schemaAllowlist })}
+          placeholder={examplePlaceholder('analytics, marts')}
+          help={`Comma-separated schemas of the catalog the schema browser may list. Empty means the default schema only. At most ${MAX_SCHEMA_ALLOWLIST}.`}
+          error={errors.schemaAllowlist}
+        />
       </>
     )
   }
@@ -202,9 +196,9 @@ export function ConnectionSettingsFields({
               onChange={(e) => onChange({ warehouse: e.target.value })}
               aria-required
               placeholder={examplePlaceholder('COMPUTE_WH')}
-              {...invalidAria(warehouseId, pemErrors.warehouse)}
+              {...invalidAria(warehouseId, errors.warehouse)}
             />
-            <FieldError inputId={warehouseId} message={pemErrors.warehouse} />
+            <FieldError inputId={warehouseId} message={errors.warehouse} />
             <p className={HELP_CLASS}>
               The virtual warehouse tripl’s queries run on. A small one is enough.
             </p>
@@ -241,48 +235,38 @@ export function ConnectionSettingsFields({
               Key pair reads the private key from the secret field above.
             </p>
           </div>
-          <div className={FIELD_COL_CLASS}>
-            <Label htmlFor={`${idPrefix}-sf-schema-name`}>Default schema</Label>
-            <Input
-              id={`${idPrefix}-sf-schema-name`}
-              value={value.schemaName}
-              onChange={(e) => onChange({ schemaName: e.target.value })}
-              placeholder={examplePlaceholder('PUBLIC')}
-            />
-            <p className={HELP_CLASS}>
-              Where unqualified table names resolve. Empty means PUBLIC.
-            </p>
-          </div>
-        </div>
-        <div className={FIELD_COL_CLASS}>
-          <Label htmlFor={`${idPrefix}-sf-schema-allowlist`}>Schema allowlist</Label>
-          <Input
-            id={`${idPrefix}-sf-schema-allowlist`}
-            value={value.schemaAllowlist}
-            onChange={(e) => onChange({ schemaAllowlist: e.target.value })}
-            placeholder={examplePlaceholder('EVENTS, MARTS')}
+          <ScopeField
+            id={`${idPrefix}-schema-name`}
+            label="Default schema"
+            value={value.schemaName}
+            onChange={(schemaName) => onChange({ schemaName })}
+            placeholder={examplePlaceholder('PUBLIC')}
+            help="Where unqualified table names resolve. Empty means PUBLIC."
+            error={errors.schemaName}
           />
-          <p className={HELP_CLASS}>
-            Comma-separated schemas of the database the schema browser may list. Empty means the
-            default schema only. At most {MAX_SNOWFLAKE_SCHEMA_ALLOWLIST}.
-          </p>
         </div>
+        <ScopeField
+          id={`${idPrefix}-schema-allowlist`}
+          label="Schema allowlist"
+          value={value.schemaAllowlist}
+          onChange={(schemaAllowlist) => onChange({ schemaAllowlist })}
+          placeholder={examplePlaceholder('EVENTS, MARTS')}
+          help={`Comma-separated schemas of the database the schema browser may list. Empty means the default schema only. At most ${MAX_SCHEMA_ALLOWLIST}.`}
+          error={errors.schemaAllowlist}
+        />
       </>
     )
   }
 
   if (dbType === 'trino') {
-    return <TrinoSettingsFields idPrefix={idPrefix} value={value} onChange={onChange} />
+    return (
+      <TrinoSettingsFields idPrefix={idPrefix} value={value} onChange={onChange} errors={errors} />
+    )
   }
 
   if (dbType === 'athena') {
     return (
-      <AthenaSettingsFields
-        idPrefix={idPrefix}
-        value={value}
-        onChange={onChange}
-        s3OutputError={pemErrors.s3OutputLocation}
-      />
+      <AthenaSettingsFields idPrefix={idPrefix} value={value} onChange={onChange} errors={errors} />
     )
   }
 

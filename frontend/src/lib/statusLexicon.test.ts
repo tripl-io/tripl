@@ -3,6 +3,8 @@ import {
   ALERT_DELIVERY,
   ALERT_DELIVERY_TONE,
   DATA_SOURCE_HEALTH,
+  EVENT_STATUS_LABELS,
+  EVENT_STATUS_TONE,
   MONITOR_STATUS,
   MONITOR_STATUS_LABEL,
   MONITOR_STATUS_TONE,
@@ -12,7 +14,6 @@ import {
   SIGNAL_LEVEL,
   coverageTone,
   dataSourceHealthLexeme,
-  eventStatusLexeme,
   rowSignalLevel,
   signalDirectionColor,
   signalDirectionTone,
@@ -50,7 +51,7 @@ describe('statusLexicon — colour meaning key', () => {
     // put a monitor verdict on rows of a project that had no monitors at all.
     expect(SIGNAL_LEVEL.firing.label).toBe('Open')
     // "Live" belongs to the lifecycle status.
-    expect(SIGNAL_LEVEL.firing.label).not.toBe(eventStatusLexeme('live').label)
+    expect(SIGNAL_LEVEL.firing.label).not.toBe(EVENT_STATUS_LABELS.live)
     expect(SIGNAL_LEVEL.warning.label).toBe('Recent')
     expect(SIGNAL_LEVEL.firing.label).not.toBe(MONITOR_STATUS.firing.label)
     expect(SIGNAL_LEVEL.warning.label).not.toBe(MONITOR_STATUS.warning.label)
@@ -68,10 +69,12 @@ describe('statusLexicon — colour meaning key', () => {
     expect(ALERT_DELIVERY_TONE).toEqual({ sent: 'success', failed: 'danger', pending: 'info' })
   })
 
-  it('reuses the canonical event lifecycle tones (no duplication)', () => {
-    expect(eventStatusLexeme('live')).toEqual({ label: 'Live', tone: 'success' })
-    expect(eventStatusLexeme('in_review')).toEqual({ label: 'In Review', tone: 'warning' })
-    expect(eventStatusLexeme('draft').tone).toBe('neutral')
+  it('reuses the canonical event lifecycle words and tones (no duplication)', () => {
+    expect(EVENT_STATUS_LABELS.live).toBe('Live')
+    expect(EVENT_STATUS_TONE.live).toBe('success')
+    expect(EVENT_STATUS_LABELS.in_review).toBe('In review')
+    expect(EVENT_STATUS_TONE.in_review).toBe('warning')
+    expect(EVENT_STATUS_TONE.draft).toBe('neutral')
   })
 })
 
@@ -131,7 +134,7 @@ describe('signal direction', () => {
     expect(signalDirectionTone('drop')).toBe('warning')
     expect(signalDirectionColor('spike')).toBe('var(--danger)')
     expect(signalDirectionColor('drop')).toBe('var(--warning)')
-    expect(SIGNAL_DIRECTION.spike.tone).toBe(signalDirectionTone('spike'))
-    expect(SIGNAL_DIRECTION.drop.tone).toBe(signalDirectionTone('drop'))
+    expect(SIGNAL_DIRECTION.spike).toEqual({ label: 'Spike', tone: 'danger' })
+    expect(SIGNAL_DIRECTION.drop).toEqual({ label: 'Drop', tone: 'warning' })
   })
 })

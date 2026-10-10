@@ -11,6 +11,11 @@ export function isMacPlatform(): boolean {
 // server rendering is ever introduced, to avoid a baked-in server value.
 const IS_MAC = isMacPlatform()
 
+/** A Cmd/Ctrl shortcut in this reader's own spelling: "⌘K" on a Mac, else "Ctrl K". */
+export function shortcutLabel(key: string): string {
+  return IS_MAC ? `⌘${key}` : `Ctrl ${key}`
+}
+
 export function commandPaletteShortcutLabel(): string {
-  return IS_MAC ? '⌘K' : 'Ctrl K'
+  return shortcutLabel('K')
 }

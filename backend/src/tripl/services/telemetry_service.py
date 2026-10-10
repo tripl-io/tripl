@@ -27,14 +27,14 @@ import json
 import logging
 import uuid
 from datetime import UTC, datetime, timedelta
-from importlib.metadata import PackageNotFoundError, version
 from typing import Any
 
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from tripl import extensions, tenancy
+from tripl import __version__, extensions, tenancy
 from tripl.config import settings
+from tripl.core.bucketing import to_utc
 from tripl.models.app_setting import AppSetting
 from tripl.models.data_source import DataSource
 from tripl.models.event_type import EventType
@@ -63,15 +63,18 @@ def bucket(count: int) -> str:
     return next(label for floor, label in _BUCKETS if count >= floor)
 
 
-def _version() -> str:
-    try:
-        return version("tripl-server")
-    except PackageNotFoundError:
-        return "unknown"
+#: ``Extension.name`` of the commercial ``tripl-enterprise`` package.
+ENTERPRISE_EXTENSION = "enterprise"
 
 
 def edition() -> str:
-    return "enterprise" if extensions.extensions() else "community"
+    """``enterprise`` when the Enterprise package is loaded, else ``community``.
+
+    Any other extension leaves a Community instance Community: it keeps the
+    default-on ping and reports its own edition.
+    """
+    loaded = (extension.name for extension in extensions.extensions())
+    return "enterprise" if ENTERPRISE_EXTENSION in loaded else "community"
 
 
 TELEMETRY_DOCS_URL = "https://docs.tripl.io/run/telemetry"
@@ -85,8 +88,8 @@ def inactive_reason() -> str | None:
         return "disabled"
     if settings.telemetry_enabled is None and edition() == "enterprise":
         return "enterprise default"
-    if not settings.telemetry_endpoint:
-        return "no endpoint"
+    # No "empty endpoint" case: configuration cannot produce one (config.py,
+    # ``telemetry_endpoint``), so it is not an off switch to offer.
     if tenancy.public_demo():
         return "public demo"
     return None
@@ -132,9 +135,7 @@ async def _count(session: AsyncSession, stmt: Any) -> int:
 async def build_payload(session: AsyncSession, now: datetime) -> dict[str, Any]:
     """Everything one ping holds. Makes the instance id the first time; no commit."""
     state = dict((await _state(session, now)).value or {})
-    installed = datetime.fromisoformat(str(state.get("installed_at") or now.isoformat()))
-    if installed.tzinfo is None:
-        installed = installed.replace(tzinfo=UTC)
+    installed = to_utc(datetime.fromisoformat(str(state.get("installed_at") or now.isoformat())))
     engines = sorted(
         str(engine)
         for engine in (await session.scalars(select(DataSource.db_type).distinct())).all()
@@ -143,7 +144,7 @@ async def build_payload(session: AsyncSession, now: datetime) -> dict[str, Any]:
     return {
         "schema": SCHEMA_VERSION,
         "instance_id": str(state["instance_id"]),
-        "version": _version(),
+        "version": __version__,
         "edition": edition(),
         "deployment_mode": settings.deployment_mode,
         "warehouse_engines": engines,

@@ -24,6 +24,11 @@ type SystemRow = {
    * 0042_abcd." for a mismatch, which does not name the problem.
    */
   problem?: string
+  /**
+   * The environment variable this row reports on. The card tells the operator
+   * to "set the variable", so every row read from the environment names it.
+   */
+  env?: string
 }
 
 const VALUE_COLOR: Record<SystemTone, string> = {
@@ -39,13 +44,31 @@ const VALUE_COLOR: Record<SystemTone, string> = {
  * @param use What the connection is for, shown once it is configured — the
  *   only thing left to say about a row that is already fine.
  */
-function required(label: string, configured: boolean, use: string): SystemRow {
+function required(label: string, env: string, configured: boolean, use: string): SystemRow {
   return {
     label,
+    env,
     value: configured ? 'Configured' : 'Unset',
     tone: configured ? 'success' : 'danger',
-    note: configured ? use : 'Required — the API cannot reach this dependency.',
+    note: configured
+      ? use
+      : `Required — the API cannot reach this dependency. Set ${env} and restart.`,
     problem: configured ? undefined : `${label} is unset`,
+  }
+}
+
+const EDITION_LABEL: Record<SystemSettings['edition'], string> = {
+  community: 'Community',
+  enterprise: 'Enterprise',
+}
+
+/** Which build this is: the first thing a bug report has to say. */
+function versionRow(system: SystemSettings): SystemRow {
+  return {
+    label: 'Version',
+    value: `${system.version} · ${EDITION_LABEL[system.edition]}`,
+    tone: 'neutral',
+    note: 'Quote this in bug reports.',
   }
 }
 
@@ -145,32 +168,38 @@ function needsAttention(row: SystemRow): boolean {
 
 function systemRows(system: SystemSettings): SystemRow[] {
   return [
+    versionRow(system),
     {
       label: 'Debug mode',
+      env: 'DEBUG',
       value: system.debug ? 'On' : 'Off',
       tone: system.debug ? 'warning' : 'success',
       problem: system.debug ? 'Debug mode is on' : undefined,
       note: system.debug
-        ? 'Production startup checks are skipped and CORS falls back to "*".'
+        ? 'Production startup checks are skipped and CORS falls back to "*". Set DEBUG=false and restart.'
         : 'Production startup checks ran at boot and CORS is limited to the configured origins.',
     },
     required(
       'Database URL',
+      'DATABASE_URL',
       system.database_url_configured,
       'The async Postgres connection the API request path reads and writes through.',
     ),
     required(
       'Sync database URL',
+      'SYNC_DATABASE_URL',
       system.sync_database_url_configured,
       'The sync Postgres connection Celery tasks check their sessions out of.',
     ),
     required(
       'RabbitMQ URL',
+      'RABBITMQ_URL',
       system.rabbitmq_url_configured,
       'The Celery broker every scan, alert and digest task is dispatched through.',
     ),
     {
       label: 'Redis URL',
+      env: 'REDIS_URL',
       value: system.redis_url_configured ? 'Configured' : 'Unset',
       tone: system.redis_url_configured ? 'success' : 'neutral',
       note: system.redis_url_configured
@@ -179,15 +208,17 @@ function systemRows(system: SystemSettings): SystemRow[] {
     },
     {
       label: 'Encryption key',
+      env: 'ENCRYPTION_KEY',
       value: system.encryption_key_configured ? 'Configured' : 'Unset',
       tone: system.encryption_key_configured ? 'success' : 'danger',
       problem: system.encryption_key_configured ? undefined : 'Encryption key is unset',
       note: system.encryption_key_configured
         ? 'Data source and alert destination secrets are encrypted at rest with it.'
-        : 'Data source and alert destination secrets are stored as plaintext.',
+        : 'Data source and alert destination secrets are stored as plaintext. Set ENCRYPTION_KEY and restart.',
     },
     {
       label: 'OpenAI fallback key',
+      env: 'OPENAI_API_KEY',
       value: system.openai_api_key_configured ? 'Configured' : 'Unset',
       tone: system.openai_api_key_configured ? 'success' : 'neutral',
       note: system.openai_api_key_configured
@@ -206,7 +237,7 @@ export function SystemCard({ system }: { system: SystemSettings }) {
 
   return (
     // No card title: it repeated the page's own "System" h1.
-    <SCard description="Read from this instance's environment when the API started. None of it can be changed from the app — set the variable where the process gets its environment, then restart. The schema revision is the exception: it is read from the database each time this page loads.">
+    <SCard description="Read from this instance's environment when the API started. None of it can be changed from the app — set the variable where the process gets its environment, then restart. Two tiles are the exception: the version is this build's own, and the schema revision is read from the database each time this page loads.">
       <div className="space-y-3 p-4">
         {problems.length > 0 && (
           <p className="text-body-sm font-medium text-fg">
@@ -251,6 +282,9 @@ export function SystemCard({ system }: { system: SystemSettings }) {
               <span className="text-caption leading-[1.4] text-fg-tertiary">
                 {row.note}
               </span>
+              {row.env && (
+                <code className="mono mt-auto text-caption text-fg-tertiary">{row.env}</code>
+              )}
             </div>
           ))}
         </div>

@@ -7,6 +7,7 @@ import {
   type MentionCandidate,
 } from '@/lib/mentions'
 import { cn } from '@/lib/utils'
+import { countOf } from '@/lib/plural'
 
 /**
  * The comment textarea with @ autocomplete (#259). Typing `@` and a few letters
@@ -123,7 +124,7 @@ export function MentionComposer({
         // Says how many members match while the list is open; a screen reader
         // does not announce a popup appearing under the caret on its own.
         <span role="status" aria-live="polite" className="sr-only">
-          {open ? `${options.length} ${options.length === 1 ? 'member' : 'members'}` : ''}
+          {open ? countOf(options.length, 'member', 'members') : ''}
         </span>
       )}
       <AnchoredListbox

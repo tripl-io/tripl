@@ -22,12 +22,12 @@ from tripl.core.analyzers.duplicate_matching import (
     MIN_LEXICAL_FOR_EMBEDDING,
     CatalogName,
     NameIndex,
-    cluster_duplicates,
+    cluster_pairs,
     find_combinatorial_explosions,
     ordered_pair,
     scored_pairs,
 )
-from tripl.core.analyzers.name_rules import compile_rule, rule_separators
+from tripl.core.analyzers.name_rules import compile_rule
 from tripl.core.analyzers.name_similarity import (
     Convention,
     combined_score,
@@ -119,7 +119,7 @@ def test_unrelated_names_score_low() -> None:
 
 def test_rule_aware_score_compares_slot_by_slot() -> None:
     rule = compile_rule("{category}:{action}:{label}")
-    assert rule is not None and rule.separators == (":",)
+    assert rule is not None
     # One slot with a different value is a different event under the rule.
     assert rule_aware_score("shop:tap:hat", "shop:tap:scarf", rule) == 0.0
     assert rule_aware_score("shop:tap:filter", "shop:tap:filters", rule) < DUPLICATE_THRESHOLD
@@ -131,15 +131,6 @@ def test_rule_aware_score_compares_slot_by_slot() -> None:
     )
     # Without the rule, a plural is a near-duplicate.
     assert lexical_score("shop:tap:filter", "shop:tap:filters") >= DUPLICATE_THRESHOLD
-
-
-def test_rule_separators_are_the_literals_between_placeholders() -> None:
-    assert rule_separators("{event.category}_{action}") == ("_",)
-    assert rule_separators("{a}.{b}/{c}") == (".", "/")
-    assert rule_separators("{a} - {b}") == (" - ",)
-    assert rule_separators("{a}{b}") == ()
-    assert rule_separators("static_name") == ()
-    assert rule_separators(None) == ()
 
 
 def test_rule_split_is_non_greedy_and_case_insensitive() -> None:
@@ -317,7 +308,8 @@ def test_name_index_finds_same_type_first() -> None:
     )
 
 
-def test_cluster_duplicates_links_same_type_and_respects_dismissals() -> None:
+def test_scored_pairs_cluster_same_type_names_and_link_through_a_third() -> None:
+    """The two passes ``duplicate_service`` composes, without its database half."""
     page = uuid.uuid4()
     a = CatalogName(uuid.uuid4(), "Paywall View", page)
     b = CatalogName(uuid.uuid4(), "Paywall Screen View", page)
@@ -325,23 +317,24 @@ def test_cluster_duplicates_links_same_type_and_respects_dismissals() -> None:
     d = CatalogName(uuid.uuid4(), "Onboarding Step 1 View", page)
     e = CatalogName(uuid.uuid4(), "Onboarding Step 2 View", page)
     index = NameIndex([a, b, c, d, e])
-    clusters = cluster_duplicates(index)
+    order = {entry.event_id: position for position, entry in enumerate(index.entries)}
+    candidates, truncated = scored_pairs(index)
+    assert not truncated
+    links = [(pair, combined_score(lexical, None)) for pair, lexical in candidates]
+    clusters = cluster_pairs(links, order=order)
     assert len(clusters) == 1
     assert set(clusters[0].event_ids) == {a.event_id, b.event_id, c.event_id}
     assert clusters[0].score == 1.0
 
-    # Dismissing one pair keeps the others linked through the third event.
-    dismissed = frozenset({ordered_pair(a.event_id, c.event_id)})
-    assert set(cluster_duplicates(index, dismissed=dismissed)[0].event_ids) == {
+    # A pair left out of the links (the service drops dismissed pairs) does not
+    # link, but its two events still meet through the third.
+    dismissed = ordered_pair(a.event_id, c.event_id)
+    kept = [link for link in links if link[0] != dismissed]
+    assert set(cluster_pairs(kept, order=order)[0].event_ids) == {
         a.event_id,
         b.event_id,
         c.event_id,
     }
-    only_pair = NameIndex([a, b])
-    assert (
-        cluster_duplicates(only_pair, dismissed=frozenset({ordered_pair(a.event_id, b.event_id)}))
-        == []
-    )
 
 
 def test_combinatorial_explosion_over_rule_slots() -> None:

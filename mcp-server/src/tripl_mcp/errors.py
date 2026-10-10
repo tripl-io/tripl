@@ -31,4 +31,8 @@ def to_tool_error(exc: TriplError) -> ToolError:
         # stdio reads TRIPL_API_KEY; streamable-http forwards the caller's
         # Authorization header. Both are live, so both are named.
         return ToolError(f"{exc} Check TRIPL_API_KEY / the Bearer token sent to this server.")
+    if isinstance(exc, TriplAPIError) and 300 <= exc.status_code < 400:
+        # The shared client refuses a redirected write and says to fix the base
+        # URL; only this server knows that URL comes from TRIPL_BASE_URL.
+        return ToolError(f"{exc} This server reads it from TRIPL_BASE_URL.")
     return ToolError(str(exc))

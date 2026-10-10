@@ -20,9 +20,10 @@ The mapping rides the shared drift columns:
   change. The drift scopes bypass the numeric thresholds, so these only make
   the audit row readable.
 
-The rows a loader may choose are the "active" ones by the same rule as value
-drift (open, or snoozed until a past instant) whose property is still scanned
-— :func:`active_property_drift_filters` — within the value-drift retention.
+The rows a loader may choose are the "active" ones by the rule every drift
+shares (``core.drift_activity``: open, or snoozed until a past instant) whose
+property is still scanned — :func:`active_property_drift_filters` — within the
+drift retention.
 """
 
 from __future__ import annotations
@@ -35,6 +36,7 @@ from typing import Any
 from sqlalchemy.sql.elements import ColumnElement
 
 from tripl.alerting_matching import SCOPE_PROPERTY_DRIFT, DriftAlertCandidate
+from tripl.core.drift_activity import active_drift_clauses
 from tripl.models.property_drift import PropertyDrift, PropertyDriftKind
 from tripl.models.variable import Variable
 
@@ -53,10 +55,7 @@ def active_property_drift_filters(now: datetime) -> list[ColumnElement[bool]]:
     paged — or counted against — about a property they took out of scanning.
     """
     return [
-        PropertyDrift.status.in_(("open", "snoozed")),
-        (PropertyDrift.status != "snoozed")
-        | (PropertyDrift.snoozed_until.is_(None))
-        | (PropertyDrift.snoozed_until <= now),
+        *active_drift_clauses(PropertyDrift, now),
         Variable.excluded_from_scans.is_(False),
     ]
 

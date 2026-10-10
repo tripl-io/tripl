@@ -310,8 +310,12 @@ export function DemoGuideHost() {
 
   return (
     <>
+      {/* The tag goes under the item's right end, inside the sidebar. Beside
+          it, it reached across the sidebar's edge into the page and sat on
+          whatever was there: a form's Owner label, a verdict button, a
+          chart's axis. */}
       {sidebarLink && pointSidebar && (
-        <CoachBeacon anchor={sidebarLink} side="right" align="center" />
+        <CoachBeacon anchor={sidebarLink} side="bottom" align="end" />
       )}
       {sectionTab && (
         <CoachBeacon anchor={sectionTab} tag="Open this tab" side="bottom" align="center" />

@@ -1,6 +1,7 @@
 import { Sparkline } from '@/components/primitives/sparkline'
 import { formatMetricValue } from '@/lib/metricFormat'
 import type { MetricPreviewResponse } from '@/types'
+import { countOf } from '@/lib/plural'
 
 interface MetricPreviewPanelProps {
   result: MetricPreviewResponse
@@ -53,7 +54,7 @@ export function MetricPreviewPanel({ result, color, unit, variant = 'sql' }: Met
   const summary =
     variant === 'sql'
       ? `${result.point_count} buckets · columns: ${columns.join(', ')}${result.truncated ? ' · truncated' : ''}`
-      : `${result.point_count} ${result.point_count === 1 ? 'bucket' : 'buckets'}`
+      : countOf(result.point_count, 'bucket', 'buckets')
   const guidance =
     points.length === 0 ? EMPTY_GUIDANCE[variant] : points.length === 1 ? SINGLE_GUIDANCE[variant] : null
   const format = (value: number) => formatMetricValue(value, unit.trim() || null)

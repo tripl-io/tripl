@@ -194,8 +194,18 @@ describe('Organization › Groups', () => {
     await waitFor(() => expect(update).toHaveBeenCalledWith('acme', 'g1', { description: 'Analytics team' }))
   })
 
-  it('says so when there are no groups', async () => {
+  // A new owner had no reason to make one: the page says what a group is for.
+  it('says what a group is for, and where to use one when there are none', async () => {
     renderSection('owner', [])
+    expect(
+      await screen.findByText('No groups yet. Create one above, then choose it when you share a note in Docs.'),
+    ).toBeInTheDocument()
+    expect(screen.getByText(/Share a Docs note with a group instead of person by person/)).toBeInTheDocument()
+  })
+
+  it('does not tell a member to create the group they cannot', async () => {
+    renderSection('member', [])
     expect(await screen.findByText('No groups yet.')).toBeInTheDocument()
+    expect(screen.queryByText(/Create one above/)).toBeNull()
   })
 })

@@ -48,7 +48,9 @@ from tripl.models.metric_value import MetricValue
 from tripl.models.metric_value_breakdown import MetricValueBreakdown
 from tripl.models.scan_config import ScanConfig
 from tripl.models.shadow_event_candidate import ShadowEventCandidate
+from tripl.services._id_chunks import chunked
 from tripl.worker.tasks.metrics._helpers import MAX_BREAKDOWN_VALUE_LENGTH
+from tripl.worker.utils.scan_naming import group_column_index
 
 logger = logging.getLogger(__name__)
 
@@ -303,9 +305,7 @@ _MAX_BIND_PARAMS = 60000
 def _chunk_rows(rows: list[dict[str, object]]) -> Iterator[list[dict[str, object]]]:
     """Yield row batches sized so ``rows_per_batch * columns <= _MAX_BIND_PARAMS``."""
     columns = max(1, len(rows[0]))
-    batch_size = max(1, _MAX_BIND_PARAMS // columns)
-    for start in range(0, len(rows), batch_size):
-        yield rows[start : start + batch_size]
+    yield from chunked(rows, max(1, _MAX_BIND_PARAMS // columns))
 
 
 def _chunk_keys[KeyT: tuple[object, ...]](keys: Sequence[KeyT]) -> Iterator[list[KeyT]]:
@@ -321,9 +321,8 @@ def _chunk_keys[KeyT: tuple[object, ...]](keys: Sequence[KeyT]) -> Iterator[list
     if not keys:
         return
     width = max(1, len(keys[0]))
-    batch_size = max(1, (_MAX_BIND_PARAMS - 1) // width)
-    for start in range(0, len(keys), batch_size):
-        yield list(keys[start : start + batch_size])
+    for batch in chunked(keys, max(1, (_MAX_BIND_PARAMS - 1) // width)):
+        yield list(batch)
 
 
 def _upsert_event_metrics_rows(
@@ -751,7 +750,7 @@ def _collect_metric_breakdown_rows(
 ) -> tuple[list[dict[str, object]], list[dict[str, object]], bool]:
     event_agg: dict[tuple[uuid.UUID, uuid.UUID, datetime, str, str, bool], int] = {}
     type_agg: dict[tuple[uuid.UUID, uuid.UUID, datetime, str, str, bool], int] = {}
-    et_col_idx = reg_index.get(config.event_type_column) if config.event_type_column else None
+    et_col_idx = group_column_index(config, reg_index)
 
     breakdown_columns: list[str] = []
     scan_breakdown_column_set: set[str] = set()
@@ -864,7 +863,7 @@ def _collect_metric_breakdown_rows(
         events_by_name: dict[str, Event]
         event_type_id: uuid.UUID | None
 
-        if config.event_type_column and et_col_idx is not None:
+        if et_col_idx is not None:
             et_name = str(data_row[et_col_idx])
             event_type = et_by_name.get(et_name)
             if event_type is None:
@@ -1001,7 +1000,7 @@ def _collect_app_version_breakdown_rows(
         )
         return [], []
 
-    et_col_idx = reg_index.get(config.event_type_column) if config.event_type_column else None
+    et_col_idx = group_column_index(config, reg_index)
     event_counts: dict[tuple[uuid.UUID, uuid.UUID, datetime, str], int] = {}
     type_counts: dict[tuple[uuid.UUID, uuid.UUID, datetime, str], int] = {}
 
@@ -1016,7 +1015,7 @@ def _collect_app_version_breakdown_rows(
         events_by_name: dict[str, Event]
         event_type_id: uuid.UUID | None
 
-        if config.event_type_column and et_col_idx is not None:
+        if et_col_idx is not None:
             et_name = str(data_row[et_col_idx])
             event_type = et_by_name.get(et_name)
             if event_type is None:
@@ -1191,7 +1190,7 @@ def _collect_distribution_drift_rows(
     # ``grouped[scope].keys()`` is exactly the set of buckets
     # the scope has data for, so no parallel bucket index is needed.
     grouped: dict[tuple[uuid.UUID | None, str], dict[datetime, dict[str, int]]] = {}
-    et_col_idx = reg_index.get(config.event_type_column) if config.event_type_column else None
+    et_col_idx = group_column_index(config, reg_index)
 
     def add_count(
         *,
@@ -1213,12 +1212,12 @@ def _collect_distribution_drift_rows(
         count = int(cast(int | str | float, row[-1]))
 
         event_type_id: uuid.UUID | None = None
-        if config.event_type_column and et_col_idx is not None:
+        if et_col_idx is not None:
             event_type_name = str(data_row[et_col_idx])
             event_type = et_by_name.get(event_type_name)
             if event_type is not None:
                 event_type_id = event_type.id
-        elif config.event_type_id:
+        else:
             event_type_id = config.event_type_id
 
         add_count(

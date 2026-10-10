@@ -3,6 +3,7 @@ import { useMutation } from '@tanstack/react-query'
 import { Loader2, Play } from 'lucide-react'
 import { metricsCatalogApi } from '@/api/metricsCatalog'
 import { ColumnSuggestInput } from '@/components/column-suggest'
+import { NoProjectDataSource } from '@/components/data-sources/no-project-data-source'
 import { ErrorState } from '@/components/error-state'
 import { FieldError } from '@/components/forms/FieldError'
 import { DisabledReason, disabledReasonAria } from '@/components/states'
@@ -135,28 +136,36 @@ export function SqlDefinitionFields({
     { value: '', label: 'Select data source…' },
     ...dataSources.map(ds => ({ value: ds.id, label: ds.name })),
   ]
+  // The list loaded and holds nothing this project may use: say so where the
+  // select would be, rather than a select with only its placeholder.
+  const noDataSources = dataSourcesError == null && dataSources.length === 0
 
   return (
     <>
       <SCard title="Source" description="Where the query runs, and how often.">
         <Field
           label="Data source"
-          htmlFor="metric-sql-data-source"
+          htmlFor={noDataSources ? false : 'metric-sql-data-source'}
+          errorId={fieldErrorId('metric-sql-data-source')}
           required
           error={errors['metric-sql-data-source']}
           announceError={false}
         >
-          <NativeSelect
-            id="metric-sql-data-source"
-            value={draft.dataSourceId}
-            onChange={value => {
-              resetPreview()
-              onDataSourceChange(value)
-            }}
-            options={dataSourceOptions}
-            aria-required
-            {...errorAria(errors, 'metric-sql-data-source')}
-          />
+          {noDataSources ? (
+            <NoProjectDataSource id="metric-sql-data-source" />
+          ) : (
+            <NativeSelect
+              id="metric-sql-data-source"
+              value={draft.dataSourceId}
+              onChange={value => {
+                resetPreview()
+                onDataSourceChange(value)
+              }}
+              options={dataSourceOptions}
+              aria-required
+              {...errorAria(errors, 'metric-sql-data-source')}
+            />
+          )}
           {dataSourcesError != null && (
             <div className="mt-[8px]">
               <ErrorState

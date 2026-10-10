@@ -33,7 +33,7 @@ The four steps build on each other:
 
 Inside a project, the left sidebar groups your work into three areas — **Plan**,
 **Observe**, and **Govern**. **Connect** is the odd one out: wiring up a
-warehouse is done once in workspace settings rather than per project, so it
+warehouse is done once in the organization's settings rather than per project, so it
 isn't a sidebar group. You will usually set things up in the order **Connect →
 Plan → Observe → Govern**, but explore them in any order. Press `⌘K` (or
 `Ctrl-K`) anywhere to search or jump. The palette's **Actions** group also
@@ -53,8 +53,12 @@ Invite member (owners) and the theme toggle.
    The sign-in screen has a **Forgot your password?** link. When the instance has
    email configured (see **[Email delivery](../run/security.md)** / the SMTP
    settings), it emails a single-use reset link that expires in one hour; open it
-   to choose a new password. If email is **not** configured, the same screen tells
-   you to contact an owner, who can reset it for you. To avoid leaking
+   to choose a new password. If email is **not** configured, no link is sent: an
+   owner or admin of your organization can create a single-use reset link for
+   you under **Settings → Organization → Members** and give it to you, and if
+   nobody who could can sign in, whoever runs the server can print one with
+   `tripl-admin password-reset-link <your email>`
+   ([details](../run/configuration.md#tripl-admin)). To avoid leaking
    who has an account, the request always shows the same confirmation regardless of
    whether the address is registered.
    :::
@@ -85,7 +89,7 @@ scans, metrics, and alert rules. Each project also has its own **members**:
 only they (and the organization's owners and admins) can see it, and whoever
 creates a project is an editor member of it. Add people in **Settings → Project →
 Access**, as an **editor** or a **viewer** of that project. Organization roles
-(owner, admin, member) and data-source connections are workspace-wide, although
+(owner, admin, member) and data-source connections are organization-wide, although
 API keys can be bound to one project.
 A company with an
 iOS app, an Android app, and a website that share analytics is usually *one*
@@ -112,12 +116,12 @@ ever sent to Slack, Telegram, email, a webhook, Jira, Linear, PagerDuty, or
 Microsoft Teams. Delete or reset
 it whenever you like; it never touches your real projects.
 
-See **[The demo workspace](./demo-workspace.md)** for exactly what is synthetic,
+See **[The demo project](./demo-workspace.md)** for exactly what is synthetic,
 what is really executed, and what is intentionally unavailable.
 :::
 
 **Start with the coached chapters.** The welcome panel's **Start: Run the live
-loop** opens the first of them, and **Browse chapters** lists them all — short
+loop** opens the first of them, and **Tour & chapters** lists them all — short
 hands-on lessons, one per product area: run the live loop
 (scan → metric → chart), edit an event, properties & value drift, review a
 branch, reconcile the plan, route an alert, and a closing explore chapter. A
@@ -156,7 +160,7 @@ needs.
 
 ### Add a data source
 
-1. Open **Data sources** from the workspace settings area.
+1. Open **Settings → Organization → Data sources**.
 2. Add a connection for your warehouse — **ClickHouse**, **BigQuery**,
    **Databricks**, **Snowflake**, **Amazon Redshift**, **Greenplum**, **Trino**,
    **Amazon Athena**, or **PostgreSQL** — and fill in the connection details:
@@ -205,14 +209,18 @@ needs.
 
 tripl only ever *reads* from the warehouse; it never writes to it.
 
-:::info The warehouses are not interchangeable
-They support the same features, but not with the same guarantees. ClickHouse and
-PostgreSQL are verified by **executing** tripl's generated SQL against real
-servers in CI; BigQuery's SQL is verified as *valid* by Google's own ZetaSQL
-analyzer, but its computed **values** have never been executed against real
-BigQuery. Databricks' and Snowflake's SQL is checked only against a mocked
-driver on pull requests; both have a credentialed value suite for release tags,
-which Snowflake has not yet passed against a real account. There are also real differences in supported time-column types, nested
+:::info Warehouses are not interchangeable
+They support the same features, but not with the same guarantees.
+ClickHouse, PostgreSQL, Greenplum and Trino are verified by **executing**
+tripl's generated SQL against real servers in CI. BigQuery's SQL is checked on
+every pull request by Google's own ZetaSQL analyzer, and its computed values are
+proven on real BigQuery for release tags. Databricks is checked against a mocked
+driver on pull requests and executed against a real SQL warehouse for release
+tags. **Snowflake, Amazon Redshift, Amazon Athena and Trino are in preview**: the
+Type picker lists them as *&lt;name&gt; (preview)* and a connected source shows a
+**Preview** chip on its card, until their live value-conformance suites pass
+(see [proven versus believed](../develop/warehouse-parity.md#read-this-first-proven-versus-believed)).
+There are also real differences in supported time-column types, nested
 JSON behavior, TLS defaults and minimum versions.
 
 Before you commit to a warehouse, read the
@@ -232,8 +240,8 @@ without checking the certificate — to also authenticate the server, choose
 :::warning Only owners and admins manage data sources
 Connecting, editing, testing, and deleting data sources is restricted to the
 organization's **owners and admins**. Members — project editors and viewers —
-can use the events that a scan produces but cannot change the connection itself. Data sources live in workspace settings and
-are shared across the workspace rather than scoped to a single project.
+can use the events that a scan produces but cannot change the connection itself. Data sources live in the organization's settings and
+are shared across the organization rather than scoped to a single project.
 :::
 
 ### Read the connection health
@@ -295,7 +303,7 @@ it is what populates monitoring later.
 ![The event form: event type, name, title, description, status and owner](/img/screenshots/event-edit.dark.webp#gh-dark-mode-only)
 
 1. **Event types** — create folders for related events (for example `Commerce`,
-   `Onboarding`) so a catalog of hundreds of events stays organised.
+   `Onboarding`) so a catalog of hundreds of events stays organized.
 2. **Events** — add events, give each a clear description, and attach the
    **fields** it carries. Mark any field that holds personal or sensitive data.
    Where a scan names the events of a type, the **Name** is written for you
@@ -303,10 +311,11 @@ it is what populates monitoring later.
    human-readable label in **Title** instead (`Order paid`, `Video started`).
    The title shows beside the name in lists, the diff and the event page, is
    searchable, and can be changed at any time without touching the identity.
-3. **Meta fields** — define **meta fields** that ride along with every event
-   (app version, platform, country), reusable **properties** for templates you
-   use in more than one place, and **relations** that record how one event is
-   expected to follow another.
+3. **Meta fields** — define **meta fields**, the documentation attributes every
+   event carries whatever its type (owner team, Jira ticket, review date),
+   reusable **properties** for templates you use in more than one place, and
+   **relations** that declare a join between event types (a field on one holds
+   the same value as a field on another).
 
 ### Reuse values with properties
 
@@ -336,10 +345,10 @@ full workflow.
 ### Move events through their lifecycle
 
 As events get built and verified, move them through their statuses — **Draft**,
-**In Review**, **Ready for Dev**, **Implemented**, **Live** — and **Deprecate**
+**In review**, **Ready for dev**, **Implemented**, **Live** — and **Deprecate**
 or **Archive** the ones you retire. The last step happens on its own: the
-first data collection sees for an event in **Ready for Dev** or **Implemented**
-moves it to **Live**. **Draft** and **In Review** events stay put, so stray
+first data collection sees for an event in **Ready for dev** or **Implemented**
+moves it to **Live**. **Draft** and **In review** events stay put, so stray
 traffic never promotes an event nobody has signed off on, and so does an event
 with a **required** field left empty. The promotion records when the event was
 first seen, adds a history entry and an activity-rail entry signed **tripl
@@ -360,7 +369,7 @@ the migration as *Old 1,240/day → New 3,800/day*. See
 Verification is tracked separately: mark an
 event **verified** once you've checked it, independent of its status. The two
 axes really are independent — an event can be verified and still sit in
-**In Review** — which is why the header's **In review** stat counts events whose
+**In review** — which is why the **Review queue** tab counts events whose
 *status* is `in_review`, and not the events nobody has reviewed yet. On the
 Events page you can select several rows at once and use the bulk action bar to
 **set status**, **mark as verified**, **assign an owner** (or **Unassign**, the
@@ -370,7 +379,7 @@ Saved views, column toggles, and filters (by status, tag, silent days, verified
 state, or field value) help you work through a large catalog.
 
 The **Status** filter takes several statuses at once — tick **Draft** and
-**In Review** to see both. Each lands in the page URL as its own `?status=`
+**In review** to see both. Each lands in the page URL as its own `?status=`
 parameter, so the combination survives a reload or a shared link. With nothing
 ticked (**Any status**) the list shows every status except **Archived** — or,
 on the review and archived tabs, the status that tab is for; tick **Archived**
@@ -393,23 +402,29 @@ A few more things about the Events page:
 
 - A row under the title switches between **All**, **Review queue (n)** and
   **Archived**; on the last two the page is titled **Review queue** and
-  **Archived events**. The **In review** stat in the header links to the queue.
+  **Archived events**. The count on **Review queue** is project-wide: it ignores
+  the tab, filters and search.
 - The **Event volume** chart starts collapsed. Ranges longer than 7 days group
   by day, and an open signal is marked on the chart.
 - Clicking the **48h** column header toggles **Busiest first**.
 - **Clear filters** clears the search box too.
-- On a phone the filters fold behind a **Filters (n)** button.
+- On a phone the filters fold behind a **Filters (n)** button. Each event
+  becomes a card whose chips name themselves (for example *Recent signal*,
+  *Health 89*, *48h*).
 - On the **All** tab, type-specific field columns start hidden; turn them on in
   **Columns**.
 - Clicking a row opens the event's page. Its header's **Discussion (n)** chip
   jumps to the event's comment thread, and while the event is unverified the
   **⋯** menu offers editors **Mark as verified**, the list's bulk action for
-  this one event.
+  this one event. The header's **Charts** button brings the chart tabs into view
+  on the Volume chart.
 - **Saved views** are kept in your browser and hold the search, filters and
   sort.
 - A viewer who follows a link to an event lands on its monitoring detail page.
 - A new project shows a first-run state offering **New event**, **Import from
-  a scan** and **Add many events**.
+  a scan** and **Add many events**; while the project has no event types it
+  offers **Create an event type** and **Import from a scan** instead, since
+  every event belongs to a type.
 
 ---
 
@@ -638,7 +653,7 @@ A few things to know:
   the exception, because they travel in the plan snapshot: the merge re-attaches
   them to whichever row ends up holding the name.
   - **A row a scan discovered survives it.** tripl remembers the name such a row
-    arrived under, and a merge uses that remembered name to recognise a rename
+    arrived under, and a merge uses that remembered name to recognize a rename
     and move the existing row instead of replacing it. Renaming a scanned
     **event** or a scanned **property** on a branch is safe.
   - **A row with no remembered name does not.** An event written into the plan by
@@ -787,7 +802,7 @@ see, across tabs:
   includes a short **forecast** of where
   the next native-interval point should land — a hollow point with a whisker for
   its likely range — only when the selected granularity matches that collection
-  interval, plus a strip summarising the latest signal (**Flagged bucket**,
+  interval, plus a strip summarizing the latest signal (**Flagged bucket**,
   **Change**, **Actual**, **Expected**, **Deviation**) and **top movers** showing
   which slice of the data moved. The chart has a legend, a partial first or last
   bucket of a rolled-up range is drawn dashed, and the caption under it says
@@ -802,7 +817,7 @@ see, across tabs:
   chart. Pick the day from the calendar (arrow keys move by day and week, Page
   Up/Down by month) and type the time beside it; it is your local time, and
   starts at now. Annotations draw in a neutral
-  colour so they cannot be mistaken for anomalies, and deleting one asks first
+  color so they cannot be mistaken for anomalies, and deleting one asks first
   (a project-wide annotation is removed from every monitoring chart in the project).
   Markers you did not draw yourself — **Release *version*** when a new app
   version goes live, and deploy markers posted by a pipeline — show muted with a
@@ -877,14 +892,19 @@ Create at least one place alerts can go. tripl supports:
   the instance config)
 - **Jira** (opens a new issue per delivery)
 - **Linear** (opens a new issue per delivery)
+- **PagerDuty** (an Events API v2 integration key and a severity; see
+  [PagerDuty](./alerting.md#pagerduty))
+- **Microsoft Teams** (a channel webhook URL that receives an Adaptive Card; see
+  [Microsoft Teams](./alerting.md#microsoft-teams))
 
+The [destination table](./alerting.md#destinations) lists what each one needs.
 Mark the destination **enabled** when you save it.
 
 :::note Not in the demo project
 A demo project cannot send anywhere: it only accepts its own local demo sink, and
 adding any of the destinations above is refused. Rules, replay, deliveries, and
 the Inbox are still fully explorable there — the sends are simulated and recorded
-locally. See [The demo workspace](./demo-workspace.md).
+locally. See [The demo project](./demo-workspace.md).
 :::
 
 ### 2. Create a rule
@@ -969,7 +989,7 @@ Replaying the rule against recent data is the quickest way to confirm whether it
   were written on main, or are actions that have no branch to name at all
   (alerting, scans, data sources, users, API keys). This is also your first stop
   when recovering from a mistaken change.
-- **Roles** — in workspace settings, invite teammates into the organization as
+- **Roles** — under **Settings → Organization → Members**, invite teammates into the organization as
   a **member**, an **admin** or an **owner**. Owners and admins hold every
   project and manage people, data sources and scan SQL; an admin cannot make or
   remove owners. A member sees only the projects they are added to, as an
@@ -1021,7 +1041,7 @@ For a wider list of issues, see [Troubleshooting](./troubleshooting).
 
 ## Where to go next
 
-- Don't recognise a term used here? → [Concepts](./concepts)
+- Don't recognize a term used here? → [Concepts](./concepts)
 - Keeping team notes and agent skills next to the plan? → [Docs catalog](./docs-catalog)
 - Automating tripl from a script or agent? → [Agent API guide](../integrate/agent-api-guide)
 - Working on tripl itself? → [Architecture](../develop/architecture) and

@@ -44,6 +44,10 @@ function signal(overrides: Partial<MonitoringSignal> = {}): MonitoringSignal {
     z_score: -6.8,
     direction: 'drop',
     incident_child: false,
+    muted: false,
+    expected: false,
+    hidden: false,
+    attribution_status: 'not_computed',
     unit: null,
     detected_at: null,
     ...overrides,
@@ -161,7 +165,9 @@ describe('WhyChangedPanel (#255)', () => {
   })
 
   it('renders nothing for a payload without attribution or a scope it does not cover', () => {
-    const { container, rerender } = renderPanel({ signal: signal() })
+    // `attribution_status` is required on the wire now, so the payload with
+    // no attribution is one whose status claims nothing to note about it.
+    const { container, rerender } = renderPanel({ signal: signal({ attribution: null, attribution_status: 'ready' }) })
     expect(container).toBeEmptyDOMElement()
     rerender(
       <MemoryRouter>

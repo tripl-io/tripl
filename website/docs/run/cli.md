@@ -33,10 +33,11 @@ One more records a single fact about a project and is one word:
 - **`tripl annotate`** — post a deploy or release marker onto every monitoring
   (Volume tab) chart in a project, from a CI step. See [`tripl annotate`](#tripl-annotate).
 
-`scans run`, `scans cancel`, `drifts dismiss`, `drifts reopen` and `annotate`
-are the CLI's **only mutating commands**. Read [Write safety](#write-safety) before you use one. Every other
-command that talks to an instance is read-only, and a `tk_r_` key is enough for
-all of them.
+The commands listed in [Write safety](#write-safety) — `scans run`,
+`scans cancel`, `drifts dismiss`, `drifts reopen`, `annotate` and `docs push` —
+are the CLI's **only mutating commands**. Read that section before you use one.
+Every other command that talks to an instance is read-only, and a `tk_r_` key is
+enough for all of them.
 
 Two more are read-only in full, and answer questions about the **content**
 rather than the machinery:
@@ -44,7 +45,7 @@ rather than the machinery:
 - **`tripl events`** — `list` the catalog with the API's own filters, `show` one
   event with its field values resolved to field names.
 - **`tripl plan`** — the shape events are declared to have: `types`, one type's
-  `fields`, the documented `variables`, the plan `branches`, and `search` across
+  `fields`, the documented `properties`, the plan `branches`, and `search` across
   all of it.
 
 Both read one project at a time, so both need `--project SLUG` exactly once, and
@@ -70,6 +71,13 @@ instance; the files they write are local:
 - **`tripl export`** — writes the plan as a JSON Schema bundle, one schema per
   event, or as the model `tripl codegen --model` reads. See
   [`tripl export`](#tripl-export).
+
+One more keeps the team's **notes**, the project's and the organization's
+Markdown docs catalog:
+
+- **`tripl docs`** — `ls` the notes, `cat` one, `pull` a scope into a local
+  folder and `push` a folder back as one import. `push` is a write: it needs a
+  `tk_w_` key and asks first. See [`tripl docs`](#tripl-docs).
 
 Two act on a **host**, not on an instance — no URL, no API key, no HTTP except a
 `/health` poll at the end:
@@ -119,7 +127,6 @@ pip install tripl     # or put it on PATH for good
 ```bash
 git clone https://github.com/tripl-io/tripl.git
 uv run --project tripl/cli tripl --version
-# tripl 0.1.0
 ```
 
 **From git, without a checkout.** How you get a revision that is not released
@@ -182,6 +189,11 @@ names the right variable instead of shrugging.
 A URL pasted from the browser with `/api/v1` already on the end is trimmed
 rather than doubled, and a bare host with no scheme gets a corrected suggestion
 in the error.
+
+Use the final address, usually `https://`. Reads follow redirects, but a write
+(`scans run`, `drifts dismiss`, `annotate`, `docs push`, …) that gets a redirect
+fails and names where it was sent, because following it would re-send the write
+as a `GET`.
 
 ### Config file
 
@@ -357,8 +369,8 @@ exclusion is always printed, never silent.
 | `project_list_forbidden` (fail) | `GET /projects` returned 403 for a key that is *not* project-scoped. | The backing user's role is insufficient. Use a key owned by a user with access, or name the project with `--project`. |
 | `project_not_found` (fail) | A slug passed to `--project` does not exist. | Check the spelling — it is the URL slug, not the display name. |
 | `project_not_authorized` (fail) | The key is fenced to a *different* project. | Use the right key, or the right slug. |
-| `no_projects_selected` (warn) | The instance has no non-demo projects. | Nothing is broken. Add `--include-demo` to check the demo workspace, or `--project`. |
-| `project_generation_failed` (fail) | Provisioning of a project did not finish. `generation_error` carries the reason. | The project's data is incomplete and every downstream check about it is unreliable. Re-create it, or see [Demo workspace](../use/demo-workspace.md) if it is a demo. |
+| `no_projects_selected` (warn) | The instance has no non-demo projects. | Nothing is broken. Add `--include-demo` to check the demo project, or `--project`. |
+| `project_generation_failed` (fail) | Provisioning of a project did not finish. `generation_error` carries the reason. | The project's data is incomplete and every downstream check about it is unreliable. Re-create it, or see [Demo project](../use/demo-workspace.md) if it is a demo. |
 | `project_generating` (warn) | Provisioning is still in progress. | Wait and re-run. Counts reported for it are partial. |
 
 ### 4. `data_sources` — warehouse connection probes
@@ -1618,6 +1630,7 @@ usage: tripl events list [-h] [--url URL] [--api-key KEY] [--config PATH]
                          [--meta-value TEXT] [--event-type ID]
                          [--property NAME_OR_ID] [--silent-since-days N]
                          [--reviewed | --unreviewed]
+                         [--open-questions | --no-open-questions]
                          [--offset N] [--limit N] [--order-by ORDER] [--json]
                          [--timeout SECONDS]
 ```
@@ -1635,6 +1648,7 @@ usage: tripl events list [-h] [--url URL] [--api-key KEY] [--config PATH]
 | `--property NAME_OR_ID` | Only events whose property list carries this property, by name or id. |
 | `--silent-since-days N` | Only events the warehouse has not carried for N days, `0`–`3650`. |
 | `--reviewed` / `--unreviewed` | Only events already marked reviewed, or only those not. Mutually exclusive; omitting both asks for either. Reviewing is a separate axis from lifecycle status, so `--reviewed` and `--status in_review` can both match the same event. |
+| `--open-questions` / `--no-open-questions` | Only events whose discussion has an unanswered thread, or only those with nothing left open. Mutually exclusive; omitting both asks for either. |
 | `--offset N` | Skip N events, to read the next page. Default `0`. |
 | `--limit N` | How many events to ask for, `1`–`10000`, default `200`. |
 | `--order-by ORDER` | Order the page: `catalog`, the authored catalog order, or `volume`, busiest-first by ingested volume over the last 24h, or `health`, least healthy first by the [health score](../use/health-score.md) (main plan only). Unlike `--limit` this flag has **no** client-side default — omitting it leaves the parameter off the wire so the API's own default (`catalog`) applies. |
@@ -1924,13 +1938,13 @@ prod
 
 Properties are the documented `${placeholder}` tokens an event name or field
 value may carry. The columns are the id, the name, the declared type, how many
-events use it, and its open **value drift** count — a variable observed carrying
+events use it, and its open **value drift** count — a property observed carrying
 a value outside its documented set. A non-zero count there is the same class of
 signal `tripl drifts list` reports for schema, on the other axis.
 
 The ceiling is `5000` rather than the events route's `10000` because that is
 what the route enforces; a real project can carry well over a thousand
-variables, so the default of `200` is a page and not the catalog.
+properties, so the default of `200` is a page and not the catalog.
 
 **Cost:** one request, plus one to resolve `--branch` when you pass it.
 
@@ -2415,7 +2429,7 @@ for `codegen_model`).
 In a `jsonschema` export, archived events are left out and deprecated ones are
 marked. Each schema has the event type's fields as properties, required fields
 in `required`, the event's own values as `const`, enums from the field's
-options or the variable's allowed values, and `pattern`, `minimum` and
+options or the property's allowed values, and `pattern`, `minimum` and
 `maximum` from the field's contract. The
 [API guide](../integrate/agent-api-guide.md#plan-export-jsonschema) has the
 full mapping, and the [`codegen_model` format](../integrate/agent-api-guide.md#plan-export-codegen-model)
@@ -2683,6 +2697,16 @@ usage: tripl install [-h] [--url URL] [--api-key KEY] [--config PATH]
 | `--yes` | Skip the confirmation prompt. Required when stdin is not a terminal *and* a prompt would be asked — see [when it asks](#install-only-asks-in-one-case). |
 | `--json` | One JSON document on stdout, every human line on stderr. |
 
+:::info Needs a `tripl` CLI newer than 0.3.1
+Four things on this page are not in the 0.3.1 release on PyPI yet:
+`--no-telemetry` (0.3.1 has `--telemetry` only, and writes
+`TELEMETRY_ENABLED=false` without it), the version the `latest` reminder
+suggests, the advice a re-run prints when its `--version` was
+[not applied](#re-running-is-the-supported-way-to-converge), and
+[removing a fresh `.env` after a failed pull](#when-the-pull-fails-on-a-first-install).
+`uvx tripl --version` prints the version you have.
+:::
+
 :::note `--url` and `--api-key` are inherited, and refused
 Both appear in the usage line because every subcommand shares one parent parser.
 Passing either **explicitly** to `install` or `upgrade` is **exit 2**, with a
@@ -2692,8 +2716,12 @@ box and finds out later.
 :::
 
 ```bash
-tripl install --app-url https://tripl.example.com --version 1.5.0 --dir /srv/tripl
+tripl install --app-url https://tripl.example.com --version X.Y.Z --dir /srv/tripl
 ```
+
+`X.Y.Z` is a released version from the
+[GitHub releases page](https://github.com/tripl-io/tripl/releases). The image and
+this CLI are released together under one number.
 
 `--dry-run` prints exactly what a real run would do, and is worth typing first.
 Here without `--version`, so the plan shows the `latest` default:
@@ -2727,6 +2755,8 @@ warnings rather than refusals, because only you know whether they apply:
 
 - Leaving `--version` at `latest` prints a reminder to pin a released tag in
   production, since `latest` follows every release and a re-run would move you.
+  It suggests `--version` with this CLI's own version, which names a published
+  image (a CLI run from an unreleased source tree suggests `X.Y.Z` instead).
 - An `http://` `--app-url` prints a warning that the stack forces
   `SESSION_COOKIE_SECURE=true`, so a browser will not store the session cookie
   over plain HTTP — Safari refuses it even on `localhost` — and nobody will stay
@@ -2789,7 +2819,7 @@ APP_BASE_URL=https://tripl.example.com
 
 # Released image and tag. `tripl upgrade --to X.Y.Z` moves the tag.
 TRIPL_IMAGE=ghcr.io/tripl-io/tripl
-TRIPL_VERSION=1.5.0
+TRIPL_VERSION=X.Y.Z
 
 # Generated secrets - do not edit by hand.
 # ENCRYPTION_KEY is a Fernet key: 32 random bytes, url-safe base64.
@@ -2871,6 +2901,32 @@ anyway; the alternative is a job that works until the day it does not.
 reports `unchanged` / `kept` for the files, leaves `.env` alone, and **still runs
 `pull` and `up -d`**, because "make the running stack match what is on disk" is
 the useful meaning of a re-run.
+
+Leaving `.env` alone includes its `TRIPL_VERSION`. A re-run whose `--version`
+differs from the pin warns on stderr that the requested tag was **not** applied,
+and says what to do instead, in the same order [`tripl upgrade`](#tripl-upgrade)
+judges a move:
+
+- a newer `X.Y.Z` gets `tripl upgrade --to X.Y.Z --dir <dir>`;
+- a pair that cannot be ordered (a kept `latest`, say) gets the same command
+  plus `--allow-unordered-tag`;
+- an older tag gets no upgrade command, because `upgrade` refuses a downgrade:
+  if the stack has never started, edit `TRIPL_VERSION` in `.env` by hand;
+  otherwise restoring a backup is the way back.
+
+### When the pull fails on a first install
+
+A run that **created** `.env` and then failed at `docker compose pull` (a tag
+that was never published answers *manifest unknown*) never reached `up -d`, so
+nothing has read the database password or the keys it generated. `install`
+therefore removes that `.env` again, says so, and exits **1**; re-running with a
+corrected `--version` starts clean. In the `--json` document the `.env` entry of
+`files` carries the note `removed: the pull failed before anything read it`.
+
+That is the only time `install` deletes a `.env`. One that existed before the
+run is never removed, and nothing is removed once `up -d` has run: by then
+PostgreSQL may have initialised its volume with the generated password, and the
+file is its only copy.
 
 ### What actually runs, and where its output goes
 
@@ -2990,17 +3046,20 @@ tag applies Alembic migrations, and those are **not reversible here**.
 ```
 usage: tripl upgrade [-h] [--url URL] [--api-key KEY] [--config PATH] --to TAG
                      [--dir PATH] [--wait SECONDS] [--dry-run] [--yes]
-                     [--json]
+                     [--json] [--allow-unordered-tag]
 ```
 
 | Flag | Meaning |
 |------|---------|
-| `--to TAG` | **Required.** The tag to move to, e.g. `1.5.0`. There is no default and no "upgrade to latest" convenience. |
+| `--to TAG` | **Required.** The tag to move to: `X.Y.Z`, a released version from the [GitHub releases page](https://github.com/tripl-io/tripl/releases). There is no default and no "upgrade to latest" convenience. |
 | `--dir PATH` | Where the stack lives. Default `./tripl`. Must already contain `compose.yaml` **and** `.env`, or it is exit 2 naming `tripl install`. |
 | `--wait SECONDS` | As for `install`: default `300`, range `0`–`3600`, `0` skips. |
 | `--dry-run` | Print the plan; write nothing, run nothing. |
 | `--yes` | Skip the confirmation. **`upgrade` always confirms**, so a non-interactive run always needs this. |
 | `--json` | One JSON document on stdout, every human line on stderr. |
+| `--allow-unordered-tag` | Proceed even though one of the two tags is not `X.Y.Z`, so the move cannot be checked for being a downgrade. Separate from `--yes` on purpose: `--yes` answers the backup prompt, which every non-interactive run must pass. See [how the two tags are compared](#how-the-two-tags-are-compared). |
+
+The examples below move a hypothetical install from 1.4.0 to 1.5.0.
 
 ```bash
 tripl upgrade --to 1.5.0 --dir /srv/tripl --dry-run
@@ -3034,7 +3093,7 @@ skipped rather than run against a guess.
 | `same` | The pin already equals `--to`. | `already at X; nothing to do.` **Exit 0**, nothing run, `.env` untouched — a converging provisioning script must not be a failing one. |
 | `upgrade` | Both are strict `X.Y.Z` and the target is higher. | Proceeds to the backup gate. |
 | `downgrade` | Both are strict `X.Y.Z` and the target is lower. | **Refused outright, exit 2, no override flag.** |
-| `unknown` | Either side is not a strict `X.Y.Z` — `latest`, `1.4`, `sha-abc1234`. | Prints the plan, then **refuses without `--yes`**, exit 2. With `--yes` it proceeds and warns that this may be a downgrade. |
+| `unknown` | Either side is not a strict `X.Y.Z` — `latest`, `1.4`, `sha-abc1234`. The first upgrade of an install left at the default `latest` is such a pair. | Prints the plan, then **refuses without `--allow-unordered-tag`**, exit 2. `--yes` alone does not override it, because it only answers the backup prompt, which every non-interactive run must pass. With the flag it proceeds and warns that this may be a downgrade. `--dry-run` previews the refusal. |
 
 ```text
 tripl: downgrade refused: 1.4.0 -> 1.3.0. Alembic migrations are not reversible here, so the older image cannot read the schema the newer one wrote. Restore your backup instead. There is no override flag.
@@ -3164,8 +3223,8 @@ produced it, but not every code is reachable from every command — `doctor` own
 | Code | Meaning |
 |------|---------|
 | **0** | `doctor`: every check passed, or only warned and `--strict` was not given. `status`: it completed. `watch`: the run completed — `--duration` elapsed. A failed job, a new signal and a failed delivery all still exit 0, because `watch` reaches no verdict. `scans list` / `drifts list`: every read arrived, including a run that legitimately found nothing. `scans jobs`: the history was read. `events list` / `events show` / every `plan` verb: the read arrived — including a page that stopped at `--limit` with more behind it, which is reported in the footer and in `truncated`, not in the exit code. `scans run` / `scans cancel` / `drifts dismiss` / `drifts reopen` / `annotate` / `docs push`: the API accepted the write — or `--dry-run` resolved everything and sent nothing. For `annotate` that includes a `200` for a label the API de-duplicated, which created nothing and is reported as such. `install`: the files are on disk and, unless `--no-start`, `pull` and `up -d` both succeeded and `/health` answered (or `--wait 0` skipped the wait). `upgrade`: the new tag is pinned and running — **or the pin already equalled `--to`**, which runs nothing and is deliberately 0 so a converging provisioning script is not a failing one. `check`: no finding at error severity — and, with `--strict`, none at warning severity either. `codegen`: the files were written — or, with `--check`, every file on disk already matches. `export`: the export was written, or printed to stdout without `--out`. |
-| **1** | The tool itself broke, or a command other than `doctor` could not complete a request — unreachable, or the API refused it (a project-scoped key with no `--project` gets a 403 here, on a perfectly healthy instance). `watch` reaches it two ways: a startup read it cannot proceed without (the project listing, or a project's scan listing), and a key revoked mid-run, which ends the run after a `watch.stopped` line carrying `reason: "authentication_failed"`. Every *other* failed read during a run is a `poll.degraded` line, not an exit. Three more routes into 1 belong to the object commands: **any** failed read in a `scans list` or `drifts list` fan-out, a `scans run` whose job came back already `failed`, and a `scans cancel`, `drifts dismiss`, `drifts reopen` or `docs push` you **declined at the prompt** — "the operator said no" must never be readable as "the mutation happened". `install` and `upgrade` reach 1 three ways of their own: `docker compose pull` or `up -d` exited non-zero, `/health` did not answer within `--wait`, or a file could not be written (a read-only directory, or a race with a second `tripl install`). The `events` and `plan` verbs reach 1 the ordinary way and only that way: each reads ONE resource of ONE project, so there is no partial answer to report beside a failure — a refused read is the client's message and exit 1, never an empty table at exit 0. **In none of those is anything rolled back** — for `install` the stack is started, and for a failed `up -d` the new pin is left in place on purpose. Declining the backup gate is also 1. **`doctor` should never exit 1** — it turns every API failure into a finding, so an exit 1 out of doctor is a bug report, not a diagnosis. `check` is the one command other than `doctor` that reaches 1 **by verdict**: at least one finding at error severity, or at warning severity with `--strict`. It also reaches 1 the ordinary way, when a validate request fails, and then it writes no document; with `--json` or `--format sarif`, a document on stdout means the run completed and the findings decided the code. `codegen --check` also reaches 1 by verdict: a generated file is missing, differs from what the plan produces now, or is stale. `codegen` and `export` reach it the ordinary way too, when the plan read fails or a file cannot be written. `docs pull` reaches it when the export carries a path that would land outside `<dir>`, and writes nothing; `docs push` reaches it when the API refuses the import, which then changes nothing. |
-| **2** | Usage or configuration error: a bad flag, an out-of-range value, no URL, no API key, an unreadable config file. For `doctor` and `status` that is always resolved before any socket opens. `watch` adds two refusals it can only reach *after* reading the project and scan listings — `--scan` matching nothing, and more than 24 selected scan configs — so for it the resolution is two rounds of HTTP in, not zero. The `scans` and `drifts` verbs add: a bare group with no verb, a missing or repeated `--project` on a command that acts on one object, a `<scan>` selector matching nothing or matching two configs, a `--snooze-until` that is not RFC 3339, a `--limit` outside 1–200, a `--status` that is not one of the six, and **`scans cancel` / `drifts dismiss` / `drifts reopen` / `docs push` on a non-TTY without `--yes`**. `annotate` adds: a `--url` that is not an absolute `http`/`https` URL or is over 500 characters, an `--at` that is not RFC 3339, a blank or over-long `<label>`, and `--scope-type` without `--scope-ref` or the reverse. The read groups add: a missing or repeated `--project` (every one of their routes is per project), a `--branch` or `<event-type>` selector matching nothing or matching two, a `--status` or `--type` outside the API's own enum, an `--offset`/`--limit` outside the route's range, a `<query>` that is blank or over 500 characters, and `--branch` on `plan branches`, which has no such flag. `docs` adds: a `pull` into a non-empty folder without `--force`, and a `push` of a folder with no `.md` file, a note over 256 KiB or not UTF-8, or more than one import's limits. `install` and `upgrade` add: an explicit `--url` or `--api-key`, an `--app-url` that is not a URL, a `--version`/`--to` that is not a valid image tag, a `--wait` outside 0–3600, a `--dir` that looks like a tripl source checkout, no `docker` on `PATH` / no Compose v2 plugin / a daemon that will not answer, a `--dir` with no stack in it, a refused **downgrade**, an unorderable tag pair without `--yes`, and any prompt met on a non-TTY without `--yes`. `check` adds: no check configuration, a check configuration that is not valid YAML or names an unknown key or preset, a call entry with no `function` / `pattern` / `objc_selector`, no project from either `--project` or the file, a `--payloads` file that is not JSON or NDJSON, and a `--branch` matching nothing. `codegen` adds: no check configuration, a `codegen` block with an unknown key, style or language, a template file that does not exist or does not parse, a `type_names` value that is not an identifier in one of its languages, no event type with a `codegen` block, no output directory from either `--out` or `codegen.out`, a `--model` file that is not a `codegen_model` export, and `--model` with `--branch`. `export` adds: a missing `--format`, and `--json` without `--out`. Either way **no JSON is emitted**, no write is ever sent, and no file is written. |
+| **1** | The tool itself broke, or a command other than `doctor` could not complete a request — unreachable, or the API refused it (a project-scoped key with no `--project` gets a 403 here, on a perfectly healthy instance). `watch` reaches it two ways: a startup read it cannot proceed without (the project listing, or a project's scan listing), and a key revoked mid-run, which ends the run after a `watch.stopped` line carrying `reason: "authentication_failed"`. Every *other* failed read during a run is a `poll.degraded` line, not an exit. Three more routes into 1 belong to the object commands: **any** failed read in a `scans list` or `drifts list` fan-out, a `scans run` whose job came back already `failed`, and a `scans cancel`, `drifts dismiss`, `drifts reopen` or `docs push` you **declined at the prompt** — "the operator said no" must never be readable as "the mutation happened". `install` and `upgrade` reach 1 three ways of their own: `docker compose pull` or `up -d` exited non-zero, `/health` did not answer within `--wait`, or a file could not be written (a read-only directory, or a race with a second `tripl install`). The `events` and `plan` verbs reach 1 the ordinary way and only that way: each reads ONE resource of ONE project, so there is no partial answer to report beside a failure — a refused read is the client's message and exit 1, never an empty table at exit 0. **In none of those is anything rolled back** — for `install` the stack is started, and for a failed `up -d` the new pin is left in place on purpose. The one exception: when `install`'s `pull` fails on a run that created `.env`, that `.env` is removed again, because nothing has started and nothing read it ([when the pull fails on a first install](#when-the-pull-fails-on-a-first-install)). Declining the backup gate is also 1. **`doctor` should never exit 1** — it turns every API failure into a finding, so an exit 1 out of doctor is a bug report, not a diagnosis. `check` is the one command other than `doctor` that reaches 1 **by verdict**: at least one finding at error severity, or at warning severity with `--strict`. It also reaches 1 the ordinary way, when a validate request fails, and then it writes no document; with `--json` or `--format sarif`, a document on stdout means the run completed and the findings decided the code. `codegen --check` also reaches 1 by verdict: a generated file is missing, differs from what the plan produces now, or is stale. `codegen` and `export` reach it the ordinary way too, when the plan read fails or a file cannot be written. `docs pull` reaches it when the export carries a path that would land outside `<dir>`, and writes nothing; `docs push` reaches it when the API refuses the import, which then changes nothing. |
+| **2** | Usage or configuration error: a bad flag, an out-of-range value, no URL, no API key, an unreadable config file. For `doctor` and `status` that is always resolved before any socket opens. `watch` adds two refusals it can only reach *after* reading the project and scan listings — `--scan` matching nothing, and more than 24 selected scan configs — so for it the resolution is two rounds of HTTP in, not zero. The `scans` and `drifts` verbs add: a bare group with no verb, a missing or repeated `--project` on a command that acts on one object, a `<scan>` selector matching nothing or matching two configs, a `--snooze-until` that is not RFC 3339, a `--limit` outside 1–200, a `--status` that is not one of the six, and **`scans cancel` / `drifts dismiss` / `drifts reopen` / `docs push` on a non-TTY without `--yes`**. `annotate` adds: a `--url` that is not an absolute `http`/`https` URL or is over 500 characters, an `--at` that is not RFC 3339, a blank or over-long `<label>`, and `--scope-type` without `--scope-ref` or the reverse. The read groups add: a missing or repeated `--project` (every one of their routes is per project), a `--branch` or `<event-type>` selector matching nothing or matching two, a `--status` or `--type` outside the API's own enum, an `--offset`/`--limit` outside the route's range, a `<query>` that is blank or over 500 characters, and `--branch` on `plan branches`, which has no such flag. `docs` adds: a `pull` into a non-empty folder without `--force`, and a `push` of a folder with no `.md` file, a note over 256 KiB or not UTF-8, or more than one import's limits. `install` and `upgrade` add: an explicit `--url` or `--api-key`, an `--app-url` that is not a URL, a `--version`/`--to` that is not a valid image tag, a `--wait` outside 0–3600, a `--dir` that looks like a tripl source checkout, no `docker` on `PATH` / no Compose v2 plugin / a daemon that will not answer, a `--dir` with no stack in it, a refused **downgrade**, an unorderable tag pair without `--allow-unordered-tag`, and any prompt met on a non-TTY without `--yes`. `check` adds: no check configuration, a check configuration that is not valid YAML or names an unknown key or preset, a call entry with no `function` / `pattern` / `objc_selector`, no project from either `--project` or the file, a `--payloads` file that is not JSON or NDJSON, and a `--branch` matching nothing. `codegen` adds: no check configuration, a `codegen` block with an unknown key, style or language, a template file that does not exist or does not parse, a `type_names` value that is not an identifier in one of its languages, no event type with a `codegen` block, no output directory from either `--out` or `codegen.out`, a `--model` file that is not a `codegen_model` export, and `--model` with `--branch`. `export` adds: a missing `--format`, and `--json` without `--out`. Either way **no JSON is emitted**, no write is ever sent, and no file is written. |
 | **3** | `doctor` only: at least one check failed — or, with `--strict`, at least one warned. No other command reaches 3, whatever it observes. |
 | **130** | Interrupted (`Ctrl-C`). For `doctor` and `status` that is an abandoned run. For `watch` **it is the normal ending**: a run without `--duration` has no other way to stop, so 130 out of `watch` means "you pressed Ctrl-C", not "something went wrong". A wrapper that treats non-zero as failure needs to know this before it pages somebody. |
 
@@ -3198,7 +3257,9 @@ header, because at install time no account exists and therefore no key can.
 :::note Exit 1 out of `install` or `upgrade` never means "nothing happened"
 It means the opposite of a declined write. By the time either reaches 1, the
 files are on disk and — unless the failure was the `pull` — the containers have
-been asked to start. A `/health` timeout in particular is often just a slow first
+been asked to start. After a failed `install` pull, a `.env` this run generated
+is gone again, and `tripl install` (with a corrected `--version`) is the thing
+to re-run. A `/health` timeout in particular is often just a slow first
 migration or a proxy that is not up yet. Read the message: it names which step
 failed and which `docker compose logs` to open. Re-running is safe; that is what
 idempotence is for.
@@ -3252,8 +3313,8 @@ a gate to read, and it only ever saw what fell inside its polls. It is the
 command you run *by hand*, next to the incident.
 
 :::warning An unattended write needs `--yes` and a second key
-`scans cancel` and `drifts dismiss` refuse to prompt when stdin is not a
-terminal, so a cron job or a CI step must pass `--yes` — otherwise it exits 2
+`scans cancel`, `drifts dismiss`, `drifts reopen` and `docs push` refuse to
+prompt when stdin is not a terminal, so a cron job or a CI step must pass `--yes` — otherwise it exits 2
 and sends nothing, every time. Such a job also needs a `tk_w_` key backed by an
 editor or owner, which is **not** the read-only key the examples above export.
 Do not promote the diagnostic cron's key to write scope so a second job can
@@ -4416,11 +4477,11 @@ tripl install --app-url https://tripl.example.com --yes --json \
   | jq -r '"\(.health.status) after \(.health.waited_seconds)s in \(.health.attempts) attempts"'
 
 # Which compose command failed, if one did. null means it was never reached.
-tripl upgrade --to 1.5.0 --yes --json \
+tripl upgrade --to X.Y.Z --yes --json \
   | jq -r '.commands[] | select(.returncode != 0) | "\(.argv|join(" ")) -> \(.returncode)"'
 
 # The .env backup to restore from, empty if the pin was never moved.
-tripl upgrade --to 1.5.0 --yes --json | jq -r '.env_backup // empty'
+tripl upgrade --to X.Y.Z --yes --json | jq -r '.env_backup // empty'
 
 # Events your plan calls live that nothing has sent for a month.
 tripl events list --project prod --status live --silent-since-days 30 --json \

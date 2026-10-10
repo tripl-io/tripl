@@ -14,6 +14,7 @@ from tripl.schemas.fact_table import (
     FactTableResponse,
     FactTableUpdate,
 )
+from tripl.schemas.pagination import Offset
 from tripl.schemas.text_filters import FreeTextFilter
 from tripl.services import audit_service, fact_table_service
 from tripl.services.project_lookup import resolve_project_id
@@ -28,7 +29,7 @@ async def list_fact_tables(
     # FreeTextFilter: binds into an ILIKE, so a NUL aborts inside asyncpg
     # before SQL runs.
     search: FreeTextFilter | None = None,
-    offset: int = Query(0, ge=0),
+    offset: Offset = 0,
     limit: int = Query(200, ge=1, le=1000),
 ) -> FactTableListResponse:
     items, total = await fact_table_service.list_fact_table_items(

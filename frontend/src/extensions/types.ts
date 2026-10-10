@@ -27,6 +27,17 @@ export interface ExtensionRoute {
   path: string
   /** Suspense key of the route while its chunk loads. */
   key: string
+  /**
+   * The browser-tab title ("Link your account" reads "Link your account ·
+   * tripl"). Without one the tab reads just "tripl" — never "Page not found",
+   * which is what a route the title resolver did not know used to say.
+   */
+  title?: string
+  /**
+   * @deprecated Ignored. An extension route renders outside the app shell, so
+   * it loads behind the same centred line as sign-in rather than an in-shell
+   * page skeleton; the field stays only until no extension sets it.
+   */
   skeleton?: PageSkeletonVariant
   Component: LazyExoticComponent<ComponentType>
 }

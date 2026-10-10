@@ -10,6 +10,7 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import { cn } from '@/lib/utils'
+import { countOf } from '@/lib/plural'
 import type { Project } from '@/types'
 import { ICON_BUTTON_CLASS } from './sidebar-style'
 import { workspacePath } from '@/lib/navigation'
@@ -61,9 +62,15 @@ export function ProjectSwitcher({
   const displayName = activeProject?.name ?? (loading ? 'Loading…' : 'Choose a project')
   // On a workspace route no project is active: a neutral count, NOT
   // projects[0], which showed a real project's slug as if it were selected.
+  // With none at all it says so, in the words the open menu uses, rather than
+  // offering a choice among "0 projects".
   const subtitle =
     activeProject?.slug ??
-    (loading ? 'loading…' : `${projects.length} ${projects.length === 1 ? 'project' : 'projects'}`)
+    (loading
+      ? 'loading…'
+      : projects.length === 0
+        ? 'No projects yet'
+        : countOf(projects.length, 'project', 'projects'))
   const showFilter = projects.length > PROJECT_FILTER_THRESHOLD
   const needle = filter.trim().toLowerCase()
   const shown = needle

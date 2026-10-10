@@ -36,7 +36,6 @@ from tripl.models.plan_branch_merge_resolution import PlanBranchMergeResolution
 from tripl.models.plan_revision import PlanRevision, PlanRevisionKind
 from tripl.schemas.plan_branch import (
     BranchConflictsResponse,
-    EntityChangeCount,
     UpdateBlocker,
     UpdateFromMainPreview,
     UpdateFromMainRequest,
@@ -45,8 +44,8 @@ from tripl.schemas.plan_branch import (
 from tripl.services._plan_branch_locks import lock_main_plan_for_merge
 from tripl.services._plan_branch_sides import base_is_complete, read_sides
 from tripl.services._plan_branch_three_way import plan_three_way
-from tripl.services._plan_branch_three_way_model import ENTITY_TYPES, ThreeWay
-from tripl.services._plan_branch_update_apply import apply_update_plan
+from tripl.services._plan_branch_three_way_model import ThreeWay
+from tripl.services._plan_branch_update_apply import apply_update_plan, entity_change_counts
 from tripl.services.plan_branch_conflicts import (
     _load_resolutions,
     conflicts_response,
@@ -75,14 +74,6 @@ class UpdateOutcome(NamedTuple):
     result: UpdateFromMainResult
     # How many conflict rows each choice settled, for the audit record.
     resolution_counts: dict[str, int]
-
-
-def _counts_list(counts: dict[str, dict[str, int]]) -> list[EntityChangeCount]:
-    return [
-        EntityChangeCount(entity_type=entity_type, **counts[entity_type])
-        for entity_type in ENTITY_TYPES
-        if entity_type in counts and any(counts[entity_type].values())
-    ]
 
 
 _INCOMPLETE_BASE_MESSAGE = (
@@ -152,7 +143,7 @@ async def preview_update(
         blockers=blockers,
         base_revision_id=branch.base_revision_id,
         main_hash=main_hash,
-        main_changes=_counts_list(plan.main_changes),
+        main_changes=entity_change_counts(plan.main_changes),
         conflicts=conflicts_response(
             plan.rows,
             stored,

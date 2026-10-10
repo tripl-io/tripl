@@ -258,14 +258,26 @@ async def test_the_demo_files_its_authored_objects_in_their_routes_own_shape(
 
     # The variable override: the TARGET is the variable, and the event it was
     # scoped to belongs in the payload beside it.
+    # The recipe authors two property-list entries: product_id's value override
+    # on Trial Started, and platform listed as required (no override) on Home
+    # Screen View. Each is one PUT, so each files one row.
     overrides = await rows("variable.override_set")
-    assert len(overrides) == 1, overrides
-    override = overrides[0]
-    assert override["target_type"] == "variable"
-    assert override["target_name"] == "product_id", override
-    override_payload = await payload_of(override)
+    assert len(overrides) == 2, overrides
+    assert all(row["target_type"] == "variable" for row in overrides), overrides
+    by_variable = {row["target_name"]: row for row in overrides}
+    assert set(by_variable) == {"product_id", "platform"}, overrides
+
+    override_payload = await payload_of(by_variable["product_id"])
     assert override_payload["event_name"] == "Trial Started"
     assert override_payload["values"] == ["prod_monthly", "prod_annual"]
+    assert "required" not in override_payload, override_payload
+
+    # The required-only entry: the route files what its request body set
+    # (``model_dump(exclude_unset=True)``), so no ``values`` key at all.
+    required_payload = await payload_of(by_variable["platform"])
+    assert required_payload["event_name"] == "Home Screen View"
+    assert required_payload["required"] is True
+    assert "values" not in required_payload, required_payload
 
 
 # --- reference: the shapes the two fixes above were written to match ----------

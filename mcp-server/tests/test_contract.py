@@ -125,6 +125,26 @@ def test_every_wrapped_endpoint_exists_in_openapi(
     )
 
 
+def test_no_wrapped_endpoint_is_deprecated(openapi_paths: dict[str, Any]) -> None:
+    """A deprecated route is one the server means to remove, so no tool may call it.
+
+    list_variables and get_variable_values sat on the `/variables` alias, which
+    the backend keeps only for clients released before `/properties`. The CLI
+    suite checks the same rule over every shared endpoint; this copy is what
+    fails the mcp-server job on its own.
+    """
+    deprecated = [
+        f"{tool}: {method.upper()} {API_PREFIX}{path}"
+        for tool, endpoints in TOOL_ENDPOINTS.items()
+        for method, path in endpoints
+        if openapi_paths.get(f"{API_PREFIX}{path}", {}).get(method, {}).get("deprecated")
+    ]
+    assert not deprecated, (
+        "MCP tools wrap operations backend/openapi.json marks deprecated; switch to the "
+        "canonical route:\n  " + "\n  ".join(deprecated)
+    )
+
+
 def test_every_registered_tool_has_a_contract_entry() -> None:
     mcp = build_server()
     tools = asyncio.run(mcp.list_tools())

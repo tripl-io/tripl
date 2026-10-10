@@ -62,7 +62,7 @@ folding. Long relation names are shortened to fit the search index.
 | Variable | Default | Purpose |
 | --- | --- | --- |
 | `SEARCH_EMBEDDINGS_ENABLED` | `false` | Master switch for semantic search. When `false`, `/search` uses keyword/substring fallback only. |
-| `SEARCH_EMBEDDING_BASE_URL` | `https://api.openai.com/v1` | Base URL of the OpenAI-compatible embeddings endpoint; `/embeddings` is appended. Env-only — no instance-settings override, see the re-indexing warning below — but shown read-only, with its source badge, under **Settings → Instance → AI**. |
+| `SEARCH_EMBEDDING_BASE_URL` | `https://api.openai.com/v1` | Base URL of the OpenAI-compatible embeddings endpoint; `/embeddings` is appended. Env-only — no instance-settings override, see the re-indexing warning below — but shown read-only, with its source badge, under **Settings → Platform → AI & search**. |
 | `SEARCH_EMBEDDING_PROVIDER` | `openai` | Embedding provider. |
 | `SEARCH_EMBEDDING_MODEL` | `text-embedding-3-small` | Embedding model used to index and query tracking-plan text. |
 | `SEARCH_EMBEDDING_DIMENSIONS` | `1536` | Fixed at 1536 by the database column. Startup rejects any other value; use a model that returns 1536 values. |
@@ -103,7 +103,7 @@ gateway, proxy, or self-hosted model server works in place of OpenAI — set
 
 ### Claude, Gemini and OpenRouter {#provider-presets}
 
-The AI settings (Instance › AI for the operator, Organization › AI for an
+The AI settings (Platform › AI & search for the operator, Organization › AI for an
 organization) open with a **Provider** picker. Picking one fills **Base URL**
 and **Model** with that provider's OpenAI-compatible endpoint and a small model;
 both stay editable, and a model you typed yourself is kept when you switch.
@@ -201,45 +201,44 @@ decide per organization. See
 ### Compose / environment
 
 Like all backend settings, these are read from the process environment or a
-`.env` file. In Docker Compose, add them to the shared `x-app-environment`
-anchor at the top of `compose.yaml`, **not** to a single service: `app` serves
-the API while `celery-worker` runs the embedding task, and both read these
-settings. Every service that runs the app image inherits the anchor.
+`.env` file. Under Docker Compose, set them in the `.env` next to
+`compose.yaml`: its shared `x-app-environment` anchor already forwards every
+`AI_*` and `SEARCH_EMBEDDING*` variable, and `OPENAI_API_KEY`, to every service
+that runs the app image (`app` serves the API while `celery-worker` runs the
+embedding task, and both read these settings). Restart with
+`docker compose up -d` after a change.
+
+```bash
+# Semantic search embeddings (opt-in)
+SEARCH_EMBEDDINGS_ENABLED=true
+SEARCH_EMBEDDING_BASE_URL=https://api.openai.com/v1
+SEARCH_EMBEDDING_PROVIDER=openai
+SEARCH_EMBEDDING_MODEL=text-embedding-3-small
+SEARCH_EMBEDDING_DIMENSIONS=1536
+
+# AI assistance (opt-in)
+AI_ENABLED=true
+AI_BASE_URL=https://api.openai.com/v1
+AI_MODEL=gpt-4o-mini
+AI_TIMEOUT_SECONDS=30
+AI_MAX_OUTPUT_TOKENS=700
+
+# Shared credential fallback for both groups
+OPENAI_API_KEY=sk-...
+```
 
 The anchor is an explicit allowlist, not a mount of your `.env`: a variable it
 does not name reaches nothing inside the container, the application default wins
-instead, and nothing is logged about it. Check the anchor before concluding that
-a value you put in `.env` took effect.
+instead, and nothing is logged about it. For a variable outside this page, check
+the anchor before concluding that a value you put in `.env` took effect.
 
-```yaml
-x-app-environment: &app-environment
-  # …existing entries…
-
-  # Semantic search embeddings (opt-in)
-  SEARCH_EMBEDDINGS_ENABLED: "true"
-  SEARCH_EMBEDDING_BASE_URL: https://api.openai.com/v1
-  SEARCH_EMBEDDING_PROVIDER: openai
-  SEARCH_EMBEDDING_MODEL: text-embedding-3-small
-  SEARCH_EMBEDDING_DIMENSIONS: "1536"
-
-  # AI assistance (opt-in)
-  AI_ENABLED: "true"
-  AI_BASE_URL: https://api.openai.com/v1
-  AI_MODEL: gpt-4o-mini
-  AI_TIMEOUT_SECONDS: "30"
-  AI_MAX_OUTPUT_TOKENS: "700"
-
-  # Shared credential fallback for both groups
-  OPENAI_API_KEY: ${OPENAI_API_KEY}
-```
-
-Provide the key through your secret mechanism rather than committing it. See the
+Keep the key out of the repository: `.env` is not committed. See the
 full [Configuration reference](./configuration.md) for how settings are loaded.
 
-### Settings → Instance → AI
+### Settings → Platform → AI & search
 
 Operators can also review and adjust this configuration from the running
-instance under **Settings → Instance → AI** (for example, at
+instance under **Settings → Platform → AI & search** (for example, at
 `https://tripl.example.com/settings/instance/ai`). The same page governs both
 the AI-assistance settings and the embeddings toggle, with the environment
 variables above acting as defaults that the stored overrides can replace at
@@ -268,4 +267,4 @@ value is going to OpenAI instead.
 
 - [Configuration reference](./configuration.md) — every environment variable.
 - [Admin guide](../administer/admin-guide.md) — instance settings and operator tasks.
-- [Searching events](../use-cases/searching-events.md) — how smart search and the structured listing differ in practice.
+- [Searching from the API](../integrate/searching-from-the-api.md) — how smart search and the structured listing differ in practice.

@@ -2,10 +2,10 @@ import { deleteDemo, expect, generateDemo, test } from './fixtures'
 
 /**
  * The holiday calendar (F18): choosing a country in Detection settings turns
- * its public holidays into read-only, project-wide planned events, listed on
+ * its public holidays into read-only, project-wide expected windows, listed on
  * the Annotations page; choosing None takes them away again.
  */
-test('a holiday calendar adds the country holidays as planned events', async ({
+test('a holiday calendar adds the country holidays as expected windows', async ({
   page,
   account,
 }) => {
@@ -18,7 +18,7 @@ test('a holiday calendar adds the country holidays as planned events', async ({
   const country = page.getByLabel('Country', { exact: true })
   await expect(country).toBeEnabled({ timeout: 60_000 })
   await country.selectOption({ label: 'Germany (DE)' })
-  await expect(page.getByText('Holidays of Germany (DE) added as planned events')).toBeVisible()
+  await expect(page.getByText('Holidays of Germany (DE) added as expected windows')).toBeVisible()
 
   await page.goto(overview.replace(/\/overview$/, '/annotations'))
   const planned = page.getByTestId('planned-events-list')
@@ -26,7 +26,7 @@ test('a holiday calendar adds the country holidays as planned events', async ({
   await expect(unity).toBeVisible({ timeout: 60_000 })
   await expect(unity.getByText('Holiday', { exact: true })).toBeVisible()
   // The calendar owns the row: no delete beside it.
-  await expect(unity.getByRole('button', { name: /^Delete planned event/ })).toHaveCount(0)
+  await expect(unity.getByRole('button', { name: /^Delete expected window/ })).toHaveCount(0)
 
   await page.goto(overview.replace(/\/overview$/, '/settings/monitoring'))
   await expect(country).toHaveValue('DE', { timeout: 60_000 })

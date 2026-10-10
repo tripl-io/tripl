@@ -167,7 +167,7 @@ describe('ProjectSettingsPage', () => {
     // The chunk is lazy, so the first paint is the page-shaped skeleton.
     expect(screen.getByRole('status')).toHaveTextContent('Loading page…')
     expect(screen.queryByText(/Project operations/)).not.toBeInTheDocument()
-    expect(screen.queryByRole('link', { name: /Workspace settings/i })).not.toBeInTheDocument()
+    expect(screen.queryByRole('link', { name: /settings/i })).not.toBeInTheDocument()
   })
 
   it('loads and updates shared monitoring settings on the monitoring tab', async () => {

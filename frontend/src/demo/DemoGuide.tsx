@@ -5,9 +5,9 @@
  *
  * It replaces the coach card that opened beside its control. Beside a control
  * there is always something else, and visitors found the card covering text —
- * and buttons covering the card. The guide takes a corner of the content
- * column instead, the first one that keeps clear of the control it is
- * coaching (`guidePlacement`), and moves when the control moves.
+ * and buttons covering the card. The guide takes a bottom corner of the
+ * content column instead, or a top one while the control it is coaching sits
+ * down there (`guidePlacement`), and moves when the control moves.
  *
  * A hint, never a dialog: it takes no focus, traps nothing, and Escape or a
  * click elsewhere cannot dismiss it. It minimises to its face; "Hide hints"
@@ -22,6 +22,8 @@ import { Minus, MousePointerClick } from 'lucide-react'
 import { MAIN_CONTENT_ID } from '@/components/landmarks'
 import { cn } from '@/lib/utils'
 import { clippingAncestors, visibleFrame } from './coachGeometry'
+import { gestureCopy } from './gestureCopy'
+import { holdGuideCardOpen } from './guideCardOpen'
 import { GuideMascot } from './GuideMascot'
 import {
   CORNER_ORDER,
@@ -29,8 +31,7 @@ import {
   NARROW_WIDTHS_PX,
   chooseCorner,
   cornerBox,
-  coveredArea,
-  pickCorner,
+  pickCardCorner,
   pickNarrowCorner,
   type Box,
   type GuideCorner,
@@ -314,13 +315,16 @@ export function DemoGuide({
     const avoidBoxes = [...(target ? [target] : []), ...floatingLayerBoxes(element)]
     const order = onPhone ? PHONE_CORNERS : CORNER_ORDER
     const card = { width: cardWidth(onPhone), height: cardHeight.current }
-    // The card keeps its corner while that stays clear: a guide that hopped
-    // to the emptiest corner on every scroll would be chased round the screen.
-    const held = heldCorner.current
-    const cardAt =
-      held && order.includes(held) && coveredArea(cornerBox(held, frame, card), avoidBoxes) === 0
-        ? held
-        : pickCorner(frame, card, avoidBoxes, busyBoxes(element), order)
+    // A phone's card spans the screen, so there is no emptier side to find:
+    // the bottom, unless the control is down there.
+    const cardAt = pickCardCorner(
+      frame,
+      card,
+      avoidBoxes,
+      onPhone ? [] : busyBoxes(element),
+      order,
+      heldCorner.current,
+    )
     heldCorner.current = cardAt
     // No corner of the column: a dialog too wide to leave one. The screen's
     // own edges beside it may still hold a narrower card — the step moved
@@ -433,8 +437,18 @@ export function DemoGuide({
   // lags a render behind a fold or an unfold.
   const mode: GuideMode = small ? 'face' : layout?.mode === 'narrow' ? 'narrow' : 'card'
   // Beside an 896px dialog at 1280px: the words, without the face beside them.
-  const compact = mode === 'narrow' && box !== undefined && box.right - box.left < MASCOT_MIN_WIDTH_PX
+  // On a phone too: the card spans the screen, and beside the face its words
+  // wrapped onto more lines, each one more of the page under the card.
+  const compact =
+    (mode === 'card' && phone) ||
+    (mode === 'narrow' && box !== undefined && box.right - box.left < MASCOT_MIN_WIDTH_PX)
   const progress = complete ? 'Chapter complete' : `Step ${position} of ${total}`
+
+  // The step's words are on screen in full: the strip keeps its copy of them
+  // for screen readers only (`guideCardOpen`).
+  const cardOpen = layout !== null && mode !== 'face'
+  useEffect(() => (cardOpen ? holdGuideCardOpen() : undefined), [cardOpen])
+
   return createPortal(
     <div
       ref={ref}
@@ -532,7 +546,7 @@ export function DemoGuide({
                   className="mt-0.5 size-3.5 shrink-0 text-accent"
                   aria-hidden="true"
                 />
-                <span>{cue}</span>
+                <span>{gestureCopy(cue)}</span>
               </p>
             )}
             {note && <p className="text-caption leading-[1.45] text-fg-secondary">{note}</p>}

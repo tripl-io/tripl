@@ -5,17 +5,19 @@ import { toast } from 'sonner'
 
 import { ApiError } from '@/api/client'
 import { trackerConfigApi } from '@/api/trackerConfig'
-import { useAuth } from '@/components/auth-context'
 import { ErrorState } from '@/components/error-state'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Button } from '@/components/ui/button'
 import {
   Dialog,
+  DialogClose,
   DialogContent,
   DialogFooter,
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog'
+import { useDialogDirty } from '@/components/ui/dialog-guard'
+import { useDirtySinceOpen } from '@/hooks/useUnsavedChangesGuard'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { SegmentedControl, type SegmentedOption } from '@/components/ui/segmented-control'
@@ -24,7 +26,7 @@ import { SILENT_ERROR_META } from '@/lib/errorFeedback'
 import { trackerConfigKey } from '@/lib/queryKeys'
 import { getErrorMessage } from '@/lib/utils'
 import type { ProjectTrackerConfig, ProjectTrackerConfigUpdate, TrackerType } from '@/types'
-import { isOwner } from '@/lib/permissions'
+import { useIsOwner } from '@/lib/permissions'
 
 const DEFAULT_ISSUE_TYPE = 'Task'
 
@@ -300,10 +302,9 @@ interface TrackerConfigFormProps {
 
 function TrackerConfigForm({ slug, config, onClose }: TrackerConfigFormProps) {
   const qc = useQueryClient()
-  const { user } = useAuth()
   // PATCH is owner-only on the backend; mirror the merge-policy / general
   // settings gate so non-owners get a read-only view instead of a 403.
-  const canEdit = isOwner(user?.role)
+  const canEdit = useIsOwner()
 
   const enabledId = useId()
   const baseUrlId = useId()
@@ -327,6 +328,10 @@ function TrackerConfigForm({ slug, config, onClose }: TrackerConfigFormProps) {
   const values: TrackerFormValues = {
     trackerType, enabled, baseUrl, projectKey, authEmail, teamId, apiToken,
   }
+  // The form mounts with the saved connection, so that first render is the
+  // baseline; a typed token or key asks before Escape or Cancel drops it.
+  const dirty = useDirtySinceOpen(canEdit, { ...values, issueType })
+  useDialogDirty(dirty)
   const errors = trackerConfigErrors(values, config)
   const inherited = inheritedAfterSave(values, config)
   const fromOrg = (field: string, empty: boolean) =>
@@ -499,7 +504,7 @@ function TrackerConfigForm({ slug, config, onClose }: TrackerConfigFormProps) {
             </div>
 
             <div className="grid gap-2">
-              <Label htmlFor={authEmailId}>Auth email</Label>
+              <Label htmlFor={authEmailId}>Account email</Label>
               <Input
                 id={authEmailId}
                 type="email"
@@ -566,9 +571,11 @@ function TrackerConfigForm({ slug, config, onClose }: TrackerConfigFormProps) {
       </div>
 
       <DialogFooter>
-        <Button type="button" variant="outline" onClick={onClose}>
-          {canEdit ? 'Cancel' : 'Close'}
-        </Button>
+        <DialogClose asChild>
+          <Button type="button" variant="outline">
+            {canEdit ? 'Cancel' : 'Close'}
+          </Button>
+        </DialogClose>
         {canEdit && (
           <Button type="submit" disabled={saveMut.isPending}>
             Save

@@ -16,6 +16,7 @@ from sqlalchemy.orm import noload
 
 from tripl import cache
 from tripl.alert_templates import has_baseline, percent_delta_or_none
+from tripl.core.bucketing import to_utc
 from tripl.models.alert_correlation_state import AlertCorrelationState
 from tripl.models.alert_delivery import AlertDelivery, AlertDeliveryStatus
 from tripl.models.alert_delivery_item import AlertDeliveryItem
@@ -91,6 +92,12 @@ INBOX_MAX_SOURCE_ITEMS = 2000
 #: second inbox. Measured on production 2026-08-15: 12 correlation states, 5 of
 #: them indefinitely muted, against 271 delivery items inside the window.
 INBOX_MAX_SILENCED_RESCUES = 50
+
+#: How many scope names one inbox card carries. The card names the first and
+#: lists the rest on request; the scope search reads the rows, not this list,
+#: so the cap cannot hide a match (see :class:`InboxFilters`). The frontend mirrors it as
+#: ``INBOX_SCOPE_NAME_LIMIT`` in pages/alerting/inboxCardLabels.ts to say "8+".
+INBOX_SCOPE_NAME_LIMIT = 8
 
 #: Sorts a state that was never acted on to the bottom of the rescue ranking.
 _NEVER_ACTED = datetime.min.replace(tzinfo=UTC)
@@ -421,30 +428,11 @@ async def retry_delivery(
 
     # Deferred import to avoid pulling the worker task graph into the API
     # process at module load (matches scan_service's dispatch sites).
-    #
-    # The celery app is imported FIRST because that graph is cyclic: the app
-    # module imports every task module, and ``tasks.metrics`` re-exports this
-    # very task from ``tasks.alerts``. Entering at ``tasks.alerts`` in a process
-    # that has not loaded the app yet therefore lands mid-cycle and raises
-    # ImportError, 500ing the retry. Entering at the app loads the task modules
-    # in their registration order instead. Reachable since the demo started
-    # seeding a failed delivery for Retry to act on.
-    import tripl.worker.celery_app  # noqa: F401
     from tripl.worker.tasks.alerts import send_alert_delivery
 
     await dispatch(send_alert_delivery.delay, str(delivery_id))
 
     return await get_delivery(session, slug, delivery_id)
-
-
-def _as_utc(value: datetime) -> datetime:
-    """Attach UTC to a naive timestamp so it can be compared with ``now``.
-
-    ``TimestampMixin`` and the inbox correlation-state columns still use plain
-    ``DateTime(timezone=True)``. SQLite hands those back naive, unlike the
-    separate ``AlertRule.muted_until`` column which uses ``UtcDateTime``.
-    """
-    return value if value.tzinfo is not None else value.replace(tzinfo=UTC)
 
 
 def _effective_inbox_status(state: AlertCorrelationState | None, now: datetime) -> str:
@@ -453,7 +441,7 @@ def _effective_inbox_status(state: AlertCorrelationState | None, now: datetime) 
     if (
         state.status == "muted"
         and state.muted_until is not None
-        and _as_utc(state.muted_until) <= now
+        and to_utc(state.muted_until) <= now
     ):
         return "open"
     return state.status
@@ -508,7 +496,7 @@ def _silenced_orphan_group_ids(
         # action that deliberately does not stamp it, so a state can carry a
         # status without one — and a comparison against `None` would take the
         # whole list down instead of ranking that row low.
-        acted_at = _as_utc(state.acted_at) if state.acted_at is not None else _NEVER_ACTED
+        acted_at = to_utc(state.acted_at) if state.acted_at is not None else _NEVER_ACTED
         return (acted_at, str(state.correlation_group_id))
 
     rescued: list[uuid.UUID] = []
@@ -618,6 +606,55 @@ def _acted_by_name(state: AlertCorrelationState | None, names: dict[uuid.UUID, s
     return names.get(state.acted_by)
 
 
+def _loudness_order(item: AlertDeliveryItem) -> tuple[bool, float]:
+    """Sort key that puts an incident's loudest item FIRST under an ascending sort.
+
+    A measured deviation is ``abs(percent_delta)``. A firing with no baseline has
+    nothing to measure against, so it ranks ahead of every measured one — the
+    stance ``max_abs_percent_delta`` takes by leaving it out rather than reading
+    its placeholder 0.0 as the smallest move — and such firings rank among
+    themselves by the absolute move.
+    """
+    if has_baseline(item.expected_count):
+        return (True, -abs(item.percent_delta))
+    return (False, -abs(item.absolute_delta))
+
+
+def _headline_item(rows: list[InboxGroupRow]) -> AlertDeliveryItem:
+    """The one item an inbox card is about: the newest firing, loudest first.
+
+    The card's name, its scope link, its badge and its counts all describe this
+    item, so they have to come from one item. A bare ``max`` by bucket took
+    whichever row of a multi-scope bucket the query returned first, while the
+    name came from an alphabetical list: a card could be titled with one scope
+    and link to, and measure, another. Name and ref close the remaining tie, so
+    two requests pick the same item.
+    """
+    newest = max(row[0].bucket for row in rows)
+    return min(
+        (row[0] for row in rows if row[0].bucket == newest),
+        key=lambda item: (_loudness_order(item), item.scope_name, item.scope_ref),
+    )
+
+
+def _ordered_scope_names(rows: list[InboxGroupRow], headline: AlertDeliveryItem) -> list[str]:
+    """The incident's distinct scope names: the headline item's first, the rest
+    loudest first, the name breaking ties.
+
+    The card titles itself with the first entry and the list is cut at
+    ``INBOX_SCOPE_NAME_LIMIT``, so this order decides both what the card is
+    called and which names survive the cut. Alphabetical order titled a card
+    after whichever scope sorted first, however small its move.
+    """
+    loudest: dict[str, tuple[bool, float]] = {}
+    for row in rows:
+        item = row[0]
+        order = _loudness_order(item)
+        if item.scope_name not in loudest or order < loudest[item.scope_name]:
+            loudest[item.scope_name] = order
+    return sorted(loudest, key=lambda name: (name != headline.scope_name, loudest[name], name))
+
+
 def _build_inbox_group_response(
     *,
     correlation_group_id: uuid.UUID,
@@ -626,10 +663,10 @@ def _build_inbox_group_response(
     now: datetime,
     acted_by_name: str | None,
 ) -> AlertInboxGroupResponse:
-    latest_item = max(rows, key=lambda row: row[0].bucket)[0]
+    latest_item = _headline_item(rows)
     latest_delivery = max(rows, key=lambda row: row[1].created_at)[1]
     first_delivery_at = min(row[1].created_at for row in rows)
-    scope_names = sorted({row[0].scope_name for row in rows})
+    scope_names = _ordered_scope_names(rows, latest_item)
     destination_names = sorted({row[2].name for row in rows})
     rules = sorted(
         {(row[3].id, row[3].name) for row in rows},
@@ -685,7 +722,7 @@ def _build_inbox_group_response(
         scope_ref=latest_item.scope_ref,
         event_id=latest_item.event_id,
         scope_types=sorted({row[0].scope_type for row in rows}),
-        scope_names=scope_names[:8],
+        scope_names=scope_names[:INBOX_SCOPE_NAME_LIMIT],
         destination_names=destination_names,
         rule_names=rule_names,
         rules=[AlertInboxRuleRef(id=rule_id, name=name) for rule_id, name in rules],
@@ -744,9 +781,9 @@ def _inbox_sort_key(group: AlertInboxGroupResponse) -> tuple[bool, datetime, str
     into both pages or neither. Sorted with ``reverse=True``, hence ``True``
     (open) sorting ahead of ``False``.
     """
-    activity = _as_utc(group.latest_delivery_at)
+    activity = to_utc(group.latest_delivery_at)
     if group.acted_at is not None:
-        activity = max(activity, _as_utc(group.acted_at))
+        activity = max(activity, to_utc(group.acted_at))
     return (group.status == AlertInboxStatus.open, activity, str(group.correlation_group_id))
 
 
@@ -812,7 +849,7 @@ async def _load_inbox_source_rows(
     if len(fetched) <= INBOX_MAX_SOURCE_ITEMS:
         return InboxSourceRows(rows=fetched, truncated_at=None)
     rows = fetched[:INBOX_MAX_SOURCE_ITEMS]
-    return InboxSourceRows(rows=rows, truncated_at=_as_utc(rows[-1][1].created_at))
+    return InboxSourceRows(rows=rows, truncated_at=to_utc(rows[-1][1].created_at))
 
 
 def _inbox_cutoff(now: datetime) -> datetime:
@@ -908,18 +945,6 @@ async def count_open_incidents(
     }
 
 
-def _utc(value: datetime) -> datetime:
-    """Read *value* as UTC when it says nothing about its zone.
-
-    Both sides of the date comparison below can be naive. A bare ``?from=
-    2026-09-01`` parses to a naive datetime, and SQLite hands back naive columns
-    while Postgres hands back aware ones — so an un-normalized ``<=`` is a
-    ``TypeError`` on one engine and correct on the other, which is the worst
-    shape a comparison can have.
-    """
-    return value if value.tzinfo is not None else value.replace(tzinfo=UTC)
-
-
 @dataclass(frozen=True)
 class InboxFilters:
     """What the reader asked the inbox to narrow to, besides ``status``.
@@ -988,11 +1013,14 @@ class InboxFilters:
         request, including the ones with no search — a set, a sort, a join and a
         casefold over every delivery item, thrown away unread.
         """
-        if self.last_fired_from is not None and _utc(group.latest_delivery_at) < _utc(
+        # Both sides can be naive: a bare ``?from=2026-09-01`` parses to a naive
+        # datetime, and SQLite hands back naive columns where Postgres hands back
+        # aware ones, so an un-normalized comparison raises on one engine only.
+        if self.last_fired_from is not None and to_utc(group.latest_delivery_at) < to_utc(
             self.last_fired_from
         ):
             return False
-        if self.last_fired_to is not None and _utc(group.latest_delivery_at) > _utc(
+        if self.last_fired_to is not None and to_utc(group.latest_delivery_at) > to_utc(
             self.last_fired_to
         ):
             return False
@@ -1584,7 +1612,7 @@ async def prune_disagreeing_signal_verdicts(
             continue
         scope = str(scope_type)
         signal_scan = None if scope == MetricScopeType.metric.value else scan_config_id
-        keys.add((signal_scan, scope, scope_ref, _as_utc(bucket)))
+        keys.add((signal_scan, scope, scope_ref, to_utc(bucket)))
     if not keys:
         return 0
     refs = {
@@ -1612,7 +1640,7 @@ async def prune_disagreeing_signal_verdicts(
             continue
         scope = str(row.scope_type)
         row_scan = None if scope == MetricScopeType.metric.value else row.scan_config_id
-        ref = refs.get((row_scan, scope, row.scope_ref, _as_utc(row.bucket)))
+        ref = refs.get((row_scan, scope, row.scope_ref, to_utc(row.bucket)))
         if ref is not None and not status_agrees(ref.status, str(row.action)):
             stale.append(row)
     return await delete_verdict_rows(session, project_id, stale)
@@ -2040,7 +2068,7 @@ async def incident_refs_for_signals(
     (``ix_alert_delivery_project_created``).
     """
     wanted = {
-        (scan_config_id, str(scope_type), scope_ref, _as_utc(bucket))
+        (scan_config_id, str(scope_type), scope_ref, to_utc(bucket))
         for scan_config_id, scope_type, scope_ref, bucket in keys
     }
     if not wanted:
@@ -2074,12 +2102,12 @@ async def incident_refs_for_signals(
         # A catalog-metric signal carries no scan, whatever the delivery row
         # was filed under; match it on scope and bucket alone.
         signal_scan = None if scope_type == MetricScopeType.metric.value else scan_config_id
-        key = (signal_scan, str(scope_type), scope_ref, _as_utc(bucket))
+        key = (signal_scan, str(scope_type), scope_ref, to_utc(bucket))
         if key in wanted and group_id is not None:
             # Ascending order: the newest group wins, and the first delivery
             # into that group is when the signal was routed to it.
             if group_by_key.get(key) != group_id:
-                routed_at_by_key[key] = _as_utc(delivered_at) if delivered_at is not None else None
+                routed_at_by_key[key] = to_utc(delivered_at) if delivered_at is not None else None
             group_by_key[key] = group_id
     if not group_by_key:
         return {}
@@ -2113,6 +2141,6 @@ def _incident_ref(
         correlation_group_id=group_id,
         status=_effective_inbox_status(state, now),
         acted_by=state.acted_by if state is not None else None,
-        acted_at=_as_utc(state.acted_at) if state is not None and state.acted_at else None,
+        acted_at=to_utc(state.acted_at) if state is not None and state.acted_at else None,
         note=state.note if state is not None else None,
     )

@@ -77,7 +77,7 @@ personal data, and archive the noise.
 ![The event catalog: name, health, recent volume, status and type of each event](/img/screenshots/events.dark.webp#gh-dark-mode-only)
 
 Tick several rows to change their status or owner in one go. The **Review
-queue** tab lists the events whose status is *In Review*. See
+queue** tab lists the events whose status is *In review*. See
 [Add or change an event](./add-or-edit-an-event.md) for the event form itself.
 
 ## Next

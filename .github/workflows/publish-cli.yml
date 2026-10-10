@@ -2,17 +2,17 @@ name: Publish tripl
 
 # Publishes the operator CLI to PyPI as the `tripl` distribution.
 #
-# Three release trains, deliberately independent: release.yml ships the SERVICE
-# as a container image on `v*`, publish-mcp.yml ships tripl-mcp on `mcp-v*`, and
-# this one ships the CLI on `cli-v*`. They version separately (service 0.2.x,
-# tripl-mcp 0.1.x, tripl 0.1.x), so one tag namespace per artifact is the only
-# arrangement that does not force a version bump nobody asked for.
+# One tag per artifact, one version for all three: release.yml ships the
+# service's images on `v*`, this one the CLI on `cli-v*`, and publish-mcp.yml
+# tripl-mcp on `mcp-v*`. bin/release.sh writes the shared version and pushes
+# the tags.
 #
-# ORDERING NOTE: publish-mcp.yml's clean-venv smoke test fails on purpose until
-# this workflow has run at least once, because tripl-mcp declares
-# `tripl>=0.1,<0.2` and a released wheel with an unresolvable dependency is
-# broken for every installer. So `tripl` must reach the index before the next
-# tripl-mcp release.
+# ORDERING: tripl-mcp depends on this package (the range is in
+# mcp-server/pyproject.toml), and publish-mcp.yml's clean-venv smoke test
+# installs it from PyPI, failing on purpose when the version it needs is not
+# there: a released wheel with an unresolvable dependency is broken for every
+# installer. So `tripl` reaches the index first; bin/release.sh pushes
+# `mcp-v*` only once it has.
 #
 # Authentication is Trusted Publishing (OIDC) — there is no API token stored
 # anywhere. PyPI verifies the workflow identity (repo + workflow file +
@@ -27,7 +27,7 @@ on:
 # Least privilege, matching publish-mcp.yml. `contents: read` is the documented
 # minimum for actions/checkout; it is redundant on a public repo but is what
 # keeps this working if the repo is ever made private. Deliberately NOT
-# `actions: write`: upload-artifact@v4 writes through the Actions artifact
+# `actions: write`: upload-artifact writes through the Actions artifact
 # service using ACTIONS_RUNTIME_TOKEN, which the runner injects independently of
 # GITHUB_TOKEN, so no artifact scope is involved.
 permissions:
@@ -38,10 +38,10 @@ jobs:
     name: Build and gate
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: Install uv
-        uses: astral-sh/setup-uv@v10.2.0
+        uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0
         with:
           enable-cache: true
 
@@ -101,7 +101,7 @@ jobs:
             exit 1
           fi
 
-      - uses: actions/upload-artifact@v7
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: dist
           path: cli/dist/
@@ -120,13 +120,13 @@ jobs:
       contents: read
       id-token: write # mint the OIDC token PyPI exchanges for upload rights
     steps:
-      - uses: actions/download-artifact@v8
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
           name: dist
           path: dist/
 
       - name: Publish
-        uses: pypa/gh-action-pypi-publish@release/v1
+        uses: pypa/gh-action-pypi-publish@dc37677b2e1c63e2034f94d8a5b11f265b73ba33 # v1.14.2
         with:
           # Named explicitly rather than left to the action's default, which is a
           # needless thing to gamble a publish on.

@@ -28,7 +28,7 @@ For tuning individual settings (logging, rate limits, metrics, AI/search feature
 
 ### Rough resource sizing
 
-`compose.yaml` defines **eight services**: `postgres`, `rabbitmq`, `redis`, the one-shot `migrate`, `app`, `celery-worker`, `celery-beat`, and the profile-gated `mcp`. A default `docker compose up -d` starts seven of them — `mcp` sits behind `--profile mcp` — and `migrate` runs once and exits, so the steady state is **six long-running containers**. The `app` container runs **4 uvicorn workers by default** (`UVICORN_WORKERS=4`, baked into the image).
+`compose.yaml` defines **nine services**: `postgres`, `rabbitmq`, `redis`, the one-shots `migrate` and `metrics-init`, `app`, `celery-worker`, `celery-beat`, and the profile-gated `mcp`. A default `docker compose up -d` starts eight of them — `mcp` sits behind `--profile mcp` — and `migrate` and `metrics-init` run once and exit, so the steady state is still **six long-running containers**. The `app` container runs **4 uvicorn workers by default** (`UVICORN_WORKERS=4`, baked into the image).
 
 A modest single-host deployment is comfortable at roughly **2 vCPU / 4 GB RAM** for trials and small teams. Give it more headroom (4+ vCPU, 8 GB+) if you connect large warehouses or run frequent scans, since warehouse queries and scans execute on `celery-worker`. Redis is capped at 256 MB (`--maxmemory 256mb`, `allkeys-lru`) and runs without persistence (`--save ""`), so it is a pure cache — losing it costs nothing but a cache warm-up. PostgreSQL holds the durable application state in the `pgdata18` volume; uploaded event photos, while they use the default local photo backend, are files in the `photos` volume. Back up both ([runbook](./runbook.md#photo-volume-backup)).
 
@@ -45,7 +45,7 @@ The image and tag are configurable via `.env`:
 | Variable | Default | Notes |
 |---|---|---|
 | `TRIPL_IMAGE` | `ghcr.io/tripl-io/tripl` | Registry/repo of the image. |
-| `TRIPL_VERSION` | `latest` | **Pin** to a released tag (e.g. `1.4.0`) in production; `latest` is fine for trials. |
+| `TRIPL_VERSION` | `latest` | **Pin** to a released tag in production (`X.Y.Z`, the latest on [GitHub releases](https://github.com/tripl-io/tripl/releases)); `latest` is fine for trials. |
 
 Released tags are `X.Y.Z`, `X.Y`, `latest` (stable only), and `sha-<short>`. Multi-arch images are published for **`linux/amd64` and `linux/arm64`**, so the same tag runs on both architectures.
 
@@ -54,8 +54,10 @@ Released tags are `X.Y.Z`, `X.Y`, `latest` (stable only), and `sha-<short>`. Mul
 One command writes the stack and starts it. `uvx` fetches the CLI from PyPI at run time and brings its own Python, so [`uv`](https://docs.astral.sh/uv/getting-started/installation/) is the only thing you install on the host — or `pip install tripl` and drop the `uvx` prefix:
 
 ```bash
-uvx tripl install --app-url https://tripl.example.com --version 1.4.0 --dir /srv/tripl
+uvx tripl install --app-url https://tripl.example.com --version X.Y.Z --dir /srv/tripl
 ```
+
+Replace `X.Y.Z` with a released version from the [GitHub releases page](https://github.com/tripl-io/tripl/releases). The image and the CLI are released together under one number, so `uvx tripl --version` prints the CLI's own version, which names an image that exists.
 
 It writes three files into `--dir` (default `./tripl`) — `compose.yaml` and `infra/rabbitmq/rabbitmq.conf` verbatim, and a generated `0600` `.env` — then runs `docker compose pull` and `docker compose up -d` in that directory and polls `<--app-url>/health` until it answers. `--dry-run` prints exactly what a real run would do and writes nothing; it is worth typing first.
 
@@ -66,7 +68,7 @@ Every flag, the plan output, the file actions and the safety rules live in [`tri
 - **The `compose.yaml` it writes is the one described [below](#the-compose-stack)**, minus the `mcp` service's `build:` block: a fresh host has no source tree, so `--profile mcp` pulls the published image instead of building it.
 - **Re-running converges.** A second run leaves `.env` alone, reports the other two files as `unchanged` or `kept`, and still runs `pull` and `up -d` — which is how you apply an edit to `compose.yaml` or a `compose.override.yaml`.
 - **It stops at a running, empty instance.** The owner account and the warehouse connection are browser steps; see [Connecting a warehouse](#connecting-a-warehouse).
-- **Community sends one anonymous usage ping a day** unless you turn it off: `--no-telemetry`, or `TELEMETRY_ENABLED=false` in `.env` later. `install` and the API's startup log both say so. What the ping holds, and what it never does, is in [Telemetry](./telemetry.md).
+- **Community sends one anonymous usage ping a day** unless you turn it off: `--no-telemetry` (needs a `tripl` CLI newer than 0.3.1; 0.3.1 writes `TELEMETRY_ENABLED=false` unless you pass `--telemetry`), or `TELEMETRY_ENABLED=false` (or `DO_NOT_TRACK=1`) in `.env` later and `docker compose up -d` to restart. `install` and the API's startup log both say so. What the ping holds, and what it never does, is in [Telemetry](./telemetry.md).
 
 ### The variables the stack needs
 
@@ -90,14 +92,16 @@ cp .env.example .env
   echo "POSTGRES_PASSWORD=$(openssl rand -hex 24)"
   echo "RABBITMQ_PASSWORD=$(openssl rand -hex 24)"
   echo "APP_BASE_URL=https://tripl.example.com"   # your public https URL
-  echo "TRIPL_VERSION=1.4.0"                       # pin the release you want
+  echo "TRIPL_VERSION=X.Y.Z"                       # a released version, see below
 } >> .env
 chmod 600 .env
 ```
 
-The `tr '+/' '-_'` produces the url-safe base64 alphabet Fernet expects; the [configuration reference](./configuration#identity--secrets) gives the equivalent Python one-liners. Then [bring it up](#bring-it-up) as below.
+Replace `X.Y.Z` with a released version from the [GitHub releases page](https://github.com/tripl-io/tripl/releases). The `tr '+/' '-_'` produces the url-safe base64 alphabet Fernet expects; the [configuration reference](./configuration#identity--secrets) gives the equivalent Python one-liners. Then [bring it up](#bring-it-up) as below.
 
-Two differences from the CLI path are worth knowing. `.env.example` is the **backend development** template, so the file you get also carries `localhost` URLs and `PHOTO_*` / `VITE_*` keys that `compose.yaml` never reads — harmless, but do not treat them as live. And `chmod 600` after the fact leaves a window in which the database password was world-readable; the CLI creates the file at `0600` in the `open` call itself.
+Community sends one anonymous usage ping a day unless you turn it off: add `TELEMETRY_ENABLED=false` (or `DO_NOT_TRACK=1`) to `.env` before bringing it up, or later followed by `docker compose up -d`. What it holds is in [Telemetry](./telemetry.md).
+
+Two differences from the CLI path are worth knowing. `.env.example` is the **backend development** template, so the file you get also carries `localhost` URLs, `DEBUG=true` and `PHOTO_LOCAL_DIR`, which `compose.yaml` does not read — harmless, but do not treat them as live. (The other `PHOTO_*` and `GCS_*` keys do reach the containers.) And `chmod 600` after the fact leaves a window in which the database password was world-readable; the CLI creates the file at `0600` in the `open` call itself.
 
 ## URLs, CORS, TLS, and cookies
 
@@ -111,7 +115,7 @@ The production stack hard-codes the security posture that `assert_production_rea
 
 The single container is normally the network edge, so the image does **not** pass uvicorn `--forwarded-allow-ips`, and the auth rate limiter keys on the real socket peer (`rate_limit_trust_forwarded_for` defaults to `false`). This is correct when nothing trusted sits in front rewriting client-IP headers.
 
-If you put a trusted reverse proxy or load balancer in front that overwrites `X-Real-IP` / `X-Forwarded-For` with the real client address on every request, set `RATE_LIMIT_TRUST_FORWARDED_FOR=true` and run uvicorn with `--proxy-headers --forwarded-allow-ips=<proxy>`. Never trust forwarded headers on a directly-exposed API — a raw `X-Forwarded-For` is attacker-controlled and lets a caller rotate it per request to bypass the rate limit.
+If you put a trusted reverse proxy or load balancer in front, set `RATE_LIMIT_TRUST_FORWARDED_FOR=true` and run uvicorn with `--proxy-headers --forwarded-allow-ips=<proxy>`. That is safe behind a proxy that either overwrites `X-Real-IP` with the client address or appends it to `X-Forwarded-For`, as long as clients cannot reach the API except through that proxy: the limiter reads `X-Real-IP`, else only the `X-Forwarded-For` entry the nearest proxy added. Never trust forwarded headers on a directly-exposed API — there a caller can set either header and rotate it per request to bypass the rate limit.
 
 ## The compose stack
 
@@ -123,6 +127,7 @@ If you put a trusted reverse proxy or load balancer in front that overwrites `X-
 | `rabbitmq` | `rabbitmq:4.3-management` | Celery broker (user `tripl`). Mounts `infra/rabbitmq/rabbitmq.conf`. Health-checked with `rabbitmq-diagnostics ping`. |
 | `redis` | `redis:8.8.3-alpine` | Cache only — 256 MB cap, `allkeys-lru`, no persistence. Health-checked with `redis-cli ping`. |
 | `migrate` | tripl image | One-shot. Runs `python -m tripl.migrate` (`alembic upgrade head`, then the migrations of any installed extension), then exits. App and workers wait for it to complete successfully. |
+| `metrics-init` | tripl image | One-shot. Clears stale Prometheus multiprocess files from the shared `prometheus-multiproc` volume, then exits. Shows as `Exited (0)` in `docker compose ps -a`, like `migrate`. |
 | `app` | tripl image | The single API + SPA process on port `8000`. Runs uvicorn with `UVICORN_WORKERS` (default 4). Mounts the `photos` volume at `/app/var/photos`, where the local photo backend keeps uploaded event photos. |
 | `celery-worker` | tripl image | Runs `celery -A tripl.worker.celery_app worker`. Executes scans, warehouse queries, monitor evaluation, and alert delivery, plus the daily sweep of orphan photo files. It mounts the same `photos` volume as `app` for that sweep. Its container healthcheck is disabled. |
 | `celery-beat` | tripl image | Runs `celery -A tripl.worker.celery_app beat` with the schedule at `/tmp/celerybeat-schedule`. Enqueues periodic jobs. Its container healthcheck is disabled. |
@@ -184,7 +189,7 @@ baseline downgrade removes the entire application schema. Restore a backup
 when rolling back a deployed release.
 :::
 
-Once the one-shot has run, the applied revision can be confirmed from **Settings → Instance → System** without shelling into a container: the **Schema revision** tile reads the revision this database is stamped with and says whether it matches the head the running build ships. See [System (read-only)](../administer/admin-guide.md#system-read-only).
+Once the one-shot has run, the applied revision can be confirmed from **Settings → Platform → System** without shelling into a container: the **Schema revision** tile reads the revision this database is stamped with and says whether it matches the head the running build ships. See [System (read-only)](../administer/admin-guide.md#system-read-only).
 
 To run them manually (for example, to inspect output), invoke the same command in a one-off container:
 
@@ -202,7 +207,7 @@ The `app` container exposes an unauthenticated health probe at **`GET /health`**
 curl -fsS https://tripl.example.com/health
 ```
 
-The interactive API reference is served at `/docs` (and `/api/v1/*` for the API itself). API routes take precedence over the SPA fallback, so `/health`, `/docs`, and `/metrics` keep their meaning even though the same process serves the frontend.
+The interactive API reference is served at `/docs` (Swagger UI) and `/redoc` (and `/api/v1/*` for the API itself). The instance serves both pages entirely itself, with no CDN, so they also work without internet access. The same reference is published at [docs.tripl.io/integrate/api](https://docs.tripl.io/integrate/api/). API routes take precedence over the SPA fallback, so `/health`, `/docs`, and `/metrics` keep their meaning even though the same process serves the frontend.
 
 ## Third-party licenses
 
@@ -226,7 +231,7 @@ tripl reads from your existing warehouse — it never writes to it. You connect 
 
 1. Open the app at your `APP_BASE_URL` and create the first account on the sign-in page. It becomes the owner — see [Roles & permissions](../administer/admin-guide.md#roles--permissions).
 2. Optionally click **Generate demo project** to explore with synthetic data and no warehouse at all.
-3. Go to **Settings → Data sources** (under the Workspace group) and add a data source: **ClickHouse**, **BigQuery**, **Databricks**, **Snowflake**, **Redshift**, **Greenplum**, **Trino**, **Athena**, or **PostgreSQL**. The credentials you enter are encrypted at rest with `ENCRYPTION_KEY`.
+3. Go to **Settings → Data sources** (under the Organization group) and add a data source: **ClickHouse**, **BigQuery**, **Databricks**, **Snowflake**, **Redshift**, **Greenplum**, **Trino**, **Athena**, or **PostgreSQL**. The credentials you enter are encrypted at rest with `ENCRYPTION_KEY`.
 4. Create a read-only `tk_r_` key under **Settings → API keys** if you want [`tripl doctor`](./cli.md#tripl-doctor) in a cron job. Until that key exists `doctor` cannot run at all: it demands a URL *and* a key before it opens a socket, even though `/health` needs neither.
 
 :::note Step 3 is browser-only by construction, not for want of a CLI
@@ -240,10 +245,12 @@ Warehouse queries and scans run on `celery-worker`, so make sure that container 
 An upgrade is a version bump plus a pull-and-up, and the order matters:
 
 ```bash
-tripl upgrade --to 1.5.0 --dir /srv/tripl
+tripl upgrade --to X.Y.Z --dir /srv/tripl
 ```
 
-It reads the current pin out of `.env`, refuses a **downgrade** outright, prints the `pg_dump` command and waits for you to acknowledge it, then pulls, moves the pin, restarts and waits for `/health`. Why that order, what it does when the pull fails versus when `up -d` fails, and why a failed `up -d` leaves the new pin in place, are all in [`tripl upgrade`](./cli.md#tripl-upgrade). It never rewrites `compose.yaml`, so a release that changes the stack (the `photos` volume, for one) needs the file updated separately; see the [runbook](./runbook.md#the-photo-volume-release-bring-an-older-composeyaml-up-to-date).
+`X.Y.Z` is the released version you are moving to, from the [GitHub releases page](https://github.com/tripl-io/tripl/releases).
+
+It reads the current pin out of `.env`, refuses a **downgrade** outright, prints the `pg_dump` command and waits for you to acknowledge it, then pulls, moves the pin, restarts and waits for `/health`. Why that order, what it does when the pull fails versus when `up -d` fails, and why a failed `up -d` leaves the new pin in place, are all in [`tripl upgrade`](./cli.md#tripl-upgrade). It never rewrites `compose.yaml`, so a release that changes the stack (the `photos` volume, for one) needs the file updated separately; see the [runbook](./runbook.md#photo-volume-bring-an-older-composeyaml-up-to-date).
 
 The `migrate` one-shot applies any new Alembic migrations before the new `app` and workers come up, so a rolling deploy never races the upgrade. Pin `TRIPL_VERSION` to an explicit released tag in production rather than tracking `latest`, so upgrades are deliberate and reproducible. Releases are cut from git tags via `bin/release.sh`; the full release machinery is documented in [the release guide](./release.md).
 
@@ -254,12 +261,13 @@ The comments are the [ordering rule](./cli.md#order-of-operations-and-why), and 
 ```bash
 # 0. Back up first. This applies migrations that cannot be undone,
 #    and this dump does NOT contain ENCRYPTION_KEY - keep that separately.
-docker compose exec -T postgres pg_dump -U tripl tripl | gzip > tripl-1.4.0.sql.gz
+docker compose exec -T postgres pg_dump -U tripl tripl | gzip > tripl-before-X.Y.Z.sql.gz
 
 # 1. Pull the new tag first, so a bad tag leaves .env untouched.
-TRIPL_VERSION=1.5.0 docker compose pull
+#    X.Y.Z is the released version you are moving to.
+TRIPL_VERSION=X.Y.Z docker compose pull
 
-# 2. Only now edit .env: TRIPL_VERSION=1.5.0
+# 2. Only now edit .env: TRIPL_VERSION=X.Y.Z
 # 3. Restart. The pin is on disk, so `up` starts the new tag.
 docker compose up -d
 ```
@@ -297,6 +305,8 @@ docker compose -f compose.dev.yaml up --watch
 ```
 
 The dev stack serves the SPA from Vite on `:5173` (proxying to the API on `:8000`). This is **not** a deployment path — use `compose.yaml` for anything real.
+
+It listens on 127.0.0.1 only. To reach it from another machine, use an SSH tunnel (`ssh -L 5173:127.0.0.1:5173 <host>`) or the production stack. Without `ENCRYPTION_KEY`, warehouse credentials are stored unencrypted, so set it in `.env` (the recipe is in `.env.example`) before you connect a real warehouse.
 
 ## Related
 

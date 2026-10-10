@@ -7,10 +7,108 @@ This guide describes the recommended way for external LLM agents and CLI scripts
 Use the existing FastAPI OpenAPI contract plus this guide as the primary agent integration path.
 
 - Machine-readable contract: `GET /openapi.json`
-- Interactive contract browser: `GET /docs`
+- Interactive contract browser: `GET /docs`. Its **Authorize** button takes an
+  API key (`tk_...`), and **Try it out** then sends it as
+  `Authorization: Bearer`; the OpenAPI document declares it as the `ApiKey`
+  security scheme.
 - Base API prefix: `/api/v1`
 
-tripl now ships a first-party MCP server (`tripl-mcp`) that wraps this API in a curated toolset for MCP-capable agent runtimes — see [MCP Server](./mcp-server.md) for setup. This guide remains the raw REST contract underneath it: every MCP tool calls the endpoints described here with the same API-key auth, project fencing, and branch rules. Use the MCP server when the agent runs in an MCP-capable runtime; use raw OpenAPI plus this guide for direct HTTP integrations, scripts, and anything the curated toolset does not cover.
+tripl ships a first-party MCP server (`tripl-mcp`) that wraps this API in a curated toolset for MCP-capable agent runtimes — see [MCP Server](./mcp-server.md) for setup. This guide remains the raw REST contract underneath it: every MCP tool calls the endpoints described here with the same API-key auth, project fencing, and branch rules. Use the MCP server when the agent runs in an MCP-capable runtime; use raw OpenAPI plus this guide for direct HTTP integrations, scripts, and anything the curated toolset does not cover.
+
+## The read → draft → write loop {#read-draft-write}
+
+tripl is the catalog of your analytics events: what each event means, which
+fields it carries, and which task it came from. An agent or a script that keeps
+that catalog in sync always follows the same loop: **read** the catalog to find
+what already exists, **draft** definitions in memory, then **write** them back
+safely. Getting a key is described under [Authentication](#authentication);
+finding events is described in [Searching from the API](./searching-from-the-api.md).
+
+```python
+import os
+import requests
+
+BASE = "https://tripl.example.com/api/v1"
+session = requests.Session()
+session.headers["Authorization"] = f"Bearer {os.environ['TRIPL_API_KEY']}"
+```
+
+### 1. Read first
+
+Never create blind. Find the relevant events by the originating ticket (a
+`meta_value` filter), by a feature phrase (smart search), or by structured
+filters, before acting.
+
+```python
+# Every event already linked to a ticket, by its key in the "ticket" meta field.
+existing = session.get(
+    f"{BASE}/projects/web/events",
+    params={"meta_value": "PROJ-123"},
+).json()
+by_name = {item["name"]: item for item in existing["items"]}
+```
+
+### 2. Draft
+
+Build the payload in memory. An event references its event type and carries a
+description, field values and meta values, including a link back to the ticket
+it came from so the event stays findable by task.
+
+```python
+def build_event(event_type_id, ticket_meta_field_id):
+    return {
+        "event_type_id": event_type_id,
+        "name": "checkout:completed",
+        "description": "Fires once the order is confirmed.",
+        "status": "draft",
+        "tags": ["checkout"],
+        "field_values": [],
+        "meta_values": [
+            {"meta_field_definition_id": ticket_meta_field_id, "value": "PROJ-123"},
+        ],
+    }
+```
+
+### 3. Write safely
+
+Validate before you write. A **dry run** prints the payload without sending it,
+so a person (or a test) can check it first:
+
+```python
+def upsert_event(payload, by_name, dry_run=True):
+    if dry_run:
+        print("DRY RUN — would write:", payload)
+        return None
+
+    existing = by_name.get(payload["name"])
+    if existing:  # exact-name upsert avoids duplicates
+        return session.patch(
+            f"{BASE}/projects/web/events/{existing['id']}",
+            json=payload,
+        ).json()
+    return session.post(
+        f"{BASE}/projects/web/events",
+        json=payload,
+    ).json()
+```
+
+- **Dry-run by default.** Switch to `dry_run=False` once the payload looks right.
+- **Upsert by exact name.** Match on the event `name` you read back: `PATCH` it
+  when it exists, `POST` otherwise. When a scan's `event_name_format` names the
+  event type, the server derives the name from field values: supply every
+  template field and use the name and id the response returns (see
+  [Updating events](#updating-events)).
+- **Read the `warnings`** of every create and update response, and show them to
+  a person.
+- **Attach the originating ticket** as a meta value, so the next run finds the
+  event by task rather than by guessing.
+- **Work on a branch** rather than main (see
+  [Project and branch context](#project-and-branch-context)).
+
+To take an event out of the active plan but keep it for history, archive it
+(`PATCH` with `{"status": "archived"}`) rather than deleting it.
+`DELETE /projects/{slug}/events/{id}` removes the event and its field and meta
+values for good.
 
 ## Base URL
 
@@ -55,8 +153,11 @@ only the short form. The rules:
   form works only for a user in exactly one organization; anyone else gets
   `400 Organization required` and must use `/api/v1/orgs/{org}/...`.
 - `/api/v1/settings`, `/api/v1/project-templates` and `/api/v1/auth` are not
-  org-qualified: `/api/v1/orgs/{org}/settings` is reserved for per-organization
-  settings and answers `404` until those routes exist.
+  org-qualified. Per-organization settings are real routes under
+  `/api/v1/orgs/{org}/settings` (email, AI, search embeddings, row limits,
+  photo storage, `/trackers`). They take an owner or admin of the organization
+  from a browser session; `/row-limits` and `/photo-limits` are readable by any
+  member. See [Administration](../administer/admin-guide.md).
 - `/api/v1/orgs/{org}`, `/members`, `/members/{user_id}` and
   `/transfer-ownership` are real routes of the [organization API](#organizations),
   not rewritten ones.
@@ -75,7 +176,7 @@ answer as for a slug that does not exist, and always before any `403`.
 | `GET /api/v1/orgs/{org}` | any member (or its key) | `id`, `slug`, `name`, `role`, `status`, `is_default`, `default_project_role`, `created_at`. |
 | `PATCH /api/v1/orgs/{org}` | owner or admin, browser session | `{"name"?, "default_project_role"?}`: a rename, and/or the default access to projects (`none`, `viewer` or `editor`; `owner` is `422`), audited as `org.update` with before and after. The slug is permanent; sending one is `422`. |
 | `DELETE /api/v1/orgs/{org}` | owner, browser session | `{"confirm_slug": "<slug>"}`. `202`, then a background job purges the organization. The default organization is `400`. |
-| `GET /api/v1/orgs/{org}/members` | any member (or its key) | Members with their organization role; `limit` / `offset`. |
+| `GET /api/v1/orgs/{org}/members` | any member (or its key) | Members with their organization role, oldest account first, one page at a time: `limit` (default 200, at most 1000) and `offset`. The answer is a bare array with no total: read on until a page comes back shorter than `limit`. |
 | `PATCH /api/v1/orgs/{org}/members/{user_id}` | owner or admin, browser session | `{"role": "owner" \| "admin" \| "member"}`. Only an owner manages owners; the last owner cannot be demoted (`400`). |
 | `DELETE /api/v1/orgs/{org}/members/{user_id}` | owner or admin, browser session | Removes the membership, the user's project memberships in the organization and their group memberships in it, revokes their keys bound to it, and deletes their single sign-on identities for it. |
 | `POST /api/v1/orgs/{org}/transfer-ownership` | owner, browser session | `{"user_id"}`: that member becomes an owner, the caller an admin. |
@@ -124,7 +225,7 @@ browser session both are `null`. A project-bound key cannot call `/auth/me`
 
 The instance operator's API under `/api/v1/platform/orgs`, `/platform/users`
 and `/platform/step-ins` is part of the [Enterprise edition](../editions.md)
-and documented with it. `/api/v1/platform/settings` (**Settings → Instance**)
+and documented with it. `/api/v1/platform/settings` (**Settings → Platform**)
 is in every edition. Agents cannot use either: both take a platform admin's
 browser session.
 
@@ -140,11 +241,24 @@ Agents should authenticate with user-issued API keys:
 Authorization: Bearer tk_...
 ```
 
-API keys are created by an authenticated user through:
+Create a key in the app under **Settings → Organization → API keys**, or
+through the API from a signed-in browser session:
 
 ```http
 POST /api/v1/me/api-keys
 ```
+
+The full token is shown **once**, at creation; afterwards only its non-secret
+prefix is visible. The prefix carries the scope, so you and your logs can tell
+at a glance what a key can do:
+
+| Scope | Token prefix | Can call |
+|-------|--------------|----------|
+| `read` | `tk_r_…` | Read and query operations only. |
+| `write` | `tk_w_…` | Everything a read key can, plus create, update and delete. |
+
+Give a discovery-only agent a `tk_r_` key, keep `tk_w_` keys for the write
+step, and prefer a project-scoped key so a bug cannot touch the wrong project.
 
 Creation payload:
 
@@ -163,7 +277,7 @@ Scopes:
   remain available even when an endpoint uses `POST` for a complex query body.
   Use this for retrieval, search, and agent context loading.
 - `write`: allowed on mutation endpoints, subject to the roles of the user behind the key. A project write still needs an editing project role (an `editor` membership, or owner/admin of the organization). Minting a `write` key needs membership of the organization.
-- Owner-only security and administration routes (data sources, scan SQL, members, invitations, a project's audit history) require an interactive session of an organization owner or admin; an API key is `403` on them even when its user is an owner. The one exception is the [metrics replay](#replaying-metrics), which a `write` key of an org owner or admin may call. The instance operator settings (`/settings` fields for security, observability and the server) require a platform admin's session and never take a key.
+- Owner-only security and administration routes (data sources, scan SQL, members, invitations, a project's audit history) require an interactive session of an organization owner or admin; an API key is `403` on them even when its user is an owner. The one exception is the [metrics replay](#replaying-metrics), which a `write` key of an org owner or admin may call. The Platform settings (`/settings` fields for security, observability and the server) require a platform admin's session and never take a key.
 - A key belongs to the organization it was minted in and acts only there; a URL naming another organization answers `404`. `GET /api/v1/me/api-keys` lists the keys of the organization the request acts in.
 
 Project scope:
@@ -197,6 +311,38 @@ Project membership:
 - Under the `none` default (every organization's until an owner or admin
   changes it) a new user sees no project. Ask the project's creator or an owner
   or admin of the organization to add the account behind your key.
+
+### Errors {#errors}
+
+Every error body is a JSON object with `detail`:
+
+- a **string** for most errors (`{"detail": "Project not found"}`);
+- a **list of field errors** on `422` when the request does not match its
+  schema, each with `loc`, `msg` and `type`;
+- an **object** where a route has more to say. A docs import that fails answers
+  `422` with `{"detail": {"errors": [...]}}`; a branch merge refused for
+  conflicts answers `409` with `{"detail": {"conflicts": [...]}}`; the branch
+  transfer and update-from-main refusals are described with
+  [moving changes between branches](#moving-or-copying-changes-to-another-branch)
+  and [updating a branch from main](#updating-a-branch-from-main).
+
+Two kinds of error add keys beside `detail`. A refusal from an installed
+extension's access gate carries the extension's own keys, for example
+`sso_start` when an organization requires single sign-on (see
+[Extension points](../develop/extension-points.md#refusing-a-request)). A `500`
+answers `{"detail": "Internal server error", "request_id": "..."}`: quote the
+`request_id` when you report it, since the server logs the cause under it (see
+[Security](../run/security.md#error-and-probe-hygiene)).
+
+Numbers in a request have upper bounds, and a value past one is a `422`: every
+paged list's `offset` is at most 1,000,000,000, and a request integer that is
+stored as a database integer (a sort `order`, a scan's lookback or row limits,
+a cardinality threshold, a breakdown value limit, an alert cooldown, an anomaly
+bucket count) is at most 2,147,483,647.
+
+For authentication, `401` means the key is missing, invalid, expired or
+revoked; `403` means a valid key lacks the scope or role; `404 Project not
+found` covers both a project that does not exist and one the key cannot see.
 
 ### Account endpoints {#account-endpoints}
 
@@ -429,7 +575,7 @@ Takes diff entries of `branch_id` (the source) to another open working branch. `
 }
 ```
 
-Naming either half of a rename takes both: the server pairs them the way `revert` does (an event by its origin, a variable or event by its `source_name`), not by `renames`. What the entries need comes along and is listed in `carried` with `needed_by`: a new event type, a new or changed field or meta field a value uses, a variable a `${token}` names, a new successor, a new event a variable override names. On a move, so does what the source would otherwise lose when the entries are reverted there (the remaining events of a moved new type, events valued for a moved field or meta field, relations on a moved field, variables overriding a moved event, events using a moved variable's token). An entry the target already holds identically is listed in `skipped`; a move still reverts it on the source. The answer (`BranchTransferResult`) also carries `applied`, `warnings`, `target_counts` and, after a real call, the source's resulting `source_diff`.
+Naming either half of a rename takes both: the server pairs them the way `revert` does (an event by its origin, a property or event by its `source_name`), not by `renames`. What the entries need comes along and is listed in `carried` with `needed_by`: a new event type, a new or changed field or meta field a value uses, a property a `${token}` names, a new successor, a new event a property override names. On a move, so does what the source would otherwise lose when the entries are reverted there (the remaining events of a moved new type, events valued for a moved field or meta field, relations on a moved field, properties overriding a moved event, events using a moved property's token). An entry the target already holds identically is listed in `skipped`; a move still reverts it on the source. The answer (`BranchTransferResult`) also carries `applied`, `warnings`, `target_counts` and, after a real call, the source's resulting `source_diff`.
 
 `dry_run: true` makes every write — the target's and, on a move, the source's reverts — and rolls them back, so whatever a real call would refuse, the dry run refuses too. With `dry_run`, `target_branch_id` may be `null`: the preview runs against a branch cut from main now, which is not kept; create it with `POST /branches` and call again with its id. A real call is audited twice, `plan_branch.transfer_out` on the source and `plan_branch.transfer_in` on the target; a dry run is not audited.
 
@@ -514,6 +660,9 @@ GET /api/v1/projects/{slug}/properties/{variable_id}/event-overrides?branch=<bra
 GET /api/v1/projects/{slug}/properties/drifts?branch=<branch_id>
 ```
 
+Every filter `GET /events` takes, and when to use the listing rather than
+`/search`, is in [Searching from the API](./searching-from-the-api.md).
+
 `GET /projects/{slug}/events/{event_id}` and its `/history` answer for an event
 on **any** branch of the project, whatever `branch` you pass or omit — a link
 handed over with a branch id resolves without first looking the branch up — and
@@ -534,7 +683,7 @@ Event responses include:
 - metric breakdown columns;
 - property value contexts on field values that contain real `${variable}` placeholders.
 
-`/variables` is paginated and returns `{"items": [...], "total": <int>}`.
+`/properties` is paginated and returns `{"items": [...], "total": <int>}`.
 `offset` defaults to `0` (minimum `0`) and `limit` defaults to `200` (`1` to
 `5000`); out-of-range or non-numeric values are rejected with `422`. Read `total`
 to decide whether another page is needed rather than assuming one response holds
@@ -549,12 +698,12 @@ stays the honest count for whichever set you asked for.
 
 Each item in `items` includes `allowed_values`, warehouse/JSON-path `bindings`,
 `excluded_from_scans`, usage summaries, `open_drift_count`, and two inline
-previews that spare a per-variable follow-up call: `sample_values` (observed
+previews that spare a per-property follow-up call: `sample_values` (observed
 values unioned across every context, de-duplicated, capped at 20) and
 `event_names` (distinct names of the events the property was observed in,
 alphabetical, capped at 20 — `event_count` carries the untruncated total).
 
-`/variables/{variable_id}/values` returns the full per-event observed contexts
+`/properties/{variable_id}/values` returns the full per-event observed contexts
 for one property: low-cardinality contexts list all observed values, while
 high-cardinality contexts list bounded samples and an observed count. A context
 over a plain column takes its kind and its count from a `COUNT(DISTINCT)` over
@@ -1060,7 +1209,7 @@ source freshness have none. Only owners who can currently see the project (a
 row, the organization's default access, or an owner or admin of the
 organization) and have an account email are emailed; an owner without access
 or without an email is neither notified nor listed. Each owner gets one plain-text email per rule delivery,
-sent after the rule's delivery is sent, through the instance SMTP settings. The
+sent after the rule's delivery is sent, through the project organization's email settings. The
 email uses the default item lines (the digest's lines for a digest), not the
 rule's custom template. A digest that batches several rules sends one email
 per rule delivery, so an owner of items in two of those rules can get two
@@ -1134,7 +1283,8 @@ Neither route depends on the rule's `notify_owners` setting. See
 ## Incident summaries {#incident-summaries}
 
 An incident (an alert-inbox correlation group) can have a short, cited
-AI summary. The model and provider come from the instance AI settings. See
+AI summary. The model and provider come from the organization's AI settings
+(its own, or the platform's it inherits). See
 [The incident summary](../use/alerting.md#incident-summary) for what is
 sent to the model. Values of sensitive fields and drift sample values are
 never sent.
@@ -1913,7 +2063,8 @@ PATCH /api/v1/me/notification-prefs
 `email_mode` is `off`, `instant`, `daily` (the default) or `weekly`;
 `mentions_email` (default `true`) controls email for mentions separately from
 `email_mode`. Both fields are optional in a `PATCH`. The response also carries
-`email_available`, which is `false` when the instance has no SMTP configured:
+`email_available`, which is `false` when none of your organizations can send
+mail (each uses its own SMTP settings, or the platform's it inherits):
 the preferences are kept, but nothing is emailed until SMTP is set up, and the
 in-app list is unaffected. Instant emails go out within about a minute. Daily
 and weekly digests group the notifications that are unread and not yet
@@ -2599,7 +2750,7 @@ and the CLI has `tripl docs ls|cat|pull|push`.
 - Before you add tracking code for an event, or after you change it, validate the calls with `POST /projects/{slug}/plan/validate`. It needs only a `read` key.
 - Prefer partial `PATCH` payloads over sending whole objects.
 - Treat field and meta value lists as full replacements when included in an event update.
-- Monitoring outputs — signals, schema/distribution/variable-value drift, and
+- Monitoring outputs — signals, schema/distribution/value drift, and
   app-version **release regressions** — are scan-produced. Query them through
   the endpoints in `/openapi.json`; only their explicit review/action endpoints
   mutate resolution state.
@@ -2609,5 +2760,5 @@ and the CLI has `tripl docs ls|cat|pull|push`.
 
 Every endpoint — with request/response schemas — is rendered from the live
 OpenAPI spec at **[API Reference](/integrate/api)** (also linked as **API** in the
-top navigation). Regenerate the underlying spec with `bin/dump-openapi.sh` after
-changing the HTTP API.
+top navigation). The spec behind it is regenerated with `make sync-types`
+whenever the HTTP API changes, and CI checks that it matches the API.

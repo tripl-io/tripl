@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import json
 import logging
-import re
 import time
 from collections.abc import Sequence
 from datetime import datetime
@@ -30,6 +29,7 @@ from tripl.core.adapters.measure_validator import (
     coerce_aggregation,
     validate_measure_column,
 )
+from tripl.core.adapters.sql_common import IDENTIFIER_PART_RE, SCHEMA_ROW_LIMIT, truncate_sql
 from tripl.core.bucketing import format_utc_literal
 from tripl.core.intervals import IntervalUnit, get_interval
 from tripl.core.warehouse_types import ComplexKind, classify_complex
@@ -40,13 +40,6 @@ from tripl.json_paths import (
     split_property_field,
 )
 from tripl.models.domain_enums import MetricAggregation
-
-# Hard cap on rows pulled from the catalog so a warehouse with thousands of
-# wide tables can't blow up the autocomplete payload or the request. The cap is
-# generous because introspection now spans every non-system database (one row
-# per column per table across all of them), so a multi-database warehouse needs
-# plenty of headroom before its visible tables get truncated.
-_SCHEMA_ROW_LIMIT = 50000
 
 # System databases that hold ClickHouse internals, not user data. They are
 # excluded from catalog introspection so autocomplete only surfaces queryable
@@ -65,9 +58,6 @@ def _normalized_type_name(server_type: str) -> str:
         return server_type
 
 
-_IDENTIFIER_RE = re.compile(r"^[a-zA-Z_][a-zA-Z0-9_.]*$")
-_IDENTIFIER_PART_RE = re.compile(r"^[a-zA-Z_][a-zA-Z0-9_]*$")
-
 # JSON path *discovery* (preview) enumeration functions. "dynamic" lists only the
 # important typed subcolumn paths (fast); "all" lists every path incl. shared-data
 # paths. Both are JSON-only: given a Map or a Tuple they raise
@@ -84,22 +74,8 @@ def _as_rows(rows: Sequence[Sequence[Any]]) -> list[tuple[object, ...]]:
 
 
 class ClickHouseAdapter(BaseAdapter):
-    #: Declared ClickHouse type per column, captured by :meth:`get_columns` and read
-    #: by :meth:`_nested_kind` to pick the nested-shape SQL. The default deliberately
-    #: lives on the *class* rather than in ``__init__``: a site that builds an adapter
-    #: with ``object.__new__`` never runs ``__init__``, so an instance attribute set
-    #: there would simply not exist. ``core/adapters/multi_aggregate_sql.py`` does it
-    #: in production and the unit tests do it to build an adapter without a live
-    #: client; ``grep -rn "object.__new__(ClickHouseAdapter)"`` is the current set.
-    #: A count was spelled out here and was wrong in the commit that wrote it — the
-    #: same commit added two sites it does not name — so the invariant is stated
-    #: instead of a census that every new test file invalidates.
-    #: BigQuery keeps the equivalent map in ``__init__`` and has to be primed by hand
-    #: at every such site; a class-level default cannot be forgotten by a new one. It
-    #: is only ever rebound, never mutated in place, so the shared empty dict is safe.
-    #: Empty means "never introspected", which :meth:`_nested_kind` reads as JSON —
-    #: the behavior every caller had before this map existed.
-    _column_types: dict[str, str] = {}
+    # ``_column_types`` (BaseAdapter's, empty until ``get_columns``) is what
+    # :meth:`_nested_kind` reads to pick the nested-shape SQL; empty reads as JSON.
 
     def __init__(
         self,
@@ -204,7 +180,7 @@ class ClickHouseAdapter(BaseAdapter):
             "database = currentDatabase() AS is_current_database "
             "FROM system.columns "
             f"WHERE database NOT IN ({excluded}) "
-            f"ORDER BY database, table, position LIMIT {_SCHEMA_ROW_LIMIT}"
+            f"ORDER BY database, table, position LIMIT {SCHEMA_ROW_LIMIT}"
         )
         logger.debug("CH schema introspection query: %s", sql)
         # No per-query settings: tripl connects with read-only ClickHouse users,
@@ -257,7 +233,7 @@ class ClickHouseAdapter(BaseAdapter):
         """
         replacements: list[str] = []
         for column in columns:
-            if not _IDENTIFIER_PART_RE.match(column):
+            if not IDENTIFIER_PART_RE.match(column):
                 msg = f"Invalid column name: {column}"
                 raise ValueError(msg)
             text = f"ifNull(toString(`{column}`), '')"
@@ -457,19 +433,10 @@ class ClickHouseAdapter(BaseAdapter):
         (Postgres) or validate (BigQuery) the alias. Closing the gap keeps a
         future caller from turning a spec key into an injection point.
         """
-        if not _IDENTIFIER_PART_RE.match(alias):
+        if not IDENTIFIER_PART_RE.match(alias):
             msg = f"Invalid aggregate key alias: {alias!r}"
             raise ValueError(msg)
         return alias
-
-    def _validate_column(self, column: str) -> str:
-        if not _IDENTIFIER_RE.match(column):
-            msg = f"Invalid column name: {column}"
-            raise ValueError(msg)
-        if self._allowed_columns and column not in self._allowed_columns:
-            msg = f"Column {column!r} not found in query result"
-            raise ValueError(msg)
-        return column
 
     def _bucket_expression(self, time_column: str, interval_code: str) -> str:
         """Translate an interval code into ClickHouse bucket SQL.
@@ -588,7 +555,7 @@ class ClickHouseAdapter(BaseAdapter):
         parts = [part for part in path.split(".") if part]
         if not parts:
             raise ValueError(f"Invalid JSON path: {path}")
-        if any(not _IDENTIFIER_PART_RE.match(part) for part in parts):
+        if any(not IDENTIFIER_PART_RE.match(part) for part in parts):
             raise ValueError(f"Unsupported JSON path: {path}")
 
         expression = f"`{self._validate_column(column)}`"
@@ -996,8 +963,7 @@ class ClickHouseAdapter(BaseAdapter):
             f"LIMIT {int(limit)}"
         )
 
-        short = sql[:300] + ("..." if len(sql) > 300 else "")
-        logger.info(f"CH breakdown query: {short}")
+        logger.debug("CH breakdown query: %s", truncate_sql(sql))
         t0 = time.monotonic()
         result = self._client.query(sql)
         elapsed = time.monotonic() - t0
@@ -1065,12 +1031,9 @@ class ClickHouseAdapter(BaseAdapter):
 
         return col_names, json_value_names, _as_rows(result.result_rows)
 
-    def _aggregate_value_sql(self, agg_fn: MetricAggregation, measure_column: str | None) -> str:
-        """Validate + escape the measure and build the safe aggregate fragment."""
-        measure_sql: str | None = None
-        if measure_column is not None:
-            measure_sql = f"`{validate_measure_column(measure_column, self._allowed_columns)}`"
-        return build_aggregate_sql(agg_fn, measure_sql)
+    @override
+    def _quote_ident(self, name: str) -> str:
+        return f"`{name}`"
 
     def get_time_bucketed_aggregate(
         self,
@@ -1454,35 +1417,6 @@ class ClickHouseAdapter(BaseAdapter):
         logger.info("CH bucketed multi-aggregate breakdown done in %.2fs, %s rows", elapsed, n_rows)
 
         return col_names, _as_rows(result.result_rows)
-
-    def get_time_bucketed_breakdown_counts(
-        self,
-        base_query: str,
-        time_column: str,
-        interval: str,
-        breakdown_column: str,
-        regular_columns: list[str],
-        json_columns: list[str],
-        json_value_paths: dict[str, list[str]] | None,
-        time_from: datetime,
-        time_to: datetime,
-        values_limit: int | None = None,
-        limit: int = 100000,
-    ) -> tuple[list[str], list[str], list[tuple[object, ...]]]:
-        col_names, json_value_names, rows = self.get_time_bucketed_breakdown_counts_multi(
-            base_query,
-            time_column,
-            interval,
-            [breakdown_column],
-            regular_columns,
-            json_columns,
-            json_value_paths,
-            time_from,
-            time_to,
-            values_limit=values_limit,
-            limit=limit,
-        )
-        return col_names, json_value_names, [(row[0], row[2], row[3], *row[4:]) for row in rows]
 
     def get_time_bucketed_breakdown_counts_multi(
         self,

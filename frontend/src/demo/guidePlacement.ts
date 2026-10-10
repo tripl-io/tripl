@@ -5,9 +5,8 @@
  * The coach card used to open beside its control. Beside a control there is
  * always something else — a description, the next rows, a tab, the button
  * next to it — and visitors found the card covering text, and buttons covering
- * the card. The guide lives in a corner instead, the first one in
- * `CORNER_ORDER` that keeps clear of the control; the ring around the control
- * says where to act.
+ * the card. The guide lives in a corner instead, one that keeps clear of the
+ * control (`pickCardCorner`); the ring around the control says where to act.
  *
  * Pure geometry, so the choice is testable without a browser.
  */
@@ -110,6 +109,45 @@ export function pickCorner(
     }
   }
   return best
+}
+
+/**
+ * The open card's corner: a bottom one whenever one is clear of `avoid`, a
+ * top one only when neither is.
+ *
+ * While the card holds a bottom corner the column ends with room for it
+ * (`--demo-guide-clearance`), so whatever it sits on there can be scrolled out
+ * from under it. No room is made above a top corner, so the top of the page
+ * stays under it — where a page keeps its title, its toolbar and its main
+ * action. Chosen by how busy each corner was, the card took the top over a
+ * table's many rows: on Events it covered "New event", and on a phone the
+ * page's heading.
+ *
+ * Within a row, the corner sitting on the least of the page (`pickCorner`).
+ * The corner the card is in (`held`) is kept while it stays clear, or it would
+ * hop to the emptiest corner on every scroll — except that a top corner gives
+ * way once a bottom one is clear again. Null when no corner is clear.
+ */
+export function pickCardCorner(
+  frame: GuideFrame,
+  size: GuideSize,
+  avoid: readonly Box[],
+  busy: readonly WeightedBox[],
+  order: readonly GuideCorner[] = CORNER_ORDER,
+  held: GuideCorner | null = null,
+): GuideCorner | null {
+  const rows = [
+    order.filter((corner) => corner.startsWith('bottom')),
+    order.filter((corner) => corner.startsWith('top')),
+  ]
+  for (const row of rows) {
+    if (held && row.includes(held) && coveredArea(cornerBox(held, frame, size), avoid) === 0) {
+      return held
+    }
+    const corner = pickCorner(frame, size, avoid, busy, row)
+    if (corner) return corner
+  }
+  return null
 }
 
 /**

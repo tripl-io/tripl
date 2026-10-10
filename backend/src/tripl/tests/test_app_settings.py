@@ -9,7 +9,13 @@ from sqlalchemy import select
 from tripl import crypto
 from tripl.config import settings
 from tripl.models.app_setting import SERVICE_SETTINGS_KEY, AppSetting
-from tripl.services import app_settings_service, embedding_service, migration_status_service
+from tripl.services import (
+    _app_settings_fields,
+    _app_settings_sources,
+    app_settings_service,
+    embedding_service,
+    migration_status_service,
+)
 from tripl.tests.conftest import TestSessionLocal
 
 
@@ -233,7 +239,7 @@ def test_registration_mode_is_resolved_live_not_at_startup() -> None:
     Every other security override is pinned onto ``settings`` at process start;
     ``registration_mode`` is deliberately excluded and read per request instead.
     """
-    assert "registration_mode" in app_settings_service.SECURITY_FIELDS
+    assert "registration_mode" in _app_settings_fields.SECURITY_FIELDS
     assert "registration_mode" not in app_settings_service.STARTUP_APPLIED_FIELDS
     # The rest of the security section is still startup-applied.
     assert "hsts_enabled" in app_settings_service.STARTUP_APPLIED_FIELDS
@@ -329,7 +335,7 @@ async def test_setting_source_distinguishes_a_delivered_value_from_the_code_defa
     was badged "env", so the badge said the same thing either way and the only
     sound check was diffing values against a copy of the source by hand.
     """
-    default_model = app_settings_service._code_default("search_embedding_model")
+    default_model = _app_settings_sources._code_default("search_embedding_model")
     monkeypatch.setattr(settings, "search_embedding_model", default_model)
 
     resting = await client.get("/api/v1/settings")
@@ -378,7 +384,7 @@ async def test_ai_settings_report_the_embeddings_endpoint_and_agree_with_the_cal
     monkeypatch.setattr(
         settings,
         "search_embedding_base_url",
-        app_settings_service._code_default("search_embedding_base_url"),
+        _app_settings_sources._code_default("search_embedding_base_url"),
     )
     at_default = await client.get("/api/v1/settings/ai")
     assert at_default.json()["sources"]["ai.search_embedding_base_url"] == "default"

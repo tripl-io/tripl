@@ -101,5 +101,6 @@ async def test_resolve_project_hides_another_orgs_project(client: AsyncClient) -
                 await resolve_project(session, "ctx-hidden")
             assert exc.value.status_code == 404
             assert exc.value.detail == "Project not found"
-            with pytest.raises(HTTPException):
-                await resolve_project_id(session, "ctx-hidden", detail="gone")
+            with pytest.raises(HTTPException) as exc:
+                await resolve_project_id(session, "ctx-hidden")
+            assert exc.value.detail == "Project not found"

@@ -8,24 +8,29 @@ The catalog services are deliberately NOT called — each commits internally, wh
 would break the seeder's single end-of-function commit.
 
 Pre-collected ``MetricValue`` series make the catalog and drilldowns render with
-data (the demo worker never runs). The ``sql`` and two ``fact`` series are NOT
-invented: they are derived from the synthetic dataset by running the REAL
-``SyntheticAdapter`` (via ``registry.build_adapter`` over the demo's synthetic
-DataSource) with each metric's validated config — the same shapes the worker
-collectors use — so the seeded values are reproducible from the synthetic rows.
-The adapter is pure in-memory (no network/filesystem), but building its dataset
-and scanning it is still CPU work, so it runs in a worker thread rather than on
-the API event loop; only the row inserts happen on the loop.
+data from the first page view, before any collection has run. None of them is
+invented. The ``sql`` and two ``fact`` series are derived from the synthetic
+dataset by running the REAL ``SyntheticAdapter`` (via ``registry.build_adapter``
+over the demo's synthetic DataSource) with each metric's validated config — the
+same shapes the worker collectors use — so the seeded values are reproducible
+from the synthetic rows. The adapter is pure in-memory (no network/filesystem),
+but building its dataset and scanning it is still CPU work, so it runs in a
+worker thread rather than on the API event loop; only the row inserts happen on
+the loop. The ``event_composition`` ratio is composed, with the collector's own
+evaluator, from the event series the warehouse builder stored, so it is the
+number a reader gets by dividing the two charts and the value the real
+collector writes when it re-derives the newest buckets.
 Values are deterministic for a given clock/seed.
 """
 
 from __future__ import annotations
 
 import asyncio
-import math
+import uuid
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from tripl.core.adapters.base import AggregateSpec, BaseAdapter
@@ -38,6 +43,7 @@ from tripl.models.domain_enums import (
     MetricStatus,
     ScanInterval,
 )
+from tripl.models.event_metric import EventMetric
 from tripl.models.fact_table import FactTable
 from tripl.models.metric_definition import MetricDefinition
 from tripl.models.metric_value import MetricValue
@@ -53,8 +59,8 @@ from tripl.schemas.metric_definition import (
     SqlConfig,
     SqlMetricCreate,
 )
-from tripl.services.demo import noise
 from tripl.services.demo.scenario import DemoContext
+from tripl.worker.analyzers.metric_composition import evaluate_composition
 
 # The seeded ``active_sessions`` statement, as ONE constant rather than a literal
 # buried in the create schema. Two readers need the exact text: the synthetic
@@ -219,12 +225,13 @@ async def _build_metric_values(
 ) -> None:
     """Seed each metric's per-bucket values.
 
-    ``purchase_conversion`` (event_composition) is a small live-looking fraction.
-    The ``sql`` and two ``fact`` metrics are derived FROM the synthetic dataset by
-    running the real ``SyntheticAdapter`` with each metric's config, so the seeded
-    values are reproducible from the synthetic rows rather than invented.
+    ``purchase_conversion`` (event_composition) is composed from the stored
+    numerator and denominator event series. The ``sql`` and two ``fact`` metrics
+    are derived FROM the synthetic dataset by running the real
+    ``SyntheticAdapter`` with each metric's config, so the seeded values are
+    reproducible from the synthetic rows rather than invented.
     """
-    _build_conversion_values(session, ctx, metric_defs["purchase_conversion"])
+    await _build_composition_values(session, ctx, metric_defs["purchase_conversion"])
 
     data_source = await session.get(DataSource, ctx.data_source_id)
     if data_source is not None:
@@ -235,25 +242,53 @@ async def _build_metric_values(
     await session.flush()
 
 
-def _build_conversion_values(
-    session: AsyncSession, ctx: DemoContext, conversion_metric: MetricDefinition
+async def _build_composition_values(
+    session: AsyncSession, ctx: DemoContext, metric: MetricDefinition
 ) -> None:
-    # event_composition ratio -> ~7 days HOURLY, aligned to the source scan grid
-    # (scan_config_id set). Conversion drifts gently upward with a daily ripple so
-    # the ratio reads as a live line; stays a small fraction (~0.05-0.11).
-    conversion_buckets = noise.hour_buckets(ctx.now, days=7)
-    conversion_span = max(len(conversion_buckets) - 1, 1)
-    for idx, bucket in enumerate(conversion_buckets):
-        progress = idx / conversion_span
-        daily_ripple = 0.015 * math.sin(bucket.hour * math.pi / 12)
-        session.add(
-            MetricValue(
-                metric_definition_id=conversion_metric.id,
-                scan_config_id=ctx.scan_config_id,
-                bucket=bucket,
-                value=0.05 + 0.045 * progress + daily_ripple,
-            )
+    """Compose an event_composition metric over the whole seeded window.
+
+    Reads the operands the way ``metric_collect._collect_event_composition``
+    does — each event's per-event ``EventMetric`` series on the scan grid — and
+    combines them with the collector's evaluator, keyed by that grid's
+    ``scan_config_id``. A divide-by-zero bucket stores no row, as there.
+    (A ``per_distinct_user`` metric would also need the warehouse's distinct
+    users; the demo seeds none.)
+
+    The whole window rather than a recent slice: the collector's first run then
+    has nothing to backfill below the oldest value, and its re-derived newest
+    buckets continue this series instead of stepping away from it.
+    """
+    if ctx.scan_config_id is None or metric.composition is None:
+        return
+    operand_ids = [
+        event_id
+        for event_id in (metric.numerator_event_id, metric.denominator_event_id)
+        if event_id is not None
+    ]
+    rows = await session.execute(
+        select(EventMetric.event_id, EventMetric.bucket, EventMetric.count).where(
+            EventMetric.scan_config_id == ctx.scan_config_id,
+            EventMetric.event_id.in_(operand_ids),
         )
+    )
+    series: dict[uuid.UUID | None, dict[datetime, float]] = {}
+    for event_id, bucket, count in rows:
+        series.setdefault(event_id, {})[bucket] = float(count)
+    values = evaluate_composition(
+        metric.composition,
+        numerator=series.get(metric.numerator_event_id, {}),
+        denominator=series.get(metric.denominator_event_id, {}),
+    )
+    session.add_all(
+        MetricValue(
+            metric_definition_id=metric.id,
+            scan_config_id=ctx.scan_config_id,
+            bucket=bucket,
+            value=value,
+        )
+        for bucket, value in values.items()
+        if value is not None
+    )
 
 
 @dataclass(frozen=True)

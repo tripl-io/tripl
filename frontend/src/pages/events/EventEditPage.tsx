@@ -13,6 +13,7 @@ import { useActiveBranchId, useBranchLinkProps } from '@/hooks/useBranch'
 import { displayUser, useUsersById } from '@/hooks/useUsersById'
 import { CommentThread } from '@/components/comment-thread'
 import { EntityBranchBanner } from '@/components/EntityBranchBanner'
+import { editPageTitle, usePageTitle } from '@/components/shell-chrome-context'
 import { ErrorState } from '@/components/error-state'
 import { PageContainer } from '@/components/primitives/page-container'
 import { isNotFoundError, PageSkeleton, QueryErrorState } from '@/components/states'
@@ -140,6 +141,9 @@ export default function EventEditPage() {
     queryFn: () => eventsApi.get(slug!, eventId!, branchId),
     enabled: !!slug && !!eventId && canWrite,
   })
+  // The top bar and the browser tab name the edited event, as the heading
+  // does; they used to read "Events", the same as the list.
+  usePageTitle(eventQuery.data ? editPageTitle(eventQuery.data.name) : null)
   // The event a duplicate starts from. The same cache entry its edit page
   // read, so pressing Duplicate there costs no request.
   const sourceQuery = useQuery({

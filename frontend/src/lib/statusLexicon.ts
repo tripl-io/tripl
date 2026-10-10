@@ -22,7 +22,6 @@
 import type { ChipTone } from '@/components/primitives/chip'
 import type { AlertDeliveryStatus, MonitoringSignal, MonitorStatus } from '@/types'
 import type { RunPillStatus } from '@/types'
-import { EVENT_STATUS_LABELS, EVENT_STATUS_TONE, type EventStatus } from './eventStatus'
 
 /** A status rendered as a coloured word: its human label and canonical tone. */
 export interface StatusLexeme {
@@ -46,7 +45,7 @@ function lexemeLabels<K extends string>(family: Record<K, StatusLexeme>): Record
 
 // ---------------------------------------------------------------------------
 // Event lifecycle — re-exported from eventStatus.ts (the canonical map); never
-// duplicated here. Composed into a lexeme accessor for parity with the rest.
+// duplicated here.
 // ---------------------------------------------------------------------------
 export {
   EVENT_STATUSES,
@@ -55,10 +54,6 @@ export {
   EVENT_STATUS_DOT_TONE,
   type EventStatus,
 } from './eventStatus'
-
-export function eventStatusLexeme(status: EventStatus): StatusLexeme {
-  return { label: EVENT_STATUS_LABELS[status], tone: EVENT_STATUS_TONE[status] }
-}
 
 // ---------------------------------------------------------------------------
 // Monitor status — firing / warning / healthy. Previously copy-pasted into
@@ -99,11 +94,14 @@ export const SCAN_RUN_STATUS: Record<RunPillStatus, StatusLexeme> = {
 // "Firing" put a firing verdict on 30 event rows of a project whose Monitors
 // page correctly read "No monitors yet". Firing/Warning/Healthy
 // stay reserved for monitors (alert rules).
+//
+// `hint` is what the word means, for a hover title: "Recent" alone does not
+// say "an older signal that is still open".
 // ---------------------------------------------------------------------------
 export const SIGNAL_LEVEL = {
-  firing: { label: 'Open', tone: 'danger' },
-  warning: { label: 'Recent', tone: 'warning' },
-} as const satisfies Record<'firing' | 'warning', { label: string; tone: 'danger' | 'warning' }>
+  firing: { label: 'Open', tone: 'danger', hint: 'Open signal: found by the latest scan' },
+  warning: { label: 'Recent', tone: 'warning', hint: 'Recent signal: still open from an earlier scan' },
+} as const satisfies Record<'firing' | 'warning', { label: string; tone: 'danger' | 'warning'; hint: string }>
 
 /**
  * Map a raw row-signal `state` onto its lexeme. Anything that is not the latest
@@ -214,13 +212,14 @@ export type SignalDirectionTone = 'danger' | 'warning'
  * movers kept their own and painted a spike green, so the breakdown rows behind
  * a red "Volume spike detected" banner looked healthy.
  */
-export const SIGNAL_DIRECTION: Record<SignalDirection, StatusLexeme> = {
+export const SIGNAL_DIRECTION = {
   spike: { label: 'Spike', tone: 'danger' },
   drop: { label: 'Drop', tone: 'warning' },
-}
+} as const satisfies Record<SignalDirection, StatusLexeme & { tone: SignalDirectionTone }>
 
+/** A direction's {@link SIGNAL_DIRECTION} tone; anything but a drop reads as a spike. */
 export function signalDirectionTone(direction: SignalDirection): SignalDirectionTone {
-  return direction === 'drop' ? 'warning' : 'danger'
+  return direction === 'drop' ? SIGNAL_DIRECTION.drop.tone : SIGNAL_DIRECTION.spike.tone
 }
 
 /** {@link signalDirectionTone} as a CSS colour. */

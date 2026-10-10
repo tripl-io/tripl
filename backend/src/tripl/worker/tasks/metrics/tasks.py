@@ -39,6 +39,7 @@ from tripl.core.bucketing import to_utc
 from tripl.core.collection_progress import collection_progress_to
 from tripl.core.intervals import get_interval
 from tripl.core.json_string_columns import scan_source_query
+from tripl.core.plan_scope import main_branch_id
 from tripl.models.data_source import DataSource
 from tripl.models.event_metric import EventMetric
 from tripl.models.event_type import EventType
@@ -54,7 +55,6 @@ from tripl.models.variable_value import VariableValue
 from tripl.services import app_settings_service
 from tripl.services.source_freshness import compute_config_freshness, is_holding
 from tripl.worker.celery_app import celery_app
-from tripl.worker.plan_scope import main_branch_id
 from tripl.worker.search_reindex import reindex_main_branch_from_worker
 from tripl.worker.tasks._errors import ScanError, user_facing_error
 from tripl.worker.tasks.metrics._helpers import (
@@ -107,6 +107,7 @@ from tripl.worker.utils.job_status import (
 )
 from tripl.worker.utils.query_windows import TimeWindow, resolve_lookback_window
 from tripl.worker.utils.reserved_columns import reserved_catalog_columns
+from tripl.worker.utils.scan_naming import scan_group_column
 from tripl.worker.utils.scan_preset import preset_scan_columns
 from tripl.worker.variable_sweep import retire_unused_variables, retired_details_line
 
@@ -977,11 +978,10 @@ def collect_metrics(
         reg_index = {name: i for i, name in enumerate(regular_cols)}
         json_index = {name: i for i, name in enumerate(json_cols)}
         n_reg = len(regular_cols)
-        et_col_idx = reg_index.get(config.event_type_column) if config.event_type_column else None
 
         # Event type lookup (for grouped mode)
         et_by_name: dict[str, EventType] = {}
-        if config.event_type_column:
+        if scan_group_column(config) is not None:
             et_by_name = main_plan_event_types_by_name(session, config.project_id)
 
         # Collect totals from Phase 1 for result_summary
@@ -1091,7 +1091,6 @@ def collect_metrics(
                     gen_results=gen_results,
                     single_result=single_result,
                     et_by_name=et_by_name,
-                    et_col_idx=et_col_idx,
                     reg_index=reg_index,
                     json_index=json_index,
                     n_reg=n_reg,
@@ -1458,15 +1457,17 @@ def collect_metrics(
                 job.status = ScanJobStatus.completed.value
                 job.completed_at = datetime.now(UTC)
         session.commit()
-        # Fresh anomalies → invalidate project summaries + signals cache so
-        # dashboards reflect the new state immediately (TTL would add up to
-        # 30–60s of staleness on a manual scan trigger).
-        cache.sync_delete_prefix(cache.prefix_signals())
-        cache.sync_delete_prefix(cache.prefix_projects())
+        project = session.get(Project, config.project_id)
+        # Fresh anomalies → invalidate this project's signals and its
+        # organization's project list (the summaries) so dashboards reflect the
+        # new state immediately (TTL would add up to 30–60s of staleness on a
+        # manual scan trigger).
+        cache.sync_delete_prefix(cache.prefix_signals(config.project_id))
+        if project is not None:
+            cache.sync_delete(cache.key_projects_list(project.organization_id))
         # Push a live-update signal so subscribed clients refresh metrics/overview
         # without waiting on the polling fallback. After-commit + best-effort
         # (no-op when Redis is off).
-        project = session.get(Project, config.project_id)
         if project is not None:
             realtime.publish_project_event(
                 project.id,
@@ -1562,12 +1563,3 @@ def collect_metrics(
         if adapter is not None:
             adapter.close()
         session.close()
-
-
-def __getattr__(name: str) -> Any:
-    """Expose the task to existing callers without recreating the import cycle."""
-    if name == "send_alert_delivery":
-        from tripl.worker.tasks.alerts import send_alert_delivery
-
-        return send_alert_delivery
-    raise AttributeError(name)

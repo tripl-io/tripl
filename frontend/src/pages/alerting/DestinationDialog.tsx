@@ -6,14 +6,15 @@ import { alertingApi } from '@/api/alerting'
 import { Button } from '@/components/ui/button'
 import { IconButton } from '@/components/ui/icon-button'
 import { Checkbox } from '@/components/ui/checkbox'
-import { Dialog, DialogBody, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+import { Dialog, DialogBody, DialogClose, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { NativeSelect } from '@/components/settings/kit'
-import { useDirtySinceOpen, useUnsavedDialogGuard } from '@/hooks/useUnsavedChangesGuard'
+import { useDirtySinceOpen } from '@/hooks/useUnsavedChangesGuard'
 import { FieldError } from '@/components/forms/FieldError'
 import { examplePlaceholder } from '@/components/forms/placeholders'
-import { REQUIRED_MESSAGE, focusFirstInvalid, missingSummary } from '@/components/forms/validation'
+import { REQUIRED_MESSAGE, focusFirstInvalid, invalidAria, missingSummary } from '@/components/forms/validation'
+import { splitApiFieldErrors } from '@/lib/apiFieldErrors'
 import { SILENT_ERROR_META } from '@/lib/errorFeedback'
 import type { AlertDestination } from '@/types'
 
@@ -37,7 +38,6 @@ import {
 } from './destinationForm'
 import { DestinationTestResult } from './DestinationTestResult'
 import { attachDestinationServerErrors } from './destinationServerErrors'
-import { fieldErrorProps, splitApiFieldErrors } from './fieldErrors'
 
 /** What the dialog was opened for. */
 export type DestinationDialogTarget =
@@ -202,9 +202,8 @@ export function DestinationDialog({
     && testedWith.removeWebhookHeader === removeWebhookHeader
 
   // Same as the rule dialog: a close that would drop typed-in
-  // credentials or templates asks first.
-  const guard = useUnsavedDialogGuard(useDirtySinceOpen(true, { form, removeWebhookHeader }))
-  const requestClose = () => guard.requestClose(onClose)
+  // credentials or templates asks first (<Dialog dirty>).
+  const dirty = useDirtySinceOpen(true, { form, removeWebhookHeader })
 
   const problems = destinationFormProblems(form, existing, { removeWebhookHeader })
   const serverKnownFields = ['name', 'delivery_schedule_cron', ...CHANNEL_FIELDS[form.type]] as const
@@ -288,7 +287,7 @@ export function DestinationDialog({
           value={form[field]}
           onChange={event => set(field, event.target.value)}
           aria-required={requiredFields.includes(field) || undefined}
-          {...fieldErrorProps(id, error)}
+          {...invalidAria(id, error)}
           {...extra}
         />
         <FieldError inputId={id} message={error} />
@@ -322,7 +321,7 @@ export function DestinationDialog({
           value={form[field]}
           onChange={event => set(field, event.target.value)}
           aria-required={requiredFields.includes(field) || undefined}
-          {...fieldErrorProps(id, error)}
+          {...invalidAria(id, error)}
         />
         <FieldError inputId={id} message={error} />
       </div>
@@ -342,311 +341,310 @@ export function DestinationDialog({
         ?? (hasFieldErrors ? 'Check the highlighted fields.' : null)
 
   return (
-    <>
-      {guard.dialog}
-      <Dialog open onOpenChange={open => { if (!open) requestClose() }}>
-        <DialogContent className="max-w-lg">
-          {/* `noValidate`: required fields are named inline and in the line
-              above the actions, not by a browser bubble. Only the body
-              scrolls; the title and the actions stay on screen. */}
-          <form
-            ref={formRef}
-            noValidate
-            className="flex min-h-0 flex-col gap-4"
-            onSubmit={event => { event.preventDefault(); submit() }}
-          >
-            <DialogHeader>
-              {/* The channel's icon beside the title, so the choice made on the
-                  button that opened this reads as made. */}
-              <DialogTitle className="flex items-center gap-2">
-                <ChannelGlyph type={form.type} aria-hidden="true" className="size-4 shrink-0 text-fg-tertiary" />
-                {existing ? 'Edit destination' : `New ${channelLabel(form.type)} destination`}
-              </DialogTitle>
-            </DialogHeader>
-            <DialogBody className="grid gap-4 py-1">
-              {/* No channel select. On create the button that opened
-                  this already chose the channel and the title says so; a
-                  select here only offered to wipe the form. A channel is fixed
-                  once saved, so edit shows it as a read-only line. */}
-              {existing ? (
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                  {textField('name', 'dest-name', 'Name')}
-                  <div className="grid gap-2">
-                    <span className="text-body leading-none font-medium">Channel</span>
-                    <p className="flex h-9 items-center gap-2 text-body text-fg-tertiary" data-testid="dest-channel">
-                      <ChannelGlyph type={form.type} aria-hidden="true" className="size-4 shrink-0" />
-                      {channelLabel(form.type)}
-                    </p>
-                  </div>
-                </div>
-              ) : (
-                textField('name', 'dest-name', 'Name')
-              )}
-
-              {form.type === 'slack' && (
+    <Dialog open dirty={dirty} onOpenChange={open => { if (!open) onClose() }}>
+      <DialogContent className="max-w-lg">
+        {/* `noValidate`: required fields are named inline and in the line
+            above the actions, not by a browser bubble. Only the body
+            scrolls; the title and the actions stay on screen. */}
+        <form
+          ref={formRef}
+          noValidate
+          className="flex min-h-0 flex-col gap-4"
+          onSubmit={event => { event.preventDefault(); submit() }}
+        >
+          <DialogHeader>
+            {/* The channel's icon beside the title, so the choice made on the
+                button that opened this reads as made. */}
+            <DialogTitle className="flex items-center gap-2">
+              <ChannelGlyph type={form.type} aria-hidden="true" className="size-4 shrink-0 text-fg-tertiary" />
+              {existing ? 'Edit destination' : `New ${channelLabel(form.type)} destination`}
+            </DialogTitle>
+          </DialogHeader>
+          <DialogBody className="grid gap-4 py-1">
+            {/* No channel select. On create the button that opened
+                this already chose the channel and the title says so; a
+                select here only offered to wipe the form. A channel is fixed
+                once saved, so edit shows it as a read-only line. */}
+            {existing ? (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                {textField('name', 'dest-name', 'Name')}
                 <div className="grid gap-2">
-                  {secretField('webhook_url', 'dest-webhook-url', 'Webhook URL', {
-                    placeholder: existing?.webhook_set ? 'Leave empty to keep current webhook' : examplePlaceholder('https://hooks.slack.com/...'),
-                  })}
-                  {/* Where the URL comes from, which the form never said. */}
-                  <p className="text-body-sm text-fg-tertiary">
-                    Create an Incoming Webhook in Slack (Apps → Incoming Webhooks),
-                    pick the channel, and paste its URL here.{' '}
-                    <a
-                      href="https://api.slack.com/messaging/webhooks"
-                      target="_blank"
-                      rel="noreferrer"
-                      className="underline underline-offset-2 hover:text-foreground"
-                    >
-                      Slack's guide
-                    </a>
+                  <span className="text-body leading-none font-medium">Channel</span>
+                  <p className="flex h-9 items-center gap-2 text-body text-fg-tertiary" data-testid="dest-channel">
+                    <ChannelGlyph type={form.type} aria-hidden="true" className="size-4 shrink-0" />
+                    {channelLabel(form.type)}
                   </p>
                 </div>
-              )}
+              </div>
+            ) : (
+              textField('name', 'dest-name', 'Name')
+            )}
 
-              {form.type === 'telegram' && (
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                  {secretField('bot_token', 'dest-bot-token', 'Bot token', {
-                    placeholder: existing?.bot_token_set ? 'Leave empty to keep current token' : examplePlaceholder('123456:ABC...'),
-                  })}
-                  {textField('chat_id', 'dest-chat-id', 'Chat ID')}
-                </div>
-              )}
+            {form.type === 'slack' && (
+              <div className="grid gap-2">
+                {secretField('webhook_url', 'dest-webhook-url', 'Webhook URL', {
+                  placeholder: existing?.webhook_set ? 'Leave empty to keep current webhook' : examplePlaceholder('https://hooks.slack.com/...'),
+                })}
+                {/* Where the URL comes from, which the form never said. */}
+                <p className="text-body-sm text-fg-tertiary">
+                  Create an Incoming Webhook in Slack (Apps → Incoming Webhooks),
+                  pick the channel, and paste its URL here.{' '}
+                  <a
+                    href="https://api.slack.com/messaging/webhooks"
+                    target="_blank"
+                    rel="noreferrer"
+                    className="underline underline-offset-2 hover:text-foreground"
+                  >
+                    Slack's guide
+                  </a>
+                </p>
+              </div>
+            )}
 
-              {form.type === 'webhook' && (
-                <div className="grid gap-3">
-                  {secretField('target_url', 'dest-target-url', 'Target URL', {
-                    placeholder: existing?.target_url_set ? 'Leave empty to keep current URL' : examplePlaceholder('https://example.com/webhook'),
-                  })}
-                  {removeWebhookHeader ? (
-                    <div className="flex flex-wrap items-center justify-between gap-2 rounded-md border border-dashed p-3 text-body-sm text-fg-tertiary">
-                      <span role="status">
-                        The secret header {existing?.webhook_header_name ? `"${existing.webhook_header_name}" ` : ''}will be removed on save.
-                      </span>
-                      <Button type="button" variant="outline" size="sm" onClick={() => setRemoveWebhookHeader(false)}>
-                        Keep it
-                      </Button>
+            {form.type === 'telegram' && (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                {secretField('bot_token', 'dest-bot-token', 'Bot token', {
+                  placeholder: existing?.bot_token_set ? 'Leave empty to keep current token' : examplePlaceholder('123456:ABC...'),
+                })}
+                {textField('chat_id', 'dest-chat-id', 'Chat ID')}
+              </div>
+            )}
+
+            {form.type === 'webhook' && (
+              <div className="grid gap-3">
+                {secretField('target_url', 'dest-target-url', 'Target URL', {
+                  placeholder: existing?.target_url_set ? 'Leave empty to keep current URL' : examplePlaceholder('https://example.com/webhook'),
+                })}
+                {removeWebhookHeader ? (
+                  <div className="flex flex-wrap items-center justify-between gap-2 rounded-md border border-dashed p-3 text-body-sm text-fg-tertiary">
+                    <span role="status">
+                      The secret header {existing?.webhook_header_name ? `"${existing.webhook_header_name}" ` : ''}will be removed on save.
+                    </span>
+                    <Button type="button" variant="outline" size="sm" onClick={() => setRemoveWebhookHeader(false)}>
+                      Keep it
+                    </Button>
+                  </div>
+                ) : (
+                  <>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                      {textField('webhook_header_name', 'dest-header-name', 'Secret header name', {
+                        placeholder: examplePlaceholder('Authorization'),
+                        optional: true,
+                      })}
+                      {secretField('webhook_header_value', 'dest-header-value', 'Secret header value', {
+                        placeholder: existing?.webhook_header_name ? 'Leave empty to keep current value' : examplePlaceholder('Bearer …'),
+                        optional: true,
+                      })}
                     </div>
-                  ) : (
-                    <>
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                        {textField('webhook_header_name', 'dest-header-name', 'Secret header name', {
-                          placeholder: examplePlaceholder('Authorization'),
-                          optional: true,
-                        })}
-                        {secretField('webhook_header_value', 'dest-header-value', 'Secret header value', {
-                          placeholder: existing?.webhook_header_name ? 'Leave empty to keep current value' : examplePlaceholder('Bearer …'),
-                          optional: true,
-                        })}
+                    {/* The stored value could not be removed at all: an empty
+                        box means "keep it", and clearing only the name left
+                        the encrypted value orphaned. */}
+                    {existing?.webhook_header_name && (
+                      <div>
+                        <Button type="button" variant="outline" size="sm" onClick={() => setRemoveWebhookHeader(true)}>
+                          Remove secret header
+                        </Button>
                       </div>
-                      {/* The stored value could not be removed at all: an empty
-                          box means "keep it", and clearing only the name left
-                          the encrypted value orphaned. */}
-                      {existing?.webhook_header_name && (
-                        <div>
-                          <Button type="button" variant="outline" size="sm" onClick={() => setRemoveWebhookHeader(true)}>
-                            Remove secret header
-                          </Button>
-                        </div>
-                      )}
-                    </>
-                  )}
-                  <p className="text-body-sm text-fg-tertiary">
-                    Alerts POST a JSON payload (project, rule, scan, message, items). The optional secret header is sent with every request — use it for auth (e.g. Authorization).
-                  </p>
-                </div>
-              )}
+                    )}
+                  </>
+                )}
+                <p className="text-body-sm text-fg-tertiary">
+                  Alerts POST a JSON payload (project, rule, scan, message, items). The optional secret header is sent with every request — use it for auth (e.g. Authorization).
+                </p>
+              </div>
+            )}
 
-              {form.type === 'email' && (
-                <div className="grid gap-3">
-                  {textField('email_recipients', 'dest-email-recipients', 'Recipients', {
-                    placeholder: examplePlaceholder('alice@example.com', 'bob@example.com'),
-                  })}
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                    {textField('email_from_address', 'dest-email-from', 'From address', {
-                      placeholder: `${examplePlaceholder('alerts@tripl.example')} or Tripl Alerts <alerts@tripl.example>`,
-                      optional: true,
-                    })}
-                    {textField('email_subject_template', 'dest-email-subject', 'Subject template', {
-                      placeholder: examplePlaceholder(`[\${project_name}] \${rule_name}`),
-                      optional: true,
-                    })}
-                  </div>
-                  <p className="text-body-sm text-fg-tertiary">
-                    SMTP settings (host/port/credentials) come from the instance config. Recipients are comma-separated. Subject supports {`\${project_name}`}, {`\${rule_name}`}, {`\${destination_name}`}, {`\${matched_count}`}.
-                  </p>
-                </div>
-              )}
-
-              {form.type === 'jira' && (
-                <div className="grid gap-3">
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                    {textField('jira_base_url', 'dest-jira-base-url', 'Base URL', {
-                      placeholder: examplePlaceholder('https://acme.atlassian.net'),
-                    })}
-                    {textField('jira_auth_email', 'dest-jira-auth-email', 'Auth email', {
-                      placeholder: examplePlaceholder('alice@example.com'),
-                    })}
-                  </div>
-                  {secretField('jira_api_token', 'dest-jira-api-token', 'API token', {
-                    placeholder: existing?.jira_api_token_set ? 'Leave empty to keep current token' : 'Atlassian API token',
-                  })}
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                    {textField('jira_project_key', 'dest-jira-project-key', 'Project key', {
-                      placeholder: examplePlaceholder('ENG'),
-                      onChange: event => set('jira_project_key', event.target.value.toUpperCase()),
-                    })}
-                    {textField('jira_issue_type', 'dest-jira-issue-type', 'Issue type', { placeholder: examplePlaceholder('Task') })}
-                  </div>
-                  {/* What happens, not how the API is called. */}
-                  <p className="text-body-sm text-fg-tertiary">
-                    Each alert opens a new issue in this Jira project. Sign in with your Atlassian
-                    email and an API token from id.atlassian.com → Security → API tokens.
-                  </p>
-                </div>
-              )}
-
-              {form.type === 'linear' && (
-                <div className="grid gap-3">
-                  {secretField('linear_api_key', 'dest-linear-api-key', 'API key', {
-                    placeholder: existing?.linear_api_key_set ? 'Leave empty to keep current key' : examplePlaceholder('lin_api_…'),
-                  })}
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                    {textField('linear_team_id', 'dest-linear-team-id', 'Team ID', {
-                      placeholder: 'Team UUID',
-                    })}
-                    {textField('linear_state_id', 'dest-linear-state-id', 'State ID', {
-                      placeholder: 'Leave empty for the team default',
-                      optional: true,
-                    })}
-                  </div>
-                  {textField('linear_label_ids', 'dest-linear-label-ids', 'Label IDs', {
-                    placeholder: `Comma-separated, ${examplePlaceholder('label-1, label-2')}`,
+            {form.type === 'email' && (
+              <div className="grid gap-3">
+                {textField('email_recipients', 'dest-email-recipients', 'Recipients', {
+                  placeholder: examplePlaceholder('alice@example.com', 'bob@example.com'),
+                })}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                  {textField('email_from_address', 'dest-email-from', 'From address', {
+                    placeholder: `${examplePlaceholder('alerts@tripl.example')} or Tripl Alerts <alerts@tripl.example>`,
                     optional: true,
                   })}
-                  {/* Where each value lives, not which GraphQL mutation runs.
-                      Pickers that fetch teams, states and labels once
-                      the key is in are the longer-term fix. */}
-                  <p className="text-body-sm text-fg-tertiary">
-                    Each alert opens a new issue in this Linear team. Create the API key in Linear
-                    under Settings → API; the team ID is the team's UUID, shown in that team's
-                    settings. Leave State ID empty to use the team's default state.
-                  </p>
-                </div>
-              )}
-
-              {form.type === 'pagerduty' && (
-                <div className="grid gap-3">
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                    {secretField('pagerduty_routing_key', 'dest-pagerduty-routing-key', 'Integration key', {
-                      placeholder: existing?.pagerduty_routing_key_set
-                        ? 'Leave empty to keep current key'
-                        : '32-character routing key',
-                    })}
-                    <div className="grid gap-2">
-                      <Label htmlFor="dest-pagerduty-severity">Severity</Label>
-                      <NativeSelect
-                        id="dest-pagerduty-severity"
-                        width="fill"
-                        value={form.pagerduty_severity}
-                        onChange={value => set('pagerduty_severity', value)}
-                        options={PAGERDUTY_SEVERITY_OPTIONS}
-                        {...fieldErrorProps('dest-pagerduty-severity', errorFor('pagerduty_severity'))}
-                      />
-                      <FieldError inputId="dest-pagerduty-severity" message={errorFor('pagerduty_severity')} />
-                    </div>
-                  </div>
-                  {/* Where the key comes from, and the one behaviour no other
-                      channel has: tripl closes the page it opened. */}
-                  <p className="text-body-sm text-fg-tertiary">
-                    In PagerDuty, add an <strong>Events API V2</strong> integration to a service
-                    (Service → Integrations) and paste its integration key. Each incident pages
-                    once and is updated, not duplicated, while it keeps firing; when tripl closes
-                    it — the scope stops firing or someone resolves it in the Inbox — the page is
-                    resolved too.
-                  </p>
-                </div>
-              )}
-
-              {form.type === 'teams' && (
-                <div className="grid gap-2">
-                  {secretField('teams_webhook_url', 'dest-teams-webhook-url', 'Webhook URL', {
-                    placeholder: existing?.teams_webhook_set
-                      ? 'Leave empty to keep current URL'
-                      : examplePlaceholder('https://….webhook.office.com/…'),
+                  {textField('email_subject_template', 'dest-email-subject', 'Subject template', {
+                    placeholder: examplePlaceholder(`[\${project_name}] \${rule_name}`),
+                    optional: true,
                   })}
-                  <p className="text-body-sm text-fg-tertiary">
-                    In the Teams channel, add a Workflows flow from the template “Post to a channel
-                    when a webhook request is received” (or an Incoming Webhook connector) and
-                    paste the URL it gives you. Alerts arrive as an Adaptive Card.
-                  </p>
                 </div>
-              )}
-
-              {/* A local sink has no channel settings: it records deliveries on
-                  this instance and sends nothing, so name, switch and schedule
-                  are the whole form. It used to fall through to the Linear
-                  fields, whose required API key blocked every save. */}
-              {form.type === 'demo_sink' && (
                 <p className="text-body-sm text-fg-tertiary">
-                  A local sink records deliveries on this instance and sends nothing, so it has no channel settings.
+                  SMTP settings (host/port/credentials) come from the instance config. Recipients are comma-separated. Subject supports {`\${project_name}`}, {`\${rule_name}`}, {`\${destination_name}`}, {`\${matched_count}`}.
                 </p>
-              )}
+              </div>
+            )}
 
-              <DeliveryScheduleField
-                value={form.delivery_schedule_cron}
-                onChange={cron => set('delivery_schedule_cron', cron)}
-                onValidityChange={setScheduleValid}
-                projectTimezone={resolveScheduleTimezone(project, existing)}
-                nextDigestAt={existing?.next_digest_at}
-                serverError={server.fields.delivery_schedule_cron}
+            {form.type === 'jira' && (
+              <div className="grid gap-3">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                  {textField('jira_base_url', 'dest-jira-base-url', 'Base URL', {
+                    placeholder: examplePlaceholder('https://acme.atlassian.net'),
+                  })}
+                  {textField('jira_auth_email', 'dest-jira-auth-email', 'Auth email', {
+                    placeholder: examplePlaceholder('alice@example.com'),
+                  })}
+                </div>
+                {secretField('jira_api_token', 'dest-jira-api-token', 'API token', {
+                  placeholder: existing?.jira_api_token_set ? 'Leave empty to keep current token' : 'Atlassian API token',
+                })}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                  {textField('jira_project_key', 'dest-jira-project-key', 'Project key', {
+                    placeholder: examplePlaceholder('ENG'),
+                    onChange: event => set('jira_project_key', event.target.value.toUpperCase()),
+                  })}
+                  {textField('jira_issue_type', 'dest-jira-issue-type', 'Issue type', { placeholder: examplePlaceholder('Task') })}
+                </div>
+                {/* What happens, not how the API is called. */}
+                <p className="text-body-sm text-fg-tertiary">
+                  Each alert opens a new issue in this Jira project. Sign in with your Atlassian
+                  email and an API token from id.atlassian.com → Security → API tokens.
+                </p>
+              </div>
+            )}
+
+            {form.type === 'linear' && (
+              <div className="grid gap-3">
+                {secretField('linear_api_key', 'dest-linear-api-key', 'API key', {
+                  placeholder: existing?.linear_api_key_set ? 'Leave empty to keep current key' : examplePlaceholder('lin_api_…'),
+                })}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                  {textField('linear_team_id', 'dest-linear-team-id', 'Team ID', {
+                    placeholder: 'Team UUID',
+                  })}
+                  {textField('linear_state_id', 'dest-linear-state-id', 'State ID', {
+                    placeholder: 'Leave empty for the team default',
+                    optional: true,
+                  })}
+                </div>
+                {textField('linear_label_ids', 'dest-linear-label-ids', 'Label IDs', {
+                  placeholder: `Comma-separated, ${examplePlaceholder('label-1, label-2')}`,
+                  optional: true,
+                })}
+                {/* Where each value lives, not which GraphQL mutation runs.
+                    Pickers that fetch teams, states and labels once
+                    the key is in are the longer-term fix. */}
+                <p className="text-body-sm text-fg-tertiary">
+                  Each alert opens a new issue in this Linear team. Create the API key in Linear
+                  under Settings → API; the team ID is the team's UUID, shown in that team's
+                  settings. Leave State ID empty to use the team's default state.
+                </p>
+              </div>
+            )}
+
+            {form.type === 'pagerduty' && (
+              <div className="grid gap-3">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                  {secretField('pagerduty_routing_key', 'dest-pagerduty-routing-key', 'Integration key', {
+                    placeholder: existing?.pagerduty_routing_key_set
+                      ? 'Leave empty to keep current key'
+                      : '32-character routing key',
+                  })}
+                  <div className="grid gap-2">
+                    <Label htmlFor="dest-pagerduty-severity">Severity</Label>
+                    <NativeSelect
+                      id="dest-pagerduty-severity"
+                      width="fill"
+                      value={form.pagerduty_severity}
+                      onChange={value => set('pagerduty_severity', value)}
+                      options={PAGERDUTY_SEVERITY_OPTIONS}
+                      {...invalidAria('dest-pagerduty-severity', errorFor('pagerduty_severity'))}
+                    />
+                    <FieldError inputId="dest-pagerduty-severity" message={errorFor('pagerduty_severity')} />
+                  </div>
+                </div>
+                {/* Where the key comes from, and the one behaviour no other
+                    channel has: tripl closes the page it opened. */}
+                <p className="text-body-sm text-fg-tertiary">
+                  In PagerDuty, add an <strong>Events API V2</strong> integration to a service
+                  (Service → Integrations) and paste its integration key. Each incident pages
+                  once and is updated, not duplicated, while it keeps firing; when tripl closes
+                  it — the scope stops firing or someone resolves it in the Inbox — the page is
+                  resolved too.
+                </p>
+              </div>
+            )}
+
+            {form.type === 'teams' && (
+              <div className="grid gap-2">
+                {secretField('teams_webhook_url', 'dest-teams-webhook-url', 'Webhook URL', {
+                  placeholder: existing?.teams_webhook_set
+                    ? 'Leave empty to keep current URL'
+                    : examplePlaceholder('https://….webhook.office.com/…'),
+                })}
+                <p className="text-body-sm text-fg-tertiary">
+                  In the Teams channel, add a Workflows flow from the template “Post to a channel
+                  when a webhook request is received” (or an Incoming Webhook connector) and
+                  paste the URL it gives you. Alerts arrive as an Adaptive Card.
+                </p>
+              </div>
+            )}
+
+            {/* A local sink has no channel settings: it records deliveries on
+                this instance and sends nothing, so name, switch and schedule
+                are the whole form. It used to fall through to the Linear
+                fields, whose required API key blocked every save. */}
+            {form.type === 'demo_sink' && (
+              <p className="text-body-sm text-fg-tertiary">
+                A local sink records deliveries on this instance and sends nothing, so it has no channel settings.
+              </p>
+            )}
+
+            <DeliveryScheduleField
+              value={form.delivery_schedule_cron}
+              onChange={cron => set('delivery_schedule_cron', cron)}
+              onValidityChange={setScheduleValid}
+              projectTimezone={resolveScheduleTimezone(project, existing)}
+              nextDigestAt={existing?.next_digest_at}
+              serverError={server.fields.delivery_schedule_cron}
+            />
+
+            <label className="flex items-center gap-2 text-body">
+              <Checkbox
+                checked={form.enabled}
+                onCheckedChange={checked => set('enabled', !!checked)}
               />
+              Destination enabled
+            </label>
 
-              <label className="flex items-center gap-2 text-body">
-                <Checkbox
-                  checked={form.enabled}
-                  onCheckedChange={checked => set('enabled', !!checked)}
-                />
-                Destination enabled
-              </label>
+            {alertMessage && (
+              <p role="alert" className="text-body text-destructive">{alertMessage}</p>
+            )}
 
-              {alertMessage && (
-                <p role="alert" className="text-body text-destructive">{alertMessage}</p>
-              )}
-
-              {testIsCurrent && (
-                <DestinationTestResult
-                  pending={testMut.isPending}
-                  result={testMut.data ?? null}
-                  error={testMut.error}
-                  onDismiss={() => setTestedWith(null)}
-                />
-              )}
-            </DialogBody>
-            <DialogFooter>
-              {/* Left of the pair, and secondary: a check, not the action the
-                  dialog is for. It sends one real message, so it
-                  waits for nothing but the channel's own fields. */}
-              {form.type !== 'demo_sink' && (
-                <Button
-                  type="button"
-                  variant="outline"
-                  className="sm:mr-auto"
-                  disabled={testMut.isPending}
-                  onClick={sendTest}
-                >
-                  <Send aria-hidden="true" className="size-3.5" />
-                  {testMut.isPending ? 'Sending…' : 'Send test'}
-                </Button>
-              )}
-              <Button type="button" variant="outline" onClick={requestClose}>Cancel</Button>
-              <Button type="submit" disabled={mutation.isPending}>
-                {existing ? 'Save' : 'Create'}
+            {testIsCurrent && (
+              <DestinationTestResult
+                pending={testMut.isPending}
+                result={testMut.data ?? null}
+                error={testMut.error}
+                onDismiss={() => setTestedWith(null)}
+              />
+            )}
+          </DialogBody>
+          <DialogFooter>
+            {/* Left of the pair, and secondary: a check, not the action the
+                dialog is for. It sends one real message, so it
+                waits for nothing but the channel's own fields. */}
+            {form.type !== 'demo_sink' && (
+              <Button
+                type="button"
+                variant="outline"
+                className="sm:mr-auto"
+                disabled={testMut.isPending}
+                onClick={sendTest}
+              >
+                <Send aria-hidden="true" className="size-3.5" />
+                {testMut.isPending ? 'Sending…' : 'Send test'}
               </Button>
-            </DialogFooter>
-          </form>
-        </DialogContent>
-      </Dialog>
-    </>
+            )}
+            <DialogClose asChild>
+              <Button type="button" variant="outline">Cancel</Button>
+            </DialogClose>
+            <Button type="submit" disabled={mutation.isPending}>
+              {existing ? 'Save' : 'Create'}
+            </Button>
+          </DialogFooter>
+        </form>
+      </DialogContent>
+    </Dialog>
   )
 }

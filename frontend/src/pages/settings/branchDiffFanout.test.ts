@@ -1,9 +1,8 @@
 import { describe, expect, it } from 'vitest'
-import type { PlanBranchListItem } from '@/api/planBranches'
-import type { PlanBranchDiffSummary } from '@/types'
+import type { PlanBranchDiffSummary, PlanBranchSummary } from '@/types'
 import { rowBadgeCounts } from './branchDiffFanout'
 
-function makeBranch(overrides: Partial<PlanBranchListItem>): PlanBranchListItem {
+function makeBranch(overrides: Partial<PlanBranchSummary>): PlanBranchSummary {
   return {
     id: 'b-1',
     project_id: 'p-1',

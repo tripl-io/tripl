@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { Link } from 'react-router-dom'
 
 import { projectMembersApi } from '@/api/projectMembers'
 import { usersApi } from '@/api/users'
@@ -15,7 +16,8 @@ import { UserAvatar } from '@/components/ui/user-avatar'
 import { useConfirm } from '@/hooks/useConfirm'
 import { formatDate } from '@/lib/datetime'
 import { SILENT_ERROR_META } from '@/lib/errorFeedback'
-import { canManageProjectMembers, isOwner as isOwnerRole } from '@/lib/permissions'
+import { settingsPath } from '@/lib/navigation'
+import { canManageProjectMembers, isOwner as isOwnerRole, useIsOwner } from '@/lib/permissions'
 import {
   projectKey,
   projectMembersKey,
@@ -25,11 +27,9 @@ import {
 } from '@/lib/queryKeys'
 import { getErrorMessage } from '@/lib/utils'
 import { PROJECT_ROLE_OPTIONS, type ProjectMember, type ProjectMemberRole } from '@/types'
+import { countOf } from '@/lib/plural'
 
 const ADD_FORM_ID = 'add-project-member-form'
-
-/** The row roles an org owner/admin may hold: never `none` (they always have access). */
-const ORG_ADMIN_ROLE_OPTIONS = PROJECT_ROLE_OPTIONS.filter((option) => option.value !== 'none')
 
 /** The words a confirmation uses for a role, from the app-wide list. */
 function roleWord(role: ProjectMemberRole): string {
@@ -53,6 +53,8 @@ export default function ProjectMembersSection({ slug }: { slug: string }) {
   const qc = useQueryClient()
   const { user } = useAuth()
   const { confirm, dialog } = useConfirm()
+  // An org owner/admin can invite more people; a project's creator cannot.
+  const viewerIsOrgAdmin = useIsOwner()
 
   const projectQuery = useQuery(projectQueryOptions(slug))
   const membersQuery = useQuery(projectMembersQueryOptions(slug))
@@ -105,10 +107,12 @@ export default function ProjectMembersSection({ slug }: { slug: string }) {
   const candidates = (usersQuery.data ?? []).filter(
     (candidate) => !memberIds.has(candidate.id) && !isOwnerRole(candidate.role),
   )
+  const nobodyToAdd = usersQuery.isSuccess && candidates.length === 0
   // Owners/admins can still hold a row (a creator's editor row, or a member
-  // promoted after being added). They always have access, so the backend
-  // refuses `none` for them (422): their row offers only Editor/Viewer, and a
-  // leftover `none` row reads as "always has access" instead of "No access".
+  // promoted after being added). The backend never reads it while they are
+  // one (`effective_role` answers owner first), so their row shows that they
+  // always have access instead of a role select and a Remove that change
+  // nothing. Demoted, they are off this set and their row is editable again.
   const orgAdminIds = new Set(
     (usersQuery.data ?? []).filter((candidate) => isOwnerRole(candidate.role)).map((candidate) => candidate.id),
   )
@@ -188,39 +192,59 @@ export default function ProjectMembersSection({ slug }: { slug: string }) {
         <SCard
           title="Add a member"
           description="Sets someone's access to this project, overriding the organization's default: Editor, Viewer, or No access to keep them out of it."
+          // The button submits the form below, so it goes wherever the form does.
           footer={
-            <div className="flex w-full flex-wrap items-center justify-end gap-2">
-              {addMut.isError && (
-                <p role="alert" className="m-0 mr-auto text-body-sm text-destructive">
-                  {getErrorMessage(addMut.error)}
-                </p>
-              )}
-              <Button
-                type="submit"
-                form={ADD_FORM_ID}
-                size="sm"
-                disabled={!pickedUserId || addMut.isPending}
-              >
-                {addMut.isPending ? 'Adding…' : 'Add member'}
-              </Button>
-            </div>
+            usersQuery.isError || nobodyToAdd ? undefined : (
+              <div className="flex w-full flex-wrap items-center justify-end gap-2">
+                {addMut.isError && (
+                  <p role="alert" className="m-0 mr-auto text-body-sm text-destructive">
+                    {getErrorMessage(addMut.error)}
+                  </p>
+                )}
+                <Button
+                  type="submit"
+                  form={ADD_FORM_ID}
+                  size="sm"
+                  disabled={!pickedUserId || addMut.isPending}
+                >
+                  {addMut.isPending ? 'Adding…' : 'Add member'}
+                </Button>
+              </div>
+            )
           }
         >
           {usersQuery.isError ? (
             <div className="p-4">
               <ErrorState
                 compact
-                title="Couldn't load the workspace members"
+                title="Couldn't load the organization members"
                 error={usersQuery.error}
                 onRetry={() => {
                   void usersQuery.refetch()
                 }}
               />
             </div>
-          ) : usersQuery.isSuccess && candidates.length === 0 ? (
+          ) : nobodyToAdd ? (
+            // Owners and admins are never candidates, so a lone owner lands
+            // here on a project nobody has a row on: say why, not that
+            // everyone already has a role. Invitations is theirs to open; a
+            // project creator who is a plain member is pointed at them instead.
             <p className="m-0 px-4 py-[14px] text-body-sm text-fg-tertiary">
-              Everyone in the workspace already has a role here. Invite more people from Workspace ›
-              Members, then add them here.
+              {viewerIsOrgAdmin ? (
+                <>
+                  No one to add yet: organization owners and admins already see every project, and
+                  every other member has a role here. Invite people from{' '}
+                  <Link
+                    to={settingsPath('/settings/invitations')}
+                    className="font-medium text-accent underline underline-offset-2"
+                  >
+                    Organization › Invitations
+                  </Link>
+                  , then add them here.
+                </>
+              ) : (
+                'No one to add yet. Ask an organization owner or admin to invite more people, then add them here.'
+              )}
             </p>
           ) : (
             <form
@@ -274,7 +298,7 @@ export default function ProjectMembersSection({ slug }: { slug: string }) {
         title="Members"
         description={
           membersQuery.isSuccess
-            ? `${members.length} ${members.length === 1 ? 'person' : 'people'}`
+            ? countOf(members.length, 'person', 'people')
             : undefined
         }
       >
@@ -334,26 +358,24 @@ export default function ProjectMembersSection({ slug }: { slug: string }) {
                 <span className="hidden w-36 shrink-0 text-right text-caption sm:block text-fg-tertiary">
                   Added {formatDate(member.added_at)}
                 </span>
-                {manager ? (
+                {manager && orgAdmin ? (
+                  <span className="shrink-0 text-right text-caption text-fg-tertiary">
+                    Organization owner/admin · always has access
+                  </span>
+                ) : manager ? (
                   <>
                     <div className="w-[120px] shrink-0">
-                      {orgAdmin && member.role === 'none' ? (
-                        <span className="block text-right text-caption text-fg-tertiary">
-                          Owner/admin · always has access
-                        </span>
-                      ) : (
-                        <NativeSelect
-                          size="sm"
-                          aria-label={`Role for ${who}`}
-                          value={member.role}
-                          disabled={busy}
-                          onChange={(next) => {
-                            void handleRoleChange(member, next as ProjectMemberRole)
-                          }}
-                          options={orgAdmin ? ORG_ADMIN_ROLE_OPTIONS : PROJECT_ROLE_OPTIONS}
-                          width="fill"
-                        />
-                      )}
+                      <NativeSelect
+                        size="sm"
+                        aria-label={`Role for ${who}`}
+                        value={member.role}
+                        disabled={busy}
+                        onChange={(next) => {
+                          void handleRoleChange(member, next as ProjectMemberRole)
+                        }}
+                        options={PROJECT_ROLE_OPTIONS}
+                        width="fill"
+                      />
                     </div>
                     <Button
                       type="button"

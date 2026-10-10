@@ -9,9 +9,9 @@ import { formatDate } from '@/lib/datetime'
 import { cn } from '@/lib/utils'
 
 export interface DateRangeFilterProps {
-  /** The chip's word, as FilterSelect spells its own: "Fired: any". */
+  /** The chip's word, as FilterSelect spells its own: "Fired: Any". */
   label: string
-  /** `YYYY-MM-DD` or '' — the range's two ends, as a date input holds them. */
+  /** `YYYY-MM-DD` or '' — the range's two ends, as the day pickers hold them. */
   from: string
   to: string
   /**
@@ -20,28 +20,32 @@ export interface DateRangeFilterProps {
    * let the second write restore the first.
    */
   onRangeChange: (next: { from: string; to: string }) => void
-  /** Labels of the two inputs inside the popover. */
+  /** Labels of the two day pickers inside the popover. */
   fromLabel?: string
   toLabel?: string
   /** Earliest day the range may start on, when the list has a floor. */
   min?: string
-  /** A caveat about what the range can reach, shown under the inputs. */
+  /** A caveat about what the range can reach, shown under the pickers. */
   hint?: ReactNode
 }
 
-/** "any", "from Sep 3, 2026", "to Sep 9, 2026" or "Sep 3, 2026 – Sep 9, 2026". */
+/**
+ * "Any", "from Sep 3, 2026", "to Sep 9, 2026" or "Sep 3, 2026 – Sep 9, 2026".
+ * The unset value is capitalised as FilterSelect's is, so the bar reads
+ * "Kind: Any" beside "Last fired: Any".
+ */
 function rangeSummary(from: string, to: string): string {
   const start = from ? formatDate(from) : ''
   const end = to ? formatDate(to) : ''
   if (start && end) return `${start} – ${end}`
   if (start) return `from ${start}`
   if (end) return `to ${end}`
-  return 'any'
+  return 'Any'
 }
 
 /**
  * A date range as ONE filter chip, the same shape as a FilterSelect — dashed
- * while unset, accent once set — that opens the two date inputs in a popover.
+ * while unset, accent once set — that opens the two day pickers in a popover.
  *
  * Two labelled inputs and a caveat paragraph used to sit in the bar itself, so
  * at 390px the filters stood ~330px tall before the first incident, and the

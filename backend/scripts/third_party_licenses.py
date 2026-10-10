@@ -10,6 +10,10 @@ It writes:
 - ``python/<name>-<version>/``: the license files each installed distribution
   ships (PEP 639 ``License-File`` entries, or LICENSE/COPYING/NOTICE files
   in older wheels);
+- ``api-docs/<name>-<version>/``: the license files of the Swagger UI and ReDoc
+  bundles the server vendors for ``/docs`` and ``/redoc``, read from
+  ``tripl/api_docs/static/third-party.json`` in the installed ``tripl`` package
+  (the texts also ship beside the bundles);
 - ``os-packages.tsv``: every Debian package in the image with its source
   package and version, so the source of the GPL utilities in the base image
   can be found (the copyright files stay in /usr/share/doc/<package>/);
@@ -23,10 +27,12 @@ image has no dev dependencies.
 from __future__ import annotations
 
 import argparse
+import importlib.util
 import json
 import re
 import shutil
 import subprocess
+from collections.abc import Sequence
 from dataclasses import dataclass
 from importlib import metadata
 from pathlib import Path, PurePosixPath
@@ -132,6 +138,43 @@ def collect_os(out: Path) -> int:
     return len(rows)
 
 
+def api_docs_dir() -> Path | None:
+    """The installed ``tripl`` package's vendored /docs and /redoc assets, if any.
+
+    Found without importing the package, so the script stays standard library
+    only. ``None`` when ``tripl`` is not installed or ships no manifest.
+    """
+    spec = importlib.util.find_spec("tripl")
+    if spec is None or not spec.submodule_search_locations:
+        return None
+    for location in spec.submodule_search_locations:
+        static = Path(location) / "api_docs" / "static"
+        if (static / "third-party.json").is_file():
+            return static
+    return None
+
+
+def collect_api_docs(out: Path, static: Path | None) -> list[Entry]:
+    """Copy the license files ``third-party.json`` names for each vendored bundle."""
+    if static is None:
+        return []
+    manifest = json.loads((static / "third-party.json").read_text(encoding="utf-8"))
+    entries: list[Entry] = []
+    for package in manifest.get("packages", []):
+        name, version = package["name"], package["version"]
+        target = out / "api-docs" / f"{name}-{version}"
+        written: list[str] = []
+        for file_name in package.get("license_files", {}):
+            source = static / file_name
+            if not source.is_file():
+                continue
+            target.mkdir(parents=True, exist_ok=True)
+            shutil.copyfile(source, target / file_name)
+            written.append((target / file_name).relative_to(out).as_posix())
+        entries.append(Entry(name, version, package["license"], tuple(written)))
+    return sorted(entries, key=lambda e: e.name.lower())
+
+
 def _frontend_entries(out: Path) -> list[Entry]:
     index = out / "frontend" / "index.json"
     if not index.is_file():
@@ -148,7 +191,13 @@ def _table(entries: list[Entry]) -> str:
     return "\n".join(lines)
 
 
-def write_readme(out: Path, python: list[Entry], frontend: list[Entry], os_count: int) -> None:
+def write_readme(
+    out: Path,
+    python: list[Entry],
+    frontend: list[Entry],
+    os_count: int,
+    api_docs: Sequence[Entry] = (),
+) -> None:
     sections = [
         "# Third-party software in this image",
         "",
@@ -171,6 +220,16 @@ def write_readme(out: Path, python: list[Entry], frontend: list[Entry], os_count
             "uses are compiled into its JavaScript bundle.",
             "",
             _table(frontend),
+        ]
+    if api_docs:
+        sections += [
+            "",
+            "## Bundled API reference (`/docs`, `/redoc`)",
+            "",
+            "The Swagger UI and ReDoc bundles the server serves for its interactive "
+            "API reference, unmodified, from the same origin as the API.",
+            "",
+            _table(list(api_docs)),
         ]
     if os_count:
         sections += [
@@ -195,18 +254,26 @@ def main() -> int:
     parser = argparse.ArgumentParser(description="Write the image's third-party license notices.")
     parser.add_argument("--out", type=Path, required=True)
     parser.add_argument("--no-os", action="store_true", help="skip the Debian package list")
+    parser.add_argument(
+        "--api-docs",
+        type=Path,
+        default=None,
+        help="the vendored /docs and /redoc assets (default: the installed tripl package's)",
+    )
     args = parser.parse_args()
     out: Path = args.out
     out.mkdir(parents=True, exist_ok=True)
-    # A rerun (the Enterprise image adds packages on top) replaces the list.
+    # A rerun (the Enterprise image adds packages on top) replaces the lists.
     shutil.rmtree(out / "python", ignore_errors=True)
+    shutil.rmtree(out / "api-docs", ignore_errors=True)
     python = collect_python(out)
+    api_docs = collect_api_docs(out, args.api_docs or api_docs_dir())
     os_count = 0 if args.no_os else collect_os(out)
-    write_readme(out, python, _frontend_entries(out), os_count)
+    write_readme(out, python, _frontend_entries(out), os_count, api_docs)
     missing = [e.name for e in python if not e.files]
     print(
         f"{len(python)} Python packages ({len(missing)} without a license file), "
-        f"{os_count} OS packages"
+        f"{len(api_docs)} API reference bundles, {os_count} OS packages"
     )
     return 0
 

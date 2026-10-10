@@ -12,7 +12,7 @@ test('a new account generates a demo, looks around and deletes it', async ({ pag
   // overview, under the demo banner.
   await generateDemo(page)
   const banner = page.locator('[data-demo-banner]')
-  await expect(banner.getByText('Demo workspace', { exact: true })).toBeVisible()
+  await expect(banner.getByText('Demo project', { exact: true })).toBeVisible()
 
   // The plan is seeded: the events page lists events.
   // The sidebar link carries the count ("Events 17").

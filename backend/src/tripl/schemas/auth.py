@@ -19,9 +19,9 @@ from tripl.schemas.organization import (
 Role = OrganizationRole
 
 # Single source of truth for the password policy. Enforced authoritatively here
-# (the schema is the only place a new password is validated before it is stored),
-# and echoed verbatim to users on the register form and the change-password UI so
-# the client hints can never drift from what the server accepts.
+# (the schema is the only place a new password is validated before it is stored).
+# frontend/src/lib/passwordPolicy.ts mirrors it, so the sign-up, reset and
+# invitation forms state and check the same rule before anything is sent.
 PASSWORD_MIN_LENGTH = 12
 PASSWORD_MAX_LENGTH = 255
 PASSWORD_POLICY_MESSAGE = (
@@ -33,9 +33,10 @@ def validate_password_strength(value: str) -> str:
     """Enforce the shared password policy at set-password time.
 
     Policy: at least ``PASSWORD_MIN_LENGTH`` characters, with at least one digit
-    and one symbol (any non-alphanumeric, non-whitespace character). Applied on
-    registration (and any future change-password path) — NOT on login, which stays
-    lenient so accounts created under the old 8-character rule can still authenticate.
+    and one symbol (any non-alphanumeric, non-whitespace character). Applied
+    wherever a password is set: registration, a password reset and accepting an
+    invitation. NOT on login, which takes any password so accounts created under
+    an older rule can still authenticate.
     """
     has_digit = any(char.isdigit() for char in value)
     # A whitespace char is not a "symbol" — the user-facing copy promises a real
@@ -91,10 +92,11 @@ class VerifyEmailConfirmRequest(BaseModel):
 class LoginRequest(BaseModel):
     # Lenient on purpose: the DB is the source of truth on login, so even an
     # already-stored "weird" email (legacy / pre-EmailStr) can still sign in.
-    # Password stays lenient too — the policy is enforced at set-password time,
-    # not here, so pre-policy accounts are not locked out.
+    # The password has no floor at all: the policy is enforced at set-password
+    # time, and a wrong password of any length gets the one neutral 401. A
+    # minimum here answered a short one with a 422 naming the rule instead.
     email: str = Field(min_length=3, max_length=320)
-    password: str = Field(min_length=8, max_length=255)
+    password: str = Field(max_length=PASSWORD_MAX_LENGTH)
 
 
 class AuthStatusResponse(BaseModel):
@@ -202,6 +204,20 @@ class UserListItem(BaseModel):
     name: str | None
     role: Role
     created_at: datetime
+
+
+class MemberPasswordResetLink(BaseModel):
+    """``POST /orgs/{org}/members/{id}/password-reset-link``: a link to hand over.
+
+    ``reset_path`` goes on the app's address (``/auth?reset_token=...``). It is
+    returned here once and stored nowhere in the clear: the token works a
+    single time, until ``expires_at``, and a newer link replaces it.
+    """
+
+    user_id: uuid.UUID
+    email: str
+    reset_path: str
+    expires_at: datetime
 
 
 class UserRoleUpdate(BaseModel):

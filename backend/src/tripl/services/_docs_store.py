@@ -35,7 +35,8 @@ from tripl.schemas.docs import (
 )
 from tripl.services import docs_links
 from tripl.services._celery_dispatch import dispatch
-from tripl.services.docs_access import DocAccess, DocPermission
+from tripl.services._id_chunks import chunked
+from tripl.services.docs_access import DOC_NOT_FOUND, DocAccess, DocPermission, scope_filter
 from tripl.services.docs_frontmatter import DocContentError, ParsedDoc, parse_frontmatter
 from tripl.services.docs_paths import (
     DocPathError,
@@ -43,19 +44,9 @@ from tripl.services.docs_paths import (
     content_bytes,
     path_key,
 )
-from tripl.services.plan_branch_service import resolve_branch_id
-from tripl.services.search_service import reindex_project_branch
+from tripl.services.search_service import reindex_main_branch, reindex_project_branch
 
 logger = logging.getLogger(__name__)
-
-DOC_NOT_FOUND = "Doc not found"
-
-
-def scope_filter(project: Project, scope: DocScope) -> ColumnElement[bool]:
-    """The rows of one scope as seen from ``project``: its own, or its organization's."""
-    if scope == "project":
-        return DocFile.project_id == project.id
-    return DocFile.organization_id == project.organization_id
 
 
 def any_scope_filter(project: Project) -> ColumnElement[bool]:
@@ -348,12 +339,12 @@ async def purge_doc_search_rows(
         where_project = SearchDocument.project_id.in_(
             select(Project.id).where(Project.organization_id == project.organization_id)
         )
-    for start in range(0, len(ids), 1000):
+    for chunk in chunked(ids):
         await session.execute(
             delete(SearchDocument).where(
                 where_project,
                 SearchDocument.entity_type == "doc",
-                SearchDocument.entity_id.in_(ids[start : start + 1000]),
+                SearchDocument.entity_id.in_(chunk),
             )
         )
 
@@ -368,8 +359,8 @@ async def reindex_after_write(
 
     The written notes' rows are first purged everywhere
     (:func:`purge_doc_search_rows`). The current project's main index is then
-    rebuilt inline, the way fact tables do it
-    (``fact_table_service._refresh_main_search_index``). An organization note is
+    rebuilt inline (``search_service.reindex_main_branch``), as for every
+    project-global entity. An organization note is
     indexed into EVERY project of the organization, so the other projects' main
     branches are handed to the worker (fire-and-forget: a broker outage costs
     freshness until their next rebuild, never the write, and never leaves stale
@@ -378,10 +369,7 @@ async def reindex_after_write(
     their next rebuild, as with metrics.
     """
     await purge_doc_search_rows(session, project, scope, doc_ids)
-    main_branch_id = await resolve_branch_id(session, project.id, None)
-    await reindex_project_branch(
-        session, project_id=project.id, branch_id=main_branch_id, slug=project.slug
-    )
+    await reindex_main_branch(session, project.id, slug=project.slug)
     if scope != "organization":
         return
     rows = (

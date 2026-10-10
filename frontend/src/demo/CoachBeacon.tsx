@@ -2,7 +2,8 @@
  * The pulsing ring a coach mark draws around its control, and the tag beside
  * it that says what to do there: "Click here", "Type here", "Open this menu".
  * Visitors could not always tell which control a step meant — a ring alone
- * read as decoration — so the beacon names the gesture on the control itself.
+ * read as decoration — so the beacon names the gesture on the control itself,
+ * as "Tap here" on a touch screen (`gestureCopy`).
  *
  * An overlay, not a wrapper: ring and tag are fixed-position elements
  * portalled to document.body and placed from the anchor's client rect, so
@@ -28,6 +29,7 @@ import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties } from
 import { createPortal } from 'react-dom'
 import { ArrowDown, ArrowLeft, ArrowRight, ArrowUp } from 'lucide-react'
 import { clippingAncestors, intersect, visibleFrame, type Box } from './coachGeometry'
+import { gestureCopy } from './gestureCopy'
 
 /** How far the ring sits outside the anchor on every edge. */
 const RING_PAD = 2
@@ -295,7 +297,7 @@ export function CoachBeacon({
         style={tagStyle}
       >
         {arrowFirst && <Arrow className="size-3 shrink-0" aria-hidden="true" />}
-        <span>{tag}</span>
+        <span>{gestureCopy(tag)}</span>
         {!arrowFirst && <Arrow className="size-3 shrink-0" aria-hidden="true" />}
       </div>
     </>,

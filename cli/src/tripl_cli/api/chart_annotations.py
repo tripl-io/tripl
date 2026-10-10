@@ -40,8 +40,8 @@ DESCRIPTION_MAX_LENGTH = 2000
 SCOPE_REF_MAX_LENGTH = 120
 URL_MAX_LENGTH = 500
 
-# 201 is a new annotation; 200 is the one that already existed.
-STATUS_CREATED = 201
+# The create route answers 200 when it de-duplicated the label and handed back
+# the annotation that already existed; a new one is a 201.
 STATUS_DEDUPLICATED = 200
 
 

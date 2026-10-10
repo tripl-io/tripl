@@ -30,6 +30,7 @@ import { planBranchesKey, projectsQueryOptions } from '@/lib/queryKeys'
 import { STATUS_LABEL } from '@/lib/branchStatus'
 import { currentOrgSlug, projectPath } from '@/lib/navigation'
 import { useCanWriteProject } from '@/lib/permissions'
+import { countOf } from '@/lib/plural'
 
 type TopBarProps = {
   title: string
@@ -242,10 +243,10 @@ export function BranchStrip({ slug }: { slug: string | undefined }) {
 function bellLabel(openIncidentCount: number, unreadCount: number): string {
   const parts = [
     openIncidentCount > 0
-      ? `${openIncidentCount} open ${openIncidentCount === 1 ? 'incident' : 'incidents'}`
+      ? countOf(openIncidentCount, 'open incident', 'open incidents')
       : null,
     unreadCount > 0
-      ? `${unreadCount} unread ${unreadCount === 1 ? 'notification' : 'notifications'}`
+      ? countOf(unreadCount, 'unread notification', 'unread notifications')
       : null,
   ].filter((part): part is string => part !== null)
   return parts.length > 0 ? `Alerts — ${parts.join(', ')}` : 'Alerts'

@@ -64,6 +64,12 @@ interface HarnessProps {
   isError?: boolean
   initialFilters?: DeliveryFilters
   initialOffset?: number
+  /**
+   * Whether the page at an offset is still in flight, `deliveries` being the
+   * previous page kept on screen (`keepPreviousData`). By default every page
+   * has arrived the moment it is asked for.
+   */
+  inFlight?: (offset: number) => boolean
   onFilters?: (filters: DeliveryFilters) => void
   onOffset?: (offset: number) => void
 }
@@ -82,6 +88,7 @@ function Harness({
   isError = false,
   initialFilters = NO_FILTERS,
   initialOffset = 0,
+  inFlight = () => false,
   onFilters,
   onOffset,
 }: HarnessProps) {
@@ -101,6 +108,7 @@ function Harness({
       deliveries={deliveries}
       isLoading={isLoading}
       isError={isError}
+      deliveriesQuery={{ isSuccess: !isLoading && !isError, isPlaceholderData: inFlight(offset) }}
       pinnedDelivery={null}
       deliveryFilters={filters}
       // What the page does: one write that sets the filters and drops the
@@ -258,6 +266,29 @@ describe('AlertAuditPanel paging', () => {
 
     expect(onOffset).toHaveBeenLastCalledWith(0)
     expect(screen.getByRole('button', { name: 'Newer' })).toBeDisabled()
+  })
+
+  it('holds both buttons while the next page loads, so a second click cannot skip it', () => {
+    // Offsets are read off the rows on screen. Read off the requested offset,
+    // the caption claimed "Showing 3–4" over rows 1–2, and Older stayed live
+    // for a second click that jumped to 4 and dropped page 2 unrendered.
+    const onOffset = vi.fn()
+    renderPanel({ deliveries: page(2, 5), inFlight: offset => offset !== 0, onOffset })
+
+    fireEvent.click(screen.getByRole('button', { name: 'Older' }))
+    expect(onOffset).toHaveBeenLastCalledWith(2)
+
+    expect(screen.getByRole('button', { name: 'Older' })).toBeDisabled()
+    expect(screen.getByRole('button', { name: 'Newer' })).toBeDisabled()
+    expect(screen.getByText('Updating…')).toBeInTheDocument()
+    expect(
+      screen.getByText(
+        'Showing the most recent 2 of 5 deliveries — use Older to reach the rest, or narrow the filter.',
+      ),
+    ).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Older' }))
+    expect(onOffset).not.toHaveBeenCalledWith(4)
   })
 
   it('offers no paging when the whole log is on screen', () => {

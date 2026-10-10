@@ -1,4 +1,4 @@
-import { countOf } from '@/lib/plural'
+import { countOf, pluralize } from '@/lib/plural'
 import type { DataSource } from '@/types'
 
 /** Past this many scans the confirm counts them rather than naming them. */
@@ -34,7 +34,7 @@ export function dataSourceDeleteMessage(ds: DataSource): string {
   const runs = countOf(ds.scan_run_count ?? 0, 'run', 'runs')
   const names = namedScans(ds)
   if (names) {
-    const their = ds.scan_count === 1 ? 'its' : 'their'
+    const their = pluralize(ds.scan_count, 'its', 'their')
     return `Delete "${ds.name}"? ${scans} (${names}) and ${their} ${runs} will be removed with it.`
   }
   return `Delete "${ds.name}"? ${scans} and ${runs} will be removed with it.`

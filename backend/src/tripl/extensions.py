@@ -1,7 +1,7 @@
 """Extension points: how a separately installed package adds to the server.
 
 Community tripl runs with no extensions. A package that ships more — the
-commercial ``tripl-enterprise`` package is the one intended user — declares an
+commercial ``tripl-enterprise`` package, or one of your own — declares an
 entry point in the ``tripl.extensions`` group whose object is an
 :class:`Extension`, and the server calls its hooks at fixed points:
 

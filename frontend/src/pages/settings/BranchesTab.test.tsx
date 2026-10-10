@@ -2115,6 +2115,8 @@ describe('BranchesTab review flows', () => {
       {
         entity_type: 'event_type',
         name: 'checkout',
+        label: 'checkout',
+        added_on_both: false,
         fields: [
           {
             field: 'description',
@@ -2207,9 +2209,13 @@ describe('BranchesTab review flows', () => {
 
     renderTab('feat-d')
 
-    fireEvent.click(await screen.findByRole('button', { name: 'Close' }))
+    // "Close branch", not a bare "Close" that read as closing the panel.
+    const closeButton = await screen.findByRole('button', { name: 'Close branch' })
+    expect(screen.queryByRole('button', { name: 'Close' })).toBeNull()
+    fireEvent.click(closeButton)
     expect(planBranchesApi.transition).not.toHaveBeenCalled()
-    fireEvent.click(await screen.findByRole('button', { name: 'Close branch' }))
+    const dialog = await screen.findByRole('alertdialog')
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Close branch' }))
     await waitFor(() =>
       expect(planBranchesApi.transition).toHaveBeenCalledWith('demo', 'feat-d', 'close'),
     )

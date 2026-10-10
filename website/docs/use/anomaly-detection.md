@@ -5,7 +5,7 @@ sidebar_position: 5
 
 # How anomaly detection works
 
-This page explains *why* a particular time bucket gets flagged as anomalous, and how to make the detector more or less sensitive. It is written for analysts and admins who want to understand and tune the behaviour — not for people changing the code.
+This page explains *why* a particular time bucket gets flagged as anomalous, and how to make the detector more or less sensitive. It is written for analysts and admins who want to understand and tune the behavior — not for people changing the code.
 
 ## If you only read one section
 
@@ -186,7 +186,7 @@ One pairing is refused rather than allowed: this window must stay **strictly abo
 
 ### Detection latency
 
-A signal for a given time bucket does **not** appear the moment that bucket closes. It appears up to one **ingestion-settling allowance** later — **two hours by default**. This is designed behaviour, not a stall.
+A signal for a given time bucket does **not** appear the moment that bucket closes. It appears up to one **ingestion-settling allowance** later — **two hours by default**. This is designed behavior, not a stall.
 
 The reason is that a warehouse keeps writing rows for a time interval well after that interval has ended on the clock. Pipelines batch, mobile clients buffer events offline and flush them hours later, and backfills land out of order. On a real hourly project the newest bucket grew by roughly 9% and the second-newest by roughly 6% between two consecutive scans — and **every** revision was upward. Scoring a bucket while it is still filling therefore manufactures **drops that evaporate on the next scan**: the detector compares a half-delivered count against a fully-delivered baseline and correctly concludes the count is low.
 
@@ -270,7 +270,7 @@ Volume detection answers "did the count spike or drop?" Distribution drift answe
 
 Nothing is compared until a scan names the columns to watch (**Scan settings → Distribution drift**) — a plain column, or a property of a JSON column written `<json_column>.<path>` (see [Properties as breakdowns, drift fields and contracts](variables-and-templates.md#properties-as-breakdowns-drift-fields-and-contracts)) — so an alert rule subscribed to the scope stays silent until one does. The rule editor and the monitor detail mark that scope inline when no scan in the project watches a column and no drift has been collected yet — see [When a scope is on but nothing feeds it](alerting.md#when-a-scope-is-on-but-nothing-feeds-it).
 
-When a scan designates a **platform column**, Tripl also monitors each platform's
+When a scan designates a **platform column**, tripl also monitors each platform's
 share of the same event total (`platform count / total count`) bucket by bucket.
 These **platform parity** anomalies appear as before/after share badges on the
 Breakdowns tab and stay separate from count-based volume markers. Breakdown
@@ -279,7 +279,7 @@ monitoring-detail signal.
 
 For a categorical field (platform, country, app version, …) the detector compares the **composition** over a baseline window against the current window using the **Population Stability Index (PSI)**. PSI sums, across every category value, `(current_share − baseline_share) × ln(current_share / baseline_share)`. A larger PSI means the two distributions diverged more.
 
-A raw PSI is partly an artefact of how much data the two windows hold: a field with many distinct values measured over a handful of events scores a sizeable PSI from sampling noise alone, with no real change in the mix. So before a band is assigned, Tripl subtracts the score a window of that size with that many distinct values produces on its own, and floors the result at zero. A category missing from one window is treated as "fewer than one event in this window" rather than as a fixed rate, so its weight scales with the window too. The PSI shown on the monitor detail and carried on the alert is that corrected score, so the number and the band always agree. A sparse scope is therefore no longer called *significant* for having drawn a small sample, while a genuine shift on a small window still is — a field that really went 50/50 to 90/10 over 50 events lands well above 0.25. At production volumes the correction is negligible (below 0.01 for a two-value field over 1000 events per window), so the published bands keep the meaning they had.
+A raw PSI is partly an artifact of how much data the two windows hold: a field with many distinct values measured over a handful of events scores a sizeable PSI from sampling noise alone, with no real change in the mix. So before a band is assigned, tripl subtracts the score a window of that size with that many distinct values produces on its own, and floors the result at zero. A category missing from one window is treated as "fewer than one event in this window" rather than as a fixed rate, so its weight scales with the window too. The PSI shown on the monitor detail and carried on the alert is that corrected score, so the number and the band always agree. A sparse scope is therefore no longer called *significant* for having drawn a small sample, while a genuine shift on a small window still is — a field that really went 50/50 to 90/10 over 50 events lands well above 0.25. At production volumes the correction is negligible (below 0.01 for a two-value field over 1000 events per window), so the published bands keep the meaning they had.
 
 The corrected result is bucketed into interpretive bands:
 
@@ -298,7 +298,7 @@ effective documented contract: the event override when one exists, otherwise
 the global `allowed_values` list. An empty effective list means no finite value
 contract has been declared, so observations do not create drift.
 
-One current row is kept per variable/event context. New scans refresh its novel
+One current row is kept per property/event context. New scans refresh its novel
 value evidence without changing a snoozed or false-positive review decision; the
 read surface uses a 30-day evidence window. Accepting the drift updates the
 documented contract either globally or for that event. Snooze, false-positive,
@@ -309,7 +309,7 @@ thresholds.
 An **accepted** row is frozen instead of refreshed: its recorded values are the
 set you accepted. A later scan reopens it as soon as it observes a value outside
 that set — and only then, so a value you already accepted never nags again.
-Without this the single row per variable/event would quietly absorb every future
+Without this the single row per property/event would quietly absorb every future
 novel value while still reading as resolved.
 
 **The first sample is a backlog, and it is reported.** The first time a
@@ -436,7 +436,7 @@ Turning the metric scope off stops those series being scored and clears only the
 anomalies inside the re-evaluation window — for a catalog metric that is at
 least the last 30 buckets of the metric's **own** interval, not the running
 scan's. Anything older stays on the chart as history, the same promise the
-per-metric anomaly toggle makes. **Reset anomalies** (**Workspace settings →
+per-metric anomaly toggle makes. **Reset anomalies** (**Settings →
 Project → General**) remains the only action that deletes recorded history,
 together with switching the project's master **Anomaly detection** off. Its
 confirm counts what it will delete first — "Permanently delete 12 anomalies and
@@ -466,7 +466,7 @@ labelled UTC.
 
 These records become the **signals** you see on the monitoring views, and they
 are the candidates the alerting layer evaluates. Schema, distribution,
-variable-value and [property drift](./variables-and-templates.md#property-drift)
+value and [property drift](./variables-and-templates.md#property-drift)
 plus release regression feed the same machinery as additional candidate types.
 
 Triaging those candidates is not symmetric. Snooze, false-positive and reopen
@@ -813,16 +813,16 @@ without a verdict — the Anomalies page's default. Per-project totals are one
 call, `GET /projects/{slug}/signals/verdict-counts` (see the
 [Agent API guide](../integrate/agent-api-guide.md#signal-verdicts)).
 
-### Planned events: expected moves {#planned-events}
+### Expected windows {#planned-events}
 
-A [planned event](./feature-reference.md#planned-events) marks a window in which
+An [expected window](./feature-reference.md#planned-events) marks a window in which
 a move is expected. Detection does not change inside it — the baseline, the
 score and the stored record are exactly what they would be without it — but
 each anomaly whose bucket is inside the window, whose direction matches and
-whose series the event covers is tagged with it. A tagged anomaly is drawn,
+whose series the window covers is tagged with it. A tagged anomaly is drawn,
 muted, and is never a signal: alert candidacy, notifications, the Anomalies
 page and the badge counts all skip it. The tag is recomputed for the project
-after every detection run and every change to its planned events, so a window
+after every detection run and every change to its expected windows, so a window
 added after the spike was detected covers it too.
 
 A project's [holiday calendar](./feature-reference.md#planned-events) adds one
@@ -840,7 +840,7 @@ Detection deciding a bucket is anomalous is **not** the same as you getting noti
 - **Scope toggles** — a rule can subscribe to project totals, event types, and/or
   individual events, and must explicitly opt in to metric anomalies
   (`include_metrics`) and to schema-drift, distribution-drift,
-  variable-value-drift, and release-regression signals (all off by default).
+  value-drift, and release-regression signals (all off by default).
 - **Direction** — a rule can choose to notify on spikes only, drops only, or both.
 - **Its own thresholds** — a minimum expected count, a minimum absolute change, and a minimum percent change, all of which the anomaly must clear *in addition to* the detector's own thresholds.
 - **Cooldown** — a rule won't re-fire for the same scope until its cooldown window has passed.
@@ -856,7 +856,7 @@ The tuning is stored as a **scope override**: an absolute pair of values that re
 Two details worth knowing:
 
 - Repeat clicks on the same scope **compound**: a second false positive on the same series is a second step, not a reset.
-- Schema-drift, distribution-drift, variable-value-drift and release-regression alerts also reach the inbox, but nothing scores them with these two dials, so marking one a false positive closes the incident **without** changing any detection threshold.
+- Schema-drift, distribution-drift, value-drift and release-regression alerts also reach the inbox, but nothing scores them with these two dials, so marking one a false positive closes the incident **without** changing any detection threshold.
 
 **Undoing it.** The ratchet is permanent — it never decays on its own. Every scope it has tightened is listed under **Settings → Monitoring → Scope overrides**, showing the scope, the scan, the values in force, and how many false positives produced them. **Remove** an override and that scope goes straight back to the project settings; nothing else moves. The project-wide `sigma_threshold` and `min_expected_count` are never changed by this feedback — they remain whatever you set. An empty list there means what it says: if the list cannot be loaded the card reports the error and offers a retry, rather than telling you nothing has been tightened.
 

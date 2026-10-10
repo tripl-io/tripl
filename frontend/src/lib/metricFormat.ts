@@ -24,6 +24,16 @@ export const METRIC_INTERVAL_LABEL: Record<MetricScanInterval, string> = {
   '1w': 'Weekly',
 }
 
+/**
+ * The cadence for running text ("collected hourly", "every 15 min"), from an
+ * interval a response carries as a plain string. Null for no interval or a
+ * token this map does not know, so a caller never prints the raw `1h`.
+ */
+export function metricCadence(interval: string | null | undefined): string | null {
+  if (!interval || !Object.hasOwn(METRIC_INTERVAL_LABEL, interval)) return null
+  return METRIC_INTERVAL_LABEL[interval as MetricScanInterval].toLowerCase()
+}
+
 const INTERVAL_MINUTES: Record<MetricScanInterval, number> = {
   '15m': 15,
   '1h': 60,
@@ -63,7 +73,7 @@ export function isPercentUnit(unit: string | null | undefined): boolean {
 // "Revenue" and "AOV" templates seed `$`, which used to print "1,234 $".
 const PREFIX_UNITS = new Set(['$', '€', '£', '¥', '₽'])
 
-function withUnit(text: string, unit: string | null): string {
+function withUnit(text: string, unit: string | null | undefined): string {
   const trimmed = unit?.trim()
   if (!trimmed) return text
   if (PREFIX_UNITS.has(trimmed)) {
@@ -78,7 +88,7 @@ function withUnit(text: string, unit: string | null): string {
  * too — the tile and the axis used to disagree on '8 %' vs '8%');
  * currency units lead ('$1,234'); other units trail ('123 ms').
  */
-export function formatMetricValue(value: number | null | undefined, unit: string | null): string {
+export function formatMetricValue(value: number | null | undefined, unit: string | null | undefined): string {
   if (value === null || value === undefined) return '—'
   if (isPercentUnit(unit)) {
     return `${formatForDisplay(value * 100)}%`
@@ -101,7 +111,7 @@ function formatAxisNumber(value: number): string {
  * '-2.5M', '0.05'), prefixed by a currency unit when there is one. Other units
  * stay off the axis, where every tick would repeat them.
  */
-export function metricAxisFormatter(unit: string | null): (value: number) => string {
+export function metricAxisFormatter(unit: string | null | undefined): (value: number) => string {
   if (isPercentUnit(unit)) {
     return value => `${formatAxisNumber(value * 100)}%`
   }

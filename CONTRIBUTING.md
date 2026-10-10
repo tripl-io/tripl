@@ -23,6 +23,10 @@ sections below accurate.
 | Node.js | `>=26 <27` (pinned in `frontend/.node-version`) | Only the project lint-rule tests in `bun run lint`: Oxlint's RuleTester refuses any other runtime |
 | Docker + Compose v2 | recent | Local dev stack |
 
+You do not need [beads](https://github.com/gastownhall/beads) (`bd`). It is
+the maintainer's local issue tracker and optional: the git hooks run its steps
+only where `bd` is installed.
+
 The repo pins the package managers, so use **`uv`** for the backend and
 **`bun`** for the frontend and the docs site. Do **not** use `pip`, `poetry`,
 `npm`, `pnpm` or `yarn` — they bypass `uv.lock` / `bun.lock` and CI will diverge
@@ -56,8 +60,16 @@ docker compose -f compose.dev.yaml up --watch
 ```
 
 Services started: `postgres` (pgvector, pg18), `rabbitmq`, `redis`, `api`,
-`celery-worker`, `celery-beat`, and `frontend`. The dev worker runs two worker
-processes inside its 1 GB limit; set `CELERY_WORKER_CONCURRENCY` for more.
+`celery-worker`, `celery-beat` and `frontend` (`--profile mcp` adds the MCP
+server on `127.0.0.1:8765`). The dev worker runs two worker processes inside
+its 1 GB limit; for more, set `CELERY_WORKER_CONCURRENCY` in your shell or in
+`.env`, where Compose reads it.
+
+Every published port is bound to `127.0.0.1`, so the dev stack is reachable
+from your machine only: it runs with `DEBUG=true` and default credentials
+(`tripl:tripl`, `guest:guest`, a Redis without auth). To use it from another
+machine, open an SSH tunnel (`ssh -L 5173:127.0.0.1:5173 <host>`) or run
+`compose.yaml` instead.
 
 | Surface | URL |
 |---|---|
@@ -109,7 +121,9 @@ uv run mypy                                   # strict type check
 
 `--extra dev` is not optional: uv does not install optional-dependency extras by
 default, so a bare `uv sync` gives you the app's runtime deps and none of the
-tooling above. `make install` does this for you, and installs the git hooks.
+tooling above. `make install` does this for you, installs the frontend, CLI
+and MCP server dependencies too (`install-fe`, `install-cli`, `install-mcp`),
+and installs the git hooks.
 
 ### Formatting is enforced, not suggested
 
@@ -117,12 +131,12 @@ tooling above. `make install` does this for you, and installs the git hooks.
 pre-commit hook. Point git at the versioned hooks once per clone:
 
 ```bash
-make install-hooks   # bd hooks install --beads
+make install-hooks   # git config core.hooksPath .beads/hooks
 ```
 
 The hook rewrites the files in place and then fails the commit, so you can see
 what changed and `git add` it — formatting is applied for you, but nothing is
-committed behind your back. CI runs `ruff format --check src/` too, so a
+committed behind your back. CI runs `ruff format --check` too, so a
 `--no-verify` commit still gets caught at the PR.
 
 The hook itself lives in [`.beads/hooks/pre-commit`](.beads/hooks/pre-commit),
@@ -130,10 +144,10 @@ below beads' own section markers (beads preserves anything outside them). It is 
 versioned file, so `make install-hooks` is the only setup step — it just points
 `core.hooksPath` at `.beads/hooks`.
 
-That path is stored in `.git/config` as an absolute, machine-specific value, so a
-clone or a moved working copy can end up pointing at a directory that no longer
-exists. When that happens **no hook runs at all** — beads' own sync included, and
-silently. `bd hooks list` tells you; `make install-hooks` repairs it.
+The path is relative, and git resolves it from the top of the working tree, so
+moving or re-cloning the checkout keeps the hooks. If something else has set
+`core.hooksPath` (`bd hooks install` writes an absolute path), no hook runs;
+`git config core.hooksPath` shows the value and `make install-hooks` repairs it.
 
 Notes:
 
@@ -231,9 +245,9 @@ off the file rather than from here — this sentence has already been wrong once
 `RelevanceCase` carries an `xfail_ordering` field and `test_search_relevance.py`
 turns it into `xfail(strict=True)`, so the workflow for a measured fault is:
 write the case down with the marker first, fix it second, delete the marker as
-the proof. **That has now happened once, end to end** —
+the proof. **That has now happened once, end to end**:
 `russian-phrase-finds-the-event-it-describes` was written with the marker, and
-The coverage-term fix deleted it. Strict is what makes the last
+the fix that added coverage terms to the search document deleted it. Strict is what makes the last
 step honest: an xfail that starts passing FAILS, so a marker cannot outlive the
 fault it describes.
 
@@ -340,11 +354,22 @@ push: that run writes the baselines instead of failing and uploads them as the
 before merging.
 
 The typed API client is generated from the backend's OpenAPI schema. If you
-change request/response contracts, regenerate it:
+change request/response contracts, regenerate it from the repo root:
 
 ```bash
-bun run gen:api     # regenerates src/types/api.gen.ts from ../backend/openapi.json
+make sync-types     # backend/openapi.json, website/openapi/tripl.openapi.json and src/types/api.gen.ts
 ```
+
+It writes all three in one step: the backend's OpenAPI snapshot, the docs
+site's copy of it, and the frontend types. `bun run gen:api` alone only turns
+the existing snapshot into `api.gen.ts` and regenerates neither snapshot. CI
+fails when any of the three differs from the API.
+
+The frontend's API types are aliases of `components['schemas'][...]` from
+`api.gen.ts`, so a backend change shows up as a `tsc` error where the field is
+read. The few types still written by hand are listed in
+`src/types/apiDrift.ts`. A field with a `None` default comes out optional in
+the generated types: read it with `== null` or `??`.
 
 `bun run lint` enforces a zero-warning policy and `bun run build` runs a full
 type-check, so both must be clean before you push frontend changes.
@@ -380,6 +405,12 @@ feature, so pin the `oxlint` version and re-run the rule tests on every bump):
 - `tripl/no-muted-foreground`: no `muted-foreground` class or `var()` (off in
   tests). The alias is gone from `index.css`; use `text-fg-tertiary` for
   captions and meta, `text-fg-secondary` for body copy.
+- `tripl/no-bare-locale`: numbers and dates print in the app locale
+  (`APP_LOCALE`), not the browser's: no `toLocaleString()` /
+  `toLocaleDateString()` / `toLocaleTimeString()` with no locale or with
+  `undefined`. Use `formatNumber` (`src/lib/format.ts`), `countOf` /
+  `pluralize` (`src/lib/plural.ts`) or `src/lib/datetime.ts`, or pass
+  `APP_LOCALE` where a call needs its own options.
 
 Which files each rule covers is set in the `overrides` of `.oxlintrc.json`: a
 later override wins over an earlier one for the files both match. A new rule
@@ -475,8 +506,11 @@ tripl is one codebase with two runtimes sharing a common core.
 Provider-agnostic, framework-agnostic logic lives in
 [`backend/src/tripl/core/`](https://github.com/tripl-io/tripl/blob/main/backend/src/tripl/core):
 
-- `core/adapters/` — warehouse connectors (`clickhouse.py`, `bigquery.py`,
-  `databricks.py`, `postgres.py`) behind a shared `base.py` interface and a `registry.py`.
+- `core/adapters/` — warehouse connectors, one module or module family per
+  engine (`clickhouse.py`, `postgres.py`, `greenplum.py`, `redshift.py`,
+  `bigquery.py`, `databricks*.py`, `snowflake*.py`, `trino*.py`, `athena*.py`,
+  and `synthetic.py` for the demo project) behind a shared `base.py` interface
+  and a `registry.py`. The SQL engines share `dialect_sql_adapter.py`.
 - `core/analyzers/` — scan and quality logic: cardinality analysis, event/
   variable generation, anomaly detection, distribution drift, release
   regression, and preview.
@@ -505,7 +539,7 @@ When adding an HTTP feature:
 2. Put business logic in `services/<area>_service.py`.
 3. Add SQLAlchemy models in `models/` and Pydantic request/response models in
    `schemas/`. Update both together when a payload changes, and regenerate the
-   frontend types (`bun run gen:api`) so `frontend/src/types` stays in sync.
+   frontend types (`make sync-types`) so `frontend/src/types` stays in sync.
 
 When adding heavy, retryable, or scheduled work:
 
@@ -539,15 +573,18 @@ sources; and API, worker, and beat must all stay runnable together via Compose.
   migrations section).
 - **Lockfile drift / CI mismatch.** Always use `uv` and `bun`. A stray `pip`,
   `npm`, or `yarn` install will desync the lockfiles.
-- **Port already in use.** The dev stack binds `5173`, `8000`, `5432`, `5672`,
-  `6379`, and `15672`. Stop conflicting services or remap ports.
+- **Port already in use.** The dev stack publishes `5173`, `8000`, `5432`,
+  `5672`, `6379` and `15672` (plus `8765` with the `mcp` profile) on
+  `127.0.0.1`. That still collides with a
+  local PostgreSQL, Redis or RabbitMQ listening on the same port: stop the
+  local service or remap the port in `compose.dev.yaml`.
 - **Edits not hot-reloading.** Compose watch only syncs `backend/src`,
   `frontend/src`, and a few config files; changes to `pyproject.toml`,
   lockfiles, or a `Dockerfile` require a rebuild (re-run `up --watch`).
 
 ## Licensing of contributions
 
-Tripl is maintained by one copyright holder:
+tripl is maintained by one copyright holder:
 
 - the server and the web app are licensed under AGPL-3.0-or-later;
 - the CLI and the MCP server are licensed under Apache-2.0.
@@ -566,15 +603,25 @@ of a company? Ask for the corporate agreement first; see [CLA.md](CLA.md).
 
 ## Pull Request Conventions
 
-- **Title format:** `[analytics] <Title>`.
+- **Title format:** [Conventional Commits](https://www.conventionalcommits.org/),
+  `<type>(<optional scope>): <summary>`, with type one of `feat`, `fix`,
+  `docs`, `refactor`, `perf`, `test`, `chore` or `ci`. For example
+  `fix: scans of an empty table finish instead of failing` or
+  `chore(deps): bump httpx`. The title becomes the squash-merge commit.
 - Keep PRs focused and run the checks for the side(s) you touched: backend
   (`pytest`, `ruff check`, `ruff format --check`, `mypy`) and/or frontend
   (`bun run lint`, `bun run test`, `bun run build`). Run `docker compose -f
   compose.dev.yaml config` when you change Compose or env wiring.
+- `make check` runs the local CI gates from the repo root: lint, type check
+  and tests for the backend, frontend, CLI and MCP server, the release and CI
+  check scripts (`make test-scripts`, the `scripts` CI job), the API-types
+  drift check and the bundle budget. It is not full CI parity: the warehouse
+  conformance, search relevance, PostgreSQL concurrency, migration round-trip,
+  e2e and image jobs run in CI only.
 
 Always call out in the PR description when a change touches:
 
-- **API contracts** — request/response shapes (and regenerate `bun run gen:api`).
+- **API contracts** — request/response shapes (and run `make sync-types`).
 - **Event/tracking-plan schema** — models or Pydantic schemas.
 - **Queue, task, or schedule** behavior — Celery tasks or the beat schedule.
 - **Metrics or anomaly semantics** — collection, bucketing, or detection logic.

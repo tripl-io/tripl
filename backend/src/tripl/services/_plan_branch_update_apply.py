@@ -32,9 +32,9 @@ from tripl.models.variable_event_value_override import (
     copy_override_values,
 )
 from tripl.schemas.plan_branch import EntityChangeCount
+from tripl.services._plan_branch_merge_variables import rename_variables_with_parking
 from tripl.services._plan_branch_three_way_model import ENTITY_TYPES, Op
 from tripl.services._plan_branch_update_contexts import copy_value_contexts
-from tripl.services.plan_branch_merge_service import rename_variables_with_parking
 from tripl.services.plan_branch_revert_service import (
     delete_branch_entity,
     recreate_from_snapshot,
@@ -65,7 +65,11 @@ def _photo_identity(photo: EventPhoto) -> tuple[Any, ...]:
     return (photo.kind, photo.storage_key, photo.external_url)
 
 
-def _counts_list(counts: dict[str, dict[str, int]]) -> list[EntityChangeCount]:
+def entity_change_counts(counts: dict[str, dict[str, int]]) -> list[EntityChangeCount]:
+    """Per-type change tallies in plan order, leaving out the types nothing touched.
+
+    The preview's ``main_changes`` and the applied result's counts share it.
+    """
     return [
         EntityChangeCount(entity_type=entity_type, **counts[entity_type])
         for entity_type in ENTITY_TYPES
@@ -743,4 +747,4 @@ async def apply_update_plan(
             await applier.write_successor(row, op.main)
         applier.bump(op.entity_type, "changed")
     await session.flush()
-    return _counts_list(applier.counts)
+    return entity_change_counts(applier.counts)

@@ -31,9 +31,10 @@ import math
 import re
 from collections.abc import Iterable, Mapping
 from dataclasses import dataclass
-from datetime import UTC, datetime, timedelta
+from datetime import datetime, timedelta
 from typing import Any
 
+from tripl.core.bucketing import to_utc
 from tripl.services.release_annotations import releases_to_annotate
 from tripl.services.version_activation import (
     DEFAULT_ACTIVATION_MIN_BUCKETS,
@@ -559,15 +560,20 @@ def attribution_headline(
     )
 
 
-def _as_utc(value: object) -> datetime | None:
+def _parse_utc(value: object) -> datetime | None:
+    """A datetime, or the ISO-8601 text a stored payload holds, as aware UTC.
+
+    ``None`` for anything else, so a malformed payload drops the release line
+    instead of raising into an alert send.
+    """
     if isinstance(value, str) and value:
         try:
-            value = datetime.fromisoformat(value.replace("Z", "+00:00"))
+            value = datetime.fromisoformat(value)
         except ValueError:
             return None
     if not isinstance(value, datetime):
         return None
-    return value.replace(tzinfo=UTC) if value.tzinfo is None else value.astimezone(UTC)
+    return to_utc(value)
 
 
 def release_line(
@@ -588,8 +594,8 @@ def release_line(
     if not isinstance(release, Mapping):
         return None
     version = release.get("version")
-    reached_at = _as_utc(release.get("reached_at"))
-    bucket = _as_utc(anomaly_bucket)
+    reached_at = _parse_utc(release.get("reached_at"))
+    bucket = _parse_utc(anomaly_bucket)
     if not version or reached_at is None or bucket is None:
         return None
     word = change_word(_number(payload.get("delta")) or 0.0, direction)

@@ -58,13 +58,14 @@ comparing one of those against ``datetime.now(UTC)`` raises TypeError, which onl
 ``main.py``'s catch-all handles. That was a real bug on the monitor route, and
 adding the comparison to four more bodies without the coercion would have been
 four fresh copies of it. A bare instant is read as UTC and never as the host's
-local time, the same reading ``core.bucketing.to_utc`` and
-``_alerting_deliveries._as_utc`` give one.
+local time, through ``core.bucketing.to_utc`` like every other reader here.
 """
 
 from __future__ import annotations
 
 from datetime import UTC, datetime
+
+from tripl.core.bucketing import to_utc
 
 __all__ = ["require_future_instant"]
 
@@ -100,7 +101,7 @@ def require_future_instant(value: datetime, *, field_name: str) -> datetime:
     """
     # Normalize BEFORE comparing, never after: the point of doing it here is
     # that the comparison below cannot be handed a naive value.
-    instant = value.replace(tzinfo=UTC) if value.tzinfo is None else value.astimezone(UTC)
+    instant = to_utc(value)
     # ``<=`` and not ``<``, matching ``mute_monitor``: an instant that is already
     # now is a silence with no duration left, and the two mute surfaces must draw
     # the boundary in the same place or the asymmetry is back one second wide.

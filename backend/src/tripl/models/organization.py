@@ -19,7 +19,7 @@ from datetime import datetime
 from typing import Any
 
 import sqlalchemy as sa
-from sqlalchemy import Boolean, CheckConstraint, ForeignKey, String, Text, UniqueConstraint, true
+from sqlalchemy import CheckConstraint, ForeignKey, String, Text, UniqueConstraint
 from sqlalchemy.ext.compiler import compiles
 from sqlalchemy.orm import Mapped, mapped_column
 from sqlalchemy.sql.compiler import SQLCompiler
@@ -79,7 +79,6 @@ def default_organization_values() -> dict[str, Any]:
         "id": DEFAULT_ORG_ID,
         "slug": DEFAULT_ORG_SLUG,
         "name": DEFAULT_ORG_NAME,
-        "members_can_create_projects": True,
     }
 
 
@@ -106,9 +105,6 @@ class Organization(UUIDMixin, TimestampMixin, Base):
         default=ProjectMemberRole.none.value,
         server_default=ProjectMemberRole.none.value,
         nullable=False,
-    )
-    members_can_create_projects: Mapped[bool] = mapped_column(
-        Boolean, default=True, server_default=true(), nullable=False
     )
     # ``deleting`` from the moment an owner asks to delete the organization
     # until the purge job removes the row (F20 PR6, critique #26). Every read

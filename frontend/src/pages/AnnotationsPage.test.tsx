@@ -1,7 +1,7 @@
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { MemoryRouter, Route, Routes } from 'react-router-dom'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { chartAnnotationsApi } from '@/api/chartAnnotations'
 import { plannedEventsApi } from '@/api/plannedEvents'
 import { AuthContext, type AuthContextValue } from '@/components/auth-context'
@@ -91,6 +91,10 @@ beforeEach(() => {
   vi.mocked(plannedEventsApi.suggestions).mockResolvedValue([])
 })
 
+afterEach(() => {
+  vi.unstubAllEnvs()
+})
+
 describe('AnnotationsPage', () => {
   it('lists every annotation newest first, with its chart, and the planned events', async () => {
     renderPage()
@@ -132,11 +136,13 @@ describe('AnnotationsPage', () => {
 
     const planned = await screen.findByTestId('planned-events-list')
     expect(within(planned).getByText('Holiday')).toBeInTheDocument()
-    expect(within(planned).getByRole('button', { name: 'Delete planned event Spring promo' })).toBeInTheDocument()
-    expect(within(planned).queryByRole('button', { name: 'Delete planned event Labour Day' })).not.toBeInTheDocument()
+    expect(within(planned).getByRole('button', { name: 'Delete expected window Spring promo' })).toBeInTheDocument()
+    expect(within(planned).queryByRole('button', { name: 'Delete expected window Labour Day' })).not.toBeInTheDocument()
   })
 
   it('plans a suggested recurring window as its next planned events', async () => {
+    // The slot reads in the reader's clock, like the windows listed under it.
+    vi.stubEnv('TZ', 'Europe/Berlin')
     vi.mocked(plannedEventsApi.suggestions).mockResolvedValue([
       {
         scope_type: 'event',
@@ -158,12 +164,15 @@ describe('AnnotationsPage', () => {
     renderPage()
 
     const list = await screen.findByTestId('planned-window-suggestions')
-    expect(within(list).getByText('Every Monday at 09:00 UTC')).toBeInTheDocument()
+    expect(within(list).getByText('Every Monday at 11:00 AM (UTC+2)')).toBeInTheDocument()
+    expect(within(list).queryByText(/09:00 UTC/)).not.toBeInTheDocument()
     fireEvent.click(within(list).getByRole('button', { name: 'Plan the next 2 windows on Paywall View' }))
 
     await waitFor(() => expect(plannedEventsApi.create).toHaveBeenCalledTimes(2))
     expect(plannedEventsApi.create).toHaveBeenCalledWith('demo', expect.objectContaining({
       label: 'Weekly promo email',
+      // Stored text is read later in any zone: it names the slot in UTC.
+      description: 'Suggested from 3 expected verdicts on Paywall View, every Monday at 09:00 UTC.',
       starts_at: '2026-10-12T09:00:00Z',
       direction: 'spike',
       scope_type: 'event',

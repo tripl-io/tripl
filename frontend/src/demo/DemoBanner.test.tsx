@@ -20,7 +20,7 @@ const WELCOME_DISMISS_KEY = 'tripl-demo-welcome-dismissed:demo-1'
 function makeProject(overrides: Partial<Project> = {}): Project {
   return {
     id: 'p-1',
-    name: 'Demo workspace',
+    name: 'Demo Project',
     slug: 'demo-1',
     description: '',
     app_version_keep_releases: 5,
@@ -142,13 +142,27 @@ async function chooseAction(name: RegExp): Promise<void> {
 }
 
 describe('DemoBanner', () => {
-  it('labels the workspace as local synthetic data with its recipe version', () => {
+  it('labels the demo project as local synthetic data, its data version under What’s simulated', () => {
     renderBanner()
 
     // Synthetic/local is never conflated with real/external data.
     expect(screen.getByText('Local synthetic data')).toBeInTheDocument()
-    expect(screen.getByText('Demo workspace')).toBeInTheDocument()
-    expect(screen.getByText('recipe v3')).toBeInTheDocument()
+    expect(screen.getByText('Demo project')).toBeInTheDocument()
+    // No "recipe v3" chip on the row: newcomers read it as a debug leftover.
+    expect(screen.queryByText(/recipe/i)).not.toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: /what’s simulated/i }))
+    // Still there for telling an older demo apart, as a number: "v3" is 3.
+    expect(
+      screen.getByText('Built from demo data version 3. Reset rebuilds it from the current version.'),
+    ).toBeInTheDocument()
+  })
+
+  it('leaves the data version out when the demo carries none', () => {
+    renderBanner({ project: makeProject({ demo_recipe_version: null }) })
+
+    fireEvent.click(screen.getByRole('button', { name: /what’s simulated/i }))
+    expect(screen.queryByText(/demo data version/i)).not.toBeInTheDocument()
   })
 
   // One row, not a banner with the scenario strip stacked under it.
@@ -180,7 +194,7 @@ describe('DemoBanner', () => {
   it('folds into a pill on a phone that opens the whole bar', () => {
     renderBanner()
 
-    const pill = screen.getByRole('button', { name: /demo workspace tools/i })
+    const pill = screen.getByRole('button', { name: /demo project tools/i })
     expect(pill).toHaveAttribute('aria-expanded', 'false')
     // What it opens holds every control, so none is out of reach behind it.
     const panel = document.getElementById(pill.getAttribute('aria-controls') ?? '')
@@ -216,7 +230,7 @@ describe('DemoBanner', () => {
     renderBanner({
       project: makeProject({ demo_seeded_at: '2026-07-10T00:00:00Z', demo_last_tick_at: null }),
     })
-    expect(screen.getByText('freshly seeded')).toBeInTheDocument()
+    expect(screen.getByText('just generated')).toBeInTheDocument()
     expect(screen.queryByText(/updated/i)).not.toBeInTheDocument()
   })
 
@@ -225,7 +239,7 @@ describe('DemoBanner', () => {
       project: makeProject({ demo_last_tick_at: '2026-07-10T00:00:00Z' }),
     })
     expect(screen.getByText(/^updated /i)).toBeInTheDocument()
-    expect(screen.queryByText('freshly seeded')).not.toBeInTheDocument()
+    expect(screen.queryByText('just generated')).not.toBeInTheDocument()
   })
 
   it('resets only after confirmation, via the demo-scoped endpoint', async () => {
@@ -291,7 +305,7 @@ describe('DemoBanner', () => {
     expect(screen.queryByRole('button', { name: /^manage demo/i })).not.toBeInTheDocument()
   })
 
-  it('shows reset/delete to a workspace owner even if they did not create the demo', async () => {
+  it('shows reset/delete to an organization owner even if they did not create the demo', async () => {
     renderBanner({ auth: authValue({ id: 'owner-9', role: 'owner' }) })
 
     const menu = await openManageMenu()
@@ -359,7 +373,7 @@ describe('DemoBanner — reset and delete failures', () => {
     expect(await screen.findByRole('alert')).toHaveTextContent('Demo reset failed')
     expect(resetSpy).toHaveBeenCalledTimes(1)
     // The progress dialog is gone and the controls are usable again.
-    expect(screen.queryByRole('dialog', { name: /re-seeding demo workspace/i })).not.toBeInTheDocument()
+    expect(screen.queryByRole('dialog', { name: /re-seeding demo project/i })).not.toBeInTheDocument()
     const menu = await openManageMenu()
     expect(within(menu).getByRole('menuitem', { name: /^reset…$/i })).not.toHaveAttribute('aria-disabled')
     expect(within(menu).getByRole('menuitem', { name: /^delete…$/i })).not.toHaveAttribute('aria-disabled')
@@ -375,7 +389,7 @@ describe('DemoBanner — reset and delete failures', () => {
     fireEvent.click(await screen.findByRole('button', { name: /reset demo/i }))
 
     expect(
-      await screen.findByRole('dialog', { name: /re-seeding demo workspace/i }),
+      await screen.findByRole('dialog', { name: /re-seeding demo project/i }),
     ).toBeInTheDocument()
     expect(manageTrigger()).toHaveAccessibleName('Manage demo (Resetting…)')
   })
@@ -386,7 +400,7 @@ describe('DemoBanner — reset and delete failures', () => {
     renderBanner()
     await chooseAction(/^reset…$/i)
     fireEvent.click(await screen.findByRole('button', { name: /reset demo/i }))
-    await screen.findByRole('dialog', { name: /re-seeding demo workspace/i })
+    await screen.findByRole('dialog', { name: /re-seeding demo project/i })
 
     // Neither is gated on the reset, and clearing an error must not detach it.
     fireEvent.click(screen.getByRole('button', { name: /what’s simulated/i, hidden: true }))
@@ -454,7 +468,7 @@ describe('DemoBanner — a reset that never answers', () => {
     const stalled = await screen.findByRole('dialog', { name: /reset is still running/i })
     expect(signal()?.aborted).toBe(true)
     expect(stalled).toHaveTextContent(/may still be re-seeding/i)
-    expect(screen.queryByRole('dialog', { name: /re-seeding demo workspace/i })).not.toBeInTheDocument()
+    expect(screen.queryByRole('dialog', { name: /re-seeding demo project/i })).not.toBeInTheDocument()
     // Told once, by the dialog — not again under the banner.
     expect(screen.queryByRole('alert')).not.toBeInTheDocument()
 

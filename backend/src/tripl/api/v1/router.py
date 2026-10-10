@@ -1,3 +1,5 @@
+from typing import Any
+
 from fastapi import APIRouter, Depends, params
 
 from tripl import extensions
@@ -64,6 +66,7 @@ from tripl.api.v1.search import router as search_router
 from tripl.api.v1.users import router as users_router
 from tripl.api.v1.variables import properties_router
 from tripl.api.v1.variables import router as variables_router
+from tripl.schemas.errors import AUTH_ERROR_RESPONSES, PROJECT_ERROR_RESPONSES
 
 router = APIRouter(prefix="/api/v1")
 # Authentication, then project membership: every ``/projects/{slug}/...`` route
@@ -79,78 +82,101 @@ def _no_outbound(what: str) -> params.Depends:
     return dependency
 
 
+def _include_protected(
+    child: APIRouter,
+    *,
+    project_scoped: bool = True,
+    outbound: str | None = None,
+) -> None:
+    """Mount ``child`` behind ``protected_dependencies`` and document what they answer.
+
+    Every protected route may answer 401 and 403 with an ``ErrorResponse`` body;
+    a ``project_scoped`` router (any route under ``/projects/{slug}``) also the
+    404 a missing project or a non-member gets. ``outbound`` adds the
+    public-demo refusal of :func:`_no_outbound`.
+    """
+    dependencies = list(protected_dependencies)
+    if outbound is not None:
+        dependencies.append(_no_outbound(outbound))
+    responses: dict[int | str, dict[str, Any]] = (
+        PROJECT_ERROR_RESPONSES if project_scoped else AUTH_ERROR_RESPONSES
+    )
+    router.include_router(child, dependencies=dependencies, responses=responses)
+
+
 # Extensions' routers come first, so a core route with a path parameter never
-# claims one of theirs.
+# claims one of theirs. Theirs are organization- or platform-scoped, so they
+# document the 401/403 of signing in and not the project 404.
 for _extension in extensions.extensions():
     for _mounted in _extension.api_routers():
-        _dependencies = list(protected_dependencies) if _mounted.protected else []
-        if _mounted.outbound is not None:
-            _dependencies.append(_no_outbound(_mounted.outbound))
-        router.include_router(_mounted.router, dependencies=_dependencies)
+        if _mounted.protected:
+            _include_protected(_mounted.router, project_scoped=False, outbound=_mounted.outbound)
+        elif _mounted.outbound is not None:
+            router.include_router(_mounted.router, dependencies=[_no_outbound(_mounted.outbound)])
+        else:
+            router.include_router(_mounted.router)
 
 router.include_router(auth_router)
 router.include_router(auth_google_router)
 router.include_router(auth_oidc_router)
-router.include_router(activity_router, dependencies=protected_dependencies)
-router.include_router(ai_router, dependencies=protected_dependencies)
-router.include_router(app_settings_router, dependencies=protected_dependencies)
-router.include_router(projects_router, dependencies=protected_dependencies)
-router.include_router(project_anomaly_settings_router, dependencies=protected_dependencies)
-router.include_router(project_branch_settings_router, dependencies=protected_dependencies)
-router.include_router(project_members_router, dependencies=protected_dependencies)
-router.include_router(project_templates_router, dependencies=protected_dependencies)
-router.include_router(
-    project_tracker_config_router,
-    dependencies=[*protected_dependencies, _no_outbound("file tickets in an issue tracker")],
-)
-router.include_router(alerting_router, dependencies=protected_dependencies)
-router.include_router(incident_summaries_router, dependencies=protected_dependencies)
-router.include_router(event_types_router, dependencies=protected_dependencies)
-router.include_router(event_type_owners_router, dependencies=protected_dependencies)
-router.include_router(project_event_type_owners_router, dependencies=protected_dependencies)
-router.include_router(fields_router, dependencies=protected_dependencies)
-router.include_router(relations_router, dependencies=protected_dependencies)
-router.include_router(meta_fields_router, dependencies=protected_dependencies)
+# Mixed: ``/activity`` is the caller's own feed, ``/activity/projects/{slug}`` a project's.
+_include_protected(activity_router)
+_include_protected(ai_router)
+_include_protected(app_settings_router, project_scoped=False)
+# ``/projects`` lists and creates; everything else under it names a project.
+_include_protected(projects_router)
+_include_protected(project_anomaly_settings_router)
+_include_protected(project_branch_settings_router)
+_include_protected(project_members_router)
+_include_protected(project_templates_router, project_scoped=False)
+_include_protected(project_tracker_config_router, outbound="file tickets in an issue tracker")
+_include_protected(alerting_router)
+_include_protected(incident_summaries_router)
+_include_protected(event_types_router)
+_include_protected(event_type_owners_router)
+_include_protected(project_event_type_owners_router)
+_include_protected(fields_router)
+_include_protected(relations_router)
+_include_protected(meta_fields_router)
 # Registered BEFORE events_router so `/projects/{slug}/events/stream` is matched
 # by the SSE route and not captured by `/projects/{slug}/events/{event_id}`.
-router.include_router(events_stream_router, dependencies=protected_dependencies)
+_include_protected(events_stream_router)
 # Also BEFORE events_router: `/projects/{slug}/events/duplicate-check` (GH #265).
-router.include_router(duplicate_check_router, dependencies=protected_dependencies)
-router.include_router(events_router, dependencies=protected_dependencies)
-router.include_router(lifecycle_router, dependencies=protected_dependencies)
-router.include_router(health_router, dependencies=protected_dependencies)
-router.include_router(event_photos_router, dependencies=protected_dependencies)
-router.include_router(event_comments_router, dependencies=protected_dependencies)
-router.include_router(properties_router, dependencies=protected_dependencies)
-router.include_router(variables_router, dependencies=protected_dependencies)
-router.include_router(data_sources_router, dependencies=protected_dependencies)
-router.include_router(scans_router, dependencies=protected_dependencies)
-router.include_router(source_freshness_router, dependencies=protected_dependencies)
-router.include_router(search_router, dependencies=protected_dependencies)
-router.include_router(metrics_router, dependencies=protected_dependencies)
-router.include_router(metrics_catalog_router, dependencies=protected_dependencies)
-router.include_router(fact_tables_router, dependencies=protected_dependencies)
-router.include_router(docs_router, dependencies=protected_dependencies)
-router.include_router(chart_annotations_router, dependencies=protected_dependencies)
-router.include_router(planned_events_router, dependencies=protected_dependencies)
-router.include_router(plan_branches_router, dependencies=protected_dependencies)
-router.include_router(dependencies_router, dependencies=protected_dependencies)
-router.include_router(implementation_tickets_router, dependencies=protected_dependencies)
-router.include_router(event_implementation_tickets_router, dependencies=protected_dependencies)
-router.include_router(plan_revisions_router, dependencies=protected_dependencies)
-router.include_router(plan_validation_router, dependencies=protected_dependencies)
-router.include_router(plan_export_router, dependencies=protected_dependencies)
-router.include_router(reconciliation_router, dependencies=protected_dependencies)
-router.include_router(duplicates_router, dependencies=protected_dependencies)
-router.include_router(project_audit_router, dependencies=protected_dependencies)
-router.include_router(users_router, dependencies=protected_dependencies)
-router.include_router(api_keys_router, dependencies=protected_dependencies)
-router.include_router(notifications_router, dependencies=protected_dependencies)
+_include_protected(duplicate_check_router)
+_include_protected(events_router)
+_include_protected(lifecycle_router)
+_include_protected(health_router)
+_include_protected(event_photos_router)
+_include_protected(event_comments_router)
+_include_protected(properties_router)
+_include_protected(variables_router)
+_include_protected(data_sources_router, project_scoped=False)
+_include_protected(scans_router)
+_include_protected(source_freshness_router)
+_include_protected(search_router)
+_include_protected(metrics_router)
+_include_protected(metrics_catalog_router)
+_include_protected(fact_tables_router)
+_include_protected(docs_router)
+_include_protected(chart_annotations_router)
+_include_protected(planned_events_router)
+_include_protected(plan_branches_router)
+_include_protected(dependencies_router)
+_include_protected(implementation_tickets_router)
+_include_protected(event_implementation_tickets_router)
+_include_protected(plan_revisions_router)
+_include_protected(plan_validation_router)
+_include_protected(plan_export_router)
+_include_protected(reconciliation_router)
+_include_protected(duplicates_router)
+_include_protected(project_audit_router)
+_include_protected(users_router, project_scoped=False)
+_include_protected(api_keys_router, project_scoped=False)
+_include_protected(notifications_router, project_scoped=False)
 # Organization management (F20 PR6): real ``/orgs`` routes, never rewritten.
-router.include_router(orgs_router, dependencies=protected_dependencies)
-router.include_router(
-    org_settings_router,
-    dependencies=[*protected_dependencies, _no_outbound("change organization settings")],
+_include_protected(orgs_router, project_scoped=False)
+_include_protected(
+    org_settings_router, project_scoped=False, outbound="change organization settings"
 )
-router.include_router(org_groups_router, dependencies=protected_dependencies)
-router.include_router(platform_settings_router, dependencies=protected_dependencies)
+_include_protected(org_groups_router, project_scoped=False)
+_include_protected(platform_settings_router, project_scoped=False)

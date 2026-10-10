@@ -27,6 +27,12 @@ DEFAULT_TIMEOUT_SECONDS = 30.0
 # tell CLI traffic from agent traffic — so it is a PARAMETER, not a constant,
 # and tripl-mcp passes its own.
 DEFAULT_USER_AGENT = f"tripl/{__version__}"
+# The only methods a redirect is followed for. httpx, like a browser, re-sends a
+# POST as a GET after a 301, and any other method as a GET after a 302 or 303.
+# Every write route here has a GET sibling on the same path, so a followed
+# redirect turned a write into a read that answered 200 and was reported as
+# saved. A write that meets a redirect fails instead (see ``TriplClient.request``).
+REDIRECT_SAFE_METHODS = frozenset({"GET", "HEAD"})
 
 
 def create_http_client(
@@ -39,7 +45,8 @@ def create_http_client(
 
     The caller may own one client for a whole session (a CLI command that fires
     many requests, an MCP server lifespan) or let ``TriplClient`` create one per
-    request.
+    request. Redirects are NOT followed at the pool level: ``TriplClient`` decides
+    per request, by method.
     """
     return httpx.AsyncClient(
         base_url=base_url.rstrip("/") + API_PREFIX,
@@ -48,7 +55,6 @@ def create_http_client(
             "User-Agent": user_agent,
         },
         timeout=timeout,
-        follow_redirects=True,
     )
 
 
@@ -136,8 +142,11 @@ class TriplClient:
         params: dict[str, Any],
         json_body: Any | None,
     ) -> httpx.Response:
+        follow = method.upper() in REDIRECT_SAFE_METHODS
         if self._http_client is not None:
-            return await self._http_client.request(method, path, params=params, json=json_body)
+            return await self._http_client.request(
+                method, path, params=params, json=json_body, follow_redirects=follow
+            )
         async with create_http_client(
             base_url=self._root_url,
             api_key=self._api_key,
@@ -149,7 +158,9 @@ class TriplClient:
             # default in the operator's access logs.
             user_agent=self._user_agent,
         ) as client:
-            return await client.request(method, path, params=params, json=json_body)
+            return await client.request(
+                method, path, params=params, json=json_body, follow_redirects=follow
+            )
 
     async def request(
         self,
@@ -165,6 +176,22 @@ class TriplClient:
         except httpx.HTTPError as exc:
             raise TriplConnectionError(self._base_url, exc) from exc
         self.last_status_code = response.status_code
+        if 300 <= response.status_code < 400:
+            # Before raise_for_status, which passes anything under 400, and before
+            # the empty-body branch below, which would turn a bodiless 301 into
+            # {"status": "ok"}. Only a write gets here with a Location: a GET has
+            # already followed it. No env var or flag is named, for the reason
+            # written on the 401 branch of raise_for_status.
+            location = response.headers.get("location") or "(no Location header)"
+            raise TriplAPIError(
+                response.status_code,
+                None,
+                f"{self._root_url} redirected {method.upper()} {path} to {location} "
+                f"({response.status_code}). tripl follows redirects for reads only: "
+                "most redirects re-send a write as a GET, which would lose it without "
+                "an error. Point the base URL at the address it redirects to, usually "
+                "its https:// form.",
+            )
         raise_for_status(response)
         if response.status_code == 204 or not response.content:
             return {"status": "ok"}

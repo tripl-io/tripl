@@ -37,6 +37,8 @@ vi.mock('@/api/users', () => ({
 }))
 
 import { AuditLog, AuditTab } from './AuditTab'
+import { formatTimeOfDay } from '@/lib/datetime'
+import { formatTimestamp } from '@/lib/datetime'
 import { pickDate } from '@/test/pickers'
 
 // What GET /audit/actions answers. The vocabulary is the backend's now:
@@ -106,7 +108,7 @@ function auditDetail(index: number, payload: Record<string, unknown>): AuditEntr
   return { ...auditRow(index), payload }
 }
 
-/** Every action the Action <select> offers, in DOM order (minus "Action: any"). */
+/** Every action the Action <select> offers, in DOM order (minus "Action: Any"). */
 function offeredActions(): string[] {
   const select = screen.getByLabelText('Action') as HTMLSelectElement
   return Array.from(select.querySelectorAll('option'))
@@ -504,15 +506,15 @@ describe('AuditTab — the action vocabulary comes from the backend', () => {
     expect(offeredActions()).toContain('event.create')
   })
 
-  it('offers only "Action: any" until the vocabulary has loaded', () => {
+  it('offers only "Action: Any" until the vocabulary has loaded', () => {
     actionsMock.mockReturnValue(new Promise(() => {}))
     renderTab()
 
     const select = screen.getByLabelText('Action') as HTMLSelectElement
-    expect(Array.from(select.querySelectorAll('option')).map((o) => o.textContent)).toEqual(['Action: any'])
+    expect(Array.from(select.querySelectorAll('option')).map((o) => o.textContent)).toEqual(['Action: Any'])
   })
 
-  it('labels each action as the row chip reads, with the code only where two read alike', async () => {
+  it('labels each action as the row chip reads, a bulk code apart from its single-row sibling', async () => {
     actionsMock.mockResolvedValue({
       project: [{ label: 'Events', actions: ['event.create', 'event.delete', 'event.bulk_delete'] }],
       workspace: [],
@@ -522,10 +524,12 @@ describe('AuditTab — the action vocabulary comes from the backend', () => {
     await waitFor(() => expect(offeredActions()).toHaveLength(3))
     const select = screen.getByLabelText('Action') as HTMLSelectElement
     const options = Array.from(select.querySelectorAll('option')).filter((o) => o.value !== '')
+    // Both deletes used to read "Deleted event" and so carried their raw code
+    // in brackets to tell them apart.
     expect(options.map((o) => [o.value, o.textContent])).toEqual([
       ['event.create', 'Created event'],
-      ['event.delete', 'Deleted event (event.delete)'],
-      ['event.bulk_delete', 'Deleted event (event.bulk_delete)'],
+      ['event.delete', 'Deleted event'],
+      ['event.bulk_delete', 'Deleted events in bulk'],
     ])
   })
 })
@@ -580,5 +584,19 @@ describe('AuditTab — rows read as sentences', () => {
 
     expect(screen.getByText("Every change to this project's plan, scans, metrics and alerting.")).toBeInTheDocument()
     expect(screen.getByText('About this log')).toBeInTheDocument()
+  })
+
+  it('names the time zone its times are in: on a row time’s hover, and once under "About this log"', async () => {
+    listMock.mockResolvedValue({ items: [auditRow(0)], total: 1 })
+    renderTab()
+
+    // A bare "10:00 AM" left a compliance reader guessing between the browser's
+    // zone, the project's own Timezone setting and UTC.
+    const time = await screen.findByText(formatTimeOfDay('2026-08-17T10:00:00Z'))
+    const full = formatTimestamp('2026-08-17T10:00:00Z', { seconds: true })
+    const title = time.getAttribute('title') ?? ''
+    expect(title.startsWith(`${full} `)).toBe(true)
+    expect(title.length).toBeGreaterThan(full.length + 1)
+    expect(screen.getByText(/Compliance trail/).textContent).toMatch(/in your browser's time zone/)
   })
 })

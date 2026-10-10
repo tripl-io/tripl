@@ -32,6 +32,7 @@ from tripl.schemas.alerting import (
     MonitorMuteRequest,
     MonitorsSummaryResponse,
 )
+from tripl.schemas.pagination import Offset
 from tripl.schemas.text_filters import FreeTextFilter
 from tripl.services import alert_owner_notify_service, alerting_service, audit_service
 
@@ -351,7 +352,7 @@ async def list_alert_deliveries(
     ungrouped: bool = False,
     date_from: datetime | None = None,
     date_to: datetime | None = None,
-    offset: int = Query(0, ge=0),
+    offset: Offset = 0,
     limit: int = Query(50, ge=1, le=200),
     # Keyset continuation from a previous page's `next_cursor`.
     cursor: Annotated[str | None, Query(max_length=512)] = None,
@@ -494,7 +495,7 @@ async def list_alert_inbox(
     # for the second, and a filter here that answered differently from the eight
     # beside it would be inconsistent rather than stricter.
     scope: Annotated[FreeTextFilter | None, Query(max_length=200)] = None,
-    offset: int = Query(0, ge=0),
+    offset: Offset = 0,
     limit: int = Query(50, ge=1, le=200),
     # Keyset continuation from a previous page's `next_cursor`.
     cursor: Annotated[str | None, Query(max_length=512)] = None,

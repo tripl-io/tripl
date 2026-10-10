@@ -1,5 +1,6 @@
 import { api } from './client'
 import type { ProjectBranchSettings } from '../types'
+import type { components } from '../types/api.gen'
 
 export const branchSettingsApi = {
   get: (slug: string) =>
@@ -7,9 +8,6 @@ export const branchSettingsApi = {
 
   update: (
     slug: string,
-    data: Partial<{
-      min_approvals: number
-      block_self_approval: boolean
-    }>,
+    data: components['schemas']['ProjectBranchSettingsUpdate'],
   ) => api.patch<ProjectBranchSettings>(`/projects/${slug}/branch-settings`, data),
 }

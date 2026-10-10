@@ -110,9 +110,11 @@ export function measureOverflow(table: HTMLTableElement): number {
 
   let offscreen = 0
   for (const cell of cells) {
-    // Only headed data columns count. The reorder handle and the select-all
-    // checkbox carry no label, and the pinned EVENT column never leaves.
-    if (cell.dataset.pinned === 'true' || !cell.textContent?.trim()) continue
+    // Only headed data columns count. The reorder handle carries no label, and
+    // a sticky cell never leaves: the pinned EVENT column, and the select-all
+    // cell, whose phone "Select all" caption is text a label check would count
+    // as one more column off-screen.
+    if (cell.dataset.pinned === 'true' || cell.classList.contains(PIN_CLASS) || !cell.textContent?.trim()) continue
     // A header with no box is not off-screen but not shown at all: the phone
     // card layout drops the column headers (eventsPhoneCard.ts), and counting
     // them had the Columns chip claim "11 off-screen" on a table that no

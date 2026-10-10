@@ -30,9 +30,13 @@ _DEV_CREDENTIAL_MARKERS = ("tripl:tripl", "guest:guest")
 
 # Self-service registration modes for ``Settings.registration_mode``.
 # "open"     — anyone who can reach the instance may create an account. A new
-#              account joins as EDITOR: it can read the whole tracking plan and
-#              the user roster, and edit any shared project. Data source
-#              connection details are owner-only.
+#              account joins the default organization as a ``member``: it can
+#              read the member roster and create projects of its own, and sees
+#              no existing project until someone adds it (or an owner raises
+#              the organization's ``default_project_role``). Data source
+#              connection details stay with organization owners and admins.
+#              Under DEPLOYMENT_MODE=hosted each sign-up gets an organization
+#              of its own instead.
 # "disabled" — POST /auth/register is refused (403), except for the
 #              first-owner bootstrap on an instance with no users yet.
 REGISTRATION_OPEN = "open"
@@ -135,7 +139,8 @@ class Settings(BaseSettings):
     rate_limit_login_per_minute: int = 5
     rate_limit_register_per_hour: int = 3
     # Whether to derive the client IP from proxy-supplied headers (X-Real-IP,
-    # then leftmost X-Forwarded-For) for rate-limit bucketing. Defaults to FALSE:
+    # then the rightmost X-Forwarded-For entry, the one the nearest proxy
+    # appended) for rate-limit bucketing. Defaults to FALSE:
     # use the direct socket peer (request.client.host), which is correct when the
     # API is the edge — including the consolidated single container where FastAPI
     # serves the SPA itself (serve_frontend) with no proxy in front. Enable this
@@ -148,11 +153,16 @@ class Settings(BaseSettings):
     # Self-service registration. One of REGISTRATION_MODES. Defaults to "open".
     #
     # This is a deliberate, documented trade-off, not an oversight. "open" means
-    # anyone who can reach this instance can create an account, joining as
-    # EDITOR — so they can immediately read the whole tracking plan and the user
-    # roster, AND edit any shared project. A data source's connection details
-    # (host, port, username) are owner-only; the password is never returned to
-    # anybody. Note the write half: "can read X" alone understates it. It is the
+    # anyone who can reach this instance can create an account. Self-hosted, it
+    # joins the default organization as a ``member``: it can read the member
+    # roster (names and emails) and create projects of its own. It sees no
+    # existing project until someone adds it, or until an owner raises the
+    # organization's ``default_project_role`` (``none`` by default) to viewer
+    # or editor (services/project_access.py). A data
+    # source's connection details (host, port, username) stay with
+    # organization owners and admins; the password is never returned to
+    # anybody. Hosted, each sign-up gets an organization of its own instead.
+    # The roster's names and emails are the exposure to weigh. It is the
     # default for historical reasons: it was once the only way to
     # onboard anyone, since /api/v1/users had no create route, there was no
     # invite flow, and SMTP is optional — so "disabled" left real instances
@@ -332,6 +342,11 @@ class Settings(BaseSettings):
     # (the cross-tool opt-out) turns it off whatever this says.
     telemetry_enabled: bool | None = None
     do_not_track: bool = False
+    # Only where the ping goes, never whether: an empty TELEMETRY_ENDPOINT is
+    # unset (env_ignore_empty, below) and means this default, because
+    # compose.yaml passes the variable as `${TELEMETRY_ENDPOINT:-}`, so an
+    # operator who never set it arrives as "". The two switches above are the
+    # only ways to turn it off.
     telemetry_endpoint: str = "https://telemetry.tripl.io/v1/ping"
 
     # AI features (LLM-powered descriptions, Q&A). Disabled by default because

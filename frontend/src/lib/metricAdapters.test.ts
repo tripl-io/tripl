@@ -14,7 +14,6 @@ import {
   granularityForInterval,
   metricPointToEventPoint,
   metricRollupMode,
-  metricSignalToMonitoringSignal,
 } from './metricAdapters'
 import { at } from '@/test/at'
 
@@ -123,8 +122,9 @@ describe('catalog metric adapters', () => {
   })
 })
 
-describe('metricSignalToMonitoringSignal', () => {
-  const base: MetricSignalResponse = {
+describe('catalog signals and verdicts', () => {
+  const signal: MetricSignalResponse = {
+    scan_config_id: null,
     scope_type: 'metric',
     scope_ref: 'metric-1',
     state: 'latest_scan',
@@ -139,18 +139,27 @@ describe('metricSignalToMonitoringSignal', () => {
     hidden: false,
     muted: false,
     attribution_status: 'not_computed',
+    unit: '%',
+    detected_at: '2026-06-10T01:05:00Z',
   }
 
-  it('carries the unit and detection time the server sent', () => {
-    const signal = metricSignalToMonitoringSignal({
-      ...base,
-      unit: '%',
-      detected_at: '2026-06-10T01:05:00Z',
+  it('passes the served latest signal through as the open-signal shape', () => {
+    const adapted = adaptMetricSeries({
+      metric_id: 'm-1',
+      scope: 'metric',
+      scan_config_id: null,
+      interval: '1h',
+      latest_signal: signal,
+      data: [],
+      forecast: [],
+      sigma_threshold: 4,
     })
-    expect(signal).toMatchObject({ unit: '%', detected_at: '2026-06-10T01:05:00Z' })
+    expect(adapted.latest_signal).toBe(signal)
+    // A catalog metric belongs to no scan: its scan config stays null, never ''.
+    expect(adapted.latest_signal?.scan_config_id).toBeNull()
   })
 
-  it('carries the verdict and incident a payload names (#254)', () => {
+  it('carries the verdict a flagged point names (#254)', () => {
     const verdict = {
       verdict: 'false_positive',
       expected_reason: null,
@@ -158,19 +167,10 @@ describe('metricSignalToMonitoringSignal', () => {
       author_name: 'Ann',
       created_at: '2026-06-10T02:00:00Z',
       source: 'incident',
-    }
-    const signal = metricSignalToMonitoringSignal({
-      ...base,
-      verdict,
-      incident: { id: 'group-1', status: 'false_positive' },
-    } as MetricSignalResponse)
-    expect(signal.verdict).toEqual(verdict)
-    expect(signal.incident).toEqual({ id: 'group-1', status: 'false_positive' })
-  })
-
-  it('says null for a field the payload left out, never undefined', () => {
-    const signal = metricSignalToMonitoringSignal(base)
-    expect(signal.unit).toBeNull()
-    expect(signal.detected_at).toBeNull()
+    } as const
+    const point = metricPointToEventPoint(seriesPoint({ is_anomaly: true, verdict }))
+    expect(point.verdict).toEqual(verdict)
+    // The incident lives on the signal, never on a series point.
+    expect('incident' in point).toBe(false)
   })
 })

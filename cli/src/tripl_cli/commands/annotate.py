@@ -26,8 +26,6 @@ mutation has one.
 from __future__ import annotations
 
 import argparse
-import json
-import sys
 import time
 from collections.abc import Callable
 from datetime import UTC, datetime
@@ -44,13 +42,11 @@ from tripl_cli.commands import (
     bounded_text,
     require_single_project,
 )
-from tripl_cli.commands._write import add_write_flags, request_document
+from tripl_cli.commands._write import add_write_flags, emit_mutation, request_document
 from tripl_cli.config import Config, require_base_url
 from tripl_cli.diagnostics.collect import Reader, instance_of
 from tripl_cli.errors import EXIT_OK, TriplConfigError
 from tripl_cli.model import JsonDict, MutationOutcome, Run, as_dict
-from tripl_cli.render import render_header, render_mutation
-from tripl_cli.report import mutation_document
 from tripl_cli.runner import run_async
 
 URL_SCHEMES = ("http", "https")
@@ -201,7 +197,7 @@ def run(args: argparse.Namespace, config: Config) -> int:
         deduplicated=_deduplicated(status),
         result=result,
     )
-    _emit(outcome, base_url=base_url, config=config, as_json=as_json)
+    emit_mutation(outcome, base_url=base_url, config=config, as_json=as_json)
     return EXIT_OK
 
 
@@ -210,16 +206,3 @@ def _deduplicated(status: int | None) -> bool | None:
     if status is None:
         return None
     return status == annotations_api.STATUS_DEDUPLICATED
-
-
-def _emit(outcome: MutationOutcome, *, base_url: str, config: Config, as_json: bool) -> None:
-    human = sys.stderr if as_json else sys.stdout
-    print(
-        render_header(outcome.command, base_url, config.sources.get("base_url", "unknown")),
-        file=human,
-    )
-    print(file=human)
-    print(render_mutation(outcome), file=human)
-    if as_json:
-        json.dump(mutation_document(outcome), sys.stdout)
-        sys.stdout.write("\n")

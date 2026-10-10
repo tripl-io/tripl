@@ -4,9 +4,11 @@ import type {
   OrgSettingsUpdate,
   OrgSettingsValues,
 } from '@/api/orgSettings'
+import { SOURCE_LEGEND } from '@/pages/settings-service/serviceSettingsHelpers'
+import { formatNumber } from '@/lib/format'
 
 /**
- * The pure half of Organization › Email, AI, Search, Storage and Limits (F20
+ * The pure half of Organization › Email, AI, Semantic search, Photos and Limits (F20
  * PR9-PR11): the draft,
  * what a save sends, and the rules the backend applies that the page has to
  * say out loud (credential groups, operator ceilings, the fallback policy).
@@ -201,7 +203,7 @@ export function numberError(field: string, value: DraftValue, settings: OrgSetti
   // The operator's own scope has no ceiling above it.
   if (settings.scope === 'organization' && isCeilingField(field)) {
     const ceiling = settings.ceilings[field]
-    if (Number(text) > ceiling) return `The operator's maximum is ${ceiling.toLocaleString('en-US')}.`
+    if (Number(text) > ceiling) return `The platform's maximum is ${formatNumber(ceiling)}.`
   }
   return null
 }
@@ -305,12 +307,15 @@ export function groupWarning(
   return { starting, missingSecret }
 }
 
-export const SECTION_TITLES: Record<OrgSection, string> = {
-  email: 'Email',
-  ai: 'AI',
-  search: 'Search',
-  storage: 'Photo storage',
-  limits: 'Limits',
+/**
+ * Whether any field of the section wears a source badge (every source but the
+ * built-in default does). Without one, a legend explaining the badges
+ * describes nothing on screen, as on a fresh instance.
+ */
+export function sectionShowsBadge(settings: OrgSettings, section: OrgSection): boolean {
+  return Object.entries(settings.sources).some(
+    ([key, source]) => key.startsWith(`${section}.`) && source !== 'default',
+  )
 }
 
 /** An organization's content types, lower-cased: `"image/png, IMAGE/GIF"` -> two. */
@@ -330,6 +335,13 @@ export function mimeListError(value: DraftValue, operatorAllowed: readonly strin
   const wanted = splitMimeList(value)
   if (wanted.length === 0) return 'List at least one content type, or use the inherited list.'
   const refused = wanted.filter(item => !operatorAllowed.includes(item))
-  if (refused.length > 0) return `Not allowed by the operator: ${refused.join(', ')}.`
+  if (refused.length > 0) return `Not allowed by the platform: ${refused.join(', ')}.`
   return null
+}
+
+/** What the badges mean, in the same two scopes as OrgFieldBadge (OrgSettingsPrimitives). */
+export function orgSourceLegend(scope: OrgSettings['scope']): string {
+  return scope === 'operator'
+    ? SOURCE_LEGEND
+    : "Organization: this organization's own value. Platform: the value set under Settings › Platform, used while the organization has none. Env: the server's environment. No badge: the built-in default."
 }

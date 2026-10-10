@@ -110,14 +110,6 @@ class DocTreeResponse(BaseModel):
     language_defaults: DocLanguageDefaults = Field(default_factory=DocLanguageDefaults)
 
 
-class DocLinkRef(BaseModel):
-    kind: DocLinkKind
-    target: str
-    qualifier: str | None = None
-    label: str | None = None
-    raw: str
-
-
 class DocLinkResolution(BaseModel):
     kind: DocLinkKind
     target: str

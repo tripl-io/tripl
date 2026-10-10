@@ -75,23 +75,21 @@ describe('surfaceMutationError', () => {
   })
 })
 
-describe('surfaceError with a message transform', () => {
-  const stripPrefix = (message: string) => message.replace(/^Value error, /, '')
-
-  it('rewrites the message and keeps the reference and the raw-error dedupe id', () => {
-    surfaceError(apiError(422, 'Value error, bad chat id', 'req-9'), stripPrefix)
+describe('surfaceError', () => {
+  it('toasts the message with its reference and the dedupe id', () => {
+    surfaceError(apiError(422, 'bad chat id', 'req-9'))
 
     expect(toast.error).toHaveBeenCalledWith('bad chat id\nReference: req-9', {
-      id: 'error:422:Value error, bad chat id',
+      id: 'error:422:bad chat id',
     })
   })
 
-  it('still leaves a 401 to the re-auth flow', () => {
-    surfaceError(apiError(401, 'Value error, Not authenticated'), stripPrefix)
+  it('leaves a 401 to the re-auth flow', () => {
+    surfaceError(apiError(401, 'Not authenticated'))
     expect(toast.error).not.toHaveBeenCalled()
   })
 
-  it('toasts the message unchanged without a transform', () => {
+  it('toasts a client-side error as it is', () => {
     surfaceError(new Error('Save failed'))
     expect(toast.error).toHaveBeenCalledWith('Save failed', { id: 'error:client:Save failed' })
   })

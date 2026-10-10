@@ -30,7 +30,7 @@ row, a count or a search hit.
 | Failing scans | Scans whose latest run failed |
 | Drifts | Open property drifts nobody has triaged |
 | Anomalies | Open anomaly signals |
-| Coverage | Implemented events out of active ones |
+| Coverage | Implemented events out of active ones, printed as on the project's own Coverage page (one decimal; 100% only when every active event is implemented; a dash with no active event) |
 | Failed runs, 7d | Failed scan runs over the last 7 days, out of all runs, with one bar per day |
 | Last scan | When the newest scan run ended |
 

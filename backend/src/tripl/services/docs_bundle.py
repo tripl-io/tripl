@@ -55,6 +55,7 @@ from tripl.services.docs_access import (
     docs_with_access,
     require_doc_writer,
     require_org_bulk_delete,
+    scope_filter,
 )
 from tripl.services.docs_frontmatter import DocContentError, ParsedDoc, parse_frontmatter
 from tripl.services.docs_paths import (
@@ -90,9 +91,7 @@ async def export_bundle(
     project = await _resolve_project(session, slug)
     docs = [
         doc
-        for doc, _ in await docs_with_access(
-            session, caller.user.id, store.scope_filter(project, scope)
-        )
+        for doc, _ in await docs_with_access(session, caller.user.id, scope_filter(project, scope))
     ]
     organization_slug: str | None = None
     organization = await session.get(Organization, project.organization_id)
@@ -309,7 +308,7 @@ async def import_bundle(
         errors=list(errors or []),
     )
     with_access = await docs_with_access(
-        session, user.id, store.scope_filter(project, scope), visible_only=False
+        session, user.id, scope_filter(project, scope), visible_only=False
     )
     existing = {doc.path_key: doc for doc, _ in with_access}
     access: dict[str, DocAccess] = {doc.path_key: rule for doc, rule in with_access}

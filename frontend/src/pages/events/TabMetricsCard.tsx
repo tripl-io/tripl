@@ -24,6 +24,7 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { aggregateMetricPoints, type MetricsGranularity } from '@/lib/metrics'
+import { metricCadence } from '@/lib/metricFormat'
 import type { ChartAnnotation, EventType, MonitoringSignal } from '@/types'
 
 import { getMonitoringPath } from '@/lib/monitoring'
@@ -156,6 +157,7 @@ export function TabMetricsCard({
   // the chart's range. Collapsed, the card does not fetch, so the
   // strip shows the line only while an earlier open left the series cached.
   const weekSummary = formatWeekSummary(tabMetrics)
+  const cadence = metricCadence(tabMetrics?.interval)
 
   return (
     <Collapsible open={isOpen} onOpenChange={onOpenChange}>
@@ -178,7 +180,8 @@ export function TabMetricsCard({
                 {tabMetrics?.scan_config_name ? ` · scan: ${tabMetrics.scan_config_name}` : ''}
                 {/* The collection interval rides in the subtitle instead of a
                     line of its own under the chart. */}
-                {tabMetrics?.interval ? ` · collected every ${tabMetrics.interval}` : ''}
+                {/* "hourly", as the Overview says it — not the raw "1h". */}
+                {cadence ? ` · collected ${cadence}` : ''}
                 {weekSummary ? ` · ${weekSummary}` : ''}.
                 {unappliedFilters.length > 0 && ` Not narrowed by ${unappliedFilters.join(', ')}.`}
               </p>

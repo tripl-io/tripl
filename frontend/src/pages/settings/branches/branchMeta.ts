@@ -6,6 +6,7 @@
 import type { ChipTone } from '@/components/primitives/chip'
 import { displayUser } from '@/hooks/useUsersById'
 import { formatRelativeTime } from '@/lib/datetime'
+import { eventAttributeLabel } from '@/lib/eventAttributes'
 import type {
   PlanBranchStatus,
   PlanBranchSummary,
@@ -33,8 +34,10 @@ export const ACTION_LABEL: Record<PlanBranchTransitionAction, string> = {
   submit: 'Submit for review',
   request_changes: 'Request changes',
   approve: 'Approve',
-  reopen: 'Reopen',
-  close: 'Close',
+  // "Branch" in both: a bare "Close" beside "Submit for review" read as
+  // closing the panel, and its confirm already says "Close branch".
+  reopen: 'Reopen branch',
+  close: 'Close branch',
 }
 
 /** Verdicts read the diff, so they wait for it; see FeatureBranchDetail. */
@@ -200,25 +203,24 @@ export function suggestBranchName(name: string): string | null {
   return suggestion && suggestion !== name.trim() ? suggestion : null
 }
 
-/** Readable labels for the entity keys a diff's full state carries.
- * Keys missing here are humanised ("sunset_at" → "Sunset at"). */
-const STATE_KEY_LABEL: Record<string, string> = {
-  event_type_name: 'Event type',
-  sunset_at: 'Sunset date',
-  superseded_by: 'Superseded by',
-  metric_breakdown_columns: 'Metric breakdowns',
-  field_values: 'Field values',
-  meta_values: 'Meta fields',
-  source_name: 'Source',
-  variable_type: 'Property type',
-  json_schema: 'JSON Schema',
-}
+/** The keys of the other plan entities' state that words alone get wrong. */
+const ENTITY_STATE_KEY_LABEL: ReadonlyMap<string, string> = new Map([
+  ['variable_type', 'Property type'],
+  ['json_schema', 'JSON Schema'],
+])
 
+/**
+ * The label of one key of a plan entity's stored state (the entities a branch
+ * diff carries). An event's keys, and the ones the other plan entities share
+ * with it (name, status, owner, scan identity, event type), read as the
+ * event's own pages name them (lib/eventAttributes), so a diff row and the
+ * "as merged" sheet beside it never name one field two ways. A key nothing
+ * names reads as words ("first_seen_at" → "First seen at"). Outside the plan
+ * the words can differ: a metric's `reviewed` flag is "Reviewed", an event's
+ * "Verified".
+ */
 export function stateKeyLabel(key: string): string {
-  const known = STATE_KEY_LABEL[key]
-  if (known) return known
-  const words = key.replace(/_/g, ' ').trim()
-  return words ? words.charAt(0).toUpperCase() + words.slice(1) : key
+  return ENTITY_STATE_KEY_LABEL.get(key) ?? eventAttributeLabel(key)
 }
 
 /** A state value that says nothing: null, empty text, an empty list or map. */

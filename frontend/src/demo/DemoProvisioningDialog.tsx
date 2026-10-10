@@ -82,7 +82,7 @@ function copyFor(
 ): { title: string; description: string } {
   if (status === 'error' && refusal === 'forbidden') {
     return {
-      title: 'Demo workspace not available',
+      title: 'Demo project not available',
       description: 'The server refused to create one, for the reason below. Nothing was created.',
     }
   }
@@ -108,21 +108,21 @@ function copyFor(
   }
   if (status === 'success') {
     return {
-      title: 'Demo workspace is ready',
+      title: 'Demo project is ready',
       description: 'Seeded with synthetic events, metrics and alert rules. Opening it now.',
     }
   }
   if (status === 'cancelling') {
     return {
       title: 'Cancelling demo generation',
-      description: 'Asking the server to stop before the workspace is created…',
+      description: 'Asking the server to stop before the demo project is created…',
     }
   }
   if (status === 'cancelled') {
     if (cancelOutcome === 'stopped') {
       return {
         title: 'Demo generation cancelled',
-        description: 'The workspace was discarded — nothing was added to your projects.',
+        description: 'The demo project was discarded — nothing was added to your projects.',
       }
     }
     if (cancelOutcome === 'already-finished') {
@@ -143,8 +143,8 @@ function copyFor(
     }
   }
   return {
-    title: 'Generating demo workspace',
-    description: `Seeding a fully-populated workspace with synthetic data. This takes ${DEMO_PROVISION_ESTIMATE}.`,
+    title: 'Generating demo project',
+    description: `Seeding a demo project with synthetic data. This takes ${DEMO_PROVISION_ESTIMATE}.`,
   }
 }
 
@@ -184,7 +184,7 @@ export function DemoProvisioningDialog({
   const announcement = isError
     ? null
     : isProvisioning
-      ? `Generating demo workspace — ${PROVISIONING_PHASES[phaseIndex]?.label ?? 'Working'}`
+      ? `Generating demo project — ${PROVISIONING_PHASES[phaseIndex]?.label ?? 'Working'}`
       : `${title}. ${description}`
 
   return (

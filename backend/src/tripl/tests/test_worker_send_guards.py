@@ -17,10 +17,16 @@ from tripl.worker.tasks.implementation_tickets import _is_transient_tracker_erro
 
 
 def test_alerts_can_be_imported_first_in_a_fresh_process() -> None:
+    """Entering the task graph at ``tasks.alerts`` must not land mid-cycle.
+
+    Callers import the alert task from ``tasks.alerts`` itself; the metrics
+    package does not re-export it.
+    """
     code = (
         "from tripl.worker.tasks.alerts import send_alert_delivery; "
         "from tripl.worker.tasks import metrics; "
-        "assert metrics.send_alert_delivery is send_alert_delivery"
+        "assert not hasattr(metrics, 'send_alert_delivery'); "
+        "assert send_alert_delivery.name == 'tripl.worker.tasks.alerts.send_alert_delivery'"
     )
     result = subprocess.run(
         [sys.executable, "-c", code],

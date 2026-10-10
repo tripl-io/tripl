@@ -51,12 +51,7 @@ from tripl.schemas.alerting import AlertDestinationCreate, AlertDestinationUpdat
 from tripl.schemas.app_settings import EmailSettingsUpdate
 from tripl.services import alerting_service
 from tripl.services.demo.builders.alerts import _build_firings, _delivery_item
-
-# Import the ``metrics`` package rather than ``tasks.alerts`` directly: the
-# celery task graph is cyclic, so entering at ``tasks.alerts`` in a process that
-# has not loaded the app yet lands mid-cycle and raises ImportError. Same order
-# ``_alerting_deliveries.retry_delivery`` imports in, for the same reason.
-from tripl.worker.tasks import metrics as alerts_task
+from tripl.worker.tasks import alerts as alerts_task
 from tripl.worker.tasks.alerts import _claim_delivery
 from tripl.worker.tasks.maintenance import STRANDED_DELIVERY_MINUTES
 
@@ -351,7 +346,7 @@ def test_a_destination_can_save_the_from_address_its_own_send_path_delivers() ->
     digest, ``alerts_channels._send_digest_to_destination`` for the weekly plan
     digest and the sunset alert — and both run it through
     ``validate_sender_address`` and hand the ORIGINAL string to ``msg["From"]``.
-    The destination's own Test button reads the same column into ``_TestTarget``
+    The destination's own Test button reads the same column into ``ChannelTarget``
     and accepts a display name there (``test_smtp_transport``). Only the SAVE
     refused it, so the value was unreachable: not a send-time surprise, a
     configuration the operator simply could not enter.

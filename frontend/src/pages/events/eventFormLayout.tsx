@@ -8,6 +8,7 @@
  */
 import { useId, type ComponentProps, type ReactNode } from 'react'
 import { ChevronDown } from 'lucide-react'
+import { PageBackLink } from '@/components/primitives/page-header'
 import { Field } from '@/components/settings/kit'
 import { INPUT_CLASS } from '@/components/settings/input-style'
 import { cn } from '@/lib/utils'
@@ -39,6 +40,15 @@ export type EvControlWidth = 'full' | 'half'
 export const EV_FULL_WIDTH_CLASS = 'w-full'
 export const EV_HALF_WIDTH_CLASS = 'max-w-[240px]'
 const HALF_WIDTH_PX = 240
+
+/**
+ * The authoring pages' back link. It names the section it returns to, as the
+ * metric and fact-table editors' do: the edit form's used to carry the event's
+ * own name, which is the page it sat on.
+ */
+export function EventsBackButton({ onClick }: { onClick: () => void }) {
+  return <PageBackLink label="Events" onClick={onClick} />
+}
 
 export function SurfCard({
   title,

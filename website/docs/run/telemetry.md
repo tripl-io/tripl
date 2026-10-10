@@ -5,14 +5,17 @@ sidebar_position: 9
 
 # Telemetry
 
-Tripl sends one small, anonymous ping a day, so the people who build it know
+tripl sends one small, anonymous ping a day, so the people who build it know
 how many instances keep running and on which warehouses. Nothing in it names
 a person, a team, a host or your data, and you can turn it off with one
 setting.
 
 ## On or off
 
-- **Community:** on by default. **Enterprise:** off by default.
+- **Community:** on by default. **Enterprise:** off by default. Enterprise
+  means the Enterprise package is installed: a Community server that runs
+  another extension (your own, or a third party's) is still Community, reports
+  `community` and keeps the default-on ping.
 - When it is on, the API says so at startup, in its log, with how to turn it
   off:
 
@@ -27,8 +30,12 @@ setting.
 - `tripl install --no-telemetry` writes `TELEMETRY_ENABLED=false` into the
   `.env` it creates, and `--telemetry` writes `true`. Without either, `install`
   leaves the edition's default and says on its output that telemetry is on.
+  `--no-telemetry` needs a `tripl` CLI newer than 0.3.1; the 0.3.1 CLI
+  writes `TELEMETRY_ENABLED=false` unless you pass `--telemetry`.
 - `TELEMETRY_ENDPOINT` says where the ping goes
-  (`https://telemetry.tripl.io/v1/ping` by default); empty sends nothing.
+  (`https://telemetry.tripl.io/v1/ping` by default). Empty or unset means that
+  default, so it is not an off switch: use `TELEMETRY_ENABLED=false` or
+  `DO_NOT_TRACK=1` and restart.
 
 A public demo instance (`PUBLIC_DEMO`) never sends it, whatever these say, and
 neither does the development stack (`compose.dev.yaml` sets
@@ -44,7 +51,7 @@ else:
 | `schema` | `1` | The document's version. |
 | `instance_id` | `"5f0c…"` | A random id, made the first time and kept in the database. It identifies the instance, not anyone using it. |
 | `version` | `"0.2.3"` | The server's version. |
-| `edition` | `"community"` | `community` or `enterprise`. |
+| `edition` | `"community"` | `enterprise` when the Enterprise package is installed, otherwise `community` (also with another extension loaded). |
 | `deployment_mode` | `"self_hosted"` | `self_hosted` or `hosted`. |
 | `warehouse_engines` | `["clickhouse"]` | Which engines your data sources use (`athena`, `bigquery`, `clickhouse`, `databricks`, `greenplum`, `postgres`, `redshift`, `snowflake`, `synthetic`, `trino`); never their hosts or names. |
 | `projects` | `"1-10"` | How many projects, as a range: `0`, `1-10`, `11-100`, `101-1000` or `1000+`. |

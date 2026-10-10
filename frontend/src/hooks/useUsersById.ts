@@ -15,8 +15,9 @@ export type UsersById = Map<string, string> & {
 }
 
 /**
- * The workspace roster as `id -> display name`, for turning a stored `user_id`
- * into a person.
+ * The organization's roster as `id -> display name`, for turning a stored
+ * `user_id` into a person. `usersApi.list` reads every page of it, so a member
+ * past the route's first page still has a name.
  *
  * Resolving client-side is the convention here rather than embedding a name in
  * every response: the id is already on the wire, and one shared `['users']`

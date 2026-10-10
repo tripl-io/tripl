@@ -3,7 +3,7 @@
 // chart.tsx and the chart tests import these.
 
 import type { MetricsGranularity } from '@/lib/metrics'
-import { APP_LOCALE, formatCompactNumber, formatNumber } from '@/lib/format'
+import { APP_LOCALE, formatNumber } from '@/lib/format'
 import { pluralize } from '@/lib/plural'
 
 // Time-zone policy for bucket labels, mirrored next to
@@ -247,13 +247,6 @@ export function summarizeForecastRange(
   if (buckets.length === 1) return `Forecast for ${start}`
   const end = formatTooltipLabel(last, granularity)
   return `Forecast from ${start} to ${end}`
-}
-
-// Compact axis/tick labels that never blow out the reserved Y-axis width
-// ("380k", "1.5M"). Defined once in lib/format.ts; the chart and its tests keep
-// the historical name.
-export function formatCount(value: number): string {
-  return formatCompactNumber(value)
 }
 
 // Approximate advance width (px) of one tick character at `text-body-sm`

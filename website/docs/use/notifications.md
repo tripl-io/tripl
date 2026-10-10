@@ -136,7 +136,8 @@ Notifications**:
   frequency, so you can keep a quiet digest and still hear about mentions by
   email, or turn mention emails off entirely.
 - A notification is emailed at most once, whichever path sends it.
-- Emails use the instance's SMTP settings. Without SMTP only in-app
+- Emails use the project organization's email settings (its own, or the
+  platform's it inherits). Without SMTP only in-app
   notifications work: no email is sent, the Profile section says so, and your
   choices are kept for when SMTP is set up. See
   [Configuration](../run/configuration.md).

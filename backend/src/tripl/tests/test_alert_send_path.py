@@ -57,7 +57,7 @@ from tripl.tests.test_alerting import (
     _seed_telegram_length_case,
     _telegram_units,
 )
-from tripl.worker.tasks import alerts, metrics
+from tripl.worker.tasks import alerts
 from tripl.worker.tasks.alerts import TELEGRAM_DELIVERED_ITEM_IDS_KEY, _claim_delivery
 from tripl.worker.tasks.alerts_channels import _send_digest_to_destination
 from tripl.worker.tasks.maintenance import STRANDED_DELIVERY_MINUTES
@@ -124,17 +124,17 @@ def test_a_refused_telegram_message_counts_each_delivered_item_once(
         accepted.append(text)
 
     monkeypatch.setitem(
-        metrics.send_alert_delivery.run.__globals__,
+        alerts.send_alert_delivery.run.__globals__,
         "_get_sync_session",
         sync_session_factory,
     )
     monkeypatch.setitem(
-        metrics.send_alert_delivery.run.__globals__,
+        alerts.send_alert_delivery.run.__globals__,
         "_post_json",
         telegram_post_json,
     )
 
-    result = metrics.send_alert_delivery.run(delivery_id)
+    result = alerts.send_alert_delivery.run(delivery_id)
 
     assert result["status"] == "failed"
     # Fixture guard, not an assertion about the fix: if the splitter ever stops
@@ -213,17 +213,17 @@ def test_a_refused_retry_still_counts_what_the_earlier_attempt_sent(
         accepted.append(text)
 
     monkeypatch.setitem(
-        metrics.send_alert_delivery.run.__globals__,
+        alerts.send_alert_delivery.run.__globals__,
         "_get_sync_session",
         sync_session_factory,
     )
     monkeypatch.setitem(
-        metrics.send_alert_delivery.run.__globals__,
+        alerts.send_alert_delivery.run.__globals__,
         "_post_json",
         telegram_post_json,
     )
 
-    first = metrics.send_alert_delivery.run(delivery_id)
+    first = alerts.send_alert_delivery.run(delivery_id)
     assert first["status"] == "failed"
     assert len(accepted) == 1
     landed = [name for name in scope_names if name in accepted[0]]
@@ -233,7 +233,7 @@ def test_a_refused_retry_still_counts_what_the_earlier_attempt_sent(
     _retry_from_inbox(sync_session_factory, delivery_id)
     refuse_everything = True
 
-    second = metrics.send_alert_delivery.run(delivery_id)
+    second = alerts.send_alert_delivery.run(delivery_id)
 
     assert second["status"] == "failed"
     assert len(accepted) == 1, "the resume must re-send nothing that already landed"
@@ -303,18 +303,18 @@ def test_a_second_worker_handed_a_claimed_delivery_sends_nothing(
         assert claimed_at is not None, "the first worker did not get the claim"
 
     monkeypatch.setitem(
-        metrics.send_alert_delivery.run.__globals__,
+        alerts.send_alert_delivery.run.__globals__,
         "_get_sync_session",
         sync_session_factory,
     )
     monkeypatch.setitem(
-        metrics.send_alert_delivery.run.__globals__,
+        alerts.send_alert_delivery.run.__globals__,
         "_post_json",
         telegram_post_json,
     )
 
     # Worker two: the reaper's redispatch of a row it believes stranded.
-    result = metrics.send_alert_delivery.run(delivery_id)
+    result = alerts.send_alert_delivery.run(delivery_id)
 
     assert result["status"] == "already_claimed"
     assert posts == [], "the reader was sent the same alert a second time"
@@ -375,17 +375,17 @@ def test_a_failed_attempt_releases_the_claim_so_a_retry_is_not_swallowed(
         posts.append(str(body["text"]))
 
     monkeypatch.setitem(
-        metrics.send_alert_delivery.run.__globals__,
+        alerts.send_alert_delivery.run.__globals__,
         "_get_sync_session",
         sync_session_factory,
     )
     monkeypatch.setitem(
-        metrics.send_alert_delivery.run.__globals__,
+        alerts.send_alert_delivery.run.__globals__,
         "_post_json",
         telegram_post_json,
     )
 
-    first = metrics.send_alert_delivery.run(delivery_id)
+    first = alerts.send_alert_delivery.run(delivery_id)
 
     assert first["status"] == "failed"
     assert posts == []
@@ -398,7 +398,7 @@ def test_a_failed_attempt_releases_the_claim_so_a_retry_is_not_swallowed(
     _retry_from_inbox(sync_session_factory, delivery_id)
     refuse = False
 
-    second = metrics.send_alert_delivery.run(delivery_id)
+    second = alerts.send_alert_delivery.run(delivery_id)
 
     assert second["status"] == "sent"
     assert len(posts) == 1, "the retry sent nothing"
@@ -454,12 +454,12 @@ def test_a_claim_a_dead_worker_left_behind_expires_on_the_reapers_horizon(
         posts.append(str(body["text"]))
 
     monkeypatch.setitem(
-        metrics.send_alert_delivery.run.__globals__,
+        alerts.send_alert_delivery.run.__globals__,
         "_get_sync_session",
         sync_session_factory,
     )
     monkeypatch.setitem(
-        metrics.send_alert_delivery.run.__globals__,
+        alerts.send_alert_delivery.run.__globals__,
         "_post_json",
         telegram_post_json,
     )
@@ -473,13 +473,13 @@ def test_a_claim_a_dead_worker_left_behind_expires_on_the_reapers_horizon(
             session.commit()
 
     leave_a_claim(STRANDED_DELIVERY_MINUTES - 1)
-    inside_lease = metrics.send_alert_delivery.run(delivery_id)
+    inside_lease = alerts.send_alert_delivery.run(delivery_id)
 
     assert inside_lease["status"] == "already_claimed"
     assert posts == [], "a live claim let a second worker send"
 
     leave_a_claim(STRANDED_DELIVERY_MINUTES + 1)
-    past_lease = metrics.send_alert_delivery.run(delivery_id)
+    past_lease = alerts.send_alert_delivery.run(delivery_id)
 
     assert past_lease["status"] == "sent"
     assert len(posts) == 1, "an abandoned claim stranded the delivery for good"
@@ -554,12 +554,12 @@ def test_a_delivery_is_not_sent_to_a_destination_switched_off_since_it_was_minte
         posts.append(str(body["text"]))
 
     monkeypatch.setitem(
-        metrics.send_alert_delivery.run.__globals__,
+        alerts.send_alert_delivery.run.__globals__,
         "_get_sync_session",
         sync_session_factory,
     )
     monkeypatch.setitem(
-        metrics.send_alert_delivery.run.__globals__,
+        alerts.send_alert_delivery.run.__globals__,
         "_post_json",
         telegram_post_json,
     )
@@ -568,7 +568,7 @@ def test_a_delivery_is_not_sent_to_a_destination_switched_off_since_it_was_minte
     # queued — the only way this row can exist at all.
     destination_name = _set_destination_enabled(sync_session_factory, delivery_id, enabled=False)
 
-    result = metrics.send_alert_delivery.run(delivery_id)
+    result = alerts.send_alert_delivery.run(delivery_id)
 
     assert result["status"] == "failed"
     assert posts == [], "an alert went to a destination the operator had switched off"
@@ -593,7 +593,7 @@ def test_a_delivery_is_not_sent_to_a_destination_switched_off_since_it_was_minte
     _set_destination_enabled(sync_session_factory, delivery_id, enabled=True)
     _retry_from_inbox(sync_session_factory, delivery_id)
 
-    second = metrics.send_alert_delivery.run(delivery_id)
+    second = alerts.send_alert_delivery.run(delivery_id)
 
     assert second["status"] == "sent"
     assert len(posts) == 1, "a re-enabled destination still refused the delivery"
@@ -818,17 +818,17 @@ def test_a_resumed_telegram_digest_still_summarises_the_whole_digest(
         posts.append(text)
 
     monkeypatch.setitem(
-        metrics.send_alert_delivery.run.__globals__,
+        alerts.send_alert_delivery.run.__globals__,
         "_get_sync_session",
         sync_session_factory,
     )
     monkeypatch.setitem(
-        metrics.send_alert_delivery.run.__globals__,
+        alerts.send_alert_delivery.run.__globals__,
         "_post_json",
         telegram_post_json,
     )
 
-    result = metrics.send_alert_delivery.run(delivery_id)
+    result = alerts.send_alert_delivery.run(delivery_id)
 
     assert result["status"] == "sent"
     # Fixture guard, not the contract: four items have to fit in ONE message,
@@ -914,17 +914,17 @@ def test_a_resumed_telegram_digest_does_not_regenerate_its_ai_note(
         return _AI_NOTE
 
     monkeypatch.setitem(
-        metrics.send_alert_delivery.run.__globals__,
+        alerts.send_alert_delivery.run.__globals__,
         "_get_sync_session",
         sync_session_factory,
     )
     monkeypatch.setitem(
-        metrics.send_alert_delivery.run.__globals__,
+        alerts.send_alert_delivery.run.__globals__,
         "_post_json",
         telegram_post_json,
     )
     monkeypatch.setitem(
-        metrics.send_alert_delivery.run.__globals__,
+        alerts.send_alert_delivery.run.__globals__,
         "_build_ai_explanation",
         build_ai_explanation,
     )
@@ -937,7 +937,7 @@ def test_a_resumed_telegram_digest_does_not_regenerate_its_ai_note(
     )
     _half_sent_telegram_digest(sync_session_factory, fresh_id, delivered=0)
 
-    first = metrics.send_alert_delivery.run(fresh_id)
+    first = alerts.send_alert_delivery.run(fresh_id)
 
     assert first["status"] == "sent"
     assert asked == [fresh_id], "the fixture never reached the digest's AI arm"
@@ -959,7 +959,7 @@ def test_a_resumed_telegram_digest_does_not_regenerate_its_ai_note(
         delivered=_DIGEST_DELIVERED,
     )
 
-    second = metrics.send_alert_delivery.run(resumed_id)
+    second = alerts.send_alert_delivery.run(resumed_id)
 
     assert second["status"] == "sent"
     assert asked == [fresh_id], "a resume re-asked the model for a note the reader already has"
@@ -1431,12 +1431,12 @@ def _email_send_harness(
         lambda *_args, **_kwargs: _email_config(default_from),
     )
     monkeypatch.setitem(
-        metrics.send_alert_delivery.run.__globals__,
+        alerts.send_alert_delivery.run.__globals__,
         "_get_sync_session",
         sync_session_factory,
     )
     monkeypatch.setitem(
-        metrics.send_alert_delivery.run.__globals__,
+        alerts.send_alert_delivery.run.__globals__,
         "_send_email_message",
         lambda **kwargs: sent.append(kwargs),
     )
@@ -1475,7 +1475,7 @@ def test_a_display_name_default_from_delivers_the_alert_instead_of_failing_it(
         default_from=_DISPLAY_NAME_FROM,
     )
 
-    result = metrics.send_alert_delivery.run(delivery_id)
+    result = alerts.send_alert_delivery.run(delivery_id)
 
     assert result["status"] == "sent", result
     assert len(sent) == 1, "the alert never reached the transport"
@@ -1526,7 +1526,7 @@ def test_a_default_from_with_no_at_sign_still_fails_before_any_smtp_call(
         default_from="not-an-address",
     )
 
-    result = metrics.send_alert_delivery.run(delivery_id)
+    result = alerts.send_alert_delivery.run(delivery_id)
 
     assert result["status"] == "failed", result
     assert sent == [], "a From: address with no @-sign was handed to SMTP"

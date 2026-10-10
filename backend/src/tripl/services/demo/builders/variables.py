@@ -154,15 +154,31 @@ async def _build_observed_values(session: AsyncSession, ctx: DemoContext) -> Non
 
 
 async def _build_authored_override(session: AsyncSession, ctx: DemoContext) -> None:
-    """One authored, documented per-event override (user-owned; not scan-written)."""
-    session.add(
-        VariableEventValueOverride(
-            project_id=ctx.project_id,
-            branch_id=ctx.branch_id,
-            variable_id=ctx.variable_ids["product_id"],
-            event_id=ctx.event_ids["Trial Started"],
-            values=["prod_monthly", "prod_annual"],
-        )
+    """The authored property-list rows (user-owned; never scan-written).
+
+    One documented per-event override (``product_id`` on Trial Started), and
+    ``platform`` listed as required on Home Screen View with no override: the
+    flagship event templates ``${platform}`` in a field value, so without the
+    row its Properties card reports a property in use that is not listed.
+    """
+    session.add_all(
+        [
+            VariableEventValueOverride(
+                project_id=ctx.project_id,
+                branch_id=ctx.branch_id,
+                variable_id=ctx.variable_ids["product_id"],
+                event_id=ctx.event_ids["Trial Started"],
+                values=["prod_monthly", "prod_annual"],
+            ),
+            VariableEventValueOverride(
+                project_id=ctx.project_id,
+                branch_id=ctx.branch_id,
+                variable_id=ctx.variable_ids["platform"],
+                event_id=ctx.event_ids["Home Screen View"],
+                values=None,
+                required=True,
+            ),
+        ]
     )
     await session.flush()
 

@@ -40,7 +40,7 @@ describe('Project · Plan rules', () => {
     renderPage()
 
     expect(screen.getByText('Across the organization')).toBeInTheDocument()
-    expect(screen.getByText('Organization rules are part of Tripl Enterprise.')).toBeInTheDocument()
+    expect(screen.getByText('Organization rules are part of tripl Enterprise.')).toBeInTheDocument()
     expect(screen.getByRole('link', { name: /Compare editions/ })).toHaveAttribute(
       'href',
       'https://docs.tripl.io/editions',

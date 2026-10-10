@@ -11,6 +11,7 @@ from tripl.api.deps import BranchIdDep, EditorUserDep, SessionDep
 from tripl.api.v1.events import bulk_event_audit_payload, event_create_audit_payload
 from tripl.models.domain_enums import ShadowEventStatus
 from tripl.models.user import User
+from tripl.schemas.pagination import Offset
 from tripl.schemas.reconciliation import (
     CoverageResponse,
     DeadEventListResponse,
@@ -40,7 +41,7 @@ async def list_shadow_events(
     limit: Annotated[int, Query(ge=1, le=500)] = 100,
     # True paging for the inbox; rows are ordered busiest first, ties
     # by id, so consecutive pages neither repeat nor skip a row.
-    offset: Annotated[int, Query(ge=0)] = 0,
+    offset: Offset = 0,
 ) -> ShadowEventListResponse:
     return await reconciliation_service.list_shadow_events(
         session,
