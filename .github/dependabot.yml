@@ -1,7 +1,14 @@
 version: 2
 updates:
+  # The service's lock, the CLI's and the MCP server's. The two PyPI packages
+  # ship version ranges, not their locks, so for them a bump reaches CI only;
+  # the tripl-mcp image, though, installs mcp-server/uv.lock as it stands.
+  # mcp-server resolves `tripl` from ../cli ([tool.uv.sources]).
   - package-ecosystem: uv
-    directory: /backend
+    directories:
+      - /backend
+      - /cli
+      - /mcp-server
     schedule:
       interval: weekly
     groups:
@@ -31,6 +38,50 @@ updates:
       - dependency-name: jsdom
         versions: ["30.1.x"]
 
+  # The docs site (docs.yml builds and publishes it).
+  - package-ecosystem: bun
+    directory: /website
+    schedule:
+      interval: weekly
+    groups:
+      minor-and-patch:
+        update-types:
+          - minor
+          - patch
+
+  # The images' FROM lines. In practice that is the uv build image, which the
+  # root Dockerfile, backend/Dockerfile and mcp-server/Dockerfile pin to one
+  # version: Dependabot opens a pull request per directory, so merge the three
+  # together.
+  - package-ecosystem: docker
+    directories:
+      - /
+      - /backend
+      - /mcp-server
+    schedule:
+      interval: weekly
+    groups:
+      minor-and-patch:
+        update-types:
+          - minor
+          - patch
+    ignore:
+      # One bun everywhere: these Dockerfiles, "packageManager" in frontend/,
+      # website/ and website/screenshots/package.json (CI installs that one)
+      # and the Enterprise Dockerfile name the same version, so it moves by
+      # hand, in all of them at once.
+      - dependency-name: oven/bun
+      # A new Python is a deliberate upgrade (.python-version, requires-python
+      # and every image at once), not a weekly bump. The runtime images'
+      # python:3.14-slim-trixie tag already picks up each 3.14 patch release
+      # and Debian fix when an image is built.
+      - dependency-name: python
+        update-types:
+          - version-update:semver-major
+          - version-update:semver-minor
+
+  # Every workflow pins its actions to a commit with the version in a comment;
+  # Dependabot moves the two together.
   - package-ecosystem: github-actions
     directory: /
     schedule:

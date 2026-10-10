@@ -1,8 +1,17 @@
 name: Release
 
 # Triggered by pushing a vX.Y.Z tag (see bin/release.sh). Runs the full CI
-# suite first, then builds the multi-arch single-container image and pushes it
-# to GHCR tagged X.Y.Z / X.Y / latest, and cuts a GitHub Release.
+# suite first, then builds two multi-arch images, the single-container app
+# (`image`) and the MCP server (`mcp-image`), pushes both to GHCR tagged
+# X.Y.Z / X.Y / latest, and cuts a GitHub Release. The same tag also starts
+# the five *-value-conformance.yml workflows (real cloud warehouses, each off
+# until its repository variable turns it on); they do not gate this one.
+#
+# Nothing is published from a commit that has not passed CI: the tag is
+# resolved to its commit once, the ci job runs the whole CI workflow on that
+# commit, and both image jobs build that same commit. On a manual re-run that
+# matters: started from main, the workflow's own commit is main's head, not the
+# release.
 on:
   push:
     tags:
@@ -14,34 +23,79 @@ on:
         description: "Existing tag to (re)build, e.g. v1.4.0"
         required: true
 
+# Read-only by default: the tag job and the CI gate need nothing more. The two
+# image jobs grant themselves the writes they make, and nothing else does.
+permissions:
+  contents: read
+
 jobs:
-  # Gate: reuse the PR/main CI so we never publish an image from red code.
+  tag:
+    name: Release tag
+    runs-on: ubuntu-latest
+    outputs:
+      tag: ${{ steps.version.outputs.tag }}
+      sha: ${{ steps.version.outputs.sha }}
+      short: ${{ steps.version.outputs.short }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event.inputs.tag || github.ref }}
+
+      - name: Version
+        id: version
+        env:
+          # Via env, not inline `${{ }}` in the script body: the value lands as
+          # data instead of being pasted into the shell.
+          TAG: ${{ github.event.inputs.tag || github.ref_name }}
+        run: |
+          if [[ ! "$TAG" =~ ^v([0-9]+\.[0-9]+\.[0-9]+)$ ]]; then
+            echo "::error::'$TAG' is not a release tag (vX.Y.Z)"
+            exit 1
+          fi
+          version="${BASH_REMATCH[1]}"
+          # bin/release.sh writes the version before it tags. A tag on any
+          # other commit would publish an image that reports another version.
+          if ! grep -qx "version = \"$version\"" backend/pyproject.toml; then
+            echo "::error::$TAG is not a commit made by bin/release.sh: backend/pyproject.toml does not carry $version"
+            exit 1
+          fi
+          sha="$(git rev-parse HEAD)"
+          {
+            echo "tag=$TAG"
+            echo "sha=$sha"
+            echo "short=${sha:0:7}"
+          } >> "$GITHUB_OUTPUT"
+
+  # Gate: reuse the PR/main CI, on the tagged commit, so we never publish an
+  # image from red code.
   ci:
+    needs: tag
     uses: ./.github/workflows/ci.yml
+    with:
+      ref: ${{ needs.tag.outputs.sha }}
 
   image:
     name: Build & push image
-    needs: ci
+    needs: [tag, ci]
     runs-on: ubuntu-latest
     permissions:
       contents: write   # create the GitHub Release
       packages: write   # push to GHCR
     steps:
       - name: Checkout
-        uses: actions/checkout@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          # On workflow_dispatch we check out the requested tag; on tag push the
-          # default ref is already the tag.
-          ref: ${{ github.event.inputs.tag || github.ref }}
+          ref: ${{ needs.tag.outputs.sha }}
 
       - name: Set up QEMU (arm64 emulation)
-        uses: docker/setup-qemu-action@v4
+        uses: docker/setup-qemu-action@99012661954931238ded8c8b007157a8430204e1 # v4.4.0
 
       - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v4
+        uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
 
       - name: Log in to GHCR
-        uses: docker/login-action@v4
+        uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
@@ -49,20 +103,23 @@ jobs:
 
       - name: Compute image tags & labels
         id: meta
-        uses: docker/metadata-action@v6
+        uses: docker/metadata-action@dc802804100637a589fabce1cb79ff13a1411302 # v6.2.0
         with:
           images: ghcr.io/${{ github.repository }}
-          # On tag push the version comes from the ref; on workflow_dispatch we
-          # pass the input so X.Y.Z / X.Y / latest still resolve correctly.
+          # The version comes from the tag job, so X.Y.Z / X.Y / latest resolve
+          # the same on a tag push and on a manual re-run. sha-<short> and the
+          # revision label name the commit built, not the workflow's own.
           tags: |
-            type=semver,pattern={{version}},value=${{ github.event.inputs.tag }}
-            type=semver,pattern={{major}}.{{minor}},value=${{ github.event.inputs.tag }}
-            type=sha,format=short
+            type=semver,pattern={{version}},value=${{ needs.tag.outputs.tag }}
+            type=semver,pattern={{major}}.{{minor}},value=${{ needs.tag.outputs.tag }}
+            type=raw,value=sha-${{ needs.tag.outputs.short }}
+          labels: |
+            org.opencontainers.image.revision=${{ needs.tag.outputs.sha }}
           # flavor latest=auto (default) tags :latest for stable (non-prerelease)
           # semver releases only.
 
       - name: Build & push (linux/amd64, linux/arm64)
-        uses: docker/build-push-action@v7
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
         with:
           context: .
           file: ./Dockerfile
@@ -76,9 +133,9 @@ jobs:
           provenance: false
 
       - name: Create GitHub Release
-        uses: softprops/action-gh-release@v3
+        uses: softprops/action-gh-release@efb35369e0ad2afab669f228072c1b0d510eae64 # v3.0.3
         with:
-          tag_name: ${{ github.event.inputs.tag || github.ref_name }}
+          tag_name: ${{ needs.tag.outputs.tag }}
           generate_release_notes: true
 
   # The MCP proxy is a SEPARATE image with its own Dockerfile — compose.yaml's
@@ -87,24 +144,24 @@ jobs:
   # Same tag scheme as the app image so the two move together.
   mcp-image:
     name: Build & push MCP image
-    needs: ci
+    needs: [tag, ci]
     runs-on: ubuntu-latest
     permissions:
       packages: write
     steps:
       - name: Checkout
-        uses: actions/checkout@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          ref: ${{ github.event.inputs.tag || github.ref }}
+          ref: ${{ needs.tag.outputs.sha }}
 
       - name: Set up QEMU (arm64 emulation)
-        uses: docker/setup-qemu-action@v4
+        uses: docker/setup-qemu-action@99012661954931238ded8c8b007157a8430204e1 # v4.4.0
 
       - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v4
+        uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
 
       - name: Log in to GHCR
-        uses: docker/login-action@v4
+        uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
@@ -112,16 +169,18 @@ jobs:
 
       - name: Compute image tags & labels
         id: meta
-        uses: docker/metadata-action@v6
+        uses: docker/metadata-action@dc802804100637a589fabce1cb79ff13a1411302 # v6.2.0
         with:
           images: ghcr.io/${{ github.repository }}-mcp
           tags: |
-            type=semver,pattern={{version}},value=${{ github.event.inputs.tag }}
-            type=semver,pattern={{major}}.{{minor}},value=${{ github.event.inputs.tag }}
-            type=sha,format=short
+            type=semver,pattern={{version}},value=${{ needs.tag.outputs.tag }}
+            type=semver,pattern={{major}}.{{minor}},value=${{ needs.tag.outputs.tag }}
+            type=raw,value=sha-${{ needs.tag.outputs.short }}
+          labels: |
+            org.opencontainers.image.revision=${{ needs.tag.outputs.sha }}
 
       - name: Build & push (linux/amd64, linux/arm64)
-        uses: docker/build-push-action@v7
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
         with:
           # Repo root, not ./mcp-server: the image builds the sibling `tripl`
           # package from ./cli, which a mcp-server/ context cannot reach.

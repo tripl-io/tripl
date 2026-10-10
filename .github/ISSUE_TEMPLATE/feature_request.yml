@@ -1,5 +1,5 @@
 name: Feature request
-description: Suggest something Tripl should do.
+description: Suggest something tripl should do.
 labels: [enhancement]
 body:
   - type: textarea

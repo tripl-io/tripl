@@ -1,0 +1,6 @@
+# The API reference pages' third-party bundles (ReDoc, Swagger UI), minified
+# and about 2.8 MB together: vendored, so they stay out of GitHub's language
+# statistics. swagger-init.js beside them is ours and is not listed.
+backend/src/tripl/api_docs/static/redoc.standalone.js linguist-vendored
+backend/src/tripl/api_docs/static/swagger-ui-bundle.js linguist-vendored
+backend/src/tripl/api_docs/static/swagger-ui.css linguist-vendored

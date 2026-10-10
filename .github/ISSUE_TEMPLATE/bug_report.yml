@@ -33,7 +33,26 @@ body:
     id: warehouse
     attributes:
       label: Warehouse
-      options: [ClickHouse, BigQuery, PostgreSQL, Demo project, Not relevant]
+      options:
+        - ClickHouse
+        - PostgreSQL
+        - Greenplum
+        - Amazon Redshift
+        - BigQuery
+        - Databricks
+        - Snowflake
+        - Trino
+        - Amazon Athena
+        - Demo project
+        - Not relevant
+  - type: dropdown
+    id: edition
+    attributes:
+      label: Edition
+      options:
+        - Community
+        - Enterprise
+        - Not sure
   - type: textarea
     id: logs
     attributes:
