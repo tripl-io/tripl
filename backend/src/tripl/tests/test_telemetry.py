@@ -64,10 +64,17 @@ def test_counts_are_ranges() -> None:
     ]  # fmt: skip
 
 
-def test_the_edition_is_enterprise_once_an_extension_loads() -> None:
+class _Enterprise(Extension):
+    name = telemetry_service.ENTERPRISE_EXTENSION
+
+
+def test_the_edition_is_enterprise_only_once_the_enterprise_extension_loads() -> None:
     with override_extensions([]):
         assert telemetry_service.edition() == "community"
+    # A third-party or in-house extension does not make an instance Enterprise.
     with override_extensions([Extension()]):
+        assert telemetry_service.edition() == "community"
+    with override_extensions([Extension(), _Enterprise()]):
         assert telemetry_service.edition() == "enterprise"
 
 
@@ -86,9 +93,17 @@ def test_unset_it_is_on_in_community_and_off_in_enterprise(
     monkeypatch.setattr(settings, "telemetry_enabled", None)
     with override_extensions([]):
         assert telemetry_service.inactive_reason() is None
-    with override_extensions([Extension()]):
+    with override_extensions([_Enterprise()]):
         assert telemetry_service.inactive_reason() == "enterprise default"
         monkeypatch.setattr(settings, "telemetry_enabled", True)
+        assert telemetry_service.inactive_reason() is None
+
+
+def test_a_non_enterprise_extension_keeps_the_community_default(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(settings, "telemetry_enabled", None)
+    with override_extensions([Extension()]):
         assert telemetry_service.inactive_reason() is None
 
 

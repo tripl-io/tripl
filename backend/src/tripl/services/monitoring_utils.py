@@ -42,7 +42,11 @@ _SCAN_INTERVAL_DELTAS: dict[str, timedelta] = {
 
 
 def _utc_bucket(bucket: datetime) -> datetime:
-    """SQLite drops timezone metadata from UTC buckets; restore it for comparisons."""
+    """SQLite drops timezone metadata from UTC buckets; restore it for comparisons.
+
+    ``core.bucketing.to_utc`` written out again, on purpose: this module imports
+    no ``tripl`` module at all (``test_monitoring_utils_is_a_pure_leaf``).
+    """
     if bucket.tzinfo is None:
         return bucket.replace(tzinfo=UTC)
     return bucket.astimezone(UTC)

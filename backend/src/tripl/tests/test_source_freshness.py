@@ -56,11 +56,7 @@ from tripl.services.source_freshness import (
 from tripl.tests import test_demo_runtime as demo_runtime_tests
 from tripl.tests.conftest import TestSessionLocal
 from tripl.tests.test_metrics_tasks import _create_scan_config
-
-# Import through the package first so the task graph initialises in order (see
-# test_demo_alert_sink.py): ``signals`` is reached via ``tasks.metrics``.
 from tripl.worker.tasks import demo_runtime
-from tripl.worker.tasks import metrics as _metrics_package  # noqa: F401
 from tripl.worker.tasks.metrics import detect as metrics_detect
 from tripl.worker.tasks.metrics import signals as metrics_signals
 from tripl.worker.tasks.metrics import tasks as metrics_tasks
@@ -789,9 +785,9 @@ def test_demo_recompute_respects_the_hold(
         )
         session.commit()
 
-        demo_runtime._recompute_anomalies(
-            session, seeded.project_id, seeded.scan_config_id, seed_now, hold_drops=True
-        )
+        config = session.get(ScanConfig, seeded.scan_config_id)
+        assert config is not None
+        demo_runtime._recompute_anomalies(session, config, seed_now, hold_drops=True)
         session.flush()
         held_drops = session.execute(
             select(MetricAnomaly).where(
@@ -801,9 +797,7 @@ def test_demo_recompute_respects_the_hold(
         ).all()
         assert held_drops == []
 
-        demo_runtime._recompute_anomalies(
-            session, seeded.project_id, seeded.scan_config_id, seed_now, hold_drops=False
-        )
+        demo_runtime._recompute_anomalies(session, config, seed_now, hold_drops=False)
         session.flush()
         released = session.execute(
             select(MetricAnomaly).where(

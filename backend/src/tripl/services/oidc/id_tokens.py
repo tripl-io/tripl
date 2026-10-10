@@ -159,3 +159,31 @@ def verify_id_token(
         name=(name.strip()[:255] or None) if isinstance(name, str) else None,
         raw_claims=claims,
     )
+
+
+def authenticate(
+    *,
+    issuer: str,
+    client_id: str,
+    client_secret: str,
+    code: str,
+    redirect_uri: str,
+    code_verifier: str,
+    nonce: str,
+) -> IdTokenClaims:
+    """A sign-in callback's provider half: discovery, code exchange, JWKS, id_token checks.
+
+    Blocking. The instance-wide sign-in and an organization's SSO both finish
+    through this, so the protocol has one implementation.
+    """
+    discovery = idp_http.fetch_discovery(issuer)
+    id_token = exchange_code(
+        discovery,
+        client_id=client_id,
+        client_secret=client_secret,
+        code=code,
+        redirect_uri=redirect_uri,
+        code_verifier=code_verifier,
+    )
+    keys = idp_http.fetch_jwks(discovery)
+    return verify_id_token(id_token, keys=keys, issuer=issuer, client_id=client_id, nonce=nonce)

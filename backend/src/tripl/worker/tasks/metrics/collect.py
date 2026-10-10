@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import logging
 import uuid
-from collections.abc import Iterator
 from datetime import datetime
 
 from sqlalchemy import and_, case, func, or_, select, update
@@ -15,6 +14,7 @@ from tripl.models.event_field_value import EventFieldValue
 from tripl.models.field_definition import FieldDefinition
 from tripl.models.implementation_ticket import ImplementationTicket
 from tripl.models.plan_branch import BranchKind, PlanBranch
+from tripl.services._id_chunks import chunked
 
 logger = logging.getLogger(__name__)
 
@@ -42,12 +42,6 @@ AUTO_LIVE_FROM: tuple[EventStatus, ...] = (EventStatus.ready_for_dev, EventStatu
 # server-side parameter.
 _MAX_BIND_PARAMS = 60000
 _MAX_EVENTS_PER_BUMP = _MAX_BIND_PARAMS // 5
-
-
-def _batched[ItemT](items: list[ItemT], size: int) -> Iterator[list[ItemT]]:
-    """Yield ``items`` in slices of at most ``size``."""
-    for start in range(0, len(items), size):
-        yield items[start : start + size]
 
 
 def _bump_event_last_seen(
@@ -104,7 +98,7 @@ def _bump_event_last_seen(
         if first is None or bucket < first:
             earliest_by_event[event_id] = bucket
 
-    for batch in _batched(list(latest_by_event.items()), _MAX_EVENTS_PER_BUMP):
+    for batch in chunked(list(latest_by_event.items()), _MAX_EVENTS_PER_BUMP):
         # The CASEs resolve to each row's OWN buckets, so the monotonic guards
         # stay per row exactly as the per-event form had them. The IN list is
         # load-bearing rather than redundant: without it a row outside the
@@ -153,7 +147,7 @@ def _events_missing_required_values(session: Session, event_ids: list[uuid.UUID]
     count as absent. One SELECT per batch.
     """
     missing: set[uuid.UUID] = set()
-    for batch_ids in _batched(event_ids, _MAX_EVENTS_PER_BUMP):
+    for batch_ids in chunked(event_ids, _MAX_EVENTS_PER_BUMP):
         rows = session.execute(
             select(Event.id)
             .join(
@@ -192,7 +186,7 @@ def _promote_seen_events(
     # Collected per previous status so the promotion costs one UPDATE per
     # status present rather than one per event.
     waiting: list[tuple[uuid.UUID, uuid.UUID, EventStatus]] = []
-    for batch_ids in _batched(list(latest_by_event.keys()), _MAX_EVENTS_PER_BUMP):
+    for batch_ids in chunked(list(latest_by_event.keys()), _MAX_EVENTS_PER_BUMP):
         rows = session.execute(
             select(Event.id, Event.project_id, Event.status)
             # Main only: the transition is a data fact about the live plan. A
@@ -243,7 +237,7 @@ def _promote_seen_events(
         # the activity rail through its EventChange row, attributed to the scan
         # (``activity_service._auto_transition_items``), not as an anonymous
         # "Event implemented" re-announcement of the row.
-        for batch_ids in _batched(promoted_ids, _MAX_EVENTS_PER_BUMP):
+        for batch_ids in chunked(promoted_ids, _MAX_EVENTS_PER_BUMP):
             session.execute(
                 update(Event)
                 .where(Event.id.in_(batch_ids), Event.status == previous)

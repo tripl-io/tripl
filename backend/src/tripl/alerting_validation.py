@@ -290,10 +290,10 @@ def validate_sender_address(value: str) -> str:
     way in (schemas/app_settings.py), ``alerts._resolve_email_context`` for the
     immediate alert and the combined digest,
     ``alerts_channels._send_digest_to_destination`` for the weekly plan digest
-    and the sunset alert, and the two test sends (``_email_test_send``,
-    ``_alerting_test_send``). Password-reset mail (``api/v1/auth.py``) reaches
-    the same end state by a shorter road: it validates nothing and passes the
-    configured string through.
+    and the sunset alert, and the two test sends (``_email_test_send``, and
+    ``alerts_plain`` for a destination's Test). Password-reset mail
+    (``api/v1/auth.py``) reaches the same end state by a shorter road: it
+    validates nothing and passes the configured string through.
 
     The per-destination From: OVERRIDE is on that list too:
     ``schemas.alerting`` saves it through this same helper, so a display name a

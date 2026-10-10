@@ -567,9 +567,10 @@ def test_the_delete_path_policy_is_pinned_against_the_executor() -> None:
 DELETE_PATH_CALLERS: dict[str, str] = {
     "services/event_service.py": "delete_event, bulk_delete_events",
     "services/event_type_service.py": "delete_event_type — its events go by DB cascade, unseen",
-    "services/plan_branch_merge_service.py": (
-        "_apply_merge, twice: main events orphaned by an event type the branch removed, "
-        "and main events the branch deleted"
+    "services/_plan_branch_merge_events.py": (
+        "the merge's two arms that delete main events: apply_event_types (main events "
+        "orphaned by an event type the branch removed) and apply_events (main events the "
+        "branch deleted)"
     ),
     "services/plan_branch_revert_service.py": (
         "revert_change, the 'added' arm — the branch-local event, or its event type's "

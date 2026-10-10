@@ -16,13 +16,12 @@ from collections.abc import Iterable
 from datetime import UTC, datetime, timedelta
 
 from sqlalchemy import func as sa_func
-from sqlalchemy import select, text
-from sqlalchemy.engine import Engine
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from tripl.config import settings
 from tripl.core.adapters.synthetic import SYNTHETIC_ONGOING_HOURS
-from tripl.core.bucketing import floor_to_bucket
+from tripl.core.bucketing import floor_to_bucket, to_utc
 from tripl.core.collection_progress import collection_progress_to
 from tripl.core.intervals import get_interval
 from tripl.models.domain_enums import MetricKind, MetricStatus
@@ -41,7 +40,6 @@ from tripl.worker.tasks.metrics._helpers import (
     _floor_to_interval,
     _get_active_scan_jobs,
     _get_sync_session,
-    _normalize_job_timestamp,
     _parse_task_datetime,
 )
 from tripl.worker.tasks.metrics.metric_collect import (
@@ -60,6 +58,7 @@ from tripl.worker.tasks.metrics.tasks import (
     _last_collected_window_to,
     collect_metrics,
 )
+from tripl.worker.utils.advisory_lock import release_advisory_lock, try_acquire_advisory_lock
 
 logger = logging.getLogger(__name__)
 
@@ -73,10 +72,12 @@ logger = logging.getLogger(__name__)
 # cache added earlier has nothing to reuse.
 #
 # The demo does NOT go dark between runs: ``advance_demos`` already appends
-# hourly buckets and re-runs the real detector for volume anomalies every hour,
-# so the series and the headline signals stay live. What this cooldown defers is
-# the part only the scheduled collection produces — breakdown anomalies and
-# distribution drift — from 24x a day to 4x, which for a demo is invisible.
+# hourly buckets and re-runs this collection's own volume-scope detection
+# (``detect._recalculate_metric_anomalies`` without the catalog-metric scopes)
+# every hour, so the series and the headline signals stay live. What this
+# cooldown defers is the part only the scheduled collection produces —
+# breakdown anomalies, distribution drift and catalog-metric anomalies — from
+# 24x a day to 4x, which for a demo is invisible.
 #
 # Deliberately NOT implemented by lengthening ``ScanConfig.interval``: that is
 # the BUCKET size, and the demo's whole seasonality story (periods 24 and 168 in
@@ -117,7 +118,7 @@ def _hours_since_last_scheduled_collection(
     for created_at, result_summary in rows:
         if not _is_dispatcher_collection_job(result_summary):
             continue
-        created = _normalize_job_timestamp(created_at)
+        created = to_utc(created_at)
         if created is None:
             continue
         return (now - created).total_seconds() / 3600.0
@@ -203,7 +204,7 @@ def _consecutive_failure_streak(
             # ``created_at`` for a row that somehow never got stamped, so a NULL
             # can't be read as "failed infinitely long ago" and defeat the wait.
             stamped = completed_at if completed_at is not None else created_at
-            last_failure_at = _normalize_job_timestamp(stamped)
+            last_failure_at = to_utc(stamped)
     return streak, last_failure_at
 
 
@@ -266,7 +267,7 @@ def scan_config_collection_progress(
         if not isinstance(summary, dict) or not _is_dispatcher_collection_job(summary):
             continue
         if last_collected_at is None and completed_at is not None:
-            last_collected_at = _normalize_job_timestamp(completed_at)
+            last_collected_at = to_utc(completed_at)
         raw_to = summary.get("time_to")
         if watermark is None and isinstance(raw_to, str):
             with contextlib.suppress(ValueError):
@@ -380,24 +381,13 @@ def check_metrics_due() -> dict[str, int]:
     session = _get_sync_session()
     lock_conn = None
     try:
-        bind = session.bind
-        if bind is not None and bind.dialect.name == "postgresql":
-            engine = bind if isinstance(bind, Engine) else bind.engine
-            lock_conn = engine.connect().execution_options(isolation_level="AUTOCOMMIT")
-            acquired = bool(
-                lock_conn.execute(
-                    text("SELECT pg_try_advisory_lock(:key)"),
-                    {"key": _DISPATCH_ADVISORY_LOCK_KEY},
-                ).scalar()
+        lock_conn, acquired = try_acquire_advisory_lock(session, _DISPATCH_ADVISORY_LOCK_KEY)
+        if not acquired:
+            logger.info(
+                "check_metrics_due: another dispatch run holds the advisory "
+                "lock; skipping this tick"
             )
-            if not acquired:
-                logger.info(
-                    "check_metrics_due: another dispatch run holds the advisory "
-                    "lock; skipping this tick"
-                )
-                lock_conn.close()
-                lock_conn = None
-                return {"checked": 0, "dispatched": 0}
+            return {"checked": 0, "dispatched": 0}
 
         config_rows = session.execute(
             select(
@@ -596,49 +586,8 @@ def check_metrics_due() -> dict[str, int]:
         logger.exception("check_metrics_due failed")
         raise
     finally:
-        if lock_conn is not None:
-            try:
-                lock_conn.execute(
-                    text("SELECT pg_advisory_unlock(:key)"),
-                    {"key": _DISPATCH_ADVISORY_LOCK_KEY},
-                )
-            except Exception:  # pragma: no cover - best-effort lock release
-                logger.exception("Failed to release check_metrics_due advisory lock")
-            finally:
-                lock_conn.close()
+        release_advisory_lock(lock_conn, _DISPATCH_ADVISORY_LOCK_KEY, name="check_metrics_due")
         session.close()
-
-
-def _try_acquire_advisory_lock(session: object, key: int) -> tuple[object | None, bool]:
-    """Try to grab a Postgres session advisory lock; no-op (acquired) elsewhere.
-
-    Returns ``(lock_conn, acquired)``. On non-Postgres backends (SQLite tests)
-    there is no lock, so it always reports acquired with ``lock_conn=None``.
-    """
-    bind = getattr(session, "bind", None)
-    if bind is None or bind.dialect.name != "postgresql":
-        return None, True
-    engine = bind if isinstance(bind, Engine) else bind.engine
-    lock_conn = engine.connect().execution_options(isolation_level="AUTOCOMMIT")
-    acquired = bool(
-        lock_conn.execute(text("SELECT pg_try_advisory_lock(:key)"), {"key": key}).scalar()
-    )
-    if not acquired:
-        lock_conn.close()
-        return None, False
-    return lock_conn, True
-
-
-def _release_advisory_lock(lock_conn: object | None, key: int) -> None:
-    """Best-effort release of an advisory lock acquired above."""
-    if lock_conn is None:
-        return
-    try:
-        lock_conn.execute(text("SELECT pg_advisory_unlock(:key)"), {"key": key})  # type: ignore[attr-defined]
-    except Exception:  # pragma: no cover - best-effort lock release
-        logger.exception("Failed to release metric-definition dispatch advisory lock")
-    finally:
-        lock_conn.close()  # type: ignore[attr-defined]
 
 
 def _metric_collection_in_progress(definition: MetricDefinition, *, now: datetime) -> bool:
@@ -651,7 +600,7 @@ def _metric_collection_in_progress(definition: MetricDefinition, *, now: datetim
     """
     if definition.last_collection_status != COLLECTION_STATUS_RUNNING:
         return False
-    activity_at = _normalize_job_timestamp(definition.updated_at)
+    activity_at = to_utc(definition.updated_at)
     return now - activity_at < STALE_ACTIVE_SCAN_JOB_TIMEOUT
 
 
@@ -784,7 +733,7 @@ def _metric_definition_error_backoff(
     # produced by the fix for it. They keep the old reading until their next
     # real failure stamps the column.
     failed_at = definition.last_collection_failed_at or definition.updated_at
-    waited = now - _normalize_job_timestamp(failed_at)
+    waited = now - to_utc(failed_at)
     if waited >= delay:
         return None
     return waited, delay
@@ -823,7 +772,7 @@ def check_metric_definitions_due() -> dict[str, int]:
     session = _get_sync_session()
     lock_conn = None
     try:
-        lock_conn, acquired = _try_acquire_advisory_lock(
+        lock_conn, acquired = try_acquire_advisory_lock(
             session, _METRIC_DEFINITION_DISPATCH_ADVISORY_LOCK_KEY
         )
         if not acquired:
@@ -939,5 +888,9 @@ def check_metric_definitions_due() -> dict[str, int]:
         logger.exception("check_metric_definitions_due failed")
         raise
     finally:
-        _release_advisory_lock(lock_conn, _METRIC_DEFINITION_DISPATCH_ADVISORY_LOCK_KEY)
+        release_advisory_lock(
+            lock_conn,
+            _METRIC_DEFINITION_DISPATCH_ADVISORY_LOCK_KEY,
+            name="check_metric_definitions_due",
+        )
         session.close()

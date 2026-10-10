@@ -29,7 +29,6 @@ from tripl.models.event_type_relation import EventTypeRelation
 from tripl.models.meta_field_definition import MetaFieldDefinition
 from tripl.models.plan_branch import BranchKind, PlanBranch
 from tripl.models.plan_revision import PlanRevision
-from tripl.models.project import Project
 from tripl.models.variable import Variable
 from tripl.models.variable_event_value_override import (
     VariableEventValueOverride,
@@ -260,10 +259,6 @@ def _meta_value_order(member: dict[str, Any]) -> tuple[str, str]:
     halves so a hand-edited payload cannot make the sort raise.
     """
     return (str(member.get("meta_field_name", "")), str(member.get("value", "")))
-
-
-async def _resolve_project(session: AsyncSession, slug: str) -> Project:
-    return await resolve_project(session, slug, detail=f"Project '{slug}' not found")
 
 
 async def build_plan_snapshot(
@@ -1569,7 +1564,7 @@ async def create_revision(
     *,
     user_id: uuid.UUID | None = None,
 ) -> PlanRevisionDetail:
-    project = await _resolve_project(session, slug)
+    project = await resolve_project(session, slug)
     payload = await build_plan_snapshot(session, project.id)
     revision = PlanRevision(
         project_id=project.id,
@@ -1599,7 +1594,7 @@ async def list_revisions(
     offset: int = 0,
     limit: int = PLAN_REVISIONS_DEFAULT_LIMIT,
 ) -> PlanRevisionList:
-    project = await _resolve_project(session, slug)
+    project = await resolve_project(session, slug)
     total = (
         await session.execute(
             select(func.count(PlanRevision.id)).where(PlanRevision.project_id == project.id)
@@ -1641,7 +1636,7 @@ async def _get_revision(
 async def get_revision(
     session: AsyncSession, slug: str, revision_id: uuid.UUID
 ) -> PlanRevisionDetail:
-    project = await _resolve_project(session, slug)
+    project = await resolve_project(session, slug)
     revision = await _get_revision(session, project.id, revision_id)
     return PlanRevisionDetail(
         id=revision.id,
@@ -1662,7 +1657,7 @@ async def diff_revisions(
     revision_id: uuid.UUID,
     compare_to: uuid.UUID,
 ) -> PlanDiff:
-    project = await _resolve_project(session, slug)
+    project = await resolve_project(session, slug)
     new_rev = await _get_revision(session, project.id, revision_id)
     old_rev = await _get_revision(session, project.id, compare_to)
     # Both are snapshots of main, whose rows are their own origin.

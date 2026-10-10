@@ -10,6 +10,7 @@ from fastapi import HTTPException
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from tripl.core.bucketing import to_utc
 from tripl.models.alert_delivery import AlertDelivery, AlertDeliveryStatus
 from tripl.models.alert_delivery_item import AlertDeliveryItem
 from tripl.models.alert_destination import AlertDestination
@@ -187,12 +188,8 @@ async def _load_firing_scopes(
                 last_notified_at=state.last_notified_at,
             )
         )
-    scopes.sort(key=lambda scope: _utc(scope.last_anomaly_bucket), reverse=True)
+    scopes.sort(key=lambda scope: to_utc(scope.last_anomaly_bucket), reverse=True)
     return scopes
-
-
-def _utc(value: datetime) -> datetime:
-    return value.replace(tzinfo=UTC) if value.tzinfo is None else value.astimezone(UTC)
 
 
 async def _build_monitor_detail(
@@ -332,8 +329,7 @@ async def mute_monitor(
     # SQLite-naive column compares as UTC wall time. Coercing before the write
     # also means the row stores the instant the check passed on, without
     # depending on how the driver resolves a naive value into a ``timestamptz``.
-    if muted_until.tzinfo is None:
-        muted_until = muted_until.replace(tzinfo=UTC)
+    muted_until = to_utc(muted_until)
     if muted_until <= now:
         raise HTTPException(status_code=422, detail="muted_until must be in the future")
     rule.muted_until = muted_until

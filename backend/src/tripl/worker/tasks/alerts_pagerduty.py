@@ -200,17 +200,17 @@ def resolve_event(*, routing_key: str, dedup_key: str) -> dict[str, object]:
 
 
 def build_test_trigger_and_resolve(
-    *, routing_key: str, summary: str, component: str, message: str
+    *, summary: str, component: str, message: str
 ) -> list[dict[str, object]]:
     """The Test button's two events: a low-severity trigger and its resolve.
 
     ``info`` severity so a service whose urgency follows severity does not
     wake anyone; a fresh dedup key per press so a test never folds into, or
-    resolves, a real incident.
+    resolves, a real incident. Without ``routing_key``: the plain send adds the
+    destination's (``alerts_plain.send_plain_message``).
     """
     dedup_key = f"tripl-test-{uuid.uuid4()}"
     trigger: dict[str, object] = {
-        "routing_key": routing_key,
         "event_action": "trigger",
         "dedup_key": dedup_key,
         "payload": {
@@ -221,7 +221,7 @@ def build_test_trigger_and_resolve(
             "custom_details": {"event": "tripl.destination_test", "message": message},
         },
     }
-    return [trigger, resolve_event(routing_key=routing_key, dedup_key=dedup_key)]
+    return [trigger, {"event_action": "resolve", "dedup_key": dedup_key}]
 
 
 def send_pagerduty_event(

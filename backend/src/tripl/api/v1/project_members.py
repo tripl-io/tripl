@@ -10,9 +10,15 @@ key must not be able to grant itself (or anyone else) a project.
 
 import uuid
 
-from fastapi import APIRouter, HTTPException, Request, status
+from fastapi import APIRouter, Request
 
-from tripl.api.deps import CurrentUserDep, EditorUserDep, ProjectRoleDep, SessionDep
+from tripl.api.deps import (
+    CurrentUserDep,
+    EditorUserDep,
+    ProjectRoleDep,
+    SessionDep,
+    require_browser_session,
+)
 from tripl.schemas.project_member import (
     ProjectMemberCreate,
     ProjectMemberResponse,
@@ -23,13 +29,7 @@ from tripl.services.project_lookup import resolve_project
 
 router = APIRouter(prefix="/projects/{slug}/members", tags=["project-members"])
 
-
-def _require_session_auth(request: Request) -> None:
-    if getattr(request.state, "api_key_scope", None) is not None:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Project membership management requires a user session",
-        )
+SESSION_REQUIRED = "Project membership management requires a user session"
 
 
 @router.get("", response_model=list[ProjectMemberResponse])
@@ -49,7 +49,7 @@ async def add_member(
     slug: str,
     data: ProjectMemberCreate,
 ) -> ProjectMemberResponse:
-    _require_session_auth(request)
+    require_browser_session(request, SESSION_REQUIRED)
     project = await resolve_project(session, slug)
     project_member_service.require_member_manager(project_role, current_user, project)
     member = await project_member_service.add_member(
@@ -78,7 +78,7 @@ async def update_member(
     user_id: uuid.UUID,
     data: ProjectMemberUpdate,
 ) -> ProjectMemberResponse:
-    _require_session_auth(request)
+    require_browser_session(request, SESSION_REQUIRED)
     project = await resolve_project(session, slug)
     project_member_service.require_member_manager(project_role, current_user, project)
     member, previous = await project_member_service.update_member(
@@ -110,7 +110,7 @@ async def remove_member(
     slug: str,
     user_id: uuid.UUID,
 ) -> None:
-    _require_session_auth(request)
+    require_browser_session(request, SESSION_REQUIRED)
     project = await resolve_project(session, slug)
     project_member_service.require_member_manager(project_role, current_user, project)
     removed = await project_member_service.remove_member(session, project, user_id=user_id)

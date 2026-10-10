@@ -380,7 +380,9 @@ async def doc_link_suggestions(
 @router.get(
     "/export",
     response_model=DocBundle,
-    responses={200: {"content": {"application/zip": {}}}},
+    responses={
+        200: {"content": {"application/zip": {"schema": {"type": "string", "format": "binary"}}}}
+    },
 )
 async def export_docs(
     request: Request,

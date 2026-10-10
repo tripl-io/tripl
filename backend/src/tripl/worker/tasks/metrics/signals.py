@@ -51,6 +51,7 @@ from tripl.core.analyzers.anomaly_detector import (
     settling_buckets_for,
 )
 from tripl.core.bucketing import to_utc
+from tripl.core.drift_activity import active_drift_clauses, retention_cutoff
 from tripl.metric_grid import metric_grid_stmt, metric_grids
 from tripl.metric_monitoring import monitored_metric_criteria
 from tripl.models.distribution_drift import DistributionDrift
@@ -71,6 +72,7 @@ from tripl.models.scan_config import ScanConfig
 from tripl.models.schema_drift import SchemaDrift
 from tripl.models.variable import Variable
 from tripl.models.variable_value_drift import VariableValueDrift
+from tripl.services.alerting_rendering import format_distribution_drift_sample, trim_alert_text
 from tripl.services.monitoring_utils import (
     classify_signal_state,
     recent_signal_window_from_hours,
@@ -89,27 +91,6 @@ from tripl.services.source_freshness import (
 )
 
 from ._helpers import SCOPE_SCHEMA_DRIFT
-from .urls import _trim_alert_text
-
-
-def _format_distribution_drift_sample(drift: DistributionDrift) -> str:
-    parts = [f"psi={drift.psi:.3f}"]
-    top_movers = drift.top_movers or []
-    mover_parts: list[str] = []
-    for mover in top_movers[:3]:
-        value = str(mover.get("value", ""))
-        baseline_share = _mover_float(mover.get("baseline_share")) * 100
-        current_share = _mover_float(mover.get("current_share")) * 100
-        mover_parts.append(f"{value} {baseline_share:.1f}%->{current_share:.1f}%")
-    if mover_parts:
-        parts.append(", ".join(mover_parts))
-    return _trim_alert_text("; ".join(parts)) or ""
-
-
-def _mover_float(value: object) -> float:
-    if isinstance(value, (int, float, str)):
-        return float(value)
-    return 0.0
 
 
 def _scan_config_freshness_inputs(
@@ -503,7 +484,7 @@ def _get_active_schema_drift_candidates(
     session: Session,
     config: ScanConfig,
 ) -> dict[tuple[str, str], SchemaDriftAlertCandidate]:
-    retention_cutoff = datetime.now(UTC) - timedelta(days=30)
+    now = datetime.now(UTC)
     candidates: dict[tuple[str, str], SchemaDriftAlertCandidate] = {}
     for drift in session.execute(
         select(SchemaDrift)
@@ -511,11 +492,8 @@ def _get_active_schema_drift_candidates(
         .where(
             EventType.project_id == config.project_id,
             SchemaDrift.scan_config_id == config.id,
-            SchemaDrift.detected_at >= retention_cutoff,
-            SchemaDrift.status.in_(("open", "snoozed")),
-            (SchemaDrift.status != "snoozed")
-            | (SchemaDrift.snoozed_until.is_(None))
-            | (SchemaDrift.snoozed_until <= datetime.now(UTC)),
+            SchemaDrift.detected_at >= retention_cutoff(now),
+            *active_drift_clauses(SchemaDrift, now),
         )
         .order_by(SchemaDrift.detected_at.desc())
     ).scalars():
@@ -533,7 +511,7 @@ def _get_active_schema_drift_candidates(
             expected_count=0.0,
             drift_field=drift.field_name,
             drift_type=drift.drift_type,
-            sample_value=_trim_alert_text(drift.sample_value),
+            sample_value=trim_alert_text(drift.sample_value),
         )
         candidates[(candidate.scope_type, candidate.scope_ref)] = candidate
     return candidates
@@ -564,7 +542,7 @@ def _get_active_variable_value_drift_candidates(
     MAPPING above is not a trade — change it here and it has to change there, or
     the simulator starts describing a firing differently from the send.
     """
-    retention_cutoff = datetime.now(UTC) - timedelta(days=30)
+    now = datetime.now(UTC)
     candidates: dict[tuple[str, str], DriftAlertCandidate] = {}
     for drift, variable_name in session.execute(
         select(VariableValueDrift, Variable.name)
@@ -573,11 +551,8 @@ def _get_active_variable_value_drift_candidates(
             VariableValueDrift.project_id == config.project_id,
             VariableValueDrift.scan_config_id == config.id,
             Variable.excluded_from_scans.is_(False),
-            VariableValueDrift.detected_at >= retention_cutoff,
-            VariableValueDrift.status.in_(("open", "snoozed")),
-            (VariableValueDrift.status != "snoozed")
-            | (VariableValueDrift.snoozed_until.is_(None))
-            | (VariableValueDrift.snoozed_until <= datetime.now(UTC)),
+            VariableValueDrift.detected_at >= retention_cutoff(now),
+            *active_drift_clauses(VariableValueDrift, now),
         )
         .order_by(VariableValueDrift.detected_at.desc())
     ).all():
@@ -595,7 +570,7 @@ def _get_active_variable_value_drift_candidates(
             expected_count=0.0,
             drift_field=variable_name,
             drift_type="value_drift",
-            sample_value=_trim_alert_text(", ".join(drift.observed_values or [])),
+            sample_value=trim_alert_text(", ".join(drift.observed_values or [])),
         )
         candidates[(candidate.scope_type, candidate.scope_ref)] = candidate
     return candidates
@@ -613,7 +588,6 @@ def _get_active_property_drift_candidates(
     which the in-UI replay (``services.alerting_service``) calls too.
     """
     now = datetime.now(UTC)
-    retention_cutoff = now - timedelta(days=30)
     candidates: dict[tuple[str, str], DriftAlertCandidate] = {}
     for drift, variable_name in session.execute(
         select(PropertyDrift, Variable.name)
@@ -621,7 +595,7 @@ def _get_active_property_drift_candidates(
         .where(
             PropertyDrift.project_id == config.project_id,
             PropertyDrift.scan_config_id == config.id,
-            PropertyDrift.detected_at >= retention_cutoff,
+            PropertyDrift.detected_at >= retention_cutoff(now),
             *active_property_drift_filters(now),
         )
         .order_by(PropertyDrift.detected_at.desc())
@@ -743,7 +717,7 @@ def _get_active_distribution_drift_candidates(
             expected_count=float(drift.baseline_total),
             drift_field=drift.field_name,
             drift_type="distribution_shift",
-            sample_value=_format_distribution_drift_sample(drift),
+            sample_value=format_distribution_drift_sample(drift),
         )
         candidates[(candidate.scope_type, candidate.scope_ref)] = candidate
     return candidates
@@ -851,8 +825,8 @@ def _get_source_freshness_candidates(
         direction="drop",
         actual_count=_hours(lag),
         expected_count=_hours(allowed),
-        drift_field=_trim_alert_text(config.name, max_length=255),
+        drift_field=trim_alert_text(config.name, max_length=255),
         drift_type=FRESHNESS_DRIFT_TYPES[freshness.status],
-        sample_value=_trim_alert_text(detail),
+        sample_value=trim_alert_text(detail),
     )
     return {(candidate.scope_type, candidate.scope_ref): candidate}

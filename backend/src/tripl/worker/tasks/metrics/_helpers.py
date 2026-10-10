@@ -9,24 +9,21 @@ from __future__ import annotations
 
 import logging
 import uuid
-from datetime import UTC, datetime, timedelta
+from datetime import datetime, timedelta
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from tripl.core.bucketing import EPOCH, WEEK_ORIGIN
+from tripl.core.bucketing import EPOCH, WEEK_ORIGIN, to_utc
 from tripl.models.domain_enums import MetricScopeType
 from tripl.models.scan_job import ScanJob, ScanJobStatus
-from tripl.services import monitoring_utils
 from tripl.worker.db import _build_adapter, _get_sync_session
 
 __all__ = [
     "ACTIVE_SCAN_JOB_STATUSES",
     "MAX_BREAKDOWN_VALUE_LENGTH",
-    "RECENT_SIGNAL_WINDOW",
     "SCOPE_SCHEMA_DRIFT",
     "STALE_ACTIVE_SCAN_JOB_TIMEOUT",
-    "TERMINAL_SCAN_JOB_STATUSES",
     "_build_adapter",
     "_ceil_to_interval",
     "_fail_stale_active_scan_job",
@@ -35,7 +32,6 @@ __all__ = [
     "_get_active_scan_jobs",
     "_get_scan_job_activity_at",
     "_get_sync_session",
-    "_normalize_job_timestamp",
     "_parse_task_datetime",
 ]
 
@@ -45,36 +41,12 @@ ACTIVE_SCAN_JOB_STATUSES = (
     ScanJobStatus.pending.value,
     ScanJobStatus.running.value,
 )
-# Statuses from which a job never runs again. ``running`` is deliberately NOT
-# here: with ``task_acks_late`` a redelivered message legitimately re-enters its
-# OWN running job and resumes from the chunks its ``result_summary`` records
-# (see ``collect_metrics``). Terminal means somebody else already closed the row
-# — the user cancelled it, the stale reaper stamped it failed, or its completed
-# ack was lost — and re-running it would redo the window and, worse, overwrite
-# that verdict.
-TERMINAL_SCAN_JOB_STATUSES = (
-    ScanJobStatus.completed.value,
-    ScanJobStatus.failed.value,
-    ScanJobStatus.cancelled.value,
-)
 # Must exceed the default Celery hard ``task_time_limit`` (60 min, see
 # celery_app.py). Metrics collection has a longer per-task override for replay,
 # and replay jobs additionally heartbeat ``ScanJob.updated_at`` per chunk so
 # progress is visible to ``_get_scan_job_activity_at``. A genuinely dead job
 # (worker OOM/redeploy, no heartbeat) is still cleaned up after this window.
 STALE_ACTIVE_SCAN_JOB_TIMEOUT = timedelta(minutes=75)
-# Re-export, not a third copy. The value has to be the one
-# ``services.monitoring_utils.classify_signal_state`` falls back to, or the
-# worker's run summary would age signals out on a different window than the page
-# that renders them.
-#
-# It has NO production consumer left — only ``__all__``, the package re-export
-# and a test read it, which is the same state that got
-# ``LATEST_SCAN_STALE_INTERVALS`` deleted alongside it. The difference is not the
-# usage count: ``__all__`` on ``worker.tasks.metrics`` is a published surface,
-# and removing a name from it is a wider change than this refactor, so it is
-# left to one that owns that surface. Do not read the two as a precedent.
-RECENT_SIGNAL_WINDOW = monitoring_utils.RECENT_SIGNAL_WINDOW
 MAX_BREAKDOWN_VALUE_LENGTH = 500
 SCOPE_SCHEMA_DRIFT = MetricScopeType.schema.value
 
@@ -114,10 +86,8 @@ def _ceil_to_interval(dt: datetime, delta: timedelta) -> datetime:
 
 
 def _parse_task_datetime(value: str) -> datetime:
-    parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
-    if parsed.tzinfo is None:
-        return parsed.replace(tzinfo=UTC)
-    return parsed.astimezone(UTC)
+    """An ISO-8601 task argument as aware UTC; malformed text raises ``ValueError``."""
+    return to_utc(datetime.fromisoformat(value))
 
 
 def _get_active_scan_job(session: Session, scan_config_id: uuid.UUID) -> ScanJob | None:
@@ -155,15 +125,9 @@ def _get_active_scan_jobs(session: Session, scan_config_id: uuid.UUID) -> list[S
     )
 
 
-def _normalize_job_timestamp(dt: datetime) -> datetime:
-    return dt if dt.tzinfo is not None else dt.replace(tzinfo=UTC)
-
-
 def _get_scan_job_activity_at(job: ScanJob) -> datetime:
     activity_times = [
-        _normalize_job_timestamp(dt)
-        for dt in (job.created_at, job.started_at, job.updated_at)
-        if dt is not None
+        to_utc(dt) for dt in (job.created_at, job.started_at, job.updated_at) if dt is not None
     ]
     return max(activity_times)
 

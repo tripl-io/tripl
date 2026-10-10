@@ -341,9 +341,3 @@ def _get_org_slug(session: Session, project_id: uuid.UUID) -> str:
         msg = f"Project {project_id} not found"
         raise ValueError(msg)
     return org_slug
-
-
-def _trim_alert_text(value: str | None, *, max_length: int = 500) -> str | None:
-    if value is None or len(value) <= max_length:
-        return value
-    return value[: max_length - 3] + "..."

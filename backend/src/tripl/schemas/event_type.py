@@ -4,6 +4,7 @@ from datetime import datetime
 from pydantic import BaseModel, Field, model_validator
 
 from tripl.schemas.field_definition import FieldDefinitionCreate, FieldDefinitionResponse
+from tripl.schemas.integers import Int32
 from tripl.schemas.not_null_update import reject_explicit_nulls
 
 
@@ -12,7 +13,7 @@ class EventTypeCreate(BaseModel):
     display_name: str = Field(min_length=1, max_length=255)
     description: str = ""
     color: str = Field(default="#6366f1", pattern=r"^#[0-9a-fA-F]{6}$")
-    order: int = 0
+    order: Int32 = 0
     field_definitions: list[FieldDefinitionCreate] = Field(default_factory=list)
 
 
@@ -28,7 +29,7 @@ class EventTypeUpdate(BaseModel):
     display_name: str | None = Field(None, min_length=1, max_length=255)
     description: str | None = None
     color: str | None = Field(None, pattern=r"^#[0-9a-fA-F]{6}$")
-    order: int | None = None
+    order: Int32 | None = None
 
     @model_validator(mode="before")
     @classmethod

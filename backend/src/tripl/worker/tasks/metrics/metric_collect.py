@@ -39,7 +39,7 @@ from __future__ import annotations
 
 import logging
 import uuid
-from collections.abc import Mapping, Sequence
+from collections.abc import Callable, Mapping, Sequence
 from contextlib import ExitStack, nullcontext
 from dataclasses import dataclass, field
 from datetime import UTC, datetime, timedelta
@@ -729,11 +729,6 @@ def _ratio_breakdown_value(
     return numerator / denominator
 
 
-def _coerce_compare_bound(dt: datetime) -> datetime:
-    """Normalize collection-window bounds for comparison with coerced buckets."""
-    return dt if dt.tzinfo is not None else dt.replace(tzinfo=UTC)
-
-
 def _append_ratio_breakdown_rows(
     rows_out: list[dict[str, object]],
     *,
@@ -747,8 +742,8 @@ def _append_ratio_breakdown_rows(
     denominator_index: int,
 ) -> None:
     """Append finite ratio rows from one multi-aggregate breakdown result."""
-    compare_from = _coerce_compare_bound(time_from)
-    compare_to = _coerce_compare_bound(time_to)
+    compare_from = to_utc(time_from)
+    compare_to = to_utc(time_to)
     for row in rows:
         bucket = _coerce_bucket(row[0], interval_code)
         if not (compare_from <= bucket < compare_to):
@@ -2315,9 +2310,18 @@ def _collect_sql(
 def _coerce_bucket(raw: object, interval_code: str) -> datetime:
     """Coerce a projected time cell to an interval-floored aware datetime."""
     dt = raw if isinstance(raw, datetime) else _parse_task_datetime(str(raw))
-    if dt.tzinfo is None:
-        dt = dt.replace(tzinfo=UTC)
     return floor_to_bucket(dt, interval_code)
+
+
+def _open_probed_adapter(ds: DataSource) -> BaseAdapter:
+    """Build ``ds``'s adapter and probe its connection; closed again if the probe fails."""
+    adapter = _build_adapter(ds)
+    try:
+        adapter.test_connection()
+    except BaseException:
+        adapter.close()
+        raise
+    return adapter
 
 
 def _collect_distinct_user_series(
@@ -2327,6 +2331,7 @@ def _collect_distinct_user_series(
     user_id_column: str,
     time_from: datetime,
     time_to: datetime,
+    connect: Callable[[DataSource], BaseAdapter] | None = None,
 ) -> dict[datetime, float]:
     """Collect a per-bucket ``count_distinct(user_id)`` series from the warehouse.
 
@@ -2334,6 +2339,11 @@ def _collect_distinct_user_series(
     the source scan config's data source / base query, bucketed on the config's
     interval. Builds and closes its own adapter (each grid can have a different
     data source).
+
+    ``connect`` builds the adapter and probes its connection (by default
+    :func:`_open_probed_adapter`). The metric preview passes its own, which
+    marks a failure there as a failure to connect: an editor sees that by kind,
+    never the driver's text, which names the warehouse host and port.
     """
     if (
         scan_config.data_source_id is None
@@ -2347,9 +2357,8 @@ def _collect_distinct_user_series(
         raise ScanError(msg)
 
     interval_spec = get_interval(scan_config.interval)
-    adapter = _build_adapter(ds)
+    adapter = (connect or _open_probed_adapter)(ds)
     try:
-        adapter.test_connection()
         # Populate the adapter's column allowlist BEFORE the aggregate. Every
         # adapter fills ``_allowed_columns`` only in ``get_columns``, and both
         # ``validate_measure_column`` and the adapters' ``_validate_column``
@@ -2717,12 +2726,7 @@ def collect_metric_definitions(
     except Exception as exc:
         logger.exception("Metric collection failed for %s", metric_definition_id)
         if definition is not None:
-            try:
-                session.rollback()
-                mark_collection_error(definition, user_facing_error(exc))
-                session.commit()
-            except Exception:  # pragma: no cover - best-effort status write
-                session.rollback()
+            _stamp_metric_error(session, definition, exc)
         else:
             session.rollback()
         raise

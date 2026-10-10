@@ -14,7 +14,10 @@ The tick appends the hourly buckets between the demo's last populated bucket and
 was idle. Catch-up is bounded by the retention window (``DEMO_RETENTION_DAYS``),
 so a demo idle for weeks costs one bounded tick, not an unbounded backfill. We use
 real cadence (not a compressed clock) so the appended series is indistinguishable
-in shape from what a live warehouse scan would have produced.
+in shape from what a live warehouse scan would have produced. A bucket is due
+once an hour and the beat fires every five minutes, so most ticks find nothing
+due: those only stamp the demo's collection time (see ``_advance_demo``) and
+neither prune, re-detect nor broadcast.
 
 Determinism
 -----------
@@ -38,7 +41,9 @@ an ``IntegrityError`` (a concurrent tick already wrote that bucket) is swallowed
 so a re-run, a partial-failure retry, or two workers at the same clock all
 converge to ONE logical result. On PostgreSQL a per-project
 ``pg_advisory_xact_lock`` additionally serialises workers (a production
-optimisation); it is a no-op off PostgreSQL (SQLite tests), where the unique
+optimisation), and the sweep itself runs one at a time: a beat that finds the
+previous sweep still holding its session lock skips instead of queueing behind
+it. Both locks are no-ops off PostgreSQL (SQLite tests), where the unique
 constraints carry all the weight.
 
 Independence
@@ -47,9 +52,19 @@ The tick only touches ``is_demo`` projects, so REAL scan/metric scheduling is
 entirely unaffected by it. It shares exactly ONE thing with ``check_metrics_due``:
 the idle-pause rule in :mod:`tripl.worker.tasks._demo_pause`, which both must apply
 or a demo this tick has stopped advancing gets collected with a window that
-destroys its history (argued in that module). Anomaly re-detection
-reuses the REAL ``detect_anomalies`` over the fresh window; the appended series is
-kept fully coherent so a later real collection stays consistent.
+destroys its history (argued in that module).
+
+What it reuses rather than restates
+-----------------------------------
+Anomaly re-detection is the scheduled collection's own volume-scope pass
+(``metrics.detect._recalculate_metric_anomalies`` without the catalog-metric
+scopes), so the project's anomaly settings, its scope toggles and per-scope
+overrides, the archived-event filter, outage ranges and baselines apply exactly
+as in a live scan, and a visitor's change to any of them holds from one tick to
+the next. The tick writes no catalog-metric value either: the event-composition
+metric (Purchase conversion) re-derives from the event series, so
+``check_metric_definitions_due`` finds it due once a tick appends a newer bucket
+and composes it with the real collector.
 
 Tests monkey-patch ``_get_sync_session`` on this module's globals (the shared
 sync-session pattern) and pass an explicit ``now`` (fake clock).
@@ -58,7 +73,6 @@ sync-session pattern) and pass an explicit ``now`` (fake clock).
 from __future__ import annotations
 
 import logging
-import math
 import uuid
 from datetime import UTC, datetime, timedelta
 from typing import NamedTuple
@@ -71,13 +85,7 @@ from sqlalchemy.orm import Session
 from tripl import cache, realtime
 from tripl.config import settings
 from tripl.core.adapters.synthetic_traffic import DemoTraffic, stored_traffic, traffic_params
-from tripl.core.analyzers.anomaly_detector import (
-    SCOPE_EVENT,
-    SCOPE_EVENT_TYPE,
-    SCOPE_PROJECT_TOTAL,
-    SeriesPoint,
-    detect_anomalies,
-)
+from tripl.core.bucketing import to_utc
 from tripl.models.chart_annotation import ChartAnnotation
 from tripl.models.coverage_metric import CoverageMetric
 from tripl.models.data_source import DataSource, DBType
@@ -87,11 +95,11 @@ from tripl.models.event import Event
 from tripl.models.event_metric import EventMetric
 from tripl.models.event_metric_breakdown import EventMetricBreakdown
 from tripl.models.metric_anomaly import MetricAnomaly
+from tripl.models.metric_baseline import MetricBaseline
 from tripl.models.metric_definition import MetricDefinition
 from tripl.models.metric_value import MetricValue
 from tripl.models.planned_event import PlannedEvent
 from tripl.models.project import Project
-from tripl.models.project_anomaly_settings import ProjectAnomalySettings
 from tripl.models.scan_config import ScanConfig
 from tripl.models.scan_job import ScanJob, ScanJobStatus
 from tripl.models.schema_drift import SchemaDrift
@@ -104,10 +112,10 @@ from tripl.services.demo.breakdowns import (
     breakdown_rows,
 )
 from tripl.services.demo.builders.alerts import DEMO_PLANNED_EVENT_LABEL
+from tripl.services.demo.builders.governance import COVERAGE_MATCH_RATE
 from tripl.services.demo.builders.plan import event_specs
 from tripl.services.demo.builders.warehouse import SPIKE_ANNOTATION_LABEL
 from tripl.services.demo.scenario import DEMO_SEED
-from tripl.services.planned_event_service import retag_planned_anomalies
 from tripl.services.source_freshness import (
     advance_last_event_at,
     compute_config_freshness,
@@ -117,6 +125,8 @@ from tripl.worker.celery_app import celery_app
 from tripl.worker.db import _get_sync_session
 from tripl.worker.tasks._demo_pause import is_demo_paused
 from tripl.worker.tasks.metrics.attribution import recompute_anomaly_attributions
+from tripl.worker.tasks.metrics.detect import _recalculate_metric_anomalies
+from tripl.worker.utils.advisory_lock import release_advisory_lock, try_acquire_advisory_lock
 
 logger = logging.getLogger(__name__)
 
@@ -142,13 +152,10 @@ DEMO_ADVANCE_MAX_RETRIES = 3
 # detector's seasonal need (3 weekly cycles + 48h eval) so detection keeps working.
 DEMO_RETENTION_DAYS = noise.DEMO_HISTORY_DAYS
 _HOUR = timedelta(hours=1)
-# Coverage match rate mirrored from the governance builder so appended coverage
-# reconciles with the seeded rows.
-_COVERAGE_MATCH_RATE = 0.94
-# Catalog metric advanced by the tick (event_composition, hourly, scan-scoped).
-_CONVERSION_METRIC_NAME = "purchase_conversion"
-# Direction withheld while the demo source is late (#269), as in ``metrics.detect``.
-_HELD_DIRECTION = "drop"
+# One sweep at a time. Distinct from the metrics dispatchers (…017 / …018), the
+# digest flusher (…019) and the overdue-source sweep (…020), so none of them can
+# starve another.
+_ADVANCE_DEMOS_ADVISORY_LOCK_KEY = 4_021_968_021
 
 
 class _Series(NamedTuple):
@@ -160,15 +167,6 @@ class _Series(NamedTuple):
     name: str
     # The event type's NAME, which decides whether the platform mix drifts.
     event_type: str
-
-
-def _aware(dt: datetime) -> datetime:
-    """Normalise a datetime to tz-aware UTC.
-
-    Postgres returns tz-aware datetimes; SQLite (tests) drops tzinfo. Re-attaching
-    UTC on read keeps all internal arithmetic on a single, comparable timeline.
-    """
-    return dt if dt.tzinfo is not None else dt.replace(tzinfo=UTC)
 
 
 def _floor_hour(dt: datetime) -> datetime:
@@ -187,8 +185,17 @@ def advance_demos(now: datetime | None = None) -> dict[str, object]:
         logger.info("advance_demos: demo runtime disabled; skipping tick")
         return {"enabled": False, "advanced": 0, "skipped": 0}
 
-    tick_now = _aware(now) if now is not None else datetime.now(UTC)
+    tick_now = to_utc(now) if now is not None else datetime.now(UTC)
     session = _get_sync_session()
+    lock_conn, acquired = try_acquire_advisory_lock(session, _ADVANCE_DEMOS_ADVISORY_LOCK_KEY)
+    if not acquired:
+        # The previous sweep is still running: an hour's re-detection over many
+        # active demos can outlast the five-minute beat. Waiting behind it would
+        # only hold a worker slot that scans, collections and alert deliveries
+        # share; the next beat after it finishes picks up whatever it missed.
+        logger.info("advance_demos: another sweep holds the lock; skipping this tick")
+        session.close()
+        return {"enabled": True, "running": True, "advanced": 0, "skipped": 0}
     advanced = 0
     skipped = 0
     try:
@@ -257,6 +264,7 @@ def advance_demos(now: datetime | None = None) -> dict[str, object]:
         )
         return {"enabled": True, "advanced": advanced, "skipped": skipped}
     finally:
+        release_advisory_lock(lock_conn, _ADVANCE_DEMOS_ADVISORY_LOCK_KEY, name="advance_demos")
         session.close()
 
 
@@ -268,6 +276,7 @@ def _advance_demo(session: Session, project_id: uuid.UUID, slug: str, now: datet
     if project is None or project.demo_seeded_at is None:
         session.rollback()
         return
+    org_id = project.organization_id
 
     scan_config = session.execute(
         select(ScanConfig).where(ScanConfig.project_id == project_id).limit(1)
@@ -279,43 +288,43 @@ def _advance_demo(session: Session, project_id: uuid.UUID, slug: str, now: datet
         return
 
     scan_config_id = scan_config.id
-    traffic = _demo_traffic(session, scan_config, _aware(project.demo_seeded_at))
+    traffic = _demo_traffic(session, scan_config, to_utc(project.demo_seeded_at))
     roster = _load_series_roster(session, scan_config_id, now)
 
     new_buckets = _pending_buckets(session, scan_config_id, now)
-    written = 0
+    written: list[_BucketRows] = []
     if roster and new_buckets:
         written = _append_buckets(session, scan_config, roster, new_buckets, traffic)
 
     # Source freshness facts (#269), stamped the way a live collection stamps
-    # them: the tick IS the demo's collection. The newest appended bucket moves
-    # ``last_event_at`` forward (never back), and every tick that reaches the
+    # them: the tick IS the demo's collection, so every tick that reaches the
     # scan counts as a completed collection even when nothing was due — without
     # it the seeded values age out and a live demo reads late/overdue.
-    if written and new_buckets:
-        scan_config.last_event_at = advance_last_event_at(
-            scan_config.last_event_at, new_buckets[-1]
-        )
     scan_config.last_collection_at = now
-
-    if written:
-        _record_scan_job(session, scan_config_id, now, written, roster)
-        # The same hold ``collect_metrics`` applies: judged on the facts just
-        # stamped, so a tick that caught the demo up is fresh and holds nothing.
-        # It only bites if the demo's series stops short of the clock (a
-        # simulated delay), and then the tick must not write the drops a live
-        # scan would have held.
-        freshness = compute_config_freshness(session, scan_config, project_id, now)
-        _recompute_anomalies(
-            session, project_id, scan_config_id, now, hold_drops=is_holding(freshness)
-        )
-
-    _prune_retention(session, project_id, scan_config_id, now)
-
     project.demo_last_tick_at = now
+    if not written:
+        # Nothing new: no hour was due yet, or a scheduled collection already
+        # wrote it (and scored and broadcast it itself). There is nothing to
+        # re-score and nothing a viewer would see change, so no detection and
+        # no broadcast; pruning waits for the next written hour, which removes
+        # everything past the cutoff at once.
+        session.commit()
+        return
+
+    # The newest appended bucket moves ``last_event_at`` forward (never back).
+    scan_config.last_event_at = advance_last_event_at(scan_config.last_event_at, new_buckets[-1])
+    _record_scan_job(session, scan_config_id, now, written, roster)
+    # The same hold ``collect_metrics`` applies: judged on the facts just
+    # stamped, so a tick that caught the demo up is fresh and holds nothing.
+    # It only bites if the demo's series stops short of the clock (a
+    # simulated delay), and then the tick must not write the drops a live
+    # scan would have held.
+    freshness = compute_config_freshness(session, scan_config, project_id, now)
+    _recompute_anomalies(session, scan_config, now, hold_drops=is_holding(freshness))
+    _prune_retention(session, project_id, scan_config_id, now)
     session.commit()
 
-    _emit_status(project_id, slug)
+    _emit_status(project_id, org_id, slug)
 
 
 def _acquire_project_xact_lock(session: Session, project_id: uuid.UUID) -> None:
@@ -385,7 +394,7 @@ def _pending_buckets(session: Session, scan_config_id: uuid.UUID, now: datetime)
     ).scalar()
     if last_bucket is None:
         return []
-    last_bucket = _aware(last_bucket)
+    last_bucket = to_utc(last_bucket)
 
     # Newest COMPLETE hour, mirroring the seeder (newest bucket ~1h before now).
     latest_complete = _floor_hour(now) - _HOUR
@@ -406,8 +415,8 @@ def _append_buckets(
     roster: list[_Series],
     new_buckets: list[datetime],
     traffic: DemoTraffic,
-) -> int:
-    """Insert-if-absent every new bucket's rows; return how many buckets were written.
+) -> list[_BucketRows]:
+    """Insert-if-absent every new bucket's rows; return what each written bucket added.
 
     Each bucket is written inside a SAVEPOINT so a unique-constraint clash from a
     concurrent tick (or a re-run) rolls back just that bucket and is skipped,
@@ -417,7 +426,7 @@ def _append_buckets(
     # Cheap pre-check: skip buckets already fully written (common on a same-clock
     # re-run) before paying for a savepoint.
     existing = {
-        _aware(b)
+        to_utc(b)
         for b in session.execute(
             select(EventMetric.bucket)
             .where(
@@ -428,15 +437,6 @@ def _append_buckets(
             .distinct()
         ).scalars()
     }
-    conversion_metric_id = session.execute(
-        select(MetricDefinition.id)
-        .join(ScanConfig, ScanConfig.project_id == MetricDefinition.project_id)
-        .where(
-            ScanConfig.id == scan_config_id,
-            MetricDefinition.name == _CONVERSION_METRIC_NAME,
-        )
-        .limit(1)
-    ).scalar_one_or_none()
     # The splits the scan stores: a column the demo scan no longer designates (a
     # user cleared or repointed it) gets no rows, as a collection would write none.
     columns = _BreakdownColumns(
@@ -446,23 +446,17 @@ def _append_buckets(
         ),
     )
 
-    written = 0
+    written: list[_BucketRows] = []
     for bucket in new_buckets:
         if bucket in existing:
             continue
         try:
             with session.begin_nested():
-                _build_bucket_rows(
-                    session,
-                    scan_config_id,
-                    roster,
-                    bucket,
-                    traffic,
-                    columns=columns,
-                    conversion_metric_id=conversion_metric_id,
+                rows = _build_bucket_rows(
+                    session, scan_config_id, roster, bucket, traffic, columns=columns
                 )
                 session.flush()
-            written += 1
+            written.append(rows)
         except IntegrityError:
             # A concurrent tick already wrote this bucket — idempotent skip.
             logger.debug("advance_demos: bucket %s already present, skipping", bucket)
@@ -476,6 +470,17 @@ class _BreakdownColumns(NamedTuple):
     version: str | None
 
 
+class _BucketRows(NamedTuple):
+    """What one appended bucket stored, counted the way a collection reports it."""
+
+    # The hour's matched warehouse volume: the sum of its per-type counts.
+    volume: int
+    event_metrics: int
+    type_metrics: int
+    breakdown_event_metrics: int
+    breakdown_type_metrics: int
+
+
 def _build_bucket_rows(
     session: Session,
     scan_config_id: uuid.UUID,
@@ -484,8 +489,7 @@ def _build_bucket_rows(
     traffic: DemoTraffic,
     *,
     columns: _BreakdownColumns,
-    conversion_metric_id: uuid.UUID | None,
-) -> None:
+) -> _BucketRows:
     """Add one bucket's rows: per-event + per-type EventMetric, breakdown, coverage."""
     per_type_total: dict[uuid.UUID, int] = {}
     volumes: list[EventVolume] = []
@@ -536,6 +540,7 @@ def _build_bucket_rows(
     )
     if rows:
         session.execute(insert(EventMetricBreakdown), rows)
+    breakdown_event_rows = sum(1 for row in rows if row["event_id"] is not None)
 
     matched = sum(per_type_total.values())
     if matched:
@@ -543,30 +548,25 @@ def _build_bucket_rows(
             CoverageMetric(
                 scan_config_id=scan_config_id,
                 bucket=bucket,
-                total_count=max(matched, round(matched / _COVERAGE_MATCH_RATE)),
+                total_count=max(matched, round(matched / COVERAGE_MATCH_RATE)),
                 matched_count=matched,
             )
         )
 
-    if conversion_metric_id is not None:
-        # event_composition ratio: a small live-looking fraction continuing the
-        # seeded upward drift plateau (~0.08–0.11) with a daily ripple.
-        value = 0.095 + 0.015 * math.sin(bucket.hour * math.pi / 12)
-        session.add(
-            MetricValue(
-                metric_definition_id=conversion_metric_id,
-                scan_config_id=scan_config_id,
-                bucket=bucket,
-                value=value,
-            )
-        )
+    return _BucketRows(
+        volume=matched,
+        event_metrics=len(roster),
+        type_metrics=len(per_type_total),
+        breakdown_event_metrics=breakdown_event_rows,
+        breakdown_type_metrics=len(rows) - breakdown_event_rows,
+    )
 
 
 def _record_scan_job(
     session: Session,
     scan_config_id: uuid.UUID,
     now: datetime,
-    buckets_written: int,
+    written: list[_BucketRows],
     roster: list[_Series],
 ) -> None:
     """Record a completed ScanJob reflecting THIS tick's real execution.
@@ -592,8 +592,17 @@ def _record_scan_job(
                 "columns_analyzed": 10,
                 # Warehouse rows: a catalog run's ``catalog_rows_scanned``, not
                 # its ``scan_rows_processed`` (column combinations).
-                "catalog_rows_scanned": buckets_written * sum(series.base for series in roster),
-                "buckets_appended": buckets_written,
+                "catalog_rows_scanned": sum(rows.volume for rows in written),
+                # The metric points this tick stored, under the counters a
+                # collection reports them in, so the scan page counts the run.
+                # Deliberately no ``mode``: the dispatcher takes its watermark
+                # and the demo's collection cooldown from its own
+                # ``metrics_collection`` runs only.
+                "event_metrics": sum(rows.event_metrics for rows in written),
+                "type_metrics": sum(rows.type_metrics for rows in written),
+                "breakdown_event_metrics": sum(rows.breakdown_event_metrics for rows in written),
+                "breakdown_type_metrics": sum(rows.breakdown_type_metrics for rows in written),
+                "buckets_appended": len(written),
                 "demo_runtime_tick": True,
             },
         )
@@ -602,112 +611,48 @@ def _record_scan_job(
 
 def _recompute_anomalies(
     session: Session,
-    project_id: uuid.UUID,
-    scan_config_id: uuid.UUID,
+    config: ScanConfig,
     now: datetime,
     *,
     hold_drops: bool = False,
 ) -> None:
-    """Re-run the REAL detector over the fresh window and upsert MetricAnomaly.
+    """Re-score the demo's volume scopes over the fresh window, as a collection does.
+
+    Runs the scheduled collection's own pass
+    (``metrics.detect._recalculate_metric_anomalies``) over the project total,
+    the event types and the events, without the catalog-metric scopes: the
+    project's settings, scope toggles and per-scope overrides, the
+    archived-event filter, outage ranges and baselines all apply as in a live
+    scan. ``hold_drops`` (the demo source is late, #269) withholds NEW
+    drop-direction anomalies and spares stored drop rows, as for a live scan.
 
     Best-effort: a detection failure must not fail the tick (the appended series
-    stays coherent for a later real collection). Idempotent per scope: existing
-    rows in the evaluation window are cleared and re-inserted, so a re-run at the
-    same clock yields the same rows. ``hold_drops`` (the demo source is late,
-    #269) withholds NEW drop-direction anomalies and spares stored drop rows,
-    as ``metrics.detect`` does for a live scan. The window's attributions
-    (#255) are recomputed after the upserts, inside the same best-effort guard.
+    stays coherent for a later real collection). Idempotent: the pass replaces
+    each scope's rows in the window, so a re-run at the same clock yields the
+    same rows. The window's attributions (#255) are recomputed after it, inside
+    the same guard, because the replaced rows took theirs with them.
     """
+    eval_end = _floor_hour(now)
+    eval_start = eval_end - timedelta(hours=noise.DEMO_EVAL_WINDOW_HOURS)
     try:
-        anomaly_settings = session.execute(
-            select(ProjectAnomalySettings).where(ProjectAnomalySettings.project_id == project_id)
-        ).scalar_one_or_none()
-        if anomaly_settings is None or not anomaly_settings.anomaly_detection_enabled:
-            return
-
-        eval_start = _floor_hour(now) - timedelta(hours=noise.DEMO_EVAL_WINDOW_HOURS)
-        eval_end = _floor_hour(now)
-        window_start = eval_start - timedelta(days=DEMO_RETENTION_DAYS)
-
-        rows = session.execute(
-            select(
-                EventMetric.event_id,
-                EventMetric.event_type_id,
-                EventMetric.bucket,
-                EventMetric.count,
-            ).where(
-                EventMetric.scan_config_id == scan_config_id,
-                EventMetric.bucket >= window_start,
-            )
-        ).all()
-
-        event_series: dict[uuid.UUID, dict[datetime, int]] = {}
-        type_series: dict[uuid.UUID, dict[datetime, int]] = {}
-        project_total: dict[datetime, int] = {}
-        for event_id, event_type_id, bucket, count in rows:
-            bkt = _aware(bucket)
-            if event_id is not None:
-                event_series.setdefault(event_id, {})[bkt] = count
-            elif event_type_id is not None:
-                type_series.setdefault(event_type_id, {})[bkt] = count
-                project_total[bkt] = project_total.get(bkt, 0) + count
-
-        for event_id, series in event_series.items():
-            _upsert_scope_anomalies(
-                session,
-                scan_config_id,
-                series,
-                scope_type=SCOPE_EVENT,
-                scope_ref=str(event_id),
-                event_id=event_id,
-                event_type_id=None,
-                eval_start=eval_start,
-                eval_end=eval_end,
-                hold_drops=hold_drops,
-            )
-        for event_type_id, series in type_series.items():
-            _upsert_scope_anomalies(
-                session,
-                scan_config_id,
-                series,
-                scope_type=SCOPE_EVENT_TYPE,
-                scope_ref=str(event_type_id),
-                event_id=None,
-                event_type_id=event_type_id,
-                eval_start=eval_start,
-                eval_end=eval_end,
-                hold_drops=hold_drops,
-            )
-        _upsert_scope_anomalies(
+        _recalculate_metric_anomalies(
             session,
-            scan_config_id,
-            project_total,
-            scope_type=SCOPE_PROJECT_TOTAL,
-            scope_ref=str(scan_config_id),
-            event_id=None,
-            event_type_id=None,
-            eval_start=eval_start,
-            eval_end=eval_end,
+            config,
+            evaluation_start=eval_start,
+            evaluation_end=eval_end,
             hold_drops=hold_drops,
+            catalog_metrics=False,
         )
-        # The rows just re-inserted lost their planned-event tags (F18); a
-        # user's planned event in the demo must keep covering them.
-        session.flush()
-        retag_planned_anomalies(session, project_id)
-        # "Why did it change?" (#255): the scope upserts above replaced the
-        # anomaly rows (their attributions went with them), so re-attribute the
-        # window with the worker's own pass — the demo's Why panel and alerts
-        # then read the same split a real collection stores. The window reaches
-        # one bucket past ``eval_end`` so the newest flagged bucket is covered.
-        config = session.get(ScanConfig, scan_config_id)
-        if config is not None:
-            recompute_anomaly_attributions(
-                session,
-                config,
-                evaluation_start=eval_start,
-                evaluation_end=eval_end + _HOUR,
-                now=now,
-            )
+        # The demo's Why panel and alerts then read the same split a real
+        # collection stores. The window reaches one bucket past ``eval_end`` so
+        # the newest flagged bucket is covered.
+        recompute_anomaly_attributions(
+            session,
+            config,
+            evaluation_start=eval_start,
+            evaluation_end=eval_end + _HOUR,
+            now=now,
+        )
     except OperationalError, DBAPIError:
         # A DBAPI-level failure (deadlock, lost connection) inside ``session.execute``
         # has POISONED the transaction: it can no longer be committed, and swallowing
@@ -718,67 +663,12 @@ def _recompute_anomalies(
         # ``DBAPIError``, which also covers disconnects — either way the txn is doomed.)
         raise
     except Exception:
-        # A genuine detector/logic bug raises BEFORE any ``session.execute`` and leaves
-        # the session clean, so we log and swallow it: a detector bug must not be able
-        # to kill the whole tick.
-        logger.exception("advance_demos: anomaly recompute failed for %s", scan_config_id)
-
-
-def _upsert_scope_anomalies(
-    session: Session,
-    scan_config_id: uuid.UUID,
-    series: dict[datetime, int],
-    *,
-    scope_type: str,
-    scope_ref: str,
-    event_id: uuid.UUID | None,
-    event_type_id: uuid.UUID | None,
-    eval_start: datetime,
-    eval_end: datetime,
-    hold_drops: bool = False,
-) -> None:
-    """Delete-window-then-insert the detector's anomalies for one scope.
-
-    Under ``hold_drops`` drop-direction anomalies are neither written nor
-    cleared: a stored drop predates the delay and stands (see
-    ``metrics.detect._apply_drop_hold``).
-    """
-    points = [SeriesPoint(bucket=bucket, count=count) for bucket, count in sorted(series.items())]
-    detected = detect_anomalies(
-        points,
-        interval=_HOUR,
-        evaluation_start=eval_start,
-        evaluation_end=eval_end,
-        settings=noise.DEMO_ANOMALY_SETTINGS,
-    ).anomalies
-    delete_filters = [
-        MetricAnomaly.scan_config_id == scan_config_id,
-        MetricAnomaly.scope_type == scope_type,
-        MetricAnomaly.scope_ref == scope_ref,
-        MetricAnomaly.bucket >= eval_start,
-    ]
-    if hold_drops:
-        detected = [anomaly for anomaly in detected if anomaly.direction != _HELD_DIRECTION]
-        delete_filters.append(MetricAnomaly.direction != _HELD_DIRECTION)
-    session.execute(delete(MetricAnomaly).where(*delete_filters))
-    for anomaly in detected:
-        session.add(
-            MetricAnomaly(
-                scan_config_id=scan_config_id,
-                scope_type=scope_type,
-                scope_ref=scope_ref,
-                event_id=event_id,
-                event_type_id=event_type_id,
-                bucket=anomaly.bucket,
-                actual_count=anomaly.actual_count,
-                expected_count=anomaly.expected_count,
-                stddev=anomaly.stddev,
-                z_score=anomaly.z_score,
-                effective_stddev=anomaly.effective_stddev,
-                detector_kind=anomaly.kind,
-                direction=anomaly.direction,
-            )
-        )
+        # Anything else is a detector or logic bug, not a broken transaction: every
+        # statement before it succeeded, so the session can still commit the
+        # appended hour. Scopes already replaced stand (each replace is whole on its
+        # own) and the next written hour re-scores the window. A detector bug must
+        # not be able to kill the whole tick.
+        logger.exception("advance_demos: anomaly recompute failed for %s", config.id)
 
 
 def _prune_retention(
@@ -806,6 +696,12 @@ def _prune_retention(
     session.execute(
         delete(MetricAnomaly).where(
             MetricAnomaly.scan_config_id == scan_config_id, MetricAnomaly.bucket < cutoff
+        )
+    )
+    # The chart band the hourly re-detection writes for every scored bucket.
+    session.execute(
+        delete(MetricBaseline).where(
+            MetricBaseline.scan_config_id == scan_config_id, MetricBaseline.bucket < cutoff
         )
     )
     session.execute(
@@ -861,15 +757,15 @@ def _prune_retention(
         )
 
 
-def _emit_status(project_id: uuid.UUID, slug: str) -> None:
+def _emit_status(project_id: uuid.UUID, org_id: uuid.UUID, slug: str) -> None:
     """Emit a project-scoped 'updated' signal for the live stream.
 
-    Invalidates the project-scoped cache prefixes so the next read serves the
-    freshly-appended series, then publishes the realtime events so subscribed
-    clients refresh without waiting on the polling fallback. Redis-off (tests) is
-    a no-op for both. Runs AFTER the tick's commit.
+    Invalidates the organization's project list and the project's signals so the
+    next read serves the freshly-appended series, then publishes the realtime
+    events so subscribed clients refresh without waiting on the polling fallback.
+    Redis-off (tests) is a no-op for both. Runs AFTER the tick's commit.
     """
-    cache.sync_delete_prefix(cache.prefix_projects())
+    cache.sync_delete(cache.key_projects_list(org_id))
     cache.sync_delete_prefix(cache.prefix_signals(project_id))
     realtime.publish_project_event(
         project_id, slug, realtime.EVENT_METRIC_COLLECTION_UPDATED, {"source": "demo_runtime"}

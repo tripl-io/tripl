@@ -1,12 +1,16 @@
 import logging
-import smtplib
 
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Request, Response, status
 from pydantic import BaseModel, EmailStr, Field, field_validator
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from tripl import tenancy
-from tripl.api.deps import CurrentUserDep, SessionDep, refuse_on_public_demo
+from tripl.api.deps import (
+    CurrentUserDep,
+    SessionDep,
+    refuse_on_public_demo,
+    require_browser_session,
+)
 from tripl.auth_utils import hash_session_token
 from tripl.config import settings
 from tripl.middleware.rate_limit import (
@@ -30,7 +34,7 @@ from tripl.schemas.auth import (
 )
 from tripl.schemas.invitation import InvitationAcceptRequest, InvitationPreview
 from tripl.services import (
-    app_settings_service,
+    account_mail,
     audit_service,
     auth_service,
     email_verification_service,
@@ -96,117 +100,11 @@ class PasswordResetConfirmResponse(BaseModel):
     message: str
 
 
-def _build_reset_link(app_base_url: str, raw_token: str) -> str:
-    # The SPA reads ``?reset_token=`` off the /auth route and switches to reset
-    # mode (see AuthPage). ``app_base_url`` should be set whenever email is
-    # configured; if blank, the link degrades to a relative path.
-    return f"{app_base_url.rstrip('/')}/auth?reset_token={raw_token}"
-
-
-def _send_password_reset_email(
-    *,
-    recipient: str,
-    reset_link: str,
-    email_config: app_settings_service.EmailConfig,
-) -> None:
-    """Send the reset email via the shared alert email sender.
-
-    Runs as a FastAPI ``BackgroundTask`` (after the response is sent), so a slow
-    or failing SMTP round-trip neither blocks the request nor becomes a timing
-    oracle for whether the account exists. Reuses the alert channel's
-    ``_send_email_message`` instead of opening a second SMTP client. Best-effort:
-    any failure is logged and swallowed since the caller already returned the
-    same neutral response.
-    """
-    from_address = email_config.smtp_from_address
-    if not from_address:
-        logger.warning("Password reset email not sent: SMTP_FROM_ADDRESS is unset")
-        return
-
-    # Lazy import keeps the worker email module off the API's import path.
-    from tripl.worker.tasks.alerts_channels import _send_email_message
-
-    body = (
-        "We received a request to reset the password for your tripl account.\n\n"
-        f"Use this link to choose a new password (valid for "
-        f"{auth_service.PASSWORD_RESET_TTL_HOURS} hour):\n"
-        f"{reset_link}\n\n"
-        "If you did not request this, you can safely ignore this email — your "
-        "password will not change.\n"
-    )
-    try:
-        _send_email_message(
-            smtp_module=smtplib,
-            smtp_host=email_config.smtp_host,
-            smtp_port=email_config.smtp_port,
-            smtp_username=email_config.smtp_username,
-            smtp_password=email_config.smtp_password,
-            smtp_security=email_config.smtp_security,
-            from_address=from_address,
-            recipients=[recipient],
-            subject="Reset your tripl password",
-            body=body,
-        )
-    except Exception:  # noqa: BLE001 — best-effort; never surface to the caller.
-        logger.exception("Failed to send password reset email")
-
-
-def _send_verification_email(
-    *,
-    recipient: str,
-    verify_link: str,
-    email_config: app_settings_service.EmailConfig,
-) -> None:
-    """Send the email-verification link through the operator's relay.
-
-    A ``BackgroundTask`` like :func:`_send_password_reset_email`, and just as
-    best-effort: a failure is logged and swallowed — the account exists and
-    can ask for another link (``POST /auth/verify-email/request``).
-    """
-    from_address = email_config.smtp_from_address
-    if not from_address:
-        logger.warning("Verification email not sent: SMTP_FROM_ADDRESS is unset")
-        return
-
-    from tripl.worker.tasks.alerts_channels import _send_email_message
-
-    body = (
-        "Confirm the email address of your tripl account.\n\n"
-        f"Open this link to verify it (valid for "
-        f"{email_verification_service.EMAIL_VERIFICATION_TTL_HOURS} hours):\n"
-        f"{verify_link}\n\n"
-        "If you did not create a tripl account, you can ignore this email.\n"
-    )
-    try:
-        _send_email_message(
-            smtp_module=smtplib,
-            smtp_host=email_config.smtp_host,
-            smtp_port=email_config.smtp_port,
-            smtp_username=email_config.smtp_username,
-            smtp_password=email_config.smtp_password,
-            smtp_security=email_config.smtp_security,
-            from_address=from_address,
-            recipients=[recipient],
-            subject="Verify your tripl email address",
-            body=body,
-        )
-    except Exception:  # noqa: BLE001 — best-effort; the user can resend.
-        logger.exception("Failed to send verification email")
-
-
-async def _operator_mail(
-    session: AsyncSession,
-) -> tuple[app_settings_service.EmailConfig, str]:
-    """The operator relay's email config and ``app_base_url``.
-
-    Account mail always goes through the OPERATOR's relay (F20 PR9), never an
-    organization's.
-    """
-    overrides = await app_settings_service.get_service_overrides(session)
-    return (
-        app_settings_service.build_email_config(overrides),
-        app_settings_service.build_runtime_config(overrides).app_base_url,
-    )
+# Account mail goes out after the response (``account_mail``). The routes queue
+# these two by their names in this module, which is what the Community and
+# Enterprise tests replace to capture the links.
+_send_password_reset_email = account_mail.send_password_reset
+_send_verification_email = account_mail.send_verification
 
 
 def _queue_verification_email(
@@ -214,14 +112,15 @@ def _queue_verification_email(
     *,
     user: User,
     raw_token: str,
-    email_config: app_settings_service.EmailConfig,
-    app_base_url: str,
+    mail: account_mail.OperatorMail,
 ) -> None:
     background_tasks.add_task(
         _send_verification_email,
         recipient=user.email,
-        verify_link=email_verification_service.build_verification_link(app_base_url, raw_token),
-        email_config=email_config,
+        verify_link=email_verification_service.build_verification_link(
+            mail.app_base_url, raw_token
+        ),
+        email_config=mail.config,
     )
 
 
@@ -241,15 +140,12 @@ async def get_status(session: SessionDep) -> AuthStatusResponse:
     # caller cannot learn whether the service is empty.
     hosted = tenancy.multi_tenant()
     has_users = True if hosted else await auth_service.has_any_users(session)
-    overrides = await app_settings_service.get_service_overrides(session)
     return AuthStatusResponse(
         has_users=has_users,
         registration_enabled=await auth_service.is_registration_allowed(
             session, is_first_user=not has_users
         ),
-        email_configured=app_settings_service.email_can_send(
-            app_settings_service.build_email_config(overrides)
-        ),
+        email_configured=(await account_mail.operator_mail(session)).can_send,
         deployment_mode=settings.deployment_mode,
         email_verification_required=email_verification_service.verification_required(),
         google_sign_in=google_login_service.enabled(),
@@ -293,17 +189,11 @@ async def register(
         _set_session_cookie(response, session_token)
         return await auth_service.build_auth_user_response(session, user)
 
-    email_config, app_base_url = await _operator_mail(session)
+    mail = await account_mail.operator_mail(session)
     user, session_token, raw_token = await policy.register(
-        session, data, email_can_send=app_settings_service.email_can_send(email_config)
+        session, data, email_can_send=mail.can_send
     )
-    _queue_verification_email(
-        background_tasks,
-        user=user,
-        raw_token=raw_token,
-        email_config=email_config,
-        app_base_url=app_base_url,
-    )
+    _queue_verification_email(background_tasks, user=user, raw_token=raw_token, mail=mail)
     _set_session_cookie(response, session_token)
     return await auth_service.build_auth_user_response(session, user)
 
@@ -436,19 +326,13 @@ async def _mail_verification_link(
     redeemed into it). When the operator relay cannot send, nothing is issued:
     a warning is logged and the user can ask again once it can.
     """
-    email_config, app_base_url = await _operator_mail(session)
-    if not app_settings_service.email_can_send(email_config):
+    mail = await account_mail.operator_mail(session)
+    if not mail.can_send:
         logger.warning("Verification email not sent: the operator email relay cannot send")
         return
     raw_token = await email_verification_service.issue_token(session, user)
     await session.commit()
-    _queue_verification_email(
-        background_tasks,
-        user=user,
-        raw_token=raw_token,
-        email_config=email_config,
-        app_base_url=app_base_url,
-    )
+    _queue_verification_email(background_tasks, user=user, raw_token=raw_token, mail=mail)
 
 
 async def _record_acceptance(
@@ -496,32 +380,23 @@ async def request_password_reset(
     # address is registered. A token is minted and emailed ONLY when the instance
     # has SMTP configured AND a matching account exists; otherwise nothing is
     # stored or sent. ``email_configured`` is instance-wide, so returning it
-    # (for the UI's fallback copy) does not enable enumeration.
-    # Account mail always goes through the OPERATOR's relay (F20 PR9): the
-    # operator-scope overrides below, never an organization's.
-    overrides = await app_settings_service.get_service_overrides(session)
-    email_config = app_settings_service.build_email_config(overrides)
-    # The flag has to mean "this can actually send"; see ``email_can_send``.
-    email_configured = app_settings_service.email_can_send(email_config)
-
-    if email_configured:
+    # (for the UI's fallback copy) does not enable enumeration. The flag has to
+    # mean "this can actually send"; see ``email_can_send``.
+    mail = await account_mail.operator_mail(session)
+    if mail.can_send:
         issued = await auth_service.request_password_reset(session, data.email)
         if issued is not None:
             user, raw_token = issued
-            reset_link = _build_reset_link(
-                app_settings_service.build_runtime_config(overrides).app_base_url,
-                raw_token,
-            )
             background_tasks.add_task(
                 _send_password_reset_email,
                 recipient=user.email,
-                reset_link=reset_link,
-                email_config=email_config,
+                reset_link=account_mail.password_reset_link(mail, raw_token),
+                email_config=mail.config,
             )
 
     return PasswordResetRequestResponse(
         message=auth_service.PASSWORD_RESET_NEUTRAL_MESSAGE,
-        email_configured=email_configured,
+        email_configured=mail.can_send,
     )
 
 
@@ -560,30 +435,21 @@ async def request_email_verification(
     Otherwise every earlier link of the account stops working and the new one
     goes out after the response (a failed send is logged).
     """
-    if getattr(request.state, "api_key_scope", None) is not None:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN, detail="A browser session is required"
-        )
+    require_browser_session(request)
     if (
         not email_verification_service.verification_required()
         or current_user.email_verified_at is not None
     ):
         return
-    email_config, app_base_url = await _operator_mail(session)
-    if not app_settings_service.email_can_send(email_config):
+    mail = await account_mail.operator_mail(session)
+    if not mail.can_send:
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
             detail=auth_service.EMAIL_DELIVERY_NOT_CONFIGURED_MESSAGE,
         )
     raw_token = await email_verification_service.issue_token(session, current_user)
     await session.commit()
-    _queue_verification_email(
-        background_tasks,
-        user=current_user,
-        raw_token=raw_token,
-        email_config=email_config,
-        app_base_url=app_base_url,
-    )
+    _queue_verification_email(background_tasks, user=current_user, raw_token=raw_token, mail=mail)
 
 
 @router.post(

@@ -15,6 +15,7 @@ from tripl.core.analyzers.anomaly_detector import (
     SCOPE_METRIC,
     SCOPE_PROJECT_TOTAL,
 )
+from tripl.core.bucketing import to_utc
 from tripl.metric_grid import metric_grid_stmt, metric_grids
 from tripl.models.alert_delivery import AlertDelivery
 from tripl.models.alert_destination import AlertDestination
@@ -103,11 +104,6 @@ class _ProjectScope:
         return stmt
 
 
-def _utc_sort_key(value: datetime) -> datetime:
-    """SQLite hands naive timestamps back; compare every item as a UTC instant."""
-    return value.replace(tzinfo=UTC) if value.tzinfo is None else value.astimezone(UTC)
-
-
 async def list_activity(
     session: AsyncSession,
     *,
@@ -140,7 +136,7 @@ async def list_activity(
     items.extend(await _event_items(session, scope=scope, limit=limit))
     items.extend(await _auto_transition_items(session, scope=scope, limit=limit))
 
-    page = sorted(items, key=lambda item: _utc_sort_key(item.occurred_at), reverse=True)[:limit]
+    page = sorted(items, key=lambda item: to_utc(item.occurred_at), reverse=True)[:limit]
     return await _org_qualified(session, page)
 
 

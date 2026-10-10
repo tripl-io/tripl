@@ -26,6 +26,7 @@ from tripl.api.deps import (
     SessionDep,
     request_org_role,
 )
+from tripl.api.v1._members import OWNER_MANAGEMENT_REQUIRED, change_member_role
 from tripl.middleware.org_context import require_org_id
 from tripl.models.domain_enums import OrganizationRole
 from tripl.schemas.auth import UserListItem, UserRoleUpdate
@@ -34,11 +35,10 @@ from tripl.schemas.invitation import (
     InvitationCreatedResponse,
     InvitationResponse,
 )
+from tripl.schemas.pagination import Offset
 from tripl.services import audit_service, invitation_email, invitation_service, user_service
 
 router = APIRouter(prefix="/users", tags=["users"])
-
-OWNER_MANAGEMENT_REQUIRED = "Only an owner can manage owners"
 
 
 @router.post(
@@ -138,13 +138,14 @@ async def revoke_invitation(
 async def list_users(
     session: SessionDep,
     current_user: OrgMemberUserDep,
-    limit: int = Query(200, ge=1, le=1000),
-    offset: int = Query(0, ge=0),
+    limit: int = Query(user_service.ROSTER_PAGE_DEFAULT, ge=1, le=user_service.ROSTER_PAGE_MAX),
+    offset: Offset = 0,
 ) -> list[UserListItem]:
     """The members of the request's organization with their organization role.
 
     Any member may see the roster (it feeds the member pickers); a signed-in
-    account outside the organization gets 403.
+    account outside the organization gets 403. One page, oldest account first:
+    page on with ``offset`` until a page comes back shorter than ``limit``.
     """
     del current_user
     return await user_service.list_org_users(session, require_org_id(), limit=limit, offset=offset)
@@ -162,36 +163,9 @@ async def update_user_role(
     404 for an account outside the organization, 400 when it would leave the
     organization without an owner, 403 when an admin tries to make or unmake an
     owner. The member stays signed in; the new role applies from their next
-    request.
+    request. The same change, errors and ``org.member_role_update`` audit row
+    as ``PATCH /orgs/{org}/members/{id}``.
     """
-    try:
-        target, old_role, invitations = await user_service.update_org_role(
-            session, require_org_id(), user_id, data.role, actor_id=current_user.id
-        )
-    except LookupError:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail="User not found"
-        ) from None
-    except user_service.LastOwnerError:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Cannot demote the last remaining owner",
-        ) from None
-    except user_service.OwnerManagementError:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN, detail=OWNER_MANAGEMENT_REQUIRED
-        ) from None
-    await audit_service.record(
-        session,
-        user=current_user,
-        action="user.role_update",
-        target_type="user",
-        target_id=target.id,
-        target_name=target.email,
-        payload={
-            "old_role": old_role,
-            "new_role": OrganizationRole(data.role).value,
-            "invitations_revoked": invitations,
-        },
+    return await change_member_role(
+        session, org_id=require_org_id(), user_id=user_id, role=data.role, actor=current_user
     )
-    return target

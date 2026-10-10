@@ -67,9 +67,8 @@ from tripl.services.metrics_service import (
     _signal_from_anomaly,
 )
 from tripl.services.monitoring_utils import classify_signal_state, scan_interval_to_timedelta
-from tripl.services.plan_branch_service import resolve_branch_id
 from tripl.services.project_lookup import resolve_project_id
-from tripl.services.search_service import reindex_project_branch
+from tripl.services.search_service import reindex_main_branch
 
 logger = logging.getLogger(__name__)
 
@@ -91,21 +90,6 @@ _PATTERN_CONDITION_OPERATORS = frozenset({"contains", "not_contains", "like", "n
 _BOOLEAN_CONDITION_OPERATORS = frozenset(
     {"eq", "ne", "in", "not_in", "is_null", "is_not_null", "is_true", "is_false"}
 )
-
-
-async def _refresh_main_search_index(
-    session: AsyncSession, project_id: uuid.UUID, slug: str
-) -> None:
-    """Refresh the search index after a metric catalog mutation.
-
-    Metrics are global (project-scoped, not branched), so only the MAIN branch
-    index is refreshed eagerly; feature-branch indexes pick the change up on
-    their next rebuild.
-    """
-    main_branch_id = await resolve_branch_id(session, project_id, None)
-    await reindex_project_branch(
-        session, project_id=project_id, branch_id=main_branch_id, slug=slug
-    )
 
 
 async def load_project_data_source(
@@ -1232,7 +1216,7 @@ async def create_metric_definition(
     await session.flush()
     await session.commit()
     await session.refresh(metric)
-    await _refresh_main_search_index(session, project_id, slug)
+    await reindex_main_branch(session, project_id, slug=slug)
     return metric
 
 
@@ -1541,7 +1525,7 @@ async def update_metric_definition(
         await _verify_persisted_fact_breakdown_columns(session, metric)
     await session.commit()
     await session.refresh(metric)
-    await _refresh_main_search_index(session, metric.project_id, slug)
+    await reindex_main_branch(session, metric.project_id, slug=slug)
     return metric
 
 
@@ -1564,7 +1548,7 @@ async def delete_metric_definition(session: AsyncSession, slug: str, metric_id: 
     await drop_deleted_metric_from_rule_filters(session, project_id=project_id, metric_id=metric_id)
     await session.delete(metric)
     await session.commit()
-    await _refresh_main_search_index(session, project_id, slug)
+    await reindex_main_branch(session, project_id, slug=slug)
 
 
 async def _dispatch_metric_collection(
@@ -2017,7 +2001,7 @@ async def bulk_update_metric_definitions(
         .values(**update_values)
     )
     await session.commit()
-    await _refresh_main_search_index(session, project_id, slug)
+    await reindex_main_branch(session, project_id, slug=slug)
 
 
 async def _write_catalog_order(

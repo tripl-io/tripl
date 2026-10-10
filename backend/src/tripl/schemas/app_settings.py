@@ -7,14 +7,16 @@ from pydantic import BaseModel, ConfigDict, EmailStr, Field, field_validator
 
 from tripl.alerting_validation import validate_sender_address
 from tripl.config import validate_csp, validate_http_token
+from tripl.services._app_settings_fields import SettingSource
 
-# Mirrors app_settings_service.SettingSource. "default" means the value equals
-# the built-in default — either nothing was delivered for it, or what was
-# delivered matches it; the two are indistinguishable from here.
-# "override" is always the OPERATOR's override; "org" is an organization's own
-# value and "disabled" a credential group ORG_SETTINGS_OPERATOR_FALLBACK=none
-# withholds from an organization without its own (F20 PR9).
-SettingSource = Literal["env", "override", "default", "org", "disabled"]
+# SettingSource (defined in services._app_settings_fields, a pure-constants
+# module): "default" means the value equals the built-in default — either
+# nothing was delivered for it, or what was delivered matches it; the two are
+# indistinguishable from here. "override" is always the OPERATOR's override;
+# "org" is an organization's own value and "disabled" a credential group
+# ORG_SETTINGS_OPERATOR_FALLBACK=none withholds from an organization without
+# its own (F20 PR9).
+
 # Self-service registration policy. "open" lets anyone reaching the instance
 # create an account; "disabled" refuses new signups (the first-owner bootstrap
 # on an empty instance stays exempt so a fresh install can still be claimed).
@@ -250,12 +252,20 @@ class AiSettingsUpdate(BaseModel):
     ask_system_prompt: str | None = Field(default=None, min_length=1)
     alert_explanation_system_prompt: str | None = Field(default=None, min_length=1)
     search_embeddings_enabled: bool | None = None
-    search_embedding_provider: str | None = None
+    # The one provider embedding_service can call, as on OrgSearchSettingsUpdate:
+    # any other string saved here would make can_embed() quietly turn semantic
+    # search off for every organization inheriting the operator's value.
+    search_embedding_provider: Literal["openai"] | None = None
     search_embedding_model: str | None = None
     search_embedding_api_key: str | None = Field(default=None, max_length=4096)
 
 
 class SystemSettings(BaseModel):
+    #: The server's package version (``tripl.__version__``), the one its
+    #: OpenAPI document and the usage ping report. What a bug report quotes.
+    version: str
+    #: ``enterprise`` when an extension is installed, else ``community``.
+    edition: Literal["community", "enterprise"]
     debug: bool
     database_url_configured: bool
     sync_database_url_configured: bool
@@ -634,7 +644,7 @@ class TelemetryStatusResponse(BaseModel):
 
     enabled: bool
     #: Why nothing is sent (``do not track``, ``disabled``, ``enterprise default``,
-    #: ``no endpoint``, ``public demo``); null when it is.
+    #: ``public demo``); null when it is.
     reason: str | None = None
     endpoint: str
     instance_id: str | None = None

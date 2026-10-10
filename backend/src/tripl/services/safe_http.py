@@ -1,5 +1,9 @@
 """Outbound HTTPS to an address an organization typed (F20: SSO, audit webhook).
 
+Alert channels and issue trackers (``worker.tasks.alerts_channels``) send through
+:func:`send_pinned` when outbound hosts must be public, and keep their own
+redirect-following urllib opener otherwise.
+
 The rules every such request shares, in one place:
 
 * when outbound hosts must be public (``Settings.public_hosts_only``:

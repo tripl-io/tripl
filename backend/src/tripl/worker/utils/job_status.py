@@ -5,12 +5,6 @@ because both the scan tasks and ``collect_metrics`` need it, and importing a
 metrics task module from ``worker.tasks.scan`` would drag the whole
 ``collect_metrics`` task graph into that module's import path — the same
 reasoning that put ``event_types`` and ``reserved_columns`` in this package.
-
-``worker.tasks.metrics._helpers`` still *declares* a ``TERMINAL_SCAN_JOB_STATUSES``
-of its own because that name sits in its published ``__all__`` and removing it is
-a wider change than this one. It has no production consumer left — the task
-module imports this copy — and ``test_collection_windows_and_job_status`` pins the two equal so the
-leftover cannot drift.
 """
 
 from __future__ import annotations

@@ -31,6 +31,7 @@ from tripl.core.analyzers.event_generator import (
 from tripl.core.analyzers.event_plan import breakdown_row_count
 from tripl.core.analyzers.preview import build_json_paths_payload, build_preview_payload
 from tripl.core.json_string_columns import scan_source_query
+from tripl.core.plan_scope import main_branch_id
 from tripl.core.scan_setup_preset import is_event_properties_preset
 from tripl.json_paths import group_json_value_paths
 from tripl.models.data_source import DataSource
@@ -44,7 +45,6 @@ from tripl.observability.metrics import scan_runs_total
 from tripl.services import app_settings_service
 from tripl.worker.celery_app import celery_app
 from tripl.worker.db import _build_adapter, _get_sync_session
-from tripl.worker.plan_scope import main_branch_id
 from tripl.worker.search_reindex import reindex_main_branch_from_worker
 from tripl.worker.tasks._errors import NO_EVENT_NAMING_MSG, ScanError, user_facing_error
 from tripl.worker.utils.event_types import ensure_event_type_with_fields
@@ -55,16 +55,14 @@ from tripl.worker.utils.job_status import (
 )
 from tripl.worker.utils.query_windows import TimeWindow, resolve_lookback_window
 from tripl.worker.utils.reserved_columns import reserved_catalog_columns
+from tripl.worker.utils.scan_naming import scan_group_column
 from tripl.worker.utils.scan_preset import ensure_preset_event_type, preset_scan_columns
 from tripl.worker.variable_sweep import retire_unused_variables, retired_details_line
 
 logger = logging.getLogger(__name__)
 
-# ``ScanError`` and ``user_facing_error`` now live in ``_errors`` so the metrics
-# task can sanitise its user-facing fields with the same logic. The private
-# alias is kept for backwards compatibility with existing imports/tests.
-_user_facing_error = user_facing_error
-
+# ``ScanError`` and ``user_facing_error`` live in ``_errors`` so the metrics
+# task can sanitise its user-facing fields with the same logic.
 __all__ = ["ScanError", "user_facing_error"]
 
 
@@ -260,7 +258,7 @@ def run_scan(self: object, scan_config_id: str, job_id: str) -> dict[str, object
             event_type_id,
             config.event_type_column,
         )
-        if event_type_id is None and config.event_type_column:
+        if scan_group_column(config) is not None:
             # Event type column groups rows into different event types.
             # Use GROUPING SETS to get per-group cardinalities in one query.
             logger.info("Using grouped scan with GROUPING SETS")
@@ -494,7 +492,7 @@ def _scan_with_grouping(
     so a column that is high-cardinality globally may be low-cardinality
     inside a specific group (e.g. event.action within a given event.category).
     """
-    col_name = config.event_type_column
+    col_name = scan_group_column(config)
     if col_name is None:
         msg = "event_type_column is required for grouped scanning"
         raise ValueError(msg)

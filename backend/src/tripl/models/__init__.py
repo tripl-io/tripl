@@ -184,7 +184,7 @@ __all__ = [
     "PropertyDrift",
 ]
 
-# Extensions' models (and, until they move out, the bundled enterprise ones):
+# Extensions' model modules, named by the ``tripl.models`` entry point group:
 # imported last, so their relationships resolve against the core's mappers.
 from tripl.extensions import import_model_modules  # noqa: E402
 

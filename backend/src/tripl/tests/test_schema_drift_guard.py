@@ -83,9 +83,10 @@ async def _seed(
             if config_event_type_id is not None
             else (event_type_id if bind_config_to_event_type else None)
         )
-        # A bound scan never carries a discovery column — the two are the two
-        # ways of answering "which event type does this row belong to", not a
-        # pair — so the column is stamped on the unbound seeds only.
+        # The column is stamped on the unbound seeds only. A bound scan can
+        # carry one too (the scan form saves both), but the bound Event type
+        # names every row then (``worker.utils.scan_naming``), so the column
+        # would only be a reserved name here, not the thing under test.
         discovery_column = config_event_type_column if bound_event_type_id is None else None
         session.add(
             ScanConfig(

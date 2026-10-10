@@ -37,9 +37,6 @@ from tripl.models.base import Base, TimestampMixin, UUIDMixin
 _PROJECT_SCOPE = text("project_id IS NOT NULL")
 _ORGANIZATION_SCOPE = text("organization_id IS NOT NULL")
 
-DOC_VISIBILITIES = ("private", "restricted", "level")
-DOC_SHARE_PERMISSIONS = ("view", "edit")
-
 
 class DocShare(UUIDMixin, Base):
     """One principal a note is shared with."""

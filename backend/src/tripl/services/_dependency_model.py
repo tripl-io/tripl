@@ -52,7 +52,8 @@ _LABELS: dict[str, tuple[str, str]] = {
     "event": ("event", "events"),
     "event_type": ("event type", "event types"),
     "field": ("field", "fields"),
-    "variable": ("variable", "variables"),
+    # The product calls a variable a property (the API keeps the old name).
+    "variable": ("property", "properties"),
     "metric": ("metric", "metrics"),
     "fact_table": ("fact table", "fact tables"),
     "alert_rule": ("alert rule", "alert rules"),

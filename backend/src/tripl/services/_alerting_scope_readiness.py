@@ -15,30 +15,19 @@ status, this is the read-side aggregation the responses are decorated with.
 from __future__ import annotations
 
 import uuid
-from datetime import UTC, datetime, timedelta
 
 import sqlalchemy as sa
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from tripl.core.drift_activity import ACTIVE_DRIFT_STATUSES, retention_cutoff
 from tripl.models.distribution_drift import DistributionDrift
 from tripl.models.domain_enums import DistributionDriftBand
 from tripl.models.plan_branch import BranchKind, PlanBranch
 from tripl.models.scan_config import ScanConfig
-from tripl.models.schema_drift import SCHEMA_DRIFT_STATUS_OPEN, SCHEMA_DRIFT_STATUS_SNOOZED
 from tripl.models.variable import Variable
 from tripl.models.variable_event_value_override import VariableEventValueOverride
 from tripl.models.variable_value_drift import VariableValueDrift
 from tripl.schemas.alerting import AlertScopeReadiness
-
-# Restated rather than imported from ``variable_value_drift_service``, which
-# would close a cycle: that module reaches ``alerting_service`` through
-# search_service -> project_service, and ``alerting_service`` imports
-# ``_alerting_monitors``, which imports this module. Only the model layer is
-# safe to depend on from here. Both values track that service's
-# ``DRIFT_RETENTION_DAYS`` / ``ACTIVE_DRIFT_STATUSES``; the readiness probe
-# below is meaningless if they diverge.
-_DRIFT_RETENTION_DAYS = 30
-_ACTIVE_DRIFT_STATUSES = (SCHEMA_DRIFT_STATUS_OPEN, SCHEMA_DRIFT_STATUS_SNOOZED)
 
 
 def _documents_values(column: sa.SQLColumnExpression[list[str] | None]) -> sa.ColumnElement[bool]:
@@ -136,10 +125,11 @@ async def load_scope_readiness(
     # row it will skip is no more readiness than a resolved one. That is the
     # same flag the documented disjuncts above apply, which is what keeps a
     # project of excluded variables inert on every source of this scope.
-    # The builder's snooze-EXPIRY clause is deliberately NOT mirrored: a
-    # row snoozed until next week is a candidate this scope will produce, just
+    # The builder's snooze-EXPIRY clause is deliberately NOT mirrored, which is
+    # why this takes ``ACTIVE_DRIFT_STATUSES`` and not ``active_drift_clauses``:
+    # a row snoozed until next week is a candidate this scope will produce, just
     # not today, and the question here is "ever", not "now".
-    retention_cutoff = datetime.now(UTC) - timedelta(days=_DRIFT_RETENTION_DAYS)
+    cutoff = retention_cutoff()
     value_drift_collected = (
         sa.select(sa.literal(1))
         .select_from(VariableValueDrift)
@@ -150,8 +140,8 @@ async def load_scope_readiness(
                 sa.select(ScanConfig.id).where(ScanConfig.project_id == project_id)
             ),
             Variable.excluded_from_scans.is_(False),
-            VariableValueDrift.status.in_(_ACTIVE_DRIFT_STATUSES),
-            VariableValueDrift.detected_at >= retention_cutoff,
+            VariableValueDrift.status.in_(ACTIVE_DRIFT_STATUSES),
+            VariableValueDrift.detected_at >= cutoff,
         )
         .exists()
     )

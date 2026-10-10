@@ -2909,7 +2909,8 @@ class TestFactPreview:
         assert "warehouse.internal" not in error
         assert "5432" not in error
         assert "tripl_ro" not in error
-        assert "Could not reach the data source" in error
+        # The server was reached and refused the password: that is what to fix.
+        assert "rejected the credentials" in error
 
     async def test_mutating_filter_sql_is_rejected_at_the_schema_boundary(
         self,

@@ -187,6 +187,15 @@ class VariableResponse(BaseModel):
         default=0,
         description="Of 'listed_event_count', the events that require the property.",
     )
+    value_event_count: int = Field(
+        default=0,
+        description=(
+            "Events on the property's branch whose field or meta values name its"
+            " ${token}, found with the same token scan as the 'usage' filter."
+            " Counted apart from 'listed_event_count' and from 'event_count'"
+            " (where scans saw it)."
+        ),
+    )
     event_names: list[str] = Field(
         default=[],
         max_length=SUMMARY_EVENT_LIMIT,

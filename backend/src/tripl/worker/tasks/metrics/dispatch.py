@@ -17,6 +17,7 @@ from tripl.alerting_matching import (
     rule_matches_anomaly,
 )
 from tripl.core.analyzers.anomaly_detector import SCOPE_METRIC
+from tripl.core.bucketing import optional_to_utc, to_utc
 from tripl.models.alert_correlation_state import AlertCorrelationState
 from tripl.models.alert_delivery import AlertDelivery, AlertDeliveryStatus
 from tripl.models.alert_delivery_item import AlertDeliveryItem
@@ -27,6 +28,7 @@ from tripl.models.alert_rule_state import AlertRuleState
 from tripl.models.domain_enums import AnomalyDirection
 from tripl.models.scan_config import ScanConfig
 from tripl.services import app_settings_service
+from tripl.services._id_chunks import chunked
 from tripl.worker.tasks.alerts_pagerduty import queue_pagerduty_resolves
 from tripl.worker.tasks.metrics.alert_payload import (
     _build_alert_scope_names,
@@ -59,28 +61,11 @@ _rule_matches_anomaly = rule_matches_anomaly
 _CORRELATION_NAMESPACE = uuid.uuid5(uuid.NAMESPACE_URL, "tripl-alert-correlation")
 
 
-def _as_utc(value: datetime | None) -> datetime | None:
-    """Postgres hands back tz-aware values for timestamptz; SQLite does not.
-
-    Comparing a naive stored value against ``datetime.now(UTC)`` raises, so the
-    mute-expiry checks below normalise first rather than assume the driver.
-    """
-    if value is None:
-        return None
-    return _utc_bucket(value)
-
-
-def _utc_bucket(bucket: datetime) -> datetime:
-    if bucket.tzinfo is None:
-        return bucket.replace(tzinfo=UTC)
-    return bucket.astimezone(UTC)
-
-
 def _bucket_is_newer(bucket: datetime, previous: datetime | None) -> bool:
     """Compare stored SQLite and PostgreSQL buckets as UTC instants."""
     if previous is None:
         return True
-    return _utc_bucket(bucket) > _utc_bucket(previous)
+    return to_utc(bucket) > to_utc(previous)
 
 
 def _latest_bucket(bucket: datetime, previous: datetime | None) -> datetime:
@@ -107,7 +92,7 @@ def _cooldown_elapsed(
     cannot have elapsed on a message that was never sent, so it reads as elapsed
     and the first delivery goes out.
     """
-    last = _as_utc(last_notified_at)
+    last = optional_to_utc(last_notified_at)
     if last is None:
         return True
     return now - last >= timedelta(minutes=cooldown_minutes)
@@ -230,7 +215,7 @@ def _suppressed_correlation_group_ids(
     ).scalars()
     suppressed: set[uuid.UUID] = set()
     for state in rows:
-        muted_until = _as_utc(state.muted_until)
+        muted_until = optional_to_utc(state.muted_until)
         if state.status == "muted" and muted_until is not None and muted_until <= now:
             state.status = "open"
             state.muted_until = None
@@ -313,7 +298,7 @@ def _reopen_closed_incidents(
             AlertCorrelationState.status != "open",
         )
     ).scalars():
-        muted_until = _as_utc(state.muted_until)
+        muted_until = optional_to_utc(state.muted_until)
         if state.status == "muted" and (muted_until is None or muted_until > now):
             continue
         state.status = "open"
@@ -447,14 +432,15 @@ def _touch_correlation_state(
         return
     # The maximum, written as a guarded assignment rather than ``max(...)`` so
     # the value STORED is the one that was read rather than a normalised copy of
-    # it. Only the COMPARISON goes through ``_as_utc``: ``last_seen_at`` and
+    # it. Only the COMPARISON is normalized to UTC: ``last_seen_at`` and
     # every ``bucket`` that reaches ``seen_at`` are plain
     # ``DateTime(timezone=True)`` columns rather than the module's ``UtcDateTime``
     # decorator, so a driver that drops tzinfo hands back a naive value on one
     # side of this while a caller holding an aware one raises on the comparison
-    # alone. ``_as_utc`` is what this module already answers that with.
-    stored = _as_utc(state.last_seen_at)
-    observed = _as_utc(seen_at) or seen_at
+    # alone. Postgres hands back aware values and SQLite naive ones, which is why
+    # every mute-expiry and cooldown check in this module normalizes first.
+    stored = optional_to_utc(state.last_seen_at)
+    observed = to_utc(seen_at)
     if stored is None or stored < observed:
         state.last_seen_at = seen_at
 
@@ -524,7 +510,7 @@ def _delivery_chunks(
     limit = _MAX_ITEMS_PER_DELIVERY.get(str(channel))
     if limit is None or len(anomalies) <= limit:
         return [anomalies]
-    return [anomalies[start : start + limit] for start in range(0, len(anomalies), limit)]
+    return list(chunked(anomalies, limit))
 
 
 def _retire_config_anchored_metric_states(
@@ -1038,7 +1024,7 @@ def _prepare_alert_deliveries(
             # the OPPOSITE way — there it is the indefinite inbox mute — so do
             # not unify them. A rule's permanent lever is
             # ``enabled``.
-            rule_muted_until = _as_utc(rule.muted_until)
+            rule_muted_until = optional_to_utc(rule.muted_until)
             if rule_muted_until is not None and rule_muted_until > now:
                 continue
 

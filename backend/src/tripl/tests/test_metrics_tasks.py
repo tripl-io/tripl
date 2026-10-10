@@ -42,6 +42,7 @@ from tripl.models.variable import Variable
 from tripl.models.variable_value import VariableValue, VariableValueKind
 from tripl.worker import variable_sweep
 from tripl.worker.tasks._errors import ScanError, user_facing_error
+from tripl.worker.tasks.alerts import send_alert_delivery
 from tripl.worker.tasks.metrics import catalog_sync as metrics_catalog_sync
 from tripl.worker.tasks.metrics import collect as metrics_collect
 from tripl.worker.tasks.metrics import dispatch as metrics_dispatch
@@ -3305,7 +3306,7 @@ def _arrange_alerting_collection(
     )
     monkeypatch.setattr(metrics, "analyze_cardinality", lambda *args, **kwargs: object())
     monkeypatch.setattr(
-        metrics.send_alert_delivery,
+        send_alert_delivery,
         "delay",
         lambda delivery_id: queued_delivery_ids.append(delivery_id),
     )
@@ -4793,7 +4794,7 @@ def test_cleanup_schema_drifts_prunes_only_expired_rows(
     sync_session_factory: sessionmaker[Session],
     monkeypatch: MonkeyPatch,
 ) -> None:
-    from tripl.services.schema_drift_service import DRIFT_RETENTION_DAYS
+    from tripl.core.drift_activity import DRIFT_RETENTION_DAYS
     from tripl.worker.tasks import maintenance
 
     with sync_session_factory() as session:

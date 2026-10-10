@@ -337,7 +337,9 @@ async def test_a_role_in_one_org_gives_no_rights_in_another(people: People) -> N
             assert await project_access.member_role(session, x, abroad_id) == "owner"
             assert await project_access.member_project_ids(session, x) == {abroad_id}
             assert await project_access.is_org_admin(session, x)
-            assert not await project_access.is_org_owner(session, x)
+            assert await project_access.org_role_of(session, x.id, ACME_ID) == (
+                OrganizationRole.admin
+            )
         # Membership fan-out: org admins of the PROJECT's org, never another's.
         assert await project_access.members_among(session, abroad_id, {x.id, boss.id}) == {x.id}
     assert await project_access.still_member(TestSessionLocal, user_id=x.id, project_id=abroad_id)

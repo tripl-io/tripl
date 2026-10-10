@@ -29,9 +29,10 @@ from tripl.core.adapters.measure_validator import (
 )
 from tripl.core.adapters.multi_aggregate_sql import compile_time_bucketed_multi_aggregate_sql
 from tripl.core.adapters.registry import build_adapter, supported_db_types
+from tripl.core.adapters.sql_common import as_utc_bucket
 from tripl.core.adapters.trino import TrinoAdapter
 from tripl.core.adapters.trino_net import PinnedSession
-from tripl.core.adapters.trino_sql import as_utc_bucket, quote_literal
+from tripl.core.adapters.trino_sql import quote_literal
 from tripl.core.bucketing import WEEK_ORIGIN
 from tripl.core.warehouse_types import (
     ComplexKind,
@@ -315,7 +316,7 @@ def test_range_contracts_parse_with_try_cast_and_render_floats_plainly() -> None
         min_value=0.0,
         max_value=50.0,
     )
-    predicate = adapter._contract_bad_condition(expectation)
+    predicate = adapter._contract_bad_condition(expectation, adapter._new_params())
     assert predicate is not None
     assert "try_cast(COALESCE(format('%s', \"amount\"), '') AS double) < 0.0" in predicate
     assert "> 50.0" in predicate

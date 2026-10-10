@@ -62,16 +62,6 @@ EVENT_ACTIVITY_CREATED = "activity.created"
 EVENT_SIGNALS_UPDATED = "signals.updated"
 EVENT_PROJECT_SUMMARY_UPDATED = "project_summary.updated"
 
-# All publishable event types (``hello`` is synthesised by the endpoint, not
-# published), kept in one place so the endpoint and tests agree.
-PUBLISHABLE_EVENT_TYPES = (
-    EVENT_SCAN_JOB_UPDATED,
-    EVENT_METRIC_COLLECTION_UPDATED,
-    EVENT_ACTIVITY_CREATED,
-    EVENT_SIGNALS_UPDATED,
-    EVENT_PROJECT_SUMMARY_UPDATED,
-)
-
 # Seconds between heartbeat comments — keeps proxies/load balancers from culling
 # an idle stream and lets the endpoint notice a disconnected client.
 HEARTBEAT_SECONDS = 15.0
@@ -115,11 +105,6 @@ async def async_drop_project_keys(project_id: uuid.UUID) -> None:
         logger.warning("realtime key cleanup %s failed: %s", project_id, exc)
 
 
-def backend_available() -> bool:
-    """Whether the async Redis client is live (pub/sub can actually deliver)."""
-    return cache.get_async_client() is not None
-
-
 def _envelope(seq: int, event_type: str, slug: str, payload: dict[str, Any]) -> dict[str, Any]:
     return {
         "id": seq,
@@ -152,23 +137,6 @@ def publish_project_event(
         client.publish(channel(project_id), raw)
     except Exception as exc:  # noqa: BLE001
         logger.warning("realtime publish %s/%s failed: %s", project_id, event_type, exc)
-
-
-async def async_publish_project_event(
-    project_id: uuid.UUID, slug: str, event_type: str, payload: dict[str, Any]
-) -> None:
-    """Async variant of :func:`publish_project_event` (FastAPI request path)."""
-    client = cache.get_async_client()
-    if client is None:
-        return
-    try:
-        seq = int(await client.incr(_seq_key(project_id)))
-        raw = json.dumps(_envelope(seq, event_type, slug, payload), default=str)
-        await client.lpush(_buffer_key(project_id), raw)
-        await client.ltrim(_buffer_key(project_id), 0, BUFFER_SIZE - 1)
-        await client.publish(channel(project_id), raw)
-    except Exception as exc:  # noqa: BLE001
-        logger.warning("realtime async publish %s/%s failed: %s", project_id, event_type, exc)
 
 
 @dataclass(frozen=True)
@@ -234,19 +202,6 @@ async def read_resume_point(project_id: uuid.UUID, after_id: int | None) -> Resu
     return ResumePoint(seq=seq, epoch=_decode(raw_epoch), replay=replay)
 
 
-async def replay_buffered_events(
-    project_id: uuid.UUID, after_id: int | None
-) -> list[dict[str, Any]]:
-    """Buffered events with ``id > after_id`` in ascending order (reconnect replay).
-
-    Returns ``[]`` when Redis is off, no cursor was supplied, or nothing is
-    buffered past the cursor.
-    """
-    if after_id is None:
-        return []
-    return (await read_resume_point(project_id, after_id)).replay
-
-
 def hello_payload(
     slug: str, *, backend: str, seq: int | None, epoch: str | None = None
 ) -> dict[str, Any]:
@@ -269,61 +224,24 @@ def hello_payload(
     }
 
 
-async def redis_message_iterator(
-    project_id: uuid.UUID, *, poll_timeout: float = HEARTBEAT_SECONDS
-) -> AsyncIterator[dict[str, Any] | None]:
-    """Yield live envelope dicts for a project's channel, plus ``None`` heartbeats.
-
-    Reads via the dedicated pub/sub client (no ``socket_timeout``) and bounds each
-    read with ``get_message(timeout=poll_timeout)``. An idle poll yields ``None``
-    (a heartbeat tick, so the caller keeps the stream open) and a published
-    message yields its envelope. A Redis error ends the iterator *cleanly* — the
-    endpoint closes the stream and the browser reconnects — rather than raising
-    and tearing the response down mid-flight (which the edge surfaces as
-    ``ERR_HTTP2_PROTOCOL_ERROR`` / ``ERR_QUIC_PROTOCOL_ERROR``). An empty async
-    generator when Redis is off.
-    """
-    client = cache.get_async_pubsub_client()
-    if client is None:
-        return
-    pubsub = client.pubsub()
-    try:
-        try:
-            await pubsub.subscribe(channel(project_id))
-        except RedisError as exc:
-            logger.warning("realtime subscribe %s failed: %s", project_id, exc)
-            return
-        while True:
-            try:
-                message = await pubsub.get_message(
-                    ignore_subscribe_messages=True, timeout=poll_timeout
-                )
-            except RedisError as exc:
-                logger.warning("realtime read %s failed: %s", project_id, exc)
-                return
-            if message is None:
-                yield None  # idle poll — surfaces as a heartbeat, keeps stream open
-                continue
-            data = message.get("data")
-            try:
-                envelope = json.loads(data)
-            except ValueError, TypeError:
-                continue
-            if isinstance(envelope, dict):
-                yield envelope
-    finally:
-        try:
-            await pubsub.unsubscribe(channel(project_id))
-            await pubsub.aclose()  # type: ignore[no-untyped-call]
-        except Exception:  # noqa: BLE001
-            pass
-
-
 @asynccontextmanager
 async def subscribed_messages(
     project_id: uuid.UUID,
 ) -> AsyncIterator[AsyncIterator[dict[str, Any] | None] | None]:
-    """Subscribe before reading replay; yield None if Redis cannot be reached."""
+    """Subscribe to a project's channel and yield its live message iterator.
+
+    The subscription is open on entry, so a caller that reads the replay inside
+    the block misses nothing published in between. Yields ``None`` when Redis is
+    off or the subscribe fails.
+
+    The iterator reads via the dedicated pub/sub client (no ``socket_timeout``)
+    and bounds each read with ``get_message(timeout=HEARTBEAT_SECONDS)``. An idle
+    poll yields ``None`` (a heartbeat tick, so the caller keeps the stream open)
+    and a published message yields its envelope. A Redis error ends the iterator
+    *cleanly* — the caller drops to degraded mode — rather than raising and
+    tearing the response down mid-flight (which the edge surfaces as
+    ``ERR_HTTP2_PROTOCOL_ERROR`` / ``ERR_QUIC_PROTOCOL_ERROR``).
+    """
     client = cache.get_async_pubsub_client()
     if client is None:
         yield None

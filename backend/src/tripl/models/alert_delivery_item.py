@@ -46,9 +46,10 @@ if TYPE_CHECKING:
 # under ``core/``, which may not import ``tripl.worker`` — a rule stated in
 # ``_event_generator_merge_refs``'s module docstring, with
 # ``MetricDefinition.mark_collection_error`` as the precedent for moving a
-# helper down here to satisfy it. ``worker/tasks/metrics/urls._trim_alert_text``
-# is the same three lines and deliberately stays where it is: it is the generic
-# alert-text trimmer, defaulted to 500 and reachable only from the worker.
+# helper down here to satisfy it. ``services/alerting_rendering.trim_alert_text``
+# is the same three lines and deliberately stays separate: it is the generic
+# alert-text trimmer, defaulted to 500, that the live send and the rule replay
+# share, while this one is bound to the column's width.
 SCOPE_NAME_MAX_LEN = 255
 
 

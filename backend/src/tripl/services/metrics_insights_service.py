@@ -17,10 +17,11 @@ from tripl.core.analyzers.anomaly_detector import (
     SCOPE_METRIC,
     SCOPE_PROJECT_TOTAL,
 )
+from tripl.core.bucketing import to_utc
 from tripl.core.intervals import get_interval
 from tripl.metric_grid import metric_grid_stmt, metric_grids
 from tripl.metric_monitoring import monitored_metric_criteria
-from tripl.models.distribution_drift import DistributionDrift
+from tripl.models.distribution_drift import DistributionDrift, mover_float
 from tripl.models.domain_enums import (
     AlertInboxStatus,
     MetricBreakdownAnomalyKind,
@@ -61,7 +62,6 @@ from tripl.services.metrics_service import (
     _get_project_recent_signal_windows,
     _resolve_event,
     _resolve_event_type,
-    _resolve_project,
     _resolve_scope_scan_config_id,
     _signal_from_anomaly,
 )
@@ -71,6 +71,7 @@ from tripl.services.monitoring_utils import (
     scan_interval_to_timedelta,
     scan_liveness_cutoff,
 )
+from tripl.services.project_lookup import resolve_project
 from tripl.services.signal_triage_service import SignalKey
 from tripl.worker.analyzers.metric_value_kind import is_count_shaped
 
@@ -356,23 +357,6 @@ def is_significant_signal(actual: float, expected: float, *, count_shaped: bool 
     return (
         relative_effect(actual, expected, count_shaped=count_shaped) >= SIGNIFICANT_MIN_REL_EFFECT
     )
-
-
-async def _count_active_metric_signals_by_project(
-    session: AsyncSession,
-    project_ids: list[uuid.UUID],
-) -> dict[uuid.UUID, int]:
-    """Batched per-project count of open ``metric``-scope signals.
-
-    The size of :func:`_active_metric_signals_by_project` per project; callers
-    that also need to drop triaged (hidden) signals read the keys instead.
-    """
-    return {
-        project_id: len(keys)
-        for project_id, keys in (
-            await _active_metric_signals_by_project(session, project_ids)
-        ).items()
-    }
 
 
 async def _active_metric_signals_by_project(
@@ -696,7 +680,7 @@ async def get_active_signals(
     # collapsed for top-bar/overview/events, expanded for the AnomaliesPage).
     # Filtered variants have too many permutations — pass through.
     cacheable = not event_ids
-    project = await _resolve_project(session, slug)
+    project = await resolve_project(session, slug)
     cache_key = (
         cache.key_signals_all_expanded(project.id)
         if expanded
@@ -929,7 +913,7 @@ def _with_incident_refs(
                 signal.scan_config_id,
                 str(signal.scope_type),
                 signal.scope_ref,
-                _as_utc(signal.bucket),
+                to_utc(signal.bucket),
             )
         )
         out.append(
@@ -943,10 +927,6 @@ def _with_incident_refs(
             )
         )
     return out
-
-
-def _as_utc(value: datetime) -> datetime:
-    return value.replace(tzinfo=UTC) if value.tzinfo is None else value.astimezone(UTC)
 
 
 async def get_top_movers(
@@ -965,7 +945,7 @@ async def get_top_movers(
     provided anomaly key, ordered by |z_score| descending. Used by the UI
     to render the "why did it move" panel on MonitoringDetailPage.
     """
-    project = await _resolve_project(session, slug)
+    project = await resolve_project(session, slug)
     scan_config = (
         await session.execute(
             select(ScanConfig).where(
@@ -1032,7 +1012,7 @@ async def get_seasonality_heatmap(
     SQLite — the windowed datasets are bounded (max ~90d × 24h × buckets)
     and Python's datetime.weekday/.hour are timezone-aware.
     """
-    project = await _resolve_project(session, slug)
+    project = await resolve_project(session, slug)
     scan_config = (
         await session.execute(
             select(ScanConfig).where(
@@ -1141,7 +1121,7 @@ async def get_breakdown_timeline(
     opens its own timeline so users can see whether the move is a single
     bucket spike or a sustained shift.
     """
-    project = await _resolve_project(session, slug)
+    project = await resolve_project(session, slug)
     scan_config = (
         await session.execute(
             select(ScanConfig).where(
@@ -1248,7 +1228,7 @@ def _signal_series_bounds(
 
 def _signal_series_window(bucket: datetime, delta: timedelta) -> tuple[datetime, datetime]:
     """``[start, end)`` of one signal's sparkline, on the scan's own grid."""
-    anchor = _as_utc(bucket)
+    anchor = to_utc(bucket)
     return (
         anchor - SIGNAL_SERIES_BUCKETS_BEFORE * delta,
         anchor + (SIGNAL_SERIES_BUCKETS_AFTER + 1) * delta,
@@ -1308,7 +1288,7 @@ async def _signal_series_counts(
             .group_by(EventMetric.bucket)
         )
         for bucket, count in rows.tuples().all():
-            counts[str(scan_config_id)][_as_utc(bucket)] = int(count or 0)
+            counts[str(scan_config_id)][to_utc(bucket)] = int(count or 0)
         return counts
     if scope_type == SCOPE_EVENT_TYPE:
         scope_rows = await session.execute(
@@ -1328,7 +1308,7 @@ async def _signal_series_counts(
             )
         )
     for scope_id, bucket, count in scope_rows.tuples().all():
-        counts[str(scope_id)][_as_utc(bucket)] = int(count)
+        counts[str(scope_id)][to_utc(bucket)] = int(count)
     return counts
 
 
@@ -1351,7 +1331,7 @@ async def get_signal_series(
     """
     if not scopes:
         return []
-    project = await _resolve_project(session, slug)
+    project = await resolve_project(session, slug)
     config_ids = {scope.scan_config_id for scope in scopes}
     intervals: dict[uuid.UUID, str] = {
         config_id: str(interval)
@@ -1394,7 +1374,7 @@ async def get_signal_series(
         if scope_type == SCOPE_PROJECT_TOTAL and scope_id != scope.scan_config_id:
             continue
         oldest, newest = bounds[scope.scan_config_id]
-        if not oldest <= _as_utc(scope.bucket) <= newest:
+        if not oldest <= to_utc(scope.bucket) <= newest:
             continue
         delta = get_interval(interval).delta
         start, end = _signal_series_window(scope.bucket, delta)
@@ -1442,21 +1422,15 @@ def _parse_scope_uuid(scope_ref: str, *, label: str) -> uuid.UUID:
         raise HTTPException(status_code=422, detail=f"{label} must be a UUID") from exc
 
 
-def _mover_float(value: object) -> float:
-    if isinstance(value, (int, float, str)):
-        return float(value)
-    return 0.0
-
-
 def _distribution_top_movers_from_row(row: DistributionDrift) -> list[DistributionDriftTopMover]:
     top_movers: list[DistributionDriftTopMover] = []
     for mover in row.top_movers or []:
         top_movers.append(
             DistributionDriftTopMover(
                 value=str(mover.get("value", "")),
-                baseline_share=_mover_float(mover.get("baseline_share")),
-                current_share=_mover_float(mover.get("current_share")),
-                contribution=_mover_float(mover.get("contribution")),
+                baseline_share=mover_float(mover.get("baseline_share")),
+                current_share=mover_float(mover.get("current_share")),
+                contribution=mover_float(mover.get("contribution")),
             )
         )
     return top_movers
@@ -1472,7 +1446,7 @@ async def get_distribution_drifts(
     time_from: datetime | None,
     time_to: datetime | None,
 ) -> DistributionDriftsResponse:
-    project = await _resolve_project(session, slug)
+    project = await resolve_project(session, slug)
     query = (
         select(DistributionDrift)
         .join(ScanConfig, ScanConfig.id == DistributionDrift.scan_config_id)

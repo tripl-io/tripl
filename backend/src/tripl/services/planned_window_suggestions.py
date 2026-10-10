@@ -24,6 +24,7 @@ from datetime import UTC, datetime, timedelta
 from sqlalchemy import and_, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from tripl.core.bucketing import to_utc
 from tripl.models.domain_enums import ChartAnnotationScopeType, SignalTriageAction
 from tripl.models.metric_anomaly import MetricAnomaly
 from tripl.models.planned_event import PlannedEvent
@@ -74,10 +75,6 @@ def _week(bucket: datetime) -> tuple[int, int]:
     return year, week
 
 
-def _as_utc(value: datetime) -> datetime:
-    return value.replace(tzinfo=UTC) if value.tzinfo is None else value.astimezone(UTC)
-
-
 def _next_occurrences(weekday: int, hour: int, now: datetime) -> tuple[SuggestedWindow, ...]:
     """The next :data:`NEXT_WINDOWS` slots at ``weekday`` ``hour`` UTC after ``now``."""
     day = now.astimezone(UTC).replace(hour=hour, minute=0, second=0, microsecond=0)
@@ -104,7 +101,7 @@ def _covered(
             continue
         if event.direction is not None and str(event.direction) != direction:
             continue
-        if _as_utc(event.starts_at) <= window.starts_at < _as_utc(event.ends_at):
+        if to_utc(event.starts_at) <= window.starts_at < to_utc(event.ends_at):
             return True
     return False
 
@@ -150,7 +147,7 @@ async def suggest_recurring_windows(
     for scope_type, scope_ref, raw_bucket, note, raw_direction in verdicts:
         if raw_bucket is None or str(scope_type) not in _PLANNABLE:
             continue
-        bucket = _as_utc(raw_bucket)
+        bucket = to_utc(raw_bucket)
         run = runs[(str(scope_type), scope_ref, bucket.weekday(), bucket.hour)]
         run.buckets.append(bucket)
         run.directions.add(str(raw_direction) if raw_direction is not None else None)

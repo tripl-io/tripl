@@ -21,7 +21,11 @@ from tripl.models.base import Base, TimestampMixin, UtcDateTime, UUIDMixin
 from tripl.models.domain_enums import ScanInterval
 from tripl.models.enum_types import db_enum
 from tripl.models.project_anomaly_settings import (
+    DEFAULT_ANOMALY_DETECTION_ENABLED,
+    DEFAULT_BASELINE_WINDOW_BUCKETS,
+    DEFAULT_DETECT_SCOPE,
     DEFAULT_MIN_EXPECTED_COUNT,
+    DEFAULT_MIN_HISTORY_BUCKETS,
     DEFAULT_SIGMA_THRESHOLD,
 )
 
@@ -121,12 +125,16 @@ class ScanConfig(UUIDMixin, TimestampMixin, Base):
     # in EventMetricBreakdown — powering the per-event platform presence matrix
     # and per-platform volume anomalies. NULL means no platform dimension.
     platform_column: Mapped[str | None] = mapped_column(String(255), nullable=True)
-    anomaly_detection_enabled: Mapped[bool] = mapped_column(Boolean, default=False)
-    detect_project_total: Mapped[bool] = mapped_column(Boolean, default=True)
-    detect_event_types: Mapped[bool] = mapped_column(Boolean, default=True)
-    detect_events: Mapped[bool] = mapped_column(Boolean, default=True)
-    baseline_window_buckets: Mapped[int] = mapped_column(Integer, default=14)
-    min_history_buckets: Mapped[int] = mapped_column(Integer, default=7)
+    anomaly_detection_enabled: Mapped[bool] = mapped_column(
+        Boolean, default=DEFAULT_ANOMALY_DETECTION_ENABLED
+    )
+    detect_project_total: Mapped[bool] = mapped_column(Boolean, default=DEFAULT_DETECT_SCOPE)
+    detect_event_types: Mapped[bool] = mapped_column(Boolean, default=DEFAULT_DETECT_SCOPE)
+    detect_events: Mapped[bool] = mapped_column(Boolean, default=DEFAULT_DETECT_SCOPE)
+    baseline_window_buckets: Mapped[int] = mapped_column(
+        Integer, default=DEFAULT_BASELINE_WINDOW_BUCKETS
+    )
+    min_history_buckets: Mapped[int] = mapped_column(Integer, default=DEFAULT_MIN_HISTORY_BUCKETS)
     sigma_threshold: Mapped[float] = mapped_column(Float, default=DEFAULT_SIGMA_THRESHOLD)
     min_expected_count: Mapped[int] = mapped_column(Integer, default=DEFAULT_MIN_EXPECTED_COUNT)
     # Source freshness (#269). ``last_event_at`` is the start of the newest

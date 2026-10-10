@@ -175,6 +175,19 @@ def _get_sync_client() -> redis_sync.Redis | None:
     return _sync_client
 
 
+def sync_delete(*keys: str) -> None:
+    """Sync variant of :func:`delete` for Celery workers."""
+    if not keys:
+        return
+    client = _get_sync_client()
+    if client is None:
+        return
+    try:
+        client.delete(*keys)
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("redis sync DEL %s failed: %s", keys, exc)
+
+
 def sync_delete_prefix(prefix: str) -> None:
     """Sync variant of :func:`delete_prefix` for Celery workers."""
     client = _get_sync_client()

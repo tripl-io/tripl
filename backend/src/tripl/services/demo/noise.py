@@ -18,7 +18,6 @@ the seeded metrics/anomalies/drift non-reproducible across runs.
 
 from __future__ import annotations
 
-import math
 from datetime import datetime, timedelta
 
 from tripl.core.adapters import synthetic_traffic
@@ -66,17 +65,6 @@ def hour_buckets(now: datetime, days: int) -> list[datetime]:
         result.append(cursor)
         cursor += timedelta(hours=1)
     return result
-
-
-def sinusoidal_count(base: int, bucket: datetime, noise_seed: int) -> int:
-    """Daily sinusoid with a small deterministic noise term."""
-    hour_of_day = bucket.hour
-    # peak around 14:00 UTC, trough around 02:00
-    sinusoid = math.sin((hour_of_day - 2) * math.pi / 12)
-    # cheap deterministic noise: seed+hour to ±10 %
-    noise = ((noise_seed * 31 + bucket.day * 7 + hour_of_day * 13) % 21 - 10) / 100.0
-    raw = base * (1 + 0.4 * sinusoid + noise)
-    return max(1, round(raw))
 
 
 def platform_shares(progress: float) -> dict[str, float]:

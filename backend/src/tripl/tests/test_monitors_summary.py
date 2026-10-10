@@ -195,8 +195,9 @@ class TestFreshnessHorizon:
         # function, so a live reference here would be a re-export kept alive by
         # its own test rather than by a caller.
         assert not hasattr(worker_signals, "LATEST_SCAN_STALE_INTERVALS")
-        # The third copy of the 24h window: nothing pinned this one at all.
-        assert worker_helpers.RECENT_SIGNAL_WINDOW is monitoring_utils.RECENT_SIGNAL_WINDOW
+        # The worker's re-export of the 24h window went the same way once its
+        # last reader did; the worker reads ``monitoring_utils`` directly.
+        assert not hasattr(worker_helpers, "RECENT_SIGNAL_WINDOW")
 
     def test_monitoring_utils_is_a_pure_leaf(self) -> None:
         """The precondition that makes the import above legal, enforced not asserted.

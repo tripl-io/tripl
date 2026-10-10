@@ -24,10 +24,12 @@ counted in ``tripl_settings_read_failures_total``.
 
 Layout: this module is the public facade. The field catalogue, the stored
 overrides, each section's config builder, the resolution and the public payload
-live in private ``_app_settings_*`` siblings and are re-exported here (every
-``X as X`` below is a deliberate re-export). The accessors that read a scope,
-and every caller of a function tests patch on this module, stay here, so a
-``monkeypatch.setattr(app_settings_service, ...)`` still reaches them.
+live in private ``_app_settings_*`` siblings. A name is re-exported here (every
+``X as X`` below is deliberate) only when this module uses it or a caller
+reaches it through this module; anything else is imported from its sibling.
+The accessors that read a scope, and every caller of a function tests patch on
+this module, stay here, so a ``monkeypatch.setattr(app_settings_service, ...)``
+still reaches them.
 """
 
 from __future__ import annotations
@@ -53,19 +55,10 @@ from tripl.services._app_settings_ai import (
     AiConfig as AiConfig,
 )
 from tripl.services._app_settings_ai import (
-    _ai_config_from as _ai_config_from,
-)
-from tripl.services._app_settings_ai import (
     ai_config_for as ai_config_for,
 )
 from tripl.services._app_settings_ai import (
     ai_prompt_defaults as ai_prompt_defaults,
-)
-from tripl.services._app_settings_ai import (
-    build_ai_config as build_ai_config,
-)
-from tripl.services._app_settings_ai import (
-    default_ai_prompts as default_ai_prompts,
 )
 from tripl.services._app_settings_ai import (
     disabled_ai_config as disabled_ai_config,
@@ -77,22 +70,10 @@ from tripl.services._app_settings_core import (
     _ENV_BEFORE_STARTUP_APPLY as _ENV_BEFORE_STARTUP_APPLY,
 )
 from tripl.services._app_settings_core import (
-    _decrypt_override as _decrypt_override,
-)
-from tripl.services._app_settings_core import (
-    _get_overrides_for_key as _get_overrides_for_key,
-)
-from tripl.services._app_settings_core import (
-    _get_overrides_for_key_sync as _get_overrides_for_key_sync,
-)
-from tripl.services._app_settings_core import (
     _operator_setting as _operator_setting,
 )
 from tripl.services._app_settings_core import (
     _org_setting as _org_setting,
-)
-from tripl.services._app_settings_core import (
-    _org_values as _org_values,
 )
 from tripl.services._app_settings_core import (
     _reject_startup_breaking_overrides as _reject_startup_breaking_overrides,
@@ -102,9 +83,6 @@ from tripl.services._app_settings_core import (
 )
 from tripl.services._app_settings_core import (
     build_service_values as build_service_values,
-)
-from tripl.services._app_settings_core import (
-    env_service_values as env_service_values,
 )
 from tripl.services._app_settings_core import (
     get_org_overrides as get_org_overrides,
@@ -125,13 +103,7 @@ from tripl.services._app_settings_email import (
     EmailConfig as EmailConfig,
 )
 from tripl.services._app_settings_email import (
-    _email_config_from as _email_config_from,
-)
-from tripl.services._app_settings_email import (
     _email_config_of as _email_config_of,
-)
-from tripl.services._app_settings_email import (
-    _guard_smtp_host as _guard_smtp_host,
 )
 from tripl.services._app_settings_email import (
     build_email_config as build_email_config,
@@ -161,9 +133,6 @@ from tripl.services._app_settings_fields import (
     AI_FIELDS as AI_FIELDS,
 )
 from tripl.services._app_settings_fields import (
-    AI_SECRET_FIELDS as AI_SECRET_FIELDS,
-)
-from tripl.services._app_settings_fields import (
     EDITABLE_FIELDS as EDITABLE_FIELDS,
 )
 from tripl.services._app_settings_fields import (
@@ -173,34 +142,13 @@ from tripl.services._app_settings_fields import (
     EMBEDDING_FIELDS as EMBEDDING_FIELDS,
 )
 from tripl.services._app_settings_fields import (
-    FIELD_SECTIONS as FIELD_SECTIONS,
-)
-from tripl.services._app_settings_fields import (
-    LIVE_APPLIED_FIELDS as LIVE_APPLIED_FIELDS,
-)
-from tripl.services._app_settings_fields import (
-    OBSERVABILITY_FIELDS as OBSERVABILITY_FIELDS,
-)
-from tripl.services._app_settings_fields import (
     OPERATOR_FIELDS as OPERATOR_FIELDS,
 )
 from tripl.services._app_settings_fields import (
     ORG_FIELDS as ORG_FIELDS,
 )
 from tripl.services._app_settings_fields import (
-    READ_ONLY_ENV_FIELDS as READ_ONLY_ENV_FIELDS,
-)
-from tripl.services._app_settings_fields import (
-    REPORTED_FIELDS as REPORTED_FIELDS,
-)
-from tripl.services._app_settings_fields import (
-    RUNTIME_FIELDS as RUNTIME_FIELDS,
-)
-from tripl.services._app_settings_fields import (
     SECRET_FIELDS as SECRET_FIELDS,
-)
-from tripl.services._app_settings_fields import (
-    SECURITY_FIELDS as SECURITY_FIELDS,
 )
 from tripl.services._app_settings_fields import (
     STARTUP_APPLIED_FIELDS as STARTUP_APPLIED_FIELDS,
@@ -210,15 +158,6 @@ from tripl.services._app_settings_fields import (
 )
 from tripl.services._app_settings_fields import (
     STORAGE_ORG_FIELDS as STORAGE_ORG_FIELDS,
-)
-from tripl.services._app_settings_fields import (
-    SettingSource as SettingSource,
-)
-from tripl.services._app_settings_fields import (
-    touches_operator_fields as touches_operator_fields,
-)
-from tripl.services._app_settings_payload import (
-    public_service_settings as public_service_settings,
 )
 from tripl.services._app_settings_payload import (
     resolved_settings_payload as resolved_settings_payload,
@@ -239,25 +178,7 @@ from tripl.services._app_settings_runtime import (
     env_runtime_config as env_runtime_config,
 )
 from tripl.services._app_settings_sources import (
-    _DERIVED_DEFAULTS as _DERIVED_DEFAULTS,
-)
-from tripl.services._app_settings_sources import (
-    _NO_DEFAULT as _NO_DEFAULT,
-)
-from tripl.services._app_settings_sources import (
-    _PROMPT_DEFAULTS as _PROMPT_DEFAULTS,
-)
-from tripl.services._app_settings_sources import (
     ResolvedSettings as ResolvedSettings,
-)
-from tripl.services._app_settings_sources import (
-    _code_default as _code_default,
-)
-from tripl.services._app_settings_sources import (
-    _group_default as _group_default,
-)
-from tripl.services._app_settings_sources import (
-    _setting_source as _setting_source,
 )
 from tripl.services._app_settings_sources import (
     resolve_settings as resolve_settings,
@@ -275,22 +196,6 @@ async def get_row_limit_defaults(
     only answers with the operator's caps.
     """
     return _runtime_config_from((await resolve_for_org(session, org_id)).values)
-
-
-async def get_ai_overrides(session: AsyncSession) -> dict[str, Any]:
-    return {
-        key: value
-        for key, value in (await get_service_overrides(session)).items()
-        if key in AI_CONFIG_FIELDS
-    }
-
-
-def get_ai_overrides_sync(session: Session) -> dict[str, Any]:
-    return {
-        key: value
-        for key, value in get_service_overrides_sync(session).items()
-        if key in AI_CONFIG_FIELDS
-    }
 
 
 async def resolve_for_org(session: AsyncSession, org_id: uuid.UUID | None) -> ResolvedSettings:
@@ -509,11 +414,6 @@ def get_email_config_for_project_sync(
     if org_id is None:
         return disabled_email_config()
     return get_email_config_sync(session, org_id=org_id)
-
-
-def get_operator_email_config_sync(session: Session | None = None) -> EmailConfig:
-    """The operator's relay: account mail (sign-up, password reset, invitations)."""
-    return get_email_config_sync(session, org_id=None)
 
 
 async def get_operator_email_config(session: AsyncSession) -> EmailConfig:

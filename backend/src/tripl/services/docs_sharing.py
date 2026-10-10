@@ -52,6 +52,7 @@ from tripl.services.docs_access import (
     docs_with_access,
     level_rights,
     record_break_glass,
+    scope_filter,
 )
 from tripl.services.docs_paths import DocPathError, DocScope, normalize_doc_path, normalize_prefix
 from tripl.services.docs_paths import path_key as key_of
@@ -333,7 +334,7 @@ async def _folder_rights(
     pairs = await docs_with_access(
         session,
         caller.user.id,
-        docs_folders.doc_scope_filter(project, scope),
+        scope_filter(project, scope),
         DocFile.path_key.startswith(key_of(folder) + "/", autoescape=True),
         visible_only=False,
     )

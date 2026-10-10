@@ -3,6 +3,7 @@ from datetime import datetime
 
 from pydantic import BaseModel, Field, field_validator
 
+from tripl.schemas.integers import INT32_MAX
 from tripl.services.holiday_calendar import is_supported_country
 
 
@@ -12,10 +13,10 @@ class ProjectAnomalySettingsUpdate(BaseModel):
     detect_event_types: bool | None = None
     detect_events: bool | None = None
     detect_metrics: bool | None = None
-    baseline_window_buckets: int | None = Field(None, ge=1)
-    min_history_buckets: int | None = Field(None, ge=1)
+    baseline_window_buckets: int | None = Field(None, ge=1, le=INT32_MAX)
+    min_history_buckets: int | None = Field(None, ge=1, le=INT32_MAX)
     sigma_threshold: float | None = Field(None, ge=0.1)
-    min_expected_count: int | None = Field(None, ge=0)
+    min_expected_count: int | None = Field(None, ge=0, le=INT32_MAX)
     # Capped at 30 days: beyond that the "open signal" count stops describing
     # anything current, and the latest-scan horizon (max(window, 3 x interval))
     # already covers long scan intervals.
@@ -91,7 +92,13 @@ def settling_window_conflict(
 
 
 class ProjectAnomalySettingsResponse(BaseModel):
-    id: uuid.UUID
+    """A project's detection settings.
+
+    A project that never saved them has no row: it reads the defaults, and
+    ``id``, ``created_at`` and ``updated_at`` are null until the first save.
+    """
+
+    id: uuid.UUID | None = None
     project_id: uuid.UUID
     anomaly_detection_enabled: bool
     detect_project_total: bool
@@ -105,8 +112,8 @@ class ProjectAnomalySettingsResponse(BaseModel):
     recent_signal_window_hours: int
     anomaly_ingestion_settling_minutes: int
     holiday_country: str | None = None
-    created_at: datetime
-    updated_at: datetime
+    created_at: datetime | None = None
+    updated_at: datetime | None = None
 
     model_config = {"from_attributes": True}
 

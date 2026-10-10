@@ -132,7 +132,20 @@ async def delete_event_photo(
     )
 
 
-@router.get("/{photo_id}/file")
+_BYTES = {"schema": {"type": "string", "format": "binary"}}
+
+
+@router.get(
+    "/{photo_id}/file",
+    response_class=Response,
+    responses={
+        200: {
+            "description": "The photo's bytes, with the content type it was uploaded with.",
+            "content": {"image/*": _BYTES, "application/octet-stream": _BYTES},
+        },
+        204: {"description": "A Figma attachment: there is no file to stream."},
+    },
+)
 async def download_event_photo(
     session: SessionDep,
     slug: str,

@@ -16,11 +16,14 @@ marker that job excludes, and the dedicated ``trino`` job runs it against a
 
 from __future__ import annotations
 
+import json
 from collections.abc import Iterator
 
 import pytest
 
 from tripl.core.adapters.trino import TrinoAdapter
+from tripl.core.warehouse_types import ComplexKind, classify_complex
+from tripl.tests.conformance.dataset import FROM_TIME, IN_WINDOW_IDS, TO_TIME, in_window_rows
 from tripl.tests.conformance.trino_live import (
     BASE,
     TRINO_REQUIRED_ENV,
@@ -46,6 +49,57 @@ def engine() -> Iterator[TrinoAdapter]:
     finally:
         if adapter is not None:
             adapter.close()
+
+
+def test_a_map_column_is_path_expanded(engine: TrinoAdapter) -> None:
+    """A ``map`` column's keys are properties, read through its JSON cast.
+
+    Trino only: Athena reports a map's type as a bare ``map``, which the scan
+    reads as a value.
+    """
+    source = (
+        "SELECT _base.*, try_cast(doc AS map(varchar, json)) AS attrs, "
+        "MAP(ARRAY['event'], ARRAY[event_name]) AS labels "
+        f"FROM ({BASE}) AS _base"
+    )
+    types = {column.name: column.type_name for column in engine.get_columns(source)}
+    try:
+        assert classify_complex(types["attrs"]) is ComplexKind.map
+        assert classify_complex(types["labels"]) is ComplexKind.map
+        regular, nested, value_names, rows = engine.get_full_breakdown(
+            source,
+            ["event_name"],
+            ["attrs", "labels"],
+            {"attrs": ["user.address.city"], "labels": ["event"]},
+            time_column="ts",
+            time_from=FROM_TIME,
+            time_to=TO_TIME,
+        )
+        assert (regular, nested) == (["event_name"], ["attrs", "labels"])
+        assert value_names == ["attrs.user.address.city", "labels.event"]
+        # (event_name, attrs keys, labels keys, city, event, count)
+        assert sum(int(str(row[-1])) for row in rows) == len(IN_WINDOW_IDS)
+        assert {tuple(row[1]) for row in rows} == {
+            tuple(sorted(fixture_row.doc)) for fixture_row in in_window_rows()
+        }
+        assert {tuple(row[2]) for row in rows} == {("event",)}
+        assert {row[3] for row in rows} - {None, "null"} == {
+            json.dumps(fixture_row.doc["user"]["address"]["city"])
+            for fixture_row in in_window_rows()
+            if "user" in fixture_row.doc
+        }
+        assert {(row[0], row[4]) for row in rows} == {
+            (fixture_row.event_name, json.dumps(fixture_row.event_name))
+            for fixture_row in in_window_rows()
+        }
+
+        _, _, bucketed = engine.get_time_bucketed_counts(
+            source, "ts", "1d", [], ["attrs"], None, FROM_TIME, TO_TIME
+        )
+        assert sum(int(str(row[-1])) for row in bucketed) == len(IN_WINDOW_IDS)
+    finally:
+        # One adapter reads one base query's columns; the shared tests read BASE.
+        engine.get_columns(BASE)
 
 
 def test_a_runaway_statement_is_cut_off_as_a_timeout() -> None:

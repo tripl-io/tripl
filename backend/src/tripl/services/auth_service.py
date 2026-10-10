@@ -8,9 +8,9 @@ from datetime import UTC, datetime, timedelta
 from typing import cast
 
 from fastapi import HTTPException, status
-from sqlalchemy import delete, func, select, text, update
+from sqlalchemy import Delete, delete, func, select, text, update
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.orm import selectinload
+from sqlalchemy.orm import Session, selectinload
 
 from tripl import tenancy
 from tripl.auth_utils import (
@@ -312,19 +312,6 @@ async def _membership_rows(
     ]
 
 
-async def user_org_memberships(session: AsyncSession, user_id: uuid.UUID) -> list[OrgMembershipOut]:
-    """Every organization ``user_id`` belongs to, with their role there."""
-    return [
-        OrgMembershipOut(
-            slug=slug,
-            name=name,
-            role=OrganizationRole(role),
-            status=OrganizationStatus(org_status),
-        )
-        for _org_id, slug, name, role, org_status in await _membership_rows(session, user_id)
-    ]
-
-
 async def _active_step_ins(session: AsyncSession, user: User) -> list[ActiveStepInOut]:
     """A platform admin's live read-only step-ins (F20 PR14), soonest to end first."""
     if not user.is_platform_admin:
@@ -484,19 +471,50 @@ def _reset_expires_at() -> datetime:
     return datetime.now(UTC) + timedelta(hours=PASSWORD_RESET_TTL_HOURS)
 
 
-async def _delete_reset_tokens_for_user(
-    session: AsyncSession, user_id: uuid.UUID, *, exclude_id: uuid.UUID | None = None
-) -> None:
+def _reset_tokens_of(user_id: uuid.UUID, *, exclude_id: uuid.UUID | None = None) -> Delete:
     """Drop a user's outstanding reset tokens (optionally keeping ``exclude_id``).
 
-    Keeps at most one reset link live per user: called when issuing a new token
+    Keeps at most one reset link live per user: run when issuing a new token
     (supersede any earlier link) and on a successful confirm (invalidate every
     sibling of the just-consumed token).
     """
     statement = delete(PasswordResetToken).where(PasswordResetToken.user_id == user_id)
     if exclude_id is not None:
         statement = statement.where(PasswordResetToken.id != exclude_id)
-    await session.execute(statement.execution_options(synchronize_session=False))
+    return statement.execution_options(synchronize_session=False)
+
+
+def password_reset_path(raw_token: str) -> str:
+    """Where a reset link points on the app's public URL.
+
+    The SPA reads ``?reset_token=`` off the ``/auth`` route and switches to
+    reset mode.
+    """
+    return f"/auth?reset_token={raw_token}"
+
+
+def stage_password_reset_token(session: Session, user_id: uuid.UUID) -> tuple[str, datetime]:
+    """Stage a new single-use reset token for ``user_id``. No commit.
+
+    Returns the raw token and when it expires. Every reset token is minted
+    here, whether its link is mailed (:func:`request_password_reset`) or handed
+    over (``password_reset_links``), so all of them live
+    ``PASSWORD_RESET_TTL_HOURS``, work once, and replace any earlier link of
+    the account. Sync so the ``tripl-admin`` shell tool, which has no event
+    loop, mints through it too; async callers go through
+    ``AsyncSession.run_sync``.
+    """
+    session.execute(_reset_tokens_of(user_id))
+    raw_token = secrets.token_urlsafe(PASSWORD_RESET_TOKEN_BYTES)
+    expires_at = _reset_expires_at()
+    session.add(
+        PasswordResetToken(
+            user_id=user_id,
+            token_hash=_hash_reset_token(raw_token),
+            expires_at=expires_at,
+        )
+    )
+    return raw_token, expires_at
 
 
 async def request_password_reset(session: AsyncSession, email: str) -> tuple[User, str] | None:
@@ -512,15 +530,7 @@ async def request_password_reset(session: AsyncSession, email: str) -> tuple[Use
     if user is None:
         return None
 
-    await _delete_reset_tokens_for_user(session, user.id)
-    raw_token = secrets.token_urlsafe(PASSWORD_RESET_TOKEN_BYTES)
-    session.add(
-        PasswordResetToken(
-            user_id=user.id,
-            token_hash=_hash_reset_token(raw_token),
-            expires_at=_reset_expires_at(),
-        )
-    )
+    raw_token, _expires_at = await session.run_sync(stage_password_reset_token, user.id)
     await session.commit()
     return user, raw_token
 
@@ -533,11 +543,13 @@ async def confirm_password_reset(session: AsyncSession, raw_token: str, new_pass
     (single-use), every other outstanding token for the user is dropped, all
     active sessions are cleared so a reset always ends other logins, and every
     live API key of the user is revoked (a reset is what an owner does when the
-    account may be compromised). The address counts as verified — the link was
-    mailed to it — but that grants nothing further (no ``PLATFORM_ADMIN_EMAILS``
-    promotion: see ``email_verification_service``). Password
-    strength is enforced upstream at the schema boundary (same policy as
-    register), so an invalid password never reaches here.
+    account may be compromised). The address counts as verified: a mailed link
+    reached it, an organization owner's or admin's link is only ever issued to
+    an account already verified, and ``tripl-admin``'s operator vouches for it
+    (``password_reset_links``). That grants nothing further (no
+    ``PLATFORM_ADMIN_EMAILS`` promotion: see ``email_verification_service``).
+    Password strength is enforced upstream at the schema boundary (same policy
+    as register), so an invalid password never reaches here.
     """
     row = cast(
         PasswordResetToken | None,
@@ -562,11 +574,11 @@ async def confirm_password_reset(session: AsyncSession, raw_token: str, new_pass
         )
 
     user.password_hash = await asyncio.to_thread(hash_password, new_password)
-    # The reset link reached this address, so the address is proven. No
+    # The address is proven or vouched for (see the docstring). No
     # platform-admin grant here: only a confirmed verification link does that.
     email_verification_service.mark_verified(user, now=now)
     row.used_at = now
-    await _delete_reset_tokens_for_user(session, user.id, exclude_id=row.id)
+    await session.execute(_reset_tokens_of(user.id, exclude_id=row.id))
     # A password reset invalidates existing sessions: whoever reset the password
     # gets a fresh login, and any other live session is forced to re-authenticate.
     await session.execute(

@@ -549,34 +549,3 @@ def recompute_anomaly_attributions(
         )
     _upsert_attributions(session, rows)
     return len(rows)
-
-
-def stored_attribution_payload(
-    session: Session,
-    *,
-    scan_config_id: uuid.UUID | None,
-    scope_type: str,
-    scope_ref: str,
-    bucket: datetime,
-) -> dict[str, Any] | None:
-    """The stored ``{delta, columns, release}`` of one anomaly, keyed like a signal.
-
-    For the alert side (delivery item / message / AI prompt): pair it with
-    ``core.analyzers.attribution.attribution_headline`` and ``release_line`` so
-    the alert quotes the same one-liner the drilldown shows.
-    """
-    if scan_config_id is None:
-        return None
-    row = session.execute(
-        select(MetricAnomalyAttribution)
-        .join(MetricAnomaly, MetricAnomaly.id == MetricAnomalyAttribution.anomaly_id)
-        .where(
-            MetricAnomaly.scan_config_id == scan_config_id,
-            MetricAnomaly.scope_type == scope_type,
-            MetricAnomaly.scope_ref == scope_ref,
-            MetricAnomaly.bucket == bucket,
-        )
-    ).scalar_one_or_none()
-    if row is None:
-        return None
-    return {"delta": row.delta, "columns": row.columns or [], "release": row.release}

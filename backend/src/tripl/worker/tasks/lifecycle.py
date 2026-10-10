@@ -12,9 +12,10 @@ only ever see main, so a branch copy has no volume of its own to judge):
 Findings live in ``lifecycle_findings``, one row per (event, kind), and this
 task is their only writer: it upserts what holds today, resolves what no longer
 does, and reopens a resolved row whose condition came back. The event payload,
-the catalog chip, ``GET /projects/{slug}/lifecycle-findings`` and the Lifecycle
-alert family all read those rows (``load_open_findings`` below is the alerting
-seam), so every surface agrees with the last run.
+the catalog chip, ``GET /projects/{slug}/lifecycle-findings``, the Lifecycle
+alert family (``load_open_findings`` below is its seam), the daily sunset alert
+and the weekly digest's overdue counter (``alerts_messages._sunset_overdue_scope``)
+all read those rows, so every surface agrees with the last run.
 
 "Window" follows ``services.lifecycle_rules``: a bucket counts when it OVERLAPS
 the window, so a daily scan's midnight bucket does not fall out of "the last 24
@@ -37,6 +38,7 @@ from tripl.models.event_metric import EventMetric
 from tripl.models.lifecycle_finding import LifecycleFinding, LifecycleFindingKind
 from tripl.models.plan_branch import BranchKind, PlanBranch
 from tripl.models.scan_config import ScanConfig
+from tripl.services._id_chunks import chunked
 from tripl.services.active_org_scope import in_active_org
 from tripl.services.lifecycle_rules import (
     SUCCESSOR_SILENCE_WINDOW,
@@ -86,16 +88,12 @@ class LifecycleSweepStats:
         return out
 
 
-def _chunks(ids: list[uuid.UUID]) -> list[list[uuid.UUID]]:
-    return [ids[i : i + _MAX_IDS_PER_QUERY] for i in range(0, len(ids), _MAX_IDS_PER_QUERY)]
-
-
 def _volume_rows(
     session: Session, event_ids: list[uuid.UUID], *, since: datetime
 ) -> list[tuple[uuid.UUID, datetime, int, str | None]]:
     """``(event_id, bucket, count, scan interval)`` for buckets starting at/after ``since``."""
     rows: list[tuple[uuid.UUID, datetime, int, str | None]] = []
-    for chunk in _chunks(event_ids):
+    for chunk in chunked(event_ids, _MAX_IDS_PER_QUERY):
         result = session.execute(
             select(EventMetric.event_id, EventMetric.bucket, EventMetric.count, ScanConfig.interval)
             .join(ScanConfig, ScanConfig.id == EventMetric.scan_config_id)

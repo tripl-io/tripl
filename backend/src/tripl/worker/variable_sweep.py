@@ -91,6 +91,7 @@ from tripl.models.variable import Variable
 from tripl.models.variable_event_value_override import VariableEventValueOverride
 from tripl.models.variable_value import VariableValue
 from tripl.models.variable_value_drift import VariableValueDrift
+from tripl.services._id_chunks import chunked
 
 logger = logging.getLogger(__name__)
 
@@ -273,8 +274,7 @@ def retire_unused_variables(
     # rowcount is now read and summed, so a batch that raced another run and
     # matched nothing contributes nothing.
     retired = 0
-    for start in range(0, len(plan.retirable), _DELETE_BATCH):
-        batch = plan.retirable[start : start + _DELETE_BATCH]
+    for batch in chunked(plan.retirable, _DELETE_BATCH):
         result = session.execute(
             delete(Variable)
             .where(Variable.id.in_(batch))

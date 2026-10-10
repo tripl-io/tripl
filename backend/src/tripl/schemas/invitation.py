@@ -5,6 +5,7 @@ from datetime import UTC, datetime
 
 from pydantic import BaseModel, ConfigDict, EmailStr, Field, computed_field, field_validator
 
+from tripl.core.bucketing import to_utc
 from tripl.models.domain_enums import OrganizationRole
 from tripl.schemas.auth import PASSWORD_MAX_LENGTH, validate_password_strength
 
@@ -48,10 +49,7 @@ class InvitationResponse(BaseModel):
         expired-but-unused rows are deliberately still listed — an owner needs
         to see that a link they sent no longer works.
         """
-        expires_at = self.expires_at
-        if expires_at.tzinfo is None:
-            expires_at = expires_at.replace(tzinfo=UTC)
-        return expires_at <= datetime.now(UTC)
+        return to_utc(self.expires_at) <= datetime.now(UTC)
 
 
 class InvitationCreatedResponse(BaseModel):

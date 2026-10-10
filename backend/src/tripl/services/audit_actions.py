@@ -6,6 +6,11 @@ that were not could be read in the feed but not filtered for. It lives here now,
 next to the ``audit_service.record(...)`` calls that write the actions, and
 ``tests/test_metric_save_and_audit_contracts.py`` fails when a recorded action is missing from it.
 
+A new action also needs a label: the frontend keeps a copy of this catalog
+(``frontend/src/pages/settings/auditActionCatalog.fixture.json``, held equal by
+``tests/test_prelaunch_plan_settings.py``) and fails until every code in it reads
+as a sentence in ``auditSentences.ts``.
+
 Two halves, because the Audit tab's query is always narrowed to one project:
 
 * ``PROJECT_GROUPS`` — actions recorded with ``project=`` / ``project_slug=``;
@@ -71,7 +76,9 @@ PROJECT_GROUPS: tuple[tuple[str, tuple[str, ...]], ...] = (
         ),
     ),
     (
-        "Variables",
+        # A filter group label, so it says what the rest of the app calls these:
+        # properties. ``variable`` is only the code's name for them.
+        "Properties",
         (
             "variable.create",
             "variable.update",
@@ -238,7 +245,10 @@ WORKSPACE_GROUPS: tuple[tuple[str, tuple[str, ...]], ...] = (
             "user.invite",
             "user.invite_revoke",
             "user.invite_accept",
+            # Written by ``PATCH /users/{id}`` before it filed
+            # ``org.member_role_update``; older entries carry it.
             "user.role_update",
+            "user.password_reset_link",
             "api_key.revoke",
             "settings.update",
             # Written by the removed ``PUT /settings/ai``; older entries carry it.

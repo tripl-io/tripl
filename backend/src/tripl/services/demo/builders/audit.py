@@ -256,8 +256,14 @@ async def _catalog_entries(session: AsyncSession, ctx: DemoContext) -> list[_Ent
     return entries
 
 
-async def _branch_entries(session: AsyncSession, ctx: DemoContext) -> list[_Entry]:
+async def _branch_entries(session: AsyncSession, ctx: DemoContext) -> list[tuple[_Entry, datetime]]:
     """The feature branch's own trail: its creation, and the one edit made on it.
+
+    Dated off the rows themselves, like the event rows: the creation at the
+    branch's ``created_at`` (the instant Plan history reads "Branch opened"
+    from), the edit at the branch copy's ``updated_at``. Spread with the other
+    operations instead, the log dated the branch at a different time from the
+    one the branch list and Plan history show.
 
     The EDIT is the only row in this builder that carries a branch, and the only
     reason ``_Entry`` grew branch fields. Creating the branch is an action ON
@@ -283,7 +289,12 @@ async def _branch_entries(session: AsyncSession, ctx: DemoContext) -> list[_Entr
     )
     if branch is None:
         return []
-    entries = [_Entry("plan_branch.create", "plan_branch", branch.id, branch.name)]
+    entries = [
+        (
+            _Entry("plan_branch.create", "plan_branch", branch.id, branch.name),
+            to_utc(branch.created_at),
+        )
+    ]
     edited = (
         (
             await session.execute(
@@ -299,18 +310,21 @@ async def _branch_entries(session: AsyncSession, ctx: DemoContext) -> list[_Entr
     )
     if edited is not None:
         entries.append(
-            _Entry(
-                "event.update",
-                "event",
-                edited.id,
-                edited.name,
-                payload={
-                    "description": edited.description,
-                    "field_values_replaced": False,
-                    "meta_values_replaced": False,
-                },
-                branch_id=branch.id,
-                branch_name=branch.name,
+            (
+                _Entry(
+                    "event.update",
+                    "event",
+                    edited.id,
+                    edited.name,
+                    payload={
+                        "description": edited.description,
+                        "field_values_replaced": False,
+                        "meta_values_replaced": False,
+                    },
+                    branch_id=branch.id,
+                    branch_name=branch.name,
+                ),
+                to_utc(edited.updated_at),
             )
         )
     return entries
@@ -570,17 +584,20 @@ async def build_audit(session: AsyncSession, ctx: DemoContext) -> None:
             )
     operations += await _catalog_entries(session, ctx)
     operations += await _alerting_entries(session, ctx)
-    operations += await _branch_entries(session, ctx)
+    branch_entries = await _branch_entries(session, ctx)
 
     # Two anchors, because the schema had to exist before the events that use it.
     # The schema trail ends where the OLDEST event begins — derived from the data
     # rather than copied from plan.py's stagger window, so the ordering survives
     # whatever that window becomes. Connecting a warehouse and setting up alerting
-    # are dated to the generation instant, which is when they really happened.
+    # are dated up to the generation instant, which is when they really happened,
+    # and end before the feature branch opens, which carries its own instants.
     schema_until = to_utc(events[0].created_at) if events else ctx.now
+    operations_until = min((at for _entry, at in branch_entries), default=ctx.now)
     plan_entries = _plan_entries(ctx) + await _authored_plan_entries(session, ctx)
     dated = _spread_backwards(plan_entries, until=schema_until)
-    dated += _spread_backwards(operations, until=ctx.now)
+    dated += _spread_backwards(operations, until=operations_until)
+    dated += branch_entries
     dated += _event_creation_entries(events)
     dated += await _event_edit_entries(session, events)
     dated += await _shadow_dismissal_entries(session, ctx)

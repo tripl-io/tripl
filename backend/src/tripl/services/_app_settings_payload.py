@@ -10,6 +10,7 @@ from typing import Any
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from tripl import __version__
 from tripl.config import settings
 from tripl.services import migration_status_service
 from tripl.services._app_settings_fields import (
@@ -49,6 +50,10 @@ async def resolved_settings_payload(
 def public_service_settings(
     resolved: ResolvedSettings, migration: migration_status_service.MigrationStatus
 ) -> dict[str, Any]:
+    # Here, not at the top: telemetry_service reaches llm_service, which imports
+    # the app_settings_service facade this module is part of.
+    from tripl.services import telemetry_service
+
     values = resolved.values
     overridden_fields = list(resolved.overridden_fields)
     sources: dict[str, SettingSource] = {}
@@ -130,6 +135,8 @@ def public_service_settings(
             "search_embedding_base_url": values["search_embedding_base_url"],
         },
         "system": {
+            "version": __version__,
+            "edition": telemetry_service.edition(),
             "debug": settings.debug,
             "database_url_configured": bool(settings.database_url),
             "sync_database_url_configured": bool(settings.sync_database_url),

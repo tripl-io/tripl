@@ -31,7 +31,7 @@ from tripl.api import deps
 from tripl.main import app
 from tripl.models.organization import OrganizationMember
 from tripl.models.project_member import ProjectMember
-from tripl.services import app_settings_service
+from tripl.services import _app_settings_fields, app_settings_service
 from tripl.tests._members import add_org_member
 from tripl.tests.conftest import TestSessionLocal
 
@@ -122,8 +122,8 @@ def test_every_editable_field_is_classified_exactly_once() -> None:
     org_only = {"search_embedding_base_url", "gcs_photo_credentials_json"}
     assert _ORG_FIELDS | org_only == app_settings_service.ORG_FIELDS
     assert org_only.isdisjoint(app_settings_service.EDITABLE_FIELDS)
-    assert set(app_settings_service.SECURITY_FIELDS) <= operator
-    assert set(app_settings_service.OBSERVABILITY_FIELDS) <= operator
+    assert set(_app_settings_fields.SECURITY_FIELDS) <= operator
+    assert set(_app_settings_fields.OBSERVABILITY_FIELDS) <= operator
     # The storage server paths stay the operator's (critique #12): an
     # organization naming a file on the server could read the operator's key.
     assert set(app_settings_service.STORAGE_FIELDS) & app_settings_service.ORG_FIELDS == {
@@ -143,18 +143,18 @@ def test_every_editable_field_is_classified_exactly_once() -> None:
 
 
 def test_touches_operator_fields() -> None:
-    assert app_settings_service.touches_operator_fields({"registration_mode": "open"})
-    assert app_settings_service.touches_operator_fields(
+    assert _app_settings_fields.touches_operator_fields({"registration_mode": "open"})
+    assert _app_settings_fields.touches_operator_fields(
         {"smtp_host": "smtp.example.com", "photo_local_dir": "/tmp"}
     )
-    assert not app_settings_service.touches_operator_fields({"smtp_host": "smtp.example.com"})
-    assert not app_settings_service.touches_operator_fields(
+    assert not _app_settings_fields.touches_operator_fields({"smtp_host": "smtp.example.com"})
+    assert not _app_settings_fields.touches_operator_fields(
         {"scan_row_limit_default": 10, "ai_model": "m", "ai_api_key": "k"}
     )
-    assert app_settings_service.touches_operator_fields({"gcs_photo_credentials_path": "/x"})
+    assert _app_settings_fields.touches_operator_fields({"gcs_photo_credentials_path": "/x"})
     # An organization's own allow-list (PR11), narrowed to the operator's.
-    assert not app_settings_service.touches_operator_fields({"photo_allowed_mime": "image/png"})
-    assert not app_settings_service.touches_operator_fields({})
+    assert not _app_settings_fields.touches_operator_fields({"photo_allowed_mime": "image/png"})
+    assert not _app_settings_fields.touches_operator_fields({})
 
 
 # ── who reads and who writes ────────────────────────────────────────────────

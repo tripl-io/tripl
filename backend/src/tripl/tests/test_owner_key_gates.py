@@ -186,6 +186,8 @@ PATH_ORG_ADMIN_ROUTES = {
     "PATCH /api/v1/orgs/{org}",
     "PATCH /api/v1/orgs/{org}/members/{user_id}",
     "DELETE /api/v1/orgs/{org}/members/{user_id}",
+    # A member's password reset link, to hand over (no email needed).
+    "POST /api/v1/orgs/{org}/members/{user_id}/password-reset-link",
     # An organization's own settings (F20 PR9): owner/admin of THAT org.
     "GET /api/v1/orgs/{org}/settings",
     "PATCH /api/v1/orgs/{org}/settings",

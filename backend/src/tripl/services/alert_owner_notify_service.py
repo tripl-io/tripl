@@ -34,6 +34,7 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from tripl.alert_templates import ALERT_MESSAGE_FORMAT_PLAIN, percent_delta_of
+from tripl.core.bucketing import to_utc
 from tripl.models.alert_delivery import AlertDelivery
 from tripl.models.alert_delivery_item import AlertDeliveryItem, trim_scope_name
 from tripl.models.alert_owner_notification import (
@@ -84,10 +85,6 @@ def _items_text(items: list[AlertDeliveryItem]) -> str:
     )
 
 
-def _as_aware(value: datetime) -> datetime:
-    return value.replace(tzinfo=UTC) if value.tzinfo is None else value.astimezone(UTC)
-
-
 def incident_target_key(correlation_group_id: uuid.UUID) -> str:
     return f"incident:{correlation_group_id}"
 
@@ -97,7 +94,7 @@ def signal_target_key(anomaly: MetricAnomaly) -> str:
     scan = str(anomaly.scan_config_id) if anomaly.scan_config_id is not None else "none"
     key = (
         f"signal:{anomaly.scope_type}:{anomaly.scope_ref}:{scan}:"
-        f"{_as_aware(anomaly.bucket).isoformat()}"
+        f"{to_utc(anomaly.bucket).isoformat()}"
     )
     if len(key) > OWNER_NOTIFICATION_TARGET_KEY_MAX_LEN:
         key = "signal:sha256:" + hashlib.sha256(key.encode()).hexdigest()
@@ -105,7 +102,7 @@ def signal_target_key(anomaly: MetricAnomaly) -> str:
 
 
 def cooldown_reason(last_sent_at: datetime, now: datetime) -> str:
-    minutes = max(1, int((now - _as_aware(last_sent_at)).total_seconds() // 60))
+    minutes = max(1, int((now - to_utc(last_sent_at)).total_seconds() // 60))
     return f"notified {minutes} minute{'' if minutes == 1 else 's'} ago"
 
 
@@ -133,7 +130,7 @@ async def _recently_notified(
         .group_by(AlertOwnerNotification.user_id)
     )
     return {
-        user_id: _as_aware(sent_at)
+        user_id: to_utc(sent_at)
         for user_id, sent_at in rows.all()
         if user_id is not None and sent_at is not None
     }

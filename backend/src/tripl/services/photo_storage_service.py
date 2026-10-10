@@ -136,10 +136,6 @@ async def policy_for_org(session: AsyncSession, org_id: uuid.UUID | None) -> Pho
     return policy_for(await app_settings_service.resolve_for_org(session, org_id), org_id)
 
 
-def policy_for_org_sync(session: Session, org_id: uuid.UUID | None) -> PhotoPolicy:
-    return policy_for(app_settings_service.resolve_for_org_sync(session, org_id), org_id)
-
-
 async def policy_for_project(session: AsyncSession, project_id: uuid.UUID) -> PhotoPolicy:
     """The policy of the organization that owns ``project_id``."""
     org_id = await app_settings_service.project_org_id(session, project_id)

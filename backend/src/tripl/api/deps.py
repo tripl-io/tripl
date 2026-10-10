@@ -2,8 +2,9 @@ import uuid
 from collections.abc import AsyncIterator, Awaitable, Callable
 from typing import Annotated, cast
 
-from fastapi import Depends, HTTPException, Query, Request, status
+from fastapi import Depends, HTTPException, Query, Request, Security, status
 from fastapi.dependencies.models import Dependant
+from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -46,6 +47,20 @@ from tripl.services.project_lookup import (
 )
 
 SessionDep = Annotated[AsyncSession, Depends(get_session)]
+
+#: The API key, as the OpenAPI document declares it: ``components.securitySchemes``
+#: and the ``security`` of every operation behind :func:`get_current_user`, so
+#: /docs offers Authorize and a generated client knows where the key goes. A
+#: declaration only: :func:`_resolve_api_key_user` still reads the header, since
+#: a request may sign in with the session cookie instead and a bad key gets its
+#: own 401. The cookie is not declared: its name is configurable
+#: (``SESSION_COOKIE_NAME``), and the document must not change with the
+#: environment (test_openapi_contract).
+API_KEY_SCHEME = HTTPBearer(
+    scheme_name="ApiKey",
+    description="A tripl API key: `Authorization: Bearer tk_...`.",
+    auto_error=False,
+)
 
 
 async def _resolve_api_key_user(request: Request, session: AsyncSession) -> User | None:
@@ -251,7 +266,11 @@ async def _enforce_project_scope(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=PROJECT_NOT_FOUND)
 
 
-async def get_current_user(request: Request, session: SessionDep) -> User:
+async def get_current_user(
+    request: Request,
+    session: SessionDep,
+    _api_key: Annotated[HTTPAuthorizationCredentials | None, Security(API_KEY_SCHEME)],
+) -> User:
     # Bearer first — agents shouldn't need to send cookies.
     api_user = await _resolve_api_key_user(request, session)
     if api_user is not None:
@@ -292,6 +311,11 @@ _ORG_ROLE_UNSET = object()
 ORG_ADMIN_REQUIRED = "Organization owner or admin role required"
 ORG_MEMBERSHIP_REQUIRED = "Organization membership required"
 PLATFORM_ADMIN_REQUIRED = "Platform admin required"
+#: 403 detail when a route takes an interactive session and the caller is an
+#: API key. The owner and operator gates name the session they want instead.
+BROWSER_SESSION_REQUIRED = "A browser session is required"
+OWNER_SESSION_REQUIRED = "Owner session required"
+PLATFORM_ADMIN_SESSION_REQUIRED = "Platform admin session required"
 
 
 async def request_org_role(
@@ -339,6 +363,18 @@ def require_write_scope(request: Request) -> None:
             status_code=status.HTTP_403_FORBIDDEN,
             detail="API key has read-only scope",
         )
+
+
+def require_browser_session(request: Request, detail: str = BROWSER_SESSION_REQUIRED) -> None:
+    """403 ``detail`` when an API key authenticated the request, whatever its scope.
+
+    For what an automation token must never do: manage access (members,
+    invitations, keys), administer an organization or the instance. A ``read``
+    key is refused here too; a gate that should tell a read key about its
+    scope instead calls :func:`require_write_scope` first.
+    """
+    if getattr(request.state, "api_key_scope", None) is not None:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=detail)
 
 
 def refuse_on_public_demo(what: str) -> Callable[[], None]:
@@ -555,11 +591,8 @@ async def _owner_gate(
     await _ensure_request_org(request, session, user)
     if not project_access.is_org_admin_role(await request_org_role(request, session, user)):
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=ORG_ADMIN_REQUIRED)
-    if not key_reachable and getattr(request.state, "api_key_scope", None) is not None:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Owner session required",
-        )
+    if not key_reachable:
+        require_browser_session(request, OWNER_SESSION_REQUIRED)
     if (
         request.path_params.get("slug")
         and await _project_role(request, session, user) != project_access.OWNER
@@ -615,11 +648,7 @@ async def require_platform_admin(request: Request, user: CurrentUserDep) -> User
     org role.
     """
     require_write_scope(request)
-    if getattr(request.state, "api_key_scope", None) is not None:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Platform admin session required",
-        )
+    require_browser_session(request, PLATFORM_ADMIN_SESSION_REQUIRED)
     if not user.is_platform_admin:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=PLATFORM_ADMIN_REQUIRED)
     return user
@@ -699,11 +728,7 @@ async def get_settings_admin_user(
     role in the resolved organization; the route applies both to the payload.
     """
     require_write_scope(request)
-    if getattr(request.state, "api_key_scope", None) is not None:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Owner session required",
-        )
+    require_browser_session(request, OWNER_SESSION_REQUIRED)
     if not await is_settings_admin(request, session, user):
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=ORG_ADMIN_REQUIRED)
     return user
@@ -756,12 +781,6 @@ async def _resolve_path_org(
     return org
 
 
-def _refuse_api_keys(request: Request) -> None:
-    require_write_scope(request)
-    if getattr(request.state, "api_key_scope", None) is not None:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Owner session required")
-
-
 async def get_path_org_member_user(
     request: Request, session: SessionDep, user: CurrentUserDep
 ) -> User:
@@ -775,7 +794,8 @@ async def get_path_org_admin_user(
 ) -> User:
     """An owner or admin of the path's organization, from a browser session."""
     org = await _resolve_path_org(request, session, user)
-    _refuse_api_keys(request)
+    require_write_scope(request)
+    require_browser_session(request, OWNER_SESSION_REQUIRED)
     if not project_access.is_org_admin_role(org.role):
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=ORG_ADMIN_REQUIRED)
     return user
@@ -786,7 +806,8 @@ async def get_path_org_owner_user(
 ) -> User:
     """An owner of the path's organization, from a browser session."""
     org = await _resolve_path_org(request, session, user)
-    _refuse_api_keys(request)
+    require_write_scope(request)
+    require_browser_session(request, OWNER_SESSION_REQUIRED)
     if org.role != OrganizationRole.owner:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=ORG_OWNER_REQUIRED)
     return user

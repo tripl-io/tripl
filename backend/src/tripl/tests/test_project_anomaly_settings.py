@@ -3,7 +3,14 @@ from httpx import AsyncClient
 
 
 @pytest.mark.asyncio
-async def test_get_project_anomaly_settings_creates_defaults(client: AsyncClient) -> None:
+async def test_get_project_anomaly_settings_reads_defaults_without_writing(
+    client: AsyncClient,
+) -> None:
+    from sqlalchemy import func, select
+
+    from tripl.models.project_anomaly_settings import ProjectAnomalySettings
+    from tripl.tests.conftest import TestSessionLocal
+
     project_resp = await client.post(
         "/api/v1/projects",
         json={"name": "Monitoring Project", "slug": "monitoring-project", "description": ""},
@@ -13,7 +20,12 @@ async def test_get_project_anomaly_settings_creates_defaults(client: AsyncClient
     resp = await client.get("/api/v1/projects/monitoring-project/anomaly-settings")
 
     assert resp.status_code == 200
+    # GETs must not mutate the database: the defaults come back with no row behind them.
+    async with TestSessionLocal() as session:
+        assert await session.scalar(select(func.count()).select_from(ProjectAnomalySettings)) == 0
     body = resp.json()
+    assert body["id"] is None
+    assert body["created_at"] is None
     assert body["anomaly_detection_enabled"] is False
     assert body["detect_project_total"] is True
     assert body["baseline_window_buckets"] == 14
@@ -251,10 +263,13 @@ class TestSettlingAllowanceVersusOpenSignalWindow:
         from tripl.tests.conftest import TestSessionLocal
 
         await self._project(client, "settling-legacy")
-        # GET materialises the settings row, then write the illegal pair straight
-        # to the DB the way a pre-guard PATCH would have.
+        # A harmless PATCH materialises the settings row, then write the illegal
+        # pair straight to the DB the way a pre-guard PATCH would have.
         assert (
-            await client.get("/api/v1/projects/settling-legacy/anomaly-settings")
+            await client.patch(
+                "/api/v1/projects/settling-legacy/anomaly-settings",
+                json={"detect_events": True},
+            )
         ).status_code == 200
         async with TestSessionLocal() as session:
             stored = await session.scalar(select(ProjectAnomalySettings))

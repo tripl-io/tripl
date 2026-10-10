@@ -1,5 +1,5 @@
 import uuid
-from datetime import UTC, datetime
+from datetime import datetime
 from typing import Any, Literal
 
 from pydantic import BaseModel, Field, field_serializer, field_validator, model_validator
@@ -31,6 +31,7 @@ from tripl.alerting_validation import (
     validate_webhook_header_value,
 )
 from tripl.core.alert_schedule import parse_cron
+from tripl.core.bucketing import to_utc
 from tripl.models.alert_delivery import AlertDeliveryStatus
 from tripl.models.alert_delivery_item import trim_scope_name
 from tripl.models.alert_destination import AlertDestinationType
@@ -45,6 +46,7 @@ from tripl.models.domain_enums import (
     MetricScopeType,
 )
 from tripl.schemas.alert_owner import AlertOwnerNotificationResponse, AlertOwnerRef
+from tripl.schemas.integers import INT32_MAX
 from tripl.schemas.time_guards import require_future_instant
 
 # ``note`` is the only member that does NOT change the incident's status: it
@@ -120,7 +122,7 @@ class AlertRuleBase(BaseModel):
     min_percent_delta: float | None = Field(None, ge=0)
     min_absolute_delta: float | None = Field(None, ge=0)
     min_expected_count: float | None = Field(None, ge=0)
-    cooldown_minutes: int | None = Field(None, ge=1)
+    cooldown_minutes: int | None = Field(None, ge=1, le=INT32_MAX)
     message_template: str | None = None
     items_template: str | None = None
     message_format: AlertMessageFormat | None = None
@@ -193,7 +195,7 @@ class AlertRuleCreate(AlertRuleBase):
     min_percent_delta: float = Field(DEFAULT_MIN_PERCENT_DELTA, ge=0)
     min_absolute_delta: float = Field(0, ge=0)
     min_expected_count: float = Field(0, ge=0)
-    cooldown_minutes: int = Field(1440, ge=1)
+    cooldown_minutes: int = Field(1440, ge=1, le=INT32_MAX)
     message_template: str | None = None
     items_template: str | None = None
     message_format: AlertMessageFormat = AlertMessageFormat.plain
@@ -417,8 +419,8 @@ def _validate_email_from_override(value: str | None) -> str | None:
     digest, ``alerts_channels._send_digest_to_destination`` for the weekly plan
     digest and the sunset alert — and both of them run the result through
     ``validate_sender_address`` and hand the ORIGINAL string to ``msg["From"]``.
-    The destination's own Test button does the same (``_alerting_test_send``
-    reads ``destination.email_from_address`` straight into ``_TestTarget``).
+    The destination's own Test button does the same (``alerts_plain`` reads
+    ``destination.email_from_address`` straight into ``ChannelTarget``).
 
     So ``Tripl Alerts <no-reply@example.com>`` on a destination delivers, and
     delivers with the display name intact — the strict helper here was refusing
@@ -2001,6 +2003,4 @@ class MonitorMuteRequest(BaseModel):
         ``ScanMetricsReplayRequest.normalize_datetime`` — one idiom for this,
         not a second one.
         """
-        if value.tzinfo is None:
-            return value.replace(tzinfo=UTC)
-        return value.astimezone(UTC)
+        return to_utc(value)

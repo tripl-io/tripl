@@ -33,6 +33,7 @@ from tripl.models.variable import Variable
 from tripl.models.variable_event_value_override import VariableEventValueOverride
 from tripl.models.variable_value import VariableValue
 from tripl.models.variable_value_drift import VariableValueDrift
+from tripl.services._id_chunks import chunked
 from tripl.services.plan_branch_service import resolve_branch_id
 from tripl.services.search_service import reindex_project_branch
 
@@ -179,8 +180,7 @@ async def retire_unused_variables(
     if dry_run or not plan.retirable:
         return counts
 
-    for start in range(0, len(plan.retirable), _DELETE_BATCH):
-        batch = plan.retirable[start : start + _DELETE_BATCH]
+    for batch in chunked(plan.retirable, _DELETE_BATCH):
         statement = (
             update(Variable).where(Variable.id.in_(batch)).values(excluded_from_scans=True)
             if mode == "exclude"

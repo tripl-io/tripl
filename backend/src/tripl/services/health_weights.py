@@ -10,17 +10,12 @@ from __future__ import annotations
 
 from typing import Final, Literal
 
+from tripl.core.dead_events import DEAD_EVENT_DAYS
+
 HealthComponentKey = Literal[
     "implemented_seen", "contract", "drifts", "signals", "freshness", "documentation"
 ]
 HealthGrade = Literal["healthy", "warning", "unhealthy"]
-
-KEY_IMPLEMENTED_SEEN: Final = "implemented_seen"
-KEY_CONTRACT: Final = "contract"
-KEY_DRIFTS: Final = "drifts"
-KEY_SIGNALS: Final = "signals"
-KEY_FRESHNESS: Final = "freshness"
-KEY_DOCUMENTATION: Final = "documentation"
 
 # Component weights. They sum to 100; when a component does not apply to an
 # event the remaining ones are renormalized over their own sum.
@@ -40,9 +35,9 @@ DRIFT_PENALTY: Final = 0.25
 SIGNAL_PENALTY: Final = 0.5
 
 # "Seen recently" and "stale" windows for implemented/live events. The stale
-# window equals the weekly digest's DEAD_EVENT_DAYS.
+# window is the dead-event window, ``core.dead_events.DEAD_EVENT_DAYS``.
 SEEN_RECENT_DAYS: Final = 7
-SEEN_STALE_DAYS: Final = 30
+SEEN_STALE_DAYS: Final = DEAD_EVENT_DAYS
 SEEN_STALE_VALUE: Final = 0.5
 # Distribution drifts count when their bucket is inside this window.
 DISTRIBUTION_WINDOW_DAYS: Final = 7

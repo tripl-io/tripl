@@ -36,6 +36,7 @@ from tripl.alerting_validation import (
     validate_linear_api_key,
     validate_linear_team_id,
 )
+from tripl.core.bucketing import to_utc
 from tripl.models.event import Event, EventStatus, event_status_rank
 from tripl.models.implementation_ticket import ImplementationTicket
 from tripl.models.project_tracker_config import ProjectTrackerConfig
@@ -531,10 +532,6 @@ async def _sync_tickets(session: AsyncSession) -> None:
             logger.exception("Failed to sync implementation ticket %s", ticket_id)
 
 
-# Async-bridge helper, shared with the health snapshot task (see worker.db).
-_with_worker_session = run_with_async_worker_session
-
-
 @celery_app.task(  # type: ignore[untyped-decorator]
     name="tripl.worker.tasks.implementation_tickets.create_implementation_ticket",
     autoretry_for=(TransientTrackerError,),
@@ -550,7 +547,7 @@ def create_implementation_ticket(
     summary: str,
 ) -> None:
     async def _run() -> None:
-        await _with_worker_session(
+        await run_with_async_worker_session(
             lambda session: _create_ticket(session, project_id, branch_id, event_ids, summary)
         )
 
@@ -562,7 +559,7 @@ def create_implementation_ticket(
 )
 def sync_implementation_tickets() -> None:
     async def _run() -> None:
-        await _with_worker_session(_sync_tickets)
+        await run_with_async_worker_session(_sync_tickets)
 
     asyncio.run(_run())
 
@@ -576,9 +573,7 @@ def _format_seen_at(seen_at_iso: str) -> str:
         parsed = datetime.fromisoformat(seen_at_iso)
     except ValueError, TypeError:
         return str(seen_at_iso)
-    if parsed.tzinfo is None:
-        parsed = parsed.replace(tzinfo=UTC)
-    return parsed.astimezone(UTC).strftime("%Y-%m-%d %H:%M UTC")
+    return to_utc(parsed).strftime("%Y-%m-%d %H:%M UTC")
 
 
 def seen_in_data_comment_text(seen_at_iso: str, event_names: list[str]) -> str:
@@ -632,4 +627,4 @@ def comment_seen_in_data(ticket_id: str, event_ids: list[str], seen_at_iso: str)
     async def _comment(session: AsyncSession) -> None:
         await _comment_seen_in_data(session, ticket_id, event_ids, seen_at_iso)
 
-    asyncio.run(_with_worker_session(_comment))
+    asyncio.run(run_with_async_worker_session(_comment))

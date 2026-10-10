@@ -151,9 +151,11 @@ async def test_publish_is_noop_without_redis() -> None:
     realtime.publish_project_event(
         project_id, "s", realtime.EVENT_SCAN_JOB_UPDATED, {"job_id": "1"}
     )
-    await realtime.async_publish_project_event(project_id, "s", realtime.EVENT_SIGNALS_UPDATED, {})
-    assert await realtime.replay_buffered_events(project_id, 5) == []
-    assert realtime.backend_available() is False
+    resume = await realtime.read_resume_point(project_id, 5)
+    # No sequence to promise: the client must resync rather than trust an empty replay.
+    assert resume == realtime.ResumePoint(seq=None, epoch=None, replay=[])
+    async with realtime.subscribed_messages(project_id) as messages:
+        assert messages is None
 
 
 # ── Core SSE generator ───────────────────────────────────────────────────
@@ -249,7 +251,7 @@ async def test_generator_treats_none_as_heartbeat_and_keeps_streaming() -> None:
 
 
 @pytest.mark.asyncio
-async def test_redis_iterator_survives_idle_and_swallows_read_timeout(monkeypatch) -> None:
+async def test_subscription_survives_idle_and_swallows_read_timeout(monkeypatch) -> None:
     # Regression: the pub/sub client must not carry a ``socket_timeout`` (it turns
     # an idle blocking read into ``redis.TimeoutError``). An idle poll yields a
     # ``None`` heartbeat tick; a later read timeout ends the iterator cleanly
@@ -264,6 +266,7 @@ async def test_redis_iterator_survives_idle_and_swallows_read_timeout(monkeypatc
     pubsub = _FakePubSub(
         [
             None,  # idle poll -> heartbeat tick
+            {"type": "message", "data": "not json"},  # skipped, not raised
             {"type": "message", "data": raw},  # delivered event
             redis.exceptions.TimeoutError("Timeout reading from redis:6379"),
         ]
@@ -271,10 +274,29 @@ async def test_redis_iterator_survives_idle_and_swallows_read_timeout(monkeypatc
     monkeypatch.setattr(
         realtime.cache, "get_async_pubsub_client", lambda: _FakePubSubClient(pubsub)
     )
-    items = [item async for item in realtime.redis_message_iterator(uuid.uuid4())]
-    assert items[0] is None
-    assert any(isinstance(x, dict) and x.get("id") == 1 for x in items)
+    async with realtime.subscribed_messages(uuid.uuid4()) as messages:
+        assert messages is not None
+        items = [item async for item in messages]
     # The read timeout did not escape — the comprehension completed.
+    assert items[0] is None
+    assert [x["id"] for x in items if isinstance(x, dict)] == [1]
+
+
+@pytest.mark.asyncio
+async def test_failed_subscribe_yields_no_iterator(monkeypatch) -> None:
+    import redis
+
+    class _RefusingPubSub(_FakePubSub):
+        async def subscribe(self, *_channels: str) -> None:
+            raise redis.exceptions.ConnectionError("Connection refused")
+
+    monkeypatch.setattr(
+        realtime.cache,
+        "get_async_pubsub_client",
+        lambda: _FakePubSubClient(_RefusingPubSub([])),
+    )
+    async with realtime.subscribed_messages(uuid.uuid4()) as messages:
+        assert messages is None
 
 
 def test_sse_formatting_helpers() -> None:

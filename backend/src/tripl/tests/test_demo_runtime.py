@@ -59,6 +59,7 @@ from tripl.worker.tasks import demo_runtime
 # would be F401, and an ``import X as X`` alias kept alive for one test line is a
 # second name for one truth.
 from tripl.worker.tasks._demo_pause import DEMO_IDLE_PAUSE_MINUTES
+from tripl.worker.tasks.metrics import detect as metrics_detect
 
 # Two events from the demo roster (names must match ``event_specs``): the spike
 # event (base 1800) and a click event (base 300).
@@ -144,12 +145,19 @@ def _seed_demo(
         time_column="event_time",
         interval="1h",
     )
+    # The row the monitoring builder seeds: the tick re-scores through the
+    # collection's own pass, which reads its thresholds from here.
     anomaly_settings = ProjectAnomalySettings(
         project_id=project.id,
         anomaly_detection_enabled=True,
         detect_project_total=True,
         detect_event_types=True,
         detect_events=True,
+        baseline_window_buckets=noise.DEMO_ANOMALY_SETTINGS.baseline_window_buckets,
+        min_history_buckets=noise.DEMO_ANOMALY_SETTINGS.min_history_buckets,
+        sigma_threshold=noise.DEMO_ANOMALY_SETTINGS.sigma_threshold,
+        min_expected_count=noise.DEMO_ANOMALY_SETTINGS.min_expected_count,
+        anomaly_ingestion_settling_minutes=0,
     )
     session.add_all([project, branch, data_source, scan_config, anomaly_settings])
 
@@ -174,6 +182,8 @@ def _seed_demo(
 
     conversion_id: uuid.UUID | None = None
     if with_conversion_metric:
+        # Buy Button Click per Home Screen View, composed per seeded bucket
+        # below as the catalog builder composes the demo's conversion.
         conversion = MetricDefinition(
             id=uuid.uuid4(),
             project_id=project.id,
@@ -182,7 +192,7 @@ def _seed_demo(
             kind=MetricKind.event_composition.value,
             composition=MetricComposition.ratio.value,
             status=MetricStatus.active.value,
-            numerator_event_id=roster[0][0],
+            numerator_event_id=roster[1][0],
             denominator_event_id=roster[0][0],
         )
         session.add(conversion)
@@ -210,9 +220,11 @@ def _seed_bucket(
 ) -> None:
     idx = round((bucket - grid_start).total_seconds() / 3600.0)
     per_type: dict[uuid.UUID, int] = {}
+    counts: list[int] = []
     for event_id, event_type_id, base, name in roster:
         seed = noise.derive_seed(DEMO_SEED, name) % 997
         count = noise.hourly_volume(base, bucket, idx, seed, _TOTAL_BUCKETS)
+        counts.append(count)
         session.add(
             EventMetric(
                 scan_config_id=scan_config_id,
@@ -239,7 +251,7 @@ def _seed_bucket(
                 metric_definition_id=conversion_id,
                 scan_config_id=scan_config_id,
                 bucket=bucket,
-                value=0.09,
+                value=counts[1] / counts[0],
             )
         )
 
@@ -340,16 +352,26 @@ def _scan_job_count(session: Session, scan_config_id: uuid.UUID) -> int:
     )
 
 
-def test_tick_appends_coverage_and_conversion_values(
+def test_tick_appends_coverage_and_leaves_the_conversion_to_its_collector(
     factory: sessionmaker[Session], monkeypatch: pytest.MonkeyPatch
 ) -> None:
+    """The tick appends coverage with the volume, but writes no catalog-metric
+    value: the conversion re-derives from the event series, so appending a newer
+    numerator bucket is what makes the real collector due for it. A value the
+    tick wrote itself would hide that from ``_event_composition_due`` and show a
+    number the two event charts beside it do not divide to."""
     from tripl.models.coverage_metric import CoverageMetric
+    from tripl.worker.tasks.metrics.schedule import _event_composition_due
 
     seed_now = _floor(datetime.now(UTC)) - timedelta(days=1)
     with factory() as session:
         seeded = _seed_demo(
             session, seed_now=seed_now, history_hours=48, with_conversion_metric=True
         )
+        conversion = session.execute(
+            select(MetricDefinition).where(MetricDefinition.project_id == seeded.project_id)
+        ).scalar_one()
+        assert not _event_composition_due(session, conversion)
 
     tick = seed_now + timedelta(hours=5)
     _run_tick(factory, monkeypatch, tick)
@@ -362,7 +384,11 @@ def test_tick_appends_coverage_and_conversion_values(
         ).scalar()
         assert coverage and coverage >= 1, "coverage rows appended for new buckets"
         conv_values = session.execute(select(func.count()).select_from(MetricValue)).scalar()
-        assert conv_values and conv_values > 48, "conversion values appended for new buckets"
+        assert conv_values == 48, "the tick wrote a conversion value of its own"
+        conversion = session.execute(
+            select(MetricDefinition).where(MetricDefinition.project_id == seeded.project_id)
+        ).scalar_one()
+        assert _event_composition_due(session, conversion)
 
 
 def test_tick_continues_the_seeded_platform_and_version_split(
@@ -723,11 +749,11 @@ def test_transient_deadlock_retries_then_advances(
 def test_non_db_error_in_recompute_is_swallowed_and_tick_commits(
     factory: sessionmaker[Session], monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """A detector/logic bug (a non-DBAPI exception) raises before any DB write.
+    """A detector/logic bug (a non-DBAPI exception) does not break the transaction.
 
-    It leaves the session clean, so ``_recompute_anomalies`` logs and swallows it:
-    a detector bug must not kill the tick. The appended series still commits and the
-    demo advances normally.
+    Every statement before it succeeded, so ``_recompute_anomalies`` logs and
+    swallows it: a detector bug must not kill the tick. The appended series still
+    commits and the demo advances normally.
     """
     seed_now = _floor(datetime.now(UTC)) - timedelta(days=1)
     with factory() as session:
@@ -737,9 +763,9 @@ def test_non_db_error_in_recompute_is_swallowed_and_tick_commits(
     def _detector_bug(*_args: object, **_kwargs: object) -> None:
         raise ValueError("detector logic bug")
 
-    # ``detect_anomalies`` runs inside ``_recompute_anomalies`` BEFORE any
-    # ``session.execute``, so the raise leaves the transaction clean.
-    monkeypatch.setattr(demo_runtime, "detect_anomalies", _detector_bug)
+    # The tick scores through the collection's own pass, which calls the
+    # detector off its module's globals.
+    monkeypatch.setattr(metrics_detect, "detect_anomalies", _detector_bug)
 
     tick = seed_now + timedelta(hours=3)
     result = _run_tick(factory, monkeypatch, tick)
@@ -773,11 +799,11 @@ def test_recompute_anomalies_reraises_dbapi_error() -> None:
                 "SELECT project_anomaly_settings", {}, Exception("deadlock detected")
             )
 
+    config = ScanConfig(id=uuid.uuid4(), project_id=uuid.uuid4(), interval="1h")
     with pytest.raises(OperationalError):
         demo_runtime._recompute_anomalies(
             _BoomSession(),  # type: ignore[arg-type]
-            uuid.uuid4(),
-            uuid.uuid4(),
+            config,
             datetime.now(UTC),
         )
 

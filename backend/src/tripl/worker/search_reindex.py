@@ -4,14 +4,13 @@ import asyncio
 import logging
 import uuid
 
-from sqlalchemy import select
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 from sqlalchemy.orm import Session
 from sqlalchemy.pool import NullPool
 
 from tripl.config import settings
+from tripl.core.plan_scope import main_branch_id
 from tripl.db_config import postgres_connect_args
-from tripl.models.plan_branch import BranchKind, PlanBranch
 from tripl.models.project import Project
 from tripl.services.search_service import reindex_project_branch
 
@@ -27,12 +26,7 @@ def reindex_main_branch_from_worker(session: Session, project_id: uuid.UUID) -> 
     trigger, which is what :func:`reindex_branch_from_worker` and the staleness
     sweep in ``worker/tasks/search.py`` exist to cover.
     """
-    branch_id = session.scalar(
-        select(PlanBranch.id).where(
-            PlanBranch.project_id == project_id,
-            PlanBranch.kind == BranchKind.main.value,
-        )
-    )
+    branch_id = main_branch_id(session, project_id)
     if branch_id is None:
         return
     reindex_branch_from_worker(session, project_id, branch_id)

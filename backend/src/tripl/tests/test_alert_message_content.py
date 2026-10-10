@@ -81,6 +81,7 @@ from tripl.models.scan_config import ScanConfig
 from tripl.schemas.alerting import SimulatedRuleFiring
 from tripl.services import app_settings_service
 from tripl.services.alerting_rendering import render_firing_item, render_firings_message
+from tripl.tests._sunset_findings import open_sunset_finding
 
 # Both digest tasks are taken from ``alerts``, which re-exports them in its
 # ``__all__``, the way the existing sunset coverage in test_alerting.py does.
@@ -738,21 +739,26 @@ def _seed_egress_project(
 
 
 def _add_overdue_deprecated_event(session: Session, project: Project, *, name: str) -> None:
-    """A deprecated event still receiving data past its sunset — the alert's trigger."""
+    """A deprecated event still receiving data past its sunset — the alert's trigger.
+
+    With the open finding the daily sunset watch writes for it, which is what
+    the alert reads.
+    """
     now = datetime.now(UTC)
-    session.add(
-        Event(
-            id=uuid.uuid4(),
-            project_id=project.id,
-            # FK not enforced under sqlite, and the sunset query never joins it.
-            event_type_id=uuid.uuid4(),
-            name=name,
-            description="",
-            status=EventStatus.deprecated,
-            sunset_at=now - timedelta(days=60),
-            last_seen_at=now - timedelta(days=1),
-        )
+    event = Event(
+        id=uuid.uuid4(),
+        project_id=project.id,
+        # FK not enforced under sqlite, and the sunset query never joins it.
+        event_type_id=uuid.uuid4(),
+        name=name,
+        description="",
+        status=EventStatus.deprecated,
+        sunset_at=now - timedelta(days=60),
+        last_seen_at=now - timedelta(days=1),
     )
+    session.add(event)
+    session.flush()
+    session.add(open_sunset_finding(event, at=now))
     session.commit()
 
 
@@ -789,7 +795,7 @@ def test_the_weekly_digest_never_reaches_a_demo_projects_slack(
 ) -> None:
     """One real project and one demo, both holding an enabled Slack destination.
 
-    A demo workspace is zero-egress by construction, but this task resolves its
+    A demo project is zero-egress by construction, but this task resolves its
     own destinations instead of handing an AlertDelivery to a send task, so
     nothing between the demo's row and a real webhook POST was refusing it. The
     real project in the same run is what separates the fix from breaking the

@@ -128,7 +128,7 @@ def _new_demo_project(
         name=name,
         slug=slug,
         description=(
-            "A pre-populated demo workspace. "
+            "A pre-populated demo project. "
             "Explore events, metrics, signals, and distribution drift "
             "without connecting a warehouse."
         ),
@@ -147,7 +147,7 @@ async def create_demo_project(
     created_by: uuid.UUID | None = None,
     slug: str | None = None,
 ) -> ProjectResponse:
-    """Start provisioning a demo workspace; the worker seeds it.
+    """Start provisioning a demo project; the worker seeds it.
 
     Phase 1, here: commit a hidden ``seeding`` project shell (the provisioning
     marker) with its creator's membership, then hand the seed to the Celery
@@ -178,7 +178,7 @@ async def create_demo_project(
         raise HTTPException(
             status_code=409,
             detail=(
-                f"You already have {live} demo workspaces (the limit is "
+                f"You already have {live} demo projects (the limit is "
                 f"{MAX_DEMOS_PER_CREATOR}). Reset or delete one before generating another."
             ),
         )
@@ -646,7 +646,7 @@ async def reset_demo_project(
         await session.rollback()
         raise HTTPException(
             status_code=500,
-            detail="Demo reset failed. Your existing demo workspace was left unchanged.",
+            detail="Demo reset failed. Your existing demo project was left unchanged.",
         ) from exc
 
     await cache.delete_prefix(cache.prefix_projects())

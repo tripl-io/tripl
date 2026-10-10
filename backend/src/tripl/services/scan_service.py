@@ -7,7 +7,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from tripl import cache
-from tripl.core.bucketing import floor_to_bucket
+from tripl.core.bucketing import floor_to_bucket, to_utc
 from tripl.core.json_string_columns import (
     check_json_string_columns_roles,
     check_json_string_db_type,
@@ -36,29 +36,20 @@ from tripl.schemas.scan_config import (
 from tripl.services._celery_dispatch import dispatch
 from tripl.services.plan_branch_service import resolve_branch_id
 from tripl.services.project_lookup import resolve_project_id
-from tripl.services.search_service import reindex_project_branch
+from tripl.services.search_service import reindex_main_branch
 
 logger = logging.getLogger(__name__)
 
 
-async def _refresh_main_search_index(
+async def _refresh_after_config_write(
     session: AsyncSession, project_id: uuid.UUID, slug: str
 ) -> None:
-    """Refresh the search index after a scan-config mutation.
+    """Reindex main for the scan config just written and drop the event type list.
 
-    Scan configs are global (project-scoped, not branched), so only the MAIN
-    branch index is refreshed eagerly; feature-branch indexes pick the change up
-    on their next rebuild. Same rule metrics and fact tables already follow.
-
-    Without this a scan the user just created stayed unfindable in the command
-    palette until some unrelated reindex happened to fire.
+    The event type list carries each type's resolved ``event_name_format``, so a
+    scan config edit changes that response too.
     """
-    main_branch_id = await resolve_branch_id(session, project_id, None)
-    await reindex_project_branch(
-        session, project_id=project_id, branch_id=main_branch_id, slug=slug
-    )
-    # The event type list carries each type's resolved ``event_name_format``,
-    # so a scan config edit changes that response too.
+    await reindex_main_branch(session, project_id, slug=slug)
     await cache.delete(cache.key_event_types_list(project_id))
 
 
@@ -226,7 +217,7 @@ async def create_scan_config(
     await session.refresh(config)
     if created_event_type:
         await _bust_event_type_caches(project_id)
-    await _refresh_main_search_index(session, project_id, slug)
+    await _refresh_after_config_write(session, project_id, slug)
     return config
 
 
@@ -332,7 +323,7 @@ async def update_scan_config(
     await session.refresh(config)
     if created_event_type:
         await _bust_event_type_caches(config.project_id)
-    await _refresh_main_search_index(session, config.project_id, slug)
+    await _refresh_after_config_write(session, config.project_id, slug)
     return config
 
 
@@ -531,7 +522,7 @@ async def delete_scan_config(session: AsyncSession, slug: str, scan_id: uuid.UUI
     await session.commit()
     # Covers both document kinds this delete moved: the scan_config row is gone,
     # and every alert_rule that was narrowed to it lost its subtitle above.
-    await _refresh_main_search_index(session, project_id, slug)
+    await _refresh_after_config_write(session, project_id, slug)
 
 
 async def _reject_if_already_running(session: AsyncSession, scan_config_id: uuid.UUID) -> None:
@@ -562,7 +553,7 @@ async def _reject_if_already_running(session: AsyncSession, scan_config_id: uuid
         markers = [m for m in (job.updated_at, job.started_at, job.created_at) if m is not None]
         if not markers:
             continue
-        latest = max(m if m.tzinfo else m.replace(tzinfo=UTC) for m in markers)
+        latest = max(to_utc(m) for m in markers)
         if now - latest < STALE_ACTIVE_SCAN_JOB_TIMEOUT:
             raise HTTPException(
                 status_code=409,

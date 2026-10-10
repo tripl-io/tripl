@@ -19,7 +19,6 @@ import unicodedata
 from typing import Literal
 
 DocScope = Literal["project", "organization"]
-DOC_SCOPES: tuple[DocScope, ...] = ("project", "organization")
 
 #: One note's raw content, frontmatter included, in UTF-8 bytes.
 MAX_FILE_BYTES = 256 * 1024

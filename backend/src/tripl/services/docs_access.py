@@ -117,6 +117,13 @@ class DocCaller:
         )
 
 
+def scope_filter(project: Project, scope: DocScope) -> ColumnElement[bool]:
+    """The notes of one scope as seen from ``project``: its own, or its organization's."""
+    if scope == "project":
+        return DocFile.project_id == project.id
+    return DocFile.organization_id == project.organization_id
+
+
 # ── The rule, as SQL ──────────────────────────────────────────────────────────
 
 

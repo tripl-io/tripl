@@ -53,6 +53,7 @@ from tripl.core.adapters.snowflake import SnowflakeAdapter
 from tripl.core.adapters.snowflake_sql import Params as SnowflakeParams
 from tripl.core.adapters.synthetic import SyntheticAdapter, SyntheticCapabilityError
 from tripl.core.adapters.trino import TrinoAdapter
+from tripl.core.adapters.trino_sql import LiteralParams
 from tripl.core.bucketing import stored_bucket
 from tripl.models.domain_enums import MetricAggregation as MA
 from tripl.models.fact_table import FactTable
@@ -446,7 +447,7 @@ def test_every_sql_engine_records_a_refused_regex() -> None:
     trino._allowed_columns = {"sku"}
     trino._column_types = {"sku": "varchar"}
     trino._contract_regex_support = {expectation.regex: False}  # type: ignore[dict-item]
-    assert trino._contract_bad_condition(expectation) is None
+    assert trino._contract_bad_condition(expectation, LiteralParams()) is None
     assert trino.take_skipped_field_contracts() == [expectation]
 
 

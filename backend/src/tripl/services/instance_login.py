@@ -35,7 +35,6 @@ from collections.abc import Callable
 from dataclasses import dataclass, field
 from datetime import UTC, datetime, timedelta
 from typing import Any
-from urllib.parse import urlencode
 
 from cryptography.fernet import InvalidToken
 from sqlalchemy import select
@@ -146,7 +145,8 @@ async def start(provider: Provider, *, next_path: str | None, app_base_url: str)
             }
         )
     )
-    query = urlencode(
+    url = oidc_flow.authorization_url(
+        discovery.authorization_endpoint,
         {
             "response_type": "code",
             "client_id": provider.client_id,
@@ -157,11 +157,9 @@ async def start(provider: Provider, *, next_path: str | None, app_base_url: str)
             "code_challenge": oidc_flow.pkce_challenge(verifier),
             "code_challenge_method": "S256",
             **provider.extra_params,
-        }
+        },
     )
-    return StartedLogin(
-        authorization_url=f"{discovery.authorization_endpoint}?{query}", cookie=cookie
-    )
+    return StartedLogin(authorization_url=url, cookie=cookie)
 
 
 def login_state(cookie: str | None, state: str | None) -> dict[str, Any]:
@@ -189,22 +187,14 @@ def login_state(cookie: str | None, state: str | None) -> dict[str, Any]:
 def authenticate(
     provider: Provider, *, code: str, redirect_to: str, verifier: str, nonce: str
 ) -> IdTokenClaims:
-    """Discovery, code exchange, JWKS and id_token checks. Blocking."""
-    discovery = idp_http.fetch_discovery(provider.issuer)
-    id_token = id_tokens.exchange_code(
-        discovery,
+    """Discovery, code exchange, JWKS and id_token checks for ``provider``. Blocking."""
+    return id_tokens.authenticate(
+        issuer=provider.issuer,
         client_id=provider.client_id,
         client_secret=provider.client_secret,
         code=code,
         redirect_uri=redirect_to,
         code_verifier=verifier,
-    )
-    keys = idp_http.fetch_jwks(discovery)
-    return id_tokens.verify_id_token(
-        id_token,
-        keys=keys,
-        issuer=provider.issuer,
-        client_id=provider.client_id,
         nonce=nonce,
     )
 

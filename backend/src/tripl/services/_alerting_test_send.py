@@ -14,10 +14,12 @@ must not tell, and it would also stamp ``AlertRuleState.last_notified_at`` and
 silence the next genuine alert through that rule's cooldown. The operator action
 is recorded where operator actions belong, in the audit log, by the route.
 
-The actual sending goes through ``worker.tasks.alerts``' channel wrappers — the
-same functions ``send_alert_delivery`` calls — so a destination that passes here
-passes for the same reasons a real delivery would, and there is only one place
-where a channel's request shape is defined.
+The actual sending is ``worker.tasks.alerts_plain.send_plain_message``, which
+goes through ``worker.tasks.alerts``' channel wrappers — the same functions
+``send_alert_delivery`` calls — so a destination that passes here passes for the
+same reasons a real delivery would, and there is only one place where a
+channel's request shape is defined. This module owns what is the test's own:
+the draft's settings merged with the stored secrets, and the message itself.
 """
 
 from __future__ import annotations
@@ -30,31 +32,13 @@ import ssl
 import urllib.error
 import uuid
 from collections.abc import Callable
-from dataclasses import dataclass, replace
+from dataclasses import dataclass
 from datetime import UTC, datetime
 from urllib.parse import urlparse
 
 from fastapi import HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from tripl.alert_templates import ALERT_MESSAGE_FORMAT_PLAIN
-from tripl.alerting_validation import (
-    validate_email_recipients,
-    validate_jira_api_token,
-    validate_jira_auth_email,
-    validate_jira_base_url,
-    validate_jira_issue_type,
-    validate_jira_project_key,
-    validate_linear_api_key,
-    validate_linear_team_id,
-    validate_pagerduty_routing_key,
-    validate_sender_address,
-    validate_slack_webhook_url,
-    validate_teams_webhook_url,
-    validate_telegram_bot_token,
-    validate_telegram_chat_id,
-    validate_webhook_target_url,
-)
 from tripl.crypto import decrypt_value
 from tripl.models.alert_destination import AlertDestination, AlertDestinationType
 from tripl.models.project import Project
@@ -65,25 +49,53 @@ from tripl.schemas.alerting import (
 )
 from tripl.services._alerting_destinations import get_destination
 from tripl.services.project_lookup import resolve_project as _get_project
+from tripl.worker.tasks.alerts_plain import ChannelTarget, PlainMessage, send_plain_message
 
 logger = logging.getLogger(__name__)
 
-TEST_MESSAGE_SUBJECT = "Tripl test message"
+TEST_MESSAGE_SUBJECT = "tripl test message"
 
 
-def _test_message(*, project_name: str, destination_name: str) -> str:
+def _test_message(*, project_name: str, destination_name: str) -> PlainMessage:
     """The one message a test send emits. Fixed, and unmistakably a test.
 
     Whoever reads the channel did not ask for this, so the text has to say on its
     own line that nothing is wrong — an operator paging on a message that merely
     LOOKS like an alert is a worse outcome than never testing.
     """
-    return (
+    from tripl.worker.tasks.alerts_pagerduty import (
+        PAGERDUTY_SOURCE,
+        build_test_trigger_and_resolve,
+    )
+    from tripl.worker.tasks.alerts_teams import build_teams_test_message
+
+    text = (
         f"{TEST_MESSAGE_SUBJECT}\n"
         f"Project: {project_name}\n"
         f"Destination: {destination_name}\n"
-        "Someone pressed Test in Tripl to check that this channel is reachable. "
+        "Someone pressed Test in tripl to check that this channel is reachable. "
         "No alert fired and nothing is wrong."
+    )
+    return PlainMessage(
+        subject=TEST_MESSAGE_SUBJECT,
+        text=text,
+        webhook_payload={
+            # A receiver that switches on `event` must be able to drop this
+            # without parsing prose, so the test is typed, not just worded.
+            "event": "tripl.destination_test",
+            "destination": destination_name,
+            "message": text,
+        },
+        teams_message=build_teams_test_message(destination_name=destination_name, message=text),
+        # A test must not leave someone paged: the trigger is resolved straight
+        # away under the same, test-only dedup key. It still reaches the on-call
+        # phone for the moment it is open — that is the only way to prove the key
+        # routes somewhere — and its summary says it is a test.
+        pagerduty_events=build_test_trigger_and_resolve(
+            summary=f"{TEST_MESSAGE_SUBJECT}: {destination_name} (no alert fired)",
+            component=PAGERDUTY_SOURCE,
+            message=text,
+        ),
     )
 
 
@@ -112,84 +124,10 @@ class DestinationTestOutcome:
     target_origin: str | None = None
 
 
-@dataclass(frozen=True)
-class _TestTarget:
-    """Everything the send needs, decrypted, with no ORM object attached.
-
-    The send runs in a worker thread (``asyncio.to_thread``) because every
-    channel client is blocking — urllib and smtplib. Handing a thread a
-    SQLAlchemy instance bound to the request's AsyncSession would be a lazy-load
-    from the wrong thread, so the snapshot is taken on the event loop first.
-    """
-
-    # None for a draft that was never saved.
-    destination_id: uuid.UUID | None
-    destination_type: str
-    destination_name: str
-    message: str
-    webhook_url: str | None
-    bot_token: str | None
-    chat_id: str | None
-    target_url: str | None
-    webhook_header_name: str | None
-    webhook_header_value: str | None
-    email_recipients: str | None
-    email_from_address: str | None
-    jira_base_url: str | None
-    jira_auth_email: str | None
-    jira_api_token: str | None
-    jira_project_key: str | None
-    jira_issue_type: str | None
-    linear_api_key: str | None
-    linear_team_id: str | None
-    linear_state_id: str | None
-    linear_label_ids: str | None
-    # Defaulted, like ``organization_id``: a target for another channel has none.
-    pagerduty_routing_key: str | None = None
-    pagerduty_severity: str | None = None
-    teams_webhook_url: str | None = None
-    # The project's organization, whose SMTP relay an email test goes through
-    # (F20 PR9). ``None`` sends nothing: the send refuses rather than borrow
-    # the operator's relay.
-    organization_id: uuid.UUID | None = None
-
-
 def _decrypt(encrypted: str | None) -> str | None:
     if not encrypted:
         return None
     return decrypt_value(encrypted)
-
-
-def _build_target(destination: AlertDestination, *, project_name: str) -> _TestTarget:
-    return _TestTarget(
-        destination_id=destination.id,
-        destination_type=destination.type,
-        destination_name=destination.name,
-        message=_test_message(
-            project_name=project_name,
-            destination_name=destination.name,
-        ),
-        webhook_url=_decrypt(destination.webhook_url_encrypted),
-        bot_token=_decrypt(destination.bot_token_encrypted),
-        chat_id=destination.chat_id,
-        target_url=_decrypt(destination.target_url_encrypted),
-        webhook_header_name=destination.webhook_header_name,
-        webhook_header_value=_decrypt(destination.webhook_header_value_encrypted),
-        email_recipients=destination.email_recipients,
-        email_from_address=destination.email_from_address,
-        jira_base_url=destination.jira_base_url,
-        jira_auth_email=destination.jira_auth_email,
-        jira_api_token=_decrypt(destination.jira_api_token_encrypted),
-        jira_project_key=destination.jira_project_key,
-        jira_issue_type=destination.jira_issue_type,
-        linear_api_key=_decrypt(destination.linear_api_key_encrypted),
-        linear_team_id=destination.linear_team_id,
-        linear_state_id=destination.linear_state_id,
-        linear_label_ids=destination.linear_label_ids,
-        pagerduty_routing_key=_decrypt(destination.pagerduty_routing_key_encrypted),
-        pagerduty_severity=destination.pagerduty_severity,
-        teams_webhook_url=_decrypt(destination.teams_webhook_url_encrypted),
-    )
 
 
 def _url_origin(url: str | None) -> str | None:
@@ -276,8 +214,8 @@ def _build_draft_target(
     stored: AlertDestination | None,
     *,
     destination_name: str,
-    project_name: str,
-) -> _TestTarget:
+    organization_id: uuid.UUID | None,
+) -> ChannelTarget:
     """A test target from the dialog's settings, secrets filled from ``stored``.
 
     Only the write-only fields fall back, because they are the only ones the
@@ -308,11 +246,9 @@ def _build_draft_target(
         if draft.webhook_header_name is not None
         else None
     )
-    return _TestTarget(
-        destination_id=stored.id if stored is not None else None,
+    return ChannelTarget(
         destination_type=draft.type,
         destination_name=destination_name,
-        message=_test_message(project_name=project_name, destination_name=destination_name),
         webhook_url=secret(
             draft.webhook_url, stored.webhook_url_encrypted if stored is not None else None
         ),
@@ -349,177 +285,8 @@ def _build_draft_target(
             draft.teams_webhook_url,
             stored.teams_webhook_url_encrypted if stored is not None else None,
         ),
+        organization_id=organization_id,
     )
-
-
-def _send_slack(target: _TestTarget) -> None:
-    from tripl.worker.tasks import alerts
-
-    webhook_url = validate_slack_webhook_url(target.webhook_url or "")
-    alerts._send_slack_message(
-        webhook_url,
-        target.message,
-        message_format=ALERT_MESSAGE_FORMAT_PLAIN,
-    )
-
-
-def _send_telegram(target: _TestTarget) -> None:
-    from tripl.worker.tasks import alerts
-
-    bot_token = validate_telegram_bot_token(target.bot_token or "")
-    chat_id = validate_telegram_chat_id(target.chat_id)
-    alerts._send_telegram_message(
-        bot_token,
-        chat_id,
-        target.message,
-        message_format=ALERT_MESSAGE_FORMAT_PLAIN,
-    )
-
-
-def _send_webhook(target: _TestTarget) -> None:
-    from tripl.worker.tasks import alerts
-    from tripl.worker.tasks.alerts_channels import _reject_private_target
-
-    url = validate_webhook_target_url(target.target_url or "")
-    # Same DNS-rebinding re-check the real send does immediately before the
-    # request; a test send is an equally good way to reach 169.254.169.254.
-    _reject_private_target(url, field="Webhook target_url")
-    alerts._send_webhook_message(
-        url,
-        {
-            # A receiver that switches on `event` must be able to drop this
-            # without parsing prose, so the test is typed, not just worded.
-            "event": "tripl.destination_test",
-            "destination": target.destination_name,
-            "message": target.message,
-        },
-        header_name=target.webhook_header_name,
-        header_value=target.webhook_header_value,
-    )
-
-
-def _send_email(target: _TestTarget) -> None:
-    from tripl.services import app_settings_service
-    from tripl.worker.tasks import alerts
-    from tripl.worker.tasks.alerts_channels import _parse_email_recipients
-
-    # No session argument: this runs off the event loop, so it opens its own
-    # short-lived sync session exactly as the worker does. The project's
-    # organization's relay (F20 PR9); with no organization, no relay at all.
-    email_config = (
-        app_settings_service.get_email_config_sync(org_id=target.organization_id)
-        if target.organization_id is not None
-        else app_settings_service.disabled_email_config()
-    )
-    if not email_config.smtp_host:
-        raise ValueError(
-            "Email destination is configured but SMTP is not — set SMTP_HOST "
-            "(and SMTP_USERNAME/SMTP_PASSWORD if your relay requires auth)."
-        )
-    recipients = _parse_email_recipients(validate_email_recipients(target.email_recipients))
-    # Same rule as delivery (critique #16): the override only on an own relay.
-    from_address = app_settings_service.email_sender_for(target.email_from_address, email_config)
-    if not from_address:
-        raise ValueError("Email destination has no From: address and SMTP_FROM_ADDRESS is unset.")
-    alerts._send_email_message(
-        smtp_host=email_config.smtp_host,
-        smtp_port=email_config.smtp_port,
-        smtp_username=email_config.smtp_username,
-        smtp_password=email_config.smtp_password,
-        smtp_security=email_config.smtp_security,
-        from_address=validate_sender_address(from_address),
-        recipients=recipients,
-        subject=TEST_MESSAGE_SUBJECT,
-        body=target.message,
-    )
-
-
-def _send_jira(target: _TestTarget) -> None:
-    from tripl.worker.tasks import alerts
-    from tripl.worker.tasks.alerts_channels import _reject_private_target
-
-    base_url = validate_jira_base_url(target.jira_base_url)
-    _reject_private_target(base_url, field="Jira base_url")
-    alerts._send_jira_issue(
-        base_url=base_url,
-        auth_email=validate_jira_auth_email(target.jira_auth_email),
-        api_token=validate_jira_api_token(target.jira_api_token or ""),
-        project_key=validate_jira_project_key(target.jira_project_key),
-        issue_type=validate_jira_issue_type(target.jira_issue_type or "Task"),
-        summary=TEST_MESSAGE_SUBJECT,
-        body_text=target.message,
-    )
-
-
-def _send_linear(target: _TestTarget) -> None:
-    from tripl.worker.tasks import alerts
-
-    alerts._send_linear_issue(
-        api_key=validate_linear_api_key(target.linear_api_key or ""),
-        team_id=validate_linear_team_id(target.linear_team_id),
-        title=TEST_MESSAGE_SUBJECT,
-        body_text=target.message,
-        state_id=target.linear_state_id,
-        label_ids=(
-            [label for label in target.linear_label_ids.split(",") if label]
-            if target.linear_label_ids
-            else None
-        ),
-    )
-
-
-def _send_pagerduty(target: _TestTarget) -> None:
-    from tripl.worker.tasks import alerts
-    from tripl.worker.tasks.alerts_pagerduty import (
-        PAGERDUTY_SOURCE,
-        build_test_trigger_and_resolve,
-    )
-
-    routing_key = validate_pagerduty_routing_key(target.pagerduty_routing_key or "")
-    # A test must not leave someone paged: the trigger is resolved straight
-    # away under the same, test-only dedup key. It still reaches the on-call
-    # phone for the moment it is open — that is the only way to prove the key
-    # routes somewhere — and its summary says it is a test.
-    for body in build_test_trigger_and_resolve(
-        routing_key=routing_key,
-        summary=f"{TEST_MESSAGE_SUBJECT}: {target.destination_name} (no alert fired)",
-        component=PAGERDUTY_SOURCE,
-        message=target.message,
-    ):
-        alerts._send_pagerduty_event(body, routing_key=routing_key)
-
-
-def _send_teams(target: _TestTarget) -> None:
-    from tripl.worker.tasks import alerts
-    from tripl.worker.tasks.alerts_channels import _reject_private_target
-    from tripl.worker.tasks.alerts_teams import build_teams_test_message
-
-    url = validate_teams_webhook_url(target.teams_webhook_url or "")
-    # The same DNS-rebinding re-check the real send makes, as for the webhook.
-    _reject_private_target(url, field="Teams webhook_url")
-    alerts._send_teams_message(
-        url,
-        build_teams_test_message(destination_name=target.destination_name, message=target.message),
-    )
-
-
-_SENDERS: dict[AlertDestinationType, Callable[[_TestTarget], None]] = {
-    AlertDestinationType.slack: _send_slack,
-    AlertDestinationType.telegram: _send_telegram,
-    AlertDestinationType.webhook: _send_webhook,
-    AlertDestinationType.email: _send_email,
-    AlertDestinationType.jira: _send_jira,
-    AlertDestinationType.linear: _send_linear,
-    AlertDestinationType.pagerduty: _send_pagerduty,
-    AlertDestinationType.teams: _send_teams,
-}
-
-
-def _send_test_message(target: _TestTarget) -> None:
-    sender = _SENDERS.get(AlertDestinationType(target.destination_type))
-    if sender is None:
-        raise ValueError(f"Unsupported destination type {target.destination_type}")
-    sender(target)
 
 
 def _exception_chain(exc: BaseException) -> list[BaseException]:
@@ -594,7 +361,9 @@ async def send_destination_test(
     response = await _run_test_send(
         project=project,
         policy_subject=destination,
-        build_target=lambda: _build_target(destination, project_name=project.name),
+        build_target=lambda: ChannelTarget.from_destination(
+            destination, organization_id=project.organization_id
+        ),
         log_ref=destination_id,
     )
     return DestinationTestOutcome(response=response, destination_name=destination_name)
@@ -613,9 +382,9 @@ async def send_draft_destination_test(
 
     The same send, the same checks and the same answer as a saved destination's
     Test: the demo zero-egress predicate, the channel validators and, for the
-    two free-form URLs, the private-host refusal ``_send_webhook`` and
-    ``_send_jira`` run immediately before the request. Nothing is written — the
-    point is to learn a webhook is wrong BEFORE it is a stored destination.
+    free-form URLs (webhook, Jira, Teams), the private-host refusal the plain
+    send runs immediately before the request. Nothing is written — the point is
+    to learn a webhook is wrong BEFORE it is a stored destination.
     """
     project = await _get_project(session, slug)
     stored: AlertDestination | None = None
@@ -654,7 +423,7 @@ async def send_draft_destination_test(
             draft,
             stored,
             destination_name=destination_name,
-            project_name=project.name,
+            organization_id=project.organization_id,
         ),
         log_ref=draft.destination_id or "draft",
     )
@@ -669,7 +438,7 @@ async def _run_test_send(
     *,
     project: Project,
     policy_subject: AlertDestination,
-    build_target: Callable[[], _TestTarget],
+    build_target: Callable[[], ChannelTarget],
     log_ref: object,
 ) -> AlertDestinationTestResponse:
     """The send both Test buttons share, from the channel check to the answer."""
@@ -701,15 +470,16 @@ async def _run_test_send(
 
     # Built after the policy check, so a refused send never decrypts anything.
     try:
-        target = replace(build_target(), organization_id=project.organization_id)
+        target = build_target()
     except _SecretBorrowRefused as exc:
         return AlertDestinationTestResponse(
             ok=False, error=str(exc), sent_at=None, error_kind="config"
         )
+    message = _test_message(project_name=project.name, destination_name=target.destination_name)
     try:
         # Every channel client blocks (urllib, smtplib), so it must not run on the
         # request's event loop.
-        await asyncio.to_thread(_send_test_message, target)
+        await asyncio.to_thread(send_plain_message, target, message)
     except Exception as exc:  # noqa: BLE001
         # Deliberately broad, and deliberately not a 5xx. What comes back from a
         # channel is a ValueError from our own validators, a urllib/socket error,

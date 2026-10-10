@@ -78,7 +78,7 @@ class _StubTransport(urllib.request.HTTPSHandler, urllib.request.HTTPHandler):
             message[name] = value
         return _StubResponse(req.full_url, code, message, body)
 
-    # Registered for http:// too, so a same-host http -> https upgrade is testable.
+    # Registered for http:// too, so a hop to http would be recorded, not sent.
     def http_open(self, req: urllib.request.Request) -> _StubResponse:
         return self.https_open(req)
 
@@ -135,7 +135,7 @@ def test_post_json_rejects_non_http_redirect_scheme(monkeypatch: pytest.MonkeyPa
         {_HOOK_URL: (302, {"Location": "ftp://files.example.test/secrets"}, b"")},
     )
 
-    with pytest.raises(ValueError, match="http or https URL"):
+    with pytest.raises(ValueError, match="must be an https URL"):
         alerts_channels._post_json(_HOOK_URL, {"text": "hi"})
 
     assert handler.requested == [_HOOK_URL]
@@ -178,10 +178,13 @@ def test_post_json_strips_credentials_on_cross_origin_redirect(
     assert second["accept"] == "application/json"
 
 
-def test_get_json_strips_credentials_on_scheme_downgrade(
+def test_get_json_refuses_a_scheme_downgrade(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    # Same host, but https -> http would put the credential on the wire in clear.
+    # A downgrade used to be followed with the credentials stripped. It is now
+    # not followed at all: over plain HTTP nothing proves the next hop is the
+    # host that was checked, so a public https destination's 302 could reach a
+    # name that re-resolves to an internal address (DNS rebinding).
     handler = _install_stub_transport(
         monkeypatch,
         {
@@ -190,10 +193,10 @@ def test_get_json_strips_credentials_on_scheme_downgrade(
         },
     )
 
-    assert alerts_channels._get_json(_PUBLIC_URL, _SECRET_HEADERS) == {"fields": {}}
+    with pytest.raises(ValueError, match="must be an https URL"):
+        alerts_channels._get_json(_PUBLIC_URL, _SECRET_HEADERS)
 
-    assert handler.requested == [_PUBLIC_URL, _PUBLIC_HTTP_URL]
-    assert "authorization" not in handler.sent_headers[1]
+    assert handler.requested == [_PUBLIC_URL]
 
 
 def test_get_json_keeps_credentials_on_same_origin_redirect(
@@ -213,9 +216,11 @@ def test_get_json_keeps_credentials_on_same_origin_redirect(
     assert handler.sent_headers[1]["authorization"] == _SECRET_HEADERS["Authorization"]
 
 
-def test_get_json_keeps_credentials_on_https_upgrade(
+def test_get_json_refuses_an_http_url_before_sending(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    # Every destination is validated as https and the fixed endpoints are
+    # https, so the http -> https upgrade this used to allow had no caller.
     handler = _install_stub_transport(
         monkeypatch,
         {
@@ -224,10 +229,10 @@ def test_get_json_keeps_credentials_on_https_upgrade(
         },
     )
 
-    assert alerts_channels._get_json(_PUBLIC_HTTP_URL, _SECRET_HEADERS) == {"fields": {}}
+    with pytest.raises(ValueError, match="must be an https URL"):
+        alerts_channels._get_json(_PUBLIC_HTTP_URL, _SECRET_HEADERS)
 
-    assert handler.requested == [_PUBLIC_HTTP_URL, _PUBLIC_URL]
-    assert handler.sent_headers[1]["authorization"] == _SECRET_HEADERS["Authorization"]
+    assert handler.requested == []
 
 
 def test_post_json_strips_credentials_on_port_change(

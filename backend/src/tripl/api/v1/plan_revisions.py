@@ -4,6 +4,7 @@ from typing import Annotated
 from fastapi import APIRouter, Query
 
 from tripl.api.deps import EditorUserDep, SessionDep
+from tripl.schemas.pagination import Offset
 from tripl.schemas.plan_revision import (
     PlanDiff,
     PlanRevisionCreate,
@@ -40,7 +41,7 @@ async def create_revision(
 async def list_revisions(
     session: SessionDep,
     slug: str,
-    offset: int = Query(0, ge=0),
+    offset: Offset = 0,
     limit: int = Query(50, ge=1, le=200),
 ) -> PlanRevisionList:
     return await plan_revision_service.list_revisions(session, slug, offset, limit)

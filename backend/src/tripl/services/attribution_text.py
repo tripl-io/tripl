@@ -21,13 +21,14 @@ from __future__ import annotations
 import logging
 import uuid
 from collections.abc import Iterable, Mapping
-from datetime import UTC, datetime
+from datetime import datetime
 from typing import Any
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from tripl.core.analyzers.attribution import attribution_headline, release_line
+from tripl.core.bucketing import to_utc
 from tripl.models.metric_anomaly import MetricAnomaly
 from tripl.models.metric_anomaly_attribution import MetricAnomalyAttribution
 
@@ -42,19 +43,6 @@ def _field(source: object, name: str) -> Any:
     if isinstance(source, Mapping):
         return source.get(name)
     return getattr(source, name, None)
-
-
-def _as_utc(value: object) -> datetime | None:
-    if isinstance(value, datetime):
-        moment = value
-    elif isinstance(value, str) and value:
-        try:
-            moment = datetime.fromisoformat(value.replace("Z", "+00:00"))
-        except ValueError:
-            return None
-    else:
-        return None
-    return moment.replace(tzinfo=UTC) if moment.tzinfo is None else moment.astimezone(UTC)
 
 
 def format_attribution_line(
@@ -131,9 +119,9 @@ def load_attributions_for_scopes(
         )
     ).all()
     found: dict[ScopeKey, MetricAnomalyAttribution] = {}
-    normalized = {(t, r, _as_utc(b)): (t, r, b) for t, r, b in wanted}
+    normalized = {(t, r, to_utc(b)): (t, r, b) for t, r, b in wanted}
     for scope_type, scope_ref, bucket, row in rows:
-        original = normalized.get((scope_type, scope_ref, _as_utc(bucket)))
+        original = normalized.get((scope_type, scope_ref, to_utc(bucket)))
         if original is not None:
             found[original] = row
     return found

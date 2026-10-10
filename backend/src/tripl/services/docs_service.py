@@ -73,6 +73,7 @@ from tripl.services.docs_access import (
     require_editable,
     require_org_bulk_delete,
     require_readable,
+    scope_filter,
     visible_docs_clause,
 )
 from tripl.services.docs_frontmatter import DocContentError, parse_frontmatter
@@ -314,7 +315,7 @@ async def _write_response(
 
 async def _count_in_scope(session: AsyncSession, project: Project, scope: DocScope) -> int:
     count: int | None = await session.scalar(
-        select(func.count()).select_from(DocFile).where(store.scope_filter(project, scope))
+        select(func.count()).select_from(DocFile).where(scope_filter(project, scope))
     )
     return count or 0
 
@@ -444,7 +445,7 @@ async def folder_docs_for_write(
     pairs = await docs_with_access(
         session,
         caller.user.id,
-        store.scope_filter(project, scope),
+        scope_filter(project, scope),
         DocFile.path_key.startswith(path_key(folder) + "/", autoescape=True),
     )
     if not pairs:
@@ -555,7 +556,7 @@ async def move(
     taken = await docs_with_access(
         session,
         caller.user.id,
-        store.scope_filter(project, body.scope),
+        scope_filter(project, body.scope),
         DocFile.path_key.in_(list(targets)),
         DocFile.id.not_in(moving_ids),
         visible_only=False,

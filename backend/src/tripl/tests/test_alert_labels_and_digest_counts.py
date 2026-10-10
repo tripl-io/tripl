@@ -188,13 +188,20 @@ def test_weekly_live_coverage_counts_only_main_non_archived_events(digest_rows) 
 
 
 def test_weekly_dead_count_uses_status_and_thirty_day_cutoff(digest_rows) -> None:
+    """The Dead events page's rule (``core.dead_events``), grace for new events included.
+
+    A never-seen implemented event counts only once its plan row is older than
+    the cutoff: the fresh one below is what Reconciliation -> Dead events leaves
+    out too, and the digest used to count it.
+    """
     session, project, _, event_type, _, main, _ = digest_rows
-    for index, (status, seen) in enumerate(
+    for index, (status, seen, created) in enumerate(
         (
-            (EventStatus.implemented, None),
-            (EventStatus.live, NOW - timedelta(days=31)),
-            (EventStatus.live, NOW - timedelta(days=1)),
-            (EventStatus.draft, None),
+            (EventStatus.implemented, None, NOW - timedelta(days=40)),
+            (EventStatus.implemented, None, NOW - timedelta(days=1)),
+            (EventStatus.live, NOW - timedelta(days=31), NOW - timedelta(days=1)),
+            (EventStatus.live, NOW - timedelta(days=1), NOW - timedelta(days=40)),
+            (EventStatus.draft, None, NOW - timedelta(days=40)),
         )
     ):
         session.add(
@@ -206,6 +213,7 @@ def test_weekly_dead_count_uses_status_and_thirty_day_cutoff(digest_rows) -> Non
                 name=f"dead-{index}",
                 status=status,
                 last_seen_at=seen,
+                created_at=created,
                 description="",
                 order=index,
             )

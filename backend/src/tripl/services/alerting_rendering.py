@@ -20,7 +20,7 @@ from tripl.alert_templates import (
 from tripl.alerting_matching import SCOPE_METRIC
 from tripl.models.alert_destination import AlertDestination
 from tripl.models.alert_rule import AlertRule
-from tripl.models.distribution_drift import DistributionDrift
+from tripl.models.distribution_drift import DistributionDrift, mover_float
 from tripl.models.domain_enums import MetricScopeType
 from tripl.models.project import Project
 from tripl.schemas.alerting import SimulatedRuleFiring
@@ -251,25 +251,30 @@ def render_firings_message(
 
 
 def trim_alert_text(value: str | None, *, max_length: int = 500) -> str | None:
+    """Cut alert text to ``max_length`` characters, ending in ``...`` when cut.
+
+    The one generic trimmer: the live send (``worker.tasks.metrics.signals`` and
+    ``lifecycle_alerts``) and the rule replay (``alerting_service``) both call it.
+    """
     if value is None or len(value) <= max_length:
         return value
     return value[: max_length - 3] + "..."
 
 
 def format_distribution_drift_sample(drift: DistributionDrift) -> str:
+    """``psi=0.420; ios 10.0%->30.0%, ...``: a distribution drift's sample text.
+
+    One function for both paths, the live send (``signals``) and the
+    "Test rule" replay (``alerting_service``), so a preview cannot show a sample
+    the real alert will not carry.
+    """
     parts = [f"psi={drift.psi:.3f}"]
     mover_parts: list[str] = []
     for mover in (drift.top_movers or [])[:3]:
         value = str(mover.get("value", ""))
-        baseline_share = _mover_float(mover.get("baseline_share")) * 100
-        current_share = _mover_float(mover.get("current_share")) * 100
+        baseline_share = mover_float(mover.get("baseline_share")) * 100
+        current_share = mover_float(mover.get("current_share")) * 100
         mover_parts.append(f"{value} {baseline_share:.1f}%->{current_share:.1f}%")
     if mover_parts:
         parts.append(", ".join(mover_parts))
     return trim_alert_text("; ".join(parts)) or ""
-
-
-def _mover_float(value: object) -> float:
-    if isinstance(value, (int, float, str)):
-        return float(value)
-    return 0.0

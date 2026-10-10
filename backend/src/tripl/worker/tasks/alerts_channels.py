@@ -2,14 +2,16 @@ from __future__ import annotations
 
 import base64
 import json
+import smtplib
 import urllib.error
 import urllib.request
 from collections.abc import Callable, Sequence
 from email.message import EmailMessage
 from http.client import HTTPMessage
-from typing import IO, Protocol
+from typing import IO, Protocol, cast
 from urllib.parse import quote, urlparse
 
+from tripl import __version__
 from tripl.alert_templates import (
     ALERT_MESSAGE_FORMAT_PLAIN,
     ALERT_MESSAGE_FORMAT_SLACK_MRKDWN,
@@ -22,11 +24,11 @@ from tripl.alerting_validation import (
     validate_sender_address,
     validate_slack_webhook_url,
 )
-from tripl.config import SMTP_SECURITY_IMPLICIT_TLS, SMTP_SECURITY_STARTTLS
+from tripl.config import SMTP_SECURITY_IMPLICIT_TLS, SMTP_SECURITY_STARTTLS, settings
 from tripl.crypto import decrypt_value
 from tripl.models.alert_destination import AlertDestination, AlertDestinationType
 from tripl.models.project import Project
-from tripl.services import app_settings_service
+from tripl.services import app_settings_service, safe_http
 from tripl.worker.tasks.alerts_messages import _build_jira_adf_body
 
 PostJson = Callable[..., dict[str, object] | None]
@@ -67,48 +69,57 @@ def _reject_private_target(url: str, *, field: str) -> None:
     Config-time validation can be bypassed by DNS rebinding (a hostname that
     resolved to a public IP at save time later resolving to 169.254.169.254 /
     RFC1918), so we re-check the resolved host here to defend the send path.
+    On its own that is check-then-connect: the connection resolves the name
+    again. Where outbound hosts must be public, the request itself connects to
+    the address it vetted (see the outbound rules below).
     """
     hostname = urlparse(url).hostname
     if hostname:
         reject_private_host(hostname, field=field)
 
 
-_DEFAULT_PORTS = {"http": 80, "https": 443}
+# The outbound rules every request below shares, in one place
+# (:func:`_request_json`):
+#
+# * HTTPS only, redirect hops included. Every URL these channels are configured
+#   with is https already (the destination validators and the fixed Telegram,
+#   Linear and PagerDuty endpoints), so refusing http costs nothing and keeps
+#   TLS as the defence against DNS rebinding on every hop: a rebound private
+#   address cannot present a certificate for the name. An https -> http hop
+#   used to be followed, which turned a public destination's 302 into a
+#   plain-HTTP request to whatever address the next lookup returned.
+# * When outbound hosts must be public (``Settings.public_hosts_only``:
+#   OUTBOUND_PUBLIC_HOSTS_ONLY, always on a hosted instance), the request goes
+#   through ``safe_http.send_pinned``: the name is resolved once, every address
+#   vetted, and the connection made to the vetted one, so what was checked is
+#   what is reached. No redirect is followed there: a 3xx is a failure.
+#   Otherwise urllib sends it (keeping an operator's proxy settings) and a hop
+#   to a public https host is followed, its target checked first.
+# * Bounded reads: an answer is read up to :data:`_MAX_RESPONSE_BYTES`, an
+#   error body up to :data:`_MAX_ERROR_BODY_BYTES`, and the error message
+#   carries at most :data:`_MAX_DETAIL_CHARS` of it. That message is stored on
+#   the delivery, written to the audit log and shown to the editor who pressed
+#   Test, so it must not be a way to read a receiver's whole answer back.
+_TIMEOUT_SECONDS = 10
+#: The whole request on the pinned path, name lookup and body read included.
+_DEADLINE_SECONDS = 30
+_MAX_RESPONSE_BYTES = 1024 * 1024
+_MAX_ERROR_BODY_BYTES = 64 * 1024
+_MAX_DETAIL_CHARS = 500
+_USER_AGENT = f"tripl/{__version__}"
 
-# Everything this module sends beyond ``Accept`` is a credential: the Jira /
-# Linear ``Authorization`` header, and the operator's configured webhook secret
-# header — whose *name* is operator-chosen, so no denylist can enumerate it.
-# Hence an allowlist: a header is forwarded across an origin change only if it
-# is named here.
-_CROSS_ORIGIN_SAFE_HEADERS = frozenset({"accept"})
+# Everything this module sends beyond ``Accept`` and ``User-Agent`` is a
+# credential: the Jira / Linear ``Authorization`` header, and the operator's
+# configured webhook secret header — whose *name* is operator-chosen, so no
+# denylist can enumerate it. Hence an allowlist: a header is forwarded across an
+# origin change only if it is named here.
+_CROSS_ORIGIN_SAFE_HEADERS = frozenset({"accept", "user-agent"})
 
 
-def _origin(url: str) -> tuple[str, str | None, int | None]:
+def _origin(url: str) -> tuple[str | None, int]:
+    """Host and port of an https URL, the only scheme this module sends to."""
     parsed = urlparse(url)
-    scheme = parsed.scheme.lower()
-    return scheme, parsed.hostname, parsed.port or _DEFAULT_PORTS.get(scheme)
-
-
-def _may_forward_credentials(from_url: str, to_url: str) -> bool:
-    """True when ``to_url`` is close enough to ``from_url`` to keep its headers.
-
-    Same origin, plus the one scheme change that does not widen exposure: an
-    ``http -> https`` upgrade on the same host and default ports, which real
-    destinations issue often enough that refusing it would break deliveries. A
-    downgrade to ``http`` is treated as a different origin — it would put the
-    credential on the wire in cleartext.
-    """
-    from_scheme, from_host, from_port = _origin(from_url)
-    to_scheme, to_host, to_port = _origin(to_url)
-    if from_host != to_host:
-        return False
-    if from_scheme == to_scheme:
-        return from_port == to_port
-    return (
-        (from_scheme, to_scheme) == ("http", "https")
-        and from_port == _DEFAULT_PORTS["http"]
-        and to_port == _DEFAULT_PORTS["https"]
-    )
+    return parsed.hostname, parsed.port or 443
 
 
 class _ValidatingRedirectHandler(urllib.request.HTTPRedirectHandler):
@@ -124,10 +135,11 @@ class _ValidatingRedirectHandler(urllib.request.HTTPRedirectHandler):
     urllib turns into an opaque HTTP 302 error) keeps the reason in the message
     the operator reads.
 
-    The hop is still followed when the target is public, so credentials must be
-    dropped when the origin changes: urllib copies every header except the
-    content ones onto the new request, which handed the operator's Jira basic
-    auth and webhook secret to whatever public host answered the 302.
+    The hop is still followed when the target is a public https URL, so
+    credentials must be dropped when the origin changes: urllib copies every
+    header except the content ones onto the new request, which handed the
+    operator's Jira basic auth and webhook secret to whatever public host
+    answered the 302.
     """
 
     def redirect_request(
@@ -140,13 +152,13 @@ class _ValidatingRedirectHandler(urllib.request.HTTPRedirectHandler):
         newurl: str,
     ) -> urllib.request.Request | None:
         parsed = urlparse(newurl)
-        # urllib's own scheme check here also permits ftp:// and scheme-relative
-        # targets; alert delivery has no use for either.
-        if parsed.scheme not in ("http", "https") or not parsed.hostname:
-            raise ValueError("Redirect target must be an http or https URL")
+        # urllib's own scheme check here also permits http://, ftp:// and
+        # scheme-relative targets; see the outbound rules above.
+        if parsed.scheme != "https" or not parsed.hostname:
+            raise ValueError("Redirect target must be an https URL")
         reject_private_host(parsed.hostname, field="Redirect target")
         redirected = super().redirect_request(req, fp, code, msg, headers, newurl)
-        if redirected is None or _may_forward_credentials(req.full_url, newurl):
+        if redirected is None or _origin(req.full_url) == _origin(newurl):
             return redirected
         redirected.headers = {
             name: value
@@ -162,13 +174,112 @@ class _ValidatingRedirectHandler(urllib.request.HTTPRedirectHandler):
 _REDIRECT_SAFE_OPENER = urllib.request.build_opener(_ValidatingRedirectHandler)
 
 
+def _error_message(url: str, code: int, raw: bytes, *, detail: str | None = None) -> str:
+    """``HTTP <code> from <scheme://host>: <detail>``, the detail bounded.
+
+    The detail is the body, or Telegram's ``description`` when the body is its
+    JSON error. Callers match on it (Telegram's "message is too long").
+    """
+    if detail is None:
+        text = raw[:_MAX_ERROR_BODY_BYTES].decode("utf-8", errors="replace").strip()
+        detail = text
+        if text:
+            try:
+                parsed = json.loads(text)
+            except json.JSONDecodeError:
+                parsed = None
+            if isinstance(parsed, dict):
+                description = parsed.get("description")
+                if isinstance(description, str) and description.strip():
+                    detail = description.strip()
+    if len(detail) > _MAX_DETAIL_CHARS:
+        detail = detail[: _MAX_DETAIL_CHARS - 3].rstrip() + "..."
+    message = f"HTTP {code} from {_safe_url_for_error(url)}"
+    return f"{message}: {detail}" if detail else message
+
+
+def _open_with_urllib(request: urllib.request.Request) -> tuple[int, bytes]:
+    """Self-hosted: urllib, following a public https redirect (see above)."""
+    try:
+        with _REDIRECT_SAFE_OPENER.open(request, timeout=_TIMEOUT_SECONDS) as response:
+            return int(response.status), response.read(_MAX_RESPONSE_BYTES + 1)
+    except urllib.error.HTTPError as exc:
+        try:
+            raw = exc.read(_MAX_ERROR_BODY_BYTES)
+        except Exception:  # noqa: BLE001
+            raw = b""
+        raise ValueError(_error_message(request.full_url, exc.code, raw)) from exc
+
+
+def _open_pinned(request: urllib.request.Request) -> tuple[int, bytes]:
+    """Public hosts only: one lookup, the vetted address, no redirect (see above)."""
+    url = request.full_url
+    answer = safe_http.send_pinned(
+        request.get_method(),
+        url,
+        dict(request.header_items()),
+        cast(bytes | None, request.data),
+        field="Destination URL",
+        timeout=_TIMEOUT_SECONDS,
+        max_response_bytes=_MAX_RESPONSE_BYTES,
+        deadline=_DEADLINE_SECONDS,
+    )
+    if 200 <= answer.status < 300:
+        return answer.status, answer.body
+    redirect = 300 <= answer.status < 400
+    # Raised from an HTTPError like the urllib path's, so a caller reading the
+    # cause chain (the Test dialog's HTTP status, the ticket retry policy) sees
+    # the same thing whichever path sent it.
+    cause = urllib.error.HTTPError(url, answer.status, "", HTTPMessage(), None)
+    message = _error_message(
+        url,
+        answer.status,
+        answer.body,
+        detail="redirects are not followed on this instance" if redirect else None,
+    )
+    raise ValueError(message) from cause
+
+
+def _request_json(
+    method: str,
+    url: str,
+    body: dict[str, object] | None,
+    headers: dict[str, str] | None,
+) -> tuple[int, dict[str, object] | None]:
+    """Send one request; the 2xx status and its JSON object answer, if it has one.
+
+    Every non-2xx raises ``ValueError("HTTP <code> from <scheme://host>: ...")``
+    from a ``urllib.error.HTTPError``. An answer over :data:`_MAX_RESPONSE_BYTES`
+    counts as one with no JSON object.
+    """
+    if urlparse(url).scheme != "https":
+        raise ValueError("Destination URL must be an https URL")
+    request_headers = {"User-Agent": _USER_AGENT, "Accept": "application/json"}
+    data = None
+    if body is not None:
+        request_headers["Content-Type"] = "application/json"
+        data = json.dumps(body).encode()
+    if headers:
+        request_headers.update(headers)
+    request = urllib.request.Request(url, data=data, headers=request_headers, method=method)
+    opener = _open_pinned if settings.public_hosts_only else _open_with_urllib
+    status, raw = opener(request)
+    if not raw or len(raw) > _MAX_RESPONSE_BYTES:
+        return status, None
+    try:
+        parsed = json.loads(raw.decode("utf-8", errors="replace"))
+    except json.JSONDecodeError:
+        return status, None
+    return status, parsed if isinstance(parsed, dict) else None
+
+
 def _post_json(
     url: str,
     body: dict[str, object],
     headers: dict[str, str] | None = None,
 ) -> dict[str, object] | None:
     """POST JSON and return a JSON object response when one is available."""
-    return _post_json_with_status(url, body, headers)[1]
+    return _request_json("POST", url, body, headers)[1]
 
 
 def _post_json_with_status(
@@ -183,50 +294,7 @@ def _post_json_with_status(
     — a 200 from a proxy that swallowed the request included — is not an
     event PagerDuty has queued. Every non-2xx still raises, exactly as above.
     """
-    request_headers = {"Content-Type": "application/json"}
-    if headers:
-        request_headers.update(headers)
-    request = urllib.request.Request(
-        url,
-        data=json.dumps(body).encode(),
-        headers=request_headers,
-        method="POST",
-    )
-    try:
-        with _REDIRECT_SAFE_OPENER.open(request, timeout=10) as response:
-            status = int(response.status)
-            raw = response.read()
-        if raw:
-            try:
-                parsed = json.loads(raw.decode("utf-8", errors="replace"))
-            except json.JSONDecodeError:
-                return status, None
-            if isinstance(parsed, dict):
-                return status, parsed
-        return status, None
-    except urllib.error.HTTPError as exc:
-        response_body = ""
-        try:
-            response_body = exc.read().decode("utf-8", errors="replace")
-        except Exception:  # noqa: BLE001
-            response_body = ""
-
-        detail = response_body.strip()
-        if response_body:
-            try:
-                parsed = json.loads(response_body)
-            except json.JSONDecodeError:
-                parsed = None
-            if isinstance(parsed, dict):
-                description = parsed.get("description")
-                if isinstance(description, str) and description.strip():
-                    detail = description.strip()
-
-        safe_url = _safe_url_for_error(url)
-        message = f"HTTP {exc.code} from {safe_url}"
-        if detail:
-            message = f"{message}: {detail}"
-        raise ValueError(message) from exc
+    return _request_json("POST", url, body, headers)
 
 
 def _get_json(
@@ -235,46 +303,9 @@ def _get_json(
 ) -> dict[str, object] | None:
     """GET a URL and return a JSON object response when one is available.
 
-    The read-side twin of :func:`_post_json` (same urllib transport, 10s timeout
-    and HTTPError handling). Used to poll a tracker for issue status."""
-    request_headers = {"Accept": "application/json"}
-    if headers:
-        request_headers.update(headers)
-    request = urllib.request.Request(url, headers=request_headers, method="GET")
-    try:
-        with _REDIRECT_SAFE_OPENER.open(request, timeout=10) as response:
-            raw = response.read()
-        if raw:
-            try:
-                parsed = json.loads(raw.decode("utf-8", errors="replace"))
-            except json.JSONDecodeError:
-                return None
-            if isinstance(parsed, dict):
-                return parsed
-        return None
-    except urllib.error.HTTPError as exc:
-        response_body = ""
-        try:
-            response_body = exc.read().decode("utf-8", errors="replace")
-        except Exception:  # noqa: BLE001
-            response_body = ""
-
-        detail = response_body.strip()
-        if response_body:
-            try:
-                parsed = json.loads(response_body)
-            except json.JSONDecodeError:
-                parsed = None
-            if isinstance(parsed, dict):
-                description = parsed.get("description")
-                if isinstance(description, str) and description.strip():
-                    detail = description.strip()
-
-        safe_url = _safe_url_for_error(url)
-        message = f"HTTP {exc.code} from {safe_url}"
-        if detail:
-            message = f"{message}: {detail}"
-        raise ValueError(message) from exc
+    The read-side twin of :func:`_post_json`. Used to poll a tracker for issue
+    status."""
+    return _request_json("GET", url, None, headers)[1]
 
 
 def _send_slack_message(
@@ -404,6 +435,35 @@ def _send_email_message(
             f"{', '.join(sorted(refused))}"
         )
         raise ValueError(detail)
+
+
+def send_with_config(
+    email_config: app_settings_service.EmailConfig,
+    *,
+    recipients: list[str],
+    subject: str,
+    body: str,
+) -> None:
+    """Send one message through ``email_config``'s relay, from its configured sender.
+
+    For mail that is not an alert delivery: account mail and the SMTP test send.
+    No destination From: override applies to those, so the sender is always
+    the relay's own ``smtp_from_address``. It calls :func:`_send_email_message`
+    by its name in this module, so a test that replaces that name here also
+    captures these sends.
+    """
+    _send_email_message(
+        smtp_module=smtplib,
+        smtp_host=email_config.smtp_host,
+        smtp_port=email_config.smtp_port,
+        smtp_username=email_config.smtp_username,
+        smtp_password=email_config.smtp_password,
+        smtp_security=email_config.smtp_security,
+        from_address=email_config.smtp_from_address,
+        recipients=recipients,
+        subject=subject,
+        body=body,
+    )
 
 
 # The title half of the email subject the weekly plan digest has always

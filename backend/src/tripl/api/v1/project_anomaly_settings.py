@@ -20,7 +20,9 @@ _editor_required = [Depends(get_editor_user)]
 
 
 @router.get("", response_model=ProjectAnomalySettingsResponse)
-async def get_project_anomaly_settings(session: SessionDep, slug: str) -> ProjectAnomalySettings:
+async def get_project_anomaly_settings(
+    session: SessionDep, slug: str
+) -> ProjectAnomalySettingsResponse:
     return await project_anomaly_settings_service.get_project_anomaly_settings(session, slug)
 
 

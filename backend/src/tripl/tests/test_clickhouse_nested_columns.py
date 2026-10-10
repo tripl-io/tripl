@@ -385,14 +385,14 @@ def test_compiled_batch_sql_primes_the_adapter_with_its_column_types(
 ) -> None:
     """The connection-free SQL compiler builds a faithful adapter, not a partial one.
 
-    ``compile_time_bucketed_multi_aggregate_sql`` hand-builds a ClickHouse adapter
-    with ``object.__new__`` and has to prime whatever state the builder reads. The
-    multi-aggregate statement takes no nested columns, so the priming leaves no mark
-    on its output and this has to reach for the adapter itself. Worth pinning anyway:
-    an un-primed stand-in is exactly the bug that would resurface the moment any
-    type-directed SQL reaches that path, which it already has on BigQuery — the same
-    function's BigQuery branch primes ``_column_types`` because the bucket and bound
-    literals are chosen from it.
+    ``compile_time_bucketed_multi_aggregate_sql`` gets its adapter from
+    ``BaseAdapter.primed``, which sets ``_allowed_columns`` and ``_column_types``
+    for every engine without connecting. The multi-aggregate statement takes no
+    nested columns, so on ClickHouse the priming leaves no mark on its output and
+    this has to reach for the adapter itself. Worth pinning anyway: an un-primed
+    stand-in is exactly the bug that would resurface the moment any type-directed
+    SQL reaches that path, which it already has on BigQuery, where the bucket and
+    bound literals are chosen from ``_column_types``.
     """
     seen: list[dict[str, str]] = []
     original = ClickHouseAdapter.build_time_bucketed_multi_aggregate_sql

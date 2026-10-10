@@ -75,8 +75,8 @@ def test_the_cleared_sender_reaches_the_probe_as_the_setting_it_actually_is(
     """The consequence, not the string: which failure the operator is shown.
 
     ``send_test_email`` keeps one sentence for an unset Default From, because
-    that configuration does not fail at the transport at all — password reset
-    mail is dropped and only a log line records it. Reaching that sentence
+    that configuration does not fail at the transport at all — account mail is
+    simply never queued (``email_can_send``). Reaching that sentence
     depends entirely on ``not email_config.smtp_from_address`` being true.
 
     Revert ``return ""`` to ``return value`` and this goes red: ``"   "`` is

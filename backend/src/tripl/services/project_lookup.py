@@ -66,29 +66,23 @@ def project_slug_clause(slug: str) -> ColumnElement[bool]:
     return and_(Project.organization_id == require_org_id(), Project.slug == slug)
 
 
-async def resolve_project(
-    session: AsyncSession,
-    slug: str,
-    *,
-    detail: str = PROJECT_NOT_FOUND,
-) -> Project:
-    """The bound organization's project ``slug``; 404 ``detail`` when there is none."""
+async def resolve_project(session: AsyncSession, slug: str) -> Project:
+    """The bound organization's project ``slug``; 404 :data:`PROJECT_NOT_FOUND` when there is none.
+
+    The detail never echoes the slug: an unknown project and one the caller may
+    not see get the same answer from every route, so the 404 reveals nothing.
+    """
     project: Project | None = await session.scalar(select(Project).where(project_slug_clause(slug)))
     if project is None:
-        raise HTTPException(status_code=404, detail=detail)
+        raise HTTPException(status_code=404, detail=PROJECT_NOT_FOUND)
     return project
 
 
-async def resolve_project_id(
-    session: AsyncSession,
-    slug: str,
-    *,
-    detail: str = PROJECT_NOT_FOUND,
-) -> uuid.UUID:
+async def resolve_project_id(session: AsyncSession, slug: str) -> uuid.UUID:
     """:func:`resolve_project` for callers that only need the id (one narrow select)."""
     project_id: uuid.UUID | None = await session.scalar(
         select(Project.id).where(project_slug_clause(slug))
     )
     if project_id is None:
-        raise HTTPException(status_code=404, detail=detail)
+        raise HTTPException(status_code=404, detail=PROJECT_NOT_FOUND)
     return project_id

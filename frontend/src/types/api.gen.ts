@@ -425,8 +425,15 @@ export interface paths {
          * @description Test a connection before it is saved.
          *
          *     The create gate (org owner/admin, browser session) and the create body's validation,
-         *     host format included; nothing is stored and no stored secret is read. Always
-         *     200: a refused connection is the answer the caller asked for.
+         *     host format included; nothing is stored and no stored secret is read.
+         *
+         *     A config Create would refuse is a 422, as it is on Create: invalid
+         *     ``connection_settings``, a missing Databricks ``http_path`` or Snowflake
+         *     ``warehouse``, an empty user name (Trino, Snowflake, Athena, and Databricks
+         *     with ``oauth_m2m`` sign-in), a Trino password over ``http``, or the
+         *     ``synthetic`` type. A valid config is always 200, with ``success`` false when
+         *     the warehouse cannot be reached or refuses the sign-in: that is the answer the
+         *     caller asked for.
          */
         post: operations["test_unsaved_data_source_connection_api_v1_data_sources_test_post"];
         delete?: never;
@@ -755,7 +762,10 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** List Members */
+        /**
+         * List Members
+         * @description ``org``'s members with their organization role, as ``GET /users`` pages them.
+         */
         get: operations["list_members_api_v1_orgs__org__members_get"];
         put?: never;
         post?: never;
@@ -785,8 +795,45 @@ export interface paths {
         /**
          * Update Member Role
          * @description Change a member's organization role (owner | admin | member).
+         *
+         *     404 for an account outside the organization, 400 when it would leave the
+         *     organization without an owner, 403 when an admin tries to make or unmake an
+         *     owner. The same change, errors and ``org.member_role_update`` audit row as
+         *     ``PATCH /users/{id}``, for the organization the path names.
          */
         patch: operations["update_member_role_api_v1_orgs__org__members__user_id__patch"];
+        trace?: never;
+    };
+    "/api/v1/orgs/{org}/members/{user_id}/password-reset-link": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Create Member Password Reset Link
+         * @description A single-use password reset link for a member, for the caller to hand over.
+         *
+         *     For a member who forgot their password on an instance that cannot send
+         *     email. The link is in the body and nowhere else: nothing is mailed. It is
+         *     the emailed reset's token, with its expiry, and it replaces any earlier
+         *     link of the account; the member's password keeps working until the link is
+         *     used. Audited as ``user.password_reset_link``.
+         *
+         *     404 for an account outside the organization; 403 for the caller's own
+         *     account, an owner when the caller is an admin, a member of an organization
+         *     the caller does not manage, or a platform admin when the caller is not one;
+         *     409 when the account has not verified its address. The rules are
+         *     ``password_reset_links``'s.
+         */
+        post: operations["create_member_password_reset_link_api_v1_orgs__org__members__user_id__password_reset_link_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
         trace?: never;
     };
     "/api/v1/orgs/{org}/settings": {
@@ -4390,11 +4437,11 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** List Variables  Properties */
-        get: operations["list_variables__properties_api_v1_projects__slug__properties_get"];
+        /** List Properties */
+        get: operations["list_properties_api_v1_projects__slug__properties_get"];
         put?: never;
-        /** Create Variable  Properties */
-        post: operations["create_variable__properties_api_v1_projects__slug__properties_post"];
+        /** Create Property */
+        post: operations["create_property_api_v1_projects__slug__properties_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -4410,8 +4457,8 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Bulk Delete Variables  Properties */
-        post: operations["bulk_delete_variables__properties_api_v1_projects__slug__properties_bulk_delete_post"];
+        /** Bulk Delete Properties */
+        post: operations["bulk_delete_properties_api_v1_projects__slug__properties_bulk_delete_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -4427,8 +4474,8 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Bulk Update Variables  Properties */
-        post: operations["bulk_update_variables__properties_api_v1_projects__slug__properties_bulk_update_post"];
+        /** Bulk Update Properties */
+        post: operations["bulk_update_properties_api_v1_projects__slug__properties_bulk_update_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -4442,8 +4489,8 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** List Value Drifts  Properties */
-        get: operations["list_value_drifts__properties_api_v1_projects__slug__properties_drifts_get"];
+        /** List Value Drifts */
+        get: operations["list_value_drifts_api_v1_projects__slug__properties_drifts_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -4461,8 +4508,8 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Apply Value Drift Action  Properties */
-        post: operations["apply_value_drift_action__properties_api_v1_projects__slug__properties_drifts__drift_id__action_post"];
+        /** Apply Value Drift Action */
+        post: operations["apply_value_drift_action_api_v1_projects__slug__properties_drifts__drift_id__action_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -4477,10 +4524,10 @@ export interface paths {
             cookie?: never;
         };
         /**
-         * List Property Drifts  Properties
+         * List Property Drifts
          * @description New, missing-required and type-changed properties a scan saw (F23).
          */
-        get: operations["list_property_drifts__properties_api_v1_projects__slug__properties_property_drifts_get"];
+        get: operations["list_property_drifts_api_v1_projects__slug__properties_property_drifts_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -4498,8 +4545,8 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Apply Property Drift Action  Properties */
-        post: operations["apply_property_drift_action__properties_api_v1_projects__slug__properties_property_drifts__drift_id__action_post"];
+        /** Apply Property Drift Action */
+        post: operations["apply_property_drift_action_api_v1_projects__slug__properties_property_drifts__drift_id__action_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -4516,12 +4563,12 @@ export interface paths {
         get?: never;
         put?: never;
         post?: never;
-        /** Delete Variable  Properties */
-        delete: operations["delete_variable__properties_api_v1_projects__slug__properties__variable_id__delete"];
+        /** Delete Property */
+        delete: operations["delete_property_api_v1_projects__slug__properties__variable_id__delete"];
         options?: never;
         head?: never;
-        /** Update Variable  Properties */
-        patch: operations["update_variable__properties_api_v1_projects__slug__properties__variable_id__patch"];
+        /** Update Property */
+        patch: operations["update_property_api_v1_projects__slug__properties__variable_id__patch"];
         trace?: never;
     };
     "/api/v1/projects/{slug}/properties/{variable_id}/event-overrides": {
@@ -4531,8 +4578,8 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** List Event Overrides  Properties */
-        get: operations["list_event_overrides__properties_api_v1_projects__slug__properties__variable_id__event_overrides_get"];
+        /** List Event Overrides */
+        get: operations["list_event_overrides_api_v1_projects__slug__properties__variable_id__event_overrides_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -4551,11 +4598,11 @@ export interface paths {
         get?: never;
         put?: never;
         /**
-         * Bulk Upsert Event Overrides  Properties
+         * Bulk Upsert Event Overrides
          * @description Add the property to many events' lists, or apply one patch to each entry:
          *     the single PUT's semantics, all or nothing (F23.8).
          */
-        post: operations["bulk_upsert_event_overrides__properties_api_v1_projects__slug__properties__variable_id__event_overrides_bulk_post"];
+        post: operations["bulk_upsert_event_overrides_api_v1_projects__slug__properties__variable_id__event_overrides_bulk_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -4572,11 +4619,11 @@ export interface paths {
         get?: never;
         put?: never;
         /**
-         * Bulk Delete Event Overrides  Properties
+         * Bulk Delete Event Overrides
          * @description Take the property off many events' lists (F23.8). Events that do not
          *     carry it are skipped, and the audit row names only the entries removed.
          */
-        post: operations["bulk_delete_event_overrides__properties_api_v1_projects__slug__properties__variable_id__event_overrides_bulk_delete_post"];
+        post: operations["bulk_delete_event_overrides_api_v1_projects__slug__properties__variable_id__event_overrides_bulk_delete_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -4591,11 +4638,11 @@ export interface paths {
             cookie?: never;
         };
         get?: never;
-        /** Upsert Event Override  Properties */
-        put: operations["upsert_event_override__properties_api_v1_projects__slug__properties__variable_id__event_overrides__event_id__put"];
+        /** Upsert Event Override */
+        put: operations["upsert_event_override_api_v1_projects__slug__properties__variable_id__event_overrides__event_id__put"];
         post?: never;
-        /** Delete Event Override  Properties */
-        delete: operations["delete_event_override__properties_api_v1_projects__slug__properties__variable_id__event_overrides__event_id__delete"];
+        /** Delete Event Override */
+        delete: operations["delete_event_override_api_v1_projects__slug__properties__variable_id__event_overrides__event_id__delete"];
         options?: never;
         head?: never;
         patch?: never;
@@ -4609,11 +4656,11 @@ export interface paths {
             cookie?: never;
         };
         /**
-         * List Property Events  Properties
+         * List Property Events
          * @description The events whose property list carries this property, with each entry's
          *     required flag, override and last measured presence (F23.8).
          */
-        get: operations["list_property_events__properties_api_v1_projects__slug__properties__variable_id__events_get"];
+        get: operations["list_property_events_api_v1_projects__slug__properties__variable_id__events_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -4629,19 +4676,19 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** List Variable Values  Properties */
-        get: operations["list_variable_values__properties_api_v1_projects__slug__properties__variable_id__values_get"];
+        /** List Property Values */
+        get: operations["list_property_values_api_v1_projects__slug__properties__variable_id__values_get"];
         put?: never;
         post?: never;
         /**
-         * Clear Variable Values  Properties
+         * Clear Property Values
          * @description Drop the variable's observed contexts and keep the variable.
          *
          *     Deleting the variable was the only reset available and it takes the
          *     description, documented values, bindings, overrides and drift triage with
          *     it — none of which a scan rebuilds.
          */
-        delete: operations["clear_variable_values__properties_api_v1_projects__slug__properties__variable_id__values_delete"];
+        delete: operations["clear_property_values_api_v1_projects__slug__properties__variable_id__values_delete"];
         options?: never;
         head?: never;
         patch?: never;
@@ -5717,10 +5764,14 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Get Service Settings */
+        /**
+         * Get Service Settings
+         * @deprecated
+         */
         get: operations["get_service_settings_api_v1_settings_get"];
         /**
          * Put Service Settings
+         * @deprecated
          * @description Upsert service overrides. Intentionally identical to PATCH: unset fields
          *     are left untouched (partial update), not reset. Kept as a stable alias for
          *     clients that issue PUT; settings are a sparse override map with no full
@@ -5731,7 +5782,10 @@ export interface paths {
         delete?: never;
         options?: never;
         head?: never;
-        /** Patch Service Settings */
+        /**
+         * Patch Service Settings
+         * @deprecated
+         */
         patch: operations["patch_service_settings_api_v1_settings_patch"];
         trace?: never;
     };
@@ -5742,7 +5796,10 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Get Ai Settings */
+        /**
+         * Get Ai Settings
+         * @deprecated
+         */
         get: operations["get_ai_settings_api_v1_settings_ai_get"];
         put?: never;
         post?: never;
@@ -5781,7 +5838,10 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Test Ai Settings */
+        /**
+         * Test Ai Settings
+         * @deprecated
+         */
         post: operations["test_ai_settings_api_v1_settings_ai_test_post"];
         delete?: never;
         options?: never;
@@ -5800,6 +5860,7 @@ export interface paths {
         put?: never;
         /**
          * Test Email Settings
+         * @deprecated
          * @description Send one probe message with the saved SMTP settings and report what happened.
          *
          *     Always 200: a relay refusing us is the answer the caller asked for, not a
@@ -5877,7 +5938,8 @@ export interface paths {
          * @description The members of the request's organization with their organization role.
          *
          *     Any member may see the roster (it feeds the member pickers); a signed-in
-         *     account outside the organization gets 403.
+         *     account outside the organization gets 403. One page, oldest account first:
+         *     page on with ``offset`` until a page comes back shorter than ``limit``.
          */
         get: operations["list_users_api_v1_users_get"];
         put?: never;
@@ -5971,7 +6033,8 @@ export interface paths {
          *     404 for an account outside the organization, 400 when it would leave the
          *     organization without an owner, 403 when an admin tries to make or unmake an
          *     owner. The member stays signed in; the new role applies from their next
-         *     request.
+         *     request. The same change, errors and ``org.member_role_update`` audit row
+         *     as ``PATCH /orgs/{org}/members/{id}``.
          */
         patch: operations["update_user_role_api_v1_users__user_id__patch"];
         trace?: never;
@@ -6185,7 +6248,7 @@ export interface components {
             /** Search Embedding Model */
             search_embedding_model?: string | null;
             /** Search Embedding Provider */
-            search_embedding_provider?: string | null;
+            search_embedding_provider?: "openai" | null;
             /** Search Embeddings Enabled */
             search_embeddings_enabled?: boolean | null;
         };
@@ -10265,6 +10328,29 @@ export interface components {
              */
             renamed: number;
         };
+        /**
+         * ErrorResponse
+         * @description ``{"detail": ...}``: FastAPI's error shape, with the variants tripl adds.
+         *
+         *     ``detail`` is a message for most errors; a list of field errors on a 422;
+         *     an object where a route has more to say than a message (a merge's
+         *     ``conflicts``, an import's ``errors``). A refusal from an organization's
+         *     gate adds keys beside ``detail`` (``sso_start``), and a 500 adds
+         *     ``request_id``, to quote when reporting it.
+         */
+        ErrorResponse: {
+            /** Detail */
+            detail: string | unknown[] | {
+                [key: string]: unknown;
+            };
+            /**
+             * Request Id
+             * @description On a 500: the id the server logged it under.
+             */
+            request_id?: string | null;
+        } & {
+            [key: string]: unknown;
+        };
         /** EventBulkDelete */
         EventBulkDelete: {
             /** Event Ids */
@@ -12482,6 +12568,30 @@ export interface components {
             unread: number;
             /** Updated */
             updated: number;
+        };
+        /**
+         * MemberPasswordResetLink
+         * @description ``POST /orgs/{org}/members/{id}/password-reset-link``: a link to hand over.
+         *
+         *     ``reset_path`` goes on the app's address (``/auth?reset_token=...``). It is
+         *     returned here once and stored nowhere in the clear: the token works a
+         *     single time, until ``expires_at``, and a newer link replaces it.
+         */
+        MemberPasswordResetLink: {
+            /** Email */
+            email: string;
+            /**
+             * Expires At
+             * Format: date-time
+             */
+            expires_at: string;
+            /** Reset Path */
+            reset_path: string;
+            /**
+             * User Id
+             * Format: uuid
+             */
+            user_id: string;
         };
         /**
          * MergeResolutionChoice
@@ -15035,7 +15145,13 @@ export interface components {
             /** Sslrootcert */
             sslrootcert?: string | null;
         };
-        /** ProjectAnomalySettingsResponse */
+        /**
+         * ProjectAnomalySettingsResponse
+         * @description A project's detection settings.
+         *
+         *     A project that never saved them has no row: it reads the defaults, and
+         *     ``id``, ``created_at`` and ``updated_at`` are null until the first save.
+         */
         ProjectAnomalySettingsResponse: {
             /** Anomaly Detection Enabled */
             anomaly_detection_enabled: boolean;
@@ -15043,11 +15159,8 @@ export interface components {
             anomaly_ingestion_settling_minutes: number;
             /** Baseline Window Buckets */
             baseline_window_buckets: number;
-            /**
-             * Created At
-             * Format: date-time
-             */
-            created_at: string;
+            /** Created At */
+            created_at?: string | null;
             /** Detect Event Types */
             detect_event_types: boolean;
             /** Detect Events */
@@ -15058,11 +15171,8 @@ export interface components {
             detect_project_total: boolean;
             /** Holiday Country */
             holiday_country?: string | null;
-            /**
-             * Id
-             * Format: uuid
-             */
-            id: string;
+            /** Id */
+            id?: string | null;
             /** Min Expected Count */
             min_expected_count: number;
             /** Min History Buckets */
@@ -15076,11 +15186,8 @@ export interface components {
             recent_signal_window_hours: number;
             /** Sigma Threshold */
             sigma_threshold: number;
-            /**
-             * Updated At
-             * Format: date-time
-             */
-            updated_at: string;
+            /** Updated At */
+            updated_at?: string | null;
         };
         /** ProjectAnomalySettingsUpdate */
         ProjectAnomalySettingsUpdate: {
@@ -18070,6 +18177,11 @@ export interface components {
             database_url_configured: boolean;
             /** Debug */
             debug: boolean;
+            /**
+             * Edition
+             * @enum {string}
+             */
+            edition: "community" | "enterprise";
             /** Encryption Key Configured */
             encryption_key_configured: boolean;
             /** Openai Api Key Configured */
@@ -18080,6 +18192,8 @@ export interface components {
             redis_url_configured: boolean;
             /** Sync Database Url Configured */
             sync_database_url_configured: boolean;
+            /** Version */
+            version: string;
         };
         /** TableSchema */
         TableSchema: {
@@ -18491,6 +18605,12 @@ export interface components {
             sample_values: string[];
             /** Source Name */
             source_name: string | null;
+            /**
+             * Value Event Count
+             * @description Events on the property's branch whose field or meta values name its ${token}, found with the same token scan as the 'usage' filter. Counted apart from 'listed_event_count' and from 'event_count' (where scans saw it).
+             * @default 0
+             */
+            value_event_count: number;
             variable_type: components["schemas"]["VariableType"];
         };
         /**
@@ -18739,6 +18859,33 @@ export interface operations {
                     "application/json": components["schemas"]["ActivityItemResponse"][];
                 };
             };
+            /** @description No session or API key, or the API key is invalid, expired or revoked. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Signed in, but this account or API key may not do this. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description No such project (or the caller is not a member of it), or no such object in it. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
             /** @description Validation Error */
             422: {
                 headers: {
@@ -18770,6 +18917,33 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ActivityItemResponse"][];
+                };
+            };
+            /** @description No session or API key, or the API key is invalid, expired or revoked. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Signed in, but this account or API key may not do this. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description No such project (or the caller is not a member of it), or no such object in it. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
             /** @description Validation Error */
@@ -19226,6 +19400,24 @@ export interface operations {
                     "application/json": components["schemas"]["DataSourceResponse"][];
                 };
             };
+            /** @description No session or API key, or the API key is invalid, expired or revoked. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Signed in, but this account or API key may not do this. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
         };
     };
     create_data_source_api_v1_data_sources_post: {
@@ -19248,6 +19440,24 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["DataSourceResponse"];
+                };
+            };
+            /** @description No session or API key, or the API key is invalid, expired or revoked. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Signed in, but this account or API key may not do this. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
             /** @description Validation Error */
@@ -19283,6 +19493,24 @@ export interface operations {
                     "application/json": components["schemas"]["DataSourceConnectionTestResponse"];
                 };
             };
+            /** @description No session or API key, or the API key is invalid, expired or revoked. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Signed in, but this account or API key may not do this. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
             /** @description Validation Error */
             422: {
                 headers: {
@@ -19314,6 +19542,24 @@ export interface operations {
                     "application/json": components["schemas"]["DataSourceResponse"];
                 };
             };
+            /** @description No session or API key, or the API key is invalid, expired or revoked. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Signed in, but this account or API key may not do this. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
             /** @description Validation Error */
             422: {
                 headers: {
@@ -19342,6 +19588,24 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content?: never;
+            };
+            /** @description No session or API key, or the API key is invalid, expired or revoked. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Signed in, but this account or API key may not do this. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
             };
             /** @description Validation Error */
             422: {
@@ -19378,6 +19642,24 @@ export interface operations {
                     "application/json": components["schemas"]["DataSourceResponse"];
                 };
             };
+            /** @description No session or API key, or the API key is invalid, expired or revoked. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Signed in, but this account or API key may not do this. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
             /** @description Validation Error */
             422: {
                 headers: {
@@ -19407,6 +19689,24 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["DataSourceSchemaResponse"];
+                };
+            };
+            /** @description No session or API key, or the API key is invalid, expired or revoked. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Signed in, but this account or API key may not do this. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
             /** @description Validation Error */
@@ -19442,6 +19742,24 @@ export interface operations {
                     "application/json": components["schemas"]["DataSourceStatsResponse"];
                 };
             };
+            /** @description No session or API key, or the API key is invalid, expired or revoked. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Signed in, but this account or API key may not do this. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
             /** @description Validation Error */
             422: {
                 headers: {
@@ -19473,6 +19791,24 @@ export interface operations {
                     "application/json": components["schemas"]["DataSourceTestResponse"];
                 };
             };
+            /** @description No session or API key, or the API key is invalid, expired or revoked. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Signed in, but this account or API key may not do this. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
             /** @description Validation Error */
             422: {
                 headers: {
@@ -19502,6 +19838,24 @@ export interface operations {
                     "application/json": components["schemas"]["ApiKeyResponse"][];
                 };
             };
+            /** @description No session or API key, or the API key is invalid, expired or revoked. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Signed in, but this account or API key may not do this. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
         };
     };
     create_api_key_api_v1_me_api_keys_post: {
@@ -19524,6 +19878,24 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ApiKeyCreateResponse"];
+                };
+            };
+            /** @description No session or API key, or the API key is invalid, expired or revoked. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Signed in, but this account or API key may not do this. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
             /** @description Validation Error */
@@ -19555,6 +19927,24 @@ export interface operations {
                 };
                 content?: never;
             };
+            /** @description No session or API key, or the API key is invalid, expired or revoked. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Signed in, but this account or API key may not do this. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
             /** @description Validation Error */
             422: {
                 headers: {
@@ -19584,6 +19974,24 @@ export interface operations {
                     "application/json": components["schemas"]["NotificationPrefsResponse"];
                 };
             };
+            /** @description No session or API key, or the API key is invalid, expired or revoked. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Signed in, but this account or API key may not do this. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
         };
     };
     update_my_notification_prefs_api_v1_me_notification_prefs_patch: {
@@ -19606,6 +20014,24 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["NotificationPrefsResponse"];
+                };
+            };
+            /** @description No session or API key, or the API key is invalid, expired or revoked. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Signed in, but this account or API key may not do this. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
             /** @description Validation Error */
@@ -19641,6 +20067,24 @@ export interface operations {
                     "application/json": components["schemas"]["NotificationPage"];
                 };
             };
+            /** @description No session or API key, or the API key is invalid, expired or revoked. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Signed in, but this account or API key may not do this. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
             /** @description Validation Error */
             422: {
                 headers: {
@@ -19674,6 +20118,24 @@ export interface operations {
                     "application/json": components["schemas"]["MarkReadResponse"];
                 };
             };
+            /** @description No session or API key, or the API key is invalid, expired or revoked. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Signed in, but this account or API key may not do this. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
             /** @description Validation Error */
             422: {
                 headers: {
@@ -19703,6 +20165,24 @@ export interface operations {
                     "application/json": components["schemas"]["UnreadCountResponse"];
                 };
             };
+            /** @description No session or API key, or the API key is invalid, expired or revoked. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Signed in, but this account or API key may not do this. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
         };
     };
     list_orgs_api_v1_orgs_get: {
@@ -19721,6 +20201,24 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["OrgResponse"][];
+                };
+            };
+            /** @description No session or API key, or the API key is invalid, expired or revoked. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Signed in, but this account or API key may not do this. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
         };
@@ -19745,6 +20243,24 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["OrgResponse"];
+                };
+            };
+            /** @description No session or API key, or the API key is invalid, expired or revoked. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Signed in, but this account or API key may not do this. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
             /** @description Validation Error */
@@ -19776,6 +20292,24 @@ export interface operations {
                     "application/json": components["schemas"]["OrgResponse"];
                 };
             };
+            /** @description No session or API key, or the API key is invalid, expired or revoked. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Signed in, but this account or API key may not do this. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
         };
     };
     delete_org_api_v1_orgs__org__delete: {
@@ -19798,6 +20332,24 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["OrgResponse"];
+                };
+            };
+            /** @description No session or API key, or the API key is invalid, expired or revoked. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Signed in, but this account or API key may not do this. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
             /** @description Validation Error */
@@ -19833,6 +20385,24 @@ export interface operations {
                     "application/json": components["schemas"]["OrgResponse"];
                 };
             };
+            /** @description No session or API key, or the API key is invalid, expired or revoked. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Signed in, but this account or API key may not do this. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
             /** @description Validation Error */
             422: {
                 headers: {
@@ -19862,6 +20432,24 @@ export interface operations {
                     "application/json": components["schemas"]["OrgGroupResponse"][];
                 };
             };
+            /** @description No session or API key, or the API key is invalid, expired or revoked. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Signed in, but this account or API key may not do this. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
         };
     };
     create_group_api_v1_orgs__org__groups_post: {
@@ -19884,6 +20472,24 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["OrgGroupDetail"];
+                };
+            };
+            /** @description No session or API key, or the API key is invalid, expired or revoked. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Signed in, but this account or API key may not do this. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
             /** @description Validation Error */
@@ -19917,6 +20523,24 @@ export interface operations {
                     "application/json": components["schemas"]["OrgGroupDetail"];
                 };
             };
+            /** @description No session or API key, or the API key is invalid, expired or revoked. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Signed in, but this account or API key may not do this. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
             /** @description Validation Error */
             422: {
                 headers: {
@@ -19945,6 +20569,24 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content?: never;
+            };
+            /** @description No session or API key, or the API key is invalid, expired or revoked. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Signed in, but this account or API key may not do this. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
             };
             /** @description Validation Error */
             422: {
@@ -19979,6 +20621,24 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["OrgGroupDetail"];
+                };
+            };
+            /** @description No session or API key, or the API key is invalid, expired or revoked. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Signed in, but this account or API key may not do this. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
             /** @description Validation Error */
@@ -20016,6 +20676,24 @@ export interface operations {
                     "application/json": components["schemas"]["OrgGroupMemberResponse"];
                 };
             };
+            /** @description No session or API key, or the API key is invalid, expired or revoked. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Signed in, but this account or API key may not do this. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
             /** @description Validation Error */
             422: {
                 headers: {
@@ -20046,6 +20724,24 @@ export interface operations {
                 };
                 content?: never;
             };
+            /** @description No session or API key, or the API key is invalid, expired or revoked. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Signed in, but this account or API key may not do this. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
             /** @description Validation Error */
             422: {
                 headers: {
@@ -20061,6 +20757,7 @@ export interface operations {
         parameters: {
             query?: {
                 limit?: number;
+                /** @description How many items to skip, for paging. */
                 offset?: number;
             };
             header?: never;
@@ -20076,6 +20773,24 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["UserListItem"][];
+                };
+            };
+            /** @description No session or API key, or the API key is invalid, expired or revoked. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Signed in, but this account or API key may not do this. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
             /** @description Validation Error */
@@ -20107,6 +20822,24 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["OrgMemberRemoved"];
+                };
+            };
+            /** @description No session or API key, or the API key is invalid, expired or revoked. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Signed in, but this account or API key may not do this. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
             /** @description Validation Error */
@@ -20144,6 +20877,73 @@ export interface operations {
                     "application/json": components["schemas"]["UserListItem"];
                 };
             };
+            /** @description No session or API key, or the API key is invalid, expired or revoked. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Signed in, but this account or API key may not do this. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    create_member_password_reset_link_api_v1_orgs__org__members__user_id__password_reset_link_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                user_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MemberPasswordResetLink"];
+                };
+            };
+            /** @description No session or API key, or the API key is invalid, expired or revoked. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Signed in, but this account or API key may not do this. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
             /** @description Validation Error */
             422: {
                 headers: {
@@ -20173,6 +20973,24 @@ export interface operations {
                     "application/json": components["schemas"]["OrgSettingsResponse"];
                 };
             };
+            /** @description No session or API key, or the API key is invalid, expired or revoked. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Signed in, but this account or API key may not do this. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
         };
     };
     put_org_settings_api_v1_orgs__org__settings_put: {
@@ -20195,6 +21013,24 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["OrgSettingsResponse"];
+                };
+            };
+            /** @description No session or API key, or the API key is invalid, expired or revoked. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Signed in, but this account or API key may not do this. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
             /** @description Validation Error */
@@ -20230,6 +21066,24 @@ export interface operations {
                     "application/json": components["schemas"]["OrgSettingsResponse"];
                 };
             };
+            /** @description No session or API key, or the API key is invalid, expired or revoked. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Signed in, but this account or API key may not do this. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
             /** @description Validation Error */
             422: {
                 headers: {
@@ -20261,6 +21115,24 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["SettingsTestResponse"];
+                };
+            };
+            /** @description No session or API key, or the API key is invalid, expired or revoked. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Signed in, but this account or API key may not do this. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
             /** @description Validation Error */
@@ -20296,6 +21168,24 @@ export interface operations {
                     "application/json": components["schemas"]["SettingsTestResponse"];
                 };
             };
+            /** @description No session or API key, or the API key is invalid, expired or revoked. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Signed in, but this account or API key may not do this. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
             /** @description Validation Error */
             422: {
                 headers: {
@@ -20325,6 +21215,24 @@ export interface operations {
                     "application/json": components["schemas"]["PhotoLimitsResponse"];
                 };
             };
+            /** @description No session or API key, or the API key is invalid, expired or revoked. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Signed in, but this account or API key may not do this. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
         };
     };
     get_org_row_limits_api_v1_orgs__org__settings_row_limits_get: {
@@ -20345,6 +21253,24 @@ export interface operations {
                     "application/json": components["schemas"]["RowLimitDefaultsResponse"];
                 };
             };
+            /** @description No session or API key, or the API key is invalid, expired or revoked. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Signed in, but this account or API key may not do this. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
         };
     };
     get_org_tracker_defaults_api_v1_orgs__org__settings_trackers_get: {
@@ -20363,6 +21289,24 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["OrgTrackerDefaultsResponse"];
+                };
+            };
+            /** @description No session or API key, or the API key is invalid, expired or revoked. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Signed in, but this account or API key may not do this. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
         };
@@ -20387,6 +21331,24 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["OrgTrackerDefaultsResponse"];
+                };
+            };
+            /** @description No session or API key, or the API key is invalid, expired or revoked. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Signed in, but this account or API key may not do this. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
             /** @description Validation Error */
@@ -20422,6 +21384,24 @@ export interface operations {
                     "application/json": components["schemas"]["UserListItem"];
                 };
             };
+            /** @description No session or API key, or the API key is invalid, expired or revoked. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Signed in, but this account or API key may not do this. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
             /** @description Validation Error */
             422: {
                 headers: {
@@ -20451,6 +21431,24 @@ export interface operations {
                     "application/json": components["schemas"]["ServiceSettingsResponse"];
                 };
             };
+            /** @description No session or API key, or the API key is invalid, expired or revoked. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Signed in, but this account or API key may not do this. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
         };
     };
     patch_platform_settings_api_v1_platform_settings_patch: {
@@ -20473,6 +21471,24 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ServiceSettingsResponse"];
+                };
+            };
+            /** @description No session or API key, or the API key is invalid, expired or revoked. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Signed in, but this account or API key may not do this. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
             /** @description Validation Error */
@@ -20508,6 +21524,24 @@ export interface operations {
                     "application/json": components["schemas"]["SettingsTestResponse"];
                 };
             };
+            /** @description No session or API key, or the API key is invalid, expired or revoked. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Signed in, but this account or API key may not do this. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
             /** @description Validation Error */
             422: {
                 headers: {
@@ -20541,6 +21575,24 @@ export interface operations {
                     "application/json": components["schemas"]["SettingsTestResponse"];
                 };
             };
+            /** @description No session or API key, or the API key is invalid, expired or revoked. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Signed in, but this account or API key may not do this. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
             /** @description Validation Error */
             422: {
                 headers: {
@@ -20570,6 +21622,24 @@ export interface operations {
                     "application/json": components["schemas"]["TelemetryStatusResponse"];
                 };
             };
+            /** @description No session or API key, or the API key is invalid, expired or revoked. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Signed in, but this account or API key may not do this. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
         };
     };
     list_project_templates_api_v1_project_templates_get: {
@@ -20590,6 +21660,24 @@ export interface operations {
                     "application/json": components["schemas"]["ProjectTemplateSummary"][];
                 };
             };
+            /** @description No session or API key, or the API key is invalid, expired or revoked. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Signed in, but this account or API key may not do this. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
         };
     };
     list_projects_api_v1_projects_get: {
@@ -20608,6 +21696,33 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ProjectResponse"][];
+                };
+            };
+            /** @description No session or API key, or the API key is invalid, expired or revoked. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Signed in, but this account or API key may not do this. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description No such project (or the caller is not a member of it), or no such object in it. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
         };
@@ -20632,6 +21747,33 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ProjectCreateResponse"];
+                };
+            };
+            /** @description No session or API key, or the API key is invalid, expired or revoked. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Signed in, but this account or API key may not do this. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description No such project (or the caller is not a member of it), or no such object in it. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
             /** @description Validation Error */
@@ -20663,6 +21805,33 @@ export interface operations {
                     "application/json": components["schemas"]["ProjectResponse"];
                 };
             };
+            /** @description No session or API key, or the API key is invalid, expired or revoked. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Signed in, but this account or API key may not do this. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description No such project (or the caller is not a member of it), or no such object in it. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
         };
     };
     cancel_demo_provisioning_api_v1_projects_demo_cancel_post: {
@@ -20681,6 +21850,33 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["DemoCancelResponse"];
+                };
+            };
+            /** @description No session or API key, or the API key is invalid, expired or revoked. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Signed in, but this account or API key may not do this. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description No such project (or the caller is not a member of it), or no such object in it. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
         };
@@ -20702,6 +21898,33 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content?: never;
+            };
+            /** @description No session or API key, or the API key is invalid, expired or revoked. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Signed in, but this account or API key may not do this. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description No such project (or the caller is not a member of it), or no such object in it. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
             };
             /** @description Validation Error */
             422: {
@@ -20732,6 +21955,33 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ProjectResponse"];
+                };
+            };
+            /** @description No session or API key, or the API key is invalid, expired or revoked. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Signed in, but this account or API key may not do this. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description No such project (or the caller is not a member of it), or no such object in it. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
             /** @description Validation Error */
@@ -20768,6 +22018,33 @@ export interface operations {
                     "application/json": components["schemas"]["ProjectResponse"];
                 };
             };
+            /** @description No session or API key, or the API key is invalid, expired or revoked. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Signed in, but this account or API key may not do this. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description No such project (or the caller is not a member of it), or no such object in it. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
             /** @description Validation Error */
             422: {
                 headers: {
@@ -20796,6 +22073,33 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content?: never;
+            };
+            /** @description No session or API key, or the API key is invalid, expired or revoked. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Signed in, but this account or API key may not do this. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description No such project (or the caller is not a member of it), or no such object in it. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
             };
             /** @description Validation Error */
             422: {
@@ -20830,6 +22134,33 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ProjectResponse"];
+                };
+            };
+            /** @description No session or API key, or the API key is invalid, expired or revoked. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Signed in, but this account or API key may not do this. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description No such project (or the caller is not a member of it), or no such object in it. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
             /** @description Validation Error */
@@ -20870,6 +22201,33 @@ export interface operations {
                     "application/json": components["schemas"]["AiAskResponse"];
                 };
             };
+            /** @description No session or API key, or the API key is invalid, expired or revoked. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Signed in, but this account or API key may not do this. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description No such project (or the caller is not a member of it), or no such object in it. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
             /** @description Validation Error */
             422: {
                 headers: {
@@ -20906,6 +22264,33 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["AiDescribeResponse"];
+                };
+            };
+            /** @description No session or API key, or the API key is invalid, expired or revoked. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Signed in, but this account or API key may not do this. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description No such project (or the caller is not a member of it), or no such object in it. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
             /** @description Validation Error */
@@ -20946,6 +22331,33 @@ export interface operations {
                     "application/json": components["schemas"]["AiDescribeResponse"];
                 };
             };
+            /** @description No session or API key, or the API key is invalid, expired or revoked. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Signed in, but this account or API key may not do this. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description No such project (or the caller is not a member of it), or no such object in it. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
             /** @description Validation Error */
             422: {
                 headers: {
@@ -20977,6 +22389,33 @@ export interface operations {
                     "application/json": components["schemas"]["AiStatusResponse"];
                 };
             };
+            /** @description No session or API key, or the API key is invalid, expired or revoked. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Signed in, but this account or API key may not do this. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description No such project (or the caller is not a member of it), or no such object in it. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
             /** @description Validation Error */
             422: {
                 headers: {
@@ -21000,6 +22439,7 @@ export interface operations {
                 ungrouped?: boolean;
                 date_from?: string | null;
                 date_to?: string | null;
+                /** @description How many items to skip, for paging. */
                 offset?: number;
                 limit?: number;
                 cursor?: string | null;
@@ -21019,6 +22459,33 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["AlertDeliveryListResponse"];
+                };
+            };
+            /** @description No session or API key, or the API key is invalid, expired or revoked. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Signed in, but this account or API key may not do this. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description No such project (or the caller is not a member of it), or no such object in it. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
             /** @description Validation Error */
@@ -21053,6 +22520,33 @@ export interface operations {
                     "application/json": components["schemas"]["AlertDeliveryDetailResponse"];
                 };
             };
+            /** @description No session or API key, or the API key is invalid, expired or revoked. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Signed in, but this account or API key may not do this. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description No such project (or the caller is not a member of it), or no such object in it. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
             /** @description Validation Error */
             422: {
                 headers: {
@@ -21085,6 +22579,33 @@ export interface operations {
                     "application/json": components["schemas"]["AlertDeliveryDetailResponse"];
                 };
             };
+            /** @description No session or API key, or the API key is invalid, expired or revoked. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Signed in, but this account or API key may not do this. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description No such project (or the caller is not a member of it), or no such object in it. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
             /** @description Validation Error */
             422: {
                 headers: {
@@ -21114,6 +22635,33 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["AlertDestinationResponse"][];
+                };
+            };
+            /** @description No session or API key, or the API key is invalid, expired or revoked. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Signed in, but this account or API key may not do this. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description No such project (or the caller is not a member of it), or no such object in it. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
             /** @description Validation Error */
@@ -21151,6 +22699,33 @@ export interface operations {
                     "application/json": components["schemas"]["AlertDestinationResponse"];
                 };
             };
+            /** @description No session or API key, or the API key is invalid, expired or revoked. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Signed in, but this account or API key may not do this. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description No such project (or the caller is not a member of it), or no such object in it. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
             /** @description Validation Error */
             422: {
                 headers: {
@@ -21186,6 +22761,33 @@ export interface operations {
                     "application/json": components["schemas"]["AlertDestinationTestResponse"];
                 };
             };
+            /** @description No session or API key, or the API key is invalid, expired or revoked. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Signed in, but this account or API key may not do this. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description No such project (or the caller is not a member of it), or no such object in it. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
             /** @description Validation Error */
             422: {
                 headers: {
@@ -21218,6 +22820,33 @@ export interface operations {
                     "application/json": components["schemas"]["AlertDestinationResponse"];
                 };
             };
+            /** @description No session or API key, or the API key is invalid, expired or revoked. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Signed in, but this account or API key may not do this. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description No such project (or the caller is not a member of it), or no such object in it. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
             /** @description Validation Error */
             422: {
                 headers: {
@@ -21247,6 +22876,33 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content?: never;
+            };
+            /** @description No session or API key, or the API key is invalid, expired or revoked. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Signed in, but this account or API key may not do this. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description No such project (or the caller is not a member of it), or no such object in it. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
             };
             /** @description Validation Error */
             422: {
@@ -21282,6 +22938,33 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["AlertDestinationResponse"];
+                };
+            };
+            /** @description No session or API key, or the API key is invalid, expired or revoked. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Signed in, but this account or API key may not do this. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description No such project (or the caller is not a member of it), or no such object in it. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
             /** @description Validation Error */
@@ -21320,6 +23003,33 @@ export interface operations {
                     "application/json": components["schemas"]["AlertRuleResponse"];
                 };
             };
+            /** @description No session or API key, or the API key is invalid, expired or revoked. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Signed in, but this account or API key may not do this. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description No such project (or the caller is not a member of it), or no such object in it. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
             /** @description Validation Error */
             422: {
                 headers: {
@@ -21350,6 +23060,33 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content?: never;
+            };
+            /** @description No session or API key, or the API key is invalid, expired or revoked. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Signed in, but this account or API key may not do this. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description No such project (or the caller is not a member of it), or no such object in it. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
             };
             /** @description Validation Error */
             422: {
@@ -21386,6 +23123,33 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["AlertRuleResponse"];
+                };
+            };
+            /** @description No session or API key, or the API key is invalid, expired or revoked. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Signed in, but this account or API key may not do this. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description No such project (or the caller is not a member of it), or no such object in it. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
             /** @description Validation Error */
@@ -21431,6 +23195,33 @@ export interface operations {
                     "application/json": components["schemas"]["AlertRuleSimulateResponse"];
                 };
             };
+            /** @description No session or API key, or the API key is invalid, expired or revoked. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Signed in, but this account or API key may not do this. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description No such project (or the caller is not a member of it), or no such object in it. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
             /** @description Validation Error */
             422: {
                 headers: {
@@ -21463,6 +23254,33 @@ export interface operations {
                     "application/json": components["schemas"]["AlertDestinationTestResponse"];
                 };
             };
+            /** @description No session or API key, or the API key is invalid, expired or revoked. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Signed in, but this account or API key may not do this. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description No such project (or the caller is not a member of it), or no such object in it. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
             /** @description Validation Error */
             422: {
                 headers: {
@@ -21483,6 +23301,7 @@ export interface operations {
                 scope_type?: components["schemas"]["MetricScopeType"] | null;
                 direction?: components["schemas"]["AnomalyDirection"] | null;
                 scope?: string | null;
+                /** @description How many items to skip, for paging. */
                 offset?: number;
                 limit?: number;
                 cursor?: string | null;
@@ -21502,6 +23321,33 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["AlertInboxListResponse"];
+                };
+            };
+            /** @description No session or API key, or the API key is invalid, expired or revoked. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Signed in, but this account or API key may not do this. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description No such project (or the caller is not a member of it), or no such object in it. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
             /** @description Validation Error */
@@ -21539,6 +23385,33 @@ export interface operations {
                     "application/json": components["schemas"]["AlertInboxBulkActionResponse"];
                 };
             };
+            /** @description No session or API key, or the API key is invalid, expired or revoked. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Signed in, but this account or API key may not do this. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description No such project (or the caller is not a member of it), or no such object in it. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
             /** @description Validation Error */
             422: {
                 headers: {
@@ -21569,6 +23442,33 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["AlertInboxGroupResponse"];
+                };
+            };
+            /** @description No session or API key, or the API key is invalid, expired or revoked. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Signed in, but this account or API key may not do this. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description No such project (or the caller is not a member of it), or no such object in it. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
             /** @description Validation Error */
@@ -21607,6 +23507,33 @@ export interface operations {
                     "application/json": components["schemas"]["AlertInboxActionResponse"];
                 };
             };
+            /** @description No session or API key, or the API key is invalid, expired or revoked. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Signed in, but this account or API key may not do this. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description No such project (or the caller is not a member of it), or no such object in it. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
             /** @description Validation Error */
             422: {
                 headers: {
@@ -21637,6 +23564,33 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["NotifyOwnersResponse"];
+                };
+            };
+            /** @description No session or API key, or the API key is invalid, expired or revoked. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Signed in, but this account or API key may not do this. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description No such project (or the caller is not a member of it), or no such object in it. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
             /** @description Validation Error */
@@ -21671,6 +23625,33 @@ export interface operations {
                     "application/json": components["schemas"]["IncidentSummaryResponse"];
                 };
             };
+            /** @description No session or API key, or the API key is invalid, expired or revoked. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Signed in, but this account or API key may not do this. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description No such project (or the caller is not a member of it), or no such object in it. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
             /** @description Validation Error */
             422: {
                 headers: {
@@ -21703,6 +23684,33 @@ export interface operations {
                     "application/json": components["schemas"]["IncidentSummaryResponse"];
                 };
             };
+            /** @description No session or API key, or the API key is invalid, expired or revoked. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Signed in, but this account or API key may not do this. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description No such project (or the caller is not a member of it), or no such object in it. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
             /** @description Validation Error */
             422: {
                 headers: {
@@ -21733,6 +23741,33 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["IncidentSummaryResponse"];
+                };
+            };
+            /** @description No session or API key, or the API key is invalid, expired or revoked. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Signed in, but this account or API key may not do this. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description No such project (or the caller is not a member of it), or no such object in it. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
             /** @description Validation Error */
@@ -21769,6 +23804,33 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ChartAnnotationResponse"][];
+                };
+            };
+            /** @description No session or API key, or the API key is invalid, expired or revoked. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Signed in, but this account or API key may not do this. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description No such project (or the caller is not a member of it), or no such object in it. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
             /** @description Validation Error */
@@ -21815,6 +23877,33 @@ export interface operations {
                     "application/json": components["schemas"]["ChartAnnotationResponse"];
                 };
             };
+            /** @description No session or API key, or the API key is invalid, expired or revoked. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Signed in, but this account or API key may not do this. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description No such project (or the caller is not a member of it), or no such object in it. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
             /** @description Validation Error */
             422: {
                 headers: {
@@ -21844,6 +23933,33 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content?: never;
+            };
+            /** @description No session or API key, or the API key is invalid, expired or revoked. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Signed in, but this account or API key may not do this. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description No such project (or the caller is not a member of it), or no such object in it. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
             };
             /** @description Validation Error */
             422: {
@@ -21878,6 +23994,33 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["MetricSignalResponse"][];
+                };
+            };
+            /** @description No session or API key, or the API key is invalid, expired or revoked. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Signed in, but this account or API key may not do this. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description No such project (or the caller is not a member of it), or no such object in it. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
             /** @description Validation Error */
@@ -21915,6 +24058,33 @@ export interface operations {
                     "application/json": components["schemas"]["SignalTriageState"];
                 };
             };
+            /** @description No session or API key, or the API key is invalid, expired or revoked. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Signed in, but this account or API key may not do this. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description No such project (or the caller is not a member of it), or no such object in it. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
             /** @description Validation Error */
             422: {
                 headers: {
@@ -21948,6 +24118,33 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content?: never;
+            };
+            /** @description No session or API key, or the API key is invalid, expired or revoked. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Signed in, but this account or API key may not do this. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description No such project (or the caller is not a member of it), or no such object in it. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
             };
             /** @description Validation Error */
             422: {
@@ -21984,6 +24181,33 @@ export interface operations {
                     "application/json": components["schemas"]["SignalTriageState"];
                 };
             };
+            /** @description No session or API key, or the API key is invalid, expired or revoked. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Signed in, but this account or API key may not do this. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description No such project (or the caller is not a member of it), or no such object in it. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
             /** @description Validation Error */
             422: {
                 headers: {
@@ -22017,6 +24241,33 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content?: never;
+            };
+            /** @description No session or API key, or the API key is invalid, expired or revoked. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Signed in, but this account or API key may not do this. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description No such project (or the caller is not a member of it), or no such object in it. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
             };
             /** @description Validation Error */
             422: {
@@ -22053,6 +24304,33 @@ export interface operations {
                     "application/json": components["schemas"]["SignalTriageState"];
                 };
             };
+            /** @description No session or API key, or the API key is invalid, expired or revoked. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Signed in, but this account or API key may not do this. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description No such project (or the caller is not a member of it), or no such object in it. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
             /** @description Validation Error */
             422: {
                 headers: {
@@ -22085,6 +24363,33 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content?: never;
+            };
+            /** @description No session or API key, or the API key is invalid, expired or revoked. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Signed in, but this account or API key may not do this. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description No such project (or the caller is not a member of it), or no such object in it. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
             };
             /** @description Validation Error */
             422: {
@@ -22119,6 +24424,33 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["MetricSignalResponse"][];
+                };
+            };
+            /** @description No session or API key, or the API key is invalid, expired or revoked. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Signed in, but this account or API key may not do this. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description No such project (or the caller is not a member of it), or no such object in it. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
             /** @description Validation Error */
@@ -22156,6 +24488,33 @@ export interface operations {
                     "application/json": components["schemas"]["SignalSeriesResponse"][];
                 };
             };
+            /** @description No session or API key, or the API key is invalid, expired or revoked. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Signed in, but this account or API key may not do this. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description No such project (or the caller is not a member of it), or no such object in it. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
             /** @description Validation Error */
             422: {
                 headers: {
@@ -22188,6 +24547,33 @@ export interface operations {
                     "application/json": components["schemas"]["AnomalyAttributionResponse"];
                 };
             };
+            /** @description No session or API key, or the API key is invalid, expired or revoked. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Signed in, but this account or API key may not do this. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description No such project (or the caller is not a member of it), or no such object in it. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
             /** @description Validation Error */
             422: {
                 headers: {
@@ -22217,6 +24603,33 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ProjectAnomalySettingsResponse"];
+                };
+            };
+            /** @description No session or API key, or the API key is invalid, expired or revoked. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Signed in, but this account or API key may not do this. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description No such project (or the caller is not a member of it), or no such object in it. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
             /** @description Validation Error */
@@ -22254,6 +24667,33 @@ export interface operations {
                     "application/json": components["schemas"]["ProjectAnomalySettingsResponse"];
                 };
             };
+            /** @description No session or API key, or the API key is invalid, expired or revoked. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Signed in, but this account or API key may not do this. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description No such project (or the caller is not a member of it), or no such object in it. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
             /** @description Validation Error */
             422: {
                 headers: {
@@ -22283,6 +24723,33 @@ export interface operations {
                 };
                 content: {
                     "application/json": string[];
+                };
+            };
+            /** @description No session or API key, or the API key is invalid, expired or revoked. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Signed in, but this account or API key may not do this. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description No such project (or the caller is not a member of it), or no such object in it. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
             /** @description Validation Error */
@@ -22316,6 +24783,33 @@ export interface operations {
                     "application/json": components["schemas"]["AnomalyScopeOverrideListResponse"];
                 };
             };
+            /** @description No session or API key, or the API key is invalid, expired or revoked. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Signed in, but this account or API key may not do this. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description No such project (or the caller is not a member of it), or no such object in it. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
             /** @description Validation Error */
             422: {
                 headers: {
@@ -22346,6 +24840,33 @@ export interface operations {
                 };
                 content?: never;
             };
+            /** @description No session or API key, or the API key is invalid, expired or revoked. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Signed in, but this account or API key may not do this. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description No such project (or the caller is not a member of it), or no such object in it. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
             /** @description Validation Error */
             422: {
                 headers: {
@@ -22366,6 +24887,7 @@ export interface operations {
                 since?: string | null;
                 until?: string | null;
                 limit?: number;
+                /** @description How many items to skip, for paging. */
                 offset?: number;
             };
             header?: never;
@@ -22383,6 +24905,33 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["AuditListResponse"];
+                };
+            };
+            /** @description No session or API key, or the API key is invalid, expired or revoked. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Signed in, but this account or API key may not do this. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description No such project (or the caller is not a member of it), or no such object in it. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
             /** @description Validation Error */
@@ -22414,6 +24963,33 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["AuditActionCatalog"];
+                };
+            };
+            /** @description No session or API key, or the API key is invalid, expired or revoked. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Signed in, but this account or API key may not do this. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description No such project (or the caller is not a member of it), or no such object in it. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
             /** @description Validation Error */
@@ -22448,6 +25024,33 @@ export interface operations {
                     "application/json": components["schemas"]["AuditEntryDetailResponse"];
                 };
             };
+            /** @description No session or API key, or the API key is invalid, expired or revoked. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Signed in, but this account or API key may not do this. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description No such project (or the caller is not a member of it), or no such object in it. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
             /** @description Validation Error */
             422: {
                 headers: {
@@ -22477,6 +25080,33 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ProjectBranchSettingsResponse"];
+                };
+            };
+            /** @description No session or API key, or the API key is invalid, expired or revoked. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Signed in, but this account or API key may not do this. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description No such project (or the caller is not a member of it), or no such object in it. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
             /** @description Validation Error */
@@ -22514,6 +25144,33 @@ export interface operations {
                     "application/json": components["schemas"]["ProjectBranchSettingsResponse"];
                 };
             };
+            /** @description No session or API key, or the API key is invalid, expired or revoked. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Signed in, but this account or API key may not do this. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description No such project (or the caller is not a member of it), or no such object in it. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
             /** @description Validation Error */
             422: {
                 headers: {
@@ -22545,6 +25202,33 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["PlanBranchList"];
+                };
+            };
+            /** @description No session or API key, or the API key is invalid, expired or revoked. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Signed in, but this account or API key may not do this. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description No such project (or the caller is not a member of it), or no such object in it. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
             /** @description Validation Error */
@@ -22582,6 +25266,33 @@ export interface operations {
                     "application/json": components["schemas"]["PlanBranchResponse"];
                 };
             };
+            /** @description No session or API key, or the API key is invalid, expired or revoked. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Signed in, but this account or API key may not do this. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description No such project (or the caller is not a member of it), or no such object in it. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
             /** @description Validation Error */
             422: {
                 headers: {
@@ -22614,6 +25325,33 @@ export interface operations {
                     "application/json": components["schemas"]["PlanBranchDetailResponse"];
                 };
             };
+            /** @description No session or API key, or the API key is invalid, expired or revoked. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Signed in, but this account or API key may not do this. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description No such project (or the caller is not a member of it), or no such object in it. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
             /** @description Validation Error */
             422: {
                 headers: {
@@ -22643,6 +25381,33 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content?: never;
+            };
+            /** @description No session or API key, or the API key is invalid, expired or revoked. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Signed in, but this account or API key may not do this. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description No such project (or the caller is not a member of it), or no such object in it. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
             };
             /** @description Validation Error */
             422: {
@@ -22674,6 +25439,33 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["BranchCommentResponse"][];
+                };
+            };
+            /** @description No session or API key, or the API key is invalid, expired or revoked. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Signed in, but this account or API key may not do this. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description No such project (or the caller is not a member of it), or no such object in it. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
             /** @description Validation Error */
@@ -22712,6 +25504,33 @@ export interface operations {
                     "application/json": components["schemas"]["BranchCommentResponse"];
                 };
             };
+            /** @description No session or API key, or the API key is invalid, expired or revoked. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Signed in, but this account or API key may not do this. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description No such project (or the caller is not a member of it), or no such object in it. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
             /** @description Validation Error */
             422: {
                 headers: {
@@ -22743,6 +25562,33 @@ export interface operations {
                 };
                 content?: never;
             };
+            /** @description No session or API key, or the API key is invalid, expired or revoked. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Signed in, but this account or API key may not do this. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description No such project (or the caller is not a member of it), or no such object in it. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
             /** @description Validation Error */
             422: {
                 headers: {
@@ -22773,6 +25619,33 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["BranchConflictsResponse"];
+                };
+            };
+            /** @description No session or API key, or the API key is invalid, expired or revoked. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Signed in, but this account or API key may not do this. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description No such project (or the caller is not a member of it), or no such object in it. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
             /** @description Validation Error */
@@ -22807,6 +25680,33 @@ export interface operations {
                     "application/json": components["schemas"]["PlanBranchDiff"];
                 };
             };
+            /** @description No session or API key, or the API key is invalid, expired or revoked. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Signed in, but this account or API key may not do this. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description No such project (or the caller is not a member of it), or no such object in it. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
             /** @description Validation Error */
             422: {
                 headers: {
@@ -22837,6 +25737,33 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ImpactResponse"];
+                };
+            };
+            /** @description No session or API key, or the API key is invalid, expired or revoked. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Signed in, but this account or API key may not do this. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description No such project (or the caller is not a member of it), or no such object in it. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
             /** @description Validation Error */
@@ -22871,6 +25798,33 @@ export interface operations {
                     "application/json": components["schemas"]["ImplementationTicketResponse"][];
                 };
             };
+            /** @description No session or API key, or the API key is invalid, expired or revoked. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Signed in, but this account or API key may not do this. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description No such project (or the caller is not a member of it), or no such object in it. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
             /** @description Validation Error */
             422: {
                 headers: {
@@ -22901,6 +25855,33 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["PlanBranchDetailResponse"];
+                };
+            };
+            /** @description No session or API key, or the API key is invalid, expired or revoked. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Signed in, but this account or API key may not do this. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description No such project (or the caller is not a member of it), or no such object in it. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
             /** @description Validation Error */
@@ -22939,6 +25920,33 @@ export interface operations {
                     "application/json": components["schemas"]["MergedEventPreview"];
                 };
             };
+            /** @description No session or API key, or the API key is invalid, expired or revoked. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Signed in, but this account or API key may not do this. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description No such project (or the caller is not a member of it), or no such object in it. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
             /** @description Validation Error */
             422: {
                 headers: {
@@ -22973,6 +25981,33 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ResolutionResponse"];
+                };
+            };
+            /** @description No session or API key, or the API key is invalid, expired or revoked. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Signed in, but this account or API key may not do this. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description No such project (or the caller is not a member of it), or no such object in it. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
             /** @description Validation Error */
@@ -23011,6 +26046,33 @@ export interface operations {
                     "application/json": components["schemas"]["ResolutionBatchResponse"];
                 };
             };
+            /** @description No session or API key, or the API key is invalid, expired or revoked. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Signed in, but this account or API key may not do this. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description No such project (or the caller is not a member of it), or no such object in it. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
             /** @description Validation Error */
             422: {
                 headers: {
@@ -23041,6 +26103,33 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content?: never;
+            };
+            /** @description No session or API key, or the API key is invalid, expired or revoked. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Signed in, but this account or API key may not do this. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description No such project (or the caller is not a member of it), or no such object in it. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
             };
             /** @description Validation Error */
             422: {
@@ -23076,6 +26165,33 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["PlanBranchDiff"];
+                };
+            };
+            /** @description No session or API key, or the API key is invalid, expired or revoked. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Signed in, but this account or API key may not do this. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description No such project (or the caller is not a member of it), or no such object in it. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
             /** @description Validation Error */
@@ -23114,6 +26230,33 @@ export interface operations {
                     "application/json": components["schemas"]["BranchReviewerResponse"];
                 };
             };
+            /** @description No session or API key, or the API key is invalid, expired or revoked. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Signed in, but this account or API key may not do this. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description No such project (or the caller is not a member of it), or no such object in it. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
             /** @description Validation Error */
             422: {
                 headers: {
@@ -23144,6 +26287,33 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content?: never;
+            };
+            /** @description No session or API key, or the API key is invalid, expired or revoked. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Signed in, but this account or API key may not do this. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description No such project (or the caller is not a member of it), or no such object in it. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
             };
             /** @description Validation Error */
             422: {
@@ -23179,6 +26349,33 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["BranchTransferResult"];
+                };
+            };
+            /** @description No session or API key, or the API key is invalid, expired or revoked. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Signed in, but this account or API key may not do this. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description No such project (or the caller is not a member of it), or no such object in it. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
             /** @description Validation Error */
@@ -23217,6 +26414,33 @@ export interface operations {
                     "application/json": components["schemas"]["PlanBranchDetailResponse"];
                 };
             };
+            /** @description No session or API key, or the API key is invalid, expired or revoked. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Signed in, but this account or API key may not do this. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description No such project (or the caller is not a member of it), or no such object in it. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
             /** @description Validation Error */
             422: {
                 headers: {
@@ -23247,6 +26471,33 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["UpdateFromMainPreview"];
+                };
+            };
+            /** @description No session or API key, or the API key is invalid, expired or revoked. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Signed in, but this account or API key may not do this. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description No such project (or the caller is not a member of it), or no such object in it. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
             /** @description Validation Error */
@@ -23285,6 +26536,33 @@ export interface operations {
                     "application/json": components["schemas"]["UpdateFromMainResult"];
                 };
             };
+            /** @description No session or API key, or the API key is invalid, expired or revoked. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Signed in, but this account or API key may not do this. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description No such project (or the caller is not a member of it), or no such object in it. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
             /** @description Validation Error */
             422: {
                 headers: {
@@ -23320,6 +26598,33 @@ export interface operations {
                     "application/json": components["schemas"]["AnomalyResetCounts"];
                 };
             };
+            /** @description No session or API key, or the API key is invalid, expired or revoked. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Signed in, but this account or API key may not do this. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description No such project (or the caller is not a member of it), or no such object in it. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
             /** @description Validation Error */
             422: {
                 headers: {
@@ -23353,6 +26658,33 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["DriftResetCounts"];
+                };
+            };
+            /** @description No session or API key, or the API key is invalid, expired or revoked. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Signed in, but this account or API key may not do this. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description No such project (or the caller is not a member of it), or no such object in it. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
             /** @description Validation Error */
@@ -23393,6 +26725,33 @@ export interface operations {
                     "application/json": components["schemas"]["VariableRetirementCounts"];
                 };
             };
+            /** @description No session or API key, or the API key is invalid, expired or revoked. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Signed in, but this account or API key may not do this. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description No such project (or the caller is not a member of it), or no such object in it. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
             /** @description Validation Error */
             422: {
                 headers: {
@@ -23428,6 +26787,33 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["DependenciesResponse"];
+                };
+            };
+            /** @description No session or API key, or the API key is invalid, expired or revoked. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Signed in, but this account or API key may not do this. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description No such project (or the caller is not a member of it), or no such object in it. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
             /** @description Validation Error */
@@ -23467,6 +26853,33 @@ export interface operations {
                     "application/json": components["schemas"]["DistributionDriftsResponse"];
                 };
             };
+            /** @description No session or API key, or the API key is invalid, expired or revoked. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Signed in, but this account or API key may not do this. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description No such project (or the caller is not a member of it), or no such object in it. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
             /** @description Validation Error */
             422: {
                 headers: {
@@ -23496,6 +26909,33 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["DocTreeResponse"];
+                };
+            };
+            /** @description No session or API key, or the API key is invalid, expired or revoked. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Signed in, but this account or API key may not do this. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description No such project (or the caller is not a member of it), or no such object in it. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
             /** @description Validation Error */
@@ -23533,6 +26973,33 @@ export interface operations {
                     "application/json": components["schemas"]["DocBacklinksResponse"];
                 };
             };
+            /** @description No session or API key, or the API key is invalid, expired or revoked. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Signed in, but this account or API key may not do this. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description No such project (or the caller is not a member of it), or no such object in it. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
             /** @description Validation Error */
             422: {
                 headers: {
@@ -23566,7 +27033,34 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["DocBundle"];
-                    "application/zip": unknown;
+                    "application/zip": string;
+                };
+            };
+            /** @description No session or API key, or the API key is invalid, expired or revoked. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Signed in, but this account or API key may not do this. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description No such project (or the caller is not a member of it), or no such object in it. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
             /** @description Validation Error */
@@ -23605,6 +27099,33 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["DocFileResponse"];
+                };
+            };
+            /** @description No session or API key, or the API key is invalid, expired or revoked. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Signed in, but this account or API key may not do this. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description No such project (or the caller is not a member of it), or no such object in it. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
             /** @description Validation Error */
@@ -23647,6 +27168,33 @@ export interface operations {
                     "application/json": components["schemas"]["DocWriteResponse"];
                 };
             };
+            /** @description No session or API key, or the API key is invalid, expired or revoked. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Signed in, but this account or API key may not do this. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description No such project (or the caller is not a member of it), or no such object in it. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
             /** @description Validation Error */
             422: {
                 headers: {
@@ -23680,6 +27228,33 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content?: never;
+            };
+            /** @description No session or API key, or the API key is invalid, expired or revoked. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Signed in, but this account or API key may not do this. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description No such project (or the caller is not a member of it), or no such object in it. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
             };
             /** @description Validation Error */
             422: {
@@ -23715,6 +27290,33 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["DocSharingResponse"];
+                };
+            };
+            /** @description No session or API key, or the API key is invalid, expired or revoked. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Signed in, but this account or API key may not do this. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description No such project (or the caller is not a member of it), or no such object in it. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
             /** @description Validation Error */
@@ -23757,6 +27359,33 @@ export interface operations {
                     "application/json": components["schemas"]["DocSharingResponse"];
                 };
             };
+            /** @description No session or API key, or the API key is invalid, expired or revoked. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Signed in, but this account or API key may not do this. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description No such project (or the caller is not a member of it), or no such object in it. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
             /** @description Validation Error */
             422: {
                 headers: {
@@ -23793,6 +27422,33 @@ export interface operations {
                     "application/json": components["schemas"]["DocFolderDeleteResponse"];
                 };
             };
+            /** @description No session or API key, or the API key is invalid, expired or revoked. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Signed in, but this account or API key may not do this. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description No such project (or the caller is not a member of it), or no such object in it. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
             /** @description Validation Error */
             422: {
                 headers: {
@@ -23827,6 +27483,33 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["DocSharingResponse"];
+                };
+            };
+            /** @description No session or API key, or the API key is invalid, expired or revoked. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Signed in, but this account or API key may not do this. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description No such project (or the caller is not a member of it), or no such object in it. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
             /** @description Validation Error */
@@ -23869,6 +27552,33 @@ export interface operations {
                     "application/json": components["schemas"]["DocSharingResponse"];
                 };
             };
+            /** @description No session or API key, or the API key is invalid, expired or revoked. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Signed in, but this account or API key may not do this. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description No such project (or the caller is not a member of it), or no such object in it. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
             /** @description Validation Error */
             422: {
                 headers: {
@@ -23907,6 +27617,33 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["DocImportResult"];
+                };
+            };
+            /** @description No session or API key, or the API key is invalid, expired or revoked. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Signed in, but this account or API key may not do this. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description No such project (or the caller is not a member of it), or no such object in it. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
             /** @description Validation Error */
@@ -23950,6 +27687,33 @@ export interface operations {
                     "application/json": components["schemas"]["DocImportResult"];
                 };
             };
+            /** @description No session or API key, or the API key is invalid, expired or revoked. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Signed in, but this account or API key may not do this. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description No such project (or the caller is not a member of it), or no such object in it. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
             /** @description Validation Error */
             422: {
                 headers: {
@@ -23979,6 +27743,33 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["DocLanguageDefaults"];
+                };
+            };
+            /** @description No session or API key, or the API key is invalid, expired or revoked. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Signed in, but this account or API key may not do this. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description No such project (or the caller is not a member of it), or no such object in it. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
             /** @description Validation Error */
@@ -24014,6 +27805,33 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["DocLanguageDefaults"];
+                };
+            };
+            /** @description No session or API key, or the API key is invalid, expired or revoked. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Signed in, but this account or API key may not do this. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description No such project (or the caller is not a member of it), or no such object in it. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
             /** @description Validation Error */
@@ -24052,6 +27870,33 @@ export interface operations {
                     "application/json": components["schemas"]["DocLinkSuggestionsResponse"];
                 };
             };
+            /** @description No session or API key, or the API key is invalid, expired or revoked. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Signed in, but this account or API key may not do this. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description No such project (or the caller is not a member of it), or no such object in it. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
             /** @description Validation Error */
             422: {
                 headers: {
@@ -24084,6 +27929,33 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["DocLinkResolution"][];
+                };
+            };
+            /** @description No session or API key, or the API key is invalid, expired or revoked. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Signed in, but this account or API key may not do this. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description No such project (or the caller is not a member of it), or no such object in it. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
             /** @description Validation Error */
@@ -24119,6 +27991,33 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["DocMoveResponse"];
+                };
+            };
+            /** @description No session or API key, or the API key is invalid, expired or revoked. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Signed in, but this account or API key may not do this. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description No such project (or the caller is not a member of it), or no such object in it. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
             /** @description Validation Error */
@@ -24157,6 +28056,33 @@ export interface operations {
                     "application/json": components["schemas"]["DocRevisionListResponse"];
                 };
             };
+            /** @description No session or API key, or the API key is invalid, expired or revoked. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Signed in, but this account or API key may not do this. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description No such project (or the caller is not a member of it), or no such object in it. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
             /** @description Validation Error */
             422: {
                 headers: {
@@ -24187,6 +28113,33 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["DocRevisionDetail"];
+                };
+            };
+            /** @description No session or API key, or the API key is invalid, expired or revoked. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Signed in, but this account or API key may not do this. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description No such project (or the caller is not a member of it), or no such object in it. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
             /** @description Validation Error */
@@ -24225,6 +28178,33 @@ export interface operations {
                     "application/json": components["schemas"]["DocWriteResponse"];
                 };
             };
+            /** @description No session or API key, or the API key is invalid, expired or revoked. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Signed in, but this account or API key may not do this. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description No such project (or the caller is not a member of it), or no such object in it. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
             /** @description Validation Error */
             422: {
                 headers: {
@@ -24258,6 +28238,33 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["DocSearchResponse"];
+                };
+            };
+            /** @description No session or API key, or the API key is invalid, expired or revoked. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Signed in, but this account or API key may not do this. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description No such project (or the caller is not a member of it), or no such object in it. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
             /** @description Validation Error */
@@ -24295,6 +28302,33 @@ export interface operations {
                     "application/json": components["schemas"]["DocTranslationSummary"];
                 };
             };
+            /** @description No session or API key, or the API key is invalid, expired or revoked. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Signed in, but this account or API key may not do this. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description No such project (or the caller is not a member of it), or no such object in it. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
             /** @description Validation Error */
             422: {
                 headers: {
@@ -24328,6 +28362,33 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["DocTranslationSummary"];
+                };
+            };
+            /** @description No session or API key, or the API key is invalid, expired or revoked. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Signed in, but this account or API key may not do this. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description No such project (or the caller is not a member of it), or no such object in it. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
             /** @description Validation Error */
@@ -24365,6 +28426,33 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content?: never;
+            };
+            /** @description No session or API key, or the API key is invalid, expired or revoked. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Signed in, but this account or API key may not do this. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description No such project (or the caller is not a member of it), or no such object in it. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
             };
             /** @description Validation Error */
             422: {
@@ -24404,6 +28492,33 @@ export interface operations {
                     "application/json": components["schemas"]["DocTranslationRevisionSummary"][];
                 };
             };
+            /** @description No session or API key, or the API key is invalid, expired or revoked. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Signed in, but this account or API key may not do this. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description No such project (or the caller is not a member of it), or no such object in it. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
             /** @description Validation Error */
             422: {
                 headers: {
@@ -24439,6 +28554,33 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["DocTranslationRevisionDetail"];
+                };
+            };
+            /** @description No session or API key, or the API key is invalid, expired or revoked. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Signed in, but this account or API key may not do this. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description No such project (or the caller is not a member of it), or no such object in it. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
             /** @description Validation Error */
@@ -24478,6 +28620,33 @@ export interface operations {
                     "application/json": components["schemas"]["DocTranslationSummary"];
                 };
             };
+            /** @description No session or API key, or the API key is invalid, expired or revoked. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Signed in, but this account or API key may not do this. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description No such project (or the caller is not a member of it), or no such object in it. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
             /** @description Validation Error */
             422: {
                 headers: {
@@ -24511,6 +28680,33 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["DuplicateClusterPage"];
+                };
+            };
+            /** @description No session or API key, or the API key is invalid, expired or revoked. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Signed in, but this account or API key may not do this. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description No such project (or the caller is not a member of it), or no such object in it. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
             /** @description Validation Error */
@@ -24548,6 +28744,33 @@ export interface operations {
                     "application/json": components["schemas"]["DuplicateDismissResponse"];
                 };
             };
+            /** @description No session or API key, or the API key is invalid, expired or revoked. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Signed in, but this account or API key may not do this. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description No such project (or the caller is not a member of it), or no such object in it. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
             /** @description Validation Error */
             422: {
                 headers: {
@@ -24577,6 +28800,33 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["EventTypeOwnerResponse"][];
+                };
+            };
+            /** @description No session or API key, or the API key is invalid, expired or revoked. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Signed in, but this account or API key may not do this. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description No such project (or the caller is not a member of it), or no such object in it. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
             /** @description Validation Error */
@@ -24611,6 +28861,33 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["EventTypeResponse"][];
+                };
+            };
+            /** @description No session or API key, or the API key is invalid, expired or revoked. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Signed in, but this account or API key may not do this. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description No such project (or the caller is not a member of it), or no such object in it. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
             /** @description Validation Error */
@@ -24651,6 +28928,33 @@ export interface operations {
                     "application/json": components["schemas"]["EventTypeResponse"];
                 };
             };
+            /** @description No session or API key, or the API key is invalid, expired or revoked. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Signed in, but this account or API key may not do this. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description No such project (or the caller is not a member of it), or no such object in it. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
             /** @description Validation Error */
             422: {
                 headers: {
@@ -24685,6 +28989,33 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["SchemaDriftResponse"];
+                };
+            };
+            /** @description No session or API key, or the API key is invalid, expired or revoked. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Signed in, but this account or API key may not do this. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description No such project (or the caller is not a member of it), or no such object in it. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
             /** @description Validation Error */
@@ -24722,6 +29053,33 @@ export interface operations {
                     "application/json": components["schemas"]["EventTypeResponse"];
                 };
             };
+            /** @description No session or API key, or the API key is invalid, expired or revoked. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Signed in, but this account or API key may not do this. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description No such project (or the caller is not a member of it), or no such object in it. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
             /** @description Validation Error */
             422: {
                 headers: {
@@ -24754,6 +29112,33 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content?: never;
+            };
+            /** @description No session or API key, or the API key is invalid, expired or revoked. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Signed in, but this account or API key may not do this. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description No such project (or the caller is not a member of it), or no such object in it. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
             };
             /** @description Validation Error */
             422: {
@@ -24794,6 +29179,33 @@ export interface operations {
                     "application/json": components["schemas"]["EventTypeResponse"];
                 };
             };
+            /** @description No session or API key, or the API key is invalid, expired or revoked. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Signed in, but this account or API key may not do this. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description No such project (or the caller is not a member of it), or no such object in it. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
             /** @description Validation Error */
             422: {
                 headers: {
@@ -24824,6 +29236,33 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["SchemaDriftListResponse"];
+                };
+            };
+            /** @description No session or API key, or the API key is invalid, expired or revoked. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Signed in, but this account or API key may not do this. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description No such project (or the caller is not a member of it), or no such object in it. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
             /** @description Validation Error */
@@ -24859,6 +29298,33 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["FieldDefinitionResponse"][];
+                };
+            };
+            /** @description No session or API key, or the API key is invalid, expired or revoked. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Signed in, but this account or API key may not do this. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description No such project (or the caller is not a member of it), or no such object in it. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
             /** @description Validation Error */
@@ -24900,6 +29366,33 @@ export interface operations {
                     "application/json": components["schemas"]["FieldDefinitionResponse"];
                 };
             };
+            /** @description No session or API key, or the API key is invalid, expired or revoked. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Signed in, but this account or API key may not do this. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description No such project (or the caller is not a member of it), or no such object in it. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
             /** @description Validation Error */
             422: {
                 headers: {
@@ -24937,6 +29430,33 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["FieldDefinitionResponse"][];
+                };
+            };
+            /** @description No session or API key, or the API key is invalid, expired or revoked. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Signed in, but this account or API key may not do this. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description No such project (or the caller is not a member of it), or no such object in it. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
             /** @description Validation Error */
@@ -24978,6 +29498,33 @@ export interface operations {
                     "application/json": components["schemas"]["FieldDefinitionResponse"][];
                 };
             };
+            /** @description No session or API key, or the API key is invalid, expired or revoked. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Signed in, but this account or API key may not do this. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description No such project (or the caller is not a member of it), or no such object in it. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
             /** @description Validation Error */
             422: {
                 headers: {
@@ -25011,6 +29558,33 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content?: never;
+            };
+            /** @description No session or API key, or the API key is invalid, expired or revoked. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Signed in, but this account or API key may not do this. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description No such project (or the caller is not a member of it), or no such object in it. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
             };
             /** @description Validation Error */
             422: {
@@ -25052,6 +29626,33 @@ export interface operations {
                     "application/json": components["schemas"]["FieldDefinitionResponse"];
                 };
             };
+            /** @description No session or API key, or the API key is invalid, expired or revoked. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Signed in, but this account or API key may not do this. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description No such project (or the caller is not a member of it), or no such object in it. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
             /** @description Validation Error */
             422: {
                 headers: {
@@ -25087,6 +29688,33 @@ export interface operations {
                     "application/json": components["schemas"]["EventMetricsResponse"];
                 };
             };
+            /** @description No session or API key, or the API key is invalid, expired or revoked. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Signed in, but this account or API key may not do this. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description No such project (or the caller is not a member of it), or no such object in it. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
             /** @description Validation Error */
             422: {
                 headers: {
@@ -25117,6 +29745,33 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["EventTypeOwnerResponse"][];
+                };
+            };
+            /** @description No session or API key, or the API key is invalid, expired or revoked. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Signed in, but this account or API key may not do this. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description No such project (or the caller is not a member of it), or no such object in it. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
             /** @description Validation Error */
@@ -25155,6 +29810,33 @@ export interface operations {
                     "application/json": components["schemas"]["EventTypeOwnerResponse"];
                 };
             };
+            /** @description No session or API key, or the API key is invalid, expired or revoked. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Signed in, but this account or API key may not do this. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description No such project (or the caller is not a member of it), or no such object in it. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
             /** @description Validation Error */
             422: {
                 headers: {
@@ -25186,6 +29868,33 @@ export interface operations {
                 };
                 content?: never;
             };
+            /** @description No session or API key, or the API key is invalid, expired or revoked. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Signed in, but this account or API key may not do this. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description No such project (or the caller is not a member of it), or no such object in it. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
             /** @description Validation Error */
             422: {
                 headers: {
@@ -25211,6 +29920,7 @@ export interface operations {
                 meta_value?: string | null;
                 /** @description Property id or name: only events whose property list carries it. */
                 property?: string | null;
+                /** @description How many items to skip, for paging. */
                 offset?: number;
                 limit?: number;
                 order_by?: "catalog" | "volume" | "health";
@@ -25232,6 +29942,33 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["EventListResponse"];
+                };
+            };
+            /** @description No session or API key, or the API key is invalid, expired or revoked. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Signed in, but this account or API key may not do this. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description No such project (or the caller is not a member of it), or no such object in it. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
             /** @description Validation Error */
@@ -25270,6 +30007,33 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["EventMutationResponse"];
+                };
+            };
+            /** @description No session or API key, or the API key is invalid, expired or revoked. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Signed in, but this account or API key may not do this. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description No such project (or the caller is not a member of it), or no such object in it. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
             /** @description Validation Error */
@@ -25312,6 +30076,33 @@ export interface operations {
                     "application/json": components["schemas"]["EventMetricsResponse"];
                 };
             };
+            /** @description No session or API key, or the API key is invalid, expired or revoked. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Signed in, but this account or API key may not do this. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description No such project (or the caller is not a member of it), or no such object in it. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
             /** @description Validation Error */
             422: {
                 headers: {
@@ -25350,6 +30141,33 @@ export interface operations {
                     "application/json": components["schemas"]["EventResponse"][];
                 };
             };
+            /** @description No session or API key, or the API key is invalid, expired or revoked. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Signed in, but this account or API key may not do this. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description No such project (or the caller is not a member of it), or no such object in it. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
             /** @description Validation Error */
             422: {
                 headers: {
@@ -25385,6 +30203,33 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content?: never;
+            };
+            /** @description No session or API key, or the API key is invalid, expired or revoked. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Signed in, but this account or API key may not do this. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description No such project (or the caller is not a member of it), or no such object in it. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
             };
             /** @description Validation Error */
             422: {
@@ -25422,6 +30267,33 @@ export interface operations {
                 };
                 content?: never;
             };
+            /** @description No session or API key, or the API key is invalid, expired or revoked. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Signed in, but this account or API key may not do this. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description No such project (or the caller is not a member of it), or no such object in it. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
             /** @description Validation Error */
             422: {
                 headers: {
@@ -25456,6 +30328,33 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["EventIdentityHoldersResponse"];
+                };
+            };
+            /** @description No session or API key, or the API key is invalid, expired or revoked. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Signed in, but this account or API key may not do this. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description No such project (or the caller is not a member of it), or no such object in it. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
             /** @description Validation Error */
@@ -25496,6 +30395,33 @@ export interface operations {
                     "application/json": components["schemas"]["DuplicateCheckResponse"];
                 };
             };
+            /** @description No session or API key, or the API key is invalid, expired or revoked. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Signed in, but this account or API key may not do this. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description No such project (or the caller is not a member of it), or no such object in it. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
             /** @description Validation Error */
             422: {
                 headers: {
@@ -25534,6 +30460,33 @@ export interface operations {
                     "application/json": components["schemas"]["EventResponse"][];
                 };
             };
+            /** @description No session or API key, or the API key is invalid, expired or revoked. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Signed in, but this account or API key may not do this. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description No such project (or the caller is not a member of it), or no such object in it. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
             /** @description Validation Error */
             422: {
                 headers: {
@@ -25566,6 +30519,33 @@ export interface operations {
                 };
                 content: {
                     "application/json": string[];
+                };
+            };
+            /** @description No session or API key, or the API key is invalid, expired or revoked. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Signed in, but this account or API key may not do this. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description No such project (or the caller is not a member of it), or no such object in it. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
             /** @description Validation Error */
@@ -25603,6 +30583,33 @@ export interface operations {
                     "application/json": components["schemas"]["EventWindowMetricsResponse"][];
                 };
             };
+            /** @description No session or API key, or the API key is invalid, expired or revoked. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Signed in, but this account or API key may not do this. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description No such project (or the caller is not a member of it), or no such object in it. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
             /** @description Validation Error */
             422: {
                 headers: {
@@ -25638,6 +30645,33 @@ export interface operations {
                     "application/json": components["schemas"]["EventResponse"];
                 };
             };
+            /** @description No session or API key, or the API key is invalid, expired or revoked. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Signed in, but this account or API key may not do this. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description No such project (or the caller is not a member of it), or no such object in it. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
             /** @description Validation Error */
             422: {
                 headers: {
@@ -25670,6 +30704,33 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content?: never;
+            };
+            /** @description No session or API key, or the API key is invalid, expired or revoked. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Signed in, but this account or API key may not do this. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description No such project (or the caller is not a member of it), or no such object in it. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
             };
             /** @description Validation Error */
             422: {
@@ -25710,6 +30771,33 @@ export interface operations {
                     "application/json": components["schemas"]["EventMutationResponse"];
                 };
             };
+            /** @description No session or API key, or the API key is invalid, expired or revoked. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Signed in, but this account or API key may not do this. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description No such project (or the caller is not a member of it), or no such object in it. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
             /** @description Validation Error */
             422: {
                 headers: {
@@ -25740,6 +30828,33 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["EventPhotoCommentResponse"][];
+                };
+            };
+            /** @description No session or API key, or the API key is invalid, expired or revoked. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Signed in, but this account or API key may not do this. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description No such project (or the caller is not a member of it), or no such object in it. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
             /** @description Validation Error */
@@ -25778,6 +30893,33 @@ export interface operations {
                     "application/json": components["schemas"]["EventPhotoCommentResponse"];
                 };
             };
+            /** @description No session or API key, or the API key is invalid, expired or revoked. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Signed in, but this account or API key may not do this. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description No such project (or the caller is not a member of it), or no such object in it. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
             /** @description Validation Error */
             422: {
                 headers: {
@@ -25808,6 +30950,33 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content?: never;
+            };
+            /** @description No session or API key, or the API key is invalid, expired or revoked. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Signed in, but this account or API key may not do this. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description No such project (or the caller is not a member of it), or no such object in it. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
             };
             /** @description Validation Error */
             422: {
@@ -25846,6 +31015,33 @@ export interface operations {
                     "application/json": components["schemas"]["EventPhotoCommentResponse"];
                 };
             };
+            /** @description No session or API key, or the API key is invalid, expired or revoked. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Signed in, but this account or API key may not do this. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description No such project (or the caller is not a member of it), or no such object in it. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
             /** @description Validation Error */
             422: {
                 headers: {
@@ -25876,6 +31072,33 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["EventHealth"];
+                };
+            };
+            /** @description No session or API key, or the API key is invalid, expired or revoked. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Signed in, but this account or API key may not do this. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description No such project (or the caller is not a member of it), or no such object in it. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
             /** @description Validation Error */
@@ -25913,6 +31136,33 @@ export interface operations {
                     "application/json": components["schemas"]["EventChangeResponse"][];
                 };
             };
+            /** @description No session or API key, or the API key is invalid, expired or revoked. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Signed in, but this account or API key may not do this. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description No such project (or the caller is not a member of it), or no such object in it. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
             /** @description Validation Error */
             422: {
                 headers: {
@@ -25948,6 +31198,33 @@ export interface operations {
                     "application/json": components["schemas"]["ImplementationTicketResponse"][];
                 };
             };
+            /** @description No session or API key, or the API key is invalid, expired or revoked. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Signed in, but this account or API key may not do this. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description No such project (or the caller is not a member of it), or no such object in it. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
             /** @description Validation Error */
             422: {
                 headers: {
@@ -25981,6 +31258,33 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["EventMetricsResponse"];
+                };
+            };
+            /** @description No session or API key, or the API key is invalid, expired or revoked. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Signed in, but this account or API key may not do this. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description No such project (or the caller is not a member of it), or no such object in it. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
             /** @description Validation Error */
@@ -26019,6 +31323,33 @@ export interface operations {
                     "application/json": components["schemas"]["EventMetricBreakdownsResponse"];
                 };
             };
+            /** @description No session or API key, or the API key is invalid, expired or revoked. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Signed in, but this account or API key may not do this. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description No such project (or the caller is not a member of it), or no such object in it. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
             /** @description Validation Error */
             422: {
                 headers: {
@@ -26052,6 +31383,33 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["EventMigrationResponse"];
+                };
+            };
+            /** @description No session or API key, or the API key is invalid, expired or revoked. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Signed in, but this account or API key may not do this. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description No such project (or the caller is not a member of it), or no such object in it. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
             /** @description Validation Error */
@@ -26093,6 +31451,33 @@ export interface operations {
                     "application/json": components["schemas"]["EventResponse"];
                 };
             };
+            /** @description No session or API key, or the API key is invalid, expired or revoked. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Signed in, but this account or API key may not do this. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description No such project (or the caller is not a member of it), or no such object in it. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
             /** @description Validation Error */
             422: {
                 headers: {
@@ -26123,6 +31508,33 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["EventPhotoResponse"][];
+                };
+            };
+            /** @description No session or API key, or the API key is invalid, expired or revoked. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Signed in, but this account or API key may not do this. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description No such project (or the caller is not a member of it), or no such object in it. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
             /** @description Validation Error */
@@ -26161,6 +31573,33 @@ export interface operations {
                     "application/json": components["schemas"]["EventPhotoResponse"];
                 };
             };
+            /** @description No session or API key, or the API key is invalid, expired or revoked. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Signed in, but this account or API key may not do this. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description No such project (or the caller is not a member of it), or no such object in it. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
             /** @description Validation Error */
             422: {
                 headers: {
@@ -26195,6 +31634,33 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["EventPhotoResponse"];
+                };
+            };
+            /** @description No session or API key, or the API key is invalid, expired or revoked. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Signed in, but this account or API key may not do this. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description No such project (or the caller is not a member of it), or no such object in it. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
             /** @description Validation Error */
@@ -26233,6 +31699,33 @@ export interface operations {
                     "application/json": components["schemas"]["EventPhotoResponse"][];
                 };
             };
+            /** @description No session or API key, or the API key is invalid, expired or revoked. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Signed in, but this account or API key may not do this. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description No such project (or the caller is not a member of it), or no such object in it. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
             /** @description Validation Error */
             422: {
                 headers: {
@@ -26263,6 +31756,33 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content?: never;
+            };
+            /** @description No session or API key, or the API key is invalid, expired or revoked. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Signed in, but this account or API key may not do this. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description No such project (or the caller is not a member of it), or no such object in it. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
             };
             /** @description Validation Error */
             422: {
@@ -26295,6 +31815,33 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["EventPhotoCommentResponse"][];
+                };
+            };
+            /** @description No session or API key, or the API key is invalid, expired or revoked. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Signed in, but this account or API key may not do this. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description No such project (or the caller is not a member of it), or no such object in it. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
             /** @description Validation Error */
@@ -26334,6 +31881,33 @@ export interface operations {
                     "application/json": components["schemas"]["EventPhotoCommentResponse"];
                 };
             };
+            /** @description No session or API key, or the API key is invalid, expired or revoked. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Signed in, but this account or API key may not do this. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description No such project (or the caller is not a member of it), or no such object in it. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
             /** @description Validation Error */
             422: {
                 headers: {
@@ -26366,6 +31940,33 @@ export interface operations {
                 };
                 content?: never;
             };
+            /** @description No session or API key, or the API key is invalid, expired or revoked. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Signed in, but this account or API key may not do this. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description No such project (or the caller is not a member of it), or no such object in it. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
             /** @description Validation Error */
             422: {
                 headers: {
@@ -26390,13 +31991,48 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Successful Response */
+            /** @description The photo's bytes, with the content type it was uploaded with. */
             200: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": unknown;
+                    "application/octet-stream": string;
+                    "image/*": string;
+                };
+            };
+            /** @description A Figma attachment: there is no file to stream. */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description No session or API key, or the API key is invalid, expired or revoked. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Signed in, but this account or API key may not do this. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description No such project (or the caller is not a member of it), or no such object in it. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
             /** @description Validation Error */
@@ -26434,6 +32070,33 @@ export interface operations {
                     "application/json": components["schemas"]["EventPropertyResponse"][];
                 };
             };
+            /** @description No session or API key, or the API key is invalid, expired or revoked. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Signed in, but this account or API key may not do this. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description No such project (or the caller is not a member of it), or no such object in it. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
             /** @description Validation Error */
             422: {
                 headers: {
@@ -26449,6 +32112,7 @@ export interface operations {
         parameters: {
             query?: {
                 search?: string | null;
+                /** @description How many items to skip, for paging. */
                 offset?: number;
                 limit?: number;
             };
@@ -26467,6 +32131,33 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["FactTableListResponse"];
+                };
+            };
+            /** @description No session or API key, or the API key is invalid, expired or revoked. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Signed in, but this account or API key may not do this. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description No such project (or the caller is not a member of it), or no such object in it. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
             /** @description Validation Error */
@@ -26504,6 +32195,33 @@ export interface operations {
                     "application/json": components["schemas"]["FactTableResponse"];
                 };
             };
+            /** @description No session or API key, or the API key is invalid, expired or revoked. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Signed in, but this account or API key may not do this. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description No such project (or the caller is not a member of it), or no such object in it. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
             /** @description Validation Error */
             422: {
                 headers: {
@@ -26539,6 +32257,33 @@ export interface operations {
                     "application/json": components["schemas"]["FactTablePreviewResponse"];
                 };
             };
+            /** @description No session or API key, or the API key is invalid, expired or revoked. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Signed in, but this account or API key may not do this. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description No such project (or the caller is not a member of it), or no such object in it. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
             /** @description Validation Error */
             422: {
                 headers: {
@@ -26571,6 +32316,33 @@ export interface operations {
                     "application/json": components["schemas"]["FactTableResponse"];
                 };
             };
+            /** @description No session or API key, or the API key is invalid, expired or revoked. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Signed in, but this account or API key may not do this. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description No such project (or the caller is not a member of it), or no such object in it. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
             /** @description Validation Error */
             422: {
                 headers: {
@@ -26600,6 +32372,33 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content?: never;
+            };
+            /** @description No session or API key, or the API key is invalid, expired or revoked. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Signed in, but this account or API key may not do this. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description No such project (or the caller is not a member of it), or no such object in it. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
             };
             /** @description Validation Error */
             422: {
@@ -26637,6 +32436,33 @@ export interface operations {
                     "application/json": components["schemas"]["FactTableResponse"];
                 };
             };
+            /** @description No session or API key, or the API key is invalid, expired or revoked. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Signed in, but this account or API key may not do this. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description No such project (or the caller is not a member of it), or no such object in it. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
             /** @description Validation Error */
             422: {
                 headers: {
@@ -26670,6 +32496,33 @@ export interface operations {
                     "application/json": components["schemas"]["ProjectHealthResponse"];
                 };
             };
+            /** @description No session or API key, or the API key is invalid, expired or revoked. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Signed in, but this account or API key may not do this. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description No such project (or the caller is not a member of it), or no such object in it. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
             /** @description Validation Error */
             422: {
                 headers: {
@@ -26699,6 +32552,33 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["EventTypeHealthListResponse"];
+                };
+            };
+            /** @description No session or API key, or the API key is invalid, expired or revoked. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Signed in, but this account or API key may not do this. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description No such project (or the caller is not a member of it), or no such object in it. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
             /** @description Validation Error */
@@ -26732,6 +32612,33 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["EventHealthListResponse"];
+                };
+            };
+            /** @description No session or API key, or the API key is invalid, expired or revoked. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Signed in, but this account or API key may not do this. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description No such project (or the caller is not a member of it), or no such object in it. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
             /** @description Validation Error */
@@ -26772,6 +32679,33 @@ export interface operations {
                     "application/json": components["schemas"]["ImpactResponse"];
                 };
             };
+            /** @description No session or API key, or the API key is invalid, expired or revoked. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Signed in, but this account or API key may not do this. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description No such project (or the caller is not a member of it), or no such object in it. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
             /** @description Validation Error */
             422: {
                 headers: {
@@ -26805,6 +32739,33 @@ export interface operations {
                     "application/json": components["schemas"]["LifecycleFindingListResponse"];
                 };
             };
+            /** @description No session or API key, or the API key is invalid, expired or revoked. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Signed in, but this account or API key may not do this. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description No such project (or the caller is not a member of it), or no such object in it. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
             /** @description Validation Error */
             422: {
                 headers: {
@@ -26834,6 +32795,33 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ProjectMemberResponse"][];
+                };
+            };
+            /** @description No session or API key, or the API key is invalid, expired or revoked. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Signed in, but this account or API key may not do this. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description No such project (or the caller is not a member of it), or no such object in it. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
             /** @description Validation Error */
@@ -26871,6 +32859,33 @@ export interface operations {
                     "application/json": components["schemas"]["ProjectMemberResponse"];
                 };
             };
+            /** @description No session or API key, or the API key is invalid, expired or revoked. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Signed in, but this account or API key may not do this. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description No such project (or the caller is not a member of it), or no such object in it. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
             /** @description Validation Error */
             422: {
                 headers: {
@@ -26900,6 +32915,33 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content?: never;
+            };
+            /** @description No session or API key, or the API key is invalid, expired or revoked. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Signed in, but this account or API key may not do this. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description No such project (or the caller is not a member of it), or no such object in it. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
             };
             /** @description Validation Error */
             422: {
@@ -26937,6 +32979,33 @@ export interface operations {
                     "application/json": components["schemas"]["ProjectMemberResponse"];
                 };
             };
+            /** @description No session or API key, or the API key is invalid, expired or revoked. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Signed in, but this account or API key may not do this. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description No such project (or the caller is not a member of it), or no such object in it. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
             /** @description Validation Error */
             422: {
                 headers: {
@@ -26969,6 +33038,33 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["MetaFieldResponse"][];
+                };
+            };
+            /** @description No session or API key, or the API key is invalid, expired or revoked. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Signed in, but this account or API key may not do this. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description No such project (or the caller is not a member of it), or no such object in it. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
             /** @description Validation Error */
@@ -27009,6 +33105,33 @@ export interface operations {
                     "application/json": components["schemas"]["MetaFieldResponse"];
                 };
             };
+            /** @description No session or API key, or the API key is invalid, expired or revoked. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Signed in, but this account or API key may not do this. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description No such project (or the caller is not a member of it), or no such object in it. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
             /** @description Validation Error */
             422: {
                 headers: {
@@ -27041,6 +33164,33 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content?: never;
+            };
+            /** @description No session or API key, or the API key is invalid, expired or revoked. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Signed in, but this account or API key may not do this. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description No such project (or the caller is not a member of it), or no such object in it. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
             };
             /** @description Validation Error */
             422: {
@@ -27081,6 +33231,33 @@ export interface operations {
                     "application/json": components["schemas"]["MetaFieldResponse"];
                 };
             };
+            /** @description No session or API key, or the API key is invalid, expired or revoked. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Signed in, but this account or API key may not do this. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description No such project (or the caller is not a member of it), or no such object in it. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
             /** @description Validation Error */
             422: {
                 headers: {
@@ -27116,6 +33293,33 @@ export interface operations {
                     "application/json": components["schemas"]["MetaFieldUsageResponse"];
                 };
             };
+            /** @description No session or API key, or the API key is invalid, expired or revoked. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Signed in, but this account or API key may not do this. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description No such project (or the caller is not a member of it), or no such object in it. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
             /** @description Validation Error */
             422: {
                 headers: {
@@ -27136,6 +33340,7 @@ export interface operations {
                 reviewed?: boolean | null;
                 owner_id?: string | null;
                 fact_table_id?: string | null;
+                /** @description How many items to skip, for paging. */
                 offset?: number;
                 limit?: number;
             };
@@ -27154,6 +33359,33 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["MetricDefinitionListResponse"];
+                };
+            };
+            /** @description No session or API key, or the API key is invalid, expired or revoked. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Signed in, but this account or API key may not do this. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description No such project (or the caller is not a member of it), or no such object in it. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
             /** @description Validation Error */
@@ -27191,6 +33423,33 @@ export interface operations {
                     "application/json": components["schemas"]["MetricDefinitionResponse"];
                 };
             };
+            /** @description No session or API key, or the API key is invalid, expired or revoked. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Signed in, but this account or API key may not do this. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description No such project (or the caller is not a member of it), or no such object in it. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
             /** @description Validation Error */
             422: {
                 headers: {
@@ -27223,6 +33482,33 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content?: never;
+            };
+            /** @description No session or API key, or the API key is invalid, expired or revoked. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Signed in, but this account or API key may not do this. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description No such project (or the caller is not a member of it), or no such object in it. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
             };
             /** @description Validation Error */
             422: {
@@ -27257,6 +33543,33 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["FactOperandPreviewResponse"];
+                };
+            };
+            /** @description No session or API key, or the API key is invalid, expired or revoked. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Signed in, but this account or API key may not do this. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description No such project (or the caller is not a member of it), or no such object in it. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
             /** @description Validation Error */
@@ -27294,6 +33607,33 @@ export interface operations {
                     "application/json": components["schemas"]["MetricPreviewResponse"];
                 };
             };
+            /** @description No session or API key, or the API key is invalid, expired or revoked. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Signed in, but this account or API key may not do this. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description No such project (or the caller is not a member of it), or no such object in it. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
             /** @description Validation Error */
             422: {
                 headers: {
@@ -27327,6 +33667,33 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["MetricDefinitionResponse"][];
+                };
+            };
+            /** @description No session or API key, or the API key is invalid, expired or revoked. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Signed in, but this account or API key may not do this. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description No such project (or the caller is not a member of it), or no such object in it. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
             /** @description Validation Error */
@@ -27364,6 +33731,33 @@ export interface operations {
                     "application/json": components["schemas"]["MetricPreviewResponse"];
                 };
             };
+            /** @description No session or API key, or the API key is invalid, expired or revoked. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Signed in, but this account or API key may not do this. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description No such project (or the caller is not a member of it), or no such object in it. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
             /** @description Validation Error */
             422: {
                 headers: {
@@ -27399,6 +33793,33 @@ export interface operations {
                     "application/json": components["schemas"]["EventMetricsResponse"];
                 };
             };
+            /** @description No session or API key, or the API key is invalid, expired or revoked. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Signed in, but this account or API key may not do this. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description No such project (or the caller is not a member of it), or no such object in it. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
             /** @description Validation Error */
             422: {
                 headers: {
@@ -27431,6 +33852,33 @@ export interface operations {
                     "application/json": components["schemas"]["MetricDefinitionDetailResponse"];
                 };
             };
+            /** @description No session or API key, or the API key is invalid, expired or revoked. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Signed in, but this account or API key may not do this. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description No such project (or the caller is not a member of it), or no such object in it. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
             /** @description Validation Error */
             422: {
                 headers: {
@@ -27460,6 +33908,33 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content?: never;
+            };
+            /** @description No session or API key, or the API key is invalid, expired or revoked. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Signed in, but this account or API key may not do this. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description No such project (or the caller is not a member of it), or no such object in it. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
             };
             /** @description Validation Error */
             422: {
@@ -27495,6 +33970,33 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["MetricDefinitionResponse"];
+                };
+            };
+            /** @description No session or API key, or the API key is invalid, expired or revoked. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Signed in, but this account or API key may not do this. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description No such project (or the caller is not a member of it), or no such object in it. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
             /** @description Validation Error */
@@ -27533,6 +34035,33 @@ export interface operations {
                     "application/json": components["schemas"]["MetricBreakdownsResponse"];
                 };
             };
+            /** @description No session or API key, or the API key is invalid, expired or revoked. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Signed in, but this account or API key may not do this. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description No such project (or the caller is not a member of it), or no such object in it. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
             /** @description Validation Error */
             422: {
                 headers: {
@@ -27565,6 +34094,33 @@ export interface operations {
                     "application/json": components["schemas"]["MetricCollectNowResponse"];
                 };
             };
+            /** @description No session or API key, or the API key is invalid, expired or revoked. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Signed in, but this account or API key may not do this. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description No such project (or the caller is not a member of it), or no such object in it. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
             /** @description Validation Error */
             422: {
                 headers: {
@@ -27595,6 +34151,33 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["MetricGeneratedSqlResponse"];
+                };
+            };
+            /** @description No session or API key, or the API key is invalid, expired or revoked. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Signed in, but this account or API key may not do this. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description No such project (or the caller is not a member of it), or no such object in it. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
             /** @description Validation Error */
@@ -27633,6 +34216,33 @@ export interface operations {
                     "application/json": components["schemas"]["MetricDefinitionResponse"];
                 };
             };
+            /** @description No session or API key, or the API key is invalid, expired or revoked. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Signed in, but this account or API key may not do this. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description No such project (or the caller is not a member of it), or no such object in it. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
             /** @description Validation Error */
             422: {
                 headers: {
@@ -27666,6 +34276,33 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["MetricSeriesResponse"];
+                };
+            };
+            /** @description No session or API key, or the API key is invalid, expired or revoked. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Signed in, but this account or API key may not do this. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description No such project (or the caller is not a member of it), or no such object in it. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
             /** @description Validation Error */
@@ -27703,6 +34340,33 @@ export interface operations {
                     "application/json": components["schemas"]["MetricVersionSeriesResponse"];
                 };
             };
+            /** @description No session or API key, or the API key is invalid, expired or revoked. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Signed in, but this account or API key may not do this. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description No such project (or the caller is not a member of it), or no such object in it. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
             /** @description Validation Error */
             422: {
                 headers: {
@@ -27732,6 +34396,33 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["MonitorsSummaryResponse"];
+                };
+            };
+            /** @description No session or API key, or the API key is invalid, expired or revoked. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Signed in, but this account or API key may not do this. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description No such project (or the caller is not a member of it), or no such object in it. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
             /** @description Validation Error */
@@ -27764,6 +34455,33 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["MonitorDetailResponse"];
+                };
+            };
+            /** @description No session or API key, or the API key is invalid, expired or revoked. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Signed in, but this account or API key may not do this. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description No such project (or the caller is not a member of it), or no such object in it. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
             /** @description Validation Error */
@@ -27802,6 +34520,33 @@ export interface operations {
                     "application/json": components["schemas"]["MonitorDetailResponse"];
                 };
             };
+            /** @description No session or API key, or the API key is invalid, expired or revoked. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Signed in, but this account or API key may not do this. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description No such project (or the caller is not a member of it), or no such object in it. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
             /** @description Validation Error */
             422: {
                 headers: {
@@ -27832,6 +34577,33 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["MonitorDetailResponse"];
+                };
+            };
+            /** @description No session or API key, or the API key is invalid, expired or revoked. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Signed in, but this account or API key may not do this. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description No such project (or the caller is not a member of it), or no such object in it. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
             /** @description Validation Error */
@@ -27865,6 +34637,33 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["OverviewKpiSeriesResponse"];
+                };
+            };
+            /** @description No session or API key, or the API key is invalid, expired or revoked. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Signed in, but this account or API key may not do this. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description No such project (or the caller is not a member of it), or no such object in it. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
             /** @description Validation Error */
@@ -27901,6 +34700,33 @@ export interface operations {
                     "application/json": components["schemas"]["TopEventResponse"][];
                 };
             };
+            /** @description No session or API key, or the API key is invalid, expired or revoked. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Signed in, but this account or API key may not do this. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description No such project (or the caller is not a member of it), or no such object in it. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
             /** @description Validation Error */
             422: {
                 headers: {
@@ -27935,6 +34761,33 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["PlanExportJsonSchemaBundle"] | components["schemas"]["PlanExportCodegenModel"];
+                };
+            };
+            /** @description No session or API key, or the API key is invalid, expired or revoked. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Signed in, but this account or API key may not do this. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description No such project (or the caller is not a member of it), or no such object in it. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
             /** @description Validation Error */
@@ -27975,6 +34828,33 @@ export interface operations {
                     "application/json": components["schemas"]["PlanValidationResponse"];
                 };
             };
+            /** @description No session or API key, or the API key is invalid, expired or revoked. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Signed in, but this account or API key may not do this. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description No such project (or the caller is not a member of it), or no such object in it. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
             /** @description Validation Error */
             422: {
                 headers: {
@@ -28009,6 +34889,33 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["PlannedEventResponse"][];
+                };
+            };
+            /** @description No session or API key, or the API key is invalid, expired or revoked. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Signed in, but this account or API key may not do this. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description No such project (or the caller is not a member of it), or no such object in it. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
             /** @description Validation Error */
@@ -28046,6 +34953,33 @@ export interface operations {
                     "application/json": components["schemas"]["PlannedEventResponse"];
                 };
             };
+            /** @description No session or API key, or the API key is invalid, expired or revoked. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Signed in, but this account or API key may not do this. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description No such project (or the caller is not a member of it), or no such object in it. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
             /** @description Validation Error */
             422: {
                 headers: {
@@ -28077,6 +35011,33 @@ export interface operations {
                     "application/json": components["schemas"]["PlannedWindowSuggestionResponse"][];
                 };
             };
+            /** @description No session or API key, or the API key is invalid, expired or revoked. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Signed in, but this account or API key may not do this. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description No such project (or the caller is not a member of it), or no such object in it. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
             /** @description Validation Error */
             422: {
                 headers: {
@@ -28106,6 +35067,33 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content?: never;
+            };
+            /** @description No session or API key, or the API key is invalid, expired or revoked. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Signed in, but this account or API key may not do this. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description No such project (or the caller is not a member of it), or no such object in it. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
             };
             /** @description Validation Error */
             422: {
@@ -28143,6 +35131,33 @@ export interface operations {
                     "application/json": components["schemas"]["PlannedEventResponse"];
                 };
             };
+            /** @description No session or API key, or the API key is invalid, expired or revoked. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Signed in, but this account or API key may not do this. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description No such project (or the caller is not a member of it), or no such object in it. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
             /** @description Validation Error */
             422: {
                 headers: {
@@ -28154,9 +35169,10 @@ export interface operations {
             };
         };
     };
-    list_variables__properties_api_v1_projects__slug__properties_get: {
+    list_properties_api_v1_projects__slug__properties_get: {
         parameters: {
             query?: {
+                /** @description How many items to skip, for paging. */
                 offset?: number;
                 limit?: number;
                 /** @description Narrow to the variables nothing refers to ('unused' — exactly the set the retirement sweep would take) or to their complement ('used'). Declared as an enum rather than a free string so an unknown value is a 422 and not a 500. */
@@ -28181,6 +35197,33 @@ export interface operations {
                     "application/json": components["schemas"]["VariableListResponse"];
                 };
             };
+            /** @description No session or API key, or the API key is invalid, expired or revoked. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Signed in, but this account or API key may not do this. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description No such project (or the caller is not a member of it), or no such object in it. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
             /** @description Validation Error */
             422: {
                 headers: {
@@ -28192,7 +35235,7 @@ export interface operations {
             };
         };
     };
-    create_variable__properties_api_v1_projects__slug__properties_post: {
+    create_property_api_v1_projects__slug__properties_post: {
         parameters: {
             query?: {
                 /** @description Plan branch id (UUID) to read and write instead of the main branch. */
@@ -28219,6 +35262,33 @@ export interface operations {
                     "application/json": components["schemas"]["VariableResponse"];
                 };
             };
+            /** @description No session or API key, or the API key is invalid, expired or revoked. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Signed in, but this account or API key may not do this. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description No such project (or the caller is not a member of it), or no such object in it. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
             /** @description Validation Error */
             422: {
                 headers: {
@@ -28230,7 +35300,7 @@ export interface operations {
             };
         };
     };
-    bulk_delete_variables__properties_api_v1_projects__slug__properties_bulk_delete_post: {
+    bulk_delete_properties_api_v1_projects__slug__properties_bulk_delete_post: {
         parameters: {
             query?: {
                 /** @description Plan branch id (UUID) to read and write instead of the main branch. */
@@ -28255,6 +35325,33 @@ export interface operations {
                 };
                 content?: never;
             };
+            /** @description No session or API key, or the API key is invalid, expired or revoked. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Signed in, but this account or API key may not do this. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description No such project (or the caller is not a member of it), or no such object in it. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
             /** @description Validation Error */
             422: {
                 headers: {
@@ -28266,7 +35363,7 @@ export interface operations {
             };
         };
     };
-    bulk_update_variables__properties_api_v1_projects__slug__properties_bulk_update_post: {
+    bulk_update_properties_api_v1_projects__slug__properties_bulk_update_post: {
         parameters: {
             query?: {
                 /** @description Plan branch id (UUID) to read and write instead of the main branch. */
@@ -28291,6 +35388,33 @@ export interface operations {
                 };
                 content?: never;
             };
+            /** @description No session or API key, or the API key is invalid, expired or revoked. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Signed in, but this account or API key may not do this. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description No such project (or the caller is not a member of it), or no such object in it. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
             /** @description Validation Error */
             422: {
                 headers: {
@@ -28302,7 +35426,7 @@ export interface operations {
             };
         };
     };
-    list_value_drifts__properties_api_v1_projects__slug__properties_drifts_get: {
+    list_value_drifts_api_v1_projects__slug__properties_drifts_get: {
         parameters: {
             query?: {
                 variable_id?: string | null;
@@ -28325,6 +35449,33 @@ export interface operations {
                     "application/json": components["schemas"]["VariableValueDriftListResponse"];
                 };
             };
+            /** @description No session or API key, or the API key is invalid, expired or revoked. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Signed in, but this account or API key may not do this. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description No such project (or the caller is not a member of it), or no such object in it. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
             /** @description Validation Error */
             422: {
                 headers: {
@@ -28336,7 +35487,7 @@ export interface operations {
             };
         };
     };
-    apply_value_drift_action__properties_api_v1_projects__slug__properties_drifts__drift_id__action_post: {
+    apply_value_drift_action_api_v1_projects__slug__properties_drifts__drift_id__action_post: {
         parameters: {
             query?: never;
             header?: never;
@@ -28361,6 +35512,33 @@ export interface operations {
                     "application/json": components["schemas"]["VariableValueDriftResponse"];
                 };
             };
+            /** @description No session or API key, or the API key is invalid, expired or revoked. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Signed in, but this account or API key may not do this. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description No such project (or the caller is not a member of it), or no such object in it. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
             /** @description Validation Error */
             422: {
                 headers: {
@@ -28372,7 +35550,7 @@ export interface operations {
             };
         };
     };
-    list_property_drifts__properties_api_v1_projects__slug__properties_property_drifts_get: {
+    list_property_drifts_api_v1_projects__slug__properties_property_drifts_get: {
         parameters: {
             query?: {
                 variable_id?: string | null;
@@ -28397,6 +35575,33 @@ export interface operations {
                     "application/json": components["schemas"]["PropertyDriftListResponse"];
                 };
             };
+            /** @description No session or API key, or the API key is invalid, expired or revoked. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Signed in, but this account or API key may not do this. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description No such project (or the caller is not a member of it), or no such object in it. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
             /** @description Validation Error */
             422: {
                 headers: {
@@ -28408,7 +35613,7 @@ export interface operations {
             };
         };
     };
-    apply_property_drift_action__properties_api_v1_projects__slug__properties_property_drifts__drift_id__action_post: {
+    apply_property_drift_action_api_v1_projects__slug__properties_property_drifts__drift_id__action_post: {
         parameters: {
             query?: never;
             header?: never;
@@ -28433,6 +35638,33 @@ export interface operations {
                     "application/json": components["schemas"]["PropertyDriftResponse"];
                 };
             };
+            /** @description No session or API key, or the API key is invalid, expired or revoked. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Signed in, but this account or API key may not do this. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description No such project (or the caller is not a member of it), or no such object in it. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
             /** @description Validation Error */
             422: {
                 headers: {
@@ -28444,7 +35676,7 @@ export interface operations {
             };
         };
     };
-    delete_variable__properties_api_v1_projects__slug__properties__variable_id__delete: {
+    delete_property_api_v1_projects__slug__properties__variable_id__delete: {
         parameters: {
             query?: {
                 /** @description Plan branch id (UUID) to read and write instead of the main branch. */
@@ -28466,6 +35698,33 @@ export interface operations {
                 };
                 content?: never;
             };
+            /** @description No session or API key, or the API key is invalid, expired or revoked. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Signed in, but this account or API key may not do this. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description No such project (or the caller is not a member of it), or no such object in it. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
             /** @description Validation Error */
             422: {
                 headers: {
@@ -28477,7 +35736,7 @@ export interface operations {
             };
         };
     };
-    update_variable__properties_api_v1_projects__slug__properties__variable_id__patch: {
+    update_property_api_v1_projects__slug__properties__variable_id__patch: {
         parameters: {
             query?: {
                 /** @description Plan branch id (UUID) to read and write instead of the main branch. */
@@ -28505,6 +35764,33 @@ export interface operations {
                     "application/json": components["schemas"]["VariableResponse"];
                 };
             };
+            /** @description No session or API key, or the API key is invalid, expired or revoked. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Signed in, but this account or API key may not do this. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description No such project (or the caller is not a member of it), or no such object in it. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
             /** @description Validation Error */
             422: {
                 headers: {
@@ -28516,7 +35802,7 @@ export interface operations {
             };
         };
     };
-    list_event_overrides__properties_api_v1_projects__slug__properties__variable_id__event_overrides_get: {
+    list_event_overrides_api_v1_projects__slug__properties__variable_id__event_overrides_get: {
         parameters: {
             query?: {
                 /** @description Plan branch id (UUID) to read and write instead of the main branch. */
@@ -28540,6 +35826,33 @@ export interface operations {
                     "application/json": components["schemas"]["VariableEventOverrideResponse"][];
                 };
             };
+            /** @description No session or API key, or the API key is invalid, expired or revoked. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Signed in, but this account or API key may not do this. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description No such project (or the caller is not a member of it), or no such object in it. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
             /** @description Validation Error */
             422: {
                 headers: {
@@ -28551,7 +35864,7 @@ export interface operations {
             };
         };
     };
-    bulk_upsert_event_overrides__properties_api_v1_projects__slug__properties__variable_id__event_overrides_bulk_post: {
+    bulk_upsert_event_overrides_api_v1_projects__slug__properties__variable_id__event_overrides_bulk_post: {
         parameters: {
             query?: {
                 /** @description Plan branch id (UUID) to read and write instead of the main branch. */
@@ -28579,6 +35892,33 @@ export interface operations {
                     "application/json": components["schemas"]["PropertyEventsBulkResult"];
                 };
             };
+            /** @description No session or API key, or the API key is invalid, expired or revoked. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Signed in, but this account or API key may not do this. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description No such project (or the caller is not a member of it), or no such object in it. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
             /** @description Validation Error */
             422: {
                 headers: {
@@ -28590,7 +35930,7 @@ export interface operations {
             };
         };
     };
-    bulk_delete_event_overrides__properties_api_v1_projects__slug__properties__variable_id__event_overrides_bulk_delete_post: {
+    bulk_delete_event_overrides_api_v1_projects__slug__properties__variable_id__event_overrides_bulk_delete_post: {
         parameters: {
             query?: {
                 /** @description Plan branch id (UUID) to read and write instead of the main branch. */
@@ -28618,6 +35958,33 @@ export interface operations {
                     "application/json": components["schemas"]["PropertyEventsBulkResult"];
                 };
             };
+            /** @description No session or API key, or the API key is invalid, expired or revoked. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Signed in, but this account or API key may not do this. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description No such project (or the caller is not a member of it), or no such object in it. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
             /** @description Validation Error */
             422: {
                 headers: {
@@ -28629,7 +35996,7 @@ export interface operations {
             };
         };
     };
-    upsert_event_override__properties_api_v1_projects__slug__properties__variable_id__event_overrides__event_id__put: {
+    upsert_event_override_api_v1_projects__slug__properties__variable_id__event_overrides__event_id__put: {
         parameters: {
             query?: {
                 /** @description Plan branch id (UUID) to read and write instead of the main branch. */
@@ -28658,6 +36025,33 @@ export interface operations {
                     "application/json": components["schemas"]["VariableEventOverrideResponse"];
                 };
             };
+            /** @description No session or API key, or the API key is invalid, expired or revoked. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Signed in, but this account or API key may not do this. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description No such project (or the caller is not a member of it), or no such object in it. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
             /** @description Validation Error */
             422: {
                 headers: {
@@ -28669,7 +36063,7 @@ export interface operations {
             };
         };
     };
-    delete_event_override__properties_api_v1_projects__slug__properties__variable_id__event_overrides__event_id__delete: {
+    delete_event_override_api_v1_projects__slug__properties__variable_id__event_overrides__event_id__delete: {
         parameters: {
             query?: {
                 /** @description Plan branch id (UUID) to read and write instead of the main branch. */
@@ -28692,6 +36086,33 @@ export interface operations {
                 };
                 content?: never;
             };
+            /** @description No session or API key, or the API key is invalid, expired or revoked. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Signed in, but this account or API key may not do this. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description No such project (or the caller is not a member of it), or no such object in it. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
             /** @description Validation Error */
             422: {
                 headers: {
@@ -28703,7 +36124,7 @@ export interface operations {
             };
         };
     };
-    list_property_events__properties_api_v1_projects__slug__properties__variable_id__events_get: {
+    list_property_events_api_v1_projects__slug__properties__variable_id__events_get: {
         parameters: {
             query?: {
                 /** @description Plan branch id (UUID) to read and write instead of the main branch. */
@@ -28727,6 +36148,33 @@ export interface operations {
                     "application/json": components["schemas"]["PropertyEventResponse"][];
                 };
             };
+            /** @description No session or API key, or the API key is invalid, expired or revoked. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Signed in, but this account or API key may not do this. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description No such project (or the caller is not a member of it), or no such object in it. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
             /** @description Validation Error */
             422: {
                 headers: {
@@ -28738,7 +36186,7 @@ export interface operations {
             };
         };
     };
-    list_variable_values__properties_api_v1_projects__slug__properties__variable_id__values_get: {
+    list_property_values_api_v1_projects__slug__properties__variable_id__values_get: {
         parameters: {
             query?: {
                 /** @description Plan branch id (UUID) to read and write instead of the main branch. */
@@ -28762,6 +36210,33 @@ export interface operations {
                     "application/json": components["schemas"]["VariableValueContextResponse"][];
                 };
             };
+            /** @description No session or API key, or the API key is invalid, expired or revoked. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Signed in, but this account or API key may not do this. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description No such project (or the caller is not a member of it), or no such object in it. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
             /** @description Validation Error */
             422: {
                 headers: {
@@ -28773,7 +36248,7 @@ export interface operations {
             };
         };
     };
-    clear_variable_values__properties_api_v1_projects__slug__properties__variable_id__values_delete: {
+    clear_property_values_api_v1_projects__slug__properties__variable_id__values_delete: {
         parameters: {
             query?: {
                 /** @description Clear one context row instead of all of them. The id is the `id` on VariableValueContextResponse — the same value /values already returns, so a client can scope the clear to a single (event, field). */
@@ -28796,6 +36271,33 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content?: never;
+            };
+            /** @description No session or API key, or the API key is invalid, expired or revoked. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Signed in, but this account or API key may not do this. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description No such project (or the caller is not a member of it), or no such object in it. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
             };
             /** @description Validation Error */
             422: {
@@ -28831,6 +36333,33 @@ export interface operations {
                     "application/json": components["schemas"]["CoverageResponse"];
                 };
             };
+            /** @description No session or API key, or the API key is invalid, expired or revoked. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Signed in, but this account or API key may not do this. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description No such project (or the caller is not a member of it), or no such object in it. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
             /** @description Validation Error */
             422: {
                 headers: {
@@ -28862,6 +36391,33 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["DeadEventListResponse"];
+                };
+            };
+            /** @description No session or API key, or the API key is invalid, expired or revoked. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Signed in, but this account or API key may not do this. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description No such project (or the caller is not a member of it), or no such object in it. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
             /** @description Validation Error */
@@ -28902,6 +36458,33 @@ export interface operations {
                     "application/json": components["schemas"]["DeadEventArchiveResponse"];
                 };
             };
+            /** @description No session or API key, or the API key is invalid, expired or revoked. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Signed in, but this account or API key may not do this. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description No such project (or the caller is not a member of it), or no such object in it. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
             /** @description Validation Error */
             422: {
                 headers: {
@@ -28918,6 +36501,7 @@ export interface operations {
             query?: {
                 status?: components["schemas"]["ShadowEventStatus"] | null;
                 limit?: number;
+                /** @description How many items to skip, for paging. */
                 offset?: number;
             };
             header?: never;
@@ -28935,6 +36519,33 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ShadowEventListResponse"];
+                };
+            };
+            /** @description No session or API key, or the API key is invalid, expired or revoked. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Signed in, but this account or API key may not do this. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description No such project (or the caller is not a member of it), or no such object in it. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
             /** @description Validation Error */
@@ -28973,6 +36584,33 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ShadowEventBatchResponse"];
+                };
+            };
+            /** @description No session or API key, or the API key is invalid, expired or revoked. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Signed in, but this account or API key may not do this. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description No such project (or the caller is not a member of it), or no such object in it. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
             /** @description Validation Error */
@@ -29014,6 +36652,33 @@ export interface operations {
                     "application/json": components["schemas"]["ShadowEventAcceptResponse"];
                 };
             };
+            /** @description No session or API key, or the API key is invalid, expired or revoked. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Signed in, but this account or API key may not do this. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description No such project (or the caller is not a member of it), or no such object in it. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
             /** @description Validation Error */
             422: {
                 headers: {
@@ -29044,6 +36709,33 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ShadowEventDismissResponse"];
+                };
+            };
+            /** @description No session or API key, or the API key is invalid, expired or revoked. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Signed in, but this account or API key may not do this. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description No such project (or the caller is not a member of it), or no such object in it. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
             /** @description Validation Error */
@@ -29078,6 +36770,33 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["RelationResponse"][];
+                };
+            };
+            /** @description No session or API key, or the API key is invalid, expired or revoked. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Signed in, but this account or API key may not do this. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description No such project (or the caller is not a member of it), or no such object in it. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
             /** @description Validation Error */
@@ -29118,6 +36837,33 @@ export interface operations {
                     "application/json": components["schemas"]["RelationResponse"];
                 };
             };
+            /** @description No session or API key, or the API key is invalid, expired or revoked. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Signed in, but this account or API key may not do this. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description No such project (or the caller is not a member of it), or no such object in it. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
             /** @description Validation Error */
             422: {
                 headers: {
@@ -29150,6 +36896,33 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content?: never;
+            };
+            /** @description No session or API key, or the API key is invalid, expired or revoked. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Signed in, but this account or API key may not do this. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description No such project (or the caller is not a member of it), or no such object in it. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
             };
             /** @description Validation Error */
             422: {
@@ -29190,6 +36963,33 @@ export interface operations {
                     "application/json": components["schemas"]["RelationResponse"];
                 };
             };
+            /** @description No session or API key, or the API key is invalid, expired or revoked. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Signed in, but this account or API key may not do this. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description No such project (or the caller is not a member of it), or no such object in it. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
             /** @description Validation Error */
             422: {
                 headers: {
@@ -29204,6 +37004,7 @@ export interface operations {
     list_revisions_api_v1_projects__slug__revisions_get: {
         parameters: {
             query?: {
+                /** @description How many items to skip, for paging. */
                 offset?: number;
                 limit?: number;
             };
@@ -29222,6 +37023,33 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["PlanRevisionList"];
+                };
+            };
+            /** @description No session or API key, or the API key is invalid, expired or revoked. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Signed in, but this account or API key may not do this. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description No such project (or the caller is not a member of it), or no such object in it. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
             /** @description Validation Error */
@@ -29259,6 +37087,33 @@ export interface operations {
                     "application/json": components["schemas"]["PlanRevisionDetail"];
                 };
             };
+            /** @description No session or API key, or the API key is invalid, expired or revoked. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Signed in, but this account or API key may not do this. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description No such project (or the caller is not a member of it), or no such object in it. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
             /** @description Validation Error */
             422: {
                 headers: {
@@ -29289,6 +37144,33 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["PlanRevisionDetail"];
+                };
+            };
+            /** @description No session or API key, or the API key is invalid, expired or revoked. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Signed in, but this account or API key may not do this. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description No such project (or the caller is not a member of it), or no such object in it. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
             /** @description Validation Error */
@@ -29325,6 +37207,33 @@ export interface operations {
                     "application/json": components["schemas"]["PlanDiff"];
                 };
             };
+            /** @description No session or API key, or the API key is invalid, expired or revoked. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Signed in, but this account or API key may not do this. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description No such project (or the caller is not a member of it), or no such object in it. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
             /** @description Validation Error */
             422: {
                 headers: {
@@ -29354,6 +37263,33 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ScanConfigResponse"][];
+                };
+            };
+            /** @description No session or API key, or the API key is invalid, expired or revoked. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Signed in, but this account or API key may not do this. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description No such project (or the caller is not a member of it), or no such object in it. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
             /** @description Validation Error */
@@ -29391,6 +37327,33 @@ export interface operations {
                     "application/json": components["schemas"]["ScanConfigResponse"];
                 };
             };
+            /** @description No session or API key, or the API key is invalid, expired or revoked. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Signed in, but this account or API key may not do this. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description No such project (or the caller is not a member of it), or no such object in it. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
             /** @description Validation Error */
             422: {
                 headers: {
@@ -29420,6 +37383,33 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ScanActivityResponse"];
+                };
+            };
+            /** @description No session or API key, or the API key is invalid, expired or revoked. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Signed in, but this account or API key may not do this. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description No such project (or the caller is not a member of it), or no such object in it. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
             /** @description Validation Error */
@@ -29457,6 +37447,33 @@ export interface operations {
                     "application/json": components["schemas"]["ScanDryRunJobResponse"];
                 };
             };
+            /** @description No session or API key, or the API key is invalid, expired or revoked. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Signed in, but this account or API key may not do this. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description No such project (or the caller is not a member of it), or no such object in it. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
             /** @description Validation Error */
             422: {
                 headers: {
@@ -29487,6 +37504,33 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ScanDryRunJobResponse"];
+                };
+            };
+            /** @description No session or API key, or the API key is invalid, expired or revoked. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Signed in, but this account or API key may not do this. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description No such project (or the caller is not a member of it), or no such object in it. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
             /** @description Validation Error */
@@ -29524,6 +37568,33 @@ export interface operations {
                     "application/json": components["schemas"]["ScanPreviewJobResponse"];
                 };
             };
+            /** @description No session or API key, or the API key is invalid, expired or revoked. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Signed in, but this account or API key may not do this. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description No such project (or the caller is not a member of it), or no such object in it. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
             /** @description Validation Error */
             422: {
                 headers: {
@@ -29554,6 +37625,33 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ScanPreviewJobResponse"];
+                };
+            };
+            /** @description No session or API key, or the API key is invalid, expired or revoked. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Signed in, but this account or API key may not do this. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description No such project (or the caller is not a member of it), or no such object in it. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
             /** @description Validation Error */
@@ -29591,6 +37689,33 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["AppVersionSeriesResponse"];
+                };
+            };
+            /** @description No session or API key, or the API key is invalid, expired or revoked. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Signed in, but this account or API key may not do this. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description No such project (or the caller is not a member of it), or no such object in it. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
             /** @description Validation Error */
@@ -29633,6 +37758,33 @@ export interface operations {
                     "application/json": components["schemas"]["BreakdownTimelineResponse"];
                 };
             };
+            /** @description No session or API key, or the API key is invalid, expired or revoked. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Signed in, but this account or API key may not do this. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description No such project (or the caller is not a member of it), or no such object in it. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
             /** @description Validation Error */
             422: {
                 headers: {
@@ -29665,6 +37817,33 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ReleaseRegressionsResponse"];
+                };
+            };
+            /** @description No session or API key, or the API key is invalid, expired or revoked. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Signed in, but this account or API key may not do this. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description No such project (or the caller is not a member of it), or no such object in it. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
             /** @description Validation Error */
@@ -29704,6 +37883,33 @@ export interface operations {
                     "application/json": components["schemas"]["SeasonalityHeatmapResponse"];
                 };
             };
+            /** @description No session or API key, or the API key is invalid, expired or revoked. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Signed in, but this account or API key may not do this. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description No such project (or the caller is not a member of it), or no such object in it. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
             /** @description Validation Error */
             422: {
                 headers: {
@@ -29741,6 +37947,33 @@ export interface operations {
                     "application/json": components["schemas"]["TopMoverItem"][];
                 };
             };
+            /** @description No session or API key, or the API key is invalid, expired or revoked. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Signed in, but this account or API key may not do this. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description No such project (or the caller is not a member of it), or no such object in it. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
             /** @description Validation Error */
             422: {
                 headers: {
@@ -29776,6 +38009,33 @@ export interface operations {
                     "application/json": components["schemas"]["AppVersionAdoptionResponse"];
                 };
             };
+            /** @description No session or API key, or the API key is invalid, expired or revoked. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Signed in, but this account or API key may not do this. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description No such project (or the caller is not a member of it), or no such object in it. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
             /** @description Validation Error */
             422: {
                 headers: {
@@ -29808,6 +38068,33 @@ export interface operations {
                     "application/json": components["schemas"]["ScanConfigDetailResponse"];
                 };
             };
+            /** @description No session or API key, or the API key is invalid, expired or revoked. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Signed in, but this account or API key may not do this. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description No such project (or the caller is not a member of it), or no such object in it. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
             /** @description Validation Error */
             422: {
                 headers: {
@@ -29837,6 +38124,33 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content?: never;
+            };
+            /** @description No session or API key, or the API key is invalid, expired or revoked. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Signed in, but this account or API key may not do this. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description No such project (or the caller is not a member of it), or no such object in it. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
             };
             /** @description Validation Error */
             422: {
@@ -29874,6 +38188,33 @@ export interface operations {
                     "application/json": components["schemas"]["ScanConfigResponse"];
                 };
             };
+            /** @description No session or API key, or the API key is invalid, expired or revoked. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Signed in, but this account or API key may not do this. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description No such project (or the caller is not a member of it), or no such object in it. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
             /** @description Validation Error */
             422: {
                 headers: {
@@ -29904,6 +38245,33 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ScanJobResponse"];
+                };
+            };
+            /** @description No session or API key, or the API key is invalid, expired or revoked. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Signed in, but this account or API key may not do this. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description No such project (or the caller is not a member of it), or no such object in it. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
             /** @description Validation Error */
@@ -29940,6 +38308,33 @@ export interface operations {
                     "application/json": components["schemas"]["ScanJobResponse"][];
                 };
             };
+            /** @description No session or API key, or the API key is invalid, expired or revoked. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Signed in, but this account or API key may not do this. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description No such project (or the caller is not a member of it), or no such object in it. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
             /** @description Validation Error */
             422: {
                 headers: {
@@ -29973,6 +38368,33 @@ export interface operations {
                     "application/json": components["schemas"]["ScanJobResponse"];
                 };
             };
+            /** @description No session or API key, or the API key is invalid, expired or revoked. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Signed in, but this account or API key may not do this. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description No such project (or the caller is not a member of it), or no such object in it. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
             /** @description Validation Error */
             422: {
                 headers: {
@@ -30004,6 +38426,33 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ScanJobResponse"];
+                };
+            };
+            /** @description No session or API key, or the API key is invalid, expired or revoked. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Signed in, but this account or API key may not do this. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description No such project (or the caller is not a member of it), or no such object in it. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
             /** @description Validation Error */
@@ -30042,6 +38491,33 @@ export interface operations {
                     "application/json": components["schemas"]["ScanJobResponse"];
                 };
             };
+            /** @description No session or API key, or the API key is invalid, expired or revoked. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Signed in, but this account or API key may not do this. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description No such project (or the caller is not a member of it), or no such object in it. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
             /** @description Validation Error */
             422: {
                 headers: {
@@ -30074,6 +38550,33 @@ export interface operations {
                     "application/json": components["schemas"]["PlatformPresenceResponse"];
                 };
             };
+            /** @description No session or API key, or the API key is invalid, expired or revoked. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Signed in, but this account or API key may not do this. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description No such project (or the caller is not a member of it), or no such object in it. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
             /** @description Validation Error */
             422: {
                 headers: {
@@ -30104,6 +38607,33 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ScanJobResponse"];
+                };
+            };
+            /** @description No session or API key, or the API key is invalid, expired or revoked. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Signed in, but this account or API key may not do this. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description No such project (or the caller is not a member of it), or no such object in it. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
             /** @description Validation Error */
@@ -30148,6 +38678,33 @@ export interface operations {
                     "application/json": components["schemas"]["SearchResponse"];
                 };
             };
+            /** @description No session or API key, or the API key is invalid, expired or revoked. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Signed in, but this account or API key may not do this. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description No such project (or the caller is not a member of it), or no such object in it. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
             /** @description Validation Error */
             422: {
                 headers: {
@@ -30180,6 +38737,33 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["SearchReindexResponse"];
+                };
+            };
+            /** @description No session or API key, or the API key is invalid, expired or revoked. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Signed in, but this account or API key may not do this. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description No such project (or the caller is not a member of it), or no such object in it. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
             /** @description Validation Error */
@@ -30217,6 +38801,33 @@ export interface operations {
                     "application/json": components["schemas"]["NotifyOwnersResponse"];
                 };
             };
+            /** @description No session or API key, or the API key is invalid, expired or revoked. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Signed in, but this account or API key may not do this. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description No such project (or the caller is not a member of it), or no such object in it. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
             /** @description Validation Error */
             422: {
                 headers: {
@@ -30250,6 +38861,33 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["SignalVerdictResponse"];
+                };
+            };
+            /** @description No session or API key, or the API key is invalid, expired or revoked. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Signed in, but this account or API key may not do this. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description No such project (or the caller is not a member of it), or no such object in it. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
             /** @description Validation Error */
@@ -30286,6 +38924,33 @@ export interface operations {
                 };
                 content?: never;
             };
+            /** @description No session or API key, or the API key is invalid, expired or revoked. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Signed in, but this account or API key may not do this. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description No such project (or the caller is not a member of it), or no such object in it. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
             /** @description Validation Error */
             422: {
                 headers: {
@@ -30317,6 +38982,33 @@ export interface operations {
                     "application/json": components["schemas"]["SignalVerdictCountsResponse"];
                 };
             };
+            /** @description No session or API key, or the API key is invalid, expired or revoked. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Signed in, but this account or API key may not do this. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description No such project (or the caller is not a member of it), or no such object in it. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
             /** @description Validation Error */
             422: {
                 headers: {
@@ -30346,6 +39038,33 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["SourceFreshnessItem"][];
+                };
+            };
+            /** @description No session or API key, or the API key is invalid, expired or revoked. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Signed in, but this account or API key may not do this. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description No such project (or the caller is not a member of it), or no such object in it. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
             /** @description Validation Error */
@@ -30381,6 +39100,24 @@ export interface operations {
                     "application/json": components["schemas"]["SubscriptionState"];
                 };
             };
+            /** @description No session or API key, or the API key is invalid, expired or revoked. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Signed in, but this account or API key may not do this. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
             /** @description Validation Error */
             422: {
                 headers: {
@@ -30414,6 +39151,24 @@ export interface operations {
                     "application/json": components["schemas"]["SubscriptionState"];
                 };
             };
+            /** @description No session or API key, or the API key is invalid, expired or revoked. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Signed in, but this account or API key may not do this. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
             /** @description Validation Error */
             422: {
                 headers: {
@@ -30445,6 +39200,24 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["SubscriptionState"];
+                };
+            };
+            /** @description No session or API key, or the API key is invalid, expired or revoked. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Signed in, but this account or API key may not do this. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
             /** @description Validation Error */
@@ -30484,6 +39257,24 @@ export interface operations {
                     "application/json": components["schemas"]["SubscriptionState"];
                 };
             };
+            /** @description No session or API key, or the API key is invalid, expired or revoked. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Signed in, but this account or API key may not do this. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
             /** @description Validation Error */
             422: {
                 headers: {
@@ -30513,6 +39304,33 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ProjectTrackerConfigResponse"];
+                };
+            };
+            /** @description No session or API key, or the API key is invalid, expired or revoked. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Signed in, but this account or API key may not do this. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description No such project (or the caller is not a member of it), or no such object in it. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
             /** @description Validation Error */
@@ -30550,6 +39368,33 @@ export interface operations {
                     "application/json": components["schemas"]["ProjectTrackerConfigResponse"];
                 };
             };
+            /** @description No session or API key, or the API key is invalid, expired or revoked. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Signed in, but this account or API key may not do this. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description No such project (or the caller is not a member of it), or no such object in it. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
             /** @description Validation Error */
             422: {
                 headers: {
@@ -30564,6 +39409,7 @@ export interface operations {
     list_variables_api_v1_projects__slug__variables_get: {
         parameters: {
             query?: {
+                /** @description How many items to skip, for paging. */
                 offset?: number;
                 limit?: number;
                 /** @description Narrow to the variables nothing refers to ('unused' — exactly the set the retirement sweep would take) or to their complement ('used'). Declared as an enum rather than a free string so an unknown value is a 422 and not a 500. */
@@ -30586,6 +39432,33 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["VariableListResponse"];
+                };
+            };
+            /** @description No session or API key, or the API key is invalid, expired or revoked. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Signed in, but this account or API key may not do this. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description No such project (or the caller is not a member of it), or no such object in it. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
             /** @description Validation Error */
@@ -30626,6 +39499,33 @@ export interface operations {
                     "application/json": components["schemas"]["VariableResponse"];
                 };
             };
+            /** @description No session or API key, or the API key is invalid, expired or revoked. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Signed in, but this account or API key may not do this. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description No such project (or the caller is not a member of it), or no such object in it. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
             /** @description Validation Error */
             422: {
                 headers: {
@@ -30661,6 +39561,33 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content?: never;
+            };
+            /** @description No session or API key, or the API key is invalid, expired or revoked. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Signed in, but this account or API key may not do this. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description No such project (or the caller is not a member of it), or no such object in it. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
             };
             /** @description Validation Error */
             422: {
@@ -30698,6 +39625,33 @@ export interface operations {
                 };
                 content?: never;
             };
+            /** @description No session or API key, or the API key is invalid, expired or revoked. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Signed in, but this account or API key may not do this. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description No such project (or the caller is not a member of it), or no such object in it. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
             /** @description Validation Error */
             422: {
                 headers: {
@@ -30730,6 +39684,33 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["VariableValueDriftListResponse"];
+                };
+            };
+            /** @description No session or API key, or the API key is invalid, expired or revoked. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Signed in, but this account or API key may not do this. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description No such project (or the caller is not a member of it), or no such object in it. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
             /** @description Validation Error */
@@ -30768,6 +39749,33 @@ export interface operations {
                     "application/json": components["schemas"]["VariableValueDriftResponse"];
                 };
             };
+            /** @description No session or API key, or the API key is invalid, expired or revoked. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Signed in, but this account or API key may not do this. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description No such project (or the caller is not a member of it), or no such object in it. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
             /** @description Validation Error */
             422: {
                 headers: {
@@ -30802,6 +39810,33 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["PropertyDriftListResponse"];
+                };
+            };
+            /** @description No session or API key, or the API key is invalid, expired or revoked. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Signed in, but this account or API key may not do this. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description No such project (or the caller is not a member of it), or no such object in it. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
             /** @description Validation Error */
@@ -30840,6 +39875,33 @@ export interface operations {
                     "application/json": components["schemas"]["PropertyDriftResponse"];
                 };
             };
+            /** @description No session or API key, or the API key is invalid, expired or revoked. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Signed in, but this account or API key may not do this. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description No such project (or the caller is not a member of it), or no such object in it. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
             /** @description Validation Error */
             422: {
                 headers: {
@@ -30872,6 +39934,33 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content?: never;
+            };
+            /** @description No session or API key, or the API key is invalid, expired or revoked. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Signed in, but this account or API key may not do this. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description No such project (or the caller is not a member of it), or no such object in it. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
             };
             /** @description Validation Error */
             422: {
@@ -30912,6 +40001,33 @@ export interface operations {
                     "application/json": components["schemas"]["VariableResponse"];
                 };
             };
+            /** @description No session or API key, or the API key is invalid, expired or revoked. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Signed in, but this account or API key may not do this. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description No such project (or the caller is not a member of it), or no such object in it. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
             /** @description Validation Error */
             422: {
                 headers: {
@@ -30945,6 +40061,33 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["VariableEventOverrideResponse"][];
+                };
+            };
+            /** @description No session or API key, or the API key is invalid, expired or revoked. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Signed in, but this account or API key may not do this. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description No such project (or the caller is not a member of it), or no such object in it. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
             /** @description Validation Error */
@@ -30986,6 +40129,33 @@ export interface operations {
                     "application/json": components["schemas"]["PropertyEventsBulkResult"];
                 };
             };
+            /** @description No session or API key, or the API key is invalid, expired or revoked. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Signed in, but this account or API key may not do this. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description No such project (or the caller is not a member of it), or no such object in it. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
             /** @description Validation Error */
             422: {
                 headers: {
@@ -31023,6 +40193,33 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["PropertyEventsBulkResult"];
+                };
+            };
+            /** @description No session or API key, or the API key is invalid, expired or revoked. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Signed in, but this account or API key may not do this. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description No such project (or the caller is not a member of it), or no such object in it. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
             /** @description Validation Error */
@@ -31065,6 +40262,33 @@ export interface operations {
                     "application/json": components["schemas"]["VariableEventOverrideResponse"];
                 };
             };
+            /** @description No session or API key, or the API key is invalid, expired or revoked. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Signed in, but this account or API key may not do this. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description No such project (or the caller is not a member of it), or no such object in it. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
             /** @description Validation Error */
             422: {
                 headers: {
@@ -31099,6 +40323,33 @@ export interface operations {
                 };
                 content?: never;
             };
+            /** @description No session or API key, or the API key is invalid, expired or revoked. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Signed in, but this account or API key may not do this. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description No such project (or the caller is not a member of it), or no such object in it. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
             /** @description Validation Error */
             422: {
                 headers: {
@@ -31132,6 +40383,33 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["PropertyEventResponse"][];
+                };
+            };
+            /** @description No session or API key, or the API key is invalid, expired or revoked. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Signed in, but this account or API key may not do this. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description No such project (or the caller is not a member of it), or no such object in it. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
             /** @description Validation Error */
@@ -31169,6 +40447,33 @@ export interface operations {
                     "application/json": components["schemas"]["VariableValueContextResponse"][];
                 };
             };
+            /** @description No session or API key, or the API key is invalid, expired or revoked. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Signed in, but this account or API key may not do this. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description No such project (or the caller is not a member of it), or no such object in it. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
             /** @description Validation Error */
             422: {
                 headers: {
@@ -31204,6 +40509,33 @@ export interface operations {
                 };
                 content?: never;
             };
+            /** @description No session or API key, or the API key is invalid, expired or revoked. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Signed in, but this account or API key may not do this. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description No such project (or the caller is not a member of it), or no such object in it. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
             /** @description Validation Error */
             422: {
                 headers: {
@@ -31233,6 +40565,24 @@ export interface operations {
                     "application/json": components["schemas"]["CombinedSettingsResponse"];
                 };
             };
+            /** @description No session or API key, or the API key is invalid, expired or revoked. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Signed in, but this account or API key may not do this. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
         };
     };
     put_service_settings_api_v1_settings_put: {
@@ -31255,6 +40605,24 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["CombinedSettingsResponse"];
+                };
+            };
+            /** @description No session or API key, or the API key is invalid, expired or revoked. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Signed in, but this account or API key may not do this. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
             /** @description Validation Error */
@@ -31290,6 +40658,24 @@ export interface operations {
                     "application/json": components["schemas"]["CombinedSettingsResponse"];
                 };
             };
+            /** @description No session or API key, or the API key is invalid, expired or revoked. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Signed in, but this account or API key may not do this. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
             /** @description Validation Error */
             422: {
                 headers: {
@@ -31319,6 +40705,24 @@ export interface operations {
                     "application/json": components["schemas"]["AiSettingsResponse"];
                 };
             };
+            /** @description No session or API key, or the API key is invalid, expired or revoked. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Signed in, but this account or API key may not do this. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
         };
     };
     get_ai_prompt_defaults_api_v1_settings_ai_defaults_get: {
@@ -31337,6 +40741,24 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["AiPromptDefaultsResponse"];
+                };
+            };
+            /** @description No session or API key, or the API key is invalid, expired or revoked. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Signed in, but this account or API key may not do this. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
         };
@@ -31361,6 +40783,24 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["SettingsTestResponse"];
+                };
+            };
+            /** @description No session or API key, or the API key is invalid, expired or revoked. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Signed in, but this account or API key may not do this. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
             /** @description Validation Error */
@@ -31396,6 +40836,24 @@ export interface operations {
                     "application/json": components["schemas"]["SettingsTestResponse"];
                 };
             };
+            /** @description No session or API key, or the API key is invalid, expired or revoked. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Signed in, but this account or API key may not do this. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
             /** @description Validation Error */
             422: {
                 headers: {
@@ -31425,6 +40883,24 @@ export interface operations {
                     "application/json": components["schemas"]["PhotoLimitsResponse"];
                 };
             };
+            /** @description No session or API key, or the API key is invalid, expired or revoked. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Signed in, but this account or API key may not do this. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
         };
     };
     get_row_limit_defaults_api_v1_settings_row_limits_get: {
@@ -31445,12 +40921,31 @@ export interface operations {
                     "application/json": components["schemas"]["RowLimitDefaultsResponse"];
                 };
             };
+            /** @description No session or API key, or the API key is invalid, expired or revoked. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Signed in, but this account or API key may not do this. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
         };
     };
     list_users_api_v1_users_get: {
         parameters: {
             query?: {
                 limit?: number;
+                /** @description How many items to skip, for paging. */
                 offset?: number;
             };
             header?: never;
@@ -31466,6 +40961,24 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["UserListItem"][];
+                };
+            };
+            /** @description No session or API key, or the API key is invalid, expired or revoked. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Signed in, but this account or API key may not do this. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
             /** @description Validation Error */
@@ -31497,6 +41010,24 @@ export interface operations {
                     "application/json": components["schemas"]["InvitationResponse"][];
                 };
             };
+            /** @description No session or API key, or the API key is invalid, expired or revoked. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Signed in, but this account or API key may not do this. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
         };
     };
     create_invitation_api_v1_users_invitations_post: {
@@ -31519,6 +41050,24 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["InvitationCreatedResponse"];
+                };
+            };
+            /** @description No session or API key, or the API key is invalid, expired or revoked. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Signed in, but this account or API key may not do this. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
             /** @description Validation Error */
@@ -31549,6 +41098,24 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content?: never;
+            };
+            /** @description No session or API key, or the API key is invalid, expired or revoked. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Signed in, but this account or API key may not do this. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
             };
             /** @description Validation Error */
             422: {
@@ -31583,6 +41150,24 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["UserListItem"];
+                };
+            };
+            /** @description No session or API key, or the API key is invalid, expired or revoked. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Signed in, but this account or API key may not do this. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
             /** @description Validation Error */

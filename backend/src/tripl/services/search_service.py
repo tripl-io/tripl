@@ -38,6 +38,7 @@ from tripl.schemas.search import (
 )
 from tripl.services import app_settings_service, docs_access
 from tripl.services._celery_dispatch import dispatch
+from tripl.services._id_chunks import chunked
 from tripl.services._search_documents import (
     DOCUMENT_BUILDER_VERSION,
     BuiltDocument,
@@ -286,8 +287,7 @@ async def _reindex_branch_documents(
             to_insert.append(doc)
 
     delete_ids = [row.id for row in existing.values() if row.id not in keep_ids]
-    for start in range(0, len(delete_ids), _REINDEX_DELETE_CHUNK):
-        chunk = delete_ids[start : start + _REINDEX_DELETE_CHUNK]
+    for chunk in chunked(delete_ids, _REINDEX_DELETE_CHUNK):
         await session.execute(delete(SearchDocument).where(SearchDocument.id.in_(chunk)))
 
     # A KEPT row was written by an older builder generation but its stored text
@@ -301,8 +301,7 @@ async def _reindex_branch_documents(
         for row in existing.values()
         if row.id in keep_ids and row.builder_version != DOCUMENT_BUILDER_VERSION
     ]
-    for start in range(0, len(restamp_ids), _REINDEX_DELETE_CHUNK):
-        chunk = restamp_ids[start : start + _REINDEX_DELETE_CHUNK]
+    for chunk in chunked(restamp_ids, _REINDEX_DELETE_CHUNK):
         await session.execute(
             update(SearchDocument)
             .where(SearchDocument.id.in_(chunk))
@@ -367,6 +366,23 @@ async def reindex_project_branch(
     if schedule_embeddings:
         scheduled = await _queue_embedding_refresh(project_id, branch_id, ai_config=ai_config)
     return ReindexOutcome(documents_indexed=count, embeddings_scheduled=scheduled)
+
+
+async def reindex_main_branch(
+    session: AsyncSession, project_id: uuid.UUID, *, slug: str | None = None
+) -> ReindexOutcome:
+    """Rebuild the project's MAIN branch index after a write to a project-global entity.
+
+    Metrics, fact tables, scan configs, alert rules and docs are not branched,
+    so a write to one refreshes only the main branch index eagerly; feature
+    branch indexes pick the change up on their next rebuild. Without this, what
+    the user just created stays unfindable in the command palette until some
+    unrelated reindex happens to fire.
+    """
+    main_branch_id = await resolve_branch_id(session, project_id, None)
+    return await reindex_project_branch(
+        session, project_id=project_id, branch_id=main_branch_id, slug=slug
+    )
 
 
 async def _demo_fixture_model(

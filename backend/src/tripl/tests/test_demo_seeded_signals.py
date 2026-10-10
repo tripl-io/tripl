@@ -58,13 +58,7 @@ from tripl.services.demo.builders.warehouse import SPIKE_EVENT_NAME
 from tripl.services.demo_service import create_demo_project
 from tripl.tests._sqlite import enable_sqlite_foreign_keys
 from tripl.tests.conftest import TestSessionLocal
-
-# Import the ``metrics`` package rather than ``tasks.alerts`` directly: the
-# celery task graph is cyclic, so entering at ``tasks.alerts`` in a process that
-# has not loaded the app yet lands mid-cycle and raises ImportError. This is the
-# same order ``_alerting_deliveries.retry_delivery`` imports in, for the same
-# reason.
-from tripl.worker.tasks import metrics as alerts_task
+from tripl.worker.tasks import alerts as alerts_task
 
 # The first line of the default plain template: "[tripl] ${matched_count} alerts".
 _HEADER_COUNT = re.compile(r"^\[tripl\] (\d+) alerts", re.MULTILINE)

@@ -78,19 +78,14 @@ async def test_failed_reindex_rolls_back_before_next_project(
 
     session = Session()
 
-    async def resolve(_session: Session, project_id: uuid.UUID, _branch: None) -> uuid.UUID:
+    async def reindex(_session: Session, project_id: uuid.UUID) -> None:
         if project_id == second:
             assert session.rollbacks == 1
-        return project_id
-
-    async def reindex(_session: Session, *, project_id: uuid.UUID, branch_id: uuid.UUID) -> None:
-        assert branch_id == project_id
         attempted.append(project_id)
         if project_id == first:
             raise RuntimeError("database transaction aborted")
 
-    monkeypatch.setattr(datasource_service, "resolve_branch_id", resolve)
-    monkeypatch.setattr(datasource_service, "reindex_project_branch", reindex)
+    monkeypatch.setattr(datasource_service, "reindex_main_branch", reindex)
 
     await datasource_service._refresh_main_search_indexes(session, [first, second])  # type: ignore[arg-type]
     assert attempted == [first, second]

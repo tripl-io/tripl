@@ -4,6 +4,7 @@ from typing import Any
 from pydantic import BaseModel, Field, field_validator, model_validator
 
 from tripl.models.domain_enums import MetaFieldType, Sensitivity
+from tripl.schemas.integers import Int32
 from tripl.schemas.not_null_update import reject_explicit_nulls
 
 LINK_TEMPLATE_PLACEHOLDER = "${value}"
@@ -46,7 +47,7 @@ class MetaFieldCreate(BaseModel):
     enum_options: list[str] | None = None
     default_value: str | None = None
     link_template: str | None = Field(None, max_length=2000)
-    order: int = 0
+    order: Int32 = 0
     sensitivity: Sensitivity = Sensitivity.none
 
     _validate_link_template = field_validator("link_template")(_normalize_link_template)
@@ -85,7 +86,7 @@ class MetaFieldUpdate(BaseModel):
     enum_options: list[str] | None = None
     default_value: str | None = None
     link_template: str | None = Field(None, max_length=2000)
-    order: int | None = None
+    order: Int32 | None = None
     sensitivity: Sensitivity | None = None
 
     _validate_link_template = field_validator("link_template")(_normalize_link_template)

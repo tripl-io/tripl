@@ -1,11 +1,12 @@
 import re
 import uuid
-from datetime import UTC, datetime
+from datetime import datetime
 from typing import Literal
 
 from pydantic import BaseModel, Field, computed_field, field_validator, model_validator
 
 from tripl.core.adapters.measure_validator import validate_select_sql_safety
+from tripl.core.bucketing import to_utc
 from tripl.core.intervals import get_interval
 from tripl.core.json_string_columns import (
     check_json_string_columns_roles,
@@ -19,6 +20,7 @@ from tripl.json_paths import (
 )
 from tripl.models.domain_enums import ScanInterval
 from tripl.models.scan_job import ScanJobStatus
+from tripl.schemas.integers import INT32_MAX
 from tripl.schemas.not_null_update import reject_explicit_nulls
 
 
@@ -163,14 +165,14 @@ class ScanConfigCreate(BaseModel):
     # keys become properties like a JSON column's (``core.json_string_columns``).
     json_string_columns: list[str] = Field(default_factory=list)
     metric_breakdown_columns: list[str] = Field(default_factory=list)
-    metric_breakdown_values_limit: int | None = Field(default=None, ge=1)
+    metric_breakdown_values_limit: int | None = Field(default=None, ge=1, le=INT32_MAX)
     distribution_drift_fields: list[str] = Field(default_factory=list)
-    cardinality_threshold: int = Field(default=100, ge=1)
+    cardinality_threshold: int = Field(default=100, ge=1, le=INT32_MAX)
     interval: ScanInterval | None = None
     replay_chunk_interval: ScanInterval | None = None
-    scan_lookback_hours: int | None = Field(default=None, ge=1)
-    scan_row_limit: int | None = Field(default=None, ge=1)
-    metrics_row_limit: int | None = Field(default=None, ge=1)
+    scan_lookback_hours: int | None = Field(default=None, ge=1, le=INT32_MAX)
+    scan_row_limit: int | None = Field(default=None, ge=1, le=INT32_MAX)
+    metrics_row_limit: int | None = Field(default=None, ge=1, le=INT32_MAX)
     app_version_column: str | None = Field(default=None, min_length=1, max_length=255)
     app_version_keep_releases: int | None = Field(
         default=None,
@@ -321,14 +323,14 @@ class ScanConfigUpdate(BaseModel):
     properties_column: str | None = Field(default=None, max_length=255)
     json_string_columns: list[str] | None = None
     metric_breakdown_columns: list[str] | None = None
-    metric_breakdown_values_limit: int | None = Field(default=None, ge=1)
+    metric_breakdown_values_limit: int | None = Field(default=None, ge=1, le=INT32_MAX)
     distribution_drift_fields: list[str] | None = None
-    cardinality_threshold: int | None = Field(None, ge=1)
+    cardinality_threshold: int | None = Field(None, ge=1, le=INT32_MAX)
     interval: ScanInterval | None = None
     replay_chunk_interval: ScanInterval | None = None
-    scan_lookback_hours: int | None = Field(default=None, ge=1)
-    scan_row_limit: int | None = Field(default=None, ge=1)
-    metrics_row_limit: int | None = Field(default=None, ge=1)
+    scan_lookback_hours: int | None = Field(default=None, ge=1, le=INT32_MAX)
+    scan_row_limit: int | None = Field(default=None, ge=1, le=INT32_MAX)
+    metrics_row_limit: int | None = Field(default=None, ge=1, le=INT32_MAX)
     app_version_column: str | None = Field(default=None, max_length=255)
     app_version_keep_releases: int | None = Field(
         default=None,
@@ -515,7 +517,7 @@ class ScanConfigPreviewRequest(BaseModel):
     limit: int = Field(default=10, ge=1, le=50)
     json_value_paths: list[str] = Field(default_factory=list)
     time_column: str | None = Field(default=None, min_length=1, max_length=255)
-    scan_lookback_hours: int | None = Field(default=None, ge=1)
+    scan_lookback_hours: int | None = Field(default=None, ge=1, le=INT32_MAX)
     # When true, run the slow JSON path discovery instead of the fast preview.
     include_json_paths: bool = False
     # The "event + properties" preset's columns. With both, the fast preview
@@ -613,10 +615,10 @@ class ScanDryRunRequest(BaseModel):
     event_name_column: str | None = Field(default=None, min_length=1, max_length=255)
     properties_column: str | None = Field(default=None, min_length=1, max_length=255)
     json_string_columns: list[str] = Field(default_factory=list)
-    cardinality_threshold: int = Field(default=100, ge=1)
+    cardinality_threshold: int = Field(default=100, ge=1, le=INT32_MAX)
     app_version_column: str | None = Field(default=None, min_length=1, max_length=255)
     platform_column: str | None = Field(default=None, min_length=1, max_length=255)
-    scan_lookback_hours: int | None = Field(default=None, ge=1)
+    scan_lookback_hours: int | None = Field(default=None, ge=1, le=INT32_MAX)
     # How many breakdown combinations the dry-run may examine. Bounded at both
     # ends: below 100 the answer is noise, above 20000 it is a production scan.
     sample_row_limit: int = Field(default=5000, ge=100, le=20000)
@@ -827,9 +829,7 @@ class ScanMetricsReplayRequest(BaseModel):
     @field_validator("time_from", "time_to")
     @classmethod
     def normalize_datetime(cls, value: datetime) -> datetime:
-        if value.tzinfo is None:
-            return value.replace(tzinfo=UTC)
-        return value.astimezone(UTC)
+        return to_utc(value)
 
     @model_validator(mode="after")
     def validate_window(self) -> ScanMetricsReplayRequest:

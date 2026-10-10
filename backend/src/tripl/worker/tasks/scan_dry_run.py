@@ -41,6 +41,7 @@ from tripl.core.analyzers.event_plan import (
 )
 from tripl.core.json_string_columns import scan_source_query
 from tripl.core.name_template import NameFormatError
+from tripl.core.plan_scope import main_branch_id
 from tripl.core.scan_setup_preset import PRESET_EVENT_TYPE_NAME, is_event_properties_preset
 from tripl.core.warehouse_types import is_complex_type
 from tripl.json_paths import group_json_value_paths
@@ -52,12 +53,12 @@ from tripl.models.scan_dry_run_job import ScanDryRunJob
 from tripl.models.scan_job import ScanJobStatus
 from tripl.worker.celery_app import celery_app
 from tripl.worker.db import _build_adapter, _get_sync_session
-from tripl.worker.plan_scope import main_branch_id
 from tripl.worker.tasks._errors import NO_EVENT_NAMING_MSG, ScanError, user_facing_error
 from tripl.worker.utils.event_types import event_type_name_rejection
 from tripl.worker.utils.name_warnings import dry_run_name_warnings
 from tripl.worker.utils.query_windows import TimeWindow, resolve_lookback_window
 from tripl.worker.utils.reserved_columns import reserved_catalog_columns
+from tripl.worker.utils.scan_naming import scan_group_column
 from tripl.worker.utils.scan_preset import preset_scan_columns
 
 logger = logging.getLogger(__name__)
@@ -179,14 +180,15 @@ def _dry_run_targets(
             [],
         )
 
-    if not config.event_type_column:
+    group_column = scan_group_column(config)
+    if group_column is None:
         raise ScanError(NO_EVENT_NAMING_MSG)
 
     group_values, grouped = analyze_cardinality_grouped(
         adapter,
         source,
         columns,
-        group_column=config.event_type_column,
+        group_column=group_column,
         **common,  # type: ignore[arg-type]
     )
     plan_branch = main_branch_id(session, config.project_id)

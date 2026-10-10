@@ -39,6 +39,7 @@ from tripl.core.analyzers.event_generator import GenerationResult
 from tripl.core.analyzers.event_plan import OBJECT_PROPERTY_SCHEMA
 from tripl.core.intervals import INTERVALS
 from tripl.core.json_string_columns import scan_source_query
+from tripl.core.plan_scope import main_branch_id
 from tripl.core.property_drift import clear_stale_findings, type_findings, upsert_findings
 from tripl.core.property_schema import infer_property_type
 from tripl.core.scan_setup_preset import is_event_properties_preset
@@ -50,7 +51,6 @@ from tripl.models.property_drift import PropertyDrift, PropertyDriftKind
 from tripl.models.scan_config import ScanConfig
 from tripl.models.variable import Variable
 from tripl.models.variable_value import VariableValue
-from tripl.worker.plan_scope import main_branch_id
 from tripl.worker.tasks._errors import NO_EVENT_NAMING_MSG, ScanError
 from tripl.worker.tasks.metrics.generation import (
     _build_variable_lookup,
@@ -62,6 +62,7 @@ from tripl.worker.tasks.metrics.schema_drift import (
     _detect_event_type_drift,
     _detect_field_contract_violations,
 )
+from tripl.worker.utils.scan_naming import scan_group_column
 from tripl.worker.utils.scan_preset import ensure_preset_event_type
 
 if TYPE_CHECKING:
@@ -966,6 +967,9 @@ def sync_catalog(
         # The preset's event type and its two fields; the single-type branch
         # below then runs as for any other config.
         ensure_preset_event_type(session, config, columns)
+    # After the preset, which may have just set the Event type; see
+    # ``scan_naming`` for why a chosen Event type beats a leftover column.
+    group_column = scan_group_column(config)
 
     if is_replay:
         (
@@ -1000,13 +1004,13 @@ def sync_catalog(
             "Metrics replay: skipped catalog sync and loaded %s existing event mapping(s)",
             replay_event_mappings,
         )
-    elif config.event_type_column:
+    elif group_column is not None:
         # Grouped scan: same as _scan_with_grouping in scan.py
         group_values, grouped_analyses = analyze_cardinality_grouped_fn(
             adapter,
             scan_source_query(adapter, config),
             columns,
-            group_column=config.event_type_column,
+            group_column=group_column,
             threshold=config.cardinality_threshold,
             json_value_paths=json_value_path_map,
             time_column=config.time_column if catalog_scan_window else None,
@@ -1025,7 +1029,7 @@ def sync_catalog(
             # and user_facing_error only surfaces ScanError verbatim — anything
             # else is replaced by "Scan failed due to an internal error.".
             raise ScanError(msg)
-        logger.info(f"Grouped scan: {len(group_values)} groups for {config.event_type_column!r}")
+        logger.info(f"Grouped scan: {len(group_values)} groups for {group_column!r}")
 
         # Catalog sync targets the main plan; a working branch deep-copies
         # event types under the same names, so lookups must be branch-scoped.
@@ -1057,7 +1061,7 @@ def sync_catalog(
                 time_column=config.time_column,
                 time_from=time_from_dt,
                 time_to=time_to_dt,
-                group_column=config.event_type_column,
+                group_column=group_column,
                 group_value=et_name,
                 limit=metrics_row_limit,
             )
@@ -1099,7 +1103,7 @@ def sync_catalog(
                 f"  {et_name!r}: {result.events_created} created, {result.events_skipped} updated"
             )
 
-    elif config.event_type_id:
+    elif config.event_type_id is not None:
         # Single event type: same as run_scan single-type path
         analysis = analyze_cardinality_fn(
             adapter,
@@ -1170,7 +1174,9 @@ def sync_catalog(
             f"{out.single_result.events_skipped} updated"
         )
     else:
-        raise ValueError(NO_EVENT_NAMING_MSG)
+        # ScanError, like run_scan's: anything else reaches the run report as
+        # "Scan failed due to an internal error." instead of the setting to fix.
+        raise ScanError(NO_EVENT_NAMING_MSG)
 
     if is_replay:
         if out.replay_branch_id is None and out.single_result and out.single_result.events_by_name:

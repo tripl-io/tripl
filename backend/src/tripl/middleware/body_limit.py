@@ -9,6 +9,7 @@ from starlette.types import ASGIApp, Message, Receive, Scope, Send
 
 from tripl import extensions
 from tripl.config import settings
+from tripl.services import event_photo_service
 
 _PHOTO_UPLOAD = re.compile(r"^/api/v1/projects/[^/]+/events/[^/]+/photos/?$")
 _MIB = 1024 * 1024
@@ -24,8 +25,10 @@ class BodyLimitMiddleware:
             return
 
         photo_upload = scope["method"] == "POST" and _PHOTO_UPLOAD.fullmatch(scope["path"])
+        # A photo upload is held to the operator's file limit plus multipart
+        # framing (the route applies the organization's own, lower one).
         limit = (
-            (settings.photo_max_size_mb + 1) * _MIB
+            event_photo_service.upload_body_limit_bytes()
             if photo_upload
             else settings.max_request_body_mb * _MIB
         )

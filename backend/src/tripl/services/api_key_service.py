@@ -17,6 +17,7 @@ from fastapi import HTTPException
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from tripl.core.bucketing import optional_to_utc
 from tripl.middleware.org_context import require_org_id
 from tripl.models.api_key import ApiKey
 from tripl.models.domain_enums import ApiKeyScope
@@ -154,9 +155,7 @@ async def verify_and_touch(session: AsyncSession, raw_token: str) -> ApiKey | No
     # Skip the write (and its commit) on the hot path unless the recorded
     # timestamp is missing or has gone stale, avoiding write amplification
     # from every authenticated request.
-    last_used = row.last_used_at
-    if last_used is not None and last_used.tzinfo is None:
-        last_used = last_used.replace(tzinfo=UTC)
+    last_used = optional_to_utc(row.last_used_at)
     if last_used is None or (now - last_used) >= timedelta(seconds=API_KEY_TOUCH_INTERVAL_SECONDS):
         row.last_used_at = now
         await session.commit()

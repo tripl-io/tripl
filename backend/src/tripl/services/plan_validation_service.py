@@ -34,6 +34,7 @@ from tripl import extensions
 from tripl.core.analyzers._event_generator_variables import VariableIndex
 from tripl.core.plan_policy import PlanPolicyContext, PolicyCall
 from tripl.core.plan_validation import (
+    CODE_POLICY_VIOLATION,
     EventContext,
     Finding,
     PlanEvent,
@@ -61,13 +62,12 @@ from tripl.schemas.plan_validation import (
     PlanValidationResponse,
     PlanValidationSummary,
 )
+from tripl.services._id_chunks import chunked
 from tripl.services.plan_branch_service import resolve_branch_id
 from tripl.services.scan_config_lookup import (
     governing_name_format,
     load_governing_scan_configs_by_type,
 )
-
-_ID_CHUNK = 1000
 
 
 async def validate_plan(
@@ -195,7 +195,7 @@ async def _add_policy_findings(
             continue
         verdicts[target].append(
             Finding(
-                code="policy_violation",
+                code=CODE_POLICY_VIOLATION,
                 severity=violation.severity,
                 field=violation.field,
                 message=violation.message,
@@ -346,7 +346,7 @@ async def load_event_contexts(
     values: dict[uuid.UUID, dict[str, str]] = defaultdict(dict)
     overrides: dict[uuid.UUID, dict[str, tuple[str, ...]]] = defaultdict(dict)
     required_tokens: dict[uuid.UUID, set[str]] = defaultdict(set)
-    for chunk in _chunks(ids):
+    for chunk in chunked(ids):
         for event_id, field_name, value in (
             await session.execute(
                 select(EventFieldValue.event_id, FieldDefinition.name, EventFieldValue.value)
@@ -381,8 +381,3 @@ async def load_event_contexts(
         )
         for event_id in ids
     }
-
-
-def _chunks(ids: Sequence[uuid.UUID]) -> Iterable[Sequence[uuid.UUID]]:
-    for start in range(0, len(ids), _ID_CHUNK):
-        yield ids[start : start + _ID_CHUNK]

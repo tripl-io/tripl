@@ -26,9 +26,10 @@ import hashlib
 import uuid
 from collections.abc import Mapping
 from dataclasses import dataclass
-from datetime import UTC, datetime, timedelta
+from datetime import datetime, timedelta
 from typing import Protocol
 
+from tripl.core.bucketing import to_utc
 from tripl.models.alert_rule import AlertRule
 from tripl.models.alert_rule_filter import AlertRuleFilter
 from tripl.models.domain_enums import MetricScopeType
@@ -63,13 +64,6 @@ PROJECT_GLOBAL_SCOPE_TYPES: frozenset[str] = frozenset({SCOPE_METRIC, SCOPE_LIFE
 def is_project_global_scope(scope_type: str) -> bool:
     """True for a scope whose alert state lives in the NULL-config partition."""
     return str(scope_type) in PROJECT_GLOBAL_SCOPE_TYPES
-
-
-def _utc_bucket(bucket: datetime) -> datetime:
-    """Compare UTC buckets consistently across SQLite and PostgreSQL drivers."""
-    if bucket.tzinfo is None:
-        return bucket.replace(tzinfo=UTC)
-    return bucket.astimezone(UTC)
 
 
 class AlertMatchCandidate(Protocol):
@@ -477,7 +471,7 @@ def simulate_rule_firings(
     # scan, or None for a project-global scope (``metric``, ``lifecycle``).
     last_fired_at: dict[tuple[str, str, uuid.UUID | None], datetime] = {}
 
-    for anomaly in sorted(anomalies, key=lambda a: _utc_bucket(a.bucket)):
+    for anomaly in sorted(anomalies, key=lambda a: to_utc(a.bucket)):
         if not rule_matches_anomaly(
             rule,
             anomaly,
@@ -491,7 +485,7 @@ def simulate_rule_firings(
         )
         key = (anomaly.scope_type, anomaly.scope_ref, scan_partition)
         last = last_fired_at.get(key)
-        if last is not None and _utc_bucket(anomaly.bucket) - _utc_bucket(last) < cooldown:
+        if last is not None and to_utc(anomaly.bucket) - to_utc(last) < cooldown:
             continue
         fired.append(anomaly)
         last_fired_at[key] = anomaly.bucket

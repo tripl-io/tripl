@@ -43,6 +43,7 @@ from tripl.models.event import Event, EventStatus
 from tripl.models.plan_branch import BranchKind, BranchStatus, PlanBranch
 from tripl.models.project import Project
 from tripl.services import app_settings_service
+from tripl.tests._sunset_findings import open_sunset_finding
 
 # Enter the worker package through ``celery_app``. It is what binds the task
 # names before the task modules import one another, so importing
@@ -135,9 +136,10 @@ def _seed_overdue_project(session: Session) -> Project:
     """A project whose main branch holds one deprecated event still receiving data.
 
     The main branch is inserted explicitly and named by the event, the way
-    test_deprecated_sunset_alert.py seeds it: ``_build_sunset_alert_message`` resolves the
-    ``kind="main"`` row and filters on it, so an event without one is invisible
-    and the task would send nothing at all.
+    test_deprecated_sunset_alert.py seeds it, and the event carries the open
+    ``sunset_overdue`` finding the daily sunset watch writes for it: that
+    finding is what ``_build_sunset_alert_message`` reads, so without it the
+    task would send nothing at all.
     """
     project = _project()
     main = PlanBranch(
@@ -161,6 +163,8 @@ def _seed_overdue_project(session: Session) -> Project:
         last_seen_at=NOW - timedelta(days=1),
     )
     session.add_all([project, main, _email_destination(project.id), event])
+    session.flush()
+    session.add(open_sunset_finding(event, at=NOW))
     session.commit()
     return project
 

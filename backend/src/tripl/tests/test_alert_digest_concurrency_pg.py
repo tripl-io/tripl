@@ -2,8 +2,8 @@
 
 ``test_alert_digest_delivery.py`` runs on SQLite, where both of these are
 silent no-ops: ``SELECT ... FOR UPDATE`` emits nothing, and
-``_try_acquire_advisory_lock`` returns ``(None, True)`` without asking the
-database (``metrics/schedule.py``). So the guards that keep
+``try_acquire_advisory_lock`` returns ``(None, True)`` without asking the
+database (``worker/utils/advisory_lock.py``). So the guards that keep
 ``flush_due_alert_digests`` safe under concurrency were unproven by the suite
 even though every assertion in it passed.
 
@@ -188,7 +188,7 @@ def test_a_second_flusher_skips_the_tick_while_the_first_holds_the_advisory_lock
     pg_session_factory: sessionmaker[Session],
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """`_try_acquire_advisory_lock` is a real lock here and a no-op on SQLite.
+    """`try_acquire_advisory_lock` is a real lock here and a no-op on SQLite.
 
     Without it, a redelivered beat message or a second worker would run a full
     flush pass concurrently with the first. The compare-and-set still makes

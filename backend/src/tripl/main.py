@@ -27,8 +27,9 @@ from tripl.services.app_settings_service import apply_startup_service_overrides
 # those overrides "take effect on the next deploy", as the settings UI states.
 apply_startup_service_overrides()
 
-from tripl import crypto, extensions, tenancy  # noqa: E402
+from tripl import __version__, crypto, extensions, tenancy  # noqa: E402
 from tripl.api.v1.router import router as v1_router  # noqa: E402
+from tripl.api_docs import install_pages as install_api_docs_pages  # noqa: E402
 from tripl.database import engine  # noqa: E402
 from tripl.logging_config import configure_logging  # noqa: E402
 from tripl.middleware import (  # noqa: E402
@@ -37,6 +38,7 @@ from tripl.middleware import (  # noqa: E402
     StaticCacheMiddleware,
 )
 from tripl.middleware.body_limit import BodyLimitMiddleware  # noqa: E402
+from tripl.middleware.nul_path import NulPathMiddleware  # noqa: E402
 from tripl.middleware.org_path_rewrite import OrgPathRewriteMiddleware  # noqa: E402
 from tripl.middleware.request_id import bound_request_id, request_id_from_scope  # noqa: E402
 from tripl.middleware.security_headers import build_security_headers  # noqa: E402
@@ -73,11 +75,17 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     yield
 
 
-# One entry per tag actually used across the v1 routers (see api/v1/*.py).
-# Drives the grouping and short blurbs in the generated OpenAPI docs.
+# One entry per tag the v1 routers use (see api/v1/*.py), which
+# test_prelaunch_accounts_security pins in both directions. Drives the grouping
+# and short blurbs in the generated OpenAPI docs.
 _OPENAPI_TAGS = [
     {"name": "auth", "description": "Login, registration, logout, and current-user lookup."},
     {"name": "users", "description": "User administration and role management."},
+    {
+        "name": "organizations",
+        "description": "Organizations: their members, groups, settings and ownership.",
+    },
+    {"name": "project-members", "description": "Who belongs to a project, and in which role."},
     {"name": "projects", "description": "Projects (tracking plans) and their lifecycle."},
     {"name": "events", "description": "Tracked events within a project's plan."},
     {"name": "event-types", "description": "Event type definitions and metadata."},
@@ -91,13 +99,30 @@ _OPENAPI_TAGS = [
     },
     {
         "name": "variables",
-        "description": "Deprecated alias of `properties` (the former name), kept for one release.",
+        "description": "Deprecated alias of `properties` (the former name), kept until the oldest"
+        " supported CLI and MCP server call `/properties`.",
     },
     {"name": "relations", "description": "Relationships between plan entities."},
     {"name": "scans", "description": "Scan configs and warehouse scan/preview jobs."},
-    {"name": "metrics", "description": "Computed metrics and metric definitions."},
+    {
+        "name": "metrics",
+        "description": "Computed event metrics, anomaly signals and release analytics.",
+    },
+    {
+        "name": "metrics-catalog",
+        "description": "Metric definitions: create, preview, collect, and read their series.",
+    },
+    {"name": "fact-tables", "description": "Warehouse tables that metric definitions read from."},
+    {
+        "name": "planned-events",
+        "description": "Windows in which anomalies are expected, so they are not alerted.",
+    },
     {"name": "reconciliation", "description": "Plan-vs-warehouse reconciliation runs."},
     {"name": "plan-branches", "description": "Working branches of a tracking plan."},
+    {
+        "name": "branch-settings",
+        "description": "A project's review rules for merging plan branches.",
+    },
     {
         "name": "dependencies",
         "description": "What depends on a plan entity, and what a planned change affects.",
@@ -114,14 +139,44 @@ _OPENAPI_TAGS = [
     {"name": "chart-annotations", "description": "Annotations overlaid on metric charts."},
     {"name": "anomaly-settings", "description": "Per-project anomaly detection settings."},
     {"name": "alerting", "description": "Alert rules and delivery destinations."},
+    {
+        "name": "notifications",
+        "description": "Your notification center and delivery preferences, and watching"
+        " plan entities.",
+    },
+    {"name": "health", "description": "Event health scores from the latest scans."},
+    {
+        "name": "lifecycle",
+        "description": "Deprecated and sunset events that are still sent, and event migrations.",
+    },
+    {"name": "duplicates", "description": "Likely duplicate events, and event naming lint."},
+    {
+        "name": "tracker-config",
+        "description": "A project's issue tracker (Jira or Linear) for implementation tickets.",
+    },
+    {
+        "name": "implementation-tickets",
+        "description": "Tracker tickets that follow the implementation of planned events.",
+    },
     {"name": "data-sources", "description": "Warehouse/data-source connections and secrets."},
     {"name": "event-photos", "description": "Photo attachments for events."},
+    {"name": "event-comments", "description": "Comments on events, and the actions they carry."},
+    {
+        "name": "docs",
+        "description": "Docs catalog: Markdown notes for people and AI agents, kept per project"
+        " or per organization.",
+    },
     {"name": "search", "description": "Hybrid lexical/semantic search over plan content."},
     {"name": "ai", "description": "AI-assisted descriptions and Q&A."},
     {"name": "activity", "description": "Recent activity feed."},
     {"name": "audit", "description": "Audit log of mutating actions."},
     {"name": "api-keys", "description": "Personal API keys for programmatic access."},
     {"name": "settings", "description": "Instance-level application settings."},
+    {
+        "name": "platform",
+        "description": "Operator settings for platform admins, and the usage telemetry status.",
+    },
+    {"name": "project-templates", "description": "Starter plans a new project can be made from."},
 ]
 
 # No `servers=` here, and none injected per request either — this instance never
@@ -143,17 +198,28 @@ _OPENAPI_TAGS = [
 # absolute URL is right for an instance reachable at several origins.
 #
 # It also keeps the served document identical to the committed backend/openapi.json
-# that bin/dump-openapi.sh writes and test_openapi_contract pins, instead of a
+# that bin/sync-api-types.sh writes and test_openapi_contract pins, instead of a
 # second, near-identical spelling of the same spec that only exists over HTTP.
 # FastAPI's own /openapi.json handler adds the --root-path prefix and nothing else,
 # and only when the app is mounted under one.
+#
+# FastAPI's own /docs and /redoc are off: they load their scripts from a CDN and
+# start from an inline script, which the policy this app sets when it serves the
+# SPA refuses, so both rendered blank in production. tripl.api_docs serves the
+# same two pages from this instance instead.
 app = FastAPI(
     title="tripl",
-    version="0.1.0",
-    description="Analytics tracking plan service",
+    version=__version__,
+    description=(
+        "Analytics tracking plan service. Authenticate with an API key in"
+        " `Authorization: Bearer tk_...`. Guide: https://docs.tripl.io/integrate/agent-api-guide"
+    ),
     lifespan=lifespan,
     openapi_tags=_OPENAPI_TAGS,
+    docs_url=None,
+    redoc_url=None,
 )
+install_api_docs_pages(app)
 
 # Opt-in OpenTelemetry tracing — gated on OTEL_EXPORTER_OTLP_ENDPOINT env;
 # graceful no-op when the env is empty or the otel packages aren't installed.
@@ -162,8 +228,10 @@ from tripl.observability.tracing import setup_api_tracing  # noqa: E402
 setup_api_tracing(app)
 
 # The last add_middleware call is outermost. The effective user-middleware order
-# is CORS -> OrgRewrite -> BodyLimit -> Brotli -> RequestID -> StaticCache ->
-# SecurityHeaders.
+# is CORS -> NulPath -> OrgRewrite -> BodyLimit -> Brotli -> RequestID ->
+# StaticCache -> SecurityHeaders.
+# - NulPath answers 404 to a path with a NUL in it before anything reads the
+#   path: no route can name one, and PostgreSQL refuses it as a parameter.
 # - OrgRewrite serves /api/v1/orgs/{org}/<rest> by the legacy /api/v1/<rest>
 #   routes and fences the request's organization contextvar. It sits outside
 #   BodyLimit and Brotli because both match on the path (the photo-upload limit,
@@ -193,6 +261,7 @@ app.add_middleware(
 )
 app.add_middleware(BodyLimitMiddleware)
 app.add_middleware(OrgPathRewriteMiddleware)
+app.add_middleware(NulPathMiddleware)
 
 _cors_origins = settings.cors_origins()
 # allow_credentials=True with "*" is rejected by browsers; fall back to no

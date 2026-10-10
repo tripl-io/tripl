@@ -1371,7 +1371,7 @@ async def revert_change(
     Returns the branch's diff after the revert, so the caller renders the result
     without a second round-trip.
     """
-    project = await resolve_project(session, slug, detail=f"Project '{slug}' not found")
+    project = await resolve_project(session, slug)
     branch = await _load_branch(session, project, branch_id)
     # Bound to a plain local BEFORE the first write, and ``branch_id`` used below
     # in place of ``branch.id`` for the same reason. A failed flush rolls back to

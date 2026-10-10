@@ -34,9 +34,9 @@ from tripl.schemas.data_source import (
     connection_settings_response,
     parse_connection_settings,
 )
-from tripl.services.plan_branch_service import resolve_branch_id
 from tripl.services.project_lookup import owning_org_id
-from tripl.services.search_service import reindex_project_branch
+from tripl.services.search_service import reindex_main_branch
+from tripl.services.warehouse_failure import probe_failure_kind
 
 # Defensive cap on ``GET /data-sources``, per organization (it was one global
 # LIMIT before F20 PR3; with one organization the two are the same).
@@ -243,11 +243,13 @@ _UNSET = object()
 def _validated_settings(db_type: str, raw: object) -> BaseModel | None:
     """Validate a raw settings payload against the warehouse it is destined for.
 
-    ``raw`` is the dict of keys the client actually sent (the request model's
-    nested union already rejected keys that belong to no warehouse at all). This
-    is where a setting that exists but does not apply to *this* db_type — a
-    BigQuery ``location`` on a PostgreSQL source — becomes a 422 instead of a
-    silently stored no-op.
+    ``raw`` is the dict of keys the client actually sent. The request model has
+    validated it already, for the db_type the request names or, for a PATCH
+    that names none, for the warehouse its keys fit
+    (``schemas.data_source._request_settings``). This is the check against the
+    db_type the row will have: where a setting that exists but does not apply
+    to *this* db_type — a BigQuery ``location`` on a PostgreSQL source — becomes
+    a 422 instead of a silently stored no-op.
     """
     if raw is None:
         return None
@@ -259,7 +261,60 @@ def _validated_settings(db_type: str, raw: object) -> BaseModel | None:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
 
 
-def _require_databricks_warehouse(db_type: str, stored: dict[str, Any] | None) -> None:
+def _field_refusal(field: str, message: str, *, missing: bool = False) -> HTTPException:
+    """A 422 shaped like FastAPI's own, so the form shows it under ``field``."""
+    return HTTPException(
+        status_code=422,
+        detail=[
+            {
+                "type": "missing" if missing else "value_error",
+                "loc": ["body", field],
+                "msg": message,
+            }
+        ],
+    )
+
+
+# The sign-in each adapter refuses to connect without, refused on save instead,
+# so a source that can never connect is not stored. The adapters keep their own
+# checks: these are the same rules, said where the form can show them.
+_USERNAME_REQUIRED = {
+    DBType.trino.value: "A Trino data source needs a user name: the user its queries run as.",
+    DBType.snowflake.value: "A Snowflake data source needs a user name.",
+    DBType.athena.value: "An Athena data source needs an access key ID as its user name.",
+}
+_DATABRICKS_OAUTH_USERNAME = (
+    "OAuth machine-to-machine sign-in needs the service principal's client ID as the user name."
+)
+_TRINO_PASSWORD_OVER_HTTP = (
+    "Trino only sends a password over HTTPS. Switch http_scheme to https, or remove "
+    "the password for a coordinator without authentication."
+)
+# The update fields a sign-in rule reads. A PATCH that sends none of them (a
+# rename, a new timeout) is not refused over a sign-in stored before the rules.
+_SIGN_IN_FIELDS = frozenset({"db_type", "username", "password", "connection_settings"})
+
+
+def _require_sign_in(
+    db_type: str, *, username: str, password_set: bool, stored: dict[str, Any] | None
+) -> None:
+    """Refuse an empty user name the warehouse cannot sign in with, or a password it never sends.
+
+    Databricks needs the user name (an OAuth client ID) only for OAuth
+    machine-to-machine sign-in; Trino sends a password over HTTPS only.
+    """
+    settings = stored or {}
+    if not username.strip():
+        message = _USERNAME_REQUIRED.get(db_type)
+        if db_type == DBType.databricks.value and settings.get("auth_type") == "oauth_m2m":
+            message = _DATABRICKS_OAUTH_USERNAME
+        if message is not None:
+            raise _field_refusal("username", message, missing=True)
+    if db_type == DBType.trino.value and password_set and settings.get("http_scheme") == "http":
+        raise _field_refusal("password", _TRINO_PASSWORD_OVER_HTTP)
+
+
+def _require_warehouse(db_type: str, stored: dict[str, Any] | None) -> None:
     """A Databricks or Snowflake source is unusable without its warehouse: say so on save.
 
     The settings models already require ``http_path`` / ``warehouse`` whenever
@@ -330,7 +385,13 @@ async def create_data_source(session: AsyncSession, data: DataSourceCreate) -> D
     raw_settings = data.model_dump(exclude_unset=True).get("connection_settings")
     settings = _validated_settings(data.db_type.value, raw_settings)
     stored_settings = _settings_to_storage(settings, previous=None)
-    _require_databricks_warehouse(data.db_type.value, stored_settings)
+    _require_warehouse(data.db_type.value, stored_settings)
+    _require_sign_in(
+        data.db_type.value,
+        username=data.username,
+        password_set=bool(data.password),
+        stored=stored_settings,
+    )
 
     ds = DataSource(
         # The bound organization, where every data-source route looks it up.
@@ -388,9 +449,17 @@ async def update_data_source(
 
     for key, value in update_dict.items():
         setattr(ds, key, value)
-    _require_databricks_warehouse(
-        str(ds.db_type), ds.extra_params if isinstance(ds.extra_params, dict) else None
-    )
+    # Checked on the row as this update leaves it: a PATCH can change the type,
+    # the user, the password or the settings alone.
+    stored = ds.extra_params if isinstance(ds.extra_params, dict) else None
+    _require_warehouse(str(ds.db_type), stored)
+    if _SIGN_IN_FIELDS & data.model_fields_set:
+        _require_sign_in(
+            str(ds.db_type),
+            username=ds.username,
+            password_set=bool(ds.password_encrypted),
+            stored=stored,
+        )
 
     new_name = update_dict.get("name")
     try:
@@ -437,10 +506,10 @@ async def _name_taken(
 async def _refresh_main_search_indexes(session: AsyncSession, project_ids: list[uuid.UUID]) -> None:
     """Refresh the MAIN search index of every project a deleted source touched.
 
-    Mirrors ``scan_service._refresh_main_search_index`` and the alerting one:
-    scan configs and alert rules are project-global rather than branch-scoped, so
-    only the MAIN branch is refreshed eagerly and feature-branch indexes pick the
-    change up on their next rebuild.
+    ``search_service.reindex_main_branch`` per project: scan configs are
+    project-global rather than branch-scoped, so only the MAIN branch is
+    refreshed eagerly and feature-branch indexes pick the change up on their next
+    rebuild.
 
     Plural, and driven by the doomed scan configs rather than by ``ds.project_id``,
     because a data source is workspace-global by default — ``DataSource.project_id``
@@ -449,16 +518,16 @@ async def _refresh_main_search_indexes(session: AsyncSession, project_ids: list[
     because the data-source routes are workspace-level and carry none; the
     reindexer resolves it from the project id.
 
-    Unlike the alerting helper these imports are NOT deferred: the cycle it
-    documents (``search_service`` -> ``project_service`` -> ``alerting_service``)
+    Unlike ``_alerting_destinations._reindex_main_branch``, this import is NOT
+    deferred: the cycle that helper documents (``search_service`` ->
+    ``project_service`` -> ``alerting_service``)
     never reaches this module — nothing in ``search_service``'s import graph
     imports ``datasource_service`` — so this can import at the top like
     ``scan_service`` does.
     """
     for project_id in project_ids:
         try:
-            main_branch_id = await resolve_branch_id(session, project_id, None)
-            await reindex_project_branch(session, project_id=project_id, branch_id=main_branch_id)
+            await reindex_main_branch(session, project_id)
         except Exception:
             await session.rollback()
             # Fault-isolated per project, because this runs AFTER the destructive
@@ -583,25 +652,6 @@ def _to_response(ds: DataSource) -> DataSourceResponse:
 logger = logging.getLogger(__name__)
 
 
-_TIMEOUT_HINTS = ("timed out", "timeout")
-_UNREACHABLE_HINTS = (
-    "refused",
-    "getaddrinfo",
-    "could not connect",
-    "connection failed",
-    "name or service not known",
-    "no route to host",
-    "network unreachable",
-    "could not translate host name",
-)
-_AUTH_HINTS = ("auth", "password", "access denied", "credential", "permission")
-# psycopg's refusal when the SSL mode demands TLS and the server offers none. It
-# also contains "connection failed", so it has to be read before the
-# unreachable hints: a fresh local PostgreSQL has no TLS and an unset SSL mode
-# resolves to `require` for any host but localhost, so this is the first error
-# most people meet, and "could not reach" sent them to check a network that works.
-_NO_SERVER_TLS_HINTS = ("does not support ssl",)
-
 # Every message below opens with this. A connection probe is not a scan:
 # ``worker.tasks._errors.user_facing_error`` GUARANTEES a "Scan failed" prefix
 # because ``frontend/src/lib/scanError.ts`` keys on it, which reads as nonsense
@@ -626,18 +676,21 @@ def _friendly_test_error(exc: Exception) -> str:
     if isinstance(exc, WarehouseCapabilityError):
         return f"{_TEST_FAILED}: {exc}"
 
-    text = str(exc).lower()
-    if any(hint in text for hint in _AUTH_HINTS):
+    # A probe runs no statement of the user's: the broad reading applies.
+    kind = probe_failure_kind(exc)
+    if kind == "auth":
         return f"{_TEST_FAILED}: authentication was rejected — check the credentials."
-    if any(hint in text for hint in _TIMEOUT_HINTS):
+    if kind == "timeout":
         return f"{_TEST_FAILED}: the data source did not respond in time."
-    if any(hint in text for hint in _NO_SERVER_TLS_HINTS):
+    if kind == "tls":
+        # The first error most people meet: an unset SSL mode resolves to
+        # `require` for any host but localhost, and a fresh PostgreSQL has no TLS.
         return (
             f"{_TEST_FAILED}: the server does not offer TLS, and this connection requires "
             "it. Enable TLS on the server, or set SSL mode to disable for a server you "
             "reach over a trusted network."
         )
-    if any(hint in text for hint in _UNREACHABLE_HINTS):
+    if kind == "unreachable":
         return (
             f"{_TEST_FAILED}: could not reach the data source — check the host, port, and network."
         )
@@ -707,7 +760,13 @@ async def test_unsaved_connection(
     raw_settings = data.model_dump(exclude_unset=True).get("connection_settings")
     settings = _validated_settings(data.db_type.value, raw_settings)
     stored_settings = _settings_to_storage(settings, previous=None)
-    _require_databricks_warehouse(data.db_type.value, stored_settings)
+    _require_warehouse(data.db_type.value, stored_settings)
+    _require_sign_in(
+        data.db_type.value,
+        username=data.username,
+        password_set=bool(data.password),
+        stored=stored_settings,
+    )
     ds = DataSource(
         name=data.name,
         db_type=data.db_type,

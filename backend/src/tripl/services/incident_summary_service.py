@@ -25,6 +25,7 @@ from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from tripl.core.bucketing import to_utc
 from tripl.models.alert_delivery import AlertDelivery
 from tripl.models.alert_delivery_item import AlertDeliveryItem
 from tripl.models.incident_summary import IncidentSummary
@@ -48,7 +49,6 @@ from tripl.services.app_settings_service import AiConfig
 from tripl.services.incident_summary_facts import (
     IncidentFacts,
     SummaryFact,
-    as_utc,
     gather_incident_facts,
 )
 from tripl.services.project_links import qualify_project_path
@@ -142,7 +142,7 @@ def _body_from_row(row: IncidentSummary, org_slug: str | None) -> IncidentSummar
         facts=[_stored_fact(item, org_slug) for item in row.facts or []],
         cause_known=row.cause_known,
         facts_hash=row.facts_hash,
-        generated_at=as_utc(row.generated_at),
+        generated_at=to_utc(row.generated_at),
     )
 
 
@@ -301,7 +301,7 @@ async def _generate(
             current_facts_hash=facts.facts_hash,
         )
     newer = await _load_row(session, project_id, correlation_group_id)
-    if newer is not None and as_utc(newer.generated_at) > started_at:
+    if newer is not None and to_utc(newer.generated_at) > started_at:
         # Another request generated while this one waited on the model; its
         # facts were gathered later, so keep it rather than overwrite it.
         await session.commit()

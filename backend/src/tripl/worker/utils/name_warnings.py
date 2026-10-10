@@ -26,8 +26,9 @@ from tripl.core.analyzers.duplicate_matching import (
     find_combinatorial_explosions,
 )
 from tripl.core.analyzers.name_rules import compile_rule
+from tripl.core.plan_scope import main_branch_id
+from tripl.models.domain_enums import enum_text
 from tripl.models.event import Event, EventStatus
-from tripl.worker.plan_scope import main_branch_id
 
 logger = logging.getLogger(__name__)
 
@@ -91,7 +92,7 @@ def _catalog(
     if branch is not None:
         query = query.where(Event.branch_id == branch)
     return [
-        CatalogName(event_id, name or "", type_id, str(getattr(status, "value", status)))
+        CatalogName(event_id, name or "", type_id, enum_text(status))
         for event_id, name, type_id, status in session.execute(query).all()
     ]
 

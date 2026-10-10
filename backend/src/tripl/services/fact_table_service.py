@@ -23,28 +23,12 @@ from tripl.services.fact_table_dependents import (
     metrics_needing_column,
     metrics_needing_filter,
 )
-from tripl.services.plan_branch_service import resolve_branch_id
 from tripl.services.project_lookup import resolve_project_id
-from tripl.services.search_service import reindex_project_branch
+from tripl.services.search_service import reindex_main_branch
 
 # Defensive cap on the list query; realistic projects have well under this many
 # fact tables.
 _LIST_HARD_CAP = 1000
-
-
-async def _refresh_main_search_index(
-    session: AsyncSession, project_id: uuid.UUID, slug: str
-) -> None:
-    """Refresh the search index after a fact-table mutation.
-
-    Fact tables are global (project-scoped, not branched), so only the MAIN
-    branch index is refreshed eagerly; feature-branch indexes pick the change
-    up on their next rebuild.
-    """
-    main_branch_id = await resolve_branch_id(session, project_id, None)
-    await reindex_project_branch(
-        session, project_id=project_id, branch_id=main_branch_id, slug=slug
-    )
 
 
 async def _verify_data_source(
@@ -376,7 +360,7 @@ async def create_fact_table(session: AsyncSession, slug: str, data: FactTableCre
     await session.flush()
     await session.commit()
     await session.refresh(fact_table)
-    await _refresh_main_search_index(session, project_id, slug)
+    await reindex_main_branch(session, project_id, slug=slug)
     return fact_table
 
 
@@ -402,7 +386,7 @@ async def update_fact_table(
         setattr(fact_table, key, value)
     await session.commit()
     await session.refresh(fact_table)
-    await _refresh_main_search_index(session, fact_table.project_id, slug)
+    await reindex_main_branch(session, fact_table.project_id, slug=slug)
     return fact_table
 
 
@@ -429,4 +413,4 @@ async def delete_fact_table(session: AsyncSession, slug: str, fact_table_id: uui
         )
     await session.delete(fact_table)
     await session.commit()
-    await _refresh_main_search_index(session, project_id, slug)
+    await reindex_main_branch(session, project_id, slug=slug)

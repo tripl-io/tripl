@@ -19,6 +19,7 @@ from tripl.schemas.event import (
     EventResponse,
     EventUpdate,
 )
+from tripl.schemas.pagination import Offset
 from tripl.schemas.text_filters import FreeTextFilter
 from tripl.schemas.variable import EventPropertyResponse
 from tripl.services import audit_service, event_service, variable_service
@@ -157,7 +158,7 @@ async def list_events(
         FreeTextFilter | None,
         Query(description="Property id or name: only events whose property list carries it."),
     ] = None,
-    offset: int = Query(0, ge=0),
+    offset: Offset = 0,
     # Ceiling is 10000 because frontend/src/pages/events/useEventsQuery.ts pages
     # the whole match set at EVENTS_ID_FETCH_PAGE_SIZE = 10000 for bulk "select
     # all matching" and CSV export. That constant is hardcoded to this value, so

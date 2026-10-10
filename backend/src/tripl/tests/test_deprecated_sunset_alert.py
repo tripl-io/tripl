@@ -18,6 +18,13 @@ same event twice — while the digest, on the same data, said 1. Scheduling that
 would have shipped the duplicate to real Slack and email destinations daily,
 which is why neither half is landable alone.
 
+Both messages now read the sunset watch's open ``sunset_overdue`` findings
+(``alerts_messages._sunset_overdue_scope``), which the daily sweep writes for
+MAIN-branch events only, so the branch scope is the sweep's and the helpers
+below seed a finding exactly where the sweep would. Whether an event's data
+stopping clears it is pinned in test_prelaunch_worker_digest_findings.py,
+against the real sweep.
+
 The tests below pin each half against its own revert:
 
 * the beat entry exists, names a REGISTERED task, and is daily;
@@ -32,9 +39,7 @@ no cap anywhere between its query and the webhook — not in the builder, not in
 ``alerts_channels._send_slack_message``, and not in the Telegram splitter, which
 this path cannot reach because the task selects only slack and email
 destinations. On a daily beat to every enabled destination that made the payload
-bounded by nothing but the project's deprecated-event count, and the list is
-monotonic: ``last_seen_at`` only ever moves forward, so an event that was still
-receiving data at its sunset date stays on it until someone acts. Section (c)
+bounded by nothing but the project's deprecated-event count. Section (c)
 pins the cap, the tail that admits to it, and the ceiling its number was chosen
 against:
 
@@ -108,16 +113,17 @@ from tripl.models.alert_rule import AlertRule
 from tripl.models.event import Event, EventStatus
 from tripl.models.plan_branch import BranchKind, BranchStatus, PlanBranch
 from tripl.models.project import Project
+from tripl.tests._sunset_findings import open_sunset_finding
 from tripl.tests.test_alerting import _seed_telegram_length_case
 from tripl.worker.celery_app import celery_app
 from tripl.worker.tasks import alerts_messages as am
-from tripl.worker.tasks import metrics
 from tripl.worker.tasks.alerts import (
     TELEGRAM_DELIVERED_ITEM_IDS_KEY,
     TELEGRAM_PARTS_DELIVERED_KEY,
     _read_delivered_part_count,
     _record_delivered_items,
     check_deprecated_sunset_events,
+    send_alert_delivery,
 )
 from tripl.worker.tasks.alerts_messages import (
     _build_plan_digest_message,
@@ -223,8 +229,12 @@ def _add_event(
 
 
 def _overdue(session: Session, project: Project, branch: PlanBranch, *, name: str) -> Event:
-    """Deprecated, sunset two months ago, still receiving data yesterday."""
-    return _add_event(
+    """Deprecated, sunset two months ago, still receiving data yesterday.
+
+    On the main branch it also gets the open finding the daily sunset watch
+    writes for it. A branch copy gets none: the sweep only judges main events.
+    """
+    event = _add_event(
         session,
         project,
         branch,
@@ -232,14 +242,18 @@ def _overdue(session: Session, project: Project, branch: PlanBranch, *, name: st
         sunset_at=NOW - timedelta(days=60),
         last_seen_at=NOW - timedelta(days=1),
     )
+    if branch.kind == BranchKind.main.value:
+        session.add(open_sunset_finding(event, at=NOW))
+        session.commit()
+    return event
 
 
 def _branch_copy(session: Session, project: Project, branch: PlanBranch, source: Event) -> Event:
     """What opening a branch does to an event row: a new id, everything else carried.
 
     Mirrors ``plan_branch_service``'s copy, which reproduces ``status``,
-    ``sunset_at`` and ``last_seen_at`` verbatim — the three columns the sunset
-    predicate reads, which is why an unscoped query counts this row again.
+    ``sunset_at`` and ``last_seen_at`` verbatim, so a query over events alone
+    would count this row again. It carries no finding of its own.
     """
     return _add_event(
         session,
@@ -362,11 +376,10 @@ def test_an_open_working_branch_does_not_duplicate_the_overdue_list(
 ) -> None:
     """One event, one open branch, and the count that used to read 2.
 
-    Remove ``Event.branch_id == main_branch_id`` from
-    ``_build_sunset_alert_message`` and both assertions fail together: the
-    header reads "Count: 2" and ``app:old_purchase`` is listed twice, from one
-    event that exists once in the live plan. Every extra open branch adds
-    another copy.
+    Rebuild ``_build_sunset_alert_message`` over events instead of findings,
+    without a branch scope, and both assertions fail together: the header reads
+    "Count: 2" and ``app:old_purchase`` is listed twice, from one event that
+    exists once in the live plan. Every extra open branch adds another copy.
 
     The line count is asserted as well as the header because they fail
     independently — a fix that deduplicated the rendered lines while leaving the
@@ -397,9 +410,9 @@ def test_a_sunset_pulled_forward_inside_a_branch_raises_no_alert(
     nobody has agreed to yet, and the weekly digest (already main-scoped) would
     flatly contradict it.
 
-    Unscope the query and ``message`` is no longer None, which is the whole
-    assertion. This is the case a name-based dedup of the test above would not
-    catch, and the reason the fix has to be a branch predicate.
+    Read events across branches instead of the sweep's main-only findings and
+    ``message`` is no longer None, which is the whole assertion. This is the
+    case a name-based dedup of the test above would not catch.
     """
     with sync_session_factory() as session:
         project, main = _seed_project(session)
@@ -425,15 +438,15 @@ def test_the_alert_and_the_weekly_digest_report_the_same_overdue_count(
     """The claim both docstrings now make, on one project, in one session.
 
     ``_build_plan_digest_message``'s ``sunset_overdue`` and
-    ``_build_sunset_alert_message`` read the same five predicates over the same
-    table; the alert exists to name what the digest counts. Before the fix only
-    one of them was branch-scoped, so an operator with an open branch got a
-    digest saying 1 and, the moment the task was wired, an alert saying 2 about
-    the same event — and no way to tell which was lying.
+    ``_build_sunset_alert_message`` read the same open findings through
+    ``_sunset_overdue_scope``; the alert exists to name what the digest counts.
+    Once only one of them was branch-scoped, so an operator with an open branch
+    got a digest saying 1 and an alert saying 2 about the same event — and no
+    way to tell which was lying.
 
-    Revert the predicate and the equality fails while the digest's own 1 stays
-    right, which is what makes this a test of agreement rather than a second
-    copy of the test above.
+    Give either builder a scope of its own and this equality is what fails,
+    which is what makes this a test of agreement rather than a second copy of
+    the test above.
     """
     with sync_session_factory() as session:
         project, main = _seed_project(session)
@@ -461,7 +474,7 @@ def test_the_scheduled_task_delivers_the_main_branch_list(
     destination type filter — between the fix and the assertion, so a change
     that scoped the query but broke the send still reddens here.
 
-    Revert the branch predicate and the delivered text says "Count: 2".
+    Lose the branch scope and the delivered text says "Count: 2".
     """
     with sync_session_factory() as session:
         project, main = _seed_project(session)
@@ -539,11 +552,12 @@ def test_the_capped_message_fits_slacks_text_field_at_the_widest_event_name(
     """The cap's NUMBER, checked against the ceiling the constant argues from.
 
     ``Event.name`` is ``String(500)``, so the widest message the cap can
-    produce is its own value times a 544-character line. Raise
-    ``_SUNSET_ALERT_MAX_EVENTS`` past 73 and this fails, which is the whole
-    point of stating it here: the comment beside the constant reasons about this
-    ceiling, and a later "50 is stingy, make it 500" would otherwise restore the
-    silent-non-delivery failure with every other test in this file still green.
+    produce is its own value times a line of a little over 500 characters.
+    Raise ``_SUNSET_ALERT_MAX_EVENTS`` past about seventy and this fails, which
+    is the whole point of stating it here: the comment beside the constant
+    reasons about this ceiling, and a later "50 is stingy, make it 500" would
+    otherwise restore the silent-non-delivery failure with every other test in
+    this file still green.
 
     One event beyond the cap, so the tail is rendered and counted too.
     """
@@ -1003,19 +1017,19 @@ def test_the_send_task_tells_the_splitter_the_whole_digest_and_where_to_resume(
         calls.append(kwargs)
         return [("resumed body", list(kwargs["items"]))]
 
-    monkeypatch.setitem(metrics.send_alert_delivery.run.__globals__, "_get_sync_session", factory)
+    monkeypatch.setitem(send_alert_delivery.run.__globals__, "_get_sync_session", factory)
     monkeypatch.setitem(
-        metrics.send_alert_delivery.run.__globals__,
+        send_alert_delivery.run.__globals__,
         "split_telegram_messages",
         recording_split,
     )
     monkeypatch.setitem(
-        metrics.send_alert_delivery.run.__globals__,
+        send_alert_delivery.run.__globals__,
         "_post_json",
         lambda url, body, headers=None: None,
     )
 
-    result = metrics.send_alert_delivery.run(delivery_id)
+    result = send_alert_delivery.run(delivery_id)
 
     assert result["status"] == "sent"
     assert len(calls) == 1

@@ -20,6 +20,7 @@ from tripl.models.domain_enums import (
     ScanInterval,
 )
 from tripl.schemas.event_metric import MetricSignalResponse
+from tripl.schemas.integers import INT32_MAX, Int32
 from tripl.schemas.not_null_update import reject_explicit_nulls
 from tripl.schemas.scan_config import check_replay_chunk_against_interval
 
@@ -391,13 +392,13 @@ class _MetricDefinitionBase(BaseModel):
     # catalog could not be reordered at all. ``None`` rather
     # than a 0 default so the generated contract lists it as optional instead
     # of forcing every caller to send the value that means "I did not choose".
-    order: int | None = None
+    order: Int32 | None = None
     unit: str | None = Field(default=None, max_length=50)
     status: MetricStatus = MetricStatus.draft
     owner_id: uuid.UUID | None = None
     reviewed: bool = False
     breakdown_columns: list[str] = Field(default_factory=list)
-    breakdown_values_limit: int | None = Field(default=None, ge=1)
+    breakdown_values_limit: int | None = Field(default=None, ge=1, le=INT32_MAX)
     app_version_column: str | None = Field(default=None, min_length=1, max_length=255)
     platform_column: str | None = Field(default=None, min_length=1, max_length=255)
     anomaly_detection_enabled: bool = True
@@ -808,13 +809,13 @@ class MetricDefinitionUpdate(BaseModel):
     display_name: str | None = Field(default=None, min_length=1, max_length=255)
     description: str | None = None
     color: str | None = Field(default=None, pattern=r"^#[0-9a-fA-F]{6}$")
-    order: int | None = None
+    order: Int32 | None = None
     unit: str | None = Field(default=None, max_length=50)
     status: MetricStatus | None = None
     owner_id: uuid.UUID | None = None
     reviewed: bool | None = None
     breakdown_columns: list[str] | None = None
-    breakdown_values_limit: int | None = Field(default=None, ge=1)
+    breakdown_values_limit: int | None = Field(default=None, ge=1, le=INT32_MAX)
     app_version_column: str | None = Field(default=None, max_length=255)
     platform_column: str | None = Field(default=None, max_length=255)
     anomaly_detection_enabled: bool | None = None

@@ -138,7 +138,7 @@ async def test_add_member_admits_a_member_of_the_projects_org() -> None:
     await _add(project_id, colleague)
 
     async with TestSessionLocal() as session:
-        assert await project_member_service.is_member(session, project_id, colleague)
+        assert await project_member_service._get_member(session, project_id, colleague) is not None
 
 
 # ── remove_member and the per-project grants ────────────────────────────────
@@ -155,7 +155,8 @@ async def test_removing_an_org_admin_keeps_their_grants() -> None:
 
     assert await _still_owns(type_id, admin)
     async with TestSessionLocal() as session:
-        assert not await project_member_service.is_member(session, project_id, admin)
+        # No membership row left: an org admin may hold none.
+        assert await project_member_service._get_member(session, project_id, admin) is None
         # Still reaches the project through the organization role.
         assert (
             await project_access._member_role(session, admin, project_id, fenced=False)

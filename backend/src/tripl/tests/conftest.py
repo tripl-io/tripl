@@ -56,19 +56,7 @@ from tripl.main import app  # noqa: E402
 
 _app_settings.apply_startup_service_overrides = _real_apply_startup_service_overrides
 from tripl.middleware.org_context import OrgRef, bind_org, reset_org  # noqa: E402
-from tripl.middleware.rate_limit import (  # noqa: E402
-    audit_export_rate_limiter,
-    audit_webhook_probe_rate_limiter,
-    doc_link_suggestions_rate_limiter,
-    login_rate_limiter,
-    register_rate_limiter,
-    scim_auth_failure_rate_limiter,
-    scim_rate_limiter,
-    sso_probe_rate_limiter,
-    sso_rate_limiter,
-    status_rate_limiter,
-    verify_email_rate_limiter,
-)
+from tripl.middleware.rate_limit import reset_rate_limiters  # noqa: E402
 from tripl.middleware.request_id import bound_request_id  # noqa: E402
 from tripl.models import Base  # noqa: E402
 from tripl.models.data_source import TestStatus  # noqa: E402
@@ -211,18 +199,12 @@ async def _bind_default_org(request: pytest.FixtureRequest) -> AsyncGenerator[No
 
 @pytest.fixture(autouse=True)
 def _reset_rate_limiters() -> None:
-    """Drop accumulated bucket state between tests so order is irrelevant."""
-    login_rate_limiter.reset()
-    register_rate_limiter.reset()
-    status_rate_limiter.reset()
-    verify_email_rate_limiter.reset()
-    sso_rate_limiter.reset()
-    sso_probe_rate_limiter.reset()
-    scim_rate_limiter.reset()
-    scim_auth_failure_rate_limiter.reset()
-    audit_webhook_probe_rate_limiter.reset()
-    audit_export_rate_limiter.reset()
-    doc_link_suggestions_rate_limiter.reset()
+    """Drop accumulated bucket state between tests so order is irrelevant.
+
+    Every limiter, an extension's too: a suite that reuses these fixtures
+    (``pytest_plugins``) gets its own limiters reset without naming them.
+    """
+    reset_rate_limiters()
 
 
 async def override_get_session() -> AsyncGenerator[AsyncSession]:

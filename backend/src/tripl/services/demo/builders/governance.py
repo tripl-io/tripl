@@ -26,11 +26,14 @@ from __future__ import annotations
 
 from datetime import datetime, timedelta
 
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from tripl.core.bucketing import to_utc
 from tripl.models.coverage_metric import CoverageMetric
 from tripl.models.event import Event
+from tripl.models.event_metric import EventMetric
+from tripl.models.event_metric_breakdown import EventMetricBreakdown
 from tripl.models.scan_job import ScanJob, ScanJobStatus
 from tripl.models.shadow_event_candidate import (
     SHADOW_STATUS_DISMISSED,
@@ -46,8 +49,9 @@ from tripl.services.demo.builders.warehouse import (
 from tripl.services.demo.scenario import DemoContext
 
 # Coverage rate: plan events account for ~94% of scanned volume; the ~6% tail is
-# unmatched (the shadow candidates below).
-_COVERAGE_MATCH_RATE = 0.94
+# unmatched (the shadow candidates below). Public because the demo runtime tick
+# appends coverage at the same rate, so appended rows reconcile with these.
+COVERAGE_MATCH_RATE = 0.94
 # Only the recent slice gets coverage rows (the reconciliation view is windowed);
 # keeps the seed bounded while still reconciling with the volume chart.
 _COVERAGE_DAYS = 14
@@ -93,12 +97,50 @@ def _hourly_scanned_rows(ctx: DemoContext, window_from: datetime) -> int:
     )
 
 
+async def _stored_points_by_hour(
+    session: AsyncSession, ctx: DemoContext, buckets: list[datetime]
+) -> dict[datetime, dict[str, int]]:
+    """The metric points the warehouse builder stored for each hour.
+
+    Counted from the stored rows, under the four counters a metrics collection
+    reports its points in (``metrics.tasks``' result summary): per-event and
+    per-type volume rows, and their breakdown rows.
+    """
+    points = {
+        to_utc(bucket): {
+            "event_metrics": 0,
+            "type_metrics": 0,
+            "breakdown_event_metrics": 0,
+            "breakdown_type_metrics": 0,
+        }
+        for bucket in buckets
+    }
+    for model, event_key, type_key in (
+        (EventMetric, "event_metrics", "type_metrics"),
+        (EventMetricBreakdown, "breakdown_event_metrics", "breakdown_type_metrics"),
+    ):
+        rows = await session.execute(
+            # ``count(event_id)`` counts the per-event rows; the rest of the
+            # hour's rows are the per-type rollups, which carry no event.
+            select(model.bucket, func.count(model.event_id), func.count())
+            .where(model.scan_config_id == ctx.scan_config_id, model.bucket.in_(buckets))
+            .group_by(model.bucket)
+        )
+        for bucket, event_rows, all_rows in rows:
+            counters = points[to_utc(bucket)]
+            counters[event_key] = event_rows
+            counters[type_key] = all_rows - event_rows
+    return points
+
+
 async def _build_scan_history(session: AsyncSession, ctx: DemoContext) -> None:
     """A realistic run cadence: older completed runs, one transient failure that
     recovered, and a fresh successful run (the latest job)."""
     matched_events = len(ctx.event_ids)
 
-    def _summary(window_from: datetime, window_to: datetime, rows: int) -> dict[str, object]:
+    def _summary(
+        window_from: datetime, window_to: datetime, rows: int, points: dict[str, int]
+    ) -> dict[str, object]:
         return {
             "events_created": 0,
             "events_skipped": 0,
@@ -113,6 +155,12 @@ async def _build_scan_history(session: AsyncSession, ctx: DemoContext) -> None:
             "catalog_rows_scanned": rows,
             "scan_window_from": window_from.isoformat(),
             "scan_window_to": window_to.isoformat(),
+            # The hour's stored metric points, so a monitoring scan's history
+            # shows the series it backs. Deliberately no ``mode``: the
+            # dispatcher takes its watermark and the demo's collection cooldown
+            # from its own ``metrics_collection`` runs only, and a seeded run
+            # stamped as one would move both.
+            **points,
             "details": [],
         }
 
@@ -126,10 +174,15 @@ async def _build_scan_history(session: AsyncSession, ctx: DemoContext) -> None:
     # for that hour. They used to be constants, so three
     # consecutive runs claimed the same future window, byte-identical millions of
     # rows and an identical 42.0s — next to a real Run now reporting ~30K rows.
+    runs: list[tuple[datetime, datetime, datetime]] = []
     for offset in _COMPLETED_RUN_OFFSETS:
         started = ctx.now - offset
         window_to = started.replace(minute=0, second=0, microsecond=0)
-        window_from = window_to - timedelta(hours=1)
+        runs.append((started, window_to - timedelta(hours=1), window_to))
+    points_by_hour = await _stored_points_by_hour(
+        session, ctx, [window_from for _started, window_from, _window_to in runs]
+    )
+    for started, window_from, window_to in runs:
         rows = _hourly_scanned_rows(ctx, window_from)
         session.add(
             ScanJob(
@@ -137,7 +190,9 @@ async def _build_scan_history(session: AsyncSession, ctx: DemoContext) -> None:
                 status=ScanJobStatus.completed.value,
                 started_at=started,
                 completed_at=started + _run_duration(ctx, started, rows),
-                result_summary=_summary(window_from, window_to, rows),
+                result_summary=_summary(
+                    window_from, window_to, rows, points_by_hour[to_utc(window_from)]
+                ),
                 created_at=started,
             )
         )
@@ -170,7 +225,7 @@ async def _build_coverage(session: AsyncSession, ctx: DemoContext) -> None:
         matched_by_bucket[bucket] = matched_by_bucket.get(bucket, 0) + count
 
     for bucket, matched in matched_by_bucket.items():
-        total = max(matched, round(matched / _COVERAGE_MATCH_RATE))
+        total = max(matched, round(matched / COVERAGE_MATCH_RATE))
         session.add(
             CoverageMetric(
                 scan_config_id=ctx.scan_config_id,

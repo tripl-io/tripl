@@ -84,23 +84,31 @@ def build_teams_card_message(
     return _wrap(card)
 
 
-def build_teams_test_message(*, destination_name: str, message: str) -> dict[str, object]:
-    """The Test button's card: same envelope, nothing that looks like an alert."""
+def build_teams_plain_message(
+    *, title: str, text: str, link: str | None = None
+) -> dict[str, object]:
+    """A card with a bold title, the text and an optional "Open in tripl" button.
+
+    For a message that is not an alert (``alerts_plain``): the same envelope as
+    an alert's card, with no facts that would make it look like one.
+    """
     card: dict[str, object] = {
         "$schema": ADAPTIVE_CARD_SCHEMA,
         "type": "AdaptiveCard",
         "version": ADAPTIVE_CARD_VERSION,
         "body": [
-            {
-                "type": "TextBlock",
-                "text": f"Tripl test message — {destination_name}",
-                "weight": "Bolder",
-                "wrap": True,
-            },
-            {"type": "TextBlock", "text": message, "wrap": True},
+            {"type": "TextBlock", "text": title, "weight": "Bolder", "wrap": True},
+            {"type": "TextBlock", "text": text, "wrap": True},
         ],
     }
+    if link:
+        card["actions"] = [{"type": "Action.OpenUrl", "title": "Open in tripl", "url": link}]
     return _wrap(card)
+
+
+def build_teams_test_message(*, destination_name: str, message: str) -> dict[str, object]:
+    """The Test button's card: same envelope, nothing that looks like an alert."""
+    return build_teams_plain_message(title=f"tripl test message — {destination_name}", text=message)
 
 
 def _wrap(card: dict[str, object]) -> dict[str, object]:

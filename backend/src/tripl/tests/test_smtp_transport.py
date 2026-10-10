@@ -13,7 +13,6 @@ fake would have passed on the broken code too.
 
 from __future__ import annotations
 
-import uuid
 from email.message import EmailMessage
 from typing import Any, get_args
 
@@ -193,9 +192,9 @@ async def test_the_smtp_test_names_the_missing_from_address(
 ) -> None:
     """A blank sender is the failure that leaves no trace anywhere else.
 
-    The transport never sees it: ``_send_password_reset_email`` returns early, so
-    a token is minted, the mail is dropped, and the requester is still told a
-    link is on its way.
+    The transport never sees it: ``email_can_send`` is false without a sender,
+    so no account mail is queued at all, and only the sign-in page's fallback
+    copy hints that anything is missing.
     """
     monkeypatch.setattr(settings, "smtp_from_address", "")
     await client.patch(
@@ -221,8 +220,9 @@ def test_a_display_name_sender_is_accepted_because_real_delivery_accepts_it() ->
     mattered — a diagnostic reporting success and the real send then failing.
     Five callers now share this one helper, which checks only the address part:
     the two send paths (worker/tasks/alerts.py, worker/tasks/alerts_channels.py),
-    the two test sends (services/_alerting_test_send.py, services/_email_test_send.py)
-    and the settings schema that saves the value (schemas/app_settings.py).
+    the destination test's plain send (worker/tasks/alerts_plain.py), the email
+    test send (services/_email_test_send.py) and the settings schema that saves
+    the value (schemas/app_settings.py).
 
     The original string comes back, display name intact — normalising it away
     would silently drop what the operator configured.
@@ -262,6 +262,7 @@ def test_the_alert_destination_test_send_accepts_a_display_name_sender(
     import tripl.worker.celery_app  # noqa: F401
     from tripl.services import _alerting_test_send, app_settings_service
     from tripl.worker.tasks import alerts
+    from tripl.worker.tasks.alerts_plain import ChannelTarget, send_plain_message
 
     sent: dict[str, object] = {}
     monkeypatch.setattr(
@@ -278,32 +279,17 @@ def test_the_alert_destination_test_send_accepts_a_display_name_sender(
     )
     monkeypatch.setattr(alerts, "_send_email_message", lambda **kw: sent.update(kw))
 
-    target = _alerting_test_send._TestTarget(
-        destination_id=uuid.uuid4(),
+    target = ChannelTarget(
         destination_type="email",
         destination_name="Ops",
-        message="body",
-        webhook_url=None,
-        bot_token=None,
-        chat_id=None,
-        target_url=None,
-        webhook_header_name=None,
-        webhook_header_value=None,
         email_recipients="ops@example.com",
         email_from_address="Tripl Alerts <no-reply@example.com>",
-        jira_base_url=None,
-        jira_auth_email=None,
-        jira_api_token=None,
-        jira_project_key=None,
-        jira_issue_type=None,
-        linear_api_key=None,
-        linear_team_id=None,
-        linear_state_id=None,
-        linear_label_ids=None,
         organization_id=DEFAULT_ORG_ID,
     )
 
-    _alerting_test_send._send_email(target)
+    send_plain_message(
+        target, _alerting_test_send._test_message(project_name="Shop", destination_name="Ops")
+    )
 
     assert sent["from_address"] == "Tripl Alerts <no-reply@example.com>"
 
