@@ -17,16 +17,18 @@ from tests.test_tools_e2e import call_tool
 from tripl_mcp.runtime import ALLOW_MAIN_ENV, Runtime
 
 
-@respx.mock(assert_all_called=False)
+@pytest.mark.respx(assert_all_called=False)
 async def test_create_event_behind_a_301_is_an_error_not_a_read(
-    stdio_runtime: Runtime, monkeypatch: pytest.MonkeyPatch
+    stdio_runtime: Runtime, monkeypatch: pytest.MonkeyPatch, respx_mock: respx.MockRouter
 ) -> None:
     monkeypatch.setenv(ALLOW_MAIN_ENV, "1")
     events_url = f"{API_BASE}/projects/demo/events"
     location = events_url.replace("http://", "https://", 1)
-    respx.post(events_url).mock(return_value=httpx.Response(301, headers={"Location": location}))
+    respx_mock.post(events_url).mock(
+        return_value=httpx.Response(301, headers={"Location": location})
+    )
     # Registered so a followed redirect would land somewhere observable.
-    target_get = respx.get(location).mock(return_value=httpx.Response(200, json={"items": []}))
+    target_get = respx_mock.get(location).mock(return_value=httpx.Response(200, json={"items": []}))
 
     is_error, text = await call_tool(
         "create_event",

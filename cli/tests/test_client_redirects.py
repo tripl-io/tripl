@@ -42,16 +42,16 @@ def make_client(http_client: httpx.AsyncClient | None = None) -> TriplClient:
         ("DELETE", 302),
     ],
 )
-@respx.mock(assert_all_called=False)
+@pytest.mark.respx(assert_all_called=False)
 async def test_a_redirected_write_raises_and_never_reaches_the_target(
-    method: str, status: int
+    method: str, status: int, respx_mock: respx.MockRouter
 ) -> None:
     location = f"{HTTPS_API_BASE}{PATH}"
-    respx.request(method, f"{API_BASE}{PATH}").mock(
+    respx_mock.request(method, f"{API_BASE}{PATH}").mock(
         return_value=httpx.Response(status, headers={"Location": location})
     )
-    target_get = respx.get(location).mock(return_value=httpx.Response(200, json=[]))
-    target_same_method = respx.request(method, location).mock(
+    target_get = respx_mock.get(location).mock(return_value=httpx.Response(200, json=[]))
+    target_same_method = respx_mock.request(method, location).mock(
         return_value=httpx.Response(201, json={"id": "ann-1"})
     )
 
@@ -65,18 +65,18 @@ async def test_a_redirected_write_raises_and_never_reaches_the_target(
     assert not target_same_method.called
 
 
-@respx.mock(assert_all_called=False)
-async def test_a_borrowed_pool_refuses_a_redirected_write_too() -> None:
+@pytest.mark.respx(assert_all_called=False)
+async def test_a_borrowed_pool_refuses_a_redirected_write_too(respx_mock: respx.MockRouter) -> None:
     """The CLI runner and stdio tripl-mcp lend one pool; that branch must hold the rule.
 
     The pool here follows redirects by default, so the test proves the per-request
     choice wins over whatever the lender configured.
     """
     location = f"{HTTPS_API_BASE}{PATH}"
-    respx.post(f"{API_BASE}{PATH}").mock(
+    respx_mock.post(f"{API_BASE}{PATH}").mock(
         return_value=httpx.Response(301, headers={"Location": location})
     )
-    target_get = respx.get(location).mock(return_value=httpx.Response(200, json=[]))
+    target_get = respx_mock.get(location).mock(return_value=httpx.Response(200, json=[]))
 
     async with httpx.AsyncClient(base_url=API_BASE, follow_redirects=True) as pool:
         with pytest.raises(TriplAPIError, match="redirected POST"):

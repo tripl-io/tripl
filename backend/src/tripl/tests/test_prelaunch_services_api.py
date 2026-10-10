@@ -191,13 +191,19 @@ def test_a_notification_cursor_round_trips_in_utc() -> None:
     assert at.tzinfo is not None
 
 
+# A fixed id: parametrize values are collected once per xdist worker, and a
+# random one would make each worker see different test ids.
+_FIXED_ID = uuid.UUID("00000000-0000-4000-8000-000000000001")
+
+
 @pytest.mark.parametrize(
     "foreign",
     [
-        encode_delivery_cursor(datetime(2026, 10, 9, tzinfo=UTC), uuid.uuid4()),
-        encode_inbox_cursor((True, datetime(2026, 10, 9, tzinfo=UTC), str(uuid.uuid4()))),
+        encode_delivery_cursor(datetime(2026, 10, 9, tzinfo=UTC), _FIXED_ID),
+        encode_inbox_cursor((True, datetime(2026, 10, 9, tzinfo=UTC), str(_FIXED_ID))),
         "not-a-cursor",
     ],
+    ids=["delivery", "inbox", "garbage"],
 )
 def test_another_lists_cursor_is_not_a_notification_cursor(foreign: str) -> None:
     with pytest.raises(HTTPException) as exc:
