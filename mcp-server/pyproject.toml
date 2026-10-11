@@ -2,7 +2,7 @@
 name = "tripl-mcp"
 # One version for the service, the `tripl` CLI and this server; bin/release.sh
 # writes it, and the `tripl` range below with it.
-version = "0.3.1"
+version = "0.3.2"
 description = "Standalone MCP server exposing a curated agent toolset over the tripl REST API"
 readme = "README.md"
 requires-python = ">=3.12"
@@ -64,7 +64,7 @@ dependencies = [
     # wheel carries this plain constraint alone (verified against the built
     # artifact, not assumed) and a consumer of the release resolves it from the
     # index.
-    "tripl>=0.3.1,<0.4",
+    "tripl>=0.3.2,<0.4",
 ]
 
 [project.urls]

@@ -33086,7 +33086,7 @@
   "info": {
     "description": "Analytics tracking plan service. Authenticate with an API key in `Authorization: Bearer tk_...`. Guide: https://docs.tripl.io/integrate/agent-api-guide",
     "title": "tripl",
-    "version": "0.3.1"
+    "version": "0.3.2"
   },
   "openapi": "3.1.0",
   "paths": {
