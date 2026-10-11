@@ -10,11 +10,13 @@ buckets on the header Cloudflare sets.
 from __future__ import annotations
 
 import importlib.util
+import inspect
 import sys
 from types import ModuleType, SimpleNamespace
 from typing import cast
 
 import pytest
+from fastapi.routing import APIRoute
 from httpx import AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession
 from starlette.datastructures import Headers
@@ -24,9 +26,12 @@ from tripl.api.v1 import auth as auth_routes
 from tripl.config import settings
 from tripl.middleware import rate_limit
 from tripl.middleware.rate_limit import (
+    INVITATION_ACCEPT_RATE_LIMIT_PER_HOUR,
     SSO_RATE_LIMIT_PER_MINUTE,
     STATUS_RATE_LIMIT_PER_MINUTE,
     _client_key,
+    invitation_accept_rate_limiter,
+    register_rate_limiter,
     sso_rate_limiter,
     status_rate_limiter,
 )
@@ -61,6 +66,28 @@ def test_status_takes_three_hundred_a_minute() -> None:
     assert STATUS_RATE_LIMIT_PER_MINUTE == 300
     assert status_rate_limiter.capacity == 300
     assert status_rate_limiter.per_seconds == 60.0
+
+
+def test_invitation_accept_has_its_own_hourly_bucket() -> None:
+    # Not sign-up's 3 an hour: a team invited together from one office
+    # address all joins in the same hour.
+    assert INVITATION_ACCEPT_RATE_LIMIT_PER_HOUR == 30
+    assert invitation_accept_rate_limiter.capacity == 30
+    assert invitation_accept_rate_limiter.per_seconds == 3600.0
+    assert invitation_accept_rate_limiter.name != register_rate_limiter.name
+    route = next(
+        r
+        for r in auth_routes.router.routes
+        if isinstance(r, APIRoute) and r.path.endswith("/accept")
+    )
+    # enforce() closes over exactly its limiter.
+    limiters = [
+        inspect.getclosurevars(d.call).nonlocals.get("limiter")
+        for d in route.dependant.dependencies
+        if d.call is not None
+    ]
+    assert invitation_accept_rate_limiter in limiters
+    assert register_rate_limiter not in limiters
 
 
 def test_provider_sign_in_follows_the_setting() -> None:

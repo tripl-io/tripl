@@ -130,7 +130,7 @@ READ_LIKE_MUTATING_PATHS = {
     # no account yet and therefore no role to gate on. Its authorization is the
     # single-use, expiring, owner-issued token itself, and MINTING one is
     # owner-only with API keys rejected (POST /users/invitations). Rate-limited
-    # on the register bucket.
+    # on its own invitation-accept bucket.
     "/api/v1/auth/invitations/{token}/accept",
     # Email verification (F20 hosted sign-up): mailing a fresh link to one's
     # own address (a browser session only, API keys refused) and redeeming a
