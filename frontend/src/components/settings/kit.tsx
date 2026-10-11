@@ -507,6 +507,10 @@ export function TextInput({
         ...(suffix
           ? { borderTopRightRadius: 0, borderBottomRightRadius: 0, borderRight: 'none' }
           : {}),
+        // Beside an affix the box takes what the affix leaves, but never less
+        // than room for a short value: a long prefix (the project address on
+        // Project › General) used to squeeze it to a sliver.
+        ...(prefix || suffix ? { flex: '1 1 0', minWidth: '12ch' } : {}),
       }}
     />
   )
@@ -540,10 +544,19 @@ function Affix({
   // The affix is glued to the input, so it has to take the same treatment:
   // a live chip welded to a dashed dead box reads as neither.
   const edge = disabled ? '1px dashed var(--border-strong)' : INPUT_EDGE
+  // One line, always: a wrapped affix grew taller than the 32px input beside
+  // it. When there is no room, a left affix loses its start, not the end next
+  // to the value (`…/o/acme/p/` still reads as the address); the title keeps
+  // the whole text.
+  const text = typeof children === 'string' ? children : undefined
   return (
     <span
       className="mono flex items-center text-body-sm"
+      title={text}
       style={{
+        minWidth: 0,
+        whiteSpace: 'nowrap',
+        overflow: 'hidden',
         padding: '0 10px',
         color: 'var(--fg-subtle)',
         background: disabled ? 'transparent' : 'var(--bg-sunken)',
@@ -554,7 +567,18 @@ function Affix({
           side === 'left' ? `${INPUT_RADIUS} 0 0 ${INPUT_RADIUS}` : `0 ${INPUT_RADIUS} ${INPUT_RADIUS} 0`,
       }}
     >
-      {children}
+      {side === 'left' ? (
+        // rtl on the clip box moves the ellipsis to the start; the inner ltr
+        // span keeps the slashes in reading order.
+        <span
+          className="block min-w-0 overflow-hidden text-ellipsis"
+          style={{ direction: 'rtl' }}
+        >
+          <span dir="ltr">{children}</span>
+        </span>
+      ) : (
+        <span className="block min-w-0 overflow-hidden text-ellipsis">{children}</span>
+      )}
     </span>
   )
 }
