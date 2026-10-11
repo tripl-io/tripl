@@ -602,13 +602,13 @@ Sign-in routes (unauthenticated):
 
 | Endpoint | Limiter | Default |
 |---|---|---|
-| `GET /api/v1/auth/sso/discover` | Shared status limiter | 100 / minute |
+| `GET /api/v1/auth/sso/discover` | Shared status limiter | 300 / minute |
 | `GET /api/v1/auth/sso/{org}/start` | Own SSO limiter (`RATE_LIMIT_SSO_PER_MINUTE`, `0` disables), shared by start, callback and ACS | 100 / minute (default) |
 | `GET /api/v1/auth/sso/{org}/callback` | Own SSO limiter (`RATE_LIMIT_SSO_PER_MINUTE`, `0` disables), shared by start, callback and ACS | 100 / minute (default) |
 | `POST /api/v1/auth/sso/{org}/saml/acs` | Own SSO limiter (`RATE_LIMIT_SSO_PER_MINUTE`, `0` disables), shared by start, callback and ACS | 100 / minute (default) |
 | `GET /api/v1/auth/google/start` | The same SSO limiter | 100 / minute (default) |
 | `GET /api/v1/auth/google/callback` | The same SSO limiter | 100 / minute (default) |
-| `GET /api/v1/auth/sso/link` | Shared status limiter | 100 / minute |
+| `GET /api/v1/auth/sso/link` | Shared status limiter | 300 / minute |
 | `POST /api/v1/auth/sso/link` | `RATE_LIMIT_LOGIN_PER_MINUTE` | 5 / minute |
 | `/scim/v2/{org}/*` | Own SCIM limiter, keyed per token (not per address) | 600 / minute |
 | `/scim/v2/{org}/*`, failed authentication | Own limiter, keyed per client address; only `401` answers draw on it, then `429` | 30 / minute |

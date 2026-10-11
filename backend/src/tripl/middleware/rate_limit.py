@@ -245,7 +245,7 @@ register_rate_limiter = limiter_for(
 # an env knob on purpose: there is no operational reason to tune it. It is a
 # SEPARATE limiter with its own "status" key prefix, so probing /auth/status
 # can never consume login/register quota (and vice versa).
-STATUS_RATE_LIMIT_PER_MINUTE = 100
+STATUS_RATE_LIMIT_PER_MINUTE = 300
 
 status_rate_limiter = limiter_for(STATUS_RATE_LIMIT_PER_MINUTE, per_seconds=60.0, name="status")
 

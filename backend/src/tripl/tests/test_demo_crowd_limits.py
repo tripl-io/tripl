@@ -57,9 +57,9 @@ def _fresh_rate_limit_module(monkeypatch: pytest.MonkeyPatch) -> ModuleType:
 # ── Limits ───────────────────────────────────────────────────────────────────
 
 
-def test_status_takes_a_hundred_a_minute() -> None:
-    assert STATUS_RATE_LIMIT_PER_MINUTE == 100
-    assert status_rate_limiter.capacity == 100
+def test_status_takes_three_hundred_a_minute() -> None:
+    assert STATUS_RATE_LIMIT_PER_MINUTE == 300
+    assert status_rate_limiter.capacity == 300
     assert status_rate_limiter.per_seconds == 60.0
 
 
