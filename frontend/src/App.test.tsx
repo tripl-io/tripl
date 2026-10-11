@@ -170,8 +170,9 @@ describe('App', () => {
     renderApp()
 
     expect(await screen.findByText('Sign in to tripl')).toBeInTheDocument()
-    // The register tab ("Create account") is distinct from the submit button.
-    expect(screen.getByText('Create account')).toBeInTheDocument()
+    // The register tab ("Create account") is distinct from the submit button;
+    // the tabs wait for the sign-in options probe to answer.
+    expect(await screen.findByText('Create account')).toBeInTheDocument()
   })
 
   it('redirects the legacy event-detail URL to the canonical monitoring route', async () => {
@@ -533,6 +534,9 @@ describe('App auth links', () => {
         return Promise.resolve(
           jsonResponse({ email: 'new@example.com', role: 'editor', expires_at: '2026-12-01T00:00:00Z' }),
         )
+      }
+      if (url.endsWith('/api/v1/auth/status')) {
+        return Promise.resolve(jsonResponse({ has_users: true }))
       }
       return Promise.reject(new Error(`Unexpected request: ${url}`))
     })

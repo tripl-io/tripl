@@ -1,4 +1,6 @@
 import logging
+import time
+from dataclasses import dataclass
 
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Request, Response, status
 from pydantic import BaseModel, EmailStr, Field, field_validator
@@ -124,6 +126,58 @@ def _queue_verification_email(
     )
 
 
+@dataclass(frozen=True)
+class _StatusFacts:
+    """The database-read part of ``/auth/status``."""
+
+    has_users: bool
+    registration_enabled: bool
+    email_configured: bool
+
+
+# The database-read part of ``/auth/status``, kept per worker for a few seconds
+# so a crowd loading the sign-in page costs one round of queries per worker per
+# window instead of one per visitor. Safe to share: the handler reads nothing
+# of the request (no cookie, header, user or organization) and the queries hit
+# the user count and the OPERATOR-scope settings row only. The rest of the
+# response comes from in-process settings and is built fresh every time.
+# Staleness: an empty instance is never cached (``has_users`` false is not
+# stored), so the first account is never told it is not the first and the
+# next visitor never sees the first-account note once it is taken. A
+# registration-mode or mail-relay change in Settings shows on the sign-in page
+# up to this many seconds late on each worker; harmless, as the register and
+# password-reset routes read those settings fresh and decide by them.
+_STATUS_CACHE_SECONDS = 5.0
+_status_cache: tuple[float, _StatusFacts] | None = None
+
+
+def reset_status_cache() -> None:
+    """Forget the cached ``/auth/status`` facts. For tests."""
+    global _status_cache
+    _status_cache = None
+
+
+async def _status_facts(session: AsyncSession, *, hosted: bool) -> _StatusFacts:
+    global _status_cache
+    now = time.monotonic()
+    if _status_cache is not None and now - _status_cache[0] < _STATUS_CACHE_SECONDS:
+        return _status_cache[1]
+    # A hosted instance has no first-user bootstrap, so it reports ``has_users``
+    # true without counting: no first-account note, and an unauthenticated
+    # caller cannot learn whether the service is empty.
+    has_users = True if hosted else await auth_service.has_any_users(session)
+    facts = _StatusFacts(
+        has_users=has_users,
+        registration_enabled=await auth_service.is_registration_allowed(
+            session, is_first_user=not has_users
+        ),
+        email_configured=(await account_mail.operator_mail(session)).can_send,
+    )
+    if has_users:
+        _status_cache = (now, facts)
+    return facts
+
+
 @router.get(
     "/status",
     response_model=AuthStatusResponse,
@@ -133,19 +187,13 @@ async def get_status(session: SessionDep) -> AuthStatusResponse:
     # Unauthenticated on purpose: the login/register screen queries this before
     # anyone is signed in to decide whether to show the first-account note and
     # whether a sign-up form is worth rendering at all.
-    # Rate limited on its own bucket (never shares login/register quota) so an
-    # unauthenticated caller can't hammer the COUNT(*) behind it.
-    # A hosted instance has no first-user bootstrap, so it reports ``has_users``
-    # true without counting: no first-account note, and an unauthenticated
-    # caller cannot learn whether the service is empty.
-    hosted = tenancy.multi_tenant()
-    has_users = True if hosted else await auth_service.has_any_users(session)
+    # Rate limited on its own bucket (never shares login/register quota), and
+    # the database part is cached briefly (``_status_facts``).
+    facts = await _status_facts(session, hosted=tenancy.multi_tenant())
     return AuthStatusResponse(
-        has_users=has_users,
-        registration_enabled=await auth_service.is_registration_allowed(
-            session, is_first_user=not has_users
-        ),
-        email_configured=(await account_mail.operator_mail(session)).can_send,
+        has_users=facts.has_users,
+        registration_enabled=facts.registration_enabled,
+        email_configured=facts.email_configured,
         deployment_mode=settings.deployment_mode,
         email_verification_required=email_verification_service.verification_required(),
         google_sign_in=google_login_service.enabled(),

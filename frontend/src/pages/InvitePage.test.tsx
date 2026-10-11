@@ -4,6 +4,7 @@ import { MemoryRouter, Route, Routes } from 'react-router-dom'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import InvitePage, { type InviteSignedInAccount } from './InvitePage'
 import { AUTH_QUERY_KEY } from '@/components/auth-context'
+import { authStatusKey } from '@/lib/queryKeys'
 import { at } from '@/test/at'
 
 
@@ -24,6 +25,10 @@ function renderInvitePage(
   qc = new QueryClient({ defaultOptions: { queries: { retry: false } } }),
   signedIn?: InviteSignedInAccount,
 ) {
+  // Answer the deployment-mode probe up front: the fetch stubs below refuse
+  // anything they do not expect, and a refused probe is retried for seconds
+  // before the password form shows.
+  qc.setQueryData(authStatusKey(), { has_users: true })
   return render(
     <QueryClientProvider client={qc}>
       <MemoryRouter initialEntries={[`/invite/${TOKEN}`]}>

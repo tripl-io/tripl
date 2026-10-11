@@ -175,15 +175,27 @@ def _client_key(request: Request, route: str) -> str:
     # Only trust proxy headers when explicitly enabled (rate_limit_trust_-
     # forwarded_for), and even then only behind a proxy that *overwrites* them.
     #
-    # When trust is enabled we prefer X-Real-IP: the shipped nginx config sets it
-    # to $remote_addr on every request, so it carries exactly one value the
-    # client cannot influence. Only when X-Real-IP is absent do we fall back to
+    # When trust is enabled and the operator named a client-IP header
+    # (rate_limit_client_ip_header, e.g. Cloudflare's CF-Connecting-IP), that
+    # header comes first: the edge sets it to the one address it saw, so it
+    # holds when a proxy in between rewrites X-Real-IP to its own peer. Without
+    # it, or when the request lacks it, we prefer X-Real-IP: the shipped nginx
+    # config sets it to $remote_addr on every request, so it carries exactly one
+    # value the client cannot influence. Only when X-Real-IP is absent do we fall back to
     # the RIGHTMOST X-Forwarded-For entry, the one the nearest proxy appended.
     # Everything left of it arrived from the client and may be invented: keying
     # on the leftmost entry gave a client behind an appending proxy a fresh
     # bucket per request. Behind more than one proxy the rightmost entry is the
     # previous hop, so its clients share one bucket; that is the safe failure.
     if settings.rate_limit_trust_forwarded_for:
+        header = settings.rate_limit_client_ip_header.strip()
+        if header:
+            # Only the rightmost entry counts, so naming an appended list header
+            # such as X-Forwarded-For cannot let a client pick its own bucket; a
+            # single-value header like CF-Connecting-IP is unaffected.
+            client_ip = request.headers.get(header, "").rsplit(",", 1)[-1].strip()
+            if client_ip:
+                return f"{route}:{client_ip}"
         real_ip = request.headers.get("x-real-ip", "").strip()
         if real_ip:
             return f"{route}:{real_ip}"
@@ -224,12 +236,16 @@ register_rate_limiter = limiter_for(
 )
 
 # ``/auth/status`` is an unauthenticated read the login screen queries before
-# anyone signs in, so it gets a modest fixed per-IP limit. A module constant
-# rather than an env knob on purpose: the endpoint only guards a cheap COUNT(*)
-# and there is no operational reason to tune it. It is a SEPARATE limiter with
-# its own "status" key prefix, so probing /auth/status can never consume
-# login/register quota (and vice versa).
-STATUS_RATE_LIMIT_PER_MINUTE = 30
+# anyone signs in, so it gets a fixed per-IP limit. Generous because a crowd
+# behind one address (conference Wi-Fi, an office NAT) loads the sign-in page
+# at once, and an exhausted bucket costs the page its sign-in buttons; the
+# handler serves a short-lived cached answer, so the limit is a ceiling on
+# abuse, not the database guard. The invitation preview (and an extension's
+# cheap unauthenticated reads) share this bucket. A module constant rather than
+# an env knob on purpose: there is no operational reason to tune it. It is a
+# SEPARATE limiter with its own "status" key prefix, so probing /auth/status
+# can never consume login/register quota (and vice versa).
+STATUS_RATE_LIMIT_PER_MINUTE = 100
 
 status_rate_limiter = limiter_for(STATUS_RATE_LIMIT_PER_MINUTE, per_seconds=60.0, name="status")
 
@@ -250,7 +266,9 @@ verify_email_rate_limiter = limiter_for(
 # through the identity provider (two requests) never eats the 5/min a password
 # sign-in has. The callback answers an exhausted bucket with a redirect, not a
 # 429 body (:func:`allow`): the browser is mid-redirect from the provider there.
-SSO_RATE_LIMIT_PER_MINUTE = 20
+# Configured by ``rate_limit_sso_per_minute`` (0 disables); the constant keeps
+# the configured value for extensions and their tests.
+SSO_RATE_LIMIT_PER_MINUTE = settings.rate_limit_sso_per_minute
 
 sso_rate_limiter = limiter_for(SSO_RATE_LIMIT_PER_MINUTE, per_seconds=60.0, name="sso")
 

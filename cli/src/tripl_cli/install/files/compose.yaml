@@ -46,9 +46,10 @@ x-app-environment: &app-environment
   SECURITY_HEADERS_ENABLED: "true"
   HSTS_ENABLED: ${HSTS_ENABLED:-true}
   RATE_LIMIT_ENABLED: "true"
-  # SERVE_FRONTEND/FRONTEND_DIST_DIR are baked into the image. The app is the
-  # edge here, so rate_limit_trust_forwarded_for stays at its False default —
-  # set it (and uvicorn --forwarded-allow-ips) true only behind a trusted proxy.
+  # SERVE_FRONTEND/FRONTEND_DIST_DIR are baked into the image.
+  # rate_limit_trust_forwarded_for keeps its False default unless .env sets
+  # RATE_LIMIT_TRUST_FORWARDED_FOR — set it true only when the proxy in front
+  # overwrites the client-IP header on every request (see the app's ports below).
   LOG_JSON: ${LOG_JSON:-true}
   # Demo kill switches. Without these two lines a value set in .env never reaches
   # the container, so the documented rollback switch does nothing.
@@ -130,9 +131,12 @@ x-app-environment: &app-environment
   HSTS_MAX_AGE_SECONDS: ${HSTS_MAX_AGE_SECONDS:-}
   RATE_LIMIT_LOGIN_PER_MINUTE: ${RATE_LIMIT_LOGIN_PER_MINUTE:-}
   RATE_LIMIT_REGISTER_PER_HOUR: ${RATE_LIMIT_REGISTER_PER_HOUR:-}
-  # Only meaningful behind a trusted proxy — see the note above about the app
-  # being the edge by default.
+  RATE_LIMIT_SSO_PER_MINUTE: ${RATE_LIMIT_SSO_PER_MINUTE:-}
+  # Only meaningful behind a trusted proxy that overwrites the client-IP header
+  # — see the note above. RATE_LIMIT_CLIENT_IP_HEADER is read only when
+  # RATE_LIMIT_TRUST_FORWARDED_FOR is true.
   RATE_LIMIT_TRUST_FORWARDED_FOR: ${RATE_LIMIT_TRUST_FORWARDED_FOR:-}
+  RATE_LIMIT_CLIENT_IP_HEADER: ${RATE_LIMIT_CLIENT_IP_HEADER:-}
   SMTP_HOST: ${SMTP_HOST:-}
   SMTP_PORT: ${SMTP_PORT:-}
   SMTP_USERNAME: ${SMTP_USERNAME:-}
@@ -257,8 +261,19 @@ services:
     restart: unless-stopped
     image: *app-image
     environment: *app-environment
+    # Loopback by default. The stack belongs behind the TLS proxy the deployment
+    # guide requires, and the app must be reachable only through it: a client
+    # that reaches :8000 directly can forge the client-IP header the proxy would
+    # overwrite and walk past the per-client rate limits, or, with that header
+    # untrusted, every request shares one bucket keyed on the proxy's address.
+    # Loopback is reachable only from processes on this host (or containers with
+    # network_mode: host). A proxy or tunnel in its own container should join
+    # this stack's network and target http://app:8000 instead, or set
+    # APP_BIND_ADDRESS to the docker bridge gateway (e.g. 172.17.0.1).
+    # APP_BIND_ADDRESS=0.0.0.0 in .env publishes it on every interface, e.g. for
+    # a TLS proxy or load balancer on another host — firewall it to that host.
     ports:
-      - "8000:8000"
+      - "${APP_BIND_ADDRESS:-127.0.0.1}:8000:8000"
     # Uploaded event photos: the local photo backend's default root
     # (./var/photos under the image's WORKDIR /app). Without a volume, every
     # redeploy recreates the container and discards the files while their

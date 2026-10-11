@@ -20,7 +20,7 @@ For tuning individual settings (logging, rate limits, metrics, AI/search feature
 ## Prerequisites
 
 - **Docker Engine** with the Compose v2 plugin (`docker compose`, not the legacy `docker-compose`).
-- **A TLS terminator in front of the app.** The production stack forces secure session cookies on and refuses dev-default credentials, so it expects to sit behind HTTPS. Terminate TLS in front of port `8000` (reverse proxy, load balancer, or platform ingress) and use an `https://` `APP_BASE_URL`. To preview the app over plain HTTP locally, use the dev stack instead (see [Local preview](#local-preview)).
+- **A TLS terminator in front of the app.** The production stack forces secure session cookies on and refuses dev-default credentials, so it expects to sit behind HTTPS. Terminate TLS in front of port `8000` (reverse proxy, tunnel, load balancer, or platform ingress) and use an `https://` `APP_BASE_URL`. The stack publishes that port on `127.0.0.1` only, so a proxy on another host needs `APP_BIND_ADDRESS` (see [Running behind a proxy](#running-behind-a-proxy)). To preview the app over plain HTTP locally, use the dev stack instead (see [Local preview](#local-preview)).
 - **Files on the deploy host:** `compose.yaml`, your `.env`, and the `infra/rabbitmq/` directory (the RabbitMQ service mounts `infra/rabbitmq/rabbitmq.conf`). `tripl install` writes all three; place them by hand only on the "Without the CLI" path. The `rabbitmq.conf` is not optional — Docker's answer to a missing bind-mount source is to create a *directory* there, after which RabbitMQ fails to start with an error naming neither tripl nor the mount.
 - **[`uv`](https://docs.astral.sh/uv/getting-started/installation/) on the deploy host — only if you take the CLI path.** `uvx tripl install` fetches the CLI from PyPI at run time and brings its own Python, so `uv` is the whole prerequisite; `pip install tripl` needs Python 3.12+ instead. The **"Without the CLI"** paths below need neither, only Docker.
 - **Outbound access to GHCR** (`ghcr.io`) to pull the image. If the package is private you must `docker login ghcr.io` first; see [Registry access](#registry-access).
@@ -113,9 +113,20 @@ The production stack hard-codes the security posture that `assert_production_rea
 
 ### Running behind a proxy
 
-The single container is normally the network edge, so the image does **not** pass uvicorn `--forwarded-allow-ips`, and the auth rate limiter keys on the real socket peer (`rate_limit_trust_forwarded_for` defaults to `false`). This is correct when nothing trusted sits in front rewriting client-IP headers.
+The production stack always sits behind the TLS terminator from the [prerequisites](#prerequisites), so the app is never the network edge. That has two consequences for the auth rate limiter, which keys on the client address.
 
-If you put a trusted reverse proxy or load balancer in front, set `RATE_LIMIT_TRUST_FORWARDED_FOR=true` and run uvicorn with `--proxy-headers --forwarded-allow-ips=<proxy>`. That is safe behind a proxy that either overwrites `X-Real-IP` with the client address or appends it to `X-Forwarded-For`, as long as clients cannot reach the API except through that proxy: the limiter reads `X-Real-IP`, else only the `X-Forwarded-For` entry the nearest proxy added. Never trust forwarded headers on a directly-exposed API — there a caller can set either header and rotate it per request to bypass the rate limit.
+**The app is reachable only through the proxy.** `compose.yaml` publishes port `8000` on `127.0.0.1` by default (`"${APP_BIND_ADDRESS:-127.0.0.1}:8000:8000"`), so only processes on the host itself reach it — a reverse proxy or tunnel installed on the host, or a container with `network_mode: host`. A proxy or tunnel running in its own container (cloudflared via `docker run`, or another compose project) cannot reach the host's loopback; either join it to the stack's compose network and point it at `http://app:8000`, which needs no published port, or set `APP_BIND_ADDRESS` to the docker bridge gateway (e.g. `172.17.0.1`) or `0.0.0.0` and firewall port `8000`. If the proxy or load balancer runs on another host, set `APP_BIND_ADDRESS=0.0.0.0` (or the one interface it connects through) in `.env` and firewall port `8000` to that host — a client that reaches the app directly can forge the client-IP header below and walk past the limits.
+
+**Upgrading:** earlier releases published `8000:8000` on every interface. Re-running `tripl install` rewrites `compose.yaml` to bind `127.0.0.1`, so check how your proxy reaches port `8000` before upgrading.
+
+**The limiter needs the client address from the proxy.** Out of the box `RATE_LIMIT_TRUST_FORWARDED_FOR` is `false` and the limiter keys on the socket peer — which, behind a proxy, is the proxy. Every visitor then shares one bucket, and a busy sign-in page answers `429` to everyone. Set `RATE_LIMIT_TRUST_FORWARDED_FOR=true` and make the proxy overwrite a client-IP header on every request:
+
+- **nginx and most reverse proxies:** `proxy_set_header X-Real-IP $remote_addr;`. The limiter reads `X-Real-IP`, else only the rightmost `X-Forwarded-For` entry — the one the nearest proxy appended.
+- **Cloudflare (proxied DNS or Cloudflare Tunnel):** Cloudflare overwrites `CF-Connecting-IP` with the visitor's address, so set `RATE_LIMIT_CLIENT_IP_HEADER=CF-Connecting-IP` and the limiter reads that header first, falling back to `X-Real-IP` only on a request that lacks it. A Cloudflare transform rule that sets `X-Real-IP` from the visitor address works too.
+
+Only name a header the proxy overwrites: a header it passes through untouched is whatever the client sent. Never trust forwarded headers on a directly-exposed API — there a caller can set any of them and rotate it per request to bypass the rate limit. The limiter reads these headers itself, so it needs no uvicorn `--forwarded-allow-ips` setting.
+
+Visitors behind one NAT address (conference Wi-Fi, an office) still count as one client. The limits on the routes a sign-in page needs are sized for that — 100 a minute each for `/auth/status` and for Google/OIDC sign-in (`RATE_LIMIT_SSO_PER_MINUTE`) — while password sign-in stays at 5 a minute. The full table is in [Security: rate limiting](./security.md#rate-limiting).
 
 ## The compose stack
 
@@ -133,7 +144,7 @@ If you put a trusted reverse proxy or load balancer in front, set `RATE_LIMIT_TR
 | `celery-beat` | tripl image | Runs `celery -A tripl.worker.celery_app beat` with the schedule at `/tmp/celerybeat-schedule`. Enqueues periodic jobs. Its container healthcheck is disabled. |
 | `mcp` | `${TRIPL_MCP_IMAGE:-ghcr.io/tripl-io/tripl-mcp}:${TRIPL_VERSION}` | **Not started by default** — it is behind `profiles: [mcp]`, so it needs `docker compose --profile mcp up -d`. Serves the [MCP server](../integrate/mcp-server.md) over streamable HTTP for agents. |
 
-In a default run only `app` publishes a port, `8000:8000`. With the `mcp` profile on, `mcp` publishes `127.0.0.1:8765:8765` — bound to loopback on purpose, since it forwards write-capable `tk_w_` keys verbatim and has no auth of its own, so put it behind the same reverse proxy or trusted network as the app before widening that bind.
+In a default run only `app` publishes a port, `127.0.0.1:8000:8000` — loopback unless `APP_BIND_ADDRESS` says otherwise (see [Running behind a proxy](#running-behind-a-proxy)). With the `mcp` profile on, `mcp` publishes `127.0.0.1:8765:8765` — bound to loopback on purpose, since it forwards write-capable `tk_w_` keys verbatim and has no auth of its own, so put it behind the same reverse proxy or trusted network as the app before widening that bind.
 
 The `app`, `celery-worker`, and `celery-beat` services all `depends_on` the `migrate` service completing, so workers never start against an un-migrated schema. `app` additionally waits for `postgres`, `rabbitmq`, and `redis` to be healthy.
 

@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { MemoryRouter } from 'react-router-dom'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -55,15 +55,25 @@ function mockAuthFetch(options: { emailConfigured?: boolean } = {}) {
   })
 }
 
-function renderAuth(initialEntry = '/auth') {
+const CHECKING_SIGN_IN_OPTIONS = 'Checking sign-in options…'
+
+/**
+ * Renders the page and, unless told not to, waits for the instance probe to
+ * settle: the sign-in tabs and form only appear once it has answered.
+ */
+async function renderAuth(initialEntry = '/auth', { settle = true } = {}) {
   const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
-  return render(
+  const result = render(
     <QueryClientProvider client={queryClient}>
       <MemoryRouter initialEntries={[initialEntry]}>
         <AuthPage />
       </MemoryRouter>
     </QueryClientProvider>,
   )
+  if (settle) {
+    await waitFor(() => expect(screen.queryByText(CHECKING_SIGN_IN_OPTIONS)).not.toBeInTheDocument())
+  }
+  return result
 }
 
 describe('AuthPage', () => {
@@ -75,8 +85,8 @@ describe('AuthPage', () => {
     vi.restoreAllMocks()
   })
 
-  it('shows sign-in copy in the card header by default (login mode)', () => {
-    renderAuth()
+  it('shows sign-in copy in the card header by default (login mode)', async () => {
+    await renderAuth()
 
     expect(
       screen.getByRole('heading', { name: 'Sign in to tripl' }),
@@ -86,8 +96,8 @@ describe('AuthPage', () => {
     ).toBeInTheDocument()
   })
 
-  it('updates the card title and subtitle to registration copy when the register tab is active', () => {
-    renderAuth()
+  it('updates the card title and subtitle to registration copy when the register tab is active', async () => {
+    await renderAuth()
 
     // The register tab is the only "Create account" control while login mode is active.
     fireEvent.click(screen.getByRole('button', { name: 'Create account' }))
@@ -106,8 +116,8 @@ describe('AuthPage', () => {
     ).not.toBeInTheDocument()
   })
 
-  it('restores the sign-in copy when switching back to Existing account', () => {
-    renderAuth()
+  it('restores the sign-in copy when switching back to Existing account', async () => {
+    await renderAuth()
 
     fireEvent.click(screen.getByRole('button', { name: 'Create account' }))
     fireEvent.click(screen.getByRole('button', { name: 'Existing account' }))
@@ -120,8 +130,8 @@ describe('AuthPage', () => {
     ).not.toBeInTheDocument()
   })
 
-  it('gives the register tab and submit button distinct accessible names', () => {
-    renderAuth()
+  it('gives the register tab and submit button distinct accessible names', async () => {
+    await renderAuth()
 
     fireEvent.click(screen.getByRole('button', { name: 'Create account' }))
 
@@ -130,8 +140,8 @@ describe('AuthPage', () => {
     expect(screen.getByRole('button', { name: 'Create your account' })).toBeInTheDocument()
   })
 
-  it('advertises the unified password policy on the register form', () => {
-    renderAuth()
+  it('advertises the unified password policy on the register form', async () => {
+    await renderAuth()
 
     fireEvent.click(screen.getByRole('button', { name: 'Create account' }))
 
@@ -142,8 +152,8 @@ describe('AuthPage', () => {
     ).toBeInTheDocument()
   })
 
-  it('exposes a forgot-password entry point in the login footer', () => {
-    renderAuth()
+  it('exposes a forgot-password entry point in the login footer', async () => {
+    await renderAuth()
 
     expect(
       screen.getByRole('button', { name: 'Forgot your password?' }),
@@ -155,7 +165,7 @@ describe('AuthPage', () => {
 
   it('sends a reset request and shows a neutral confirmation when email is configured', async () => {
     mockAuthFetch({ emailConfigured: true })
-    renderAuth()
+    await renderAuth()
 
     fireEvent.click(screen.getByRole('button', { name: 'Forgot your password?' }))
     fireEvent.change(screen.getByLabelText('Email'), {
@@ -170,9 +180,9 @@ describe('AuthPage', () => {
     expect(screen.queryByText(/no account/i)).not.toBeInTheDocument()
   })
 
-  it('opens the reset-request form from ?mode=forgot, the session dialog link', () => {
+  it('opens the reset-request form from ?mode=forgot, the session dialog link', async () => {
     mockAuthFetch({ emailConfigured: true })
-    renderAuth('/auth?mode=forgot')
+    await renderAuth('/auth?mode=forgot')
 
     expect(screen.getByRole('button', { name: 'Send reset link' })).toBeInTheDocument()
   })
@@ -186,7 +196,7 @@ describe('AuthPage', () => {
       }
       return Promise.reject(new Error(`Unhandled fetch: ${String(input)}`))
     })
-    renderAuth('/auth?mode=forgot')
+    await renderAuth('/auth?mode=forgot')
 
     expect(
       await screen.findByText(/This instance can't send email, so no reset link will arrive/),
@@ -199,7 +209,7 @@ describe('AuthPage', () => {
   // way to do it. Both ways back in exist now, and the page names them.
   it('says who can hand over a reset link when the instance has no email configured', async () => {
     mockAuthFetch({ emailConfigured: false })
-    renderAuth()
+    await renderAuth()
 
     fireEvent.click(screen.getByRole('button', { name: 'Forgot your password?' }))
     fireEvent.change(screen.getByLabelText('Email'), {
@@ -216,7 +226,7 @@ describe('AuthPage', () => {
 
   it('enters reset mode from an emailed ?reset_token link and confirms a new password', async () => {
     mockAuthFetch()
-    renderAuth('/auth?reset_token=tok-123')
+    await renderAuth('/auth?reset_token=tok-123')
 
     // The token in the URL switches the card straight into reset mode.
     expect(
@@ -236,7 +246,7 @@ describe('AuthPage', () => {
 
   it('shows the first-account owner note only on a fresh instance in register mode', async () => {
     mockStatus(false)
-    renderAuth()
+    await renderAuth()
 
     fireEvent.click(screen.getByRole('button', { name: 'Create account' }))
 
@@ -252,7 +262,7 @@ describe('AuthPage', () => {
   })
 
   it('hides the owner note on a provisioned instance', async () => {
-    renderAuth()
+    await renderAuth()
 
     // Let the /auth/status query settle (defaults to has_users: true).
     await waitFor(() => expect(globalThis.fetch).toHaveBeenCalled())
@@ -265,7 +275,7 @@ describe('AuthPage', () => {
 
   it('offers no sign-up form when the instance has registration closed', async () => {
     mockStatus(true, false)
-    renderAuth()
+    await renderAuth()
 
     // The policy is stated up front instead of being discovered from a 403 after
     // the visitor has filled in the form. It names who can reopen it, where
@@ -286,7 +296,7 @@ describe('AuthPage', () => {
   })
 
   it('keeps the sign-up tab on an instance with registration open', async () => {
-    renderAuth()
+    await renderAuth()
 
     await waitFor(() => expect(globalThis.fetch).toHaveBeenCalled())
 
@@ -296,7 +306,7 @@ describe('AuthPage', () => {
     expect(screen.queryByText(/Sign-ups are closed on this instance/)).not.toBeInTheDocument()
   })
   it('marks missing fields inline instead of a browser bubble, and sends nothing', async () => {
-    renderAuth()
+    await renderAuth()
     await waitFor(() => expect(globalThis.fetch).toHaveBeenCalledTimes(1))
 
     fireEvent.click(screen.getByRole('button', { name: 'Sign in' }))
@@ -314,7 +324,7 @@ describe('AuthPage', () => {
   })
 
   it('names the password rule under the field on a short register password', async () => {
-    renderAuth()
+    await renderAuth()
 
     fireEvent.click(screen.getByRole('button', { name: 'Create account' }))
     fireEvent.change(screen.getByLabelText('Email'), { target: { value: 'new@example.com' } })
@@ -334,7 +344,7 @@ describe('AuthPage', () => {
   // The form checked the length alone, so "correcthorsebattery" went out and
   // came back as "password: Value error, Password must be…".
   it('asks for the number and the symbol too, before sending anything', async () => {
-    renderAuth()
+    await renderAuth()
     await waitFor(() => expect(globalThis.fetch).toHaveBeenCalledTimes(1))
 
     fireEvent.click(screen.getByRole('button', { name: 'Create account' }))
@@ -376,7 +386,7 @@ describe('AuthPage', () => {
       }
       return Promise.reject(new Error(`Unexpected request: ${url}`))
     })
-    renderAuth()
+    await renderAuth()
 
     fireEvent.click(screen.getByRole('button', { name: 'Create account' }))
     fireEvent.change(screen.getByLabelText('Email'), { target: { value: 'new@example.com' } })
@@ -405,7 +415,7 @@ describe('AuthPage', () => {
       }
       return Promise.reject(new Error(`Unexpected request: ${url}`))
     })
-    renderAuth()
+    await renderAuth()
 
     fireEvent.change(screen.getByLabelText('Email'), { target: { value: 'who@example.com' } })
     // Any length: sign-in has no policy to check, and the server answers a
@@ -417,8 +427,8 @@ describe('AuthPage', () => {
     expect(screen.getByLabelText('Password')).not.toHaveAttribute('aria-invalid')
   })
 
-  it('states the password rule once, as the hint, not again as the placeholder', () => {
-    renderAuth()
+  it('states the password rule once, as the hint, not again as the placeholder', async () => {
+    await renderAuth()
     expect(screen.getByLabelText('Password')).toHaveAttribute('placeholder', 'Enter your password')
 
     fireEvent.click(screen.getByRole('button', { name: 'Create account' }))
@@ -427,7 +437,7 @@ describe('AuthPage', () => {
   })
 
   it('tells a later sign-up they join as a member and see projects once given access', async () => {
-    renderAuth()
+    await renderAuth()
     await waitFor(() => expect(globalThis.fetch).toHaveBeenCalled())
 
     fireEvent.click(screen.getByRole('button', { name: 'Create account' }))
@@ -446,7 +456,7 @@ describe('AuthPage', () => {
 
   it('leaves the first account one note: that it becomes the owner', async () => {
     mockStatus(false)
-    renderAuth()
+    await renderAuth()
 
     fireEvent.click(screen.getByRole('button', { name: 'Create account' }))
 
@@ -456,8 +466,8 @@ describe('AuthPage', () => {
     expect(screen.queryByText(/You join as a member/)).not.toBeInTheDocument()
   })
 
-  it('tells the product story the welcome screen tells, from the same pillars', () => {
-    renderAuth()
+  it('tells the product story the welcome screen tells, from the same pillars', async () => {
+    await renderAuth()
 
     expect(
       screen.getByRole('heading', { level: 1, name: 'Keep your product analytics honest.' }),
@@ -472,7 +482,7 @@ describe('AuthPage', () => {
     expect(screen.queryByText(/Slack and Telegram/)).not.toBeInTheDocument()
   })
 
-  it('holds the sign-up submit until the instance probe settles (F20)', async () => {
+  it('shows the sign-in options loading, not the password form, while the probe is pending', async () => {
     let answerStatus: (response: Response) => void = () => {}
     vi.spyOn(globalThis, 'fetch').mockImplementation((input: RequestInfo | URL) => {
       const url = urlOf(input)
@@ -483,26 +493,123 @@ describe('AuthPage', () => {
       }
       return Promise.reject(new Error(`Unexpected request: ${url}`))
     })
-    renderAuth()
+    await renderAuth('/auth', { settle: false })
 
-    fireEvent.click(screen.getByRole('button', { name: 'Create account' }))
-    const submit = screen.getByRole('button', { name: 'Create your account' })
-    // Hosted or not is still unknown, so the organization fields may be missing.
-    expect(submit).toBeDisabled()
-    // Signing in never depends on the probe.
-    fireEvent.click(screen.getByRole('button', { name: 'Existing account' }))
-    expect(screen.getByRole('button', { name: 'Sign in' })).toBeEnabled()
-    fireEvent.click(screen.getByRole('button', { name: 'Create account' }))
+    // On a public demo the form is useless, and it was what visitors saw.
+    expect(screen.getByText(CHECKING_SIGN_IN_OPTIONS)).toBeInTheDocument()
+    expect(screen.queryByLabelText('Password')).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Create account' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Forgot your password?' })).not.toBeInTheDocument()
 
     answerStatus(jsonResponse({ has_users: true, registration_enabled: true }))
-    await waitFor(() =>
-      expect(screen.getByRole('button', { name: 'Create your account' })).toBeEnabled(),
-    )
+    expect(await screen.findByLabelText('Password')).toBeInTheDocument()
+    expect(screen.queryByText(CHECKING_SIGN_IN_OPTIONS)).not.toBeInTheDocument()
   })
 
-  it('shows the product mark, a plain name placeholder and a password reveal', () => {
+  it('shows the reset form from a reset link while the probe is still pending', async () => {
+    vi.spyOn(globalThis, 'fetch').mockImplementation((input: RequestInfo | URL) => {
+      const url = urlOf(input)
+      if (url.endsWith('/api/v1/auth/status')) return new Promise<Response>(() => {})
+      return Promise.reject(new Error(`Unexpected request: ${url}`))
+    })
+    await renderAuth('/auth?reset_token=tok-123', { settle: false })
+
+    expect(screen.getByRole('heading', { name: 'Choose a new password' })).toBeInTheDocument()
+    expect(screen.getByLabelText('New password')).toBeInTheDocument()
+    expect(screen.queryByText(CHECKING_SIGN_IN_OPTIONS)).not.toBeInTheDocument()
+  })
+
+  describe('a refused or failing status probe', () => {
+    afterEach(() => {
+      vi.useRealTimers()
+    })
+
+    it('asks again after a 429 and then offers Google on a public demo', async () => {
+      // The retries back off for seconds; fake timers skip them.
+      vi.useFakeTimers({ shouldAdvanceTime: true })
+      let calls = 0
+      vi.spyOn(globalThis, 'fetch').mockImplementation((input: RequestInfo | URL) => {
+        const url = urlOf(input)
+        if (url.endsWith('/api/v1/auth/status')) {
+          calls += 1
+          return Promise.resolve(
+            calls === 1
+              ? jsonResponse({ detail: 'Too many requests' }, 429)
+              : jsonResponse({
+                  has_users: true,
+                  registration_enabled: false,
+                  google_sign_in: true,
+                  public_demo: true,
+                }),
+          )
+        }
+        return Promise.reject(new Error(`Unexpected request: ${url}`))
+      })
+      await renderAuth('/auth', { settle: false })
+
+      expect(screen.getByText(CHECKING_SIGN_IN_OPTIONS)).toBeInTheDocument()
+      await act(() => vi.advanceTimersByTimeAsync(5_000))
+
+      expect(await screen.findByRole('link', { name: 'Continue with Google' })).toBeInTheDocument()
+      expect(calls).toBe(2)
+      expect(screen.queryByLabelText('Password')).not.toBeInTheDocument()
+      expect(screen.queryByText(/Couldn't load all sign-in options/)).not.toBeInTheDocument()
+    })
+
+    it('keeps the form, says so and lets the visitor retry once the probe has failed for good', async () => {
+      vi.useFakeTimers({ shouldAdvanceTime: true })
+      let failing = true
+      let calls = 0
+      vi.spyOn(globalThis, 'fetch').mockImplementation((input: RequestInfo | URL) => {
+        const url = urlOf(input)
+        if (url.endsWith('/api/v1/auth/status')) {
+          calls += 1
+          return Promise.resolve(
+            failing
+              ? jsonResponse({ detail: 'Too many requests' }, 429)
+              : jsonResponse({ has_users: true, registration_enabled: true, google_sign_in: true }),
+          )
+        }
+        return Promise.reject(new Error(`Unexpected request: ${url}`))
+      })
+      await renderAuth('/auth', { settle: false })
+      await act(() => vi.advanceTimersByTimeAsync(30_000))
+
+      const notice = await screen.findByRole('alert')
+      expect(notice).toHaveTextContent("Couldn't load all sign-in options.")
+      // The first try and three retries.
+      expect(calls).toBe(4)
+      // An operator can still sign in with a password: the server is the gate.
+      expect(screen.getByLabelText('Password')).toBeInTheDocument()
+      expect(screen.queryByRole('link', { name: 'Continue with Google' })).not.toBeInTheDocument()
+
+      failing = false
+      fireEvent.click(screen.getByRole('button', { name: 'Retry' }))
+
+      expect(await screen.findByRole('link', { name: 'Continue with Google' })).toBeInTheDocument()
+      expect(screen.queryByText(/Couldn't load all sign-in options/)).not.toBeInTheDocument()
+    })
+
+    it('does not ask again after another 4xx', async () => {
+      let calls = 0
+      vi.spyOn(globalThis, 'fetch').mockImplementation((input: RequestInfo | URL) => {
+        const url = urlOf(input)
+        if (url.endsWith('/api/v1/auth/status')) {
+          calls += 1
+          return Promise.resolve(jsonResponse({ detail: 'Forbidden' }, 403))
+        }
+        return Promise.reject(new Error(`Unexpected request: ${url}`))
+      })
+      await renderAuth()
+
+      expect(await screen.findByRole('alert')).toHaveTextContent("Couldn't load all sign-in options.")
+      expect(calls).toBe(1)
+    })
+  })
+
+  it('shows the product mark, a plain name placeholder and a password reveal', async () => {
     mockStatus(true)
-    renderAuth()
+    await renderAuth()
 
     expect(screen.getByText('tripl')).toBeInTheDocument()
 
@@ -555,7 +662,7 @@ describe('AuthPage', () => {
 
     it('asks for the organization and derives its slug from the name until edited', async () => {
       mockHosted()
-      renderAuth()
+      await renderAuth()
       fireEvent.click(screen.getByRole('button', { name: 'Create account' }))
 
       const orgName = await screen.findByLabelText('Organization name')
@@ -574,7 +681,7 @@ describe('AuthPage', () => {
 
     it('refuses a malformed slug inline and sends nothing', async () => {
       const bodies = mockHosted()
-      renderAuth()
+      await renderAuth()
       fireEvent.click(screen.getByRole('button', { name: 'Create account' }))
 
       fireEvent.change(await screen.findByLabelText('Organization name'), { target: { value: 'Acme' } })
@@ -589,7 +696,7 @@ describe('AuthPage', () => {
 
     it('sends the organization with the sign-up', async () => {
       const bodies = mockHosted()
-      renderAuth()
+      await renderAuth()
       fireEvent.click(screen.getByRole('button', { name: 'Create account' }))
 
       fireEvent.change(await screen.findByLabelText('Organization name'), { target: { value: 'Acme Labs' } })
@@ -608,7 +715,7 @@ describe('AuthPage', () => {
   })
 
   it('keeps the self-hosted sign-up form free of organization fields', async () => {
-    renderAuth()
+    await renderAuth()
     await waitFor(() => expect(globalThis.fetch).toHaveBeenCalled())
     fireEvent.click(screen.getByRole('button', { name: 'Create account' }))
     expect(screen.queryByLabelText('Organization name')).toBeNull()
@@ -625,8 +732,8 @@ describe('AuthPage sign-in errors and extension panels', () => {
     vi.restoreAllMocks()
   })
 
-  it('shows a failed single sign-on in its own words, never the provider text', () => {
-    renderAuth('/auth?sso_error=email_not_verified')
+  it('shows a failed single sign-on in its own words, never the provider text', async () => {
+    await renderAuth('/auth?sso_error=email_not_verified')
 
     expect(screen.getByRole('alert')).toHaveTextContent(/did not confirm your email address/)
   })
@@ -639,14 +746,14 @@ describe('AuthPage sign-in errors and extension panels', () => {
     ['saml_signature_invalid', /not signed with a certificate this organization trusts/],
     ['saml_unsolicited', /started from your identity provider are not supported/],
     ['encrypted_assertion_unsupported', /turn assertion encryption off/],
-  ])('words the backend code %s specifically', (code, text) => {
-    renderAuth(`/auth?sso_error=${code}`)
+  ])('words the backend code %s specifically', async (code, text) => {
+    await renderAuth(`/auth?sso_error=${code}`)
 
     expect(screen.getByRole('alert')).toHaveTextContent(text)
   })
 
-  it('offers no single sign-on button without an extension that provides one', () => {
-    renderAuth()
+  it('offers no single sign-on button without an extension that provides one', async () => {
+    await renderAuth()
 
     expect(screen.queryByRole('button', { name: 'Sign in with SSO' })).toBeNull()
   })
@@ -699,21 +806,21 @@ describe('AuthPage sign-in errors and extension panels', () => {
 
     it('shows no Google button without a client', async () => {
       mockInstance({ google_sign_in: false })
-      renderAuth()
+      await renderAuth()
       await screen.findByRole('button', { name: 'Create account' })
       expect(screen.queryByRole('link', { name: 'Continue with Google' })).not.toBeInTheDocument()
     })
 
     it('a public demo takes no password sign-ups', async () => {
       mockInstance({ google_sign_in: true, public_demo: true })
-      renderAuth()
+      await renderAuth()
       await screen.findByRole('link', { name: 'Continue with Google' })
       expect(screen.queryByRole('button', { name: 'Create account' })).not.toBeInTheDocument()
     })
 
     it('explains a closed sign-up', async () => {
       mockInstance({ google_sign_in: true })
-      renderAuth('/auth?sso_error=signup_closed')
+      await renderAuth('/auth?sso_error=signup_closed')
       expect(
         await screen.findByText(/this instance is not taking new sign-ups/),
       ).toBeInTheDocument()

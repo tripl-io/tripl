@@ -393,16 +393,21 @@ own.
 | `RATE_LIMIT_ENABLED` | `true` | No | Master toggle for auth-endpoint rate limiting. |
 | `RATE_LIMIT_LOGIN_PER_MINUTE` | `5` | No | Login attempts per `(ip, route)` per minute. `0` disables this limit. |
 | `RATE_LIMIT_REGISTER_PER_HOUR` | `3` | No | Registrations per `(ip, route)` per hour. `0` disables this limit. |
-| `RATE_LIMIT_TRUST_FORWARDED_FOR` | `false` | No | Derive client IP from `X-Real-IP`, else the rightmost `X-Forwarded-For` entry (the one the nearest proxy appended), instead of the socket peer. |
+| `RATE_LIMIT_SSO_PER_MINUTE` | `100` | No | Google and OIDC sign-in requests (start and callback share the bucket) per client per minute. Kept high because many visitors can sign in from one NAT address (conference Wi-Fi, an office). `0` disables this limit. |
+| `RATE_LIMIT_TRUST_FORWARDED_FOR` | `false` | No | Derive client IP from `X-Real-IP` (or `RATE_LIMIT_CLIENT_IP_HEADER`), else the rightmost `X-Forwarded-For` entry (the one the nearest proxy appended), instead of the socket peer. |
+| `RATE_LIMIT_CLIENT_IP_HEADER` | empty | No | A header that carries the client address, read before `X-Real-IP`, e.g. `CF-Connecting-IP` behind Cloudflare. Read only when `RATE_LIMIT_TRUST_FORWARDED_FOR=true`; the proxy must overwrite it on every request. |
+| `APP_BIND_ADDRESS` | `127.0.0.1` | No | `compose.yaml` only, not an app setting: the host address the `app` container's port `8000` is published on. Loopback is reachable only from processes on the host (or containers with `network_mode: host`); a containerized proxy joins the stack's network and targets `http://app:8000`, or uses the docker bridge gateway (e.g. `172.17.0.1`) here; `0.0.0.0` publishes it on every interface. See [Running behind a proxy](./deployment.md#running-behind-a-proxy). |
 
 :::danger Only trust forwarded headers behind a trusted proxy
 With `REDIS_URL` set the buckets live in Redis and every worker shares one
 quota per client; without Redis each worker keeps its own. Leave
-`RATE_LIMIT_TRUST_FORWARDED_FOR=false` (the default) whenever the API is the
-edge — including the consolidated single container. Enable it only when every
-request reaches the API through a trusted proxy/LB that overwrites `X-Real-IP`
-or appends to `X-Forwarded-For`; on a directly exposed API a caller sets either
-header, rotates it per request and bypasses the limit.
+`RATE_LIMIT_TRUST_FORWARDED_FOR=false` (the default) whenever clients reach the
+API directly. Enable it only when every request reaches the API through a
+trusted proxy/LB that overwrites `X-Real-IP` (or the header named in
+`RATE_LIMIT_CLIENT_IP_HEADER`) or appends to `X-Forwarded-For`; on a directly
+exposed API a caller sets any of these headers, rotates it per request and
+bypasses the limit. Behind a proxy with it left `false`, every client shares
+the proxy's one bucket.
 :::
 
 ---

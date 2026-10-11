@@ -336,9 +336,11 @@ Locally, all of the above (except the warehouses) run under Docker Compose:
   [Release](../run/release.md)). The SPA goes through the API's
   `SecurityHeadersMiddleware`/`BrotliMiddleware`, so it gets the same CSP,
   headers and compression. The same image can sit behind your own reverse
-  proxy; because the app is otherwise the network edge,
-  `RATE_LIMIT_TRUST_FORWARDED_FOR` stays `false` (client-sent forwarded headers
-  are not trusted) unless a trusted proxy is added in front.
+  proxy. The production image always sits behind a TLS terminator, so it is
+  never the network edge: set `RATE_LIMIT_TRUST_FORWARDED_FOR=true` and have the
+  proxy overwrite a client-IP header, otherwise every visitor shares the
+  proxy's rate-limit bucket (see
+  [Running behind a proxy](../run/deployment.md#running-behind-a-proxy)).
 - Plan branch context travels as a `?branch=` query parameter threaded through
   every plan API call and the React Query keys; the active branch is persisted
   in `localStorage` per project slug.

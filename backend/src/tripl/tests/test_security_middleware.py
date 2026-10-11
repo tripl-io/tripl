@@ -160,6 +160,23 @@ def test_client_key_trusts_forwarded_for_when_enabled(
     assert key_b == "login:2.2.2.2"
 
 
+def test_client_ip_header_keys_on_its_rightmost_entry(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # An operator naming an appended list header must not hand the client the
+    # leftmost entries: rotating them has to land in the same bucket.
+    monkeypatch.setattr(settings, "rate_limit_trust_forwarded_for", True)
+    monkeypatch.setattr(settings, "rate_limit_client_ip_header", "x-forwarded-for")
+    keys = {
+        _client_key(
+            _FakeRequest(client_host="10.0.0.1", forwarded_for=spoofed),  # type: ignore[arg-type]
+            "login",
+        )
+        for spoofed in ("1.1.1.1, 9.9.9.9", "2.2.2.2, 9.9.9.9")
+    }
+    assert keys == {"login:9.9.9.9"}
+
+
 @pytest.mark.asyncio
 async def test_login_endpoint_returns_429_when_limit_exceeded(
     anon_client: AsyncClient,
@@ -195,8 +212,10 @@ async def test_status_endpoint_returns_429_without_consuming_login_quota(
     login_rate_limiter.reset()
     try:
         # Exhaust the status bucket. /auth/status is unauthenticated by design
-        # (the login screen polls it), so this limiter is its only abuse guard.
-        attempts = STATUS_RATE_LIMIT_PER_MINUTE + 1
+        # (the login screen polls it), so this limiter is its abuse guard.
+        # Twice the limit: at 100 a minute the bucket refills a token or two
+        # while the loop runs, so limit + 1 requests may not empty it.
+        attempts = STATUS_RATE_LIMIT_PER_MINUTE * 2
         last_status = 200
         for _ in range(attempts):
             response = await anon_client.get("/api/v1/auth/status")
