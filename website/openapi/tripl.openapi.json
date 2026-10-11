@@ -75,7 +75,7 @@
           "auth"
         ],
         "summary": "Preview Invitation",
-        "description": "Show who an invitation is for, before the invitee has an account.\n\nUnauthenticated by necessity \u2014 the whole point is that this person cannot\nsign in yet. It discloses nothing the token holder does not already have:\nthe address it was issued to, the organization role it grants, and when it lapses. It\ndoes not reveal whether the instance has other users, or who they are.\n\nShares the cheap /status bucket rather than the register bucket: previewing\nis a read, and it must not consume the quota the invitee needs to actually\nredeem. Unknown, expired and used tokens all return the same 400.",
+        "description": "Show who an invitation is for, before the invitee has an account.\n\nUnauthenticated by necessity \u2014 the whole point is that this person cannot\nsign in yet. It discloses nothing the token holder does not already have:\nthe address it was issued to, the organization role it grants, and when it lapses. It\ndoes not reveal whether the instance has other users, or who they are.\n\nShares the cheap /status bucket rather than the redeem bucket: previewing\nis a read, and it must not consume the quota the invitee needs to actually\nredeem. Unknown, expired and used tokens all return the same 400.",
         "operationId": "preview_invitation_api_v1_auth_invitations__token__get",
         "parameters": [
           {
