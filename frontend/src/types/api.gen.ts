@@ -100,7 +100,7 @@ export interface paths {
          *     the address it was issued to, the organization role it grants, and when it lapses. It
          *     does not reveal whether the instance has other users, or who they are.
          *
-         *     Shares the cheap /status bucket rather than the register bucket: previewing
+         *     Shares the cheap /status bucket rather than the redeem bucket: previewing
          *     is a read, and it must not consume the quota the invitee needs to actually
          *     redeem. Unknown, expired and used tokens all return the same 400.
          */

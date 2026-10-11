@@ -153,9 +153,9 @@ The middleware reads `CONTENT_SECURITY_POLICY`, `SERVE_FRONTEND`, `HSTS_ENABLED`
 | `POST /api/v1/auth/register` | `RATE_LIMIT_REGISTER_PER_HOUR` | 3 / hour |
 | `POST /api/v1/auth/password-reset/request` | `RATE_LIMIT_LOGIN_PER_MINUTE` | 5 / minute |
 | `POST /api/v1/auth/password-reset/confirm` | `RATE_LIMIT_LOGIN_PER_MINUTE` | 5 / minute |
-| `GET /api/v1/auth/status` | Shared status limiter (fixed, not configurable) | 100 / minute |
-| `GET /api/v1/auth/invitations/{token}` | Shared status limiter | 100 / minute |
-| `POST /api/v1/auth/invitations/{token}/accept` | `RATE_LIMIT_REGISTER_PER_HOUR` | 3 / hour |
+| `GET /api/v1/auth/status` | Shared status limiter (fixed, not configurable) | 300 / minute |
+| `GET /api/v1/auth/invitations/{token}` | Shared status limiter | 300 / minute |
+| `POST /api/v1/auth/invitations/{token}/accept` | Invitation-accept limiter (fixed, not configurable) | 30 / hour |
 | `POST /api/v1/auth/verify-email/request` | Own verification limiter (fixed, not configurable) | 10 / hour |
 | `POST /api/v1/auth/verify-email/confirm` | `RATE_LIMIT_LOGIN_PER_MINUTE` | 5 / minute |
 | `GET /api/v1/auth/google/start` | `RATE_LIMIT_SSO_PER_MINUTE` — the sign-in limiter, shared by start and callback (and by OIDC and, on an Enterprise server, single sign-on) | 100 / minute |

@@ -17,6 +17,7 @@ from tripl.auth_utils import hash_session_token
 from tripl.config import settings
 from tripl.middleware.rate_limit import (
     enforce,
+    invitation_accept_rate_limiter,
     login_rate_limiter,
     register_rate_limiter,
     status_rate_limiter,
@@ -259,7 +260,7 @@ async def preview_invitation(session: SessionDep, token: str) -> InvitationPrevi
     the address it was issued to, the organization role it grants, and when it lapses. It
     does not reveal whether the instance has other users, or who they are.
 
-    Shares the cheap /status bucket rather than the register bucket: previewing
+    Shares the cheap /status bucket rather than the redeem bucket: previewing
     is a read, and it must not consume the quota the invitee needs to actually
     redeem. Unknown, expired and used tokens all return the same 400.
     """
@@ -276,7 +277,7 @@ async def preview_invitation(session: SessionDep, token: str) -> InvitationPrevi
     "/invitations/{token}/accept",
     response_model=AuthUserResponse,
     status_code=status.HTTP_201_CREATED,
-    dependencies=[Depends(enforce(register_rate_limiter))],
+    dependencies=[Depends(enforce(invitation_accept_rate_limiter))],
 )
 async def accept_invitation(
     request: Request,

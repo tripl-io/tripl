@@ -245,9 +245,20 @@ register_rate_limiter = limiter_for(
 # an env knob on purpose: there is no operational reason to tune it. It is a
 # SEPARATE limiter with its own "status" key prefix, so probing /auth/status
 # can never consume login/register quota (and vice versa).
-STATUS_RATE_LIMIT_PER_MINUTE = 100
+STATUS_RATE_LIMIT_PER_MINUTE = 300
 
 status_rate_limiter = limiter_for(STATUS_RATE_LIMIT_PER_MINUTE, per_seconds=60.0, name="status")
+
+# Redeeming an invitation (``/auth/invitations/{token}/accept``): its own
+# hourly bucket rather than sign-up's 3 an hour, so a team invited together
+# from one office address can all join in the same hour. The single-use,
+# expiring token is the real gate; this bucket only caps account creation
+# from one address. A module constant for the same reason as the status one.
+INVITATION_ACCEPT_RATE_LIMIT_PER_HOUR = 30
+
+invitation_accept_rate_limiter = limiter_for(
+    INVITATION_ACCEPT_RATE_LIMIT_PER_HOUR, per_seconds=3600.0, name="invitation_accept"
+)
 
 # ``/auth/verify-email/request`` sends a mail through the operator's relay each
 # time it is accepted, so it gets its own small hourly bucket: resending never

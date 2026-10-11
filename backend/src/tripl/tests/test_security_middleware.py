@@ -213,7 +213,7 @@ async def test_status_endpoint_returns_429_without_consuming_login_quota(
     try:
         # Exhaust the status bucket. /auth/status is unauthenticated by design
         # (the login screen polls it), so this limiter is its abuse guard.
-        # Twice the limit: at 100 a minute the bucket refills a token or two
+        # Twice the limit: at 300 a minute the bucket refills a few tokens
         # while the loop runs, so limit + 1 requests may not empty it.
         attempts = STATUS_RATE_LIMIT_PER_MINUTE * 2
         last_status = 200
