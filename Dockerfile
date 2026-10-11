@@ -89,9 +89,10 @@ EXPOSE 8000
 HEALTHCHECK --interval=30s --timeout=5s --start-period=20s --retries=3 \
     CMD ["python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
 
-# This single container is the network edge, so we do NOT pass uvicorn
-# --forwarded-allow-ips='*': request.client.host is the real peer and the rate
-# limiter keys on it (rate_limit_trust_forwarded_for defaults False). If you add
-# a trusted proxy/LB in front, add --proxy-headers --forwarded-allow-ips=<proxy>
-# and set RATE_LIMIT_TRUST_FORWARDED_FOR=true.
+# We do NOT pass uvicorn --forwarded-allow-ips='*': request.client.host stays the
+# real socket peer, and the rate limiter keys on it while
+# rate_limit_trust_forwarded_for keeps its False default. Behind the TLS proxy a
+# deployment puts in front (compose.yaml publishes this port on loopback only),
+# set RATE_LIMIT_TRUST_FORWARDED_FOR=true instead: the limiter then reads the
+# client-IP header the proxy overwrites itself, without uvicorn's help.
 CMD ["sh", "-c", "exec uvicorn tripl.main:app --host 0.0.0.0 --port 8000 --workers ${UVICORN_WORKERS:-4}"]

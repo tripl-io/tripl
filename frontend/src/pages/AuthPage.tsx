@@ -10,6 +10,7 @@ import { Chip } from '@/components/primitives/chip'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
+import { Skeleton } from '@/components/ui/skeleton'
 import { Label } from '@/components/ui/label'
 import { TrifoldMark } from '@/components/states/brand-mark'
 import { PasswordInput } from '@/components/ui/password-input'
@@ -180,10 +181,10 @@ export default function AuthPage() {
   // before this page first paints.
   const statusQuery = useQuery(authStatusQueryOptions())
   const isFreshInstance = statusQuery.data?.has_users === false
-  // Only a definite `false` closes the door in the UI. While the probe is in
-  // flight (or if it failed) we keep offering sign-up — the server is the real
-  // gate and still answers 403; guessing "closed" here would hide the form on
-  // an open instance every time the page loads.
+  // Only a definite `false` closes the door in the UI. If the probe failed we
+  // keep offering sign-up — the server is the real gate and still answers 403;
+  // guessing "closed" here would hide the form on an open instance whenever
+  // the probe is refused.
   // A public demo signs visitors up with Google only.
   const registrationClosed =
     statusQuery.data?.registration_enabled === false || statusQuery.data?.public_demo === true
@@ -215,6 +216,15 @@ export default function AuthPage() {
     : registrationClosed && chosenMode === 'register'
       ? 'login'
       : chosenMode
+  // Until the probe answers (retries included) the sign-in tabs cannot know
+  // whether the password form or the public demo's Google button belongs on
+  // the card, and showing the form first is what a demo visitor was left with
+  // when the probe was refused. The reset, forgot and extension forms do not
+  // wait on it.
+  const signInOptionsLoading = statusQuery.isPending
+  // The probe failed for good: the form stays (the server is the real gate),
+  // and the page says some ways in may be missing, with a way to ask again.
+  const signInOptionsFailed = statusQuery.isError && statusQuery.data === undefined
 
   const authMutation = useMutation({
     meta: SILENT_ERROR_META,
@@ -288,11 +298,10 @@ export default function AuthPage() {
     password:
       (submitted ? passwordError(password, passwordKind) : null) ?? authServer.fields.password ?? null,
   }
+  // The sign-up form waits for the probe (above), so whether this is a hosted
+  // instance, and the organization fields belong on it, is known by then —
+  // unless the probe failed, when the server's 422 names what is missing.
   const askOrg = mode === 'register' && hosted
-  // Until the probe settles the page cannot know whether this is a hosted
-  // instance, so it cannot know whether the organization fields belong on the
-  // form: a sign-up sent now would go without them and bounce off the server.
-  const registerWaitingForStatus = mode === 'register' && statusQuery.isPending
   const orgErrors = {
     name: submitted && askOrg ? orgNameError(orgName) : null,
     slug: submitted && askOrg ? orgSlugError(orgSlug) : null,
@@ -397,7 +406,33 @@ export default function AuthPage() {
               </div>
             )}
 
-            {isAuthTab && !registrationClosed && (
+            {isAuthTab && signInOptionsLoading && (
+              <div role="status" aria-live="polite" className="space-y-4">
+                <p className="text-body text-fg-tertiary">Checking sign-in options…</p>
+                <Skeleton className="h-10 w-full rounded-lg" />
+                <Skeleton className="h-10 w-full rounded-lg" />
+              </div>
+            )}
+
+            {isAuthTab && signInOptionsFailed && (
+              <div
+                role="alert"
+                className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-warning/25 bg-warning-soft px-3 py-2 text-body leading-6 text-fg"
+              >
+                <span>Couldn't load all sign-in options.</span>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  disabled={statusQuery.isFetching}
+                  onClick={() => void statusQuery.refetch()}
+                >
+                  {statusQuery.isFetching ? 'Retrying…' : 'Retry'}
+                </Button>
+              </div>
+            )}
+
+            {isAuthTab && !registrationClosed && !signInOptionsLoading && (
               <div className="grid grid-cols-2 gap-2 rounded-xl border border-border bg-bg-sunken p-1">
                 <button
                   type="button"
@@ -472,7 +507,7 @@ export default function AuthPage() {
               </div>
             )}
 
-            {isAuthTab && !googleOnly && (
+            {isAuthTab && !googleOnly && !signInOptionsLoading && (
               <form
                 className="space-y-4"
                 // Validated here, not by the browser's one-field-at-a-time
@@ -637,7 +672,7 @@ export default function AuthPage() {
                   type="submit"
                   size="lg"
                   className="w-full justify-center"
-                  disabled={authMutation.isPending || registerWaitingForStatus}
+                  disabled={authMutation.isPending}
                 >
                   {authMutation.isPending ? 'Working…' : submitLabel}
                   {!authMutation.isPending && <ArrowRight className="h-4 w-4" />}
@@ -645,7 +680,7 @@ export default function AuthPage() {
               </form>
             )}
 
-            {mode === 'login' && !googleOnly && extensionAuthPanels.length > 0 && (
+            {mode === 'login' && !googleOnly && !signInOptionsLoading && extensionAuthPanels.length > 0 && (
               <div className="space-y-4">
                 <div className="flex items-center gap-3 text-body-sm text-fg-subtle" aria-hidden="true">
                   <span className="h-px flex-1 bg-border" />
@@ -865,7 +900,7 @@ export default function AuthPage() {
               </p>
             )}
 
-            {mode === 'login' && !googleOnly && (
+            {mode === 'login' && !googleOnly && !signInOptionsLoading && (
               <div className="space-y-2 text-body leading-6 text-fg-subtle">
                 <p>Use the same account across catalog, monitoring, and alerting workflows.</p>
                 <button

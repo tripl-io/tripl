@@ -55,6 +55,7 @@ _app_settings.apply_startup_service_overrides = lambda session=None: []
 from tripl.main import app  # noqa: E402
 
 _app_settings.apply_startup_service_overrides = _real_apply_startup_service_overrides
+from tripl.api.v1.auth import reset_status_cache  # noqa: E402
 from tripl.middleware.org_context import OrgRef, bind_org, reset_org  # noqa: E402
 from tripl.middleware.rate_limit import reset_rate_limiters  # noqa: E402
 from tripl.middleware.request_id import bound_request_id  # noqa: E402
@@ -203,8 +204,10 @@ def _reset_rate_limiters() -> None:
 
     Every limiter, an extension's too: a suite that reuses these fixtures
     (``pytest_plugins``) gets its own limiters reset without naming them.
+    The cached ``/auth/status`` facts go too, so no test sees another's.
     """
     reset_rate_limiters()
+    reset_status_cache()
 
 
 async def override_get_session() -> AsyncGenerator[AsyncSession]:

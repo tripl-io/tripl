@@ -87,6 +87,14 @@ function renderArea(section: string, search = '', auth: AuthContextValue = owner
 
 beforeEach(() => {
   window.localStorage.clear()
+  // A self-hosted answer by default; the public-demo block below overrides it.
+  // Left unanswered, the probe retries for seconds and keeps the gated
+  // sections behind their fallback past the find timeout.
+  vi.spyOn(authApi, 'status').mockResolvedValue({
+    has_users: true,
+    registration_enabled: false,
+    public_demo: false,
+  })
 })
 
 afterEach(() => {

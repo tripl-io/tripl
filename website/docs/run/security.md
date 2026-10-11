@@ -153,13 +153,21 @@ The middleware reads `CONTENT_SECURITY_POLICY`, `SERVE_FRONTEND`, `HSTS_ENABLED`
 | `POST /api/v1/auth/register` | `RATE_LIMIT_REGISTER_PER_HOUR` | 3 / hour |
 | `POST /api/v1/auth/password-reset/request` | `RATE_LIMIT_LOGIN_PER_MINUTE` | 5 / minute |
 | `POST /api/v1/auth/password-reset/confirm` | `RATE_LIMIT_LOGIN_PER_MINUTE` | 5 / minute |
-| `GET /api/v1/auth/status` | Shared status limiter | 30 / minute |
-| `GET /api/v1/auth/invitations/{token}` | Shared status limiter | 30 / minute |
+| `GET /api/v1/auth/status` | Shared status limiter (fixed, not configurable) | 100 / minute |
+| `GET /api/v1/auth/invitations/{token}` | Shared status limiter | 100 / minute |
 | `POST /api/v1/auth/invitations/{token}/accept` | `RATE_LIMIT_REGISTER_PER_HOUR` | 3 / hour |
 | `POST /api/v1/auth/verify-email/request` | Own verification limiter (fixed, not configurable) | 10 / hour |
 | `POST /api/v1/auth/verify-email/confirm` | `RATE_LIMIT_LOGIN_PER_MINUTE` | 5 / minute |
-| `GET /api/v1/auth/google/start` | Own sign-in limiter (fixed, not configurable), shared by start and callback (and, on an Enterprise server, single sign-on) | 20 / minute |
-| `GET /api/v1/auth/google/callback` | The same sign-in limiter | 20 / minute |
+| `GET /api/v1/auth/google/start` | `RATE_LIMIT_SSO_PER_MINUTE` — the sign-in limiter, shared by start and callback (and by OIDC and, on an Enterprise server, single sign-on) | 100 / minute |
+| `GET /api/v1/auth/google/callback` | The same sign-in limiter | 100 / minute |
+
+The status and sign-in limits are high on purpose. The sign-in page reads
+`/auth/status` to decide which sign-in options to show, and a room full of
+visitors behind one NAT address (conference Wi-Fi, an office) is one client to
+the limiter. Each worker caches the database read behind the status answer for
+about five seconds, so a burst of page loads costs the server little; Google and OIDC sign-in allow 100 requests
+a minute per client (`RATE_LIMIT_SSO_PER_MINUTE`, `0` disables it). Password
+sign-in stays at 5 a minute.
 
 The verification-link request has a bucket of its own, so resending a link does
 not use up the login or sign-up quota, and a signed-in caller cannot turn the
@@ -174,9 +182,9 @@ with a `Retry-After` header. To turn rate limiting off entirely, set
 `RATE_LIMIT_ENABLED=false`.
 
 Set an individual route's limit to `0` to disable that route limiter while
-leaving the other one active. Use `RATE_LIMIT_ENABLED=false` to disable both.
+leaving the others active. Use `RATE_LIMIT_ENABLED=false` to disable all of them.
 
-**Client-IP source — read this before exposing the API directly.** By default the limiter keys on the real socket peer (`request.client.host`), which is correct when the API is the edge (including the single-container `SERVE_FRONTEND` deploy). `RATE_LIMIT_TRUST_FORWARDED_FOR` defaults to **false** on purpose: a raw `X-Forwarded-For` is attacker-controlled, so trusting it on a directly-exposed API lets an unauthenticated caller rotate the header per request and bypass the limit entirely. Enable it **only** when every request reaches the API through a trusted proxy that *overwrites* `X-Real-IP` with the true client address (nginx does this with `proxy_set_header X-Real-IP $remote_addr;`) or appends it to `X-Forwarded-For`. When enabled the limiter prefers `X-Real-IP`, falling back to the rightmost `X-Forwarded-For` entry, the one the nearest proxy appended. Everything to its left came from the client. Behind more than one proxy that entry is the previous hop, so its clients share one allowance; set `X-Real-IP` at the edge to avoid that.
+**Client-IP source — read this before exposing the API directly.** By default the limiter keys on the real socket peer (`request.client.host`), which is correct only when clients reach the API directly. Behind a proxy that peer is the proxy, so every client shares one bucket until you trust the header the proxy sets. `RATE_LIMIT_TRUST_FORWARDED_FOR` defaults to **false** on purpose: a raw `X-Forwarded-For` is attacker-controlled, so trusting it on a directly-exposed API lets an unauthenticated caller rotate the header per request and bypass the limit entirely. Enable it **only** when every request reaches the API through a trusted proxy that *overwrites* `X-Real-IP` with the true client address (nginx does this with `proxy_set_header X-Real-IP $remote_addr;`) or appends it to `X-Forwarded-For`. When enabled the limiter prefers `X-Real-IP`, falling back to the rightmost `X-Forwarded-For` entry, the one the nearest proxy appended. Everything to its left came from the client. Behind more than one proxy that entry is the previous hop, so its clients share one allowance; set `X-Real-IP` at the edge to avoid that. If your edge already carries the client address in a header of its own, name it in `RATE_LIMIT_CLIENT_IP_HEADER` and the limiter reads it before `X-Real-IP` — behind Cloudflare, `CF-Connecting-IP`, which Cloudflare overwrites on every request. Like `X-Real-IP`, it is read only with `RATE_LIMIT_TRUST_FORWARDED_FOR=true`, and only a header the proxy overwrites is safe to name. The shipped `compose.yaml` publishes the app on `127.0.0.1` only (`APP_BIND_ADDRESS`), so a client cannot reach it around the proxy and forge the header.
 
 :::warning
 Without Redis the limiter is **per worker, in memory**: with multiple Uvicorn/Gunicorn workers or replicas, each holds its own buckets, so the effective limit is roughly the configured value times the worker count. Set `REDIS_URL` (the shipped compose files do) to make it one aggregate cap.
@@ -836,7 +844,7 @@ Transport and headers (your responsibility — not checked by the app):
 - [ ] TLS terminated by a reverse proxy / LB in front of the API.
 - [ ] `HSTS_ENABLED=true` only after HTTPS is verified end to end.
 - [ ] `SECURITY_HEADERS_ENABLED=true` (default); set a reviewed `CONTENT_SECURITY_POLICY` if you are not relying on the SPA default.
-- [ ] If a proxy sits in front, set `RATE_LIMIT_TRUST_FORWARDED_FOR=true` **and** confirm the proxy overwrites `X-Real-IP` on every request; otherwise leave it `false`.
+- [ ] If a proxy sits in front, set `RATE_LIMIT_TRUST_FORWARDED_FOR=true` **and** confirm the proxy overwrites `X-Real-IP` (or the header named in `RATE_LIMIT_CLIENT_IP_HEADER`) on every request; otherwise leave it `false`. Keep the app's port unreachable except through that proxy (`APP_BIND_ADDRESS` stays `127.0.0.1` unless the proxy is on another host).
 
 Operations:
 

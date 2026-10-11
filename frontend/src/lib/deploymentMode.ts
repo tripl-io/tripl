@@ -1,20 +1,50 @@
 import { queryOptions, useQuery } from '@tanstack/react-query'
 import { authApi, type AuthStatusResponse } from '@/api/auth'
+import { ApiError } from '@/api/client'
 import { SILENT_ERROR_META } from '@/lib/errorFeedback'
 import { useIsPlatformAdmin } from '@/lib/permissions'
 import { authStatusKey } from '@/lib/queryKeys'
 
+/** Retries of a failed `GET /auth/status` after the first try. */
+export const AUTH_STATUS_RETRIES = 3
+
+/**
+ * Whether a failed `GET /auth/status` is worth asking again: a 429 (a crowd
+ * behind one address — conference Wi-Fi, an office NAT — shares the per-client
+ * limit), the client's own timeout (408) and an unreachable or failing server
+ * (5xx, which a network error is mapped to). Any other 4xx is the server's
+ * settled answer, and an error that is not an `ApiError` is the app's own.
+ */
+export function shouldRetryAuthStatus(failureCount: number, error: unknown): boolean {
+  if (!(error instanceof ApiError)) return false
+  const transient = error.status === 408 || error.status === 429 || error.status >= 500
+  return transient && failureCount < AUTH_STATUS_RETRIES
+}
+
+/**
+ * Exponential backoff from one second, capped at eight, with up to a quarter
+ * of jitter so a room of visitors refused together does not come back
+ * together. (The API client does not expose `Retry-After`, so it is not read.)
+ */
+export function authStatusRetryDelay(failureCount: number): number {
+  const base = Math.min(1000 * 2 ** failureCount, 8000)
+  return base + Math.round(Math.random() * base * 0.25)
+}
+
 /**
  * `GET /auth/status` for code that only needs the instance's deployment mode.
  * The mode is set from the environment and cannot change while the page is
- * open, so one answer per few minutes is plenty; a failed probe is silent and
- * reads as self-hosted (the backend is the real gate either way).
+ * open, so one answer per few minutes is plenty. A transient failure is asked
+ * again a few times (above); a probe that still fails is silent and reads as
+ * self-hosted (the backend is the real gate either way).
  */
 export function authStatusQueryOptions() {
   return queryOptions({
     queryKey: authStatusKey(),
     queryFn: authApi.status,
     staleTime: 5 * 60_000,
+    retry: shouldRetryAuthStatus,
+    retryDelay: authStatusRetryDelay,
     meta: SILENT_ERROR_META,
   })
 }

@@ -267,15 +267,22 @@ multiplies the effective limit: with `--scale app=N` the practical login
 ceiling is roughly `N × 5/min`.
 :::
 
-If you do put a trusted proxy in front, set `RATE_LIMIT_TRUST_FORWARDED_FOR=true`
-(default `false`) so the limiter keys on the real client IP. It prefers
+Behind the TLS proxy the production stack requires, set
+`RATE_LIMIT_TRUST_FORWARDED_FOR=true` (default `false`) so the limiter keys on
+the real client IP instead of the proxy's. It prefers the header named in
+`RATE_LIMIT_CLIENT_IP_HEADER` (e.g. `CF-Connecting-IP` behind Cloudflare), then
 `X-Real-IP`, falling back to the rightmost `X-Forwarded-For` entry, the one your
 proxy appended. Enable this **only** when every request reaches the API through
-a proxy that overwrites `X-Real-IP` or appends to `X-Forwarded-For` — on a
-directly-exposed API a caller sets either header and rotates it to land each
-request in a fresh bucket. When the app is
-the edge (the default single-container deploy), leave it at `false` so the
-direct socket peer (`request.client.host`) is used.
+a proxy that overwrites that header or appends to `X-Forwarded-For` — on a
+directly-exposed API a caller sets the header and rotates it to land each
+request in a fresh bucket. `compose.yaml` publishes the app on `127.0.0.1` for
+that reason (`APP_BIND_ADDRESS`). Loopback is reachable only from processes on
+the host (or containers with `network_mode: host`); a proxy or tunnel in its
+own container should join the stack's network and target `http://app:8000`, or
+set `APP_BIND_ADDRESS` to the docker bridge gateway (e.g. `172.17.0.1`) and
+firewall port `8000` (see
+[Running behind a proxy](./deployment.md#running-behind-a-proxy)). Only when clients reach the app directly
+leave it at `false`, so the direct socket peer (`request.client.host`) is used.
 
 ## Health checks
 

@@ -138,9 +138,17 @@ class Settings(BaseSettings):
     rate_limit_enabled: bool = True
     rate_limit_login_per_minute: int = 5
     rate_limit_register_per_hour: int = 3
-    # Whether to derive the client IP from proxy-supplied headers (X-Real-IP,
-    # then the rightmost X-Forwarded-For entry, the one the nearest proxy
-    # appended) for rate-limit bucketing. Defaults to FALSE:
+    # Signing in through a provider (instance Google / OIDC sign-in, and an
+    # extension's own provider sign-in): ``/start`` and ``/callback`` share one
+    # bucket. Generous because the round trip is two requests and a crowd behind
+    # one NAT (conference Wi-Fi, an office) signs in at once; the provider does
+    # the credential check, so this only caps automated churn. Env-only (not an
+    # admin-UI setting), read once at startup.
+    rate_limit_sso_per_minute: int = 100
+    # Whether to derive the client IP from proxy-supplied headers
+    # (rate_limit_client_ip_header when set, then X-Real-IP, then the rightmost
+    # X-Forwarded-For entry, the one the nearest proxy appended) for rate-limit
+    # bucketing. Defaults to FALSE:
     # use the direct socket peer (request.client.host), which is correct when the
     # API is the edge — including the consolidated single container where FastAPI
     # serves the SPA itself (serve_frontend) with no proxy in front. Enable this
@@ -149,6 +157,16 @@ class Settings(BaseSettings):
     # attacker-controlled, so trusting it on a directly-exposed API lets an
     # unauthenticated caller rotate it per request to bypass the limit entirely.
     rate_limit_trust_forwarded_for: bool = False
+    # A single-value header the edge proxy sets to the real client address
+    # (e.g. "CF-Connecting-IP" behind Cloudflare), consulted FIRST when
+    # rate_limit_trust_forwarded_for is on; ignored when it is off. Blank (the
+    # default) keeps the X-Real-IP / X-Forwarded-For order. Only the header's
+    # last comma-separated value is used. Name it only when
+    # every request reaches the API through that proxy, which overwrites the
+    # header: a client talking to the API directly can set it to anything.
+    # Env-only (RATE_LIMIT_CLIENT_IP_HEADER) on purpose, unlike the trust flag
+    # above, which the admin UI can also toggle.
+    rate_limit_client_ip_header: str = ""
 
     # Self-service registration. One of REGISTRATION_MODES. Defaults to "open".
     #

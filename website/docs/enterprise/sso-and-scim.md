@@ -254,7 +254,7 @@ the SAML assertion was encrypted, replayed or not requested by tripl, the
 account was removed from the organization, too many attempts, or single
 sign-on is off).
 The IdP's own error text is never shown. Sign-in through the IdP has its own
-rate limit (20 requests a minute per address, two per sign-in), separate from
+rate limit (by default 100 requests a minute per address, `RATE_LIMIT_SSO_PER_MINUTE`; two per sign-in), separate from
 password sign-in.
 
 A session opened this way is marked as a single sign-on session for that
@@ -499,7 +499,7 @@ The controls that matter for security:
 | Sessions | A session records how it signed in (`password` or `sso`) and, for single sign-on, which organization. |
 | Requiring SSO | With **Require single sign-on**, a session that did not sign in through the organization's provider gets `403 This organization requires single sign-on` inside it. Organization owners' browser sessions are exempt (break-glass), as is a platform admin's read-only step-in. Turning it on revokes **every** organization API key that was not created from a single sign-on session of the organization, owners' included, and such keys are refused with `403`; new keys need such a session, for owners too. |
 | Removing a member | Also deletes their single sign-on identities for the organization, and signing in through the provider again does not re-add them until they accept a new invitation. |
-| Rate limits | Start and callback share their own bucket (20 a minute per address), apart from password sign-in; an empty bucket redirects to `/auth?sso_error=rate_limited`. Confirming a link is on the login bucket. |
+| Rate limits | Start and callback share their own bucket (by default 100 a minute per address, `RATE_LIMIT_SSO_PER_MINUTE`), apart from password sign-in; an empty bucket redirects to `/auth?sso_error=rate_limited`. Confirming a link is on the login bucket. |
 
 ### Single sign-on (SAML 2.0)
 
@@ -591,7 +591,7 @@ Sign-in routes (unauthenticated):
 | Method and path | Who | What |
 |---|---|---|
 | `GET /api/v1/auth/sso/discover?email=` | anyone | `{"orgs": [{"slug", "name", "login_url"}]}`: the organizations with single sign-on turned on whose verified domain the address is at. Rate-limited like `/auth/status`. |
-| `GET /api/v1/auth/sso/{org}/start?next=` | anyone (a browser) | `302` to the organization's identity provider: for SAML, to its SSO URL with an unsigned `SAMLRequest` (HTTP-Redirect binding) and the state as `RelayState`. `next` is where to return afterwards and must be a relative path on this origin (`/…`, not `//…`). Start and callback share a rate limit of 20 a minute per address, apart from password sign-in. |
+| `GET /api/v1/auth/sso/{org}/start?next=` | anyone (a browser) | `302` to the organization's identity provider: for SAML, to its SSO URL with an unsigned `SAMLRequest` (HTTP-Redirect binding) and the state as `RelayState`. `next` is where to return afterwards and must be a relative path on this origin (`/…`, not `//…`). Start and callback share a rate limit of 100 a minute per address by default (`RATE_LIMIT_SSO_PER_MINUTE`), apart from password sign-in. |
 | `GET /api/v1/auth/sso/{org}/callback?code=&state=` | the identity provider's redirect | Finishes the sign-in and redirects: into the app with a session, to `/sso/link?ticket=…` when the address belongs to an existing account that has to confirm the link, or to `/auth?sso_error=<code>`: `sso_unavailable`, `invalid_state`, `idp_error`, `idp_denied`, `invalid_token`, `email_missing`, `email_not_verified`, `email_domain_not_allowed`, `membership_removed` (removed from the organization and not invited back), `rate_limited` or `sso_failed`. |
 | `GET /api/v1/auth/sso/{org}/saml/metadata` | anyone | tripl's SAML service-provider metadata (XML): the entity ID (this URL), the ACS URL with the HTTP-POST binding, the email NameID format and `WantAssertionsSigned="true"`. Unsigned; there is no SP certificate. |
 | `POST /api/v1/auth/sso/{org}/saml/acs` | the identity provider's form post (`SAMLResponse`, `RelayState`) | The SAML counterpart of the callback, with the same outcomes and the same `sso_error` codes, plus `saml_invalid` (the response failed a check: issuer, audience, recipient, destination, validity window), `idp_denied` also for a non-`Success` status, `email_missing` also when no email attribute is configured and the NameID format is not `emailAddress`, `saml_signature_invalid` (the assertion is unsigned, signed with SHA-1 or by a certificate not configured), `saml_replay` (the assertion was already used), `saml_unsolicited` (not an answer to a request tripl made: IdP-initiated sign-in is not supported) and `encrypted_assertion_unsupported`. |
@@ -602,13 +602,13 @@ Sign-in routes (unauthenticated):
 
 | Endpoint | Limiter | Default |
 |---|---|---|
-| `GET /api/v1/auth/sso/discover` | Shared status limiter | 30 / minute |
-| `GET /api/v1/auth/sso/{org}/start` | Own SSO limiter (fixed, not configurable), shared by start, callback and ACS | 20 / minute |
-| `GET /api/v1/auth/sso/{org}/callback` | Own SSO limiter (fixed, not configurable), shared by start, callback and ACS | 20 / minute |
-| `POST /api/v1/auth/sso/{org}/saml/acs` | Own SSO limiter (fixed, not configurable), shared by start, callback and ACS | 20 / minute |
-| `GET /api/v1/auth/google/start` | The same SSO limiter | 20 / minute |
-| `GET /api/v1/auth/google/callback` | The same SSO limiter | 20 / minute |
-| `GET /api/v1/auth/sso/link` | Shared status limiter | 30 / minute |
+| `GET /api/v1/auth/sso/discover` | Shared status limiter | 100 / minute |
+| `GET /api/v1/auth/sso/{org}/start` | Own SSO limiter (`RATE_LIMIT_SSO_PER_MINUTE`, `0` disables), shared by start, callback and ACS | 100 / minute (default) |
+| `GET /api/v1/auth/sso/{org}/callback` | Own SSO limiter (`RATE_LIMIT_SSO_PER_MINUTE`, `0` disables), shared by start, callback and ACS | 100 / minute (default) |
+| `POST /api/v1/auth/sso/{org}/saml/acs` | Own SSO limiter (`RATE_LIMIT_SSO_PER_MINUTE`, `0` disables), shared by start, callback and ACS | 100 / minute (default) |
+| `GET /api/v1/auth/google/start` | The same SSO limiter | 100 / minute (default) |
+| `GET /api/v1/auth/google/callback` | The same SSO limiter | 100 / minute (default) |
+| `GET /api/v1/auth/sso/link` | Shared status limiter | 100 / minute |
 | `POST /api/v1/auth/sso/link` | `RATE_LIMIT_LOGIN_PER_MINUTE` | 5 / minute |
 | `/scim/v2/{org}/*` | Own SCIM limiter, keyed per token (not per address) | 600 / minute |
 | `/scim/v2/{org}/*`, failed authentication | Own limiter, keyed per client address; only `401` answers draw on it, then `429` | 30 / minute |
