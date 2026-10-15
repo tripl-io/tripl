@@ -103,6 +103,26 @@ def test_a_public_demo_has_no_ai_whatever_the_operator_configured(
     assert llm_service.complete("system", "user", config=config) is None
 
 
+def test_a_public_demo_can_keep_search_embeddings_and_nothing_else(
+    monkeypatch: pytest.MonkeyPatch,
+):
+    """PUBLIC_DEMO_SEARCH_EMBEDDINGS keeps the embedding key; chat AI stays off."""
+    monkeypatch.setattr(llm_service.settings, "ai_enabled", True)
+    monkeypatch.setattr(llm_service.settings, "ai_api_key", "sk-chat")
+    monkeypatch.setattr(llm_service.settings, "search_embeddings_enabled", True)
+    monkeypatch.setattr(llm_service.settings, "search_embedding_api_key", "sk-embed")
+    monkeypatch.setattr(llm_service.settings, "public_demo_search_embeddings", True)
+    use_public_demo(monkeypatch)
+
+    config = env_ai_config()
+
+    assert llm_service.is_enabled(config) is False
+    assert config.ai_api_key == ""
+    assert config.search_embeddings_enabled is True
+    assert config.search_embedding_api_key == "sk-embed"
+    assert config.search_embedding_base_url == llm_service.settings.search_embedding_base_url
+
+
 def _success_body(text: str = "ok") -> str:
     return json.dumps({"choices": [{"message": {"content": text}}]})
 

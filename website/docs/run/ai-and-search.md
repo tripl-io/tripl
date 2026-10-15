@@ -44,7 +44,8 @@ precomputed embedding vectors for its own content, so demo searches can report
 leaving the instance, since those vectors are computed by maintainers ahead of
 time and bundled with the release. Once embeddings are enabled, the demo is
 embedded by the configured provider like any other project and the bundled
-vectors are no longer used.
+vectors are no longer used. A [public demo](./public-demo.md#semantic-search)
+drops the embedding key unless `PUBLIC_DEMO_SEARCH_EMBEDDINGS=true`.
 
 The `semantic_used` above is the flag on the **envelope**, and it is the one to
 read when diagnosing configuration: it says the semantic leg ran. Each hit in

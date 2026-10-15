@@ -98,6 +98,7 @@ x-app-environment: &app-environment
   TELEMETRY_ENDPOINT: ${TELEMETRY_ENDPOINT:-}
   DO_NOT_TRACK: ${DO_NOT_TRACK:-}
   PUBLIC_DEMO: ${PUBLIC_DEMO:-}
+  PUBLIC_DEMO_SEARCH_EMBEDDINGS: ${PUBLIC_DEMO_SEARCH_EMBEDDINGS:-}
   # The Enterprise license key (read by the Enterprise image only).
   LICENSE_KEY: ${LICENSE_KEY:-}
   IDLE_ORG_RETENTION_DAYS: ${IDLE_ORG_RETENTION_DAYS:-}
