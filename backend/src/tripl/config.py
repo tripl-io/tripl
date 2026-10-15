@@ -281,6 +281,11 @@ class Settings(BaseSettings):
     # way, so one provider's two endpoints are configured alike.
     search_embedding_base_url: str = "https://api.openai.com/v1"
     openai_api_key: str = ""
+    # A public demo (Enterprise's PUBLIC_DEMO) drops every AI credential, since
+    # each call a visitor triggers runs on the operator's key. This keeps the
+    # search embeddings alone: a query costs a few tokens and the operator can
+    # cap the key's budget at the provider. Generative AI stays off regardless.
+    public_demo_search_embeddings: bool = False
 
     # OpenTelemetry tracing. Setting `otel_exporter_otlp_endpoint` to a non-
     # empty string opts the API + worker into FastAPI/SQLAlchemy/Celery auto-

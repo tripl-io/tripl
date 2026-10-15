@@ -17,6 +17,17 @@ generated demo projects. Every visitor gets an organization of their own, and
 whatever would reach outside the instance is refused: connecting a warehouse,
 delivering alerts outside the app, filing tracker tickets, AI.
 
+## Semantic search
+
+Demo projects search by meaning out of the box, from embedding vectors bundled
+with the release; queries those vectors do not cover fall back to keyword
+matching. For semantic search on any query, the operator sets
+`PUBLIC_DEMO_SEARCH_EMBEDDINGS=true` alongside `SEARCH_EMBEDDINGS_ENABLED=true`
+and an embeddings key: a public demo otherwise drops that key with every other
+AI credential. What visitors type into search, and the demo projects' text,
+then go to the embedding provider on the operator's key, so use a key of its
+own with a budget cap set at the provider. Generative AI stays off either way.
+
 ## Signing in
 
 The sign-in page of a public demo offers **Continue with Google** and nothing

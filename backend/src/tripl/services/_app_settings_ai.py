@@ -11,6 +11,7 @@ from dataclasses import dataclass, fields, replace
 from typing import TYPE_CHECKING, Any
 
 from tripl import tenancy
+from tripl.config import settings
 from tripl.services._app_settings_core import build_service_values
 from tripl.services.ai_defaults import (
     DEFAULT_ALERT_EXPLANATION_SYSTEM_PROMPT,
@@ -101,16 +102,22 @@ def _ai_config_from(
         # Every call a stranger can trigger would run on the operator's key, so
         # a public demo has no AI whatever the settings say. Demo
         # projects still search semantically from their bundled embedding
-        # fixture, which needs no provider.
+        # fixture, which needs no provider. PUBLIC_DEMO_SEARCH_EMBEDDINGS lets
+        # the operator keep the embeddings (cheap, budget-capped at the
+        # provider); generative AI stays off either way.
+        if settings.public_demo_search_embeddings:
+            return _without_generative_ai(config)
         return _without_credentials(config)
     return config
 
 
+def _without_generative_ai(config: AiConfig) -> AiConfig:
+    return replace(config, ai_enabled=False, ai_api_key="")
+
+
 def _without_credentials(config: AiConfig) -> AiConfig:
     return replace(
-        config,
-        ai_enabled=False,
-        ai_api_key="",
+        _without_generative_ai(config),
         search_embeddings_enabled=False,
         search_embedding_api_key="",
         search_embedding_base_url="",
