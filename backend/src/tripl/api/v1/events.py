@@ -18,11 +18,17 @@ from tripl.schemas.event import (
     EventReorder,
     EventResponse,
     EventUpdate,
+    EventWarehouseSqlResponse,
 )
 from tripl.schemas.pagination import Offset
 from tripl.schemas.text_filters import FreeTextFilter
 from tripl.schemas.variable import EventPropertyResponse
-from tripl.services import audit_service, event_service, variable_service
+from tripl.services import (
+    audit_service,
+    event_service,
+    event_warehouse_sql_service,
+    variable_service,
+)
 
 router = APIRouter(prefix="/projects/{slug}/events", tags=["events"])
 # Kept for the two routes that only permute ``Event.order`` and are deliberately
@@ -361,6 +367,20 @@ async def list_event_properties(
     """The event's property list (F23). Edit an entry through
     ``PUT /variables/{variable_id}/event-overrides/{event_id}``."""
     return await variable_service.list_event_properties(session, slug, event_id, branch_id)
+
+
+@router.get("/{event_id}/warehouse-sql", response_model=EventWarehouseSqlResponse)
+async def get_event_warehouse_sql(
+    session: SessionDep, slug: str, event_id: uuid.UUID, branch_id: BranchIdDep
+) -> EventWarehouseSqlResponse:
+    """A query that selects this event's rows from the warehouse.
+
+    Derived from the governing scan's source query and the event's field values
+    on every request; nothing is stored and nothing runs.
+    """
+    return await event_warehouse_sql_service.get_event_warehouse_sql(
+        session, slug, event_id, branch_id
+    )
 
 
 @router.get("/{event_id}/history", response_model=list[EventChangeResponse])

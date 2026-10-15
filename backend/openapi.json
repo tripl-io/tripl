@@ -14096,6 +14096,89 @@
         "title": "EventUpdate",
         "type": "object"
       },
+      "EventWarehouseSqlResponse": {
+        "description": "A query that selects this event's rows from the warehouse, derived on request.\n\nBuilt from the governing scan's own source query and the event's stored\nfield values; nothing is stored and nothing runs. ``sql`` is null, with\n``reason`` saying why, when no scan reads this event type. ``exact`` is\nfalse when a part of the event's identity could not be written as a filter:\nthat part is left out (the query then returns MORE rows, never fewer) and\n``notes`` names it.",
+        "properties": {
+          "dialect": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Dialect"
+          },
+          "exact": {
+            "title": "Exact",
+            "type": "boolean"
+          },
+          "notes": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Notes",
+            "type": "array"
+          },
+          "reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reason"
+          },
+          "scan_config_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Scan Config Id"
+          },
+          "scan_config_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Scan Config Name"
+          },
+          "sql": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Sql"
+          }
+        },
+        "required": [
+          "sql",
+          "dialect",
+          "scan_config_id",
+          "scan_config_name",
+          "exact",
+          "notes",
+          "reason"
+        ],
+        "title": "EventWarehouseSqlResponse",
+        "type": "object"
+      },
       "EventWindowMetricsRequest": {
         "properties": {
           "event_ids": {
@@ -54264,6 +54347,112 @@
           }
         ],
         "summary": "List Event Properties",
+        "tags": [
+          "events"
+        ]
+      }
+    },
+    "/api/v1/projects/{slug}/events/{event_id}/warehouse-sql": {
+      "get": {
+        "description": "A query that selects this event's rows from the warehouse.\n\nDerived from the governing scan's source query and the event's field values\non every request; nothing is stored and nothing runs.",
+        "operationId": "get_event_warehouse_sql_api_v1_projects__slug__events__event_id__warehouse_sql_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "slug",
+            "required": true,
+            "schema": {
+              "title": "Slug",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "event_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Event Id",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Plan branch id (UUID) to read and write instead of the main branch.",
+            "in": "query",
+            "name": "branch",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Plan branch id (UUID) to read and write instead of the main branch.",
+              "title": "Branch"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EventWarehouseSqlResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "No session or API key, or the API key is invalid, expired or revoked."
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Signed in, but this account or API key may not do this."
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "No such project (or the caller is not a member of it), or no such object in it."
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "ApiKey": []
+          }
+        ],
+        "summary": "Get Event Warehouse Sql",
         "tags": [
           "events"
         ]

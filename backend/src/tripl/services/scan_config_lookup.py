@@ -19,7 +19,7 @@ from __future__ import annotations
 import uuid
 from collections.abc import Sequence
 
-from sqlalchemy import and_, or_, select
+from sqlalchemy import and_, or_, select, true
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from tripl.core.analyzers.event_generator import name_format_base_columns
@@ -30,6 +30,7 @@ from tripl.models.scan_config import ScanConfig
 __all__ = [
     "configs_naming_column",
     "event_type_binding_conflict_detail",
+    "governing_config",
     "governing_name_format",
     "load_governing_scan_configs",
     "load_governing_scan_configs_by_type",
@@ -64,6 +65,7 @@ async def load_governing_scan_configs_by_type(
     *,
     project_id: uuid.UUID,
     event_type_ids: Sequence[uuid.UUID],
+    require_name_format: bool = True,
 ) -> dict[uuid.UUID, list[ScanConfig]]:
     """Governing scan configs per event type, in three queries for any number of types.
 
@@ -98,6 +100,9 @@ async def load_governing_scan_configs_by_type(
 
     Blank formats are excluded (``"   "`` names nothing), matching what
     ``event_service._resolve_event_name_format`` has always done.
+    ``require_name_format=False`` keeps them: the question is then which scans
+    READ this type's rows, not which ones name its events
+    (``event_warehouse_sql_service``).
 
     A type id that does not exist maps to whatever a NULL-bound config governs;
     the caller that asked about a missing type gets the same answer it always did.
@@ -137,7 +142,7 @@ async def load_governing_scan_configs_by_type(
             await session.execute(
                 select(ScanConfig).where(
                     ScanConfig.project_id == project_id,
-                    ScanConfig.event_name_format.is_not(None),
+                    ScanConfig.event_name_format.is_not(None) if require_name_format else true(),
                     or_(
                         ScanConfig.event_type_id.in_(every_bound_id),
                         and_(
@@ -151,7 +156,7 @@ async def load_governing_scan_configs_by_type(
         .scalars()
         .all()
     )
-    live = [row for row in rows if (row.event_name_format or "").strip()]
+    live = [row for row in rows if not require_name_format or (row.event_name_format or "").strip()]
     return {
         type_id: [
             row
@@ -172,12 +177,18 @@ def governing_name_format(configs: Sequence[ScanConfig]) -> str | None:
     binding as "is not None" rather than "== this type id" is what lets a branch
     copy get the same answer as the main type it was copied from.
     """
+    config = governing_config(configs)
+    return config.event_name_format if config is not None else None
+
+
+def governing_config(configs: Sequence[ScanConfig]) -> ScanConfig | None:
+    """The config :func:`governing_name_format` reads its format from."""
     if not configs:
         return None
     bound = [row for row in configs if row.event_type_id is not None]
     pool = list(bound or configs)
     pool.sort(key=lambda row: row.updated_at, reverse=True)
-    return pool[0].event_name_format
+    return pool[0]
 
 
 def configs_naming_column(configs: Sequence[ScanConfig], column: str) -> list[ScanConfig]:
