@@ -149,4 +149,10 @@ export const eventsApi = {
     api.patch<Event[]>(withBranch(`/projects/${slug}/events/reorder`, branchId), { event_ids: eventIds }),
   history: (slug: string, eventId: string, branchId?: string | null) =>
     api.get<EventChange[]>(withBranch(`/projects/${slug}/events/${eventId}/history`, branchId)),
+  /** A query selecting this event's rows from the warehouse, derived from the
+   *  governing scan on every call; nothing is stored and nothing runs. */
+  warehouseSql: (slug: string, eventId: string, branchId?: string | null) =>
+    api.get<components['schemas']['EventWarehouseSqlResponse']>(
+      withBranch(`/projects/${slug}/events/${eventId}/warehouse-sql`, branchId),
+    ),
 }

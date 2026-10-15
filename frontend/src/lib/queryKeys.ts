@@ -580,6 +580,12 @@ export const eventHistoryKey = (
   eventId: string,
 ) => [...branchEventHistoryKey(slug, branchId), eventId] as const
 
+export const eventWarehouseSqlKey = (
+  slug: string | undefined,
+  branchId: string | null | undefined,
+  eventId: string,
+) => [...orgRoot(), 'eventWarehouseSql', slug, branchId, eventId] as const
+
 /** Every identity probe on one branch, whatever the type and name — what a
  *  create invalidates, since the name it just took is no longer free. */
 export const branchEventIdentityProbesKey = (

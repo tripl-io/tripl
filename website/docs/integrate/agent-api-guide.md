@@ -669,6 +669,15 @@ handed over with a branch id resolves without first looking the branch up — an
 the response's `branch_id` says which branch the row belongs to. Writes stay
 strict: a `PATCH` must name the event's own branch.
 
+`GET /projects/{slug}/events/{event_id}/warehouse-sql` returns a query that
+selects the event's rows from the warehouse: `sql` (or `null`, with `reason`,
+when no scan reads the event type), `dialect`, `scan_config_id`,
+`scan_config_name`, `exact` and `notes`. It is derived from the governing
+scan's source query and the event's field values on every call, never stored
+and never run; `exact: false` means part of the identity was left out (named in
+`notes`), so the query can return more rows than the event's, never fewer. It
+resolves the event on any branch, like the event read.
+
 Event responses include:
 
 - event identity and state: `name`, the free-text `title`, `description`,

@@ -491,3 +491,23 @@ class EventIdentityHolder(BaseModel):
 
 class EventIdentityHoldersResponse(BaseModel):
     items: list[EventIdentityHolder]
+
+
+class EventWarehouseSqlResponse(BaseModel):
+    """A query that selects this event's rows from the warehouse, derived on request.
+
+    Built from the governing scan's own source query and the event's stored
+    field values; nothing is stored and nothing runs. ``sql`` is null, with
+    ``reason`` saying why, when no scan reads this event type. ``exact`` is
+    false when a part of the event's identity could not be written as a filter:
+    that part is left out (the query then returns MORE rows, never fewer) and
+    ``notes`` names it.
+    """
+
+    sql: str | None
+    dialect: str | None
+    scan_config_id: uuid.UUID | None
+    scan_config_name: str | None
+    exact: bool
+    notes: list[str]
+    reason: str | None

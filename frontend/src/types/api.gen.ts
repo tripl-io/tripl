@@ -3679,6 +3679,29 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/projects/{slug}/events/{event_id}/warehouse-sql": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Event Warehouse Sql
+         * @description A query that selects this event's rows from the warehouse.
+         *
+         *     Derived from the governing scan's source query and the event's field values
+         *     on every request; nothing is stored and nothing runs.
+         */
+        get: operations["get_event_warehouse_sql_api_v1_projects__slug__events__event_id__warehouse_sql_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/projects/{slug}/fact-tables": {
         parameters: {
             query?: never;
@@ -11606,6 +11629,33 @@ export interface components {
             tags?: string[] | null;
             /** Title */
             title?: string | null;
+        };
+        /**
+         * EventWarehouseSqlResponse
+         * @description A query that selects this event's rows from the warehouse, derived on request.
+         *
+         *     Built from the governing scan's own source query and the event's stored
+         *     field values; nothing is stored and nothing runs. ``sql`` is null, with
+         *     ``reason`` saying why, when no scan reads this event type. ``exact`` is
+         *     false when a part of the event's identity could not be written as a filter:
+         *     that part is left out (the query then returns MORE rows, never fewer) and
+         *     ``notes`` names it.
+         */
+        EventWarehouseSqlResponse: {
+            /** Dialect */
+            dialect: string | null;
+            /** Exact */
+            exact: boolean;
+            /** Notes */
+            notes: string[];
+            /** Reason */
+            reason: string | null;
+            /** Scan Config Id */
+            scan_config_id: string | null;
+            /** Scan Config Name */
+            scan_config_name: string | null;
+            /** Sql */
+            sql: string | null;
         };
         /** EventWindowMetricsRequest */
         EventWindowMetricsRequest: {
@@ -32068,6 +32118,68 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["EventPropertyResponse"][];
+                };
+            };
+            /** @description No session or API key, or the API key is invalid, expired or revoked. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Signed in, but this account or API key may not do this. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description No such project (or the caller is not a member of it), or no such object in it. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_event_warehouse_sql_api_v1_projects__slug__events__event_id__warehouse_sql_get: {
+        parameters: {
+            query?: {
+                /** @description Plan branch id (UUID) to read and write instead of the main branch. */
+                branch?: string | null;
+            };
+            header?: never;
+            path: {
+                slug: string;
+                event_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EventWarehouseSqlResponse"];
                 };
             };
             /** @description No session or API key, or the API key is invalid, expired or revoked. */

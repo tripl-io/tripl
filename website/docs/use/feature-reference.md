@@ -542,6 +542,27 @@ counts over time, use the Breakdowns tab. See
 [the other store](variables-and-templates.md#the-other-store-an-events-own-field-value)
 for when the line is written, replaced and removed.
 
+**Warehouse SQL.** Under the fields, the event page's **Warehouse SQL** block
+(collapsed until opened) gives a query that selects this event's rows from the
+warehouse, with **Copy SQL**. It is built on every open from the scan that
+reads the event's type, so it is never stored and follows any change to the
+scan or to the event: the scan's own source query, wrapped, then filtered to
+the event's identity, then to the last day, 100 rows. Nothing runs; it is for
+pasting into your warehouse's console.
+
+The identity filters follow the scan's naming: with an event name format, only
+the columns the format uses (so `{category}:{action}` filters on those two and
+not on `label`); without one, every field. The event type column is filtered
+when the scan groups types by it. A value that is a single `${variable}` is
+left out, because the event takes every value of that column. What cannot be
+written as an exact filter is left out and named above the query, with a note
+that it may return rows of other events too, never fewer than the event's:
+a value mixing text and a `${variable}`, a JSON column or path, and an event
+made by a scan group rule, whose regular-expression conditions are listed
+instead. With no scan reading the event type, the block says so. On BigQuery
+the time window assumes a `TIMESTAMP` column. A scan's **Parse as JSON**
+columns are left as the strings the warehouse stores.
+
 ### Event discussion
 
 **Where:** under the form on an event's edit page (Plan › Events → open an

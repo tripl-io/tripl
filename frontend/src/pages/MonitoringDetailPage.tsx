@@ -65,6 +65,7 @@ import { EventDiscussion } from './monitoring/event/EventDiscussion'
 import { EventFieldsTable } from './monitoring/event/EventFieldsTable'
 import { EventSideColumn } from './monitoring/event/EventSideColumn'
 import { EventLifecyclePanel } from './monitoring/event/EventLifecyclePanel'
+import { EventWarehouseSql } from './monitoring/event/EventWarehouseSql'
 import { LIVE_STATUSES } from './monitoring/event/surface'
 import { MonitoringDetailHeader } from './monitoring/MonitoringDetailHeader'
 import { useAnnotateHandoff } from './monitoring/useAnnotateHandoff'
@@ -725,6 +726,10 @@ export default function MonitoringDetailPage() {
           projectVariables={variablesQuery.data ?? EMPTY_VARIABLES}
           fieldValues={event.field_values}
         />
+      )}
+
+      {isEventScope && event && slug && (
+        <EventWarehouseSql slug={slug} branchId={branchId} eventId={event.id} />
       )}
 
       {isEventScope && event && slug && LIVE_STATUSES.has(event.status) && (
