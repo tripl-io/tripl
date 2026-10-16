@@ -655,7 +655,8 @@ def test_advertised_demo_queries_are_in_generator_query_list() -> None:
 async def test_shipped_fixture_covers_current_demo_documents() -> None:
     """CI freshness gate: every demo document still resolves to a fixture vector.
 
-    Skips until a maintainer generates the real fixture; once it ships, this
+    The fixture ships with the demo recipe it was generated for, so a missing
+    one fails here too (a recipe bump that forgot to regenerate it), and this
     fails whenever the demo drifts past what the fixture can still resolve,
     pointing at the regeneration script.
 
@@ -681,13 +682,15 @@ async def test_shipped_fixture_covers_current_demo_documents() -> None:
     is the one builder the spaced-alias fix deliberately did NOT touch (appending a spaced
     alias to a tag's keywords would have deleted the 4.0 "keywords ARE the
     query" tier) — nor does the harvested-values fix reach it. Their embed text is therefore
-    byte-identical to what was embedded, 21 of the 63 shipped vectors, and any
+    byte-identical to what was embedded, and any
     drift in the demo's tags, event names or descriptions — or in the embed-text
     recipe itself — turns this red and points at the regeneration script. That is
     the gate this test was written to be, scoped to where it can still be honest.
     """
-    if not search_embeddings.DEFAULT_FIXTURE_PATH.is_file():
-        pytest.skip("fixture not generated yet — run scripts/generate_demo_search_embeddings.py")
+    assert search_embeddings.DEFAULT_FIXTURE_PATH.is_file(), (
+        f"no {search_embeddings.DEFAULT_FIXTURE_PATH.name} for the current demo recipe — "
+        "generate it with scripts/generate_demo_search_embeddings.py"
+    )
 
     search_embeddings._parse_fixture.cache_clear()
     fixture = load_demo_embedding_fixture()
@@ -726,12 +729,7 @@ async def test_shipped_fixture_covers_current_demo_documents() -> None:
         assert len(branch_ids) >= 2  # main + the deep-copied feature branch
         stale_embed_text: list[str] = []
         missing_identities: list[str] = []
-        disagreeing: list[str] = []
         unresolvable: list[str] = []
-        # identity -> the distinct embed-text keys documents under it produced.
-        # More than one means two documents share an identity, which is the only
-        # thing that may make the two lookups disagree.
-        identity_texts: dict[str, set[str]] = {}
         tag_documents = 0
         for branch_id in branch_ids:
             documents = await build_documents(session, project.id, branch_id, project.slug)
@@ -759,38 +757,6 @@ async def test_shipped_fixture_covers_current_demo_documents() -> None:
 
                 if by_identity is None:
                     missing_identities.append(f"{doc.entity_type}:{doc.title}")
-                elif by_embed_text is not None and by_embed_text != by_identity:
-                    disagreeing.append(f"{doc.entity_type}:{doc.title}|{identity}")
-                identity_texts.setdefault(identity, set()).add(embed_key)
-                # The sidecar maps identity -> embed-text key, so when both
-                # lookups hit they must land on the SAME vector. A disagreement
-                # means the sidecar was derived from a different archive than the
-                # one shipped beside it, and the fallback would hand a document
-                # some other entity's vector — a failure no other assertion here
-                # can see, because both halves are individually "present".
-                # A DISAGREEMENT IS ONLY ACCEPTABLE WHEN A COLLISION EXPLAINS IT.
-                #
-                # An earlier note recorded three documents whose two lookups land on
-                # different vectors and diagnosed it as the archive and the sidecar
-                # having been generated from different demo builds. That diagnosis
-                # was wrong: both artifacts were regenerated from ONE build on
-                # 2026-08-16 and the same three documents still disagree.
-                #
-                # The cause is structural. `identity_key` is (entity_type, title,
-                # subtitle) and deliberately carries NO branch: a shipped fixture
-                # cannot name branch ids, because the demo mints fresh ones on every
-                # provisioning. The demo has two branches, and the feature branch
-                # edits one event's description, so that event — and the tag
-                # documents whose body quotes it — exist twice under one identity
-                # with different text. The sidecar maps an identity to one vector,
-                # so the other copy necessarily disagrees.
-                #
-                # That is benign: the loser's fallback vector is the SAME entity
-                # from the sibling branch, which is what you would want an
-                # approximation to be. What would not be benign is a disagreement
-                # with no collision behind it — that really would mean the two
-                # artifacts came from different builds, and the fallback would hand
-                # a document some unrelated entity's vector.
 
                 if fixture.vector_for(embed_key=embed_key, identity=identity) is None:
                     unresolvable.append(f"{doc.entity_type}:{doc.title}")
@@ -812,15 +778,30 @@ async def test_shipped_fixture_covers_current_demo_documents() -> None:
         "demo documents missing from the fixture's identity sidecar (regenerate via "
         f"scripts/generate_demo_search_embeddings.py): {missing_identities}"
     )
-    unexplained = [
-        entry for entry in disagreeing if len(identity_texts.get(entry.split("|", 1)[1], ())) < 2
-    ]
-    assert not unexplained, (
-        "the identity sidecar and the fixture archive disagree about these documents' "
-        "vectors, and NO second document shares their identity, so a collision does not "
-        "explain it — the two artifacts came from different demo builds and the fallback "
-        "would hand these documents an unrelated entity's vector (regenerate BOTH via "
-        f"scripts/generate_demo_search_embeddings.py): {unexplained}"
+    # THE SIDECAR AND THE ARCHIVE COME FROM ONE GENERATOR RUN. The loader drops
+    # a sidecar entry whose embed-text key the archive lacks, silently, so
+    # this reads the sidecar itself: an entry left over from another run names
+    # a text this archive never embedded.
+    #
+    # It replaces a check that both lookups land on the same vector unless two
+    # documents share the identity. The generator now embeds two states of one
+    # build on purpose (the demo as it opens, which the identities follow, and
+    # after its history fill), and a document whose text depends on observed
+    # values can match either, depending on the hour a demo is built. So the
+    # two lookups may disagree on a sound fixture, and the vector either gives
+    # is this entity's own: the embed text names it.
+    sidecar = json.loads(
+        search_embeddings.identity_sidecar_path(search_embeddings.DEFAULT_FIXTURE_PATH).read_text(
+            encoding="utf-8"
+        )
+    )
+    orphaned = sorted(
+        identity for identity, key in sidecar.items() if key not in fixture.doc_vectors
+    )
+    assert not orphaned, (
+        "identity sidecar entries whose embed text the fixture archive does not hold: the two "
+        "files came from different generator runs (regenerate BOTH via "
+        f"scripts/generate_demo_search_embeddings.py): {orphaned}"
     )
     # Stated last and on purpose: this is the production invariant the demo
     # depends on — no document may end up with no vector to stamp — and with the

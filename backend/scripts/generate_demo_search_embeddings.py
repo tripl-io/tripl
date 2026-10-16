@@ -25,13 +25,18 @@ from dataclasses import dataclass, replace
 from pathlib import Path
 
 import numpy as np
-from sqlalchemy import select
+from sqlalchemy import insert, select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 
 from tripl.config import settings
 from tripl.middleware.org_context import OrgRef, bound_org
 from tripl.models import Base
-from tripl.models.organization import DEFAULT_ORG_ID, DEFAULT_ORG_SLUG
+from tripl.models.organization import (
+    DEFAULT_ORG_ID,
+    DEFAULT_ORG_SLUG,
+    Organization,
+    default_organization_values,
+)
 from tripl.models.plan_branch import PlanBranch
 from tripl.services._search_documents import build_documents, embed_text_for
 from tripl.services.app_settings_service import env_ai_config
@@ -112,63 +117,90 @@ async def _collect_demo_embed_texts(session: AsyncSession) -> CollectedTexts:
     pipeline later rewrites still resolves to its own vector. MAIN wins every
     identity: a working branch deep-copies the plan, so both branches produce the
     same identity, and main's text is the canonical one.
+
+    The texts are read twice: as the demo opens (two days observed; the
+    branches are snapshotted then), and once its history fill has replayed
+    the rest. Identities map to the texts as it opens, the state every build
+    shares, a short-history one included; the filled texts add vectors for
+    what a visitor searches minutes later, and anything they rewrite after
+    that falls back to the identity.
     """
-    from tripl.services import demo_service
+    from tripl.services import demo_history_service, demo_service
 
     # A script has no request organization; the demo seed resolves its project
     # by slug, so bind the default organization for that call (F20 PR2).
-    # The seed normally runs on the worker; here it runs inline on this
-    # session, on the in-memory warehouse engine, so the script needs neither a
-    # broker nor the PostgreSQL warehouse and every run indexes the same rows.
+    # The seed and the history fill normally run on the worker; here they run
+    # inline on this session, on the in-memory warehouse engine, so the script
+    # needs neither a broker nor the PostgreSQL warehouse and every run indexes
+    # the same rows. The fill is held until the opening texts are read.
     async def _seed_inline(
         caller: AsyncSession, project_id: uuid.UUID, _request_id: object
     ) -> None:
         await demo_service.finish_demo_provision(caller, project_id)
 
-    original_enqueue = demo_service.enqueue_demo_seed
+    fills: list[uuid.UUID] = []
+
+    async def _hold_fill(_caller: AsyncSession, project_id: uuid.UUID, _request_id: object) -> None:
+        fills.append(project_id)
+
+    texts: list[str] = []
+    seen: set[str] = set()
+    identity_keys: dict[str, str] = {}
+
+    async def _read_documents(project_id: uuid.UUID, project_slug: str) -> None:
+        branches = list(
+            (
+                await session.execute(
+                    select(PlanBranch.id, PlanBranch.name)
+                    .where(PlanBranch.project_id == project_id)
+                    # "main" sorts first among the demo's branch names; the explicit
+                    # key keeps that true if a branch is ever renamed.
+                    .order_by(PlanBranch.name != "main", PlanBranch.name)
+                )
+            )
+            .tuples()
+            .all()
+        )
+        for branch_id, _branch_name in branches:
+            documents = await build_documents(session, project_id, branch_id, project_slug)
+            for doc in documents:
+                embed_text = embed_text_for(
+                    title=doc.title,
+                    subtitle=doc.subtitle,
+                    keywords=doc.keywords,
+                    body=doc.body,
+                )
+                key = embed_text_key(embed_text)
+                identity_keys.setdefault(
+                    identity_key(doc.entity_type, doc.title, doc.subtitle),
+                    key,
+                )
+                if key in seen:
+                    continue
+                seen.add(key)
+                texts.append(embed_text)
+
+    original_seed = demo_service.enqueue_demo_seed
+    original_fill = demo_service.enqueue_demo_history_fill
     original_mode = settings.demo_warehouse_mode
     demo_service.enqueue_demo_seed = _seed_inline  # type: ignore[assignment]
+    demo_service.enqueue_demo_history_fill = _hold_fill  # type: ignore[assignment]
     settings.demo_warehouse_mode = "memory"
     try:
         with bound_org(OrgRef(DEFAULT_ORG_ID, DEFAULT_ORG_SLUG)):
             project = await demo_service.create_demo_project(session, slug="demo-fixture-gen")
+            if project.generation_status != "ready":
+                raise SystemExit(f"the demo build ended {project.generation_status!r}")
+            await _read_documents(project.id, project.slug)
+            for project_id in fills:
+                outcome = await demo_history_service.finish_demo_history(session, project_id)
+                if outcome != "complete":
+                    raise SystemExit(f"the demo's history fill ended {outcome!r}")
+            await _read_documents(project.id, project.slug)
     finally:
-        demo_service.enqueue_demo_seed = original_enqueue
+        demo_service.enqueue_demo_seed = original_seed
+        demo_service.enqueue_demo_history_fill = original_fill
         settings.demo_warehouse_mode = original_mode
-    branches = list(
-        (
-            await session.execute(
-                select(PlanBranch.id, PlanBranch.name)
-                .where(PlanBranch.project_id == project.id)
-                # "main" sorts first among the demo's branch names; the explicit
-                # key keeps that true if a branch is ever renamed.
-                .order_by(PlanBranch.name != "main", PlanBranch.name)
-            )
-        )
-        .tuples()
-        .all()
-    )
-    texts: list[str] = []
-    seen: set[str] = set()
-    identity_keys: dict[str, str] = {}
-    for branch_id, _branch_name in branches:
-        documents = await build_documents(session, project.id, branch_id, project.slug)
-        for doc in documents:
-            embed_text = embed_text_for(
-                title=doc.title,
-                subtitle=doc.subtitle,
-                keywords=doc.keywords,
-                body=doc.body,
-            )
-            key = embed_text_key(embed_text)
-            identity_keys.setdefault(
-                identity_key(doc.entity_type, doc.title, doc.subtitle),
-                key,
-            )
-            if key in seen:
-                continue
-            seen.add(key)
-            texts.append(embed_text)
     return CollectedTexts(texts=texts, identity_keys=identity_keys)
 
 
@@ -210,6 +242,13 @@ async def generate_fixture(
     try:
         async with engine.begin() as conn:
             await conn.run_sync(Base.metadata.create_all)
+            # The migration inserts the default organization; create_all does not
+            # (the test suite's own engines get it from a listener).
+            if (
+                await conn.scalar(select(Organization.id).where(Organization.id == DEFAULT_ORG_ID))
+                is None
+            ):
+                await conn.execute(insert(Organization).values(**default_organization_values()))
         async with session_local() as session:
             collected = await _collect_demo_embed_texts(session)
     finally:
