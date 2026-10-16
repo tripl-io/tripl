@@ -225,7 +225,7 @@ def history_windows(
     """The replay's walk-forward windows ``[start, end)``, oldest first.
 
     ``now`` is the seed hour; ``start`` defaults to the whole history's. One
-    window ends right after the earliest complete incident bucket that is still
+    window ends right after the newest complete incident bucket that is still
     recent enough to alert on (the dispatcher alerts only on a scope's newest
     bucket, and only within a day of the wall clock), so that job ends with an
     incident at the head of its series; the rest is cut into
@@ -270,7 +270,15 @@ def scoring_window(now: datetime, start: datetime | None = None) -> tuple[dateti
 
 def _alert_split(end: datetime) -> datetime | None:
     # A bucket at or after ``end - 23h`` is within 24h of any instant inside
-    # the seed hour, and ``bucket + 1h <= end`` keeps it complete.
+    # the seed hour, and ``bucket + 1h <= end`` keeps it complete. The NEWEST
+    # such bucket: freshness is judged on the wall clock when the alert is
+    # dispatched and the signal shown, minutes or hours after the seed hour,
+    # and a 23-hour-old head closes as soon as that hour ends (a build that
+    # finished past it filed no alert at all). The newest is 23 hours old only
+    # on the hour a two-hour incident's successor starts; the earliest was on
+    # one hour in nine. Every incident hour is flagged as a head
+    # (``test_a_demo_built_in_any_hour_alerts_on_a_detected_incident``), so
+    # which one the pass ends on changes no detection.
     earliest = end - timedelta(hours=23)
     candidates = [
         bucket
@@ -278,7 +286,7 @@ def _alert_split(end: datetime) -> datetime | None:
         for bucket in _hours(incident.start, incident.end)
         if earliest <= bucket and bucket + _HOUR <= end
     ]
-    return min(candidates) + _HOUR if candidates else None
+    return max(candidates) + _HOUR if candidates else None
 
 
 def _hours(start: datetime, end: datetime) -> list[datetime]:

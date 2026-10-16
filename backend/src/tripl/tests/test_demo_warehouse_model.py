@@ -243,12 +243,18 @@ def test_a_demo_built_in_any_hour_alerts_on_a_detected_incident(
     The provisioning tests (the contract's newest-incident check, the flaky
     sink's delivery) run on the wall clock, so they see the hour they happen
     to run in. This pins the same promise for every hour of a whole rotation:
-    the pass ends one bucket after an incident hour less than a day old, and
-    that bucket is flagged in the incident's direction. The flaky sink's rule
+    the pass ends one bucket after the newest complete incident hour, less
+    than a day old and at most 22 hours old but on the hour a two-hour
+    incident's successor starts, and that bucket is flagged in the incident's
+    direction. Since every incident hour is the newest one for the hour after
+    it, that covers every incident hour. The flaky sink's rule
     takes every event and event-type volume signal, spikes and drops alike, so
     a flagged head is a delivery on both sinks whichever incident it is.
     """
     flagged_heads: dict[tuple[str, str, datetime], bool] = {}
+    # Hours whose head is 23 hours old: its signal stays open only until the
+    # seed hour ends. One per two-hour incident (six in a rotation).
+    edge_hours: list[datetime] = []
     for at in _instants(_ROTATION, HOUR):
         now = at + timedelta(minutes=7, seconds=30)
         _scored_from, scored_to = pipeline.scoring_window(now)
@@ -258,6 +264,8 @@ def test_a_demo_built_in_any_hour_alerts_on_a_detected_incident(
         ]
         assert incident.scope in {"event", "event_type"}, incident
         assert now - head <= timedelta(hours=24), now
+        if now - head > timedelta(hours=23):
+            edge_hours.append(now)
         key = (incident.scope, incident.target, head)
         if key not in flagged_heads:
             points = [
@@ -280,6 +288,12 @@ def test_a_demo_built_in_any_hour_alerts_on_a_detected_incident(
         assert flagged_heads[key], (
             f"a demo built at {now} ends on {incident.description}, unflagged"
         )
+    two_hour_incidents = sum(
+        1
+        for incident in calendar.incidents_between(END - _ROTATION, END)
+        if incident.end - incident.start == 2 * HOUR
+    )
+    assert len(edge_hours) <= two_hour_incidents, edge_hours
 
 
 # -- the other stories -----------------------------------------------------------------
