@@ -32,9 +32,15 @@ What it takes, and why:
   loses EXECUTE on the functions that reach other sessions — cancelling or
   terminating a backend, advisory locks — and SELECT on ``pg_stat_activity``,
   inside the demo database only: every visitor shares the one reader role, and
-  sessions of one role may see and cancel each other's queries. That needs a
-  superuser (the functions belong to the bootstrap superuser); without one it
-  is a warning, and the adapter's own denylist still refuses those calls.
+  sessions of one role may see and cancel each other's queries. PUBLIC loses
+  EXECUTE on ``set_config``, ``pg_sleep*``, the functions that run a query
+  given as text and the large-object functions there too
+  (:data:`REVOKED_FUNCTION_PATTERNS`). That needs a superuser (the functions
+  belong to the bootstrap superuser), and a REVOKE without one only warns, so
+  the reader's privileges are checked
+  afterwards: whatever it can still use is a warning naming it, the warehouse
+  status lists it (``reader_limits_missing``), and the adapter's own denylist
+  still refuses those calls.
 
 Nothing is granted or revoked in tripl's own database. The reader can open a
 connection there (PostgreSQL grants CONNECT to PUBLIC by default) but reads
@@ -46,6 +52,7 @@ alone on purpose.
 
 from __future__ import annotations
 
+import contextlib
 import logging
 from dataclasses import dataclass, field
 
@@ -70,22 +77,34 @@ READER_ROLE_SETTINGS: tuple[tuple[str, str], ...] = (
     ("temp_file_limit", "256MB"),
 )
 READER_CONNECTION_LIMIT = 10
-#: Functions PUBLIC may not execute in the demo database: they act on OTHER
-#: sessions of the shared reader role, or hold locks the writer coordinates on.
-#: Matched by name in ``pg_proc`` (every overload).
-REVOKED_FUNCTIONS: tuple[str, ...] = (
+#: Functions PUBLIC may not execute in the demo database, as anchored POSIX
+#: regular expressions over ``pg_proc.proname`` in ``pg_catalog`` (every
+#: overload). Each one either acts on OTHER sessions of the shared reader role
+#: (cancel, terminate, read their activity, hold or wait on advisory locks,
+#: sleep on a connection), changes the session's settings (``set_config``),
+#: runs a query given as text, which no check of the statement's own text can
+#: see into (the ``*_to_xml`` family, ``ts_stat``, ``ts_rewrite``), or reaches
+#: large objects. The adapter's SQL check refuses the same names; this is the
+#: layer that holds for whatever text reaches the server. The adapter's ``SET``
+#: pins need none of these: ``SET`` is a statement, not a call.
+REVOKED_FUNCTION_PATTERNS: tuple[str, ...] = (
+    "set_config",
     "pg_cancel_backend",
     "pg_terminate_backend",
     "pg_stat_get_activity",
-    "pg_advisory_lock",
-    "pg_advisory_lock_shared",
-    "pg_advisory_xact_lock",
-    "pg_advisory_xact_lock_shared",
-    "pg_try_advisory_lock",
-    "pg_try_advisory_lock_shared",
-    "pg_try_advisory_xact_lock",
-    "pg_try_advisory_xact_lock_shared",
+    "pg_stat_get_backend_.*",
+    "pg_(try_)?advisory_.*",
+    "pg_sleep.*",
+    "pg_notify",
+    "(query|cursor|table|schema|database)_to_xml.*",
+    "ts_stat",
+    "ts_rewrite",
+    "lo_.*",
+    "loread",
+    "lowrite",
 )
+#: One expression for the whole list, for ``proname ~ %s``.
+REVOKED_FUNCTIONS_RE = "^(" + "|".join(REVOKED_FUNCTION_PATTERNS) + ")$"
 #: Views PUBLIC may not read in the demo database (other sessions' query text).
 REVOKED_VIEWS: tuple[str, ...] = ("pg_stat_activity",)
 CONNECT_TIMEOUT_SECONDS = 10
@@ -237,7 +256,7 @@ def _ensure_schema_and_grants(result: ProvisionResult) -> None:
                 conn.execute(revoke)
             except psycopg.errors.InsufficientPrivilege:
                 result.warn("could not run %r in the demo database.", revoke.as_string(conn))
-        _revoke_session_functions(conn, result)
+        _revoke_session_functions(conn, result, reader_name)
         if not result.reader_ready:
             return
         grants = [
@@ -259,14 +278,19 @@ def _ensure_schema_and_grants(result: ProvisionResult) -> None:
 
 
 def _revoke_session_functions(
-    conn: psycopg.Connection[tuple[object, ...]], result: ProvisionResult
+    conn: psycopg.Connection[tuple[object, ...]], result: ProvisionResult, reader: str
 ) -> None:
-    """Take from PUBLIC what lets one reader session reach another (demo db only)."""
+    """Take from PUBLIC what lets one reader session reach another (demo db only).
+
+    Checked afterwards, not trusted: a REVOKE by a role that does not own the
+    function (only a superuser owns the catalog's) raises nothing, it only
+    warns that nothing was revoked.
+    """
     signatures = conn.execute(
         "SELECT p.oid::regprocedure::text FROM pg_proc p "
         "JOIN pg_namespace n ON n.oid = p.pronamespace "
-        "WHERE n.nspname = 'pg_catalog' AND p.proname = ANY(%s)",
-        (list(REVOKED_FUNCTIONS),),
+        "WHERE n.nspname = 'pg_catalog' AND p.proname ~ %s",
+        (REVOKED_FUNCTIONS_RE,),
     ).fetchall()
     statements: list[sql.Composed] = [
         sql.SQL("REVOKE EXECUTE ON FUNCTION {} FROM PUBLIC").format(sql.SQL(str(signature)))
@@ -276,18 +300,53 @@ def _revoke_session_functions(
         sql.SQL("REVOKE SELECT ON {} FROM PUBLIC").format(sql.Identifier("pg_catalog", view))
         for view in REVOKED_VIEWS
     )
-    refused = 0
     for statement in statements:
-        try:
+        # Refused or not, what is still reachable is reported below.
+        with contextlib.suppress(psycopg.errors.InsufficientPrivilege):
             conn.execute(statement)
-        except psycopg.errors.InsufficientPrivilege:
-            refused += 1
-    if refused:
+    try:
+        reachable = reader_reachable_session_functions(conn, reader)
+    except psycopg.Error as exc:
+        result.warn("could not check %s's privileges: %s", reader, type(exc).__name__)
+        return
+    if reachable:
         result.warn(
-            "could not revoke %s session functions from PUBLIC in the demo database (it "
-            "needs a superuser); the demo adapter still refuses those calls.",
-            refused,
+            "%s can still use %s in the demo database: revoking them from PUBLIC needs a "
+            "superuser. The demo adapter still refuses those calls in the statements it "
+            "sends; an administrator should run, connected to the demo database, REVOKE "
+            "EXECUTE ON FUNCTION <each> FROM PUBLIC and REVOKE SELECT ON "
+            "pg_catalog.pg_stat_activity FROM PUBLIC.",
+            reader,
+            ", ".join(reachable),
         )
+
+
+def reader_reachable_session_functions(
+    conn: psycopg.Connection[tuple[object, ...]], reader: str
+) -> tuple[str, ...]:
+    """What of :data:`REVOKED_FUNCTION_PATTERNS` and :data:`REVOKED_VIEWS` ``reader`` can use.
+
+    ``conn`` is on the demo database (privileges on the catalog are per
+    database). Signatures for functions, qualified names for views; empty when
+    the role does not exist (it is joined, not cast, so a missing role is no
+    error).
+    """
+    rows = conn.execute(
+        "SELECT p.oid::regprocedure::text FROM pg_proc p "
+        "JOIN pg_namespace n ON n.oid = p.pronamespace "
+        "JOIN pg_roles r ON r.rolname = %s "
+        "WHERE n.nspname = 'pg_catalog' AND p.proname ~ %s "
+        "AND has_function_privilege(r.oid, p.oid, 'EXECUTE') "
+        "UNION ALL "
+        "SELECT 'pg_catalog.' || c.relname FROM pg_class c "
+        "JOIN pg_namespace n ON n.oid = c.relnamespace "
+        "JOIN pg_roles r ON r.rolname = %s "
+        "WHERE n.nspname = 'pg_catalog' AND c.relname = ANY(%s) "
+        "AND has_table_privilege(r.oid, c.oid, 'SELECT') "
+        "ORDER BY 1",
+        (reader, REVOKED_FUNCTIONS_RE, reader, list(REVOKED_VIEWS)),
+    ).fetchall()
+    return tuple(str(row[0]) for row in rows)
 
 
 def _check_public_schema(

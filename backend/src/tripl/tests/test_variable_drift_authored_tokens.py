@@ -22,6 +22,7 @@ from sqlalchemy import create_engine, select
 from sqlalchemy.orm import Session, sessionmaker
 
 from tripl.core.adapters.base import ColumnInfo
+from tripl.core.analyzers._variable_value_drift import canonical_value
 from tripl.core.analyzers.cardinality import BreakdownAnalysis, CardinalityResult
 from tripl.core.analyzers.event_generator import GenerationResult, generate_events
 from tripl.models import Base
@@ -308,3 +309,50 @@ def test_a_sensitive_field_is_never_copied_into_a_drift(session: Session) -> Non
 
     assert result.value_drifts_detected == 0
     assert _drifts(session, project) == []
+
+
+@pytest.mark.parametrize(("sensitivity", "drifts"), [("none", 1), ("pii", 0)])
+def test_the_planners_observations_skip_a_sensitive_field_too(
+    session: Session, sensitivity: str, drifts: int
+) -> None:
+    """Above the threshold the evidence is the planner's, and the same rule holds.
+
+    The non-sensitive case is the control: the planner's own contexts do reach
+    the drift detector, so the sensitive one is held back, not merely unseen.
+    """
+    project, event_type, fields, _event, _variable = _seed(
+        session, authored_value="${product_id}", allowed=["prod_monthly"]
+    )
+    fields["product_id"].sensitivity = sensitivity
+    session.commit()
+
+    result = _scan(
+        session,
+        project,
+        event_type,
+        fields,
+        ["prod_monthly", "prod_annual", "jane@example.com"],
+        threshold=2,
+    )
+
+    assert result.value_drifts_detected == drifts
+    assert len(_drifts(session, project)) == drifts
+
+
+@pytest.mark.parametrize(
+    ("value", "canonical"),
+    [
+        ("10.00", "10"),
+        ("-0.50", "-0.5"),
+        ("0e999999", "0"),
+        # Too large or too small to write out: kept as given, never expanded
+        # into a million digits or an error.
+        ("1e999999999", "1e999999999"),
+        ("-1e-99999999999999999999", "-1e-99999999999999999999"),
+        ("1e101", "1e101"),
+        ("NaN", "NaN"),
+        ("abc", "abc"),
+    ],
+)
+def test_canonical_number_spelling(value: str, canonical: str) -> None:
+    assert canonical_value(value, "number") == canonical

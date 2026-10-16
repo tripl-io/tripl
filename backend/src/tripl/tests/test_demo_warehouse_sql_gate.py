@@ -35,16 +35,54 @@ from tripl.core.adapters.measure_validator import check_demo_warehouse_sql
         # A comment between the name and its parenthesis is still a call.
         ("SELECT pg_sleep/* x */(1)", "pg_sleep"),
         ("SELECT pg_sleep -- x\n(1)", "pg_sleep"),
+        # Functions that run a query given as text.
+        ("SELECT query_to_xml('select 1', true, true, '')", "query_to_xml"),
+        (
+            "SELECT query_to_xml_and_xmlschema('select 1', true, true, '')",
+            "query_to_xml_and_xmlschema",
+        ),
+        ("SELECT cursor_to_xml('c', 1, true, true, '')", "cursor_to_xml"),
+        ("SELECT table_to_xmlschema('events', true, true, '')", "table_to_xmlschema"),
+        ("SELECT schema_to_xml('public', true, true, '')", "schema_to_xml"),
+        ("SELECT database_to_xml(true, true, '')", "database_to_xml"),
+        ("SELECT * FROM ts_stat('select 1')", "ts_stat"),
+        ("SELECT ts_rewrite('a'::tsquery, 'select 1')", "ts_rewrite"),
+        # A name inside a literal is refused too: query_to_xml would run it, and
+        # the probes below make a literal's bounds a matter of opinion.
+        (
+            "SELECT query_to_xml('select pg_terminate_backend(pid) from pg_stat_activity', "
+            "true, true, '')",
+            "query_to_xml",
+        ),
+        ("SELECT count(*) FROM events WHERE event_name = 'set_config(x)'", "set_config"),
+        ("SELECT count(*) FROM events WHERE screen_name = 'pg_stat_activity'", "pg_stat_activity"),
+        # A quote inside a comment or a dollar quote opens no literal for
+        # PostgreSQL, but it does for a scanner that skips literals.
+        ("SELECT 1 /* ' */, pg_terminate_backend(123) -- '", "pg_terminate_backend"),
+        ("SELECT 1 -- '\n, pg_terminate_backend(123) -- '", "pg_terminate_backend"),
+        ("SELECT $$'$$, pg_cancel_backend(1), $$'$$", "pg_cancel_backend"),
+        ("SELECT $a$'$a$ AS x, set_config('statement_timeout','0',false), $a$'$a$", "set_config"),
     ],
 )
 def test_a_session_reaching_call_is_refused(statement: str, named: str) -> None:
-    with pytest.raises(ValueError, match=f"does not allow {named} in a query"):
+    with pytest.raises(ValueError, match=f"does not allow {named} anywhere in a query"):
         check_demo_warehouse_sql(statement)
 
 
-def test_a_unicode_escape_identifier_is_refused() -> None:
-    with pytest.raises(ValueError, match="identifiers"):
-        check_demo_warehouse_sql('SELECT U&"\\0070g_sleep"(1)')
+@pytest.mark.parametrize(
+    ("statement", "refused"),
+    [
+        ('SELECT U&"\\0070g_sleep"(1)', "identifiers"),
+        ("SELECT $$x$$", "dollar-quoted"),
+        ("SELECT $body$x$body$ AS b", "dollar-quoted"),
+        ("SELECT 1 -- note", "comments"),
+        ("SELECT 1 /* note */", "comments"),
+        ("SELECT 1 */", "comments"),
+    ],
+)
+def test_text_that_hides_text_is_refused(statement: str, refused: str) -> None:
+    with pytest.raises(ValueError, match=refused):
+        check_demo_warehouse_sql(statement)
 
 
 @pytest.mark.parametrize(
@@ -52,9 +90,9 @@ def test_a_unicode_escape_identifier_is_refused() -> None:
     [
         "SELECT count(*) FROM events",
         "SELECT current_setting('statement_timeout')",
-        # A name inside a string literal is data.
-        "SELECT count(*) FROM events WHERE event_name = 'set_config(x)'",
-        "SELECT count(*) FROM events WHERE screen_name = 'pg_stat_activity'",
+        # Ordinary literals, and one ``$`` (a regex anchor) is not a dollar quote.
+        "SELECT count(*) FROM events WHERE event_name = 'Purchase Completed'",
+        "SELECT count(*) FROM events WHERE amount ~ '^[0-9]+$' AND x - 1 > 0",
         # Longer names that merely contain a denylisted one.
         "SELECT my_set_config, set_configs FROM t",
         'SELECT "event_name" FROM "events"',

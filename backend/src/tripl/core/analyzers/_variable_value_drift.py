@@ -49,6 +49,9 @@ NOVEL_VALUE_SAMPLE_LIMIT = 20
 
 _TRUE_SPELLINGS = frozenset({"true", "t", "1", "yes"})
 _FALSE_SPELLINGS = frozenset({"false", "f", "0", "no"})
+#: A number whose decimal exponent is further out than this keeps its spelling:
+#: written out plainly, ``1e999999`` is a million digits.
+_MAX_PLAIN_EXPONENT = 100
 
 
 def canonical_value(value: str, kind: str | None) -> str:
@@ -58,7 +61,8 @@ def canonical_value(value: str, kind: str | None) -> str:
     is ``True``, a ``numeric(10,2)`` is ``10.00`` — while an author documents
     ``true`` and ``10``. Compared as text, every one of those is a "novel"
     value and the drift is noise. Anything the kind cannot parse is returned
-    as given, so it still reads as novel.
+    as given, so it still reads as novel; so is a number too large or too
+    small to write out (:data:`_MAX_PLAIN_EXPONENT`).
     """
     if kind == "boolean":
         folded = value.strip().lower()
@@ -76,11 +80,16 @@ def canonical_value(value: str, kind: str | None) -> str:
             return value
         if number.is_zero():
             return "0"
+        if abs(number.adjusted()) > _MAX_PLAIN_EXPONENT:
+            return value
         # ``normalize`` drops trailing zeros (``10.00`` -> ``10``) and ``f``
         # keeps it out of exponent notation. Its context is as precise as the
         # number itself, so a long id is never rounded to the default 28 digits.
         exact = Context(prec=max(1, len(number.as_tuple().digits)))
-        return format(number.normalize(exact), "f")
+        try:
+            return format(number.normalize(exact), "f")
+        except ArithmeticError:  # a decimal signal the context traps
+            return value
     return value
 
 

@@ -484,10 +484,14 @@ By default `python -m tripl.migrate` creates the warehouse itself: the
 `<name>_demo` database (it needs `CREATEDB`), the reader role named after it,
 `<warehouse database>_reader` (it needs `CREATEROLE`), the `warehouse` schema and
 the grants. Two steps need a superuser: the reader's `temp_file_limit`, and
-taking from PUBLIC, in the demo database, the functions that reach other
-sessions (cancelling or terminating a backend, advisory locks) and
-`pg_stat_activity`. Without one, `migrate` warns and goes on; tripl's own SQL
-check still refuses those calls on a demo source. On a managed PostgreSQL where
+taking from PUBLIC, in the demo database, `pg_stat_activity` and the functions
+a role every visitor shares must not have (cancelling or terminating a backend,
+reading other sessions, advisory locks, `pg_sleep*`, `set_config`, the
+functions that run a query given as text, the large-object functions; the full
+list is in [The demo project](../use/demo-workspace.md#the-demo-warehouse)).
+Without one, `migrate` warns and goes on — a REVOKE without a superuser only
+warns, so it checks afterwards what the reader can still use and names it —
+and tripl's own SQL check still refuses those calls on a demo source. On a managed PostgreSQL where
 tripl's role has neither `CREATEDB` nor `CREATEROLE`, `migrate` logs a warning
 naming what is missing, still succeeds, and every demo runs on the in-memory
 engine. To use the warehouse there, have an administrator run, as a role that
@@ -517,6 +521,26 @@ ALTER ROLE tripl_demo_reader SET temp_file_limit = '256MB';
 --    public schema, and tripl's role cannot take that back: the schema is not
 --    its own.
 REVOKE CREATE ON SCHEMA public FROM PUBLIC;
+
+-- 4. Still connected to tripl_demo, and only a superuser may: what the shared
+--    reader must not use. Function privileges are per database, so tripl's own
+--    database is untouched.
+REVOKE SELECT ON pg_catalog.pg_stat_activity FROM PUBLIC;
+DO $$
+DECLARE f regprocedure;
+BEGIN
+  FOR f IN
+    SELECT p.oid::regprocedure FROM pg_proc p
+    JOIN pg_namespace n ON n.oid = p.pronamespace
+    WHERE n.nspname = 'pg_catalog' AND p.proname ~ ('^(set_config|pg_cancel_backend'
+      '|pg_terminate_backend|pg_stat_get_activity|pg_stat_get_backend_.*'
+      '|pg_(try_)?advisory_.*|pg_sleep.*|pg_notify'
+      '|(query|cursor|table|schema|database)_to_xml.*|ts_stat|ts_rewrite'
+      '|lo_.*|loread|lowrite)$')
+  LOOP
+    EXECUTE format('REVOKE EXECUTE ON FUNCTION %s FROM PUBLIC', f);
+  END LOOP;
+END $$;
 ```
 
 Then set the reader's password and run `migrate` again:
@@ -535,9 +559,11 @@ PUBLIC, and grants the reader CONNECT, `USAGE` on `warehouse` and `SELECT` on it
 two tables — nothing else. The reader connects with the writer's host, port and `sslmode`.
 Whatever `migrate` cannot do is a warning in its log naming the statement an
 administrator should run, and a reader limit it could not set is reported by
-`GET /api/v1/platform/settings` under `system.demo_warehouse.reader_limits_missing`
-(`["temp_file_limit"]` where no superuser was available): the reader then runs
-without it, on the server tripl shares. **Settings → Instance → System** shows the
+`GET /api/v1/platform/settings` under `system.demo_warehouse.reader_limits_missing`:
+`temp_file_limit` where no superuser was available, then every function (by
+signature, such as `set_config(text,text,boolean)`) or view
+(`pg_catalog.pg_stat_activity`) the reader can still use. The reader then runs
+without that limit, on the server tripl shares; step 4 above takes the rest. **Settings → Instance → System** shows the
 warehouse's engine, how far it is written and its size; *In-memory engine* there
 carries the reason when demos are not using it.
 

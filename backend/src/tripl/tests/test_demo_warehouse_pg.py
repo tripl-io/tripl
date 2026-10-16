@@ -282,9 +282,69 @@ def test_the_reader_cannot_reach_other_sessions(warehouse: datetime) -> None:
             "SELECT pg_try_advisory_lock(1)",
             "SELECT pg_advisory_xact_lock(1)",
             "SELECT query FROM pg_stat_activity",
+            "SELECT set_config('statement_timeout', '0', false)",
+            "SELECT pg_sleep(0)",
+            "SELECT query_to_xml('select 1', true, true, '')",
+            "SELECT * FROM ts_stat('select to_tsvector(''a'')')",
+            "SELECT lo_get(1)",
         ):
             with pytest.raises(psycopg.errors.InsufficientPrivilege):
                 conn.execute(statement)
+        # SET is a statement, not a call: the adapter's pins still work.
+        conn.execute("SET work_mem = '8MB'")
+        assert conn.execute("SHOW work_mem").fetchone() == ("8MB",)
+
+
+def test_every_revoked_function_is_checked_not_trusted(warehouse: datetime) -> None:
+    reader = connection.reader_role()
+    with psycopg.connect(**connection.writer_connection().kwargs(), autocommit=True) as conn:  # type: ignore[arg-type]
+        revoked = conn.execute(
+            "SELECT p.oid::regprocedure::text, has_function_privilege(%s, p.oid, 'EXECUTE') "
+            "FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace "
+            "WHERE n.nspname = 'pg_catalog' AND p.proname ~ %s",
+            (reader, provision.REVOKED_FUNCTIONS_RE),
+        ).fetchall()
+        names = {str(signature).split("(", 1)[0] for signature, _ in revoked}
+        # Every family of the list matched something in this server's catalog.
+        assert {
+            "set_config",
+            "pg_cancel_backend",
+            "pg_terminate_backend",
+            "pg_stat_get_activity",
+            "pg_advisory_lock",
+            "pg_try_advisory_xact_lock_shared",
+            "pg_sleep",
+            "pg_sleep_for",
+            "query_to_xml",
+            "query_to_xml_and_xmlschema",
+            "cursor_to_xml",
+            "table_to_xml",
+            "schema_to_xml",
+            "database_to_xml",
+            "ts_stat",
+            "ts_rewrite",
+            "lo_get",
+            "loread",
+        } <= names
+        # CI provisions as a superuser, so every one of them was taken away...
+        assert [signature for signature, executable in revoked if executable] == []
+        assert conn.execute(
+            "SELECT has_table_privilege(%s, 'pg_catalog.pg_stat_activity', 'SELECT')", (reader,)
+        ).fetchone() == (False,)
+        assert provision.reader_reachable_session_functions(conn, reader) == ()
+        # ...and one granted back is reported, by provisioning and by the status.
+        conn.execute("GRANT EXECUTE ON FUNCTION pg_catalog.pg_sleep(double precision) TO PUBLIC")
+        assert provision.reader_reachable_session_functions(conn, reader) == (
+            "pg_sleep(double precision)",
+        )
+    assert (
+        "pg_sleep(double precision)" in status.warehouse_status(refresh=True).reader_limits_missing
+    )
+    result = provision.ProvisionResult()
+    with psycopg.connect(**connection.writer_connection().kwargs(), autocommit=True) as conn:  # type: ignore[arg-type]
+        conn.execute("REVOKE EXECUTE ON FUNCTION pg_catalog.pg_sleep(double precision) FROM PUBLIC")
+        provision._revoke_session_functions(conn, result, reader)
+    assert result.warnings == []
 
 
 def test_the_adapter_refuses_session_calls_before_sending_them(warehouse: datetime) -> None:
@@ -301,8 +361,10 @@ def test_the_adapter_refuses_session_calls_before_sending_them(warehouse: dateti
             ):
                 with pytest.raises(ValueError, match="demo warehouse does not allow"):
                     cur.execute(statement)
-            # The name inside a string literal is data, not a call.
-            cur.execute("SELECT count(*) FROM events WHERE event_name = 'set_config(x)'")
+            # Inside a string literal too: query_to_xml would run it.
+            with pytest.raises(ValueError, match="string literals included"):
+                cur.execute("SELECT count(*) FROM events WHERE event_name = 'set_config(x)'")
+            cur.execute("SELECT count(*) FROM events WHERE event_name = 'Nobody Calls This'")
             assert cur.fetchone() == (0,)
     finally:
         adapter.close()
@@ -312,15 +374,14 @@ def test_a_session_setting_cannot_outlive_its_statement(warehouse: datetime) -> 
     adapter = engine.build_postgres_adapter(timeout_seconds=1)
     assert isinstance(adapter, DemoPostgresAdapter)
     try:
-        # Past the adapter's denylist (a plain cursor), as if a call slipped it.
+        # Past the adapter's check (a plain cursor). set_config is revoked, so
+        # as SET statements, which a stacked query could carry.
         with psycopg.Cursor(adapter._conn) as raw:
             raw.execute(
-                "SELECT set_config('statement_timeout', '0', false), "
-                "set_config('standard_conforming_strings', 'off', false), "
-                "set_config('search_path', 'public', false), "
-                "set_config('work_mem', '2GB', false), "
-                "set_config('max_parallel_workers_per_gather', '8', false), "
-                "set_config('idle_in_transaction_session_timeout', '0', false)"
+                "SET statement_timeout = 0; SET standard_conforming_strings = off; "
+                "SET search_path = public; SET work_mem = '2GB'; "
+                "SET max_parallel_workers_per_gather = 8; "
+                "SET idle_in_transaction_session_timeout = 0"
             )
         with adapter._conn.cursor() as cur:
             for setting, pinned in (

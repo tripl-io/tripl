@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import time
 import uuid
+from collections.abc import Mapping, Sequence
 from datetime import UTC, datetime, timedelta
 
 import pytest
@@ -23,6 +24,7 @@ from tripl.config import settings
 from tripl.core.bucketing import to_utc
 from tripl.models.alert_delivery import AlertDelivery
 from tripl.models.project import Project
+from tripl.models.schema_drift import SchemaDrift
 from tripl.models.signal_triage import SignalTriage
 from tripl.services import demo_history_service, demo_service
 from tripl.services.demo import noise, pipeline
@@ -65,9 +67,19 @@ async def test_a_demo_opens_on_two_days_and_the_fill_completes_it(
         assert config_id is not None
         replays = await pipeline.replay_summaries(session, config_id)
         deliveries = await session.scalar(select(func.count()).select_from(AlertDelivery))
+        contract_drifts = (
+            await session.execute(
+                select(SchemaDrift.field_name, SchemaDrift.drift_type).where(
+                    SchemaDrift.scan_config_id == config_id
+                )
+            )
+        ).all()
     # The first build replayed its two days only.
     assert replays
     assert min(_starts(replays)) >= pipeline.first_build_start(seeded_at)
+    # Its live collection waits for the fill, but not its field-contract check:
+    # the tour's schema-drift step is there when the demo opens.
+    assert ("currency", "enum_violation") in {(name, str(kind)) for name, kind in contract_drifts}
 
     # A manual run would interleave with the fill's replays.
     scans = (await client.get(f"/api/v1/projects/{demo['slug']}/scans")).json()
@@ -131,8 +143,5 @@ def test_the_fill_meets_the_first_build() -> None:
         assert pipeline.fill_progress([], now) == 0
 
 
-def _starts(summaries: list[object]) -> list[datetime]:
-    return [
-        to_utc(datetime.fromisoformat(str(summary["time_from"])))  # type: ignore[index]
-        for summary in summaries
-    ]
+def _starts(summaries: Sequence[Mapping[str, object]]) -> list[datetime]:
+    return [to_utc(datetime.fromisoformat(str(summary["time_from"]))) for summary in summaries]

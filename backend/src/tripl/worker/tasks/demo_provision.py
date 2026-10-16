@@ -59,10 +59,12 @@ def seed_demo_project(project_id: str, request_id: str | None = None) -> str:
 
 @celery_app.task(name=FILL_TASK_NAME)  # type: ignore[untyped-decorator]
 def fill_demo_history(project_id: str, request_id: str | None = None) -> str:
-    """Fill a ready demo's history; returns ``complete``, ``continued``, ``failed`` or ``skipped``.
+    """Fill a ready demo's history.
 
+    Returns ``complete``, ``continued``, ``failed``, ``busy`` or ``skipped``.
     ``continued``: this task's slice is spent and the rest is queued behind
     whatever waits for the worker (:data:`demo_history_service.FILL_SLICE`).
+    ``busy``: another task of the same fill holds its lock and goes on.
     """
     outcome = "skipped"
 

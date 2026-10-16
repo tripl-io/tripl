@@ -69,6 +69,9 @@ from tripl.core.analyzers._event_generator_variables import (
 from tripl.core.analyzers._event_generator_variables import (
     record_variable_contexts as _record_variable_contexts,
 )
+from tripl.core.analyzers._event_generator_variables import (
+    without_sensitive_fields as _without_sensitive_fields,
+)
 from tripl.core.analyzers._event_identity import (
     index_events_by_identity,
     insert_event_claiming_identity,
@@ -583,13 +586,14 @@ def generate_events(
         if observed_fields
         else set()
     )
+    definitions_by_id = {fd.id: fd for fd in field_definitions.values()}
     authored_observations = _authored_token_observations(
         events=[event for event in existing_by_identity.values() if event.id in surviving_ids],
         observed_fields=observed_fields,
         values_seen=values_seen,
         index=variable_index,
         cardinality_threshold=cardinality_threshold,
-        field_definitions={fd.id: fd for fd in field_definitions.values()},
+        field_definitions=definitions_by_id,
     )
     result.value_drifts_detected = _detect_variable_value_drifts(
         session,
@@ -597,8 +601,11 @@ def generate_events(
         branch_id=main_branch_id,
         scan_config_id=scan_config_id,
         # The planner's contexts win a shared key: their evidence is the variable
-        # detector's, which covers the high-cardinality case properly.
-        contexts={**authored_observations, **variable_contexts},
+        # detector's, which covers the high-cardinality case properly. Neither
+        # side's sensitive fields reach a drift row.
+        contexts=_without_sensitive_fields(
+            {**authored_observations, **variable_contexts}, definitions_by_id
+        ),
     )
     result.property_drifts_detected = detect_event_property_drifts(
         session,

@@ -61,6 +61,10 @@ class WarehouseStatus:
     reason: str | None
     #: Reader-role limits ``migrate`` could not set (``temp_file_limit`` needs a
     #: superuser): the reader runs without them, on the server tripl shares.
+    #: Then every function or view it should have taken from the reader and
+    #: could not (a signature such as ``set_config(text,text,boolean)``, or
+    #: ``pg_catalog.pg_stat_activity``); only the adapter's SQL check refuses
+    #: those.
     reader_limits_missing: tuple[str, ...] = ()
 
     def as_dict(self) -> dict[str, object]:
@@ -148,23 +152,29 @@ def _read(now: datetime) -> WarehouseStatus:
 
 
 def _missing_reader_limits(conn: psycopg.Connection[tuple[object, ...]]) -> tuple[str, ...]:
-    """The reader-role defaults ``migrate`` sets that the role does not carry.
+    """The reader limits ``migrate`` sets that the reader does not have.
 
-    Only when ``migrate`` manages the role: a hand-provisioned reader is the
-    operator's to configure.
+    The role defaults only when ``migrate`` manages the role (a hand-provisioned
+    reader is the operator's to configure); the revoked functions and views
+    always, since ``migrate`` takes those in the demo database either way.
     """
-    from tripl.core.demo_warehouse.provision import READER_ROLE_SETTINGS
+    from tripl.core.demo_warehouse.provision import (
+        READER_ROLE_SETTINGS,
+        reader_reachable_session_functions,
+    )
 
-    if not connection.reader_is_managed():
-        return ()
-    row = conn.execute(
-        "SELECT s.setconfig FROM pg_db_role_setting s JOIN pg_roles r ON r.oid = s.setrole "
-        "WHERE r.rolname = %s AND s.setdatabase = 0",
-        (connection.reader_role(),),
-    ).fetchone()
-    setconfig = row[0] if row and isinstance(row[0], list) else []
-    configured = {str(item).split("=", 1)[0] for item in setconfig}
-    return tuple(name for name, _ in READER_ROLE_SETTINGS if name not in configured)
+    reader = connection.reader_role()
+    missing: tuple[str, ...] = ()
+    if connection.reader_is_managed():
+        row = conn.execute(
+            "SELECT s.setconfig FROM pg_db_role_setting s JOIN pg_roles r ON r.oid = s.setrole "
+            "WHERE r.rolname = %s AND s.setdatabase = 0",
+            (reader,),
+        ).fetchone()
+        setconfig = row[0] if row and isinstance(row[0], list) else []
+        configured = {str(item).split("=", 1)[0] for item in setconfig}
+        missing = tuple(name for name, _ in READER_ROLE_SETTINGS if name not in configured)
+    return missing + reader_reachable_session_functions(conn, reader)
 
 
 def _not_ready_reason(

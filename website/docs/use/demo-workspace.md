@@ -99,7 +99,10 @@ reaches it:
    so the two names no plan documents stay out of the catalog.
 2. **History** — a real metrics replay over the last two days, in one-day
    chunks; the dialog shows how far through it is. One job scores them once
-   and dispatches what it finds.
+   and dispatches what it finds. The newest hours are left to the live
+   collection that ends the history fill (below), but their field-contract
+   check runs now, so the demo opens with the GBP enum violation on
+   **Purchase Completed** that the tour's schema-drift step points at.
 3. **Signals** — the catalog metrics through the worker's own collectors, the
    event lifecycle pass, and the search index.
 
@@ -121,6 +124,15 @@ the two unplanned names in the reconciliation inbox and starts the source's
 freshness watermarks; it runs last because the dispatcher alerts on an
 incident only while it heads its series. Last, the fill marks the weekly promo
 sends and tags the planned window, the steps that need the whole history.
+
+The fill works in slices of half a minute and queues the rest behind whatever
+else waits for the worker, and one slice of a demo's fill runs at a time (a
+lock per demo in tripl's database, so a redelivered task cannot replay beside
+it). Until it ends the scheduler collects nothing for the demo, scan or catalog
+metrics. Any error marks it **failed**: the banner drops *Filling in history*,
+the demo keeps what it has, and the scheduler takes over; a worker that dies mid-fill leaves it running on paper, so the
+scheduler re-queues a fill that has shown no sign of life for an hour, waits
+one hour longer before each next try, and marks it failed after three.
 
 What you land on is therefore the pipeline's: anomalies on the warehouse's
 incidents and their attributions, distribution drift on the country mix,
@@ -175,11 +187,19 @@ for the same hour, whoever reads them.
   off for the next one. Only a superuser may change `temp_file_limit`, so the
   role's value holds. The reader can read the two warehouse tables and nothing
   else: nothing is granted to it in tripl's own database, and in the demo one
-  PUBLIC loses CONNECT, TEMPORARY and its privileges on every schema, EXECUTE on
-  the functions that reach other sessions (cancelling or terminating a backend,
-  advisory locks, `pg_stat_get_activity`) and SELECT on `pg_stat_activity` —
-  every visitor shares the one role, and sessions of one role may see and cancel
-  each other's queries. Its password is derived from `SECRET_KEY` unless you
+  PUBLIC loses CONNECT, TEMPORARY and its privileges on every schema, and SELECT
+  on `pg_stat_activity` and EXECUTE on the functions a shared role must not
+  have: those that reach other sessions (cancelling or terminating a backend,
+  `pg_stat_get_activity`, `pg_stat_get_backend*`, the advisory locks,
+  `pg_sleep*`, `pg_notify`) — every visitor shares the one role, and sessions of
+  one role may see and cancel each other's queries — `set_config`, the
+  functions that run a query given as text (`query_to_xml` and the rest of the
+  `*_to_xml` family, `ts_stat`, `ts_rewrite`) and the large-object functions.
+  `migrate` checks afterwards what the reader can still use, because a REVOKE
+  without a superuser only warns: anything left is a warning naming it and is
+  listed in the warehouse status (see [managed
+  PostgreSQL](../run/configuration.md#demo-warehouse-on-managed-postgresql)).
+  Its password is derived from `SECRET_KEY` unless you
   provision the role yourself, and `migrate` sends it to the server as a
   SCRAM-SHA-256 verifier, never in plain text. Every connection parameter comes
   from the server's configuration, never from the data source: a demo source's
@@ -204,14 +224,20 @@ for the same hour, whoever reads them.
 - **SQL against it.** On PostgreSQL, the SQL editor and SQL metrics run real SQL
   against the two tables, read-only and time-limited. Every statement a demo
   source runs (scans, fact tables, SQL metrics, previews, the editor) is checked
-  before it is sent, and on top of the checks any warehouse gets it may not call
-  `set_config`, `pg_sleep*`, the advisory locks, `pg_cancel_backend`,
-  `pg_terminate_backend`, `pg_stat_get_activity` or `pg_stat_get_backend*`, the
-  large-object functions (`lo_*`), `dblink*`, the server-file functions
-  (`pg_read_file`, `pg_read_binary_file`, `pg_ls_*`, `pg_stat_file`),
-  `pg_reload_conf`, `pg_rotate_logfile` or `pg_notify`, read `pg_stat_activity`,
-  or spell a name as a Unicode-escape identifier (`U&"…"`). Reading a setting
-  with `current_setting` is allowed.
+  before it is sent, a second layer over the reader's privileges. On top of the
+  checks any warehouse gets, it may not name `set_config`, `pg_sleep*`, the
+  advisory locks, `pg_cancel_backend`, `pg_terminate_backend`,
+  `pg_stat_get_activity` or `pg_stat_get_backend*`, the large-object functions
+  (`lo_*`, `loread`, `lowrite`), the functions that run a query given as text
+  (the `*_to_xml` family, `ts_stat`, `ts_rewrite`), `dblink*`, the server-file
+  functions (`pg_read_file`, `pg_read_binary_file`, `pg_ls_*`, `pg_stat_file`),
+  `pg_reload_conf`, `pg_rotate_logfile`, `pg_notify` or `pg_stat_activity` —
+  anywhere in the statement, string literals included, since `query_to_xml`
+  runs a string as a query — and it may not carry a comment, a dollar-quoted
+  string (`$$…$$`) or a Unicode-escape identifier (`U&"…"`), each a way to make
+  text read as something else. A literal that merely contains one of those
+  names is refused too; on the demo's own data that costs nothing. Reading a
+  setting with `current_setting` is allowed.
 
 ### Two engines
 

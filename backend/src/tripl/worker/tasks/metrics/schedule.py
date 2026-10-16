@@ -17,8 +17,10 @@ from datetime import UTC, datetime, timedelta
 
 from sqlalchemy import func as sa_func
 from sqlalchemy import select
+from sqlalchemy import update as sa_update
 from sqlalchemy.orm import Session
 
+from tripl import cache
 from tripl.config import settings
 from tripl.core.bucketing import floor_to_bucket, to_utc
 from tripl.core.collection_progress import collection_progress_to
@@ -347,6 +349,7 @@ def check_metrics_due() -> dict[str, int]:
                 Project.demo_seeded_at,
                 Project.demo_last_accessed_at,
                 DataSource.db_type,
+                Project.demo_history_status,
             )
             .join(Project, Project.id == ScanConfig.project_id)
             .join(DataSource, DataSource.id == ScanConfig.data_source_id)
@@ -359,16 +362,18 @@ def check_metrics_due() -> dict[str, int]:
         ).all()
         configs = [row[0] for row in config_rows]
         # Demo-only project state, keyed by config: PRESENCE in this map is
-        # ``is_demo`` and the value is the activity pair the pause gate reads.
+        # ``is_demo`` and the value is what the demo gates read: the build's
+        # time and the last access (the pause gate), and the history fill's
+        # status.
         # Deliberately one map rather than an ``is_demo`` map beside a parallel
-        # activity map — the two demo gates below would then have two things to
+        # activity map — the demo gates below would then have two things to
         # keep in agreement. Carried on the join the dispatcher already does
         # rather than re-read per config: this loop runs over every scan config
         # on every 300 s beat tick, and two more columns on one query is free
         # where a per-config Project load is not.
-        demo_activity_by_config: dict[uuid.UUID, tuple[datetime | None, datetime | None]] = {
-            row[0].id: (row[2], row[3]) for row in config_rows if row[1]
-        }
+        demo_activity_by_config: dict[
+            uuid.UUID, tuple[datetime | None, datetime | None, str | None]
+        ] = {row[0].id: (row[2], row[3], row[5]) for row in config_rows if row[1]}
         # A demo built by an older recipe reads a per-demo ``synthetic`` source
         # whose history was seeded into tripl and advanced by a synthetic tick
         # that no longer exists. It is frozen until someone resets it (the app
@@ -473,7 +478,7 @@ def check_metrics_due() -> dict[str, int]:
                 # anyway does not pay the cooldown's job-history read, matching
                 # how the failure backoff above is only measured once the cheap
                 # bucket check has said "due".
-                seeded_at, last_accessed = demo_activity
+                seeded_at, last_accessed, _ = demo_activity
                 if is_demo_paused(seeded_at, last_accessed, now):
                     logger.info(
                         f"Skipping collect_metrics for paused demo {config.name!r}: "
@@ -485,6 +490,17 @@ def check_metrics_due() -> dict[str, int]:
                 # Not built yet (still seeding, or a failed shell): the seed
                 # collects it, and a scheduled run between two of its jobs
                 # would interleave with the next one.
+                should_run = False
+
+            if (
+                should_run
+                and demo_activity is not None
+                and demo_activity[2] == DemoHistoryStatus.filling.value
+            ):
+                # The same while its history fill runs: the fill replays the
+                # older weeks and then runs the live collection itself. A fill
+                # whose worker died is re-queued or failed by the stall sweep
+                # below, so this never holds a demo for good.
                 should_run = False
 
             if should_run and demo_activity is not None:
@@ -532,6 +548,13 @@ def check_metrics_due() -> dict[str, int]:
                     raise
                 dispatched += 1
 
+        try:
+            _sweep_stalled_history_fills(session, now=datetime.now(UTC))
+        except Exception:
+            # The dispatch above is committed; a sweep that failed tries again
+            # on the next tick.
+            session.rollback()
+            logger.exception("check_metrics_due: the history-fill stall sweep failed")
         logger.info(f"check_metrics_due: {len(configs)} configs checked, {dispatched} dispatched")
         return {"checked": len(configs), "dispatched": dispatched}
 
@@ -541,6 +564,79 @@ def check_metrics_due() -> dict[str, int]:
     finally:
         release_advisory_lock(lock_conn, _DISPATCH_ADVISORY_LOCK_KEY, name="check_metrics_due")
         session.close()
+
+
+def _sweep_stalled_history_fills(session: Session, *, now: datetime) -> None:
+    """Re-queue a demo's history fill that stopped without ending; fail it after a few.
+
+    A fill marks itself ``failed`` on any error, but a worker that dies (killed,
+    out of memory, a deploy) leaves it ``filling``, and the demo would wait for
+    it forever: its scheduled collections and catalog metrics are held while it
+    fills. ``demo_history_service.stalled_fill_action`` decides from the fill's
+    last sign of life; a re-queued task that finds the fill alive after all
+    leaves it to its holder (the fill lock).
+    """
+    from tripl.services import demo_history_service
+    from tripl.worker.tasks.demo_provision import fill_demo_history
+
+    filling = session.execute(
+        select(Project.id, Project.demo_seeded_at, Project.demo_history_attempts).where(
+            Project.is_demo.is_(True),
+            Project.generation_status == ProjectGenerationStatus.ready.value,
+            Project.demo_history_status == DemoHistoryStatus.filling.value,
+            project_in_active_org(),
+        )
+    ).all()
+    for project_id, seeded_at, attempts in filling:
+        newest_job = session.scalar(
+            select(sa_func.max(ScanJob.updated_at))
+            .join(ScanConfig, ScanConfig.id == ScanJob.scan_config_id)
+            .where(ScanConfig.project_id == project_id)
+        )
+        markers = [to_utc(m) for m in (newest_job, seeded_at) if m is not None]
+        if not markers:
+            continue
+        action = demo_history_service.stalled_fill_action(max(markers), attempts, now)
+        if action == "wait":
+            continue
+        claim = (
+            sa_update(Project)
+            .where(
+                Project.id == project_id,
+                Project.demo_history_status == DemoHistoryStatus.filling.value,
+                Project.demo_history_attempts == attempts,
+            )
+            .execution_options(synchronize_session=False)
+        )
+        if action == "fail":
+            claim = claim.values(demo_history_status=DemoHistoryStatus.failed.value)
+        else:
+            claim = claim.values(demo_history_attempts=attempts + 1)
+        if not getattr(session.execute(claim), "rowcount", 0):
+            session.rollback()
+            continue
+        session.commit()
+        cache.sync_delete_prefix(cache.prefix_projects())
+        if action == "fail":
+            logger.warning(
+                "%s project_id=%s error=stalled attempts=%s",
+                demo_history_service.DEMO_HISTORY_FILL_FAILED_EVENT,
+                project_id,
+                attempts,
+            )
+            continue
+        logger.warning(
+            "demo.history_fill.requeued project_id=%s attempt=%s", project_id, attempts + 1
+        )
+        try:
+            fill_demo_history.delay(str(project_id), None)
+        except Exception:
+            # The next tick, one stall period on, tries again.
+            logger.warning(
+                "demo.history_fill.requeue_failed project_id=%s error=broker_unavailable",
+                project_id,
+                exc_info=True,
+            )
 
 
 def _metric_collection_in_progress(definition: MetricDefinition, *, now: datetime) -> bool:
@@ -719,9 +815,11 @@ def _demo_projects_held(
     """Demo projects whose catalog metrics are not collected on this tick.
 
     The gates ``check_metrics_due`` applies to a demo's scan, for its catalog
-    metrics: a demo still seeding or filling its history (the build collects
-    them itself), a paused one (nobody is looking), and a legacy demo, frozen
-    until someone resets it (it reads a per-demo ``synthetic`` source).
+    metrics: every demo while ``DEMO_RUNTIME_ENABLED`` is off (demos keep what
+    provisioning built), a demo still seeding or filling its history (the
+    build collects them itself), a paused one (nobody is looking), and a
+    legacy demo, frozen until someone resets it (it reads a per-demo
+    ``synthetic`` source).
     """
     if not project_ids:
         return set()
@@ -736,6 +834,8 @@ def _demo_projects_held(
     ).all()
     if not rows:
         return set()
+    if not settings.demo_runtime_enabled:
+        return {row[0] for row in rows}
     legacy = set(
         session.scalars(
             select(DataSource.project_id).where(

@@ -301,7 +301,8 @@ async def run_history_stage(
 
     The last :data:`FIRST_BUILD_HISTORY` only (:func:`fill_history` replays the
     rest once the demo is open, and then runs the live window this leaves out
-    when there is a rest to fill). Every job stores its window, and one of them —
+    when there is a rest to fill; of that window this runs only the
+    field-contract check). Every job stores its window, and one of them —
     the job ending at the alerting split — also scores :func:`scoring_window`:
     a single detection, attribution and dispatch pass, where a job each would
     re-fit every scope's seasonal model once per job.
@@ -316,10 +317,14 @@ async def run_history_stage(
     start = first_build_start(ctx.now)
     windows = history_windows(ctx.now, start)
     scored_from, scored_to = scoring_window(ctx.now, start)
+    contracts_only: tuple[datetime, datetime] | None = None
     if fill_windows(ctx.now) and windows[-1][1] != scored_to:
         # The live window waits for the history fill, which runs it last: the
         # dispatcher alerts on an incident only at the head of its series, so
         # the fill's scoring pass must come before any hour after the split.
+        # Its field-contract check, which stores no hour, runs now (below): the
+        # demo opens with the contract violations the warehouse carries.
+        contracts_only = windows[-1]
         windows = windows[:-1]
     for time_from, time_to in windows:
         # The last window is the scheduler's first tick rather than a replay: a
@@ -344,6 +349,15 @@ async def run_history_stage(
         await _require_completed(session, job_id, "metrics collection" if live else "replay")
         if between_jobs is not None:
             await between_jobs()
+    if contracts_only is not None:
+        from tripl.worker.tasks.metrics.contract_check import check_field_contracts
+
+        await session.run_sync(
+            check_field_contracts,
+            config_id,
+            time_from=contracts_only[0],
+            time_to=contracts_only[1],
+        )
 
 
 @contextmanager
@@ -381,13 +395,15 @@ def history_progress(
     (``tasks.metrics._heartbeat_replay_progress``); the share of ``span``
     (default: the whole history, :func:`.noise.history_days`) they cover is the
     progress. ``until`` counts only the jobs that end by it — the history fill's
-    jobs, not the first build's. 99 at most: a replay is done only when the
+    jobs, not the first build's. A window two jobs covered (one left behind by
+    a worker that died, and the one that resumed it) counts once, at the
+    furthest either got. 99 at most: a replay is done only when the
     provisioning says so.
     """
     total = (span or timedelta(days=noise.history_days())).total_seconds()
     if total <= 0:
         return 0
-    covered = 0.0
+    shares: dict[tuple[datetime, datetime], float] = {}
     for summary in summaries:
         try:
             time_from = to_utc(datetime.fromisoformat(str(summary["time_from"])))
@@ -398,7 +414,9 @@ def history_progress(
             continue
         if chunks <= 0 or (until is not None and time_to > until):
             continue
-        covered += (time_to - time_from).total_seconds() * min(done, chunks) / chunks
+        window = (time_from, time_to)
+        shares[window] = max(shares.get(window, 0.0), min(done, chunks) / chunks)
+    covered = sum((end - start).total_seconds() * share for (start, end), share in shares.items())
     return max(0, min(99, int(100 * covered / total)))
 
 
@@ -447,7 +465,9 @@ async def fill_history(
 
     done = {
         (str(summary.get("time_from")), str(summary.get("time_to")))
-        for summary in await replay_summaries(session, config_id, completed=True)
+        for summary in await replay_summaries(
+            session, config_id, statuses=(ScanJobStatus.completed,)
+        )
     }
     for time_from, time_to in fill_windows(ctx.now):
         if (time_from.isoformat(), time_to.isoformat()) in done:
@@ -734,18 +754,23 @@ async def _require_completed(session: AsyncSession, job_id: uuid.UUID, what: str
 
 
 async def replay_summaries(
-    session: AsyncSession, scan_config_id: uuid.UUID, *, completed: bool = False
+    session: AsyncSession,
+    scan_config_id: uuid.UUID,
+    *,
+    statuses: Collection[ScanJobStatus] | None = None,
 ) -> list[Mapping[str, object]]:
     """The progress summaries of the config's replay jobs (for the UI's percentage).
 
-    ``completed`` keeps only the jobs that finished (what a resumed fill skips).
+    ``statuses`` keeps only the jobs in one of them: the completed ones are
+    what a resumed fill skips, and those plus the running one are its progress
+    (a failed job's chunks are replayed again).
     """
     query = select(ScanJob.result_summary).where(
         ScanJob.scan_config_id == scan_config_id,
         ScanJob.result_summary.is_not(None),
     )
-    if completed:
-        query = query.where(ScanJob.status == ScanJobStatus.completed.value)
+    if statuses is not None:
+        query = query.where(ScanJob.status.in_([status.value for status in statuses]))
     rows = (await session.execute(query)).scalars()
     return [
         summary

@@ -622,6 +622,25 @@ def authored_token_observations(
 _CANONICAL_FIELD_KINDS = frozenset({FieldDefinitionType.number, FieldDefinitionType.boolean})
 
 
+def without_sensitive_fields(
+    contexts: PendingVariableContexts, field_definitions: Mapping[uuid.UUID, FieldDefinition]
+) -> PendingVariableContexts:
+    """``contexts`` less those of a field marked sensitive, for the value-drift detector.
+
+    The planner's contexts as much as ``authored_token_observations``' own: a
+    drift row stores the novel values themselves and an alert quotes them, and
+    a field someone flagged as PII or a secret must not have its raw values
+    copied out to either. A context whose field is not among
+    ``field_definitions`` is kept, as before.
+    """
+    return {
+        key: context
+        for key, context in contexts.items()
+        if (definition := field_definitions.get(key[2])) is None
+        or definition.sensitivity == Sensitivity.none
+    }
+
+
 def insert_variable_contexts(
     session: Session,
     *,

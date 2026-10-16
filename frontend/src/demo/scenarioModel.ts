@@ -553,8 +553,10 @@ export const SCENARIO_SEEDED = {
   shadowCandidateName: 'app_heartbeat_v1',
   schemaDriftEventName: 'Purchase Completed',
   /** Its open enum violation (the warehouse sends GBP, which the plan's
-   *  currency list lacks): the drift the step accepts. Filed by the build's
-   *  live collection, the one contract check a replay skips. */
+   *  currency list lacks): the drift the step accepts. Filed by the first
+   *  build's field-contract check over its newest hours (a replay skips that
+   *  check, and the live collection waits for the history fill), so it is
+   *  there when the demo opens. */
   schemaDriftFieldName: 'currency',
   schemaDriftType: 'enum_violation',
   firingRuleName: 'Spike & drift watch (demo)',
