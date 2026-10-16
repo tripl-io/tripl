@@ -327,6 +327,10 @@ def test_every_creation_hour_has_an_incident_to_alert_on(
     # Contiguous, oldest first, the first build's two days, no window too wide.
     assert windows[0][0] == pipeline.first_build_start(now)
     assert windows[-1][1] == now
+    # The last window is the live collection, which resumes where a replay
+    # stopped: a replay always comes first, an incident still running at the
+    # build hour included.
+    assert len(windows) >= 2
     for (_, end), (start, _) in zip(windows, windows[1:], strict=False):
         assert end == start
     assert all(end - start <= pipeline.REPLAY_JOB_SPAN for start, end in windows)

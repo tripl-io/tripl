@@ -57,8 +57,10 @@ reports.
   (completed)* split by the buyer's country, and *Average order value*.
 - **Alerting.** A local sink, a **flaky** twin of it, a visibly disabled Slack
   example carrying no credentials, and three rules: *Spike & drift watch (demo)*,
-  *Volume watch (flaky sink)* and the usually silent *Weekly release health
-  (quiet)*. What they can and cannot send is described below.
+  *Volume watch (flaky sink)* and *Weekly release health (quiet)*, which
+  watches only for the whole app's volume falling and stays healthy (release
+  regressions go to the first rule). What they can and cannot send is
+  described below.
 - **What the team decided.** One pair of events that only look alike
   (**Push Permission Granted** and **Push Permission Denied**) dismissed as not
   a duplicate, beside a real near-duplicate left open for the duplicates view

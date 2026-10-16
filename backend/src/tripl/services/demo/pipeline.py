@@ -225,9 +225,10 @@ def history_windows(
     """The replay's walk-forward windows ``[start, end)``, oldest first.
 
     ``now`` is the seed hour; ``start`` defaults to the whole history's. One
-    window ends right after the newest complete incident bucket that is still
-    recent enough to alert on (the dispatcher alerts only on a scope's newest
-    bucket, and only within a day of the wall clock), so that job ends with an
+    window ends right after the earliest complete incident bucket that is still
+    recent enough to alert on, :func:`_alert_split` (the dispatcher alerts only
+    on a scope's newest bucket, and only within a day of the wall clock), so
+    that job ends with an
     incident at the head of its series; the rest is cut into
     :data:`REPLAY_JOB_SPAN` jobs.
     """
@@ -241,6 +242,14 @@ def history_windows(
         cuts.append(cuts[-1] + REPLAY_JOB_SPAN)
     if split is not None and cuts[-1] < split < end:
         cuts.append(split)
+    elif split == end and cuts[-1] < end - _HOUR:
+        # An incident is still running at the build hour: its newest complete
+        # hour is the one before it, so the scoring window is the last one,
+        # the live collection. That collection resumes where a replay stopped,
+        # so a replay must stop somewhere: it gets the incident's head hour
+        # alone. Without this cut the first build's only window was live, and
+        # resumed from no replay: it stored next to nothing.
+        cuts.append(end - _HOUR)
     cuts.append(end)
     return list(zip(cuts, cuts[1:], strict=False))
 
@@ -270,15 +279,16 @@ def scoring_window(now: datetime, start: datetime | None = None) -> tuple[dateti
 
 def _alert_split(end: datetime) -> datetime | None:
     # A bucket at or after ``end - 23h`` is within 24h of any instant inside
-    # the seed hour, and ``bucket + 1h <= end`` keeps it complete. The NEWEST
-    # such bucket: freshness is judged on the wall clock when the alert is
-    # dispatched and the signal shown, minutes or hours after the seed hour,
-    # and a 23-hour-old head closes as soon as that hour ends (a build that
-    # finished past it filed no alert at all). The newest is 23 hours old only
-    # on the hour a two-hour incident's successor starts; the earliest was on
-    # one hour in nine. Every incident hour is flagged as a head
-    # (``test_a_demo_built_in_any_hour_alerts_on_a_detected_incident``), so
-    # which one the pass ends on changes no detection.
+    # the seed hour, and ``bucket + 1h <= end`` keeps it complete. Freshness is
+    # judged on the wall clock when the alert is dispatched and the signal
+    # shown, which can be past the seed hour (a build that runs into the next
+    # hour), and a 23-hour-old head closes as that hour ends. So the earliest
+    # bucket at most 22 hours old, and a 23-hour-old one only when there is
+    # none: on the hour a two-hour incident's successor starts (six hours in a
+    # rotation). The EARLIEST, not the newest: the scoring pass ends there,
+    # and so does the history the release-regression check is anchored on;
+    # ending later hands it more of the next release's beta, enough for the
+    # beta's own regression to fire the quiet release rule.
     earliest = end - timedelta(hours=23)
     candidates = [
         bucket
@@ -286,7 +296,9 @@ def _alert_split(end: datetime) -> datetime | None:
         for bucket in _hours(incident.start, incident.end)
         if earliest <= bucket and bucket + _HOUR <= end
     ]
-    return max(candidates) + _HOUR if candidates else None
+    fresh = [bucket for bucket in candidates if bucket >= end - timedelta(hours=22)]
+    pool = fresh or candidates
+    return min(pool) + _HOUR if pool else None
 
 
 def _hours(start: datetime, end: datetime) -> list[datetime]:
