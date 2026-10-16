@@ -489,6 +489,16 @@ def _purchase(
     properties: tuple[PropertyDef, ...] = _PAYMENT_PROPERTIES,
     **extra: object,
 ) -> EventDef:
+    field_values: tuple[tuple[str, str], ...] = (
+        ("product_id", "${product_id}"),
+        ("platform", "${platform}"),
+    )
+    if priced:
+        # A charge's amount and currency vary row to row. Authored as their
+        # variables, the plan says so; left unauthored, the scan would stamp the
+        # busiest row's value (a 0.00 or a GBP charge) as the event's constant,
+        # which the field's own contract (minimum 0.01, USD or EUR) then refuses.
+        field_values += (("amount", "${amount}"), ("currency", "${currency}"))
     return EventDef(
         "purchase",
         name,
@@ -499,7 +509,7 @@ def _purchase(
         products=products,
         priced=priced,
         properties=properties,
-        field_values=(("product_id", "${product_id}"), ("platform", "${platform}")),
+        field_values=field_values,
         **extra,  # type: ignore[arg-type]
     )
 
@@ -1822,6 +1832,13 @@ VARIABLES: tuple[VariableDef, ...] = (
     ),
     VariableDef("user_id", "Pseudonymous user identifier.", ()),
     VariableDef("session_id", "Identifier of one app session.", ()),
+    # Documented by their fields, not here: ``currency`` is an enum field (USD,
+    # EUR) whose contract catches the GBP rows, and ``amount`` a number field
+    # with a minimum. An empty list keeps them out of value-drift detection, so
+    # the GBP rows tell one story (the contract), not two.
+    VariableDef("country", "ISO country code of the user's store account.", ()),
+    VariableDef("currency", "ISO currency of a charge.", ()),
+    VariableDef("amount", "What the store charged, in the charge's currency.", ()),
 )
 
 # ---------------------------------------------------------------------------

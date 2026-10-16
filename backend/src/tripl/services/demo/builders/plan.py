@@ -188,6 +188,9 @@ async def _build_events(session: AsyncSession, ctx: DemoContext) -> None:
         ctx.event_ids[event_def.name] = event.id
         values = dict(event_def.field_values)
         values.setdefault("event_name", event_def.name)
+        # Every row carries a country; authored as the variable, the plan does
+        # not pin the event to the busiest country the scan happened to see.
+        values.setdefault("country", "${country}")
         for field_name, value in values.items():
             field_id = ctx.field_ids.get(f"{event_def.event_type}.{field_name}")
             if field_id is None:

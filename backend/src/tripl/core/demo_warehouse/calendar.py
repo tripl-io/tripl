@@ -9,7 +9,7 @@ instant finds something to look at:
   the last 24 hours always hold an anomalous bucket (``test_demo_warehouse_model``
   checks this for every hour of a long span);
 * a **weekly promo**: every Tuesday 10:00-12:00 UTC the paywall gets a burst of
-  traffic from the "promo Tuesday" push. A team plans it, so it is the demo's
+  traffic from the "promo Tuesday" email. A team plans it, so it is the demo's
   example of an expected spike;
 * a **release train**: a new app version every 14 days, adopted along a logistic
   curve over ~5 days after a 5-day beta. Each release ships one regression (an
@@ -187,6 +187,13 @@ _INCIDENT_KINDS: tuple[tuple[str, str, tuple[str, ...], int, float, str | None],
     ("platform_shift", "event", ("Home Screen View",), 3, 4.0, "web"),
 )
 INCIDENT_KINDS: tuple[str, ...] = tuple(kind[0] for kind in _INCIDENT_KINDS)
+#: The targets each kind takes in turn.
+INCIDENT_TARGETS: dict[str, tuple[str, ...]] = {kind[0]: kind[2] for kind in _INCIDENT_KINDS}
+#: The calendar's period: after this many days every (kind, target) pair has
+#: come round and the sequence repeats.
+INCIDENT_ROTATION_DAYS = len(_INCIDENT_KINDS) * math.lcm(
+    *(len(kind[2]) for kind in _INCIDENT_KINDS)
+)
 #: Share of a spike's extra traffic that lands on its platform.
 SPIKE_PLATFORM_SHARE = 0.85
 

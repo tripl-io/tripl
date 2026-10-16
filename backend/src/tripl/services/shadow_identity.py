@@ -12,8 +12,9 @@ One predicate decides "held", used by both sides so they cannot disagree:
 * the inbox (``reconciliation_service.list_shadow_events``) hides a ``new``
   candidate the predicate holds;
 * the collector (``worker.tasks.metrics.tasks``) resolves those candidates after
-  each catalog sync — ``accepted`` and linked to the event, with no
-  ``resolved_by`` because nobody pressed anything (:func:`resolve_held_candidates`).
+  the catalog sync of every collection that is not a replay — ``accepted`` and
+  linked to the event, with no ``resolved_by`` because nobody pressed anything
+  (:func:`resolve_held_candidates`).
 
 "Held" mirrors how the collector matches traffic: an event on the project's
 MAIN plan (the plan a scan reads), of the candidate's event type (a candidate

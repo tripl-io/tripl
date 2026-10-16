@@ -408,10 +408,10 @@ finding says "at least N, at least since T" and sets
 `evidence.consecutive_failures_truncated`.
 
 Dispatcher jobs are identified *positively*, by `result_summary.mode ==
-"metrics_collection"`. Manual catalog scans, metrics replays, event-group
-applies and demo runtime ticks share the same job table and are neither counted
-as failures nor treated as the success that ends a streak — so pressing **Run
-now** in the app can neither trigger the backoff nor clear it.
+"metrics_collection"`. Manual catalog scans, metrics replays (a demo build's
+history among them) and event-group applies share the same job table and are
+neither counted as failures nor treated as the success that ends a streak — so
+pressing **Run now** in the app can neither trigger the backoff nor clear it.
 
 | Finding | What it means | What to do |
 |---------|---------------|------------|

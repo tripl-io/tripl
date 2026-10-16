@@ -413,6 +413,13 @@ async def test_demo_export_has_a_schema_per_event_and_round_trips(client: AsyncC
     # variable's own documented values (the override narrows Trial Started).
     assert purchase["product_id"]["enum"] == list(DOCUMENTED_PRODUCTS)
     assert purchase["amount"]["type"] == "number"
+    # A charge's amount and currency are authored as variables, so the schema
+    # carries the fields' own contracts and no constant the scan observed (the
+    # warehouse's GBP and 0.00 rows are what those contracts exist to catch).
+    assert "const" not in purchase["amount"]
+    assert purchase["currency"]["enum"] == ["USD", "EUR"]
+    assert "const" not in purchase["currency"]
+    assert "const" not in home["properties"]["country"]
     assert schemas["purchase/Promo Applied"]["deprecated"] is True
 
 
@@ -440,8 +447,13 @@ async def test_demo_codegen_model(client: AsyncClient) -> None:
     assert platform["variable"] == "platform"
     home = next(ev for ev in screen["events"] if ev["name"] == "Home Screen View")
     # What the plan authored; the scan adds what it observed beside it (the
-    # busiest country, the properties' variable template).
-    authored = {"event_name": "Home Screen View", "screen_name": "home", "platform": "${platform}"}
+    # properties' variable template).
+    authored = {
+        "event_name": "Home Screen View",
+        "screen_name": "home",
+        "platform": "${platform}",
+        "country": "${country}",
+    }
     assert {key: home["field_values"].get(key) for key in authored} == authored
     assert home["deprecated"] is False
     assert home["overrides"] == {}

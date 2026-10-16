@@ -32,9 +32,14 @@ reports.
   rest are planned or retired work, so their coverage reads honestly empty.
   Every event carries its fields, meta fields, properties and tags, and the
   event types have an owner.
-- **Variables.** `platform`, `product_id`, `user_id` and `session_id`, with their
-  documented values. **Trial Started** is documented to sell `prod_monthly` and
-  `prod_annual` only, and **Home Screen View** requires `${platform}`.
+- **Variables.** `platform` and `product_id` with their documented values;
+  `user_id`, `session_id`, `country`, `currency` and `amount` without a list
+  (a charge's `currency` and `amount` are documented by their fields' contracts
+  instead). **Trial Started** is documented to sell `prod_monthly` and
+  `prod_annual` only, and **Home Screen View** requires `${platform}`. Every
+  event carries `${country}`, and every charge `${amount}` and `${currency}`, so
+  the plan never pins an event to one country or one price the scan happened to
+  see most.
 - **The connection.** One data source of the *demo* kind and one scan, *Demo
   scan*, reading the warehouse's `events` table in hourly buckets, with platform
   and app-version columns, three properties whose values it records
@@ -109,7 +114,9 @@ and **Run now** and **Replay** on the demo's scan wait until it is done
 weeks once on the full baseline and dispatches what it finds, so the newest
 incident files the alert deliveries a live collection would have. Then comes
 the scheduler's first live collection, up to the hour the demo was built: it
-runs the field-contract check (the GBP purchases and the zero amounts), files
+runs the field-contract check (the GBP purchases and the zero amounts; the
+warehouse puts one of each in every hour with two purchases, so even a short
+collection finds both), files
 the two unplanned names in the reconciliation inbox and starts the source's
 freshness watermarks; it runs last because the dispatcher alerts on an
 incident only while it heads its series. Last, the fill marks the weekly promo
@@ -147,22 +154,37 @@ for the same hour, whoever reads them.
 
 - **Who writes it.** The worker's `write-demo-warehouse` beat task, every five
   minutes, writes the rows of the slice it runs in, so an hour is complete before
-  it ends. Its first run backfills the whole retention window (about 800,000 rows,
-  under a minute); after downtime it catches up from where it stopped; when the
-  model changes in a new release it rewrites everything. `python -m tripl.migrate`
-  creates the database, the reader role, the schema and the grants, and repairs
-  them on every run.
-- **Who reads it.** Demos read it as `tripl_demo_reader`, a login role that owns
-  nothing and holds at most 20 connections. Its sessions are read-only, with a
-  15‑second statement timeout, a 30‑second idle-in-transaction timeout, 16 MB of
-  work memory and 256 MB of temporary files, and tripl re-applies those settings
-  before every statement it sends, so a query cannot switch them off for the next
-  one. It can read the two warehouse tables and nothing else: nothing is granted
-  to it in tripl's own database, and PUBLIC loses its privileges in the demo one.
-  Its password is derived from `SECRET_KEY` unless you provision the role
-  yourself. Every connection parameter comes from the server's configuration,
-  never from the data source: a demo source's host and credentials are ignored,
-  so nothing a user can edit reaches that connection.
+  it ends. Days are UTC days. Its first run backfills the whole retention window
+  (about 28,000 rows a day, so about 850,000 over the default 30 days, under a
+  minute); after downtime it catches up from where it stopped; when the model's
+  data version changes in a new release (it is 2 now) it rewrites everything,
+  once. Two runs never overlap: each takes a lock in **tripl's own** database,
+  not the demo one, where a visitor's query could take the same key and stall
+  the writer. Creating or dropping a day partition waits at most five seconds
+  for a reader's query to finish; a run that times out stops there and the next
+  run retries. `python -m tripl.migrate` creates the database, the reader role,
+  the schema and the grants, and repairs them on every run.
+- **Who reads it.** Demos read it as `<warehouse database>_reader`
+  (`tripl_demo_reader` in compose), a login role that owns nothing and holds at
+  most 10 connections, because the server's `max_connections` is shared with
+  tripl's own pool. Its sessions are read-only, with a 15‑second statement
+  timeout, a 30‑second idle-in-transaction timeout, 16 MB of work memory (with no
+  extra allowance for hash tables), no parallel workers and 256 MB of temporary
+  files. A session may change every one of those but the last, so tripl
+  re-applies them before every statement it sends: a query cannot switch them
+  off for the next one. Only a superuser may change `temp_file_limit`, so the
+  role's value holds. The reader can read the two warehouse tables and nothing
+  else: nothing is granted to it in tripl's own database, and in the demo one
+  PUBLIC loses CONNECT, TEMPORARY and its privileges on every schema, EXECUTE on
+  the functions that reach other sessions (cancelling or terminating a backend,
+  advisory locks, `pg_stat_get_activity`) and SELECT on `pg_stat_activity` —
+  every visitor shares the one role, and sessions of one role may see and cancel
+  each other's queries. Its password is derived from `SECRET_KEY` unless you
+  provision the role yourself, and `migrate` sends it to the server as a
+  SCRAM-SHA-256 verifier, never in plain text. Every connection parameter comes
+  from the server's configuration, never from the data source: a demo source's
+  host and credentials are ignored, so nothing a user can edit reaches that
+  connection.
 - **How big it gets.** Day partitions older than
   [`DEMO_WAREHOUSE_RETENTION_DAYS`](../run/configuration.md#demo-workspace) (30)
   are dropped. Over `DEMO_WAREHOUSE_MAX_MB` (1024), the oldest days beyond the 23
@@ -171,11 +193,25 @@ for the same hour, whoever reads them.
 - **Your own database stays bounded too.** A demo project would otherwise keep
   every collected hour forever, and a public demo creates demos by the hundred.
   The daily `prune-demo-history` task deletes a demo's *observed* rows that fall
-  behind the warehouse's retention; the authored plan is never touched. A
-  collection that resumes after a long pause starts no further back than the
-  warehouse still holds, so it never scores a gap as zeros.
+  behind the warehouse's retention; the authored plan is never touched.
+- **What a collection reads.** Only hours the warehouse holds whole. A window
+  starts no further back than the oldest retained hour, so a collection that
+  resumes after a long pause never scores a gap as zeros. On PostgreSQL it ends
+  at the last bucket the writer has finished, so the newest hour is never read
+  half-written and scored as a drop. A window with nothing left on either side
+  is refused with a message saying why, never collected empty; the next
+  collection picks it up.
 - **SQL against it.** On PostgreSQL, the SQL editor and SQL metrics run real SQL
-  against the two tables, read-only and time-limited.
+  against the two tables, read-only and time-limited. Every statement a demo
+  source runs (scans, fact tables, SQL metrics, previews, the editor) is checked
+  before it is sent, and on top of the checks any warehouse gets it may not call
+  `set_config`, `pg_sleep*`, the advisory locks, `pg_cancel_backend`,
+  `pg_terminate_backend`, `pg_stat_get_activity` or `pg_stat_get_backend*`, the
+  large-object functions (`lo_*`), `dblink*`, the server-file functions
+  (`pg_read_file`, `pg_read_binary_file`, `pg_ls_*`, `pg_stat_file`),
+  `pg_reload_conf`, `pg_rotate_logfile` or `pg_notify`, read `pg_stat_activity`,
+  or spell a name as a Unicode-escape identifier (`U&"…"`). Reading a setting
+  with `current_setting` is allowed.
 
 ### Two engines
 
@@ -185,7 +221,8 @@ for the same hour, whoever reads them.
   **in-memory engine** otherwise. A reader connection that fails falls back to
   memory and is remembered for a minute, so a down warehouse costs one connection
   attempt a minute, not one per scan.
-- **`postgres`** — always the warehouse; a failure is the scan's error.
+- **`postgres`** — always the warehouse; a failure (a warehouse that is down or
+  not provisioned) is the scan's error, with no fallback.
 - **`memory`** — always the in-memory engine.
 
 The in-memory engine generates the same rows from the same model on demand, an
@@ -325,8 +362,11 @@ A demo built by demo data version 4 or earlier read a private, in-memory
 *synthetic* source whose history was written straight into tripl. That source no
 longer advances, so such a demo is frozen: its banner says *This demo was built
 by an older version of tripl, so its data no longer updates*, and **Reset**
-rebuilds it on the demo warehouse. Until then it keeps its data, wears a
-**Synthetic** badge, and the daily prune still bounds it.
+rebuilds it on the demo warehouse. Until then it keeps its plan and wears a
+**Synthetic** badge, but not its history for long: the daily prune deletes
+observed rows once they fall behind the warehouse's retention
+(`DEMO_WAREHOUSE_RETENTION_DAYS`, 30 by default), and a frozen demo collects
+nothing new, so its charts empty out over the month after it froze.
 
 ## Finding your way around
 
@@ -428,10 +468,10 @@ The demo offers two guides, and they do different jobs.
   [Quick Start](../quick-start.md), on a public demo, which has no projects of
   your own to create. The strip offers the same.
 
-  The chapters follow **your** actions, not the demo's. The runtime clock is
-  producing real scans and collections of its own in the background, so a step
-  advances only when the run or collection **you** started settles — a background
-  run never ticks it forward. A run that fails, or that a reset wipes out, sends you
+  The chapters follow **your** actions, not the demo's. The scheduler keeps
+  collecting the demo warehouse in the background, as it does for any project
+  with a schedule, so a step advances only when the run or collection **you**
+  started settles — a background run never ticks it forward. A run that fails, or that a reset wipes out, sends you
   back to the action with an explanation rather than leaving you waiting. The
   current Scans page also follows that exact run to its terminal status, even if a
   realtime update is missed, so completing the step never requires a reload.

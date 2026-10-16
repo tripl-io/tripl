@@ -446,10 +446,10 @@ reads. All of them have working defaults, and none affects real projects.
 | --- | --- | --- | --- |
 | `DEMO_ENABLED` | `true` | No | Master kill switch for demo **provisioning**. When `false`, `POST /projects/demo` **and** demo reset are refused with `403 Demo provisioning is disabled`. |
 | `DEMO_RUNTIME_ENABLED` | `true` | No | Whether demos advance. When `false`, a demo's scheduled collection is never dispatched: it keeps exactly what provisioning built, and **Run now** and **Replay** still work. The warehouse writer is not affected. |
-| `DEMO_HISTORY_DAYS` | `23` | No | Days of warehouse history a new demo replays (2–30). 23 is three weekly cycles, which the hour-of-week baseline needs, plus two days to score. A shorter history still makes a complete demo, faster, with a baseline blind to the weekly pattern. At most the warehouse's retention. |
+| `DEMO_HISTORY_DAYS` | `23` | No | Days of warehouse history a new demo replays (2–30). 23 is three weekly cycles, which the hour-of-week baseline needs, plus two days to score. A shorter history still makes a complete demo, faster, with a baseline blind to the weekly pattern. At most `DEMO_WAREHOUSE_RETENTION_DAYS`: the server refuses to start with more, since a build would replay days the warehouse no longer holds. |
 | `DEMO_WAREHOUSE_MODE` | `auto` | No | Which engine serves demos: `auto` uses the PostgreSQL warehouse when it is ready and the in-memory engine otherwise; `postgres` always uses the warehouse (a failure is the scan's error); `memory` always uses the in-memory engine and leaves the writer idle. |
 | `DEMO_WAREHOUSE_URL` | *(empty)* | No | The warehouse writer's DSN, for a database [provisioned by hand](#demo-warehouse-on-managed-postgresql). Empty derives it from `SYNC_DATABASE_URL`, with the database name `<name>_demo` (`tripl_demo` in compose), which `migrate` creates. |
-| `DEMO_WAREHOUSE_READER_PASSWORD` | *(empty)* | No | The password of a `tripl_demo_reader` role provisioned by hand. Empty derives one from `SECRET_KEY` (never stored; rotating the key rotates it on the next `migrate`) and lets `migrate` manage the role. |
+| `DEMO_WAREHOUSE_READER_PASSWORD` | *(empty)* | No | The password of the reader role, `<warehouse database>_reader` (`tripl_demo_reader` in compose), provisioned by hand. Empty derives one from `SECRET_KEY` (never stored; rotating the key rotates it on the next `migrate`) and lets `migrate` manage the role. |
 | `DEMO_WAREHOUSE_RETENTION_DAYS` | `30` | No | Days of rows the warehouse keeps (23–365); older day partitions are dropped. A demo project's own observed rows are pruned to the same horizon every day. |
 | `DEMO_WAREHOUSE_MAX_MB` | `1024` | No | Size cap of the warehouse database, in MB (at least 64). Over it, the oldest days beyond the 23 a demo replays are dropped and an error is logged: a backstop, not the plan. |
 | `DEMO_POOL_SIZE` | `0` | No | **[Enterprise edition](../editions.md)**: read by its package, ignored by Community. How many demos to keep seeded ahead of time (0–50). Above 0, the `refill-demo-pool` beat task keeps that many ready in a service organization, and **Generate demo project** hands one out at once instead of queueing a seed; with the pool empty it seeds as usual. The pool only refills after a claim, so an idle instance seeds nothing more. `0` turns it off. |
@@ -481,12 +481,17 @@ untouched by all of them.
 ### Demo warehouse on managed PostgreSQL {#demo-warehouse-on-managed-postgresql}
 
 By default `python -m tripl.migrate` creates the warehouse itself: the
-`<name>_demo` database (it needs `CREATEDB`), the `tripl_demo_reader` role (it
-needs `CREATEROLE`; one limit, `temp_file_limit`, needs a superuser), the
-`warehouse` schema and the grants. On a managed PostgreSQL where tripl's role
-has neither privilege, `migrate` logs a warning naming what is missing, still
-succeeds, and every demo runs on the in-memory engine. To use the warehouse
-there, have an administrator run, as a role that may:
+`<name>_demo` database (it needs `CREATEDB`), the reader role named after it,
+`<warehouse database>_reader` (it needs `CREATEROLE`), the `warehouse` schema and
+the grants. Two steps need a superuser: the reader's `temp_file_limit`, and
+taking from PUBLIC, in the demo database, the functions that reach other
+sessions (cancelling or terminating a backend, advisory locks) and
+`pg_stat_activity`. Without one, `migrate` warns and goes on; tripl's own SQL
+check still refuses those calls on a demo source. On a managed PostgreSQL where
+tripl's role has neither `CREATEDB` nor `CREATEROLE`, `migrate` logs a warning
+naming what is missing, still succeeds, and every demo runs on the in-memory
+engine. To use the warehouse there, have an administrator run, as a role that
+may:
 
 ```sql
 -- 1. The database, owned by tripl's role (the writer). C collation, so text
@@ -494,16 +499,24 @@ there, have an administrator run, as a role that may:
 CREATE DATABASE tripl_demo OWNER tripl
   TEMPLATE template0 ENCODING 'UTF8' LC_COLLATE 'C' LC_CTYPE 'C';
 
--- 2. The reader: logs in, owns nothing, read-only by default.
+-- 2. The reader, named after the database: logs in, owns nothing, read-only
+--    by default, at most 10 connections of the server's shared max_connections.
 CREATE ROLE tripl_demo_reader WITH LOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE
-  NOREPLICATION NOINHERIT CONNECTION LIMIT 20 PASSWORD '<a long random password>';
+  NOREPLICATION NOINHERIT CONNECTION LIMIT 10 PASSWORD '<a long random password>';
 ALTER ROLE tripl_demo_reader SET default_transaction_read_only = on;
 ALTER ROLE tripl_demo_reader SET statement_timeout = '15s';
 ALTER ROLE tripl_demo_reader SET idle_in_transaction_session_timeout = '30s';
 ALTER ROLE tripl_demo_reader SET work_mem = '16MB';
+ALTER ROLE tripl_demo_reader SET hash_mem_multiplier = 1;
+ALTER ROLE tripl_demo_reader SET max_parallel_workers_per_gather = 0;
 ALTER ROLE tripl_demo_reader SET search_path = warehouse;
 -- Superuser only; skip it where none is available.
 ALTER ROLE tripl_demo_reader SET temp_file_limit = '256MB';
+
+-- 3. Connected to tripl_demo. PostgreSQL 14 and older let PUBLIC create in the
+--    public schema, and tripl's role cannot take that back: the schema is not
+--    its own.
+REVOKE CREATE ON SCHEMA public FROM PUBLIC;
 ```
 
 Then set the reader's password and run `migrate` again:
@@ -517,11 +530,16 @@ DEMO_WAREHOUSE_URL=postgresql://tripl:<password>@<host>:5432/tripl_demo?sslmode=
 
 With the password set, `migrate` leaves the role alone, and it never creates a
 database that already exists. As the database's owner it creates the schemas and
-the tables, takes CONNECT and every schema privilege away from PUBLIC, and grants
-the reader CONNECT, `USAGE` on `warehouse` and `SELECT` on its two tables —
-nothing else. The reader connects with the writer's host, port and `sslmode`. **Settings → Instance → System** shows the warehouse's
-engine, how far it is written and its size; *In-memory engine* there carries the
-reason when demos are not using it.
+the tables, takes CONNECT, TEMPORARY and every schema privilege away from
+PUBLIC, and grants the reader CONNECT, `USAGE` on `warehouse` and `SELECT` on its
+two tables — nothing else. The reader connects with the writer's host, port and `sslmode`.
+Whatever `migrate` cannot do is a warning in its log naming the statement an
+administrator should run, and a reader limit it could not set is reported by
+`GET /api/v1/platform/settings` under `system.demo_warehouse.reader_limits_missing`
+(`["temp_file_limit"]` where no superuser was available): the reader then runs
+without it, on the server tripl shares. **Settings → Instance → System** shows the
+warehouse's engine, how far it is written and its size; *In-memory engine* there
+carries the reason when demos are not using it.
 
 See [The demo project](../use/demo-workspace.md) for what a demo contains, where
 its data comes from, and the calendar of incidents the warehouse runs.

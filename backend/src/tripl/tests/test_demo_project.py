@@ -242,7 +242,8 @@ async def _assert_the_branch_carries_one_change(client: AsyncClient, slug: str) 
         CHANGED_EVENT_NAME,
     )
     assert {change["field"] for change in entry["field_changes"]} == {"description"}
-    # Whether main moved since the branch was cut: see the strict xfail below.
+    # Whether main moved since the branch was cut: see
+    # test_a_fresh_demos_open_branch_is_not_behind_main.
 
     # A full plan copy behind it, not just the one edited row.
     async with TestSessionLocal() as session:

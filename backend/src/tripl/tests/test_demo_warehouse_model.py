@@ -36,6 +36,7 @@ from tripl.core.analyzers.distribution_drift import compute_psi
 from tripl.core.demo_warehouse import calendar, roster, rows, schema, traffic
 from tripl.models.data_source import DEMO_DB_TYPES, DBType
 from tripl.schemas.data_source import CONNECTION_SETTINGS_MODELS
+from tripl.services.demo import pipeline
 
 HOUR = calendar.HOUR
 #: A fixed "now", mid-hour and mid-slice, so nothing depends on the wall clock.
@@ -150,10 +151,29 @@ def test_one_incident_a_day_rotating_through_every_kind() -> None:
         assert incident.description
 
 
+#: Every (kind, target) pair the calendar can put on a day.
+_ALL_PAIRS = {
+    (kind, target) for kind, targets in calendar.INCIDENT_TARGETS.items() for target in targets
+}
+_ROTATION = timedelta(days=calendar.INCIDENT_ROTATION_DAYS)
+
+
+def test_a_full_rotation_brings_every_kind_to_every_target() -> None:
+    rotation = calendar.incidents_between(END - _ROTATION, END)
+    assert len(rotation) == calendar.INCIDENT_ROTATION_DAYS
+    assert {(incident.kind, incident.target) for incident in rotation} == _ALL_PAIRS
+    # ...and then the calendar repeats itself.
+    previous = calendar.incidents_between(END - 2 * _ROTATION, END - _ROTATION)
+    assert [(i.kind, i.target) for i in previous] == [(i.kind, i.target) for i in rotation]
+
+
 def test_every_daily_incident_is_detected(
     hourly_counts: dict[datetime, dict[tuple[str, str], int]],
 ) -> None:
-    for incident in calendar.incidents_between(END - timedelta(days=10), END - HOUR):
+    """A whole rotation, so every (kind, target) pair is put to the detector."""
+    incidents = calendar.incidents_between(END - _ROTATION, END - HOUR)
+    assert {(incident.kind, incident.target) for incident in incidents} == _ALL_PAIRS
+    for incident in incidents:
         points = [p for p in _series(hourly_counts, incident.scope, incident.target)]
         result = detect_anomalies(
             points,
@@ -213,6 +233,53 @@ def test_a_demo_created_at_any_moment_has_an_incident_within_a_day() -> None:
         assert finished, at
         latest = finished[-1]
         assert at - min(latest.end, at) <= timedelta(hours=24), at
+
+
+def test_a_demo_built_in_any_hour_alerts_on_a_detected_incident(
+    hourly_counts: dict[datetime, dict[tuple[str, str], int]],
+) -> None:
+    """The build's scoring pass ends on an incident hour the detector flags.
+
+    The provisioning tests (the contract's newest-incident check, the flaky
+    sink's delivery) run on the wall clock, so they see the hour they happen
+    to run in. This pins the same promise for every hour of a whole rotation:
+    the pass ends one bucket after an incident hour less than a day old, and
+    that bucket is flagged in the incident's direction. The flaky sink's rule
+    takes every event and event-type volume signal, spikes and drops alike, so
+    a flagged head is a delivery on both sinks whichever incident it is.
+    """
+    flagged_heads: dict[tuple[str, str, datetime], bool] = {}
+    for at in _instants(_ROTATION, HOUR):
+        now = at + timedelta(minutes=7, seconds=30)
+        _scored_from, scored_to = pipeline.scoring_window(now)
+        head = scored_to - HOUR
+        [incident] = [
+            i for i in calendar.incidents_between(head, scored_to) if i.start <= head < i.end
+        ]
+        assert incident.scope in {"event", "event_type"}, incident
+        assert now - head <= timedelta(hours=24), now
+        key = (incident.scope, incident.target, head)
+        if key not in flagged_heads:
+            points = [
+                p
+                for p in _series(hourly_counts, incident.scope, incident.target)
+                if p.bucket < scored_to
+            ]
+            result = detect_anomalies(
+                points,
+                interval=HOUR,
+                evaluation_start=head,
+                evaluation_end=scored_to,
+                settings=DEMO_SETTINGS,
+                settling_buckets=0,
+            )
+            direction = "drop" if incident.multiplier < 1 else "spike"
+            flagged_heads[key] = any(
+                a.bucket == head and a.direction == direction for a in result.anomalies
+            )
+        assert flagged_heads[key], (
+            f"a demo built at {now} ends on {incident.description}, unflagged"
+        )
 
 
 # -- the other stories -----------------------------------------------------------------

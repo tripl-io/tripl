@@ -8,11 +8,11 @@ twin (``Local demo sink (flaky)``), which fails on purpose, so the failed state
 and the **Retry** action the docs promise (website/docs/use/alerting.md) are
 reachable without leaving a zero-egress demo.
 
-What is pinned: the failed attempt owns the items its header counts and sits
-in the same incident as a delivery that succeeded (the Inbox card lists an
-incident's deliveries by the correlation group of their items, so a row with
-none would hide its Retry), and the Retry re-renders a message that names every
-scope it counts and is still local. ``send_alert_delivery`` re-renders from
+What is pinned: the failed attempt owns the items its header counts, each with
+the incident handle the Inbox card lists an incident's deliveries by (an item
+without one would hide the Retry), on a signal the main sink's own rule sent;
+and the Retry re-renders a message that names every scope it counts and is
+still local. ``send_alert_delivery`` re-renders from
 ``delivery.items`` and overwrites the stored ``rendered_message``, so the retry
 is the moment an item list that disagrees with its header becomes visible.
 
@@ -136,20 +136,28 @@ async def test_the_flaky_sink_fails_once_inside_an_incident_and_its_retry_lists_
         # The failed attempt owns one item per signal its header counts...
         assert len(failed.items) == failed.matched_count > 0
         scopes = sorted({item.scope_name for item in failed.items})
-        # ...and belongs to an incident a delivery that succeeded is also in.
-        groups = {item.correlation_group_id for item in failed.items}
-        assert None not in groups
-        statuses_in_incident = set(
-            session.scalars(
-                select(AlertDelivery.status)
-                .join(AlertDeliveryItem, AlertDeliveryItem.delivery_id == AlertDelivery.id)
-                .where(AlertDeliveryItem.correlation_group_id.in_(groups))
+        # ...every item names its incident (the Inbox card lists an incident's
+        # deliveries by that handle, so an item without one hides the Retry)...
+        assert None not in {item.correlation_group_id for item in failed.items}
+        # ...and the main sink's rule caught the same signal and sent it. Not in
+        # the same incident: a handle is one rule's, one scope's and one
+        # direction's (``dispatch._correlation_group_id``), and each sink has a
+        # rule of its own.
+        failed_signals = {
+            (item.scope_type, item.scope_ref, item.bucket, item.direction) for item in failed.items
+        }
+        sent_signals = {
+            (item.scope_type, item.scope_ref, item.bucket, item.direction)
+            for item in session.scalars(
+                select(AlertDeliveryItem)
+                .join(AlertDelivery, AlertDelivery.id == AlertDeliveryItem.delivery_id)
+                .where(
+                    AlertDelivery.project_id == failed.project_id,
+                    AlertDelivery.status == AlertDeliveryStatus.sent.value,
+                )
             ).all()
-        )
-        assert {
-            AlertDeliveryStatus.sent.value,
-            AlertDeliveryStatus.failed.value,
-        } <= statuses_in_incident
+        }
+        assert failed_signals & sent_signals, (failed_signals, sent_signals)
         claimed = failed.matched_count
 
         # Exactly what ``_alerting_deliveries.retry_delivery`` does to the row

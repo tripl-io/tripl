@@ -32,8 +32,8 @@ settings.registration_mode = REGISTRATION_OPEN
 # the derived DSN first and only then fall back, which is slower and depends on
 # what happens to listen on localhost. Two days of history is enough for a test
 # that only needs "a demo project"; a test about the full story (three weekly
-# promo sends, the release train, the 21-day scoring window) sets
-# ``demo_history_days`` back to the default itself and shares one demo per module.
+# promo sends, the release train, the 21-day scoring window) monkeypatches
+# ``demo_history_days`` back to the default for itself and builds its own demo.
 settings.demo_warehouse_mode = "memory"
 settings.demo_history_days = 2
 

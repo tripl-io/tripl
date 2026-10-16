@@ -129,8 +129,8 @@ branch, reconcile the plan, route an alert, and a closing explore chapter. A
 strip under the demo banner tracks which chapter and step you are on and links
 to the next action, a ring and a small tag mark the button that performs it,
 and the demo guide in a corner of the window says what to do. Chapters
-advance on **your** actions only: the demo's background clock is running scans
-and collections of its own, and those never tick a chapter forward. Dismiss or
+advance on **your** actions only: the scheduler keeps collecting the demo
+warehouse in the background, and those collections never tick a chapter forward. Dismiss or
 restart any chapter whenever you like. (Prefer to read first? **Take the
 tour** walks the same surfaces without asking you to do anything.)
 

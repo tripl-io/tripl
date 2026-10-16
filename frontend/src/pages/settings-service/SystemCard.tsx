@@ -141,27 +141,6 @@ function schemaRevisionRow(system: SystemSettings): SystemRow {
   }
 }
 
-/**
- * What this instance found in its environment at startup.
- *
- * Every row used to map `active -> success + pulse`, which rendered the two
- * rows that matter backwards: "Debug mode" on was a pulsing green "Configured"
- * while "Encryption key" unset was the same neutral grey as the optional OpenAI
- * fallback key. `active` means "set", not "healthy" — and for
- * `debug` it means the opposite — so each row now states its own judgement.
- *
- * The judgements are the ones backend/src/tripl/config.py already makes:
- *  - `debug` true returns early from `assert_production_ready` (config.py:286),
- *    skipping every startup check, and lets CORS fall back to "*"
- *    (config.py:263). On is a warning, not a pass.
- *  - an empty ENCRYPTION_KEY is one of those refused-boot problems: "data-source
- *    and alert-destination secrets would be stored as plaintext"
- *    (config.py:291). Unset is danger, not neutral.
- *  - REDIS_URL and OPENAI_API_KEY are the only two that are genuinely optional:
- *    cache.py no-ops without Redis, and the OpenAI key is a fallback for the AI
- *    and embedding keys (config.py:348-351). Unset is neutral for those two and
- *    for nothing else.
- */
 const MEGABYTE = 1024 * 1024
 
 /**
@@ -216,6 +195,27 @@ function needsAttention(row: SystemRow): boolean {
   return row.tone === 'warning' || row.tone === 'danger'
 }
 
+/**
+ * What this instance found in its environment at startup.
+ *
+ * Every row used to map `active -> success + pulse`, which rendered the two
+ * rows that matter backwards: "Debug mode" on was a pulsing green "Configured"
+ * while "Encryption key" unset was the same neutral grey as the optional OpenAI
+ * fallback key. `active` means "set", not "healthy" — and for
+ * `debug` it means the opposite — so each row now states its own judgement.
+ *
+ * The judgements are the ones backend/src/tripl/config.py already makes:
+ *  - `debug` true returns early from `assert_production_ready` (config.py:286),
+ *    skipping every startup check, and lets CORS fall back to "*"
+ *    (config.py:263). On is a warning, not a pass.
+ *  - an empty ENCRYPTION_KEY is one of those refused-boot problems: "data-source
+ *    and alert-destination secrets would be stored as plaintext"
+ *    (config.py:291). Unset is danger, not neutral.
+ *  - REDIS_URL and OPENAI_API_KEY are the only two that are genuinely optional:
+ *    cache.py no-ops without Redis, and the OpenAI key is a fallback for the AI
+ *    and embedding keys (config.py:348-351). Unset is neutral for those two and
+ *    for nothing else.
+ */
 function systemRows(system: SystemSettings): SystemRow[] {
   return [
     versionRow(system),
