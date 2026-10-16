@@ -451,6 +451,8 @@ def test_the_two_engines_answer_alike(warehouse: datetime) -> None:
         assert _rows(pg[1]) == _rows(mem[1])  # type: ignore[index]
 
         day = t1.replace(hour=0) - timedelta(days=1)
+        for adapter in (postgres, memory):
+            adapter.get_columns(schema.ACTIVE_SESSIONS_SQL)
         pg, mem = both(
             "get_preview_rows",
             schema.ACTIVE_SESSIONS_SQL,

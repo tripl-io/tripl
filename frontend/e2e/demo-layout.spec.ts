@@ -5,7 +5,7 @@ import type {
   Page,
   PageAssertionsToHaveScreenshotOptions,
 } from '@playwright/test'
-import { expect, test } from './fixtures'
+import { expect, test, waitForDemoHistory } from './fixtures'
 
 /**
  * The demo's layout, in a real browser: what unit tests could only assert as
@@ -232,6 +232,10 @@ for (const theme of ['light', 'dark'] as const) {
   test(`the demo bar, tour and demo guide look as they did (${theme})`, async ({ browser }) => {
     const page = await openDemo(browser, DESKTOP, theme)
     const banner = page.locator('[data-demo-banner]')
+    // The bar reads "filling in history · n%" until the worker has replayed
+    // the older weeks; the baselines are of a finished demo.
+    await waitForDemoHistory(page, slug)
+    await expect(banner.getByText(/filling in history/)).toHaveCount(0, { timeout: 30_000 })
     // Soft, so one run reports (and with the label writes) every shot.
     const shot: PageAssertionsToHaveScreenshotOptions = { animations: 'disabled', caret: 'hide', maxDiffPixelRatio: 0.01 }
 
