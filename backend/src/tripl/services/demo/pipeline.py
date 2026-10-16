@@ -241,6 +241,14 @@ def history_windows(
         cuts.append(cuts[-1] + REPLAY_JOB_SPAN)
     if split is not None and cuts[-1] < split < end:
         cuts.append(split)
+    elif split == end and cuts[-1] < end - _HOUR:
+        # An incident is still running at the build hour: its newest complete
+        # hour is the one before it, so the scoring window is the last one,
+        # the live collection. That collection resumes where a replay stopped,
+        # so a replay must stop somewhere: it gets the incident's head hour
+        # alone. Without this cut the first build's only window was live, and
+        # resumed from no replay: it stored next to nothing.
+        cuts.append(end - _HOUR)
     cuts.append(end)
     return list(zip(cuts, cuts[1:], strict=False))
 
