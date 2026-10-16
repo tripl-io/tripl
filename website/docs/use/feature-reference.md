@@ -2087,7 +2087,7 @@ Through the API: `GET`/`POST /projects/{slug}/planned-events` and
 owners write; a `tk_w_` key bound to the project may too). The scope pairs like a
 chart annotation's: `scope_type` and `scope_ref` both set, or both null for the
 whole project. The [demo project](./demo-workspace.md) seeds one, *Spring promo
-(planned)*, over its catalog-metric spike.
+(planned)*, around the best recent day of *Revenue (completed)*.
 
 **Holiday calendar.** Detection settings › **Holiday calendar** takes a country,
 and its public holidays become project-wide expected windows that expect either
@@ -2224,12 +2224,21 @@ Accepted / Dismissed tabs) stay even when nothing was read in the window. In the
 latest, days without data) and a per-day table. An info button (reachable by keyboard and touch) beside **occurrences matched**
 spells out that it measures data match — not the Coverage page's plan coverage — so the two
 governance numbers are not read as contradictory. The **shadow events inbox** (tabs: `new` / `accepted` /
-`dismissed`) lists events seen in data but missing from the plan — **Accept**
+`dismissed`) lists events seen in data but missing from the plan — the ones a
+metrics collection finds that no catalog event answers to, which is every new
+event of a scan set to
+[send them to the reconciliation inbox](#new-events-catalog-or-inbox) — **Accept**
 creates the event on the active branch (you pick an event type when none is
 inferred), or **Dismiss** it. **Accept** first checks the candidate: when it
 looks like an event already in the plan, a dialog *Accept a possible
 duplicate?* lists the matches with **Open** links, and **Accept anyway** goes
-ahead. The inbox loads 100 rows at a time and says how
+ahead. A candidate whose identity an event on `main` already holds — a
+scheduled catalog sync auto-created the event, or someone added it by hand — is
+not offered: the next collection resolves it as accepted and links it to that
+event, with nobody recorded as resolving it. **Accept** on such a row (an open
+inbox from before) links it the same way and creates nothing; when the event
+holding the identity is archived, it is refused with *An archived event already
+has this source identity; restore it instead*. The inbox loads 100 rows at a time and says how
 many it is showing ("Showing 100 of 812"); **Show more** loads the next 100, as
 far as the list goes. The `new` tab carries the count of new events. Tick rows
 (or the select-all box) to **Accept** or **Dismiss** them in bulk. A row's
@@ -2701,6 +2710,7 @@ section that already holds a non-default value.
 | **Event names and grouping** | Reshape the names tripl derives from the essentials — rewrite them from a template, collapse high-cardinality values, or merge several into one. Leave it alone and each name is used as it is. | Event name format · Cardinality threshold · Event groups · JSON values to keep as-is |
 | **App version** | Attach an app release and platform to every event. Leave it alone if you do not ship versioned apps. | App version column · Platform column · Pre-release version pattern · Traffic share that counts as released |
 | **Metric breakdowns and drift** *(Catalog + monitoring only)* | Extra columns to split metrics by, and columns whose value mix you want watched for drift. Leave it alone to collect one series per event. | Metric breakdowns · Value limit · Distribution drift |
+| **New events** | What a run does with events your plan does not have yet. Leave it alone to add each one to the catalog for review. | Events the plan does not have: *Add them to the catalog, in review* (the default) or *Send them to the reconciliation inbox* — see [New events: catalog or inbox](#new-events-catalog-or-inbox) |
 | **Limits** | Caps on how much warehouse data each run reads. Leave them alone unless runs are slow or expensive. | Replay chunk size *(Catalog + monitoring only)* · Lookback (hours) *(needs a time column — with none, the section says each run reads the whole base query instead of offering the field)* · Row cap per run · Row cap per metrics run *(Catalog + monitoring only — a Catalog only scan has no metrics runs to cap; a cap set while monitoring is kept, not cleared, and returns if you switch back)* |
 
 Sections that need your query's columns stay empty until a preview is loaded and
@@ -2720,6 +2730,35 @@ never reserved away, and the row's own value fills the placeholder, so the
 `{action}:{category}` shape the field's hint advertises works. The value goes
 into the name only — that column still carries no per-event field value of its
 own.
+
+#### New events: catalog or inbox {#new-events-catalog-or-inbox}
+
+**New events → Events the plan does not have** decides what a run does with an
+event no catalog event answers to (by name, or by the source identity an
+accepted shadow event recorded):
+
+- **Add them to the catalog, in review** (the default, and what every scan did
+  before the setting existed) — the run creates each one as an `in_review`
+  event, for someone to approve or archive. Stray traffic never promotes it
+  further on its own (see [Going live on its own](#going-live)).
+- **Send them to the reconciliation inbox** — the run leaves the catalog alone.
+  Events the plan already has are still matched and updated as usual; the
+  others are counted in the run's summary (`events_left_unplanned`), and the
+  next metrics collection files each one in
+  [Reconciliation](#reconciliation)'s shadow events inbox, where **Accept**
+  creates it and **Dismiss** keeps it out. Use this when the plan, not the
+  warehouse, is the source of truth — the [demo workspace](./demo-workspace.md)
+  is set up this way.
+
+Only a metrics collection files shadow events, so in **Catalog only** the
+inbox never receives them: the field's hint says so, and each run only
+reports how many it left out. The [dry run](#the-dry-run--what-this-scan-would-create)
+answers for the setting the form holds: with the inbox chosen it still lists
+the new events, under the warning *This scan sends unplanned events to the
+reconciliation inbox: the N new event(s) below would not be added to the
+catalog.* A saved scan's **Configuration** tab shows the setting as **Events
+the plan does not have**. In the API it is `auto_create_events` on the scan
+(`true` by default); a dry run takes the same field.
 
 #### The preview panel
 
@@ -3081,7 +3120,10 @@ deciding something:
   admitting it into the plan is your decision, and the event that results is
   indistinguishable from one you typed. The payload names the candidate, the
   scan that observed it and how much traffic it carried, which is what tells the
-  two doors apart.
+  two doors apart. An accept that only *links* the candidate to an event already
+  holding its identity creates nothing and files nothing: that event's own
+  creation is already in the log, and who resolved the candidate is on the
+  candidate.
 - **Dismissing** a candidate creates nothing, so it has an action of its own —
   `shadow_event.dismiss`, filed against the candidate rather than an event. The
   payload carries the identity's latest observed volume and the span it has been

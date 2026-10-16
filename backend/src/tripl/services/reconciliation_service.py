@@ -9,7 +9,7 @@ from datetime import UTC, datetime, timedelta
 
 from fastapi import HTTPException
 from pydantic import BaseModel, Field, field_validator
-from sqlalchemy import ColumnElement, func, or_, select
+from sqlalchemy import ColumnElement, and_, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from tripl.core.dead_events import DEAD_EVENT_DAYS, dead_event_clause
@@ -41,6 +41,7 @@ from tripl.schemas.reconciliation import (
 from tripl.services import event_service
 from tripl.services.plan_branch_service import resolve_branch_id
 from tripl.services.project_lookup import resolve_project_id
+from tripl.services.shadow_identity import held_by_catalog_event
 
 # The Dead events page's default window: the one the weekly digest counts with.
 DEFAULT_DEAD_EVENT_DAYS = DEAD_EVENT_DAYS
@@ -129,7 +130,13 @@ async def list_shadow_events(
     offset: int = 0,
 ) -> ShadowEventListResponse:
     project_id = await resolve_project_id(session, slug)
-    not_archived = _not_an_archived_identity(project_id)
+    # A ``new`` candidate an event now holds is not unmapped any more: the
+    # collector resolves it on its next catalog sync (``shadow_identity``), and
+    # until then the inbox must not offer what Accept could only link.
+    not_archived = and_(
+        _not_an_archived_identity(project_id),
+        ~and_(ShadowEventCandidate.status == SHADOW_STATUS_NEW, held_by_catalog_event()),
+    )
 
     query = (
         # display_name is what every other surface labels an event type with
@@ -288,7 +295,9 @@ class ShadowEventAcceptResult:
 
     response: ShadowEventAcceptResponse
     event: Event
-    event_create: EventCreate
+    #: ``None`` when the accept LINKED the candidate to an event that already held
+    #: its identity: nothing was created, so there is no ``event.create`` to file.
+    event_create: EventCreate | None
     candidate: ShadowEventCandidate
 
 
@@ -350,17 +359,43 @@ async def accept_shadow_event(
     # (``uq_event_scan_identity``, ``_guard_scan_identity``): a type-A event
     # holding identity X does not stop a type-B event from taking it.
     existing = await session.scalar(
-        select(Event.id).where(
+        select(Event)
+        .where(
             Event.project_id == project_id,
             Event.branch_id == resolved_branch_id,
             Event.event_type_id == event_type_id,
-            Event.source_name == candidate.event_name,
+            # ``source_name``, or the name an authored event adopts as its
+            # identity — the rule ``shadow_identity`` holds candidates by.
+            func.coalesce(Event.source_name, Event.name) == candidate.event_name,
         )
+        # An event carrying the identity outright wins over one that adopts it.
+        .order_by(Event.source_name.is_(None), Event.created_at, Event.id)
+        .limit(1)
     )
-    if existing is not None:
+    if existing is not None and existing.status == EventStatus.archived:
         raise HTTPException(
             status_code=409,
-            detail="An event with this source identity already exists (possibly archived)",
+            detail="An archived event already has this source identity; restore it instead",
+        )
+    if existing is not None:
+        # The identity was taken after the candidate was collected — a catalog
+        # sync auto-created the event, or someone added it. The candidate IS
+        # that event's traffic, so accepting it links the two instead of
+        # refusing a duplicate nobody could otherwise clear. Nothing is created.
+        candidate.status = SHADOW_STATUS_ACCEPTED
+        candidate.accepted_event_id = existing.id
+        candidate.resolved_by = user_id
+        candidate.resolved_at = datetime.now(UTC)
+        await session.commit()
+        return ShadowEventAcceptResult(
+            response=ShadowEventAcceptResponse(
+                candidate_id=candidate.id,
+                event_id=existing.id,
+                status=SHADOW_STATUS_ACCEPTED,
+            ),
+            event=existing,
+            event_create=None,
+            candidate=candidate,
         )
 
     event_create = EventCreate(

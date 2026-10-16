@@ -27,12 +27,16 @@ import {
 } from '@/components/ui/dialog'
 import { getErrorMessage } from '@/lib/utils'
 import { ProvisioningPhaseList } from './ProvisioningPhaseList'
-import { DEMO_PROVISION_ESTIMATE, PROVISIONING_PHASES } from './provisioningPhases'
+import { DEMO_PROVISION_ESTIMATE, phaseLabel } from './provisioningPhases'
 import type { CancelOutcome, ProvisioningStatus } from './useDemoProvisioning'
 
 interface DemoProvisioningDialogProps {
   status: ProvisioningStatus
   phaseIndex: number
+  /** The server reported `phaseIndex` itself (see ProvisioningPhaseList). */
+  phaseConfirmed?: boolean
+  /** How far through the history the server is, 0..100, when it says. */
+  phasePercent?: number | null
   error: unknown
   timedOut: boolean
   cancelOutcome?: CancelOutcome | null
@@ -109,7 +113,7 @@ function copyFor(
   if (status === 'success') {
     return {
       title: 'Demo project is ready',
-      description: 'Seeded with synthetic events, metrics and alert rules. Opening it now.',
+      description: 'Its plan is written and its history scanned from the demo warehouse. Opening it now.',
     }
   }
   if (status === 'cancelling') {
@@ -144,13 +148,15 @@ function copyFor(
   }
   return {
     title: 'Generating demo project',
-    description: `Seeding a demo project with synthetic data. This takes ${DEMO_PROVISION_ESTIMATE}.`,
+    description: `Writing a demo tracking plan and scanning the demo warehouse, the way a real project starts. This takes ${DEMO_PROVISION_ESTIMATE}.`,
   }
 }
 
 export function DemoProvisioningDialog({
   status,
   phaseIndex,
+  phaseConfirmed = false,
+  phasePercent = null,
   error,
   timedOut,
   cancelOutcome = null,
@@ -184,7 +190,7 @@ export function DemoProvisioningDialog({
   const announcement = isError
     ? null
     : isProvisioning
-      ? `Generating demo project — ${PROVISIONING_PHASES[phaseIndex]?.label ?? 'Working'}`
+      ? `Generating demo project — ${phaseLabel(phaseIndex, phasePercent)}`
       : `${title}. ${description}`
 
   return (
@@ -229,7 +235,12 @@ export function DemoProvisioningDialog({
             ) : null}
           </div>
         ) : showPhases ? (
-          <ProvisioningPhaseList phaseIndex={phaseIndex} complete={isSuccess} />
+          <ProvisioningPhaseList
+            phaseIndex={phaseIndex}
+            confirmed={phaseConfirmed}
+            percent={phasePercent}
+            complete={isSuccess}
+          />
         ) : null}
 
         <DialogFooter>

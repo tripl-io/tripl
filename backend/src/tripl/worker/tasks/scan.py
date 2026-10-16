@@ -185,6 +185,21 @@ def _serialize_generation_snapshot(
 def run_scan(self: object, scan_config_id: str, job_id: str) -> dict[str, object]:
     """Execute a data source scan: connect, analyze columns, detect variables, generate events."""
     session = _get_sync_session()
+    try:
+        return execute_scan(session, scan_config_id, job_id, task_id=_task_id(self))
+    finally:
+        session.close()
+
+
+def execute_scan(
+    session: Session, scan_config_id: str, job_id: str, *, task_id: str | None = None
+) -> dict[str, object]:
+    """The body of :func:`run_scan`, on a session the caller owns (and closes).
+
+    Split out so demo provisioning runs the real catalog scan on the session it
+    seeds with, rather than a copy of it; the task wraps it with the worker's
+    own session. Commits as the task always has.
+    """
     adapter: BaseAdapter | None = None
 
     try:
@@ -221,7 +236,7 @@ def run_scan(self: object, scan_config_id: str, job_id: str) -> dict[str, object
         # Mark job as running
         job.status = ScanJobStatus.running.value
         job.started_at = datetime.now(UTC)
-        job.celery_task_id = _task_id(self)
+        job.celery_task_id = task_id
         session.commit()
         _publish_scan_job_event(session, scan_config_id, job_id, ScanJobStatus.running.value)
 
@@ -315,6 +330,7 @@ def run_scan(self: object, scan_config_id: str, job_id: str) -> dict[str, object
                 event_group_rules=config.event_group_rules,
                 reserved_columns=reserved_catalog_columns(config),
                 scan_config_id=config.id,
+                create_events=config.auto_create_events is not False,
             )
             group_results = None
             scan_rows_processed = len(analysis.rows)
@@ -384,6 +400,9 @@ def run_scan(self: object, scan_config_id: str, job_id: str) -> dict[str, object
             "events_skipped": result.events_skipped,
             "events_grouped": result.events_grouped,
             "events_merged": result.events_merged,
+            # Identities left out of the catalog because the config sends
+            # unplanned events to the reconciliation inbox (0 when it creates them).
+            "events_left_unplanned": result.events_left_unplanned,
             "variables_created": result.variables_created,
             # Emitted UNCONDITIONALLY, and a literal 0 is honest here: the sweep
             # above is not gated on anything, so a manual scan always sweeps and
@@ -470,7 +489,6 @@ def run_scan(self: object, scan_config_id: str, job_id: str) -> dict[str, object
     finally:
         if adapter is not None:
             adapter.close()
-        session.close()
 
 
 def _scan_with_grouping(
@@ -559,11 +577,13 @@ def _scan_with_grouping(
             event_group_rules=config.event_group_rules,
             reserved_columns=skip_cols,
             scan_config_id=config.id,
+            create_events=config.auto_create_events is not False,
         )
         combined.events_created += result.events_created
         combined.events_skipped += result.events_skipped
         combined.events_grouped += result.events_grouped
         combined.events_merged += result.events_merged
+        combined.events_left_unplanned += result.events_left_unplanned
         combined.variables_created += result.variables_created
         combined.columns_analyzed = max(combined.columns_analyzed, result.columns_analyzed)
         combined.details.extend(result.details)

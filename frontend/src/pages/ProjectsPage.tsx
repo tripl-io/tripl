@@ -209,6 +209,8 @@ export default function MainPage() {
       <DemoProvisioningDialog
         status={provisioning.status}
         phaseIndex={provisioning.phaseIndex}
+        phaseConfirmed={provisioning.phaseConfirmed}
+        phasePercent={provisioning.phasePercent}
         error={provisioning.error}
         timedOut={provisioning.timedOut}
         cancelOutcome={provisioning.cancelOutcome}

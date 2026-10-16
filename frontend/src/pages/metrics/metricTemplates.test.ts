@@ -69,7 +69,13 @@ describe('starterSql', () => {
     }
   })
 
-  it('treats the synthetic demo warehouse as ClickHouse', () => {
+  it('treats the demo warehouse as PostgreSQL', () => {
+    for (const id of SQL_TEMPLATE_IDS) {
+      expect(starterSql(id, 'demo')).toBe(starterSql(id, 'postgres'))
+    }
+  })
+
+  it("treats an older demo's synthetic warehouse as ClickHouse", () => {
     for (const id of SQL_TEMPLATE_IDS) {
       expect(starterSql(id, 'synthetic')).toBe(starterSql(id, 'clickhouse'))
     }

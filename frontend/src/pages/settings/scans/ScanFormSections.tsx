@@ -820,6 +820,45 @@ export function MetricsDriftSection({ form, readOnly }: SectionProps) {
   )
 }
 
+/** `autoCreateEvents` as the select's string value. */
+const NEW_EVENTS_OPTIONS = [
+  { value: 'catalog', label: 'Add them to the catalog, in review' },
+  { value: 'inbox', label: 'Send them to the reconciliation inbox' },
+] as const
+
+export function NewEventsSection({ form, readOnly }: SectionProps) {
+  const { state, set } = form
+  const monitoring = state.mode === 'monitoring'
+  let hint: string
+  if (state.autoCreateEvents) {
+    hint = 'Each one becomes an in-review event, for someone to approve or archive.'
+  } else if (monitoring) {
+    hint = 'The catalog is left alone. Each metrics collection lists them under Reconciliation › Shadow events, to accept or dismiss.'
+  } else {
+    // The inbox is filled by the metrics collection, which Catalog only never runs.
+    hint = 'The catalog is left alone, and each run reports how many it left out. Only Catalog + monitoring collects metrics, which is what lists them in the reconciliation inbox.'
+  }
+
+  return (
+    <CollapsibleSection
+      readOnly={readOnly}
+      title="New events"
+      explanation="What a run does with events your plan does not have yet. Leave this alone to add each one to the catalog for review."
+      // Open whenever it holds the non-default answer, so an inbox scan says so.
+      defaultOpen={!state.autoCreateEvents}
+    >
+      <Field label="Events the plan does not have" htmlFor="scan-auto-create-events" hint={hint} last>
+        <NativeSelect
+          id="scan-auto-create-events"
+          value={state.autoCreateEvents ? 'catalog' : 'inbox'}
+          onChange={value => set('autoCreateEvents', value === 'catalog')}
+          options={NEW_EVENTS_OPTIONS}
+        />
+      </Field>
+    </CollapsibleSection>
+  )
+}
+
 export function LimitsSection({ form, readOnly }: SectionProps) {
   const { state, set, fieldErrors } = form
   // The instance's real caps for the hints, else the shipped ones.

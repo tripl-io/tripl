@@ -4,7 +4,7 @@ Seeds the full demo scenario into an in-memory SQLite database, builds the
 search documents for BOTH demo branches (main + the deep-copied feature
 branch, whose single edited event description must land in the fixture too),
 embeds the deduped texts plus a curated query list via the OpenAI embedding
-API, and writes ``search_embeddings_v4.npz`` into
+API, and writes ``search_embeddings_v5.npz`` into
 ``src/tripl/services/demo/fixtures/`` together with its
 ``.identity.json`` sidecar (the content-independent fallback index — see
 ``services.demo.search_embeddings``; both files must ship together).
@@ -19,6 +19,7 @@ from __future__ import annotations
 import argparse
 import asyncio
 import json
+import uuid
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass, replace
 from pathlib import Path
@@ -46,7 +47,10 @@ from tripl.services.embedding_service import embed_texts
 from tripl.services.search_service import sanitize_embedding
 
 # Curated demo queries whose vectors ship in the fixture. Keep in sync with
-# anything the product surfaces as suggested demo searches.
+# anything the product surfaces as suggested demo searches: the coached chapter
+# and the tour advertise "purchase funnel" and "money back"
+# (frontend/src/demo/scenarioModel.ts, tourSteps.ts). The rest are what a
+# visitor to a recipes app's plan tends to type.
 DEMO_SEARCH_QUERIES: tuple[str, ...] = (
     "purchase funnel",
     "money back",
@@ -56,6 +60,12 @@ DEMO_SEARCH_QUERIES: tuple[str, ...] = (
     "onboarding drop-off",
     "screen where users pay",
     "promo code redemption",
+    "saving a recipe",
+    "weekly meal plan",
+    "push notification opt-in",
+    "app crashed",
+    "shopping list",
+    "free trial ends",
 )
 
 DEFAULT_BATCH_SIZE = 64
@@ -107,8 +117,24 @@ async def _collect_demo_embed_texts(session: AsyncSession) -> CollectedTexts:
 
     # A script has no request organization; the demo seed resolves its project
     # by slug, so bind the default organization for that call (F20 PR2).
-    with bound_org(OrgRef(DEFAULT_ORG_ID, DEFAULT_ORG_SLUG)):
-        project = await demo_service.create_demo_project(session, slug="demo-fixture-gen")
+    # The seed normally runs on the worker; here it runs inline on this
+    # session, on the in-memory warehouse engine, so the script needs neither a
+    # broker nor the PostgreSQL warehouse and every run indexes the same rows.
+    async def _seed_inline(
+        caller: AsyncSession, project_id: uuid.UUID, _request_id: object
+    ) -> None:
+        await demo_service.finish_demo_provision(caller, project_id)
+
+    original_enqueue = demo_service.enqueue_demo_seed
+    original_mode = settings.demo_warehouse_mode
+    demo_service.enqueue_demo_seed = _seed_inline  # type: ignore[assignment]
+    settings.demo_warehouse_mode = "memory"
+    try:
+        with bound_org(OrgRef(DEFAULT_ORG_ID, DEFAULT_ORG_SLUG)):
+            project = await demo_service.create_demo_project(session, slug="demo-fixture-gen")
+    finally:
+        demo_service.enqueue_demo_seed = original_enqueue
+        settings.demo_warehouse_mode = original_mode
     branches = list(
         (
             await session.execute(

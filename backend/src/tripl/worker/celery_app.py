@@ -240,14 +240,22 @@ celery_app.conf.beat_schedule = {
         "schedule": crontab(minute="*/15"),
         "options": {"expires": 15 * 60},
     },
-    "advance-demos": {
-        "task": "tripl.worker.tasks.demo_runtime.advance_demos",
-        # Every 5 minutes — demos advance on hourly bucket boundaries, so 5-minute
-        # polling keeps them inside the freshness horizon with headroom. A tick
-        # with no new hour only stamps the demo's collection time; one sweep runs
-        # at a time (a run that finds another holding the sweep lock skips), and
-        # a per-project lock keeps a demo's writes serial. A no-op entirely when
-        # demo_runtime_enabled is false.
+    "prune-demo-history": {
+        "task": "tripl.worker.tasks.demo_runtime.prune_demo_history",
+        # Daily: deletes demo projects' OBSERVED rows older than the demo
+        # warehouse's retention (DEMO_WAREHOUSE_RETENTION_DAYS), so tripl's own
+        # database stays bounded however many demos a public demo creates. Demos
+        # are advanced by the ordinary scheduled collection reading the shared
+        # demo warehouse; nothing here writes a metric.
+        "schedule": crontab(minute=17, hour=3),
+        "options": {"expires": 6 * 60 * 60},
+    },
+    "write-demo-warehouse": {
+        "task": "tripl.worker.tasks.demo_warehouse.write_demo_warehouse",
+        # Every 5 minutes: each run writes the slice it runs in whole, so an hour
+        # is complete in the warehouse before it ends (core/demo_warehouse/rows.py,
+        # available_through). One run at a time (advisory lock); a no-op when the
+        # warehouse is not provisioned.
         "schedule": crontab(minute="*/5"),
         "options": {"expires": 5 * 60},
     },
@@ -329,6 +337,7 @@ import tripl.worker.tasks.alert_owner_notify  # noqa: F401, E402
 import tripl.worker.tasks.alerts  # noqa: F401, E402
 import tripl.worker.tasks.demo_provision  # noqa: F401, E402
 import tripl.worker.tasks.demo_runtime  # noqa: F401, E402
+import tripl.worker.tasks.demo_warehouse  # noqa: F401, E402
 import tripl.worker.tasks.docs_translate  # noqa: F401, E402
 import tripl.worker.tasks.health  # noqa: F401, E402
 import tripl.worker.tasks.holiday_calendar  # noqa: F401, E402

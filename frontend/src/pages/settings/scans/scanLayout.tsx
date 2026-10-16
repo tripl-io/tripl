@@ -16,8 +16,9 @@ const DB_HUE: Record<DbType, string> = {
   redshift: 'oklch(0.58 0.18 20)',
   trino: 'oklch(0.64 0.17 345)',
   athena: 'oklch(0.6 0.15 265)',
-  // Local demo synthetic warehouse — a distinct teal so it never reads as a
-  // real engine.
+  // The demo warehouses (today's and an older demo's in-memory one) — a
+  // distinct teal so neither reads as a connection someone configured.
+  demo: 'oklch(0.62 0.13 175)',
   synthetic: 'oklch(0.62 0.13 175)',
 }
 

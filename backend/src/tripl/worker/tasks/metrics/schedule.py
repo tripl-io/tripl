@@ -20,10 +20,10 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from tripl.config import settings
-from tripl.core.adapters.synthetic import SYNTHETIC_ONGOING_HOURS
 from tripl.core.bucketing import floor_to_bucket, to_utc
 from tripl.core.collection_progress import collection_progress_to
 from tripl.core.intervals import get_interval
+from tripl.models.data_source import DataSource, DBType
 from tripl.models.domain_enums import MetricKind, MetricStatus
 from tripl.models.event_metric import EventMetric
 from tripl.models.metric_definition import MetricDefinition
@@ -53,7 +53,6 @@ from tripl.worker.tasks.metrics.metric_collect import (
 from tripl.worker.tasks.metrics.tasks import (
     _RECENT_JOB_SCAN_LIMIT,
     METRICS_COLLECTION_MODE,
-    SCHEDULED_RESUME_OVERLAP_BUCKETS,
     _is_dispatcher_collection_job,
     _last_collected_window_to,
     collect_metrics,
@@ -64,20 +63,17 @@ logger = logging.getLogger(__name__)
 
 # How rarely a DEMO project's scheduled collection may run.
 #
-# A demo pays 67-141 s per collection against an in-memory dataset, and every
-# demo on a deployment paid it every hour. Almost all of that is per-scope
-# MSTL(24,168) — 21 volume scopes plus 81-131 breakdown scopes at ~1.2 s each —
-# and none of the existing fast paths apply, because demo volumes sit far above
-# ``min_expected_count`` and every demo series is unique so the decomposition
-# cache added earlier has nothing to reuse.
+# A demo's collection is a real one against the shared demo warehouse, and most
+# of its cost is per-scope MSTL(24,168) detection (~1 s a scope; a demo carries
+# dozens of event scopes plus their breakdown and parity scopes). Every live demo
+# on a deployment paying that every hour is the bill a public demo cannot carry,
+# and nothing a visitor looks at needs hourly freshness: the warehouse's daily
+# incident is detected on the next run within a few hours, and "Run now" /
+# "Replay" collect on demand. So a demo collects at most four times a day.
 #
-# The demo does NOT go dark between runs: ``advance_demos`` already appends
-# hourly buckets and re-runs this collection's own volume-scope detection
-# (``detect._recalculate_metric_anomalies`` without the catalog-metric scopes)
-# every hour, so the series and the headline signals stay live. What this
-# cooldown defers is the part only the scheduled collection produces —
-# breakdown anomalies, distribution drift and catalog-metric anomalies — from
-# 24x a day to 4x, which for a demo is invisible.
+# The cooldown runs from the newest scheduled collection OR from the demo's
+# seeding, whichever is later: provisioning ends with a full replay up to the
+# current hour, so a dispatch straight after it would re-collect the same hours.
 #
 # Deliberately NOT implemented by lengthening ``ScanConfig.interval``: that is
 # the BUCKET size, and the demo's whole seasonality story (periods 24 and 168 in
@@ -91,12 +87,12 @@ def _hours_since_last_scheduled_collection(
     """Age of the newest job THIS dispatcher created for metrics collection.
 
     ``None`` when the recent history holds none. Manual catalog scans, metrics
-    replays, event-group applies and the demo's hourly runtime tick all share
-    ``scan_config_id`` with a scheduled collection and must not restart the
-    cooldown — only the ``mode`` stamp, written at job creation, identifies one.
-    Identified by that stamp rather than by excluding the tick: exclusion counted
-    every foreign job, so exercising Run scan or Replay on a demo deferred the
-    scheduled collection — the only producer of breakdown anomalies and
+    replays and event-group applies all share ``scan_config_id`` with a
+    scheduled collection and must not restart the cooldown — only the ``mode``
+    stamp, written at job creation, identifies one. Identified by that stamp
+    rather than by excluding the other kinds: exclusion counted every foreign
+    job, so exercising Run scan or Replay on a demo deferred the scheduled
+    collection — the only producer of breakdown anomalies and
     distribution drift — for up to six hours.
 
     Status is deliberately not filtered: a dispatcher job that failed still
@@ -162,8 +158,8 @@ FAILURE_BACKOFF_CEILING = timedelta(hours=24)
 # is the safe direction. Keeping it small also keeps this a cheap indexed read
 # (mirrors ``_RECENT_JOB_SCAN_LIMIT`` above).
 # Sized like ``_RECENT_JOB_SCAN_LIMIT`` rather than to the streak that saturates
-# the delay: the LIMIT counts ROWS, and a demo's hourly runtime tick plus manual
-# scans sit between two dispatcher jobs, so a tight bound would fill with rows
+# the delay: the LIMIT counts ROWS, and manual scans and replays
+# sit between two dispatcher jobs, so a tight bound would fill with rows
 # the streak then skips and never reach the failures underneath.
 _FAILURE_STREAK_SCAN_LIMIT = _RECENT_JOB_SCAN_LIMIT
 
@@ -177,8 +173,8 @@ def _consecutive_failure_streak(
     did not fail — the healthy case, and the only one that matters for cost since
     this is only ever called for a config that is already about to dispatch.
 
-    Only this dispatcher's own collection jobs are considered. A manual scan, a
-    replay or a demo tick on the same config is neither counted as a failure nor
+    Only this dispatcher's own collection jobs are considered. A manual scan or a
+    replay on the same config is neither counted as a failure nor
     treated as the success that ends a streak, so a user pressing "Run now" can
     neither trigger the backoff nor clear it. Pending/running rows cannot appear
     here — the caller has already ``continue``d on a live job and reaped the
@@ -307,56 +303,6 @@ def _scan_config_collection_due(
     return _due(None) and _due(_last_collected_window_to(session, scan_config_id))
 
 
-def _demo_resume_window_exceeds_full_volume(
-    session: Session,
-    scan_config_id: uuid.UUID,
-    *,
-    last_bucket: datetime | None,
-    delta: timedelta,
-    now: datetime,
-) -> bool:
-    """Whether a demo collection dispatched NOW would reach behind the synthetic
-    warehouse's full-volume hours.
-
-    The collector resumes ``SCHEDULED_RESUME_OVERLAP_BUCKETS`` behind
-    ``collection_progress_to`` and runs to the current boundary, deleting each
-    window before rewriting it. The synthetic adapter serves only its newest
-    ``SYNTHETIC_ONGOING_HOURS`` at full volume and a sampled trickle before that,
-    so any window reaching further back rewrites real history at sampled volume.
-
-    That happens right after a pause ends: the pause froze both progress
-    signals, and until ``advance_demos`` backfills the missed buckets the resume
-    point still sits at pause start. Which beat tick runs first is a race, so
-    the window is checked here instead of relying on the backfill winning it.
-    Computed conservatively (to the current boundary, not the settled end), so a
-    true answer never lets a too-wide window through. ``None`` progress — never
-    collected — is the default backfill's business and is not declined here.
-
-    The gate only makes sense while the tick that closes the gap can run, and
-    while the gap CAN close. With ``DEMO_RUNTIME_ENABLED=false`` nothing
-    backfills, and only collections move progress, so the next dispatch — at
-    least ``DEMO_COLLECTION_COOLDOWN_HOURS`` later — always reaches further back
-    than the full-volume hours; likewise an interval whose resume overlap alone
-    spans them. Declining there would stop scheduled collection for good, so
-    both fall back to collecting as before.
-    """
-    if not settings.demo_runtime_enabled:
-        return False
-    overlap = delta * SCHEDULED_RESUME_OVERLAP_BUCKETS
-    if overlap >= timedelta(hours=SYNTHETIC_ONGOING_HOURS):
-        return False
-    progress_to = collection_progress_to(
-        last_bucket=last_bucket,
-        watermark=_last_collected_window_to(session, scan_config_id),
-        delta=delta,
-    )
-    if progress_to is None:
-        return False
-    window_from = progress_to - overlap
-    reach = _floor_to_interval(now, delta) - window_from
-    return reach > timedelta(hours=SYNTHETIC_ONGOING_HOURS)
-
-
 # A single Postgres session-level advisory lock serialises the whole dispatcher
 # across worker processes. With concurrency=N, a backlog of redelivered
 # ``check_metrics_due`` messages (e.g. accumulated while the worker was busy or
@@ -395,8 +341,10 @@ def check_metrics_due() -> dict[str, int]:
                 Project.is_demo,
                 Project.demo_seeded_at,
                 Project.demo_last_accessed_at,
+                DataSource.db_type,
             )
             .join(Project, Project.id == ScanConfig.project_id)
+            .join(DataSource, DataSource.id == ScanConfig.data_source_id)
             .where(
                 ScanConfig.interval.isnot(None),
                 ScanConfig.time_column.isnot(None),
@@ -416,6 +364,14 @@ def check_metrics_due() -> dict[str, int]:
         demo_activity_by_config: dict[uuid.UUID, tuple[datetime | None, datetime | None]] = {
             row[0].id: (row[2], row[3]) for row in config_rows if row[1]
         }
+        # A demo built by an older recipe reads a per-demo ``synthetic`` source
+        # whose history was seeded into tripl and advanced by a synthetic tick
+        # that no longer exists. It is frozen until someone resets it (the app
+        # says so); collecting it would rewrite its seeded hours from an adapter
+        # that only reproduces its newest six at full volume.
+        legacy_demo_configs: set[uuid.UUID] = {
+            row[0].id for row in config_rows if row[1] and row[4] == DBType.synthetic
+        }
 
         # One grouped aggregate instead of one max() per config per beat tick.
         # Safe to snapshot before the loop: collection is dispatched asynchronously
@@ -434,6 +390,8 @@ def check_metrics_due() -> dict[str, int]:
 
         dispatched = 0
         for config in configs:
+            if config.id in legacy_demo_configs:
+                continue
             now = datetime.now(UTC)
             # Examine EVERY active job, not just the newest: reap all stale ones
             # so a stuck old job can't be permanently shadowed by a fresher
@@ -489,26 +447,19 @@ def check_metrics_due() -> dict[str, int]:
 
             demo_activity = demo_activity_by_config.get(config.id)
 
+            if should_run and demo_activity is not None and not settings.demo_runtime_enabled:
+                # DEMO_RUNTIME_ENABLED=false: demos keep what provisioning built.
+                should_run = False
+
             if should_run and demo_activity is not None:
-                # A PAUSED demo must not be collected either.
-                #
-                # ``advance_demos`` stops appending this demo's hourly buckets
-                # while it is paused, so ``max(EventMetric.bucket)`` freezes and
-                # with it ``collection_progress_to`` — the point the collector
-                # resumes from. Every run from then on opens a window stretching
-                # back to the previous run instead of the resume overlap alone,
-                # far enough to reach behind the synthetic warehouse's
-                # full-volume hours, and the collector DELETES a window before
-                # rewriting it. ``_demo_pause`` carries the full argument and the
-                # reason both callers must ask it rather than each testing
-                # idleness their own way.
-                #
-                # Nothing is lost by skipping: an access unpauses the demo, the
-                # next tick (300 s) backfills the missed buckets from the same
-                # deterministic helpers the seeder used, and by the time
-                # collection is dispatched again the window is back to the
-                # overlap. A paused demo therefore ends up with neither the dips
-                # nor a hole.
+                # A PAUSED demo is not collected: nobody is looking at it, and a
+                # demo's collection is the most expensive thing a deployment
+                # runs per project (see the cooldown above). Nothing is lost by
+                # skipping — the shared warehouse keeps every hour of its
+                # retention, so the first collection after an access catches
+                # the gap up from real rows (clamped to what the warehouse still
+                # holds, ``metrics.demo_window``). ``_demo_pause`` holds the rule
+                # the overdue sweep shares.
                 #
                 # Placed ahead of the cooldown so a demo that will be skipped
                 # anyway does not pay the cooldown's job-history read, matching
@@ -522,26 +473,14 @@ def check_metrics_due() -> dict[str, int]:
                     )
                     should_run = False
 
-            if (
-                should_run
-                and demo_activity is not None
-                and _demo_resume_window_exceeds_full_volume(
-                    session, config.id, last_bucket=last_bucket, delta=delta, now=now
-                )
-            ):
-                # Just resumed, and ``advance_demos`` has not backfilled the
-                # paused hours yet: the window would reach behind the synthetic
-                # adapter's full-volume hours and rewrite them at sampled volume.
-                # The backfill tick (60 s) closes the gap, and
-                # the next dispatcher tick then collects the normal overlap.
-                logger.info(
-                    f"Skipping collect_metrics for demo {config.name!r}: waiting for "
-                    "the demo tick to backfill the paused hours"
-                )
-                should_run = False
-
             if should_run and demo_activity is not None:
                 age_hours = _hours_since_last_scheduled_collection(session, config.id, now=now)
+                seeded_at = demo_activity[0]
+                if seeded_at is not None:
+                    # Provisioning ended with a replay up to the current hour.
+                    seeded_age = (now - to_utc(seeded_at)).total_seconds() / 3600.0
+                    if age_hours is None or seeded_age < age_hours:
+                        age_hours = seeded_age
                 if age_hours is not None and age_hours < DEMO_COLLECTION_COOLDOWN_HOURS:
                     logger.info(
                         f"Skipping collect_metrics for demo {config.name!r}: "

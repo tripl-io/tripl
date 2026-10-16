@@ -439,45 +439,92 @@ failed Celery task contributes one failure count to `tripl_celery_tasks_total`.
 
 ## Demo project {#demo-workspace}
 
-Two independent switches control the generated demo project. Both default to
-**on**, and neither affects real projects in any state.
+These control the generated demo project and the **demo warehouse** every demo
+reads. All of them have working defaults, and none affects real projects.
 
 | Variable | Default | Required in prod? | Purpose |
 | --- | --- | --- | --- |
 | `DEMO_ENABLED` | `true` | No | Master kill switch for demo **provisioning**. When `false`, `POST /projects/demo` **and** demo reset are refused with `403 Demo provisioning is disabled`. |
-| `DEMO_RUNTIME_ENABLED` | `true` | No | Gates the `advance_demos` beat task that keeps an existing demo fresh (new buckets, jobs, and signals). When `false` that task is a no-op and existing demos keep the data they already have; the scheduled scan collection of a demo in use still runs on its 6-hour demo cadence and appends new buckets itself. |
+| `DEMO_RUNTIME_ENABLED` | `true` | No | Whether demos advance. When `false`, a demo's scheduled collection is never dispatched: it keeps exactly what provisioning built, and **Run now** and **Replay** still work. The warehouse writer is not affected. |
+| `DEMO_HISTORY_DAYS` | `23` | No | Days of warehouse history a new demo replays (2–30). 23 is three weekly cycles, which the hour-of-week baseline needs, plus two days to score. A shorter history still makes a complete demo, faster, with a baseline blind to the weekly pattern. At most the warehouse's retention. |
+| `DEMO_WAREHOUSE_MODE` | `auto` | No | Which engine serves demos: `auto` uses the PostgreSQL warehouse when it is ready and the in-memory engine otherwise; `postgres` always uses the warehouse (a failure is the scan's error); `memory` always uses the in-memory engine and leaves the writer idle. |
+| `DEMO_WAREHOUSE_URL` | *(empty)* | No | The warehouse writer's DSN, for a database [provisioned by hand](#demo-warehouse-on-managed-postgresql). Empty derives it from `SYNC_DATABASE_URL`, with the database name `<name>_demo` (`tripl_demo` in compose), which `migrate` creates. |
+| `DEMO_WAREHOUSE_READER_PASSWORD` | *(empty)* | No | The password of a `tripl_demo_reader` role provisioned by hand. Empty derives one from `SECRET_KEY` (never stored; rotating the key rotates it on the next `migrate`) and lets `migrate` manage the role. |
+| `DEMO_WAREHOUSE_RETENTION_DAYS` | `30` | No | Days of rows the warehouse keeps (23–365); older day partitions are dropped. A demo project's own observed rows are pruned to the same horizon every day. |
+| `DEMO_WAREHOUSE_MAX_MB` | `1024` | No | Size cap of the warehouse database, in MB (at least 64). Over it, the oldest days beyond the 23 a demo replays are dropped and an error is logged: a backstop, not the plan. |
 | `DEMO_POOL_SIZE` | `0` | No | **[Enterprise edition](../editions.md)**: read by its package, ignored by Community. How many demos to keep seeded ahead of time (0–50). Above 0, the `refill-demo-pool` beat task keeps that many ready in a service organization, and **Generate demo project** hands one out at once instead of queueing a seed; with the pool empty it seeds as usual. The pool only refills after a claim, so an idle instance seeds nothing more. `0` turns it off. |
 | `DEMO_POOL_MAX_AGE_HOURS` | `20` | No | **[Enterprise edition](../editions.md)**: read by its package, ignored by Community. A pooled demo older than this (1–23 hours) is discarded and seeded again, so its seeded incident is still open when a visitor gets it. |
 
-:::note A demo's two refresh paths run at different rates
-`advance_demos` fires every five minutes and does work once an hour, when a new
-bucket is due: it appends that bucket, re-scores the volume scopes through the
-same detection pass a scheduled collection runs (so the demo's own anomaly
-settings, scope toggles and per-scope overrides apply), and records a scan job,
-so a demo always looks live. The ticks in between only record the collection
-time. One sweep runs at a time; a beat that finds the previous sweep still
-running skips. The full scheduled collection — which additionally produces
-breakdown anomalies, distribution drift and catalog-metric anomalies — runs at most **every 6 hours** per demo
-instead of hourly, because it costs 67–141 s against the in-memory dataset and
-every demo on a deployment used to pay that every hour. Both paths additionally
-stop for a demo nobody has opened for **6 hours** and resume on the next visit;
-they share one idleness rule rather than testing it separately, because a
-collection dispatched while the tick is paused opens a window reaching back past
-the synthetic warehouse's full-volume hours and overwrites the demo's history
-with near-zero counts. Real projects are unaffected and keep their configured
-`interval`.
+:::note How a demo stays current
+The worker's `write-demo-warehouse` beat task writes the warehouse every five
+minutes (its first run backfills the whole retention window in under a minute),
+and a demo is advanced by its scan's ordinary scheduled collection reading it.
+A demo collects **at most every six hours** rather than hourly, because most of
+a collection's cost is detection over dozens of series and every demo on a
+deployment would pay it every hour. A demo nobody has opened for **six hours**
+pauses and resumes on the next visit; the first collection after a pause catches
+up from the warehouse's rows, starting no further back than the warehouse still
+holds. The daily `prune-demo-history` task deletes demo projects' observed rows
+older than `DEMO_WAREHOUSE_RETENTION_DAYS`, so tripl's own database stays
+bounded however many demos a public instance creates. Real projects are
+unaffected and keep their configured `interval`.
 :::
 
 :::note Reset is a provisioning path — delete is not
 A reset re-seeds a demo from scratch, so `DEMO_ENABLED=false` blocks **Create**
-and **Reset** alike. **Deleting** a demo stays available in every state of both
-flags, so a workspace can never be stuck with a demo it cannot remove. Real
+and **Reset** alike. **Deleting** a demo stays available in every state of these
+switches, so a workspace can never be stuck with a demo it cannot remove. Real
 project create / scan / delete, and the real scan and metric schedulers, are
-untouched by either flag.
+untouched by all of them.
 :::
 
-See [The demo project](../use/demo-workspace.md) for what a demo contains and
-which parts of it are synthetic.
+### Demo warehouse on managed PostgreSQL {#demo-warehouse-on-managed-postgresql}
+
+By default `python -m tripl.migrate` creates the warehouse itself: the
+`<name>_demo` database (it needs `CREATEDB`), the `tripl_demo_reader` role (it
+needs `CREATEROLE`; one limit, `temp_file_limit`, needs a superuser), the
+`warehouse` schema and the grants. On a managed PostgreSQL where tripl's role
+has neither privilege, `migrate` logs a warning naming what is missing, still
+succeeds, and every demo runs on the in-memory engine. To use the warehouse
+there, have an administrator run, as a role that may:
+
+```sql
+-- 1. The database, owned by tripl's role (the writer). C collation, so text
+--    sorts by code point.
+CREATE DATABASE tripl_demo OWNER tripl
+  TEMPLATE template0 ENCODING 'UTF8' LC_COLLATE 'C' LC_CTYPE 'C';
+
+-- 2. The reader: logs in, owns nothing, read-only by default.
+CREATE ROLE tripl_demo_reader WITH LOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE
+  NOREPLICATION NOINHERIT CONNECTION LIMIT 20 PASSWORD '<a long random password>';
+ALTER ROLE tripl_demo_reader SET default_transaction_read_only = on;
+ALTER ROLE tripl_demo_reader SET statement_timeout = '15s';
+ALTER ROLE tripl_demo_reader SET idle_in_transaction_session_timeout = '30s';
+ALTER ROLE tripl_demo_reader SET work_mem = '16MB';
+ALTER ROLE tripl_demo_reader SET search_path = warehouse;
+-- Superuser only; skip it where none is available.
+ALTER ROLE tripl_demo_reader SET temp_file_limit = '256MB';
+```
+
+Then set the reader's password and run `migrate` again:
+
+```bash
+DEMO_WAREHOUSE_READER_PASSWORD=<the reader's password>
+# Only when the database has another name than <name>_demo, or lives on
+# another server:
+DEMO_WAREHOUSE_URL=postgresql://tripl:<password>@<host>:5432/tripl_demo?sslmode=require
+```
+
+With the password set, `migrate` leaves the role alone, and it never creates a
+database that already exists. As the database's owner it creates the schemas and
+the tables, takes CONNECT and every schema privilege away from PUBLIC, and grants
+the reader CONNECT, `USAGE` on `warehouse` and `SELECT` on its two tables —
+nothing else. The reader connects with the writer's host, port and `sslmode`. **Settings → Instance → System** shows the warehouse's
+engine, how far it is written and its size; *In-memory engine* there carries the
+reason when demos are not using it.
+
+See [The demo project](../use/demo-workspace.md) for what a demo contains, where
+its data comes from, and the calendar of incidents the warehouse runs.
 
 ---
 

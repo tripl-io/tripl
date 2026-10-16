@@ -2058,39 +2058,6 @@ def test_dispatch_retires_a_metric_state_an_old_worker_anchored_on_a_config(
         )
 
 
-def test_the_demo_builder_seeds_a_metric_state_with_no_scan_config() -> None:
-    """The demo seeds a catalog-metric firing, so it writes a metric state too.
-
-    ``build_alerts`` seeds a metric-scope anomaly, ``_select_firing_anomalies``
-    appends it and ``_build_firings`` turns every anomaly into a firing, so the
-    state loop writes one for the metric scope on every demo provision. Anchored
-    on ``ctx.scan_config_id`` that row is one live dispatch can never load again
-    — the demo would ship the very defect this issue fixes.
-
-    Asserted on the source rather than by provisioning a whole demo project: the
-    builder is async, runs after the monitoring and catalog builders, and the
-    property worth pinning is simply that the metric arm stores NULL.
-    """
-    source = Path(tripl.__file__).resolve().parent / "services" / "demo" / "builders" / "alerts.py"
-    tree = ast.parse(source.read_text(encoding="utf-8"))
-    calls = [
-        node
-        for node in ast.walk(tree)
-        if isinstance(node, ast.Call)
-        and isinstance(node.func, ast.Name)
-        and node.func.id == "AlertRuleState"
-    ]
-    assert len(calls) == 1, "the builder writes rule states in exactly one place"
-    keyword = next(kw for kw in calls[0].keywords if kw.arg == "scan_config_id")
-    rendered = ast.unparse(keyword.value)
-    assert isinstance(keyword.value, ast.IfExp), (
-        "a metric firing is project-global and must store NULL, so this cannot "
-        f"be an unconditional scan config: {rendered}"
-    )
-    assert "MetricScopeType.metric" in rendered
-    assert rendered.startswith("None if")
-
-
 # --------------------------------------------------------------------------
 # the metric scope's INCIDENT HANDLE hashes no scan config either
 # --------------------------------------------------------------------------

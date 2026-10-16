@@ -1,153 +1,62 @@
-"""Warehouse builder: the synthetic scan surface and its metric series.
+"""Warehouse builder: the demo's ``demo`` data source and its catalog scan config.
 
-Seeds the (never-queried) DataSource scoped to the demo project, a ScanConfig,
-the per-event and per-type ``EventMetric`` series, and their
-``EventMetricBreakdown`` platform and app-version split over the whole seeded
-window. Everything comes from the demo's deterministic traffic model
-(:class:`~tripl.core.adapters.synthetic_traffic.DemoTraffic`, see
-``ctx.traffic``), so the shape is reproducible for a given ``(clock, seed)`` and
-the runtime tick and the synthetic source continue it.
+Authors what a team does when it connects a warehouse: one data source and one
+scan config. Nothing is observed here — the source points at the shared demo
+warehouse (:mod:`tripl.core.demo_warehouse`), and the provisioning pipeline
+(:mod:`tripl.services.demo.pipeline`) runs tripl's real scan and metrics replay
+over it. The config is the one the warehouse contract asks for: the scan's base
+query, event types grouped by ``event_type``, events named by ``event_name``,
+and day-sized replay chunks (the in-memory engine reads at most eight days of
+events per query).
 
-Shares series with the monitoring builder through the context (``home_series`` and
-``type_bucket_counts``) so the real detector runs over exactly the stored counts,
-publishes ``spike_bucket`` so the alerts builder's spike marker names the bucket
-the spike was actually written into, and ``version_traffic`` so its release
-marker sits where a scan would put it.
+The source's host and credential columns are placeholders: the ``demo`` adapter
+takes its connection only from settings (``core.demo_warehouse.engine``), so
+nothing a user could edit here reaches a connection.
 """
 
 from __future__ import annotations
 
-import re
-import uuid
-from datetime import datetime, timedelta
-
-from sqlalchemy import insert, select
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from tripl.core.adapters.synthetic import (
-    SPIKE_EVENT_KEY,
-    SPIKE_HOUR_KEY,
-    SPIKE_PLATFORM_SPLIT,
-    SYNTHETIC_EVENT_NAMES,
-)
-from tripl.core.adapters.synthetic_traffic import traffic_params
-from tripl.models.data_source import DataSource, TestStatus
-from tripl.models.event_metric import EventMetric
-from tripl.models.event_metric_breakdown import EventMetricBreakdown
+from tripl.core.demo_warehouse import EVENTS_SCAN_SQL, SUGGESTED_JSON_VALUE_PATHS
+from tripl.models.data_source import DataSource, DBType
 from tripl.models.project import Project
 from tripl.models.scan_config import ScanConfig
-from tripl.services.demo import noise
-from tripl.services.demo.breakdowns import (
-    APP_VERSION_COLUMN,
-    PLATFORM_COLUMN,
-    EventVolume,
-    breakdown_rows,
-)
-from tripl.services.demo.builders.plan import event_specs
 from tripl.services.demo.scenario import DemoContext
 from tripl.services.project_service import demo_data_source_name
 
-# The single-bucket spike is injected on this event's newest bucket; it is the
-# only deviation the real detector turns into an anomaly per scope.
-SPIKE_EVENT_NAME = "Home Screen View"
-# The label of the chart annotation the alerts builder pins to that spike. Shared
-# with the demo runtime, whose retention pass retires the marker together with
-# the anomaly it explains.
-SPIKE_ANNOTATION_LABEL = "Injected demo spike"
-
-# A weekly promo email lifts this event at one hour of one weekday. Its last
-# sends were marked *expected*, so the Annotations page suggests planning the
-# next ones (#271). The sends sit 194 hours and more behind the spike: outside
-# every baseline the real detector scores the spike against (168 buckets), so
-# they cannot dull it, and still inside the seeded history.
-WEEKLY_PROMO_EVENT_NAME = "Paywall View"
-WEEKLY_PROMO_MULTIPLIER = 3
-WEEKLY_PROMO_SENDS = 3
-_WEEKLY_PROMO_OFFSET = timedelta(hours=26)
-
-
-def weekly_promo_buckets(spike_bucket: datetime) -> list[datetime]:
-    """The weekly promo's past sends, oldest first."""
-    return [
-        spike_bucket - _WEEKLY_PROMO_OFFSET - timedelta(weeks=week)
-        for week in range(WEEKLY_PROMO_SENDS, 0, -1)
-    ]
-
-
-# The dead-event example: this authored event's warehouse volume dried up this
-# many days ago — old enough to surface in the dead-events review. Owned here,
-# not by the governance builder that stamps ``last_seen_at``, because this
-# builder runs first and must stop the event's volume at that same instant: a
-# series with traffic in the last hour contradicted "dead for 45 days".
-# The synthetic warehouse mirrors it with a ``retired`` roster
-# row, so a live collection cannot revive the event either, and the demo runtime
-# tick advances only series that have seeded rows, so it never starts one.
-DEAD_EVENT_NAME = "Subscription Cancelled"
-DEAD_EVENT_AGE_DAYS = 45
-
-# Columns the demo scan reads from the synthetic ``events`` table: everything the
-# curated plan models as a field, the reserved metric dimensions, and the
-# ``event_name`` identity column the group rules key on. Deliberately EXCLUDES
-# ``user_id``/``session_id`` — see ``_build_scan_config``. Public so the
-# governance builder can report an honest ``columns_analyzed``.
-SCAN_COLUMNS: tuple[str, ...] = (
-    "event_time",
-    "event_type",
-    "event_name",
-    "screen_name",
-    "platform",
-    "button_id",
-    "product_id",
-    "amount",
-    "currency",
-    "app_version",
-)
-_SCAN_BASE_QUERY = f"SELECT {', '.join(SCAN_COLUMNS)} FROM events"
-
-
-def _synthetic_event_group_rules() -> list[dict[str, object]]:
-    """One anchored group rule per distinct synthetic ``event_name``.
-
-    Without these, a Run now / Replay over the synthetic source derives a raw
-    ``col=value | col=value`` identity for every synthetic row and floods the
-    catalog with ~21 pipe-named draft events. Each rule keys on
-    the synthetic ``event_name`` column with an anchored, escaped pattern
-    (``^<name>$``) and renames the derived identity to the matching curated
-    event name — which already exists in the catalog — so ``generate_events``
-    dedups the row onto the curated event and creates 0 new events.
-
-    Generated from :data:`SYNTHETIC_EVENT_NAMES` so the rule set is exhaustive:
-    a new ``_EVENT_DEFS`` row automatically gets a fold rule and can never
-    silently reintroduce a pipe-named draft.
-    """
-    return [
-        {
-            "name": name,
-            "condition_logic": "all",
-            "conditions": [
-                {"field": "event_name", "pattern": f"^{re.escape(name)}$"},
-            ],
-        }
-        for name in SYNTHETIC_EVENT_NAMES
-    ]
+SCAN_CONFIG_NAME = "Demo scan"
+PLATFORM_COLUMN = "platform"
+APP_VERSION_COLUMN = "app_version"
+#: The JSON column the warehouse's event properties live in.
+PROPERTIES_COLUMN = "properties"
+#: The properties whose values the scan records (low cardinality, so they name
+#: values rather than ids).
+JSON_VALUE_PATHS = tuple(f"{PROPERTIES_COLUMN}.{path}" for path in SUGGESTED_JSON_VALUE_PATHS)
+#: Distribution drift (PSI) is watched on the user's country, the mix the
+#: warehouse shifts on a cycle (``calendar.MIX_SHIFTS``). ``platform`` cannot be
+#: one: it is the scan's platform column, collected on its own path
+#: (``check_scalar_columns_unreserved``). Each field is a breakdown of every
+#: collected row, so a field nothing shifts would only cost the replay time.
+DISTRIBUTION_DRIFT_FIELDS = ("country",)
+#: How far back the catalog sync of each collection (and the first scan) reads.
+#: Short on purpose: a field's observed values come from this window, and an
+#: unplanned name the warehouse emits in short bursts should reach the shadow
+#: inbox through the replay rather than be adopted into the catalog by the first
+#: scan that happens to overlap a burst.
+SCAN_LOOKBACK_HOURS = 3
 
 
 async def build_warehouse(session: AsyncSession, ctx: DemoContext) -> None:
     await _build_data_source(session, ctx)
     await _build_scan_config(session, ctx)
-    volumes = await _build_event_metrics(session, ctx)
-    await _build_breakdown(session, ctx, volumes)
 
 
 async def _build_data_source(session: AsyncSession, ctx: DemoContext) -> None:
-    # A local synthetic warehouse: db_type="synthetic" resolves to the in-memory
-    # SyntheticAdapter, which serves a bounded deterministic dataset with NO
-    # network/filesystem access. Scoped to this demo project so it is cleaned up
-    # with the project instead of leaking a workspace-global orphan. host/port/
-    # credentials are placeholders — the adapter never opens a connection.
-    # The demo project's organization: every data-source route is fenced to the
-    # request's organization, so a source left in the column default would be
-    # invisible to a demo created in any other organization.
+    # Every data-source route is fenced to the request's organization, so a
+    # source left in the column default would be invisible to a demo created in
+    # any other organization.
     organization_id = await session.scalar(
         select(Project.organization_id).where(Project.id == ctx.project_id)
     )
@@ -155,253 +64,45 @@ async def _build_data_source(session: AsyncSession, ctx: DemoContext) -> None:
         project_id=ctx.project_id,
         organization_id=organization_id,
         name=demo_data_source_name(ctx.slug),
-        db_type="synthetic",
-        host="synthetic",
+        db_type=DBType.demo.value,
+        host="demo-warehouse",
         port=0,
-        database_name="synthetic",
+        database_name="demo",
         username="",
         password_encrypted="",
-        # Stamp the synthetic source as tested-healthy at seed time. The adapter is
-        # a local in-memory dataset that always answers, so a never-checked source
-        # would read as "untested" and drop out of the HEALTHY count / Overview
-        # badge for no real reason (issue .14). Deterministic via ctx.now.
-        last_test_status=TestStatus.success,
-        last_test_at=ctx.now,
-        last_test_message="Synthetic warehouse (demo)",
-        # The hour ``_build_event_metrics`` injects the spike into, and the seed
-        # clock and seed of the demo's traffic. The scheduled collection re-reads
-        # the newest hours and rewrites them, so the synthetic source has to serve
-        # the same spike, volumes and platform / app-version split, or the first
-        # collection after generation erases the demo's one seeded signal and
-        # writes a different mix over the newest hours.
-        extra_params={
-            SPIKE_EVENT_KEY: SPIKE_EVENT_NAME,
-            SPIKE_HOUR_KEY: _newest_seeded_bucket(ctx.now).isoformat(),
-            **traffic_params(ctx.traffic),
-        },
     )
     session.add(data_source)
     await session.flush()
     ctx.data_source_id = data_source.id
 
 
-def _newest_seeded_bucket(now: datetime) -> datetime:
-    """The newest hourly bucket ``noise.hour_buckets`` seeds (one before ``now``'s hour)."""
-    return now.replace(minute=0, second=0, microsecond=0) - timedelta(hours=1)
-
-
 async def _build_scan_config(session: AsyncSession, ctx: DemoContext) -> None:
+    assert ctx.data_source_id is not None
     scan_config = ScanConfig(
         data_source_id=ctx.data_source_id,
         project_id=ctx.project_id,
-        name="Demo scan",
-        # Selects the synthetic ``events`` table so the normal preview/scan paths
-        # run against the in-memory dataset served by the SyntheticAdapter.
-        #
-        # The projection is EXPLICIT rather than ``SELECT *``:
-        # ``user_id``/``session_id`` back the ``active_sessions`` sql metric, not
-        # the catalog, and a ``SELECT *`` scan handed them to the hourly catalog
-        # sync, which auto-created ``USER_ID``/``SESSION_ID`` FieldDefinitions on
-        # every event type and filled the curated events table with raw sample
-        # values (``s29_5``, ``u0``). Listing the columns the plan actually models
-        # — plus the reserved dimensions (time, event type, platform, app
-        # version) and the ``event_name`` identity the group rules key on — keeps
-        # a rescan a no-op for the catalog.
-        base_query=_SCAN_BASE_QUERY,
-        time_column="event_time",  # required for _get_default_scan_config_id
-        # ``event_type`` groups synthetic rows into the authored event types
-        # (screen_view/click/purchase) so a real Run now / Replay over the
-        # synthetic source scans and reconciles against the authored plan.
+        name=SCAN_CONFIG_NAME,
+        # Only the modelled low-cardinality columns: ``user_id``/``session_id``
+        # back the distinct-sessions sql metric, not the catalog, and a scan
+        # grouping by them would mint a field of raw ids on every event type.
+        base_query=EVENTS_SCAN_SQL,
+        time_column="event_time",
         event_type_column="event_type",
-        # Fold every synthetic identity back onto its curated catalog event so a
-        # rescan creates 0 new events instead of ~21 raw pipe-named drafts.
-        # Exhaustive over the synthetic event names.
-        event_group_rules=_synthetic_event_group_rules(),
-        interval="1h",
-        replay_chunk_interval="6h",
-        anomaly_detection_enabled=True,
-        # Both lists stay EMPTY of ``platform``, and that is load-bearing rather
-        # than an omission. Designating ``platform_column`` already collects the
-        # column as a deduped scan-level breakdown, so naming it
-        # again here is a double-collect — which is exactly why
-        # ``check_scalar_columns_unreserved`` rejects a reserved column in either
-        # list. The seeder used to write both anyway, because it inserts through
-        # the ORM and never meets that check: the result was a demo whose own
-        # scan config the API refused to save, so renaming the demo scan failed
-        # with a 422 naming fields the user had not touched.
-        #
-        # The demo still tells its distribution-drift story: builders/monitoring
-        # seeds DistributionDrift rows for ``platform`` directly, with PSI from
-        # the real ``compute_psi``, so the panel has one daily point per day of
-        # ``noise.DEMO_DRIFT_SPAN_DAYS`` (8, the first a zero-PSI baseline)
-        # without the config claiming a field it may not claim.
-        distribution_drift_fields=[],
+        event_name_format="{event_name}",
+        json_value_paths=list(JSON_VALUE_PATHS),
+        distribution_drift_fields=list(DISTRIBUTION_DRIFT_FIELDS),
         metric_breakdown_columns=[],
-        # Platform + app-version observation are CONFIGURED here (the synthetic
-        # dataset carries both columns), so the presence matrix, per-platform
-        # volume, version adoption, and release-regression features are live —
-        # they go inert only if these columns are cleared.
+        interval="1h",
+        replay_chunk_interval="1d",
+        scan_lookback_hours=SCAN_LOOKBACK_HOURS,
+        # The plan is the authority: the warehouse's unplanned names
+        # (app_heartbeat_v1's bursts) wait in the reconciliation inbox instead
+        # of joining the catalog as in_review events the next collection makes.
+        auto_create_events=False,
+        anomaly_detection_enabled=True,
         platform_column=PLATFORM_COLUMN,
         app_version_column=APP_VERSION_COLUMN,
-        # Fresh by default (#269): ``last_event_at`` is the newest bucket
-        # ``_build_event_metrics`` seeds (the hour before ``now``'s hour) and the
-        # "collection" is the seed itself, just now. Unset, the demo would read
-        # ``unknown`` until its first collection. Afterwards the demo runtime
-        # tick (``worker.tasks.demo_runtime._advance_demo``) stamps both every
-        # tick it runs, as does any scheduled collection of the demo scan. A demo
-        # the idle pause has stopped advancing is stamped by neither, so it does
-        # go late/overdue while paused — which is what its data really is.
-        last_event_at=_newest_seeded_bucket(ctx.now),
-        last_collection_at=ctx.now,
     )
     session.add(scan_config)
     await session.flush()
     ctx.scan_config_id = scan_config.id
-
-
-async def _build_event_metrics(
-    session: AsyncSession, ctx: DemoContext
-) -> dict[datetime, list[EventVolume]]:
-    """Write the volume series; return each hour's stored volumes for the breakdown."""
-    traffic = ctx.traffic
-    buckets = noise.hour_buckets(ctx.now, days=noise.DEMO_HISTORY_DAYS)
-    spike_bucket = buckets[-1]  # newest full hour, ~1h before now (fresh signal)
-    promo_buckets = set(weekly_promo_buckets(spike_bucket))
-
-    type_bucket_counts: dict[tuple[uuid.UUID, datetime], int] = {}
-    home_series: dict[datetime, int] = {}
-    volumes: dict[datetime, list[EventVolume]] = {}
-
-    # Built as plain dicts and inserted in one executemany rather than one ORM
-    # instance per row. 18 events x 552 hourly buckets plus the per-type
-    # aggregates is ~11.6k rows for a single demo, and every test that creates a
-    # demo paid the unit-of-work cost for all of them. ``id``
-    # carries a Python-side uuid4 default and the timestamps are server-side, so
-    # a core insert still produces complete rows.
-    event_rows: list[dict[str, object]] = []
-    for spec in event_specs(ctx.now):
-        event_id = ctx.event_ids[spec.name]
-        et_id = ctx.event_type_ids[spec.event_type]
-        is_spike = spec.name == SPIKE_EVENT_NAME
-        # The dead example has no volume after it was last seen, which with a
-        # 45-day age is the whole seeded history.
-        dead_after = (
-            ctx.now - timedelta(days=DEAD_EVENT_AGE_DAYS) if spec.name == DEAD_EVENT_NAME else None
-        )
-        for bucket in buckets:
-            if dead_after is not None and bucket > dead_after:
-                continue
-            # Deterministic per-event noise keyed off the STABLE event name, not
-            # a random uuid — reproducible across reseeds and processes.
-            usual = traffic.volume(spec.base, spec.name, bucket)
-            count = usual
-            excess_shares: dict[str, float] | None = None
-            if is_spike and bucket == spike_bucket:
-                count *= noise.DEMO_SPIKE_MULTIPLIER
-                excess_shares = _SPIKE_PLATFORM_SPLIT
-            if spec.name == WEEKLY_PROMO_EVENT_NAME and bucket in promo_buckets:
-                count *= WEEKLY_PROMO_MULTIPLIER
-                ctx.weekly_promo_points.append((bucket, count, usual))
-            volumes.setdefault(bucket, []).append(
-                EventVolume(
-                    event_id=event_id,
-                    event_type_id=et_id,
-                    name=spec.name,
-                    event_type=spec.event_type,
-                    base=spec.base,
-                    count=count,
-                    excess=count - usual,
-                    excess_shares=excess_shares,
-                )
-            )
-            event_rows.append(
-                {
-                    "scan_config_id": ctx.scan_config_id,
-                    "event_id": event_id,
-                    "event_type_id": None,
-                    "bucket": bucket,
-                    "count": count,
-                }
-            )
-            type_bucket_counts[(et_id, bucket)] = type_bucket_counts.get((et_id, bucket), 0) + count
-            if is_spike:
-                home_series[bucket] = count
-
-    # Per-type aggregate rows (event_id NULL, event_type_id set).
-    event_rows.extend(
-        {
-            "scan_config_id": ctx.scan_config_id,
-            "event_id": None,
-            "event_type_id": et_id,
-            "bucket": bucket,
-            "count": count,
-        }
-        for (et_id, bucket), count in type_bucket_counts.items()
-    )
-    if event_rows:
-        await session.execute(insert(EventMetric), event_rows)
-
-    ctx.home_series = home_series
-    ctx.type_bucket_counts = type_bucket_counts
-    # Published for the alerts builder's "Injected demo spike" chart marker. The
-    # marker used to be dated ``ctx.now``, which is one hour AFTER the newest row
-    # written above (``hour_buckets`` stops before the open hour), so on a fresh
-    # demo it labelled the chart's dashed forecast point instead of the spike,
-    # and once the demo runtime appended the ``now`` hour for real it labelled an
-    # ordinary hour sitting right after the spike.
-    ctx.spike_bucket = spike_bucket
-    return volumes
-
-
-# Who the injected spike comes from (F02, #255): almost all of the excess is
-# iOS, so the signal's "Why" panel has a clear story to tell ("85% of the spike
-# comes from platform = ios"). The ordinary part of the spike bucket keeps the
-# mix every other bucket has.
-# The synthetic source serves the spike with the same mix (``SPIKE_PLATFORM_SPLIT``).
-_SPIKE_PLATFORM_SPLIT = SPIKE_PLATFORM_SPLIT
-
-
-async def _build_breakdown(
-    session: AsyncSession, ctx: DemoContext, volumes: dict[datetime, list[EventVolume]]
-) -> None:
-    """Platform and app-version split of every seeded hour, per event and per type.
-
-    Over the whole seeded window and for every event with volume, so the
-    version-adoption and platform charts cover the same days as the volume
-    chart. Each hour splits the stored count (``breakdown_rows``), so the split
-    sums to the volume chart; the runtime tick and the synthetic source split
-    the hours after the seed the same way. Versions roll out on the release
-    train of ``DemoTraffic.version_shares``; the platform mix is steady per
-    event, except that ``screen_view`` drifts towards web over the last
-    ``noise.DEMO_DRIFT_SPAN_DAYS``, the movement the seeded distribution-drift
-    badges report. The injected spike's excess is split by
-    ``_SPIKE_PLATFORM_SPLIT``, so the event, event-type and project-total
-    signals it trips all have a platform attribution.
-    """
-    scan_config_id = ctx.scan_config_id
-    if scan_config_id is None:
-        return
-    traffic = ctx.traffic
-    rows: list[dict[str, object]] = []
-    version_traffic: dict[str, dict[datetime, int]] = {}
-    for bucket, hour_volumes in sorted(volumes.items()):
-        hour_rows = breakdown_rows(traffic, bucket, hour_volumes, scan_config_id=scan_config_id)
-        rows.extend(hour_rows)
-        for row in hour_rows:
-            count = row["count"]
-            if (
-                row["breakdown_column"] != APP_VERSION_COLUMN
-                or row["event_id"] is None
-                or not isinstance(count, int)
-            ):
-                continue
-            series = version_traffic.setdefault(str(row["breakdown_value"]), {})
-            series[bucket] = series.get(bucket, 0) + count
-    # Same executemany treatment as the volume rows above. The ORM's bulk insert
-    # groups CONSECUTIVE rows by which columns are NULL, so the event rows
-    # (event_type_id NULL) and the rollup rows (event_id NULL) go in as two
-    # contiguous runs; interleaved, it issued one INSERT per bucket.
-    rows.sort(key=lambda row: row["event_id"] is None)
-    if rows:
-        await session.execute(insert(EventMetricBreakdown), rows)
-    ctx.version_traffic = version_traffic

@@ -59,13 +59,7 @@ from tripl.tests.test_fact_metric_batched_collector import (
     _seed_project_and_ds,
 )
 from tripl.tests.test_metrics_tasks import _create_scan_config
-from tripl.tests.test_paused_demo_collection import (
-    _run_dispatcher,
-    _seed_scan_config,
-    _simulate_backfill_tick,
-)
 from tripl.worker.tasks.metrics import metric_collect
-from tripl.worker.tasks.metrics import schedule as metrics_schedule
 from tripl.worker.tasks.metrics import tasks as metrics_tasks
 from tripl.worker.tasks.metrics.detect import (
     SCOPE_METRIC,
@@ -270,7 +264,7 @@ def test_a_run_whose_row_is_gated_out_does_not_silence_its_buckets() -> None:
     assert result.shifted_buckets == frozenset()
 
 
-# ── a resumed demo waits for the backfill tick ───────────────
+# ── a file-backed SQLite for the collectors below ────────────
 
 
 @pytest.fixture
@@ -284,91 +278,6 @@ def sync_session_factory(tmp_path: Path) -> Iterator[sessionmaker[Session]]:
         Base.metadata.drop_all(engine)
     finally:
         engine.dispose()
-
-
-def test_a_resumed_demo_is_not_collected_before_the_backfill_tick(
-    sync_session_factory: sessionmaker[Session],
-    monkeypatch: MonkeyPatch,
-) -> None:
-    """The dispatcher tick wins the race against ``advance_demos``.
-
-    The demo was just opened (active), but its newest bucket is still frozen at
-    pause start, eight hours back: a collection now would reach past the
-    synthetic adapter's full-volume hours and rewrite them at sampled volume.
-    Once the backfill has run, the same demo is dispatched.
-    """
-    now = datetime.now(UTC)
-    with sync_session_factory() as session:
-        seeded = _seed_scan_config(
-            session,
-            now=now,
-            is_demo=True,
-            seeded_at=now - timedelta(days=3),
-            last_accessed=now,
-        )
-
-    result, dispatched = _run_dispatcher(sync_session_factory, monkeypatch)
-    assert dispatched == []
-    assert result == {"checked": 1, "dispatched": 0}
-
-    with sync_session_factory() as session:
-        _simulate_backfill_tick(session, seeded.scan_config_id)
-        session.commit()
-
-    _result, dispatched_after = _run_dispatcher(sync_session_factory, monkeypatch)
-    assert [config_id for config_id, _job in dispatched_after] == [str(seeded.scan_config_id)]
-
-
-def test_a_resumed_demo_is_collected_when_the_demo_runtime_is_disabled(
-    sync_session_factory: sessionmaker[Session], monkeypatch: MonkeyPatch
-) -> None:
-    """With no tick, nothing ever backfills; waiting for one stalls the demo."""
-    monkeypatch.setattr(metrics_schedule.settings, "demo_runtime_enabled", False)
-    now = datetime.now(UTC)
-    with sync_session_factory() as session:
-        seeded = _seed_scan_config(
-            session,
-            now=now,
-            is_demo=True,
-            seeded_at=now - timedelta(days=3),
-            last_accessed=now,
-        )
-
-    _result, dispatched = _run_dispatcher(sync_session_factory, monkeypatch)
-
-    assert [config_id for config_id, _job in dispatched] == [str(seeded.scan_config_id)]
-
-
-def test_the_resume_gate_ignores_an_interval_whose_overlap_spans_the_full_volume(
-    memory_session: Session,
-) -> None:
-    """A 4h demo resumes two buckets (8h) back, past the 6 full-volume hours.
-
-    Every dispatch would reach that far however fresh the data is, so gating it
-    would stop scheduled collection for good.
-    """
-    now = datetime.now(UTC)
-    current_hour = now.replace(minute=0, second=0, microsecond=0)
-    gate = metrics_schedule._demo_resume_window_exceeds_full_volume
-    stale = current_hour - timedelta(days=1)
-
-    assert gate(memory_session, uuid.uuid4(), last_bucket=stale, delta=_HOUR, now=now)
-    assert not gate(
-        memory_session, uuid.uuid4(), last_bucket=stale, delta=timedelta(hours=4), now=now
-    )
-
-
-def test_a_real_project_with_the_same_stale_history_still_dispatches(
-    sync_session_factory: sessionmaker[Session],
-    monkeypatch: MonkeyPatch,
-) -> None:
-    now = datetime.now(UTC)
-    with sync_session_factory() as session:
-        _seed_scan_config(session, now=now, is_demo=False)
-
-    _result, dispatched = _run_dispatcher(sync_session_factory, monkeypatch)
-
-    assert len(dispatched) == 1
 
 
 # ── tripl doctor does not FAIL an idle demo ──────────────────
@@ -466,7 +375,7 @@ def _explicit_values(
 def test_every_chunk_keeps_the_whole_windows_top_values(monkeypatch: MonkeyPatch) -> None:
     adapter = SyntheticAdapter(history_days=2)
     rows = _platform_rows()
-    monkeypatch.setattr(adapter, "_scan_rows", lambda base_query, table: rows)
+    monkeypatch.setattr(adapter, "_scan_rows", lambda base_query, table, *_window: rows)
     week_one = (_START, _START + timedelta(days=7))
     week_two = (_START + timedelta(days=7), _START + timedelta(days=14))
 

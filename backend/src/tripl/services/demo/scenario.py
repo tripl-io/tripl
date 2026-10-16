@@ -1,13 +1,18 @@
-"""Declarative demo scenario: recipe contract, context, and orchestrator.
+"""Declarative demo scenario: recipe contract, context, and the authored builders.
 
-The demo is a *versioned recipe*: an ordered set of focused builders that each
-seed one slice of a project. ``DemoContext`` carries the identity
-(``project_id``/``branch_id``/``slug``), the clock (``now``), the determinism
-``seed``, and the stable semantic references (name -> id maps) that later builders
-read instead of threading ORM objects between modules.
+The demo is a *versioned recipe*. Its governing rule: **the plan is authored;
+observations are scanned.** The builders listed here author what a team writes
+by hand — the tracking plan, variables, the warehouse connection, detection
+settings, the metrics catalog, alerting, collaboration, branches and the audit
+trail. Everything observed (volumes, anomalies, drift, regressions, shadow
+events, metric values, alert deliveries) is left to tripl's own pipeline, which
+:mod:`tripl.services.demo.pipeline` runs over the demo warehouse afterwards.
 
-The orchestrator never commits — the caller (``demo_service.create_demo_project``)
-owns the transaction boundary, so a mid-seed failure rolls the whole seed back.
+``DemoContext`` carries the identity (``project_id``/``branch_id``/``slug``),
+the clock (``now``), the determinism ``seed`` and the stable semantic references
+(name -> id maps) later builders and pipeline steps read instead of threading
+ORM objects between modules. The builders never commit; the caller owns the
+transaction.
 """
 
 from __future__ import annotations
@@ -19,44 +24,27 @@ from datetime import datetime
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from tripl.core.adapters.synthetic_traffic import DemoTraffic
+# Bumped to "5": the demo reads a real warehouse. The plan comes from the shared
+# roster (157 events instead of 18) and every observation from tripl's scan and
+# metrics replay, so a recipe-4 demo is a different product: it gets the Reset
+# banner. This string is also what ``search_embeddings._parse_fixture`` matches
+# the precomputed vector bundle against, so the bundle must be regenerated for
+# the same recipe (``scripts/generate_demo_search_embeddings.py``); until it
+# is, demos fall back to lexical search.
+DEMO_RECIPE_VERSION = "5"
 
-# Bumped to "2": the scenario expanded (meta values, event-type
-# relation/owner, authored variable override, event change history, figma spec,
-# and a feature-branch journey), so demos seeded under recipe "1" are semantically
-# older. Reset re-runs the current recipe, so re-seeding yields equivalent
-# semantics with no duplicate rows (every id is minted fresh per run).
-# Bumped to "4": the feature branch now carries a REAL pending
-# change (the main plan is deep-copied onto it and one event description is
-# edited, so the branch diff / merge preview are non-empty) and one open
-# variable-value drift is seeded on product_id (Trial Started).
-#
-# NOT bumped for the events in the seeded audit trail, and that is a
-# decision rather than an oversight: this string is what
-# ``search_embeddings._parse_fixture`` matches the precomputed vector bundle's
-# manifest against, while the bundle's filename is a SEPARATE constant
-# (``search_embeddings_v4.npz``). Bumping without regenerating the bundle makes
-# every demo fall back to lexical search — a headline demo feature lost to a
-# version stamp, silently. Nothing else consumes the value: the banner displays
-# it and does not compare it. So bump when the recipe gains something a reader
-# can navigate to that an older demo lacks AND the fixture is regenerated with
-# it; those events add rows to surfaces a recipe-4 demo already has, and
-# indexes nothing new. Nor for F18's seeded planned promo, for the same reason.
-DEMO_RECIPE_VERSION = "4"
-
-# Default scenario seed. Fixed so the seeded metrics/anomalies/drift are
-# reproducible for a given clock; overridable per DemoContext for tests.
+# Default scenario seed: the few authored timestamps (the "created" stagger)
+# derive from it. The warehouse does not: it runs on the global clock.
 DEMO_SEED = 20240711
 
 
 @dataclass
 class DemoContext:
-    """Mutable seeding context shared across builders.
+    """Mutable seeding context shared across builders and pipeline steps.
 
     Identity + clock + seed are set up front by ``demo_service``. The ``*_ids``
-    maps and warehouse series are populated by earlier builders and consumed by
-    later ones, keyed by *stable semantic labels* (never random uuids) so the
-    scenario stays deterministic and each builder is independently testable.
+    maps are populated by earlier builders and consumed by later ones, keyed by
+    *stable semantic labels* (never random uuids).
     """
 
     project_id: uuid.UUID
@@ -76,37 +64,12 @@ class DemoContext:
     meta_field_ids: dict[str, uuid.UUID] = field(default_factory=dict)
     event_ids: dict[str, uuid.UUID] = field(default_factory=dict)  # event name -> id
     variable_ids: dict[str, uuid.UUID] = field(default_factory=dict)  # var name -> id
+    metric_ids: dict[str, uuid.UUID] = field(default_factory=dict)  # metric name -> id
+    rule_ids: dict[str, uuid.UUID] = field(default_factory=dict)  # alert rule name -> id
 
     data_source_id: uuid.UUID | None = None
     scan_config_id: uuid.UUID | None = None
     fact_table_id: uuid.UUID | None = None
-
-    # Warehouse series shared with the monitoring builder (so the real detector /
-    # PSI run over exactly the stored counts).
-    home_series: dict[datetime, int] = field(default_factory=dict)
-    type_bucket_counts: dict[tuple[uuid.UUID, datetime], int] = field(default_factory=dict)
-    # The bucket the warehouse builder injected the demo spike into: the NEWEST
-    # stored hour, which is one hour before ``now`` (the hourly grid stops before
-    # the still-open hour, so no series has a row at ``now``). Published so a
-    # later builder can point at the spike without re-deriving where it landed —
-    # ``None`` until the warehouse builder has run.
-    spike_bucket: datetime | None = None
-    # The weekly promo's past sends, ``(bucket, actual, usual)``, for the alerts
-    # builder to record as anomalies people marked expected (#271).
-    weekly_promo_points: list[tuple[datetime, int, int]] = field(default_factory=list)
-    # Event-level traffic per app version per bucket, as stored by the warehouse
-    # builder: the series a scan's release-marker pass reads, so the alerts
-    # builder can place the release marker exactly where a scan would.
-    version_traffic: dict[str, dict[datetime, int]] = field(default_factory=dict)
-
-    @property
-    def traffic(self) -> DemoTraffic:
-        """The demo's synthetic traffic: volume, app-version and platform mix.
-
-        Anchored on the seed clock, and stored on the demo's synthetic source so
-        the runtime tick and a scheduled collection continue the same traffic.
-        """
-        return DemoTraffic(anchor=self.now, seed=self.seed)
 
 
 Builder = Callable[[AsyncSession, DemoContext], Awaitable[None]]
@@ -114,14 +77,24 @@ Builder = Callable[[AsyncSession, DemoContext], Awaitable[None]]
 
 @dataclass(frozen=True)
 class DemoScenario:
-    """A versioned demo recipe: an ordered tuple of builders."""
+    """A versioned demo recipe: the ordered authored builders.
+
+    ``builders`` author the plan the scan then reads. ``finishing`` author what
+    must see main AFTER the pipeline wrote to it: the catalog scan stamps every
+    event's identity, adds the warehouse's columns as fields and creates the
+    variables it finds, so a branch whose base snapshot was taken before that
+    would open already behind main. A provisioning runs ``finishing`` after the
+    observed stages; :func:`seed_demo_content` (the authored half alone) runs
+    both back to back.
+    """
 
     recipe_version: str
     builders: tuple[Builder, ...]
+    finishing: tuple[Builder, ...] = ()
 
 
 def build_default_scenario() -> DemoScenario:
-    """Assemble the current demo recipe.
+    """Assemble the current recipe's authored half.
 
     Builders are imported lazily so this module has no import-time dependency on
     the builder package (which imports ``DemoContext`` from here).
@@ -132,10 +105,9 @@ def build_default_scenario() -> DemoScenario:
         audit,
         branches,
         catalog,
-        governance,
+        collaboration,
         monitoring,
         plan,
-        search,
         variables,
         warehouse,
     )
@@ -143,51 +115,50 @@ def build_default_scenario() -> DemoScenario:
     return DemoScenario(
         recipe_version=DEMO_RECIPE_VERSION,
         builders=(
-            # 1. Plan schema: event types, fields, meta fields, events, tags,
-            #    field/meta values, one relation, one owner.
+            # 1. Plan schema from the roster: event types, fields, meta fields,
+            #    every event with its tags, field/meta values and successor, one
+            #    relation, the event-type owners.
             plan.build_plan,
-            # 2. Variables + observed values + one authored per-event override
-            #    + one open variable-value drift outside that override's list.
+            # 2. Variables, their documented values, one per-event override.
             variables.build_variables,
-            # 3. Activity: event change history + a figma spec (no stored bytes).
-            activity.build_activity,
-            # 4. Warehouse: DataSource, ScanConfig, EventMetric + breakdown series.
+            # 3. The ``demo`` data source and its catalog scan config.
             warehouse.build_warehouse,
-            # 5. Monitoring: anomaly settings + detector-derived anomalies, real
-            #    PSI drift, schema drift.
+            # 4. Detection settings, a per-scope override, one field contract.
             monitoring.build_monitoring,
-            # 6. Governance: scan-job history, coverage, shadow/dead-event
-            #    reconciliation — coherent with the seeded warehouse volume.
-            governance.build_governance,
-            # 7. Metrics catalog: fact table + four metric definitions + values.
+            # 5. Metrics catalog: the orders fact table and four definitions.
             catalog.build_catalog,
-            # 8. Alerting: a demo-only local ``demo_sink`` destination + a firing
-            #    rule (over the seeded anomalies incl. the catalog metric) and a
-            #    healthy rule, states, one locally-recorded delivery + items,
-            #    inbox correlation group, and a spike annotation. Runs after
-            #    catalog so it can reference the seeded metrics/anomalies. Emits
-            #    zero network side effects.
+            # 6. Alerting: the local sink, its flaky twin, a disabled external
+            #    destination, the firing rule (with filters) and a quiet rule.
             alerts.build_alerts,
-            # 9. Feature-branch journey: revision + branch + comment, plus a
-            #    deep copy of the main plan onto the branch with exactly one
-            #    branch-side edit (a real pending change for diff/merge preview).
+            # 7. Event history, a figma spec, discussion comments.
+            activity.build_activity,
+            # 8. Collaboration: the dismissed near-duplicate, watches, docs.
+            collaboration.build_collaboration,
+        ),
+        finishing=(
+            # 9. Branches: one merged into main, one open and under review —
+            #    snapshotted from main as the scan left it (see ``finishing``).
             branches.build_branches,
-            # 10. Audit trail for everything the recipe authored, attributed to
-            #     the demo's creator. Runs after every builder that creates an
-            #     object it records.
+            # 10. Audit trail for everything above, attributed to the creator.
+            #     Last: it records only objects that already exist.
             audit.build_audit,
-            # 11. Search reindex (last).
-            search.build_search,
         ),
     )
 
 
 async def seed_demo_content(session: AsyncSession, ctx: DemoContext) -> None:
-    """Run the default scenario's builders in order (does not commit).
+    """Run the recipe's whole authored half in order, with nothing observed between (no commit)."""
+    await seed_authored_plan(session, ctx)
+    await finish_authored_content(session, ctx)
 
-    Every seeded row is synthetic — the DataSource never receives a real query.
-    Runs inside the caller's transaction so a failure rolls back cleanly.
-    """
-    scenario = build_default_scenario()
-    for builder in scenario.builders:
+
+async def seed_authored_plan(session: AsyncSession, ctx: DemoContext) -> None:
+    """The builders the scan reads after: everything but ``finishing`` (no commit)."""
+    for builder in build_default_scenario().builders:
+        await builder(session, ctx)
+
+
+async def finish_authored_content(session: AsyncSession, ctx: DemoContext) -> None:
+    """The ``finishing`` builders, once main holds what the pipeline wrote (no commit)."""
+    for builder in build_default_scenario().finishing:
         await builder(session, ctx)

@@ -35,7 +35,6 @@ from tripl.worker.tasks.metrics.generation import (
     _accumulate_replay_variable_samples,
 )
 from tripl.worker.tasks.metrics.metric_rows import (
-    _build_event_name_from_row,
     _collect_app_version_breakdown_rows,
     _collect_distribution_drift_rows,
     _collect_metric_breakdown_rows,
@@ -48,6 +47,7 @@ from tripl.worker.tasks.metrics.metric_rows import (
     _delete_event_metrics_rows,
     _delete_event_metrics_window,
     _delete_event_type_metrics_rows,
+    _EventNameMemo,
     _upsert_coverage_rows,
     _upsert_event_metric_breakdown_rows,
     _upsert_shadow_event_candidates,
@@ -362,6 +362,13 @@ def process_chunk(
     shadow_agg: dict[tuple[uuid.UUID | None, str], list[object]] = {}
     # Set only for a grouped scan; a chosen Event type names every row.
     et_col_idx = group_column_index(config, reg_index)
+    event_name_of = _EventNameMemo(
+        config,
+        reg_index=reg_index,
+        json_index=json_index,
+        n_reg=n_reg,
+        json_value_names=json_value_names,
+    )
 
     for row in rows:
         bucket = stored_bucket(row[0])
@@ -400,18 +407,7 @@ def process_chunk(
             archived_identities = single_result.archived_identities
 
         # Build event name from row (same logic as generate_events)
-        event_name = _build_event_name_from_row(
-            data_row,
-            col_meta,
-            reg_index,
-            json_index,
-            n_reg,
-            json_value_names,
-            config.event_name_format,
-            config.event_group_rules,
-            event_type_column=config.event_type_column,
-            time_column=config.time_column,
-        )
+        event_name = event_name_of(data_row, col_meta)
 
         if event_name:
             ev = events_by_name.get(event_name)
@@ -549,6 +545,7 @@ def process_chunk(
         gen_results=gen_results,
         single_result=single_result,
         et_by_name=et_by_name,
+        event_names=event_name_of,
     )
     breakdown_event_rows.extend(version_event_rows)
     breakdown_type_rows.extend(version_type_rows)

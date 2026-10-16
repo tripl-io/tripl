@@ -21,14 +21,16 @@ A rule can also be **narrowed to a single scan** with the **Scan** picker in the
 rule editor — see [Narrowing a rule to one scan](#narrowing-a-rule-to-one-scan).
 
 :::note Demo projects are zero-egress
-In a generated demo project the only destination that can exist is the local
-**demo sink**: the API refuses to create a Slack, Telegram, webhook, email, Jira,
+In a generated demo project the only destinations that can exist are local
+**demo sinks**: the API refuses to create a Slack, Telegram, webhook, email, Jira,
 Linear, PagerDuty or Microsoft Teams destination there, and every delivery is rendered and recorded locally
 rather than sent — the UI labels those rows as simulated, never as a real send.
-That local sink never fails on its own, so the demo deliberately seeds one
-**failed** earlier attempt at the same incident: the failed-delivery state and
-the **Retry** action below are both reachable without leaving the demo, and
-retrying re-dispatches down the normal path and succeeds. See
+The demo's main sink never fails, so it also has a **flaky** twin, with a rule
+of its own, whose first attempt at every delivery fails with *Simulated failure
+(demo): the first attempt to this sink always fails — press Retry*. That
+failure is never retried automatically, so the failed-delivery state and the
+**Retry** action below are both real without leaving the demo, and retrying
+re-dispatches down the normal path and succeeds. See
 [The demo project](./demo-workspace.md).
 :::
 

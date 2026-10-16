@@ -11,8 +11,8 @@ import { eventMetricsApi } from '@/api/eventMetrics'
 import NotFoundPage from '@/pages/NotFoundPage'
 import { ErrorState } from '@/components/error-state'
 import { OnboardingChecklist } from '@/components/onboarding-checklist'
-import { countRealSources } from '@/components/onboarding-utils'
-import { SyntheticSourceBadge } from '@/demo/capabilityBadges'
+import { countRealSources, isDemoSource } from '@/components/onboarding-utils'
+import { DemoSourceBadge } from '@/demo/capabilityBadges'
 import { DemoWelcomePanel } from '@/demo/DemoWelcomePanel'
 import { Chip } from '@/components/primitives/chip'
 import { Dot } from '@/components/primitives/dot'
@@ -1086,13 +1086,14 @@ function SourceRow({
   // the name keeps an 8rem basis, the engine (the badge already says
   // "synthetic") drops below `sm`, and the check time moves to a second line.
   //
-  // The engine shows only when it adds something: a synthetic source's badge
-  // already says "Synthetic", and printing `synthetic` beside it said it twice.
+  // The engine shows only when it adds something: a demo source's badge
+  // already names it ("Demo warehouse", or "Synthetic" for an older demo), and
+  // printing the type beside it said it twice.
   // It is the warehouse's name ("ClickHouse"), as the Data sources page writes
   // it, not the raw type key.
   // The status is a toned chip, the one status idiom, rather than grey text
   // next to a coloured dot; the row opens the source.
-  const showEngine = !(source.is_synthetic && source.db_type === 'synthetic')
+  const showEngine = !isDemoSource(source)
   return (
     <Link
       to={settingsPath(`/settings/data-sources/${source.id}`)}
@@ -1102,7 +1103,7 @@ function SourceRow({
       <span className="min-w-0 flex-1 basis-32 truncate text-body-sm font-medium" title={source.name}>
         {source.name}
       </span>
-      {source.is_synthetic && <SyntheticSourceBadge />}
+      {isDemoSource(source) && <DemoSourceBadge source={source} />}
       {showEngine && (
         <span className="hidden shrink-0 text-micro sm:inline text-fg-tertiary">
           {dbTypeLabel(source.db_type)}

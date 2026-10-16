@@ -76,7 +76,7 @@ Invite member (owners) and the theme toggle.
    **Settings → Organization** (see the
    [Administration guide](../administer/admin-guide.md#organizations-in-the-app)).
 3. From the dashboard you have two ways forward:
-   - **Generate demo project** — a complete synthetic project to explore.
+   - **Generate demo project** — a complete project on generated data to explore.
    - **New project** — an empty project for your real work.
 
 :::tip Start with the demo project
@@ -101,23 +101,24 @@ project; two unrelated products are two projects.
 
 Generate the demo project and open it. You now have a realistic catalog with
 events, collected metrics, detector-produced anomalies, and schema/distribution
-drift — all backed by a **local synthetic warehouse**, and kept fresh over time.
+drift — all read from the **demo warehouse**, and kept fresh over time.
 
 ![The demo project on first open: the demo banner, the welcome panel and the Overview](/img/screenshots/demo-welcome.light.webp#gh-light-mode-only)
 ![The demo project on first open: the demo banner, the welcome panel and the Overview](/img/screenshots/demo-welcome.dark.webp#gh-dark-mode-only)
 
 :::note The demo project is not your data
-The demo's data lives in a **local synthetic warehouse** — a bounded, in-memory
-dataset that never leaves the server and is never a real connection. But the
-product is not faked around it: real scans, metric collection, anomaly detection,
-reconciliation, and a continuous runtime clock all run **over** that synthetic
-source. Alert deliveries are recorded to a **local simulated sink** — nothing is
+The demo's data lives in the **demo warehouse** — a database of generated
+traffic on your own tripl server, shared by every demo and read through a
+read-only role that sees nothing else. Its plan is written by a recipe; what it
+observes is not faked: real scans, metric collection, anomaly detection and
+reconciliation run **over** that warehouse, which a background writer keeps
+advancing, with an incident every day. Alert deliveries are recorded to a **local simulated sink** — nothing is
 ever sent to Slack, Telegram, email, a webhook, Jira, Linear, PagerDuty, or
 Microsoft Teams. Delete or reset
 it whenever you like; it never touches your real projects.
 
-See **[The demo project](./demo-workspace.md)** for exactly what is synthetic,
-what is really executed, and what is intentionally unavailable.
+See **[The demo project](./demo-workspace.md)** for what the recipe writes,
+what the pipeline observes, and what is intentionally unavailable.
 :::
 
 **Start with the coached chapters.** The welcome panel's **Start: Run the live

@@ -1,16 +1,16 @@
-import { deleteDemo, expect, generateDemo, test } from './fixtures'
+import { demoTest, expect } from './fixtures'
 
 /**
  * The project-wide Annotations page: reached from the sidebar, it lists the
- * demo's seeded markers and planned promo; a marker posted to one event shows
- * up there named after its chart, and can be deleted from the page.
+ * demo's planned promo; a marker posted to one event shows up there named
+ * after its chart, and can be deleted from the page (which leaves the shared
+ * demo as it was).
  */
-test('the annotations page lists every marker and planned event, and deletes one', async ({
+demoTest('the annotations page lists every marker and planned event, and deletes one', async ({
   page,
-  account,
+  demo: slug,
 }) => {
-  void account
-  const slug = await generateDemo(page)
+  await page.goto(`/p/${slug}/overview`)
 
   // A marker on one event, posted the way a deploy pipeline would.
   const events = await page.request.get(`/api/v1/projects/${slug}/events`)
@@ -32,10 +32,9 @@ test('the annotations page lists every marker and planned event, and deletes one
   const annotations = page.getByTestId('annotations-list')
   await expect(annotations.getByText('E2E deploy')).toBeVisible({ timeout: 60_000 })
   // Its row names the event it is on, linking to that chart (the event may
-  // carry seeded markers of its own, so look inside this row only).
+  // carry release markers of its own, so look inside this row only).
   const row = annotations.getByRole('listitem').filter({ hasText: 'E2E deploy' })
   await expect(row.getByRole('link', { name: event.name })).toBeVisible()
-  await expect(annotations.getByText('Injected demo spike')).toBeVisible()
   await expect(page.getByTestId('planned-events-list').getByText('Spring promo (planned)')).toBeVisible()
 
   // The source filter narrows to the worker's release markers.
@@ -46,7 +45,4 @@ test('the annotations page lists every marker and planned event, and deletes one
   await annotations.getByRole('button', { name: 'Delete annotation E2E deploy' }).click()
   await page.getByRole('alertdialog').getByRole('button', { name: 'Delete' }).click()
   await expect(annotations.getByText('E2E deploy')).toHaveCount(0)
-
-  await page.goto(page.url().replace(/\/annotations$/, '/overview'))
-  await deleteDemo(page)
 })

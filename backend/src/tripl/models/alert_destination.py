@@ -47,6 +47,13 @@ class AlertDestination(UUIDMixin, TimestampMixin, Base):
     type: Mapped[str] = mapped_column(db_enum(AlertDestinationType, "alert_destination_type"))
     name: Mapped[str] = mapped_column(String(255))
     enabled: Mapped[bool] = mapped_column(Boolean, default=True, server_default="true")
+    # Demo-only, and only on a ``demo_sink``: the FIRST send attempt of each
+    # delivery fails with a labelled simulated error, so a demo can show a
+    # failed delivery and its Retry without reaching anything real (the second
+    # attempt succeeds). Set by the demo seeder alone; no API field writes it.
+    simulate_first_attempt_failure: Mapped[bool] = mapped_column(
+        Boolean, default=False, server_default="false"
+    )
     # Hold this destination's alerts back and deliver them on a cadence instead
     # of after every metrics collection. NULL — the default, and what every
     # destination created before this column carries — means IMMEDIATE, i.e.

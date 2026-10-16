@@ -28,7 +28,7 @@ function makeProject(overrides: Partial<Project> = {}): Project {
     updated_at: '2026-07-01T00:00:00Z',
     is_demo: true,
     generation_status: 'ready',
-    demo_recipe_version: 'v3',
+    demo_recipe_version: '5',
     demo_seeded_at: '2026-07-10T00:00:00Z',
     demo_last_tick_at: null,
     created_by_user_id: 'creator-1',
@@ -143,7 +143,7 @@ async function chooseAction(name: RegExp): Promise<void> {
 
 describe('DemoBanner', () => {
   it('labels the demo project as local synthetic data, its data version under What’s simulated', () => {
-    renderBanner()
+    renderBanner({ project: makeProject({ demo_recipe_version: 'v3' }) })
 
     // Synthetic/local is never conflated with real/external data.
     expect(screen.getByText('Local synthetic data')).toBeInTheDocument()
@@ -253,7 +253,7 @@ describe('DemoBanner', () => {
     expect(resetSpy).not.toHaveBeenCalled()
     fireEvent.click(confirm)
 
-    await waitFor(() => expect(resetSpy).toHaveBeenCalledWith('demo-1', expect.any(AbortSignal)))
+    await waitFor(() => expect(resetSpy).toHaveBeenCalledWith('demo-1', expect.any(AbortSignal), expect.any(Function)))
   })
 
   it('after reset, leaves the now-dead detail URL and drops the stored branch', async () => {
@@ -267,7 +267,7 @@ describe('DemoBanner', () => {
     await chooseAction(/^reset…$/i)
     fireEvent.click(await screen.findByRole('button', { name: /reset demo/i }))
 
-    await waitFor(() => expect(resetSpy).toHaveBeenCalledWith('demo-1', expect.any(AbortSignal)))
+    await waitFor(() => expect(resetSpy).toHaveBeenCalledWith('demo-1', expect.any(AbortSignal), expect.any(Function)))
     await waitFor(() =>
       expect(screen.getByTestId('path')).toHaveTextContent('/p/demo-1/overview'),
     )
@@ -314,6 +314,71 @@ describe('DemoBanner', () => {
   })
 })
 
+describe('DemoBanner — a demo built by an older recipe', () => {
+  function outdatedNotice(): HTMLElement {
+    const notice = document.querySelector<HTMLElement>('[data-demo-outdated]')
+    if (!notice) throw new Error('no outdated-demo notice')
+    return notice
+  }
+
+  it('says why its data stopped moving and offers the rebuild, with the pill closed', async () => {
+    const resetSpy = vi.spyOn(projectsApi, 'resetDemo').mockResolvedValue(makeProject())
+    renderBanner({ project: makeProject({ demo_recipe_version: 'v4' }) })
+
+    expect(outdatedNotice()).toHaveTextContent(/built by an older version of tripl/i)
+    fireEvent.click(within(outdatedNotice()).getByRole('button', { name: /rebuild this demo/i }))
+
+    // The same confirmation as Reset… in the menu: nothing is replaced unasked.
+    const confirm = await screen.findByRole('button', { name: /reset demo/i })
+    expect(resetSpy).not.toHaveBeenCalled()
+    fireEvent.click(confirm)
+    await waitFor(() =>
+      expect(resetSpy).toHaveBeenCalledWith('demo-1', expect.any(AbortSignal), expect.any(Function)),
+    )
+  })
+
+  it('tells a viewer who can rebuild it, without a button they cannot use', () => {
+    renderBanner({
+      project: makeProject({ demo_recipe_version: 'v4' }),
+      auth: authValue({ id: 'someone-else', role: 'member' }),
+    })
+
+    expect(outdatedNotice()).toHaveTextContent(/creator or an organization owner can reset it/i)
+    expect(within(outdatedNotice()).queryByRole('button')).not.toBeInTheDocument()
+  })
+
+  it('stays out of the way on a current demo, and on one whose version is unknown', () => {
+    const { unmount } = renderBanner()
+    expect(document.querySelector('[data-demo-outdated]')).toBeNull()
+    unmount()
+
+    renderBanner({ project: makeProject({ demo_recipe_version: null }) })
+    expect(document.querySelector('[data-demo-outdated]')).toBeNull()
+  })
+})
+
+describe('DemoBanner — a rebuild the server narrates', () => {
+  it('shows the stage a queued rebuild reports instead of the estimate', async () => {
+    vi.spyOn(projectsApi, 'resetDemo').mockImplementation(
+      (_slug: string, _signal?: AbortSignal, onShell?: (shell: Project) => void) => {
+        onShell?.({
+          ...makeProject({ generation_status: 'seeding', generation_stage: 'history' }),
+          generation_progress: 40,
+        } as Project)
+        return new Promise<never>(() => {})
+      },
+    )
+
+    renderBanner()
+    await chooseAction(/^reset…$/i)
+    fireEvent.click(await screen.findByRole('button', { name: /reset demo/i }))
+
+    const dialog = await screen.findByRole('dialog', { name: /rebuilding demo project/i })
+    expect(await within(dialog).findByText('Collecting history · 40%')).toBeInTheDocument()
+    expect(within(dialog).queryByText(/steps are approximate/i)).not.toBeInTheDocument()
+  })
+})
+
 describe('DemoBanner — the way back into the guided onboarding', () => {
   it('opens the tour without restoring a panel the user put away', async () => {
     // Dismissing the welcome panel used to remove the tour and the chapter
@@ -351,7 +416,7 @@ describe('DemoBanner — the way back into the guided onboarding', () => {
     await chooseAction(/^reset…$/i)
     fireEvent.click(await screen.findByRole('button', { name: /reset demo/i }))
 
-    await waitFor(() => expect(resetSpy).toHaveBeenCalledWith('demo-1', expect.any(AbortSignal)))
+    await waitFor(() => expect(resetSpy).toHaveBeenCalledWith('demo-1', expect.any(AbortSignal), expect.any(Function)))
     await waitFor(() => expect(window.localStorage.getItem(WELCOME_DISMISS_KEY)).toBeNull())
     expect(readScenarioState('demo-1').chapters['live-loop']).toEqual({
       status: 'active',
@@ -373,7 +438,7 @@ describe('DemoBanner — reset and delete failures', () => {
     expect(await screen.findByRole('alert')).toHaveTextContent('Demo reset failed')
     expect(resetSpy).toHaveBeenCalledTimes(1)
     // The progress dialog is gone and the controls are usable again.
-    expect(screen.queryByRole('dialog', { name: /re-seeding demo project/i })).not.toBeInTheDocument()
+    expect(screen.queryByRole('dialog', { name: /rebuilding demo project/i })).not.toBeInTheDocument()
     const menu = await openManageMenu()
     expect(within(menu).getByRole('menuitem', { name: /^reset…$/i })).not.toHaveAttribute('aria-disabled')
     expect(within(menu).getByRole('menuitem', { name: /^delete…$/i })).not.toHaveAttribute('aria-disabled')
@@ -389,7 +454,7 @@ describe('DemoBanner — reset and delete failures', () => {
     fireEvent.click(await screen.findByRole('button', { name: /reset demo/i }))
 
     expect(
-      await screen.findByRole('dialog', { name: /re-seeding demo project/i }),
+      await screen.findByRole('dialog', { name: /rebuilding demo project/i }),
     ).toBeInTheDocument()
     expect(manageTrigger()).toHaveAccessibleName('Manage demo (Resetting…)')
   })
@@ -400,7 +465,7 @@ describe('DemoBanner — reset and delete failures', () => {
     renderBanner()
     await chooseAction(/^reset…$/i)
     fireEvent.click(await screen.findByRole('button', { name: /reset demo/i }))
-    await screen.findByRole('dialog', { name: /re-seeding demo project/i })
+    await screen.findByRole('dialog', { name: /rebuilding demo project/i })
 
     // Neither is gated on the reset, and clearing an error must not detach it.
     fireEvent.click(screen.getByRole('button', { name: /what’s simulated/i, hidden: true }))
@@ -454,7 +519,7 @@ describe('DemoBanner — a reset that never answers', () => {
     return () => signal
   }
 
-  it('stops waiting after the timeout and says the server may still be re-seeding', async () => {
+  it('stops waiting after the timeout and says the server may still be rebuilding', async () => {
     const signal = stallReset()
     // The re-seed has not landed: the project still has its old id.
     vi.spyOn(projectsApi, 'get').mockResolvedValue(makeProject())
@@ -467,8 +532,8 @@ describe('DemoBanner — a reset that never answers', () => {
     // honest one that can be closed.
     const stalled = await screen.findByRole('dialog', { name: /reset is still running/i })
     expect(signal()?.aborted).toBe(true)
-    expect(stalled).toHaveTextContent(/may still be re-seeding/i)
-    expect(screen.queryByRole('dialog', { name: /re-seeding demo project/i })).not.toBeInTheDocument()
+    expect(stalled).toHaveTextContent(/may still be rebuilding/i)
+    expect(screen.queryByRole('dialog', { name: /rebuilding demo project/i })).not.toBeInTheDocument()
     // Told once, by the dialog — not again under the banner.
     expect(screen.queryByRole('alert')).not.toBeInTheDocument()
 

@@ -390,6 +390,8 @@ CONNECTION_SETTINGS_MODELS: dict[str, type[_ConnectionSettingsBase]] = {
     DBType.trino.value: TrinoSettings,
     DBType.athena.value: AthenaSettings,
     DBType.synthetic.value: SyntheticSettings,
+    # The demo warehouse's connection comes from settings: nothing to configure.
+    DBType.demo.value: SyntheticSettings,
 }
 
 # Every setting name known to *some* warehouse. Used to tell "you sent a setting
@@ -686,6 +688,10 @@ class DataSourceResponse(BaseModel):
     # True when this is a local, in-memory synthetic warehouse (demo data). The
     # UI uses it to badge the source as synthetic rather than a real connection.
     is_synthetic: bool
+    # A demo-warehouse source (db_type ``demo``): which engine serves it, the
+    # PostgreSQL warehouse or the in-memory one; ``None`` for every other source,
+    # and until this process has read the warehouse's status once.
+    demo_engine: Literal["postgres", "memory"] | None = None
     host: str
     port: int
     database_name: str

@@ -25,12 +25,22 @@ describe('DemoProvisioningDialog', () => {
     renderDialog({ phaseIndex: 1 })
 
     // Every expected phase is listed…
-    expect(screen.getByText('Creating project')).toBeInTheDocument()
-    expect(screen.getByText('Seeding events')).toBeInTheDocument()
-    expect(screen.getByText('Finalizing')).toBeInTheDocument()
+    expect(screen.getByText('Writing the tracking plan')).toBeInTheDocument()
+    expect(screen.getByText('Scanning the demo warehouse')).toBeInTheDocument()
+    expect(screen.getByText('Detecting signals')).toBeInTheDocument()
     // …and the live region narrates the active one for screen readers.
     const live = screen.getByRole('status')
-    expect(live).toHaveTextContent('Seeding events')
+    expect(live).toHaveTextContent('Scanning the demo warehouse')
+  })
+
+  it("states the server's own stage, with how far the history has got", () => {
+    renderDialog({ phaseIndex: 2, phaseConfirmed: true, phasePercent: 40 })
+
+    // The phases before the server's stage are done, not estimated…
+    expect(screen.getAllByText('Collecting history · 40%')[0]).toBeInTheDocument()
+    expect(screen.getByRole('status')).toHaveTextContent('Collecting history · 40%')
+    // …so the list does not call itself an estimate.
+    expect(screen.queryByText(/steps are approximate/i)).not.toBeInTheDocument()
   })
 
   it('lets the user abandon an in-flight create', () => {
@@ -114,7 +124,7 @@ describe('DemoProvisioningDialog', () => {
   it('says so visibly on success and offers a positive action', () => {
     // Regression: the success frame kept the "Generating demo project" title
     // and a greyed-out Cancel; the only "ready" sentence was sr-only.
-    renderDialog({ status: 'success', phaseIndex: 4 })
+    renderDialog({ status: 'success', phaseIndex: 3 })
 
     expect(screen.getByText('Demo project is ready')).toBeInTheDocument()
     expect(screen.queryByText('Generating demo project')).not.toBeInTheDocument()

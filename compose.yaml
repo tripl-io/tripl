@@ -54,13 +54,22 @@ x-app-environment: &app-environment
   # Demo kill switches. Without these two lines a value set in .env never reaches
   # the container, so the documented rollback switch does nothing.
   # DEMO_ENABLED gates demo provisioning (create + reset); DEMO_RUNTIME_ENABLED
-  # gates the background tick that keeps a demo fresh. Neither touches real
-  # projects.
+  # gates the scheduled collections that keep a demo current from the demo
+  # warehouse. Neither touches real projects.
   DEMO_ENABLED: ${DEMO_ENABLED:-true}
   DEMO_RUNTIME_ENABLED: ${DEMO_RUNTIME_ENABLED:-true}
   # Demos kept seeded ahead of time and handed out at once (0 = off).
   DEMO_POOL_SIZE: ${DEMO_POOL_SIZE:-0}
   DEMO_POOL_MAX_AGE_HOURS: ${DEMO_POOL_MAX_AGE_HOURS:-20}
+  # The demo warehouse (a `tripl_demo` database on the postgres service, created
+  # by `migrate`). Empty derives the writer's DSN and the reader's password.
+  DEMO_WAREHOUSE_URL: ${DEMO_WAREHOUSE_URL:-}
+  DEMO_WAREHOUSE_READER_PASSWORD: ${DEMO_WAREHOUSE_READER_PASSWORD:-}
+  DEMO_WAREHOUSE_MODE: ${DEMO_WAREHOUSE_MODE:-}
+  DEMO_WAREHOUSE_RETENTION_DAYS: ${DEMO_WAREHOUSE_RETENTION_DAYS:-}
+  DEMO_WAREHOUSE_MAX_MB: ${DEMO_WAREHOUSE_MAX_MB:-}
+  # Days of warehouse history a new demo replays (2-30; empty means 23).
+  DEMO_HISTORY_DAYS: ${DEMO_HISTORY_DAYS:-}
   # Everything below is documented in website/docs/run/configuration.md as an
   # environment variable, so it has to actually reach the container. The same
   # omission is what made the DEMO_ENABLED switch inert and then

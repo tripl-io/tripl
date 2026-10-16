@@ -67,7 +67,17 @@ async def test_scan_activity_counts_catalog_warehouse_rows_as_warehouse_rows(
 
 
 @pytest.mark.asyncio
-async def test_demo_shadow_candidate_carries_samples(client: AsyncClient) -> None:
+async def test_demo_shadow_candidate_carries_samples(
+    client: AsyncClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The replay surfaces the warehouse's unplanned ``app_heartbeat_v1`` with samples.
+
+    It bursts every third day (``core.demo_warehouse.calendar``), so a history
+    shorter than that may hold none: four days always holds one.
+    """
+    from tripl.config import settings
+
+    monkeypatch.setattr(settings, "demo_history_days", 4)
     created = await client.post("/api/v1/projects/demo")
     assert created.status_code == 202
     slug = created.json()["slug"]

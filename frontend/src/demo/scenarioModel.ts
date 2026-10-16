@@ -538,13 +538,15 @@ export const CHAPTER_BLURBS: Record<ChapterId, string> = {
 }
 
 /** The names the demo seeder guarantees. Coach marks key on these to highlight
- *  exactly one deterministic example row per anchor (single-example rule). */
+ *  exactly one deterministic example row per anchor (single-example rule).
+ *  Incidents are not among them: the demo warehouse injects one a day on its
+ *  own calendar, so the anomaly step points at whichever opened last
+ *  (`coachedIncident.ts`). */
 export const SCENARIO_SEEDED = {
   editedEventName: 'Trial Started',
   editedFieldName: 'product_id',
   editedFieldValue: 'prod_monthly',
   editedFieldToken: '${product_id}',
-  anomalyEventName: 'Home Screen View',
   driftVariableName: 'product_id',
   branchName: 'feature/checkout-funnel',
   changedEventName: 'Buy Button Click',
@@ -809,9 +811,10 @@ export function buildChapterSteps(
         },
         {
           id: 'explore/visit-anomaly',
-          title: 'Drill into the spike',
-          instruction: `Open Anomalies and drill into the ${SCENARIO_SEEDED.anomalyEventName} spike.`,
-          cue: `Click the ${SCENARIO_SEEDED.anomalyEventName} spike to open its chart.`,
+          title: 'Drill into the latest incident',
+          instruction:
+            'Open Anomalies and drill into the newest open incident — the demo warehouse injects one every day.',
+          cue: 'Click the highlighted incident to open its chart. Between incidents, open the volume chart instead.',
           to: `${base}/anomalies`,
           ctaLabel: 'Open Anomalies',
           coach: { side: 'top', align: 'start', emphasis: 'ring' },

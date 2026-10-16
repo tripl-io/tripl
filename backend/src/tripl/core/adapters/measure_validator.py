@@ -182,6 +182,9 @@ _DB_TYPE_DIALECT: dict[str, SqlDialect] = {
     "trino": SqlDialect.trino,
     "athena": SqlDialect.athena,
     "synthetic": SqlDialect.clickhouse,
+    # Both demo warehouse engines read PostgreSQL SQL: the warehouse is one, and
+    # the in-memory engine evaluates PostgreSQL's quoting too.
+    "demo": SqlDialect.postgres,
 }
 
 #: ClickHouse, BigQuery and Databricks back-tick identifiers; PostgreSQL,

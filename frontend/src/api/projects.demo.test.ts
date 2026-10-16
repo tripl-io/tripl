@@ -90,3 +90,49 @@ describe('projectsApi.createDemo', () => {
     expect(fetchSpy).toHaveBeenCalledTimes(1)
   })
 })
+
+describe('projectsApi demo builds narrate their stage', () => {
+  it('hands every unfinished shell to the listener, in order', async () => {
+    vi.spyOn(globalThis, 'fetch')
+      .mockResolvedValueOnce(jsonResponse(shell('seeding', { generation_stage: 'init' }), 202))
+      .mockResolvedValueOnce(jsonResponse(shell('seeding', { generation_stage: 'history', generation_progress: 40 })))
+      .mockResolvedValueOnce(jsonResponse(shell('ready')))
+    const heard: unknown[] = []
+
+    await projectsApi.createDemo(undefined, 1, (current) => heard.push(current.generation_stage))
+
+    // The ready project is the answer, not a stage.
+    expect(heard).toEqual(['init', 'history'])
+  })
+})
+
+describe('projectsApi.resetDemo', () => {
+  it('returns a rebuild the server finished inside the request', async () => {
+    const fetchSpy = vi.spyOn(globalThis, 'fetch').mockResolvedValueOnce(jsonResponse(shell('ready')))
+
+    await expect(projectsApi.resetDemo('demo-abc123')).resolves.toMatchObject({ generation_status: 'ready' })
+    expect(paths(fetchSpy)).toEqual(['/api/v1/projects/demo/demo-abc123/reset'])
+  })
+
+  it('waits on a queued rebuild like a create, narrating it', async () => {
+    const fetchSpy = vi
+      .spyOn(globalThis, 'fetch')
+      .mockResolvedValueOnce(jsonResponse(shell('seeding', { generation_stage: 'plan' }), 202))
+      .mockResolvedValueOnce(jsonResponse(shell('ready')))
+    const heard: unknown[] = []
+
+    const project = await projectsApi.resetDemo(
+      'demo-abc123',
+      undefined,
+      (current) => heard.push(current.generation_stage),
+      1,
+    )
+
+    expect(project.generation_status).toBe('ready')
+    expect(heard).toEqual(['plan'])
+    expect(paths(fetchSpy)).toEqual([
+      '/api/v1/projects/demo/demo-abc123/reset',
+      '/api/v1/projects/demo-abc123',
+    ])
+  })
+})

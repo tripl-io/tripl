@@ -9,7 +9,6 @@ Covers the backend core seams:
   late (a spike still fires, a stored drop survives, nothing is held when fresh);
 * ``collect_metrics`` end to end: a delay is held, and the recovery run
   re-collects the delayed buckets so they are scored against the late rows;
-* the demo runtime tick stamping freshness facts and honouring the hold;
 * the API: ``GET /projects/{slug}/source-freshness`` and ``freshness`` on scans;
 
 plus the issue's "done when": delaying the demo source yields ONE freshness
@@ -53,10 +52,8 @@ from tripl.services.source_freshness import (
     late_threshold,
     overdue_threshold,
 )
-from tripl.tests import test_demo_runtime as demo_runtime_tests
 from tripl.tests.conftest import TestSessionLocal
 from tripl.tests.test_metrics_tasks import _create_scan_config
-from tripl.worker.tasks import demo_runtime
 from tripl.worker.tasks.metrics import detect as metrics_detect
 from tripl.worker.tasks.metrics import signals as metrics_signals
 from tripl.worker.tasks.metrics import tasks as metrics_tasks
@@ -736,76 +733,6 @@ def test_widening_is_capped_and_only_applies_while_holding(
         assert widen(session, config, delta=_HOUR, time_from=usual_from, time_to=time_to) == (
             usual_from
         )
-
-
-# --------------------------------------------------------------------------- #
-# Demo runtime tick
-# --------------------------------------------------------------------------- #
-
-
-def test_demo_tick_stamps_freshness_facts(
-    sync_session_factory: sessionmaker[Session], monkeypatch: pytest.MonkeyPatch
-) -> None:
-    seed_now = demo_runtime_tests._floor(datetime.now(UTC)) - timedelta(days=1)
-    with sync_session_factory() as session:
-        seeded = demo_runtime_tests._seed_demo(session, seed_now=seed_now, history_hours=72)
-        stale = session.get(ScanConfig, seeded.scan_config_id)
-        assert stale is not None
-        stale.last_event_at = seed_now - timedelta(hours=1)
-        stale.last_collection_at = seed_now
-        session.commit()
-
-    # Inside the idle-pause window, so the tick advances the demo.
-    tick = seed_now + timedelta(hours=3)
-    result = demo_runtime_tests._run_tick(sync_session_factory, monkeypatch, tick)
-    assert result["advanced"] == 1
-
-    with sync_session_factory() as session:
-        cfg = session.get(ScanConfig, seeded.scan_config_id)
-        assert cfg is not None
-        assert to_utc(cfg.last_event_at) == demo_runtime_tests._floor(tick) - _HOUR
-        assert to_utc(cfg.last_collection_at) == tick
-        assert compute_freshness(cfg, tick).status == "fresh"
-
-
-def test_demo_recompute_respects_the_hold(
-    sync_session_factory: sessionmaker[Session],
-) -> None:
-    seed_now = demo_runtime_tests._floor(datetime.now(UTC))
-    with sync_session_factory() as session:
-        seeded = demo_runtime_tests._seed_demo(session, seed_now=seed_now, history_hours=72)
-        # The newest six hours of one series never landed: they read as drops.
-        session.execute(
-            update(EventMetric)
-            .where(
-                EventMetric.scan_config_id == seeded.scan_config_id,
-                EventMetric.bucket >= seed_now - timedelta(hours=6),
-            )
-            .values(count=1)
-        )
-        session.commit()
-
-        config = session.get(ScanConfig, seeded.scan_config_id)
-        assert config is not None
-        demo_runtime._recompute_anomalies(session, config, seed_now, hold_drops=True)
-        session.flush()
-        held_drops = session.execute(
-            select(MetricAnomaly).where(
-                MetricAnomaly.scan_config_id == seeded.scan_config_id,
-                MetricAnomaly.direction == "drop",
-            )
-        ).all()
-        assert held_drops == []
-
-        demo_runtime._recompute_anomalies(session, config, seed_now, hold_drops=False)
-        session.flush()
-        released = session.execute(
-            select(MetricAnomaly).where(
-                MetricAnomaly.scan_config_id == seeded.scan_config_id,
-                MetricAnomaly.direction == "drop",
-            )
-        ).all()
-        assert released != []
 
 
 # --------------------------------------------------------------------------- #

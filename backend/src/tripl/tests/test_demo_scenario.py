@@ -1,37 +1,37 @@
 """Scenario-builder tests.
 
-Covers the new plan/catalog examples added by the declarative demo scenario
-(meta values, event-type relation + owner, authored variable override, event
-change history, figma spec, feature-branch journey), the determinism guarantee
-(same clock + seed => identical metric/anomaly shape), and an independently
-testable single builder.
+Covers the plan/catalog examples the declarative demo scenario authors (meta
+values, event-type relation + owner, authored variable override, event change
+history, figma spec, feature-branch journey), the determinism of the authored
+half (same clock + seed => the same plan; the seed moves only the first-seen
+stagger), and an independently testable single builder. The observed half is
+the pipeline's, pinned in ``test_demo_v5_provisioning`` and ``test_demo_contract``.
 """
 
 from __future__ import annotations
 
 import uuid
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, datetime
 
 import pytest
 from httpx import AsyncClient
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from tripl.core.demo_warehouse import DOCUMENTED_PRODUCTS, roster
 from tripl.models.domain_enums import ProjectGenerationStatus
 from tripl.models.event import Event
-from tripl.models.event_metric import EventMetric
 from tripl.models.event_type import EventType
 from tripl.models.event_type_owner import EventTypeOwner
 from tripl.models.event_type_relation import EventTypeRelation
-from tripl.models.metric_anomaly import MetricAnomaly
 from tripl.models.project import Project
-from tripl.models.scan_config import ScanConfig
 from tripl.services import plan_branch_service
 from tripl.services.demo import (
     DEMO_RECIPE_VERSION,
     DEMO_SEED,
     DemoContext,
     noise,
+    pipeline,
     seed_demo_content,
 )
 from tripl.services.demo.builders import plan as plan_builder
@@ -50,7 +50,19 @@ def _events_by_name(items: list[dict]) -> dict[str, dict]:
     return {item["name"]: item for item in items}
 
 
+@pytest.fixture
+def _authored_only(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Provision only the authored half: these examples are all authored."""
+
+    async def _skip(*_args: object, **_kwargs: object) -> None:
+        return None
+
+    for stage in ("run_scan_stage", "run_history_stage", "run_signals_stage"):
+        monkeypatch.setattr(pipeline, stage, _skip)
+
+
 @pytest.mark.asyncio
+@pytest.mark.usefixtures("_authored_only")
 async def test_new_examples_are_api_visible(client: AsyncClient) -> None:
     resp = await client.post("/api/v1/projects/demo")
     assert resp.status_code == 202
@@ -120,7 +132,7 @@ async def test_new_examples_are_api_visible(client: AsyncClient) -> None:
     overrides = overrides_resp.json()
     assert len(overrides) == 1, overrides
     assert overrides[0]["event_name"] == "Trial Started"
-    assert overrides[0]["values"] == ["prod_monthly", "prod_annual"]
+    assert overrides[0]["values"] == list(DOCUMENTED_PRODUCTS)
 
     # --- feature branch journey (branch + comment + revision) ----------------
     branches_resp = await client.get(f"/api/v1/projects/{slug}/branches")
@@ -179,56 +191,17 @@ async def _seed_fixture(session: AsyncSession, slug: str, *, seed: int) -> uuid.
     return project_id
 
 
-async def _scan_config_id(session: AsyncSession, project_id: uuid.UUID) -> uuid.UUID:
-    return (
-        await session.execute(select(ScanConfig.id).where(ScanConfig.project_id == project_id))
-    ).scalar_one()
-
-
-async def _event_metric_shape(
-    session: AsyncSession, project_id: uuid.UUID
-) -> dict[tuple[str, datetime], int]:
-    """Per-event metric counts keyed by (event name, bucket) — ids are project-local."""
-    event_rows = await session.execute(
-        select(Event.id, Event.name).where(Event.project_id == project_id)
-    )
-    name_by_id = dict(event_rows.all())
-    scan_config_id = await _scan_config_id(session, project_id)
+async def _plan_shape(session: AsyncSession, project_id: uuid.UUID) -> list[tuple]:
+    """The main plan without project-local ids: names, statuses, first-seen stamps."""
+    main = await plan_branch_service.ensure_main_branch_id(session, project_id)
     rows = (
         await session.execute(
-            select(EventMetric.event_id, EventMetric.bucket, EventMetric.count).where(
-                EventMetric.scan_config_id == scan_config_id,
-                EventMetric.event_id.is_not(None),
+            select(Event.name, Event.status, Event.created_at, Event.description).where(
+                Event.project_id == project_id, Event.branch_id == main
             )
         )
     ).all()
-    return {(name_by_id[event_id], bucket): count for event_id, bucket, count in rows}
-
-
-async def _anomaly_shape(session: AsyncSession, project_id: uuid.UUID) -> list[tuple]:
-    """Anomaly shape without project-local ids (scope_ref/event ids excluded)."""
-    scan_config_id = await _scan_config_id(session, project_id)
-    rows = (
-        (
-            await session.execute(
-                select(MetricAnomaly).where(MetricAnomaly.scan_config_id == scan_config_id)
-            )
-        )
-        .scalars()
-        .all()
-    )
-    shape = [
-        (
-            a.scope_type,
-            a.bucket,
-            a.actual_count,
-            round(a.expected_count, 6),
-            round(a.z_score, 6),
-            a.direction,
-        )
-        for a in rows
-    ]
-    return sorted(shape)
+    return sorted(tuple(row) for row in rows)
 
 
 @pytest.mark.asyncio
@@ -237,29 +210,26 @@ async def test_scenario_is_deterministic_for_fixed_clock_and_seed() -> None:
         first_id = await _seed_fixture(session, "demo-detA", seed=DEMO_SEED)
         second_id = await _seed_fixture(session, "demo-detB", seed=DEMO_SEED)
 
-        first_metrics = await _event_metric_shape(session, first_id)
-        second_metrics = await _event_metric_shape(session, second_id)
-        assert first_metrics == second_metrics
-        assert first_metrics, "expected a non-empty metric series"
-
-        first_anomalies = await _anomaly_shape(session, first_id)
-        second_anomalies = await _anomaly_shape(session, second_id)
-        assert first_anomalies == second_anomalies
-        assert first_anomalies, "expected at least one seeded anomaly"
+        first = await _plan_shape(session, first_id)
+        assert first == await _plan_shape(session, second_id)
+        assert {row[0] for row in first} == {event.name for event in roster.events()}
 
 
 @pytest.mark.asyncio
-async def test_different_seeds_change_the_metric_shape() -> None:
+async def test_the_seed_moves_only_the_first_seen_stagger() -> None:
+    # The warehouse runs on the global clock, so the seed cannot change what is
+    # observed; what it still keys is when each authored event was first seen.
     async with TestSessionLocal() as session:
-        base_id = await _seed_fixture(session, "demo-seedX", seed=DEMO_SEED)
-        other_id = await _seed_fixture(session, "demo-seedY", seed=DEMO_SEED + 1)
-
-        base_metrics = await _event_metric_shape(session, base_id)
-        other_metrics = await _event_metric_shape(session, other_id)
-        # Same keys (same clock => same events/buckets), but the deterministic
-        # noise differs, so the counts are not identical everywhere.
-        assert set(base_metrics) == set(other_metrics)
-        assert base_metrics != other_metrics
+        base = await _plan_shape(
+            session, await _seed_fixture(session, "demo-seedX", seed=DEMO_SEED)
+        )
+        other = await _plan_shape(
+            session, await _seed_fixture(session, "demo-seedY", seed=DEMO_SEED + 1)
+        )
+    assert [(name, status, description) for name, status, _at, description in base] == [
+        (name, status, description) for name, status, _at, description in other
+    ]
+    assert [row[2] for row in base] != [row[2] for row in other]
 
 
 def test_derive_seed_is_stable_and_key_sensitive() -> None:
@@ -269,11 +239,6 @@ def test_derive_seed_is_stable_and_key_sensitive() -> None:
     )
     assert noise.derive_seed(DEMO_SEED, "Home Screen View") != noise.derive_seed(
         DEMO_SEED, "Paywall View"
-    )
-    # hourly_volume is a pure function of its inputs.
-    bucket = _FIXED_NOW - timedelta(hours=5)
-    assert noise.hourly_volume(1800, bucket, 3, 42, 500) == noise.hourly_volume(
-        1800, bucket, 3, 42, 500
     )
 
 
@@ -302,14 +267,14 @@ async def test_plan_builder_seeds_schema_in_isolation() -> None:
             .scalars()
             .all()
         )
-        assert len(event_types) == 3
+        assert {et.name for et in event_types} == {t.name for t in roster.event_types()}
 
         events = (
             (await session.execute(select(Event).where(Event.project_id == project_id)))
             .scalars()
             .all()
         )
-        assert len(events) == len(plan_builder.event_specs(_FIXED_NOW))
+        assert len(events) == len(roster.events())
 
         relations = (
             (
@@ -337,5 +302,5 @@ async def test_plan_builder_seeds_schema_in_isolation() -> None:
         assert owners == []
 
         # ctx is populated with stable semantic references for downstream builders.
-        assert set(ctx.event_type_ids) == {"screen_view", "click", "purchase"}
+        assert set(ctx.event_type_ids) == {t.name for t in roster.event_types()}
         assert "Home Screen View" in ctx.event_ids

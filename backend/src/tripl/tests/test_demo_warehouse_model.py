@@ -1,0 +1,471 @@
+"""The demo warehouse model, pinned by its invariants (no database).
+
+Pins what the demo promises rather than numbers copied from output:
+
+* the catalog is large, well formed and keeps the names the rest of the
+  product depends on;
+* the warehouse holds ~800-1,500 rows an hour;
+* every daily incident is detected by the real detector under the demo's
+  anomaly settings, and quiet series stay quiet;
+* at ANY instant a demo could be created, an incident ended within a day;
+* the weekly promo, the release regressions, the property type change, the mix
+  shifts and the unplanned bursts are all in the rows;
+* the in-memory engine answers what the rows say, in PostgreSQL's shapes.
+"""
+
+from __future__ import annotations
+
+import collections
+from collections.abc import Iterator
+from datetime import UTC, datetime, timedelta
+from types import SimpleNamespace
+
+import pytest
+
+from tripl.core.adapters import registry
+from tripl.core.adapters.demo_memory import MAX_EVENTS_WINDOW, DemoMemoryAdapter
+from tripl.core.adapters.demo_postgres import DemoPostgresAdapter
+from tripl.core.adapters.measure_validator import SqlDialect, dialect_for_db_type
+from tripl.core.adapters.synthetic import SyntheticCapabilityError
+from tripl.core.analyzers.anomaly_detector import (
+    AnomalyDetectionSettings,
+    SeriesPoint,
+    detect_anomalies,
+)
+from tripl.core.analyzers.distribution_drift import compute_psi
+from tripl.core.demo_warehouse import calendar, roster, rows, schema, traffic
+from tripl.models.data_source import DEMO_DB_TYPES, DBType
+from tripl.schemas.data_source import CONNECTION_SETTINGS_MODELS
+
+HOUR = calendar.HOUR
+#: A fixed "now", mid-hour and mid-slice, so nothing depends on the wall clock.
+NOW = datetime(2026, 10, 15, 12, 7, 30, tzinfo=UTC)
+END = datetime(2026, 10, 15, tzinfo=UTC)
+#: The demo's anomaly settings (sigma 3, at least 10 expected, no settling).
+DEMO_SETTINGS = AnomalyDetectionSettings(
+    baseline_window_buckets=14,
+    min_history_buckets=7,
+    sigma_threshold=3.0,
+    min_expected_count=10,
+)
+_EVENT_TYPE = {event.name: event.event_type for event in roster.events()} | {
+    unplanned.name: unplanned.event_type for unplanned in roster.unplanned_events()
+}
+
+
+@pytest.fixture(scope="module")
+def hourly_counts() -> dict[datetime, dict[tuple[str, str], int]]:
+    """Rows per (event, platform) for every hour of the 31 days before ``END``."""
+    counts: dict[datetime, dict[tuple[str, str], int]] = {}
+    hour = END - timedelta(days=31)
+    while hour < END:
+        counts[hour] = rows.hour_counts(hour)
+        hour += HOUR
+    return counts
+
+
+def _series(
+    counts: dict[datetime, dict[tuple[str, str], int]], scope: str, target: str
+) -> list[SeriesPoint]:
+    def total(by_event: dict[tuple[str, str], int]) -> int:
+        if scope == "event_type":
+            return sum(n for (name, _), n in by_event.items() if _EVENT_TYPE[name] == target)
+        return sum(n for (name, _), n in by_event.items() if name == target)
+
+    return [SeriesPoint(bucket=bucket, count=total(c)) for bucket, c in counts.items()]
+
+
+# -- the catalog -------------------------------------------------------------
+
+
+def test_the_catalog_is_large_and_well_formed() -> None:
+    events = roster.events()
+    names = [event.name for event in events]
+    type_names = {event_type.name for event_type in roster.event_types()}
+
+    assert 150 <= len(events) <= 200
+    assert len(set(names)) == len(names)
+    assert 8 <= len(type_names) <= 12
+    assert {event.event_type for event in events} <= type_names
+    assert 50 <= len(roster.live_events()) <= 70
+    statuses = {"live", "implemented", "in_review", "ready_for_dev", "draft"}
+    assert {event.status for event in events} <= statuses | {"deprecated", "archived"}
+    for event in events:
+        assert len(event.description) >= 40, event.name
+        assert "lorem" not in event.description.lower(), event.name
+        fields = {field.name for field in roster.event_type(event.event_type).fields}
+        assert {name for name, _ in event.field_values} <= fields, event.name
+    # A firing event is in the plan as built (or about to be); a planned one is silent.
+    for event in roster.live_events():
+        assert event.status not in {"draft", "ready_for_dev"}, event.name
+
+
+def test_the_names_the_product_depends_on_are_kept() -> None:
+    names = {event.name for event in roster.events()}
+    assert set(roster.KEPT_EVENT_NAMES) <= names
+    assert set(roster.KEPT_EVENT_TYPES) <= {et.name for et in roster.event_types()}
+    assert roster.SHADOW_CANDIDATE_NAME not in names
+    assert roster.SHADOW_CANDIDATE_NAME in {u.name for u in roster.unplanned_events()}
+    assert roster.event(roster.DEAD_EVENT).base_rate == 0
+    for pair in roster.DUPLICATE_PAIRS:
+        assert set(pair) <= names
+    assert roster.event("Promo Applied").status == "deprecated"
+    assert roster.event("Promo Applied").successor in names
+    assert roster.event("Legacy CTA Click").status == "archived"
+    drift = roster.event(roster.VARIABLE_DRIFT_EVENT)
+    assert roster.UNDOCUMENTED_PRODUCT in {product for product, _ in drift.products}
+    product_variable = next(v for v in roster.variables() if v.name == "product_id")
+    assert roster.UNDOCUMENTED_PRODUCT not in product_variable.allowed_values
+
+
+def test_descriptions_carry_the_words_people_search_with() -> None:
+    assert "money back" in roster.event("Refund Processed").description
+
+
+# -- volume --------------------------------------------------------------------
+
+
+def test_the_warehouse_holds_800_to_1500_rows_an_hour(
+    hourly_counts: dict[datetime, dict[tuple[str, str], int]],
+) -> None:
+    totals = [sum(c.values()) for c in hourly_counts.values()]
+    mean = sum(totals) / len(totals)
+    inside = sum(800 <= total <= 1500 for total in totals) / len(totals)
+    assert 1000 <= mean <= 1300
+    assert inside >= 0.95
+    assert min(totals) >= 700 and max(totals) <= 1700
+
+
+# -- incidents -------------------------------------------------------------------
+
+
+def test_one_incident_a_day_rotating_through_every_kind() -> None:
+    incidents = calendar.incidents_between(END - timedelta(days=30), END)
+    days = [incident.start.date() for incident in incidents]
+    assert len(days) == len(set(days)) == 30
+    assert {incident.kind for incident in incidents[:5]} == set(calendar.INCIDENT_KINDS)
+    assert len(calendar.INCIDENT_KINDS) >= 4
+    for incident in incidents:
+        assert timedelta(hours=2) <= incident.end - incident.start <= timedelta(hours=3)
+        assert incident.description
+
+
+def test_every_daily_incident_is_detected(
+    hourly_counts: dict[datetime, dict[tuple[str, str], int]],
+) -> None:
+    for incident in calendar.incidents_between(END - timedelta(days=10), END - HOUR):
+        points = [p for p in _series(hourly_counts, incident.scope, incident.target)]
+        result = detect_anomalies(
+            points,
+            interval=HOUR,
+            evaluation_start=incident.start,
+            evaluation_end=incident.end,
+            settings=DEMO_SETTINGS,
+            settling_buckets=0,
+        )
+        direction = "drop" if incident.multiplier < 1 else "spike"
+        flagged = [a for a in result.anomalies if a.direction == direction]
+        assert flagged, f"{incident.description} on {incident.start:%Y-%m-%d} was not detected"
+        for anomaly in flagged:
+            assert anomaly.expected_count >= DEMO_SETTINGS.min_expected_count
+
+
+def test_series_without_a_story_stay_quiet(
+    hourly_counts: dict[datetime, dict[tuple[str, str], int]],
+) -> None:
+    """A week of the busiest event types: anomalies only where the calendar put one."""
+    start = END - timedelta(days=7)
+    explained: list[tuple[datetime, datetime]] = [
+        (incident.start, incident.end)
+        for incident in calendar.incidents_between(start - timedelta(days=1), END)
+    ] + calendar.promo_windows(start, END)
+    unexplained = 0
+    for event_type in ("screen_view", "app_lifecycle", "click"):
+        result = detect_anomalies(
+            _series(hourly_counts, "event_type", event_type),
+            interval=HOUR,
+            evaluation_start=start,
+            evaluation_end=END,
+            settings=DEMO_SETTINGS,
+            settling_buckets=0,
+        )
+        unexplained += sum(
+            not any(begin <= a.bucket < end for begin, end in explained) for a in result.anomalies
+        )
+    # Three scopes x 168 hours: a couple of 3-sigma flukes at most.
+    assert unexplained <= 3
+
+
+def _instants(span: timedelta, step: timedelta) -> Iterator[datetime]:
+    at = END - span
+    while at < END:
+        yield at
+        at += step
+
+
+def test_a_demo_created_at_any_moment_has_an_incident_within_a_day() -> None:
+    for at in _instants(timedelta(days=30), timedelta(minutes=5)):
+        finished = [
+            incident
+            for incident in calendar.incidents_between(at - timedelta(days=2), at)
+            if incident.start + HOUR <= at  # at least one complete anomalous bucket
+        ]
+        assert finished, at
+        latest = finished[-1]
+        assert at - min(latest.end, at) <= timedelta(hours=24), at
+
+
+# -- the other stories -----------------------------------------------------------------
+
+
+def test_the_weekly_promo_lifts_the_paywall_on_tuesdays() -> None:
+    windows = calendar.promo_windows(END - timedelta(days=28), END)
+    assert len(windows) == 4
+    paywall = roster.event(calendar.PROMO_EVENT)
+    for begin, _ in windows:
+        assert begin.weekday() == calendar.PROMO_WEEKDAY
+        during = traffic.expected_total(paywall, begin)
+        day_before = traffic.expected_total(paywall, begin - timedelta(days=1))
+        assert during > 2 * day_before
+
+
+def test_each_release_ships_its_regression() -> None:
+    release = calendar.release_index(END)
+    regression = calendar.regression_for(release)
+    # Three days after release the new version runs on most devices.
+    window_start = calendar.release_start(release) + timedelta(days=3)
+    by_version: collections.Counter[tuple[str, bool]] = collections.Counter()
+    for row in rows.rows_between("events", window_start, window_start + timedelta(days=1)):
+        by_version[(str(row["event_name"]), row["app_version"] == regression.version)] += 1
+
+    def new_to_old(event_name: str) -> float:
+        return by_version[(event_name, True)] / max(by_version[(event_name, False)], 1)
+
+    healthy = new_to_old("Home Screen View")
+    assert healthy > 1
+    assert by_version[(regression.event, False)] > 0
+    if regression.kind == "missing":
+        assert by_version[(regression.event, True)] == 0
+    else:
+        # It keeps 40 % of its rows on the new version: well under the others.
+        assert new_to_old(regression.event) < 0.6 * healthy
+
+
+def test_broken_releases_send_results_count_as_a_string_on_ios() -> None:
+    # A day after a release, the new and the previous version share the users,
+    # and one of each pair of consecutive releases is broken.
+    start = calendar.release_start(calendar.release_index(END)) + timedelta(days=2)
+    types: collections.Counter[tuple[str, str]] = collections.Counter()
+    for row in rows.rows_between("events", start, start + timedelta(hours=6)):
+        properties = row["properties"]
+        if isinstance(properties, dict) and calendar.PROPERTY_TYPE_CHANGE_KEY in properties:
+            value = properties[calendar.PROPERTY_TYPE_CHANGE_KEY]
+            types[(str(row["platform"]), type(value).__name__)] += 1
+    assert types[("ios", "str")] > 0
+    assert types[("ios", "int")] > 0
+    assert types[("android", "str")] == types[("web", "str")] == 0
+
+
+def test_mix_shifts_flag_psi_where_they_start_and_end() -> None:
+    windows = calendar.mix_shift_windows(END - timedelta(days=28), END)
+    assert {shift.name for shift, _, _ in windows} == {s.name for s in calendar.MIX_SHIFTS}
+    shift, begin, end = windows[-1]
+
+    def mix(t0: datetime, t1: datetime) -> dict[str, int]:
+        counts: collections.Counter[str] = collections.Counter()
+        for row in rows.rows_between("events", t0, t1):
+            if row["event_type"] in shift.event_types:
+                counts[str(row[shift.column])] += 1
+        return dict(counts)
+
+    onset = begin + timedelta(hours=shift.ramp_hours)
+    assert compute_psi(mix(onset - 14 * HOUR, onset), mix(onset, onset + HOUR)).band == (
+        "significant"
+    )
+    middle = begin + (end - begin) / 2
+    assert compute_psi(mix(middle - 14 * HOUR, middle), mix(middle, middle + HOUR)).band != (
+        "significant"
+    )
+
+
+def test_unplanned_names_fire_only_in_their_bursts() -> None:
+    start = END - timedelta(days=7)
+    bursts = calendar.unplanned_bursts(start, END)
+    assert {name for name, _, _ in bursts} == {u.name for u in roster.unplanned_events()}
+    for name, begin, end in bursts[:3]:
+        inside = sum(
+            1 for row in rows.rows_between("events", begin, end) if row["event_name"] == name
+        )
+        before = sum(
+            1
+            for row in rows.rows_between("events", begin - 3 * HOUR, begin)
+            if row["event_name"] == name
+        )
+        assert inside > 0 and before == 0, name
+
+
+def test_the_dead_event_never_fires() -> None:
+    names = {row["event_name"] for row in rows.rows_between("events", END - HOUR * 6, END)}
+    assert roster.DEAD_EVENT not in names
+    assert "Promo Applied" in {e.name for e in roster.live_events()}
+
+
+# -- determinism ---------------------------------------------------------------------
+
+
+def test_rows_depend_on_the_hour_alone() -> None:
+    a, b = END - timedelta(days=3), END - timedelta(days=2)
+    rows.clear_cache()
+    first = (rows.events_for_hour(a), rows.events_for_hour(b))
+    rows.clear_cache()
+    second = (rows.events_for_hour(b), rows.events_for_hour(a))
+    assert first == (second[1], second[0])
+    # Orders come from a subset of the hour's generation and agree with the whole.
+    index = rows.epoch_hour(a)
+    assert rows.orders_for_hour(a) == tuple(rows._orders(index, rows._generate_events(index)))
+
+
+def test_row_counts_are_the_hour_counts_outside_regressions() -> None:
+    hour = END - timedelta(days=1)
+    regressed = {r.event for r in calendar.regressions_by_version(hour).values()}
+    counted = collections.Counter(
+        (str(row["event_name"]), str(row["platform"])) for row in rows.events_for_hour(hour)
+    )
+    for key, expected in rows.hour_counts(hour).items():
+        if key[0] in regressed:
+            assert counted[key] <= expected
+        else:
+            assert counted[key] == expected, key
+
+
+# -- the in-memory engine -------------------------------------------------------------
+
+
+@pytest.fixture
+def engine() -> DemoMemoryAdapter:
+    return DemoMemoryAdapter(now=NOW)
+
+
+def test_the_engine_counts_what_the_rows_hold(engine: DemoMemoryAdapter) -> None:
+    t0, t1 = END - timedelta(hours=6), END
+    names, value_names, out = engine.get_time_bucketed_counts(
+        schema.EVENTS_SCAN_SQL,
+        "event_time",
+        "1h",
+        ["event_name", "platform"],
+        ["properties"],
+        {"properties": ["source"]},
+        t0,
+        t1,
+    )
+    assert names == ["event_name", "platform", "properties"]
+    assert value_names == ["properties.source"]
+    got: collections.Counter[tuple[object, ...]] = collections.Counter()
+    for bucket, event_name, platform, keys, source, count in out:
+        assert isinstance(keys, list) and keys == sorted(keys)
+        assert isinstance(count, int)
+        got[(bucket, event_name, platform)] += count
+        assert source is None or str(source).startswith('"')
+    expected: collections.Counter[tuple[object, ...]] = collections.Counter()
+    for row in rows.rows_between("events", t0, t1):
+        moment = row["event_time"]
+        assert isinstance(moment, datetime)
+        bucket = moment.replace(minute=0, second=0, microsecond=0)
+        expected[(bucket, row["event_name"], row["platform"])] += 1
+    assert got == expected
+
+
+def test_property_breakdowns_read_the_unquoted_value(engine: DemoMemoryAdapter) -> None:
+    t0, t1 = END - timedelta(hours=3), END
+    _, _, out = engine.get_time_bucketed_breakdown_counts(
+        schema.EVENTS_SCAN_SQL,
+        "event_time",
+        "1h",
+        "properties.source",
+        ["event_type"],
+        ["properties"],
+        None,
+        t0,
+        t1,
+    )
+    values = {row[1] for row in out if row[3] == "search"}
+    assert {"typed", "voice"} <= values
+    assert all(not str(value).startswith('"') for value in values)
+
+
+def test_the_engine_describes_the_postgres_tables(engine: DemoMemoryAdapter) -> None:
+    columns = {c.name: c.type_name for c in engine.get_columns(schema.EVENTS_SCAN_SQL)}
+    assert columns["event_time"] == "timestamptz"
+    assert columns["amount"] == "numeric"
+    assert columns["properties"] == "jsonb"
+    assert "user_id" not in columns  # the scan query never groups by it
+    assert [t.name for t in engine.get_schema_tables()] == ["events", "orders"]
+
+
+def test_the_engine_answers_the_active_sessions_metric(engine: DemoMemoryAdapter) -> None:
+    day = END - timedelta(days=2)
+    names, out = engine.get_preview_rows(
+        schema.ACTIVE_SESSIONS_SQL, 10, time_column="ts", time_from=day, time_to=day + HOUR
+    )
+    sessions = {row["session_id"] for row in rows.rows_between("events", day, day + timedelta(1))}
+    assert names == ["ts", "value"]
+    assert out == [(day, len(sessions))]
+    # Sessions hold several events each, like a real app's.
+    assert 2_000 <= len(sessions) <= 10_000
+
+
+def test_the_engine_is_bounded(engine: DemoMemoryAdapter) -> None:
+    with pytest.raises(SyntheticCapabilityError):
+        engine.get_time_bucketed_counts(
+            schema.EVENTS_SCAN_SQL,
+            "event_time",
+            "1h",
+            ["event_name"],
+            [],
+            None,
+            END - MAX_EVENTS_WINDOW - timedelta(days=1),
+            END,
+        )
+    _, preview = engine.get_preview_rows(schema.EVENTS_SCAN_SQL, 100_000)
+    times = [row[0] for row in preview if isinstance(row[0], datetime)]
+    assert len(times) == len(preview)
+    assert max(times) < rows.available_through(NOW)
+    assert min(times) >= rows.available_through(NOW) - timedelta(days=1)
+
+
+def test_the_engine_ranks_a_long_window_as_a_stream(engine: DemoMemoryAdapter) -> None:
+    long_start = END - timedelta(days=12)
+    with engine.top_n_ranking_window(long_start, END):
+        _, _, out = engine.get_time_bucketed_breakdown_counts(
+            schema.EVENTS_SCAN_SQL,
+            "event_time",
+            "1h",
+            "country",
+            ["event_type"],
+            [],
+            None,
+            END - HOUR,
+            END,
+            values_limit=3,
+        )
+    assert {row[1] for row in out} <= {"US", "IN", "Other", "GB", "BR"}
+    assert any(row[2] == 1 for row in out)
+
+
+# -- the data source type -------------------------------------------------------------
+
+
+def test_demo_sources_are_wired_as_a_postgres_dialect_type(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from tripl.config import settings
+
+    assert DBType.demo in DEMO_DB_TYPES
+    assert registry.adapter_class("demo") is DemoPostgresAdapter
+    assert dialect_for_db_type("demo") is SqlDialect.postgres
+    assert DBType.demo.value in CONNECTION_SETTINGS_MODELS
+    monkeypatch.setattr(settings, "demo_warehouse_mode", "memory")
+    source = SimpleNamespace(db_type="demo", password_encrypted="", timeout_seconds=None)
+    adapter = registry.build_adapter(source)  # type: ignore[arg-type]
+    assert isinstance(adapter, DemoMemoryAdapter)
+    assert adapter.test_connection()

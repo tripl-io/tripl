@@ -1959,7 +1959,7 @@
           "projects"
         ],
         "summary": "Reset Demo Project",
-        "description": "Re-seed a demo in place. Restricted to the demo's creator or an owner.",
+        "description": "Replace a demo with a fresh one under the same slug. Creator or owner only.\n\nAnswers with the replacement's ``seeding`` shell (or the ready demo, when\nthe worker was faster): poll it as after ``POST /projects/demo``.",
         "operationId": "reset_demo_project_api_v1_projects_demo__slug__reset_post",
         "security": [
           {
@@ -43085,7 +43085,8 @@
           "redshift",
           "trino",
           "athena",
-          "synthetic"
+          "synthetic",
+          "demo"
         ],
         "title": "DBType"
       },
@@ -43364,6 +43365,21 @@
           "is_synthetic": {
             "type": "boolean",
             "title": "Is Synthetic"
+          },
+          "demo_engine": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "postgres",
+                  "memory"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Demo Engine"
           },
           "host": {
             "type": "string",
@@ -43987,6 +44003,123 @@
         ],
         "title": "DemoCancelResponse",
         "description": "Outcome of asking an in-flight demo provision to abandon itself.\n\n``cancelled`` is only true when a still-seeding shell was found and flagged;\nthe provision then deletes itself instead of promoting.\n\nWhen it is false there was nothing to stop, and ``state`` says which of two\nvery different things that means: ``finished`` \u2014 a demo of this\nuser's became ready moments ago, so it WILL be in their projects list and\nthe caller should say so \u2014 or ``none`` \u2014 no recent demo exists, the create\nnever got far enough (or failed on its own), and the caller must not promise\nanything will appear. ``stopped`` always pairs with ``cancelled=true``."
+      },
+      "DemoWarehouseStatus": {
+        "properties": {
+          "mode": {
+            "type": "string",
+            "title": "Mode"
+          },
+          "engine": {
+            "type": "string",
+            "enum": [
+              "postgres",
+              "memory"
+            ],
+            "title": "Engine"
+          },
+          "reachable": {
+            "type": "boolean",
+            "title": "Reachable"
+          },
+          "reader_configured": {
+            "type": "boolean",
+            "title": "Reader Configured"
+          },
+          "database": {
+            "type": "string",
+            "title": "Database"
+          },
+          "written_through": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Written Through"
+          },
+          "oldest": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Oldest"
+          },
+          "database_bytes": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Database Bytes"
+          },
+          "retention_days": {
+            "type": "integer",
+            "title": "Retention Days"
+          },
+          "max_mb": {
+            "type": "integer",
+            "title": "Max Mb"
+          },
+          "last_run_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Run At"
+          },
+          "last_error": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Error"
+          },
+          "reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reason"
+          }
+        },
+        "type": "object",
+        "required": [
+          "mode",
+          "engine",
+          "reachable",
+          "reader_configured",
+          "database",
+          "retention_days",
+          "max_mb"
+        ],
+        "title": "DemoWarehouseStatus",
+        "description": "The demo warehouse every demo reads (core/demo_warehouse/status.py)."
       },
       "DependenciesResponse": {
         "properties": {
@@ -60372,6 +60505,17 @@
             ],
             "title": "Generation Stage"
           },
+          "generation_progress": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Generation Progress"
+          },
           "generation_error": {
             "anyOf": [
               {
@@ -60893,6 +61037,17 @@
               }
             ],
             "title": "Generation Stage"
+          },
+          "generation_progress": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Generation Progress"
           },
           "generation_error": {
             "anyOf": [
@@ -62872,6 +63027,11 @@
             ],
             "title": "Scan Lookback Hours"
           },
+          "auto_create_events": {
+            "type": "boolean",
+            "title": "Auto Create Events",
+            "default": true
+          },
           "scan_row_limit": {
             "anyOf": [
               {
@@ -63155,6 +63315,10 @@
             ],
             "title": "Scan Lookback Hours"
           },
+          "auto_create_events": {
+            "type": "boolean",
+            "title": "Auto Create Events"
+          },
           "scan_row_limit": {
             "anyOf": [
               {
@@ -63322,6 +63486,7 @@
           "interval",
           "replay_chunk_interval",
           "scan_lookback_hours",
+          "auto_create_events",
           "scan_row_limit",
           "metrics_row_limit",
           "app_version_column",
@@ -63617,6 +63782,10 @@
             ],
             "title": "Scan Lookback Hours"
           },
+          "auto_create_events": {
+            "type": "boolean",
+            "title": "Auto Create Events"
+          },
           "scan_row_limit": {
             "anyOf": [
               {
@@ -63760,6 +63929,7 @@
           "interval",
           "replay_chunk_interval",
           "scan_lookback_hours",
+          "auto_create_events",
           "scan_row_limit",
           "metrics_row_limit",
           "app_version_column",
@@ -64014,6 +64184,17 @@
               }
             ],
             "title": "Scan Lookback Hours"
+          },
+          "auto_create_events": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Auto Create Events"
           },
           "scan_row_limit": {
             "anyOf": [
@@ -64601,6 +64782,11 @@
               }
             ],
             "title": "Scan Lookback Hours"
+          },
+          "auto_create_events": {
+            "type": "boolean",
+            "title": "Auto Create Events",
+            "default": true
           },
           "sample_row_limit": {
             "type": "integer",
@@ -67894,6 +68080,16 @@
               }
             ],
             "title": "Alembic Up To Date"
+          },
+          "demo_warehouse": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/DemoWarehouseStatus"
+              },
+              {
+                "type": "null"
+              }
+            ]
           }
         },
         "type": "object",

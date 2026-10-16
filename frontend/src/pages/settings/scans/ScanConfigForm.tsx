@@ -19,6 +19,7 @@ import {
   EventNamingSection,
   LimitsSection,
   MetricsDriftSection,
+  NewEventsSection,
   ScanEssentialsSection,
 } from './ScanFormSections'
 import { scanFormBlocker, useScanForm, type ScanFormPayload } from './useScanForm'
@@ -173,6 +174,7 @@ export function ScanConfigurationTab({
       <EventNamingSection {...sectionProps} />
       <AppVersionSection {...sectionProps} />
       <MetricsDriftSection {...sectionProps} />
+      <NewEventsSection {...sectionProps} />
       <LimitsSection {...sectionProps} />
 
       {/* One Save for the whole form. Every card used to carry its own, which
@@ -330,6 +332,7 @@ export function ScanCreatePage({
       <EventNamingSection {...sectionProps} />
       <AppVersionSection {...sectionProps} />
       <MetricsDriftSection {...sectionProps} />
+      <NewEventsSection {...sectionProps} />
       <LimitsSection {...sectionProps} />
 
       {createMut.isError && (

@@ -411,6 +411,15 @@ def build_dry_run_payload(
 
     if unnamed_total:
         warnings.append(unnamed_skip_detail(unnamed_total))
+    # A run with ``auto_create_events`` off creates none of the "new" rows below,
+    # so the preview must not read as a promise.
+    new_identities = sum(1 for key in counts_by_identity if key not in existing_identities)
+    if config.auto_create_events is False and new_identities:
+        warnings.append(
+            f"This scan sends unplanned events to the reconciliation inbox: the "
+            f"{new_identities} new event(s) below would not be added to the catalog. "
+            "They appear under Reconciliation once metrics are collected."
+        )
 
     breakdown_combinations = sum(len(t.analysis.rows) for t in targets)
     sampled_rows = sum(
@@ -528,6 +537,7 @@ def _dry_run_config(session: Session, job: ScanDryRunJob) -> ScanConfig:
         app_version_column=job.app_version_column,
         platform_column=job.platform_column,
         scan_lookback_hours=job.scan_lookback_hours,
+        auto_create_events=job.auto_create_events,
     )
 
 

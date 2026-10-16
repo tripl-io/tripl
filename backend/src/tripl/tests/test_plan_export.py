@@ -30,6 +30,7 @@ from httpx import AsyncClient
 from sqlalchemy import select
 from sqlalchemy import update as sql_update
 
+from tripl.core.demo_warehouse import DOCUMENTED_PRODUCTS
 from tripl.core.plan_validation import (
     EventContext,
     PlanEvent,
@@ -404,8 +405,10 @@ async def test_demo_export_has_a_schema_per_event_and_round_trips(client: AsyncC
     assert home["properties"]["platform"]["enum"] == ["ios", "android", "web"]
     assert _validate(home, {"screen_name": "home", "platform": "tv"})
     purchase = schemas["purchase/Purchase Completed"]["properties"]
-    assert purchase["product_id"]["enum"] == ["prod_monthly", "prod_annual", "prod_lifetime"]
-    assert (purchase["amount"]["type"], purchase["amount"]["const"]) == ("number", 9.99)
+    # ``${product_id}`` with no per-event override on Purchase Completed -> the
+    # variable's own documented values (the override narrows Trial Started).
+    assert purchase["product_id"]["enum"] == list(DOCUMENTED_PRODUCTS)
+    assert purchase["amount"]["type"] == "number"
     assert schemas["purchase/Promo Applied"]["deprecated"] is True
 
 
@@ -446,11 +449,7 @@ async def test_demo_codegen_model(client: AsyncClient) -> None:
     promo = next(ev for ev in types["purchase"]["events"] if ev["name"] == "Promo Applied")
     assert promo["deprecated"] is True and promo["status"] == "deprecated"
     variables = {v["name"]: v for v in model["variables"]}
-    assert variables["product_id"]["allowed_values"] == [
-        "prod_monthly",
-        "prod_annual",
-        "prod_lifetime",
-    ]
+    assert variables["product_id"]["allowed_values"] == list(DOCUMENTED_PRODUCTS)
 
 
 @pytest.mark.asyncio

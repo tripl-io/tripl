@@ -2,9 +2,12 @@
 
 ``POST /projects/demo`` commits a hidden ``seeding`` shell and returns at once;
 this task seeds it and promotes it to ``ready`` (or marks it ``failed``) through
-:func:`tripl.services.demo_service.finish_demo_provision`. The seed is written
-on the async services, so the task bridges into them with a throwaway async
-engine per run.
+:func:`tripl.services.demo_service.finish_demo_provision`: the authored plan,
+then tripl's own catalog scan and a 23-day metrics replay over the demo
+warehouse, run here, synchronously, in stages the shell reports as it goes. The
+seed is written on the async services, so the task bridges into them with a
+throwaway async engine per run; the scan and the replay run on that session's
+sync facade.
 
 Idempotent: a redelivered task, or one whose shell a cancel already removed,
 finds no seeding shell and does nothing.

@@ -1,6 +1,9 @@
-// 'synthetic' is a local, in-memory demo warehouse. It is a valid db_type on the
-// wire (demo sources report it) but is intentionally NOT user-selectable, so it
-// is excluded from DB_TYPE_OPTIONS below.
+// 'demo' is the demo projects' own warehouse: a read-only PostgreSQL database in
+// the instance's server, or an in-memory engine over the same model where that
+// database cannot be created. 'synthetic' is the in-memory warehouse demos built
+// by an older version still carry. Both are valid db_types on the wire (demo
+// sources report them) but intentionally NOT user-selectable, so they are
+// excluded from DB_TYPE_OPTIONS below.
 export type DbType =
   | 'clickhouse'
   | 'postgres'
@@ -11,7 +14,26 @@ export type DbType =
   | 'redshift'
   | 'trino'
   | 'athena'
+  | 'demo'
   | 'synthetic'
+
+/**
+ * Which engine serves a `demo` source: the demo warehouse database in the
+ * instance's PostgreSQL server, or the in-memory engine over the same model
+ * (where that database could not be created). Absent for every other source.
+ */
+export type DemoWarehouseEngine = 'postgres' | 'memory'
+
+/**
+ * The engine a `demo` source reports in `demo_engine`, or null when it reports
+ * none: another db_type, a server that has not read the warehouse status yet,
+ * or an older server that does not send the field.
+ */
+export function demoEngineOf(source: Pick<DataSource, 'db_type' | 'demo_engine'>): DemoWarehouseEngine | null {
+  if (source.db_type !== 'demo') return null
+  const engine = source.demo_engine
+  return engine === 'postgres' || engine === 'memory' ? engine : null
+}
 
 export interface DbTypeOption {
   value: DbType
@@ -44,9 +66,18 @@ export const DB_TYPE_OPTIONS: DbTypeOption[] = [
   { value: 'athena', label: 'Amazon Athena', defaultPort: 443, preview: true },
 ]
 
+/** Names for the types nobody can pick: they are never offered, only shown. */
+const UNLISTED_DB_TYPE_LABELS: Partial<Record<DbType, string>> = {
+  demo: 'Demo warehouse',
+}
+
 /** The warehouse's display name ("ClickHouse"), or the raw type for one the list lacks. */
 export function dbTypeLabel(dbType: DbType): string {
-  return DB_TYPE_OPTIONS.find(option => option.value === dbType)?.label ?? dbType
+  return (
+    DB_TYPE_OPTIONS.find(option => option.value === dbType)?.label
+    ?? UNLISTED_DB_TYPE_LABELS[dbType]
+    ?? dbType
+  )
 }
 
 /** Whether this warehouse's connector is still in preview (see {@link DbTypeOption.preview}). */
@@ -180,7 +211,12 @@ export interface DataSource {
   project_id?: string | null
   name: string
   db_type: DbType
+  // True for a demo source (`demo` or the older `synthetic`): not a connection
+  // anyone configured, so it is locked and never counts as a real source.
   is_synthetic: boolean
+  // A `demo` source only: which engine serves it. Null until the server has
+  // read the warehouse status once, and for every other source.
+  demo_engine?: DemoWarehouseEngine | null
   host: string
   port: number
   database_name: string

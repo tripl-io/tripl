@@ -1,19 +1,16 @@
-import { deleteDemo, expect, generateDemo, test } from './fixtures'
+import { demoTest, expect } from './fixtures'
 
 /**
  * An event's page offers the query that selects its rows from the warehouse,
  * built from the scan that reads it. The demo's scan is a real config over the
- * synthetic warehouse, so the query is the derived one, not a mock.
+ * demo warehouse, so the query is the derived one, not a mock.
  */
-test('an event page shows and copies the warehouse SQL', async ({ page, context, account }) => {
-  void account
+demoTest('an event page shows and copies the warehouse SQL', async ({ page, context, demo: slug }) => {
   await context.grantPermissions(['clipboard-write'])
-  const slug = await generateDemo(page)
 
   const list = await page.request.get(`/api/v1/projects/${slug}/events?limit=50`)
   expect(list.status(), await list.text()).toBe(200)
-  // Every demo event falls under the demo scan (grouped by event_type, named
-  // by its group rules), so any of them has a query.
+  // Every demo event falls under a demo scan, so any of them has a query.
   const items = (await list.json()).items as { id: string }[]
   expect(items.length).toBeGreaterThan(0)
 
@@ -28,6 +25,4 @@ test('an event page shows and copies the warehouse SQL', async ({ page, context,
   await expect(panel).toContainText('LIMIT 100')
   await panel.getByRole('button', { name: 'Copy SQL' }).click()
   await expect(page.getByText('SQL copied')).toBeVisible()
-
-  await deleteDemo(page)
 })

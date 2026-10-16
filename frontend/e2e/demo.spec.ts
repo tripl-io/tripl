@@ -3,8 +3,8 @@ import { deleteDemo, expect, generateDemo, test } from './fixtures'
 /**
  * The demo, the first thing a new account does: generate it
  * from the empty workspace, land on its overview, look around, and delete it.
- * Generation runs the real worker against a synthetic warehouse, so this is
- * the whole pipeline, not a mock of it.
+ * Generation runs the real worker against the demo warehouse, so this is the
+ * whole pipeline, not a mock of it.
  */
 test('a new account generates a demo, looks around and deletes it', async ({ page, account }) => {
   void account
@@ -15,7 +15,7 @@ test('a new account generates a demo, looks around and deletes it', async ({ pag
   await expect(banner.getByText('Demo project', { exact: true })).toBeVisible()
 
   // The plan is seeded: the events page lists events.
-  // The sidebar link carries the count ("Events 17").
+  // The sidebar link carries the count ("Events <n>").
   await page.getByRole('link', { name: /^Events \d+$/ }).click()
   await expect(page).toHaveURL(/\/events$/)
   // A route's first visit compiles it on the dev server: give it time.

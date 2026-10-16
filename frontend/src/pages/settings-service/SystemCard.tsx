@@ -162,6 +162,56 @@ function schemaRevisionRow(system: SystemSettings): SystemRow {
  *    and embedding keys (config.py:348-351). Unset is neutral for those two and
  *    for nothing else.
  */
+const MEGABYTE = 1024 * 1024
+
+/**
+ * The demo warehouse every demo reads (the system's own database, beside this
+ * one). On PostgreSQL the tile says how far it is written and how full it is;
+ * on the in-memory engine it says why, because demos then still work but
+ * visitors' SQL runs against a reduced engine. A write error is the one state
+ * that needs attention: demos keep reading what is already written.
+ */
+function demoWarehouseRow(system: SystemSettings): SystemRow | null {
+  const status = system.demo_warehouse
+  if (!status) return null
+  if (status.engine === 'memory') {
+    return {
+      label: 'Demo warehouse',
+      env: 'DEMO_WAREHOUSE_MODE',
+      value: 'In-memory engine',
+      tone: 'neutral',
+      note:
+        status.reason ??
+        'Demos read the in-memory engine over the same model instead of a PostgreSQL database.',
+    }
+  }
+  const size =
+    status.database_bytes == null
+      ? null
+      : `${Math.round(status.database_bytes / MEGABYTE)} of ${status.max_mb} MB`
+  const through = status.written_through
+    ? `written through ${new Date(status.written_through).toISOString().slice(0, 16).replace('T', ' ')} UTC`
+    : 'not written yet'
+  if (status.last_error) {
+    return {
+      label: 'Demo warehouse',
+      env: 'DEMO_WAREHOUSE_URL',
+      value: 'Write failed',
+      tone: 'warning',
+      problem: 'The demo warehouse writer failed',
+      note: `${status.last_error} Demos keep reading what is already ${through}.`,
+    }
+  }
+  return {
+    label: 'Demo warehouse',
+    env: 'DEMO_WAREHOUSE_URL',
+    value: `PostgreSQL · ${status.database}`,
+    tone: status.reachable ? 'success' : 'warning',
+    problem: status.reachable ? undefined : 'The demo warehouse is unreachable',
+    note: [through, size, `${status.retention_days} days kept`].filter(Boolean).join(' · '),
+  }
+}
+
 function needsAttention(row: SystemRow): boolean {
   return row.tone === 'warning' || row.tone === 'danger'
 }
@@ -226,7 +276,8 @@ function systemRows(system: SystemSettings): SystemRow[] {
         : 'Optional — only used when the AI or embedding key is blank.',
     },
     schemaRevisionRow(system),
-  ]
+    demoWarehouseRow(system),
+  ].filter((row): row is SystemRow => row !== null)
 }
 
 export function SystemCard({ system }: { system: SystemSettings }) {

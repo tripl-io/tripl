@@ -49,6 +49,7 @@ export interface ScanFormPayload {
   interval: string | null
   replay_chunk_interval: string | null
   scan_lookback_hours: number | null
+  auto_create_events: boolean
   scan_row_limit: number | null
   metrics_row_limit: number | null
 }
@@ -99,6 +100,12 @@ export interface ScanFormState {
   scanLookbackHours: string
   scanRowLimit: string
   metricsRowLimit: string
+  /**
+   * What a run does with an event the plan does not have: add it to the catalog
+   * in review (true), or leave the catalog alone and let the metrics collection
+   * file it in the reconciliation inbox (false).
+   */
+  autoCreateEvents: boolean
 }
 
 function initialState(scanConfig: ScanConfig | null): ScanFormState {
@@ -138,6 +145,7 @@ function initialState(scanConfig: ScanConfig | null): ScanFormState {
       : '24',
     scanRowLimit: scanConfig?.scan_row_limit == null ? '' : String(scanConfig.scan_row_limit),
     metricsRowLimit: scanConfig?.metrics_row_limit == null ? '' : String(scanConfig.metrics_row_limit),
+    autoCreateEvents: scanConfig?.auto_create_events ?? true,
   }
 }
 
@@ -197,6 +205,7 @@ export function toBackendPayload(state: ScanFormState): ScanFormPayload {
     scan_lookback_hours: parseOptionalPositiveInt(state.scanLookbackHours),
     scan_row_limit: parseOptionalPositiveInt(state.scanRowLimit),
     metrics_row_limit: parseOptionalPositiveInt(state.metricsRowLimit),
+    auto_create_events: state.autoCreateEvents,
   }
 }
 
@@ -230,6 +239,7 @@ export function toDryRunRequest(state: ScanFormState): ScanDryRunRequest {
     app_version_column: payload.app_version_column,
     platform_column: payload.platform_column,
     scan_lookback_hours: payload.scan_lookback_hours,
+    auto_create_events: payload.auto_create_events,
   }
 }
 

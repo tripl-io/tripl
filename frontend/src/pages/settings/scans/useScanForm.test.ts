@@ -49,6 +49,7 @@ function formState(overrides: Partial<ScanFormState> = {}): ScanFormState {
     scanLookbackHours: '24',
     scanRowLimit: '',
     metricsRowLimit: '',
+    autoCreateEvents: true,
     ...overrides,
   }
 }

@@ -5,6 +5,11 @@ runs. The core's step is exactly ``alembic upgrade head`` with the
 ``alembic.ini`` in the working directory, so a Community install does what it
 always did.
 
+Then the demo warehouse is provisioned (a database, a read-only role and the
+warehouse schema on the same server; see ``core/demo_warehouse/provision.py``).
+That step never fails the run: what tripl's role may not do is logged as a
+warning, and demos use the in-memory engine until it is done.
+
 An extension that owns tables migrates them itself: it declares an entry point
 in the ``tripl.migrations`` group whose object is a callable taking no
 arguments, and keeps its own Alembic history (a version table of its own), so
@@ -43,8 +48,21 @@ def extension_upgrades() -> list[tuple[str, Callable[[], None]]]:
     return found
 
 
+def provision_demo_warehouse() -> None:
+    """Create or repair the demo warehouse; warns instead of failing."""
+    from tripl.core.demo_warehouse.provision import provision
+
+    try:
+        provision()
+    except Exception:
+        # provision() reports what it could not do itself; this is the backstop
+        # for the unexpected, so that a demo nicety never fails a migration.
+        logger.exception("migrate.demo_warehouse provisioning failed; demos use memory")
+
+
 def main() -> None:
     upgrade_core()
+    provision_demo_warehouse()
     for name, upgrade in extension_upgrades():
         logger.info("migrate.extension name=%s", name)
         upgrade()

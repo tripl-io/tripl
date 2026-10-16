@@ -96,6 +96,11 @@ class ScanConfig(UUIDMixin, TimestampMixin, Base):
     # Optional lookback for manual scan/preview catalog sync. Scheduled metrics
     # catalog sync uses the collection window when this is unset.
     scan_lookback_hours: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    # What a scan does with an identity no catalog event answers to: true adds
+    # it as a new ``in_review`` event; false leaves the catalog alone (the plan
+    # is the authority) and the metrics collection files the identity in the
+    # reconciliation inbox as a shadow candidate.
+    auto_create_events: Mapped[bool] = mapped_column(Boolean, default=True, server_default="true")
     # Optional override for GROUP BY ALL scan query row cap.
     scan_row_limit: Mapped[int | None] = mapped_column(Integer, nullable=True)
     # Optional override for time-bucketed replay/metrics query row caps.

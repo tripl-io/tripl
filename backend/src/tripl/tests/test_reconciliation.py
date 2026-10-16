@@ -245,9 +245,17 @@ async def test_accept_requires_event_type_when_not_detected(client: AsyncClient)
 
 
 @pytest.mark.asyncio
-async def test_accept_conflicts_on_resolved_candidate_and_duplicate_identity(
+async def test_accept_conflicts_on_resolved_candidate_and_links_a_held_identity(
     client: AsyncClient,
 ):
+    """A resolved candidate 409s; one whose identity an event holds links to it.
+
+    The second candidate carries the identity the first accept just authored
+    (the same name surfacing through another scan config). Accepting it used to
+    409 as a duplicate nobody could clear; the candidate IS that event's
+    traffic, so it now links to the holder and creates nothing. An ARCHIVED
+    holder still refuses, naming the way out.
+    """
     et_id, _ = await _setup_project(client, "rec-conflict")
     project_id = await _project_id("rec-conflict")
     scan_id = await _insert_scan_config(project_id)
@@ -268,17 +276,41 @@ async def test_accept_conflicts_on_resolved_candidate_and_duplicate_identity(
     )
     assert again.status_code == 409
 
-    # The same identity surfacing via another scan config → duplicate
-    # source_name 409 (an event with that identity already exists).
     other_scan_id = await _insert_scan_config(project_id)
     other_id = await _insert_candidate(
         project_id, other_scan_id, event_name="dup | name", event_type_id=uuid.UUID(et_id)
     )
-    dup = await client.post(
+    linked = await client.post(
         f"/api/v1/projects/rec-conflict/reconciliation/shadow-events/{other_id}/accept",
         json={},
     )
-    assert dup.status_code == 409
+    assert linked.status_code == 200, linked.text
+    assert linked.json()["event_id"] == first.json()["event_id"]
+    assert linked.json()["status"] == SHADOW_STATUS_ACCEPTED
+    async with TestSessionLocal() as session:
+        holders = (
+            (await session.execute(select(Event.id).where(Event.source_name == "dup | name")))
+            .scalars()
+            .all()
+        )
+        assert [str(holder) for holder in holders] == [first.json()["event_id"]]
+
+    # The holder archived: a third sighting is refused rather than linked.
+    archived = await client.patch(
+        f"/api/v1/projects/rec-conflict/events/{first.json()['event_id']}",
+        json={"status": "archived"},
+    )
+    assert archived.status_code == 200, archived.text
+    third_scan_id = await _insert_scan_config(project_id)
+    third_id = await _insert_candidate(
+        project_id, third_scan_id, event_name="dup | name", event_type_id=uuid.UUID(et_id)
+    )
+    refused = await client.post(
+        f"/api/v1/projects/rec-conflict/reconciliation/shadow-events/{third_id}/accept",
+        json={},
+    )
+    assert refused.status_code == 409
+    assert "restore it" in refused.json()["detail"]
 
 
 @pytest.mark.asyncio

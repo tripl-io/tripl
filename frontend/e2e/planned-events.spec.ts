@@ -1,4 +1,4 @@
-import { deleteDemo, expect, generateDemo, test } from './fixtures'
+import { demoTest, expect } from './fixtures'
 
 interface PlannedEventRow {
   id: string
@@ -9,17 +9,15 @@ interface PlannedEventRow {
 
 /**
  * Expected windows (F18, #271; planned events in the API), on the demo: its
- * seeded promo covers the spike on a catalog metric, so that metric's chart
- * shades the window and lists it; a window added from the card shows up there
- * and can be deleted again.
+ * seeded promo sits on a catalog metric, so that metric's chart shades the
+ * window and lists it; a window added from the card shows up there and can be
+ * deleted again.
  */
-test('the demo promo shades its metric chart, and an expected window can be added and removed', async ({
+demoTest('the demo promo shades its metric chart, and an expected window can be added and removed', async ({
   page,
-  account,
+  demo: slug,
 }) => {
-  void account
-  const slug = await generateDemo(page)
-  const projectBase = page.url().replace(/\/overview$/, '')
+  const projectBase = `/p/${slug}`
 
   // The seeded promo, and the catalog metric it covers.
   const resp = await page.request.get(`/api/v1/projects/${slug}/planned-events`)
@@ -46,7 +44,4 @@ test('the demo promo shades its metric chart, and an expected window can be adde
   await page.getByRole('alertdialog').getByRole('button', { name: 'Delete' }).click()
   await expect(card.getByText('E2E launch')).toHaveCount(0)
   await expect(card.getByText('Spring promo (planned)')).toBeVisible()
-
-  await page.goto(`${projectBase}/overview`)
-  await deleteDemo(page)
 })

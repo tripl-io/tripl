@@ -11,6 +11,8 @@ from tripl.services.demo.scenario import (
     DemoContext,
     DemoScenario,
     build_default_scenario,
+    finish_authored_content,
+    seed_authored_plan,
     seed_demo_content,
 )
 
@@ -20,5 +22,7 @@ __all__ = [
     "DemoContext",
     "DemoScenario",
     "build_default_scenario",
+    "finish_authored_content",
+    "seed_authored_plan",
     "seed_demo_content",
 ]

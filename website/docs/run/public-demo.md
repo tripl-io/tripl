@@ -17,11 +17,29 @@ generated demo projects. Every visitor gets an organization of their own, and
 whatever would reach outside the instance is refused: connecting a warehouse,
 delivering alerts outside the app, filing tracker tickets, AI.
 
+## The demo warehouse and the pool
+
+Every demo on the instance reads the same [demo
+warehouse](../use/demo-workspace.md#the-demo-warehouse), so a public demo
+prepares no data per visitor: a demo's plan is written and its history collected
+from the warehouse when it is created. What grows with visitors is tripl's own
+database, and the daily prune keeps each demo's observed rows inside the
+warehouse's retention.
+
+Building a demo takes about a minute of worker time. Keep a small pool seeded
+ahead of time, so a visitor gets one at once: `DEMO_POOL_SIZE=2` or `3` covers
+visitors arriving minutes apart, and the pool refills after each claim. A larger
+pool mostly spends worker time seeding demos nobody claims before
+`DEMO_POOL_MAX_AGE_HOURS` discards them. Run the warehouse on PostgreSQL rather
+than the in-memory engine (**Settings → Instance → System** says which one demos
+use): the in-memory engine regenerates rows in each worker process, which a busy
+instance pays for on every collection.
+
 ## Semantic search
 
 Demo projects search by meaning out of the box, from embedding vectors bundled
-with the release; queries those vectors do not cover fall back to keyword
-matching. For semantic search on any query, the operator sets
+with the release for the demo's own text and its suggested queries (`purchase
+funnel`, `money back`); other queries fall back to keyword matching. For semantic search on any query, the operator sets
 `PUBLIC_DEMO_SEARCH_EMBEDDINGS=true` alongside `SEARCH_EMBEDDINGS_ENABLED=true`
 and an embeddings key: a public demo otherwise drops that key with every other
 AI credential. What visitors type into search, and the demo projects' text,

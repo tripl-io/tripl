@@ -415,8 +415,8 @@ async def test_a_value_drift_no_scan_can_reach_stays_out_of_the_replay(
 
     ``signals`` selects ``VariableValueDrift.scan_config_id == config.id`` and a
     NULL never equals a config id, so the live pipeline can never deliver such a
-    row — the column is ``SET NULL`` on scan deletion, and the demo seeds one
-    deliberately (``services/demo/builders/variables._build_value_drift``).
+    row — the column is ``SET NULL`` on scan deletion, which leaves exactly such
+    a row behind.
 
     Drop ``VariableValueDrift.scan_config_id.is_not(None)`` from
     ``_load_variable_value_drift_candidates`` and ``anomalies_considered``

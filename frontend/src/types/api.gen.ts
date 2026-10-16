@@ -1173,7 +1173,10 @@ export interface paths {
         put?: never;
         /**
          * Reset Demo Project
-         * @description Re-seed a demo in place. Restricted to the demo's creator or an owner.
+         * @description Replace a demo with a fresh one under the same slug. Creator or owner only.
+         *
+         *     Answers with the replacement's ``seeding`` shell (or the ready demo, when
+         *     the worker was faster): poll it as after ``POST /projects/demo``.
          */
         post: operations["reset_demo_project_api_v1_projects_demo__slug__reset_post"];
         delete?: never;
@@ -8665,7 +8668,7 @@ export interface components {
          * DBType
          * @enum {string}
          */
-        DBType: "clickhouse" | "postgres" | "bigquery" | "databricks" | "snowflake" | "greenplum" | "redshift" | "trino" | "athena" | "synthetic";
+        DBType: "clickhouse" | "postgres" | "bigquery" | "databricks" | "snowflake" | "greenplum" | "redshift" | "trino" | "athena" | "synthetic" | "demo";
         /**
          * DataSourceConnectionTest
          * @description An unsaved data-source config to test a connection with.
@@ -8762,6 +8765,8 @@ export interface components {
             /** Database Name */
             database_name: string;
             db_type: components["schemas"]["DBType"];
+            /** Demo Engine */
+            demo_engine?: ("postgres" | "memory") | null;
             /** Host */
             host: string;
             /**
@@ -8984,6 +8989,41 @@ export interface components {
              * @enum {string}
              */
             state: "stopped" | "finished" | "none";
+        };
+        /**
+         * DemoWarehouseStatus
+         * @description The demo warehouse every demo reads (core/demo_warehouse/status.py).
+         */
+        DemoWarehouseStatus: {
+            /** Database */
+            database: string;
+            /** Database Bytes */
+            database_bytes?: number | null;
+            /**
+             * Engine
+             * @enum {string}
+             */
+            engine: "postgres" | "memory";
+            /** Last Error */
+            last_error?: string | null;
+            /** Last Run At */
+            last_run_at?: string | null;
+            /** Max Mb */
+            max_mb: number;
+            /** Mode */
+            mode: string;
+            /** Oldest */
+            oldest?: string | null;
+            /** Reachable */
+            reachable: boolean;
+            /** Reader Configured */
+            reader_configured: boolean;
+            /** Reason */
+            reason?: string | null;
+            /** Retention Days */
+            retention_days: number;
+            /** Written Through */
+            written_through?: string | null;
         };
         /** DependenciesResponse */
         DependenciesResponse: {
@@ -15356,6 +15396,8 @@ export interface components {
             description: string;
             /** Generation Error */
             generation_error?: string | null;
+            /** Generation Progress */
+            generation_progress?: number | null;
             /** Generation Stage */
             generation_stage?: string | null;
             /** @default ready */
@@ -15583,6 +15625,8 @@ export interface components {
             description: string;
             /** Generation Error */
             generation_error?: string | null;
+            /** Generation Progress */
+            generation_progress?: number | null;
             /** Generation Stage */
             generation_stage?: string | null;
             /** @default ready */
@@ -16393,6 +16437,11 @@ export interface components {
             app_version_keep_releases?: number | null;
             /** App Version Prerelease Pattern */
             app_version_prerelease_pattern?: string | null;
+            /**
+             * Auto Create Events
+             * @default true
+             */
+            auto_create_events: boolean;
             /** Base Query */
             base_query: string;
             /**
@@ -16472,6 +16521,8 @@ export interface components {
             app_version_keep_releases: number | null;
             /** App Version Prerelease Pattern */
             app_version_prerelease_pattern: string | null;
+            /** Auto Create Events */
+            auto_create_events: boolean;
             /** Base Query */
             base_query: string;
             /** Cardinality Threshold */
@@ -16608,6 +16659,8 @@ export interface components {
             app_version_keep_releases: number | null;
             /** App Version Prerelease Pattern */
             app_version_prerelease_pattern: string | null;
+            /** Auto Create Events */
+            auto_create_events: boolean;
             /** Base Query */
             base_query: string;
             /** Cardinality Threshold */
@@ -16708,6 +16761,8 @@ export interface components {
             app_version_keep_releases?: number | null;
             /** App Version Prerelease Pattern */
             app_version_prerelease_pattern?: string | null;
+            /** Auto Create Events */
+            auto_create_events?: boolean | null;
             /** Base Query */
             base_query?: string | null;
             /** Cardinality Threshold */
@@ -16899,6 +16954,11 @@ export interface components {
         ScanDryRunRequest: {
             /** App Version Column */
             app_version_column?: string | null;
+            /**
+             * Auto Create Events
+             * @default true
+             */
+            auto_create_events: boolean;
             /** Base Query */
             base_query?: string | null;
             /**
@@ -18227,6 +18287,7 @@ export interface components {
             database_url_configured: boolean;
             /** Debug */
             debug: boolean;
+            demo_warehouse?: components["schemas"]["DemoWarehouseStatus"] | null;
             /**
              * Edition
              * @enum {string}

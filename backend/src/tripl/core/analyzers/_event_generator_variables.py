@@ -522,6 +522,81 @@ def record_variable_contexts(
             )
 
 
+def authored_token_observations(
+    *,
+    events: Iterable[Event],
+    observed_fields: Mapping[uuid.UUID, Mapping[uuid.UUID, tuple[str, str]]],
+    values_seen: Mapping[tuple[str, str], Mapping[str, int | None]],
+    index: VariableIndex,
+    cardinality_threshold: int,
+) -> PendingVariableContexts:
+    """What the scan saw behind each field an author wrote as ``${variable}``.
+
+    ``record_variable_contexts`` only hears about a variable through the
+    column's ``variable_observations``, which the planner produces for a
+    high-cardinality column or a JSON path. A low-cardinality column gets its
+    literal value instead, so an event whose author wrote ``${product_id}`` on
+    a column carrying three products was never checked against the variable's
+    documented list: the contract existed and nothing read it. The author's
+    token is the statement that the field carries that variable, so the raw
+    values this run tallied for the (event, column) are its observations.
+
+    The result feeds value-drift detection ONLY. It is not written as
+    ``VariableValue`` contexts: those are the variable detector's record, and a
+    curated context hanging off an authored value must keep exactly the values
+    it was given (``delete_variable_contexts_for_event_type``). The run's field
+    observations already carry the per-field distribution.
+
+    Only a value that is EXACTLY one token counts — ``promo_${product_id}``
+    does not say which part of the observed text is the variable. Above the
+    cardinality threshold the plan carries the planner's template, not the raw
+    values, so there is nothing here to read; that column's evidence stays the
+    planner's variable observations.
+    """
+    observations: PendingVariableContexts = {}
+    for event in events:
+        fields = observed_fields.get(event.id)
+        if not fields:
+            continue
+        for field_value in event.field_values:
+            if not field_value.is_authored:
+                continue
+            seen_key = fields.get(field_value.field_definition_id)
+            if seen_key is None:
+                continue
+            match = _TOKEN_PATTERN.fullmatch(field_value.value or "")
+            if match is None:
+                continue
+            variable = index.resolve(match.group(1))
+            if variable is None or variable.excluded_from_scans:
+                continue
+            counts = values_seen.get(seen_key) or {}
+            # A templated value is the planner's own token for a column it
+            # judged high-cardinality, which the planner's observations cover.
+            observed = sorted(
+                (value for value in counts if value and _TOKEN_PATTERN.search(value) is None),
+                key=lambda value: (-(counts[value] or 0), value),
+            )
+            if not observed:
+                continue
+            value_kind = (
+                VariableValueKind.low.value
+                if len(observed) <= cardinality_threshold
+                else VariableValueKind.high.value
+            )
+            observations[(variable.id, event.id, field_value.field_definition_id)] = {
+                "variable_id": variable.id,
+                "event_id": event.id,
+                "field_definition_id": field_value.field_definition_id,
+                "source_column": seen_key[1],
+                "value_kind": value_kind,
+                "observed_count": len(observed),
+                "values": sample_variable_values(observed, value_kind),
+                "presence_rate": None,
+            }
+    return observations
+
+
 def insert_variable_contexts(
     session: Session,
     *,

@@ -573,7 +573,29 @@ async def _serialize_project(
     summary = (await _get_project_summaries(session, [project.id], branch_id=branch_id))[project.id]
     response = ProjectResponse.model_validate(project)
     response.summary = summary
+    response.generation_progress = await _demo_generation_progress(session, project)
     return response
+
+
+async def _demo_generation_progress(session: AsyncSession, project: Project) -> int | None:
+    """How far a seeding demo's history replay is, 0-100; None outside that stage.
+
+    Read off the replay jobs' own progress summaries, which the replay commits
+    after every chunk, so a poll sees it move while the seed task runs.
+    """
+    from tripl.services.demo import pipeline
+
+    if (
+        not project.is_demo
+        or project.generation_status != ProjectGenerationStatus.seeding.value
+        or project.generation_stage != pipeline.STAGE_HISTORY
+    ):
+        return None
+    config_id = await pipeline.demo_scan_config_id(session, project.id)
+    if config_id is None:
+        return 0
+    summaries = await pipeline.replay_summaries(session, config_id)
+    return pipeline.history_progress(summaries)
 
 
 def _serialize_projects(

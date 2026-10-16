@@ -56,6 +56,12 @@ async def _audit_accept(
     session: AsyncSession, current_user: User, slug: str, result: ShadowEventAcceptResult
 ) -> None:
     candidate = result.candidate
+    if result.event_create is None:
+        # The accept LINKED the candidate to an event that already held its
+        # identity: no catalog event was created, so there is no ``event.create``
+        # to file, and the event's own create row already names it. Who resolved
+        # the candidate is on the candidate (``resolved_by``/``resolved_at``).
+        return
     # Filed as ``event.create`` — the action POST /events files — because that is
     # what happened: a catalog event now exists, on this branch, because a person
     # decided it should. The scan only PROPOSED the identity; accepting it is an

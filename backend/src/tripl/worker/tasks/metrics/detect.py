@@ -935,13 +935,14 @@ def _collect_breakdown_scope_keys(
     app_version_column: str | None = None,
     kind: MetricBreakdownAnomalyKind = MetricBreakdownAnomalyKind.volume,
     breakdown_column: str | None = None,
+    unscored_column: str | None = None,
 ) -> set[tuple[uuid.UUID | None, uuid.UUID | None, str, str, bool]]:
     """Every breakdown scope with history or a stored anomaly in the window.
 
     DISTINCT in SQL and narrowed in SQL (``breakdown_column`` keeps only that
-    column, ``app_version_column`` drops that one), so a scan with a few thousand
-    events no longer materialises one row per stored BUCKET — up to 534 per key
-    — just to build a set.
+    column, ``app_version_column`` and ``unscored_column`` drop theirs), so a
+    scan with a few thousand events no longer materialises one row per stored
+    BUCKET — up to 534 per key — just to build a set.
     """
     metric_id_column = (
         EventMetricBreakdown.event_type_id
@@ -996,6 +997,11 @@ def _collect_breakdown_scope_keys(
         )
         anomaly_query = anomaly_query.where(
             MetricBreakdownAnomaly.breakdown_column != app_version_column
+        )
+    if unscored_column:
+        metric_query = metric_query.where(EventMetricBreakdown.breakdown_column != unscored_column)
+        anomaly_query = anomaly_query.where(
+            MetricBreakdownAnomaly.breakdown_column != unscored_column
         )
 
     if scope_type == SCOPE_PROJECT_TOTAL:
@@ -1905,7 +1911,11 @@ def _recalculate_platform_parity_anomalies(
     evaluation_start, evaluation_end = _canonical_window(evaluation_start, evaluation_end)
     covered_buckets = _canonical_covered(covered_buckets)
     platform_column = config.platform_column
-    if not platform_column or not config.interval:
+    if (
+        not platform_column
+        or not config.interval
+        or not project_settings.detect_platform_breakdowns
+    ):
         session.execute(
             delete(MetricBreakdownAnomaly).where(
                 MetricBreakdownAnomaly.scan_config_id == config.id,
@@ -2065,9 +2075,14 @@ def _recalculate_metric_breakdown_anomalies(
         session.flush()
         return 0
 
+    # The platform column is a breakdown only while its series are scored;
+    # otherwise its stored rows (both kinds) are cleared and its keys skipped.
+    unscored_platform = (
+        None if project_settings.detect_platform_breakdowns else config.platform_column
+    )
     if not config.interval or (
         not config.metric_breakdown_columns
-        and not config.platform_column
+        and (not config.platform_column or unscored_platform)
         and not _scan_has_event_level_breakdown_columns(session, config.id)
     ):
         session.execute(
@@ -2077,6 +2092,13 @@ def _recalculate_metric_breakdown_anomalies(
         return 0
 
     _age_out_config_anomalies(session, MetricBreakdownAnomaly, config.id)
+    if unscored_platform:
+        session.execute(
+            delete(MetricBreakdownAnomaly).where(
+                MetricBreakdownAnomaly.scan_config_id == config.id,
+                MetricBreakdownAnomaly.breakdown_column == unscored_platform,
+            )
+        )
 
     interval_spec = get_interval(config.interval)
     settings = _build_anomaly_settings(project_settings)
@@ -2107,6 +2129,7 @@ def _recalculate_metric_breakdown_anomalies(
             evaluation_end=evaluation_end,
             scope_type=SCOPE_PROJECT_TOTAL,
             app_version_column=app_version_column,
+            unscored_column=unscored_platform,
         ):
             points = _load_breakdown_scope_points(
                 session,
@@ -2171,6 +2194,7 @@ def _recalculate_metric_breakdown_anomalies(
             evaluation_end=evaluation_end,
             scope_type=SCOPE_EVENT_TYPE,
             app_version_column=app_version_column,
+            unscored_column=unscored_platform,
         ):
             if event_type_id is None:
                 continue
@@ -2263,6 +2287,7 @@ def _recalculate_metric_breakdown_anomalies(
             evaluation_end=evaluation_end,
             scope_type=SCOPE_EVENT,
             app_version_column=app_version_column,
+            unscored_column=unscored_platform,
         ):
             if event_id is None:
                 continue

@@ -305,7 +305,7 @@ export type ScanDryRunDuplicateOf = Schemas['ScanDryRunDuplicateOf']
 export type ScanDryRunNameWarning = Schemas['ScanDryRunNameWarning']
 
 /** Fields the backend defaults, which the generated type marks required. */
-type ScanDryRunDefaulted = 'setup_preset' | 'cardinality_threshold' | 'sample_row_limit'
+type ScanDryRunDefaulted = 'setup_preset' | 'cardinality_threshold' | 'sample_row_limit' | 'auto_create_events'
 
 /** The draft a dry run is computed from. */
 export type ScanDryRunRequest = Omit<Schemas['ScanDryRunRequest'], ScanDryRunDefaulted> &

@@ -1,4 +1,3 @@
-import { randomUUID } from 'node:crypto'
 import type {
   Browser,
   BrowserContext,
@@ -6,7 +5,7 @@ import type {
   Page,
   PageAssertionsToHaveScreenshotOptions,
 } from '@playwright/test'
-import { expect, generateDemo, test } from './fixtures'
+import { expect, test } from './fixtures'
 
 /**
  * The demo's layout, in a real browser: what unit tests could only assert as
@@ -15,8 +14,8 @@ import { expect, generateDemo, test } from './fixtures'
  * widths with no sideways scroll, and the banner, the scenario strip, the tour
  * and the guide are compared with their screenshots in light and dark.
  *
- * One demo serves the whole file: generating it runs the worker for most of a
- * minute. The chapter progress and the theme live in the browser's storage, so
+ * The worker's shared demo serves the whole file: generating one takes
+ * minutes. The chapter progress and the theme live in the browser's storage, so
  * each test starts from a fresh context on the same signed-in session.
  */
 
@@ -30,20 +29,9 @@ type Box = { x: number; y: number; width: number; height: number }
 let session: Awaited<ReturnType<BrowserContext['storageState']>>
 let slug: string
 
-test.beforeAll(async ({ browser }) => {
-  const context = await browser.newContext({ viewport: DESKTOP })
-  const page = await context.newPage()
-  const resp = await page.request.post('/api/v1/auth/register', {
-    data: {
-      email: `e2e-${randomUUID().slice(0, 8)}@example.com`,
-      password: `E2e-${randomUUID()}`,
-      name: 'E2E Layout',
-    },
-  })
-  expect(resp.status(), await resp.text()).toBe(201)
-  slug = await generateDemo(page)
-  session = await context.storageState()
-  await context.close()
+test.beforeAll(({ sharedDemo }) => {
+  slug = sharedDemo.slug
+  session = sharedDemo.session
 })
 
 /** The demo's overview in a fresh context: no tour step or chapter progress yet. */

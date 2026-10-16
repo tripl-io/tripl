@@ -75,6 +75,7 @@ const scanConfig: ScanConfig = {
   interval: '1h',
   replay_chunk_interval: '1h',
   scan_lookback_hours: null,
+  auto_create_events: true,
   scan_row_limit: null,
   metrics_row_limit: null,
   app_version_column: null,

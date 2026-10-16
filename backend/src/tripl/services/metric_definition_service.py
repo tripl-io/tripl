@@ -104,8 +104,10 @@ async def load_project_data_source(
     that query every five minutes, unattended, with nobody watching the result.
     Preview is a request the user sees; this is not.
 
-    Consistent with ``scan_service._verify_data_source``, which fences a synthetic
-    demo source to its own demo project.
+    Consistent with ``scan_service._verify_data_source``, which fences a demo
+    source (``DEMO_DB_TYPES``) to its own demo project: a demo source carries its
+    demo project's ``project_id``, so the ownership rule below refuses it to every
+    other project.
 
     WHAT IT REFUSES is :func:`data_source_out_of_project_scope`, the ownership
     rule shared with the fact-table save and preview doors — see

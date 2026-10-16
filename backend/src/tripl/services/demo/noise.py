@@ -1,83 +1,54 @@
-"""Deterministic shape helpers for the demo scenario.
+"""Shared determinism and clock helpers for the demo builders.
 
-Pure functions only — no DB, no I/O. Every value the demo seeds is derived from
-``(clock, seed)`` through these helpers, so re-running the recipe with the same
-clock and seed produces an identical data shape.
-
-The hourly volume shape and the platform-drift curve live in
-:mod:`tripl.core.adapters.synthetic_traffic`, beside the version and platform
-mix, because the synthetic warehouse has to serve the same traffic the seeder
-stores and ``core`` does not import ``services``. They are re-exported here
-under the names the builders have always used.
-
-Determinism note: per-series noise is derived with :func:`derive_seed` (SHA-256)
-rather than the Python builtin ``hash()``. ``hash()`` is salted per-process for
-``str``/``bytes`` (PYTHONHASHSEED), so keying noise off ``hash(str)`` would make
-the seeded metrics/anomalies/drift non-reproducible across runs.
+Recipe 5 seeds no traffic of its own: every observed number comes from tripl's
+pipeline reading the demo warehouse (:mod:`tripl.core.demo_warehouse`). What is
+left here is what the AUTHORED half of the recipe still needs — a stable seed
+derivation for the few authored timestamps (first-seen stagger, back-dated
+history) and the length of the history the provisioning replay covers.
 """
 
 from __future__ import annotations
 
+import hashlib
 from datetime import datetime, timedelta
 
-from tripl.core.adapters import synthetic_traffic
-from tripl.core.adapters.synthetic import SPIKE_MULTIPLIER
+from tripl.config import settings
 from tripl.core.analyzers.anomaly_detector import AnomalyDetectionSettings
 
-# Wall-clock length of the seeded hourly history (23 days: three weekly cycles
-# for the detector's phase baseline plus the 48h evaluation window — see
-# ``synthetic_traffic.DEMO_HISTORY_DAYS``).
-DEMO_HISTORY_DAYS = synthetic_traffic.DEMO_HISTORY_DAYS
-DEMO_EVAL_WINDOW_HOURS = 48
-# The synthetic source reproduces the spike at the same multiple, so it owns it.
-DEMO_SPIKE_MULTIPLIER = SPIKE_MULTIPLIER
+#: How much warehouse history a new demo replays by default: three full weekly
+#: cycles (the hour-of-week baseline needs 21 days) plus two days to score.
+#: ``settings.demo_history_days`` (``DEMO_HISTORY_DAYS``) is what is read.
+DEMO_HISTORY_DAYS = 23
 
-# Distribution-drift showcase: the platform mix drifts only over the final
-# ``DEMO_DRIFT_SPAN_DAYS`` days so the real PSI climbs a stable -> minor ->
-# significant ladder against the window-start baseline. The stored platform
-# breakdowns drift along the same curve (``synthetic_traffic``).
-DEMO_DRIFT_SPAN_DAYS = synthetic_traffic.DRIFT_SPAN_DAYS
-DEMO_DRIFT_DAILY_TOTAL = 48000
-
-# Anomaly-detector settings mirrored from the ProjectAnomalySettings row seeded by
-# the monitoring builder (Wave-1 defaults). Running the real detector with these
-# guarantees every seeded MetricAnomaly is exactly what the worker would produce
-# over the visible EventMetric series.
+#: The detector settings a demo project carries (``ProjectAnomalySettings``).
+#: Quieter thresholds than a real project's defaults: the demo warehouse's
+#: hourly volumes are modest, and its incidents are sized for these values
+#: (``core.demo_warehouse.calendar``). Settling 0: the writer completes every
+#: hour before a collection reads it.
 DEMO_ANOMALY_SETTINGS = AnomalyDetectionSettings(
     baseline_window_buckets=14,
     min_history_buckets=7,
     sigma_threshold=3.0,
     min_expected_count=10,
 )
-
-# The volume shape the seeder, the runtime tick and the synthetic warehouse share.
-derive_seed = synthetic_traffic.derive_seed
-hourly_volume = synthetic_traffic.hourly_volume
+DEMO_INGESTION_SETTLING_MINUTES = 0
 
 
-def hour_buckets(now: datetime, days: int) -> list[datetime]:
-    """Return UTC hour-aligned buckets covering the last ``days`` days."""
-    end = now.replace(minute=0, second=0, microsecond=0)
-    start = end - timedelta(days=days)
-    result: list[datetime] = []
-    cursor = start
-    while cursor < end:
-        result.append(cursor)
-        cursor += timedelta(hours=1)
-    return result
+def derive_seed(seed: int, key: str) -> int:
+    """A stable 32-bit seed from the scenario seed and a semantic key.
+
+    SHA-256 rather than ``hash`` so the value does not depend on PYTHONHASHSEED;
+    ``key`` is a semantic label (an event name), never a random id.
+    """
+    digest = hashlib.sha256(f"{seed}:{key}".encode()).digest()
+    return int.from_bytes(digest[:4], "big")
 
 
-def platform_shares(progress: float) -> dict[str, float]:
-    """Platform mix at ``progress`` (0 = drift start, 1 = now). Web share rises
-    while iOS falls, so the distribution genuinely drifts over the window."""
-    return synthetic_traffic.drift_platform_shares(progress)
+def history_days() -> int:
+    """Days of history a demo provisioned now replays (``DEMO_HISTORY_DAYS``)."""
+    return settings.demo_history_days
 
 
-def shares_to_counts(shares: dict[str, float], total: int) -> dict[str, int]:
-    return {value: max(0, round(share * total)) for value, share in shares.items()}
-
-
-def drift_span_progress(days_before_now: float) -> float:
-    """Fraction into the drift ramp for a bucket ``days_before_now`` old. The mix
-    only starts drifting ``DEMO_DRIFT_SPAN_DAYS`` before now."""
-    return synthetic_traffic.drift_progress(days_before_now)
+def history_start(now: datetime) -> datetime:
+    """The first hour the provisioning replay covers."""
+    return now.replace(minute=0, second=0, microsecond=0) - timedelta(days=history_days())

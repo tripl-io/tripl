@@ -41,6 +41,16 @@ class DBType(enum.StrEnum):
     # adapter serves a bounded, deterministic dataset with no network/filesystem
     # access, so the normal warehouse-facing paths run against a fake source.
     synthetic = "synthetic"
+    # The demo warehouse (core/demo_warehouse): a PostgreSQL database on tripl's
+    # own server, read as a read-only role, or its in-memory engine. Created ONLY
+    # by the demo seeder; the row's host/port/credential columns are ignored, the
+    # connection comes from settings (core/demo_warehouse/engine.py).
+    demo = "demo"
+
+
+#: The demo-only types: created by the demo seeder alone, never by a user, and
+#: never converted to or from another type (services/datasource_service.py).
+DEMO_DB_TYPES: frozenset[DBType] = frozenset({DBType.synthetic, DBType.demo})
 
 
 class TestStatus(enum.StrEnum):

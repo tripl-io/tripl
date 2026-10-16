@@ -185,7 +185,7 @@ async def test_the_demo_files_its_authored_objects_in_their_routes_own_shape(
     Reverts that redden this, in ``demo/builders/audit._authored_plan_entries``:
 
     * deleting the helper, or its ``+ await _authored_plan_entries(...)`` in
-      ``build_audit`` — all three ``assert len(...) == 1`` fail;
+      ``build_audit`` — every count below fails;
     * filing the EVENT's name on the override row (``event_names.get`` in place
       of ``variable_names.get``), which is the shape the route
       was fixed out of — ``target_name`` becomes "Trial Started" and the
@@ -242,19 +242,23 @@ async def test_the_demo_files_its_authored_objects_in_their_routes_own_shape(
     assert uuid.UUID(relation_payload["source_event_type_id"]) == type_id_by_name["click"]
     assert uuid.UUID(relation_payload["target_event_type_id"]) == type_id_by_name["screen_view"]
 
-    # The owner grant: one, on screen_view, naming the grantee in the payload
-    # rather than in the title — which is how api/v1/event_type_owners.py
-    # records it, empty target_name and all.
+    # The owner grants: one per owned type (screen_view and purchase), each
+    # naming the grantee in the payload rather than in the title — which is how
+    # api/v1/event_type_owners.py records it, empty target_name and all.
     grants = await rows("event_type.add_owner")
-    assert len(grants) == 1, grants
-    grant = grants[0]
-    assert grant["target_type"] == "event_type"
-    assert grant["target_name"] == ""
-    assert uuid.UUID(grant["target_id"]) == type_id_by_name["screen_view"]
-    grant_payload = await payload_of(grant)
-    # The demo's creator granted it to themselves; whoever that is, the row's
-    # actor and its payload have to agree, or the grant names nobody real.
-    assert uuid.UUID(grant_payload["user_id"]) == uuid.UUID(grant["user_id"])
+    assert len(grants) == 2, grants
+    assert {uuid.UUID(grant["target_id"]) for grant in grants} == {
+        type_id_by_name["screen_view"],
+        type_id_by_name["purchase"],
+    }
+    for grant in grants:
+        assert grant["target_type"] == "event_type"
+        assert grant["target_name"] == ""
+        grant_payload = await payload_of(grant)
+        # The demo's creator granted it to themselves; whoever that is, the
+        # row's actor and its payload have to agree, or the grant names nobody
+        # real.
+        assert uuid.UUID(grant_payload["user_id"]) == uuid.UUID(grant["user_id"])
 
     # The variable override: the TARGET is the variable, and the event it was
     # scoped to belongs in the payload beside it.

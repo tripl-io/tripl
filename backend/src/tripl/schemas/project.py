@@ -331,7 +331,12 @@ class ProjectResponse(BaseModel):
     # and failure detail to the UI without leaking internals.
     is_demo: bool = False
     generation_status: ProjectGenerationStatus = ProjectGenerationStatus.ready
+    # The provisioning phase of a seeding demo: "init", "plan", "scan",
+    # "history", "signals" (or "cancel_requested"); NULL once ready.
     generation_stage: str | None = None
+    # 0-100 through the history replay while ``generation_stage`` is
+    # "history"; NULL otherwise. Derived from the replay jobs, never stored.
+    generation_progress: int | None = None
     generation_error: str | None = None
     demo_recipe_version: str | None = None
     # When the demo was seeded. Floored to the hour, because the runtime tick

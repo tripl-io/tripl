@@ -369,6 +369,20 @@ def _claim_delivery(session: Session, delivery: AlertDelivery, *, now: datetime)
     return True
 
 
+#: Marker on a delivery's ``payload_snapshot``: the simulated first-attempt
+#: failure of a flaky demo sink already happened, so the next attempt sends.
+SIMULATED_FAILURE_SNAPSHOT_KEY = "simulated_failure_done"
+#: Deliberately free of the network wording ``is_transient_send_error`` matches,
+#: so the reaper never auto-retries it: the demo's point is the Retry button.
+SIMULATED_FAILURE_MESSAGE = (
+    "Simulated failure (demo): the first attempt to this sink always fails — press Retry"
+)
+
+
+class SimulatedDemoSinkFailure(RuntimeError):
+    """The deliberate first-attempt failure of a demo sink that simulates one."""
+
+
 def _assert_egress_allowed(destination: AlertDestination, project: Project | None) -> None:
     """Refuse an outbound send from a demo project.
 
@@ -1487,6 +1501,14 @@ def send_alert_delivery(self: object, delivery_id: str) -> dict[str, object]:
             payload_snapshot["simulated"] = True
             payload_snapshot["local_notice"] = DEMO_SINK_LOCAL_NOTICE
             delivery.payload_snapshot = payload_snapshot
+            if destination.simulate_first_attempt_failure and not payload_snapshot.get(
+                SIMULATED_FAILURE_SNAPSHOT_KEY
+            ):
+                # The demo's "flaky" sink: the first attempt fails on purpose,
+                # still without any network, so the demo shows a failed delivery
+                # and a Retry that works. The except arm below records the
+                # marker, which is what lets the next attempt through.
+                raise SimulatedDemoSinkFailure(SIMULATED_FAILURE_MESSAGE)
         else:
             raise ValueError(f"Unsupported destination type {destination.type}")
 
@@ -1514,7 +1536,10 @@ def send_alert_delivery(self: object, delivery_id: str) -> dict[str, object]:
         _enqueue_owner_followup(session, delivery)
         return {"status": "sent", "delivery_id": delivery_id}
     except Exception as exc:
-        logger.exception("Failed to send alert delivery %s", delivery_id)
+        if isinstance(exc, SimulatedDemoSinkFailure):
+            logger.info("Simulated demo sink failure for delivery %s", delivery_id)
+        else:
+            logger.exception("Failed to send alert delivery %s", delivery_id)
         session.rollback()
         delivery = session.get(AlertDelivery, uuid.UUID(delivery_id))
         if delivery is not None:
@@ -1527,6 +1552,8 @@ def send_alert_delivery(self: object, delivery_id: str) -> dict[str, object]:
                 payload_snapshot["message_format"] = message_format
             if rendered_message is not None:
                 payload_snapshot["rendered_message"] = rendered_message
+            if isinstance(exc, SimulatedDemoSinkFailure):
+                payload_snapshot[SIMULATED_FAILURE_SNAPSHOT_KEY] = True
             if payload_snapshot:
                 delivery.payload_snapshot = payload_snapshot
             delivery.status = AlertDeliveryStatus.failed.value

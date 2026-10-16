@@ -142,8 +142,11 @@ const HIGHLIGHT_DIALECT: Record<DbType, SQLDialect> = {
   // Athena engine version 3 is Trino SQL.
   trino: TrinoDialect,
   athena: TrinoDialect,
-  // The local demo synthetic source mimics ClickHouse semantics, so reuse its
-  // dialect for highlighting/autocomplete of the (rarely-edited) demo SQL.
+  // The demo warehouse is PostgreSQL (or an in-memory engine that answers the
+  // same SQL), so its queries are written and highlighted as PostgreSQL.
+  demo: PostgreSQL,
+  // The older in-memory synthetic source mimics ClickHouse semantics, so reuse
+  // its dialect for highlighting/autocomplete of the (rarely-edited) demo SQL.
   synthetic: ClickHouseDialect,
 }
 
@@ -162,6 +165,7 @@ const FORMAT_LANGUAGE: Record<DbType, SqlLanguage> = {
   redshift: 'redshift',
   trino: 'trino',
   athena: 'trino',
+  demo: 'postgresql',
   synthetic: 'clickhouse',
 }
 

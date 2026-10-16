@@ -1,16 +1,17 @@
 /**
- * The estimated-progress list shared by demo create and demo reset.
+ * The progress list shared by demo create and demo reset.
  *
- * Both are single blocking POSTs of ~10 s with no server-side stage feed, so the
- * list narrates *expected* phases on a timer. Passed phases are deliberately NOT
- * ticked while the request is open — the client cannot observe that the server
- * finished them — and the caption calls the steps approximate. It used to
- * explain why, in the server's terms, on the first dialog a newcomer sees.
+ * While the server reports its stage the list states it: phases before it are
+ * done, and the history phase carries how far it has got. From a server that
+ * reports none, the list narrates *expected* phases on a timer — passed phases
+ * are then deliberately NOT ticked while the request is open (the client
+ * cannot observe that the server finished them) and the caption calls the
+ * steps approximate.
  */
 
 import { useEffect, useState } from 'react'
 import { Check, Loader2, Minus } from 'lucide-react'
-import { DEMO_PROVISION_SLOW_MS, PROVISIONING_PHASES } from './provisioningPhases'
+import { DEMO_PROVISION_SLOW_MS, PROVISIONING_PHASES, phaseLabel } from './provisioningPhases'
 
 const DEFAULT_SLOW_MESSAGE =
   'Taking longer than usual — you can cancel; the server may still finish.'
@@ -34,15 +35,21 @@ type PhaseState = 'done' | 'estimated' | 'active' | 'pending'
 
 export function ProvisioningPhaseList({
   phaseIndex,
+  confirmed = false,
+  percent = null,
   complete = false,
   slowMessage = DEFAULT_SLOW_MESSAGE,
 }: {
   phaseIndex: number
+  /** The server reported `phaseIndex` itself: earlier phases are known to be done. */
+  confirmed?: boolean
+  /** The share of the active phase done, 0..100, when the server reports one. */
+  percent?: number | null
   /** True once the request has actually resolved — the only proof work is done. */
   complete?: boolean
   /**
    * Shown once the wait is well past the estimate, so a pointer
-   * parked on "Finalizing" is not the only signal. Each caller names the way
+   * parked on the last phase is not the only signal. Each caller names the way
    * out it actually offers.
    */
   slowMessage?: string
@@ -55,7 +62,9 @@ export function ProvisioningPhaseList({
           const state: PhaseState = complete
             ? 'done'
             : index < phaseIndex
-              ? 'estimated'
+              ? confirmed
+                ? 'done'
+                : 'estimated'
               : index === phaseIndex
                 ? 'active'
                 : 'pending'
@@ -68,13 +77,13 @@ export function ProvisioningPhaseList({
                   fontWeight: state === 'active' ? 600 : 400,
                 }}
               >
-                {phase.label}
+                {state === 'active' ? phaseLabel(index, percent) : phase.label}
               </span>
             </li>
           )
         })}
       </ol>
-      {!complete && (
+      {!complete && !confirmed && (
         <p className="text-caption text-fg-tertiary">
           Steps are approximate — the demo opens as soon as it is ready.
         </p>
@@ -100,8 +109,8 @@ function PhaseIcon({ state }: { state: PhaseState }) {
     )
   }
   // Probably passed, never confirmed: a muted dash, not the check that only
-  // the finished request earns. A dot in a grey circle read as a selected
-  // radio button.
+  // the finished request (or the server's own word) earns. A dot in a grey
+  // circle read as a selected radio button.
   if (state === 'estimated') {
     return (
       <span aria-hidden="true" className="flex h-5 w-5 shrink-0 items-center justify-center">

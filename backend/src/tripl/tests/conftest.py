@@ -27,6 +27,16 @@ settings.rate_limit_enabled = False
 # persisted override.
 settings.registration_mode = REGISTRATION_OPEN
 
+# Demos read the demo warehouse (core/demo_warehouse). The suite has no
+# PostgreSQL, so pin the in-memory engine over the same model: "auto" would try
+# the derived DSN first and only then fall back, which is slower and depends on
+# what happens to listen on localhost. Two days of history is enough for a test
+# that only needs "a demo project"; a test about the full story (three weekly
+# promo sends, the release train, the 21-day scoring window) sets
+# ``demo_history_days`` back to the default itself and shares one demo per module.
+settings.demo_warehouse_mode = "memory"
+settings.demo_history_days = 2
+
 # Cheap scrypt for the suite. Production's N=2**16 costs ~64MB and a noticeable
 # fraction of a second per hash, and almost every test pays it several times:
 # the ``client`` fixture registers a user, most suites register more and log
@@ -263,6 +273,36 @@ def _seed_demos_inline(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(demo_service, "enqueue_demo_seed", _inline)
 
 
+@pytest.fixture
+def demo_enqueued_deliveries() -> list[str]:
+    """The alert delivery ids demo seeds handed to the broker in this test.
+
+    Filled by :func:`_hold_demo_alert_deliveries`; a test that wants the
+    deliveries actually sent runs ``send_alert_delivery`` on them itself.
+    """
+    return []
+
+
+@pytest.fixture(autouse=True)
+def _hold_demo_alert_deliveries(
+    monkeypatch: pytest.MonkeyPatch, demo_enqueued_deliveries: list[str]
+) -> None:
+    """Record, instead of publish, the deliveries a demo seed queues.
+
+    A seed's replay files alert deliveries and queues them on Celery once the
+    demo is visible (``demo_service.enqueue_alert_deliveries``). The suite has
+    no broker, and a publish to an unreachable RabbitMQ blocks on kombu's
+    connection retries, so the seam keeps the ids for the test to inspect. The
+    delivery rows themselves are written exactly as in production, ``pending``.
+    """
+    from tripl.services import demo_service
+
+    async def _record(delivery_ids: list[str]) -> None:
+        demo_enqueued_deliveries.extend(delivery_ids)
+
+    monkeypatch.setattr(demo_service, "enqueue_alert_deliveries", _record)
+
+
 @pytest.fixture(autouse=True)
 def _hermetic_dns(monkeypatch: pytest.MonkeyPatch) -> None:
     """Resolve the suite's placeholder public hosts without the live resolver.
@@ -284,8 +324,8 @@ def deny_network(monkeypatch: pytest.MonkeyPatch) -> Iterator[None]:
 
     The in-memory SQLite DB and the in-process ASGI transport never open a real
     socket, so this only fires on genuine egress — making it the capstone guard
-    for asserting the demo stack (provisioning, runtime tick, alert dispatch,
-    metric collection over the synthetic source) is fully local. Opt-in and not
+    for asserting the demo stack (provisioning, alert dispatch, metric
+    collection over the demo warehouse's in-memory engine) is fully local. Opt-in and not
     autouse, so it never affects tests that don't request it.
     """
 
