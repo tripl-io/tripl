@@ -116,6 +116,48 @@ _FORBIDDEN_FUNCTION_RE = re.compile(
     re.IGNORECASE,
 )
 
+# Functions the DEMO WAREHOUSE's reader may not call, on top of the list above.
+# Every visitor of a public demo shares one reader role on a database that sits
+# on tripl's own PostgreSQL server, so a call that is harmless on a customer's
+# warehouse (their credential, their server) reaches other visitors and tripl
+# here: changing session settings for the statements after it (``set_config``),
+# seeing or cancelling other sessions of the role, holding advisory locks,
+# sleeping on a connection, reading server files, opening large objects or
+# other databases. ``DemoPostgresAdapter`` checks every statement it runs
+# against this, so scans, fact tables, SQL metrics and previews of a ``demo``
+# source are all covered without each schema knowing its source's type.
+# ``current_setting`` (reading a setting) stays allowed. A name matches as a
+# whole word, not only before ``(``: a comment between a name and its
+# parenthesis is still a call, and no warehouse column has one of these names.
+_DEMO_FORBIDDEN_SQL_FUNCTION_PATTERNS: tuple[str, ...] = (
+    r"set_config",
+    r"pg_cancel_backend",
+    r"pg_terminate_backend",
+    r"pg_(?:try_)?advisory\w*",
+    r"pg_stat_get_activity",
+    r"pg_stat_get_backend\w*",
+    r"pg_sleep\w*",
+    r"lo_\w+",
+    r"dblink\w*",
+    r"pg_read_(?:binary_)?file",
+    r"pg_ls_\w+",
+    r"pg_stat_file",
+    r"pg_reload_conf",
+    r"pg_rotate_logfile",
+    r"pg_notify",
+)
+_DEMO_FORBIDDEN_FUNCTION_RE = re.compile(
+    r"\b(" + "|".join(_DEMO_FORBIDDEN_SQL_FUNCTION_PATTERNS) + r")\b",
+    re.IGNORECASE,
+)
+# Relations the demo reader may not read: other sessions' query text.
+_DEMO_FORBIDDEN_RELATION_RE = re.compile(r"\b(pg_stat_activity)\b", re.IGNORECASE)
+# A double-quoted plain name: ``"pg_sleep"(1)`` calls ``pg_sleep``.
+_QUOTED_PLAIN_NAME_RE = re.compile(r'"([A-Za-z_][A-Za-z0-9_$]*)"')
+# A Unicode-escape identifier (``U&"\0070g_sleep"``) spells a name no pattern sees.
+_UNICODE_IDENTIFIER_RE = re.compile(r'u&"', re.IGNORECASE)
+
+
 # Fragment-only forbidden set: everything ``validate_select_sql_safety`` rejects
 # PLUS ``select`` and ``with``. A stored row filter is a boolean WHERE expression
 # that must never embed a query, so a correlated subquery (``user_id IN (SELECT
@@ -1100,3 +1142,25 @@ def validate_select_sql(metric_sql: str, *, value_column: str, time_column: str)
             raise ValueError(msg)
 
     return without_trailing
+
+
+def check_demo_warehouse_sql(sql: str) -> None:
+    """Refuse a statement the shared demo warehouse's reader must not run.
+
+    The demo-only denylist (``_DEMO_FORBIDDEN_FUNCTION_RE``), matched outside
+    string literals like the rest of the gate, so a value such as
+    ``'set_config(...)'`` in a WHERE clause is data, not a call. A quoted name is
+    unquoted first (it names the same function), and a Unicode-escape
+    identifier is refused outright. Raises ``ValueError`` naming the call.
+    """
+    masked = _mask_quoted_spans(_QUOTED_PLAIN_NAME_RE.sub(r"\1", sql))
+    if _UNICODE_IDENTIFIER_RE.search(masked):
+        msg = 'The demo warehouse does not allow U&"..." identifiers in a query.'
+        raise ValueError(msg)
+    found = _DEMO_FORBIDDEN_FUNCTION_RE.search(masked) or _DEMO_FORBIDDEN_RELATION_RE.search(masked)
+    if found is not None:
+        msg = (
+            "The demo warehouse does not allow "
+            f"{found.group(1).lower()} in a query: it is shared by every demo."
+        )
+        raise ValueError(msg)

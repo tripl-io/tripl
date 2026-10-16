@@ -11,7 +11,7 @@ from __future__ import annotations
 
 import logging
 import uuid
-from collections.abc import Mapping, Sequence
+from collections.abc import Collection, Mapping, Sequence
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta
 from typing import Protocol, cast
@@ -81,6 +81,9 @@ class ChunkStats:
     # run still reports "you put this away and it is still arriving".
     archived_volume: int = 0
     archived_identities_seen: set[str] = field(default_factory=set)
+    # Identities filed as shadow candidates by this chunk, so the run can tell
+    # its next chunk which counts to add to rather than replace.
+    shadow_names: frozenset[str] = frozenset()
 
 
 def _delete_chunk_window(
@@ -282,10 +285,12 @@ def process_chunk(
     chunk_to: datetime,
     upsert_event_metrics_rows_fn: _UpsertMetricsFn,
     prefetched: TickRows | None = None,
+    accumulate_shadow_names: Collection[str] = frozenset(),
 ) -> ChunkStats:
     """Collect one chunk. ``prefetched`` is this chunk's bucketed rows when the
     tick already read them for the catalog (``shared_breakdown``); the
-    warehouse is then not queried again."""
+    warehouse is then not queried again. ``accumulate_shadow_names`` are the
+    shadow identities earlier chunks of the same run already counted."""
     stats = ChunkStats()
     if config.time_column is None:
         msg = "ScanConfig time_column is required for metrics collection"
@@ -685,14 +690,17 @@ def process_chunk(
             for bucket, totals in coverage_agg.items()
         ],
     )
+    shadow_rows = _build_shadow_candidate_rows(
+        shadow_agg,
+        project_id=config.project_id,
+        scan_config_id=config.id,
+    )
     _upsert_shadow_event_candidates(
         session,
-        rows=_build_shadow_candidate_rows(
-            shadow_agg,
-            project_id=config.project_id,
-            scan_config_id=config.id,
-        ),
+        rows=shadow_rows,
+        accumulate_names=accumulate_shadow_names,
     )
+    stats.shadow_names = frozenset(cast(str, row["event_name"]) for row in shadow_rows)
     _upsert_event_metric_breakdown_rows(
         session,
         rows=breakdown_event_rows,

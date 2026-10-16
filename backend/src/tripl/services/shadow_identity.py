@@ -29,7 +29,7 @@ from __future__ import annotations
 import uuid
 from datetime import UTC, datetime
 
-from sqlalchemy import ColumnElement, Select, and_, func, or_, select
+from sqlalchemy import ColumnElement, Select, and_, func, or_, select, update
 from sqlalchemy.orm import Session
 
 from tripl.models.event import Event, EventStatus
@@ -99,16 +99,26 @@ def resolve_held_candidates(
         # Two events holding one identity is a catalog the identity rule should
         # not allow; the oldest is the one the scan has been matching longest.
         by_id.setdefault(candidate_id, event_id)
-    candidates = (
-        session.execute(
-            select(ShadowEventCandidate).where(ShadowEventCandidate.id.in_(list(by_id)))
+    by_event: dict[uuid.UUID, list[uuid.UUID]] = {}
+    for candidate_id, event_id in by_id.items():
+        by_event.setdefault(event_id, []).append(candidate_id)
+    resolved = 0
+    for event_id, candidate_ids in by_event.items():
+        # Re-checks ``new`` in the UPDATE itself: an editor who dismissed or
+        # accepted the candidate between the SELECT above and this write keeps
+        # their decision, rather than the resolver overwriting it.
+        result = session.execute(
+            update(ShadowEventCandidate)
+            .where(
+                ShadowEventCandidate.id.in_(candidate_ids),
+                ShadowEventCandidate.status == SHADOW_STATUS_NEW,
+            )
+            .values(
+                status=SHADOW_STATUS_ACCEPTED,
+                accepted_event_id=event_id,
+                resolved_at=resolved_at,
+            )
         )
-        .scalars()
-        .all()
-    )
-    for candidate in candidates:
-        candidate.status = SHADOW_STATUS_ACCEPTED
-        candidate.accepted_event_id = by_id[candidate.id]
-        candidate.resolved_at = resolved_at
+        resolved += int(getattr(result, "rowcount", 0) or 0)
     session.flush()
-    return len(candidates)
+    return resolved

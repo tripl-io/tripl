@@ -126,7 +126,9 @@ PROJECT_GROUPS: tuple[tuple[str, tuple[str, ...]], ...] = (
             "scan_config.metrics_replay",
             "scan_config.event_groups.apply",
             "scan_job.cancel",
-            # Accepting a shadow candidate files ``event.create`` under Events.
+            # Accepting a shadow candidate files ``event.create`` under Events, or
+            # ``shadow_event.link`` here when the plan already had the event.
+            "shadow_event.link",
             "shadow_event.dismiss",
         ),
     ),

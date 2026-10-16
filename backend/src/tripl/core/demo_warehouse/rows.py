@@ -43,7 +43,7 @@ from tripl.core.demo_warehouse.roster import (
     UnplannedEventDef,
 )
 
-MODEL_VERSION = "1"
+MODEL_VERSION = "2"
 SEED = "tripl-demo-warehouse"
 #: The count noise, as a share of Poisson's standard deviation.
 NOISE_RATIO = 0.5
@@ -60,6 +60,13 @@ ACTIVE_USER_SHARE = 1 / 64
 #: Share of ``Purchase Completed`` rows recorded at 0.00 (a 100 %-off coupon):
 #: what a range contract on ``amount`` catches.
 FREE_PURCHASE_SHARE = 0.02
+#: On top of the shares above, every hour's first two ``Purchase Completed``
+#: rows carry the two contract findings, one each, alternating by hour: one
+#: recorded at 0.00 and one paid in GBP. ``Purchase Completed`` draws only a
+#: handful of rows an hour (any three hours hold at least six), so random
+#: shares alone leave hours with neither, and the demo's first live collection
+#: — as short as three hours — would miss a finding its story promises.
+CONTRACT_STORY_COUNTRY = "GB"
 #: Share of completed orders later refunded.
 REFUNDED_ORDER_SHARE = 0.04
 #: The events whose rows become orders, and the status each order gets.
@@ -378,13 +385,18 @@ def _generate_events(index: int, only: frozenset[str] | None = None) -> list[Row
     hour_start = hour_start_of(index)
     context = _HourContext(hour_start)
     events: list[Row] = []
+    story: list[Row] = []
     for event in roster.live_events():
         if only is not None and event.name not in only:
             continue
         for platform, lam in traffic.platform_rates(event, hour_start).items():
             count = draw_count(random.Random(_seed("count", index, event.name, platform)), lam)
             if count:
-                events.extend(_event_rows(context, event, platform, count))
+                generated = _event_rows(context, event, platform, count)
+                if event.name == roster.SCHEMA_DRIFT_EVENT:
+                    story.extend(generated)
+                events.extend(generated)
+    _mark_contract_story(context, story)
     for unplanned in roster.unplanned_events():
         if only is not None and unplanned.name not in only:
             continue
@@ -394,6 +406,29 @@ def _generate_events(index: int, only: frozenset[str] | None = None) -> list[Row
                 events.extend(_unplanned_rows(context, unplanned, platform, count))
     events.sort(key=_row_order)
     return events
+
+
+def _mark_contract_story(context: _HourContext, purchases: list[Row]) -> None:
+    """Make the hour's first two priced purchases a free one and a GBP one.
+
+    ``purchases`` are the hour's ``Purchase Completed`` rows in generation
+    order (platform by platform), which a subset generation reproduces, so the
+    orders derived from them agree. Even hours mark the free row first, odd
+    hours the GBP row, so an hour with a single purchase still alternates.
+    """
+    priced = [row for row in purchases if row["amount"] is not None]
+    findings = ("free", "gbp") if context.index % 2 == 0 else ("gbp", "free")
+    for row, finding in zip(priced, findings, strict=False):
+        if finding == "free":
+            row["amount"] = _FREE
+            continue
+        country = CONTRACT_STORY_COUNTRY
+        user_id = context.user(country, traffic.unit("contract", context.index, country))
+        row["country"] = country
+        row["currency"] = CURRENCY_BY_COUNTRY[country]
+        row["amount"] = _PRICE_DECIMALS[str(row["product_id"])][CURRENCY_BY_COUNTRY[country]]
+        row["user_id"] = user_id
+        row["session_id"] = f"{user_id}-{context.session_block:x}"
 
 
 _SESSIONS_BY_HOUR: dict[int, frozenset[str]] = {}

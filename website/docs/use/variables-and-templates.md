@@ -718,7 +718,13 @@ whose value is exactly one token, such as `${product_id}`, the scan compares the
 raw values it read for that event's column instead. That is how an
 undocumented product on a three-product column is still reported. A value with
 text around the token (`promo_${product_id}`) is not compared, because the scan
-cannot tell which part of what it read is the property.
+cannot tell which part of what it read is the property. A field whose
+sensitivity is anything but *None* is not compared either: a drift row stores
+the novel values and an alert quotes them, and a field marked PII or secret must
+not have its raw values copied there. On a field typed `number` or `boolean`
+(or a `number`/`boolean` property on a text field) values are compared in one
+spelling — `10.00` and `10` are the same number, `True`, `t` and `1` the same
+`true` — and a drift reports the novel value in that spelling.
 
 The comparison has nothing to say about a context holding no values. No drift on
 a property therefore means either "everything seen was documented" or "nothing

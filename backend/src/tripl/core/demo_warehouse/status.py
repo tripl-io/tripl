@@ -59,6 +59,9 @@ class WarehouseStatus:
     last_error: str | None
     #: Why demos run in memory, in a sentence; ``None`` on the PostgreSQL engine.
     reason: str | None
+    #: Reader-role limits ``migrate`` could not set (``temp_file_limit`` needs a
+    #: superuser): the reader runs without them, on the server tripl shares.
+    reader_limits_missing: tuple[str, ...] = ()
 
     def as_dict(self) -> dict[str, object]:
         return asdict(self)
@@ -103,6 +106,7 @@ def _read(now: datetime) -> WarehouseStatus:
                     "pg_database_size(current_database()) FROM {} WHERE id = 1"
                 ).format(sql.SQL(schema.STATE_TABLE))
             ).fetchone()
+            missing = _missing_reader_limits(conn)
     except psycopg.Error as exc:
         return WarehouseStatus(
             engine="memory",
@@ -138,8 +142,29 @@ def _read(now: datetime) -> WarehouseStatus:
         engine=engine,
         reachable=True,
         reason=reason if engine == "memory" else None,
+        reader_limits_missing=missing,
         **base,  # type: ignore[arg-type]
     )
+
+
+def _missing_reader_limits(conn: psycopg.Connection[tuple[object, ...]]) -> tuple[str, ...]:
+    """The reader-role defaults ``migrate`` sets that the role does not carry.
+
+    Only when ``migrate`` manages the role: a hand-provisioned reader is the
+    operator's to configure.
+    """
+    from tripl.core.demo_warehouse.provision import READER_ROLE_SETTINGS
+
+    if not connection.reader_is_managed():
+        return ()
+    row = conn.execute(
+        "SELECT s.setconfig FROM pg_db_role_setting s JOIN pg_roles r ON r.oid = s.setrole "
+        "WHERE r.rolname = %s AND s.setdatabase = 0",
+        (connection.reader_role(),),
+    ).fetchone()
+    setconfig = row[0] if row and isinstance(row[0], list) else []
+    configured = {str(item).split("=", 1)[0] for item in setconfig}
+    return tuple(name for name, _ in READER_ROLE_SETTINGS if name not in configured)
 
 
 def _not_ready_reason(

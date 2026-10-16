@@ -26,7 +26,10 @@ from the warehouse when it is created. What grows with visitors is tripl's own
 database, and the daily prune keeps each demo's observed rows inside the
 warehouse's retention.
 
-Building a demo takes about a minute of worker time. Keep a small pool seeded
+Building a demo takes about half a minute of worker time before it opens, and
+a few more minutes after, filling in the older history while the visitor
+looks around (one worker task each, so a busy instance queues them rather than
+stalling). Keep a small pool seeded
 ahead of time, so a visitor gets one at once: `DEMO_POOL_SIZE=2` or `3` covers
 visitors arriving minutes apart, and the pool refills after each claim. A larger
 pool mostly spends worker time seeding demos nobody claims before

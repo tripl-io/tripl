@@ -3,15 +3,17 @@ from __future__ import annotations
 import logging
 import math
 import uuid
-from collections.abc import Collection, Iterator, Mapping, Sequence
+from collections.abc import Callable, Collection, Iterator, Mapping, Sequence
 from datetime import datetime, timedelta
-from typing import cast
+from typing import Any, cast
 
-from sqlalchemy import delete, tuple_
+from sqlalchemy import case, delete, tuple_
 from sqlalchemy import func as sa_func
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.dialects.sqlite import insert as sqlite_insert
 from sqlalchemy.orm import Session
+from sqlalchemy.sql.base import ReadOnlyColumnCollection
+from sqlalchemy.sql.elements import ColumnElement, KeyedColumnElement
 
 from tripl.core.adapters.base import BaseAdapter
 from tripl.core.analyzers.distribution_drift import TopShift, compute_psi
@@ -47,7 +49,7 @@ from tripl.models.event_type import EventType
 from tripl.models.metric_value import MetricValue
 from tripl.models.metric_value_breakdown import MetricValueBreakdown
 from tripl.models.scan_config import ScanConfig
-from tripl.models.shadow_event_candidate import ShadowEventCandidate
+from tripl.models.shadow_event_candidate import SHADOW_STATUS_NEW, ShadowEventCandidate
 from tripl.services._id_chunks import chunked
 from tripl.worker.tasks.metrics._helpers import MAX_BREAKDOWN_VALUE_LENGTH
 from tripl.worker.utils.scan_naming import group_column_index
@@ -516,6 +518,7 @@ def _upsert_shadow_event_candidates(
     session: Session,
     *,
     rows: list[dict[str, object]],
+    accumulate_names: Collection[str] = frozenset(),
 ) -> None:
     """Insert-or-refresh shadow candidates.
 
@@ -524,43 +527,74 @@ def _upsert_shadow_event_candidates(
     rewinds. ``status`` and the resolution columns are user-owned and left
     untouched so an accepted or dismissed candidate is not resurrected by the
     collector.
+
+    ``event_type_id`` moves only while the candidate is still ``new``: it is the
+    type Accept pre-fills, and once a human has resolved the candidate it is the
+    type that resolution was made under — a later window in which another type
+    carries more of the name must not rewrite the record of it.
+
+    A name in ``accumulate_names`` was already written by an earlier chunk of
+    the SAME collection run, so its count is added to rather than replaced: one
+    run's window is the unit ``observed_count`` describes, and a chunked replay
+    would otherwise report only its last chunk.
     """
     if not rows:
         return
 
     is_sqlite = session.bind is not None and session.bind.dialect.name == "sqlite"
-    for chunk in _chunk_rows(rows):
-        if is_sqlite:
-            sqlite_stmt = sqlite_insert(ShadowEventCandidate).values(chunk)
-            sqlite_stmt = sqlite_stmt.on_conflict_do_update(
-                index_elements=["scan_config_id", "event_name"],
-                set_={
-                    "observed_count": sqlite_stmt.excluded.observed_count,
-                    "event_type_id": sqlite_stmt.excluded.event_type_id,
-                    "sample_properties": sqlite_stmt.excluded.sample_properties,
-                    "last_seen_at": sa_func.max(
-                        ShadowEventCandidate.last_seen_at,
-                        sqlite_stmt.excluded.last_seen_at,
-                    ),
-                },
-            )
-            session.execute(sqlite_stmt)
+    batches = (
+        ([row for row in rows if row["event_name"] not in accumulate_names], False),
+        ([row for row in rows if row["event_name"] in accumulate_names], True),
+    )
+    for batch, accumulate in batches:
+        if not batch:
             continue
+        for chunk in _chunk_rows(batch):
+            if is_sqlite:
+                sqlite_stmt = sqlite_insert(ShadowEventCandidate).values(chunk)
+                sqlite_stmt = sqlite_stmt.on_conflict_do_update(
+                    index_elements=["scan_config_id", "event_name"],
+                    set_=_shadow_conflict_set(
+                        sqlite_stmt.excluded,
+                        accumulate=accumulate,
+                        # SQLite's two-argument ``max`` is its scalar greatest.
+                        latest=sa_func.max,
+                    ),
+                )
+                session.execute(sqlite_stmt)
+                continue
 
-        pg_stmt = pg_insert(ShadowEventCandidate).values(chunk)
-        pg_stmt = pg_stmt.on_conflict_do_update(
-            constraint="uq_shadow_candidate_config_name",
-            set_={
-                "observed_count": pg_stmt.excluded.observed_count,
-                "event_type_id": pg_stmt.excluded.event_type_id,
-                "sample_properties": pg_stmt.excluded.sample_properties,
-                "last_seen_at": sa_func.greatest(
-                    ShadowEventCandidate.last_seen_at,
-                    pg_stmt.excluded.last_seen_at,
+            pg_stmt = pg_insert(ShadowEventCandidate).values(chunk)
+            pg_stmt = pg_stmt.on_conflict_do_update(
+                constraint="uq_shadow_candidate_config_name",
+                set_=_shadow_conflict_set(
+                    pg_stmt.excluded, accumulate=accumulate, latest=sa_func.greatest
                 ),
-            },
-        )
-        session.execute(pg_stmt)
+            )
+            session.execute(pg_stmt)
+
+
+def _shadow_conflict_set(
+    excluded: ReadOnlyColumnCollection[str, KeyedColumnElement[Any]],
+    *,
+    accumulate: bool,
+    latest: Callable[..., ColumnElement[Any]],
+) -> dict[str, ColumnElement[Any]]:
+    """The ON CONFLICT assignments ``_upsert_shadow_event_candidates`` documents."""
+    candidate = ShadowEventCandidate
+    return {
+        "observed_count": (
+            candidate.observed_count + excluded.observed_count
+            if accumulate
+            else excluded.observed_count
+        ),
+        "event_type_id": case(
+            (candidate.status == SHADOW_STATUS_NEW, excluded.event_type_id),
+            else_=candidate.event_type_id,
+        ),
+        "sample_properties": excluded.sample_properties,
+        "last_seen_at": latest(candidate.last_seen_at, excluded.last_seen_at),
+    }
 
 
 def _delete_event_metrics_window(

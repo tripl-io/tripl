@@ -16,8 +16,8 @@ TASK_NAME = "tripl.worker.tasks.demo_warehouse.write_demo_warehouse"
 
 @celery_app.task(  # type: ignore[untyped-decorator]
     name=TASK_NAME,
-    # A first run backfills the retention window (~800k rows, under a minute);
-    # every later run writes five minutes of rows.
+    # A first run backfills the retention window (~28k rows a day, ~850k for the
+    # default 30 days); every later run writes five minutes of rows.
     soft_time_limit=15 * 60,
     time_limit=20 * 60,
 )

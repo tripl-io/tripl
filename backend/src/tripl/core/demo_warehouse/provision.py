@@ -11,18 +11,30 @@ What it takes, and why:
   The database uses the ``C`` collation, so PostgreSQL sorts text by code point
   exactly as Python does (the in-memory engine's JSON key lists agree with it).
   Skipped when ``DEMO_WAREHOUSE_URL`` names a database provisioned by hand.
-* The reader role needs CREATEROLE. It logs in, owns nothing, holds at most 20
-  connections, and its defaults are read-only with a 15 s statement timeout,
-  a 30 s idle-in-transaction timeout, 16 MB of work memory and 256 MB of
-  temporary files. ``temp_file_limit`` is superuser-only, which is the point:
-  the session cannot lift it, and without a superuser it is skipped with a
-  warning. Skipped entirely when ``DEMO_WAREHOUSE_READER_PASSWORD`` says the
-  role was provisioned by hand.
+* The reader role (``<warehouse database>_reader``) needs CREATEROLE. It logs
+  in, owns nothing, holds at most 10 connections (the server's
+  ``max_connections`` is shared with tripl's own pool), and its defaults are
+  read-only with a 15 s statement timeout, a 30 s idle-in-transaction timeout,
+  16 MB of work memory, no parallel workers and 256 MB of temporary files.
+  ``temp_file_limit`` is superuser-only, which is the point: the session
+  cannot lift it, and without a superuser it is skipped with a warning (the
+  status then says the reader runs without it). The other defaults a session
+  CAN change; the adapter re-applies them before every statement
+  (:mod:`tripl.core.adapters.demo_postgres`). The password is sent as a
+  SCRAM-SHA-256 verifier, never in plain text. Skipped entirely when
+  ``DEMO_WAREHOUSE_READER_PASSWORD`` says the role was provisioned by hand.
 * In the demo database: CONNECT and TEMPORARY are revoked from PUBLIC and
-  CONNECT granted to the reader alone; ``public`` loses its PUBLIC privileges;
-  the reader gets USAGE on the ``warehouse`` schema and SELECT on its two
-  tables, nothing else (not their partitions, so the SQL editor's table list
-  stays at two; reading through the parent checks only the parent's grant).
+  CONNECT granted to the reader alone; ``public`` loses its PUBLIC privileges
+  (checked afterwards: on PostgreSQL 14 a non-owner's REVOKE only warns); the
+  reader gets USAGE on the ``warehouse`` schema and SELECT on its two tables,
+  nothing else (not their partitions, so the SQL editor's table list stays at
+  two; reading through the parent checks only the parent's grant). PUBLIC
+  loses EXECUTE on the functions that reach other sessions — cancelling or
+  terminating a backend, advisory locks — and SELECT on ``pg_stat_activity``,
+  inside the demo database only: every visitor shares the one reader role, and
+  sessions of one role may see and cancel each other's queries. That needs a
+  superuser (the functions belong to the bootstrap superuser); without one it
+  is a warning, and the adapter's own denylist still refuses those calls.
 
 Nothing is granted or revoked in tripl's own database. The reader can open a
 connection there (PostgreSQL grants CONNECT to PUBLIC by default) but reads
@@ -52,10 +64,30 @@ READER_ROLE_SETTINGS: tuple[tuple[str, str], ...] = (
     ("statement_timeout", "15s"),
     ("idle_in_transaction_session_timeout", "30s"),
     ("work_mem", "16MB"),
+    ("hash_mem_multiplier", "1"),
+    ("max_parallel_workers_per_gather", "0"),
     ("search_path", schema.WAREHOUSE_SCHEMA),
     ("temp_file_limit", "256MB"),
 )
-READER_CONNECTION_LIMIT = 20
+READER_CONNECTION_LIMIT = 10
+#: Functions PUBLIC may not execute in the demo database: they act on OTHER
+#: sessions of the shared reader role, or hold locks the writer coordinates on.
+#: Matched by name in ``pg_proc`` (every overload).
+REVOKED_FUNCTIONS: tuple[str, ...] = (
+    "pg_cancel_backend",
+    "pg_terminate_backend",
+    "pg_stat_get_activity",
+    "pg_advisory_lock",
+    "pg_advisory_lock_shared",
+    "pg_advisory_xact_lock",
+    "pg_advisory_xact_lock_shared",
+    "pg_try_advisory_lock",
+    "pg_try_advisory_lock_shared",
+    "pg_try_advisory_xact_lock",
+    "pg_try_advisory_xact_lock_shared",
+)
+#: Views PUBLIC may not read in the demo database (other sessions' query text).
+REVOKED_VIEWS: tuple[str, ...] = ("pg_stat_activity",)
 CONNECT_TIMEOUT_SECONDS = 10
 
 
@@ -130,7 +162,8 @@ def _ensure_reader(result: ProvisionResult) -> None:
     if not connection.reader_is_managed():
         result.reader_ready = True
         return
-    role = sql.Identifier(connection.READER_ROLE)
+    role_name = connection.reader_role()
+    role = sql.Identifier(role_name)
     # Roles are cluster-wide; through the warehouse database, so a
     # DEMO_WAREHOUSE_URL on another server gets the role on THAT server.
     writer = connection.writer_connection()
@@ -143,20 +176,22 @@ def _ensure_reader(result: ProvisionResult) -> None:
             result.warn(
                 "the database role lacks CREATEROLE, so the reader role %s was not managed; "
                 "create it by hand and set DEMO_WAREHOUSE_READER_PASSWORD.",
-                connection.READER_ROLE,
+                role_name,
             )
             return
-        exists = conn.execute(
-            "SELECT 1 FROM pg_roles WHERE rolname = %s", (connection.READER_ROLE,)
-        ).fetchone()
+        exists = conn.execute("SELECT 1 FROM pg_roles WHERE rolname = %s", (role_name,)).fetchone()
         verb = "ALTER" if exists else "CREATE"
         # Re-applied on every run, so a rotated SECRET_KEY heals the password.
+        # A SCRAM verifier, not the password: the statement may be logged.
         conn.execute(
             sql.SQL(
                 "{} ROLE {} WITH LOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION "
                 "NOINHERIT CONNECTION LIMIT {} PASSWORD {}"
             ).format(
-                sql.SQL(verb), role, sql.Literal(READER_CONNECTION_LIMIT), sql.Literal(password)
+                sql.SQL(verb),
+                role,
+                sql.Literal(READER_CONNECTION_LIMIT),
+                sql.Literal(connection.scram_verifier(password)),
             )
         )
         for name, value in READER_ROLE_SETTINGS:
@@ -171,14 +206,15 @@ def _ensure_reader(result: ProvisionResult) -> None:
                     "could not set %s on %s (it needs a superuser); the reader runs "
                     "without that limit.",
                     name,
-                    connection.READER_ROLE,
+                    role_name,
                 )
     result.reader_ready = True
 
 
 def _ensure_schema_and_grants(result: ProvisionResult) -> None:
     writer = connection.writer_connection()
-    reader = sql.Identifier(connection.READER_ROLE)
+    reader_name = connection.reader_role()
+    reader = sql.Identifier(reader_name)
     database = sql.Identifier(writer.database)
     with psycopg.connect(
         **writer.kwargs(connect_timeout=CONNECT_TIMEOUT_SECONDS),  # type: ignore[arg-type]
@@ -201,6 +237,7 @@ def _ensure_schema_and_grants(result: ProvisionResult) -> None:
                 conn.execute(revoke)
             except psycopg.errors.InsufficientPrivilege:
                 result.warn("could not run %r in the demo database.", revoke.as_string(conn))
+        _revoke_session_functions(conn, result)
         if not result.reader_ready:
             return
         grants = [
@@ -217,7 +254,74 @@ def _ensure_schema_and_grants(result: ProvisionResult) -> None:
         ]
         for grant in grants:
             conn.execute(grant)
+        _check_public_schema(conn, result, reader_name)
     result.schema_ready = True
+
+
+def _revoke_session_functions(
+    conn: psycopg.Connection[tuple[object, ...]], result: ProvisionResult
+) -> None:
+    """Take from PUBLIC what lets one reader session reach another (demo db only)."""
+    signatures = conn.execute(
+        "SELECT p.oid::regprocedure::text FROM pg_proc p "
+        "JOIN pg_namespace n ON n.oid = p.pronamespace "
+        "WHERE n.nspname = 'pg_catalog' AND p.proname = ANY(%s)",
+        (list(REVOKED_FUNCTIONS),),
+    ).fetchall()
+    statements: list[sql.Composed] = [
+        sql.SQL("REVOKE EXECUTE ON FUNCTION {} FROM PUBLIC").format(sql.SQL(str(signature)))
+        for (signature,) in signatures
+    ]
+    statements.extend(
+        sql.SQL("REVOKE SELECT ON {} FROM PUBLIC").format(sql.Identifier("pg_catalog", view))
+        for view in REVOKED_VIEWS
+    )
+    refused = 0
+    for statement in statements:
+        try:
+            conn.execute(statement)
+        except psycopg.errors.InsufficientPrivilege:
+            refused += 1
+    if refused:
+        result.warn(
+            "could not revoke %s session functions from PUBLIC in the demo database (it "
+            "needs a superuser); the demo adapter still refuses those calls.",
+            refused,
+        )
+
+
+def _check_public_schema(
+    conn: psycopg.Connection[tuple[object, ...]], result: ProvisionResult, reader: str
+) -> None:
+    """Warn when the reader can still create in ``public`` or use temporary tables.
+
+    On PostgreSQL 14 a REVOKE on a schema the writer does not own only raises a
+    WARNING, so the step above can look done while PUBLIC keeps CREATE.
+    """
+    try:
+        row = conn.execute(
+            "SELECT has_schema_privilege(%s, 'public', 'CREATE'), "
+            "has_database_privilege(%s, current_database(), 'TEMPORARY')",
+            (reader, reader),
+        ).fetchone()
+    except psycopg.Error as exc:  # a hand-provisioned role under another name
+        result.warn("could not check %s's privileges: %s", reader, type(exc).__name__)
+        return
+    if row is None:
+        return
+    can_create, can_temp = bool(row[0]), bool(row[1])
+    if can_create:
+        result.warn(
+            "%s can still CREATE in the demo database's public schema; an administrator "
+            "should run REVOKE CREATE ON SCHEMA public FROM PUBLIC there.",
+            reader,
+        )
+    if can_temp:
+        result.warn(
+            "%s can still create temporary tables in the demo database; an administrator "
+            "should run REVOKE TEMPORARY ON DATABASE <demo database> FROM PUBLIC.",
+            reader,
+        )
 
 
 def provision() -> ProvisionResult:

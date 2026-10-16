@@ -3,7 +3,7 @@ from __future__ import annotations
 import re
 from typing import Annotated, Literal
 
-from pydantic import Field, field_validator
+from pydantic import Field, field_validator, model_validator
 from pydantic_settings import BaseSettings, NoDecode
 
 from tripl.alerting_validation import validate_sender_address
@@ -357,7 +357,8 @@ class Settings(BaseSettings):
     # still makes a complete demo (every surface is collected, the newest
     # incident still alerts) with a seasonality-blind baseline, in a fraction
     # of the time: the SQLite test suite uses 2-3 where a test only needs "a
-    # demo project". At most the warehouse's retention.
+    # demo project". At most the warehouse's retention (checked at startup:
+    # history the warehouse no longer holds would fail every demo build).
     demo_history_days: int = Field(default=23, ge=2, le=30)
     demo_warehouse_max_mb: int = Field(default=1024, ge=64)
 
@@ -498,6 +499,17 @@ class Settings(BaseSettings):
             msg = "OIDC_ISSUER must be an https:// URL"
             raise ValueError(msg)
         return value
+
+    @model_validator(mode="after")
+    def _demo_history_within_retention(self) -> Settings:
+        if self.demo_history_days > self.demo_warehouse_retention_days:
+            msg = (
+                f"DEMO_HISTORY_DAYS={self.demo_history_days} exceeds "
+                f"DEMO_WAREHOUSE_RETENTION_DAYS={self.demo_warehouse_retention_days}: a demo "
+                "build would replay days the warehouse no longer holds"
+            )
+            raise ValueError(msg)
+        return self
 
     @field_validator("oidc_scopes")
     @classmethod

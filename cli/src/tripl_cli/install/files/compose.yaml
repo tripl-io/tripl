@@ -68,6 +68,8 @@ x-app-environment: &app-environment
   DEMO_WAREHOUSE_MODE: ${DEMO_WAREHOUSE_MODE:-}
   DEMO_WAREHOUSE_RETENTION_DAYS: ${DEMO_WAREHOUSE_RETENTION_DAYS:-}
   DEMO_WAREHOUSE_MAX_MB: ${DEMO_WAREHOUSE_MAX_MB:-}
+  # Days of warehouse history a new demo replays (2-30; empty means 23).
+  DEMO_HISTORY_DAYS: ${DEMO_HISTORY_DAYS:-}
   # Everything below is documented in website/docs/run/configuration.md as an
   # environment variable, so it has to actually reach the container. The same
   # omission is what made the DEMO_ENABLED switch inert and then

@@ -44106,6 +44106,14 @@
               }
             ],
             "title": "Reason"
+          },
+          "reader_limits_missing": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Reader Limits Missing",
+            "default": []
           }
         },
         "type": "object",
@@ -66261,6 +66269,11 @@
           },
           "status": {
             "$ref": "#/components/schemas/ShadowEventStatus"
+          },
+          "linked": {
+            "type": "boolean",
+            "title": "Linked",
+            "default": false
           }
         },
         "type": "object",
@@ -66342,6 +66355,11 @@
               }
             ],
             "title": "Event Id"
+          },
+          "linked": {
+            "type": "boolean",
+            "title": "Linked",
+            "default": false
           },
           "error": {
             "anyOf": [
@@ -66499,6 +66517,11 @@
               }
             ],
             "title": "Accepted Event Id"
+          },
+          "auto_resolved": {
+            "type": "boolean",
+            "title": "Auto Resolved",
+            "default": false
           },
           "sample_properties": {
             "items": {

@@ -7,6 +7,7 @@ from pydantic import BaseModel, Field, field_validator, model_validator
 from tripl.core.alert_schedule import validate_timezone
 from tripl.models.domain_enums import (
     AnomalyDirection,
+    DemoHistoryStatus,
     MetricScopeType,
     ProjectGenerationStatus,
 )
@@ -343,6 +344,12 @@ class ProjectResponse(BaseModel):
     # anchors its bucket grid to it — so it is NOT a usable "freshness" stamp:
     # a demo seeded at 10:59 carries 10:00. Use demo_last_tick_at for that.
     demo_seeded_at: datetime | None = None
+    # The history fill after the demo opens: "filling", "complete", "failed";
+    # NULL on a real project or a demo built before the fill existed.
+    demo_history_status: DemoHistoryStatus | None = None
+    # 0-100 through that fill while it is "filling"; NULL otherwise. Derived
+    # from the replay jobs, never stored.
+    demo_history_progress: int | None = None
     # When the runtime tick last advanced this demo's data. NULL until the first
     # tick. This is the only honest freshness signal the UI has.
     demo_last_tick_at: datetime | None = None

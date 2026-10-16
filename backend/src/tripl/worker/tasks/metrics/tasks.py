@@ -73,7 +73,10 @@ from tripl.worker.tasks.metrics.attribution import recompute_anomaly_attribution
 from tripl.worker.tasks.metrics.catalog_sync import sync_catalog
 from tripl.worker.tasks.metrics.chunk_processing import process_chunk
 from tripl.worker.tasks.metrics.coverage import covered_buckets_from_scan_jobs
-from tripl.worker.tasks.metrics.demo_window import clamp_demo_window_start
+from tripl.worker.tasks.metrics.demo_window import (
+    clamp_demo_window_end,
+    clamp_demo_window_start,
+)
 from tripl.worker.tasks.metrics.detect import (
     ANOMALY_TRAILING_REEVAL_BUCKETS,
     NO_INGESTION_SETTLING,
@@ -776,6 +779,10 @@ def execute_collect_metrics(
             time_from_dt = clamp_demo_window_start(
                 time_from_dt, time_to_dt, interval_code=config.interval, now=datetime.now(UTC)
             )
+            # ...and the writer may not have finished the newest hour yet.
+            time_to_dt = clamp_demo_window_end(
+                time_from_dt, time_to_dt, interval_code=config.interval
+            )
 
         chunks = _iter_window_chunks(
             time_from_dt,
@@ -1110,6 +1117,11 @@ def execute_collect_metrics(
         # instrumentation quality. It is reported on the run instead.
         archived_volume = 0
         archived_identities_seen: set[str] = set()
+        # Shadow identities this run has already counted: a later chunk adds to
+        # their ``observed_count`` instead of replacing it with its own share.
+        # A resumed replay starts this empty, so its count restarts at the
+        # resume point.
+        shadow_names_counted: frozenset[str] = frozenset()
 
         # Top-N breakdown values are ranked ONCE over the whole collection window
         # and shared by every chunk, not re-ranked per chunk.
@@ -1171,6 +1183,7 @@ def execute_collect_metrics(
                     chunk_to=chunk_to,
                     upsert_event_metrics_rows_fn=_upsert_event_metrics_rows,
                     prefetched=tick_rows,
+                    accumulate_shadow_names=shadow_names_counted,
                 )
                 query_rows_scanned += chunk_stats.rows_scanned
                 metrics_deleted += chunk_stats.metrics_deleted
@@ -1184,6 +1197,7 @@ def execute_collect_metrics(
                 significant_distribution_drifts += chunk_stats.significant_distribution_drifts
                 archived_volume += chunk_stats.archived_volume
                 archived_identities_seen |= chunk_stats.archived_identities_seen
+                shadow_names_counted |= chunk_stats.shadow_names
 
                 # Heartbeat: bump the job row after each chunk so the scheduler's
                 # staleness reaper sees forward progress. Without this, updated_at

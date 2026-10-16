@@ -9018,6 +9018,11 @@ export interface components {
             reachable: boolean;
             /** Reader Configured */
             reader_configured: boolean;
+            /**
+             * Reader Limits Missing
+             * @default []
+             */
+            reader_limits_missing: string[];
             /** Reason */
             reason?: string | null;
             /** Retention Days */
@@ -17588,6 +17593,11 @@ export interface components {
              * Format: uuid
              */
             event_id: string;
+            /**
+             * Linked
+             * @default false
+             */
+            linked: boolean;
             status: components["schemas"]["ShadowEventStatus"];
         };
         /** ShadowEventBatchItem */
@@ -17618,6 +17628,11 @@ export interface components {
             error_status?: number | null;
             /** Event Id */
             event_id?: string | null;
+            /**
+             * Linked
+             * @default false
+             */
+            linked: boolean;
             /** Ok */
             ok: boolean;
             status?: components["schemas"]["ShadowEventStatus"] | null;
@@ -17648,6 +17663,11 @@ export interface components {
         ShadowEventCandidateResponse: {
             /** Accepted Event Id */
             accepted_event_id: string | null;
+            /**
+             * Auto Resolved
+             * @default false
+             */
+            auto_resolved: boolean;
             /** Event Name */
             event_name: string;
             /** Event Type Id */

@@ -15,7 +15,9 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session, lazyload
 
 from tripl.core.name_template import VARIABLE_TOKEN_PATTERN
+from tripl.models.domain_enums import FieldDefinitionType, Sensitivity
 from tripl.models.event import Event
+from tripl.models.field_definition import FieldDefinition
 from tripl.models.variable import Variable
 from tripl.models.variable_value import VariableValue, VariableValueKind
 
@@ -529,6 +531,7 @@ def authored_token_observations(
     values_seen: Mapping[tuple[str, str], Mapping[str, int | None]],
     index: VariableIndex,
     cardinality_threshold: int,
+    field_definitions: Mapping[uuid.UUID, FieldDefinition],
 ) -> PendingVariableContexts:
     """What the scan saw behind each field an author wrote as ``${variable}``.
 
@@ -552,6 +555,15 @@ def authored_token_observations(
     cardinality threshold the plan carries the planner's template, not the raw
     values, so there is nothing here to read; that column's evidence stays the
     planner's variable observations.
+
+    A field marked sensitive (anything but ``none``) is skipped: the drift row
+    stores the novel values themselves and an alert quotes them, and a field
+    someone flagged as PII or a secret must not have its raw values copied out
+    to either. Each context carries ``canonical_kind`` — the field's type when
+    it is ``number`` or ``boolean`` — because the scan formats a warehouse
+    value as Python prints it (``True``, ``10.00``) while an author documents
+    ``true`` or ``10``; the drift detector compares both sides in that kind's
+    canonical spelling (``canonical_value``).
     """
     observations: PendingVariableContexts = {}
     for event in events:
@@ -563,6 +575,9 @@ def authored_token_observations(
                 continue
             seen_key = fields.get(field_value.field_definition_id)
             if seen_key is None:
+                continue
+            field_definition = field_definitions.get(field_value.field_definition_id)
+            if field_definition is None or field_definition.sensitivity != Sensitivity.none:
                 continue
             match = _TOKEN_PATTERN.fullmatch(field_value.value or "")
             if match is None:
@@ -593,8 +608,18 @@ def authored_token_observations(
                 "observed_count": len(observed),
                 "values": sample_variable_values(observed, value_kind),
                 "presence_rate": None,
+                "canonical_kind": (
+                    field_definition.field_type
+                    if field_definition.field_type in _CANONICAL_FIELD_KINDS
+                    else None
+                ),
             }
     return observations
+
+
+#: The field types whose observed values ``authored_token_observations`` marks
+#: for canonical comparison.
+_CANONICAL_FIELD_KINDS = frozenset({FieldDefinitionType.number, FieldDefinitionType.boolean})
 
 
 def insert_variable_contexts(

@@ -552,8 +552,11 @@ export const SCENARIO_SEEDED = {
   changedEventName: 'Buy Button Click',
   shadowCandidateName: 'app_heartbeat_v1',
   schemaDriftEventName: 'Purchase Completed',
-  /** Its open type change (number → String), the drift the step accepts. */
-  schemaDriftFieldName: 'amount',
+  /** Its open enum violation (the warehouse sends GBP, which the plan's
+   *  currency list lacks): the drift the step accepts. Filed by the build's
+   *  live collection, the one contract check a replay skips. */
+  schemaDriftFieldName: 'currency',
+  schemaDriftType: 'enum_violation',
   firingRuleName: 'Spike & drift watch (demo)',
 } as const
 
@@ -762,8 +765,8 @@ export function buildChapterSteps(
         {
           id: 'reconcile/review-drift',
           title: 'Resolve a schema drift',
-          instruction: `Open the schema-drift badge beside the Events heading and accept the amount type change on ${SCENARIO_SEEDED.schemaDriftEventName}.`,
-          cue: 'Click the amber schema-drift badge, then Accept under amount.',
+          instruction: `Open the schema-drift badge beside the Events heading and accept the GBP currency ${SCENARIO_SEEDED.schemaDriftEventName} now sends.`,
+          cue: 'Click the amber schema-drift badge, then Accept under currency.',
           to: `${base}/events`,
           ctaLabel: 'Open Events',
           coach: { side: 'right', align: 'center', emphasis: 'ring' },

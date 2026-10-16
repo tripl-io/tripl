@@ -2842,5 +2842,5 @@ def test_the_failure_count_reaches_the_job_summary() -> None:
     sync_source = inspect.getsource(metrics_catalog_sync.sync_catalog)
     assert sync_source.count("out.contract_checks_failed += contracts.checks_failed") == 2
 
-    summary_source = inspect.getsource(metrics_tasks.collect_metrics)
+    summary_source = inspect.getsource(metrics_tasks.execute_collect_metrics)
     assert '"contract_checks_failed": contract_checks_failed' in summary_source

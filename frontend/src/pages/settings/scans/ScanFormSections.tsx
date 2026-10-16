@@ -833,10 +833,16 @@ export function NewEventsSection({ form, readOnly }: SectionProps) {
   if (state.autoCreateEvents) {
     hint = 'Each one becomes an in-review event, for someone to approve or archive.'
   } else if (monitoring) {
-    hint = 'The catalog is left alone. Each metrics collection lists them under Reconciliation › Shadow events, to accept or dismiss.'
+    // Types and fields are still added: without them the volume is not counted.
+    hint = 'No events are added; new event types and fields still are. Each metrics collection lists the new events under Reconciliation › Shadow events, to accept or dismiss.'
   } else {
     // The inbox is filled by the metrics collection, which Catalog only never runs.
-    hint = 'The catalog is left alone, and each run reports how many it left out. Only Catalog + monitoring collects metrics, which is what lists them in the reconciliation inbox.'
+    hint = 'No events are added; new event types and fields still are, and each run reports how many events it left out. Only Catalog + monitoring collects metrics, which is what lists them in the reconciliation inbox.'
+  }
+  // The inbox keeps one row per event name, so a name several event types
+  // share is listed once, under the type that carries most of its volume.
+  if (!state.autoCreateEvents && state.eventTypeColumn) {
+    hint += ' A name several event types share is listed once, under the type with the most volume.'
   }
 
   return (

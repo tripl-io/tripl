@@ -22,9 +22,11 @@ On **All projects**, press **Generate demo project**.
 
 tripl builds a project for an imaginary recipe app, the way a real project
 starts: it writes a tracking plan of 157 events across 11 event types, then
-scans the **demo warehouse** and collects 23 days of history from it. That takes
-about a minute, and the dialog shows each stage as the server reaches it. You
-land on metrics, open anomalies from the warehouse's daily incident, value and
+scans the **demo warehouse** and collects the last two days of history from it.
+That takes about half a minute, and the dialog shows each stage as the server
+reaches it; the rest of the 23 days is filled in while you look around (the
+banner says how far it is, and the weekly promo verdicts and the full set of
+alerts land when it finishes, a few minutes later). You land on metrics, open anomalies from the warehouse's daily incident, value and
 schema drift, release regressions, and a plan branch waiting for review.
 
 The demo warehouse is a database of generated traffic on your tripl server,

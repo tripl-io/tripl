@@ -4,13 +4,15 @@ the writer, and the two engines agreeing.
 Needs ``TRIPL_TEST_PG_URL`` with a role that may create databases and roles (CI's
 ``tripl`` superuser); skips without it and fails when ``TRIPL_TEST_PG_REQUIRED=1``
 finds no database, like every PostgreSQL gate here. It creates the warehouse
-database ``<test database>_demo`` and the role ``tripl_demo_reader``, and drops
-both when it is done.
+database ``<test database>_demo`` and the role ``<that database>_reader``, and
+drops both when it is done.
 
 The reader assertions are the security contract of the feature: the role can
 read the two warehouse tables and nothing else, cannot write, cannot create a
-temporary table, cannot lift ``temp_file_limit``, and cannot carry a
-``set_config`` from one statement into the next.
+temporary table, cannot lift ``temp_file_limit``, cannot reach other sessions
+(cancel, terminate, advisory locks, ``pg_stat_activity``), and cannot carry a
+session setting from one statement into the next — and the adapter refuses
+those calls before they are sent.
 """
 
 from __future__ import annotations
@@ -50,7 +52,7 @@ def _drop_warehouse() -> None:
             sql.SQL("DROP DATABASE IF EXISTS {} WITH (FORCE)").format(sql.Identifier(database))
         )
         conn.execute(
-            sql.SQL("DROP ROLE IF EXISTS {}").format(sql.Identifier(connection.READER_ROLE))
+            sql.SQL("DROP ROLE IF EXISTS {}").format(sql.Identifier(connection.reader_role()))
         )
         conn.execute(sql.SQL("DROP TABLE IF EXISTS {}").format(sql.Identifier(_PROBE_TABLE)))
 
@@ -107,6 +109,21 @@ def test_provisioning_is_idempotent(warehouse: datetime) -> None:
     again = provision.provision()
     assert again.ready, again.warnings
     assert not again.warnings
+    # A superuser sets every reader limit, temp_file_limit included.
+    assert status.warehouse_status(refresh=True).reader_limits_missing == ()
+
+
+def test_the_reader_password_is_never_sent_in_plain_text(warehouse: datetime) -> None:
+    with _superuser() as conn:
+        stored = conn.execute(
+            "SELECT rolpassword FROM pg_authid WHERE rolname = %s", (connection.reader_role(),)
+        ).fetchone()
+    assert stored is not None and str(stored[0]).startswith("SCRAM-SHA-256$")
+    password = connection.reader_password()
+    assert password is not None and password not in str(stored[0])
+    # And the verifier logs in.
+    with _reader() as conn:
+        assert conn.execute("SELECT current_user").fetchone() == (connection.reader_role(),)
 
 
 def test_the_writer_writes_each_row_once_and_resumes(warehouse: datetime) -> None:
@@ -157,10 +174,39 @@ def test_retention_and_the_size_cap_drop_whole_days(
     assert any("DEMO_WAREHOUSE_MAX_MB" in record.getMessage() for record in caplog.records)
 
 
+def test_the_size_cap_never_drops_the_retained_floor(
+    warehouse: datetime, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    today = warehouse.replace(hour=0, minute=0, second=0, microsecond=0)
+    yesterday = today - timedelta(days=1)
+    with psycopg.connect(**connection.writer_connection().kwargs(), autocommit=True) as conn:  # type: ignore[arg-type]
+        before = writer._partitions(conn, "events")
+    assert today - timedelta(days=2) in before  # the fixture keeps two days back
+    # Over any cap, with a one-day floor: the day before yesterday goes, the
+    # floor (yesterday, today) stays however far over the cap the database is.
+    monkeypatch.setattr(settings, "demo_warehouse_max_mb", 1)
+    monkeypatch.setattr(writer, "MIN_RETAINED_DAYS", 1)
+    run = writer.write(now=warehouse)
+    assert run is not None
+    with psycopg.connect(**connection.writer_connection().kwargs(), autocommit=True) as conn:  # type: ignore[arg-type]
+        after = writer._partitions(conn, "events")
+    assert today - timedelta(days=2) not in after
+    assert yesterday in after and today in after
+
+
 def test_two_writers_never_interleave(warehouse: datetime) -> None:
-    with psycopg.connect(**connection.writer_connection().kwargs(), autocommit=True) as holder:  # type: ignore[arg-type]
+    # The lock lives in tripl's main database, where no reader goes.
+    with psycopg.connect(**connection.main_connection().kwargs(), autocommit=True) as holder:  # type: ignore[arg-type]
         holder.execute("SELECT pg_advisory_lock(%s)", (writer.ADVISORY_LOCK_KEY,))
         assert writer.write(now=warehouse + timedelta(minutes=10)) is None
+
+
+def test_a_reader_holding_the_old_lock_key_does_not_stall_the_writer(warehouse: datetime) -> None:
+    # The key in the WAREHOUSE database is not the writer's lock any more (and
+    # the reader may not take advisory locks there at all, see below).
+    with psycopg.connect(**connection.writer_connection().kwargs(), autocommit=True) as holder:  # type: ignore[arg-type]
+        holder.execute("SELECT pg_advisory_lock(%s)", (writer.ADVISORY_LOCK_KEY,))
+        assert writer.write(now=warehouse + timedelta(minutes=10)) is not None
 
 
 # -- the reader's confinement ------------------------------------------------------
@@ -224,25 +270,72 @@ def test_the_reader_cannot_lift_its_temp_file_limit(warehouse: datetime) -> None
             conn.execute("SET temp_file_limit = '10GB'")
 
 
-def test_a_set_config_cannot_outlive_its_statement(warehouse: datetime) -> None:
+def test_the_reader_cannot_reach_other_sessions(warehouse: datetime) -> None:
+    # Revoked from PUBLIC inside the demo database (a superuser provisioned it).
+    with _reader() as conn:
+        for statement in (
+            "SELECT pg_cancel_backend(pg_backend_pid())",
+            "SELECT pg_terminate_backend(pg_backend_pid())",
+            "SELECT pg_try_advisory_lock(1)",
+            "SELECT pg_advisory_xact_lock(1)",
+            "SELECT query FROM pg_stat_activity",
+        ):
+            with pytest.raises(psycopg.errors.InsufficientPrivilege):
+                conn.execute(statement)
+
+
+def test_the_adapter_refuses_session_calls_before_sending_them(warehouse: datetime) -> None:
     adapter = engine.build_postgres_adapter(timeout_seconds=1)
     assert isinstance(adapter, DemoPostgresAdapter)
     try:
         with adapter._conn.cursor() as cur:
-            cur.execute(
+            for statement in (
+                "SELECT set_config('statement_timeout', '0', false)",
+                "SELECT pg_sleep(10)",
+                "SELECT pg_try_advisory_lock(1)",
+                "SELECT pg_cancel_backend(1)",
+                "SELECT count(*) FROM pg_stat_activity",
+            ):
+                with pytest.raises(ValueError, match="demo warehouse does not allow"):
+                    cur.execute(statement)
+            # The name inside a string literal is data, not a call.
+            cur.execute("SELECT count(*) FROM events WHERE event_name = 'set_config(x)'")
+            assert cur.fetchone() == (0,)
+    finally:
+        adapter.close()
+
+
+def test_a_session_setting_cannot_outlive_its_statement(warehouse: datetime) -> None:
+    adapter = engine.build_postgres_adapter(timeout_seconds=1)
+    assert isinstance(adapter, DemoPostgresAdapter)
+    try:
+        # Past the adapter's denylist (a plain cursor), as if a call slipped it.
+        with psycopg.Cursor(adapter._conn) as raw:
+            raw.execute(
                 "SELECT set_config('statement_timeout', '0', false), "
                 "set_config('standard_conforming_strings', 'off', false), "
-                "set_config('search_path', 'public', false)"
+                "set_config('search_path', 'public', false), "
+                "set_config('work_mem', '2GB', false), "
+                "set_config('max_parallel_workers_per_gather', '8', false), "
+                "set_config('idle_in_transaction_session_timeout', '0', false)"
             )
-            cur.execute("SHOW statement_timeout")
-            assert cur.fetchone() == ("1s",)
-            cur.execute("SHOW standard_conforming_strings")
-            assert cur.fetchone() == ("on",)
+        with adapter._conn.cursor() as cur:
+            for setting, pinned in (
+                ("statement_timeout", "1s"),
+                ("standard_conforming_strings", "on"),
+                ("work_mem", "16MB"),
+                ("max_parallel_workers_per_gather", "0"),
+                ("idle_in_transaction_session_timeout", "30s"),
+            ):
+                cur.execute(sql.SQL("SHOW {}").format(sql.Identifier(setting)))
+                assert cur.fetchone() == (pinned,), setting
             cur.execute("SELECT count(*) > 0 FROM events")
             assert cur.fetchone() == (True,)
             started = datetime.now(UTC)
+            # CPU only: a set-returning call in the select list is evaluated
+            # row by row, so it never spills into temp_file_limit first.
             with pytest.raises(psycopg.errors.QueryCanceled):
-                cur.execute("SELECT pg_sleep(10)")
+                cur.execute("SELECT count(*) FROM (SELECT generate_series(1, 2000000000)) AS s")
             assert datetime.now(UTC) - started < timedelta(seconds=5)
     finally:
         adapter.close()
@@ -305,7 +398,9 @@ def test_the_two_engines_answer_alike(warehouse: datetime) -> None:
             "event_time",
             "1h",
             ["platform", "properties.source"],
-            ["event_type"],
+            # A breakdown is a scan column or a property of one, as a
+            # collection passes it: the scalar one is among the regular columns.
+            ["event_type", "platform"],
             ["properties"],
             None,
             t0,

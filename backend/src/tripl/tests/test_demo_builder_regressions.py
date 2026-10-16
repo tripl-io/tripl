@@ -15,7 +15,6 @@ The cancel path (a stage boundary honouring the flag) is pinned in
 
 from __future__ import annotations
 
-import threading
 import uuid
 from collections.abc import Callable
 from datetime import UTC, datetime, timedelta
@@ -165,36 +164,40 @@ async def test_a_demo_created_after_a_delete_does_not_repeat_a_live_name(
 
 
 @pytest.mark.asyncio
-async def test_demo_cpu_work_runs_off_the_event_loop(
+async def test_the_api_request_runs_no_demo_build(
     client: AsyncClient, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """The scan and every collection job run on a worker thread, never the API loop.
+    """Creating a demo commits a shell and queues its build; the API never builds.
 
-    They are the provisioning's whole cost; the pipeline hands each to
-    ``session.run_sync``. Recorded at the worker entry points it calls.
+    The scan and the replay are the provisioning's whole cost, and
+    ``session.run_sync`` runs them on the calling thread, so they belong on the
+    worker (``worker/tasks/demo_provision.py``), never in a request. With the
+    queue held, the request answers with a seeding shell having run neither.
     """
-    loop_thread = threading.get_ident()
-    seen: dict[str, list[int]] = {"scan": [], "collect": []}
+    queued: list[uuid.UUID] = []
 
-    def recording(key: str, real: Callable[..., Any]) -> Callable[..., Any]:
-        def wrapper(*args: Any, **kwargs: Any) -> Any:
-            seen[key].append(threading.get_ident())
-            return real(*args, **kwargs)
+    async def _hold(_session: object, project_id: uuid.UUID, _request_id: str | None) -> None:
+        queued.append(project_id)
 
-        return wrapper
+    ran: list[str] = []
 
-    monkeypatch.setattr(scan_task, "execute_scan", recording("scan", scan_task.execute_scan))
-    monkeypatch.setattr(
-        metrics_tasks,
-        "execute_collect_metrics",
-        recording("collect", metrics_tasks.execute_collect_metrics),
-    )
+    def refusing(key: str) -> Callable[..., Any]:
+        def _refuse(*_args: Any, **_kwargs: Any) -> Any:
+            ran.append(key)
+            raise AssertionError(f"{key} ran inside the API request")
 
-    assert (await client.post("/api/v1/projects/demo")).status_code == 202
+        return _refuse
 
-    for key, threads in seen.items():
-        assert threads, f"{key} never ran"
-        assert loop_thread not in threads, f"{key} ran on the event loop"
+    monkeypatch.setattr(demo_service, "enqueue_demo_seed", _hold)
+    monkeypatch.setattr(scan_task, "execute_scan", refusing("scan"))
+    monkeypatch.setattr(metrics_tasks, "execute_collect_metrics", refusing("collect"))
+
+    resp = await client.post("/api/v1/projects/demo")
+
+    assert resp.status_code == 202, resp.text
+    assert resp.json()["generation_status"] == ProjectGenerationStatus.seeding.value
+    assert [str(project_id) for project_id in queued] == [resp.json()["id"]]
+    assert ran == []
 
 
 # ── demo_sink local notice ────────────────────────────────────────────────

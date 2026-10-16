@@ -37,7 +37,12 @@ from collections.abc import Callable, Iterable, Iterator
 from datetime import UTC, datetime, timedelta
 from functools import lru_cache
 
-from tripl.core.adapters.base import ColumnInfo, SchemaColumn, SchemaTable
+from tripl.core.adapters.base import (
+    ColumnInfo,
+    SchemaColumn,
+    SchemaTable,
+    is_breakdown_field_of,
+)
 from tripl.core.adapters.sql_common import IDENTIFIER_PART_RE
 from tripl.core.adapters.synthetic import (
     JsonLayout,
@@ -681,6 +686,15 @@ class DemoMemoryAdapter(SyntheticAdapter):
         breakdowns = [
             self._validate_breakdown_column(table, column) for column in breakdown_columns
         ]
+        # The PostgreSQL engine's rule, so a call only one engine accepts fails
+        # on both (``test_demo_warehouse_pg`` holds them to the same answers).
+        invalid = [c for c in breakdowns if not is_breakdown_field_of(c, reg, json_columns)]
+        if invalid:
+            msg = (
+                "Breakdown columns must be scalar columns or properties of a JSON column: "
+                f"{', '.join(invalid)}"
+            )
+            raise ValueError(msg)
         layout = self._json_layout(table, json_columns, json_value_paths)
         hours = (
             None

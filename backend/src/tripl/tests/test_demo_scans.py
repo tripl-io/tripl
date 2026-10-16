@@ -157,8 +157,11 @@ async def test_the_demo_scan_surface_runs_on_the_demo_warehouse(client: AsyncCli
 
     # Every planned name folds onto its plan event; nothing pipe-named leaks in.
     # (Whatever the warehouse sends that the plan lacks is the reconcile
-    # chapter's business, not this one's.)
-    assert result.events_grouped > 0
+    # chapter's business, not this one's.) The scan names events by the
+    # ``event_name`` column, no group rule, so the rows land on existing
+    # events and none is minted.
+    assert result.events_skipped > 0
+    assert result.events_created == 0
     assert all(" | " not in name for name in names), names
     planned = {event.name for event in roster.events()}
     unplanned = {event.name for event in roster.unplanned_events()}

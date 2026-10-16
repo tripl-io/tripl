@@ -679,16 +679,22 @@ async def test_demo_payload_missing_a_required_field_is_an_error(client: AsyncCl
         f"/api/v1/projects/{slug}/plan/validate",
         json={
             "items": [
+                # The demo names its events by the ``event_name`` column, so a
+                # payload carries it like any other required field.
                 {
                     "event_type": "screen_view",
                     "name": "Home Screen View",
-                    "properties": {"platform": "ios"},
+                    "properties": {"event_name": "Home Screen View", "platform": "ios"},
                     "complete": True,
                 },
                 {
                     "event_type": "screen_view",
                     "name": "Home Screen View",
-                    "properties": {"platform": "ios", "screen_name": "home"},
+                    "properties": {
+                        "event_name": "Home Screen View",
+                        "platform": "ios",
+                        "screen_name": "home",
+                    },
                     "complete": True,
                 },
             ]

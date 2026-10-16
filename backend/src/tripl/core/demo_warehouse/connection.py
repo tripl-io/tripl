@@ -2,8 +2,11 @@
 
 The warehouse is a separate database on the PostgreSQL server tripl already
 uses: ``<main database>_demo`` (``tripl_demo`` in compose), written by tripl's
-own role and read through :data:`READER_ROLE`, a login role that can read the
-two warehouse tables and nothing else.
+own role and read through :func:`reader_role` (``<warehouse database>_reader``,
+``tripl_demo_reader`` in compose), a login role that can read the two warehouse
+tables and nothing else. Roles are cluster-wide, so the name follows the
+database: two instances sharing one PostgreSQL server (staging and production,
+say) each manage their own reader instead of overwriting one password.
 
 Every connection parameter comes from settings, never from a data source row:
 a ``demo`` source's host, port and credential columns are ignored, so nothing a
@@ -20,16 +23,25 @@ user can edit reaches a connection that skips the private-address guard.
 
 from __future__ import annotations
 
+import base64
 import hashlib
 import hmac
+import secrets
 from dataclasses import dataclass
 
 from sqlalchemy.engine import make_url
 
 from tripl.config import settings
 
-READER_ROLE = "tripl_demo_reader"
 DATABASE_SUFFIX = "_demo"
+READER_ROLE_SUFFIX = "_reader"
+#: Every connection the writer, provisioning and status open runs in UTC: the
+#: writer derives day partitions from ``written_through``, which psycopg hands
+#: back in the SESSION's time zone. On a server whose default is not UTC a
+#: partition boundary would land off UTC midnight and collide with its neighbour.
+UTC_OPTIONS = "-c TimeZone=UTC"
+#: PostgreSQL's own SCRAM iteration count (``scram_iterations``' default).
+SCRAM_ITERATIONS = 4096
 _READER_PASSWORD_CONTEXT = b"demo-warehouse-reader"
 #: libpq's default port, when a DSN names none.
 _DEFAULT_PORT = 5432
@@ -53,13 +65,14 @@ class WarehouseConnection:
         )
 
     def kwargs(self, *, connect_timeout: int | None = None) -> dict[str, object]:
-        """Keyword arguments for ``psycopg.connect``."""
+        """Keyword arguments for ``psycopg.connect`` (a UTC session)."""
         params: dict[str, object] = {
             "host": self.host,
             "port": self.port,
             "dbname": self.database,
             "user": self.user,
             "password": self.password,
+            "options": UTC_OPTIONS,
         }
         if self.sslmode:
             params["sslmode"] = self.sslmode
@@ -98,6 +111,11 @@ def writer_connection() -> WarehouseConnection:
     return _parse(settings.sync_database_url, database=f"{main.database}{DATABASE_SUFFIX}")
 
 
+def reader_role() -> str:
+    """The reader role's name: the warehouse database's name plus ``_reader``."""
+    return f"{writer_connection().database}{READER_ROLE_SUFFIX}"
+
+
 def reader_password() -> str | None:
     """The reader role's password, or ``None`` when none can be had safely.
 
@@ -114,7 +132,7 @@ def reader_password() -> str | None:
 
 
 def reader_connection() -> WarehouseConnection | None:
-    """The warehouse database as :data:`READER_ROLE`; ``None`` without a password."""
+    """The warehouse database as :func:`reader_role`; ``None`` without a password."""
     password = reader_password()
     if password is None:
         return None
@@ -123,7 +141,7 @@ def reader_connection() -> WarehouseConnection | None:
         host=writer.host,
         port=writer.port,
         database=writer.database,
-        user=READER_ROLE,
+        user=reader_role(),
         password=password,
         sslmode=writer.sslmode,
     )
@@ -132,3 +150,24 @@ def reader_connection() -> WarehouseConnection | None:
 def reader_is_managed() -> bool:
     """Whether ``migrate`` manages the reader role (it does unless one was provisioned by hand)."""
     return not settings.demo_warehouse_reader_password
+
+
+def scram_verifier(password: str, *, salt: bytes | None = None) -> str:
+    """A SCRAM-SHA-256 verifier of ``password``, as ``pg_authid`` stores it.
+
+    ``ALTER ROLE ... PASSWORD`` with a verifier instead of the password keeps
+    the plaintext out of the server's statement log (``log_statement=ddl``) and
+    out of ``pg_stat_activity``: PostgreSQL recognises the format and stores it
+    as given. The password is ASCII (a hex digest, or what an operator set), so
+    SASLprep leaves it unchanged.
+    """
+    salt = salt if salt is not None else secrets.token_bytes(16)
+    salted = hashlib.pbkdf2_hmac("sha256", password.encode(), salt, SCRAM_ITERATIONS)
+    client_key = hmac.new(salted, b"Client Key", hashlib.sha256).digest()
+    stored_key = hashlib.sha256(client_key).digest()
+    server_key = hmac.new(salted, b"Server Key", hashlib.sha256).digest()
+
+    def b64(raw: bytes) -> str:
+        return base64.b64encode(raw).decode()
+
+    return f"SCRAM-SHA-256${SCRAM_ITERATIONS}:{b64(salt)}${b64(stored_key)}:{b64(server_key)}"

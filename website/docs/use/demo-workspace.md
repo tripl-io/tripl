@@ -57,7 +57,7 @@ reports.
 - **What the team decided.** One pair of events that only look alike
   (**Push Permission Granted** and **Push Permission Denied**) dismissed as not
   a duplicate, beside a real near-duplicate left open for the duplicates view
-  (**Recipe Rated** and **Recipe Rating Submitted**); watches on **Paywall
+  (**Recipe Rated** and `recipe_rated`); watches on **Paywall
   View**, **Purchase Completed**, the `purchase` event type and *Revenue
   (completed)*; and two docs pages, *Tracking plan conventions* and the *Weekly
   promo runbook*, linking the plan entities they talk about.
@@ -92,23 +92,33 @@ reaches it:
    `prod_weekly`, which the plan does not document. The demo's scan is set to
    [send new events to the reconciliation inbox](./feature-reference.md#new-events-catalog-or-inbox),
    so the two names no plan documents stay out of the catalog.
-2. **History** — a real metrics replay over the last
-   [`DEMO_HISTORY_DAYS`](../run/configuration.md#demo-workspace) days (23 by
-   default: three weekly cycles for the hour-of-week baseline, plus two days to
-   score), in one-day chunks; the dialog shows how far through it is. One job
-   scores the last three weeks once and dispatches what it finds, so the newest
-   incident files the alert deliveries a live collection would have. The last
-   window is the scheduler's first live collection: it runs the field-contract
-   check (the zero-amount purchases) and starts the source's freshness
-   watermarks.
+2. **History** — a real metrics replay over the last two days, in one-day
+   chunks; the dialog shows how far through it is. One job scores them once
+   and dispatches what it finds. The last window is the scheduler's first live
+   collection: it runs the field-contract check (the GBP purchases and the
+   zero amounts) and starts the source's freshness watermarks.
 3. **Signals** — the catalog metrics through the worker's own collectors, the
    event lifecycle pass, and the search index.
 
+The demo opens there, about half a minute after you asked for it. The rest of
+the history, back to
+[`DEMO_HISTORY_DAYS`](../run/configuration.md#demo-workspace) days (23 by
+default: three weekly cycles for the hour-of-week baseline, plus two days to
+score), is **filled in afterwards** by a second task on the worker, while you
+look around; the demo's banner says *Filling in history* with how far it is,
+and **Run now** and **Replay** on the demo's scan wait until it is done
+(a few minutes). The fill replays the older weeks, then scores the last three
+weeks once on the full baseline and dispatches what it finds, so the newest
+incident files the alert deliveries a live collection would have; then it
+marks the weekly promo sends and tags the planned window, the steps that need
+the whole history.
+
 What you land on is therefore the pipeline's: anomalies on the warehouse's
 incidents and their attributions, distribution drift on the country mix,
-release markers and regressions on the **By version** tab, the property-type
-change as schema drift, the two unplanned names as shadow-event candidates,
-coverage, and the deliveries those signals sent.
+release markers and regressions on the **By version** tab, the GBP currency
+and the zero amounts as schema drift (field-contract violations), the
+`results_count` string on iOS as property drift, the two unplanned names as
+shadow-event candidates, coverage, and the deliveries those signals sent.
 
 A few things are human reactions to what was observed rather than
 observations, and the recipe writes them after the pipeline, stated here so
@@ -452,12 +462,13 @@ The demo offers two guides, and they do different jobs.
   the dialog waits until the project reads ready. That keeps the app
   responsive for everyone while many demos are created at once — they queue on
   the worker instead. An instance that keeps a pool of demos seeded ahead of
-  time hands you one of those at once. It takes about a minute; the creation
-  dialog (*Generating demo project*) lists the four stages — *Writing the
-  tracking plan*, *Scanning the demo warehouse*, *Collecting history* (with how
-  far through it is) and *Detecting signals* — and marks the one the server
-  reports. It says so when a create runs past two minutes, and stops waiting
-  after five.
+  time hands you one of those at once. It takes about half a minute; the
+  creation dialog (*Generating demo project*) lists the four stages — *Writing
+  the tracking plan*, *Scanning the demo warehouse*, *Collecting history* (the
+  last two days, with how far through it is) and *Detecting signals* — and
+  marks the one the server reports. It says so when a create runs past two
+  minutes, and stops waiting after five. The older history is filled in after
+  the demo opens; the banner shows *Filling in history* until it is done.
   On a public demo a newcomer does not have to find the button: signing in to
   an organization with no projects of their own starts the create, once per account in that
   browser. After a cancel, or with every demo deleted, the button waits for

@@ -1485,6 +1485,7 @@ describe('ProjectSettingsPage', () => {
         scan_lookback_hours: 24,
         scan_row_limit: null,
         metrics_row_limit: null,
+        auto_create_events: true,
       })
     })
   })

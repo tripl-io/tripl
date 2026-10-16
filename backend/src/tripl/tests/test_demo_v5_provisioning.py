@@ -92,8 +92,12 @@ def queued_deliveries(monkeypatch: pytest.MonkeyPatch) -> list[str]:
 
 @pytest.mark.usefixtures("_memory_warehouse")
 async def test_a_v5_demo_is_the_roster_observed_by_the_real_pipeline(
-    client: AsyncClient, queued_deliveries: list[str]
+    client: AsyncClient, queued_deliveries: list[str], monkeypatch: pytest.MonkeyPatch
 ) -> None:
+    # The full story: three weekly promo sends, the release train, the 21-day
+    # scoring window. The conftest runs the history fill inline after the
+    # first build, so the request returns the filled demo.
+    monkeypatch.setattr(settings, "demo_history_days", noise.DEMO_HISTORY_DAYS)
     started = time.perf_counter()
     resp = await client.post("/api/v1/projects/demo")
     elapsed = time.perf_counter() - started
@@ -102,6 +106,8 @@ async def test_a_v5_demo_is_the_roster_observed_by_the_real_pipeline(
     assert demo["generation_status"] == "ready", demo
     assert demo["generation_stage"] is None
     assert demo["generation_progress"] is None
+    assert demo["demo_history_status"] == "complete"
+    assert demo["demo_history_progress"] is None
     assert demo["demo_recipe_version"] == DEMO_RECIPE_VERSION == "5"
     slug = demo["slug"]
     project_id = uuid.UUID(demo["id"])
@@ -149,12 +155,14 @@ async def test_a_v5_demo_is_the_roster_observed_by_the_real_pipeline(
         assert jobs and {status for status, _ in jobs} == {"completed"}
         assert SCHEMA_DRIFT_EVENT in events
         # One detection pass for the whole build, and no platform series scored.
+        # At most one detection pass per phase: the first build's over its two
+        # days, the history fill's over the last three weeks.
         scoring = [
             summary
             for _, summary in jobs
             if summary and int(str(summary.get("anomalies_detected") or 0)) > 0
         ]
-        assert len(scoring) == 1
+        assert 1 <= len(scoring) <= 2
         assert await count(MetricBreakdownAnomaly) == 0
 
         # Reactions to what the replay detected.
@@ -304,12 +312,20 @@ def test_the_history_progress_reads_the_replay_jobs() -> None:
 
 
 @pytest.mark.parametrize("hour", range(0, 24 * 7, 1))
-def test_every_creation_hour_has_an_incident_to_alert_on(hour: int) -> None:
-    """Property over a week of creation hours: the split sits on an incident."""
+def test_every_creation_hour_has_an_incident_to_alert_on(
+    hour: int, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Property over a week of creation hours: the split sits on an incident.
+
+    On the shipped history (the suite's two days would clamp the scoring span).
+    The first build's windows are the ones checked: they hold the split, and
+    the history fill's re-scoring ends at the same instant.
+    """
+    monkeypatch.setattr(settings, "demo_history_days", noise.DEMO_HISTORY_DAYS)
     now = datetime(2026, 10, 12, tzinfo=UTC) + timedelta(hours=hour)
-    windows = pipeline.history_windows(now)
-    # Contiguous, oldest first, the whole history, no window too wide to read.
-    assert windows[0][0] == noise.history_start(now)
+    windows = pipeline.history_windows(now, pipeline.first_build_start(now))
+    # Contiguous, oldest first, the first build's two days, no window too wide.
+    assert windows[0][0] == pipeline.first_build_start(now)
     assert windows[-1][1] == now
     for (_, end), (start, _) in zip(windows, windows[1:], strict=False):
         assert end == start
@@ -332,6 +348,9 @@ def test_every_creation_hour_has_an_incident_to_alert_on(hour: int) -> None:
     scored_from, scored_to = pipeline.scoring_window(now)
     assert scored_to - timedelta(hours=1) in alertable
     assert scored_to - scored_from == pipeline.SCORING_SPAN
+    # The first build scores its two days up to the same instant.
+    first_from, first_to = pipeline.scoring_window(now, pipeline.first_build_start(now))
+    assert (first_from, first_to) == (pipeline.first_build_start(now), scored_to)
 
 
 _ROW_COLUMNS = [

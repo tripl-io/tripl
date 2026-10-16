@@ -97,6 +97,7 @@ from tripl.core.analyzers.event_plan import (
     render_default_event_name,
     truncate_event_name,
 )
+from tripl.core.name_template import variable_tokens
 from tripl.core.property_drift import detect_event_property_drifts
 from tripl.models.event import Event, EventStatus
 from tripl.models.event_field_value import EventFieldValue
@@ -291,22 +292,6 @@ def generate_events(
     )
     result.details.extend(plan.details)
     result.columns_analyzed = plan.columns_analyzed
-    # Hoisted out of the column loop by the plan/persist split, in first-seen
-    # order — ``_ensure_variable`` creates a variable with the FIRST type it is
-    # asked for and registers it on the index, so the order is behaviour.
-    for need in plan.variables_needed:
-        result.variables_created += _ensure_variable(
-            session,
-            project_id,
-            need.name,
-            need.inferred_type,
-            branch_id=main_branch_id,
-            index=variable_index,
-            json_schema=need.json_schema,
-        )
-    col_meta = plan.col_meta
-    if not col_meta:
-        return result
 
     # Load existing events for dedup. Key on the stable scan identity (``source_name``),
     # NOT the display ``name`` — users may rename ``name`` freely, and matching on it would
@@ -332,6 +317,43 @@ def generate_events(
         .all()
     )
     existing_by_identity = index_events_by_identity(existing_events_list)
+
+    variables_needed = plan.variables_needed
+    if not create_events:
+        # Only the rows that will reach an event can store a token. A variable
+        # minted for an identity this run leaves out of the catalog is
+        # referenced by nothing, so the end-of-run sweep would retire it and the
+        # next run mint it again under a new id — a created/retired pair every
+        # tick for each path only unplanned traffic carries. Archived events
+        # are frozen (their field values are never rewritten), so their rows
+        # cannot store a token either.
+        kept_tokens = {
+            token
+            for planned in plan.events
+            if (holder := existing_by_identity.get(planned.name)) is not None
+            and holder.status != EventStatus.archived
+            for _, _, value in planned.field_values
+            for token in variable_tokens(value)
+        }
+        variables_needed = [need for need in variables_needed if need.name in kept_tokens]
+
+    # Hoisted out of the column loop by the plan/persist split, in first-seen
+    # order — ``_ensure_variable`` creates a variable with the FIRST type it is
+    # asked for and registers it on the index, so the order is behaviour.
+    for need in variables_needed:
+        result.variables_created += _ensure_variable(
+            session,
+            project_id,
+            need.name,
+            need.inferred_type,
+            branch_id=main_branch_id,
+            index=variable_index,
+            json_schema=need.json_schema,
+        )
+    col_meta = plan.col_meta
+    if not col_meta:
+        return result
+
     next_event_order = session.execute(
         select(func.max(Event.order)).where(Event.project_id == project_id)
     ).scalar_one()
@@ -500,6 +522,9 @@ def generate_events(
         field_definitions=field_definitions,
         next_event_order=next_event_order,
         cardinality_threshold=cardinality_threshold,
+        # Off, the pass creates no group event: a rule naming an event the plan
+        # does not have leaves its sources where they are.
+        create_events=create_events,
         # The merge pass can DELETE an event whose contexts the loop above has
         # already recorded — rule application is not idempotent across the two
         # value spaces, so a trailing catch-all rule re-matches the group events
@@ -564,6 +589,7 @@ def generate_events(
         values_seen=values_seen,
         index=variable_index,
         cardinality_threshold=cardinality_threshold,
+        field_definitions={fd.id: fd for fd in field_definitions.values()},
     )
     result.value_drifts_detected = _detect_variable_value_drifts(
         session,

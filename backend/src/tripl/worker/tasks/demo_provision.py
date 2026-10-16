@@ -10,7 +10,12 @@ throwaway async engine per run; the scan and the replay run on that session's
 sync facade.
 
 Idempotent: a redelivered task, or one whose shell a cancel already removed,
-finds no seeding shell and does nothing.
+finds no seeding shell and does nothing; one whose worker died mid-build finds
+the shell part-built and starts it over.
+
+The seed replays the last two days of history; :func:`fill_demo_history`,
+queued once the demo is ready, replays the rest
+(:mod:`tripl.services.demo_history_service`).
 """
 
 from __future__ import annotations
@@ -23,13 +28,14 @@ import uuid
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from tripl.middleware.request_id import bound_request_id
-from tripl.services import demo_service
+from tripl.services import demo_history_service, demo_service
 from tripl.worker.celery_app import celery_app
 from tripl.worker.db import run_with_async_worker_session
 
 logger = logging.getLogger(__name__)
 
 TASK_NAME = "tripl.worker.tasks.demo_provision.seed_demo_project"
+FILL_TASK_NAME = "tripl.worker.tasks.demo_provision.fill_demo_history"
 
 
 @celery_app.task(name=TASK_NAME)  # type: ignore[untyped-decorator]
@@ -48,4 +54,19 @@ def seed_demo_project(project_id: str, request_id: str | None = None) -> str:
     with bound_request_id(request_id) if request_id else contextlib.nullcontext():
         asyncio.run(run_with_async_worker_session(_run))
     logger.info("demo.provision.%s project_id=%s", outcome, project_id)
+    return outcome
+
+
+@celery_app.task(name=FILL_TASK_NAME)  # type: ignore[untyped-decorator]
+def fill_demo_history(project_id: str, request_id: str | None = None) -> str:
+    """Fill a ready demo's history; returns ``complete``, ``failed`` or ``skipped``."""
+    outcome = "skipped"
+
+    async def _run(session: AsyncSession) -> None:
+        nonlocal outcome
+        outcome = await demo_history_service.finish_demo_history(session, uuid.UUID(project_id))
+
+    with bound_request_id(request_id) if request_id else contextlib.nullcontext():
+        asyncio.run(run_with_async_worker_session(_run))
+    logger.info("demo.history_fill.%s project_id=%s", outcome, project_id)
     return outcome

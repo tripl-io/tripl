@@ -541,7 +541,19 @@ async def _reject_if_already_running(session: AsyncSession, scan_config_id: uuid
     activity marker is older than STALE_ACTIVE_SCAN_JOB_TIMEOUT is a corpse the
     reaper will clear, and must not block a new run forever.
     """
+    from tripl.services import demo_history_service
     from tripl.worker.tasks.metrics._helpers import STALE_ACTIVE_SCAN_JOB_TIMEOUT
+
+    project_id = await session.scalar(
+        select(ScanConfig.project_id).where(ScanConfig.id == scan_config_id)
+    )
+    # A demo's history fill replays this config job after job; a run between
+    # two of them would interleave with the next one the same way.
+    if project_id is not None and await demo_history_service.fill_in_progress(session, project_id):
+        raise HTTPException(
+            status_code=409,
+            detail="This demo is still filling in its history. Try again in a few minutes.",
+        )
 
     now = datetime.now(UTC)
     active = (

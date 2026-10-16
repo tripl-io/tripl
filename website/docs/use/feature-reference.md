@@ -2235,10 +2235,19 @@ duplicate?* lists the matches with **Open** links, and **Accept anyway** goes
 ahead. A candidate whose identity an event on `main` already holds — a
 scheduled catalog sync auto-created the event, or someone added it by hand — is
 not offered: the next collection resolves it as accepted and links it to that
-event, with nobody recorded as resolving it. **Accept** on such a row (an open
-inbox from before) links it the same way and creates nothing; when the event
-holding the identity is archived, it is refused with *An archived event already
-has this source identity; restore it instead*. The inbox loads 100 rows at a time and says how
+event, with nobody recorded as resolving it — the **Accepted** tab marks such a
+row *auto-resolved: the plan already has this event* (`auto_resolved` on the
+candidate). **Accept** on such a row (an open inbox from before) links it the
+same way and creates nothing, and says so: *Linked to the event the plan already
+has; nothing was created* (`linked: true` in the response, and on each row of a
+bulk accept). On a working branch it links to `main`'s event, the one the
+collection matches traffic against; when only the branch has an event with the
+identity, the accept is refused — merge the branch, and the next collection
+links the candidate itself. When the event holding the identity is archived, it
+is refused with *An archived event already has this source identity; restore it
+instead*. Two people resolving one row at once cannot both win: the second gets
+*Candidate was resolved by another request*, and a collection's own resolving
+never overrides a person's. The inbox loads 100 rows at a time and says how
 many it is showing ("Showing 100 of 812"); **Show more** loads the next 100, as
 far as the list goes. The `new` tab carries the count of new events. Tick rows
 (or the select-all box) to **Accept** or **Dismiss** them in bulk. A row's
@@ -2741,8 +2750,11 @@ accepted shadow event recorded):
   before the setting existed) — the run creates each one as an `in_review`
   event, for someone to approve or archive. Stray traffic never promotes it
   further on its own (see [Going live on its own](#going-live)).
-- **Send them to the reconciliation inbox** — the run leaves the catalog alone.
-  Events the plan already has are still matched and updated as usual; the
+- **Send them to the reconciliation inbox** — the run adds no events. New event
+  types and their fields are still added, since the collection counts the
+  unplanned volume under them, and so are the properties of events the plan
+  already has. Events the plan already has are still matched and updated as
+  usual, and a group rule merges only into a group event the plan has; the
   others are counted in the run's summary (`events_left_unplanned`), and the
   next metrics collection files each one in
   [Reconciliation](#reconciliation)'s shadow events inbox, where **Accept**
@@ -2756,7 +2768,9 @@ reports how many it left out. The [dry run](#the-dry-run--what-this-scan-would-c
 answers for the setting the form holds: with the inbox chosen it still lists
 the new events, under the warning *This scan sends unplanned events to the
 reconciliation inbox: the N new event(s) below would not be added to the
-catalog.* A saved scan's **Configuration** tab shows the setting as **Events
+catalog.* In a scan grouped by an event type column, a second warning names
+the new event names more than one type shares: the inbox lists each such name
+once, under the type with the most volume, and the field's hint says the same. A saved scan's **Configuration** tab shows the setting as **Events
 the plan does not have**. In the API it is `auto_create_events` on the scan
 (`true` by default); a dry run takes the same field.
 
@@ -3121,13 +3135,14 @@ deciding something:
   indistinguishable from one you typed. The payload names the candidate, the
   scan that observed it and how much traffic it carried, which is what tells the
   two doors apart. An accept that only *links* the candidate to an event already
-  holding its identity creates nothing and files nothing: that event's own
-  creation is already in the log, and who resolved the candidate is on the
-  candidate.
+  holding its identity creates nothing, so it files `shadow_event.link` against
+  the candidate instead, with the linked event's id and name, the observed
+  volume, the scan and the event type in the payload. A collection that links a
+  candidate on its own files nothing: nobody decided anything.
 - **Dismissing** a candidate creates nothing, so it has an action of its own —
   `shadow_event.dismiss`, filed against the candidate rather than an event. The
-  payload carries the identity's latest observed volume and the span it has been
-  seen over. Worth recording precisely because nothing is left behind otherwise:
+  payload carries the identity's latest observed volume (the last collection
+  run's, its chunks added up) and the span it has been seen over. Worth recording precisely because nothing is left behind otherwise:
   the candidate row is removed with the scan that found it, taking `resolved by`
   with it.
 - **Retiring dead events** files `event.bulk_update`, as above.

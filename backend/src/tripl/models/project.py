@@ -113,6 +113,10 @@ class Project(UUIDMixin, TimestampMixin, Base):
     demo_seeded_at: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True), nullable=True, default=None
     )
+    # The history fill that runs once a demo is ready (``DemoHistoryStatus``):
+    # ``filling``, ``complete`` or ``failed``. NULL on a real project and on a
+    # demo built before the fill existed.
+    demo_history_status: Mapped[str | None] = mapped_column(String(16), nullable=True, default=None)
     # When the demo-runtime tick (``advance_demos``) last advanced this demo's
     # synthetic clock. NULL until the first tick. Diagnostic/observability only —
     # the tick's correctness comes from the seeded series + DB unique constraints,

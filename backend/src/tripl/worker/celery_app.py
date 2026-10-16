@@ -248,7 +248,6 @@ celery_app.conf.beat_schedule = {
         # are advanced by the ordinary scheduled collection reading the shared
         # demo warehouse; nothing here writes a metric.
         "schedule": crontab(minute=17, hour=3),
-        "options": {"expires": 6 * 60 * 60},
     },
     "write-demo-warehouse": {
         "task": "tripl.worker.tasks.demo_warehouse.write_demo_warehouse",

@@ -282,6 +282,9 @@ class DemoWarehouseStatus(BaseModel):
     last_error: str | None = None
     #: Why demos run in memory; ``None`` on the PostgreSQL engine.
     reason: str | None = None
+    #: Reader-role limits migrate could not set (``temp_file_limit`` needs a
+    #: superuser): the reader runs without them.
+    reader_limits_missing: list[str] = []
 
 
 class SystemSettings(BaseModel):

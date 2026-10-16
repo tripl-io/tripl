@@ -229,8 +229,11 @@ def test_the_weekly_promo_lifts_the_paywall_on_tuesdays() -> None:
         assert during > 2 * day_before
 
 
-def test_each_release_ships_its_regression() -> None:
-    release = calendar.release_index(END)
+@pytest.mark.parametrize("releases_back", range(6))
+def test_each_release_ships_its_regression(releases_back: int) -> None:
+    # Six consecutive releases, so both kinds (missing, volume_drop) and every
+    # target of the rotation are exercised, not just whichever END lands on.
+    release = calendar.release_index(END) - releases_back
     regression = calendar.regression_for(release)
     # Three days after release the new version runs on most devices.
     window_start = calendar.release_start(release) + timedelta(days=3)
@@ -469,3 +472,51 @@ def test_demo_sources_are_wired_as_a_postgres_dialect_type(
     adapter = registry.build_adapter(source)  # type: ignore[arg-type]
     assert isinstance(adapter, DemoMemoryAdapter)
     assert adapter.test_connection()
+
+
+def test_six_consecutive_releases_cover_both_regression_kinds() -> None:
+    latest = calendar.release_index(END)
+    kinds = {calendar.regression_for(latest - back).kind for back in range(6)}
+    assert kinds == {"missing", "volume_drop"}
+
+
+def test_every_three_hours_hold_both_purchase_contract_findings() -> None:
+    """A free purchase and a GBP purchase in ANY three consecutive hours of a week.
+
+    The demo's first live collection can be as short as three hours, and it is
+    the only collection that checks field contracts: whatever hour a demo is
+    created, that window must show both of the story's contract findings.
+    """
+    start = datetime(2026, 10, 5, tzinfo=UTC)  # a Monday 00:00
+    free_hours: list[bool] = []
+    gbp_hours: list[bool] = []
+    for offset in range(168 + 2):
+        hour = start + timedelta(hours=offset)
+        purchases = [
+            row
+            for row in rows.events_for_hour(hour)
+            if row["event_name"] == roster.SCHEMA_DRIFT_EVENT
+        ]
+        free_hours.append(any(row["amount"] == 0 for row in purchases))
+        gbp_hours.append(any(row["currency"] == "GBP" for row in purchases))
+    for first in range(168):
+        assert any(free_hours[first : first + 3]), start + timedelta(hours=first)
+        assert any(gbp_hours[first : first + 3]), start + timedelta(hours=first)
+
+
+def test_contract_findings_reach_the_orders_table() -> None:
+    hour = datetime(2026, 10, 6, 14, tzinfo=UTC)
+    purchases = [
+        row for row in rows.events_for_hour(hour) if row["event_name"] == roster.SCHEMA_DRIFT_EVENT
+    ]
+    orders = rows.orders_for_hour(hour)
+    for purchase in purchases:
+        match = [
+            order
+            for order in orders
+            if order["created_at"] == purchase["event_time"]
+            and order["user_id"] == purchase["user_id"]
+        ]
+        assert match, purchase["event_time"]
+        assert match[0]["currency"] == purchase["currency"]
+        assert match[0]["amount"] == purchase["amount"]

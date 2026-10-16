@@ -335,6 +335,20 @@ class ProjectGenerationStatus(enum.StrEnum):
     failed = "failed"
 
 
+class DemoHistoryStatus(enum.StrEnum):
+    """The history fill of a ready demo (``fill_demo_history``).
+
+    A demo opens with the last two days of its history replayed and scored; the
+    rest is replayed afterwards: ``filling`` while that runs, then ``complete``,
+    or ``failed`` when it stopped (the demo stays usable on what it holds).
+    NULL on a demo built before the fill existed, and on a real project.
+    """
+
+    filling = "filling"
+    complete = "complete"
+    failed = "failed"
+
+
 class OrganizationRole(enum.StrEnum):
     """A user's role in one organization (``organization_members.role``).
 

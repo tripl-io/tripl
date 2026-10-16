@@ -12,9 +12,11 @@ inside the main database, and ``CREATE DATABASE`` cannot run in a transaction.
 ``python -m tripl.migrate`` provisions them in a step after this upgrade
 (``core/demo_warehouse/provision.py``).
 
-Downgrade is a no-op: Postgres cannot drop an enum value, and a row still typed
-``demo`` after a downgrade simply has no adapter to build, which fails its
-connection test and scans with "Unsupported db_type".
+Downgrade is a no-op: PostgreSQL cannot drop an enum value. It is not a clean
+one either: a ``demo`` row left behind is a value the older code's SQLAlchemy
+enum does not know, so LOADING it raises ``LookupError`` — listing the data
+sources, or opening and collecting for the project that owns it, answers 500.
+Delete the demo projects (their sources cascade) before downgrading.
 
 Revision ID: a8c0e2f4b6d8
 Revises: f7b9d1e3a5c7

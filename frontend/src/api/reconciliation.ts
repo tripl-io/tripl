@@ -15,6 +15,12 @@ export interface ShadowEvent {
   status: ShadowEventStatus
   accepted_event_id: string | null
   /**
+   * Accepted by the collector, not a person: the main plan already had an
+   * event with this identity. Optional so a response from an older server
+   * still renders.
+   */
+  auto_resolved?: boolean
+  /**
    * A few rows the collector saw for this identity. Optional so a
    * response from an older server still renders.
    */
@@ -31,6 +37,8 @@ export interface AcceptShadowEventResponse {
   candidate_id: string
   event_id: string
   status: string
+  /** The plan already had this event: the candidate was linked to it, nothing created. */
+  linked: boolean
 }
 
 export interface DismissShadowEventResponse {
@@ -52,7 +60,9 @@ export interface ShadowEventBatchItemResult {
   candidate_id: string
   ok: boolean
   status: ShadowEventStatus | null
+  /** The event an accepted row created, or linked to when `linked`. */
   event_id: string | null
+  linked: boolean
   /** Why a row was refused, in the single route's words. */
   error: string | null
   error_status: number | null

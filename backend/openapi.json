@@ -7911,6 +7911,14 @@
             "title": "Reader Configured",
             "type": "boolean"
           },
+          "reader_limits_missing": {
+            "default": [],
+            "items": {
+              "type": "string"
+            },
+            "title": "Reader Limits Missing",
+            "type": "array"
+          },
           "reason": {
             "anyOf": [
               {
@@ -30089,6 +30097,11 @@
             "title": "Event Id",
             "type": "string"
           },
+          "linked": {
+            "default": false,
+            "title": "Linked",
+            "type": "boolean"
+          },
           "status": {
             "$ref": "#/components/schemas/ShadowEventStatus"
           }
@@ -30182,6 +30195,11 @@
             ],
             "title": "Event Id"
           },
+          "linked": {
+            "default": false,
+            "title": "Linked",
+            "type": "boolean"
+          },
           "ok": {
             "title": "Ok",
             "type": "boolean"
@@ -30271,6 +30289,11 @@
               }
             ],
             "title": "Accepted Event Id"
+          },
+          "auto_resolved": {
+            "default": false,
+            "title": "Auto Resolved",
+            "type": "boolean"
           },
           "event_name": {
             "title": "Event Name",

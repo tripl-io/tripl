@@ -25,13 +25,14 @@ from tripl.middleware.org_context import OrgRef, bound_org, require_org_id
 from tripl.middleware.request_id import current_request_id
 from tripl.models.audit_log import AuditLog
 from tripl.models.data_source import DataSource
-from tripl.models.domain_enums import ProjectGenerationStatus
+from tripl.models.domain_enums import DemoHistoryStatus, ProjectGenerationStatus
 from tripl.models.organization import Organization
 from tripl.models.project import Project
 from tripl.models.user import User
 from tripl.schemas.project import DemoCancelResponse, ProjectResponse
 from tripl.services import (
     audit_service,
+    demo_history_service,
     invitation_service,
     plan_branch_service,
     project_lookup,
@@ -62,6 +63,7 @@ logger = logging.getLogger(__name__)
 # alertable in aggregated logs regardless of the underlying exception type.
 DEMO_PROVISION_FAILED_EVENT = "demo.provision.failed"
 DEMO_PROVISION_CANCELLED_EVENT = "demo.provision.cancelled"
+DEMO_PROVISION_RESTARTED_EVENT = "demo.provision.restarted"
 DEMO_RESET_FAILED_EVENT = "demo.reset.failed"
 DEMO_SHELL_SWEPT_EVENT = "demo.shell.swept"
 
@@ -80,10 +82,12 @@ MAX_DEMOS_PER_CREATOR = 3
 # slug forever. Keep it long enough to investigate a report, then reclaim it.
 FAILED_SHELL_RETENTION_DAYS = 7
 
-# A shell still `seeding` after this long was abandoned mid-provision (the worker
-# process died between the phase-1 commit and either promotion or the failure
-# marker). Comfortably above the minute or two the seed takes and the 5 min
-# client bound, so an actively-seeding shell can never fall inside it.
+# A shell still `seeding` this long after its last stage began was abandoned
+# mid-provision (the worker process died between the phase-1 commit and either
+# promotion or the failure marker). Measured from ``updated_at``, which every
+# stage the seed enters bumps, so a build that waited in a queue and then ran
+# is judged by its progress, not its age. Comfortably above any one stage and
+# the 5 min client bound, so an actively-seeding shell never falls inside it.
 STALLED_SEEDING_HOURS = 1
 
 
@@ -109,6 +113,10 @@ def _demo_project_name(taken: Collection[str]) -> str:
     return f"Demo Project {number}"
 
 
+#: The stage a fresh shell starts in, before the seed enters ``plan``.
+_INIT_STAGE = "init"
+
+
 def _new_demo_project(
     *,
     slug: str,
@@ -132,7 +140,7 @@ def _new_demo_project(
         is_demo=True,
         demo_recipe_version=DEMO_RECIPE_VERSION,
         generation_status=ProjectGenerationStatus.seeding.value,
-        generation_stage="init",
+        generation_stage=_INIT_STAGE,
         created_by_user_id=created_by,
         organization_id=organization_id,
     )
@@ -301,6 +309,21 @@ async def finish_demo_provision(session: AsyncSession, project_id: uuid.UUID) ->
     shell = await session.get(Project, project_id)
     if shell is None or shell.generation_status != ProjectGenerationStatus.seeding.value:
         return "skipped"
+    if shell.generation_stage not in (None, _INIT_STAGE, DEMO_CANCEL_REQUESTED_STAGE):
+        # A redelivered seed: the worker died mid-build and ``task_acks_late``
+        # handed the task to another. Re-authoring the plan over what the first
+        # attempt committed would collide, so that is purged and the build
+        # starts over on the same shell.
+        logger.info(
+            "%s project_id=%s stage=%s",
+            DEMO_PROVISION_RESTARTED_EVENT,
+            project_id,
+            shell.generation_stage,
+        )
+        await _replace_shell(session, project_id, ProjectGenerationStatus.seeding, None)
+        shell = await session.get(Project, project_id)
+        if shell is None:
+            return "skipped"
     slug = shell.slug
     created_by = shell.created_by_user_id
     organization_id = shell.organization_id
@@ -367,6 +390,7 @@ async def _seed_and_promote(
     created_by: uuid.UUID | None,
 ) -> str:
     deliveries: list[str] = []
+    ctx: DemoContext | None = None
     try:
         await _enter_stage(session, project_id, pipeline.STAGE_PLAN)
         ctx = await _seed_demo_content(
@@ -429,6 +453,13 @@ async def _seed_and_promote(
     ready.generation_stage = None
     ready.generation_error = None
     ready.demo_seeded_at = now
+    # The first build replayed the last two days; the rest of the history is
+    # filled once the demo is open (``demo_history_service``).
+    fill = ctx is not None and demo_history_service.needs_fill(now)
+    if ctx is not None:
+        ready.demo_history_status = (
+            DemoHistoryStatus.filling.value if fill else DemoHistoryStatus.complete.value
+        )
     # Colleagues invited into this organization (public demo) see it too.
     await invitation_service.share_demo_with_colleagues(session, ready)
     # A demo is a project, and generating one is a person's decision — so it
@@ -452,7 +483,36 @@ async def _seed_and_promote(
     await cache.delete_prefix(cache.prefix_projects())
     await cache.delete_prefix(cache.prefix_data_sources())
     await enqueue_alert_deliveries(deliveries)
+    if fill:
+        await _start_history_fill(session, project_id)
     return "ready"
+
+
+async def _start_history_fill(session: AsyncSession, project_id: uuid.UUID) -> None:
+    """Queue the history fill; a broker that refuses it leaves the demo as built."""
+    try:
+        await enqueue_demo_history_fill(session, project_id, current_request_id())
+    except Exception:
+        logger.warning(
+            "%s project_id=%s error=broker_unavailable",
+            demo_history_service.DEMO_HISTORY_FILL_FAILED_EVENT,
+            project_id,
+            exc_info=True,
+        )
+        await demo_history_service.set_fill_status(session, project_id, DemoHistoryStatus.failed)
+
+
+async def enqueue_demo_history_fill(
+    session: AsyncSession, project_id: uuid.UUID, request_id: str | None
+) -> None:
+    """Hand the history fill to the worker. A module attribute, so tests can run it inline.
+
+    ``session`` is unused here, as in :func:`enqueue_demo_seed`.
+    """
+    del session
+    from tripl.worker.tasks.demo_provision import fill_demo_history
+
+    await dispatch(fill_demo_history.delay, str(project_id), request_id)
 
 
 async def _was_reset(session: AsyncSession, project_id: uuid.UUID) -> bool:
@@ -513,25 +573,59 @@ async def _replace_with_failed_shell(
     membership, so they can still read the failure) and nothing else; the
     sweep reclaims it after :data:`FAILED_SHELL_RETENTION_DAYS`.
     """
+    await _replace_shell(session, project_id, ProjectGenerationStatus.failed, error)
+
+
+async def _replace_shell(
+    session: AsyncSession,
+    project_id: uuid.UUID,
+    status: ProjectGenerationStatus,
+    error: str | None,
+) -> None:
+    """Purge a shell's content; keep its id, slug, name, creator and grants.
+
+    ``failed`` leaves the failure marker; ``seeding`` a fresh shell a redelivered
+    seed builds on again, which keeps the ``project.reset`` row a reset filed so
+    the rebuilt demo still files no ``project.create``.
+    """
     shell = await session.get(Project, project_id)
     if shell is None:
         return
     slug, name = shell.slug, shell.name
     created_by, organization_id = shell.created_by_user_id, shell.organization_id
     grants = await project_member_service.snapshot_grants(session, project_id)
-    await _purge_audit_trail(session, shell)
+    keep = ("project.reset",) if status is ProjectGenerationStatus.seeding else ()
+    kept = list(
+        (
+            await session.execute(
+                select(AuditLog.id).where(
+                    AuditLog.project_id == project_id, AuditLog.action.in_(keep)
+                )
+            )
+        ).scalars()
+    )
+    await _purge_audit_trail(session, shell, keep=keep)
     await project_service.purge_project_rows(session, shell)
     await session.flush()
-    failed = _new_demo_project(
+    replacement = _new_demo_project(
         slug=slug, created_by=created_by, organization_id=organization_id, name=name
     )
-    failed.id = project_id
-    failed.generation_status = ProjectGenerationStatus.failed.value
-    failed.generation_stage = None
-    failed.generation_error = error
-    session.add(failed)
+    replacement.id = project_id
+    replacement.generation_status = status.value
+    replacement.generation_stage = (
+        _INIT_STAGE if status is ProjectGenerationStatus.seeding else None
+    )
+    replacement.generation_error = error
+    session.add(replacement)
     await session.flush()
     await project_member_service.restore_grants(session, project_id, grants)
+    if kept:
+        await session.execute(
+            update(AuditLog)
+            .where(AuditLog.id.in_(kept))
+            .values(project_id=project_id)
+            .execution_options(synchronize_session=False)
+        )
     await session.commit()
     await cache.delete_prefix(cache.prefix_projects())
     await cache.delete_prefix(cache.prefix_data_sources())
@@ -643,7 +737,7 @@ async def _live_demo_names(
             Project.created_by_user_id == created_by,
             Project.generation_status != ProjectGenerationStatus.failed.value,
             (Project.generation_status != ProjectGenerationStatus.seeding.value)
-            | (Project.created_at >= stall_cutoff),
+            | (Project.updated_at >= stall_cutoff),
         )
     )
     return list(rows.all())
@@ -671,7 +765,7 @@ async def _sweep_failed_demo_shells(session: AsyncSession) -> int:
                     )
                     | (
                         (Project.generation_status == ProjectGenerationStatus.seeding.value)
-                        & (Project.created_at < stall_cutoff)
+                        & (Project.updated_at < stall_cutoff)
                     ),
                 )
             )
@@ -794,11 +888,19 @@ async def reset_demo_project(
         )
         await _mark_failed(session, replacement_id, "The worker could not be reached.")
         raise HTTPException(status_code=503, detail="Demo provisioning is unavailable") from exc
-    session.expire_all()
+    # The seed may already have moved the shell on (an eager worker): read the
+    # project fresh. Only the projects — ``expire_all`` would expire the
+    # caller's own User too, whose next attribute read (the route's
+    # ``_for_caller``) then lazy-loads outside the greenlet: MissingGreenlet.
+    for instance in list(session.identity_map.values()):
+        if isinstance(instance, Project):
+            session.expire(instance)
     return await project_service.get_project(session, slug)
 
 
-async def _purge_audit_trail(session: AsyncSession, project: Project) -> None:
+async def _purge_audit_trail(
+    session: AsyncSession, project: Project, *, keep: Collection[str] = ()
+) -> None:
     """Drop the audit rows belonging to the demo a reset is about to replace.
 
     Deliberately HERE and not in ``project_service.purge_project_rows``: for a
@@ -841,7 +943,11 @@ async def _purge_audit_trail(session: AsyncSession, project: Project) -> None:
         scopes.append(
             and_(AuditLog.target_type == "data_source", AuditLog.target_id.in_(owned_sources))
         )
-    await session.execute(delete(AuditLog).where(or_(*scopes)))
+    filters: list[ColumnElement[bool]] = [or_(*scopes)]
+    if keep:
+        # The rows a rebuilt shell keeps (``_replace_shell``).
+        filters.append(AuditLog.action.not_in(keep))
+    await session.execute(delete(AuditLog).where(*filters))
 
 
 def _safe_generation_error(exc: Exception) -> str:

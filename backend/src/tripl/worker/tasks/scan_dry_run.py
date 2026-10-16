@@ -21,6 +21,7 @@ from __future__ import annotations
 
 import logging
 import uuid
+from collections.abc import Collection, Mapping
 from dataclasses import dataclass
 from datetime import UTC, datetime
 
@@ -249,6 +250,33 @@ def _existing_event_identities(
     }
 
 
+def _shared_new_name_warning(
+    counts_by_identity: Mapping[tuple[str, str], int],
+    *,
+    existing_identities: Collection[tuple[str, str]],
+) -> str | None:
+    """The warning for new names more than one event type shares, if any.
+
+    The inbox is unique on the identity alone (``_build_shadow_candidate_rows``
+    folds the types), so a name two types share becomes ONE inbox row, under
+    the busier type, and Accept creates it for that type only.
+    """
+    types_by_new_name: dict[str, set[str]] = {}
+    for type_name, identity in counts_by_identity:
+        if (type_name, identity) not in existing_identities:
+            types_by_new_name.setdefault(identity, set()).add(type_name)
+    shared = sorted(name for name, types in types_by_new_name.items() if len(types) > 1)
+    if not shared:
+        return None
+    shown = ", ".join(repr(name) for name in shared[:3])
+    more = f" and {len(shared) - 3} more" if len(shared) > 3 else ""
+    return (
+        f"{len(shared)} new event name(s) appear under more than one event type "
+        f"({shown}{more}). The reconciliation inbox lists each name once, under "
+        "the type with the most volume, and Accept adds it to that type only."
+    )
+
+
 def build_dry_run_payload(
     session: Session,
     adapter: BaseAdapter,
@@ -420,6 +448,11 @@ def build_dry_run_payload(
             f"{new_identities} new event(s) below would not be added to the catalog. "
             "They appear under Reconciliation once metrics are collected."
         )
+        shared_warning = _shared_new_name_warning(
+            counts_by_identity, existing_identities=existing_identities
+        )
+        if shared_warning is not None:
+            warnings.append(shared_warning)
 
     breakdown_combinations = sum(len(t.analysis.rows) for t in targets)
     sampled_rows = sum(

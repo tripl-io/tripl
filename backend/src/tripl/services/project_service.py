@@ -574,6 +574,10 @@ async def _serialize_project(
     response = ProjectResponse.model_validate(project)
     response.summary = summary
     response.generation_progress = await _demo_generation_progress(session, project)
+    if project.is_demo:
+        from tripl.services import demo_history_service
+
+        response.demo_history_progress = await demo_history_service.fill_progress(session, project)
     return response
 
 
@@ -595,7 +599,7 @@ async def _demo_generation_progress(session: AsyncSession, project: Project) -> 
     if config_id is None:
         return 0
     summaries = await pipeline.replay_summaries(session, config_id)
-    return pipeline.history_progress(summaries)
+    return pipeline.history_progress(summaries, span=pipeline.first_build_span())
 
 
 def _serialize_projects(

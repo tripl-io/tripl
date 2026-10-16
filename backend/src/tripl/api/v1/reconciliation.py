@@ -59,8 +59,27 @@ async def _audit_accept(
     if result.event_create is None:
         # The accept LINKED the candidate to an event that already held its
         # identity: no catalog event was created, so there is no ``event.create``
-        # to file, and the event's own create row already names it. Who resolved
-        # the candidate is on the candidate (``resolved_by``/``resolved_at``).
+        # to file. It is still a person's decision about observed traffic, and
+        # the candidate's own ``resolved_by``/``resolved_at`` is no record of it
+        # for the reason ``_audit_dismiss`` gives — the row cascades away with
+        # its scan config. Filed against the candidate, like a dismissal, with
+        # the event it was linked to in the payload.
+        await audit_service.record(
+            session,
+            user=current_user,
+            action="shadow_event.link",
+            target_type="shadow_event_candidate",
+            target_id=candidate.id,
+            target_name=candidate.event_name,
+            project_slug=slug,
+            payload={
+                "linked_event_id": result.event.id,
+                "linked_event_name": result.event.name,
+                "observed_count": candidate.observed_count,
+                "scan_config_id": candidate.scan_config_id,
+                "event_type_id": candidate.event_type_id,
+            },
+        )
         return
     # Filed as ``event.create`` — the action POST /events files — because that is
     # what happened: a catalog event now exists, on this branch, because a person
@@ -135,8 +154,8 @@ async def _audit_dismiss(
         project_slug=slug,
         payload={
             # What makes a dismissal reviewable once the candidate row is gone.
-            # ``observed_count`` is the LATEST collection window's count, not a
-            # total over the seen-span below it — the collector re-collects
+            # ``observed_count`` is the LATEST collection run's count (its
+            # chunks added up), not a total over the seen-span below it — the collector re-collects
             # windows, so summing would double-count (see the column's own
             # comment). The pair still answers "was this busy, and for how
             # long", which is the question a reader has.

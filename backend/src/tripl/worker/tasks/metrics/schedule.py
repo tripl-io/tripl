@@ -24,7 +24,12 @@ from tripl.core.bucketing import floor_to_bucket, to_utc
 from tripl.core.collection_progress import collection_progress_to
 from tripl.core.intervals import get_interval
 from tripl.models.data_source import DataSource, DBType
-from tripl.models.domain_enums import MetricKind, MetricStatus
+from tripl.models.domain_enums import (
+    DemoHistoryStatus,
+    MetricKind,
+    MetricStatus,
+    ProjectGenerationStatus,
+)
 from tripl.models.event_metric import EventMetric
 from tripl.models.metric_definition import MetricDefinition
 from tripl.models.metric_value import MetricValue
@@ -390,8 +395,6 @@ def check_metrics_due() -> dict[str, int]:
 
         dispatched = 0
         for config in configs:
-            if config.id in legacy_demo_configs:
-                continue
             now = datetime.now(UTC)
             # Examine EVERY active job, not just the newest: reap all stale ones
             # so a stuck old job can't be permanently shadowed by a fresher
@@ -406,6 +409,11 @@ def check_metrics_due() -> dict[str, int]:
                     scan_name=config.name,
                 ):
                     has_live_job = True
+            # A frozen legacy demo still has its stale jobs reaped above (a
+            # job left running at the upgrade would otherwise read as live
+            # forever); it is never dispatched.
+            if config.id in legacy_demo_configs:
+                continue
             if has_live_job:
                 logger.info(
                     f"Skipping collect_metrics for {config.name!r}: "
@@ -472,6 +480,12 @@ def check_metrics_due() -> dict[str, int]:
                         "no activity within the demo idle window"
                     )
                     should_run = False
+
+            if should_run and demo_activity is not None and demo_activity[0] is None:
+                # Not built yet (still seeding, or a failed shell): the seed
+                # collects it, and a scheduled run between two of its jobs
+                # would interleave with the next one.
+                should_run = False
 
             if should_run and demo_activity is not None:
                 age_hours = _hours_since_last_scheduled_collection(session, config.id, now=now)
@@ -699,6 +713,47 @@ def metric_definition_cooldown_until(
     return now + (delay - waited)
 
 
+def _demo_projects_held(
+    session: Session, project_ids: set[uuid.UUID], *, now: datetime
+) -> set[uuid.UUID]:
+    """Demo projects whose catalog metrics are not collected on this tick.
+
+    The gates ``check_metrics_due`` applies to a demo's scan, for its catalog
+    metrics: a demo still seeding or filling its history (the build collects
+    them itself), a paused one (nobody is looking), and a legacy demo, frozen
+    until someone resets it (it reads a per-demo ``synthetic`` source).
+    """
+    if not project_ids:
+        return set()
+    rows = session.execute(
+        select(
+            Project.id,
+            Project.generation_status,
+            Project.demo_history_status,
+            Project.demo_seeded_at,
+            Project.demo_last_accessed_at,
+        ).where(Project.id.in_(project_ids), Project.is_demo.is_(True))
+    ).all()
+    if not rows:
+        return set()
+    legacy = set(
+        session.scalars(
+            select(DataSource.project_id).where(
+                DataSource.project_id.in_([row[0] for row in rows]),
+                DataSource.db_type == DBType.synthetic,
+            )
+        )
+    )
+    return {
+        project_id
+        for project_id, status, history, seeded_at, last_accessed in rows
+        if status != ProjectGenerationStatus.ready.value
+        or history == DemoHistoryStatus.filling.value
+        or project_id in legacy
+        or is_demo_paused(seeded_at, last_accessed, now)
+    }
+
+
 @celery_app.task(name="tripl.worker.tasks.metrics.check_metric_definitions_due")  # type: ignore[untyped-decorator]
 def check_metric_definitions_due() -> dict[str, int]:
     """Dispatch ``collect_metric_definitions`` for every active metric that is due.
@@ -733,6 +788,7 @@ def check_metric_definitions_due() -> dict[str, int]:
         )
 
         now = datetime.now(UTC)
+        held = _demo_projects_held(session, {d.project_id for d in definitions}, now=now)
         dispatched = 0
         # Fact metrics are collected in shared warehouse scans, so they are
         # grouped by interval (one bucket grid per group) and dispatched as a
@@ -740,6 +796,8 @@ def check_metric_definitions_due() -> dict[str, int]:
         # have no shared scan to exploit and stay per-metric.
         fact_groups: dict[str, list[MetricDefinition]] = {}
         for definition in definitions:
+            if definition.project_id in held:
+                continue
             if _metric_collection_in_progress(definition, now=now):
                 logger.info(
                     "Skipping collect_metric_definitions for %r: collection already running",

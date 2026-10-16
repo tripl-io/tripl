@@ -172,8 +172,8 @@ class ScanConfigCreate(BaseModel):
     replay_chunk_interval: ScanInterval | None = None
     scan_lookback_hours: int | None = Field(default=None, ge=1, le=INT32_MAX)
     # True: an identity no catalog event answers to becomes a new in_review
-    # event. False: the catalog is left alone and the identity lands in the
-    # reconciliation inbox as a shadow candidate.
+    # event. False: no event is added (event types and fields still are) and
+    # the identity lands in the reconciliation inbox as a shadow candidate.
     auto_create_events: bool = True
     scan_row_limit: int | None = Field(default=None, ge=1, le=INT32_MAX)
     metrics_row_limit: int | None = Field(default=None, ge=1, le=INT32_MAX)

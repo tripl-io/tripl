@@ -399,7 +399,11 @@ async def test_demo_export_has_a_schema_per_event_and_round_trips(client: AsyncC
             assert _validate(schema, {k: v for k, v in sample.items() if k != required}), key
 
     home = schemas["screen_view/Home Screen View"]
-    assert home["required"] == ["screen_name"]
+    # ``event_name`` is the column the demo's scan names events by: the plan
+    # documents it as a required field of every type, valued with the event's
+    # own name, so a payload without it is not this event.
+    assert home["required"] == ["event_name", "screen_name"]
+    assert home["properties"]["event_name"]["const"] == "Home Screen View"
     assert home["properties"]["screen_name"]["const"] == "home"
     # ``${platform}`` -> the variable's allowed values.
     assert home["properties"]["platform"]["enum"] == ["ios", "android", "web"]
@@ -435,7 +439,10 @@ async def test_demo_codegen_model(client: AsyncClient) -> None:
     assert platform["values"] == ["ios", "android", "web"]
     assert platform["variable"] == "platform"
     home = next(ev for ev in screen["events"] if ev["name"] == "Home Screen View")
-    assert home["field_values"] == {"screen_name": "home", "platform": "${platform}"}
+    # What the plan authored; the scan adds what it observed beside it (the
+    # busiest country, the properties' variable template).
+    authored = {"event_name": "Home Screen View", "screen_name": "home", "platform": "${platform}"}
+    assert {key: home["field_values"].get(key) for key in authored} == authored
     assert home["deprecated"] is False
     assert home["overrides"] == {}
     # The demo's authored per-event override rides on its event; the variable

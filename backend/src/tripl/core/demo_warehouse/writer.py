@@ -2,8 +2,10 @@
 
 One run (the ``write_demo_warehouse`` beat task, every five minutes):
 
-1. takes a session advisory lock, so two runs never interleave (a run that
-   finds it held skips);
+1. takes a session advisory lock IN TRIPL'S MAIN DATABASE, so two runs never
+   interleave (a run that finds it held skips). Not in the warehouse database:
+   the reader role connects there, and a visitor's query could take the same
+   key and stall every run;
 2. ensures the schema and a day partition for every day it will write;
 3. rewrites everything when the model changed (:data:`~.rows.MODEL_VERSION`);
 4. writes every row from where the last run stopped (``written_through``) to
@@ -16,6 +18,11 @@ One run (the ``write_demo_warehouse`` beat task, every five minutes):
    :data:`MIN_RETAINED_DAYS` (logging an error: the cap is a backstop, not the
    plan);
 6. logs one line.
+
+Its DDL (creating and dropping partitions) waits at most
+:data:`DDL_LOCK_TIMEOUT` for a reader's query to finish: a partition change
+locks the parent table, and every new reader query would queue behind a
+waiting one. A run that times out stops there and the next run retries.
 
 Skips silently (returns ``None``) when the warehouse is not provisioned or not
 reachable: demos then run on the in-memory engine.
@@ -42,6 +49,8 @@ ADVISORY_LOCK_KEY = int.from_bytes(b"tripldwh", "big") - 2**63
 #: Days the size cap never drops: a demo replays this much history.
 MIN_RETAINED_DAYS = 23
 CONNECT_TIMEOUT_SECONDS = 5
+#: How long the writer's DDL waits for the parent table's lock.
+DDL_LOCK_TIMEOUT = "5s"
 _DAY = timedelta(days=1)
 _PARTITION_RE = re.compile(r"_p(\d{8})$")
 
@@ -59,7 +68,8 @@ class WriteRun:
 
 
 def _day_floor(at: datetime) -> datetime:
-    return at.replace(hour=0, minute=0, second=0, microsecond=0)
+    """The UTC midnight of ``at`` (an aware instant in any zone)."""
+    return at.astimezone(UTC).replace(hour=0, minute=0, second=0, microsecond=0)
 
 
 def retention_start(now: datetime) -> datetime:
@@ -126,7 +136,10 @@ def _state(conn: psycopg.Connection[tuple[object, ...]]) -> tuple[str | None, da
     ).fetchone()
     if row is None:
         return None, None
-    return (str(row[0]) if row[0] is not None else None), row[1]  # type: ignore[return-value]
+    written_through = row[1]
+    if isinstance(written_through, datetime):
+        written_through = written_through.astimezone(UTC)
+    return (str(row[0]) if row[0] is not None else None), written_through  # type: ignore[return-value]
 
 
 def _save_state(conn: psycopg.Connection[tuple[object, ...]], **values: object) -> None:
@@ -140,6 +153,7 @@ def _save_state(conn: psycopg.Connection[tuple[object, ...]], **values: object) 
 
 
 def _write(conn: psycopg.Connection[tuple[object, ...]], now: datetime) -> WriteRun:
+    conn.execute(sql.SQL("SET lock_timeout = {}").format(sql.Literal(DDL_LOCK_TIMEOUT)))
     for statement in schema.schema_ddl():
         conn.execute(statement)
     conn.execute(
@@ -205,7 +219,10 @@ def _write(conn: psycopg.Connection[tuple[object, ...]], now: datetime) -> Write
     _save_state(
         conn,
         oldest=oldest,
-        last_run_at=now,
+        # The wall clock, not ``now``: a caller may pass a floored clock (a
+        # demo build passes its seed hour), and the status reads this as "when
+        # the writer last ran".
+        last_run_at=datetime.now(UTC),
         last_run_rows=written,
         last_error=None,
     )
@@ -242,43 +259,23 @@ def write(now: datetime | None = None, *, wait_seconds: int | None = None) -> Wr
     current = now if now is not None else datetime.now(UTC)
     writer = connection.writer_connection()
     try:
-        conn = psycopg.connect(
-            **writer.kwargs(connect_timeout=CONNECT_TIMEOUT_SECONDS),  # type: ignore[arg-type]
+        lock_conn = psycopg.connect(
+            **connection.main_connection().kwargs(connect_timeout=CONNECT_TIMEOUT_SECONDS),  # type: ignore[arg-type]
             autocommit=True,
         )
     except psycopg.OperationalError as exc:
-        logger.debug("demo_warehouse.write skipped: warehouse not reachable (%s)", exc)
+        logger.debug("demo_warehouse.write skipped: tripl's database not reachable (%s)", exc)
         return None
-    with conn:
-        if wait_seconds is not None:
-            conn.execute(sql.SQL("SET lock_timeout = {}").format(sql.Literal(f"{wait_seconds}s")))
-            try:
-                conn.execute("SELECT pg_advisory_lock(%s)", (ADVISORY_LOCK_KEY,))
-            except psycopg.errors.LockNotAvailable:
-                logger.warning(
-                    "demo_warehouse.write skipped: another run held the lock for over %ss",
-                    wait_seconds,
-                )
-                return None
-            conn.execute("RESET lock_timeout")
-        else:
-            locked = conn.execute(
-                "SELECT pg_try_advisory_lock(%s)", (ADVISORY_LOCK_KEY,)
-            ).fetchone()
-            if not locked or not locked[0]:
-                logger.info("demo_warehouse.write skipped: another run holds the lock")
-                return None
-        try:
-            run = _write(conn, current)
-        except psycopg.errors.InsufficientPrivilege as exc:
-            logger.warning("demo_warehouse.write skipped: %s", exc)
+    with lock_conn:
+        if not _take_lock(lock_conn, wait_seconds):
             return None
-        except Exception as exc:
-            _record_error(conn, exc)
-            raise
+        try:
+            run = _write_locked(writer, current)
         finally:
-            if not conn.closed:
-                conn.execute("SELECT pg_advisory_unlock(%s)", (ADVISORY_LOCK_KEY,))
+            if not lock_conn.closed:
+                lock_conn.execute("SELECT pg_advisory_unlock(%s)", (ADVISORY_LOCK_KEY,))
+    if run is None:
+        return None
     logger.info(
         "demo_warehouse.write rows=%s written_through=%s oldest=%s size_mb=%.1f dropped_days=%s%s",
         run.rows_written,
@@ -289,3 +286,53 @@ def write(now: datetime | None = None, *, wait_seconds: int | None = None) -> Wr
         " rewritten=true" if run.rewritten else "",
     )
     return run
+
+
+def _take_lock(conn: psycopg.Connection[tuple[object, ...]], wait_seconds: int | None) -> bool:
+    """The writer's advisory lock on ``conn`` (tripl's main database)."""
+    if wait_seconds is not None:
+        conn.execute(sql.SQL("SET lock_timeout = {}").format(sql.Literal(f"{wait_seconds}s")))
+        try:
+            conn.execute("SELECT pg_advisory_lock(%s)", (ADVISORY_LOCK_KEY,))
+        except psycopg.errors.LockNotAvailable:
+            logger.warning(
+                "demo_warehouse.write skipped: another run held the lock for over %ss",
+                wait_seconds,
+            )
+            return False
+        conn.execute("RESET lock_timeout")
+        return True
+    locked = conn.execute("SELECT pg_try_advisory_lock(%s)", (ADVISORY_LOCK_KEY,)).fetchone()
+    if not locked or not locked[0]:
+        logger.info("demo_warehouse.write skipped: another run holds the lock")
+        return False
+    return True
+
+
+def _write_locked(writer: connection.WarehouseConnection, now: datetime) -> WriteRun | None:
+    try:
+        conn = psycopg.connect(
+            **writer.kwargs(connect_timeout=CONNECT_TIMEOUT_SECONDS),  # type: ignore[arg-type]
+            autocommit=True,
+        )
+    except psycopg.OperationalError as exc:
+        logger.debug("demo_warehouse.write skipped: warehouse not reachable (%s)", exc)
+        return None
+    with conn:
+        try:
+            return _write(conn, now)
+        except psycopg.errors.InsufficientPrivilege as exc:
+            logger.warning("demo_warehouse.write skipped: %s", exc)
+            return None
+        except psycopg.errors.LockNotAvailable:
+            # A reader's query held the parent table past DDL_LOCK_TIMEOUT. What
+            # was committed stays; the next run carries on from there.
+            logger.warning(
+                "demo_warehouse.write stopped: a partition change waited over %s for a "
+                "reader's query; the next run retries",
+                DDL_LOCK_TIMEOUT,
+            )
+            return None
+        except Exception as exc:
+            _record_error(conn, exc)
+            raise
