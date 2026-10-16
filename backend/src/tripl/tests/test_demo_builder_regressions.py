@@ -53,13 +53,17 @@ def _utc(value: datetime) -> datetime:
 @pytest.mark.asyncio
 async def test_sweeping_a_stalled_shell_drops_its_audit_trail() -> None:
     """A shell that never became a workspace keeps no orphaned trail."""
+    stalled_at = datetime.now(UTC) - timedelta(hours=demo_service.STALLED_SEEDING_HOURS + 1)
     async with TestSessionLocal() as session:
         stalled = Project(
             name="Demo Project",
             slug="demo-stalled",
             is_demo=True,
             generation_status=ProjectGenerationStatus.seeding.value,
-            created_at=datetime.now(UTC) - timedelta(hours=demo_service.STALLED_SEEDING_HOURS + 1),
+            # Abandoned: nothing has written to it since it was created, and the
+            # stall is judged by the last write (every stage bumps updated_at).
+            created_at=stalled_at,
+            updated_at=stalled_at,
         )
         session.add(stalled)
         await session.flush()

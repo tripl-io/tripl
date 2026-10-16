@@ -680,7 +680,10 @@ async def test_a_shell_abandoned_mid_seed_never_locks_out_the_creator(
                     is_demo=True,
                     generation_status=ProjectGenerationStatus.seeding.value,
                     created_by_user_id=uuid.UUID(me["id"]),
+                    # Nothing has written to an abandoned shell since its
+                    # creation; the stall is judged by that last write.
                     created_at=datetime.now(UTC) - stalled_age,
+                    updated_at=datetime.now(UTC) - stalled_age,
                 )
                 for index in range(demo_service.MAX_DEMOS_PER_CREATOR)
             ]

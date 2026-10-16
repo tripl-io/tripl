@@ -6,7 +6,7 @@ The first build (``POST /projects/demo``) replays and scores
 rest of ``DEMO_HISTORY_DAYS`` back to the history's start, re-scores the last
 three weeks, files the alerts two days of baseline could not, and runs the
 steps that read the whole history. Here the fill is held when the build queues it and run by the
-test, so each phase is observed on its own.
+test, so each phase is observed on its own; so is each slice the fill queues the rest in.
 """
 
 from __future__ import annotations
@@ -74,12 +74,25 @@ async def test_a_demo_opens_on_two_days_and_the_fill_completes_it(
     run = await client.post(f"/api/v1/projects/{demo['slug']}/scans/{scans[0]['id']}/run")
     assert run.status_code == 409, run.text
 
+    # Sliced as on the worker, at its finest: every replay job spends the
+    # slice, queues the rest and returns, and the next task resumes where it
+    # stopped (a task of its own, so a session of its own).
     started = time.perf_counter()
-    async with TestSessionLocal() as session:
-        outcome = await demo_history_service.finish_demo_history(session, project_id)
+    slices = 0
+    while True:
+        async with TestSessionLocal() as session:
+            outcome = await demo_history_service.finish_demo_history(
+                session, project_id, budget=timedelta(0)
+            )
+        if outcome != "continued":
+            break
+        slices += 1
+        assert slices <= len(pipeline.fill_windows(seeded_at)), "a slice replayed a window again"
     fill = time.perf_counter() - started
     assert outcome == "complete"
-    print(f"\nfirst build {first_build:.1f}s, history fill {fill:.1f}s")
+    assert slices == len(pipeline.fill_windows(seeded_at))
+    assert held_fills == [project_id] * (1 + slices)
+    print(f"\nfirst build {first_build:.1f}s, history fill {fill:.1f}s in {slices + 1} slices")
 
     filled = (await client.get(f"/api/v1/projects/{demo['slug']}")).json()
     assert filled["demo_history_status"] == "complete"

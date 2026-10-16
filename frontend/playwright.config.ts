@@ -29,7 +29,9 @@ export default defineConfig({
   // CI on purpose: E2E_UPDATE_SNAPSHOTS (the `update-snapshots` pull request
   // label) writes the missing and changed ones, and the job uploads them.
   updateSnapshots: process.env.E2E_UPDATE_SNAPSHOTS === 'true' ? 'changed' : process.env.CI ? 'none' : 'missing',
-  reporter: process.env.CI ? [['list'], ['html', { open: 'never' }]] : 'list',
+  // 'line' prints each failure the moment it happens, so a job cancelled at its
+  // time limit still shows what failed ('list' saves them for the end).
+  reporter: process.env.CI ? [['line'], ['html', { open: 'never' }]] : 'list',
   use: {
     baseURL,
     trace: 'retain-on-failure',

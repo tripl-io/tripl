@@ -12,11 +12,17 @@ queued once the fill is done.
 The fill runs on the build's clock (``demo_seeded_at``), so its windows meet
 the first build's exactly. It stops quietly when the demo goes away under it —
 deleted, or reset (a reset is a new project id with a fill of its own).
+
+On the worker a fill runs in slices of :data:`FILL_SLICE`: when a slice is
+spent, the task queues the rest behind whatever waits and returns. A fill takes
+minutes and every visitor's demo starts one, so a fill holding its slot to the
+end would keep the next visitor's build — and every scan — waiting for it.
 """
 
 from __future__ import annotations
 
 import logging
+import time
 import uuid
 from datetime import UTC, datetime, timedelta
 
@@ -27,6 +33,7 @@ from tripl import cache
 from tripl.core.bucketing import to_utc
 from tripl.core.demo_warehouse.calendar import PROMO_EVENT
 from tripl.middleware.org_context import OrgRef, bound_org
+from tripl.middleware.request_id import current_request_id
 from tripl.models.domain_enums import DemoHistoryStatus, ProjectGenerationStatus
 from tripl.models.event import Event
 from tripl.models.metric_definition import MetricDefinition
@@ -44,9 +51,18 @@ DEMO_HISTORY_FILL_FAILED_EVENT = "demo.history_fill.failed"
 #: button forever; a live one commits a replay job at least every few minutes.
 HISTORY_FILL_STALL = timedelta(hours=1)
 
+#: How long one fill task works before it queues the rest and frees its worker
+#: slot. A replay job is never cut: the slice ends at the first job boundary
+#: past it.
+FILL_SLICE = timedelta(seconds=30)
+
 
 class _Gone(Exception):
     """The demo is no longer the one this fill was for (deleted or reset)."""
+
+
+class _Continued(Exception):
+    """The slice is spent and the rest of the fill is queued."""
 
 
 def needs_fill(now: datetime) -> bool:
@@ -54,13 +70,20 @@ def needs_fill(now: datetime) -> bool:
     return bool(pipeline.fill_windows(now))
 
 
-async def finish_demo_history(session: AsyncSession, project_id: uuid.UUID) -> str:
-    """Fill a ready demo's history; returns ``complete``, ``failed`` or ``skipped``.
+async def finish_demo_history(
+    session: AsyncSession, project_id: uuid.UUID, *, budget: timedelta | None = None
+) -> str:
+    """Fill a ready demo's history; returns ``complete``, ``continued``, ``failed`` or ``skipped``.
 
     ``skipped`` when there is nothing to fill: the project is gone, is not a
     ready demo, or is not ``filling`` (a redelivered task after the fill ended).
     A redelivered task while it is still ``filling`` resumes it: the replay
     windows a completed job already covers are not replayed again.
+
+    With a ``budget`` (the worker passes :data:`FILL_SLICE`), the first replay
+    job to end past it queues the rest of the fill as a task of its own and
+    the call returns ``continued``; a broker that refuses it leaves this call
+    to finish the fill itself.
     """
     project = await session.get(Project, project_id)
     if not _is_filling(project):
@@ -68,6 +91,16 @@ async def finish_demo_history(session: AsyncSession, project_id: uuid.UUID) -> s
     assert project is not None
     seeded_at = project.demo_seeded_at
     deliveries: list[str] = []
+    deadline = None if budget is None else time.monotonic() + budget.total_seconds()
+
+    async def between_jobs() -> None:
+        nonlocal deadline
+        await _raise_if_gone(session, project_id)
+        if deadline is not None and time.monotonic() >= deadline:
+            deadline = None
+            if await _queue_the_rest(session, project_id):
+                raise _Continued
+
     org_slug = await session.scalar(
         select(Organization.slug).where(Organization.id == project.organization_id)
     )
@@ -78,14 +111,13 @@ async def finish_demo_history(session: AsyncSession, project_id: uuid.UUID) -> s
             return "complete"
         try:
             await pipeline.fill_history(
-                session,
-                ctx,
-                deliveries=deliveries,
-                between_jobs=lambda: _raise_if_gone(session, project_id),
+                session, ctx, deliveries=deliveries, between_jobs=between_jobs
             )
         except _Gone:
             await session.rollback()
             return "skipped"
+        except _Continued:
+            return "continued"
         except Exception as exc:
             await session.rollback()
             if not _is_filling(await _fresh(session, project_id)):
@@ -164,6 +196,23 @@ async def _fresh(session: AsyncSession, project_id: uuid.UUID) -> Project | None
 async def _raise_if_gone(session: AsyncSession, project_id: uuid.UUID) -> None:
     if not _is_filling(await _fresh(session, project_id)):
         raise _Gone
+
+
+async def _queue_the_rest(session: AsyncSession, project_id: uuid.UUID) -> bool:
+    """Hand the rest of the fill to a task of its own; False if the broker refuses."""
+    # Looked up at call time: the seam a suite without a broker replaces.
+    from tripl.services import demo_service
+
+    try:
+        await demo_service.enqueue_demo_history_fill(session, project_id, current_request_id())
+    except Exception:
+        logger.warning(
+            "demo.history_fill.requeue_failed project_id=%s error=broker_unavailable",
+            project_id,
+            exc_info=True,
+        )
+        return False
+    return True
 
 
 async def _fill_context(session: AsyncSession, project: Project) -> DemoContext | None:

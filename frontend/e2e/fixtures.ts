@@ -23,6 +23,13 @@ export interface SharedDemo {
  */
 export const DEMO_BUILD_TIMEOUT_MS = 320_000
 
+/**
+ * How long a demo's history fill may take before a spec gives up on it: about
+ * five minutes on a CI runner on its own, longer while another demo's fill
+ * takes turns with it on the worker.
+ */
+export const DEMO_HISTORY_TIMEOUT_MS = 480_000
+
 /** Sign up a fresh account through the API; the session lands in the page's context. */
 async function signUp(page: Page, name: string): Promise<Account> {
   const account: Account = {
@@ -36,6 +43,26 @@ async function signUp(page: Page, name: string): Promise<Account> {
 }
 
 /**
+ * Delete the demos the signed-in account generated. A demo left behind goes on
+ * filling its history on the worker, which the next test's build waits for.
+ */
+async function deleteOwnDemos(page: Page): Promise<void> {
+  const me = await page.request.get('/api/v1/auth/me')
+  if (!me.ok()) return
+  const { id } = (await me.json()) as { id: string }
+  const projects = (await (await page.request.get('/api/v1/projects')).json()) as {
+    slug: string
+    is_demo?: boolean
+    created_by_user_id?: string | null
+  }[]
+  for (const project of projects) {
+    if (project.is_demo && project.created_by_user_id === id) {
+      await page.request.delete(`/api/v1/projects/demo/${project.slug}`)
+    }
+  }
+}
+
+/**
  * Every test signs up an account of its own, so tests share nothing but the
  * stack — except the tests on the worker's shared demo (`demoTest`). Sign-up
  * goes through the API (the sign-in page has tests of its own); the session
@@ -46,6 +73,7 @@ async function signUp(page: Page, name: string): Promise<Account> {
 export const test = base.extend<{ account: Account }, { sharedDemo: SharedDemo }>({
   account: async ({ page }, provide) => {
     await provide(await signUp(page, 'E2E Visitor'))
+    await deleteOwnDemos(page)
   },
   // Built on first use and kept for the worker's life. Playwright replaces a
   // worker after any failed test, so a demo a failure left half-changed is
@@ -130,14 +158,14 @@ export async function generateDemo(page: Page): Promise<string> {
  * weekly promo verdicts, the alerts the full baseline finds.
  */
 export async function waitForDemoHistory(page: Page, slug: string): Promise<void> {
-  allowDemoBuild()
+  test.setTimeout(test.info().timeout + DEMO_HISTORY_TIMEOUT_MS)
   await expect
     .poll(
       async () => {
         const response = await page.request.get(`/api/v1/projects/${slug}`)
         return ((await response.json()) as { demo_history_status?: string | null }).demo_history_status
       },
-      { timeout: DEMO_BUILD_TIMEOUT_MS, intervals: [2_000, 5_000] },
+      { timeout: DEMO_HISTORY_TIMEOUT_MS, intervals: [2_000, 5_000] },
     )
     .not.toBe('filling')
 }

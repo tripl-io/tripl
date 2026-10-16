@@ -660,7 +660,7 @@ def execute_collect_metrics(
     in several jobs and scores it once; the task passes neither. With
     ``skip_detection`` the run stores its window (metrics, breakdowns,
     distribution drift, release regressions) but leaves anomaly detection,
-    attribution and alert dispatch to a later run. ``evaluation_from`` reaches
+    attribution, release markers and alert dispatch to a later run. ``evaluation_from`` reaches
     the anomaly evaluation window back to that instant, so the one run that
     scores re-scores the history the others only stored.
     """
@@ -1374,8 +1374,14 @@ def execute_collect_metrics(
         release_regressions_detected = _recalculate_release_regressions(session, config)
         # Same anchoring and the same activation gate: a version absent at the
         # start of that slice that activated inside it gets its
-        # "Release <version>" chart marker.
-        release_annotations_created = _sync_release_annotations(session, config)
+        # "Release <version>" chart marker. Unlike the verdicts above, a marker
+        # is insert-only and never moves, so a store-only run leaves it to the
+        # run that scores: a demo fills its older history AFTER its newest days,
+        # and a slice with that gap in it reads a release that shipped inside
+        # the gap as activating at the gap's far edge.
+        release_annotations_created = 0
+        if not skip_detection:
+            release_annotations_created = _sync_release_annotations(session, config)
         # "Why did it change?" (F02, #255), fixed at detection time and BEFORE
         # the alert deliveries below, so the alert quotes the split the UI shows.
         anomaly_attributions_computed = 0

@@ -59,12 +59,18 @@ def seed_demo_project(project_id: str, request_id: str | None = None) -> str:
 
 @celery_app.task(name=FILL_TASK_NAME)  # type: ignore[untyped-decorator]
 def fill_demo_history(project_id: str, request_id: str | None = None) -> str:
-    """Fill a ready demo's history; returns ``complete``, ``failed`` or ``skipped``."""
+    """Fill a ready demo's history; returns ``complete``, ``continued``, ``failed`` or ``skipped``.
+
+    ``continued``: this task's slice is spent and the rest is queued behind
+    whatever waits for the worker (:data:`demo_history_service.FILL_SLICE`).
+    """
     outcome = "skipped"
 
     async def _run(session: AsyncSession) -> None:
         nonlocal outcome
-        outcome = await demo_history_service.finish_demo_history(session, uuid.UUID(project_id))
+        outcome = await demo_history_service.finish_demo_history(
+            session, uuid.UUID(project_id), budget=demo_history_service.FILL_SLICE
+        )
 
     with bound_request_id(request_id) if request_id else contextlib.nullcontext():
         asyncio.run(run_with_async_worker_session(_run))

@@ -259,7 +259,10 @@ def test_the_reader_sees_only_the_two_warehouse_tables(warehouse: datetime) -> N
         psycopg.connect(**into_main.kwargs(), autocommit=True) as conn,  # type: ignore[arg-type]
         pytest.raises(psycopg.errors.InsufficientPrivilege),
     ):
-        conn.execute(sql.SQL("SELECT * FROM {}").format(sql.Identifier(_PROBE_TABLE)))
+        # Schema-qualified: the reader's role-level search_path (``warehouse``)
+        # follows it into every database, so a bare name would not resolve here
+        # and the refusal under test would never be reached.
+        conn.execute(sql.SQL("SELECT * FROM {}").format(sql.Identifier("public", _PROBE_TABLE)))
 
 
 def test_the_reader_cannot_lift_its_temp_file_limit(warehouse: datetime) -> None:
@@ -430,6 +433,10 @@ def test_the_two_engines_answer_alike(warehouse: datetime) -> None:
                 filter_sql="status = 'refunded'",
             ),
         ]
+        # A fact query is introspected before it is aggregated, as a collection
+        # does: the adapters check every column against the last introspection.
+        for adapter in (postgres, memory):
+            adapter.get_columns(schema.ORDERS_SQL)
         pg, mem = both(
             "get_time_bucketed_multi_aggregate_breakdown",
             schema.ORDERS_SQL,
