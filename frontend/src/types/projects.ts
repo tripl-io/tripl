@@ -54,6 +54,8 @@ export interface ProjectSummary {
  * failed demo is rolled back / hidden, so the UI treats a listed demo as
  * effectively `'ready'` unless the response says otherwise.
  */
+export type DemoHistoryStatus = 'filling' | 'complete' | 'failed'
+
 export type ProjectGenerationStatus = 'ready' | 'failed' | 'seeding' | 'pending'
 
 export interface Project {
@@ -83,6 +85,12 @@ export interface Project {
   // Seed time, floored to the hour, so it is NOT a freshness stamp — a demo
   // seeded at 10:59 carries 10:00.
   demo_seeded_at?: string | null
+  // The history filled in after the demo opens (the first build replays the
+  // last two days): 'filling', then 'complete' or 'failed'; null on a real
+  // project or a demo built before the fill existed.
+  demo_history_status?: DemoHistoryStatus | null
+  // 0-100 through that fill while it is 'filling'; null otherwise.
+  demo_history_progress?: number | null
   // When a collection last advanced this demo's data from the demo warehouse;
   // null until the first one. The only honest freshness signal we have.
   demo_last_tick_at?: string | null

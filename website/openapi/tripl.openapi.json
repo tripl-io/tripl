@@ -44004,6 +44004,16 @@
         "title": "DemoCancelResponse",
         "description": "Outcome of asking an in-flight demo provision to abandon itself.\n\n``cancelled`` is only true when a still-seeding shell was found and flagged;\nthe provision then deletes itself instead of promoting.\n\nWhen it is false there was nothing to stop, and ``state`` says which of two\nvery different things that means: ``finished`` \u2014 a demo of this\nuser's became ready moments ago, so it WILL be in their projects list and\nthe caller should say so \u2014 or ``none`` \u2014 no recent demo exists, the create\nnever got far enough (or failed on its own), and the caller must not promise\nanything will appear. ``stopped`` always pairs with ``cancelled=true``."
       },
+      "DemoHistoryStatus": {
+        "type": "string",
+        "enum": [
+          "filling",
+          "complete",
+          "failed"
+        ],
+        "title": "DemoHistoryStatus",
+        "description": "The history fill of a ready demo (``fill_demo_history``).\n\nA demo opens with the last two days of its history replayed and scored; the\nrest is replayed afterwards: ``filling`` while that runs, then ``complete``,\nor ``failed`` when it stopped (the demo stays usable on what it holds).\nNULL on a demo built before the fill existed, and on a real project."
+      },
       "DemoWarehouseStatus": {
         "properties": {
           "mode": {
@@ -60558,6 +60568,27 @@
             ],
             "title": "Demo Seeded At"
           },
+          "demo_history_status": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/DemoHistoryStatus"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "demo_history_progress": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Demo History Progress"
+          },
           "demo_last_tick_at": {
             "anyOf": [
               {
@@ -61090,6 +61121,27 @@
               }
             ],
             "title": "Demo Seeded At"
+          },
+          "demo_history_status": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/DemoHistoryStatus"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "demo_history_progress": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Demo History Progress"
           },
           "demo_last_tick_at": {
             "anyOf": [

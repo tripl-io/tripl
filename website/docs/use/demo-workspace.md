@@ -94,9 +94,7 @@ reaches it:
    so the two names no plan documents stay out of the catalog.
 2. **History** — a real metrics replay over the last two days, in one-day
    chunks; the dialog shows how far through it is. One job scores them once
-   and dispatches what it finds. The last window is the scheduler's first live
-   collection: it runs the field-contract check (the GBP purchases and the
-   zero amounts) and starts the source's freshness watermarks.
+   and dispatches what it finds.
 3. **Signals** — the catalog metrics through the worker's own collectors, the
    event lifecycle pass, and the search index.
 
@@ -109,9 +107,13 @@ look around; the demo's banner says *Filling in history* with how far it is,
 and **Run now** and **Replay** on the demo's scan wait until it is done
 (a few minutes). The fill replays the older weeks, then scores the last three
 weeks once on the full baseline and dispatches what it finds, so the newest
-incident files the alert deliveries a live collection would have; then it
-marks the weekly promo sends and tags the planned window, the steps that need
-the whole history.
+incident files the alert deliveries a live collection would have. Then comes
+the scheduler's first live collection, up to the hour the demo was built: it
+runs the field-contract check (the GBP purchases and the zero amounts), files
+the two unplanned names in the reconciliation inbox and starts the source's
+freshness watermarks; it runs last because the dispatcher alerts on an
+incident only while it heads its series. Last, the fill marks the weekly promo
+sends and tags the planned window, the steps that need the whole history.
 
 What you land on is therefore the pipeline's: anomalies on the warehouse's
 incidents and their attributions, distribution drift on the country mix,

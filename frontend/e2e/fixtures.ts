@@ -124,6 +124,24 @@ export async function generateDemo(page: Page): Promise<string> {
   return buildDemo(page)
 }
 
+/**
+ * Wait for a demo's history fill (it opens on its last two days and fills the
+ * rest on the worker). Only a spec that needs the whole story waits — the
+ * weekly promo verdicts, the alerts the full baseline finds.
+ */
+export async function waitForDemoHistory(page: Page, slug: string): Promise<void> {
+  allowDemoBuild()
+  await expect
+    .poll(
+      async () => {
+        const response = await page.request.get(`/api/v1/projects/${slug}`)
+        return ((await response.json()) as { demo_history_status?: string | null }).demo_history_status
+      },
+      { timeout: DEMO_BUILD_TIMEOUT_MS, intervals: [2_000, 5_000] },
+    )
+    .not.toBe('filling')
+}
+
 /** Delete the demo from its banner; the workspace offers a new one again. */
 export async function deleteDemo(page: Page): Promise<void> {
   const banner = page.locator('[data-demo-banner]')

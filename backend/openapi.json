@@ -7834,6 +7834,16 @@
         "title": "DemoCancelResponse",
         "type": "object"
       },
+      "DemoHistoryStatus": {
+        "description": "The history fill of a ready demo (``fill_demo_history``).\n\nA demo opens with the last two days of its history replayed and scored; the\nrest is replayed afterwards: ``filling`` while that runs, then ``complete``,\nor ``failed`` when it stopped (the demo stays usable on what it holds).\nNULL on a demo built before the fill existed, and on a real project.",
+        "enum": [
+          "filling",
+          "complete",
+          "failed"
+        ],
+        "title": "DemoHistoryStatus",
+        "type": "string"
+      },
       "DemoWarehouseStatus": {
         "description": "The demo warehouse every demo reads (core/demo_warehouse/status.py).",
         "properties": {
@@ -24311,6 +24321,27 @@
             ],
             "title": "Created By User Id"
           },
+          "demo_history_progress": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Demo History Progress"
+          },
+          "demo_history_status": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/DemoHistoryStatus"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "demo_last_tick_at": {
             "anyOf": [
               {
@@ -24842,6 +24873,27 @@
               }
             ],
             "title": "Created By User Id"
+          },
+          "demo_history_progress": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Demo History Progress"
+          },
+          "demo_history_status": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/DemoHistoryStatus"
+              },
+              {
+                "type": "null"
+              }
+            ]
           },
           "demo_last_tick_at": {
             "anyOf": [

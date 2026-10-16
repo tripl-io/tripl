@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto'
 
-import { expect, generateDemo, test } from './fixtures'
+import { expect, generateDemo, test, waitForDemoHistory } from './fixtures'
 
 /**
  * The smoke suite: the paths a new team walks on day one, through the built
@@ -53,6 +53,8 @@ test('sign up and sign in through the forms, then create a project', async ({ pa
 test('a scan runs on the worker and the anomaly reaches the alert inbox', async ({ page, account }) => {
   void account
   const slug = await generateDemo(page)
+  // Run now waits (409) while the demo fills in its history on the worker.
+  await waitForDemoHistory(page, slug)
 
   // Run the demo's scan the way a user does, from the Scans page.
   const scans = (await (await page.request.get(`/api/v1/projects/${slug}/scans`)).json()) as {

@@ -34,6 +34,7 @@ const POSTGRES: Warehouse = {
   last_run_at: '2026-10-16T09:30:00Z',
   last_error: null,
   reason: null,
+  reader_limits_missing: [],
 }
 
 function tile(): HTMLElement {

@@ -13,13 +13,14 @@ first week with tripl would:
   opens in seconds rather than minutes. One job ends just after the newest
   incident's first complete hour; that job alone also runs detection,
   attribution and dispatch, once, over what the build holds
-  (:func:`scoring_window`): the dispatcher sees the incident at the head of its
-  series and files the alert deliveries a live collection would have. The last
-  window is the scheduler's first live collection instead, up to the seed
-  hour: it runs the field-contract check a replay skips (the warehouse breaks
-  the ``currency`` enum with GBP and the ``amount`` minimum with 0.00 rows) and
-  starts the source's freshness watermarks. Everything these jobs observe —
-  anomalies, attributions, distribution drift, schema drift, release
+  (:func:`scoring_window`). The window after it is the scheduler's first live
+  collection, up to the seed hour: it runs the field-contract check a replay
+  skips (the warehouse breaks the ``currency`` enum with GBP and the
+  ``amount`` minimum with 0.00 rows), files the unplanned names in the
+  reconciliation inbox and starts the source's freshness watermarks. When
+  there is older history to fill, the fill runs it, after its own scoring pass:
+  the dispatcher alerts on an incident only at the head of its series.
+  Everything these jobs observe — anomalies, attributions, distribution drift, schema drift, release
   regressions and markers, shadow candidates, coverage — is the pipeline's;
 * **signals** — the catalog metrics through the worker's collectors, the
   lifecycle pass, then the human reactions to what was observed (the stated
@@ -299,7 +300,8 @@ async def run_history_stage(
     """Collect the first build's history; collect the alert deliveries it files.
 
     The last :data:`FIRST_BUILD_HISTORY` only (:func:`fill_history` replays the
-    rest once the demo is open). Every job stores its window, and one of them —
+    rest once the demo is open, and then runs the live window this leaves out
+    when there is a rest to fill). Every job stores its window, and one of them —
     the job ending at the alerting split — also scores :func:`scoring_window`:
     a single detection, attribution and dispatch pass, where a job each would
     re-fit every scope's seasonal model once per job.
@@ -314,13 +316,18 @@ async def run_history_stage(
     start = first_build_start(ctx.now)
     windows = history_windows(ctx.now, start)
     scored_from, scored_to = scoring_window(ctx.now, start)
-    for index, (time_from, time_to) in enumerate(windows):
+    if fill_windows(ctx.now) and windows[-1][1] != scored_to:
+        # The live window waits for the history fill, which runs it last: the
+        # dispatcher alerts on an incident only at the head of its series, so
+        # the fill's scoring pass must come before any hour after the split.
+        windows = windows[:-1]
+    for time_from, time_to in windows:
         # The last window is the scheduler's first tick rather than a replay: a
         # replay skips the field-contract check (so the contract violations the
         # warehouse carries are never filed) and leaves the freshness watermarks
         # alone. A live collection resumes where the replays stopped, which is
         # this window's start, and runs up to the current hour.
-        live = index == len(windows) - 1
+        live = time_to == windows[-1][1] and time_to == _hour(ctx.now)
         scores = time_to == scored_to
         job_id = await _new_job(session, config_id)
         with _collector_paused():
@@ -429,8 +436,10 @@ async def fill_history(
     :func:`scoring_window` over the whole history and dispatches what it
     finds: two days are too short a baseline for the volume incidents, so
     their alerts are filed here, while the dispatcher's per-scope state keeps
-    the ones the first build filed from repeating. Last, the steps that read
-    the whole history. The deliveries are enqueued by the caller.
+    the ones the first build filed from repeating. Then the live collection
+    the first build left out (it would have put hours after the incident at
+    the head of its series), and last the steps that read the whole history.
+    The deliveries are enqueued by the caller.
     """
     config_id = _require(ctx.scan_config_id, "scan config")
 
@@ -457,19 +466,38 @@ async def fill_history(
         if between_jobs is not None:
             await between_jobs()
 
+    # Then the first build's tail, in the order a one-phase build runs it: the
+    # scoring pass ending at the alerting split (the incident at the head of
+    # its series), then the live collection up to the build hour, which the
+    # first build left for last.
     scored_from, scored_to = scoring_window(ctx.now)
+    live_scores = scored_to == _hour(ctx.now)
+    if not live_scores:
+        job_id = await _new_job(session, config_id)
+        with _collector_paused():
+            await session.run_sync(
+                execute_collect_metrics,
+                str(config_id),
+                str(job_id),
+                (scored_to - _HOUR).isoformat(),
+                scored_to.isoformat(),
+                enqueue_delivery=deliveries.append,
+                evaluation_from=scored_from,
+            )
+        await _require_completed(session, job_id, "history scoring")
     job_id = await _new_job(session, config_id)
     with _collector_paused():
         await session.run_sync(
             execute_collect_metrics,
             str(config_id),
             str(job_id),
-            (scored_to - _HOUR).isoformat(),
-            scored_to.isoformat(),
+            None,
+            None,
             enqueue_delivery=deliveries.append,
-            evaluation_from=scored_from,
+            skip_detection=not live_scores,
+            evaluation_from=scored_from if live_scores else None,
         )
-    await _require_completed(session, job_id, "history scoring")
+    await _require_completed(session, job_id, "metrics collection")
     await collect_catalog_metrics(session, ctx, kinds={MetricKind.event_composition})
     await mark_weekly_promo_expected(session, ctx)
     await session.run_sync(retag_planned_anomalies, ctx.project_id)
@@ -674,6 +702,10 @@ async def note_newest_incident(session: AsyncSession, ctx: DemoContext) -> None:
 
 
 # -- helpers ----------------------------------------------------------------------
+
+
+def _hour(now: datetime) -> datetime:
+    return now.replace(minute=0, second=0, microsecond=0)
 
 
 def _require[T](value: T | None, what: str) -> T:

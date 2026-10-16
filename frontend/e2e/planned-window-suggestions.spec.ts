@@ -1,4 +1,4 @@
-import { deleteDemo, expect, generateDemo, test } from './fixtures'
+import { deleteDemo, expect, generateDemo, test, waitForDemoHistory } from './fixtures'
 
 /**
  * Suggested recurring windows (#271): the demo's weekly promo was marked
@@ -10,7 +10,9 @@ test('a suggested recurring window is planned from the annotations page', async 
   account,
 }) => {
   void account
-  await generateDemo(page)
+  const slug = await generateDemo(page)
+  // The three expected sends span three weeks: the history fill's.
+  await waitForDemoHistory(page, slug)
   const overview = page.url()
 
   await page.goto(overview.replace(/\/overview$/, '/annotations'))

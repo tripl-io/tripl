@@ -8991,6 +8991,17 @@ export interface components {
             state: "stopped" | "finished" | "none";
         };
         /**
+         * DemoHistoryStatus
+         * @description The history fill of a ready demo (``fill_demo_history``).
+         *
+         *     A demo opens with the last two days of its history replayed and scored; the
+         *     rest is replayed afterwards: ``filling`` while that runs, then ``complete``,
+         *     or ``failed`` when it stopped (the demo stays usable on what it holds).
+         *     NULL on a demo built before the fill existed, and on a real project.
+         * @enum {string}
+         */
+        DemoHistoryStatus: "filling" | "complete" | "failed";
+        /**
          * DemoWarehouseStatus
          * @description The demo warehouse every demo reads (core/demo_warehouse/status.py).
          */
@@ -15391,6 +15402,9 @@ export interface components {
             created_at: string;
             /** Created By User Id */
             created_by_user_id?: string | null;
+            /** Demo History Progress */
+            demo_history_progress?: number | null;
+            demo_history_status?: components["schemas"]["DemoHistoryStatus"] | null;
             /** Demo Last Tick At */
             demo_last_tick_at?: string | null;
             /** Demo Recipe Version */
@@ -15620,6 +15634,9 @@ export interface components {
             created_at: string;
             /** Created By User Id */
             created_by_user_id?: string | null;
+            /** Demo History Progress */
+            demo_history_progress?: number | null;
+            demo_history_status?: components["schemas"]["DemoHistoryStatus"] | null;
             /** Demo Last Tick At */
             demo_last_tick_at?: string | null;
             /** Demo Recipe Version */
