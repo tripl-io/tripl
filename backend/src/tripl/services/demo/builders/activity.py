@@ -1,10 +1,12 @@
-"""Activity builder: edit history and external design specs.
+"""Activity builder: edit history, external design specs and discussion.
 
 Seeds the ``created`` first row of every authored event plus a small, realistic
 ``EventChange`` edit history (both reachable via
-``/events/{id}/history``) and one ``EventPhoto`` of kind ``figma`` that embeds an
+``/events/{id}/history``), one ``EventPhoto`` of kind ``figma`` that embeds an
 external design URL with no stored bytes — the no-secret embed path, so the demo
-needs no storage backend. Both are reachable through the events API.
+needs no storage backend — and the team's discussion: a few event-anchored
+comment threads and one comment pinned on the figma spec. All of it is
+reachable through the events API.
 
 The history is also what the audit builder derives the demo's ``event.update``
 rows from, so the two surfaces cannot disagree about an edit they both describe.
@@ -25,6 +27,7 @@ from tripl.models.domain_enums import EventPhotoKind
 from tripl.models.event import Event
 from tripl.models.event_change import EventChange
 from tripl.models.event_photo import EventPhoto
+from tripl.models.event_photo_comment import EventPhotoComment
 from tripl.services.demo.scenario import DemoContext
 
 _FIGMA_URL = "https://www.figma.com/file/DEMO0paywall/Paywall-Spec?node-id=0-1"
@@ -83,10 +86,42 @@ def _edit_instant(now: datetime, days_ago: int, created_at: datetime) -> datetim
     return max(now - timedelta(days=days_ago), to_utc(created_at) + timedelta(hours=1))
 
 
+# Event discussion threads: (event name, days ago, top-level body, replies).
+# Written as the creator talking to their team: the demo has one real user.
+_THREADS: tuple[tuple[str, int, str, tuple[str, ...]], ...] = (
+    (
+        "Purchase Completed",
+        2,
+        "Some purchases arrive with amount 0.00. Are these store-side test "
+        "transactions, or are we dropping the price on the client?",
+        ("Seen on 6.20 builds only so far. Tagging Payments to check the receipt parser.",),
+    ),
+    (
+        "Trial Started",
+        4,
+        "The warehouse shows prod_weekly on trials, which the plan does not list. "
+        "Is the weekly plan an experiment we forgot to document?",
+        (),
+    ),
+    (
+        "Recipe Rated",
+        6,
+        "Web added recipe_rated for the same moment, ready for dev. One of the two "
+        "has to go before the web build ships.",
+        (),
+    ),
+)
+_FIGMA_COMMENT = (
+    "The plan picker moved above the fold in this frame; Paywall View should keep "
+    "firing once per screen open, not on every scroll."
+)
+
+
 async def build_activity(session: AsyncSession, ctx: DemoContext) -> None:
     await _build_creation_history(session, ctx)
     await _build_event_history(session, ctx)
-    await _build_figma_spec(session, ctx)
+    photo = await _build_figma_spec(session, ctx)
+    await _build_discussion(session, ctx, photo)
 
 
 async def _build_creation_history(session: AsyncSession, ctx: DemoContext) -> None:
@@ -164,21 +199,64 @@ async def _build_event_history(session: AsyncSession, ctx: DemoContext) -> None:
     await session.flush()
 
 
-async def _build_figma_spec(session: AsyncSession, ctx: DemoContext) -> None:
+async def _build_figma_spec(session: AsyncSession, ctx: DemoContext) -> EventPhoto:
     """A figma-kind attachment: embed URL only, no blob and no storage backend."""
+    photo = EventPhoto(
+        project_id=ctx.project_id,
+        event_id=ctx.event_ids["Paywall View"],
+        uploaded_by_user_id=ctx.created_by,
+        original_filename="Paywall redesign spec",
+        content_type="",
+        size_bytes=0,
+        kind=EventPhotoKind.figma.value,
+        external_url=_FIGMA_URL,
+        storage_backend=None,
+        storage_key=None,
+        sort_order=0,
+    )
+    session.add(photo)
+    await session.flush()
+    return photo
+
+
+async def _build_discussion(session: AsyncSession, ctx: DemoContext, photo: EventPhoto) -> None:
+    """The team's comment threads. Authored, so they need a real author."""
+    if ctx.created_by is None:
+        return
+    for event_name, days_ago, body, replies in _THREADS:
+        event_id = ctx.event_ids.get(event_name)
+        if event_id is None:
+            continue
+        stamp = ctx.now - timedelta(days=days_ago)
+        root = EventPhotoComment(
+            event_id=event_id,
+            user_id=ctx.created_by,
+            body=body,
+            created_at=stamp,
+            updated_at=stamp,
+        )
+        session.add(root)
+        await session.flush()
+        for offset, reply in enumerate(replies, start=1):
+            reply_at = stamp + timedelta(hours=3 * offset)
+            session.add(
+                EventPhotoComment(
+                    event_id=event_id,
+                    parent_id=root.id,
+                    user_id=ctx.created_by,
+                    body=reply,
+                    created_at=reply_at,
+                    updated_at=reply_at,
+                )
+            )
+    figma_at = ctx.now - timedelta(days=1)
     session.add(
-        EventPhoto(
-            project_id=ctx.project_id,
-            event_id=ctx.event_ids["Paywall View"],
-            uploaded_by_user_id=ctx.created_by,
-            original_filename="Paywall redesign spec",
-            content_type="",
-            size_bytes=0,
-            kind=EventPhotoKind.figma.value,
-            external_url=_FIGMA_URL,
-            storage_backend=None,
-            storage_key=None,
-            sort_order=0,
+        EventPhotoComment(
+            photo_id=photo.id,
+            user_id=ctx.created_by,
+            body=_FIGMA_COMMENT,
+            created_at=figma_at,
+            updated_at=figma_at,
         )
     )
     await session.flush()

@@ -61,10 +61,11 @@ docker compose -f compose.dev.yaml up --build
 ```
 
 Open <http://localhost:5173>, create the first account, and click **Generate
-demo project**. No warehouse is needed: the demo builds a project with events,
-fields, a week of metrics, and a few anomalies, backed by a local synthetic
-warehouse. Scans, metric collection, anomaly detection, and reconciliation run
-against it for real ([what is synthetic](website/docs/use/demo-workspace.md)).
+demo project**. No warehouse of your own is needed: the demo writes a tracking
+plan of 157 events and collects 23 days of history from a demo warehouse of
+generated traffic that tripl keeps on its own database server. Scans, metric
+collection, anomaly detection, and reconciliation run against it for real
+([what the demo contains](website/docs/use/demo-workspace.md)).
 
 This trial stack listens on localhost (127.0.0.1) only; from another machine,
 use an SSH tunnel (`ssh -L 5173:127.0.0.1:5173 <host>`) or the production stack

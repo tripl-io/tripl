@@ -38,8 +38,9 @@ CHECK_TITLE = "Scheduled metrics collection"
 # dispatcher stamps this into result_summary AT JOB CREATION (schedule.py:360),
 # so a failure that died before it could write anything else still carries the
 # mark. `scan_jobs` is shared with manual catalog scans, metrics replays
-# ("metrics_replay"), event-group applies and the demo runtime tick
-# ({"demo_runtime_tick": true}) — identify positively, never by exclusion.
+# ("metrics_replay"), event-group applies and, on servers older than demo
+# recipe 5, the demo runtime tick ({"demo_runtime_tick": true}) — identify
+# positively, never by exclusion.
 DISPATCHER_MODE = "metrics_collection"
 
 # Mirrors backend/src/tripl/worker/tasks/metrics/schedule.py:
@@ -104,7 +105,7 @@ def consecutive_failure_streak(jobs: Sequence[JsonDict]) -> FailureStreak:
     """Port of ``schedule.py::_consecutive_failure_streak``.
 
     ``jobs`` arrive newest-first, as ``GET .../jobs`` returns them
-    ("Newest jobs first, capped."). A manual scan, a replay or a demo tick is
+    ("Newest jobs first, capped."). A manual scan, a replay or an older server's demo tick is
     neither counted as a failure nor treated as the success that ends a streak,
     so a user pressing "Run now" can neither trigger the backoff nor clear it.
     """

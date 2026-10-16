@@ -16,7 +16,6 @@ import uuid
 from collections.abc import Iterator
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
-from types import SimpleNamespace
 from typing import Any, cast
 
 import pytest
@@ -26,7 +25,6 @@ from sqlalchemy.orm import Session, sessionmaker
 
 from tripl.api.deps import get_current_user
 from tripl.core.adapters.base import ColumnInfo
-from tripl.core.analyzers.anomaly_detector import DetectedAnomaly, SeriesPoint
 from tripl.core.analyzers.event_generator import GenerationResult
 from tripl.main import app
 from tripl.models import Base
@@ -50,9 +48,7 @@ from tripl.tests.test_metrics_tasks import (
     _seed_alert_rule,
     _seed_anomaly_scan_state,
 )
-from tripl.worker.tasks import demo_runtime
 from tripl.worker.tasks.alerts import send_alert_delivery
-from tripl.worker.tasks.metrics import detect as metrics_detect
 from tripl.worker.tasks.metrics import tasks as metrics_tasks
 from tripl.worker.tasks.metrics.attribution import (
     recompute_anomaly_attributions,
@@ -379,61 +375,6 @@ def test_values_seen_in_under_half_the_baseline_fold_into_other(sync_session: Se
     assert "web" not in named
     assert "Other" not in named
     assert named[0] == "ios"
-
-
-# ── demo runtime tick ────────────────────────────────────────────────────────
-
-
-def test_a_demo_tick_re_attributes_the_anomalies_it_replaced(
-    sync_session: Session, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    """Seed -> tick -> the Why rows are still there.
-
-    The tick deletes and re-inserts the window's anomaly rows, so their
-    attributions go with them (ON DELETE CASCADE); ``_recompute_anomalies``
-    must re-attribute the new rows or the demo's Why panel empties after the
-    first tick."""
-    config, event = _seed_scan(sync_session, app_version_column=None)
-    _seed_series(sync_session, config, event, flagged_split={"ios": 120, "android": 380})
-    seeded = _add_anomaly(sync_session, config, event)
-    # Seed: the demo seeder runs the worker's own pass.
-    recompute_anomaly_attributions(
-        sync_session, config, evaluation_start=_WINDOW[0], evaluation_end=_WINDOW[1]
-    )
-    assert [row.anomaly_id for row in _rows(sync_session)] == [seeded.id]
-
-    def flag_the_same_bucket(points: list[SeriesPoint], **_kwargs: object) -> SimpleNamespace:
-        return SimpleNamespace(
-            anomalies=[
-                DetectedAnomaly(
-                    bucket=_FLAGGED,
-                    actual_count=500,
-                    expected_count=1000,
-                    stddev=50,
-                    z_score=-10,
-                    direction="drop",
-                    effective_stddev=50,
-                )
-                for point in points
-                if point.bucket == _FLAGGED
-            ],
-            suppressed_ranges=(),
-            # ``None`` leaves the stored chart bands alone.
-            baselines=None,
-        )
-
-    # The tick scores through the collection's own volume pass.
-    monkeypatch.setattr(metrics_detect, "detect_anomalies", flag_the_same_bucket)
-    # Tick.
-    demo_runtime._recompute_anomalies(sync_session, config, _FLAGGED + timedelta(hours=1))
-    sync_session.flush()
-
-    (current,) = sync_session.execute(select(MetricAnomaly)).scalars().all()
-    assert current.id != seeded.id
-    rows = _rows(sync_session)
-    assert [row.anomaly_id for row in rows] == [current.id]
-    assert rows[0].columns[0]["column"] == "platform"
-    assert rows[0].columns[0]["values"][0]["value"] == "ios"
 
 
 # ── collect_metrics: stored before the alert snapshot ────────────────────────

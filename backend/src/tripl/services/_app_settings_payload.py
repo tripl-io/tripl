@@ -6,6 +6,8 @@ every name here; import from the facade.
 
 from __future__ import annotations
 
+import asyncio
+import logging
 from typing import Any
 
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -23,6 +25,8 @@ from tripl.services._app_settings_sources import (
     _setting_source,
     resolve_settings,
 )
+
+logger = logging.getLogger(__name__)
 
 
 async def service_settings_payload(
@@ -43,12 +47,31 @@ async def resolved_settings_payload(
 ) -> dict[str, Any]:
     """The public payload of any resolution: operator, organization or combined."""
     return public_service_settings(
-        resolved, await migration_status_service.get_migration_status(session)
+        resolved,
+        await migration_status_service.get_migration_status(session),
+        demo_warehouse=await asyncio.to_thread(_demo_warehouse_status),
     )
 
 
+def _demo_warehouse_status() -> dict[str, Any] | None:
+    """The demo warehouse's status (cached a minute per process); ``None`` if unreadable.
+
+    Off the event loop: reading it may open a connection to the warehouse.
+    """
+    from tripl.core.demo_warehouse.status import warehouse_status
+
+    try:
+        return warehouse_status().as_dict()
+    except Exception:
+        logger.warning("could not read the demo warehouse status", exc_info=True)
+        return None
+
+
 def public_service_settings(
-    resolved: ResolvedSettings, migration: migration_status_service.MigrationStatus
+    resolved: ResolvedSettings,
+    migration: migration_status_service.MigrationStatus,
+    *,
+    demo_warehouse: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     # Here, not at the top: telemetry_service reaches llm_service, which imports
     # the app_settings_service facade this module is part of.
@@ -147,6 +170,7 @@ def public_service_settings(
             "alembic_revision": migration.applied_revision,
             "alembic_head_revision": migration.head_revision,
             "alembic_up_to_date": migration.up_to_date,
+            "demo_warehouse": demo_warehouse,
         },
         "overridden_fields": overridden_fields,
         "sources": sources,

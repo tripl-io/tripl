@@ -87,10 +87,12 @@ from tripl.schemas.variable import _VARIABLE_NOT_NULL_UPDATE_FIELDS, VariableUpd
 from tripl.services import event_service
 from tripl.services.demo.builders import audit as audit_builder
 from tripl.services.demo.builders.alerts import (
-    _DEMO_SINK_NAME,
-    _DISABLED_EXTERNAL_NAME,
-    _FIRING_RULE_NAME,
-    _HEALTHY_RULE_NAME,
+    DEMO_SINK_NAME,
+    DISABLED_EXTERNAL_NAME,
+    FIRING_RULE_NAME,
+    FLAKY_RULE_NAME,
+    FLAKY_SINK_NAME,
+    HEALTHY_RULE_NAME,
 )
 from tripl.services.demo.scenario import DemoContext
 from tripl.services.project_service import demo_data_source_name
@@ -595,7 +597,8 @@ async def test_the_demo_trail_matches_the_routes_it_imitates(client: AsyncClient
     ):
         assert await trail(authored), authored
 
-    events = await client.get(f"/api/v1/projects/{slug}/events?limit=100")
+    # The events list caps ``limit`` at 200 and the v5 catalog carries ~160.
+    events = await client.get(f"/api/v1/projects/{slug}/events?limit=200")
     assert events.status_code == 200, events.text
     body = events.json()
     items = body["items"]
@@ -656,11 +659,11 @@ async def test_the_alerting_trail_is_ordered_by_name_not_by_a_uuid_tiebreak(
     trail's chronology came out different on every seed — while the comment
     above it claimed the ordering was what made the timestamps reproducible.
     Asserting that over the demo's own rows is a coin toss:
-    the demo seeds exactly two destinations and two rules, so a random tie-break
-    reproduces the name order about one time in four, per seed. The first half
-    below removes the chance by giving the rows ids that sort the OPPOSITE way
-    to their names; the second half is the demo, which pins the names the first
-    half sorts.
+    the demo seeds three destinations and three rules, so a random tie-break
+    reproduces the name order about one time in thirty-six, per seed — still a
+    coin toss over enough runs. The first half below removes the chance by
+    giving the rows ids that sort the OPPOSITE way to their names; the second
+    half is the demo, whose whole alerting trail must come out in name order.
     """
     seeded_at = datetime(2021, 6, 7, 8, 9, 10, tzinfo=UTC)
     # Reverse-sorted against the names, so "by id" and "by name" cannot agree.
@@ -676,14 +679,14 @@ async def test_the_alerting_trail_is_ordered_by_name_not_by_a_uuid_tiebreak(
                     id=high,
                     project_id=project_id,
                     type=AlertDestinationType.demo_sink.value,
-                    name=_DEMO_SINK_NAME,
+                    name=DEMO_SINK_NAME,
                     created_at=seeded_at,
                 ),
                 AlertDestination(
                     id=low,
                     project_id=project_id,
                     type=AlertDestinationType.slack.value,
-                    name=_DISABLED_EXTERNAL_NAME,
+                    name=DISABLED_EXTERNAL_NAME,
                     created_at=seeded_at,
                 ),
             ]
@@ -694,13 +697,13 @@ async def test_the_alerting_trail_is_ordered_by_name_not_by_a_uuid_tiebreak(
                 AlertRule(
                     id=high,
                     destination_id=high,
-                    name=_FIRING_RULE_NAME,
+                    name=FIRING_RULE_NAME,
                     created_at=seeded_at,
                 ),
                 AlertRule(
                     id=low,
                     destination_id=high,
-                    name=_HEALTHY_RULE_NAME,
+                    name=HEALTHY_RULE_NAME,
                     created_at=seeded_at,
                 ),
             ]
@@ -710,8 +713,8 @@ async def test_the_alerting_trail_is_ordered_by_name_not_by_a_uuid_tiebreak(
     # The two orders this query could come back in, derived from the same rows.
     # They disagree — the ids were chosen so that they would — so the assertion
     # below can only be satisfied by the name one, never by a lucky tie-break.
-    destinations = ((high, _DEMO_SINK_NAME), (low, _DISABLED_EXTERNAL_NAME))
-    rules = ((high, _FIRING_RULE_NAME), (low, _HEALTHY_RULE_NAME))
+    destinations = ((high, DEMO_SINK_NAME), (low, DISABLED_EXTERNAL_NAME))
+    rules = ((high, FIRING_RULE_NAME), (low, HEALTHY_RULE_NAME))
     by_name = [name for _, name in sorted(destinations, key=lambda row: row[1])] + [
         name for _, name in sorted(rules, key=lambda row: row[1])
     ]
@@ -736,7 +739,7 @@ async def test_the_alerting_trail_is_ordered_by_name_not_by_a_uuid_tiebreak(
         "alert_rule.create",
     ]
 
-    # And the names that ordering is about are the demo's own. ``_spread_backwards``
+    # And the demo's own trail follows the same rule. ``_spread_backwards``
     # gives each entry a distinct timestamp in list order, so re-sorting the
     # trail by ``created_at`` recovers exactly the order ``_alerting_entries``
     # returned.
@@ -747,7 +750,7 @@ async def test_the_alerting_trail_is_ordered_by_name_not_by_a_uuid_tiebreak(
     # that goes green for the wrong reason. ``action`` is an equality filter in
     # ``audit_service.list_entries``, so each call answers with that action's
     # rows or none, and ``total`` — the count of the same filtered set — is
-    # asserted against what came back, so the four names below are the demo's
+    # asserted against what came back, so the names below are the demo's
     # whole alerting trail by construction.
     demo_slug = (await client.post("/api/v1/projects/demo")).json()["slug"]
     seeded: list[dict[str, Any]] = []
@@ -758,4 +761,7 @@ async def test_the_alerting_trail_is_ordered_by_name_not_by_a_uuid_tiebreak(
         assert len(body["items"]) == body["total"], body["total"]
         seeded += body["items"]
     seeded.sort(key=lambda entry: entry["created_at"])
-    assert [entry["target_name"] for entry in seeded] == by_name
+    demo_by_name = sorted([DEMO_SINK_NAME, FLAKY_SINK_NAME, DISABLED_EXTERNAL_NAME]) + sorted(
+        [FIRING_RULE_NAME, FLAKY_RULE_NAME, HEALTHY_RULE_NAME]
+    )
+    assert [entry["target_name"] for entry in seeded] == demo_by_name

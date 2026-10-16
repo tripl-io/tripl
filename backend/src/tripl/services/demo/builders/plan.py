@@ -1,21 +1,26 @@
 """Plan-schema builder: the design canvas of the demo.
 
-Seeds event types, field definitions, meta fields, events (with field values,
-tags, and meta VALUES), one event-type relation, and — when a real creator is
-known — one event-type owner. Every entity is reachable through the normal plan
-API (``/events``, ``/relations``, ``/event-types/{id}/owners``).
+Authors the tracking plan a team would have written before any traffic was
+read: event types and their fields, meta fields, every event of the catalog
+(descriptions, statuses, tags, field values, meta values, successors), one
+event-type relation and — when a real creator is known — the event-type owners.
 
-The declarative :func:`event_specs` list is the single source of truth for event
-volumes; the warehouse builder imports it to shape the metric series.
+Everything comes from :mod:`tripl.core.demo_warehouse.roster`, the one place
+the demo catalog is written down; the warehouse emits its rows from the same
+records, so a plan event and the rows that should match it cannot drift apart.
+Nothing observed is written here (no volumes, no first/last seen), with one
+stated exception: the dead event's ``last_seen_at``, which lies before the
+history any warehouse keeps (see :data:`DEAD_EVENT_LAST_SEEN`).
 """
 
 from __future__ import annotations
 
-from dataclasses import dataclass
 from datetime import datetime, timedelta
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from tripl.core.demo_warehouse import roster
+from tripl.core.demo_warehouse.roster import EventDef
 from tripl.models.event import Event
 from tripl.models.event_field_value import EventFieldValue
 from tripl.models.event_meta_value import EventMetaValue
@@ -28,420 +33,110 @@ from tripl.models.meta_field_definition import MetaFieldDefinition
 from tripl.services.demo import noise
 from tripl.services.demo.scenario import DemoContext
 
-# ---------------------------------------------------------------------------
-# Declarative schema data (stable semantic keys, never runtime ids)
-# ---------------------------------------------------------------------------
-
-# (name, display_name, color, order)
-_EVENT_TYPE_SPECS: tuple[tuple[str, str, str, int], ...] = (
-    ("screen_view", "Screen View", "#6366f1", 0),
-    ("click", "Click", "#22c55e", 1),
-    ("purchase", "Purchase", "#f59e0b", 2),
+#: The warehouse column a demo event is named by. Every event type carries it
+#: as a field because the scan's name format ``{event_name}`` reads it: a
+#: column the name format uses must be a field of the type
+#: (``reserved_catalog_columns``), and authoring it here gives it a real label
+#: instead of the scan's "Auto-created (text)".
+EVENT_NAME_FIELD = roster.FieldDef(
+    "event_name",
+    "Event name",
+    "string",
+    "The name the apps send with the event; the scan names catalog events by it.",
+    is_required=True,
+)
+#: Every row carries the user's country; the plan documents it once per type.
+COUNTRY_FIELD = roster.FieldDef(
+    "country",
+    "Country",
+    "string",
+    "ISO country code of the user's store account.",
 )
 
-# (event_type, name, display_name, field_type, is_required, enum_options, order)
-_FIELD_SPECS: tuple[tuple[str, str, str, str, bool, list[str] | None, int], ...] = (
-    ("screen_view", "screen_name", "Screen Name", "string", True, None, 0),
-    ("screen_view", "platform", "Platform", "enum", False, ["ios", "android", "web"], 1),
-    ("click", "button_id", "Button ID", "string", False, None, 0),
-    ("click", "screen_name", "Screen Name", "string", False, None, 1),
-    ("click", "platform", "Platform", "enum", False, ["ios", "android", "web"], 2),
-    ("purchase", "product_id", "Product ID", "string", False, None, 0),
-    ("purchase", "amount", "Amount", "number", False, None, 1),
-    ("purchase", "currency", "Currency", "enum", False, ["USD", "EUR"], 2),
-    ("purchase", "platform", "Platform", "enum", False, ["ios", "android", "web"], 3),
-    ("purchase", "payload", "Payload", "json", False, None, 4),
+# (name, display_name, field_type, link_template)
+_META_FIELD_SPECS: tuple[tuple[str, str, str, str | None], ...] = (
+    ("jira", "Jira ticket", "url", "https://jira.example.com/browse/${value}"),
+    ("owner_team", "Owner team", "string", None),
 )
 
-# (name, display_name, field_type, link_template, order)
-_META_FIELD_SPECS: tuple[tuple[str, str, str, str | None, int], ...] = (
-    ("jira", "Jira ticket", "url", "https://jira.example.com/${value}", 0),
-    ("owner_team", "Owner team", "string", None, 1),
-)
+#: The dead event was last seen this long before the seed: older than any
+#: warehouse window, so no scan can observe it and the plan carries it.
+DEAD_EVENT_LAST_SEEN = timedelta(days=45)
+#: A deprecated event's announced sunset, already behind us: the lifecycle
+#: watch flags it as overdue.
+DEPRECATED_SUNSET_AGO = timedelta(days=3)
 
-
-@dataclass(frozen=True)
-class EventSpec:
-    """Declarative description of a seeded event (semantic keys, no runtime ids)."""
-
-    event_type: str
-    name: str
-    description: str
-    base: int
-    status: str
-    tags: tuple[str, ...]
-    # (field_key, value) where field_key is "<event_type>.<field_name>".
-    field_values: tuple[tuple[str, str], ...]
-    last_seen_at: datetime | None
-    metric_breakdown_columns: tuple[str, ...]
-    sunset_at: datetime | None = None
-
-
-def event_specs(now: datetime) -> list[EventSpec]:
-    """The demo's event roster, parametrised by the scenario clock.
-
-    Status guide: ``live`` (implemented, recent traffic), ``implemented``
-    (built, no warehouse data yet), ``in_review`` (new/scanned), ``archived``
-    (retired), ``deprecated`` (sunset showcase).
-    """
-    seven_days_ago = now - timedelta(days=7)
-    two_days_ago = now - timedelta(days=2)
-    one_day_ago = now - timedelta(days=1)
-    return [
-        # screen_view events
-        EventSpec(
-            event_type="screen_view",
-            name="Home Screen View",
-            description="User lands on the home screen.",
-            base=1800,
-            status="live",
-            tags=("core", "onboarding"),
-            field_values=(
-                ("screen_view.screen_name", "home"),
-                ("screen_view.platform", "${platform}"),
-            ),
-            last_seen_at=now - timedelta(minutes=15),
-            metric_breakdown_columns=("platform",),
-        ),
-        EventSpec(
-            event_type="screen_view",
-            name="Paywall View",
-            description="User sees the paywall / subscription upsell screen.",
-            base=600,
-            status="live",
-            tags=("core", "checkout"),
-            field_values=(
-                ("screen_view.screen_name", "paywall"),
-                ("screen_view.platform", "${platform}"),
-            ),
-            last_seen_at=now - timedelta(hours=1),
-            metric_breakdown_columns=(),
-        ),
-        EventSpec(
-            event_type="screen_view",
-            name="Onboarding Step 1 View",
-            description="First step of the onboarding flow.",
-            base=900,
-            status="live",
-            tags=("onboarding",),
-            field_values=(
-                ("screen_view.screen_name", "onboarding_step1"),
-                ("screen_view.platform", "${platform}"),
-            ),
-            last_seen_at=now - timedelta(hours=2),
-            metric_breakdown_columns=(),
-        ),
-        EventSpec(
-            event_type="screen_view",
-            name="Onboarding Step 2 View",
-            description="Second step of the onboarding flow.",
-            base=700,
-            status="in_review",
-            tags=("onboarding",),
-            field_values=(
-                ("screen_view.screen_name", "onboarding_step2"),
-                ("screen_view.platform", "${platform}"),
-            ),
-            last_seen_at=now - timedelta(hours=3),
-            metric_breakdown_columns=(),
-        ),
-        EventSpec(
-            event_type="screen_view",
-            name="Profile Screen View",
-            description="User opens their profile.",
-            base=400,
-            status="live",
-            tags=("core",),
-            field_values=(
-                ("screen_view.screen_name", "profile"),
-                ("screen_view.platform", "${platform}"),
-            ),
-            last_seen_at=now - timedelta(hours=4),
-            metric_breakdown_columns=(),
-        ),
-        EventSpec(
-            event_type="screen_view",
-            name="Settings Screen View",
-            description="User opens app settings.",
-            base=200,
-            status="in_review",
-            tags=(),
-            field_values=(("screen_view.screen_name", "settings"),),
-            last_seen_at=None,
-            metric_breakdown_columns=(),
-        ),
-        # click events
-        EventSpec(
-            event_type="click",
-            name="Buy Button Click",
-            description="User taps the primary CTA on the paywall.",
-            base=300,
-            status="live",
-            tags=("core", "checkout"),
-            field_values=(
-                ("click.button_id", "buy_now"),
-                ("click.screen_name", "paywall"),
-                ("click.platform", "${platform}"),
-            ),
-            last_seen_at=now - timedelta(minutes=30),
-            metric_breakdown_columns=(),
-        ),
-        EventSpec(
-            event_type="click",
-            name="Skip Onboarding Click",
-            description="User skips onboarding.",
-            base=180,
-            status="live",
-            tags=("onboarding",),
-            field_values=(
-                ("click.button_id", "skip_onboarding"),
-                ("click.screen_name", "onboarding_step1"),
-                ("click.platform", "${platform}"),
-            ),
-            last_seen_at=now - timedelta(hours=5),
-            metric_breakdown_columns=(),
-        ),
-        EventSpec(
-            event_type="click",
-            name="Restore Purchase Click",
-            description="User taps restore purchase.",
-            base=40,
-            status="in_review",
-            tags=("checkout",),
-            field_values=(
-                ("click.button_id", "restore_purchase"),
-                ("click.screen_name", "paywall"),
-            ),
-            last_seen_at=now - timedelta(hours=8),
-            metric_breakdown_columns=(),
-        ),
-        EventSpec(
-            event_type="click",
-            name="Share Button Click",
-            description="User shares content.",
-            base=120,
-            status="in_review",
-            tags=(),
-            field_values=(("click.button_id", "share"),),
-            last_seen_at=None,
-            metric_breakdown_columns=(),
-        ),
-        EventSpec(
-            event_type="click",
-            name="Legacy CTA Click",
-            description="Old primary CTA, replaced by buy_now.",
-            base=20,
-            status="archived",
-            tags=("checkout",),
-            field_values=(("click.button_id", "old_cta"),),
-            last_seen_at=seven_days_ago,
-            metric_breakdown_columns=(),
-        ),
-        # purchase events
-        EventSpec(
-            event_type="purchase",
-            name="Purchase Completed",
-            description="User successfully completes an in-app purchase.",
-            base=120,
-            status="live",
-            tags=("core", "checkout"),
-            field_values=(
-                ("purchase.product_id", "${product_id}"),
-                ("purchase.amount", "9.99"),
-                ("purchase.currency", "USD"),
-                ("purchase.platform", "${platform}"),
-            ),
-            last_seen_at=now - timedelta(minutes=45),
-            metric_breakdown_columns=(),
-        ),
-        EventSpec(
-            event_type="purchase",
-            name="Purchase Failed",
-            description="An in-app purchase was attempted but failed.",
-            base=15,
-            status="live",
-            tags=("checkout",),
-            field_values=(
-                ("purchase.product_id", "${product_id}"),
-                ("purchase.currency", "USD"),
-                ("purchase.platform", "${platform}"),
-            ),
-            last_seen_at=now - timedelta(hours=2),
-            metric_breakdown_columns=(),
-        ),
-        EventSpec(
-            event_type="purchase",
-            name="Trial Started",
-            description="User starts a free trial.",
-            base=250,
-            status="live",
-            tags=("checkout", "onboarding"),
-            field_values=(
-                ("purchase.product_id", "${product_id}"),
-                ("purchase.platform", "${platform}"),
-            ),
-            last_seen_at=now - timedelta(hours=1),
-            metric_breakdown_columns=(),
-        ),
-        EventSpec(
-            event_type="purchase",
-            name="Subscription Renewed",
-            description="Recurring subscription renewal processed.",
-            base=80,
-            status="in_review",
-            tags=("checkout",),
-            field_values=(
-                ("purchase.product_id", "${product_id}"),
-                ("purchase.amount", "9.99"),
-                ("purchase.currency", "USD"),
-            ),
-            last_seen_at=now - timedelta(hours=6),
-            metric_breakdown_columns=(),
-        ),
-        EventSpec(
-            event_type="purchase",
-            name="Refund Processed",
-            description="A refund was issued to the user.",
-            base=8,
-            status="in_review",
-            tags=(),
-            field_values=(
-                ("purchase.product_id", "${product_id}"),
-                ("purchase.amount", "9.99"),
-            ),
-            last_seen_at=None,
-            metric_breakdown_columns=(),
-        ),
-        EventSpec(
-            event_type="purchase",
-            name="Promo Applied",
-            description="User redeemed a promotional code.",
-            base=35,
-            status="deprecated",
-            sunset_at=one_day_ago,
-            tags=("checkout", "onboarding"),
-            field_values=(
-                ("purchase.product_id", "${product_id}"),
-                ("purchase.platform", "${platform}"),
-            ),
-            last_seen_at=two_days_ago,
-            metric_breakdown_columns=(),
-        ),
-        EventSpec(
-            event_type="purchase",
-            name="Subscription Cancelled",
-            description="User cancels their subscription.",
-            base=22,
-            status="implemented",
-            tags=("checkout",),
-            field_values=(
-                ("purchase.product_id", "${product_id}"),
-                ("purchase.platform", "${platform}"),
-            ),
-            last_seen_at=one_day_ago,
-            metric_breakdown_columns=(),
-        ),
-    ]
-
-
-# Meta VALUES to attach: event name -> {meta field name: value}. Demonstrates
-# the plan-metadata editor rendering real values (jira link + owning team).
-_META_VALUES: dict[str, dict[str, str]] = {
-    "Home Screen View": {"owner_team": "Growth"},
-    "Purchase Completed": {"jira": "PAY-1234", "owner_team": "Payments"},
-}
-
-# "First seen" stagger shape (PR #51 follow-up). Core-tagged
-# events anchor the start of the seeded history; the rest ramp in between
-# ``_STAGGER_OLDEST_AGE_DAYS`` and ``_STAGGER_YOUNGEST_AGE_DAYS`` before now.
-# The youngest floor sits ~2 days back (jitter included) so nothing reads as
-# first seen "just now", while enough of the catalog lands inside the Overview
-# KPI's 14-day lookback that the "active events" sparkline shows a gentle ramp.
+# "Created" stagger: the core backbone dates from the start of the history,
+# the rest of the catalog was written over the following weeks, and what is
+# still being designed was written recently.
 _CORE_TAG = "core"
-_CORE_ANCHOR_JITTER_HOURS = 12
-_STAGGER_OLDEST_AGE_DAYS = 21.0
-_STAGGER_YOUNGEST_AGE_DAYS = 2.5
-_STAGGER_JITTER_HOURS = 6
+_OLDEST_AGE_DAYS = 21.0
+_YOUNGEST_AGE_DAYS = 2.5
+_PLANNED_STATUSES = frozenset({"draft", "in_review", "ready_for_dev"})
 
 
-def staggered_created_ats(specs: list[EventSpec], *, now: datetime, seed: int) -> list[datetime]:
-    """Deterministic per-event "first seen" timestamps across the history window.
+def event_fields(event_type_name: str) -> tuple[roster.FieldDef, ...]:
+    """The fields the plan documents for one event type, in display order."""
+    own = roster.event_type(event_type_name).fields
+    return (EVENT_NAME_FIELD, *own, COUNTRY_FIELD)
 
-    Returns one ``created_at`` per spec, in spec order. Core-tagged events (the
-    always-live backbone like Home Screen View / Purchase Completed) sit within
-    hours of the seeded history start, so the oldest events still anchor the
-    ~3-week window; the remaining catalog ramps in over the following weeks in
-    spec order, with roughly a third landing inside the last 14 days and nothing
-    younger than ~2 days. Every offset derives from ``(seed, event name)`` via
-    :func:`noise.derive_seed` — same recipe, same clock, same timestamps.
-    """
-    # Same source of truth the warehouse builder seeds from, so the history span
-    # keeps a single definition (~23 days, hour-aligned).
-    history_start = noise.hour_buckets(now, days=noise.DEMO_HISTORY_DAYS)[0]
-    non_core_count = sum(1 for spec in specs if _CORE_TAG not in spec.tags)
-    last_rank = max(non_core_count - 1, 1)
-    age_span_days = _STAGGER_OLDEST_AGE_DAYS - _STAGGER_YOUNGEST_AGE_DAYS
 
-    created_ats: list[datetime] = []
-    rank = 0
-    for spec in specs:
-        jitter_seed = noise.derive_seed(seed, f"first_seen:{spec.name}")
-        if _CORE_TAG in spec.tags:
-            anchor_jitter = timedelta(hours=jitter_seed % _CORE_ANCHOR_JITTER_HOURS)
-            created_ats.append(history_start + anchor_jitter)
-            continue
-        age_days = _STAGGER_OLDEST_AGE_DAYS - (rank / last_rank) * age_span_days
-        rank += 1
-        # Symmetric +/- jitter off the linear ramp so first-seen dates don't sit
-        # on a perfect grid; the youngest event stays >= ~2 days old.
-        jitter_hours = jitter_seed % (2 * _STAGGER_JITTER_HOURS + 1) - _STAGGER_JITTER_HOURS
-        created_ats.append(now - timedelta(days=age_days, hours=jitter_hours))
-    return created_ats
+def created_at_for(
+    event: EventDef, rank: int, last_rank: int, *, now: datetime, seed: int
+) -> datetime:
+    """When the plan says an event was written (deterministic per event name)."""
+    jitter = noise.derive_seed(seed, f"first_seen:{event.name}")
+    if event.name == roster.DEAD_EVENT:
+        return now - DEAD_EVENT_LAST_SEEN - timedelta(days=30)
+    if _CORE_TAG in event.tags:
+        return noise.history_start(now) + timedelta(hours=jitter % 12)
+    if event.status in _PLANNED_STATUSES:
+        # Being designed now: written within the last fortnight.
+        return now - timedelta(days=1 + (jitter % 13), hours=jitter % 7)
+    age = _OLDEST_AGE_DAYS - (rank / max(last_rank, 1)) * (_OLDEST_AGE_DAYS - _YOUNGEST_AGE_DAYS)
+    return now - timedelta(days=age, hours=(jitter % 13) - 6)
 
 
 async def build_plan(session: AsyncSession, ctx: DemoContext) -> None:
     await _build_event_types(session, ctx)
-    await _build_fields(session, ctx)
     await _build_meta_fields(session, ctx)
     await _build_events(session, ctx)
-    await _build_meta_values(session, ctx)
     await _build_relation(session, ctx)
-    await _build_owner(session, ctx)
+    await _build_owners(session, ctx)
 
 
 async def _build_event_types(session: AsyncSession, ctx: DemoContext) -> None:
-    for name, display_name, color, order in _EVENT_TYPE_SPECS:
+    for order, et_def in enumerate(roster.event_types()):
         et = EventType(
             project_id=ctx.project_id,
             branch_id=ctx.branch_id,
-            name=name,
-            display_name=display_name,
-            color=color,
+            name=et_def.name,
+            display_name=et_def.display_name,
+            description=et_def.description,
+            color=et_def.color,
             order=order,
         )
         session.add(et)
         await session.flush()
-        ctx.event_type_ids[name] = et.id
-
-
-async def _build_fields(session: AsyncSession, ctx: DemoContext) -> None:
-    for et_name, name, display_name, field_type, is_required, enum_options, order in _FIELD_SPECS:
-        fd = FieldDefinition(
-            event_type_id=ctx.event_type_ids[et_name],
-            name=name,
-            display_name=display_name,
-            field_type=field_type,
-            is_required=is_required,
-            enum_options=enum_options,
-            order=order,
-        )
-        session.add(fd)
-        await session.flush()
-        ctx.field_ids[f"{et_name}.{name}"] = fd.id
+        ctx.event_type_ids[et_def.name] = et.id
+        for field_order, field_def in enumerate(event_fields(et_def.name)):
+            fd = FieldDefinition(
+                event_type_id=et.id,
+                name=field_def.name,
+                display_name=field_def.display_name,
+                field_type=field_def.field_type,
+                description=field_def.description,
+                is_required=field_def.is_required,
+                enum_options=list(field_def.enum_options) if field_def.enum_options else None,
+                order=field_order,
+            )
+            session.add(fd)
+            await session.flush()
+            ctx.field_ids[f"{et_def.name}.{field_def.name}"] = fd.id
 
 
 async def _build_meta_fields(session: AsyncSession, ctx: DemoContext) -> None:
-    for name, display_name, field_type, link_template, order in _META_FIELD_SPECS:
+    for order, (name, display_name, field_type, link_template) in enumerate(_META_FIELD_SPECS):
         mf = MetaFieldDefinition(
             project_id=ctx.project_id,
             branch_id=ctx.branch_id,
@@ -457,67 +152,73 @@ async def _build_meta_fields(session: AsyncSession, ctx: DemoContext) -> None:
 
 
 async def _build_events(session: AsyncSession, ctx: DemoContext) -> None:
-    specs = event_specs(ctx.now)
-    # "First seen" (the event's created_at) is STAGGERED across the seeded
-    # ~23-day metric history, not stamped uniformly — a single shared timestamp
-    # makes every event first seen the same instant (and leaves the Overview
-    # 14-day "active events" sparkline a flat zero), while the provisioning
-    # instant makes everything first seen "just now". See staggered_created_ats.
-    created_ats = staggered_created_ats(specs, now=ctx.now, seed=ctx.seed)
-    events: list[tuple[EventSpec, Event]] = []
-    for order, spec in enumerate(specs):
-        ev = Event(
+    catalog = roster.events()
+    non_core = [event for event in catalog if _CORE_TAG not in event.tags]
+    rank_of = {event.name: rank for rank, event in enumerate(non_core)}
+    rows: list[tuple[EventDef, Event]] = []
+    for order, event_def in enumerate(catalog):
+        event = Event(
             project_id=ctx.project_id,
             branch_id=ctx.branch_id,
-            event_type_id=ctx.event_type_ids[spec.event_type],
-            name=spec.name,
-            description=spec.description,
+            event_type_id=ctx.event_type_ids[event_def.event_type],
+            name=event_def.name,
+            description=event_def.description,
             order=order,
-            status=spec.status,
-            sunset_at=spec.sunset_at,
-            last_seen_at=spec.last_seen_at,
-            created_at=created_ats[order],
-            metric_breakdown_columns=list(spec.metric_breakdown_columns),
+            status=event_def.status,
+            sunset_at=(ctx.now - DEPRECATED_SUNSET_AGO)
+            if event_def.status == "deprecated"
+            else None,
+            last_seen_at=(
+                ctx.now - DEAD_EVENT_LAST_SEEN if event_def.name == roster.DEAD_EVENT else None
+            ),
+            created_at=created_at_for(
+                event_def,
+                rank_of.get(event_def.name, 0),
+                len(non_core) - 1,
+                now=ctx.now,
+                seed=ctx.seed,
+            ),
+            metric_breakdown_columns=list(event_def.metric_breakdown_columns),
         )
-        session.add(ev)
-        events.append((spec, ev))
+        session.add(event)
+        rows.append((event_def, event))
     await session.flush()
 
-    for spec, ev in events:
-        ctx.event_ids[spec.name] = ev.id
-        for field_key, value in spec.field_values:
+    for event_def, event in rows:
+        ctx.event_ids[event_def.name] = event.id
+        values = dict(event_def.field_values)
+        values.setdefault("event_name", event_def.name)
+        # Every row carries a country; authored as the variable, the plan does
+        # not pin the event to the busiest country the scan happened to see.
+        values.setdefault("country", "${country}")
+        for field_name, value in values.items():
+            field_id = ctx.field_ids.get(f"{event_def.event_type}.{field_name}")
+            if field_id is None:
+                continue
+            # Hand-authored, exactly as the event editor stamps it: a scan never
+            # rewrites an authored value, so the documented ``${product_id}`` /
+            # ``${platform}`` templates survive the first scan.
             session.add(
                 EventFieldValue(
-                    event_id=ev.id,
-                    field_definition_id=ctx.field_ids[field_key],
-                    value=value,
-                    # These values are HAND-AUTHORED by the recipe, exactly as if a
-                    # human had typed them in the event editor (which stamps
-                    # ``is_authored=True`` — see event_service), so a scan must not
-                    # rewrite them. Left unauthored, the demo's own guided first
-                    # scan replaced the documented ``${product_id}`` / ``${platform}``
-                    # templates with whatever literal the synthetic warehouse
-                    # happened to emit, which also cut the seeded variable value
-                    # contexts loose from the field they describe.
-                    is_authored=True,
+                    event_id=event.id, field_definition_id=field_id, value=value, is_authored=True
                 )
             )
-        for tag_name in spec.tags:
-            session.add(EventTag(event_id=ev.id, name=tag_name))
-    await session.flush()
-
-
-async def _build_meta_values(session: AsyncSession, ctx: DemoContext) -> None:
-    for event_name, values in _META_VALUES.items():
-        event_id = ctx.event_ids[event_name]
-        for meta_field_name, value in values.items():
+        for tag in event_def.tags:
+            session.add(EventTag(event_id=event.id, name=tag))
+        for meta_name, value in event_def.meta:
             session.add(
                 EventMetaValue(
-                    event_id=event_id,
-                    meta_field_definition_id=ctx.meta_field_ids[meta_field_name],
+                    event_id=event.id,
+                    meta_field_definition_id=ctx.meta_field_ids[meta_name],
                     value=value,
                 )
             )
+    await session.flush()
+
+    # Successors last: both ends must exist.
+    for event_def, event in rows:
+        if event_def.successor is not None:
+            event.superseded_by_event_id = ctx.event_ids[event_def.successor]
     await session.flush()
 
 
@@ -538,16 +239,16 @@ async def _build_relation(session: AsyncSession, ctx: DemoContext) -> None:
     await session.flush()
 
 
-async def _build_owner(session: AsyncSession, ctx: DemoContext) -> None:
-    # Owners reference a real user. The demo creator is the only real user in the
-    # seed; if none is known (e.g. a direct builder test), skip — never invent one.
+async def _build_owners(session: AsyncSession, ctx: DemoContext) -> None:
+    # Owners reference a real user; the creator is the only one in the seed.
     if ctx.created_by is None:
         return
-    session.add(
-        EventTypeOwner(
-            event_type_id=ctx.event_type_ids["screen_view"],
-            user_id=ctx.created_by,
-            granted_by=ctx.created_by,
+    for event_type_name in ("screen_view", "purchase"):
+        session.add(
+            EventTypeOwner(
+                event_type_id=ctx.event_type_ids[event_type_name],
+                user_id=ctx.created_by,
+                granted_by=ctx.created_by,
+            )
         )
-    )
     await session.flush()

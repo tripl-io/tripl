@@ -1,12 +1,18 @@
-"""Feature-branch journey builder.
+"""Branches builder: one branch already merged, one open and under review.
 
-Seeds an API-visible collaboration story: a base ``PlanRevision`` snapshot, one
-working ``PlanBranch`` (a feature branch — the kind enum is main/working, so a
-working branch with a feature-style name), a top-level ``PlanBranchComment``,
-and — new in recipe 4 — a REAL pending change: the main plan is deep-copied
+The merged one is history: ``feature/meal-planner-tracking`` was opened, merged
+into main by the creator a week and a half ago, and left its two revisions (the
+branch base and the post-merge snapshot) in Plan history.
+
+The open one is the journey the coached chapters follow: a base
+``PlanRevision`` snapshot, one working ``PlanBranch`` (the kind enum is
+main/working, so a working branch with a feature-style name), a top-level
+``PlanBranchComment``, and a REAL pending change — the main plan is deep-copied
 onto the branch and exactly one branch-side edit is applied, so
 ``/branches/{id}/diff`` shows one modified event and the merge preview is
-non-empty. Reachable via ``/branches``, ``/branches/{id}/comments``,
+non-empty. It is submitted for review, with the creator as reviewer and their
+approval pinned to the branch's content hash (the creator is the only real user
+in a demo). Reachable via ``/branches``, ``/branches/{id}/comments``,
 ``/branches/{id}/diff``, and ``/revisions``.
 
 The ORM writes mirror ``plan_branch_service.create_branch`` inline because that
@@ -24,11 +30,14 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from tripl.models.event import Event
 from tripl.models.plan_branch import BranchKind, BranchStatus, PlanBranch
+from tripl.models.plan_branch_approval import PlanBranchApproval
 from tripl.models.plan_branch_comment import PlanBranchComment
+from tripl.models.plan_branch_reviewer import PlanBranchReviewer
 from tripl.models.plan_revision import PlanRevision, PlanRevisionKind
+from tripl.models.subscription import Subscription, SubscriptionEntityType, SubscriptionReason
 from tripl.services.demo.scenario import DemoContext
 from tripl.services.plan_branch_service import deep_copy_plan_to_branch
-from tripl.services.plan_revision_service import build_plan_snapshot
+from tripl.services.plan_revision_service import build_plan_snapshot, plan_snapshot_hash
 
 _BRANCH_NAME = "feature/checkout-funnel"
 _BRANCH_DESCRIPTION = "Redesign the checkout funnel: paywall copy and Buy CTA placement."
@@ -55,12 +64,74 @@ CHANGED_EVENT_DESCRIPTION = (
 _BRANCH_OPENED_BEFORE_SEED = timedelta(minutes=21)
 _BRANCH_EDITED_BEFORE_SEED = timedelta(minutes=14)
 _BRANCH_COMMENTED_BEFORE_SEED = timedelta(minutes=7)
+_BRANCH_SUBMITTED_BEFORE_SEED = timedelta(minutes=5)
+_BRANCH_APPROVED_BEFORE_SEED = timedelta(minutes=2)
+
+MERGED_BRANCH_NAME = "feature/meal-planner-tracking"
+_MERGED_BRANCH_DESCRIPTION = "Track the meal planner: plan generated, day swapped, list exported."
+_MERGED_OPENED_BEFORE_SEED = timedelta(days=12)
+_MERGED_BEFORE_SEED = timedelta(days=10, hours=20)
 
 
 async def build_branches(session: AsyncSession, ctx: DemoContext) -> None:
-    opened_at = ctx.now - _BRANCH_OPENED_BEFORE_SEED
-    # Merge base: a snapshot of the (now fully-seeded) main plan.
+    # One snapshot of the (now fully-seeded) main plan serves as the open
+    # branch's merge base and as the merged branch's post-merge plan: nothing
+    # landed on main since that merge.
     base_payload = await build_plan_snapshot(session, ctx.project_id, branch_id=ctx.branch_id)
+    await _build_merged_branch(session, ctx, base_payload)
+    await _build_open_branch(session, ctx, base_payload)
+
+
+async def _build_merged_branch(
+    session: AsyncSession, ctx: DemoContext, plan_payload: dict[str, object]
+) -> None:
+    """A branch merged into main in the past, as ``merge_branch`` leaves it."""
+    opened_at = ctx.now - _MERGED_OPENED_BEFORE_SEED
+    merged_at = ctx.now - _MERGED_BEFORE_SEED
+    merged = PlanBranch(
+        project_id=ctx.project_id,
+        name=MERGED_BRANCH_NAME,
+        kind=BranchKind.working.value,
+        status=BranchStatus.merged.value,
+        description=_MERGED_BRANCH_DESCRIPTION,
+        created_by=ctx.created_by,
+        merged_at=merged_at,
+        merged_by=ctx.created_by,
+        created_at=opened_at,
+        updated_at=merged_at,
+    )
+    session.add(merged)
+    await session.flush()
+    base = PlanRevision(
+        project_id=ctx.project_id,
+        created_by=ctx.created_by,
+        summary=f"Base snapshot for branch '{MERGED_BRANCH_NAME}'",
+        kind=PlanRevisionKind.branch_base.value,
+        branch_id=merged.id,
+        payload=plan_payload,
+        created_at=opened_at,
+    )
+    session.add(base)
+    await session.flush()
+    merged.base_revision_id = base.id
+    session.add(
+        PlanRevision(
+            project_id=ctx.project_id,
+            created_by=ctx.created_by,
+            summary=f"Merged branch '{MERGED_BRANCH_NAME}'",
+            kind=PlanRevisionKind.merge.value,
+            branch_id=merged.id,
+            payload=plan_payload,
+            created_at=merged_at,
+        )
+    )
+    await session.flush()
+
+
+async def _build_open_branch(
+    session: AsyncSession, ctx: DemoContext, base_payload: dict[str, object]
+) -> None:
+    opened_at = ctx.now - _BRANCH_OPENED_BEFORE_SEED
     base_revision = PlanRevision(
         project_id=ctx.project_id,
         created_by=ctx.created_by,
@@ -76,7 +147,7 @@ async def build_branches(session: AsyncSession, ctx: DemoContext) -> None:
         project_id=ctx.project_id,
         name=_BRANCH_NAME,
         kind=BranchKind.working.value,
-        status=BranchStatus.draft.value,
+        status=BranchStatus.ready_for_review.value,
         description=_BRANCH_DESCRIPTION,
         base_revision_id=base_revision.id,
         created_by=ctx.created_by,
@@ -119,5 +190,43 @@ async def build_branches(session: AsyncSession, ctx: DemoContext) -> None:
             created_at=commented_at,
             updated_at=commented_at,
         )
+    )
+    await session.flush()
+    await _build_review(session, ctx, branch)
+
+
+async def _build_review(session: AsyncSession, ctx: DemoContext, branch: PlanBranch) -> None:
+    """Submitted for review: the creator reviews, approves, and watches the branch."""
+    if ctx.created_by is None:
+        return
+    submitted_at = ctx.now - _BRANCH_SUBMITTED_BEFORE_SEED
+    approved_at = ctx.now - _BRANCH_APPROVED_BEFORE_SEED
+    # Pinned to the content approved, as ``transition_branch`` pins it: the
+    # merge gate only counts an approval whose hash still matches the branch.
+    approved_hash = plan_snapshot_hash(
+        await build_plan_snapshot(session, ctx.project_id, branch_id=branch.id)
+    )
+    session.add_all(
+        [
+            PlanBranchReviewer(
+                branch_id=branch.id,
+                user_id=ctx.created_by,
+                created_at=submitted_at,
+                updated_at=submitted_at,
+            ),
+            PlanBranchApproval(
+                branch_id=branch.id,
+                user_id=ctx.created_by,
+                approved_at=approved_at,
+                plan_hash=approved_hash,
+            ),
+            Subscription(
+                user_id=ctx.created_by,
+                project_id=ctx.project_id,
+                entity_type=SubscriptionEntityType.branch.value,
+                entity_id=branch.id,
+                reasons=[SubscriptionReason.author.value, SubscriptionReason.reviewer.value],
+            ),
+        ]
     )
     await session.flush()

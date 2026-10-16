@@ -49,6 +49,9 @@ function Harness({ timeoutMs }: { timeoutMs?: number }) {
       <span data-testid="path">{location.pathname}</span>
       <span data-testid="timed-out">{String(provisioning.timedOut)}</span>
       <span data-testid="cancel-outcome">{provisioning.cancelOutcome ?? 'none'}</span>
+      <span data-testid="phase">
+        {`${provisioning.phaseIndex}:${provisioning.phaseConfirmed ? 'server' : 'estimate'}:${provisioning.phasePercent ?? '-'}`}
+      </span>
       {provisioning.error ? (
         <span data-testid="error">{(provisioning.error as Error).message}</span>
       ) : null}
@@ -99,6 +102,36 @@ function stallUntilAborted() {
   )
   return captured
 }
+
+describe('useDemoProvisioning — the stage the server reports', () => {
+  it('follows the shell the worker writes, over the timer estimate', async () => {
+    let report: ((shell: Project) => void) | undefined
+    vi.spyOn(projectsApi, 'createDemo').mockImplementation(
+      (_signal?: AbortSignal, _pollMs?: number, onShell?: (shell: Project) => void) => {
+        report = onShell
+        return new Promise<Project>(() => {})
+      },
+    )
+
+    renderHarness()
+    fireEvent.click(screen.getByText('start'))
+    await waitFor(() => expect(screen.getByTestId('status')).toHaveTextContent('provisioning'))
+    expect(screen.getByTestId('phase')).toHaveTextContent('0:estimate:-')
+
+    act(() => report?.({ ...makeProject(), generation_status: 'seeding', generation_stage: 'scan' }))
+    expect(screen.getByTestId('phase')).toHaveTextContent('1:server:-')
+
+    act(() =>
+      report?.({
+        ...makeProject(),
+        generation_status: 'seeding',
+        generation_stage: 'history',
+        generation_progress: 40,
+      } as Project),
+    )
+    expect(screen.getByTestId('phase')).toHaveTextContent('2:server:40')
+  })
+})
 
 describe('useDemoProvisioning — a stalled create is escapable', () => {
   it('cancel aborts the request AND asks the server to abandon it', async () => {

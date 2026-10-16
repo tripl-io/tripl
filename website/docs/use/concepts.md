@@ -277,6 +277,15 @@ reopen it. Unlike observed samples, accepting a drift changes the plan contract.
 An acceptance covers exactly the values you accepted — a later scan reopens the
 drift when it sees a value outside that set.
 
+A field whose value is exactly one token, such as `${product_id}`, is checked
+whatever the column's cardinality: the scan compares the raw values it read
+for that event's column with the property's documented list. A value with other
+text around the token (`promo_${product_id}`) is not checked, because the scan
+cannot tell which part of what it read is the property. Neither is a field
+marked sensitive: a drift stores and alerts the values themselves. On a
+`number` or `boolean` field the comparison ignores spelling, so `10.00` matches
+a documented `10` and `True` a documented `true`.
+
 ### Reconciliation
 
 **Reconciliation** is the plan-versus-reality report. It answers two questions

@@ -32,6 +32,7 @@ from __future__ import annotations
 
 import uuid
 from datetime import UTC, datetime
+from decimal import Context, Decimal, InvalidOperation
 from typing import Any
 
 from sqlalchemy import func, select, update
@@ -45,6 +46,51 @@ from tripl.models.variable_event_value_override import VariableEventValueOverrid
 from tripl.models.variable_value_drift import VariableValueDrift
 
 NOVEL_VALUE_SAMPLE_LIMIT = 20
+
+_TRUE_SPELLINGS = frozenset({"true", "t", "1", "yes"})
+_FALSE_SPELLINGS = frozenset({"false", "f", "0", "no"})
+#: A number whose decimal exponent is further out than this keeps its spelling:
+#: written out plainly, ``1e999999`` is a million digits.
+_MAX_PLAIN_EXPONENT = 100
+
+
+def canonical_value(value: str, kind: str | None) -> str:
+    """``value`` in the one spelling a ``number`` or ``boolean`` comparison uses.
+
+    A scan formats a warehouse value as Python prints it — a PostgreSQL boolean
+    is ``True``, a ``numeric(10,2)`` is ``10.00`` — while an author documents
+    ``true`` and ``10``. Compared as text, every one of those is a "novel"
+    value and the drift is noise. Anything the kind cannot parse is returned
+    as given, so it still reads as novel; so is a number too large or too
+    small to write out (:data:`_MAX_PLAIN_EXPONENT`).
+    """
+    if kind == "boolean":
+        folded = value.strip().lower()
+        if folded in _TRUE_SPELLINGS:
+            return "true"
+        if folded in _FALSE_SPELLINGS:
+            return "false"
+        return value
+    if kind == "number":
+        try:
+            number = Decimal(value.strip())
+        except InvalidOperation:
+            return value
+        if not number.is_finite():
+            return value
+        if number.is_zero():
+            return "0"
+        if abs(number.adjusted()) > _MAX_PLAIN_EXPONENT:
+            return value
+        # ``normalize`` drops trailing zeros (``10.00`` -> ``10``) and ``f``
+        # keeps it out of exponent notation. Its context is as precise as the
+        # number itself, so a long id is never rounded to the default 28 digits.
+        exact = Context(prec=max(1, len(number.as_tuple().digits)))
+        try:
+            return format(number.normalize(exact), "f")
+        except ArithmeticError:  # a decimal signal the context traps
+            return value
+    return value
 
 
 def _accepted_sets_by_pair(
@@ -123,6 +169,7 @@ def detect_variable_value_drifts(
 
     novel_by_pair: dict[tuple[uuid.UUID, uuid.UUID], list[str]] = {}
     resolved_by_pair: dict[tuple[uuid.UUID, uuid.UUID], set[str]] = {}
+    kind_by_pair: dict[tuple[uuid.UUID, uuid.UUID], str] = {}
     for (variable_id, event_id, _), context in contexts.items():
         variable = variables_by_id.get(variable_id)
         if variable is None:
@@ -130,17 +177,29 @@ def detect_variable_value_drifts(
         documented = overrides.get((variable_id, event_id), list(variable.allowed_values or []))
         if not documented:
             continue
-        documented_set = set(documented)
+        # Only an authored-token context names a kind (see
+        # ``authored_token_observations``); the variable's own type stands in
+        # for a field typed ``string``. The planner's contexts are compared as
+        # text, as before.
+        kind: str | None = None
+        if "canonical_kind" in context:
+            kind = context["canonical_kind"] or (
+                variable.variable_type if variable.variable_type in ("number", "boolean") else None
+            )
+            if kind is not None:
+                kind_by_pair.setdefault((variable_id, event_id), kind)
+        documented_set = {canonical_value(value, kind) for value in documented}
         # What an acceptance can be trusted to have resolved: the pair's own
         # documented list, plus the variable's global list. The union covers the
         # one case where they differ — accepting globally on a pair that has an
         # override writes to ``allowed_values`` while the override still governs
         # what counts as novel.
-        resolved_by_pair[(variable_id, event_id)] = documented_set | set(
-            variable.allowed_values or []
-        )
+        resolved_by_pair[(variable_id, event_id)] = documented_set | {
+            canonical_value(value, kind) for value in variable.allowed_values or []
+        }
         novel = novel_by_pair.setdefault((variable_id, event_id), [])
-        for value in context.get("values") or []:
+        for raw in context.get("values") or []:
+            value = canonical_value(raw, kind)
             if value not in documented_set and value not in novel:
                 novel.append(value)
 
@@ -170,7 +229,10 @@ def detect_variable_value_drifts(
             # fix. Without this the fix would be inert for exactly the population
             # the bug corrupted, and no migration can tell the two apart after
             # the fact: acceptance documents, absorption does not.
-            accepted_values &= resolved_by_pair.get((variable_id, event_id), set())
+            pair_kind = kind_by_pair.get((variable_id, event_id))
+            accepted_values = {
+                canonical_value(value, pair_kind) for value in accepted_values
+            } & resolved_by_pair.get((variable_id, event_id), set())
             if set(novel) <= accepted_values:
                 # Still inside the resolved set: leave the row untouched so its
                 # evidence (and its retention clock) stay frozen at acceptance.

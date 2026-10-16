@@ -2,9 +2,9 @@
 
 Consolidates the cross-cutting guarantees: provisioning rollback, full cleanup,
 cache coherence, repeated-create safety, and — the security capstone — that a full
-provision makes ZERO outbound network calls. Per-feature depth (two runtime ticks,
+provision makes ZERO outbound network calls. Per-feature depth (the runtime and
 retention, metric collection, alert dispatch no-network) lives in the task suites
-(test_demo_runtime / test_demo_metric_collection / test_demo_alert_sink).
+(test_demo_v5_runtime / test_demo_metric_collection / test_demo_alert_sink).
 """
 
 import uuid
@@ -81,12 +81,12 @@ async def test_delete_cleans_owned_source_and_spares_real(client: AsyncClient) -
             await session.execute(select(Project).where(Project.slug == slug))
         ).scalar_one_or_none() is None
         assert (await session.get(DataSource, real_id)) is not None
-        synthetic = (
-            (await session.execute(select(DataSource).where(DataSource.db_type == "synthetic")))
+        warehouses = (
+            (await session.execute(select(DataSource).where(DataSource.db_type == "demo")))
             .scalars()
             .all()
         )
-        assert synthetic == []
+        assert warehouses == []
 
 
 @pytest.mark.asyncio
@@ -130,8 +130,9 @@ async def test_demo_enabled_flag_disables_only_demo_provisioning(
 
 @pytest.mark.asyncio
 async def test_provisioning_makes_zero_network_egress(deny_network: None) -> None:
-    # Capstone: a full provision (synthetic warehouse, real detector/PSI, catalog
-    # collection, local alert sink) runs entirely in-process. The tripwire raises
+    # Capstone: a full provision (the in-memory demo warehouse, tripl's real scan,
+    # replay, detector and PSI, catalog collection, local alert sink) runs
+    # entirely in-process. The tripwire raises
     # on ANY socket/httpx/smtplib use; the in-memory SQLite opens no socket, so a
     # clean run proves the demo stack never reaches the network. Called directly
     # (not via the ASGI client, which itself rides httpx) so only genuine egress trips.

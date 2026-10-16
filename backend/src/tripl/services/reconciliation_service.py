@@ -9,7 +9,7 @@ from datetime import UTC, datetime, timedelta
 
 from fastapi import HTTPException
 from pydantic import BaseModel, Field, field_validator
-from sqlalchemy import ColumnElement, func, or_, select
+from sqlalchemy import ColumnElement, and_, func, or_, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from tripl.core.dead_events import DEAD_EVENT_DAYS, dead_event_clause
@@ -41,6 +41,7 @@ from tripl.schemas.reconciliation import (
 from tripl.services import event_service
 from tripl.services.plan_branch_service import resolve_branch_id
 from tripl.services.project_lookup import resolve_project_id
+from tripl.services.shadow_identity import held_by_catalog_event
 
 # The Dead events page's default window: the one the weekly digest counts with.
 DEFAULT_DEAD_EVENT_DAYS = DEAD_EVENT_DAYS
@@ -129,7 +130,13 @@ async def list_shadow_events(
     offset: int = 0,
 ) -> ShadowEventListResponse:
     project_id = await resolve_project_id(session, slug)
-    not_archived = _not_an_archived_identity(project_id)
+    # A ``new`` candidate an event now holds is not unmapped any more: the
+    # collector resolves it on its next catalog sync (``shadow_identity``), and
+    # until then the inbox must not offer what Accept could only link.
+    not_archived = and_(
+        _not_an_archived_identity(project_id),
+        ~and_(ShadowEventCandidate.status == SHADOW_STATUS_NEW, held_by_catalog_event()),
+    )
 
     query = (
         # display_name is what every other surface labels an event type with
@@ -186,6 +193,11 @@ async def list_shadow_events(
             last_seen_at=candidate.last_seen_at,
             status=candidate.status,
             accepted_event_id=candidate.accepted_event_id,
+            # Users are never deleted, so an empty ``resolved_by`` on an
+            # accepted row is only ever the collector's resolver.
+            auto_resolved=(
+                candidate.status == SHADOW_STATUS_ACCEPTED and candidate.resolved_by is None
+            ),
             sample_properties=candidate.sample_properties or [],
         )
         for candidate, scan_name, event_type_name in rows
@@ -288,7 +300,9 @@ class ShadowEventAcceptResult:
 
     response: ShadowEventAcceptResponse
     event: Event
-    event_create: EventCreate
+    #: ``None`` when the accept LINKED the candidate to an event that already held
+    #: its identity: nothing was created, so there is no ``event.create`` to file.
+    event_create: EventCreate | None
     candidate: ShadowEventCandidate
 
 
@@ -346,21 +360,72 @@ async def accept_shadow_event(
             branch_id=resolved_branch_id,
             event_type_id=event_type_id,
         )
+    main_branch_id = await resolve_branch_id(session, project_id, None)
     # Per event type, like every other statement of the identity rule
     # (``uq_event_scan_identity``, ``_guard_scan_identity``): a type-A event
     # holding identity X does not stop a type-B event from taking it.
-    existing = await session.scalar(
-        select(Event.id).where(
-            Event.project_id == project_id,
-            Event.branch_id == resolved_branch_id,
-            Event.event_type_id == event_type_id,
-            Event.source_name == candidate.event_name,
-        )
+    existing = await _identity_holder(
+        session,
+        project_id=project_id,
+        branch_id=resolved_branch_id,
+        event_type_id=event_type_id,
+        identity=candidate.event_name,
     )
-    if existing is not None:
+    if resolved_branch_id != main_branch_id:
+        # The collector matches traffic against MAIN, so on a working branch the
+        # event to link to is main's. A branch-only holder is not one: the
+        # candidate would read "accepted" while main still had no event for its
+        # traffic, and an accepted candidate is never filed again, so the
+        # traffic would go unaccounted for until someone noticed. Its type is
+        # the scan's (a main id) unless the operator picked one, and a type
+        # they picked came from the branch's list, so the scan's is the one to
+        # match main with.
+        main_holder = await _identity_holder(
+            session,
+            project_id=project_id,
+            branch_id=main_branch_id,
+            event_type_id=candidate.event_type_id,
+            identity=candidate.event_name,
+        )
+        if main_holder is None and existing is not None and existing.status != EventStatus.archived:
+            raise HTTPException(
+                status_code=409,
+                detail=(
+                    "Only this branch has an event with this identity. Merge the "
+                    "branch; the next metrics collection then links this candidate "
+                    "to it."
+                ),
+            )
+        if main_holder is not None:
+            existing = main_holder
+    if existing is not None and existing.status == EventStatus.archived:
         raise HTTPException(
             status_code=409,
-            detail="An event with this source identity already exists (possibly archived)",
+            detail="An archived event already has this source identity; restore it instead",
+        )
+    if existing is not None:
+        # The identity was taken after the candidate was collected — a catalog
+        # sync auto-created the event, or someone added it. The candidate IS
+        # that event's traffic, so accepting it links the two instead of
+        # refusing a duplicate nobody could otherwise clear. Nothing is created.
+        await _resolve_candidate(
+            session,
+            candidate,
+            status=SHADOW_STATUS_ACCEPTED,
+            user_id=user_id,
+            accepted_event_id=existing.id,
+        )
+        await session.commit()
+        return ShadowEventAcceptResult(
+            response=ShadowEventAcceptResponse(
+                candidate_id=candidate.id,
+                event_id=existing.id,
+                status=SHADOW_STATUS_ACCEPTED,
+                linked=True,
+            ),
+            event=existing,
+            event_create=None,
+            candidate=candidate,
         )
 
     event_create = EventCreate(
@@ -368,6 +433,12 @@ async def accept_shadow_event(
         name=data.name or candidate.event_name,
         status="live",
     )
+    # Claimed BEFORE the event is created, in the transaction ``create_event``
+    # commits: a concurrent accept or dismiss that also read ``new`` waits on
+    # the row and then finds it resolved, instead of the two of them leaving an
+    # event behind a dismissed candidate. A create that fails rolls the claim
+    # back with it.
+    await _resolve_candidate(session, candidate, status=SHADOW_STATUS_ACCEPTED, user_id=user_id)
     # The scan identity is what the metrics collector matches on — without it the
     # accepted event would never attach to warehouse data. It is passed IN rather
     # than assigned after the call for two reasons: create_event would otherwise
@@ -380,19 +451,36 @@ async def accept_shadow_event(
     # row, the way POST /events does. Without it the row was anonymous and the
     # docs' claim that an accepted candidate is indistinguishable from one you
     # typed was false on the History tab.
-    event = await event_service.create_event(
-        session,
-        slug,
-        event_create,
-        branch_id=branch_id,
-        scan_identity=candidate.event_name,
-        user_id=user_id,
-    )
+    identity = candidate.event_name
+    try:
+        event = await event_service.create_event(
+            session,
+            slug,
+            event_create,
+            branch_id=branch_id,
+            scan_identity=identity,
+            user_id=user_id,
+        )
+    except Exception:
+        # The rollback undoes the claim along with the event. The UPDATE after
+        # it covers a claim something inside the create committed early: a
+        # failed accept must leave the candidate ``new``, or it would read as
+        # accepted with no event behind it and never be offered again.
+        await session.rollback()
+        await session.execute(
+            update(ShadowEventCandidate)
+            .where(
+                ShadowEventCandidate.id == candidate_id,
+                ShadowEventCandidate.status == SHADOW_STATUS_ACCEPTED,
+                ShadowEventCandidate.accepted_event_id.is_(None),
+                ShadowEventCandidate.resolved_by == user_id,
+            )
+            .values(status=SHADOW_STATUS_NEW, resolved_by=None, resolved_at=None)
+        )
+        await session.commit()
+        raise
 
-    candidate.status = SHADOW_STATUS_ACCEPTED
     candidate.accepted_event_id = event.id
-    candidate.resolved_by = user_id
-    candidate.resolved_at = datetime.now(UTC)
     await session.commit()
 
     return ShadowEventAcceptResult(
@@ -405,6 +493,71 @@ async def accept_shadow_event(
         event_create=event_create,
         candidate=candidate,
     )
+
+
+async def _identity_holder(
+    session: AsyncSession,
+    *,
+    project_id: uuid.UUID,
+    branch_id: uuid.UUID,
+    event_type_id: uuid.UUID | None,
+    identity: str,
+) -> Event | None:
+    """The event on ``branch_id`` holding ``identity``, archived ones included.
+
+    ``event_type_id=None`` (a candidate the collector resolved no type for)
+    matches project-wide, as ``shadow_identity`` holds such candidates.
+    """
+    query = select(Event).where(
+        Event.project_id == project_id,
+        Event.branch_id == branch_id,
+        # ``source_name``, or the name an authored event adopts as its
+        # identity — the rule ``shadow_identity`` holds candidates by.
+        func.coalesce(Event.source_name, Event.name) == identity,
+    )
+    if event_type_id is not None:
+        query = query.where(Event.event_type_id == event_type_id)
+    # An event carrying the identity outright wins over one that adopts it.
+    return await session.scalar(
+        query.order_by(Event.source_name.is_(None), Event.created_at, Event.id).limit(1)
+    )
+
+
+async def _resolve_candidate(
+    session: AsyncSession,
+    candidate: ShadowEventCandidate,
+    *,
+    status: str,
+    user_id: uuid.UUID,
+    accepted_event_id: uuid.UUID | None = None,
+) -> None:
+    """Resolve ``candidate`` only if it is still ``new``; 409 if it is not.
+
+    The ``status`` check each route opens with is a plain read, so two requests
+    — two tabs, a batch racing a click, the collector's resolver — could both
+    pass it, and the later write would silently replace the earlier resolution
+    (a dismissal turned into an accept, or the reverse). The UPDATE re-checks
+    under the row lock it takes, and loses cleanly.
+    """
+    claimed = await session.execute(
+        update(ShadowEventCandidate)
+        .where(
+            ShadowEventCandidate.id == candidate.id,
+            ShadowEventCandidate.status == SHADOW_STATUS_NEW,
+        )
+        .values(
+            status=status,
+            accepted_event_id=accepted_event_id,
+            resolved_by=user_id,
+            resolved_at=datetime.now(UTC),
+        )
+    )
+    if not getattr(claimed, "rowcount", 0):
+        await session.rollback()
+        raise HTTPException(
+            status_code=409,
+            detail="Candidate was resolved by another request",
+        )
 
 
 async def dismiss_shadow_event(
@@ -422,9 +575,7 @@ async def dismiss_shadow_event(
             detail=f"Candidate already {candidate.status}",
         )
 
-    candidate.status = SHADOW_STATUS_DISMISSED
-    candidate.resolved_by = user_id
-    candidate.resolved_at = datetime.now(UTC)
+    await _resolve_candidate(session, candidate, status=SHADOW_STATUS_DISMISSED, user_id=user_id)
     await session.commit()
 
     return ShadowEventDismissResult(
@@ -455,7 +606,8 @@ async def batch_shadow_events(
 
     ``on_accepted``/``on_dismissed`` run right after each row commits, with the
     result the single route audits, so a batch files the same ``event.create``
-    / ``shadow_event.dismiss`` rows one click at a time would. Right after, not
+    / ``shadow_event.link`` / ``shadow_event.dismiss`` rows one click at a time
+    would. Right after, not
     at the end: a later row's rollback expires every loaded object, and the
     earlier results could no longer be read without IO.
     """
@@ -477,6 +629,7 @@ async def batch_shadow_events(
                         ok=True,
                         status=accepted.response.status,
                         event_id=accepted.response.event_id,
+                        linked=accepted.response.linked,
                     )
                 )
                 await on_accepted(accepted)

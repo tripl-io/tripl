@@ -116,6 +116,72 @@ _FORBIDDEN_FUNCTION_RE = re.compile(
     re.IGNORECASE,
 )
 
+# Functions the DEMO WAREHOUSE's reader may not call, on top of the list above.
+# Every visitor of a public demo shares one reader role on a database that sits
+# on tripl's own PostgreSQL server, so a call that is harmless on a customer's
+# warehouse (their credential, their server) reaches other visitors and tripl
+# here: changing session settings for the statements after it (``set_config``),
+# seeing or cancelling other sessions of the role, holding advisory locks,
+# sleeping on a connection, reading server files, opening large objects or
+# other databases. ``DemoPostgresAdapter`` checks every statement it runs
+# against this, so scans, fact tables, SQL metrics and previews of a ``demo``
+# source are all covered without each schema knowing its source's type.
+# The ``*_to_xml`` family and ``ts_stat`` / ``ts_rewrite`` run a query given
+# as TEXT, so a string literal can carry any of the calls above past a gate
+# that skips literals: hence ``check_demo_warehouse_sql`` scans the literals too.
+# ``current_setting`` (reading a setting) stays allowed. A name matches as a
+# whole word, not only before ``(``: a comment between a name and its
+# parenthesis is still a call, and no warehouse column has one of these names.
+# This list is the second layer: the first is the privileges ``migrate`` takes
+# from the reader (``demo_warehouse.provision.REVOKED_FUNCTION_PATTERNS``),
+# which hold whatever text reaches the server.
+_DEMO_FORBIDDEN_SQL_FUNCTION_PATTERNS: tuple[str, ...] = (
+    r"set_config",
+    r"pg_cancel_backend",
+    r"pg_terminate_backend",
+    r"pg_(?:try_)?advisory\w*",
+    r"pg_stat_get_\w+",
+    r"pg_lock_status",
+    r"pg_(?:safe_snapshot_)?blocking_pids",
+    r"pg_sleep\w*",
+    r"lo_\w+",
+    r"lo(?:read|write)",
+    r"dblink\w*",
+    r"pg_read_(?:binary_)?file",
+    r"pg_ls_\w+",
+    r"pg_stat_file",
+    r"pg_reload_conf",
+    r"pg_rotate_logfile",
+    r"pg_notify",
+    r"(?:query|cursor|table|schema|database)_to_xml\w*",
+    r"ts_stat",
+    r"ts_rewrite",
+)
+_DEMO_FORBIDDEN_FUNCTION_RE = re.compile(
+    r"\b(" + "|".join(_DEMO_FORBIDDEN_SQL_FUNCTION_PATTERNS) + r")\b",
+    re.IGNORECASE,
+)
+# Relations the demo reader may not read: other sessions' query text and locks.
+_DEMO_FORBIDDEN_RELATION_RE = re.compile(r"\b(pg_stat_activity|pg_locks)\b", re.IGNORECASE)
+# A double-quoted plain name: ``"pg_sleep"(1)`` calls ``pg_sleep``.
+_QUOTED_PLAIN_NAME_RE = re.compile(r'"([A-Za-z_][A-Za-z0-9_$]*)"')
+# A Unicode-escape identifier (``U&"\0070g_sleep"``) spells a name no pattern sees.
+_UNICODE_IDENTIFIER_RE = re.compile(r'u&"', re.IGNORECASE)
+# A dollar-quoted string (``$$...$$``, ``$tag$...$tag$``): a quote no other
+# scanner here knows, so the text around it cannot be told from code.
+_DOLLAR_QUOTE_RE = re.compile(r"\$(?:[A-Za-z_][A-Za-z0-9_]*)?\$")
+# Comment markers a demo statement may not carry (``#`` is not one in PostgreSQL).
+_DEMO_COMMENT_MARKERS: tuple[str, ...] = ("--", "/*", "*/")
+# Anything after a ``;``. A statement sent without parameters runs in the
+# simple query protocol, which runs every statement in the text: a ``SET``
+# after the first would hold for the rest of the text, past the pins sent
+# before it. Saved SQL is already one statement (``validate_select_sql_safety``),
+# but this gate holds for every statement the adapter sends, and a literal's
+# ``;`` is refused too (the same reason names are matched inside literals). A
+# trailing ``;`` ends the one statement and is harmless.
+_DEMO_SECOND_STATEMENT_RE = re.compile(r";\s*\S")
+
+
 # Fragment-only forbidden set: everything ``validate_select_sql_safety`` rejects
 # PLUS ``select`` and ``with``. A stored row filter is a boolean WHERE expression
 # that must never embed a query, so a correlated subquery (``user_id IN (SELECT
@@ -182,6 +248,9 @@ _DB_TYPE_DIALECT: dict[str, SqlDialect] = {
     "trino": SqlDialect.trino,
     "athena": SqlDialect.athena,
     "synthetic": SqlDialect.clickhouse,
+    # Both demo warehouse engines read PostgreSQL SQL: the warehouse is one, and
+    # the in-memory engine evaluates PostgreSQL's quoting too.
+    "demo": SqlDialect.postgres,
 }
 
 #: ClickHouse, BigQuery and Databricks back-tick identifiers; PostgreSQL,
@@ -1097,3 +1166,42 @@ def validate_select_sql(metric_sql: str, *, value_column: str, time_column: str)
             raise ValueError(msg)
 
     return without_trailing
+
+
+def check_demo_warehouse_sql(sql: str) -> None:
+    """Refuse a statement the shared demo warehouse's reader must not run.
+
+    The demo-only denylist (``_DEMO_FORBIDDEN_FUNCTION_RE``) is matched against
+    the WHOLE text, string literals included: ``query_to_xml`` runs a query
+    given as a literal, and a literal's bounds are exactly what a crafted
+    statement makes two scanners disagree on (a quote inside a comment or a
+    dollar quote). So ``WHERE event_name = 'set_config'`` is refused too; on
+    the demo's own data that costs nothing, and the demo is the only place
+    this gate runs. A quoted name is unquoted first (it names the same
+    function). Comments, dollar quotes and Unicode-escape identifiers are
+    refused outright: each one is a way to make text look like something else;
+    so is anything after a ``;`` (a second statement, which the pins do not
+    precede).
+    Raises ``ValueError`` naming what it found.
+    """
+    text = _QUOTED_PLAIN_NAME_RE.sub(r"\1", sql)
+    found = _DEMO_FORBIDDEN_FUNCTION_RE.search(text) or _DEMO_FORBIDDEN_RELATION_RE.search(text)
+    if found is not None:
+        msg = (
+            "The demo warehouse does not allow "
+            f"{found.group(1).lower()} anywhere in a query, string literals included: "
+            "it is shared by every demo."
+        )
+        raise ValueError(msg)
+    if _UNICODE_IDENTIFIER_RE.search(text):
+        msg = 'The demo warehouse does not allow U&"..." identifiers in a query.'
+        raise ValueError(msg)
+    if _DOLLAR_QUOTE_RE.search(text):
+        msg = "The demo warehouse does not allow dollar-quoted strings in a query."
+        raise ValueError(msg)
+    if any(marker in text for marker in _DEMO_COMMENT_MARKERS):
+        msg = "The demo warehouse does not allow comments in a query."
+        raise ValueError(msg)
+    if _DEMO_SECOND_STATEMENT_RE.search(text):
+        msg = "The demo warehouse runs one statement at a time: nothing may follow a ';'."
+        raise ValueError(msg)

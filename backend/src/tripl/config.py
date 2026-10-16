@@ -3,7 +3,7 @@ from __future__ import annotations
 import re
 from typing import Annotated, Literal
 
-from pydantic import Field, field_validator
+from pydantic import Field, field_validator, model_validator
 from pydantic_settings import BaseSettings, NoDecode
 
 from tripl.alerting_validation import validate_sender_address
@@ -327,12 +327,40 @@ class Settings(BaseSettings):
     # non-demo surface are entirely unaffected in any state of this flag.
     demo_enabled: bool = True
 
-    # Demo runtime tick (``advance_demos`` beat task). When true, active demos are
-    # kept fresh by appending new synthetic buckets/jobs/signals on a schedule.
-    # When false the beat task is a no-op — REAL scan/metric scheduling
-    # (check_metrics_due / check_metric_definitions_due) is entirely unaffected,
-    # so this only turns demo self-advancement on or off.
+    # Demo self-advancement. When true, an active demo's scan is collected on
+    # the ordinary schedule from the shared demo warehouse (subject to the idle
+    # pause and the demo cooldown, ``metrics.schedule``), so it keeps showing
+    # new hours and the warehouse's daily incident. When false demo scan
+    # configs are never dispatched: a demo keeps exactly what provisioning
+    # built, and "Run now" / "Replay" still work. REAL projects' scheduling is
+    # entirely unaffected either way.
     demo_runtime_enabled: bool = True
+
+    # The demo warehouse (core/demo_warehouse): a PostgreSQL database every demo
+    # reads, on the server tripl already uses, refreshed by a beat task.
+    # DEMO_WAREHOUSE_URL overrides the writer's DSN (a database provisioned by
+    # hand, e.g. on managed PostgreSQL); empty derives it from SYNC_DATABASE_URL
+    # with the database name ``<name>_demo``. DEMO_WAREHOUSE_READER_PASSWORD is
+    # the password of a reader role provisioned by hand (``tripl_demo_reader``);
+    # empty derives one from SECRET_KEY and lets ``migrate`` manage the role.
+    # DEMO_WAREHOUSE_MODE: ``auto`` uses the warehouse when it is ready and the
+    # in-memory engine otherwise; ``postgres`` and ``memory`` force one.
+    demo_warehouse_url: str = ""
+    demo_warehouse_reader_password: str = ""
+    demo_warehouse_mode: Literal["auto", "postgres", "memory"] = "auto"
+    # Days of rows kept; older day partitions are dropped. The size cap is a
+    # backstop: over it, the oldest days beyond 23 are dropped and an error logged.
+    demo_warehouse_retention_days: int = Field(default=30, ge=23, le=365)
+    # Days of warehouse history a new demo replays at provisioning. 23 is
+    # three weekly cycles (the hour-of-week baseline needs 21 days) plus two
+    # days to score, and is what a demo is meant to show. A shorter history
+    # still makes a complete demo (every surface is collected, the newest
+    # incident still alerts) with a seasonality-blind baseline, in a fraction
+    # of the time: the SQLite test suite uses 2-3 where a test only needs "a
+    # demo project". At most the warehouse's retention (checked at startup:
+    # history the warehouse no longer holds would fail every demo build).
+    demo_history_days: int = Field(default=23, ge=2, le=30)
+    demo_warehouse_max_mb: int = Field(default=1024, ge=64)
 
     # "Sign in with Google" on the sign-in page: an instance-wide
     # OAuth client, unlike an organization's own SSO. Both set turns the button
@@ -471,6 +499,17 @@ class Settings(BaseSettings):
             msg = "OIDC_ISSUER must be an https:// URL"
             raise ValueError(msg)
         return value
+
+    @model_validator(mode="after")
+    def _demo_history_within_retention(self) -> Settings:
+        if self.demo_history_days > self.demo_warehouse_retention_days:
+            msg = (
+                f"DEMO_HISTORY_DAYS={self.demo_history_days} exceeds "
+                f"DEMO_WAREHOUSE_RETENTION_DAYS={self.demo_warehouse_retention_days}: a demo "
+                "build would replay days the warehouse no longer holds"
+            )
+            raise ValueError(msg)
+        return self
 
     @field_validator("oidc_scopes")
     @classmethod

@@ -2687,9 +2687,34 @@ def collect_metric_definitions(
     ``manual_backfill_all`` on ``collect_fact_metrics_batch``.
     """
     session = _get_sync_session()
+    try:
+        return execute_collect_metric_definition(
+            session,
+            metric_definition_id,
+            window=_parse_window_override(window_from, window_to),
+            force=force,
+            manual_backfill=manual_backfill,
+        )
+    finally:
+        session.close()
+
+
+def execute_collect_metric_definition(
+    session: Session,
+    metric_definition_id: str,
+    *,
+    window: tuple[datetime, datetime] | None = None,
+    force: bool = False,
+    manual_backfill: bool = False,
+) -> dict[str, object]:
+    """The body of :func:`collect_metric_definitions`, on a session the caller owns.
+
+    Split out so demo provisioning collects its catalog metrics with the
+    worker's own collectors on the session it seeds with; the task wraps it with
+    the worker's session and parses the window strings.
+    """
     definition: MetricDefinition | None = None
     try:
-        window = _parse_window_override(window_from, window_to)
         definition = session.get(MetricDefinition, uuid.UUID(metric_definition_id))
         if definition is None:
             msg = f"MetricDefinition {metric_definition_id} not found"
@@ -2730,8 +2755,6 @@ def collect_metric_definitions(
         else:
             session.rollback()
         raise
-    finally:
-        session.close()
 
 
 def _metric_kind(definition: MetricDefinition) -> MetricKind:

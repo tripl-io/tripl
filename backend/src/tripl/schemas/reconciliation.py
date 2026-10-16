@@ -21,6 +21,10 @@ class ShadowEventCandidateResponse(BaseModel):
     last_seen_at: datetime
     status: ShadowEventStatus
     accepted_event_id: uuid.UUID | None
+    # Accepted with nobody pressing Accept: the collector found an event on the
+    # main plan already holding this identity and linked the two
+    # (``services.shadow_identity``). False for every other status.
+    auto_resolved: bool = False
     # Up to five column -> value dicts from the rows the latest collection saw
     # for this identity, so a reviewer sees what the event looks like before
     # accepting it. Empty until a collection observes the candidate.
@@ -43,6 +47,10 @@ class ShadowEventAcceptResponse(BaseModel):
     candidate_id: uuid.UUID
     event_id: uuid.UUID
     status: ShadowEventStatus
+    # True when the plan already had an event with this identity and the
+    # candidate was linked to it; nothing was created, and ``name`` and
+    # ``event_type_id`` in the request were not used.
+    linked: bool = False
 
 
 class ShadowEventDismissResponse(BaseModel):
@@ -84,8 +92,9 @@ class ShadowEventBatchItemResult(BaseModel):
     candidate_id: uuid.UUID
     ok: bool
     status: ShadowEventStatus | None = None
-    # The event an accepted row created.
+    # The event an accepted row created, or linked to when ``linked``.
     event_id: uuid.UUID | None = None
+    linked: bool = False
     # Why a row was refused, in the single route's own words, and its status
     # code (404 unknown, 409 already resolved, 422 no event type, ...).
     error: str | None = None

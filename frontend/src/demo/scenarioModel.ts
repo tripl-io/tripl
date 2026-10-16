@@ -538,20 +538,27 @@ export const CHAPTER_BLURBS: Record<ChapterId, string> = {
 }
 
 /** The names the demo seeder guarantees. Coach marks key on these to highlight
- *  exactly one deterministic example row per anchor (single-example rule). */
+ *  exactly one deterministic example row per anchor (single-example rule).
+ *  Incidents are not among them: the demo warehouse injects one a day on its
+ *  own calendar, so the anomaly step points at whichever opened last
+ *  (`coachedIncident.ts`). */
 export const SCENARIO_SEEDED = {
   editedEventName: 'Trial Started',
   editedFieldName: 'product_id',
   editedFieldValue: 'prod_monthly',
   editedFieldToken: '${product_id}',
-  anomalyEventName: 'Home Screen View',
   driftVariableName: 'product_id',
   branchName: 'feature/checkout-funnel',
   changedEventName: 'Buy Button Click',
   shadowCandidateName: 'app_heartbeat_v1',
   schemaDriftEventName: 'Purchase Completed',
-  /** Its open type change (number → String), the drift the step accepts. */
-  schemaDriftFieldName: 'amount',
+  /** Its open enum violation (the warehouse sends GBP, which the plan's
+   *  currency list lacks): the drift the step accepts. Filed by the first
+   *  build's field-contract check over its newest hours (a replay skips that
+   *  check, and the live collection waits for the history fill), so it is
+   *  there when the demo opens. */
+  schemaDriftFieldName: 'currency',
+  schemaDriftType: 'enum_violation',
   firingRuleName: 'Spike & drift watch (demo)',
 } as const
 
@@ -760,8 +767,8 @@ export function buildChapterSteps(
         {
           id: 'reconcile/review-drift',
           title: 'Resolve a schema drift',
-          instruction: `Open the schema-drift badge beside the Events heading and accept the amount type change on ${SCENARIO_SEEDED.schemaDriftEventName}.`,
-          cue: 'Click the amber schema-drift badge, then Accept under amount.',
+          instruction: `Open the schema-drift badge beside the Events heading and accept the GBP currency ${SCENARIO_SEEDED.schemaDriftEventName} now sends.`,
+          cue: 'Click the amber schema-drift badge, then Accept under currency.',
           to: `${base}/events`,
           ctaLabel: 'Open Events',
           coach: { side: 'right', align: 'center', emphasis: 'ring' },
@@ -809,9 +816,10 @@ export function buildChapterSteps(
         },
         {
           id: 'explore/visit-anomaly',
-          title: 'Drill into the spike',
-          instruction: `Open Anomalies and drill into the ${SCENARIO_SEEDED.anomalyEventName} spike.`,
-          cue: `Click the ${SCENARIO_SEEDED.anomalyEventName} spike to open its chart.`,
+          title: 'Drill into the latest incident',
+          instruction:
+            'Open Anomalies and drill into the newest open incident — the demo warehouse injects one every day.',
+          cue: 'Click the highlighted incident to open its chart. Between incidents, open the volume chart instead.',
           to: `${base}/anomalies`,
           ctaLabel: 'Open Anomalies',
           coach: { side: 'top', align: 'start', emphasis: 'ring' },

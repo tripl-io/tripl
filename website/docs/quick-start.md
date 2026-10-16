@@ -78,7 +78,7 @@ members.
 After signing in you land on **All projects**. Until a project exists it shows
 a welcome screen, with two ways forward in the middle of the page:
 
-- **Generate demo project** — a complete synthetic project to explore. Start here.
+- **Generate demo project** — a complete project on generated data to explore. Start here.
 - **New project** — an empty project for your real work.
 
 Someone who joins an existing organization as a member sees a note there
@@ -91,12 +91,14 @@ adds them (**Settings › Project › Access**), unless the organization's
 
 ## Step 3 — Explore the demo project
 
-Click **Generate demo project**. tripl builds a realistic project — event types,
-events, fields, properties, collected metrics, a few anomalies, some schema
-drift — backed by a **local synthetic warehouse**. Nothing leaves the server and
-no connection is made anywhere, but the product is not faked around it: real
+Click **Generate demo project**. In about a minute tripl builds a realistic
+project — a tracking plan of 157 events, collected metrics, anomalies, value and
+schema drift, release regressions — the way a real one starts: it writes the
+plan, then scans the **demo warehouse**, a database of generated traffic on
+your own server that every demo shares, and collects 23 days of history from
+it. Nothing leaves the server, and the product is not faked around it: real
 scans, metric collection, anomaly detection, and reconciliation run over that
-synthetic source, and a background clock keeps it fresh.
+warehouse, which keeps advancing on its own, with an incident every day.
 
 ![The demo project on first open: the demo banner, the welcome panel and the Overview](/img/screenshots/demo-welcome.light.webp#gh-light-mode-only)
 ![The demo project on first open: the demo banner, the welcome panel and the Overview](/img/screenshots/demo-welcome.dark.webp#gh-dark-mode-only)
@@ -137,9 +139,9 @@ Then look around in roughly this order:
 - **Govern → Reconciliation** — what is documented-but-dead and
   live-but-undocumented.
 
-Reset or delete the demo any time — it never touches real projects. The full
-list of what is synthetic, what really executes, and what is intentionally
-unavailable is in **[The demo project](./use/demo-workspace.md)**.
+Reset or delete the demo any time — it never touches real projects. What the
+demo writes, what its pipeline observes, and what is intentionally unavailable
+is in **[The demo project](./use/demo-workspace.md)**.
 
 :::tip Done exploring?
 If the demo answered your questions, you already know the product. The rest of

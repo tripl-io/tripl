@@ -177,6 +177,8 @@ const ACTION_SENTENCE: Record<string, string> = {
   // Scans, metrics and their previews.
   'scan_config.metrics_replay': 'Replayed metrics for scan',
   'scan_config.event_groups.apply': 'Applied event groups from scan',
+  // Accept on an inbox row the plan already had an event for: nothing created.
+  'shadow_event.link': 'Linked a shadow event to an existing event',
   'metric_definition.bulk_update': 'Updated metrics in bulk',
   'metric.preview': 'Previewed a SQL metric',
   'metric.fact_preview': 'Previewed a metric filter on fact table',

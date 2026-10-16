@@ -1,4 +1,8 @@
-"""Regression tests for the synthetic warehouse and the demo catalog.
+"""Regression tests for the synthetic warehouse a legacy demo's catalog reads.
+
+Recipe 5 demos read the demo warehouse; a recipe-4 demo's ``synthetic`` source
+(and its stored Active Sessions statement) keeps running on this adapter until
+the demo is reset, so the findings below stay pinned against it.
 
 Five findings, all of which produced a WRONG NUMBER rather than an error, so
 every test here asserts a value relationship rather than "something came back":
@@ -42,7 +46,6 @@ from tripl.core.adapters.measure_validator import (
 from tripl.core.adapters.synthetic import SyntheticAdapter, SyntheticCapabilityError
 from tripl.models.domain_enums import MetricAggregation as MA
 from tripl.models.fact_table import FactTable
-from tripl.services.demo.builders.catalog import ACTIVE_SESSIONS_METRIC_SQL
 from tripl.worker.tasks.metrics._fact_conditions import (
     _FactCondition,
     _FactOperand,
@@ -55,8 +58,13 @@ ANCHOR = datetime(2026, 6, 1, tzinfo=UTC)
 HISTORY_DAYS = 30
 SEED = 7
 
-# The demo's own fact-table SQL and row filter, copied from
-# ``services.demo.builders.catalog._build_fact_table`` — the shape these findings
+#: The Active Sessions statement a recipe-4 demo stored in its metric's config.
+ACTIVE_SESSIONS_METRIC_SQL = (
+    "SELECT toStartOfDay(event_time) AS ts, count(DISTINCT session_id) AS value "
+    "FROM events GROUP BY ts"
+)
+
+# A recipe-4 demo's fact-table SQL and row filter — the shape these findings
 # were measured on.
 _ORDERS_SQL = "SELECT created_at, amount, currency, user_id, country, status FROM orders"
 _COMPLETED_FILTER = "status = 'completed'"
@@ -464,10 +472,10 @@ def test_edited_active_sessions_sql_is_refused(sql: str) -> None:
 
 
 def test_seeded_active_sessions_sql_is_recognized() -> None:
-    """The EXACT statement the demo builder writes is computable.
+    """The EXACT statement a legacy demo stored is computable.
 
-    Imported from the builder rather than copied, so the seeder cannot change the
-    text without this failing — which is the coupling exact matching needs.
+    Spelled out here rather than imported: no builder writes it any more, and the
+    statements those demos carry cannot change either.
     """
     adapter = _adapter()
     assert "GROUP BY ts" in ACTIVE_SESSIONS_METRIC_SQL, (
@@ -592,50 +600,3 @@ def test_order_days_are_utc_aligned() -> None:
     # that straddles the anchor hour and this set stops matching.
     assert _MIDDAY.date() in seen
     assert all(row["created_at"] < adapter._anchor for row in adapter._orders)
-
-
-def test_demo_seeds_only_complete_daily_buckets() -> None:
-    """The seeded series stop where a collection would stop.
-
-    ``_resolve_value_window`` ends a daily collection at ``floor(now, 1d)``, so a
-    seeded bucket for "today" is one no recollection can ever reproduce: it held
-    a fraction of a day's data next to thirty full ones and read as a drop.
-    Exercised against the REAL builder with a recording session, no database.
-    """
-    from tripl.services.demo.builders import catalog
-    from tripl.services.demo.scenario import DemoContext
-
-    class _RecordingSession:
-        def __init__(self) -> None:
-            self.added: list[object] = []
-
-        def add(self, instance: object) -> None:
-            self.added.append(instance)
-
-    now = datetime(2026, 6, 1, 13, 42, tzinfo=UTC)
-    ctx = DemoContext(project_id=uuid.uuid4(), branch_id=uuid.uuid4(), slug="demo-batch5", now=now)
-
-    class _Definition:
-        def __init__(self, config: dict[str, object] | None = None) -> None:
-            self.id = uuid.uuid4()
-            self.config = config
-
-    metric_defs = {
-        "revenue_completed": _Definition(),
-        "average_order_value": _Definition(),
-        "active_sessions": _Definition({"metric_sql": ACTIVE_SESSIONS_METRIC_SQL}),
-    }
-    session = _RecordingSession()
-    adapter = _adapter(anchor=now)
-    series = catalog._derive_adapter_series(adapter, ctx.now, ACTIVE_SESSIONS_METRIC_SQL)
-    catalog._add_adapter_derived_values(session, metric_defs, series)
-
-    end_day = now.replace(hour=0, minute=0, second=0, microsecond=0)
-    buckets_by_metric: dict[uuid.UUID, list[datetime]] = {}
-    for value in session.added:
-        buckets_by_metric.setdefault(value.metric_definition_id, []).append(value.bucket)
-
-    assert len(buckets_by_metric) == 3, "every derived metric must seed a series"
-    for metric_id, buckets in buckets_by_metric.items():
-        assert buckets, metric_id
-        assert max(buckets) < end_day, (metric_id, max(buckets))

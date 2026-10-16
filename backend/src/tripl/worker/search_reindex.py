@@ -75,6 +75,17 @@ def reindex_branch_from_worker(
             await engine.dispose()
 
     try:
+        asyncio.get_running_loop()
+    except RuntimeError:
+        pass
+    else:
+        # Called from sync code an event loop is driving (demo provisioning runs
+        # the scan and the collection through ``AsyncSession.run_sync``): a
+        # nested ``asyncio.run`` cannot start there, and that caller reindexes
+        # on its own session once the pipeline is done.
+        logger.debug("Skipping worker reindex inside a running event loop (project %s)", slug)
+        return
+    try:
         asyncio.run(_run())
     except Exception:
         logger.exception(

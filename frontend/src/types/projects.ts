@@ -54,6 +54,8 @@ export interface ProjectSummary {
  * failed demo is rolled back / hidden, so the UI treats a listed demo as
  * effectively `'ready'` unless the response says otherwise.
  */
+export type DemoHistoryStatus = 'filling' | 'complete' | 'failed'
+
 export type ProjectGenerationStatus = 'ready' | 'failed' | 'seeding' | 'pending'
 
 export interface Project {
@@ -75,13 +77,22 @@ export interface Project {
   is_demo?: boolean
   generation_status?: ProjectGenerationStatus
   generation_stage?: string | null
+  // 0-100 through the demo's history build, while `generation_stage` is
+  // 'history'; null at every other stage.
+  generation_progress?: number | null
   generation_error?: string | null
   demo_recipe_version?: string | null
-  // Seed time, floored to the hour (the runtime tick anchors its bucket grid to
-  // it), so it is NOT a freshness stamp — a demo seeded at 10:59 carries 10:00.
+  // Seed time, floored to the hour, so it is NOT a freshness stamp — a demo
+  // seeded at 10:59 carries 10:00.
   demo_seeded_at?: string | null
-  // When the runtime tick last advanced this demo's data; null until the first
-  // tick. The only honest freshness signal we have.
+  // The history filled in after the demo opens (the first build replays the
+  // last two days): 'filling', then 'complete' or 'failed'; null on a real
+  // project or a demo built before the fill existed.
+  demo_history_status?: DemoHistoryStatus | null
+  // 0-100 through that fill while it is 'filling'; null otherwise.
+  demo_history_progress?: number | null
+  // When a collection last advanced this demo's data from the demo warehouse;
+  // null until the first one. The only honest freshness signal we have.
   demo_last_tick_at?: string | null
   created_by_user_id?: string | null
   // Whether the signed-in caller may write inside this project: the backend's

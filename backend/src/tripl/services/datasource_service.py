@@ -3,7 +3,7 @@ import contextlib
 import logging
 import uuid
 from datetime import UTC, datetime
-from typing import Any
+from typing import Any, Literal
 
 from fastapi import HTTPException
 from pydantic import BaseModel
@@ -16,7 +16,7 @@ from tripl import cache
 from tripl.core.adapters.errors import WarehouseCapabilityError
 from tripl.crypto import encrypt_value
 from tripl.middleware.org_context import require_org_id
-from tripl.models.data_source import DataSource, DBType, TestStatus
+from tripl.models.data_source import DEMO_DB_TYPES, DataSource, DBType, TestStatus
 from tripl.models.project import Project
 from tripl.models.scan_config import ScanConfig
 from tripl.models.scan_job import ScanJob
@@ -367,10 +367,10 @@ def _settings_to_storage(
 
 
 async def create_data_source(session: AsyncSession, data: DataSourceCreate) -> DataSourceResponse:
-    # Synthetic sources are local demo data created ONLY by the demo seeder (which
-    # constructs the ORM row directly, bypassing this service). The user-facing
-    # create path must never mint one.
-    if data.db_type == DBType.synthetic:
+    # Synthetic and demo-warehouse sources are demo data created ONLY by the demo
+    # seeder (which constructs the ORM row directly, bypassing this service). The
+    # user-facing create path must never mint one.
+    if data.db_type in DEMO_DB_TYPES:
         raise HTTPException(
             status_code=422,
             detail="Synthetic data sources are created only by demo projects, not directly.",
@@ -596,13 +596,15 @@ async def _fetch_data_source(
 def _reject_synthetic_conversion(ds: DataSource, update_dict: dict[str, object]) -> None:
     """Guard synthetic-source identity on update.
 
-    A synthetic source cannot be edited into a real db_type or pointed at a real
-    host / given real credentials, and a real source cannot be converted into a
-    synthetic one. Everything else (rename, timeout) is allowed.
+    A synthetic or demo-warehouse source cannot be edited into another db_type or
+    pointed at a real host / given real credentials, and a real source cannot be
+    converted into either. Everything else (rename, timeout) is allowed. The demo
+    warehouse's connection comes from settings and ignores these columns anyway;
+    refusing the edit keeps the row from claiming a connection it does not use.
     """
     new_db_type = update_dict.get("db_type")
-    if ds.db_type == DBType.synthetic:
-        if new_db_type is not None and new_db_type != DBType.synthetic:
+    if ds.db_type in DEMO_DB_TYPES:
+        if new_db_type is not None and new_db_type != ds.db_type:
             raise HTTPException(
                 status_code=422,
                 detail="A synthetic data source's type cannot be changed to a real warehouse.",
@@ -617,11 +619,27 @@ def _reject_synthetic_conversion(ds: DataSource, update_dict: dict[str, object])
                 status_code=422,
                 detail="A synthetic data source cannot be given a real host or credentials.",
             )
-    elif new_db_type == DBType.synthetic:
+    elif new_db_type in DEMO_DB_TYPES:
         raise HTTPException(
             status_code=422,
             detail="A data source cannot be converted to the synthetic type.",
         )
+
+
+def _demo_engine(ds: DataSource) -> Literal["postgres", "memory"] | None:
+    """Which engine serves a demo-warehouse source, without blocking the request.
+
+    Reads the warehouse status cached in this process; a cold cache answers
+    ``None`` and is filled in the background for the next response.
+    """
+    if ds.db_type != DBType.demo:
+        return None
+    from tripl.core.demo_warehouse.status import peek_engine
+
+    engine = peek_engine()
+    if engine is None:
+        return None
+    return "postgres" if engine == "postgres" else "memory"
 
 
 def _to_response(ds: DataSource) -> DataSourceResponse:
@@ -630,7 +648,8 @@ def _to_response(ds: DataSource) -> DataSourceResponse:
         project_id=ds.project_id,
         name=ds.name,
         db_type=ds.db_type,
-        is_synthetic=ds.db_type == DBType.synthetic,
+        is_synthetic=ds.db_type in DEMO_DB_TYPES,
+        demo_engine=_demo_engine(ds),
         host=ds.host,
         port=ds.port,
         database_name=ds.database_name,
@@ -716,6 +735,10 @@ def _run_adapter_test(ds: DataSource) -> tuple[bool, str]:
         with contextlib.suppress(Exception):
             adapter.close()
 
+    if ok and ds.db_type == DBType.demo:
+        from tripl.core.demo_warehouse.engine import connection_message
+
+        return True, connection_message(adapter)
     return (ok, "Connection successful" if ok else "Connection probe returned no rows")
 
 
@@ -752,7 +775,7 @@ async def test_unsaved_connection(
     a session — so a failed probe leaves no half-made source behind, and no
     stored secret can be borrowed by naming one.
     """
-    if data.db_type == DBType.synthetic:
+    if data.db_type in DEMO_DB_TYPES:
         raise HTTPException(
             status_code=422,
             detail="Synthetic data sources are created only by demo projects, not directly.",

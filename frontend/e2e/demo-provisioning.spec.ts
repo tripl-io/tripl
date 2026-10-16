@@ -1,4 +1,4 @@
-import { expect, test } from './fixtures'
+import { DEMO_BUILD_TIMEOUT_MS, allowDemoBuild, expect, test } from './fixtures'
 
 /**
  * Demo generation is queued on the worker: the create answers 202 with a
@@ -11,6 +11,7 @@ const DEMO_SLUG = /^demo-[a-z0-9-]+$/
 
 test('the create returns a seeding shell and the page waits for the worker', async ({ page, account }) => {
   void account
+  allowDemoBuild()
   await page.goto('/')
 
   const created = page.waitForResponse(
@@ -27,7 +28,7 @@ test('the create returns a seeding shell and the page waits for the worker', asy
   // The dialog narrates while the page re-reads the shell, and lands on the
   // ready demo's overview.
   await expect(page.getByRole('heading', { name: 'Generating demo project' })).toBeVisible()
-  await page.waitForURL(new RegExp(`/p/${shell.slug}/overview$`), { timeout: 150_000 })
+  await page.waitForURL(new RegExp(`/p/${shell.slug}/overview$`), { timeout: DEMO_BUILD_TIMEOUT_MS })
   await expect(page.locator('[data-demo-banner]').getByText('Demo project', { exact: true })).toBeVisible()
 
   const ready = await page.request.get(`/api/v1/projects/${shell.slug}`)
@@ -37,6 +38,7 @@ test('the create returns a seeding shell and the page waits for the worker', asy
 
 test('cancelling while the worker seeds leaves no demo behind', async ({ page, account }) => {
   void account
+  allowDemoBuild()
   await page.goto('/')
 
   const created = page.waitForResponse(
@@ -45,16 +47,17 @@ test('cancelling while the worker seeds leaves no demo behind', async ({ page, a
   await page.getByRole('button', { name: 'Generate demo project' }).click()
   const shell = (await (await created).json()) as { slug: string }
 
-  // The seed takes seconds of CPU on the worker; the cancel lands well inside it.
+  // The build takes minutes on the worker; the cancel lands well inside it.
   await page.getByRole('dialog').getByRole('button', { name: 'Cancel' }).click()
   await expect(page.getByRole('heading', { name: 'Demo generation cancelled' })).toBeVisible({
     timeout: 30_000,
   })
 
-  // The worker finishes its seed, sees the cancel and discards the shell.
+  // The worker sees the cancel at its next stage and discards the shell; a
+  // stage already running finishes first, so this may take up to a build.
   await expect
     .poll(async () => (await page.request.get(`/api/v1/projects/${shell.slug}`)).status(), {
-      timeout: 120_000,
+      timeout: DEMO_BUILD_TIMEOUT_MS,
     })
     .toBe(404)
   const list = (await (await page.request.get('/api/v1/projects')).json()) as { slug: string }[]

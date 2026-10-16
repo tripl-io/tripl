@@ -1,4 +1,9 @@
-"""Recurring planned windows suggested from expected verdicts (F18 × F01, #271)."""
+"""Recurring planned windows suggested from expected verdicts (F18 × F01, #271).
+
+The demo's own suggestion (its weekly promo, marked expected three weeks
+running) needs the full history, so it is pinned with the rest of the full
+story in ``test_demo_contract``.
+"""
 
 import uuid
 from datetime import UTC, datetime, timedelta
@@ -9,7 +14,6 @@ from sqlalchemy import select
 
 from tripl.models.project import Project
 from tripl.models.signal_triage import SignalTriage
-from tripl.services.demo.builders.alerts import DEMO_WEEKLY_PROMO_NOTE
 from tripl.services.planned_window_suggestions import (
     NEXT_WINDOWS,
     _next_occurrences,
@@ -17,7 +21,6 @@ from tripl.services.planned_window_suggestions import (
 )
 from tripl.tests.conftest import TestSessionLocal
 from tripl.tests.test_active_signals_incidents import _anomaly, _make_project_with_scan
-from tripl.tests.test_demo_project import _FIXED_NOW, _seed_fixture
 
 
 def _slot(weeks_back: int, *, hour: int = 9) -> datetime:
@@ -140,14 +143,3 @@ def test_next_occurrences_start_after_now() -> None:
     assert next_week[0].starts_at == datetime(2026, 10, 12, 8, tzinfo=UTC)
     friday = _next_occurrences(4, 0, monday_morning)
     assert friday[0].starts_at == datetime(2026, 10, 9, 0, tzinfo=UTC)
-
-
-@pytest.mark.asyncio
-async def test_the_demo_ships_a_weekly_promo_suggestion() -> None:
-    async with TestSessionLocal() as session:
-        project_id = await _seed_fixture(session, "demo-suggest")
-        suggestions = await suggest_recurring_windows(session, project_id, now=_FIXED_NOW)
-    [promo] = [s for s in suggestions if s.note == DEMO_WEEKLY_PROMO_NOTE]
-    assert promo.verdict_count == 3
-    assert promo.direction == "spike"
-    assert promo.windows[0].starts_at > _FIXED_NOW

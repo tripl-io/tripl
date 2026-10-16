@@ -44,6 +44,7 @@ from tripl.core.bucketing import optional_to_utc, to_utc
 from tripl.models.alert_destination import AlertDestination
 from tripl.models.alert_rule import AlertRule
 from tripl.models.alert_rule_state import AlertRuleState
+from tripl.models.data_source import DataSource, DBType
 from tripl.models.project import Project
 from tripl.models.scan_config import ScanConfig
 from tripl.services.active_org_scope import project_in_active_org
@@ -89,7 +90,9 @@ def _sweep_candidate_configs(session: Session, *, now: datetime) -> list[ScanCon
     here keeps the tick one query on an instance that never opted in.
 
     Paused demos are skipped: the demo pause gate stops their collection on
-    purpose, which is not an outage.
+    purpose, which is not an outage. So are demos built by an older recipe (a
+    ``synthetic`` source): the scheduler no longer collects them at all, which
+    the app states on the demo itself rather than as a stream of overdue alerts.
     """
     has_freshness_rule = exists(
         select(AlertRule.id)
@@ -109,10 +112,12 @@ def _sweep_candidate_configs(session: Session, *, now: datetime) -> list[ScanCon
             Project.demo_last_accessed_at,
         )
         .join(Project, Project.id == ScanConfig.project_id)
+        .join(DataSource, DataSource.id == ScanConfig.data_source_id)
         .where(
             ScanConfig.interval.isnot(None),
             ScanConfig.time_column.isnot(None),
             has_freshness_rule,
+            ~(Project.is_demo.is_(True) & (DataSource.db_type == DBType.synthetic)),
             project_in_active_org(),
         )
         .order_by(ScanConfig.id)

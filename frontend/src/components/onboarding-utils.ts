@@ -21,12 +21,21 @@ export function hasExecutedScanJob(summary: ProjectSummary): boolean {
 }
 
 /**
- * "Connect a data source" must mean a REAL source — the demo's synthetic,
- * in-memory warehouse doesn't count. Excludes `is_synthetic` sources so a demo
- * never auto-completes the connect-a-real-source step.
+ * Whether a source is a demo's own warehouse rather than a connection someone
+ * configured: today's `demo` sources and an older demo's `synthetic` one. The
+ * server flags both `is_synthetic`; the type is checked too, so a server that
+ * forgot the flag on a new demo type still cannot count it as real.
+ */
+export function isDemoSource(source: { is_synthetic?: boolean; db_type?: string }): boolean {
+  return source.is_synthetic === true || source.db_type === 'demo' || source.db_type === 'synthetic'
+}
+
+/**
+ * "Connect a data source" must mean a REAL source — a demo's warehouse doesn't
+ * count, so a demo never auto-completes the connect-a-real-source step.
  */
 export function countRealSources(
-  sources: ReadonlyArray<{ is_synthetic?: boolean }>,
+  sources: ReadonlyArray<{ is_synthetic?: boolean; db_type?: string }>,
 ): number {
-  return sources.filter((source) => !source.is_synthetic).length
+  return sources.filter((source) => !isDemoSource(source)).length
 }

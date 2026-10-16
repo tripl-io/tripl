@@ -171,6 +171,10 @@ class ScanConfigCreate(BaseModel):
     interval: ScanInterval | None = None
     replay_chunk_interval: ScanInterval | None = None
     scan_lookback_hours: int | None = Field(default=None, ge=1, le=INT32_MAX)
+    # True: an identity no catalog event answers to becomes a new in_review
+    # event. False: no event is added (event types and fields still are) and
+    # the identity lands in the reconciliation inbox as a shadow candidate.
+    auto_create_events: bool = True
     scan_row_limit: int | None = Field(default=None, ge=1, le=INT32_MAX)
     metrics_row_limit: int | None = Field(default=None, ge=1, le=INT32_MAX)
     app_version_column: str | None = Field(default=None, min_length=1, max_length=255)
@@ -329,6 +333,7 @@ class ScanConfigUpdate(BaseModel):
     interval: ScanInterval | None = None
     replay_chunk_interval: ScanInterval | None = None
     scan_lookback_hours: int | None = Field(default=None, ge=1, le=INT32_MAX)
+    auto_create_events: bool | None = None
     scan_row_limit: int | None = Field(default=None, ge=1, le=INT32_MAX)
     metrics_row_limit: int | None = Field(default=None, ge=1, le=INT32_MAX)
     app_version_column: str | None = Field(default=None, max_length=255)
@@ -446,6 +451,7 @@ class ScanConfigResponse(BaseModel):
     interval: ScanInterval | None
     replay_chunk_interval: ScanInterval | None
     scan_lookback_hours: int | None
+    auto_create_events: bool
     scan_row_limit: int | None
     metrics_row_limit: int | None
     app_version_column: str | None
@@ -619,6 +625,9 @@ class ScanDryRunRequest(BaseModel):
     app_version_column: str | None = Field(default=None, min_length=1, max_length=255)
     platform_column: str | None = Field(default=None, min_length=1, max_length=255)
     scan_lookback_hours: int | None = Field(default=None, ge=1, le=INT32_MAX)
+    # The draft's answer to "unplanned events: catalog or inbox?", so the dry run
+    # can say when its "new" events would not be created.
+    auto_create_events: bool = True
     # How many breakdown combinations the dry-run may examine. Bounded at both
     # ends: below 100 the answer is noise, above 20000 it is a production scan.
     sample_row_limit: int = Field(default=5000, ge=100, le=20000)

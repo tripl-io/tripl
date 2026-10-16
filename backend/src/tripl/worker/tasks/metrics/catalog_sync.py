@@ -158,6 +158,7 @@ class _GenerateEventsFn(Protocol):
         scan_config_id: uuid.UUID | None = None,
         json_path_samples: Mapping[str, Mapping[str, Sequence[str]]] | None = None,
         record_observations: bool = True,
+        create_events: bool = True,
     ) -> GenerationResult: ...
 
 
@@ -1097,6 +1098,8 @@ def sync_catalog(
                 scan_config_id=config.id,
                 json_path_samples=json_path_samples,
                 record_observations=record_field_observations,
+                # ``is not False``: an unflushed config still holds None.
+                create_events=config.auto_create_events is not False,
             )
             out.gen_results[et_name] = result
             logger.info(
@@ -1168,6 +1171,7 @@ def sync_catalog(
             scan_config_id=config.id,
             json_path_samples=json_path_samples,
             record_observations=record_field_observations,
+            create_events=config.auto_create_events is not False,
         )
         logger.info(
             f"Single scan: {out.single_result.events_created} created, "

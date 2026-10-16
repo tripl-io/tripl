@@ -66,7 +66,6 @@ from tripl.schemas.schema_drift import SchemaDriftActionRequest
 from tripl.schemas.variable_value_drift import VariableValueDriftActionRequest
 from tripl.services import alerting_service
 from tripl.services.alerting_rendering import render_firing_item
-from tripl.services.demo.builders.alerts import _delivery_item
 from tripl.tests.conftest import TestSessionLocal
 
 # ---------------------------------------------------------------------------
@@ -1824,15 +1823,13 @@ def test_the_replay_firing_keeps_a_real_float_for_its_two_other_consumers() -> N
 
     ``AlertDeliveryItemResponse`` and ``AlertInboxGroupResponse`` null the value
     in a ``@model_validator(mode="after")``. They can: they are response-only.
-    This model is also what the preview renderer and the demo seeder read, and
-    a validator fires at CONSTRUCTION, so copying that idiom here would hand
-    ``None`` to both.
+    This model is also what the preview renderer reads, and a validator fires
+    at CONSTRUCTION, so copying that idiom here would hand it ``None``.
 
     Each assertion names one consumer and reverts differently. Retype the field
-    ``float | None`` and null it at construction and the first three go red
-    together — the renderer with a ``TypeError`` on its ``:.1f``, the seeder
-    with a ``None`` bound for ``AlertDeliveryItem.percent_delta``, which is NOT
-    NULL. Delete the serializer and only the last two go red.
+    ``float | None`` and null it at construction and the first two go red
+    together — the renderer with a ``TypeError`` on its ``:.1f``. Delete the
+    serializer and only the last two go red.
 
     The ``${percent_delta}`` half of the rendered string is asserted on purpose:
     it is a DOCUMENTED bare number (``website/docs/use/alerting.md``, "Message
@@ -1866,17 +1863,13 @@ def test_the_replay_firing_keeps_a_real_float_for_its_two_other_consumers() -> N
     )
     assert rendered == f"checkout:completed: 0.0 / {NO_BASELINE_LABEL}"
 
-    # 3. ...and what keeps the demo seeder able to fill a NOT NULL column.
-    item = _delivery_item(firing, uuid.uuid4(), uuid.uuid4())
-    assert item.percent_delta == 0.0
-
-    # 4. Only the ENCODING changed, and in both dump modes, because FastAPI
+    # 3. Only the ENCODING changed, and in both dump modes, because FastAPI
     #    serializes a response through ``dump_python(mode="json")`` while a
     #    reader debugging one reaches for the plain ``model_dump``.
     assert firing.model_dump()["percent_delta"] is None
     assert json.loads(firing.model_dump_json())["percent_delta"] is None
 
-    # 5. A real baseline is still reported, through the same serializer.
+    # 4. A real baseline is still reported, through the same serializer.
     measured = firing.model_copy(update={"expected_count": 10.0, "percent_delta": 300.0})
     assert measured.model_dump()["percent_delta"] == pytest.approx(300.0)
 

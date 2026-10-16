@@ -234,7 +234,7 @@ def test_check_metrics_due_skips_dispatch_when_active_job_exists(
 
 
 def _prepare_demo_dispatch(
-    session: Session, *, recent_scheduled_job: bool, tick_job: bool
+    session: Session, *, recent_scheduled_job: bool, manual_job: bool
 ) -> uuid.UUID:
     """A demo scan config that is due, with an optional recent job history."""
     config = _create_scan_config(session)
@@ -262,8 +262,8 @@ def _prepare_demo_dispatch(
                 result_summary={"mode": metrics.METRICS_COLLECTION_MODE},
             )
         )
-    if tick_job:
-        # What advance_demos writes every hour.
+    if manual_job:
+        # A visitor's "Run scan" minutes ago: a job with no dispatcher ``mode``.
         session.add(
             ScanJob(
                 id=uuid.uuid4(),
@@ -271,7 +271,7 @@ def _prepare_demo_dispatch(
                 status=ScanJobStatus.completed.value,
                 created_at=now - timedelta(minutes=5),
                 completed_at=now - timedelta(minutes=5),
-                result_summary={"demo_runtime_tick": True, "buckets_appended": 1},
+                result_summary={"events_created": 0},
             )
         )
     session.commit()
@@ -284,7 +284,7 @@ def test_demo_collection_is_deferred_by_the_cooldown(
 ) -> None:
     """A demo that collected an hour ago must not collect again."""
     with sync_session_factory() as session:
-        _prepare_demo_dispatch(session, recent_scheduled_job=True, tick_job=False)
+        _prepare_demo_dispatch(session, recent_scheduled_job=True, manual_job=False)
 
     dispatched: list[tuple[str, str]] = []
     monkeypatch.setattr(metrics_schedule, "_get_sync_session", sync_session_factory)
@@ -300,18 +300,18 @@ def test_demo_collection_is_deferred_by_the_cooldown(
     assert dispatched == []
 
 
-def test_demo_cooldown_ignores_the_hourly_runtime_tick_jobs(
+def test_demo_cooldown_ignores_jobs_the_dispatcher_did_not_write(
     sync_session_factory: sessionmaker[Session],
     monkeypatch: MonkeyPatch,
 ) -> None:
-    """The demo tick writes a ScanJob every hour; it must not hold off collection.
+    """Only a scheduled collection starts the cooldown; a manual scan does not.
 
-    Without this, the newest job would always be a tick job minutes old and the
-    scheduled collection — the only producer of breakdown anomalies and
-    distribution drift — would be deferred forever.
+    The cooldown reads the dispatcher's ``mode`` stamp, so a visitor running
+    "Run scan" on a demo minutes ago neither defers nor counts as the scheduled
+    collection that advances the demo.
     """
     with sync_session_factory() as session:
-        _prepare_demo_dispatch(session, recent_scheduled_job=False, tick_job=True)
+        _prepare_demo_dispatch(session, recent_scheduled_job=False, manual_job=True)
 
     dispatched: list[tuple[str, str]] = []
     monkeypatch.setattr(metrics_schedule, "_get_sync_session", sync_session_factory)
@@ -645,7 +645,7 @@ def test_failure_streak_ignores_jobs_this_dispatcher_did_not_create(
     """Manual scans share scan_jobs with collection and must not move the streak.
 
     ``scan_jobs`` is keyed on scan_config_id and written by run_scan, metrics
-    replay, event-group apply and the demo tick as well as by this dispatcher.
+    replay and event-group apply as well as by this dispatcher.
     Counting them by exclusion broke both ways: a user's failed "Run now" would
     trigger a backoff on collection, and one successful "Run now" would clear a
     real streak and let the 5-minute storm resume.
@@ -8583,8 +8583,8 @@ def test_replay_window_is_not_read_as_scheduled_collection_progress(
     says nothing about how far the live grid has been collected. Reading it as
     progress would silence scheduled collection for a whole interval on a config
     that has never run one. (The other producers of completed jobs on this
-    scan_config_id — the demo tick, a catalog scan — carry no ``mode`` stamp at
-    all and are excluded by the same predicate.)
+    scan_config_id — a catalog scan, an event-group apply — carry no ``mode``
+    stamp at all and are excluded by the same predicate.)
     """
     boundary = _current_hour_boundary()
     with sync_session_factory() as session:

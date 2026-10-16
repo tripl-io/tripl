@@ -1,23 +1,21 @@
-"""The demo's synthetic traffic: app versions, platforms and volume over time.
+"""A legacy synthetic demo's traffic: app versions, platforms and volume over time.
 
 Pure functions, no database: :mod:`tripl.core.adapters.synthetic_traffic`, the
-model the demo seeder, the runtime tick and the synthetic warehouse all write a
-demo's traffic from, and :func:`tripl.services.demo.breakdowns.breakdown_rows`,
-which turns one hour of it into stored rows.
+model a recipe-4 demo's ``synthetic`` source still serves its traffic from.
+Recipe 5 demos read the demo warehouse (``core/demo_warehouse``, pinned in
+``test_demo_warehouse_model``), but a source created before it keeps running on
+this model until its demo is reset, so the model stays pinned here.
 
-What these pin: the seeded history used to carry no app-version split and a
-platform split for one event only, so a demo's "By version" charts had data in
-their newest hours only — written by the first scheduled collection, three
-versions at a third each — and nothing across the rest of the window.
+What these pin: every hour carries an app-version split and a platform split
+for every event, so a legacy demo's "By version" charts cover its window.
 """
 
 from __future__ import annotations
 
 import math
-import uuid
-from collections import Counter
 from datetime import UTC, datetime, timedelta
 from itertools import pairwise
+from typing import NamedTuple
 
 from tripl.core.adapters import synthetic
 from tripl.core.adapters.synthetic_traffic import (
@@ -31,23 +29,12 @@ from tripl.core.adapters.synthetic_traffic import (
     TRAFFIC_SEED_KEY,
     DemoTraffic,
     adoption,
-    drift_platform_shares,
-    drift_progress,
     split_count,
     stored_traffic,
     traffic_params,
     version_label,
 )
-from tripl.services.demo import DEMO_SEED, DemoContext, noise
-from tripl.services.demo.breakdowns import (
-    APP_VERSION_COLUMN,
-    PLATFORM_COLUMN,
-    EventVolume,
-    breakdown_rows,
-)
-from tripl.services.demo.builders.alerts import DEMO_RELEASE_VERSION
-from tripl.services.demo.builders.plan import EventSpec, event_specs
-from tripl.services.demo.builders.warehouse import DEAD_EVENT_NAME, SPIKE_EVENT_NAME
+from tripl.services.demo import DEMO_SEED
 from tripl.services.release_annotations import releases_to_annotate
 from tripl.services.version_activation import DEFAULT_ACTIVE_SHARE_MIN
 
@@ -55,20 +42,38 @@ _HOUR = timedelta(hours=1)
 _DAY = timedelta(days=1)
 _WEEK = timedelta(weeks=1)
 
+#: The history a recipe-4 demo seeded, and the release it was built around.
+_LEGACY_HISTORY_DAYS = 23
+REFERENCE_VERSION = version_label(REFERENCE_RELEASE)
+#: The event a recipe-4 demo spiked.
+SPIKE_EVENT_NAME = "Home Screen View"
+
 # One concrete demo: a fixed seed clock and the scenario seed.
 SEED_CLOCK = datetime(2026, 10, 7, 12, tzinfo=UTC)
 TRAFFIC = DemoTraffic(anchor=SEED_CLOCK, seed=DEMO_SEED)
-# Every hour the seeder backfills, oldest first; the newest is the spike hour.
-SEEDED_HOURS = noise.hour_buckets(SEED_CLOCK, days=noise.DEMO_HISTORY_DAYS)
-# The events with traffic: the dead example has none in the seeded window.
-LIVE_SPECS = [spec for spec in event_specs(SEED_CLOCK) if spec.name != DEAD_EVENT_NAME]
+# Every hour the seeder backfilled, oldest first; the newest is the spike hour.
+SEEDED_HOURS = [SEED_CLOCK - hours * _HOUR for hours in range(_LEGACY_HISTORY_DAYS * 24, 0, -1)]
 
 
-def _spec(name: str) -> EventSpec:
+class _Spec(NamedTuple):
+    name: str
+    event_type: str
+    base: int
+
+
+# The events with traffic, as the synthetic source's own roster names them.
+LIVE_SPECS = [
+    _Spec(event.event_name, event.event_type, event.ongoing_base)
+    for event in synthetic._EVENT_DEFS
+    if not event.retired
+]
+
+
+def _spec(name: str) -> _Spec:
     return next(spec for spec in LIVE_SPECS if spec.name == name)
 
 
-def _platform_counts(spec: EventSpec, bucket: datetime) -> dict[str, int]:
+def _platform_counts(spec: _Spec, bucket: datetime) -> dict[str, int]:
     """One event's ordinary hour split across platforms."""
     return TRAFFIC.platform_counts(
         bucket,
@@ -79,7 +84,7 @@ def _platform_counts(spec: EventSpec, bucket: datetime) -> dict[str, int]:
     )
 
 
-def _web_share(spec: EventSpec, bucket: datetime) -> float:
+def _web_share(spec: _Spec, bucket: datetime) -> float:
     shares = TRAFFIC.platform_shares(bucket, event_name=spec.name, event_type=spec.event_type)
     return shares["web"]
 
@@ -87,40 +92,6 @@ def _web_share(spec: EventSpec, bucket: datetime) -> float:
 def _leading_version(bucket: datetime) -> str:
     shares = TRAFFIC.version_shares(bucket)
     return max(shares, key=shares.__getitem__)
-
-
-def _count(row: dict[str, object]) -> int:
-    count = row["count"]
-    assert isinstance(count, int)
-    return count
-
-
-def _spike_hour_volumes(
-    bucket: datetime,
-    event_ids: dict[str, uuid.UUID],
-    type_ids: dict[str, uuid.UUID],
-    *,
-    spike_hour: datetime,
-) -> list[EventVolume]:
-    """Every live event's stored volume in ``bucket``, the spike's excess included."""
-    volumes = []
-    for spec in LIVE_SPECS:
-        usual = TRAFFIC.volume(spec.base, spec.name, bucket)
-        spiked = spec.name == SPIKE_EVENT_NAME and bucket == spike_hour
-        count = usual * synthetic.SPIKE_MULTIPLIER if spiked else usual
-        volumes.append(
-            EventVolume(
-                event_id=event_ids[spec.name],
-                event_type_id=type_ids[spec.event_type],
-                name=spec.name,
-                event_type=spec.event_type,
-                base=spec.base,
-                count=count,
-                excess=count - usual,
-                excess_shares=synthetic.SPIKE_PLATFORM_SPLIT if spiked else None,
-            )
-        )
-    return volumes
 
 
 # ── app versions ─────────────────────────────────────────────────────────────
@@ -144,16 +115,16 @@ def test_the_release_train_moves_across_the_window() -> None:
     """1.2.0 leads the window's first days, 1.3.0 its middle, 1.4.0 its end."""
     assert _leading_version(SEEDED_HOURS[0]) == "1.2.0"
     assert _leading_version(SEEDED_HOURS[len(SEEDED_HOURS) // 2]) == "1.3.0"
-    assert _leading_version(SEEDED_HOURS[-1]) == DEMO_RELEASE_VERSION
+    assert _leading_version(SEEDED_HOURS[-1]) == REFERENCE_VERSION
     # A long tail: every older build still has users at the seed clock.
     final = TRAFFIC.version_shares(SEEDED_HOURS[-1])
     assert list(final) == ["1.0.0", "1.1.0", "1.2.0", "1.3.0", "1.4.0"]
     assert final["1.2.0"] > 0.03
-    assert 0.6 < final[DEMO_RELEASE_VERSION] < 0.8
+    assert 0.6 < final[REFERENCE_VERSION] < 0.8
 
 
 def test_version_shares_sum_to_one_long_after_the_seed() -> None:
-    """The tick appends hours for as long as the demo stays open."""
+    """The model answers for as long as a legacy source is read."""
     for hours in range(0, 24 * 120, 7):
         shares = TRAFFIC.version_shares(SEED_CLOCK + hours * _HOUR)
         assert all(share > 0 for share in shares.values())
@@ -183,7 +154,7 @@ def test_the_previous_release_fades_as_the_next_one_rolls_out() -> None:
     rollout = TRAFFIC.rollout_start(REFERENCE_RELEASE)
     hours = [rollout + k * _HOUR for k in range(int((SEED_CLOCK - rollout) / _HOUR))]
     previous_version = version_label(REFERENCE_RELEASE - 1)
-    newest = [TRAFFIC.version_shares(bucket)[DEMO_RELEASE_VERSION] for bucket in hours]
+    newest = [TRAFFIC.version_shares(bucket)[REFERENCE_VERSION] for bucket in hours]
     previous = [TRAFFIC.version_shares(bucket)[previous_version] for bucket in hours]
     assert all(later > earlier for earlier, later in pairwise(newest))
     assert all(later < earlier for earlier, later in pairwise(previous))
@@ -195,16 +166,16 @@ def test_a_beta_stays_under_the_activation_gate() -> None:
     """Testers run a build for days on a sliver of traffic; only its rollout is a release."""
     assert BETA_SHARE < DEFAULT_ACTIVE_SHARE_MIN
     rollout = TRAFFIC.rollout_start(REFERENCE_RELEASE)
-    assert DEMO_RELEASE_VERSION not in TRAFFIC.version_shares(rollout - BETA_LEAD - _HOUR)
+    assert REFERENCE_VERSION not in TRAFFIC.version_shares(rollout - BETA_LEAD - _HOUR)
     beta = [rollout - BETA_LEAD + k * _HOUR for k in range(int(BETA_LEAD / _HOUR))]
-    assert {TRAFFIC.version_shares(bucket)[DEMO_RELEASE_VERSION] for bucket in beta} == {BETA_SHARE}
+    assert {TRAFFIC.version_shares(bucket)[REFERENCE_VERSION] for bucket in beta} == {BETA_SHARE}
 
 
 def test_the_release_train_ships_every_two_weeks() -> None:
     assert timedelta(days=14) == RELEASE_CADENCE
-    assert version_label(REFERENCE_RELEASE) == DEMO_RELEASE_VERSION == "1.4.0"
+    assert version_label(REFERENCE_RELEASE) == REFERENCE_VERSION == "1.4.0"
     assert TRAFFIC.rollout_start(REFERENCE_RELEASE) == SEED_CLOCK - timedelta(days=6)
-    # And the tick keeps shipping them: in beta ahead of the rollout, on most
+    # And the model keeps shipping them: in beta ahead of the rollout, on most
     # devices a week into it.
     for release in range(REFERENCE_RELEASE + 1, REFERENCE_RELEASE + 4):
         rollout = TRAFFIC.rollout_start(release)
@@ -236,11 +207,11 @@ def test_only_the_reference_release_ships_inside_the_seeded_window() -> None:
 
     releases = releases_to_annotate(by_version, totals)
 
-    assert list(releases) == [DEMO_RELEASE_VERSION]
+    assert list(releases) == [REFERENCE_VERSION]
     rollout = TRAFFIC.rollout_start(REFERENCE_RELEASE)
-    marked = releases[DEMO_RELEASE_VERSION]
+    marked = releases[REFERENCE_VERSION]
     assert rollout < marked < rollout + _DAY
-    assert by_version[DEMO_RELEASE_VERSION][marked] >= DEFAULT_ACTIVE_SHARE_MIN * totals[marked]
+    assert by_version[REFERENCE_VERSION][marked] >= DEFAULT_ACTIVE_SHARE_MIN * totals[marked]
 
 
 # ── platforms ────────────────────────────────────────────────────────────────
@@ -271,7 +242,7 @@ def test_each_event_keeps_a_steady_platform_mix() -> None:
 
 
 def test_screen_views_drift_towards_web_and_keep_the_new_mix() -> None:
-    """The distribution-drift story the seeded PSI ladder tells, in the stored split."""
+    """The distribution-drift story a legacy demo's PSI ladder told, in its split."""
     drifting = [spec for spec in LIVE_SPECS if spec.event_type == DRIFTING_EVENT_TYPE]
     assert drifting
     for spec in drifting:
@@ -283,9 +254,6 @@ def test_screen_views_drift_towards_web_and_keep_the_new_mix() -> None:
         for hours in range(24 * 7):
             bucket = SEED_CLOCK + hours * _HOUR
             assert _web_share(spec, bucket) == _web_share(spec, bucket + _WEEK)
-    # The PSI ladder the monitoring builder seeds reads the same curve.
-    assert noise.platform_shares(0.5) == drift_platform_shares(0.5)
-    assert noise.drift_span_progress(2.0) == drift_progress(2.0)
 
 
 def test_split_count_is_exact_and_deterministic() -> None:
@@ -361,119 +329,7 @@ def test_the_spike_excess_follows_the_spike_split() -> None:
         assert abs(extra - share * excess) < 1, platform
 
 
-# ── the three writers ────────────────────────────────────────────────────────
-
-
-def test_the_tick_continues_the_seeded_traffic() -> None:
-    """The seeder, the tick and the synthetic source read one model from one anchor."""
-    ctx = DemoContext(project_id=uuid.uuid4(), branch_id=uuid.uuid4(), slug="demo", now=SEED_CLOCK)
-    assert ctx.traffic == TRAFFIC
-    # What the tick reads back off the demo's source.
-    assert stored_traffic(traffic_params(ctx.traffic)) == TRAFFIC
-    # Volumes are what they always were: the seeder's index grid, which the tick
-    # continues past the seed clock.
-    for spec in LIVE_SPECS:
-        noise_seed = noise.derive_seed(DEMO_SEED, spec.name) % 997
-        for index in range(len(SEEDED_HOURS) + 48):
-            bucket = SEEDED_HOURS[0] + index * _HOUR
-            assert TRAFFIC.volume(spec.base, spec.name, bucket) == noise.hourly_volume(
-                spec.base, bucket, index, noise_seed, len(SEEDED_HOURS)
-            )
-    # No step at the seed clock: the first appended hour continues the seeded mix.
-    before = TRAFFIC.version_shares(SEED_CLOCK - _HOUR)
-    after = TRAFFIC.version_shares(SEED_CLOCK)
-    assert set(before) == set(after)
-    assert all(abs(after[version] - before[version]) < 0.01 for version in before)
-
-
-def test_breakdown_rows_split_every_event_and_roll_up_per_type() -> None:
-    bucket = SEEDED_HOURS[-1]  # the spike hour
-    event_ids = {spec.name: uuid.uuid4() for spec in LIVE_SPECS}
-    type_ids = {spec.event_type: uuid.uuid4() for spec in LIVE_SPECS}
-    volumes = _spike_hour_volumes(bucket, event_ids, type_ids, spike_hour=bucket)
-    scan_config_id = uuid.uuid4()
-
-    rows = breakdown_rows(TRAFFIC, bucket, volumes, scan_config_id=scan_config_id)
-
-    event_rows = [row for row in rows if row["event_id"] is not None]
-    type_rows = [row for row in rows if row["event_id"] is None]
-    # Event rows first, then the rollups: two runs for the bulk insert.
-    assert rows == event_rows + type_rows
-    assert all(
-        row["bucket"] == bucket and row["scan_config_id"] == scan_config_id and not row["is_other"]
-        for row in rows
-    )
-    event_type_of: dict[object, uuid.UUID] = {
-        volume.event_id: volume.event_type_id for volume in volumes
-    }
-    by_event: Counter[tuple[object, object]] = Counter()
-    by_type_from_events: Counter[tuple[object, object, object]] = Counter()
-    for row in event_rows:
-        column, value = row["breakdown_column"], row["breakdown_value"]
-        by_event[(row["event_id"], column)] += _count(row)
-        by_type_from_events[(event_type_of[row["event_id"]], column, value)] += _count(row)
-    for volume in volumes:
-        assert by_event[(volume.event_id, PLATFORM_COLUMN)] == volume.count
-        assert by_event[(volume.event_id, APP_VERSION_COLUMN)] == volume.count
-    rollups = {
-        (row["event_type_id"], row["breakdown_column"], row["breakdown_value"]): _count(row)
-        for row in type_rows
-    }
-    assert rollups == dict(by_type_from_events)
-    # A column the scan no longer designates gets no rows.
-    only_versions = breakdown_rows(
-        TRAFFIC, bucket, volumes, scan_config_id=scan_config_id, platform_column=None
-    )
-    assert {row["breakdown_column"] for row in only_versions} == {APP_VERSION_COLUMN}
-    assert (
-        breakdown_rows(
-            TRAFFIC,
-            bucket,
-            volumes,
-            scan_config_id=scan_config_id,
-            platform_column=None,
-            version_column=None,
-        )
-        == []
-    )
-
-
-def test_the_synthetic_source_serves_the_stored_hours() -> None:
-    """A collection that re-reads the newest hours writes back what the demo stored."""
-    # Two hours after the seed: the newest hours are seeded ones (the spike's
-    # among them) and appended ones.
-    anchor = SEED_CLOCK + 2 * _HOUR
-    spike_hour = SEEDED_HOURS[-1]
-    adapter = synthetic.SyntheticAdapter(
-        seed=99,
-        anchor=anchor,
-        spike=synthetic.SyntheticSpike(SPIKE_EVENT_NAME, spike_hour),
-        traffic=TRAFFIC,
-    )
-    event_ids = {spec.name: uuid.uuid4() for spec in LIVE_SPECS}
-    names: dict[object, str] = {event_id: name for name, event_id in event_ids.items()}
-    type_ids = {spec.event_type: uuid.uuid4() for spec in LIVE_SPECS}
-    served: Counter[tuple[object, object, object, object]] = Counter()
-    for row in adapter._events:
-        event_time = row["event_time"]
-        assert isinstance(event_time, datetime)
-        hour = event_time.replace(minute=0, second=0, microsecond=0)
-        served[(hour, row["event_name"], PLATFORM_COLUMN, row["platform"])] += 1
-        served[(hour, row["event_name"], APP_VERSION_COLUMN, row["app_version"])] += 1
-    for back in range(1, synthetic.SYNTHETIC_ONGOING_HOURS + 1):
-        bucket = anchor - back * _HOUR
-        volumes = _spike_hour_volumes(bucket, event_ids, type_ids, spike_hour=spike_hour)
-        stored = {
-            (names[row["event_id"]], row["breakdown_column"], row["breakdown_value"]): _count(row)
-            for row in breakdown_rows(TRAFFIC, bucket, volumes, scan_config_id=uuid.uuid4())
-            if row["event_id"] is not None
-        }
-        in_hour = {
-            (name, column, value): count
-            for (hour, name, column, value), count in served.items()
-            if hour == bucket
-        }
-        assert in_hour == stored, bucket
+# ── the synthetic source's stored model ────────────────────────────────────────────────────────
 
 
 def test_a_long_running_demo_keeps_the_newest_whole_hours() -> None:

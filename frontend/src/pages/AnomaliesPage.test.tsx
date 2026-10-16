@@ -1100,14 +1100,7 @@ describe('AnomaliesPage — coached demo scenario', () => {
     window.localStorage.clear()
   })
 
-  it("rings the seeded spike's row for the explore chapter", async () => {
-    // The row's label reads "Event · Home Screen View": the step matched the
-    // label against the bare name, found no row, and the chapter stuck.
-    writeScenarioState('demo', chapterState('explore', 'explore/visit-anomaly'))
-    vi.mocked(eventMetricsApi.getActiveSignals).mockResolvedValue([
-      makeSignal({ scope_type: 'event', scope_ref: 'ev-other', event_id: 'ev-other', scope_name: 'Paywall View' }),
-      makeSignal({ scope_type: 'event', scope_ref: 'ev-home', event_id: 'ev-home', scope_name: 'Home Screen View' }),
-    ])
+  function renderDemo() {
     const project = { id: 'p-1', name: 'Demo', slug: 'demo', is_demo: true, generation_status: 'ready' } as Project
     const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
     render(
@@ -1121,9 +1114,63 @@ describe('AnomaliesPage — coached demo scenario', () => {
         </MemoryRouter>
       </QueryClientProvider>,
     )
+  }
 
-    const coached = await screen.findByText(rowLabel('Spike on Event · Home Screen View'))
+  it("rings the newest open incident's row for the explore chapter", async () => {
+    // The demo warehouse opens an incident a day on its own calendar, so the
+    // step points at whichever opened last — here the drop, an hour after the
+    // spike, whatever its event is called. Matched on the row itself, never
+    // its label: the label reads "Event · …" and a name match lost its row.
+    writeScenarioState('demo', chapterState('explore', 'explore/visit-anomaly'))
+    vi.mocked(eventMetricsApi.getActiveSignals).mockResolvedValue([
+      makeSignal({
+        scope_type: 'event',
+        scope_ref: 'ev-home',
+        event_id: 'ev-home',
+        scope_name: 'Home Screen View',
+        bucket: '2026-07-01T13:00:00Z',
+      }),
+      makeSignal({
+        scope_type: 'event',
+        scope_ref: 'ev-checkout',
+        event_id: 'ev-checkout',
+        scope_name: 'Checkout Started',
+        direction: 'drop',
+        actual_count: 10,
+        expected_count: 80,
+        bucket: '2026-07-01T14:00:00Z',
+      }),
+    ])
+    renderDemo()
+
+    const coached = await screen.findByText(rowLabel('Drop on Event · Checkout Started'))
     await waitFor(() => expect(coached).toHaveAttribute('data-coach-target', 'explore/visit-anomaly'))
-    expect(screen.getByText(rowLabel('Spike on Event · Paywall View'))).not.toHaveAttribute('data-coach-target')
+    expect(screen.getByText(rowLabel('Spike on Event · Home Screen View'))).not.toHaveAttribute('data-coach-target')
+  })
+
+  it('offers the volume chart when no incident is open', async () => {
+    // Between incidents there is no row to ring; the step still needs a way
+    // forward, and the project's volume is the drilldown an incident opens.
+    writeScenarioState('demo', chapterState('explore', 'explore/visit-anomaly'))
+    vi.mocked(eventMetricsApi.getActiveSignals).mockResolvedValue([])
+    vi.mocked(scansApi.list).mockResolvedValue(
+      [{ id: 'scan-1', name: 'Demo scan', interval: '1h' }] as unknown as ScanConfig[],
+    )
+    renderDemo()
+
+    const link = await screen.findByRole('link', { name: "Open the project's volume" })
+    expect(link).toHaveAttribute('href', '/p/demo/monitoring/project-total/scan-1')
+    await waitFor(() => expect(link).toHaveAttribute('data-coach-target', 'explore/visit-anomaly'))
+  })
+
+  it('keeps that link out of a real project', async () => {
+    vi.mocked(eventMetricsApi.getActiveSignals).mockResolvedValue([])
+    vi.mocked(scansApi.list).mockResolvedValue(
+      [{ id: 'scan-1', name: 'App events', interval: '1h' }] as unknown as ScanConfig[],
+    )
+    renderAnomalies()
+
+    expect(await screen.findByText('No anomalies right now')).toBeInTheDocument()
+    expect(screen.queryByRole('link', { name: "Open the project's volume" })).toBeNull()
   })
 })

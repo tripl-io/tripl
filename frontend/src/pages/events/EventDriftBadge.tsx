@@ -191,7 +191,7 @@ export function EventDriftBadge({
                             when={
                               coached &&
                               drift.field_name === SCENARIO_SEEDED.schemaDriftFieldName &&
-                              drift.drift_type === 'type_changed'
+                              drift.drift_type === SCENARIO_SEEDED.schemaDriftType
                             }
                             tag="Then click here"
                             side="left"

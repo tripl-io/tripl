@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto'
 
-import { expect, generateDemo, test } from './fixtures'
+import { expect, generateDemo, test, waitForDemoHistory } from './fixtures'
 
 /**
  * The smoke suite: the paths a new team walks on day one, through the built
@@ -9,7 +9,7 @@ import { expect, generateDemo, test } from './fixtures'
  * Every other spec signs up through the API (`fixtures.account`) and tests one
  * feature. This one is the cross-layer tie the rest assume: the sign-up and
  * sign-in FORMS, creating a project by hand, a scan RUN by the worker against
- * the synthetic warehouse, and an anomaly in the alert inbox. A data source
+ * the demo warehouse, and an anomaly in the alert inbox. A data source
  * cannot be connected credential-free here except through the demo, so the scan
  * and the inbox are the demo's.
  */
@@ -53,6 +53,8 @@ test('sign up and sign in through the forms, then create a project', async ({ pa
 test('a scan runs on the worker and the anomaly reaches the alert inbox', async ({ page, account }) => {
   void account
   const slug = await generateDemo(page)
+  // Run now waits (409) while the demo fills in its history on the worker.
+  await waitForDemoHistory(page, slug)
 
   // Run the demo's scan the way a user does, from the Scans page.
   const scans = (await (await page.request.get(`/api/v1/projects/${slug}/scans`)).json()) as {
@@ -69,7 +71,7 @@ test('a scan runs on the worker and the anomaly reaches the alert inbox', async 
   // A route's first visit compiles it on the dev server: give it time.
   await page.getByRole('button', { name: `Run ${scan.name} now` }).click({ timeout: 60_000 })
 
-  // The worker picks the job up and finishes it against the synthetic warehouse.
+  // The worker picks the job up and finishes it against the demo warehouse.
   await expect
     .poll(
       async () => {

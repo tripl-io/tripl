@@ -1,9 +1,9 @@
-"""Three fixes that each live in a different layer from where they were found.
+"""Two fixes that each live in a different layer from where they were found.
 
-Each of the three was found while fixing something else, in a module the finder
-did not own, and each lands in a different layer — a service, a demo seeder, a
-schema. They are together here because that is the one thing they have in
-common; nothing in this file shares a fixture with anything else in it.
+Each of the two was found while fixing something else, in a module the finder
+did not own, and each lands in a different layer — a service and a schema.
+They are together here because that is the one thing they have in common;
+nothing in this file shares a fixture with anything else in it.
 
 Service: the Inbox **Retry** button has to hand the
 send task a CLAIMABLE row. The single-flight lease that fix added refuses a
@@ -13,10 +13,6 @@ The reaper's failed arm — the only other failed -> pending flip in the system 
 does clear it, and says why: the hand-off must not depend on the send path's own
 release having run. This is defence in depth rather than a live bug, and the
 test says which: see ``test_retry_hands_the_send_task_a_row_it_can_claim``.
-
-Demo: ``scope_name`` is a String(255) fed by wider
-sources, and ``demo.builders.alerts`` was the last writer family outside the
-trim the other writers already had.
 
 Schema: a per-destination From: override that every
 reader of the column would happily deliver could not be SAVED, because the save
@@ -39,18 +35,15 @@ from sqlalchemy.orm import sessionmaker
 from tripl.alerting_validation import validate_sender_address
 from tripl.models import Base
 from tripl.models.alert_delivery import AlertDelivery, AlertDeliveryStatus
-from tripl.models.alert_delivery_item import SCOPE_NAME_MAX_LEN, AlertDeliveryItem
+from tripl.models.alert_delivery_item import AlertDeliveryItem
 from tripl.models.alert_destination import AlertDestination, AlertDestinationType
 from tripl.models.alert_rule import AlertRule
 from tripl.models.domain_enums import MetricScopeType
-from tripl.models.event import Event
-from tripl.models.metric_anomaly import MetricAnomaly
 from tripl.models.project import Project
 from tripl.models.scan_config import ScanConfig
 from tripl.schemas.alerting import AlertDestinationCreate, AlertDestinationUpdate
 from tripl.schemas.app_settings import EmailSettingsUpdate
 from tripl.services import alerting_service
-from tripl.services.demo.builders.alerts import _build_firings, _delivery_item
 from tripl.worker.tasks import alerts as alerts_task
 from tripl.worker.tasks.alerts import _claim_delivery
 from tripl.worker.tasks.maintenance import STRANDED_DELIVERY_MINUTES
@@ -217,106 +210,6 @@ async def test_retry_hands_the_send_task_a_row_it_can_claim(tmp_path, monkeypatc
 
     Base.metadata.drop_all(engine)
     engine.dispose()
-
-
-# ---------------------------------------------------------------------------
-# the demo seeder is a scope_name writer like any other
-# ---------------------------------------------------------------------------
-
-# Longer than the column and longer than the ellipsis budget, in the shape the
-# real overflow arrives in: ``Event.name`` is String(500) and every character of
-# it is admitted by ``schemas/event.py``.
-_LONG_EVENT_NAME = "checkout:" + "submit_button_pressed_" * 20
-
-
-@pytest.mark.asyncio
-async def test_the_demo_seeder_trims_the_scope_label_it_writes() -> None:
-    """The demo's firings carry a label that fits the column it is headed for.
-
-    ``_build_firings`` resolves the label out of ``Event.name`` /
-    ``EventType.display_name`` / ``MetricDefinition.display_name``, the same
-    wider sources ``trim_scope_name`` exists for, and its output feeds BOTH
-    ``render_firings_message`` (which becomes the seeded
-    ``payload_snapshot["rendered_message"]``) and, through ``_delivery_item``,
-    the ``scope_name`` column. Nothing the demo recipe seeds overflows 255
-    today — it writes the names it reads back — so this is the guard, not a
-    reproduction: a recipe that one day seeds a realistically long event name
-    would otherwise hit "value too long for type character varying(255)" inside
-    ``create_demo_project``, which is one transaction, and lose the whole seed.
-
-    Drop ``trim_scope_name`` from ``_build_firings``
-    (services/demo/builders/alerts.py) and the length assertion reddens. Move it
-    from there down into ``_delivery_item`` instead and the LAST assertion
-    reddens, which is the one that says why the trim belongs at the firing: the
-    message the demo shows and the column it stores have to name the same scope.
-    """
-    event_id = uuid.uuid4()
-    project = Project(
-        id=uuid.uuid4(),
-        name="Crosslane Demo",
-        slug="crosslane-demo",
-        description="",
-        is_demo=True,
-    )
-    event = Event(
-        id=event_id,
-        project_id=project.id,
-        branch_id=uuid.uuid4(),
-        event_type_id=uuid.uuid4(),
-        name=_LONG_EVENT_NAME,
-    )
-    anomaly = MetricAnomaly(
-        id=uuid.uuid4(),
-        # NULL is legal here and keeps a ScanConfig out of the fixture; the
-        # scope is resolved off ``event_id``, not off the config.
-        scan_config_id=None,
-        scope_type=MetricScopeType.event.value,
-        scope_ref=str(event_id),
-        event_id=event_id,
-        bucket=datetime(2026, 9, 14, 9, tzinfo=UTC),
-        actual_count=120.0,
-        expected_count=40.0,
-        stddev=5.0,
-        effective_stddev=5.0,
-        z_score=16.0,
-        detector_kind="phase",
-        direction="spike",
-    )
-
-    # In-memory and without ``enable_sqlite_foreign_keys``: the Event's branch
-    # and event type are not read by anything here, and sqlite ignores
-    # VARCHAR(n), which is the property that lets the overlong name be stored at
-    # all — the same reason the suite never saw the overlong-name bug in the first place.
-    engine = create_async_engine("sqlite+aiosqlite:///:memory:")
-    async with engine.begin() as conn:
-        await conn.run_sync(Base.metadata.create_all)
-    session_local = async_sessionmaker(engine, expire_on_commit=False)
-    try:
-        async with session_local() as session:
-            session.add_all([project, event, anomaly])
-            await session.commit()
-
-            firings = await _build_firings(session, project, [anomaly])
-    finally:
-        await engine.dispose()
-
-    assert len(firings) == 1
-    firing = firings[0]
-    assert len(firing.scope_name) == SCOPE_NAME_MAX_LEN, (
-        f"the demo seeded a {len(firing.scope_name)}-character label into a "
-        f"{SCOPE_NAME_MAX_LEN}-character column"
-    )
-    # An ellipsis, not a hard slice — a name that simply stops is
-    # indistinguishable from one authored that way, and this label is read by a
-    # person in the Inbox.
-    assert firing.scope_name.endswith("...")
-    assert _LONG_EVENT_NAME.startswith(firing.scope_name[:-3])
-
-    item = _delivery_item(firing, uuid.uuid4(), uuid.uuid4())
-    assert item.scope_name == firing.scope_name, (
-        "the label the demo renders into its seeded message and the label it "
-        "stores on the item have diverged"
-    )
 
 
 # ---------------------------------------------------------------------------

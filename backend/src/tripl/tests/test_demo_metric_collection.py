@@ -5,13 +5,16 @@ the async-test DB and cannot run inside the async provisioning request, so — l
 ``test_metric_collection.py`` — this suite builds its OWN sync SQLite engine and
 monkey-patches ``metric_collect._get_sync_session`` / ``_build_adapter`` /
 ``_resolve_value_window``. The difference: ``_build_adapter`` returns the REAL
-``SyntheticAdapter`` (no fakes, no network), and the metric definitions are the
-same demo catalog configs, built through the same authoritative ``*Create``
-schemas + ``to_create_values()`` the demo catalog builder uses.
+``SyntheticAdapter`` (no fakes, no network), and the metric definitions are a
+recipe-4 demo's catalog configs, built through the authoritative ``*Create``
+schemas + ``to_create_values()``.
 
 This proves the four collector kinds, per-dimension breakdowns, fact-metric
 batching, window idempotency, the unsupported-query error path, and the anomaly
-detect path all run against the synthetic dataset the demo carries.
+detect path all run against the synthetic dataset a legacy demo's source still
+serves (and the in-memory demo warehouse engine builds on). A recipe-5 demo's
+catalog is collected by the same collectors during provisioning, pinned in
+``test_demo_contract`` (every catalog metric carries values).
 """
 
 from __future__ import annotations
@@ -655,72 +658,7 @@ def test_metric_anomaly_detect_path_over_collected_series(
     assert any(anomaly.bucket == spike_bucket for anomaly in detected), "spike not flagged"
 
 
-# ── ongoing volume reconciles with the seeded baseline ─────
-
-
-def test_synthetic_event_defs_cover_every_seeded_event_spec() -> None:
-    """The adapter's roster MUST mirror ``event_specs`` EXHAUSTIVELY, in both
-    directions.
-
-    ``event_specs`` is the demo's single source of truth for the authored catalog
-    and its volumes. Metrics collection deletes the whole collection window before
-    re-inserting whatever the warehouse returned, so any seeded event the
-    synthetic table does NOT emit loses its recent buckets and the detector reads
-    it as "dropped to zero" — which is exactly what an untouched demo did within
-    an hour of creation while ``_EVENT_DEFS`` listed only 7 of the 18 seeded
-    events. core/ cannot import services/, so the values
-    are duplicated in ``_EVENT_DEFS``; this test pins the two together.
-    """
-    from tripl.core.adapters.synthetic import _EVENT_DEFS
-    from tripl.services.demo.builders.plan import event_specs
-
-    specs = event_specs(datetime(2026, 1, 1, tzinfo=UTC))
-    spec_by_name = {spec.name: spec for spec in specs}
-    synthetic_by_name = {event_def.event_name: event_def for event_def in _EVENT_DEFS}
-
-    assert synthetic_by_name.keys() == spec_by_name.keys(), (
-        "every seeded event must be emitted by the synthetic warehouse and vice versa; "
-        f"missing from the warehouse: {sorted(spec_by_name.keys() - synthetic_by_name.keys())}, "
-        f"unknown to the plan: {sorted(synthetic_by_name.keys() - spec_by_name.keys())}"
-    )
-    for name, event_def in synthetic_by_name.items():
-        spec = spec_by_name[name]
-        assert event_def.ongoing_base == spec.base, (name, event_def.ongoing_base, spec.base)
-        assert event_def.event_type == spec.event_type, (
-            name,
-            event_def.event_type,
-            spec.event_type,
-        )
-
-
-def test_synthetic_event_defs_match_the_plans_documented_field_values() -> None:
-    """Synthetic column values agree with the field values the plan documents.
-
-    A rescan records what the warehouse holds, so a synthetic ``screen_name`` /
-    ``button_id`` that disagrees with the authored field value would rewrite the
-    curated catalog. ``${var}`` template values are skipped:
-    they are the templating showcase and have no single literal.
-    """
-    from tripl.core.adapters.synthetic import _EVENT_DEFS
-    from tripl.services.demo.builders.plan import event_specs
-
-    spec_by_name = {spec.name: spec for spec in event_specs(datetime(2026, 1, 1, tzinfo=UTC))}
-    for event_def in _EVENT_DEFS:
-        documented = {
-            key.split(".", 1)[1]: value
-            for key, value in spec_by_name[event_def.event_name].field_values
-            if not value.startswith("${")
-        }
-        for column in ("screen_name", "button_id"):
-            if column in documented:
-                assert getattr(event_def, column) == documented[column], (
-                    event_def.event_name,
-                    column,
-                )
-        if "amount" in documented:
-            assert event_def.amount == float(documented["amount"]), event_def.event_name
-        if "currency" in documented:
-            assert event_def.currency == documented["currency"], event_def.event_name
+# ── the legacy synthetic dataset stays inside its budget ────────────────────
 
 
 def test_synthetic_dataset_stays_within_row_budget() -> None:
@@ -751,41 +689,3 @@ def test_synthetic_dataset_stays_within_row_budget() -> None:
             # the roster but emit nothing.
             live_names = {ev.event_name for ev in synth._EVENT_DEFS if not ev.retired}
             assert emitted == live_names, (anchor, sorted(emitted))
-
-
-def test_synthetic_ongoing_counts_stay_within_detector_drop_band() -> None:
-    """Every ongoing per-event count lands inside the anomaly detector's per-bucket
-    band of the seeded ``noise.hourly_volume`` baseline, across all hour/weekday
-    phases, so scanning an idle demo does not surface a drop.
-
-    The band is the flag condition |actual - expected| < sigma * effective_stddev
-    with sigma=3 and the phase baseline's Poisson-aware stddev floor
-    (scale ~= 0 for the phase-consistent seeded series).
-    """
-    from math import sqrt
-
-    from tripl.core.adapters import synthetic as synth
-    from tripl.services.demo import noise
-    from tripl.services.demo.scenario import DEMO_SEED
-
-    total_buckets = noise.DEMO_HISTORY_DAYS * 24
-    bases = {ev.event_name: ev.ongoing_base for ev in synth._EVENT_DEFS}
-    # A synthetic seed distinct from DEMO_SEED (as registry derives per source),
-    # so the test also proves the shape is robust to a mismatched adapter seed.
-    adapter_seed = 424242
-    # 2026-03-01..07 is a full Sunday..Saturday week, so every weekday/hour phase
-    # of the ongoing window is exercised (the trough phases are the tightest).
-    anchors = [
-        datetime(2026, 3, day, hour, tzinfo=UTC) for day in range(1, 8) for hour in range(24)
-    ]
-    for anchor in anchors:
-        for hours_back in range(1, synth.SYNTHETIC_ONGOING_HOURS + 1):
-            bucket = anchor - timedelta(hours=hours_back)
-            idx = total_buckets - hours_back
-            for name, base in bases.items():
-                noise_seed = noise.derive_seed(DEMO_SEED, name) % 997
-                expected = noise.hourly_volume(base, bucket, idx, noise_seed, total_buckets)
-                actual = synth._ongoing_hourly_count(adapter_seed, base, name, bucket)
-                effective_stddev = max(0.05 * expected, sqrt(expected), 1.0)
-                z_score = abs(actual - expected) / effective_stddev
-                assert z_score < 3.0, (name, bucket.hour, actual, expected, z_score)

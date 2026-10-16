@@ -3,8 +3,8 @@ import { deleteDemo, expect, generateDemo, test } from './fixtures'
 /**
  * The demo, the first thing a new account does: generate it
  * from the empty workspace, land on its overview, look around, and delete it.
- * Generation runs the real worker against a synthetic warehouse, so this is
- * the whole pipeline, not a mock of it.
+ * Generation runs the real worker against the demo warehouse, so this is the
+ * whole pipeline, not a mock of it.
  */
 test('a new account generates a demo, looks around and deletes it', async ({ page, account }) => {
   void account
@@ -15,13 +15,18 @@ test('a new account generates a demo, looks around and deletes it', async ({ pag
   await expect(banner.getByText('Demo project', { exact: true })).toBeVisible()
 
   // The plan is seeded: the events page lists events.
-  // The sidebar link carries the count ("Events 17").
+  // The sidebar link carries the count ("Events <n>").
   await page.getByRole('link', { name: /^Events \d+$/ }).click()
   await expect(page).toHaveURL(/\/events$/)
   // A route's first visit compiles it on the dev server: give it time.
-  await expect(page.getByRole('main').getByText('Purchase', { exact: true }).first()).toBeVisible({
-    timeout: 60_000,
-  })
+  const events = page.getByRole('main').getByRole('table', { name: 'Events', exact: true })
+  await expect(events.getByRole('row').nth(1)).toBeVisible({ timeout: 60_000 })
+  // The catalog runs to over a hundred events and the table renders only the
+  // rows on screen, so a type's tab is where a given event shows.
+  await page.goto(`${page.url()}/purchase`)
+  await expect(
+    page.getByRole('main').getByText('Purchase Completed', { exact: true }).first(),
+  ).toBeVisible({ timeout: 60_000 })
 
   // Delete it; the workspace is empty again and offers the demo anew.
   await deleteDemo(page)

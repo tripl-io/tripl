@@ -117,10 +117,11 @@ Being straight about this saves you an evaluation:
 
 ## Try it before you commit to anything
 
-There's a **demo project**: one click, no warehouse, no credentials. It seeds a
-realistic project with events, history, live-looking anomalies and a worked
-alerting example, so you can click through the whole product before deciding
-whether to point it at your own data.
+There's a **demo project**: one click, no warehouse of your own, no
+credentials. It writes a realistic tracking plan and scans a demo warehouse of
+generated traffic, which runs an incident every day, so you land on real
+history, anomalies, drift and a worked alerting example, and can click through
+the whole product before deciding whether to point it at your own data.
 
 See [The demo project](./demo-workspace.md).
 

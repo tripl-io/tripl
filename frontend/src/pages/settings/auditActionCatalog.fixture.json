@@ -97,6 +97,7 @@
         "scan_config.metrics_replay",
         "scan_config.event_groups.apply",
         "scan_job.cancel",
+        "shadow_event.link",
         "shadow_event.dismiss"
       ]
     },

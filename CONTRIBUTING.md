@@ -304,7 +304,7 @@ How the test suite is set up (`vite.config.ts`, `src/test-setup.ts`):
 ### End-to-end tests (Playwright)
 
 `frontend/e2e/` drives a real browser against a running stack: the whole
-pipeline a visitor drives, worker and synthetic warehouse included. The tests
+pipeline a visitor drives, worker and demo warehouse included. The tests
 do not start the stack; bring up the dev stack first, with sign-up rate limits
 off so every test can sign up an account of its own:
 
@@ -509,8 +509,9 @@ Provider-agnostic, framework-agnostic logic lives in
 - `core/adapters/` — warehouse connectors, one module or module family per
   engine (`clickhouse.py`, `postgres.py`, `greenplum.py`, `redshift.py`,
   `bigquery.py`, `databricks*.py`, `snowflake*.py`, `trino*.py`, `athena*.py`,
-  and `synthetic.py` for the demo project) behind a shared `base.py` interface
-  and a `registry.py`. The SQL engines share `dialect_sql_adapter.py`.
+  `demo_postgres.py` and `demo_memory.py` for the demo warehouse, and
+  `synthetic.py` for demo projects built before it) behind a shared `base.py`
+  interface and a `registry.py`. The SQL engines share `dialect_sql_adapter.py`.
 - `core/analyzers/` — scan and quality logic: cardinality analysis, event/
   variable generation, anomaly detection, distribution drift, release
   regression, and preview.

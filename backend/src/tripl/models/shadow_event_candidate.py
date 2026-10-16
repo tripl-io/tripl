@@ -56,8 +56,9 @@ class ShadowEventCandidate(UUIDMixin, Base):
         nullable=True,
     )
     event_name: Mapped[str] = mapped_column(String(500))
-    # Count observed in the most recent collection window (not cumulative —
-    # collection windows are re-collected, so summing would double-count).
+    # Count observed in the most recent collection run's window (not cumulative
+    # across runs — collection windows are re-collected, so summing would
+    # double-count). A run collected in several chunks adds its chunks up.
     observed_count: Mapped[int] = mapped_column(BigInteger, default=0)
     # Up to ``SHADOW_SAMPLE_LIMIT`` property dicts (column -> value) from the rows
     # that produced this identity in the most recent collection window, so the

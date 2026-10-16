@@ -24,7 +24,7 @@
  */
 
 import { useEffect, useId, useRef, useState, type ReactNode } from 'react'
-import { useMutation, useQueryClient } from '@tanstack/react-query'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useNavigate } from 'react-router-dom'
 import { ChevronDown, Compass, FlaskConical, Info, MoreHorizontal, RotateCcw, Trash2 } from 'lucide-react'
 import { ApiError } from '@/api/client'
@@ -51,7 +51,7 @@ import { useConfirm } from '@/hooks/useConfirm'
 import { formatRelativeTime } from '@/lib/datetime'
 import { SILENT_ERROR_META } from '@/lib/errorFeedback'
 import { canManageProject } from '@/lib/permissions'
-import { projectKey, projectsKey } from '@/lib/queryKeys'
+import { projectKey, projectQueryOptions, projectsKey } from '@/lib/queryKeys'
 import { cn, getErrorMessage } from '@/lib/utils'
 import type { Project } from '@/types'
 import { ProductTour, TourDock } from './ProductTour'
@@ -59,13 +59,17 @@ import { ProvisioningPhaseList } from './ProvisioningPhaseList'
 import { DemoDataBadge } from './capabilityBadges'
 import { useDemoScenarioActions } from './demoScenarioContext'
 import { forgetDemoLocalState } from './demoLocalState'
-import { DEMO_PROVISION_ESTIMATE, DEMO_PROVISION_TIMEOUT_MS } from './provisioningPhases'
-import { useEstimatedPhase } from './useEstimatedPhase'
+import { isOutdatedDemoRecipe } from './demoRecipe'
+import {
+  DEMO_PROVISION_ESTIMATE,
+  DEMO_PROVISION_TIMEOUT_LABEL,
+  DEMO_PROVISION_TIMEOUT_MS,
+  provisioningProgressOf,
+  type ProvisioningProgress,
+} from './provisioningPhases'
+import { useProvisioningPhase } from './useEstimatedPhase'
 import { setWelcomeDismissed } from './welcomeDismissal'
 import { currentOrgSlug, projectPath, workspacePath } from '@/lib/navigation'
-
-/** How long a reset may run before the page stops waiting for it. */
-const TIMEOUT_SECONDS = Math.round(DEMO_PROVISION_TIMEOUT_MS / 1000)
 
 /** How often a reset the page stopped waiting for is checked on. */
 const RESEED_POLL_MS = 5_000
@@ -73,30 +77,32 @@ const RESEED_POLL_MS = 5_000
 const RESEED_WATCH_MS = 3 * 60_000
 
 /**
- * Reset is a single blocking ~10 s POST that re-seeds the whole recipe in one
- * transaction (deliberately, for atomicity). A button that just says "Resetting…"
- * for ten seconds reads as a hang, so the wait gets the same estimated-phase
- * narration the create dialog uses. It is not dismissable while
- * the request runs: unlike a create there is nothing to abandon — the demo is
- * already mid-replacement.
+ * Reset rebuilds the whole demo — plan, scan, history — like a create, so a
+ * button that just says "Resetting…" for a minute reads as a hang. The wait
+ * gets the create dialog's phase list: the server's own stage when a queued
+ * rebuild reports one, the timed estimate otherwise. It is not dismissable
+ * while the request runs: unlike a create there is nothing to abandon — the
+ * demo is already mid-replacement.
  */
-function DemoResetProgressDialog() {
+function DemoResetProgressDialog({ progress }: { progress: ProvisioningProgress | null }) {
   // Mounted only while the reset is in flight, so every run narrates from the
   // first phase.
-  const phaseIndex = useEstimatedPhase()
+  const phase = useProvisioningPhase(true, progress)
   return (
     <Dialog open>
       <DialogContent className="max-w-md" showCloseButton={false}>
         <DialogHeader>
-          <DialogTitle>Re-seeding demo project</DialogTitle>
+          <DialogTitle>Rebuilding demo project</DialogTitle>
           <DialogDescription>
-            Replacing this demo&apos;s content with a fresh synthetic dataset. This takes{' '}
-            {DEMO_PROVISION_ESTIMATE}.
+            Replacing this demo&apos;s plan and history with a fresh build from the demo warehouse.
+            This takes {DEMO_PROVISION_ESTIMATE}.
           </DialogDescription>
         </DialogHeader>
         <ProvisioningPhaseList
-          phaseIndex={phaseIndex}
-          slowMessage={`Taking longer than usual. The page stops waiting after ${TIMEOUT_SECONDS} seconds; the server may still finish.`}
+          phaseIndex={phase.index}
+          confirmed={phase.confirmed}
+          percent={phase.percent}
+          slowMessage={`Taking longer than usual. The page stops waiting after ${DEMO_PROVISION_TIMEOUT_LABEL}; the server may still finish.`}
         />
       </DialogContent>
     </Dialog>
@@ -116,8 +122,8 @@ function DemoResetStalledDialog({ onClose }: { onClose: () => void }) {
         <DialogHeader>
           <DialogTitle>Reset is still running</DialogTitle>
           <DialogDescription>
-            The page stopped waiting after {TIMEOUT_SECONDS} seconds, but the server may still be
-            re-seeding this demo. This page keeps checking and picks up the fresh demo when it
+            The page stopped waiting after {DEMO_PROVISION_TIMEOUT_LABEL}, but the server may still be
+            rebuilding this demo. This page keeps checking and picks up the fresh demo when it
             lands; Reset and Delete stay off until then.
           </DialogDescription>
         </DialogHeader>
@@ -141,7 +147,7 @@ function isTimeout(error: unknown): boolean {
 
 const DEMO_LIMITS: readonly string[] = [
   'Alert destinations record deliveries locally and are badged “Local · simulated” — nothing is sent to Slack, Jira or email.',
-  'The synthetic warehouse supports common SQL; unsupported queries return a clear capability error instead of silently failing.',
+  'The demo warehouse holds generated data only, shared by every demo. It answers SQL like a real warehouse, read-only and time-limited; a query it cannot run returns a clear error.',
   'Implementation-ticket creation and AI features stay off until you connect a real tracker / enable AI on the server.',
 ]
 
@@ -153,6 +159,9 @@ function demoDataVersion(recipeVersion: string | null | undefined): string | nul
   const version = recipeVersion?.trim().replace(/^v/i, '')
   return version ? version : null
 }
+
+/** How often a demo filling in its history asks how far it is. */
+const FILL_POLL_MS = 5_000
 
 export function DemoBanner({
   project,
@@ -175,6 +184,20 @@ export function DemoBanner({
 }) {
   const { user } = useAuth()
   const queryClient = useQueryClient()
+  // While the history fill runs (``demo_history_status``), poll the project for
+  // its progress; when it ends, every page's data changed under it (the older
+  // weeks, the promo verdicts, the alerts the full baseline found), so refetch.
+  const filling = project.demo_history_status === 'filling'
+  const fillQuery = useQuery({
+    ...projectQueryOptions(project.slug),
+    enabled: filling,
+    refetchInterval: filling ? FILL_POLL_MS : false,
+  })
+  const fillProgress = fillQuery.data?.demo_history_progress ?? project.demo_history_progress
+  const fillEnded = filling && !!fillQuery.data && fillQuery.data.demo_history_status !== 'filling'
+  useEffect(() => {
+    if (fillEnded) void queryClient.invalidateQueries()
+  }, [fillEnded, queryClient])
   const navigate = useNavigate()
   const { setBranchId } = useBranchContext()
   const { confirm, dialog } = useConfirm()
@@ -228,18 +251,26 @@ export function DemoBanner({
   // its outcome: the project row itself is replaced by a re-seed, so
   // a new id under the same slug means it landed. Holds the id from before.
   const [watchedFromId, setWatchedFromId] = useState<string | null>(null)
+  // The stage a queued rebuild reports while the page waits on it; null for a
+  // rebuild answered inside its request.
+  const [resetProgress, setResetProgress] = useState<ProvisioningProgress | null>(null)
 
   const resetMut = useMutation({
     meta: SILENT_ERROR_META,
     // The id the reset started from, for the watch above.
-    onMutate: () => ({ fromId: project.id }),
+    onMutate: () => {
+      setResetProgress(null)
+      return { fromId: project.id }
+    },
     // Bounded like a create: past the timeout the abort surfaces as
     // ApiError(408), and the stalled dialog takes over from the progress one.
     mutationFn: async () => {
       const controller = new AbortController()
       const timer = setTimeout(() => controller.abort(), resetTimeoutMs)
       try {
-        return await projectsApi.resetDemo(project.slug, controller.signal)
+        return await projectsApi.resetDemo(project.slug, controller.signal, (shell) =>
+          setResetProgress(provisioningProgressOf(shell)),
+        )
       } finally {
         clearTimeout(timer)
       }
@@ -344,7 +375,7 @@ export function DemoBanner({
     const ok = await confirm({
       title: 'Reset demo project',
       message:
-        'Re-seed this demo from scratch. All current events, metrics and alert rules in the demo are replaced with a fresh synthetic dataset. ' +
+        'Rebuild this demo from scratch. All current events, metrics and alert rules in the demo are replaced: the plan is written again and its history scanned afresh from the demo warehouse. ' +
         `This runs in one go and takes ${DEMO_PROVISION_ESTIMATE}. It cannot be undone.`,
       confirmLabel: 'Reset demo',
       variant: 'primary',
@@ -356,7 +387,7 @@ export function DemoBanner({
     clearMutationError()
     const ok = await confirm({
       title: 'Delete demo project',
-      message: `Permanently delete “${project.name}” and its synthetic warehouse. You'll be returned to the projects list.`,
+      message: `Permanently delete “${project.name}” — its plan, history and alert rules. The shared demo warehouse stays for other demos. You'll be returned to the projects list.`,
       confirmLabel: 'Delete demo',
       variant: 'danger',
     })
@@ -369,10 +400,17 @@ export function DemoBanner({
   // moved it. demo_last_tick_at is when the data was actually last advanced;
   // until the first tick there is nothing to claim, so say so. "Generated",
   // not "created": a reset lands here too.
-  const freshnessLabel = project.demo_last_tick_at
-    ? `updated ${formatRelativeTime(project.demo_last_tick_at)}`
-    : 'just generated'
+  // The older history is filled in after the demo opens; until then the
+  // promo verdicts and the full set of alerts are still on their way.
+  const freshnessLabel = filling
+    ? `filling in history${fillProgress != null ? ` · ${fillProgress}%` : '…'}`
+    : project.demo_last_tick_at
+        ? `updated ${formatRelativeTime(project.demo_last_tick_at)}`
+        : 'just generated'
   const dataVersion = demoDataVersion(project.demo_recipe_version)
+  // Built by an older version: its data no longer moves, and Reset is the way
+  // to the live demo.
+  const outdated = isOutdatedDemoRecipe(project.demo_recipe_version)
 
   // A timed-out reset is told by its own dialog, not the one-line alert.
   const resetStalled = resetMut.isError && isTimeout(resetMut.error)
@@ -386,7 +424,7 @@ export function DemoBanner({
     // banner rather than on its controls (#251).
     <div className="group/demo mb-4" data-demo-banner="">
       {dialog}
-      {resetMut.isPending && <DemoResetProgressDialog />}
+      {resetMut.isPending && <DemoResetProgressDialog progress={resetProgress} />}
       {resetStalled && <DemoResetStalledDialog onClose={() => resetMut.reset()} />}
 
       {/* The phone form: one pill instead of the bar, so the page
@@ -554,6 +592,35 @@ export function DemoBanner({
           </ul>
         )}
       </div>
+
+      {/* Outside the folding panel, like a failure: an older demo looks broken
+          (its charts stop moving), so the reason shows with the pill closed. */}
+      {outdated && (
+        <div
+          role="status"
+          data-demo-outdated=""
+          className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1.5 rounded-lg border px-3 py-2 text-body-sm bg-warning-soft border-warning text-fg"
+        >
+          <span className="min-w-0 flex-1 basis-64">
+            This demo was built by an older version of tripl, so its data no longer updates.{' '}
+            {canManage
+              ? 'Reset it to rebuild it on the live demo warehouse.'
+              : 'Its creator or an organization owner can reset it to rebuild it on the live demo warehouse.'}
+          </span>
+          {canManage && (
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              disabled={busy}
+              onClick={() => void handleReset()}
+            >
+              <RotateCcw className="h-3.5 w-3.5" aria-hidden="true" />
+              {reseedRunning ? 'Resetting…' : 'Rebuild this demo'}
+            </Button>
+          )}
+        </div>
+      )}
 
       {/* Outside the folding panel: a failure is shown with the pill closed
           too. */}

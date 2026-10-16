@@ -1,19 +1,15 @@
 """A PAUSED demo must not be collected.
 
-``advance_demos`` already skips a demo nobody has opened for
-``DEMO_IDLE_PAUSE_MINUTES``. The metrics dispatcher did not, and the two together
-destroyed history: with the tick paused the demo's newest ``EventMetric`` bucket
-stops moving, so ``collection_progress_to`` — the point the collector resumes
-from — freezes with it and the next scheduled collection opens a window spanning
-the whole demo cooldown plus the two-bucket resume overlap. The synthetic
-warehouse behind every demo only materialises its newest
-``SYNTHETIC_ONGOING_HOURS`` at full volume, and the collector deletes each chunk
-window before rewriting it, so every run replaced the hours beyond that reach
-with sampled near-zero counts.
+A demo nobody has opened for ``DEMO_IDLE_PAUSE_MINUTES`` is paused: the metrics
+dispatcher skips its scan configs, and the source-freshness sweep does not chase
+it. Nothing is lost by skipping — the shared demo warehouse keeps every hour of
+its retention, so the first collection after an access catches the gap up from
+real rows — and a demo's collection is the most expensive thing a deployment
+runs per project.
 
 These tests pin the gate itself (skip while paused, dispatch on access), that it
 is demo-only, that it is measured before the cooldown's job-history read, and
-that the tick and the dispatcher ask ONE predicate rather than two that can drift.
+that every caller asks ONE predicate rather than copies that can drift.
 """
 
 from __future__ import annotations
@@ -32,11 +28,10 @@ from sqlalchemy.orm import Session, sessionmaker
 # Imported first and for its side effect, exactly as ``test_rule_replay_sources``
 # documents: the worker task package is import-order sensitive and celery_app's
 # bottom-of-file registration is what pulls the task modules in an order they all
-# survive. This file reaches into ``demo_runtime`` AND ``metrics.schedule``, so it
-# must enter the same way rather than rely on an alphabetically earlier test file
+# survive. This file reaches into ``metrics.schedule`` and ``metrics.freshness_sweep``,
+# so it must enter the same way rather than rely on an alphabetically earlier test file
 # having done it.
 import tripl.worker.celery_app  # noqa: F401
-from tripl.core.adapters.synthetic import SYNTHETIC_ONGOING_HOURS
 from tripl.models import Base
 from tripl.models.data_source import DataSource
 from tripl.models.event_metric import EventMetric
@@ -45,7 +40,8 @@ from tripl.models.project import Project
 from tripl.models.scan_config import ScanConfig
 from tripl.models.scan_job import ScanJob, ScanJobStatus
 from tripl.tests._sqlite import enable_sqlite_foreign_keys
-from tripl.worker.tasks import _demo_pause, demo_runtime
+from tripl.worker.tasks import _demo_pause
+from tripl.worker.tasks.metrics import freshness_sweep
 from tripl.worker.tasks.metrics import schedule as metrics_schedule
 from tripl.worker.tasks.metrics import tasks as metrics_tasks
 
@@ -83,7 +79,7 @@ def _seed_scan_config(
     """A due, off-cooldown scan config — exactly what a paused demo looks like.
 
     The stored history stops ``DEMO_COLLECTION_COOLDOWN_HOURS + 2`` hours back,
-    which is what happens once ``advance_demos`` stops appending: the config is due
+    which is what happens once nobody looks at the demo: the config is due
     (its newest bucket's exclusive end is well below the current hour boundary) and
     nothing but the gate under test can change that. The one job on the config is a
     dispatcher collection older than the cooldown, so the cooldown is deliberately
@@ -104,12 +100,12 @@ def _seed_scan_config(
     )
     data_source = DataSource(
         id=uuid.uuid4(),
-        # The demo's own source type. The dispatcher never reads it — it is the
-        # ADAPTER behind this type whose ongoing-hours window makes an over-wide
-        # collection window destructive, which is why the gate exists.
+        # The demo warehouse, as a recipe-5 demo reads it. (A demo still on an
+        # older recipe's ``synthetic`` source is frozen and never dispatched at
+        # all, paused or not.)
         name=f"Batch5 demopause DS {tag}",
-        db_type="synthetic",
-        host="synthetic",
+        db_type="demo",
+        host="demo-warehouse",
         port=0,
         database_name="demo",
         username="",
@@ -167,31 +163,6 @@ def _seed_scan_config(
     )
     session.commit()
     return _Seeded(project_id=project.id, scan_config_id=config.id)
-
-
-def _simulate_backfill_tick(session: Session, scan_config_id: uuid.UUID) -> None:
-    """What ``advance_demos`` does on the first tick after a resume.
-
-    It backfills the paused hours, so the newest stored bucket catches up to the
-    present. Without it the dispatcher now declines a resumed demo whose window
-    would still reach back to pause start; these tests are about
-    the pause gate, so they let the backfill win the race. Two hours back keeps
-    the config due (its progress end sits one interval below the boundary).
-    """
-    current_hour = datetime.now(UTC).replace(minute=0, second=0, microsecond=0)
-    event_type_id = session.execute(
-        select(EventMetric.event_type_id).where(EventMetric.scan_config_id == scan_config_id)
-    ).scalar_one()
-    session.add(
-        EventMetric(
-            id=uuid.uuid4(),
-            scan_config_id=scan_config_id,
-            event_id=None,
-            event_type_id=event_type_id,
-            bucket=current_hour - timedelta(hours=2),
-            count=4200,
-        )
-    )
 
 
 def _run_dispatcher(
@@ -257,7 +228,6 @@ def test_check_metrics_due_skips_a_paused_demo_and_resumes_on_access(
         project = session.get(Project, seeded.project_id)
         assert project is not None
         project.demo_last_accessed_at = datetime.now(UTC)
-        _simulate_backfill_tick(session, seeded.scan_config_id)
         session.commit()
 
     result2, dispatched2 = _run_dispatcher(sync_session_factory, monkeypatch)
@@ -328,7 +298,6 @@ def test_a_paused_demo_is_skipped_before_its_cooldown_history_is_read(
         project = session.get(Project, seeded.project_id)
         assert project is not None
         project.demo_last_accessed_at = datetime.now(UTC)
-        _simulate_backfill_tick(session, seeded.scan_config_id)
         session.commit()
 
     _active_result, active_dispatched = _run_dispatcher(sync_session_factory, monkeypatch)
@@ -336,62 +305,17 @@ def test_a_paused_demo_is_skipped_before_its_cooldown_history_is_read(
     assert measured == [seeded.scan_config_id], "an active demo is still cooldown-checked"
 
 
-def test_a_paused_demo_never_lets_the_window_outrun_the_synthetic_ongoing_hours(
-    sync_session_factory: sessionmaker[Session],
-    monkeypatch: MonkeyPatch,
-) -> None:
-    """The arithmetic that makes the gate load-bearing, with the gate as its escape.
-
-    While the tick is paused the collector's resume point is frozen, so the next
-    scheduled collection's window starts ``DEMO_COLLECTION_COOLDOWN_HOURS`` plus
-    ``SCHEDULED_RESUME_OVERLAP_BUCKETS`` behind the current hour (the demo's
-    interval is ``1h``, so one overlap bucket is one hour and the three constants
-    are directly comparable). The synthetic adapter only materialises its newest
-    ``SYNTHETIC_ONGOING_HOURS`` at full volume, so anything beyond that reach is
-    rewritten at sampled volume by a collection that deleted it first.
-
-    Written as one disjunction on purpose: widening the adapter's ongoing window
-    past the reach would make the gate unnecessary and is allowed to keep this
-    green, but raising the cooldown, or shrinking the ongoing window, while the
-    gate is gone turns it red.
-    """
-    now = datetime.now(UTC)
-    with sync_session_factory() as session:
-        _seed_scan_config(
-            session,
-            now=now,
-            is_demo=True,
-            seeded_at=now - timedelta(days=3),
-            last_accessed=now - _IDLE - timedelta(hours=1),
-        )
-
-    _result, dispatched = _run_dispatcher(sync_session_factory, monkeypatch)
-
-    reach_hours = (
-        metrics_schedule.DEMO_COLLECTION_COOLDOWN_HOURS
-        + metrics_tasks.SCHEDULED_RESUME_OVERLAP_BUCKETS
-    )
-    assert reach_hours <= SYNTHETIC_ONGOING_HOURS or dispatched == [], (
-        f"a paused demo's collection window reaches {reach_hours}h back, past the "
-        f"synthetic adapter's {SYNTHETIC_ONGOING_HOURS} full-volume hours, and the "
-        "collector deletes a window before rewriting it — so the dispatcher must "
-        "skip paused demos, or the adapter must materialise at least that many "
-        "hours at full volume (which costs row budget: see SYNTHETIC_MAX_ROWS)."
-    )
-
-
 # ── One definition of "paused" ───────────────────────────────────────────────
 
 
-def test_the_tick_and_the_dispatcher_share_one_pause_definition() -> None:
+def test_the_dispatcher_and_the_freshness_sweep_share_one_pause_definition() -> None:
     """Both callers must resolve to the same function object, not a copy of it.
 
-    Two idleness rules that drift apart re-open the gap the gate closes: the
-    dispatcher would keep collecting for a demo the tick has already stopped
-    advancing, which is exactly the state that destroys history.
+    Two idleness rules that drift apart would have the freshness sweep report a
+    paused demo's source as late while the dispatcher, by design, leaves it be.
     """
-    assert demo_runtime.is_demo_paused is _demo_pause.is_demo_paused
     assert metrics_schedule.is_demo_paused is _demo_pause.is_demo_paused
+    assert freshness_sweep.is_demo_paused is _demo_pause.is_demo_paused
 
 
 _NOW = datetime(2026, 9, 18, 12, 0, tzinfo=UTC)
@@ -416,7 +340,7 @@ _NOW = datetime(2026, 9, 18, 12, 0, tzinfo=UTC)
         (None, (_NOW - timedelta(minutes=1)).replace(tzinfo=None), False, "naive access"),
     ],
 )
-def test_is_demo_paused_reads_activity_as_the_tick_always_has(
+def test_is_demo_paused_reads_the_demos_activity(
     seeded_at: datetime | None,
     last_accessed: datetime | None,
     expected: bool,

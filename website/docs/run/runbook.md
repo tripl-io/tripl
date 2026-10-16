@@ -357,6 +357,14 @@ would remove the entire application schema. Restore a backup to return to a
 pre-baseline state.
 :::
 
+:::warning Delete demo projects before going back past the demo warehouse
+Migration `a8c0e2f4b6d8` adds the `demo` data-source type, and its downgrade
+cannot remove it (PostgreSQL cannot drop an enum value). A build older than it
+cannot read a `demo` source: every request that loads one fails with a
+`LookupError`, an HTTP 500. Delete the demo projects before you downgrade past
+it, or restore a pre-upgrade backup.
+:::
+
 ## Post-deploy verification
 
 After any `docker compose up -d` (deploy, rollback, or recovery):

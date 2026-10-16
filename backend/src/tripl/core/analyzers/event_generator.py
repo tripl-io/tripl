@@ -46,6 +46,9 @@ from tripl.core.analyzers._event_generator_variables import (
     VariableObservation,
 )
 from tripl.core.analyzers._event_generator_variables import (
+    authored_token_observations as _authored_token_observations,
+)
+from tripl.core.analyzers._event_generator_variables import (
     build_variable_index as _build_variable_index,
 )
 from tripl.core.analyzers._event_generator_variables import (
@@ -65,6 +68,9 @@ from tripl.core.analyzers._event_generator_variables import (
 )
 from tripl.core.analyzers._event_generator_variables import (
     record_variable_contexts as _record_variable_contexts,
+)
+from tripl.core.analyzers._event_generator_variables import (
+    without_sensitive_fields as _without_sensitive_fields,
 )
 from tripl.core.analyzers._event_identity import (
     index_events_by_identity,
@@ -94,6 +100,7 @@ from tripl.core.analyzers.event_plan import (
     render_default_event_name,
     truncate_event_name,
 )
+from tripl.core.name_template import variable_tokens
 from tripl.core.property_drift import detect_event_property_drifts
 from tripl.models.event import Event, EventStatus
 from tripl.models.event_field_value import EventFieldValue
@@ -143,6 +150,11 @@ class GenerationResult:
     events_skipped: int = 0
     events_grouped: int = 0
     events_merged: int = 0
+    # Identities the warehouse sent that no catalog event answers to, left out
+    # of the catalog because the scan config sends unplanned events to the
+    # reconciliation inbox instead (``ScanConfig.auto_create_events`` off). The
+    # metrics collection files them there as shadow candidates.
+    events_left_unplanned: int = 0
     variables_created: int = 0
     # VariableValue rows this run left holding a non-empty values list that is
     # new or changed; a row restored byte-for-byte does not count. Pinned
@@ -215,6 +227,7 @@ def generate_events(
     scan_config_id: uuid.UUID | None = None,
     json_path_samples: Mapping[str, Mapping[str, Sequence[str]]] | None = None,
     record_observations: bool = True,
+    create_events: bool = True,
 ) -> GenerationResult:
     """Generate events from breakdown analysis.
 
@@ -238,6 +251,12 @@ def generate_events(
     is: a scheduled tick reading the collector's fallback window, rather than a
     lookback the operator declared, must not replace a full scan's distribution
     with what one narrow window happened to see.
+
+    ``create_events=False`` (the scan config's ``auto_create_events`` off) leaves
+    an identity no event answers to out of the catalog: the plan is the
+    authority, and the metrics collection files the identity in the
+    reconciliation inbox as a shadow candidate instead. Events that already
+    exist are matched and updated exactly as with creation on.
     """
     result = GenerationResult()
     lock_project_catalog(session, project_id)
@@ -276,22 +295,6 @@ def generate_events(
     )
     result.details.extend(plan.details)
     result.columns_analyzed = plan.columns_analyzed
-    # Hoisted out of the column loop by the plan/persist split, in first-seen
-    # order — ``_ensure_variable`` creates a variable with the FIRST type it is
-    # asked for and registers it on the index, so the order is behaviour.
-    for need in plan.variables_needed:
-        result.variables_created += _ensure_variable(
-            session,
-            project_id,
-            need.name,
-            need.inferred_type,
-            branch_id=main_branch_id,
-            index=variable_index,
-            json_schema=need.json_schema,
-        )
-    col_meta = plan.col_meta
-    if not col_meta:
-        return result
 
     # Load existing events for dedup. Key on the stable scan identity (``source_name``),
     # NOT the display ``name`` — users may rename ``name`` freely, and matching on it would
@@ -317,6 +320,43 @@ def generate_events(
         .all()
     )
     existing_by_identity = index_events_by_identity(existing_events_list)
+
+    variables_needed = plan.variables_needed
+    if not create_events:
+        # Only the rows that will reach an event can store a token. A variable
+        # minted for an identity this run leaves out of the catalog is
+        # referenced by nothing, so the end-of-run sweep would retire it and the
+        # next run mint it again under a new id — a created/retired pair every
+        # tick for each path only unplanned traffic carries. Archived events
+        # are frozen (their field values are never rewritten), so their rows
+        # cannot store a token either.
+        kept_tokens = {
+            token
+            for planned in plan.events
+            if (holder := existing_by_identity.get(planned.name)) is not None
+            and holder.status != EventStatus.archived
+            for _, _, value in planned.field_values
+            for token in variable_tokens(value)
+        }
+        variables_needed = [need for need in variables_needed if need.name in kept_tokens]
+
+    # Hoisted out of the column loop by the plan/persist split, in first-seen
+    # order — ``_ensure_variable`` creates a variable with the FIRST type it is
+    # asked for and registers it on the index, so the order is behaviour.
+    for need in variables_needed:
+        result.variables_created += _ensure_variable(
+            session,
+            project_id,
+            need.name,
+            need.inferred_type,
+            branch_id=main_branch_id,
+            index=variable_index,
+            json_schema=need.json_schema,
+        )
+    col_meta = plan.col_meta
+    if not col_meta:
+        return result
+
     next_event_order = session.execute(
         select(func.max(Event.order)).where(Event.project_id == project_id)
     ).scalar_one()
@@ -353,6 +393,8 @@ def generate_events(
     # measured: the only ones whose ABSENT paths mean "not carried". An archived
     # event and one past the ``max_events`` break get no contexts at all.
     measured_events: set[uuid.UUID] = set()
+    # Identities left out of the catalog because ``create_events`` is off.
+    left_unplanned: set[str] = set()
 
     # Materialise the plan — one planned entry per breakdown row.
     for planned in ordered:
@@ -384,6 +426,12 @@ def generate_events(
         field_keys = {fd_id: (event_name, col_name) for fd_id, col_name, _ in field_values}
 
         existing = existing_by_identity.get(event_name)
+        if existing is None and not create_events:
+            # Counted once per identity: one identity spans several rows.
+            if event_name not in left_unplanned:
+                left_unplanned.add(event_name)
+                result.events_left_unplanned += 1
+            continue
         if existing is None:
             event, created = insert_event_claiming_identity(
                 session,
@@ -477,6 +525,9 @@ def generate_events(
         field_definitions=field_definitions,
         next_event_order=next_event_order,
         cardinality_threshold=cardinality_threshold,
+        # Off, the pass creates no group event: a rule naming an event the plan
+        # does not have leaves its sources where they are.
+        create_events=create_events,
         # The merge pass can DELETE an event whose contexts the loop above has
         # already recorded — rule application is not idempotent across the two
         # value spaces, so a trailing catch-all rule re-matches the group events
@@ -524,12 +575,37 @@ def generate_events(
         # restores every row would report each one as written.
         prior_values=prior_context_values,
     )
+    # After the merge pass, which may have deleted events observed above: a
+    # drift row against a deleted event would fail its foreign key.
+    surviving_ids = (
+        set(
+            session.execute(select(Event.id).where(Event.id.in_(list(observed_fields))))
+            .scalars()
+            .all()
+        )
+        if observed_fields
+        else set()
+    )
+    definitions_by_id = {fd.id: fd for fd in field_definitions.values()}
+    authored_observations = _authored_token_observations(
+        events=[event for event in existing_by_identity.values() if event.id in surviving_ids],
+        observed_fields=observed_fields,
+        values_seen=values_seen,
+        index=variable_index,
+        cardinality_threshold=cardinality_threshold,
+        field_definitions=definitions_by_id,
+    )
     result.value_drifts_detected = _detect_variable_value_drifts(
         session,
         project_id=project_id,
         branch_id=main_branch_id,
         scan_config_id=scan_config_id,
-        contexts=variable_contexts,
+        # The planner's contexts win a shared key: their evidence is the variable
+        # detector's, which covers the high-cardinality case properly. Neither
+        # side's sensitive fields reach a drift row.
+        contexts=_without_sensitive_fields(
+            {**authored_observations, **variable_contexts}, definitions_by_id
+        ),
     )
     result.property_drifts_detected = detect_event_property_drifts(
         session,

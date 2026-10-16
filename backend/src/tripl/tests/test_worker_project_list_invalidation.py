@@ -1,8 +1,8 @@
 """Worker-side cache invalidation names the one organization's project list.
 
-``cache.sync_delete`` drops exact keys, so the demo tick and a metrics
-collection invalidate ``key_projects_list`` of the project's own organization
-instead of SCANning every organization's list.
+``cache.sync_delete`` drops exact keys, so a metrics collection invalidates
+``key_projects_list`` of the project's own organization instead of SCANning
+every organization's list.
 """
 
 from __future__ import annotations
@@ -11,8 +11,7 @@ import uuid
 
 import pytest
 
-from tripl import cache, realtime
-from tripl.worker.tasks import demo_runtime
+from tripl import cache
 
 ORG_A = uuid.UUID("00000000-0000-0000-0000-00000000000a")
 ORG_B = uuid.UUID("00000000-0000-0000-0000-00000000000b")
@@ -70,26 +69,3 @@ def test_sync_delete_is_a_no_op_without_keys_or_redis(monkeypatch: pytest.Monkey
 def test_sync_delete_swallows_a_redis_failure(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(cache, "_get_sync_client", lambda: _BrokenRedis())
     cache.sync_delete(cache.key_projects_list(ORG_A))
-
-
-def test_the_demo_tick_invalidates_its_own_organization_and_project(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    fake = _FakeRedis(_keys())
-    monkeypatch.setattr(cache, "_get_sync_client", lambda: fake)
-    published: list[tuple[uuid.UUID, str, str]] = []
-    monkeypatch.setattr(
-        realtime,
-        "publish_project_event",
-        lambda project_id, slug, event, _payload: published.append((project_id, slug, event)),
-    )
-
-    demo_runtime._emit_status(PROJECT, ORG_A, "demo")
-
-    assert fake.keys == {cache.key_projects_list(ORG_B), cache.key_signals_all(OTHER_PROJECT)}
-    # The project list is one exact key now; only the project's signals SCAN.
-    assert fake.scans == [f"{cache.prefix_signals(PROJECT)}*"]
-    assert [event for _project, _slug, event in published] == [
-        realtime.EVENT_METRIC_COLLECTION_UPDATED,
-        realtime.EVENT_SIGNALS_UPDATED,
-    ]

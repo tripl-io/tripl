@@ -268,8 +268,10 @@ export default function ReconciliationPage() {
       eventTypeId?: string
       name?: string
     }) => reconciliationApi.acceptShadowEvent(slug!, id, { event_type_id: eventTypeId, name }, branchId),
-    onSuccess: (_data, { id }) => {
+    onSuccess: (data, { id }) => {
       clearRowError(id)
+      // A link creates nothing, so the plan shows no new row to explain it.
+      setBulkNotice(data.linked ? 'Linked to the event the plan already has; nothing was created.' : null)
       invalidateShadow()
       invalidatePlan()
       // Accepting a shadow event lands the reconcile chapter's step — inert
@@ -435,6 +437,7 @@ export default function ReconciliationPage() {
     setBulkNotice(null)
     setAcceptingId(null)
     let succeeded = 0
+    let linked = 0
     setBulkProgress({ action, done: 0, total: items.length })
     const fallback = action === 'accept' ? 'Accept failed' : 'Dismiss failed'
     for (let start = 0; start < items.length; start += MAX_SHADOW_BATCH) {
@@ -455,6 +458,7 @@ export default function ReconciliationPage() {
         for (const result of response.results) {
           if (result.ok) {
             succeeded += 1
+            if (result.linked) linked += 1
             clearRowError(result.candidate_id)
           } else {
             const msg = result.error ?? fallback
@@ -479,8 +483,10 @@ export default function ReconciliationPage() {
     if (action === 'accept' && succeeded > 0) notifyStepCompleted('reconcile/accept-shadow')
     const verb = action === 'accept' ? 'accepted' : 'dismissed'
     const failed = items.length - succeeded
+    const linkedNote =
+      linked > 0 ? ` ${formatNumber(linked)} linked to events the plan already has; nothing was created for them.` : ''
     setBulkNotice(
-      `${countOf(succeeded, 'event', 'events')} ${verb}.${failed > 0 ? ` ${formatNumber(failed)} failed; see the rows below.` : ''}`,
+      `${countOf(succeeded, 'event', 'events')} ${verb}.${linkedNote}${failed > 0 ? ` ${formatNumber(failed)} failed; see the rows below.` : ''}`,
     )
     invalidateShadow()
     if (action === 'accept') invalidatePlan()
@@ -1203,6 +1209,8 @@ function ShadowRow({
             )}
             <span className="tnum">{formatNumber(item.observed_count)} seen</span>
             <span>last seen {formatRelativeTime(item.last_seen_at)}</span>
+            {/* Nobody accepted it: a collection found the plan already had it. */}
+            {item.auto_resolved && <span>auto-resolved: the plan already has this event</span>}
             {/* What the event looks like before it is accepted: the rows the
                 latest collection saw for it. */}
             {samples.length > 0 && (

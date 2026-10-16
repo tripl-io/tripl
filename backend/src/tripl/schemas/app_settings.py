@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from datetime import datetime
 from typing import Any, Literal
 from urllib.parse import urlparse
 
@@ -260,6 +261,32 @@ class AiSettingsUpdate(BaseModel):
     search_embedding_api_key: str | None = Field(default=None, max_length=4096)
 
 
+class DemoWarehouseStatus(BaseModel):
+    """The demo warehouse every demo reads (core/demo_warehouse/status.py)."""
+
+    #: ``DEMO_WAREHOUSE_MODE``: ``auto``, ``postgres`` or ``memory``.
+    mode: str
+    #: The engine a demo source runs on now.
+    engine: Literal["postgres", "memory"]
+    reachable: bool
+    reader_configured: bool
+    database: str
+    #: Rows exist up to (excluding) this instant.
+    written_through: datetime | None = None
+    #: The oldest UTC day retained.
+    oldest: datetime | None = None
+    database_bytes: int | None = None
+    retention_days: int
+    max_mb: int
+    last_run_at: datetime | None = None
+    last_error: str | None = None
+    #: Why demos run in memory; ``None`` on the PostgreSQL engine.
+    reason: str | None = None
+    #: Reader-role limits migrate could not set (``temp_file_limit`` needs a
+    #: superuser): the reader runs without them.
+    reader_limits_missing: list[str] = []
+
+
 class SystemSettings(BaseModel):
     #: The server's package version (``tripl.__version__``), the one its
     #: OpenAPI document and the usage ping report. What a bug report quotes.
@@ -286,6 +313,8 @@ class SystemSettings(BaseModel):
     #: ``applied === head`` in TypeScript quietly answers ``false`` for two
     #: nulls, which would paint an unreadable instance as "migrations skipped".
     alembic_up_to_date: bool | None = None
+    #: ``None`` when the status could not be read at all.
+    demo_warehouse: DemoWarehouseStatus | None = None
 
 
 class ServiceSettingsResponse(BaseModel):

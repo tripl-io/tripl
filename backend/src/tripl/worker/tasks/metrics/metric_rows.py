@@ -3,15 +3,17 @@ from __future__ import annotations
 import logging
 import math
 import uuid
-from collections.abc import Collection, Iterator, Mapping, Sequence
+from collections.abc import Callable, Collection, Iterator, Mapping, Sequence
 from datetime import datetime, timedelta
-from typing import cast
+from typing import Any, cast
 
-from sqlalchemy import delete, tuple_
+from sqlalchemy import case, delete, tuple_
 from sqlalchemy import func as sa_func
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.dialects.sqlite import insert as sqlite_insert
 from sqlalchemy.orm import Session
+from sqlalchemy.sql.base import ReadOnlyColumnCollection
+from sqlalchemy.sql.elements import ColumnElement, KeyedColumnElement
 
 from tripl.core.adapters.base import BaseAdapter
 from tripl.core.analyzers.distribution_drift import TopShift, compute_psi
@@ -47,12 +49,71 @@ from tripl.models.event_type import EventType
 from tripl.models.metric_value import MetricValue
 from tripl.models.metric_value_breakdown import MetricValueBreakdown
 from tripl.models.scan_config import ScanConfig
-from tripl.models.shadow_event_candidate import ShadowEventCandidate
+from tripl.models.shadow_event_candidate import SHADOW_STATUS_NEW, ShadowEventCandidate
 from tripl.services._id_chunks import chunked
 from tripl.worker.tasks.metrics._helpers import MAX_BREAKDOWN_VALUE_LENGTH
 from tripl.worker.utils.scan_naming import group_column_index
 
 logger = logging.getLogger(__name__)
+
+
+class _EventNameMemo:
+    """``_build_event_name_from_row`` over one statement's rows, each name built once.
+
+    A time-bucketed statement repeats every combination of its dimension
+    columns once per bucket (and per breakdown value), and the name is a
+    function of those columns alone: the leading fields a caller strips and the
+    trailing count never reach it. So the name is looked up by the row without
+    its count, plus the event type's column metadata.
+
+    A cell keys by its type and its text, not by its value: equal values are not
+    always the same name (``1`` and ``True``, ``Decimal("1.0")`` and
+    ``Decimal("1.00")`` compare equal and print differently), and every cell,
+    a list or a JSON object included, has a hashable text.
+    """
+
+    def __init__(
+        self,
+        config: ScanConfig,
+        *,
+        reg_index: dict[str, int],
+        json_index: dict[str, int],
+        n_reg: int,
+        json_value_names: list[str],
+    ) -> None:
+        self._config = config
+        self._reg_index = reg_index
+        self._json_index = json_index
+        self._n_reg = n_reg
+        self._json_value_names = json_value_names
+        self._names: dict[tuple[object, ...], str | None] = {}
+
+    def __call__(
+        self, data_row: Sequence[object], col_meta: dict[str, dict[str, object]]
+    ) -> str | None:
+        cells = data_row[:-1]
+        key = (id(col_meta), tuple(map(type, cells)), tuple(map(str, cells)))
+        if key in self._names:
+            return self._names[key]
+        name = self._names[key] = self._build(data_row, col_meta)
+        return name
+
+    def _build(
+        self, data_row: Sequence[object], col_meta: dict[str, dict[str, object]]
+    ) -> str | None:
+        config = self._config
+        return _build_event_name_from_row(
+            data_row,
+            col_meta,
+            self._reg_index,
+            self._json_index,
+            self._n_reg,
+            self._json_value_names,
+            config.event_name_format,
+            config.event_group_rules,
+            event_type_column=config.event_type_column,
+            time_column=config.time_column,
+        )
 
 
 def _build_event_name_from_row(
@@ -295,11 +356,11 @@ def _get_scan_json_value_path_map(config: ScanConfig) -> dict[str, list[str]]:
     return group_json_value_paths(config.json_value_paths)
 
 
-# PostgreSQL/psycopg caps a single statement at 65535 bind parameters. A
-# multi-row INSERT contributes one parameter per column per row, so large
-# upserts must be split into batches that stay under that ceiling. We use a
-# margin below 65535 to be safe across drivers.
-_MAX_BIND_PARAMS = 60000
+# PostgreSQL/psycopg caps a single statement at 65535 bind parameters, and
+# SQLite (the dev and test database) at 32766. A multi-row INSERT contributes
+# one parameter per column per row, so large upserts must be split into
+# batches that stay under the lower ceiling, with a margin across drivers.
+_MAX_BIND_PARAMS = 32000
 
 
 def _chunk_rows(rows: list[dict[str, object]]) -> Iterator[list[dict[str, object]]]:
@@ -334,25 +395,29 @@ def _upsert_event_metrics_rows(
     if not rows:
         return
 
+    # One statement executed over each batch (``executemany``), not one
+    # multi-row VALUES per batch: the statement compiles once instead of
+    # building a bind parameter per cell, which on a replay's breakdown rows
+    # cost several times the database's own work. Each row is still one upsert.
     is_sqlite = session.bind is not None and session.bind.dialect.name == "sqlite"
     for chunk in _chunk_rows(rows):
         if is_sqlite:
-            sqlite_stmt = sqlite_insert(EventMetric).values(chunk)
+            sqlite_stmt = sqlite_insert(EventMetric)
             sqlite_stmt = sqlite_stmt.on_conflict_do_update(
                 index_elements=["scan_config_id", "event_id", "bucket"]
                 if constraint == "uq_event_metric_config_event_bucket"
                 else ["scan_config_id", "event_type_id", "bucket"],
                 set_={"count": sqlite_stmt.excluded.count},
             )
-            session.execute(sqlite_stmt)
+            session.execute(sqlite_stmt, chunk)
             continue
 
-        pg_stmt = pg_insert(EventMetric).values(chunk)
+        pg_stmt = pg_insert(EventMetric)
         pg_stmt = pg_stmt.on_conflict_do_update(
             constraint=constraint,
             set_={"count": pg_stmt.excluded.count},
         )
-        session.execute(pg_stmt)
+        session.execute(pg_stmt, chunk)
 
 
 def _upsert_event_metric_breakdown_rows(
@@ -372,7 +437,7 @@ def _upsert_event_metric_breakdown_rows(
     )
     for chunk in _chunk_rows(rows):
         if is_sqlite:
-            sqlite_stmt = sqlite_insert(EventMetricBreakdown).values(chunk)
+            sqlite_stmt = sqlite_insert(EventMetricBreakdown)
             sqlite_stmt = sqlite_stmt.on_conflict_do_update(
                 index_elements=[
                     "scan_config_id",
@@ -387,15 +452,15 @@ def _upsert_event_metric_breakdown_rows(
                     "is_other": sqlite_stmt.excluded.is_other,
                 },
             )
-            session.execute(sqlite_stmt)
+            session.execute(sqlite_stmt, chunk)
             continue
 
-        pg_stmt = pg_insert(EventMetricBreakdown).values(chunk)
+        pg_stmt = pg_insert(EventMetricBreakdown)
         pg_stmt = pg_stmt.on_conflict_do_update(
             constraint=pg_constraint,
             set_={"count": pg_stmt.excluded.count, "is_other": pg_stmt.excluded.is_other},
         )
-        session.execute(pg_stmt)
+        session.execute(pg_stmt, chunk)
 
 
 def _upsert_coverage_rows(
@@ -453,6 +518,7 @@ def _upsert_shadow_event_candidates(
     session: Session,
     *,
     rows: list[dict[str, object]],
+    accumulate_names: Collection[str] = frozenset(),
 ) -> None:
     """Insert-or-refresh shadow candidates.
 
@@ -461,43 +527,74 @@ def _upsert_shadow_event_candidates(
     rewinds. ``status`` and the resolution columns are user-owned and left
     untouched so an accepted or dismissed candidate is not resurrected by the
     collector.
+
+    ``event_type_id`` moves only while the candidate is still ``new``: it is the
+    type Accept pre-fills, and once a human has resolved the candidate it is the
+    type that resolution was made under — a later window in which another type
+    carries more of the name must not rewrite the record of it.
+
+    A name in ``accumulate_names`` was already written by an earlier chunk of
+    the SAME collection run, so its count is added to rather than replaced: one
+    run's window is the unit ``observed_count`` describes, and a chunked replay
+    would otherwise report only its last chunk.
     """
     if not rows:
         return
 
     is_sqlite = session.bind is not None and session.bind.dialect.name == "sqlite"
-    for chunk in _chunk_rows(rows):
-        if is_sqlite:
-            sqlite_stmt = sqlite_insert(ShadowEventCandidate).values(chunk)
-            sqlite_stmt = sqlite_stmt.on_conflict_do_update(
-                index_elements=["scan_config_id", "event_name"],
-                set_={
-                    "observed_count": sqlite_stmt.excluded.observed_count,
-                    "event_type_id": sqlite_stmt.excluded.event_type_id,
-                    "sample_properties": sqlite_stmt.excluded.sample_properties,
-                    "last_seen_at": sa_func.max(
-                        ShadowEventCandidate.last_seen_at,
-                        sqlite_stmt.excluded.last_seen_at,
-                    ),
-                },
-            )
-            session.execute(sqlite_stmt)
+    batches = (
+        ([row for row in rows if row["event_name"] not in accumulate_names], False),
+        ([row for row in rows if row["event_name"] in accumulate_names], True),
+    )
+    for batch, accumulate in batches:
+        if not batch:
             continue
+        for chunk in _chunk_rows(batch):
+            if is_sqlite:
+                sqlite_stmt = sqlite_insert(ShadowEventCandidate).values(chunk)
+                sqlite_stmt = sqlite_stmt.on_conflict_do_update(
+                    index_elements=["scan_config_id", "event_name"],
+                    set_=_shadow_conflict_set(
+                        sqlite_stmt.excluded,
+                        accumulate=accumulate,
+                        # SQLite's two-argument ``max`` is its scalar greatest.
+                        latest=sa_func.max,
+                    ),
+                )
+                session.execute(sqlite_stmt)
+                continue
 
-        pg_stmt = pg_insert(ShadowEventCandidate).values(chunk)
-        pg_stmt = pg_stmt.on_conflict_do_update(
-            constraint="uq_shadow_candidate_config_name",
-            set_={
-                "observed_count": pg_stmt.excluded.observed_count,
-                "event_type_id": pg_stmt.excluded.event_type_id,
-                "sample_properties": pg_stmt.excluded.sample_properties,
-                "last_seen_at": sa_func.greatest(
-                    ShadowEventCandidate.last_seen_at,
-                    pg_stmt.excluded.last_seen_at,
+            pg_stmt = pg_insert(ShadowEventCandidate).values(chunk)
+            pg_stmt = pg_stmt.on_conflict_do_update(
+                constraint="uq_shadow_candidate_config_name",
+                set_=_shadow_conflict_set(
+                    pg_stmt.excluded, accumulate=accumulate, latest=sa_func.greatest
                 ),
-            },
-        )
-        session.execute(pg_stmt)
+            )
+            session.execute(pg_stmt)
+
+
+def _shadow_conflict_set(
+    excluded: ReadOnlyColumnCollection[str, KeyedColumnElement[Any]],
+    *,
+    accumulate: bool,
+    latest: Callable[..., ColumnElement[Any]],
+) -> dict[str, ColumnElement[Any]]:
+    """The ON CONFLICT assignments ``_upsert_shadow_event_candidates`` documents."""
+    candidate = ShadowEventCandidate
+    return {
+        "observed_count": (
+            candidate.observed_count + excluded.observed_count
+            if accumulate
+            else excluded.observed_count
+        ),
+        "event_type_id": case(
+            (candidate.status == SHADOW_STATUS_NEW, excluded.event_type_id),
+            else_=candidate.event_type_id,
+        ),
+        "sample_properties": excluded.sample_properties,
+        "last_seen_at": latest(candidate.last_seen_at, excluded.last_seen_at),
+    }
 
 
 def _delete_event_metrics_window(
@@ -852,6 +949,13 @@ def _collect_metric_breakdown_rows(
         ", ".join(breakdown_columns),
     )
 
+    event_name_of = _EventNameMemo(
+        config,
+        reg_index=reg_index,
+        json_index=json_index,
+        n_reg=n_reg,
+        json_value_names=breakdown_json_value_names,
+    )
     for row in rows:
         bucket = stored_bucket(row[0])
         breakdown_column = str(row[1])
@@ -881,18 +985,7 @@ def _collect_metric_breakdown_rows(
             col_meta = single_result.col_meta
             events_by_name = single_result.events_by_name
 
-        event_name = _build_event_name_from_row(
-            data_row,
-            col_meta,
-            reg_index,
-            json_index,
-            n_reg,
-            breakdown_json_value_names,
-            config.event_name_format,
-            config.event_group_rules,
-            event_type_column=config.event_type_column,
-            time_column=config.time_column,
-        )
+        event_name = event_name_of(data_row, col_meta)
 
         scan_wide_column = breakdown_column in scan_breakdown_column_set
 
@@ -968,6 +1061,7 @@ def _collect_app_version_breakdown_rows(
     gen_results: dict[str, GenerationResult],
     single_result: GenerationResult | None,
     et_by_name: dict[str, EventType],
+    event_names: _EventNameMemo | None = None,
 ) -> tuple[list[dict[str, object]], list[dict[str, object]]]:
     """Derive app-version breakdowns from the primary bucketed metric rows.
 
@@ -975,6 +1069,9 @@ def _collect_app_version_breakdown_rows(
     including ``app_version_column`` when configured. A separate warehouse
     GROUPING SETS query for one version dimension would therefore rescan the
     same source rows at the same granularity.
+
+    ``event_names`` is the memo the caller named those same rows with, so each
+    name is built once for both passes.
     """
     version_column = config.app_version_column
     if not version_column:
@@ -1004,6 +1101,13 @@ def _collect_app_version_breakdown_rows(
     event_counts: dict[tuple[uuid.UUID, uuid.UUID, datetime, str], int] = {}
     type_counts: dict[tuple[uuid.UUID, uuid.UUID, datetime, str], int] = {}
 
+    event_name_of = event_names or _EventNameMemo(
+        config,
+        reg_index=reg_index,
+        json_index=json_index,
+        n_reg=n_reg,
+        json_value_names=json_value_names,
+    )
     for row in rows:
         bucket = stored_bucket(row[0])
         data_row = row[1:]
@@ -1033,18 +1137,7 @@ def _collect_app_version_breakdown_rows(
             col_meta = single_result.col_meta
             events_by_name = single_result.events_by_name
 
-        event_name = _build_event_name_from_row(
-            data_row,
-            col_meta,
-            reg_index,
-            json_index,
-            n_reg,
-            json_value_names,
-            config.event_name_format,
-            config.event_group_rules,
-            event_type_column=config.event_type_column,
-            time_column=config.time_column,
-        )
+        event_name = event_name_of(data_row, col_meta)
 
         if event_name:
             ev = events_by_name.get(event_name)

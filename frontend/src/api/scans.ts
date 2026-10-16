@@ -129,6 +129,7 @@ export const scansApi = {
     interval?: string | null
     replay_chunk_interval?: string | null
     scan_lookback_hours?: number | null
+    auto_create_events?: boolean
     scan_row_limit?: number | null
     metrics_row_limit?: number | null
     app_version_column?: string | null
@@ -229,6 +230,7 @@ export const scansApi = {
     interval?: string | null
     replay_chunk_interval?: string | null
     scan_lookback_hours?: number | null
+    auto_create_events?: boolean
     scan_row_limit?: number | null
     metrics_row_limit?: number | null
     app_version_column?: string | null

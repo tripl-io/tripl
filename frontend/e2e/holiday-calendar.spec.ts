@@ -1,17 +1,16 @@
-import { deleteDemo, expect, generateDemo, test } from './fixtures'
+import { demoTest, expect } from './fixtures'
 
 /**
  * The holiday calendar (F18): choosing a country in Detection settings turns
  * its public holidays into read-only, project-wide expected windows, listed on
- * the Annotations page; choosing None takes them away again.
+ * the Annotations page; choosing None takes them away again, and leaves the
+ * shared demo as it was.
  */
-test('a holiday calendar adds the country holidays as expected windows', async ({
+demoTest('a holiday calendar adds the country holidays as expected windows', async ({
   page,
-  account,
+  demo: slug,
 }) => {
-  void account
-  await generateDemo(page)
-  const overview = page.url()
+  const overview = `/p/${slug}/overview`
 
   // A route's first visit compiles it on the dev server: give it time.
   await page.goto(overview.replace(/\/overview$/, '/settings/monitoring'))
@@ -38,7 +37,4 @@ test('a holiday calendar adds the country holidays as expected windows', async (
     timeout: 60_000,
   })
   await expect(page.getByText('German Unity Day')).toHaveCount(0)
-
-  await page.goto(overview)
-  await deleteDemo(page)
 })

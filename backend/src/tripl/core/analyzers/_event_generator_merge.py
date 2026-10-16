@@ -285,6 +285,7 @@ def _merge_existing_grouped_events(
     next_event_order: int,
     cardinality_threshold: int = DEFAULT_CARDINALITY_THRESHOLD,
     pending_variable_contexts: PendingVariableContexts | None = None,
+    create_events: bool = True,
 ) -> int:
     """Merge every event a group rule claims into the event that rule names.
 
@@ -292,6 +293,10 @@ def _merge_existing_grouped_events(
     can DELETE must hand its ``pending_variable_contexts`` map over, or those
     entries are written out against a row that no longer exists — see
     ``_reconcile_pending_variable_contexts``.
+
+    ``create_events=False`` (the scan config's ``auto_create_events`` off) merges
+    only into a group event the catalog already holds: a rule naming one it does
+    not leaves its sources where they are rather than minting the group event.
     """
     if not event_group_rules:
         return 0
@@ -319,6 +324,8 @@ def _merge_existing_grouped_events(
             continue
 
         target = existing_by_identity.get(match.event_name)
+        if target is None and not create_events:
+            continue
         if target is None:
             # On a lost race this is the row another writer just minted under
             # the group name: the source is merged into it like any existing

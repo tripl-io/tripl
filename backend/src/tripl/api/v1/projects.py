@@ -263,7 +263,11 @@ async def reset_demo_project(
     project_role: ProjectRoleDep,
     slug: str,
 ) -> ProjectResponse:
-    """Re-seed a demo in place. Restricted to the demo's creator or an owner."""
+    """Replace a demo with a fresh one under the same slug. Creator or owner only.
+
+    Answers with the replacement's ``seeding`` shell (or the ready demo, when
+    the worker was faster): poll it as after ``POST /projects/demo``.
+    """
     # Reset re-provisions the demo from scratch, so it IS a provisioning path and
     # the kill switch has to gate it too — otherwise flipping the switch off still
     # left a full re-seed one click away. Delete deliberately
@@ -273,19 +277,13 @@ async def reset_demo_project(
     if not project.is_demo:
         raise HTTPException(status_code=404, detail="Demo project not found")
     _require_demo_manager(project_role, current_user, project)
-    replacement = await demo_service.reset_demo_project(session, slug, created_by=current_user.id)
-    # Recorded against the REPLACEMENT, and after it exists, so the row survives:
-    # the reset drops the old demo's audit rows by its id, and a
-    # row filed against the project being destroyed would go with them. It is also
-    # the only thing that explains why the trail below it starts fresh.
-    await _record_lifecycle(
-        session,
-        current_user,
-        "project.reset",
-        project_id=replacement.id,
-        name=replacement.name,
-        slug=replacement.slug,
-        payload={"is_demo": True},
+    # ``actor`` files ``project.reset`` against the REPLACEMENT, in the commit
+    # that creates it, so the row survives: the reset drops the old demo's audit
+    # rows by its id, and a row filed against the project being destroyed would
+    # go with them. It is also the only thing that explains why the trail below
+    # it starts fresh, and it tells the seed not to file a ``project.create``.
+    replacement = await demo_service.reset_demo_project(
+        session, slug, created_by=current_user.id, actor=current_user
     )
     return await _one_for_caller(session, request, current_user, replacement)
 

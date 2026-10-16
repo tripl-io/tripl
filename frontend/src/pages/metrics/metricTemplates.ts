@@ -61,6 +61,7 @@ export const DB_TYPES: readonly DbType[] = [
   'redshift',
   'trino',
   'athena',
+  'demo',
   'synthetic',
 ]
 
@@ -80,7 +81,10 @@ export const DB_TYPES: readonly DbType[] = [
  */
 function bucketExpression(db: DbType | undefined, unit: 'day' | 'hour'): string {
   switch (db) {
+    // The demo warehouse is PostgreSQL 14+, or an in-memory engine answering the
+    // same SQL, so it takes PostgreSQL's form.
     case 'postgres':
+    case 'demo':
       return `date_bin(INTERVAL '1 ${unit}', created_at, TIMESTAMPTZ '1970-01-01 00:00:00+00:00')`
     case 'bigquery':
       return `TIMESTAMP_TRUNC(created_at, ${unit.toUpperCase()}, 'UTC')`
@@ -103,7 +107,7 @@ function bucketExpression(db: DbType | undefined, unit: 'day' | 'hour'): string 
     case 'trino':
     case 'athena':
       return `date_trunc('${unit}', created_at AT TIME ZONE 'UTC')`
-    // ClickHouse, the synthetic demo warehouse (which mimics ClickHouse
+    // ClickHouse, an older demo's synthetic warehouse (which mimics ClickHouse
     // semantics), and "no source picked yet" all use the ClickHouse form. The
     // moment a source is selected the SQL is re-rendered for it, so an
     // unselected source only ever shows a placeholder the user has not edited.

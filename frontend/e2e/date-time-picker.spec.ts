@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto'
 
-import { deleteDemo, expect, generateDemo, signInAsOwner, test } from './fixtures'
+import { demoTest, expect, signInAsOwner, test } from './fixtures'
 
 interface PlannedEventRow {
   id: string
@@ -17,10 +17,8 @@ interface PlannedEventRow {
  * windows form on a demo metric chart, then read back from the server, so the local
  * time a user picks is the instant that is stored.
  */
-test('an expected window takes its span from the date and time pickers', async ({ page, account }) => {
-  void account
-  const slug = await generateDemo(page)
-  const projectBase = page.url().replace(/\/overview$/, '')
+demoTest('an expected window takes its span from the date and time pickers', async ({ page, demo: slug }) => {
+  const projectBase = `/p/${slug}`
 
   const seeded = await page.request.get(`/api/v1/projects/${slug}/planned-events`)
   expect(seeded.status(), await seeded.text()).toBe(200)
@@ -75,9 +73,6 @@ test('an expected window takes its span from the date and time pickers', async (
   await card.getByRole('button', { name: 'Delete expected window E2E picked window' }).click()
   await page.getByRole('alertdialog').getByRole('button', { name: 'Delete' }).click()
   await expect(card.getByText('E2E picked window')).toHaveCount(0)
-
-  await page.goto(`${projectBase}/overview`)
-  await deleteDemo(page)
 })
 
 /**

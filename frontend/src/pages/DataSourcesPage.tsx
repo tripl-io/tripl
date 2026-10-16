@@ -58,7 +58,8 @@ import { EmptyState } from '@/components/empty-state'
 import { ErrorState } from '@/components/error-state'
 import { StatValueSkeleton } from '@/components/states'
 import { Skeleton } from '@/components/ui/skeleton'
-import { SyntheticSourceBadge } from '@/demo/capabilityBadges'
+import { DemoSourceBadge } from '@/demo/capabilityBadges'
+import { isDemoSource } from '@/components/onboarding-utils'
 import { SrcIcon } from '@/pages/settings/scans/scanLayout'
 import { Chip } from '@/components/primitives/chip'
 import { MiniStat, MiniStatStrip } from '@/components/primitives/mini-stat'
@@ -282,9 +283,9 @@ function ConnectionsTab({ openDsId }: { openDsId?: string }) {
     mutationFn: ({ id }: { id: string; retest: boolean }) => {
       const editDbType = editingDs?.db_type
       if (!editDbType) throw new Error('No data source is being edited')
-      // A demo source has nothing to configure but its name: the synthetic
-      // adapter reads no connection and ignores a timeout.
-      if (editingDs.is_synthetic) {
+      // A demo source has nothing to configure but its name: the server
+      // supplies its connection and timeout, whatever the row says.
+      if (isDemoSource(editingDs)) {
         return dataSourcesApi.update(id, { name: editName.trim() })
       }
       const connectionSettings = buildConnectionSettings(editDbType, editSettings)
@@ -520,7 +521,7 @@ function ConnectionsTab({ openDsId }: { openDsId?: string }) {
       return
     }
     setEditNameError(null)
-    if (editingDs.is_synthetic) {
+    if (isDemoSource(editingDs)) {
       updateMut.mutate({ id: editingDs.id, retest: false })
       return
     }
@@ -746,7 +747,7 @@ function ConnectionsTab({ openDsId }: { openDsId?: string }) {
               </div>
               {editingDs && (
                 <>
-                  {editingDs.is_synthetic ? (
+                  {isDemoSource(editingDs) ? (
                     <p className="text-body text-fg-tertiary">
                       Demo sources read built-in sample data; there is no connection or timeout to configure.
                     </p>
@@ -935,9 +936,9 @@ function DataSourceCard({
           <div className="flex items-center gap-2">
             <span className="truncate text-body font-semibold">{ds.name}</span>
           </div>
-          {/* The demo warehouse has no real address: its summary read
-              "synthetic:0/synthetic". */}
-          {!connectionRedacted && !ds.is_synthetic && (
+          {/* A demo warehouse's address is the server's, not the row's: the
+              summary read "synthetic:0/synthetic". */}
+          {!connectionRedacted && !isDemoSource(ds) && (
             <div
               className="mono mt-0.5 truncate text-caption text-fg-tertiary"
               title={connectionLabel}
@@ -962,13 +963,13 @@ function DataSourceCard({
           </Chip>
         )}
         {/* The warehouse by name ("ClickHouse"), not its wire id. */}
-        {ds.is_synthetic ? <SyntheticSourceBadge /> : <Chip size="xs">{dbTypeLabel(ds.db_type)}</Chip>}
+        {isDemoSource(ds) ? <DemoSourceBadge source={ds} /> : <Chip size="xs">{dbTypeLabel(ds.db_type)}</Chip>}
         <DbTypePreviewChip dbType={ds.db_type} />
         {/* A late source or an overdue scan reading it (F16, #269). */}
         <DataSourceFreshnessChip ds={ds} />
         {ds.username && !isAthena && <Chip size="xs">{ds.username}</Chip>}
-        {/* The synthetic adapter ignores a timeout, so a demo source shows none. */}
-        {ds.timeout_seconds != null && !ds.is_synthetic && (
+        {/* A demo source's timeout is the server's, not the row's, so it shows none. */}
+        {ds.timeout_seconds != null && !isDemoSource(ds) && (
           <Chip size="xs">timeout {ds.timeout_seconds}s</Chip>
         )}
         {/* What reads this source, each scan a link to its page, so the

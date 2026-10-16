@@ -92,6 +92,10 @@ export function ScanConfigReadView({
       label: 'Lookback',
       value: sc.scan_lookback_hours ? `Last ${countOf(sc.scan_lookback_hours, 'hour', 'hours')}` : 'Whole query',
     },
+    {
+      label: 'Events the plan does not have',
+      value: sc.auto_create_events === false ? 'Sent to the reconciliation inbox' : 'Added to the catalog, in review',
+    },
     ...(preset ? [] : [{ label: 'JSON values kept', value: tokens(sc.json_value_paths) }]),
     // Row labels match the scan's Overview and its editor, so the owner and a
     // reader who cannot edit name each setting the same way.

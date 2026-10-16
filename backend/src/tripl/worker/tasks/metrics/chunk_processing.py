@@ -11,7 +11,7 @@ from __future__ import annotations
 
 import logging
 import uuid
-from collections.abc import Mapping, Sequence
+from collections.abc import Collection, Mapping, Sequence
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta
 from typing import Protocol, cast
@@ -35,7 +35,6 @@ from tripl.worker.tasks.metrics.generation import (
     _accumulate_replay_variable_samples,
 )
 from tripl.worker.tasks.metrics.metric_rows import (
-    _build_event_name_from_row,
     _collect_app_version_breakdown_rows,
     _collect_distribution_drift_rows,
     _collect_metric_breakdown_rows,
@@ -48,6 +47,7 @@ from tripl.worker.tasks.metrics.metric_rows import (
     _delete_event_metrics_rows,
     _delete_event_metrics_window,
     _delete_event_type_metrics_rows,
+    _EventNameMemo,
     _upsert_coverage_rows,
     _upsert_event_metric_breakdown_rows,
     _upsert_shadow_event_candidates,
@@ -81,6 +81,9 @@ class ChunkStats:
     # run still reports "you put this away and it is still arriving".
     archived_volume: int = 0
     archived_identities_seen: set[str] = field(default_factory=set)
+    # Identities filed as shadow candidates by this chunk, so the run can tell
+    # its next chunk which counts to add to rather than replace.
+    shadow_names: frozenset[str] = frozenset()
 
 
 def _delete_chunk_window(
@@ -282,10 +285,12 @@ def process_chunk(
     chunk_to: datetime,
     upsert_event_metrics_rows_fn: _UpsertMetricsFn,
     prefetched: TickRows | None = None,
+    accumulate_shadow_names: Collection[str] = frozenset(),
 ) -> ChunkStats:
     """Collect one chunk. ``prefetched`` is this chunk's bucketed rows when the
     tick already read them for the catalog (``shared_breakdown``); the
-    warehouse is then not queried again."""
+    warehouse is then not queried again. ``accumulate_shadow_names`` are the
+    shadow identities earlier chunks of the same run already counted."""
     stats = ChunkStats()
     if config.time_column is None:
         msg = "ScanConfig time_column is required for metrics collection"
@@ -362,6 +367,13 @@ def process_chunk(
     shadow_agg: dict[tuple[uuid.UUID | None, str], list[object]] = {}
     # Set only for a grouped scan; a chosen Event type names every row.
     et_col_idx = group_column_index(config, reg_index)
+    event_name_of = _EventNameMemo(
+        config,
+        reg_index=reg_index,
+        json_index=json_index,
+        n_reg=n_reg,
+        json_value_names=json_value_names,
+    )
 
     for row in rows:
         bucket = stored_bucket(row[0])
@@ -400,18 +412,7 @@ def process_chunk(
             archived_identities = single_result.archived_identities
 
         # Build event name from row (same logic as generate_events)
-        event_name = _build_event_name_from_row(
-            data_row,
-            col_meta,
-            reg_index,
-            json_index,
-            n_reg,
-            json_value_names,
-            config.event_name_format,
-            config.event_group_rules,
-            event_type_column=config.event_type_column,
-            time_column=config.time_column,
-        )
+        event_name = event_name_of(data_row, col_meta)
 
         if event_name:
             ev = events_by_name.get(event_name)
@@ -549,6 +550,7 @@ def process_chunk(
         gen_results=gen_results,
         single_result=single_result,
         et_by_name=et_by_name,
+        event_names=event_name_of,
     )
     breakdown_event_rows.extend(version_event_rows)
     breakdown_type_rows.extend(version_type_rows)
@@ -688,14 +690,17 @@ def process_chunk(
             for bucket, totals in coverage_agg.items()
         ],
     )
+    shadow_rows = _build_shadow_candidate_rows(
+        shadow_agg,
+        project_id=config.project_id,
+        scan_config_id=config.id,
+    )
     _upsert_shadow_event_candidates(
         session,
-        rows=_build_shadow_candidate_rows(
-            shadow_agg,
-            project_id=config.project_id,
-            scan_config_id=config.id,
-        ),
+        rows=shadow_rows,
+        accumulate_names=accumulate_shadow_names,
     )
+    stats.shadow_names = frozenset(cast(str, row["event_name"]) for row in shadow_rows)
     _upsert_event_metric_breakdown_rows(
         session,
         rows=breakdown_event_rows,

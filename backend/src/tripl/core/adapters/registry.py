@@ -368,6 +368,18 @@ def _build_synthetic(ds: DataSource, password: str) -> BaseAdapter:
     )
 
 
+def _build_demo(ds: DataSource, password: str) -> BaseAdapter:
+    # The demo warehouse: every connection parameter comes from settings, never
+    # from this row (its host/port/credentials are ignored), so nothing a user
+    # can edit reaches a connection the private-address guard does not vet. The
+    # engine is the PostgreSQL warehouse when it is ready, else the in-memory
+    # engine over the same rows. The class named below is the PostgreSQL one:
+    # it is what compiles a disclosed statement (multi_aggregate_sql).
+    from tripl.core.demo_warehouse.engine import build_demo_adapter
+
+    return build_demo_adapter(timeout_seconds=_effective_timeout_seconds(ds))
+
+
 register_adapter("clickhouse", _build_clickhouse, "clickhouse.ClickHouseAdapter")
 register_adapter("postgres", _build_postgres, "postgres.PostgresAdapter")
 register_adapter("greenplum", _build_greenplum, "greenplum.GreenplumAdapter")
@@ -378,3 +390,4 @@ register_adapter("snowflake", _build_snowflake, "snowflake.SnowflakeAdapter")
 register_adapter("trino", _build_trino, "trino.TrinoAdapter")
 register_adapter("athena", _build_athena, "athena.AthenaAdapter")
 register_adapter("synthetic", _build_synthetic, "synthetic.SyntheticAdapter")
+register_adapter("demo", _build_demo, "demo_postgres.DemoPostgresAdapter")

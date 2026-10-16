@@ -29,8 +29,12 @@ import { useNavigate } from 'react-router-dom'
 import { ApiError } from '@/api/client'
 import { projectsApi, type DemoCancelResult } from '@/api/projects'
 import type { Project } from '@/types'
-import { DEMO_PROVISION_TIMEOUT_MS } from './provisioningPhases'
-import { useEstimatedPhase } from './useEstimatedPhase'
+import {
+  DEMO_PROVISION_TIMEOUT_MS,
+  provisioningProgressOf,
+  type ProvisioningProgress,
+} from './provisioningPhases'
+import { useProvisioningPhase } from './useEstimatedPhase'
 import { projectsKey } from '@/lib/queryKeys'
 import { currentOrgSlug, projectPath } from '@/lib/navigation'
 
@@ -102,8 +106,15 @@ function cancelOutcomeOf(result: DemoCancelResult): CancelOutcome {
 
 export interface DemoProvisioningController {
   status: ProvisioningStatus
-  /** Index into PROVISIONING_PHASES of the currently-animating phase. */
+  /** Index into PROVISIONING_PHASES of the current phase. */
   phaseIndex: number
+  /**
+   * True when `phaseIndex` is the stage the server reported, not the timer's
+   * estimate: earlier phases are then known to be done.
+   */
+  phaseConfirmed: boolean
+  /** How far through the history the server is, 0..100; null when it says nothing. */
+  phasePercent: number | null
   error: unknown
   project: Project | null
   /** True when the create was aborted by the timeout rather than rejected. */
@@ -132,6 +143,9 @@ export function useDemoProvisioning(options?: {
   const [error, setError] = useState<unknown>(null)
   const [cancelling, setCancelling] = useState(false)
   const [cancelOutcome, setCancelOutcome] = useState<CancelOutcome | null>(null)
+  // What the latest shell read said about the server's stage; null until one
+  // names it (and on a server that never does).
+  const [progress, setProgress] = useState<ProvisioningProgress | null>(null)
   // Synchronous in-flight flag: state (`isPending`) updates a render later, so a
   // second click in the same tick would still see the old value. The ref closes
   // that race so exactly one create is ever dispatched.
@@ -163,8 +177,17 @@ export function useDemoProvisioning(options?: {
       abortRef.current = controller
       clearTimer()
       timeoutRef.current = setTimeout(() => controller.abort(), timeoutMs)
+      // Only the current attempt may move the phase list: a shell read for an
+      // attempt the user has since closed must not narrate the next one.
+      const onShell = (shell: Project) => {
+        if (run === runRef.current && mountedRef.current) setProgress(provisioningProgressOf(shell))
+      }
       try {
-        return { kind: 'created', project: await projectsApi.createDemo(controller.signal), run }
+        return {
+          kind: 'created',
+          project: await projectsApi.createDemo(controller.signal, undefined, onShell),
+          run,
+        }
       } catch (caught) {
         if (cancelRequestedRef.current || run !== runRef.current) return { kind: 'cancelled', run }
         if (isCancelledElsewhere(caught)) return { kind: 'cancelled-elsewhere', run }
@@ -214,12 +237,11 @@ export function useDemoProvisioning(options?: {
 
   const { isPending, mutate, reset: resetMutation } = mutation
 
-  // Animate through the expected phases while the request is blocking. There is
-  // no server-side stage feed, so this is a timed best-effort narration — the
-  // dialog labels it as an estimate rather than asserting completed work.
-  // The same hook drives the reset dialog, and it
-  // starts over at phase 0 every time a create begins.
-  const phaseIndex = useEstimatedPhase(isPending)
+  // The stage the server reports while it builds, or — from a server that
+  // names none — a timed best-effort narration the dialog labels an estimate.
+  // The same hook drives the reset dialog, and it starts over at phase 0 every
+  // time a create begins.
+  const phase = useProvisioningPhase(isPending, progress)
 
   // Abandoning the page must not leave a timer alive to fire against a request
   // nobody is watching any more.
@@ -241,6 +263,7 @@ export function useDemoProvisioning(options?: {
     setCancelOutcome(null)
     setError(null)
     setProject(null)
+    setProgress(null)
     resetMutation()
     mutate()
   }, [mutate, resetMutation])
@@ -276,6 +299,7 @@ export function useDemoProvisioning(options?: {
     setCancelOutcome(null)
     setError(null)
     setProject(null)
+    setProgress(null)
     clearTimer()
     abortRef.current?.abort()
     resetMutation()
@@ -300,7 +324,9 @@ export function useDemoProvisioning(options?: {
 
   return {
     status,
-    phaseIndex,
+    phaseIndex: phase.index,
+    phaseConfirmed: phase.confirmed,
+    phasePercent: phase.percent,
     error,
     project,
     timedOut,

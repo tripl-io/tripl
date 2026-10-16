@@ -1,12 +1,13 @@
 """Demo identity + atomic lifecycle.
 
 Covers demo identity metadata, provisioning atomicity (a failed seed leaves no
-visible demo), synthetic-DataSource ownership/cleanup, and reset-in-place. The
+visible demo), demo-warehouse DataSource ownership/cleanup, and reset-in-place. The
 full owner/editor/viewer permission matrix and browser E2E live elsewhere.
 """
 
 import logging
 import uuid
+from datetime import UTC, datetime
 
 import pytest
 from httpx import AsyncClient
@@ -17,8 +18,14 @@ from tripl.config import settings
 from tripl.models.data_source import DataSource, DBType
 from tripl.models.event_type import EventType
 from tripl.models.project import Project
-from tripl.services import demo_service
+from tripl.services import demo_service, project_service
 from tripl.tests.conftest import TestSessionLocal
+
+
+def _aware(value: str) -> datetime:
+    # SQLite drops the offset of an aware column; the API may then serialize naive.
+    stamp = datetime.fromisoformat(value)
+    return stamp if stamp.tzinfo else stamp.replace(tzinfo=UTC)
 
 
 async def _project_for_slug(session: AsyncSession, slug: str) -> Project:
@@ -36,12 +43,12 @@ async def test_demo_has_explicit_identity(client: AsyncClient) -> None:
     assert data["generation_status"] == "ready"
     assert data["demo_recipe_version"] == demo_service.DEMO_RECIPE_VERSION
     assert data["demo_seeded_at"] is not None
-    # Freshness has to come from the runtime tick, not the seed time — the latter
-    # is floored to the hour (the tick anchors its bucket grid to it), so it would
-    # report a brand-new demo as up to an hour stale. Exposed, and null until the
-    # first tick.
-    assert "demo_last_tick_at" in data
-    assert data["demo_last_tick_at"] is None
+    # Freshness comes from the demo's newest collection, not the seed time — the
+    # latter is floored to the hour (the replay's bucket grid), so it would report
+    # a brand-new demo as up to an hour stale. The provisioning's own collections
+    # stamp it, so a fresh demo already reads as just updated.
+    assert data["demo_last_tick_at"] is not None
+    assert _aware(data["demo_last_tick_at"]) >= _aware(data["demo_seeded_at"])
     # Provenance: the owner who created it is recorded.
     assert data["created_by_user_id"] is not None
 
@@ -59,15 +66,16 @@ async def test_demo_data_source_is_scoped_to_project(client: AsyncClient) -> Non
             .all()
         )
 
-    # Exactly one synthetic warehouse, owned by (scoped to) this demo project.
+    # Exactly one demo warehouse source, owned by (scoped to) this demo project.
     assert len(sources) == 1
     assert sources[0].project_id == project.id
+    assert sources[0].db_type == DBType.demo
 
 
 @pytest.mark.asyncio
 async def test_delete_removes_owned_source_and_spares_real_ones(client: AsyncClient) -> None:
     # A real, workspace-global data source (project_id IS NULL) must survive a
-    # demo delete; only the demo's owned synthetic source is removed.
+    # demo delete; only the demo's owned warehouse source is removed.
     real_source_id = uuid.uuid4()
     async with TestSessionLocal() as session:
         session.add(
@@ -105,7 +113,7 @@ async def test_delete_removes_owned_source_and_spares_real_ones(client: AsyncCli
             .scalars()
             .all()
         )
-        assert leaked == []  # no orphaned synthetic warehouse
+        assert leaked == []  # no orphaned demo warehouse source
 
 
 @pytest.mark.asyncio
@@ -205,41 +213,37 @@ async def test_reset_reprovisions_in_place(client: AsyncClient) -> None:
 
 
 @pytest.mark.asyncio
-async def test_failed_reset_leaves_the_existing_demo_untouched(
+async def test_a_reset_that_cannot_replace_the_demo_leaves_it_untouched(
     client: AsyncClient, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """A reset that dies mid-seed must not cost the user their working demo.
+    """A reset that dies before its replacement exists must not cost the user their demo.
 
-    Reset used to delete the old demo in its own commit and only then seed the
-    replacement, so any transient seeding error left the user with nothing — the
-    working demo gone, a hidden failed shell in its place. Drop and re-seed now
-    share one transaction, so the rollback restores the original exactly.
+    The purge of the old demo and the replacement shell share one transaction, so
+    a failure there rolls back to the original exactly.
     """
     created = await client.post("/api/v1/projects/demo")
     slug = created.json()["slug"]
 
     before = await client.get(f"/api/v1/projects/{slug}/events")
-    before_body = before.json()
-    before_items = before_body["items"] if isinstance(before_body, dict) else before_body
+    before_items = before.json()["items"]
     assert before_items, "the demo should be populated before the reset"
 
     async def _boom(*args: object, **kwargs: object) -> None:
-        raise RuntimeError("injected reset seed failure")
+        raise RuntimeError("injected purge failure")
 
-    monkeypatch.setattr(demo_service, "_seed_demo_content", _boom)
+    monkeypatch.setattr(project_service, "purge_project_rows", _boom)
 
     reset = await client.post(f"/api/v1/projects/demo/{slug}/reset")
     assert reset.status_code == 500
+    assert "left unchanged" in reset.json()["detail"]
 
     # The original demo survived: same slug, still ready, still populated.
     project = await client.get(f"/api/v1/projects/{slug}")
     assert project.status_code == 200
+    assert project.json()["id"] == created.json()["id"]
     assert project.json()["generation_status"] == "ready"
-
     after = await client.get(f"/api/v1/projects/{slug}/events")
-    after_body = after.json()
-    after_items = after_body["items"] if isinstance(after_body, dict) else after_body
-    assert len(after_items) == len(before_items)
+    assert len(after.json()["items"]) == len(before_items)
 
     # ...and the failed attempt left no second, hidden demo shell behind.
     async with TestSessionLocal() as session:
@@ -248,8 +252,53 @@ async def test_failed_reset_leaves_the_existing_demo_untouched(
             .scalars()
             .all()
         )
-        assert len(demos) == 1
-        assert demos[0].slug == slug
+        assert [demo.slug for demo in demos] == [slug]
+
+
+@pytest.mark.asyncio
+async def test_a_reset_whose_seed_fails_leaves_a_failed_shell_under_the_same_name(
+    client: AsyncClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Reset seeds on the worker, like a create: its seed failing is a failed demo.
+
+    The old demo is gone by then (the replacement shell took its place), so what
+    is left is what a failed create leaves — a ``failed`` shell, under the demo's
+    slug and name, that its creator can still read and reset again — never a
+    half-seeded demo.
+    """
+    created = (await client.post("/api/v1/projects/demo")).json()
+    slug = created["slug"]
+
+    async def _boom(*args: object, **kwargs: object) -> None:
+        raise RuntimeError("injected reset seed failure")
+
+    monkeypatch.setattr(demo_service, "_seed_demo_content", _boom)
+
+    reset = await client.post(f"/api/v1/projects/demo/{slug}/reset")
+    assert reset.status_code == 200, reset.text
+    data = reset.json()
+    assert data["generation_status"] == "failed"
+    assert data["generation_error"]
+    assert (data["slug"], data["name"]) == (slug, created["name"])
+    assert data["id"] != created["id"]
+
+    project = await client.get(f"/api/v1/projects/{slug}")
+    assert project.status_code == 200
+    assert project.json()["generation_status"] == "failed"
+
+    async with TestSessionLocal() as session:
+        demos = (
+            (await session.execute(select(Project).where(Project.is_demo.is_(True))))
+            .scalars()
+            .all()
+        )
+        assert [demo.slug for demo in demos] == [slug]
+        event_types = (
+            (await session.execute(select(EventType).where(EventType.project_id == demos[0].id)))
+            .scalars()
+            .all()
+        )
+        assert event_types == []
 
 
 @pytest.mark.asyncio
@@ -295,16 +344,16 @@ async def test_demo_lifecycle_requires_auth(anon_client: AsyncClient) -> None:
 
 
 @pytest.mark.asyncio
-async def test_ordinary_project_cannot_select_synthetic_source(client: AsyncClient) -> None:
-    # The demo's synthetic warehouse belongs to its demo project. An ordinary
+async def test_ordinary_project_cannot_select_the_demo_source(client: AsyncClient) -> None:
+    # The demo's warehouse source belongs to its demo project. An ordinary
     # project must not be able to point a scan/preview at it.
     demo = await client.post("/api/v1/projects/demo")
     demo_slug = demo.json()["slug"]
     async with TestSessionLocal() as session:
-        synthetic = (
-            await session.execute(select(DataSource).where(DataSource.db_type == DBType.synthetic))
+        warehouse = (
+            await session.execute(select(DataSource).where(DataSource.db_type == DBType.demo))
         ).scalar_one()
-    synthetic_id = str(synthetic.id)
+    warehouse_id = str(warehouse.id)
 
     create = await client.post(
         "/api/v1/projects",
@@ -313,7 +362,7 @@ async def test_ordinary_project_cannot_select_synthetic_source(client: AsyncClie
     assert create.status_code == 201
 
     payload = {
-        "data_source_id": synthetic_id,
+        "data_source_id": warehouse_id,
         "name": "borrowed",
         "base_query": "SELECT * FROM events",
     }
@@ -322,7 +371,7 @@ async def test_ordinary_project_cannot_select_synthetic_source(client: AsyncClie
 
     preview = await client.post(
         "/api/v1/projects/ordinary-proj/scans/preview",
-        json={"data_source_id": synthetic_id, "base_query": "SELECT * FROM events"},
+        json={"data_source_id": warehouse_id, "base_query": "SELECT * FROM events"},
     )
     assert preview.status_code == 422, preview.text
 

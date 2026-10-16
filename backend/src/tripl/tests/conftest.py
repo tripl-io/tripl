@@ -4,7 +4,7 @@ import contextvars
 import smtplib
 import socket
 import uuid
-from collections.abc import AsyncGenerator, Iterator
+from collections.abc import AsyncGenerator, Awaitable, Callable, Iterator
 from typing import Any
 
 import httpx
@@ -26,6 +26,16 @@ settings.rate_limit_enabled = False
 # assert the closed behaviour set the mode themselves via monkeypatch or a
 # persisted override.
 settings.registration_mode = REGISTRATION_OPEN
+
+# Demos read the demo warehouse (core/demo_warehouse). The suite has no
+# PostgreSQL, so pin the in-memory engine over the same model: "auto" would try
+# the derived DSN first and only then fall back, which is slower and depends on
+# what happens to listen on localhost. Two days of history is enough for a test
+# that only needs "a demo project"; a test about the full story (three weekly
+# promo sends, the release train, the 21-day scoring window) monkeypatches
+# ``demo_history_days`` back to the default for itself and builds its own demo.
+settings.demo_warehouse_mode = "memory"
+settings.demo_history_days = 2
 
 # Cheap scrypt for the suite. Production's N=2**16 costs ~64MB and a noticeable
 # fraction of a second per hash, and almost every test pays it several times:
@@ -241,26 +251,73 @@ def _hermetic_getaddrinfo(host: object, *args: object, **kwargs: object) -> obje
 def _seed_demos_inline(monkeypatch: pytest.MonkeyPatch) -> None:
     """Run a demo's worker seed inline, so ``POST /projects/demo`` returns it ready.
 
-    Production hands phase 2 to Celery (``worker/tasks/demo_provision.py``).
-    Here it runs on its own session and in a FRESH context — no organization or
-    branch bound, only the request id the task carries — which is what the
-    worker sees, so a seed step that leans on request state fails here too.
+    Production hands phase 2 to Celery (``worker/tasks/demo_provision.py``), and
+    the seed hands the history fill after it to Celery again. Here both run on
+    their own session and in a FRESH context — no organization or branch bound,
+    only the request id the task carries — which is what the worker sees, so a
+    seed step that leans on request state fails here too. With the suite's two
+    days of history the first build covers it all and no fill is queued; a test
+    that sets the full history gets the filled demo back.
+    """
+    from tripl.services import demo_history_service, demo_service
+
+    def _inline(
+        run: Callable[[AsyncSession, uuid.UUID], Awaitable[object]],
+    ) -> Callable[[AsyncSession, uuid.UUID, str | None], Awaitable[None]]:
+        async def _enqueue(
+            caller: AsyncSession, project_id: uuid.UUID, request_id: str | None
+        ) -> None:
+            # The caller's engine, not the test one: some tests seed into a
+            # database of their own.
+            factory = async_sessionmaker(caller.bind, expire_on_commit=False)
+
+            async def _task() -> None:
+                with bound_request_id(request_id) if request_id else contextlib.nullcontext():
+                    async with factory() as session:
+                        await run(session, project_id)
+
+            await asyncio.create_task(_task(), context=contextvars.Context())
+
+        return _enqueue
+
+    monkeypatch.setattr(
+        demo_service, "enqueue_demo_seed", _inline(demo_service.finish_demo_provision)
+    )
+    monkeypatch.setattr(
+        demo_service,
+        "enqueue_demo_history_fill",
+        _inline(demo_history_service.finish_demo_history),
+    )
+
+
+@pytest.fixture
+def demo_enqueued_deliveries() -> list[str]:
+    """The alert delivery ids demo seeds handed to the broker in this test.
+
+    Filled by :func:`_hold_demo_alert_deliveries`; a test that wants the
+    deliveries actually sent runs ``send_alert_delivery`` on them itself.
+    """
+    return []
+
+
+@pytest.fixture(autouse=True)
+def _hold_demo_alert_deliveries(
+    monkeypatch: pytest.MonkeyPatch, demo_enqueued_deliveries: list[str]
+) -> None:
+    """Record, instead of publish, the deliveries a demo seed queues.
+
+    A seed's replay files alert deliveries and queues them on Celery once the
+    demo is visible (``demo_service.enqueue_alert_deliveries``). The suite has
+    no broker, and a publish to an unreachable RabbitMQ blocks on kombu's
+    connection retries, so the seam keeps the ids for the test to inspect. The
+    delivery rows themselves are written exactly as in production, ``pending``.
     """
     from tripl.services import demo_service
 
-    async def _inline(caller: AsyncSession, project_id: uuid.UUID, request_id: str | None) -> None:
-        # The caller's engine, not the test one: some tests seed into a
-        # database of their own.
-        factory = async_sessionmaker(caller.bind, expire_on_commit=False)
+    async def _record(delivery_ids: list[str]) -> None:
+        demo_enqueued_deliveries.extend(delivery_ids)
 
-        async def _seed() -> None:
-            with bound_request_id(request_id) if request_id else contextlib.nullcontext():
-                async with factory() as session:
-                    await demo_service.finish_demo_provision(session, project_id)
-
-        await asyncio.create_task(_seed(), context=contextvars.Context())
-
-    monkeypatch.setattr(demo_service, "enqueue_demo_seed", _inline)
+    monkeypatch.setattr(demo_service, "enqueue_alert_deliveries", _record)
 
 
 @pytest.fixture(autouse=True)
@@ -284,8 +341,8 @@ def deny_network(monkeypatch: pytest.MonkeyPatch) -> Iterator[None]:
 
     The in-memory SQLite DB and the in-process ASGI transport never open a real
     socket, so this only fires on genuine egress — making it the capstone guard
-    for asserting the demo stack (provisioning, runtime tick, alert dispatch,
-    metric collection over the synthetic source) is fully local. Opt-in and not
+    for asserting the demo stack (provisioning, alert dispatch, metric
+    collection over the demo warehouse's in-memory engine) is fully local. Opt-in and not
     autouse, so it never affects tests that don't request it.
     """
 

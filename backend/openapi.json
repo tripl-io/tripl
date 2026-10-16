@@ -6914,7 +6914,8 @@
           "redshift",
           "trino",
           "athena",
-          "synthetic"
+          "synthetic",
+          "demo"
         ],
         "title": "DBType",
         "type": "string"
@@ -7181,6 +7182,21 @@
           },
           "db_type": {
             "$ref": "#/components/schemas/DBType"
+          },
+          "demo_engine": {
+            "anyOf": [
+              {
+                "enum": [
+                  "postgres",
+                  "memory"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Demo Engine"
           },
           "host": {
             "title": "Host",
@@ -7816,6 +7832,141 @@
           "state"
         ],
         "title": "DemoCancelResponse",
+        "type": "object"
+      },
+      "DemoHistoryStatus": {
+        "description": "The history fill of a ready demo (``fill_demo_history``).\n\nA demo opens with the last two days of its history replayed and scored; the\nrest is replayed afterwards: ``filling`` while that runs, then ``complete``,\nor ``failed`` when it stopped (the demo stays usable on what it holds).\nNULL on a demo built before the fill existed, and on a real project.",
+        "enum": [
+          "filling",
+          "complete",
+          "failed"
+        ],
+        "title": "DemoHistoryStatus",
+        "type": "string"
+      },
+      "DemoWarehouseStatus": {
+        "description": "The demo warehouse every demo reads (core/demo_warehouse/status.py).",
+        "properties": {
+          "database": {
+            "title": "Database",
+            "type": "string"
+          },
+          "database_bytes": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Database Bytes"
+          },
+          "engine": {
+            "enum": [
+              "postgres",
+              "memory"
+            ],
+            "title": "Engine",
+            "type": "string"
+          },
+          "last_error": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Error"
+          },
+          "last_run_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Run At"
+          },
+          "max_mb": {
+            "title": "Max Mb",
+            "type": "integer"
+          },
+          "mode": {
+            "title": "Mode",
+            "type": "string"
+          },
+          "oldest": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Oldest"
+          },
+          "reachable": {
+            "title": "Reachable",
+            "type": "boolean"
+          },
+          "reader_configured": {
+            "title": "Reader Configured",
+            "type": "boolean"
+          },
+          "reader_limits_missing": {
+            "default": [],
+            "items": {
+              "type": "string"
+            },
+            "title": "Reader Limits Missing",
+            "type": "array"
+          },
+          "reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reason"
+          },
+          "retention_days": {
+            "title": "Retention Days",
+            "type": "integer"
+          },
+          "written_through": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Written Through"
+          }
+        },
+        "required": [
+          "mode",
+          "engine",
+          "reachable",
+          "reader_configured",
+          "database",
+          "retention_days",
+          "max_mb"
+        ],
+        "title": "DemoWarehouseStatus",
         "type": "object"
       },
       "DependenciesResponse": {
@@ -24170,6 +24321,27 @@
             ],
             "title": "Created By User Id"
           },
+          "demo_history_progress": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Demo History Progress"
+          },
+          "demo_history_status": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/DemoHistoryStatus"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "demo_last_tick_at": {
             "anyOf": [
               {
@@ -24219,6 +24391,17 @@
               }
             ],
             "title": "Generation Error"
+          },
+          "generation_progress": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Generation Progress"
           },
           "generation_stage": {
             "anyOf": [
@@ -24691,6 +24874,27 @@
             ],
             "title": "Created By User Id"
           },
+          "demo_history_progress": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Demo History Progress"
+          },
+          "demo_history_status": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/DemoHistoryStatus"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "demo_last_tick_at": {
             "anyOf": [
               {
@@ -24740,6 +24944,17 @@
               }
             ],
             "title": "Generation Error"
+          },
+          "generation_progress": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Generation Progress"
           },
           "generation_stage": {
             "anyOf": [
@@ -26570,6 +26785,11 @@
             ],
             "title": "App Version Prerelease Pattern"
           },
+          "auto_create_events": {
+            "default": true,
+            "title": "Auto Create Events",
+            "type": "boolean"
+          },
           "base_query": {
             "minLength": 1,
             "title": "Base Query",
@@ -26851,6 +27071,10 @@
               }
             ],
             "title": "App Version Prerelease Pattern"
+          },
+          "auto_create_events": {
+            "title": "Auto Create Events",
+            "type": "boolean"
           },
           "base_query": {
             "title": "Base Query",
@@ -27152,6 +27376,7 @@
           "interval",
           "replay_chunk_interval",
           "scan_lookback_hours",
+          "auto_create_events",
           "scan_row_limit",
           "metrics_row_limit",
           "app_version_column",
@@ -27312,6 +27537,10 @@
               }
             ],
             "title": "App Version Prerelease Pattern"
+          },
+          "auto_create_events": {
+            "title": "Auto Create Events",
+            "type": "boolean"
           },
           "base_query": {
             "title": "Base Query",
@@ -27589,6 +27818,7 @@
           "interval",
           "replay_chunk_interval",
           "scan_lookback_hours",
+          "auto_create_events",
           "scan_row_limit",
           "metrics_row_limit",
           "app_version_column",
@@ -27656,6 +27886,17 @@
               }
             ],
             "title": "App Version Prerelease Pattern"
+          },
+          "auto_create_events": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Auto Create Events"
           },
           "base_query": {
             "anyOf": [
@@ -28261,6 +28502,11 @@
               }
             ],
             "title": "App Version Column"
+          },
+          "auto_create_events": {
+            "default": true,
+            "title": "Auto Create Events",
+            "type": "boolean"
           },
           "base_query": {
             "anyOf": [
@@ -29903,6 +30149,11 @@
             "title": "Event Id",
             "type": "string"
           },
+          "linked": {
+            "default": false,
+            "title": "Linked",
+            "type": "boolean"
+          },
           "status": {
             "$ref": "#/components/schemas/ShadowEventStatus"
           }
@@ -29996,6 +30247,11 @@
             ],
             "title": "Event Id"
           },
+          "linked": {
+            "default": false,
+            "title": "Linked",
+            "type": "boolean"
+          },
           "ok": {
             "title": "Ok",
             "type": "boolean"
@@ -30085,6 +30341,11 @@
               }
             ],
             "title": "Accepted Event Id"
+          },
+          "auto_resolved": {
+            "default": false,
+            "title": "Auto Resolved",
+            "type": "boolean"
           },
           "event_name": {
             "title": "Event Name",
@@ -31692,6 +31953,16 @@
           "debug": {
             "title": "Debug",
             "type": "boolean"
+          },
+          "demo_warehouse": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/DemoWarehouseStatus"
+              },
+              {
+                "type": "null"
+              }
+            ]
           },
           "edition": {
             "enum": [
@@ -37381,7 +37652,7 @@
     },
     "/api/v1/projects/demo/{slug}/reset": {
       "post": {
-        "description": "Re-seed a demo in place. Restricted to the demo's creator or an owner.",
+        "description": "Replace a demo with a fresh one under the same slug. Creator or owner only.\n\nAnswers with the replacement's ``seeding`` shell (or the ready demo, when\nthe worker was faster): poll it as after ``POST /projects/demo``.",
         "operationId": "reset_demo_project_api_v1_projects_demo__slug__reset_post",
         "parameters": [
           {

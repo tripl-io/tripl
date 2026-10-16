@@ -7,29 +7,19 @@ resumes it on the next beat tick).
 
 Why the rule lives in a module of its own
 -----------------------------------------
-Both ``worker.tasks.demo_runtime.advance_demos`` (which appends the demo's hourly
-buckets) and ``worker.tasks.metrics.schedule.check_metrics_due`` (which dispatches
-its scheduled collection) have to answer this question, and they MUST answer it
-identically — see below. Importing the predicate straight from ``demo_runtime``
-would be acyclic today, but it would drag ``tripl.cache``, ``tripl.realtime``, the
-anomaly detector and three demo builders into the dispatcher's import graph for
-one four-line rule. This subsystem already parks its shared rules in leaf modules
-for exactly that reason: ``core.collection_progress`` and ``core.bucketing`` each
-open by naming the several callers that must agree on them.
+Both ``worker.tasks.metrics.schedule.check_metrics_due`` (which dispatches a
+demo's scheduled collection) and ``worker.tasks.metrics.freshness_sweep`` (which
+raises "scan overdue" for a collection that stopped) have to answer this
+question, and they MUST answer it identically: a demo the dispatcher stopped
+collecting because nobody looks at it is not overdue, and an overdue alert for
+it would be noise about the pause itself. One four-line rule in a leaf module
+keeps both — and the Enterprise demo pool, which keeps its waiting demos
+unpaused — from each testing idleness their own way.
 
-Why the two callers must not each roll their own idleness test
-------------------------------------------------------------------------------
-The tick is what keeps the newest ``EventMetric`` bucket moving. While it is
-paused that bucket freezes, so ``collection_progress_to`` — the resume point the
-collector derives its window start from — freezes with it, and the next scheduled
-collection's window stretches back to cover the whole gap instead of the usual two
-buckets. Against the synthetic demo warehouse that is actively destructive: the
-adapter only materialises its newest ``SYNTHETIC_ONGOING_HOURS`` at full volume
-and emits a handful of sampled rows per hour before that, while the collector
-deletes each chunk window before rewriting it. A window reaching behind the
-ongoing hours therefore replaces hours of real history with near-zero counts, over
-and over, for as long as the demo stays paused. Two thresholds that drift apart
-re-open precisely that window.
+Resuming is safe: a demo reads the shared demo warehouse, which keeps every
+hour of its retention, so the first collection after a pause catches the gap up
+from real rows (clamped to what the warehouse still holds,
+``metrics.demo_window``).
 """
 
 from __future__ import annotations
@@ -39,9 +29,9 @@ from datetime import datetime, timedelta
 from tripl.core.bucketing import to_utc
 
 # A demo whose last explicit access (falling back to seed time) is older than this
-# is PAUSED — the tick skips it so a demo nobody is looking at stops consuming
-# worker time. The next access (``demo_last_accessed_at`` touched on GET / reset)
-# resumes it and the next tick catches it up.
+# is PAUSED — the scheduler skips it so a demo nobody is looking at stops
+# consuming worker time. The next access (``demo_last_accessed_at`` touched on GET
+# / reset) resumes it and the next scheduled collection catches it up.
 #
 # Comfortably wider than ``project_service._DEMO_ACCESS_TOUCH_SECONDS`` (60 s),
 # the throttle on how often an access rewrites that column, so someone actually

@@ -78,7 +78,7 @@ from __future__ import annotations
 import hashlib
 import math
 import re
-from collections.abc import Mapping
+from collections.abc import Callable, Mapping
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from typing import NamedTuple
@@ -1253,6 +1253,27 @@ def _generate_orders(
     return rows
 
 
+class JsonLayout(NamedTuple):
+    """The JSON part of a grouping key, laid out as the SQL adapters return it.
+
+    ``columns`` are the JSON columns grouped by document shape, ``value_names``
+    the ``<column>.<path>`` values grouped by, and ``values`` a row's key part
+    for both, in that order. This warehouse has no JSON column, so it uses
+    :data:`_NO_JSON`; an engine over a dataset that has one supplies its own.
+    """
+
+    columns: list[str]
+    value_names: list[str]
+    values: Callable[[dict[str, object]], tuple[object, ...]]
+
+
+def _no_json_values(row: dict[str, object]) -> tuple[object, ...]:
+    return ()
+
+
+_NO_JSON = JsonLayout(columns=[], value_names=[], values=_no_json_values)
+
+
 class SyntheticAdapter(BaseAdapter):
     """Serves a bounded, deterministic in-memory dataset via the adapter contract."""
 
@@ -1354,9 +1375,7 @@ class SyntheticAdapter(BaseAdapter):
         column_names = [name for name, _ in self._columns_for_query(base_query, table)]
         if time_column is not None:
             self._validate_table_column(table, time_column)
-        rows = self._windowed_rows(
-            self._scan_rows(base_query, table), time_column, time_from, time_to
-        )
+        rows = self._window_scan(base_query, table, time_column, time_from, time_to)
         order_key = time_column or column_names[0]
         rows = sorted(rows, key=lambda row: _bval(row.get(order_key)))
         capped = rows[: max(int(limit), 0)]
@@ -1381,16 +1400,15 @@ class SyntheticAdapter(BaseAdapter):
         reg = [self._validate_table_column(table, column) for column in regular_columns]
         if time_column is not None:
             self._validate_table_column(table, time_column)
-        windowed = self._windowed_rows(
-            self._scan_rows(base_query, table), time_column, time_from, time_to
-        )
+        layout = self._json_layout(table, json_columns, json_value_paths)
+        windowed = self._window_scan(base_query, table, time_column, time_from, time_to)
         counts: dict[tuple[object, ...], int] = {}
         for row in windowed:
-            key = tuple(row.get(column) for column in reg)
+            key = (*tuple(row.get(column) for column in reg), *layout.values(row))
             counts[key] = counts.get(key, 0) + 1
         items = sorted(counts.items(), key=lambda kv: (-kv[1], tuple(_bval(v) for v in kv[0])))
         out = [(*key, count) for key, count in items[: max(int(limit), 0)]]
-        return reg, [], [], out
+        return reg, layout.columns, layout.value_names, out
 
     # -- time-bucketed counts ---------------------------------------------
 
@@ -1410,13 +1428,14 @@ class SyntheticAdapter(BaseAdapter):
         table = self._table_for_query(base_query)
         reg = [self._validate_table_column(table, column) for column in regular_columns]
         self._validate_table_column(table, time_column)
+        layout = self._json_layout(table, json_columns, json_value_paths)
         groups = self._bucket_groups(
-            base_query, table, time_column, interval, reg, time_from, time_to
+            base_query, table, time_column, interval, reg, time_from, time_to, layout
         )
         out: list[tuple[object, ...]] = []
         for (bucket, *values), members in self._sorted_items(groups):
             out.append((bucket, *values, len(members)))
-        return reg, [], out[: max(int(limit), 0)]
+        return [*reg, *layout.columns], layout.value_names, out[: max(int(limit), 0)]
 
     def get_time_bucketed_breakdown_counts(
         self,
@@ -1437,24 +1456,29 @@ class SyntheticAdapter(BaseAdapter):
         table = self._table_for_query(base_query)
         reg = [self._validate_table_column(table, column) for column in regular_columns]
         self._validate_table_column(table, time_column)
-        breakdown = self._validate_table_column(table, breakdown_column)
-        windowed = self._windowed_rows(
-            self._scan_rows(base_query, table), time_column, time_from, time_to
-        )
+        breakdown = self._validate_breakdown_column(table, breakdown_column)
+        layout = self._json_layout(table, json_columns, json_value_paths)
+        windowed = self._window_scan(base_query, table, time_column, time_from, time_to)
         top = self._ranked_top_values(
             base_query, table, time_column, windowed, breakdown, values_limit
         )
         groups: dict[tuple[object, ...], list[dict[str, object]]] = {}
         for row in windowed:
             bucket = self._bucket_start(row[time_column], interval)
-            value, is_other = self._fold(top, _bval(row.get(breakdown)))
-            key = (bucket, value, is_other, *tuple(row.get(column) for column in reg))
+            value, is_other = self._fold(top, self._breakdown_text(row, breakdown))
+            key = (
+                bucket,
+                value,
+                is_other,
+                *tuple(row.get(column) for column in reg),
+                *layout.values(row),
+            )
             groups.setdefault(key, []).append(row)
         out: list[tuple[object, ...]] = []
         for key, members in self._sorted_breakdown_items(groups):
             k_bucket, k_value, k_is_other, *k_values = key
             out.append((k_bucket, k_value, k_is_other, *k_values, len(members)))
-        return reg, [], out[: max(int(limit), 0)]
+        return [*reg, *layout.columns], layout.value_names, out[: max(int(limit), 0)]
 
     def get_time_bucketed_breakdown_counts_multi(
         self,
@@ -1477,10 +1501,11 @@ class SyntheticAdapter(BaseAdapter):
         table = self._table_for_query(base_query)
         reg = [self._validate_table_column(table, column) for column in regular_columns]
         self._validate_table_column(table, time_column)
-        breakdowns = [self._validate_table_column(table, column) for column in breakdown_columns]
-        windowed = self._windowed_rows(
-            self._scan_rows(base_query, table), time_column, time_from, time_to
-        )
+        breakdowns = [
+            self._validate_breakdown_column(table, column) for column in breakdown_columns
+        ]
+        layout = self._json_layout(table, json_columns, json_value_paths)
+        windowed = self._window_scan(base_query, table, time_column, time_from, time_to)
         out: list[tuple[object, ...]] = []
         for breakdown in breakdowns:
             top = self._ranked_top_values(
@@ -1489,14 +1514,20 @@ class SyntheticAdapter(BaseAdapter):
             groups: dict[tuple[object, ...], list[dict[str, object]]] = {}
             for row in windowed:
                 bucket = self._bucket_start(row[time_column], interval)
-                value, is_other = self._fold(top, _bval(row.get(breakdown)))
-                key = (bucket, value, is_other, *tuple(row.get(column) for column in reg))
+                value, is_other = self._fold(top, self._breakdown_text(row, breakdown))
+                key = (
+                    bucket,
+                    value,
+                    is_other,
+                    *tuple(row.get(column) for column in reg),
+                    *layout.values(row),
+                )
                 groups.setdefault(key, []).append(row)
             for key, members in self._sorted_breakdown_items(groups):
                 k_bucket, k_value, k_is_other, *k_values = key
                 out.append((k_bucket, breakdown, k_value, k_is_other, *k_values, len(members)))
         out.sort(key=lambda row: (row[0], row[1], row[2]))
-        return reg, [], out[: max(int(limit), 0)]
+        return [*reg, *layout.columns], layout.value_names, out[: max(int(limit), 0)]
 
     # -- time-bucketed aggregates -----------------------------------------
 
@@ -1519,13 +1550,14 @@ class SyntheticAdapter(BaseAdapter):
         reg = [self._validate_table_column(table, column) for column in regular_columns]
         self._validate_table_column(table, time_column)
         measure = self._validate_measure(table, agg_fn, measure_column)
+        layout = self._json_layout(table, json_columns, json_value_paths)
         groups = self._bucket_groups(
-            base_query, table, time_column, interval, reg, time_from, time_to
+            base_query, table, time_column, interval, reg, time_from, time_to, layout
         )
         out: list[tuple[object, ...]] = []
         for (bucket, *values), members in self._sorted_items(groups):
             out.append((bucket, *values, self._aggregate(members, agg_fn, measure)))
-        return reg, [], out[: max(int(limit), 0)]
+        return [*reg, *layout.columns], layout.value_names, out[: max(int(limit), 0)]
 
     def get_time_bucketed_aggregate_breakdown(
         self,
@@ -1549,16 +1581,15 @@ class SyntheticAdapter(BaseAdapter):
         self._validate_table_column(table, time_column)
         breakdown = self._validate_table_column(table, breakdown_column)
         measure = self._validate_measure(table, agg_fn, measure_column)
-        windowed = self._windowed_rows(
-            self._scan_rows(base_query, table), time_column, time_from, time_to
-        )
+        layout = self._json_layout(table, json_columns, json_value_paths)
+        windowed = self._window_scan(base_query, table, time_column, time_from, time_to)
         top = self._ranked_top_values(
             base_query, table, time_column, windowed, breakdown, values_limit
         )
         groups: dict[tuple[object, ...], list[dict[str, object]]] = {}
         for row in windowed:
             bucket = self._bucket_start(row[time_column], interval)
-            value, is_other = self._fold(top, _bval(row.get(breakdown)))
+            value, is_other = self._fold(top, self._breakdown_text(row, breakdown))
             # The breakdown's own regular-column slot carries the FOLDED value,
             # so it adds nothing to the group key: see
             # BaseAdapter.get_time_bucketed_aggregate_breakdown for why the raw
@@ -1571,6 +1602,7 @@ class SyntheticAdapter(BaseAdapter):
                 value,
                 is_other,
                 *tuple(value if column == breakdown else row.get(column) for column in reg),
+                *layout.values(row),
             )
             groups.setdefault(key, []).append(row)
         out: list[tuple[object, ...]] = []
@@ -1578,7 +1610,7 @@ class SyntheticAdapter(BaseAdapter):
             k_bucket, k_value, k_is_other, *k_values = key
             aggregate = self._aggregate(members, agg_fn, measure)
             out.append((k_bucket, k_value, k_is_other, *k_values, aggregate))
-        return reg, [], out[: max(int(limit), 0)]
+        return [*reg, *layout.columns], layout.value_names, out[: max(int(limit), 0)]
 
     def get_time_bucketed_multi_aggregate(
         self,
@@ -1593,9 +1625,7 @@ class SyntheticAdapter(BaseAdapter):
     ) -> tuple[list[str], list[tuple[object, ...]]]:
         table = self._table_for_query(base_query)
         self._validate_table_column(table, time_column)
-        windowed = self._windowed_rows(
-            self._scan_rows(base_query, table), time_column, time_from, time_to
-        )
+        windowed = self._window_scan(base_query, table, time_column, time_from, time_to)
         buckets: dict[datetime, list[dict[str, object]]] = {}
         for row in windowed:
             buckets.setdefault(self._bucket_start(row[time_column], interval), []).append(row)
@@ -1622,16 +1652,14 @@ class SyntheticAdapter(BaseAdapter):
         table = self._table_for_query(base_query)
         self._validate_table_column(table, time_column)
         breakdown = self._validate_table_column(table, breakdown_column)
-        windowed = self._windowed_rows(
-            self._scan_rows(base_query, table), time_column, time_from, time_to
-        )
+        windowed = self._window_scan(base_query, table, time_column, time_from, time_to)
         top = self._ranked_top_values(
             base_query, table, time_column, windowed, breakdown, values_limit
         )
         groups: dict[tuple[datetime, str, int], list[dict[str, object]]] = {}
         for row in windowed:
             bucket = self._bucket_start(row[time_column], interval)
-            value, is_other = self._fold(top, _bval(row.get(breakdown)))
+            value, is_other = self._fold(top, self._breakdown_text(row, breakdown))
             groups.setdefault((bucket, value, is_other), []).append(row)
         column_names = ["bucket", "breakdown_value", "is_other", *[spec.key for spec in specs]]
         out: list[tuple[object, ...]] = []
@@ -1661,10 +1689,42 @@ class SyntheticAdapter(BaseAdapter):
         projected = tuple(column for column in columns if column[0].casefold() in selected)
         return projected or columns
 
-    def _rows_for_table(self, table: str) -> list[dict[str, object]]:
+    def _rows_for_table(
+        self,
+        table: str,
+        time_column: str | None = None,
+        time_from: datetime | None = None,
+        time_to: datetime | None = None,
+    ) -> list[dict[str, object]]:
+        """The table's rows. The window is a hint this dataset ignores: it is
+        built whole in ``__init__``, and ``_windowed_rows`` applies the window.
+        An engine that generates rows on demand reads only the window."""
         return self._orders if table == "orders" else self._events
 
-    def _scan_rows(self, base_query: str, table: str) -> list[dict[str, object]]:
+    def _window_scan(
+        self,
+        base_query: str,
+        table: str,
+        time_column: str | None,
+        time_from: datetime | None,
+        time_to: datetime | None,
+    ) -> list[dict[str, object]]:
+        """``_scan_rows`` narrowed to ``[time_from, time_to)`` on ``time_column``."""
+        return self._windowed_rows(
+            self._scan_rows(base_query, table, time_column, time_from, time_to),
+            time_column,
+            time_from,
+            time_to,
+        )
+
+    def _scan_rows(
+        self,
+        base_query: str,
+        table: str,
+        time_column: str | None = None,
+        time_from: datetime | None = None,
+        time_to: datetime | None = None,
+    ) -> list[dict[str, object]]:
         """The table's rows, narrowed by a top-level ``WHERE`` in ``base_query``.
 
         The single seam through which every TABLE-SCAN method reads the dataset,
@@ -1692,7 +1752,7 @@ class SyntheticAdapter(BaseAdapter):
         demo's own "Collect now" and filter preview, turning a silent wrong number
         into a visibly broken feature.
         """
-        rows = self._rows_for_table(table)
+        rows = self._rows_for_table(table, time_column, time_from, time_to)
         predicates = _where_predicates(base_query)
         if not predicates:
             return rows
@@ -1712,6 +1772,10 @@ class SyntheticAdapter(BaseAdapter):
             return "orders"
         return "events"
 
+    def _column_names(self, table: str) -> frozenset[str]:
+        """Every column ``table`` has: the allowlist both column gates answer to."""
+        return _table_columns(table)
+
     def _validate_table_column(self, table: str, name: str) -> str:
         """Hold a STRUCTURED column parameter to the table's columns.
 
@@ -1724,7 +1788,7 @@ class SyntheticAdapter(BaseAdapter):
         if not IDENTIFIER_RE.match(name):
             msg = f"Invalid column name: {name!r}"
             raise ValueError(msg)
-        if name not in _table_columns(table):
+        if name not in self._column_names(table):
             msg = f"Column {name!r} not found in {table} query result"
             raise ValueError(msg)
         return name
@@ -1739,7 +1803,7 @@ class SyntheticAdapter(BaseAdapter):
         error anywhere.
         """
         name = _filter_identifier(raw)
-        if name not in _table_columns(table):
+        if name not in self._column_names(table):
             msg = f"Unsupported filter column: {raw!r}"
             raise SyntheticCapabilityError(msg)
         return name
@@ -1759,6 +1823,15 @@ class SyntheticAdapter(BaseAdapter):
         if json_columns:
             msg = "The synthetic warehouse has no JSON columns"
             raise SyntheticCapabilityError(msg)
+
+    def _json_layout(
+        self,
+        table: str,
+        json_columns: list[str],
+        json_value_paths: dict[str, list[str]] | None,
+    ) -> JsonLayout:
+        """How the JSON columns group rows; none here (``_reject_json`` refused them)."""
+        return _NO_JSON
 
     def _reject_property_breakdowns(self, breakdown_columns: list[str]) -> None:
         """Refuse a property breakdown (``<json_column>.<path>``, F23 #306) by name.
@@ -1830,14 +1903,17 @@ class SyntheticAdapter(BaseAdapter):
         regular_columns: list[str],
         time_from: datetime,
         time_to: datetime,
+        layout: JsonLayout = _NO_JSON,
     ) -> dict[tuple[object, ...], list[dict[str, object]]]:
-        windowed = self._windowed_rows(
-            self._scan_rows(base_query, table), time_column, time_from, time_to
-        )
+        windowed = self._window_scan(base_query, table, time_column, time_from, time_to)
         groups: dict[tuple[object, ...], list[dict[str, object]]] = {}
         for row in windowed:
             bucket = self._bucket_start(row[time_column], interval)
-            key = (bucket, *tuple(row.get(column) for column in regular_columns))
+            key = (
+                bucket,
+                *tuple(row.get(column) for column in regular_columns),
+                *layout.values(row),
+            )
             groups.setdefault(key, []).append(row)
         return groups
 
@@ -1881,9 +1957,7 @@ class SyntheticAdapter(BaseAdapter):
         return self._ranked_once(
             ("top_values", base_query, time_column, breakdown, values_limit, rank_from, rank_to),
             lambda: self._top_values(
-                self._windowed_rows(
-                    self._scan_rows(base_query, table), time_column, rank_from, rank_to
-                ),
+                self._window_scan(base_query, table, time_column, rank_from, rank_to),
                 breakdown,
                 values_limit,
             ),
@@ -1907,10 +1981,18 @@ class SyntheticAdapter(BaseAdapter):
         top_count = max(values_limit - 1, 0)
         counts: dict[str, int] = {}
         for row in windowed:
-            value = _bval(row.get(breakdown))
+            value = self._breakdown_text(row, breakdown)
             counts[value] = counts.get(value, 0) + 1
         ranked = sorted(counts.items(), key=lambda kv: (-kv[1], kv[0]))
         return {value for value, _ in ranked[:top_count]}
+
+    def _validate_breakdown_column(self, table: str, name: str) -> str:
+        """A breakdown of counts: a column here (no JSON column holds properties)."""
+        return self._validate_table_column(table, name)
+
+    def _breakdown_text(self, row: dict[str, object], breakdown: str) -> str:
+        """One row's breakdown value as text, ``''`` for NULL."""
+        return _bval(row.get(breakdown))
 
     def _fold(self, top: set[str] | None, value: str) -> tuple[str, int]:
         if top is None or value in top:

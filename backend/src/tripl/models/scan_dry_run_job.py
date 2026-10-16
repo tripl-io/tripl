@@ -4,7 +4,7 @@ import uuid
 from datetime import datetime
 
 import sqlalchemy as sa
-from sqlalchemy import DateTime, ForeignKey, Index, Integer, String, Text
+from sqlalchemy import Boolean, DateTime, ForeignKey, Index, Integer, String, Text
 from sqlalchemy.orm import Mapped, mapped_column
 
 from tripl.models.base import Base, TimestampMixin, UUIDMixin
@@ -66,6 +66,7 @@ class ScanDryRunJob(UUIDMixin, TimestampMixin, Base):
     app_version_column: Mapped[str | None] = mapped_column(String(255), nullable=True)
     platform_column: Mapped[str | None] = mapped_column(String(255), nullable=True)
     scan_lookback_hours: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    auto_create_events: Mapped[bool] = mapped_column(Boolean, default=True, server_default="true")
     sample_row_limit: Mapped[int] = mapped_column(Integer, default=5000)
 
     status: Mapped[str] = mapped_column(

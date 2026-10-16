@@ -20,11 +20,19 @@ On **All projects**, press **Generate demo project**.
 ![All projects, with the Generate demo project button at the top right](/img/screenshots/workspace.light.webp#gh-light-mode-only)
 ![All projects, with the Generate demo project button at the top right](/img/screenshots/workspace.dark.webp#gh-dark-mode-only)
 
-tripl builds a project for an imaginary mobile app: events across three event
-types, metrics, two weeks of collected volume, some open anomalies and a plan
-branch waiting for review. It all runs on a small **synthetic warehouse** inside
-tripl, so nothing leaves the server. The scans, detection and alerting you see
-are the real ones, running over that synthetic data.
+tripl builds a project for an imaginary recipe app, the way a real project
+starts: it writes a tracking plan of 157 events across 11 event types, then
+scans the **demo warehouse** and collects the last two days of history from it.
+That takes about half a minute, and the dialog shows each stage as the server
+reaches it; the rest of the 23 days is filled in while you look around (the
+banner says how far it is, and the weekly promo verdicts and the full set of
+alerts land when it finishes, a few minutes later). You land on metrics, open anomalies from the warehouse's daily incident, value and
+schema drift, release regressions, and a plan branch waiting for review.
+
+The demo warehouse is a database of generated traffic on your tripl server,
+shared by every demo, so nothing leaves the server. Everything observed in the
+demo — the scans, detection, drift and alerting — is tripl's own pipeline
+reading it.
 
 ## 2. Follow a chapter
 
@@ -58,7 +66,9 @@ A good order, once the first chapter is done:
 | **Govern → Reconciliation** | Events in the data but not in the plan, and the reverse. |
 
 Click an event with a red dot to open its monitoring page: the volume chart, the
-spike, and *why it changed*, broken down by platform.
+incident, and *why it changed*, broken down by platform. The warehouse runs one
+incident a day at 13:00 UTC, and a release every two weeks that breaks one
+event, so there is always something recent to look at.
 
 ![An event's monitoring page: volume chart with a spike, the signal and the breakdown of what moved](/img/screenshots/event-monitoring.light.webp#gh-light-mode-only)
 ![An event's monitoring page: volume chart with a spike, the signal and the breakdown of what moved](/img/screenshots/event-monitoring.dark.webp#gh-dark-mode-only)
@@ -70,6 +80,7 @@ other projects. When you are ready for your own data, go back to **All
 projects**, press **New project**, then
 [connect your warehouse](./connect-your-warehouse.md).
 
-**More detail:** [The demo project](../use/demo-workspace.md) lists exactly what
-is synthetic, what really runs, and what the demo deliberately cannot do (such as
-send a real Slack message).
+**More detail:** [The demo project](../use/demo-workspace.md) lists what the
+recipe writes and what the pipeline observes, the calendar of incidents the
+warehouse runs, and what the demo deliberately cannot do (such as send a real
+Slack message).

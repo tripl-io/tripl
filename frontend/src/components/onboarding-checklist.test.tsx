@@ -632,4 +632,11 @@ describe('countRealSources', () => {
   it('returns zero for a demo whose only source is synthetic', () => {
     expect(countRealSources([{ is_synthetic: true }])).toBe(0)
   })
+
+  it('never counts the demo warehouse as real, even without the flag', () => {
+    // The flag is the server's word; the type is the guard if a new demo type
+    // ever arrives without it.
+    expect(countRealSources([{ db_type: 'demo' }, { db_type: 'synthetic' }])).toBe(0)
+    expect(countRealSources([{ db_type: 'demo', is_synthetic: true }, { db_type: 'postgres' }])).toBe(1)
+  })
 })

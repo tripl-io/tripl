@@ -45,9 +45,9 @@ THREE RULES THE EVENT ROWS FOLLOW, each of them a way of not lying:
    who wants to see one can perform the action in the demo and watch its row
    appear, which is exactly what the demo docs promise about their own actions.
 
-Runs after every builder that creates an object it records, which is tenth of
-eleven — the search reindex follows it. It only records what already exists, and
-never invents an object.
+Runs after every builder that creates an object it records: it is the recipe's
+last authored builder, before the provisioning pipeline reads the warehouse. It
+only records what already exists, and never invents an object.
 """
 
 from __future__ import annotations
@@ -65,16 +65,17 @@ from tripl.models.alert_destination import AlertDestination
 from tripl.models.alert_rule import AlertRule
 from tripl.models.audit_log import AuditLog
 from tripl.models.data_source import DataSource
+from tripl.models.doc_file import DocFile
 from tripl.models.event import Event
 from tripl.models.event_change import EventChange
 from tripl.models.event_type_owner import EventTypeOwner
 from tripl.models.event_type_relation import EventTypeRelation
 from tripl.models.fact_table import FactTable
 from tripl.models.metric_definition import MetricDefinition
-from tripl.models.plan_branch import BranchKind, PlanBranch
+from tripl.models.plan_branch import BranchKind, BranchStatus, PlanBranch
+from tripl.models.plan_branch_reviewer import PlanBranchReviewer
 from tripl.models.project import Project
 from tripl.models.scan_config import ScanConfig
-from tripl.models.shadow_event_candidate import SHADOW_STATUS_DISMISSED, ShadowEventCandidate
 from tripl.models.user import User
 from tripl.models.variable_event_value_override import VariableEventValueOverride
 from tripl.services.demo.builders import branches
@@ -273,23 +274,22 @@ async def _catalog_entries(session: AsyncSession, ctx: DemoContext) -> list[_Ent
 
 
 async def _branch_entries(session: AsyncSession, ctx: DemoContext) -> list[tuple[_Entry, datetime]]:
-    """The feature branch's own trail: its creation, and the one edit made on it.
+    """Each branch's own trail: created, then merged or reviewed and edited.
 
-    Dated off the rows themselves, like the event rows: the creation at the
+    Dated off the rows themselves, like the event rows: a creation at the
     branch's ``created_at`` (the instant Plan history reads "Branch opened"
-    from), the edit at the branch copy's ``updated_at``. Spread with the other
-    operations instead, the log dated the branch at a different time from the
-    one the branch list and Plan history show.
+    from), a merge at ``merged_at``, the open branch's edit at its copy's
+    ``updated_at`` and its reviewer at the reviewer row's ``created_at``.
 
     The EDIT is the only row in this builder that carries a branch, and the only
-    reason ``_Entry`` grew branch fields. Creating the branch is an action ON
-    MAIN: ``POST /projects/{slug}/branches`` takes no ``?branch=``
+    reason ``_Entry`` grew branch fields. Creating, reviewing and merging a
+    branch are actions ON MAIN: those routes take no ``?branch=``
     (``api/v1/plan_branches.py``), so ``audit_service.record`` reads nothing off
-    the contextvar and the real ``plan_branch.create`` row carries no branch
-    either. Everything else here was authored on main too, which that same
-    function spells as the ABSENCE of a branch.
+    the contextvar and the real rows carry no branch either. Everything else
+    here was authored on main too, which that same function spells as the
+    ABSENCE of a branch.
     """
-    branch = (
+    working = (
         (
             await session.execute(
                 select(PlanBranch)
@@ -301,16 +301,38 @@ async def _branch_entries(session: AsyncSession, ctx: DemoContext) -> list[tuple
             )
         )
         .scalars()
-        .first()
+        .all()
     )
-    if branch is None:
-        return []
-    entries = [
-        (
-            _Entry("plan_branch.create", "plan_branch", branch.id, branch.name),
-            to_utc(branch.created_at),
+    entries: list[tuple[_Entry, datetime]] = []
+    for branch in working:
+        entries.append(
+            (
+                _Entry("plan_branch.create", "plan_branch", branch.id, branch.name),
+                to_utc(branch.created_at),
+            )
         )
-    ]
+        if branch.status == BranchStatus.merged.value and branch.merged_at is not None:
+            entries.append(
+                (
+                    _Entry(
+                        "plan_branch.merge",
+                        "plan_branch",
+                        branch.id,
+                        branch.name,
+                        payload={"status": branch.status},
+                    ),
+                    to_utc(branch.merged_at),
+                )
+            )
+            continue
+        entries += await _open_branch_entries(session, ctx, branch)
+    return entries
+
+
+async def _open_branch_entries(
+    session: AsyncSession, ctx: DemoContext, branch: PlanBranch
+) -> list[tuple[_Entry, datetime]]:
+    entries: list[tuple[_Entry, datetime]] = []
     edited = (
         (
             await session.execute(
@@ -343,6 +365,31 @@ async def _branch_entries(session: AsyncSession, ctx: DemoContext) -> list[tuple
                 to_utc(edited.updated_at),
             )
         )
+    reviewers = (
+        (
+            await session.execute(
+                select(PlanBranchReviewer)
+                .where(PlanBranchReviewer.branch_id == branch.id)
+                .order_by(PlanBranchReviewer.created_at, PlanBranchReviewer.id)
+            )
+        )
+        .scalars()
+        .all()
+    )
+    entries += [
+        (
+            # The real route records an empty target name for this action.
+            _Entry(
+                "plan_branch.add_reviewer",
+                "plan_branch",
+                branch.id,
+                "",
+                payload={"user_id": str(reviewer.user_id)},
+            ),
+            to_utc(reviewer.created_at),
+        )
+        for reviewer in reviewers
+    ]
     return entries
 
 
@@ -493,29 +540,14 @@ async def _event_edit_entries(
     ]
 
 
-async def _shadow_dismissal_entries(
-    session: AsyncSession,
-    ctx: DemoContext,
-) -> list[tuple[_Entry, datetime]]:
-    """A ``shadow_event.dismiss`` behind each candidate the recipe left dismissed.
-
-    Only for candidates whose resolution the governance builder actually recorded:
-    the instant comes off ``resolved_at``, so the audit row and the candidate row
-    name the same moment instead of two. A dismissal is audited at all because the
-    candidate row is CASCADE-deleted with its scan and takes ``resolved_by`` with
-    it — a demo showing a dismissed candidate over an empty filter
-    would teach the opposite.
-    """
-    candidates = (
+async def _doc_entries(session: AsyncSession, ctx: DemoContext) -> list[tuple[_Entry, datetime]]:
+    """A ``doc.create`` per project doc, at the doc's own ``created_at``."""
+    docs = (
         (
             await session.execute(
-                select(ShadowEventCandidate)
-                .where(
-                    ShadowEventCandidate.project_id == ctx.project_id,
-                    ShadowEventCandidate.status == SHADOW_STATUS_DISMISSED,
-                    ShadowEventCandidate.resolved_at.is_not(None),
-                )
-                .order_by(ShadowEventCandidate.resolved_at, ShadowEventCandidate.id)
+                select(DocFile)
+                .where(DocFile.project_id == ctx.project_id)
+                .order_by(DocFile.created_at, DocFile.id)
             )
         )
         .scalars()
@@ -524,33 +556,15 @@ async def _shadow_dismissal_entries(
     return [
         (
             _Entry(
-                "shadow_event.dismiss",
-                "shadow_event_candidate",
-                candidate.id,
-                candidate.event_name,
-                payload={
-                    "observed_count": candidate.observed_count,
-                    # ``str(to_utc(...))``, not ``isoformat()``: the real route
-                    # hands raw datetimes to ``audit_service.record``, whose
-                    # ``_jsonable`` coerces them with ``json.dumps(default=str)``
-                    # — a space separator, not a "T". ``to_utc`` first because
-                    # sqlite returns these naive, and a payload that renders one
-                    # way in the suite and another in production is a demo that
-                    # teaches the wrong shape somewhere.
-                    "first_seen_at": str(to_utc(candidate.first_seen_at)),
-                    "last_seen_at": str(to_utc(candidate.last_seen_at)),
-                    "scan_config_id": str(candidate.scan_config_id),
-                    "event_type_id": (
-                        str(candidate.event_type_id) if candidate.event_type_id else None
-                    ),
-                },
+                "doc.create",
+                "doc",
+                doc.id,
+                doc.path,
+                payload={"scope": "project", "path": doc.path, "revision": doc.revision},
             ),
-            # Narrowed to non-NULL above, so this is a real instant. ``to_utc``
-            # because it comes back naive from SQLite.
-            to_utc(candidate.resolved_at),
+            to_utc(doc.created_at),
         )
-        for candidate in candidates
-        if candidate.resolved_at is not None
+        for doc in docs
     ]
 
 
@@ -616,7 +630,7 @@ async def build_audit(session: AsyncSession, ctx: DemoContext) -> None:
     dated += branch_entries
     dated += _event_creation_entries(events)
     dated += await _event_edit_entries(session, events)
-    dated += await _shadow_dismissal_entries(session, ctx)
+    dated += await _doc_entries(session, ctx)
 
     for entry, created_at in dated:
         session.add(

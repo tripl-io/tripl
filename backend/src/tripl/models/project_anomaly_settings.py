@@ -57,6 +57,16 @@ class ProjectAnomalySettings(UUIDMixin, Base):
     detect_metrics: Mapped[bool] = mapped_column(
         Boolean, default=DEFAULT_DETECT_SCOPE, server_default="true"
     )
+    # Score the scan's platform column as a breakdown: each platform value's
+    # volume series and its parity ratio, for every scope above. The other
+    # breakdown columns (``metric_breakdown_columns``) are scored regardless, as
+    # are release regressions, which read the app-version column. Not in the
+    # settings API: on by default, and only the demo seeder turns it off — a
+    # demo's platform series would triple its scopes, and every one of them is
+    # a seasonal fit on each collection.
+    detect_platform_breakdowns: Mapped[bool] = mapped_column(
+        Boolean, default=DEFAULT_DETECT_SCOPE, server_default="true"
+    )
     baseline_window_buckets: Mapped[int] = mapped_column(
         Integer, default=DEFAULT_BASELINE_WINDOW_BUCKETS
     )

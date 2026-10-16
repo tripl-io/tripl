@@ -56,7 +56,7 @@ from tripl.services.demo.scenario import DEMO_RECIPE_VERSION
 
 logger = logging.getLogger(__name__)
 
-DEFAULT_FIXTURE_PATH = Path(__file__).resolve().parent / "fixtures" / "search_embeddings_v4.npz"
+DEFAULT_FIXTURE_PATH = Path(__file__).resolve().parent / "fixtures" / "search_embeddings_v5.npz"
 
 # Module attribute (not inlined) so tests can monkeypatch the location.
 _FIXTURE_PATH = DEFAULT_FIXTURE_PATH

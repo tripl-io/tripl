@@ -599,8 +599,9 @@ column.
   window, so the cap bounds what a collection costs.
 - The JSON column has to be one the scan's query returns. A property of any
   other column is skipped at collection time with a warning.
-- The synthetic demo warehouse has no JSON columns and cannot break down by a
-  property.
+- The demo warehouse's `properties` column is JSON, so a demo can record and
+  break down by a property; a demo built by an older version, on the
+  in-memory *synthetic* source, has no JSON columns and cannot.
 
 **Contracts.** A typed property is checked like a field contract, in the same
 scan and with the same findings: a `SchemaDrift` row of kind
@@ -709,6 +710,21 @@ After a scan, tripl compares observed values with the effective documented list
 for each event. Novel values create a **property value drift**. Open drift counts
 appear on the Properties table, and the same review panel is available on the
 affected event's detail page.
+
+Where the property's values come from depends on the column. A high-cardinality
+column or a JSON path is compared through its observed context. A column the
+scan enumerates literally (few distinct values) gets no context, so for a field
+whose value is exactly one token, such as `${product_id}`, the scan compares the
+raw values it read for that event's column instead. That is how an
+undocumented product on a three-product column is still reported. A value with
+text around the token (`promo_${product_id}`) is not compared, because the scan
+cannot tell which part of what it read is the property. A field whose
+sensitivity is anything but *None* is not compared either: a drift row stores
+the novel values and an alert quotes them, and a field marked PII or secret must
+not have its raw values copied there. On a field typed `number` or `boolean`
+(or a `number`/`boolean` property on a text field) values are compared in one
+spelling — `10.00` and `10` are the same number, `True`, `t` and `1` the same
+`true` — and a drift reports the novel value in that spelling.
 
 The comparison has nothing to say about a context holding no values. No drift on
 a property therefore means either "everything seen was documented" or "nothing

@@ -30,9 +30,27 @@ from tripl.models.data_source import DataSource
 from tripl.models.project import Project
 from tripl.models.scan_config import ScanConfig
 from tripl.services import alerting_service
+from tripl.services.demo import pipeline
+from tripl.services.demo.builders.alerts import DEMO_SINK_NAME, FIRING_RULE_NAME, FLAKY_SINK_NAME
 from tripl.services.demo_service import create_demo_project
 from tripl.tests.conftest import TestSessionLocal
 from tripl.worker.tasks import alerts as alerts_task
+
+
+@pytest.fixture
+def _authored_only(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Provision only a demo's authored half: its destinations and rules.
+
+    The tests using it are about what the API lets a demo's alerting be
+    configured into, which the observed stages (scan, replay, signals) never
+    touch; skipping them keeps each provision to the builders alone.
+    """
+
+    async def _skip(*_args: object, **_kwargs: object) -> None:
+        return None
+
+    for stage in ("run_scan_stage", "run_history_stage", "run_signals_stage"):
+        monkeypatch.setattr(pipeline, stage, _skip)
 
 
 class NetworkAccessError(RuntimeError):
@@ -223,13 +241,16 @@ def test_demo_sink_dispatch_and_retry_take_local_no_network_path(
 
 @pytest.mark.asyncio
 async def test_demo_sink_seeded_scenario_is_local_and_no_network(monkeypatch) -> None:
-    """Create + simulate + retry over a seeded demo emit zero outbound network.
+    """Create + simulate + retry over a provisioned demo emit zero outbound network.
 
-    Seeds a full demo project under the network guard, then asserts the alerting
-    surface is explorable and clearly local: a ``demo_sink`` destination badged
-    ``is_local``, a firing + a healthy monitor, a locally-recorded delivery with
-    rendered detail, an explorable inbox group, a render-only simulate, and a
-    retry that resets to pending and re-enqueues without opening a connection.
+    Provisions a full demo project under the network guard, then asserts the
+    alerting surface is explorable and clearly local: two ``demo_sink``
+    destinations badged ``is_local`` (the sink and its flaky twin), a firing + a
+    healthy monitor, the deliveries the replay filed (local, simulated, owning
+    their items), an explorable inbox group with the note someone left on it, a
+    render-only simulate, and a retry that resets to pending and re-enqueues
+    without opening a connection. Sending them is the worker's part, pinned in
+    ``test_demo_seeded_signals``.
     """
     _install_network_guard(monkeypatch)
 
@@ -237,60 +258,53 @@ async def test_demo_sink_seeded_scenario_is_local_and_no_network(monkeypatch) ->
         project = await create_demo_project(session)
         slug = project.slug
 
-        # --- destinations: the local sink is present and badged local ---
+        # --- destinations: the local sinks are present and badged local ---
         destinations = await alerting_service.list_destinations(session, slug)
-        demo_sinks = [d for d in destinations if d.type == AlertDestinationType.demo_sink]
-        assert len(demo_sinks) == 1
-        demo_sink = demo_sinks[0]
-        assert demo_sink.is_local is True
-        # No secrets were stored for the local sink.
-        assert demo_sink.webhook_set is False
-        assert demo_sink.bot_token_set is False
-        assert demo_sink.jira_api_token_set is False
-        assert demo_sink.linear_api_key_set is False
+        demo_sinks = {d.name: d for d in destinations if d.type == AlertDestinationType.demo_sink}
+        assert set(demo_sinks) == {DEMO_SINK_NAME, FLAKY_SINK_NAME}
+        for sink in demo_sinks.values():
+            assert sink.is_local is True
+            # No secrets were stored for a local sink.
+            assert sink.webhook_set is False
+            assert sink.bot_token_set is False
+            assert sink.jira_api_token_set is False
+            assert sink.linear_api_key_set is False
+        demo_sink = demo_sinks[DEMO_SINK_NAME]
         # The optional disabled external example carries no credentials.
         disabled = [d for d in destinations if not d.enabled]
         assert disabled and all(d.webhook_set is False for d in disabled)
 
         rules = demo_sink.rules
         assert len(rules) >= 2
-        firing_rule = next(r for r in rules if r.include_metrics and r.include_schema_drifts)
+        firing_rule = next(r for r in rules if r.name == FIRING_RULE_NAME)
 
         # --- monitors: shows both a firing and a healthy example ---
         summary = await alerting_service.get_monitors_summary(session, slug)
         assert summary.firing_count >= 1
         assert summary.healthy_count >= 1
 
-        # --- delivery history + detail: populated, rendered, and local ---
+        # --- delivery history + detail: filed by the replay, local, itemised ---
         deliveries = await alerting_service.list_deliveries(session, slug)
         assert deliveries.total >= 1
-        local_delivery = next(
-            d for d in deliveries.items if d.channel == AlertDestinationType.demo_sink
-        )
-        assert local_delivery.is_local is True
-        assert local_delivery.is_simulated is True
-        assert local_delivery.status == AlertDeliveryStatus.sent
+        assert all(d.channel == AlertDestinationType.demo_sink for d in deliveries.items)
+        assert all(d.is_local and d.is_simulated for d in deliveries.items)
+        local_delivery = next(d for d in deliveries.items if d.rule_id == firing_rule.id)
         detail = await alerting_service.get_delivery(session, slug, local_delivery.id)
-        assert detail.items, "delivery detail should carry rendered items"
-        assert detail.payload_snapshot is not None
-        assert detail.payload_snapshot["rendered_message"]
-        assert detail.payload_snapshot["is_local"] is True
+        assert detail.items, "delivery detail should carry its items"
+        assert len(detail.items) == detail.matched_count
 
-        # --- inbox is explorable, and the card counts BOTH attempts ---
+        # --- inbox: explorable, its cards agree with their delivery lists ---
         inbox = await alerting_service.list_alert_inbox(session, slug)
         assert inbox.total >= 1
-        # The seeded incident is one delivery that succeeded and one earlier
-        # attempt that failed, and the failed one owns its own copy of the same
-        # items under the same correlation group — which is the
-        # shape live dispatch writes, and what keeps the failed row and its
-        # Retry reachable from the card. So the card reads two deliveries and
-        # twice the items, exactly as it does for any scope that fires twice.
-        # Seed the failed row without items again and this drops to 1x/1.
         incident = next(
             group for group in inbox.items if any(ref.id == firing_rule.id for ref in group.rules)
         )
-        assert incident.delivery_count == 2
-        assert incident.item_count == 2 * len(detail.items)
+        in_incident = await alerting_service.list_deliveries(
+            session, slug, correlation_group_id=incident.correlation_group_id
+        )
+        assert incident.delivery_count == in_incident.total >= 1
+        # Someone already left a note on the newest incident.
+        assert any(group.note == pipeline.DEMO_INCIDENT_NOTE for group in inbox.items)
 
         # --- simulate: render-only, no network, produces firings + a message ---
         simulation = await alerting_service.simulate_rule(
@@ -328,6 +342,7 @@ async def test_demo_sink_seeded_scenario_is_local_and_no_network(monkeypatch) ->
 
 
 @pytest.mark.asyncio
+@pytest.mark.usefixtures("_authored_only")
 async def test_demo_sink_creation_is_demo_only_and_credential_free(client) -> None:
     """A demo_sink is creatable only on a demo project and never stores secrets.
 
@@ -427,6 +442,7 @@ def test_demo_project_never_delivers_to_an_external_destination(tmp_path, monkey
 
 
 @pytest.mark.asyncio
+@pytest.mark.usefixtures("_authored_only")
 async def test_demo_project_rejects_external_destinations_via_api(client) -> None:
     """A demo project may not gain, enable or credential an external destination.
 
@@ -476,6 +492,7 @@ async def test_demo_project_rejects_external_destinations_via_api(client) -> Non
 
 
 @pytest.mark.asyncio
+@pytest.mark.usefixtures("_authored_only")
 async def test_demo_rule_cannot_arm_the_ai_explanation(client) -> None:
     """Arming a demo rule's AI explanation is refused, not silently ignored.
 

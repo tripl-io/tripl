@@ -19,11 +19,12 @@ from __future__ import annotations
 
 import logging
 import uuid
+from collections.abc import Callable
 from datetime import UTC, datetime, timedelta
 from typing import Any
 
 from sqlalchemy import func as sa_func
-from sqlalchemy import select
+from sqlalchemy import select, update
 from sqlalchemy.orm import Session
 
 from tripl import cache, realtime
@@ -40,7 +41,7 @@ from tripl.core.collection_progress import collection_progress_to
 from tripl.core.intervals import get_interval
 from tripl.core.json_string_columns import scan_source_query
 from tripl.core.plan_scope import main_branch_id
-from tripl.models.data_source import DataSource
+from tripl.models.data_source import DataSource, DBType
 from tripl.models.event_metric import EventMetric
 from tripl.models.event_type import EventType
 from tripl.models.project import Project
@@ -53,6 +54,7 @@ from tripl.models.scan_job import ScanJob, ScanJobStatus
 from tripl.models.variable import Variable
 from tripl.models.variable_value import VariableValue
 from tripl.services import app_settings_service
+from tripl.services.shadow_identity import resolve_held_candidates
 from tripl.services.source_freshness import compute_config_freshness, is_holding
 from tripl.worker.celery_app import celery_app
 from tripl.worker.search_reindex import reindex_main_branch_from_worker
@@ -71,6 +73,10 @@ from tripl.worker.tasks.metrics.attribution import recompute_anomaly_attribution
 from tripl.worker.tasks.metrics.catalog_sync import sync_catalog
 from tripl.worker.tasks.metrics.chunk_processing import process_chunk
 from tripl.worker.tasks.metrics.coverage import covered_buckets_from_scan_jobs
+from tripl.worker.tasks.metrics.demo_window import (
+    clamp_demo_window_end,
+    clamp_demo_window_start,
+)
 from tripl.worker.tasks.metrics.detect import (
     ANOMALY_TRAILING_REEVAL_BUCKETS,
     NO_INGESTION_SETTLING,
@@ -504,6 +510,20 @@ def _resolve_collection_window(
     return time_from, time_to, False
 
 
+def _resolve_held_shadow_candidates(session: Session, config: ScanConfig) -> int:
+    """Best-effort: resolve this config's candidates an event now holds.
+
+    In its own SAVEPOINT, like the attribution pass: inbox housekeeping must
+    never fail the collection it rides on.
+    """
+    try:
+        with session.begin_nested():
+            return resolve_held_candidates(session, config.id)
+    except Exception:
+        logger.exception("shadow candidate resolution failed: scan=%s", config.id)
+        return 0
+
+
 def _recompute_attributions(
     session: Session,
     config: ScanConfig,
@@ -601,6 +621,49 @@ def collect_metrics(
     Phase 2: query time-bucketed counts, match rows to events, UPSERT metrics.
     """
     session = _get_sync_session()
+    try:
+        return execute_collect_metrics(
+            session,
+            scan_config_id,
+            job_id,
+            time_from,
+            time_to,
+            task_id=getattr(getattr(self, "request", None), "id", None),
+        )
+    finally:
+        session.close()
+
+
+def execute_collect_metrics(
+    session: Session,
+    scan_config_id: str,
+    job_id: str | None = None,
+    time_from: str | None = None,
+    time_to: str | None = None,
+    *,
+    task_id: str | None = None,
+    enqueue_delivery: Callable[[str], object] | None = None,
+    skip_detection: bool = False,
+    evaluation_from: datetime | None = None,
+) -> dict[str, object]:
+    """The body of :func:`collect_metrics`, on a session the caller owns (and closes).
+
+    Split out so demo provisioning replays the demo's history through the real
+    collection on the session it seeds with; the task wraps it with the
+    worker's own session. Commits per chunk, as the task always has.
+
+    ``enqueue_delivery`` receives each committed alert delivery's id in place
+    of ``send_alert_delivery.delay``: provisioning collects them and enqueues
+    them once the demo is ready, rather than mid-seed.
+
+    The last two are for that provisioning too, which collects a whole history
+    in several jobs and scores it once; the task passes neither. With
+    ``skip_detection`` the run stores its window (metrics, breakdowns,
+    distribution drift, release regressions) but leaves anomaly detection,
+    attribution, release markers and alert dispatch to a later run. ``evaluation_from`` reaches
+    the anomaly evaluation window back to that instant, so the one run that
+    scores re-scores the history the others only stored.
+    """
     adapter = None
     job: ScanJob | None = None
     previous_job_status: str | None = None
@@ -615,7 +678,6 @@ def collect_metrics(
             logger.info(f"ScanConfig {scan_config_id}: time_column or interval not set, skipping")
             return {"skipped": True}
 
-        task_id = getattr(getattr(self, "request", None), "id", None)
         if job_id is not None:
             job = session.get(ScanJob, uuid.UUID(job_id))
             if job is None:
@@ -709,6 +771,17 @@ def collect_metrics(
         if not is_replay:
             time_from_dt = _widen_for_held_buckets(
                 session, config, delta=delta, time_from=time_from_dt, time_to=time_to_dt
+            )
+        if ds.db_type == DBType.demo:
+            # A demo source reads the shared demo warehouse, which forgets hours
+            # past its retention: a window reaching further back (a resume after
+            # a long pause, a deep replay) would store those hours as zeros.
+            time_from_dt = clamp_demo_window_start(
+                time_from_dt, time_to_dt, interval_code=config.interval, now=datetime.now(UTC)
+            )
+            # ...and the writer may not have finished the newest hour yet.
+            time_to_dt = clamp_demo_window_end(
+                time_from_dt, time_to_dt, interval_code=config.interval
             )
 
         chunks = _iter_window_chunks(
@@ -813,6 +886,11 @@ def collect_metrics(
             # the event page's "Seen with N values" line come and go per tick.
             record_field_observations=catalog_window_declared,
         )
+        if not is_replay:
+            # A catalog sync can just have created the event a shadow candidate
+            # was waiting for (an unplanned name it auto-adds): resolve those
+            # candidates now, so the inbox stops offering them.
+            _resolve_held_shadow_candidates(session, config)
         gen_results = catalog.gen_results
         single_result = catalog.single_result
         contract_violations_detected = catalog.contract_violations_detected
@@ -1039,6 +1117,11 @@ def collect_metrics(
         # instrumentation quality. It is reported on the run instead.
         archived_volume = 0
         archived_identities_seen: set[str] = set()
+        # Shadow identities this run has already counted: a later chunk adds to
+        # their ``observed_count`` instead of replacing it with its own share.
+        # A resumed replay starts this empty, so its count restarts at the
+        # resume point.
+        shadow_names_counted: frozenset[str] = frozenset()
 
         # Top-N breakdown values are ranked ONCE over the whole collection window
         # and shared by every chunk, not re-ranked per chunk.
@@ -1100,6 +1183,7 @@ def collect_metrics(
                     chunk_to=chunk_to,
                     upsert_event_metrics_rows_fn=_upsert_event_metrics_rows,
                     prefetched=tick_rows,
+                    accumulate_shadow_names=shadow_names_counted,
                 )
                 query_rows_scanned += chunk_stats.rows_scanned
                 metrics_deleted += chunk_stats.metrics_deleted
@@ -1113,6 +1197,7 @@ def collect_metrics(
                 significant_distribution_drifts += chunk_stats.significant_distribution_drifts
                 archived_volume += chunk_stats.archived_volume
                 archived_identities_seen |= chunk_stats.archived_identities_seen
+                shadow_names_counted |= chunk_stats.shadow_names
 
                 # Heartbeat: bump the job row after each chunk so the scheduler's
                 # staleness reaper sees forward progress. Without this, updated_at
@@ -1193,6 +1278,8 @@ def collect_metrics(
         anomaly_evaluation_start = min(
             time_from_dt, time_to_dt - delta * ANOMALY_TRAILING_REEVAL_BUCKETS
         )
+        if evaluation_from is not None:
+            anomaly_evaluation_start = min(anomaly_evaluation_start, to_utc(evaluation_from))
         # Source freshness (#269): record what this run saw, then judge it. While
         # the source is late (or the schedule overdue) new drop-direction volume
         # anomalies are HELD — a delayed load reads as a drop on every scope, and
@@ -1209,6 +1296,14 @@ def collect_metrics(
             is_replay=is_replay,
         )
         hold_drops = not is_replay and is_holding(freshness)
+        # A demo's "last updated" (the demo banner) is its newest collection:
+        # demos are advanced by collections like any project, there is no
+        # separate demo tick any more. A no-op UPDATE for a real project.
+        session.execute(
+            update(Project)
+            .where(Project.id == config.project_id, Project.is_demo.is_(True))
+            .values(demo_last_tick_at=datetime.now(UTC))
+        )
         held_counts: list[int] = []
         # Coverage is read only as deep as a pass in this run can consult it.
         # Unbounded, both reads walked the config's whole lifetime every run
@@ -1249,26 +1344,29 @@ def collect_metrics(
             if is_replay
             else _ingestion_settling_delay(session, config.project_id)
         )
-        anomalies_detected = _recalculate_metric_anomalies(
-            session,
-            config,
-            evaluation_start=anomaly_evaluation_start,
-            evaluation_end=time_to_dt,
-            covered_buckets=covered_buckets,
-            settling_delay=settling_delay,
-            hold_drops=hold_drops,
-            held=held_counts,
-        )
-        breakdown_anomalies_detected = _recalculate_metric_breakdown_anomalies(
-            session,
-            config,
-            evaluation_start=anomaly_evaluation_start,
-            evaluation_end=time_to_dt,
-            covered_buckets=covered_buckets,
-            settling_delay=settling_delay,
-            hold_drops=hold_drops,
-            held=held_counts,
-        )
+        anomalies_detected = 0
+        breakdown_anomalies_detected = 0
+        if not skip_detection:
+            anomalies_detected = _recalculate_metric_anomalies(
+                session,
+                config,
+                evaluation_start=anomaly_evaluation_start,
+                evaluation_end=time_to_dt,
+                covered_buckets=covered_buckets,
+                settling_delay=settling_delay,
+                hold_drops=hold_drops,
+                held=held_counts,
+            )
+            breakdown_anomalies_detected = _recalculate_metric_breakdown_anomalies(
+                session,
+                config,
+                evaluation_start=anomaly_evaluation_start,
+                evaluation_end=time_to_dt,
+                covered_buckets=covered_buckets,
+                settling_delay=settling_delay,
+                hold_drops=hold_drops,
+                held=held_counts,
+            )
         # Deliberately window-free, unlike the two anomaly passes above: a
         # release verdict describes the CURRENT rollout, so it anchors on the
         # newest bucket the scan has stored rather than on the slice this run
@@ -1276,23 +1374,32 @@ def collect_metrics(
         release_regressions_detected = _recalculate_release_regressions(session, config)
         # Same anchoring and the same activation gate: a version absent at the
         # start of that slice that activated inside it gets its
-        # "Release <version>" chart marker.
-        release_annotations_created = _sync_release_annotations(session, config)
+        # "Release <version>" chart marker. Unlike the verdicts above, a marker
+        # is insert-only and never moves, so a store-only run leaves it to the
+        # run that scores: a demo fills its older history AFTER its newest days,
+        # and a slice with that gap in it reads a release that shipped inside
+        # the gap as activating at the gap's far edge.
+        release_annotations_created = 0
+        if not skip_detection:
+            release_annotations_created = _sync_release_annotations(session, config)
         # "Why did it change?" (F02, #255), fixed at detection time and BEFORE
         # the alert deliveries below, so the alert quotes the split the UI shows.
-        anomaly_attributions_computed = _recompute_attributions(
-            session,
-            config,
-            evaluation_start=anomaly_evaluation_start,
-            evaluation_end=time_to_dt,
-        )
+        anomaly_attributions_computed = 0
         buffered_counts: list[int] = []
-        delivery_ids = _prepare_alert_deliveries(
-            session,
-            config,
-            scan_job_id=job.id if job else None,
-            buffered=buffered_counts,
-        )
+        delivery_ids: list[uuid.UUID] = []
+        if not skip_detection:
+            anomaly_attributions_computed = _recompute_attributions(
+                session,
+                config,
+                evaluation_start=anomaly_evaluation_start,
+                evaluation_end=time_to_dt,
+            )
+            delivery_ids = _prepare_alert_deliveries(
+                session,
+                config,
+                scan_job_id=job.id if job else None,
+                buffered=buffered_counts,
+            )
         visible_signals_after = _get_visible_signal_scope_keys(session, config.id)
         signals_added = len(visible_signals_after - visible_signals_before)
         signals_removed = len(visible_signals_before - visible_signals_after)
@@ -1495,8 +1602,9 @@ def collect_metrics(
         # whose startup imports this metrics module.
         from tripl.worker.tasks.alerts import send_alert_delivery
 
+        enqueue = enqueue_delivery or send_alert_delivery.delay
         for delivery_id in delivery_ids:
-            send_alert_delivery.delay(str(delivery_id))
+            enqueue(str(delivery_id))
 
         # Tell the people watching what signalled (#259). Last, after the
         # commit and the alert enqueue: the anomalies and their triage are
@@ -1562,4 +1670,3 @@ def collect_metrics(
     finally:
         if adapter is not None:
             adapter.close()
-        session.close()

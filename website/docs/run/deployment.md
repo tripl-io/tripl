@@ -241,7 +241,7 @@ and their source is on [sources.debian.org](https://sources.debian.org/).
 tripl reads from your existing warehouse — it never writes to it. You connect a warehouse **from the UI** after the stack is up, not via environment variables:
 
 1. Open the app at your `APP_BASE_URL` and create the first account on the sign-in page. It becomes the owner — see [Roles & permissions](../administer/admin-guide.md#roles--permissions).
-2. Optionally click **Generate demo project** to explore with synthetic data and no warehouse at all.
+2. Optionally click **Generate demo project** to explore on generated data, with no warehouse of your own.
 3. Go to **Settings → Data sources** (under the Organization group) and add a data source: **ClickHouse**, **BigQuery**, **Databricks**, **Snowflake**, **Redshift**, **Greenplum**, **Trino**, **Athena**, or **PostgreSQL**. The credentials you enter are encrypted at rest with `ENCRYPTION_KEY`.
 4. Create a read-only `tk_r_` key under **Settings → API keys** if you want [`tripl doctor`](./cli.md#tripl-doctor) in a cron job. Until that key exists `doctor` cannot run at all: it demands a URL *and* a key before it opens a socket, even though `/health` needs neither.
 

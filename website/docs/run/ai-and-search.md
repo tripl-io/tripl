@@ -39,7 +39,8 @@ it arrives, so the embedding round trip never holds the first list back.
 When **disabled** — the default — `/search` still works. It transparently falls
 back to keyword/substring matching and returns `semantic_used: false`. No text
 leaves the instance. The one exception is the **demo project**: it ships with
-precomputed embedding vectors for its own content, so demo searches can report
+precomputed embedding vectors for its own content and its suggested queries
+(`purchase funnel`, `money back`), so those searches can report
 `semantic_used: true` without any provider configured — still with no text
 leaving the instance, since those vectors are computed by maintainers ahead of
 time and bundled with the release. Once embeddings are enabled, the demo is

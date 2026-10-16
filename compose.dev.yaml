@@ -44,9 +44,16 @@ x-backend-environment: &backend-environment
   DISTRIBUTION_DRIFT_MINOR_RETENTION_DAYS: ${DISTRIBUTION_DRIFT_MINOR_RETENTION_DAYS:-30}
   PHOTO_ORPHAN_SWEEP_GRACE_HOURS: ${PHOTO_ORPHAN_SWEEP_GRACE_HOURS:-24}
   # Demo kill switches: DEMO_ENABLED gates provisioning (create + reset),
-  # DEMO_RUNTIME_ENABLED gates the background freshness tick.
+  # DEMO_RUNTIME_ENABLED gates a demo's scheduled collections.
   DEMO_ENABLED: ${DEMO_ENABLED:-true}
   DEMO_RUNTIME_ENABLED: ${DEMO_RUNTIME_ENABLED:-true}
+  # The demo warehouse and the history a new demo replays. Empty is the
+  # default: the full 23 days, which the e2e specs need (the weekly promo's
+  # three sends take 21). A shorter DEMO_HISTORY_DAYS builds a demo faster.
+  DEMO_WAREHOUSE_URL: ${DEMO_WAREHOUSE_URL:-}
+  DEMO_WAREHOUSE_READER_PASSWORD: ${DEMO_WAREHOUSE_READER_PASSWORD:-}
+  DEMO_WAREHOUSE_MODE: ${DEMO_WAREHOUSE_MODE:-}
+  DEMO_HISTORY_DAYS: ${DEMO_HISTORY_DAYS:-}
   # Outbound email. Blank by default, so the dev stack still sends nothing
   # unless you point it somewhere — but it CAN now be pointed, which it could
   # not before: none of these were forwarded, so a developer had no way to
@@ -133,7 +140,7 @@ services:
 
   api:
     build: *backend-build
-    command: ["sh", "-c", "alembic upgrade head && uvicorn tripl.main:app --host 0.0.0.0 --port 8000 --reload"]
+    command: ["sh", "-c", "python -m tripl.migrate && uvicorn tripl.main:app --host 0.0.0.0 --port 8000 --reload"]
     ports:
       - "127.0.0.1:8000:8000"
     environment:
@@ -198,7 +205,8 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
-      # The api runs `alembic upgrade head` before uvicorn, and its
+      # The api runs `python -m tripl.migrate` (alembic, then the demo
+      # warehouse) before uvicorn, and its
       # healthcheck only passes afterwards. Without this a fresh clone
       # boots the worker against an unmigrated schema, where
       # apply_startup_service_overrides degrades to warn-and-skip and

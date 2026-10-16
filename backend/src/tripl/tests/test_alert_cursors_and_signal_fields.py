@@ -15,6 +15,7 @@ from datetime import UTC, datetime, timedelta
 import pytest
 from httpx import AsyncClient
 
+from tripl.core.demo_warehouse import roster
 from tripl.models.domain_enums import ProjectGenerationStatus
 from tripl.models.metric_anomaly import MetricAnomaly
 from tripl.models.metric_definition import MetricDefinition
@@ -26,8 +27,6 @@ from tripl.services._alerting_cursors import (
     encode_delivery_cursor,
     encode_inbox_cursor,
 )
-from tripl.services.demo.builders.plan import event_specs
-from tripl.services.demo.builders.variables import _VARIABLE_SPECS
 from tripl.services.metrics_insights_service import _attach_derived_fields
 from tripl.services.metrics_service import _signal_from_anomaly
 from tripl.tests.conftest import TestSessionLocal
@@ -303,11 +302,11 @@ _TOKEN = re.compile(r"\$\{([^}]+)\}")
 
 
 def test_every_demo_template_token_names_a_seeded_variable() -> None:
-    seeded = {name for name, *_rest in _VARIABLE_SPECS}
+    seeded = {variable.name for variable in roster.variables()}
     used = {
         token
-        for spec in event_specs(datetime.now(UTC))
-        for _field, value in spec.field_values
+        for event in roster.events()
+        for _field, value in event.field_values
         for token in _TOKEN.findall(value)
     }
     assert used, "the demo plan should template at least one field value"

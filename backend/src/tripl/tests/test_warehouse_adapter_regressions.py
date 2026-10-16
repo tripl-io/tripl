@@ -491,7 +491,7 @@ def test_the_skip_count_reaches_the_run_summary() -> None:
         sync_source.count("out.contract_expectations_skipped += contracts.expectations_skipped")
         == 2
     )
-    summary_source = inspect.getsource(metrics_tasks.collect_metrics)
+    summary_source = inspect.getsource(metrics_tasks.execute_collect_metrics)
     assert '"contract_expectations_skipped": contract_expectations_skipped' in summary_source
 
 

@@ -54,7 +54,8 @@ import { VERDICT_OPTIONS, needsVerdict } from '@/lib/signalVerdict'
 import type { MonitoringSignal, SignalSeries, SignalVerdictKind } from '@/types'
 import { scansKey } from '@/lib/queryKeys'
 import { ScenarioCoachMark } from '@/demo/ScenarioCoachMark'
-import { SCENARIO_SEEDED } from '@/demo/scenarioModel'
+import { pickCoachedIncident } from '@/demo/coachedIncident'
+import { useDemoScenario } from '@/demo/demoScenarioContext'
 import { SignalActions } from './anomalies/SignalActions'
 import { countHiddenSignals, signalIncidentId, triageStatusLabel } from './anomalies/signalTriage'
 
@@ -343,17 +344,12 @@ export default function AnomaliesPage() {
       ? byMagnitude
       : byMagnitude.filter((s) => facetKey(s.scan_config_id) === activeScanId)
   const sorted = [...filtered].sort(compareSignalsByMagnitude)
-  // The demo scenario's anomaly step points at one row: the first seeded spike
-  // that opens a drilldown. The coach mark itself stays quiet outside a demo.
-  // Matched on the event's own name, never on the row's label: the label
-  // became "Event · Home Screen View", the step silently lost its row, and
-  // the explore chapter stuck on "isn't visible".
-  const coachedSignal = sorted.find(
-    (signal) =>
-      signal.direction !== 'drop' &&
-      signal.scope_type === 'event' &&
-      signal.scope_name === SCENARIO_SEEDED.anomalyEventName,
-  )
+  // The demo scenario's anomaly step points at one row: the newest open
+  // incident that opens a drilldown — the demo warehouse injects one a day, so
+  // there is no single seeded row to name. Picked from the rows on screen, so
+  // the ring lands on one the visitor can see. The coach mark itself stays
+  // quiet outside a demo.
+  const coachedSignal = pickCoachedIncident(sorted)
   // What "Show hidden" would bring back into THIS view: hidden signals that pass
   // the magnitude level and scan facet. Counting the whole list offered rows the
   // filters would then keep out. `hiddenTotal` (unfiltered) still decides
@@ -384,6 +380,15 @@ export default function AnomaliesPage() {
   // Loaded with nothing open at all — distinct from loading, from the error
   // state, and from "hidden by the filter" (which keeps the panel + control).
   const isEmpty = !signalsQuery.isError && !!signalsQuery.data && total === 0
+  // A demo between incidents has nothing for the anomaly step to point at; it
+  // offers the project's volume chart instead, the drilldown an incident would
+  // have opened, so the step still has a way forward.
+  const demoScenario = useDemoScenario()
+  const volumeScanId = (scansQuery.data ?? []).find((scan) => scan.interval)?.id
+  const quietDemoVolumeHref =
+    demoScenario.available && slug && volumeScanId
+      ? getMonitoringPath(slug, { scope_type: 'project_total', scope_ref: volumeScanId })
+      : undefined
   // Signals exist, but the current filters hide every one.
   const allFiltered = !isEmpty && total > 0 && visibleCount === 0
   // Which filter emptied the list decides which one the hint offers to drop.
@@ -518,12 +523,26 @@ export default function AnomaliesPage() {
                 title="No anomalies right now"
                 description="When detection flags a spike or drop against the learned baseline, it shows up here. Tune sensitivity in detection settings."
                 action={
-                  // Everything open was muted or marked expected: say so, and
-                  // offer the way back to those verdicts.
-                  hiddenTotal > 0 ? (
-                    <Button type="button" variant="outline" size="sm" onClick={() => setShowHidden(true)}>
-                      {showHiddenLabel}
-                    </Button>
+                  hiddenTotal > 0 || quietDemoVolumeHref ? (
+                    <div className="flex flex-wrap items-center justify-center gap-2">
+                      {/* Everything open was muted or marked expected: say
+                          so, and offer the way back to those verdicts. */}
+                      {hiddenTotal > 0 && (
+                        <Button type="button" variant="outline" size="sm" onClick={() => setShowHidden(true)}>
+                          {showHiddenLabel}
+                        </Button>
+                      )}
+                      {quietDemoVolumeHref && (
+                        <ScenarioCoachMark
+                          step="explore/visit-anomaly"
+                          tag="No incident is open — open the volume chart"
+                        >
+                          <Button asChild variant="outline" size="sm">
+                            <Link to={quietDemoVolumeHref}>Open the project&apos;s volume</Link>
+                          </Button>
+                        </ScenarioCoachMark>
+                      )}
+                    </div>
                   ) : undefined
                 }
               />

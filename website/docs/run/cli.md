@@ -408,10 +408,10 @@ finding says "at least N, at least since T" and sets
 `evidence.consecutive_failures_truncated`.
 
 Dispatcher jobs are identified *positively*, by `result_summary.mode ==
-"metrics_collection"`. Manual catalog scans, metrics replays, event-group
-applies and demo runtime ticks share the same job table and are neither counted
-as failures nor treated as the success that ends a streak — so pressing **Run
-now** in the app can neither trigger the backoff nor clear it.
+"metrics_collection"`. Manual catalog scans, metrics replays (a demo build's
+history among them) and event-group applies share the same job table and are
+neither counted as failures nor treated as the success that ends a streak — so
+pressing **Run now** in the app can neither trigger the backoff nor clear it.
 
 | Finding | What it means | What to do |
 |---------|---------------|------------|
@@ -419,7 +419,7 @@ now** in the app can neither trigger the backoff nor clear it.
 | `scan_config_failing` (fail) | *N* consecutive scheduled runs failed. | See the walkthrough below. |
 | `scan_backoff_active` (warn) | The scheduler has **deliberately** deferred the next attempt. | Nothing. This is expected behaviour — see [The retry backoff is not a hang](#the-retry-backoff-is-not-a-hang). |
 | `scan_watermark_stale` (warn) | Collection is *succeeding*, but the last run only wrote data through `evidence.time_to`, more than three intervals behind now. Not raised for a demo project, whose watermark freezes while the demo is paused. | The query works and the source table is producing no rows in the scan window. Check the upstream pipeline that fills that table, and the scan's filters. This is the shape of "events frozen with no error". |
-| `scan_history_window_full` (warn) | Every job in the fetched history window is a manual run, a replay or a demo tick, so whether scheduled collection runs at all could not be determined. | Not a fault by itself. Check the config's job history in the app, or trigger a scheduled collection and re-run. |
+| `scan_history_window_full` (warn) | Every job in the fetched history window is a manual run, a replay or (on a server older than demo recipe 5) a demo tick, so whether scheduled collection runs at all could not be determined. | Not a fault by itself. Check the config's job history in the app, or trigger a scheduled collection and re-run. |
 | `scan_never_collected` (fail) | The config is older than two intervals and **no** scheduled job has ever run for it. Not raised for a demo project, for the same reason as `scan_not_dispatched`. | The beat scheduler is probably not running: `docker compose logs --tail=50 celery-beat`. See [Runbook → Health checks](./runbook.md#health-checks). |
 | `scan_not_dispatched` (fail) | Not failing, but nothing has been dispatched in over three intervals. Never raised for a **demo** project: the scheduler throttles demos and stops collecting a demo entirely while nobody opens it, so its silence is expected. | Same suspects as above — beat, the broker, or a worker that never picks the task up. See [Troubleshooting → RabbitMQ](../use/troubleshooting.md#rabbitmq-the-celery-broker). |
 | `scan_interval_unknown` (warn) | The backend reports an interval this CLI does not know. | Upgrade the CLI. Staleness and backoff for that config could not be judged, and doctor says so rather than judging with a wrong denominator. Whether it is *failing* needs no interval, so that is still reported alongside. |

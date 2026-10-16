@@ -1,24 +1,20 @@
 """Regression tests for the demo builders.
 
-- The search builder must not commit mid-seed, and the cancel and sweep paths
-  drop the audit trail of a demo that never became one.
-- The planted dead event has no volume after its last sighting, is not
-  backdated a further 30 days, and the synthetic warehouse cannot revive it.
+- The sweep drops the audit trail of a shell that never became a demo.
+- The planted dead event has no volume after its last sighting and the demo
+  warehouse never sends it, so a collection cannot revive it.
 - A new demo takes the lowest free name, not ``count + 1``.
-- The MSTL detector, the PSI ladder and the synthetic adapter run off the event
-  loop.
-- One ``demo_sink`` local notice, shared by seeder and worker.
-- The demo runtime retires the "Injected demo spike" marker with the anomaly it
-  explains.
-- Both ``SimulatedRuleFiring`` builders go through
-  ``SimulatedRuleFiring.from_candidate``.
+- The scan and replay over the demo warehouse run off the event loop.
+- One ``demo_sink`` local notice, written down once and carried by every
+  delivery the worker sends.
+- ``SimulatedRuleFiring.from_candidate`` carries every candidate field.
 
-One further item in this group corrected a code comment only and has no behaviour to pin.
+The cancel path (a stage boundary honouring the flag) is pinned in
+``test_demo_v5_provisioning``.
 """
 
 from __future__ import annotations
 
-import threading
 import uuid
 from collections.abc import Callable
 from datetime import UTC, datetime, timedelta
@@ -27,36 +23,23 @@ from typing import Any
 
 import pytest
 from httpx import AsyncClient
-from sqlalchemy import create_engine, func, select, update
-from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
-from sqlalchemy.orm import Session
+from sqlalchemy import func, select
 
 import tripl
-from tripl.alert_templates import DEMO_SINK_LOCAL_NOTICE
 from tripl.alerting_matching import DriftAlertCandidate
-from tripl.core.adapters import synthetic
-from tripl.models import Base
-from tripl.models.alert_delivery import AlertDelivery
+from tripl.core.demo_warehouse import DEAD_EVENT, roster
+from tripl.core.demo_warehouse import rows as demo_rows
 from tripl.models.audit_log import AuditLog
-from tripl.models.chart_annotation import ChartAnnotation
 from tripl.models.domain_enums import MetricScopeType, ProjectGenerationStatus
 from tripl.models.event import Event
 from tripl.models.event_metric import EventMetric
-from tripl.models.metric_anomaly import MetricAnomaly
 from tripl.models.plan_branch import BranchKind, PlanBranch
 from tripl.models.project import Project
 from tripl.schemas.alerting import SimulatedRuleFiring
 from tripl.services import demo_service
-from tripl.services.demo.builders import alerts as alerts_builder
-from tripl.services.demo.builders import catalog, governance, monitoring
-from tripl.services.demo.builders.warehouse import (
-    DEAD_EVENT_AGE_DAYS,
-    DEAD_EVENT_NAME,
-    SPIKE_ANNOTATION_LABEL,
-)
-from tripl.services.demo.scenario import DemoContext
 from tripl.tests.conftest import TestSessionLocal
-from tripl.worker.tasks import demo_runtime
+from tripl.worker.tasks import scan as scan_task
+from tripl.worker.tasks.metrics import tasks as metrics_tasks
 
 
 def _utc(value: datetime) -> datetime:
@@ -64,64 +47,23 @@ def _utc(value: datetime) -> datetime:
     return value if value.tzinfo else value.replace(tzinfo=UTC)
 
 
-# ── search builder does not commit mid-seed ───────────────────────────────
-
-
-@pytest.mark.asyncio
-async def test_cancelled_provision_commits_nothing_and_leaves_no_audit_trail(
-    client: AsyncClient, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    """The seed stays one uncommitted transaction until the cancel check.
-
-    ``build_search`` called ``reindex_project_branch`` with its default
-    ``commit=True``, which committed the whole seed — ``demo_seed`` audit rows
-    included — before ``create_demo_project`` looked at the cancel flag, so the
-    rollback undid nothing and the trail outlived the discarded shell.
-    """
-    real_seed = demo_service._seed_demo_content
-    commits: list[str] = []
-
-    async def cancelling_seed(session: AsyncSession, **kwargs: object) -> None:
-        real_commit = session.commit
-
-        async def counting_commit() -> None:
-            commits.append("commit")
-            await real_commit()
-
-        session.commit = counting_commit  # type: ignore[method-assign]
-        try:
-            await real_seed(session, **kwargs)  # type: ignore[arg-type]
-        finally:
-            del session.commit
-        await session.execute(
-            update(Project)
-            .where(Project.id == kwargs["project_id"])
-            .values(generation_stage=demo_service.DEMO_CANCEL_REQUESTED_STAGE)
-        )
-
-    monkeypatch.setattr(demo_service, "_seed_demo_content", cancelling_seed)
-
-    resp = await client.post("/api/v1/projects/demo")
-    assert resp.status_code == 409
-    assert commits == [], "a demo builder committed inside the phase-2 transaction"
-
-    async with TestSessionLocal() as session:
-        entries = (await session.execute(select(AuditLog))).scalars().all()
-    seeded = [entry for entry in entries if (entry.payload or {}).get("demo_seed")]
-    assert seeded == []
-    assert [entry for entry in entries if entry.target_type == "data_source"] == []
+# ── the sweep ─────────────────────────────────────────────────────────────
 
 
 @pytest.mark.asyncio
 async def test_sweeping_a_stalled_shell_drops_its_audit_trail() -> None:
     """A shell that never became a workspace keeps no orphaned trail."""
+    stalled_at = datetime.now(UTC) - timedelta(hours=demo_service.STALLED_SEEDING_HOURS + 1)
     async with TestSessionLocal() as session:
         stalled = Project(
             name="Demo Project",
             slug="demo-stalled",
             is_demo=True,
             generation_status=ProjectGenerationStatus.seeding.value,
-            created_at=datetime.now(UTC) - timedelta(hours=demo_service.STALLED_SEEDING_HOURS + 1),
+            # Abandoned: nothing has written to it since it was created, and the
+            # stall is judged by the last write (every stage bumps updated_at).
+            created_at=stalled_at,
+            updated_at=stalled_at,
         )
         session.add(stalled)
         await session.flush()
@@ -154,108 +96,40 @@ async def test_planted_dead_event_has_no_volume_after_it_died(client: AsyncClien
 
     async with TestSessionLocal() as session:
         project_id = await session.scalar(select(Project.id).where(Project.slug == slug))
-        events = (
-            (
-                await session.execute(
-                    # The main plan's row: the one the warehouse series and the
-                    # dead-events review are about.
-                    select(Event)
-                    .join(PlanBranch, PlanBranch.id == Event.branch_id)
-                    .where(
-                        Event.project_id == project_id,
-                        Event.name == DEAD_EVENT_NAME,
-                        PlanBranch.kind == BranchKind.main.value,
-                    )
-                )
-            )
-            .scalars()
-            .all()
-        )
-        assert events
-        for event in events:
-            assert event.last_seen_at is not None
-            last_seen = _utc(event.last_seen_at)
-            later_buckets = await session.scalar(
-                select(func.count())
-                .select_from(EventMetric)
-                .where(EventMetric.event_id == event.id, EventMetric.bucket > last_seen)
-            )
-            assert later_buckets == 0, "the 'dead for 45 days' event has recent traffic"
-            created = _utc(event.created_at)
-            # Seen no earlier than written down, and not pushed a further 30
-            # days ahead of every other event.
-            assert created <= last_seen
-            assert created >= last_seen - timedelta(days=1)
-
-    resp = await client.get(f"/api/v1/projects/{slug}/reconciliation/dead-events?days=30")
-    assert DEAD_EVENT_NAME in [item["name"] for item in resp.json()["items"]]
-
-
-@pytest.mark.asyncio
-async def test_dead_event_clamp_handles_a_created_at_reloaded_from_the_database(
-    client: AsyncClient,
-) -> None:
-    """The clamp compares a reloaded ``created_at`` without a TypeError.
-
-    A fresh session reloads the event, and SQLite hands ``created_at`` back
-    naive. Comparing that directly with the aware ``last_seen`` raised
-    "can't compare offset-naive and offset-aware datetimes".
-    """
-    slug = (await client.post("/api/v1/projects/demo")).json()["slug"]
-    now = datetime.now(UTC)
-
-    async with TestSessionLocal() as session:
-        project_id = await session.scalar(select(Project.id).where(Project.slug == slug))
-        row = (
+        event = (
             await session.execute(
-                select(Event.id, Event.branch_id)
+                # The main plan's row: the one the warehouse series and the
+                # dead-events review are about.
+                select(Event)
                 .join(PlanBranch, PlanBranch.id == Event.branch_id)
                 .where(
                     Event.project_id == project_id,
-                    Event.name == DEAD_EVENT_NAME,
+                    Event.name == DEAD_EVENT,
                     PlanBranch.kind == BranchKind.main.value,
                 )
             )
-        ).one()
-        # Make the clamp fire: first-seen later than the planted last sighting.
-        await session.execute(update(Event).where(Event.id == row.id).values(created_at=now))
-        await session.commit()
-
-    assert project_id is not None
-    async with TestSessionLocal() as session:
-        ctx = DemoContext(
-            project_id=project_id,
-            branch_id=row.branch_id,
-            slug=slug,
-            now=now,
-            event_ids={DEAD_EVENT_NAME: row.id},
+        ).scalar_one()
+        stored = await session.scalar(
+            select(func.count()).select_from(EventMetric).where(EventMetric.event_id == event.id)
         )
-        await governance._build_dead_event(session, ctx)
-        await session.commit()
+    # The scan and the replay never saw it, so its authored last sighting stands.
+    assert stored == 0, "the 'dead for 45 days' event has traffic"
+    assert event.last_seen_at is not None
+    assert _utc(event.created_at) < _utc(event.last_seen_at)
 
-    async with TestSessionLocal() as session:
-        event = await session.get(Event, row.id)
-        assert event is not None
-        assert _utc(event.created_at) == now - timedelta(days=DEAD_EVENT_AGE_DAYS)
+    resp = await client.get(f"/api/v1/projects/{slug}/reconciliation/dead-events?days=30")
+    assert DEAD_EVENT in [item["name"] for item in resp.json()["items"]]
 
 
-def test_synthetic_warehouse_never_emits_the_dead_event() -> None:
+def test_the_demo_warehouse_never_sends_the_dead_event() -> None:
     """A collection must not bump its ``last_seen_at`` and promote it to live."""
-    retired = {ev.event_name for ev in synthetic._EVENT_DEFS if ev.retired}
-    assert retired == {DEAD_EVENT_NAME}
-    # Still on the roster, so a rescan keeps folding it onto the catalog event.
-    assert DEAD_EVENT_NAME in synthetic.SYNTHETIC_EVENT_NAMES
-
-    anchor = datetime(2026, 3, 4, 10, tzinfo=UTC)
-    rows = synthetic._generate_events(
-        synthetic.DEFAULT_SEED,
-        anchor,
-        synthetic.SYNTHETIC_HISTORY_DAYS,
-        synthetic.SYNTHETIC_MAX_ROWS,
-    )
-    assert rows
-    assert synthetic.SYNTHETIC_HISTORY_DAYS < DEAD_EVENT_AGE_DAYS
-    assert [row for row in rows if row["event_name"] == DEAD_EVENT_NAME] == []
+    assert roster.event(DEAD_EVENT).base_rate == 0
+    assert DEAD_EVENT not in {event.name for event in roster.live_events()}
+    # Over a whole day of the warehouse, at any hour.
+    start = datetime(2026, 3, 4, tzinfo=UTC)
+    for hour in range(24):
+        counts = demo_rows.hour_counts(start + timedelta(hours=hour))
+        assert not {name for name, _platform in counts} & {DEAD_EVENT}
 
 
 # ── lowest free demo name ─────────────────────────────────────────────────
@@ -271,8 +145,14 @@ def test_demo_name_takes_the_lowest_free_number() -> None:
 
 @pytest.mark.asyncio
 async def test_a_demo_created_after_a_delete_does_not_repeat_a_live_name(
-    client: AsyncClient,
+    client: AsyncClient, monkeypatch: pytest.MonkeyPatch
 ) -> None:
+    # About the names alone: promote the shells without seeding them.
+    async def _nothing(_session: object, **_kwargs: object) -> None:
+        return None
+
+    monkeypatch.setattr(demo_service, "_seed_demo_content", _nothing)
+
     first = (await client.post("/api/v1/projects/demo")).json()
     second = (await client.post("/api/v1/projects/demo")).json()
     assert (first["name"], second["name"]) == ("Demo Project", "Demo Project 2")
@@ -288,31 +168,40 @@ async def test_a_demo_created_after_a_delete_does_not_repeat_a_live_name(
 
 
 @pytest.mark.asyncio
-async def test_demo_cpu_work_runs_off_the_event_loop(
+async def test_the_api_request_runs_no_demo_build(
     client: AsyncClient, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """MSTL, PSI and the synthetic adapter must not block the API loop."""
-    loop_thread = threading.get_ident()
-    seen: dict[str, list[int]] = {"detect": [], "psi": [], "adapter": []}
+    """Creating a demo commits a shell and queues its build; the API never builds.
 
-    def recording(key: str, real: Callable[..., Any]) -> Callable[..., Any]:
-        def wrapper(*args: Any, **kwargs: Any) -> Any:
-            seen[key].append(threading.get_ident())
-            return real(*args, **kwargs)
+    The scan and the replay are the provisioning's whole cost, and
+    ``session.run_sync`` runs them on the calling thread, so they belong on the
+    worker (``worker/tasks/demo_provision.py``), never in a request. With the
+    queue held, the request answers with a seeding shell having run neither.
+    """
+    queued: list[uuid.UUID] = []
 
-        return wrapper
+    async def _hold(_session: object, project_id: uuid.UUID, _request_id: str | None) -> None:
+        queued.append(project_id)
 
-    monkeypatch.setattr(
-        monitoring, "detect_anomalies", recording("detect", monitoring.detect_anomalies)
-    )
-    monkeypatch.setattr(monitoring, "compute_psi", recording("psi", monitoring.compute_psi))
-    monkeypatch.setattr(catalog, "build_adapter", recording("adapter", catalog.build_adapter))
+    ran: list[str] = []
 
-    assert (await client.post("/api/v1/projects/demo")).status_code == 202
+    def refusing(key: str) -> Callable[..., Any]:
+        def _refuse(*_args: Any, **_kwargs: Any) -> Any:
+            ran.append(key)
+            raise AssertionError(f"{key} ran inside the API request")
 
-    for key, threads in seen.items():
-        assert threads, f"{key} never ran"
-        assert loop_thread not in threads, f"{key} ran on the event loop"
+        return _refuse
+
+    monkeypatch.setattr(demo_service, "enqueue_demo_seed", _hold)
+    monkeypatch.setattr(scan_task, "execute_scan", refusing("scan"))
+    monkeypatch.setattr(metrics_tasks, "execute_collect_metrics", refusing("collect"))
+
+    resp = await client.post("/api/v1/projects/demo")
+
+    assert resp.status_code == 202, resp.text
+    assert resp.json()["generation_status"] == ProjectGenerationStatus.seeding.value
+    assert [str(project_id) for project_id in queued] == [resp.json()["id"]]
+    assert ran == []
 
 
 # ── demo_sink local notice ────────────────────────────────────────────────
@@ -328,74 +217,6 @@ def test_demo_sink_notice_is_written_down_once() -> None:
         and "Simulated local delivery (demo_sink)" in path.read_text(encoding="utf-8")
     ]
     assert holders == ["alert_templates.py"]
-    assert not hasattr(alerts_builder, "_LOCAL_NOTICE")
-
-
-@pytest.mark.asyncio
-async def test_seeded_demo_delivery_carries_the_shared_notice(client: AsyncClient) -> None:
-    slug = (await client.post("/api/v1/projects/demo")).json()["slug"]
-    async with TestSessionLocal() as session:
-        project_id = await session.scalar(select(Project.id).where(Project.slug == slug))
-        snapshots = (
-            (
-                await session.execute(
-                    select(AlertDelivery.payload_snapshot).where(
-                        AlertDelivery.project_id == project_id
-                    )
-                )
-            )
-            .scalars()
-            .all()
-        )
-    notices = {(snapshot or {}).get("local_notice") for snapshot in snapshots}
-    assert notices == {DEMO_SINK_LOCAL_NOTICE}
-
-
-# ── spike marker retires with its anomaly ─────────────────────────────────
-
-
-def test_retention_retires_the_spike_marker_with_its_anomaly() -> None:
-    engine = create_engine("sqlite:///:memory:")
-    Base.metadata.create_all(engine)
-    now = datetime(2026, 9, 24, 12, tzinfo=UTC)
-    past_cutoff = now - timedelta(days=demo_runtime.DEMO_RETENTION_DAYS + 2)
-    recent = now - timedelta(hours=3)
-    project_id = uuid.uuid4()
-    scan_config_id = uuid.uuid4()
-    try:
-        with Session(engine) as session:
-            session.add(Project(id=project_id, name="Demo Project", slug="demo-age", is_demo=True))
-            session.add_all(
-                [
-                    ChartAnnotation(
-                        project_id=project_id, bucket=past_cutoff, label=SPIKE_ANNOTATION_LABEL
-                    ),
-                    ChartAnnotation(
-                        project_id=project_id, bucket=recent, label=SPIKE_ANNOTATION_LABEL
-                    ),
-                    ChartAnnotation(
-                        project_id=project_id, bucket=past_cutoff, label="Pricing change"
-                    ),
-                ]
-            )
-            session.commit()
-
-            demo_runtime._prune_retention(session, project_id, scan_config_id, now)
-            session.commit()
-
-            left = {
-                (label, _utc(bucket))
-                for label, bucket in session.execute(
-                    select(ChartAnnotation.label, ChartAnnotation.bucket)
-                ).all()
-            }
-    finally:
-        engine.dispose()
-
-    assert left == {
-        (SPIKE_ANNOTATION_LABEL, recent),
-        ("Pricing change", past_cutoff),
-    }
 
 
 # ── SimulatedRuleFiring.from_candidate ────────────────────────────────────
@@ -428,42 +249,3 @@ def test_from_candidate_carries_every_candidate_field() -> None:
     assert firing.absolute_delta == 30.0
     assert firing.percent_delta == pytest.approx(75.0)
     assert len(firing.scope_name) < 400
-
-
-@pytest.mark.asyncio
-async def test_demo_firings_carry_the_fields_the_simulator_sets() -> None:
-    """The demo seeder used to drop ``scan_config_id`` (and the drift fields)."""
-    project = Project(id=uuid.uuid4(), name="Demo", slug="demo-324", description="", is_demo=True)
-    scan_config_id = uuid.uuid4()
-    anomaly = MetricAnomaly(
-        id=uuid.uuid4(),
-        scan_config_id=scan_config_id,
-        scope_type=MetricScopeType.project_total.value,
-        scope_ref=str(scan_config_id),
-        bucket=datetime(2026, 9, 14, 9, tzinfo=UTC),
-        actual_count=120.0,
-        expected_count=40.0,
-        stddev=5.0,
-        effective_stddev=5.0,
-        z_score=16.0,
-        detector_kind="phase",
-        direction="spike",
-    )
-    engine = create_async_engine("sqlite+aiosqlite:///:memory:")
-    async with engine.begin() as conn:
-        await conn.run_sync(Base.metadata.create_all)
-    session_local = async_sessionmaker(engine, expire_on_commit=False)
-    try:
-        async with session_local() as session:
-            session.add_all([project, anomaly])
-            await session.commit()
-            firings = await alerts_builder._build_firings(session, project, [anomaly])
-    finally:
-        await engine.dispose()
-
-    assert len(firings) == 1
-    expected = SimulatedRuleFiring.from_candidate(
-        anomaly, scope_name=project.name, bucket=_utc(anomaly.bucket)
-    )
-    assert firings[0] == expected
-    assert firings[0].scan_config_id == scan_config_id

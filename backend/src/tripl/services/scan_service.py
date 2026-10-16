@@ -17,7 +17,7 @@ from tripl.core.scan_setup_preset import (
     apply_setup_preset,
     is_event_properties_preset,
 )
-from tripl.models.data_source import DataSource, DBType
+from tripl.models.data_source import DEMO_DB_TYPES, DataSource
 from tripl.models.event_type import EventType
 from tripl.models.project import Project
 from tripl.models.scan_config import ScanConfig
@@ -68,16 +68,15 @@ async def _verify_data_source(
     ds = result.scalar_one_or_none()
     if ds is None:
         raise HTTPException(status_code=404, detail="Data source not found")
-    # A synthetic (local demo) source belongs to exactly one demo project and must
-    # never be selected by any other project — that is how an ordinary project is
-    # kept from pointing a scan/preview at demo data. Identity is db_type +
-    # project ownership, never slug/host/name.
-    if ds.db_type == DBType.synthetic and project_id is not None and ds.project_id != project_id:
+    # A demo source (the shared demo warehouse, or a legacy synthetic one)
+    # belongs to exactly one demo project and must never be selected by any other
+    # project — that is how an ordinary project is kept from pointing a
+    # scan/preview at demo data. Identity is db_type + project ownership, never
+    # slug/host/name.
+    if ds.db_type in DEMO_DB_TYPES and project_id is not None and ds.project_id != project_id:
         raise HTTPException(
             status_code=422,
-            detail=(
-                "Synthetic data sources belong to their demo project and cannot be selected here."
-            ),
+            detail="Demo data sources belong to their demo project and cannot be selected here.",
         )
     return ds
 
@@ -317,6 +316,9 @@ async def update_scan_config(
             session, config.project_id
         )
 
+    # A non-null column: an explicit null means "leave it", not "clear it".
+    if "auto_create_events" in update_dict and update_dict["auto_create_events"] is None:
+        del update_dict["auto_create_events"]
     for key, value in update_dict.items():
         setattr(config, key, value)
     await session.commit()
@@ -474,6 +476,7 @@ async def trigger_dry_run(
             app_version_column=data.app_version_column,
             platform_column=data.platform_column,
             scan_lookback_hours=data.scan_lookback_hours,
+            auto_create_events=data.auto_create_events,
             sample_row_limit=data.sample_row_limit,
             status=ScanJobStatus.pending.value,
         )
@@ -538,7 +541,19 @@ async def _reject_if_already_running(session: AsyncSession, scan_config_id: uuid
     activity marker is older than STALE_ACTIVE_SCAN_JOB_TIMEOUT is a corpse the
     reaper will clear, and must not block a new run forever.
     """
+    from tripl.services import demo_history_service
     from tripl.worker.tasks.metrics._helpers import STALE_ACTIVE_SCAN_JOB_TIMEOUT
+
+    project_id = await session.scalar(
+        select(ScanConfig.project_id).where(ScanConfig.id == scan_config_id)
+    )
+    # A demo's history fill replays this config job after job; a run between
+    # two of them would interleave with the next one the same way.
+    if project_id is not None and await demo_history_service.fill_in_progress(session, project_id):
+        raise HTTPException(
+            status_code=409,
+            detail="This demo is still filling in its history. Try again in a few minutes.",
+        )
 
     now = datetime.now(UTC)
     active = (

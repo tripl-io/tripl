@@ -331,11 +331,15 @@ table above: adapter capabilities covered by the credentialed suite have exact
 value proof; pipeline-derived capabilities execute in the credentialed release
 gate while pull requests retain analysis-only coverage.
 
-The `synthetic` column is the in-memory demo warehouse (`DBType.synthetic`). It
-opens no socket, serves a bounded deterministic fixture (a 30-day history, hard
-capped at 65,000 rows per table), and raises `SyntheticCapabilityError` rather
-than fabricating an answer it cannot honestly compute. It is included because it must satisfy the same contract, not because it
-is a shipping warehouse.
+The `synthetic` column is the in-memory adapter (`DBType.synthetic`) that demos
+built by an older version read. It opens no socket, serves a bounded
+deterministic fixture (a 30-day history, hard capped at 65,000 rows per table),
+and raises `SyntheticCapabilityError` rather than fabricating an answer it cannot
+honestly compute. It is included because it must satisfy the same contract, not
+because it is a shipping warehouse. Today's demos read the
+[demo warehouse](../use/demo-workspace.md#the-demo-warehouse) (`DBType.demo`):
+PostgreSQL through `PostgresAdapter` as a read-only role, or an in-memory engine
+built on this adapter's machinery that serves the same rows.
 
 The first table covers ClickHouse, BigQuery, Databricks, PostgreSQL and the
 synthetic source; [the second](#the-matrix-the-other-five-engines) covers

@@ -178,9 +178,16 @@ async def _name_formats(
     formats: dict[uuid.UUID, str] = {}
     for type_id, configs in by_type.items():
         name_format = governing_name_format(configs)
-        if name_format and name_format.strip():
+        # A bare placeholder (``{event_name}``) spells nothing: the name is
+        # whatever the column holds, which people chose. Such a type is named
+        # by hand, so it is linted and teaches the convention like one without
+        # a rule.
+        if name_format and name_format.strip() and not _PASSTHROUGH_FORMAT.match(name_format):
             formats[type_id] = name_format
     return formats
+
+
+_PASSTHROUGH_FORMAT = re.compile(r"^\s*\{[^{}]+\}\s*$")
 
 
 def _conventions(

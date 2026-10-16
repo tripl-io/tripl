@@ -109,7 +109,7 @@ describe('scenario chapter browser contracts', () => {
     expect(seeDrift?.entry).toBe('variables/inspect-values')
   })
 
-  it('edits the seeded product field to a documented value without changing the anomaly target', () => {
+  it('edits the seeded product field to a documented value; the anomaly step names no seeded event', () => {
     const editSteps = buildChapterSteps(SLUG, 'edit-event', initialScenarioState())
     const exploreSteps = buildChapterSteps(SLUG, 'explore', initialScenarioState())
 
@@ -117,7 +117,6 @@ describe('scenario chapter browser contracts', () => {
     expect(SCENARIO_SEEDED.editedFieldName).toBe('product_id')
     expect(SCENARIO_SEEDED.editedFieldValue).toBe('prod_monthly')
     expect(SCENARIO_SEEDED.editedFieldToken).toBe('${product_id}')
-    expect(SCENARIO_SEEDED.anomalyEventName).toBe('Home Screen View')
     expect(editSteps[0].instruction).toContain('Trial Started')
     expect(editSteps[1]).toMatchObject({
       title: 'Try a documented value',
@@ -129,7 +128,14 @@ describe('scenario chapter browser contracts', () => {
       instruction:
         'Now put the property back: a property such as ${product_id} stands for every documented value at once.',
     })
-    expect(at(exploreSteps, 1).instruction).toContain('Home Screen View')
+    // Incidents come from the demo warehouse's daily calendar, so the step
+    // points at whichever opened last rather than at a seeded event.
+    expect(at(exploreSteps, 1)).toMatchObject({
+      id: 'explore/visit-anomaly',
+      title: 'Drill into the latest incident',
+    })
+    expect(at(exploreSteps, 1).instruction).toContain('newest open incident')
+    expect(at(exploreSteps, 1).instruction).not.toContain('Home Screen View')
   })
 })
 

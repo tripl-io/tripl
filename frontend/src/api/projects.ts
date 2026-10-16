@@ -65,24 +65,30 @@ function pause(ms: number, signal?: AbortSignal): Promise<void> {
   })
 }
 
+/** Told each shell a demo wait reads, so the page can show the server's stage. */
+export type DemoShellListener = (shell: Project) => void
+
 /**
- * Start a demo and wait until the worker has seeded it.
- *
- * `POST /projects/demo` answers 202 with the hidden `seeding` shell; the seed
- * runs on the worker and the shell is re-read until it is `ready`. The promise
- * keeps the old blocking contract: it resolves with the ready project and
- * rejects with a 500-style `ApiError` when the seed failed, or with the
- * server's 409 "provisioning was cancelled" when a cancel (from any tab)
- * discarded the shell.
+ * Re-read a demo shell until the worker has finished building it. Resolves
+ * with the ready project and rejects with a 500-style `ApiError` when the
+ * build failed, or with the server's 409 "provisioning was cancelled" when a
+ * cancel (from any tab) discarded the shell. `onShell` hears every read,
+ * including the first, so a page can follow `generation_stage`.
  */
-async function provisionDemo(signal?: AbortSignal, pollMs = DEMO_POLL_INTERVAL_MS): Promise<Project> {
-  let current = await api.post<Project>('/projects/demo', {}, signal)
+async function waitForDemoShell(
+  first: Project,
+  signal?: AbortSignal,
+  pollMs = DEMO_POLL_INTERVAL_MS,
+  onShell?: DemoShellListener,
+): Promise<Project> {
+  let current = first
   const slug = current.slug
   for (;;) {
     if (current.generation_status === 'failed') {
       throw new ApiError(current.generation_error || 'Demo generation failed.', 500)
     }
     if (current.generation_status !== 'seeding' && current.generation_status !== 'pending') return current
+    onShell?.(current)
     await pause(pollMs, signal)
     try {
       current = await api.get<Project>(`/projects/${slug}`, signal)
@@ -97,6 +103,37 @@ async function provisionDemo(signal?: AbortSignal, pollMs = DEMO_POLL_INTERVAL_M
   }
 }
 
+/**
+ * Start a demo and wait until the worker has built it.
+ *
+ * `POST /projects/demo` answers 202 with the hidden `seeding` shell; the build
+ * runs on the worker and the shell is re-read until it is `ready`. The promise
+ * keeps the old blocking contract (see {@link waitForDemoShell}).
+ */
+async function provisionDemo(
+  signal?: AbortSignal,
+  pollMs = DEMO_POLL_INTERVAL_MS,
+  onShell?: DemoShellListener,
+): Promise<Project> {
+  const shell = await api.post<Project>('/projects/demo', {}, signal)
+  return waitForDemoShell(shell, signal, pollMs, onShell)
+}
+
+/**
+ * Rebuild a demo under the same slug. A server that rebuilds inside the
+ * request answers with the ready project; one that queues the rebuild
+ * answers with a `seeding` shell, which is then waited on like a create.
+ */
+async function rebuildDemo(
+  slug: string,
+  signal?: AbortSignal,
+  pollMs = DEMO_POLL_INTERVAL_MS,
+  onShell?: DemoShellListener,
+): Promise<Project> {
+  const answer = await api.post<Project>(`/projects/demo/${slug}/reset`, {}, signal)
+  return waitForDemoShell(answer, signal, pollMs, onShell)
+}
+
 export const projectsApi = {
   list: (signal?: AbortSignal) => api.get<Project[]>('/projects', signal),
   // `branchId` scopes the summary's plan counters (event types, events,
@@ -108,21 +145,23 @@ export const projectsApi = {
   // branch and returns its id as `template_branch_id` (F21, #274); main stays
   // empty. Without one the field is null.
   create: (data: ProjectCreateInput) => api.post<ProjectCreateResult>('/projects', data),
-  // Demo lifecycle. Create resolves once the worker has seeded the demo (for
+  // Demo lifecycle. Create resolves once the worker has built the demo (for
   // about DEMO_PROVISION_EXPECTED_MS, demo/provisioningPhases.ts) — see
-  // provisionDemo. Reset/delete are scoped to the demo endpoints and permitted
-  // for the demo's creator or a workspace owner — distinct from the owner-only
-  // generic DELETE /projects/{slug} (`del`). The caller passes a signal so the
-  // wait can be timed out or cancelled instead of hanging forever.
-  createDemo: (signal?: AbortSignal, pollMs?: number) => provisionDemo(signal, pollMs),
+  // provisionDemo; `onShell` hears each shell read on the way. Reset/delete are
+  // scoped to the demo endpoints and permitted for the demo's creator or a
+  // workspace owner — distinct from the owner-only generic
+  // DELETE /projects/{slug} (`del`). The caller passes a signal so the wait can
+  // be timed out or cancelled instead of hanging forever.
+  createDemo: (signal?: AbortSignal, pollMs?: number, onShell?: DemoShellListener) =>
+    provisionDemo(signal, pollMs, onShell),
   // Aborting the create only stops the BROWSER waiting — the worker finishes
   // seeding regardless. This asks it to abandon the provision instead;
   // `cancelled` is false when it was already too late.
   cancelDemo: () => api.post<DemoCancelResult>('/projects/demo/cancel', {}),
-  // Reset re-seeds just as long as a create, so it takes a signal for the same
-  // timeout.
-  resetDemo: (slug: string, signal?: AbortSignal) =>
-    api.post<Project>(`/projects/demo/${slug}/reset`, {}, signal),
+  // Reset rebuilds just as long as a create, so it takes a signal for the same
+  // timeout, and waits on a queued rebuild the same way (rebuildDemo).
+  resetDemo: (slug: string, signal?: AbortSignal, onShell?: DemoShellListener, pollMs?: number) =>
+    rebuildDemo(slug, signal, pollMs, onShell),
   deleteDemo: (slug: string) => api.del(`/projects/demo/${slug}`),
   update: (slug: string, data: {
     name?: string

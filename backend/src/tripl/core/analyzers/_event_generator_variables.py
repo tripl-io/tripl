@@ -15,7 +15,9 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session, lazyload
 
 from tripl.core.name_template import VARIABLE_TOKEN_PATTERN
+from tripl.models.domain_enums import FieldDefinitionType, Sensitivity
 from tripl.models.event import Event
+from tripl.models.field_definition import FieldDefinition
 from tripl.models.variable import Variable
 from tripl.models.variable_value import VariableValue, VariableValueKind
 
@@ -520,6 +522,123 @@ def record_variable_contexts(
                 [*existing["values"], *observation.values],
                 existing["value_kind"],
             )
+
+
+def authored_token_observations(
+    *,
+    events: Iterable[Event],
+    observed_fields: Mapping[uuid.UUID, Mapping[uuid.UUID, tuple[str, str]]],
+    values_seen: Mapping[tuple[str, str], Mapping[str, int | None]],
+    index: VariableIndex,
+    cardinality_threshold: int,
+    field_definitions: Mapping[uuid.UUID, FieldDefinition],
+) -> PendingVariableContexts:
+    """What the scan saw behind each field an author wrote as ``${variable}``.
+
+    ``record_variable_contexts`` only hears about a variable through the
+    column's ``variable_observations``, which the planner produces for a
+    high-cardinality column or a JSON path. A low-cardinality column gets its
+    literal value instead, so an event whose author wrote ``${product_id}`` on
+    a column carrying three products was never checked against the variable's
+    documented list: the contract existed and nothing read it. The author's
+    token is the statement that the field carries that variable, so the raw
+    values this run tallied for the (event, column) are its observations.
+
+    The result feeds value-drift detection ONLY. It is not written as
+    ``VariableValue`` contexts: those are the variable detector's record, and a
+    curated context hanging off an authored value must keep exactly the values
+    it was given (``delete_variable_contexts_for_event_type``). The run's field
+    observations already carry the per-field distribution.
+
+    Only a value that is EXACTLY one token counts — ``promo_${product_id}``
+    does not say which part of the observed text is the variable. Above the
+    cardinality threshold the plan carries the planner's template, not the raw
+    values, so there is nothing here to read; that column's evidence stays the
+    planner's variable observations.
+
+    A field marked sensitive (anything but ``none``) is skipped: the drift row
+    stores the novel values themselves and an alert quotes them, and a field
+    someone flagged as PII or a secret must not have its raw values copied out
+    to either. Each context carries ``canonical_kind`` — the field's type when
+    it is ``number`` or ``boolean`` — because the scan formats a warehouse
+    value as Python prints it (``True``, ``10.00``) while an author documents
+    ``true`` or ``10``; the drift detector compares both sides in that kind's
+    canonical spelling (``canonical_value``).
+    """
+    observations: PendingVariableContexts = {}
+    for event in events:
+        fields = observed_fields.get(event.id)
+        if not fields:
+            continue
+        for field_value in event.field_values:
+            if not field_value.is_authored:
+                continue
+            seen_key = fields.get(field_value.field_definition_id)
+            if seen_key is None:
+                continue
+            field_definition = field_definitions.get(field_value.field_definition_id)
+            if field_definition is None or field_definition.sensitivity != Sensitivity.none:
+                continue
+            match = _TOKEN_PATTERN.fullmatch(field_value.value or "")
+            if match is None:
+                continue
+            variable = index.resolve(match.group(1))
+            if variable is None or variable.excluded_from_scans:
+                continue
+            counts = values_seen.get(seen_key) or {}
+            # A templated value is the planner's own token for a column it
+            # judged high-cardinality, which the planner's observations cover.
+            observed = sorted(
+                (value for value in counts if value and _TOKEN_PATTERN.search(value) is None),
+                key=lambda value: (-(counts[value] or 0), value),
+            )
+            if not observed:
+                continue
+            value_kind = (
+                VariableValueKind.low.value
+                if len(observed) <= cardinality_threshold
+                else VariableValueKind.high.value
+            )
+            observations[(variable.id, event.id, field_value.field_definition_id)] = {
+                "variable_id": variable.id,
+                "event_id": event.id,
+                "field_definition_id": field_value.field_definition_id,
+                "source_column": seen_key[1],
+                "value_kind": value_kind,
+                "observed_count": len(observed),
+                "values": sample_variable_values(observed, value_kind),
+                "presence_rate": None,
+                "canonical_kind": (
+                    field_definition.field_type
+                    if field_definition.field_type in _CANONICAL_FIELD_KINDS
+                    else None
+                ),
+            }
+    return observations
+
+
+#: The field types whose observed values ``authored_token_observations`` marks
+#: for canonical comparison.
+_CANONICAL_FIELD_KINDS = frozenset({FieldDefinitionType.number, FieldDefinitionType.boolean})
+
+
+def without_sensitive_fields(
+    contexts: PendingVariableContexts, field_definitions: Mapping[uuid.UUID, FieldDefinition]
+) -> PendingVariableContexts:
+    """``contexts`` less those of a field marked sensitive, for the value-drift detector.
+
+    The planner's contexts as much as ``authored_token_observations``' own: a
+    drift row stores the novel values themselves and an alert quotes them, and
+    a field someone flagged as PII or a secret must not have its raw values
+    copied out to either. A context whose field is not among
+    ``field_definitions`` is kept, as before.
+    """
+    return {
+        key: context
+        for key, context in contexts.items()
+        if (definition := field_definitions.get(key[2])) is None
+        or definition.sensitivity == Sensitivity.none
+    }
 
 
 def insert_variable_contexts(
