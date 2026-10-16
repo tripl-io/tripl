@@ -254,7 +254,7 @@ def write(now: datetime | None = None, *, wait_seconds: int | None = None) -> Wr
     build replay three weeks of empty days. Timing out skips, as a held lock
     does without it.
     """
-    if settings.demo_warehouse_mode == "memory":
+    if settings.demo_warehouse_mode == "memory" or connection.withheld_from_public_demo():
         return None
     current = now if now is not None else datetime.now(UTC)
     writer = connection.writer_connection()

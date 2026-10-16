@@ -159,7 +159,8 @@ nothing on screen pretends otherwise:
 ## The demo warehouse
 
 The warehouse is a PostgreSQL database, `<your database>_demo` (`tripl_demo` in
-the bundled compose stack), on the server tripl already uses. It holds two
+the bundled compose stack), on the server tripl already uses (a [public
+demo](../run/public-demo.md#warehouse-server) needs one of its own). It holds two
 tables in its `warehouse` schema, `events` and `orders`, partitioned by day, and
 generated from one deterministic model of a recipe app: the same rows every time
 for the same hour, whoever reads them.

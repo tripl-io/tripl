@@ -80,8 +80,10 @@ READER_CONNECTION_LIMIT = 10
 #: Functions PUBLIC may not execute in the demo database, as anchored POSIX
 #: regular expressions over ``pg_proc.proname`` in ``pg_catalog`` (every
 #: overload). Each one either acts on OTHER sessions of the shared reader role
-#: (cancel, terminate, read their activity, hold or wait on advisory locks,
-#: sleep on a connection), changes the session's settings (``set_config``),
+#: (cancel, terminate, read their activity, statistics, progress or locks, hold
+#: or wait on advisory locks, sleep on a connection: the views over them,
+#: ``pg_locks`` and the ``pg_stat_*`` family, call them as the reader and are
+#: refused with them), changes the session's settings (``set_config``),
 #: runs a query given as text, which no check of the statement's own text can
 #: see into (the ``*_to_xml`` family, ``ts_stat``, ``ts_rewrite``), or reaches
 #: large objects. The adapter's SQL check refuses the same names; this is the
@@ -91,8 +93,10 @@ REVOKED_FUNCTION_PATTERNS: tuple[str, ...] = (
     "set_config",
     "pg_cancel_backend",
     "pg_terminate_backend",
-    "pg_stat_get_activity",
-    "pg_stat_get_backend_.*",
+    "pg_stat_get_.*",
+    "pg_lock_status",
+    "pg_blocking_pids",
+    "pg_safe_snapshot_blocking_pids",
     "pg_(try_)?advisory_.*",
     "pg_sleep.*",
     "pg_notify",
@@ -105,8 +109,9 @@ REVOKED_FUNCTION_PATTERNS: tuple[str, ...] = (
 )
 #: One expression for the whole list, for ``proname ~ %s``.
 REVOKED_FUNCTIONS_RE = "^(" + "|".join(REVOKED_FUNCTION_PATTERNS) + ")$"
-#: Views PUBLIC may not read in the demo database (other sessions' query text).
-REVOKED_VIEWS: tuple[str, ...] = ("pg_stat_activity",)
+#: Views PUBLIC may not read in the demo database (other sessions' query text
+#: and locks), besides the functions under them.
+REVOKED_VIEWS: tuple[str, ...] = ("pg_stat_activity", "pg_locks")
 CONNECT_TIMEOUT_SECONDS = 10
 
 
@@ -312,10 +317,10 @@ def _revoke_session_functions(
     if reachable:
         result.warn(
             "%s can still use %s in the demo database: revoking them from PUBLIC needs a "
-            "superuser. The demo adapter still refuses those calls in the statements it "
-            "sends; an administrator should run, connected to the demo database, REVOKE "
-            "EXECUTE ON FUNCTION <each> FROM PUBLIC and REVOKE SELECT ON "
-            "pg_catalog.pg_stat_activity FROM PUBLIC.",
+            "superuser (or the extension's owner). The demo adapter still refuses the "
+            "catalog's in the statements it sends; an administrator should run, "
+            "connected to the demo database, REVOKE EXECUTE ON FUNCTION <each> FROM "
+            "PUBLIC and REVOKE SELECT ON <each view> FROM PUBLIC.",
             reader,
             ", ".join(reachable),
         )
@@ -325,6 +330,10 @@ def reader_reachable_session_functions(
     conn: psycopg.Connection[tuple[object, ...]], reader: str
 ) -> tuple[str, ...]:
     """What of :data:`REVOKED_FUNCTION_PATTERNS` and :data:`REVOKED_VIEWS` ``reader`` can use.
+
+    Also every function outside the catalog it can call: the warehouse defines
+    none, so one there is an extension's (``dblink``, ``pg_stat_statements``),
+    installed after provisioning and listed nowhere else.
 
     ``conn`` is on the demo database (privileges on the catalog are per
     database). Signatures for functions, qualified names for views; empty when
@@ -338,13 +347,20 @@ def reader_reachable_session_functions(
         "WHERE n.nspname = 'pg_catalog' AND p.proname ~ %s "
         "AND has_function_privilege(r.oid, p.oid, 'EXECUTE') "
         "UNION ALL "
+        "SELECT p.oid::regprocedure::text FROM pg_proc p "
+        "JOIN pg_namespace n ON n.oid = p.pronamespace "
+        "JOIN pg_roles r ON r.rolname = %s "
+        "WHERE n.nspname <> 'information_schema' AND n.nspname !~ '^pg_' "
+        "AND has_schema_privilege(r.oid, n.oid, 'USAGE') "
+        "AND has_function_privilege(r.oid, p.oid, 'EXECUTE') "
+        "UNION ALL "
         "SELECT 'pg_catalog.' || c.relname FROM pg_class c "
         "JOIN pg_namespace n ON n.oid = c.relnamespace "
         "JOIN pg_roles r ON r.rolname = %s "
         "WHERE n.nspname = 'pg_catalog' AND c.relname = ANY(%s) "
         "AND has_table_privilege(r.oid, c.oid, 'SELECT') "
         "ORDER BY 1",
-        (reader, REVOKED_FUNCTIONS_RE, reader, list(REVOKED_VIEWS)),
+        (reader, REVOKED_FUNCTIONS_RE, reader, reader, list(REVOKED_VIEWS)),
     ).fetchall()
     return tuple(str(row[0]) for row in rows)
 
@@ -390,6 +406,12 @@ def provision() -> ProvisionResult:
     back to the in-memory engine).
     """
     result = ProvisionResult()
+    if connection.withheld_from_public_demo():
+        logger.warning(
+            "demo_warehouse.provision skipped: %s; demos use the in-memory engine",
+            connection.PUBLIC_DEMO_NEEDS_OWN_SERVER,
+        )
+        return result
     try:
         if settings.demo_warehouse_url:
             # Provisioned by hand: the database exists (or connecting fails below).

@@ -209,8 +209,10 @@ async def test_an_error_outside_the_replays_fails_the_fill(
     assert status == "failed"
 
 
-def test_fill_progress_counts_a_window_once() -> None:
+def test_fill_progress_counts_a_window_once(monkeypatch: pytest.MonkeyPatch) -> None:
     """A job a dead worker left behind and the one that resumed it share a window."""
+    # The suite's two days leave the first build nothing to leave out.
+    monkeypatch.setattr(settings, "demo_history_days", 23)
     now = datetime(2026, 10, 16, 12, tzinfo=UTC)
     (first, second, *_rest) = pipeline.fill_windows(now)
 

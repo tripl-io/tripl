@@ -22,11 +22,16 @@ role's value holds.
 It also refuses, before sending, any statement that calls what the shared
 reader must not (``check_demo_warehouse_sql``): another session's queries,
 advisory locks, ``set_config`` and the like.
+
+Both happen in ``Cursor.execute`` only, so every other way psycopg sends a
+statement (``executemany``, ``stream``, ``copy``, a named server-side cursor)
+raises instead: a method added to ``PostgresAdapter`` later that used one would
+otherwise skip the check and the pins without anything noticing.
 """
 
 from __future__ import annotations
 
-from typing import Any
+from typing import Any, NoReturn
 
 import psycopg
 from psycopg import sql
@@ -48,9 +53,32 @@ READER_RESOURCE_PINS: tuple[tuple[str, str], ...] = (
 )
 
 
+def _bypass(method: str) -> psycopg.NotSupportedError:
+    return psycopg.NotSupportedError(
+        f"the demo reader runs statements through execute() only: {method} would skip "
+        "its SQL check and session pins"
+    )
+
+
+class _RefusingServerCursor(psycopg.ServerCursor[Any]):
+    """A named cursor's statements would skip the check and the pins."""
+
+    def __init__(self, *args: Any, **kwargs: Any) -> None:
+        raise _bypass("a server-side cursor")
+
+
 def _rearming_cursor(pins: str) -> type[psycopg.Cursor[Any]]:
     class RearmingCursor(psycopg.Cursor[Any]):
         """Runs the session pins, then the statement, on every ``execute``."""
+
+        def executemany(self, *args: Any, **kwargs: Any) -> NoReturn:
+            raise _bypass("executemany()")
+
+        def stream(self, *args: Any, **kwargs: Any) -> NoReturn:
+            raise _bypass("stream()")
+
+        def copy(self, *args: Any, **kwargs: Any) -> NoReturn:
+            raise _bypass("copy()")
 
         def execute(
             self,
@@ -113,3 +141,4 @@ class DemoPostgresAdapter(PostgresAdapter):
             )
         )
         self._conn.cursor_factory = _rearming_cursor(pins)
+        self._conn.server_cursor_factory = _RefusingServerCursor

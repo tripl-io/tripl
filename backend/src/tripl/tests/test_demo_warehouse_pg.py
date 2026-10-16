@@ -282,6 +282,9 @@ def test_the_reader_cannot_reach_other_sessions(warehouse: datetime) -> None:
             "SELECT pg_try_advisory_lock(1)",
             "SELECT pg_advisory_xact_lock(1)",
             "SELECT query FROM pg_stat_activity",
+            "SELECT count(*) FROM pg_locks",
+            "SELECT pg_blocking_pids(pg_backend_pid())",
+            "SELECT pg_stat_get_db_numbackends(1)",
             "SELECT set_config('statement_timeout', '0', false)",
             "SELECT pg_sleep(0)",
             "SELECT query_to_xml('select 1', true, true, '')",
@@ -311,6 +314,10 @@ def test_every_revoked_function_is_checked_not_trusted(warehouse: datetime) -> N
             "pg_cancel_backend",
             "pg_terminate_backend",
             "pg_stat_get_activity",
+            "pg_stat_get_db_numbackends",
+            "pg_lock_status",
+            "pg_blocking_pids",
+            "pg_safe_snapshot_blocking_pids",
             "pg_advisory_lock",
             "pg_try_advisory_xact_lock_shared",
             "pg_sleep",
@@ -328,9 +335,10 @@ def test_every_revoked_function_is_checked_not_trusted(warehouse: datetime) -> N
         } <= names
         # CI provisions as a superuser, so every one of them was taken away...
         assert [signature for signature, executable in revoked if executable] == []
-        assert conn.execute(
-            "SELECT has_table_privilege(%s, 'pg_catalog.pg_stat_activity', 'SELECT')", (reader,)
-        ).fetchone() == (False,)
+        for view in provision.REVOKED_VIEWS:
+            assert conn.execute(
+                "SELECT has_table_privilege(%s, %s, 'SELECT')", (reader, f"pg_catalog.{view}")
+            ).fetchone() == (False,)
         assert provision.reader_reachable_session_functions(conn, reader) == ()
         # ...and one granted back is reported, by provisioning and by the status.
         conn.execute("GRANT EXECUTE ON FUNCTION pg_catalog.pg_sleep(double precision) TO PUBLIC")
@@ -345,6 +353,48 @@ def test_every_revoked_function_is_checked_not_trusted(warehouse: datetime) -> N
         conn.execute("REVOKE EXECUTE ON FUNCTION pg_catalog.pg_sleep(double precision) FROM PUBLIC")
         provision._revoke_session_functions(conn, result, reader)
     assert result.warnings == []
+
+
+def test_a_function_outside_the_catalog_is_reported(warehouse: datetime) -> None:
+    # An extension's function (dblink, say) lands in a schema the reader uses
+    # and, like every new function, is executable by PUBLIC.
+    reader = connection.reader_role()
+    with psycopg.connect(**connection.writer_connection().kwargs(), autocommit=True) as conn:  # type: ignore[arg-type]
+        conn.execute(
+            sql.SQL("CREATE FUNCTION {}() RETURNS int LANGUAGE sql AS 'SELECT 1'").format(
+                sql.Identifier(schema.WAREHOUSE_SCHEMA, "an_extension_function")
+            )
+        )
+        try:
+            assert provision.reader_reachable_session_functions(conn, reader) == (
+                f"{schema.WAREHOUSE_SCHEMA}.an_extension_function()",
+            )
+        finally:
+            conn.execute(
+                sql.SQL("DROP FUNCTION {}()").format(
+                    sql.Identifier(schema.WAREHOUSE_SCHEMA, "an_extension_function")
+                )
+            )
+        assert provision.reader_reachable_session_functions(conn, reader) == ()
+
+
+def test_the_adapter_sends_nothing_past_its_check_and_pins(warehouse: datetime) -> None:
+    adapter = engine.build_postgres_adapter(timeout_seconds=1)
+    assert isinstance(adapter, DemoPostgresAdapter)
+    try:
+        with adapter._conn.cursor() as cur:
+            with pytest.raises(psycopg.NotSupportedError, match="executemany"):
+                cur.executemany("SELECT %s", [(1,)])
+            with pytest.raises(psycopg.NotSupportedError, match="stream"):
+                cur.stream("SELECT 1")
+            with pytest.raises(psycopg.NotSupportedError, match="copy"):
+                cur.copy("COPY (SELECT 1) TO STDOUT")
+            with pytest.raises(ValueError, match="one statement at a time"):
+                cur.execute("SELECT 1; SET statement_timeout = 0")
+        with pytest.raises(psycopg.NotSupportedError, match="server-side cursor"):
+            adapter._conn.cursor(name="named")
+    finally:
+        adapter.close()
 
 
 def test_the_adapter_refuses_session_calls_before_sending_them(warehouse: datetime) -> None:

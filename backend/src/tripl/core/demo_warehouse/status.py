@@ -99,6 +99,13 @@ def _read(now: datetime) -> WarehouseStatus:
             reason="DEMO_WAREHOUSE_MODE=memory",
             **base,  # type: ignore[arg-type]
         )
+    if connection.withheld_from_public_demo():
+        return WarehouseStatus(
+            engine="memory",
+            reachable=False,
+            reason=connection.PUBLIC_DEMO_NEEDS_OWN_SERVER,
+            **base,  # type: ignore[arg-type]
+        )
     try:
         with psycopg.connect(
             **writer.kwargs(connect_timeout=CONNECT_TIMEOUT_SECONDS),  # type: ignore[arg-type]

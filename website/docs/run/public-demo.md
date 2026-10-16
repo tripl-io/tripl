@@ -38,6 +38,52 @@ than the in-memory engine (**Settings → Instance → System** says which one d
 use): the in-memory engine regenerates rows in each worker process, which a busy
 instance pays for on every collection.
 
+### A server of its own for the warehouse {#warehouse-server}
+
+On a public demo, strangers write the SQL the warehouse runs: a scan's query, a
+fact table, a SQL metric, a preview. The reader role they share cannot write,
+cannot see or signal other sessions, and is held to 15 seconds a statement,
+small sorts and bounded spills to disk. But PostgreSQL has no setting that caps
+a statement's memory: an aggregate's state or one long value can take a
+gigabyte, and on the server tripl's own database lives on, the kernel's OOM
+killer would restart that database with it.
+
+So with `DEMO_WAREHOUSE_MODE=auto`, a public demo leaves a warehouse on tripl's
+own server alone: `migrate` provisions nothing there, the writer stays idle,
+demos run on the in-memory engine, and **Settings → Instance → System** says
+why. Give the warehouse a PostgreSQL server of its own with a memory limit,
+and name it in `DEMO_WAREHOUSE_URL`; a statement that exhausts that limit
+restarts the warehouse's server only, and the demos' next collection retries.
+In compose, a second PostgreSQL service does it:
+
+```yaml
+services:
+  demo-warehouse-db:
+    image: pgvector/pgvector:0.8.7-pg18-trixie  # the stack's own image
+    environment:
+      POSTGRES_DB: tripl_demo
+      POSTGRES_USER: tripl_demo
+      POSTGRES_PASSWORD: ${DEMO_WAREHOUSE_DB_PASSWORD:?set it in .env}
+    volumes:
+      - demo-warehouse:/var/lib/postgresql
+    mem_limit: 1g
+    cpus: 1
+    restart: unless-stopped
+volumes:
+  demo-warehouse:
+```
+
+and, for the api, the worker and beat:
+
+```bash
+DEMO_WAREHOUSE_URL=postgresql://tripl_demo:<password>@demo-warehouse-db:5432/tripl_demo
+```
+
+`tripl_demo` is that server's superuser, so `migrate` provisions the reader
+with every limit, the revoked functions included. `DEMO_WAREHOUSE_MODE=postgres`
+overrides the rule and reads a warehouse on tripl's own server anyway: an
+operator's explicit choice, for a demo whose visitors are trusted.
+
 ## Semantic search
 
 Demo projects search by meaning out of the box, from embedding vectors bundled

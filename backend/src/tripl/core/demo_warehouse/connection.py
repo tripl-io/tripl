@@ -19,6 +19,10 @@ user can edit reaches a connection that skips the private-address guard.
   provisioned by hand; by default it is derived from ``SECRET_KEY`` (HMAC, so
   it is stable, never stored, and changes with the key: ``migrate`` re-applies
   it on every run).
+
+A public demo needs the override to name a server of its own
+(:func:`withheld_from_public_demo`): there, strangers' SQL runs on the
+warehouse, and PostgreSQL bounds a statement's time but not its memory.
 """
 
 from __future__ import annotations
@@ -31,6 +35,7 @@ from dataclasses import dataclass
 
 from sqlalchemy.engine import make_url
 
+from tripl import tenancy
 from tripl.config import settings
 
 DATABASE_SUFFIX = "_demo"
@@ -109,6 +114,41 @@ def writer_connection() -> WarehouseConnection:
         return _parse(settings.demo_warehouse_url)
     main = main_connection()
     return _parse(settings.sync_database_url, database=f"{main.database}{DATABASE_SUFFIX}")
+
+
+def on_tripl_server() -> bool:
+    """Whether the warehouse database is on the server tripl's own database is on.
+
+    Compared by host and port as configured, so an alias of the same server
+    passes for another one: the check catches the default and a copied DSN, not
+    a determined operator.
+    """
+    writer, main = writer_connection(), main_connection()
+    return (writer.host, writer.port) == (main.host, main.port)
+
+
+def withheld_from_public_demo() -> bool:
+    """Whether a public demo must leave the warehouse alone (in-memory engine only).
+
+    A public demo runs its visitors' SQL as the reader. ``statement_timeout``,
+    ``work_mem`` and ``temp_file_limit`` bound a statement's time, sorts and
+    spills, but nothing in PostgreSQL bounds the memory of an aggregate's state
+    or of a long value, so one statement can take a gigabyte a column; on the
+    server tripl's own database lives on, the kernel's OOM killer would then
+    restart that database too. ``auto`` therefore neither provisions, writes nor
+    reads a warehouse on tripl's server for a public demo: it needs
+    ``DEMO_WAREHOUSE_URL`` on a server of its own, whose memory limit contains
+    the damage. ``DEMO_WAREHOUSE_MODE=postgres`` overrides this (the operator's
+    explicit choice).
+    """
+    return settings.demo_warehouse_mode == "auto" and tenancy.public_demo() and on_tripl_server()
+
+
+#: The in-memory reason :func:`withheld_from_public_demo` gives, for the status.
+PUBLIC_DEMO_NEEDS_OWN_SERVER = (
+    "a public demo runs its visitors' SQL on the warehouse, so it needs a PostgreSQL "
+    "server of its own (DEMO_WAREHOUSE_URL) rather than the one tripl's database is on"
+)
 
 
 def reader_role() -> str:

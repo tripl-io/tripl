@@ -25,6 +25,12 @@ from tripl.core.adapters.measure_validator import check_demo_warehouse_sql
         ("SELECT * FROM pg_stat_activity", "pg_stat_activity"),
         ("SELECT pg_stat_get_activity(NULL)", "pg_stat_get_activity"),
         ("SELECT pg_stat_get_backend_pid(1)", "pg_stat_get_backend_pid"),
+        # Other sessions' statistics, progress and locks.
+        ("SELECT pg_stat_get_db_numbackends(1)", "pg_stat_get_db_numbackends"),
+        ("SELECT * FROM pg_locks", "pg_locks"),
+        ("SELECT * FROM pg_lock_status()", "pg_lock_status"),
+        ("SELECT pg_blocking_pids(42)", "pg_blocking_pids"),
+        ("SELECT pg_safe_snapshot_blocking_pids(42)", "pg_safe_snapshot_blocking_pids"),
         ("SELECT lo_get(16384)", "lo_get"),
         ("SELECT pg_read_file('/etc/passwd')", "pg_read_file"),
         ("SELECT pg_ls_dir('.')", "pg_ls_dir"),
@@ -78,6 +84,13 @@ def test_a_session_reaching_call_is_refused(statement: str, named: str) -> None:
         ("SELECT 1 -- note", "comments"),
         ("SELECT 1 /* note */", "comments"),
         ("SELECT 1 */", "comments"),
+        # A second statement would run after the pins, not behind them.
+        ("SELECT 1; SET statement_timeout = 0", "one statement at a time"),
+        ("SELECT 1 ;RESET ALL", "one statement at a time"),
+        # An escape string's backslash-quote is no end of the literal to
+        # PostgreSQL, whatever a scanner that reads it as one decides.
+        ("SELECT E'\\'' AS a; SET work_mem = '4GB'", "one statement at a time"),
+        ("SELECT count(*) FROM events WHERE event_name = 'a;b'", "one statement at a time"),
     ],
 )
 def test_text_that_hides_text_is_refused(statement: str, refused: str) -> None:
@@ -97,6 +110,9 @@ def test_text_that_hides_text_is_refused(statement: str, refused: str) -> None:
         "SELECT my_set_config, set_configs FROM t",
         'SELECT "event_name" FROM "events"',
         "SELECT U&'d\\0061ta'",
+        # A trailing ``;`` ends the one statement.
+        "SELECT count(*) FROM events;",
+        "SELECT count(*) FROM events ;\n  ",
     ],
 )
 def test_ordinary_sql_passes(statement: str) -> None:
