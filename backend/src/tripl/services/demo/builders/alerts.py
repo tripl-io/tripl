@@ -12,8 +12,13 @@ credentials — and the rules over them:
   volume signals (a rule has one destination, so the flaky sink needs a rule
   of its own; unfiltered, so whichever incident the warehouse ran last
   reaches it);
-* ``Weekly release health (quiet)``: project total and release regressions,
-  usually silent.
+* ``Weekly release health (quiet)``: the whole app's volume falling, which a
+  broken release would do, so the demo keeps a healthy monitor beside the
+  firing ones. Not release regressions (the warehouse ships one with every
+  release and its beta, so it would fire for days around each one) nor the
+  total's spikes (most daily incidents are spikes, and a demo opens on two
+  days of history, too short a baseline to absorb them); the firing rule
+  takes both.
 
 No delivery, rule state or inbox group is written here. The provisioning
 pipeline's replay detects the warehouse's incidents and the worker's own
@@ -111,8 +116,8 @@ async def build_alerts(session: AsyncSession, ctx: DemoContext) -> None:
         include_project_total=True,
         include_event_types=False,
         include_events=False,
-        include_release_regressions=True,
-        notify_on_spike=True,
+        include_release_regressions=False,
+        notify_on_spike=False,
         notify_on_drop=True,
         message_format=AlertMessageFormat.plain.value,
     )
