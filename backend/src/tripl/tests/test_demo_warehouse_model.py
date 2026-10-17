@@ -22,6 +22,7 @@ from types import SimpleNamespace
 
 import pytest
 
+from tripl.config import settings
 from tripl.core.adapters import registry
 from tripl.core.adapters.demo_memory import MAX_EVENTS_WINDOW, DemoMemoryAdapter
 from tripl.core.adapters.demo_postgres import DemoPostgresAdapter
@@ -33,10 +34,15 @@ from tripl.core.analyzers.anomaly_detector import (
     detect_anomalies,
 )
 from tripl.core.analyzers.distribution_drift import compute_psi
+from tripl.core.analyzers.release_regression import (
+    RegressionSettings,
+    detect_release_regressions_by_scope,
+)
 from tripl.core.demo_warehouse import calendar, roster, rows, schema, traffic
 from tripl.models.data_source import DEMO_DB_TYPES, DBType
 from tripl.schemas.data_source import CONNECTION_SETTINGS_MODELS
-from tripl.services.demo import pipeline
+from tripl.services.demo import noise, pipeline
+from tripl.services.release_annotations import releases_to_annotate
 
 HOUR = calendar.HOUR
 #: A fixed "now", mid-hour and mid-slice, so nothing depends on the wall clock.
@@ -390,6 +396,204 @@ def test_the_dead_event_never_fires() -> None:
     names = {row["event_name"] for row in rows.rows_between("events", END - HOUR * 6, END)}
     assert roster.DEAD_EVENT not in names
     assert "Promo Applied" in {e.name for e in roster.live_events()}
+
+
+# -- what a demo built at any hour of a release cycle shows ------------------------------
+
+#: A whole release cycle and the next release's ramp: 6.21.0 (a ``volume_drop``)
+#: ships on its first day, 6.22.0 (a ``missing``) on the fifteenth.
+_CYCLE_START = calendar.release_start(calendar.release_index(END) + 1).replace(hour=0)
+_CYCLE = calendar.RELEASE_INTERVAL + timedelta(days=3)
+
+
+def _builds(step: timedelta) -> Iterator[datetime]:
+    """Build instants across :data:`_CYCLE`, mid-hour, ``step`` apart."""
+    at = _CYCLE_START + timedelta(minutes=7, seconds=30)
+    while at < _CYCLE_START + _CYCLE:
+        yield at
+        at += step
+
+
+@pytest.fixture
+def _full_history(monkeypatch: pytest.MonkeyPatch) -> None:
+    # The shipped history; the suite's two days start on the hour.
+    monkeypatch.setattr(settings, "demo_history_days", noise.DEMO_HISTORY_DAYS)
+
+
+@pytest.mark.usefixtures("_full_history")
+def test_every_build_hour_scores_three_promo_sends_from_their_first_hour() -> None:
+    """The weekly suggestion needs three *expected* verdicts, one a week.
+
+    A send is flagged only while the hour-of-week baseline has fewer than three
+    weeks of sends behind it, so the verdicts come from the history's first 21
+    days. For every build hour of a week: those days hold three sends, none in
+    the series' first ``min_history_buckets`` hours (no baseline at all), and
+    the build's one detection pass scores every one of them.
+    """
+    for hour in range(24 * 7):
+        now = _CYCLE_START + timedelta(hours=hour, minutes=7, seconds=30)
+        start = noise.history_start(now)
+        sends = calendar.promo_windows(start, start + timedelta(days=21))
+        assert len(sends) == 3, now
+        assert all(begin >= start for begin, _ in sends), now
+        unscored = timedelta(hours=noise.DEMO_ANOMALY_SETTINGS.min_history_buckets)
+        assert min(begin for begin, _ in sends) - start >= unscored, now
+        scored_from, scored_to = pipeline.scoring_window(now)
+        assert scored_from == start, now
+        assert max(end for _, end in sends) <= scored_to, now
+
+
+@pytest.fixture(scope="module")
+def cycle_paywall_counts() -> dict[datetime, int]:
+    """The promo event's rows an hour, for every history a cycle's builds replay."""
+    hour = _CYCLE_START - timedelta(days=noise.DEMO_HISTORY_DAYS + 1)
+    counts: dict[datetime, int] = {}
+    while hour < _CYCLE_START + _CYCLE:
+        counts[hour] = sum(
+            n for (name, _), n in rows.hour_counts(hour).items() if name == calendar.PROMO_EVENT
+        )
+        hour += HOUR
+    return counts
+
+
+@pytest.mark.usefixtures("_full_history")
+def test_a_demo_built_at_any_hour_flags_three_weekly_promo_sends(
+    cycle_paywall_counts: dict[datetime, int],
+) -> None:
+    """The pipeline's verdicts, built every 17 hours across a cycle (each hour
+    of the day comes round once): the scoring pass flags the first hour of a send in
+    three distinct weeks, so the verdicts make one Tuesday 10:00 run.
+
+    Pinned because both ways it broke were the calendar's: a send in the
+    series' first hours (the history started on the hour), and an incident on
+    the promo event that bent the trend a week later until the trend-shift row
+    swallowed the next send's spike.
+    """
+    promo_hour = calendar.PROMO_START // HOUR
+    for now in _builds(timedelta(hours=17)):
+        start = noise.history_start(now)
+        scored_from, scored_to = pipeline.scoring_window(now)
+        points = [
+            SeriesPoint(bucket=bucket, count=count)
+            for bucket, count in cycle_paywall_counts.items()
+            if start <= bucket < scored_to
+        ]
+        result = detect_anomalies(
+            points,
+            interval=HOUR,
+            evaluation_start=scored_from,
+            evaluation_end=scored_to,
+            settings=noise.DEMO_ANOMALY_SETTINGS,
+            settling_buckets=0,
+        )
+        spikes = sorted(a.bucket for a in result.anomalies if a.direction == "spike")
+        firsts = [
+            next(bucket for bucket in spikes if begin <= bucket < end)
+            for begin, end in calendar.promo_windows(start, now)
+            if any(begin <= bucket < end for bucket in spikes)
+        ]
+        weeks = {
+            first.isocalendar()[:2]
+            for first in firsts
+            if (first.weekday(), first.hour) == (calendar.PROMO_WEEKDAY, promo_hour)
+        }
+        assert len(weeks) >= 3, (now, firsts)
+
+
+def test_no_incident_lands_on_the_promo_event() -> None:
+    for _kind, _scope, targets, *_rest in calendar._INCIDENT_KINDS:
+        assert calendar.PROMO_EVENT not in targets
+
+
+@pytest.fixture(scope="module")
+def cycle_version_counts() -> dict[datetime, dict[tuple[str, str, str], int]]:
+    """Rows an hour per ``(event, event type, app version)``, across the cycle's histories."""
+    t0 = _CYCLE_START - timedelta(days=noise.DEMO_HISTORY_DAYS + 1)
+    out: dict[datetime, dict[tuple[str, str, str], int]] = {}
+    for hour, hour_rows in rows.hours_between("events", t0, _CYCLE_START + _CYCLE):
+        out[hour] = dict(
+            collections.Counter(
+                (str(row["event_name"]), str(row["event_type"]), str(row["app_version"]))
+                for row in hour_rows
+            )
+        )
+    return out
+
+
+@pytest.mark.usefixtures("_full_history")
+def test_a_demo_built_at_any_hour_marks_only_releases_it_saw_ship(
+    cycle_version_counts: dict[datetime, dict[tuple[str, str, str], int]],
+) -> None:
+    """The release markers each scoring pass draws, every 3 hours of a cycle.
+
+    A marker goes on a version absent from the slice's first hours that then
+    activates, so a version must never come back once it has emptied: the
+    first build's two days and the history fill's whole history both start
+    wherever a build puts them, at night as well.
+    """
+    for now in _builds(timedelta(hours=3)):
+        latest = now.replace(minute=0, second=0, microsecond=0) - HOUR
+        for start in (pipeline.first_build_start(now), noise.history_start(now)):
+            by_version: dict[str, dict[datetime, int]] = {}
+            all_traffic: dict[datetime, int] = {}
+            for hour, counts in cycle_version_counts.items():
+                if not start <= hour <= latest:
+                    continue
+                for (_name, _type, version), n in counts.items():
+                    all_traffic[hour] = all_traffic.get(hour, 0) + n
+                    by_version.setdefault(version, {})[hour] = (
+                        by_version.get(version, {}).get(hour, 0) + n
+                    )
+            marked = releases_to_annotate(by_version, all_traffic)
+            shipped = {version for version, _at in calendar.releases_between(start, now)}
+            assert set(marked) <= shipped, (now, start, marked)
+
+
+@pytest.mark.usefixtures("_full_history")
+def test_the_by_version_tab_shows_a_release_regression_at_every_hour_of_a_cycle(
+    cycle_version_counts: dict[datetime, dict[tuple[str, str, str], int]],
+) -> None:
+    """What the scheduler's collection stores, judged every 3 hours of a cycle.
+
+    For about a day after each release the new version has carried too little
+    to judge (its regression needs ~30 expected rows); the analyzer then keeps
+    the previous release's regression, so the tab is never empty, and it holds
+    the regression the rotation put in the newest release or the one before.
+    A rotation event is only ever found broken the way the rotation breaks it.
+    """
+    broken = {(event, kind) for event, kind, _kept in calendar.REGRESSION_ROTATION}
+    for now in _builds(timedelta(hours=3)):
+        latest = now.replace(minute=0, second=0, microsecond=0) - HOUR
+        release_total: dict[str, dict[datetime, int]] = {}
+        all_traffic: dict[datetime, int] = {}
+        by_event: dict[str, dict[str, dict[datetime, int]]] = {}
+        by_type: dict[str, dict[str, dict[datetime, int]]] = {}
+        for hour, counts in cycle_version_counts.items():
+            if not noise.history_start(now) <= hour <= latest:
+                continue
+            for (name, event_type, version), n in counts.items():
+                all_traffic[hour] = all_traffic.get(hour, 0) + n
+                release_total.setdefault(version, {})[hour] = (
+                    release_total.get(version, {}).get(hour, 0) + n
+                )
+                by_event.setdefault(name, {}).setdefault(version, {})[hour] = n
+                type_series = by_type.setdefault(event_type, {}).setdefault(version, {})
+                type_series[hour] = type_series.get(hour, 0) + n
+        report = detect_release_regressions_by_scope(
+            release_total_by_bucket=release_total,
+            all_traffic_by_bucket=all_traffic,
+            scope_counts_by_scope_type={"event": by_event, "event_type": by_type},
+            latest_bucket=latest,
+            settings=RegressionSettings(sigma=noise.DEMO_ANOMALY_SETTINGS.sigma_threshold),
+        )["event"]
+        assert report.results, (now, report)
+        story = calendar.regression_for(calendar.release_index(now))
+        story_before = calendar.regression_for(story.release_index - 1)
+        shown = {(r.scope_ref, r.kind, r.version) for r in report.results}
+        assert shown & {(s.event, s.kind, s.version) for s in (story, story_before)}, (now, shown)
+        assert {(r.scope_ref, r.kind) for r in report.results if r.scope_ref in dict(broken)} <= (
+            broken
+        )
 
 
 # -- determinism ---------------------------------------------------------------------

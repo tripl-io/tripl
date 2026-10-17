@@ -13,6 +13,10 @@ rather than a summary of one — keep them in step with the code:
 3. Composition-share normalization (expected vs observed counts) so adoption
    skew between a young and a mature release is removed.
 4. ``missing`` vs ``volume_drop`` classification on deficits only.
+5. A ramping release yields to its predecessor's findings: while the newest
+   active release still carries less of its window than the release before it
+   and has turned up nothing, the pass reports the previous comparison instead,
+   when that one found something (:func:`detect_release_regressions_by_scope`).
 
 No database or warehouse access here so the model stays unit-testable; the
 recalculation layer loads the inputs from ``EventMetricBreakdown`` and persists
@@ -316,8 +320,14 @@ def _select_comparison(
     *,
     latest_bucket: datetime,
     settings: RegressionSettings,
+    exclude: frozenset[str] = frozenset(),
 ) -> _Comparison | _Aborted:
-    """Pick the subject/baseline pair and the window, or say why there is none."""
+    """Pick the subject/baseline pair and the window, or say why there is none.
+
+    ``exclude`` takes releases out of the running as subject and baseline (the
+    ramping newest one, when its predecessor's comparison is asked for); their
+    traffic stays in the denominator, as a prerelease's does.
+    """
     activations = _active_releases(
         release_total_by_bucket,
         all_traffic_by_bucket,
@@ -332,7 +342,9 @@ def _select_comparison(
     # baseline a volume_drop at emerging_share=0.0 that no other gate catches.
     # Prerelease traffic stays in ``all_traffic_by_bucket``, so the maturity
     # denominator is unchanged — only eligibility is filtered.
-    candidates = released_versions(activations, prerelease_pattern=settings.prerelease_pattern)
+    candidates = (
+        released_versions(activations, prerelease_pattern=settings.prerelease_pattern) - exclude
+    )
     if len(candidates) < 2:
         return _Aborted(REASON_NO_BASELINE)
 
@@ -479,6 +491,19 @@ def detect_release_regressions_by_scope(
     disagree about which release is judged or over what window — that is fixed
     by :func:`_select_comparison` from release volumes alone — so the shared
     verdict is exactly the comparability gate and nothing else.
+
+    A release that has just activated is judged on the few hours it has carried:
+    a scope needs ``min_expected`` rows' worth of the new release before it is
+    judged at all, so a rollout at a few percent of traffic is "comparable,
+    nothing found" for its first day — and the regression of the release most
+    users still run left the page the hour its successor activated. So while
+    the newest release is comparable, has found nothing in any partition, and
+    still carries less of the window than its baseline, the pass judges the
+    pair before it (the baseline against ITS predecessor) and reports that
+    comparison if it found something. The newest release takes over as soon as
+    it regresses, or once it carries most of the traffic, whatever it found;
+    a suppressed comparison (``population_mismatch``) is never set aside, since
+    "cannot be judged yet" is itself the finding.
     """
     settings = settings or RegressionSettings()
 
@@ -489,19 +514,52 @@ def detect_release_regressions_by_scope(
         settings=settings,
     )
     if isinstance(selection, _Aborted):
-        # A fresh list per report: ReleaseRegressionReport is frozen but its
-        # ``results`` is not, and one shared empty list would alias across scopes.
-        return {
-            scope_type: ReleaseRegressionReport(
-                results=[],
-                comparable=False,
-                reason=selection.reason,
-                version=selection.version,
-                previous_version=selection.previous_version,
-            )
-            for scope_type in scope_counts_by_scope_type
-        }
+        return _aborted_reports(selection, scope_counts_by_scope_type)
+    reports = _judge(selection, scope_counts_by_scope_type, settings=settings)
+    ramping = selection.total_new < selection.total_prev
+    if not ramping or any(not report.comparable or report.results for report in reports.values()):
+        return reports
+    previous = _select_comparison(
+        release_total_by_bucket,
+        all_traffic_by_bucket,
+        latest_bucket=latest_bucket,
+        settings=settings,
+        exclude=frozenset({selection.v_new}),
+    )
+    if isinstance(previous, _Aborted):
+        return reports
+    previous_reports = _judge(previous, scope_counts_by_scope_type, settings=settings)
+    if any(report.results for report in previous_reports.values()):
+        return previous_reports
+    return reports
 
+
+def _aborted_reports(
+    selection: _Aborted,
+    scope_counts_by_scope_type: Mapping[str, object],
+) -> dict[str, ReleaseRegressionReport]:
+    """One report per partition for a pass that compared nothing."""
+    # A fresh list per report: ReleaseRegressionReport is frozen but its
+    # ``results`` is not, and one shared empty list would alias across scopes.
+    return {
+        scope_type: ReleaseRegressionReport(
+            results=[],
+            comparable=False,
+            reason=selection.reason,
+            version=selection.version,
+            previous_version=selection.previous_version,
+        )
+        for scope_type in scope_counts_by_scope_type
+    }
+
+
+def _judge(
+    selection: _Comparison,
+    scope_counts_by_scope_type: Mapping[str, Mapping[str, Mapping[str, Mapping[datetime, int]]]],
+    *,
+    settings: RegressionSettings,
+) -> dict[str, ReleaseRegressionReport]:
+    """The reports of one comparison, every partition under its one verdict."""
     # Comparability gate: judge nothing until the two releases describe similar
     # populations. See the note on DEFAULT_MAX_EMERGING_SHARE.
     #

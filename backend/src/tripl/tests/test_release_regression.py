@@ -11,6 +11,7 @@ from tripl.core.analyzers.release_regression import (
     REASON_NO_BASELINE,
     REASON_POPULATION_MISMATCH,
     RegressionSettings,
+    ReleaseRegressionReport,
     detect_release_regressions,
     detect_release_regressions_by_scope,
 )
@@ -794,3 +795,90 @@ def test_the_scans_own_prerelease_pattern_is_honoured() -> None:
     assert report.version == "15.7.4"
     assert report.previous_version == "15.7.3"
     assert report.results == []
+
+
+# -- the hand-over from a release to its ramping successor ---------------------
+
+_TRAIN = [datetime(2026, 2, d) for d in range(1, 21)]  # 20 daily buckets
+_OLD, _MID, _RAMPING = "3.0.0", "3.1.0", "3.2.0"
+
+
+_Train = tuple[
+    dict[str, dict[datetime, int]],
+    dict[datetime, int],
+    dict[str, dict[str, dict[datetime, int]]],
+]
+
+
+def _release_train(*, ramping_daily: int, ramping_login: int, onboarding: int = 0) -> _Train:
+    """Three releases: 3.0.0 fading from day 3, 3.1.0 (which lost ``share``)
+    taking over, and 3.2.0 shipping on day 18 at ``ramping_daily`` a day.
+
+    ``login`` keeps 10 % of every release except where ``ramping_login`` says
+    otherwise; ``onboarding`` rows are 3.2.0's alone (fresh installs)."""
+    ramp_days = _TRAIN[17:]
+    release_total = {
+        _OLD: {d: 1000 if d < _TRAIN[2] else 100 for d in _TRAIN},
+        _MID: {d: 900 for d in _TRAIN[2:]},
+        _RAMPING: {d: ramping_daily for d in ramp_days},
+    }
+    all_traffic = {
+        d: sum(by_bucket.get(d, 0) for by_bucket in release_total.values()) for d in _TRAIN
+    }
+    scope_counts = {
+        "login": {
+            _OLD: {d: n // 10 for d, n in release_total[_OLD].items()},
+            _MID: {d: 90 for d in _TRAIN[2:]},
+            _RAMPING: {d: ramping_login for d in ramp_days},
+        },
+        "share": {
+            _OLD: {d: n // 10 for d, n in release_total[_OLD].items()},
+            _MID: {d: 0 for d in _TRAIN[2:]},
+        },
+        "onboarding": {_RAMPING: {d: onboarding for d in ramp_days}},
+    }
+    return release_total, all_traffic, scope_counts
+
+
+def _train_report(train: _Train) -> ReleaseRegressionReport:
+    release_total, all_traffic, scope_counts = train
+    return detect_release_regressions(
+        release_total_by_bucket=release_total,
+        all_traffic_by_bucket=all_traffic,
+        scope_counts=scope_counts,
+        latest_bucket=_TRAIN[-1],
+    )
+
+
+def test_a_ramping_release_with_nothing_found_keeps_its_predecessors_regression() -> None:
+    # 3.2.0 carries 300 rows against 3.1.0's 2700 and its login is healthy:
+    # comparable, nothing found. The page keeps 3.1.0's missing ``share``.
+    report = _train_report(_release_train(ramping_daily=100, ramping_login=10))
+    assert (report.version, report.previous_version) == (_MID, _OLD)
+    assert report.comparable
+    assert [(r.scope_ref, r.kind, r.version) for r in report.results] == [
+        ("share", KIND_MISSING, _MID)
+    ]
+
+
+def test_a_ramping_release_that_regresses_takes_over() -> None:
+    report = _train_report(_release_train(ramping_daily=100, ramping_login=0))
+    assert (report.version, report.previous_version) == (_RAMPING, _MID)
+    assert [(r.scope_ref, r.kind) for r in report.results] == [("login", KIND_MISSING)]
+
+
+def test_a_release_carrying_most_of_the_traffic_takes_over_with_nothing_found() -> None:
+    # 6000 rows against 3.1.0's 2700: the newest release's clean bill stands.
+    report = _train_report(_release_train(ramping_daily=2000, ramping_login=200))
+    assert (report.version, report.previous_version) == (_RAMPING, _MID)
+    assert report.comparable
+    assert report.results == []
+
+
+def test_a_ramping_release_that_cannot_be_judged_yet_is_not_set_aside() -> None:
+    # Fresh installs: most of 3.2.0 is onboarding the baseline never visits.
+    # "Cannot be judged yet" is the finding; the predecessor does not cover it.
+    report = _train_report(_release_train(ramping_daily=100, ramping_login=10, onboarding=70))
+    assert (report.version, report.previous_version) == (_RAMPING, _MID)
+    assert not report.comparable
+    assert report.reason == REASON_POPULATION_MISMATCH

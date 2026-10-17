@@ -34,9 +34,9 @@ cancel checks between them and the cleanup on failure.
 The rest of the history (back to :func:`~.noise.history_days`) is filled once
 the demo is open, by a task of its own (:func:`fill_history`): week-long replay
 jobs that only store, then one detection, attribution and dispatch pass over
-the last three weeks, then the steps that read the whole history — the
+the whole history, then the steps that read the whole history — the
 composition metrics derived from it, the weekly promo verdicts, the
-planned-window tags, the note on the newest incident.
+planned-window tags, the lifecycle pass, the note on the newest incident.
 """
 
 from __future__ import annotations
@@ -254,27 +254,26 @@ def history_windows(
     return list(zip(cuts, cuts[1:], strict=False))
 
 
-#: How far back the build's one detection pass scores: three weekly promo
-#: sends (each gets its *expected* verdict) and three weeks of incidents on the
-#: Anomalies page. The fit behind each scope reads the whole stored history
-#: either way, so a longer span costs next to nothing.
-SCORING_SPAN = timedelta(days=21)
-
-
 def scoring_window(now: datetime, start: datetime | None = None) -> tuple[datetime, datetime]:
     """The ``[start, end)`` a build's one detection pass scores.
 
     It ends where the alerting job ends (:func:`history_windows`), so the
     incident there is the newest bucket the pass sees and the dispatcher files
     its alert; the hours after it are stored, and the scheduler's next
-    collection scores them. It reaches back :data:`SCORING_SPAN`, or to
-    ``start`` (default: the whole history's) when that is later.
+    collection scores them. It starts at ``start`` (default: the whole
+    history's): the fit behind each scope reads the whole stored history either
+    way, so scoring all of it costs next to nothing.
+
+    All of it, because the weekly promo's verdicts need it. A send is flagged
+    only before the hour-of-week baseline has three weeks of sends to expect it
+    from, that is in the history's first 21 days, and the planned-window
+    suggestion needs three verdicts: every send of those 21 days (exactly three,
+    :func:`.noise.history_start`), the first one included.
     """
     end = now.replace(minute=0, second=0, microsecond=0)
     split = _alert_split(end)
     scored_to = split if split is not None else end
-    floor = noise.history_start(now) if start is None else start
-    return max(floor, scored_to - SCORING_SPAN), scored_to
+    return (noise.history_start(now) if start is None else start), scored_to
 
 
 def _alert_split(end: datetime) -> datetime | None:
@@ -542,6 +541,15 @@ async def fill_history(
     await mark_weekly_promo_expected(session, ctx)
     await session.run_sync(retag_planned_anomalies, ctx.project_id)
     await session.commit()
+    # Again, now that the live collection has stored the hours up to the build
+    # hour: the first build left them to this fill, and its lifecycle pass read
+    # "volume in the last 24 hours" off the one or two stored hours after the
+    # alerting split. A deprecated event at about one row an hour (Promo
+    # Applied) had none there some days, and the sunset finding was missing.
+    from tripl.worker.tasks.lifecycle import compute_lifecycle_findings
+
+    await session.run_sync(compute_lifecycle_findings, now=datetime.now(UTC))
+    await session.commit()
     await note_newest_incident(session, ctx)
 
 
@@ -605,7 +613,11 @@ async def mark_weekly_promo_expected(session: AsyncSession, ctx: DemoContext) ->
     One verdict per send — the first spike bucket inside each promo window —
     which is what the planned-window suggestions look for (#271). A send that
     already holds its verdict (the first build's, before the history fill
-    re-ran this) keeps it and gets no second one.
+    re-ran this) keeps it and gets no second one, unless the spike it answered
+    is gone: the first build scores two days, and over the whole history the
+    hour-of-week baseline can expect that send (it has three weeks of sends
+    behind it), so the fill's re-scoring leaves no anomaly there. A verdict on
+    no signal would also cost the suggestion its direction, so it goes.
     """
     event_id = ctx.event_ids.get(PROMO_EVENT)
     if event_id is None or ctx.scan_config_id is None:
@@ -629,11 +641,12 @@ async def mark_weekly_promo_expected(session: AsyncSession, ctx: DemoContext) ->
         .scalars()
         .all()
     )
-    verdicts = [
-        to_utc(bucket)
-        for bucket in (
+    flagged = {to_utc(anomaly.bucket) for anomaly in anomalies}
+    verdicts: list[datetime] = []
+    triages = (
+        (
             await session.execute(
-                select(SignalTriage.bucket).where(
+                select(SignalTriage).where(
                     SignalTriage.project_id == ctx.project_id,
                     SignalTriage.scan_config_id == ctx.scan_config_id,
                     SignalTriage.scope_type == MetricScopeType.event.value,
@@ -641,9 +654,18 @@ async def mark_weekly_promo_expected(session: AsyncSession, ctx: DemoContext) ->
                     SignalTriage.action == SignalTriageAction.expected.value,
                 )
             )
-        ).scalars()
-        if bucket is not None
-    ]
+        )
+        .scalars()
+        .all()
+    )
+    for triage in triages:
+        if triage.bucket is None:
+            continue
+        bucket = to_utc(triage.bucket)
+        if triage.note == DEMO_WEEKLY_PROMO_NOTE and bucket not in flagged:
+            await session.delete(triage)
+            continue
+        verdicts.append(bucket)
     marked = 0
     for window_start, window_end in windows:
         inside = [
