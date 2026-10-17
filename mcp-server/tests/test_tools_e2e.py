@@ -195,6 +195,37 @@ async def test_list_events_reads_the_page_through_the_shared_layer(
 
 
 @respx.mock
+async def test_get_event_warehouse_sql_passes_the_query_and_its_caveats_through(
+    stdio_runtime: Runtime,
+) -> None:
+    """The derived query reaches the agent whole, ``exact`` and ``notes`` with it.
+
+    They are what tells an agent its counts may include more than the event's
+    rows; a projection that dropped them would make an inexact query look exact.
+    """
+    body = {
+        "sql": "SELECT *\nFROM (\nSELECT * FROM events\n) AS scan\nLIMIT 100",
+        "dialect": "postgres",
+        "scan_config_id": "scan-1",
+        "scan_config_name": "Demo events",
+        "exact": False,
+        "notes": ["'screen' takes several values; it is not filtered on."],
+        "reason": None,
+    }
+    route = respx.get(f"{API_BASE}/projects/demo/events/e1/warehouse-sql").mock(
+        return_value=httpx.Response(200, json=body)
+    )
+
+    is_error, text = await call_tool(
+        "get_event_warehouse_sql", {"slug": "demo", "event_id": "e1", "branch_id": "br-1"}
+    )
+
+    assert not is_error
+    assert json.loads(text) == body
+    assert route.calls.last.request.url.params["branch"] == "br-1"
+
+
+@respx.mock
 async def test_list_events_sends_reviewed_only_when_the_agent_asks(
     stdio_runtime: Runtime,
 ) -> None:

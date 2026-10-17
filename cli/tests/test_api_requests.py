@@ -71,6 +71,7 @@ def _every_builder() -> list[ApiRequest]:
         events_api.list_events("prod"),
         events_api.get_event("prod", "evt-1"),
         events_api.get_event_properties("prod", "evt-1"),
+        events_api.get_warehouse_sql("prod", "evt-1"),
         events_api.create_event("prod", {}),
         events_api.update_event("prod", "evt-1", {}),
         variables_api.list_variables("prod"),

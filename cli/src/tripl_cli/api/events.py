@@ -17,6 +17,7 @@ from tripl_cli.api.request import ApiRequest
 LIST = "/projects/{slug}/events"
 DETAIL = "/projects/{slug}/events/{event_id}"
 PROPERTIES = "/projects/{slug}/events/{event_id}/properties"
+WAREHOUSE_SQL = "/projects/{slug}/events/{event_id}/warehouse-sql"
 
 ENDPOINTS: tuple[tuple[str, str], ...] = (
     ("get", LIST),
@@ -24,6 +25,7 @@ ENDPOINTS: tuple[tuple[str, str], ...] = (
     ("post", LIST),
     ("patch", DETAIL),
     ("get", PROPERTIES),
+    ("get", WAREHOUSE_SQL),
 )
 
 # EventStatus, verbatim from the OpenAPI document. Spelled here rather than in
@@ -131,6 +133,17 @@ def get_event_properties(slug: str, event_id: str, *, branch: str | None = None)
     """The event's typed property list (F23): ``[{name, variable_type, required, …}]``."""
     return ApiRequest(
         "GET", PROPERTIES.format(slug=slug, event_id=event_id), params={"branch": branch}
+    )
+
+
+def get_warehouse_sql(slug: str, event_id: str, *, branch: str | None = None) -> ApiRequest:
+    """A query selecting the event's rows from the warehouse, derived from its scan.
+
+    ``{sql, dialect, scan_config_id, scan_config_name, exact, notes, reason}``;
+    built on request and never run.
+    """
+    return ApiRequest(
+        "GET", WAREHOUSE_SQL.format(slug=slug, event_id=event_id), params={"branch": branch}
     )
 
 
