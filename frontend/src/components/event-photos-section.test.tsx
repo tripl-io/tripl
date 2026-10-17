@@ -4,6 +4,8 @@ import type { ReactNode } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { EventPhoto } from '@/types'
 import { eventPhotosApi } from '@/api/eventPhotos'
+import type { AuthStatusResponse } from '@/api/auth'
+import { authStatusKey } from '@/lib/queryKeys'
 import EventPhotosSection from './event-photos-section'
 
 vi.mock('@/api/eventPhotos', () => ({
@@ -63,6 +65,7 @@ beforeEach(() => {
   })
   vi.mocked(eventPhotosApi.listComments).mockResolvedValue([])
   vi.mocked(eventPhotosApi.upload).mockReset()
+  vi.mocked(eventPhotosApi.limits).mockClear()
 })
 
 describe('EventPhotosSection uploads', () => {
@@ -216,6 +219,29 @@ describe('EventPhotosSection empty state', () => {
     expect(attach).toHaveAttribute('aria-expanded', 'false')
     fireEvent.click(attach)
     expect(attach).toHaveAttribute('aria-expanded', 'true')
+    expect(screen.getByLabelText('Figma URL')).toBeInTheDocument()
+  })
+})
+
+describe('EventPhotosSection on a public demo', () => {
+  it('offers no upload, since the server stores no file, but keeps the Figma link', async () => {
+    queryClient.setQueryData(authStatusKey(), {
+      has_users: true,
+      public_demo: true,
+    } as AuthStatusResponse)
+    renderSection()
+
+    expect(await screen.findByText(/does not store uploaded images/)).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /Upload image/ })).toBeNull()
+    expect(screen.queryByText(/Drop images here/)).toBeNull()
+    // Nothing reads the upload limits it would not apply.
+    expect(eventPhotosApi.limits).not.toHaveBeenCalled()
+
+    // A drop lands nowhere.
+    drop([image('a.png')])
+    expect(eventPhotosApi.upload).not.toHaveBeenCalled()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Attach Figma link' }))
     expect(screen.getByLabelText('Figma URL')).toBeInTheDocument()
   })
 })

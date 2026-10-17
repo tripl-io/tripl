@@ -4,8 +4,14 @@ The existing image upload + URL resolution paths are exercised indirectly via
 the wider suite; these tests focus on the new feature surface: figma kind,
 URL validation, and the comments thread."""
 
+from pathlib import Path
+
 import pytest
 from httpx import AsyncClient
+
+from tripl.config import settings
+from tripl.storage.photo_storage import reset_photo_storage
+from tripl.tests._tenancy import use_public_demo
 
 
 async def _setup_event(client: AsyncClient, slug: str = "ph-proj") -> tuple[str, str]:
@@ -192,3 +198,47 @@ async def test_comment_parent_must_belong_to_same_photo(client: AsyncClient) -> 
 
     cross = await client.post(base_b, json={"body": "Wrong parent", "parent_id": parent_id})
     assert cross.status_code == 400
+
+
+_PNG = b"\x89PNG\r\n\x1a\n" + b"\x00" * 64
+
+
+@pytest.mark.asyncio
+async def test_a_public_demo_stores_no_uploaded_image_but_takes_a_figma_link(
+    client: AsyncClient, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """Every visitor edits their own demos, and an upload is the operator's disk.
+
+    Refused before anything is stored, so a public demo's photos volume cannot
+    be filled from outside. A Figma spec is a URL row (the demo's own spec is
+    one), and browsing what is there stays open. Off the demo the same upload
+    is stored.
+    """
+    monkeypatch.setattr(settings, "photo_storage_backend", "local")
+    monkeypatch.setattr(settings, "photo_local_dir", str(tmp_path))
+    reset_photo_storage()
+    slug, event_id = await _setup_event(client, slug="ph-demo")
+    photos = f"/api/v1/projects/{slug}/events/{event_id}/photos"
+    upload = {"file": ("shot.png", _PNG, "image/png")}
+
+    stored = await client.post(photos, files=upload)
+    assert stored.status_code == 201, stored.text
+    on_disk = sorted(path for path in tmp_path.rglob("*") if path.is_file())
+
+    use_public_demo(monkeypatch)
+    refused = await client.post(photos, files=upload)
+    assert refused.status_code == 403, refused.text
+    assert refused.json()["detail"] == (
+        "This public demo does not store uploaded images; attach a Figma link instead."
+    )
+    assert sorted(path for path in tmp_path.rglob("*") if path.is_file()) == on_disk
+
+    figma = await client.post(
+        f"{photos}/figma",
+        json={"url": "https://www.figma.com/file/abc123/Onboarding", "title": "Onboarding"},
+    )
+    assert figma.status_code == 201, figma.text
+    listed = await client.get(photos)
+    assert listed.status_code == 200, listed.text
+    assert sorted(photo["kind"] for photo in listed.json()) == ["figma", "photo"]
+    reset_photo_storage()

@@ -13,6 +13,7 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { useConfirm } from '@/hooks/useConfirm'
 import { displayUser, useUsersById } from '@/hooks/useUsersById'
 import { SILENT_ERROR_META } from '@/lib/errorFeedback'
+import { usePublicDemo } from '@/lib/deploymentMode'
 import { useCanWriteProject } from '@/lib/permissions'
 import { eventPhotoCommentsKey, eventPhotosKey, photoLimitsKey } from '@/lib/queryKeys'
 
@@ -87,6 +88,10 @@ export default function EventPhotosSection({ slug, eventId }: Props) {
   const queryClient = useQueryClient()
   // Upload, attach and delete are editor actions; a viewer browses the specs.
   const canWrite = useCanWriteProject()
+  // A public demo stores no visitor's file (the server answers 403): an upload
+  // is the operator's disk. A Figma link is a URL, so that stays on offer.
+  const publicDemo = usePublicDemo()
+  const canUpload = canWrite && !publicDemo
   const [error, setError] = useState<string | null>(null)
   const [opened, setOpened] = useState<EventPhoto | null>(null)
   const [dragOver, setDragOver] = useState(false)
@@ -112,7 +117,7 @@ export default function EventPhotosSection({ slug, eventId }: Props) {
     queryFn: () => eventPhotosApi.limits(),
     meta: SILENT_ERROR_META,
     staleTime: 5 * 60 * 1000,
-    enabled: canWrite,
+    enabled: canUpload,
   })
   const maxSizeMb = limitsQuery.data?.photo_max_size_mb
   const allowedMime = limitsQuery.data?.photo_allowed_mime
@@ -221,30 +226,34 @@ export default function EventPhotosSection({ slug, eventId }: Props) {
           </div>
           {canWrite && (
             <div className="flex items-center gap-2">
-              <input
-                ref={fileInputRef}
-                type="file"
-                accept={ACCEPT}
-                multiple
-                className="hidden"
-                onChange={event => {
-                  handleFiles(event.target.files)
-                  event.target.value = ''
-                }}
-              />
-              <Button
-                size="sm"
-                variant="outline"
-                onClick={() => fileInputRef.current?.click()}
-                disabled={uploading}
-              >
-                {uploading ? (
-                  <Loader2 className="animate-spin" aria-hidden="true" />
-                ) : (
-                  <Upload aria-hidden="true" />
-                )}
-                Upload image
-              </Button>
+              {canUpload && (
+                <>
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    accept={ACCEPT}
+                    multiple
+                    className="hidden"
+                    onChange={event => {
+                      handleFiles(event.target.files)
+                      event.target.value = ''
+                    }}
+                  />
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => fileInputRef.current?.click()}
+                    disabled={uploading}
+                  >
+                    {uploading ? (
+                      <Loader2 className="animate-spin" aria-hidden="true" />
+                    ) : (
+                      <Upload aria-hidden="true" />
+                    )}
+                    Upload image
+                  </Button>
+                </>
+              )}
               <Button
                 size="sm"
                 variant="outline"
@@ -298,13 +307,13 @@ export default function EventPhotosSection({ slug, eventId }: Props) {
           role="region"
           aria-label="Photo upload area"
           onDragOver={event => {
-            if (!canWrite) return
+            if (!canUpload) return
             event.preventDefault()
             setDragOver(true)
           }}
           onDragLeave={() => setDragOver(false)}
           onDrop={event => {
-            if (!canWrite) return
+            if (!canUpload) return
             event.preventDefault()
             setDragOver(false)
             handleFiles(event.dataTransfer.files)
@@ -324,7 +333,7 @@ export default function EventPhotosSection({ slug, eventId }: Props) {
             </div>
           ) : photos.length === 0 ? (
             <div className="text-body-sm text-fg-tertiary">
-              {canWrite ? (
+              {canUpload ? (
                 <>
                   <p>No screenshots or Figma links yet. Drop images here, or use the buttons above.</p>
                   <p className="text-caption text-fg-tertiary">
@@ -332,6 +341,8 @@ export default function EventPhotosSection({ slug, eventId }: Props) {
                     {maxSizeMb !== undefined && `, up to ${maxSizeMb} MB each`}
                   </p>
                 </>
+              ) : canWrite ? (
+                <p>No Figma links yet. This public demo does not store uploaded images; attach a Figma link above.</p>
               ) : (
                 <p>No screenshots or Figma links yet.</p>
               )}
