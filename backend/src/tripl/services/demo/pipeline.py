@@ -548,7 +548,9 @@ async def fill_history(
     # Applied) had none there some days, and the sunset finding was missing.
     from tripl.worker.tasks.lifecycle import compute_lifecycle_findings
 
-    await session.run_sync(compute_lifecycle_findings, now=datetime.now(UTC))
+    await session.run_sync(
+        compute_lifecycle_findings, now=datetime.now(UTC), project_id=ctx.project_id
+    )
     await session.commit()
     await note_newest_incident(session, ctx)
 
@@ -560,7 +562,9 @@ async def run_signals_stage(session: AsyncSession, ctx: DemoContext) -> None:
     await collect_catalog_metrics(session, ctx)
     from tripl.worker.tasks.lifecycle import compute_lifecycle_findings
 
-    await session.run_sync(compute_lifecycle_findings, now=datetime.now(UTC))
+    await session.run_sync(
+        compute_lifecycle_findings, now=datetime.now(UTC), project_id=ctx.project_id
+    )
     await session.commit()
     await mark_weekly_promo_expected(session, ctx)
     await plan_promo_over_revenue(session, ctx)
