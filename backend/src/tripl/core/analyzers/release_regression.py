@@ -14,9 +14,11 @@ rather than a summary of one — keep them in step with the code:
    skew between a young and a mature release is removed.
 4. ``missing`` vs ``volume_drop`` classification on deficits only.
 5. A ramping release yields to its predecessor's findings: while the newest
-   active release still carries less of its window than the release before it
-   and has turned up nothing, the pass reports the previous comparison instead,
-   when that one found something (:func:`detect_release_regressions_by_scope`).
+   active release still carries less of its window than the release before it,
+   is at most ``handover_max_hours`` old and has turned up nothing, the pass
+   reports the previous comparison instead, when that one found something —
+   labelled as such, with the newest release still named on the report
+   (:func:`detect_release_regressions_by_scope`).
 
 No database or warehouse access here so the model stays unit-testable; the
 recalculation layer loads the inputs from ``EventMetricBreakdown`` and persists
@@ -28,7 +30,7 @@ from __future__ import annotations
 import math
 import re
 from collections.abc import Mapping
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import datetime, timedelta
 
 from tripl.semver import order_versions
@@ -51,6 +53,16 @@ DEFAULT_DROP_RATIO = 0.5
 DEFAULT_MISSING_RATIO = 0.05
 DEFAULT_SIGMA = 3.0
 _SMOOTHING = 0.5
+
+# How long, at most, a ramping release lets its predecessor's findings stand in
+# for its own clean bill (point 5 above). The volume test alone ends the
+# hand-over only once the newest release carries more of its window than its
+# baseline, and a project whose releases never get there — slow adoption, a
+# release every few days — would show the previous release's regression for the
+# newest release's whole life and never "nothing regressed in the latest
+# release". Two days covers the first day of a staged rollout at a few percent,
+# which is what the hand-over exists for, with a day to spare.
+DEFAULT_HANDOVER_MAX_HOURS = 48
 
 # Comparability gate. Two releases are only comparable once they
 # are drawn from a similar population. In the first hours of a rollout they are
@@ -119,6 +131,7 @@ class RegressionSettings:
     sigma: float = DEFAULT_SIGMA
     growth_slack: float = DEFAULT_GROWTH_SLACK
     max_emerging_share: float = DEFAULT_MAX_EMERGING_SHARE
+    handover_max_hours: int = DEFAULT_HANDOVER_MAX_HOURS
     # Per-scan ``app_version_prerelease_pattern``, already compiled. Widens the
     # always-on SemVer prerelease-tag rule for builds this project labels some
     # other way ("15.8.0-beta.1" is caught by default; "15.8.0b1" is not).
@@ -169,6 +182,17 @@ class ReleaseRegressionReport:
     :func:`detect_release_regressions_by_scope`). Reporting the partition's own
     number next to a shared verdict would put ``comparable=False`` beside an
     ``emerging_share`` under the bound and read as a broken gate.
+
+    ``version``/``previous_version`` name the comparison the report describes;
+    ``latest_active_version`` names the newest active release, which is the
+    same release except during a hand-over. ``handed_over`` says the newest
+    release was comparable, found nothing and is still ramping, so the report
+    is its predecessor's comparison standing in for it (see
+    :func:`detect_release_regressions_by_scope`) — without the flag a reader
+    would take ``version`` for the latest release and contradict every surface
+    that names the newest one. ``latest_release_share`` is the newest release's
+    share of all traffic over its own comparison window, what "it is rolling
+    out at N %" is read from; ``None`` when no comparison was made.
     """
 
     results: list[ReleaseRegressionResult]
@@ -177,6 +201,9 @@ class ReleaseRegressionReport:
     emerging_share: float = 0.0
     version: str | None = None
     previous_version: str | None = None
+    latest_active_version: str | None = None
+    latest_release_share: float | None = None
+    handed_over: bool = False
 
 
 def _window_sum(by_bucket: Mapping[datetime, int], start: datetime, end: datetime) -> int:
@@ -307,6 +334,10 @@ class _Comparison:
 
     v_new: str
     v_prev: str
+    # ``v_new``'s activation bucket, unclamped: the hand-over's age bound is
+    # measured from it, and ``window_from`` stops being it once the release is
+    # older than the window.
+    activation: datetime
     window_from: datetime
     window_to: datetime
     total_new: int
@@ -370,6 +401,7 @@ def _select_comparison(
     return _Comparison(
         v_new=v_new,
         v_prev=v_prev,
+        activation=activations[v_new],
         window_from=window_from,
         window_to=window_to,
         total_new=total_new,
@@ -497,13 +529,28 @@ def detect_release_regressions_by_scope(
     judged at all, so a rollout at a few percent of traffic is "comparable,
     nothing found" for its first day — and the regression of the release most
     users still run left the page the hour its successor activated. So while
-    the newest release is comparable, has found nothing in any partition, and
-    still carries less of the window than its baseline, the pass judges the
-    pair before it (the baseline against ITS predecessor) and reports that
-    comparison if it found something. The newest release takes over as soon as
-    it regresses, or once it carries most of the traffic, whatever it found;
-    a suppressed comparison (``population_mismatch``) is never set aside, since
+    the newest release is comparable, has found nothing in any partition, still
+    carries less of the window than its baseline, AND activated no more than
+    ``handover_max_hours`` ago, the pass judges the pair before it (the baseline
+    against ITS predecessor) and reports that comparison if it found something.
+    The newest release takes over as soon as it regresses, once it carries most
+    of the traffic, or once the age bound runs out, whatever it found; a
+    suppressed comparison (``population_mismatch``) is never set aside, since
     "cannot be judged yet" is itself the finding.
+
+    The age bound is what keeps the hand-over a hand-over. Volume alone ends it
+    only on a project whose releases reach a majority inside the window; where
+    adoption is slow, or releases come every few days, the newest release would
+    never take over and its clean bill would never be shown.
+
+    A handed-over report says so: ``handed_over`` is set and
+    ``latest_active_version``/``latest_release_share`` keep naming the newest
+    release, so a surface showing the predecessor's comparison can label it as
+    that instead of calling the predecessor the latest release. Since a
+    hand-over only ever happens on a newest release that was comparable and
+    found nothing, the flag IS that release's verdict; nothing else about it is
+    lost. Every report carries ``latest_active_version``, so a reader takes the
+    latest release from it rather than from ``version``.
     """
     settings = settings or RegressionSettings()
 
@@ -517,7 +564,12 @@ def detect_release_regressions_by_scope(
         return _aborted_reports(selection, scope_counts_by_scope_type)
     reports = _judge(selection, scope_counts_by_scope_type, settings=settings)
     ramping = selection.total_new < selection.total_prev
-    if not ramping or any(not report.comparable or report.results for report in reports.values()):
+    young = latest_bucket - selection.activation <= timedelta(hours=settings.handover_max_hours)
+    if (
+        not ramping
+        or not young
+        or any(not report.comparable or report.results for report in reports.values())
+    ):
         return reports
     previous = _select_comparison(
         release_total_by_bucket,
@@ -529,9 +581,17 @@ def detect_release_regressions_by_scope(
     if isinstance(previous, _Aborted):
         return reports
     previous_reports = _judge(previous, scope_counts_by_scope_type, settings=settings)
-    if any(report.results for report in previous_reports.values()):
-        return previous_reports
-    return reports
+    if not any(report.results for report in previous_reports.values()):
+        return reports
+    return {
+        scope_type: replace(
+            report,
+            latest_active_version=selection.v_new,
+            latest_release_share=selection.release_share,
+            handed_over=True,
+        )
+        for scope_type, report in previous_reports.items()
+    }
 
 
 def _aborted_reports(
@@ -548,6 +608,7 @@ def _aborted_reports(
             reason=selection.reason,
             version=selection.version,
             previous_version=selection.previous_version,
+            latest_active_version=selection.version,
         )
         for scope_type in scope_counts_by_scope_type
     }
@@ -622,6 +683,8 @@ def _judge(
             emerging_share=emerged,
             version=selection.v_new,
             previous_version=selection.v_prev,
+            latest_active_version=selection.v_new,
+            latest_release_share=selection.release_share,
         )
     return reports
 

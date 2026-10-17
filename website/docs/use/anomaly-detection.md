@@ -368,12 +368,20 @@ The test is deliberately careful about young releases:
 6. **Hand-over.** A release that has just activated is judged on the few hours
    it has carried, so for its first day most events have too little of it to
    clear the evidence gate. While the newest release still carries less of the
-   comparison window than the one before it, is comparable, and has turned up
-   nothing, the panel keeps the previous comparison (the release before against
-   its own predecessor) when that one found something: the regression most
-   users are still running stays on screen. The newest release takes over as
-   soon as it regresses, or once it carries most of the traffic. A comparison
-   withheld as **"cannot be judged yet"** is never set aside.
+   comparison window than the one before it, activated no more than 48 hours
+   ago, is comparable, and has turned up nothing, the panel keeps the previous
+   comparison (the release before against its own predecessor) when that one
+   found something: the regression most users are still running stays on
+   screen. The panel says so — the header still names the newest release, the
+   same one the By-version chart calls latest, and a line above the rows reads
+   *"6.21.0 is rolling out (12% of traffic) — showing 6.20.0 vs 6.19.0 until it
+   has enough data"*. The newest release takes over as soon as it regresses,
+   once it carries most of the traffic, or once those 48 hours are up, whatever
+   it found — so a project whose releases never reach a majority (slow
+   adoption, frequent releases) still sees the newest release's own result. A
+   comparison withheld as **"cannot be judged yet"** is never set aside.
+   Release-regression alerts follow the rows: during a hand-over a rule keeps
+   alerting on the previous release's regression, attributed to that release.
 
 ### Release markers on charts
 
@@ -392,8 +400,10 @@ muted, carry a tag icon, and hide with **Show releases** — see
 Two surfaces, and they answer different questions.
 
 **The By version tab** on an event's or event type's monitoring page shows the
-check for the **current latest release**: every regressed scope in the scan,
-with the comparability verdict and the reason when a comparison is withheld.
+check for the **current latest release** (or, labelled, the comparison it is
+handing over from — see **Hand-over** above): every regressed scope in the
+scan, with the comparability verdict and the reason when a comparison is
+withheld.
 These rows are recomputed from scratch on every scan and keep no history, so the
 tab always describes the newest rollout — and it does so whatever window the run
 that recomputed them covered. The check is anchored on the **newest version

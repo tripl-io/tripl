@@ -840,14 +840,24 @@ def _release_train(*, ramping_daily: int, ramping_login: int, onboarding: int = 
     return release_total, all_traffic, scope_counts
 
 
-def _train_report(train: _Train) -> ReleaseRegressionReport:
+def _train_report(
+    train: _Train, settings: RegressionSettings | None = None
+) -> ReleaseRegressionReport:
     release_total, all_traffic, scope_counts = train
     return detect_release_regressions(
         release_total_by_bucket=release_total,
         all_traffic_by_bucket=all_traffic,
         scope_counts=scope_counts,
         latest_bucket=_TRAIN[-1],
+        settings=settings,
     )
+
+
+def _assert_not_handed_over(report: ReleaseRegressionReport) -> None:
+    """The report is the newest release's own, and says so."""
+    assert report.version == _RAMPING
+    assert report.latest_active_version == _RAMPING
+    assert not report.handed_over
 
 
 def test_a_ramping_release_with_nothing_found_keeps_its_predecessors_regression() -> None:
@@ -861,10 +871,53 @@ def test_a_ramping_release_with_nothing_found_keeps_its_predecessors_regression(
     ]
 
 
+def test_a_handed_over_report_still_names_the_newest_release() -> None:
+    # The comparison shown is 3.1.0 vs 3.0.0, but the latest active release is
+    # 3.2.0 and every surface has to be able to say so: the flag, the newest
+    # release and its share of traffic over its window ride on the report.
+    report = _train_report(_release_train(ramping_daily=100, ramping_login=10))
+    assert report.handed_over
+    assert report.latest_active_version == _RAMPING
+    # Days 18-20: 300 of 3.2.0 in 3 x (100 + 900 + 100) rows of all traffic.
+    assert report.latest_release_share == pytest.approx(300 / 3300)
+
+
+def test_the_hand_over_labels_every_partition() -> None:
+    release_total, all_traffic, scope_counts = _release_train(ramping_daily=100, ramping_login=10)
+    reports = detect_release_regressions_by_scope(
+        release_total_by_bucket=release_total,
+        all_traffic_by_bucket=all_traffic,
+        scope_counts_by_scope_type={"event": scope_counts, "event_type": {}},
+        latest_bucket=_TRAIN[-1],
+    )
+    assert {
+        scope: (r.version, r.latest_active_version, r.handed_over) for scope, r in reports.items()
+    } == {"event": (_MID, _RAMPING, True), "event_type": (_MID, _RAMPING, True)}
+
+
+def test_the_hand_over_ends_once_the_newest_release_is_old_enough() -> None:
+    # 3.2.0 activated on day 18 and the pass runs on day 20, 48 h later. A
+    # release that never reaches a majority must still take over at some
+    # point, or its clean bill is never shown: past the age bound it does,
+    # though it is still ramping and still found nothing.
+    train = _release_train(ramping_daily=100, ramping_login=10)
+    within = _train_report(train, RegressionSettings(handover_max_hours=48))
+    assert within.handed_over
+    assert within.version == _MID
+
+    expired = _train_report(train, RegressionSettings(handover_max_hours=47))
+    _assert_not_handed_over(expired)
+    assert expired.previous_version == _MID
+    assert expired.comparable
+    assert expired.results == []
+    assert expired.latest_release_share == pytest.approx(300 / 3300)
+
+
 def test_a_ramping_release_that_regresses_takes_over() -> None:
     report = _train_report(_release_train(ramping_daily=100, ramping_login=0))
     assert (report.version, report.previous_version) == (_RAMPING, _MID)
     assert [(r.scope_ref, r.kind) for r in report.results] == [("login", KIND_MISSING)]
+    _assert_not_handed_over(report)
 
 
 def test_a_release_carrying_most_of_the_traffic_takes_over_with_nothing_found() -> None:
@@ -873,6 +926,7 @@ def test_a_release_carrying_most_of_the_traffic_takes_over_with_nothing_found() 
     assert (report.version, report.previous_version) == (_RAMPING, _MID)
     assert report.comparable
     assert report.results == []
+    _assert_not_handed_over(report)
 
 
 def test_a_ramping_release_that_cannot_be_judged_yet_is_not_set_aside() -> None:
@@ -882,3 +936,13 @@ def test_a_ramping_release_that_cannot_be_judged_yet_is_not_set_aside() -> None:
     assert (report.version, report.previous_version) == (_RAMPING, _MID)
     assert not report.comparable
     assert report.reason == REASON_POPULATION_MISMATCH
+    _assert_not_handed_over(report)
+
+
+def test_a_pass_with_no_baseline_names_no_latest_release() -> None:
+    release_total, all_traffic, scope_counts = _scenario(new_login=0, new_daily_total=0)
+    report = _report({PREV: release_total[PREV]}, all_traffic, scope_counts)
+    assert report.reason == REASON_NO_BASELINE
+    assert report.latest_active_version is None
+    assert report.latest_release_share is None
+    assert not report.handed_over

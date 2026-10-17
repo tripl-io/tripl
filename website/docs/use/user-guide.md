@@ -837,7 +837,9 @@ see, across tabs:
 - **By version** — appears only when the event's scan names an app-version
   column. It splits volume across recent releases, tracks adoption, and lists
   **release regressions** (what disappeared or dropped in the newest release
-  versus the previous one). The regressions list covers the whole scan, not
+  versus the previous one; while a new release is still rolling out with
+  nothing found, the list keeps the release before it and says so — see
+  [Hand-over](./anomaly-detection.md#release-regression)). The regressions list covers the whole scan, not
   only the event you are looking at; each row links to its event. Scans without
   a version column simply don't show this tab.
 
