@@ -75,7 +75,7 @@ function HandOverNote({ verdict }: { verdict: ReleaseComparabilityItem }) {
           <CodeToken>{verdict.previous_version}</CodeToken>
         </>
       )}
-      {' until it has enough data.'}
+      {' while it ramps up (48 hours at most).'}
     </p>
   )
 }

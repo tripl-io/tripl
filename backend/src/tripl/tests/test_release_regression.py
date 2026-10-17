@@ -939,6 +939,22 @@ def test_a_ramping_release_that_cannot_be_judged_yet_is_not_set_aside() -> None:
     _assert_not_handed_over(report)
 
 
+def test_a_withheld_predecessor_is_not_handed_over() -> None:
+    # 3.1.0's traffic is mostly a tour 3.0.0 never had, so 3.1.0 vs 3.0.0 is
+    # withheld (population_mismatch) though its ``share`` is still missing. The
+    # newest release was judged and is clean; that verdict stays on the page.
+    release_total, all_traffic, scope_counts = _release_train(ramping_daily=100, ramping_login=10)
+    # 3.2.0 keeps the tour at 3.1.0's rate, so its own comparison stays clean.
+    scope_counts["tour"] = {
+        _MID: {d: 700 for d in _TRAIN[2:]},
+        _RAMPING: {d: 78 for d in _TRAIN[17:]},
+    }
+    report = _train_report((release_total, all_traffic, scope_counts))
+    _assert_not_handed_over(report)
+    assert report.comparable
+    assert report.results == []
+
+
 def test_a_pass_with_no_baseline_names_no_latest_release() -> None:
     release_total, all_traffic, scope_counts = _scenario(new_login=0, new_daily_total=0)
     report = _report({PREV: release_total[PREV]}, all_traffic, scope_counts)

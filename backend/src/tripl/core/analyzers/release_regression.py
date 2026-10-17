@@ -581,7 +581,13 @@ def detect_release_regressions_by_scope(
     if isinstance(previous, _Aborted):
         return reports
     previous_reports = _judge(previous, scope_counts_by_scope_type, settings=settings)
-    if not any(report.results for report in previous_reports.values()):
+    # Only a comparison that judged something is worth showing in the newest
+    # release's place. A withheld one (``population_mismatch``) keeps its rows,
+    # but handing it over would put "cannot be judged yet" under a header naming
+    # a release that WAS judged and came out clean.
+    if not any(report.results for report in previous_reports.values()) or not all(
+        report.comparable for report in previous_reports.values()
+    ):
         return reports
     return {
         scope_type: replace(

@@ -137,7 +137,7 @@ describe('ReleaseRegressionPanel', () => {
         (_content, element) =>
           element?.tagName === 'P' &&
           element.textContent ===
-            '6.21.0 is rolling out (12% of traffic) — showing 6.20.0 vs 6.19.0 until it has enough data.',
+            '6.21.0 is rolling out (12% of traffic) — showing 6.20.0 vs 6.19.0 while it ramps up (48 hours at most).',
       ),
     ).toBeInTheDocument()
     expect(screen.queryByText(/No events regressed/i)).not.toBeInTheDocument()

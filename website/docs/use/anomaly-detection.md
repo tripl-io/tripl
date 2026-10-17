@@ -374,12 +374,13 @@ The test is deliberately careful about young releases:
    found something: the regression most users are still running stays on
    screen. The panel says so — the header still names the newest release, the
    same one the By-version chart calls latest, and a line above the rows reads
-   *"6.21.0 is rolling out (12% of traffic) — showing 6.20.0 vs 6.19.0 until it
-   has enough data"*. The newest release takes over as soon as it regresses,
-   once it carries most of the traffic, or once those 48 hours are up, whatever
+   *"6.21.0 is rolling out (12% of traffic) — showing 6.20.0 vs 6.19.0 while it
+   ramps up (48 hours at most)"*. The newest release takes over as soon as it regresses,
+   once it carries more of its window than the release before it, or once those 48 hours are up, whatever
    it found — so a project whose releases never reach a majority (slow
    adoption, frequent releases) still sees the newest release's own result. A
-   comparison withheld as **"cannot be judged yet"** is never set aside.
+   comparison withheld as **"cannot be judged yet"** is never set aside, and
+   never handed over either.
    Release-regression alerts follow the rows: during a hand-over a rule keeps
    alerting on the previous release's regression, attributed to that release.
 
