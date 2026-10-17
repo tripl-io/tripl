@@ -198,8 +198,23 @@ x-app-environment: &app-environment
   GCS_PHOTO_PUBLIC: ${GCS_PHOTO_PUBLIC:-}
   GCS_PHOTO_SIGNED_URL_TTL_SECONDS: ${GCS_PHOTO_SIGNED_URL_TTL_SECONDS:-}
 
+# Container logs rotate. Docker's default json-file driver keeps everything a
+# container writes to stdout for as long as the container lives, and the worker
+# and beat log every task at --loglevel=info: a long-running stack (a public demo
+# above all) grows its log files by megabytes a day, and postgres, rabbitmq and
+# redis are never recreated by an upgrade to reset theirs. Five 10 MB files per
+# container keep `docker compose logs` useful for the recent past; ship the logs
+# elsewhere (LOG_JSON is on) for anything longer. A compose.override.yaml can
+# give a service other limits or another driver.
+x-logging: &logging
+  driver: json-file
+  options:
+    max-size: "10m"
+    max-file: "5"
+
 services:
   postgres:
+    logging: *logging
     restart: unless-stopped
     # tini as PID 1. A healthcheck probe that times out is killed and its orphan
     # reaped by PID 1; the postmaster, as PID 1, reads that as a crashed child and
@@ -220,6 +235,7 @@ services:
       retries: 5
 
   rabbitmq:
+    logging: *logging
     restart: unless-stopped
     image: rabbitmq:4.3-management
     environment:
@@ -238,6 +254,7 @@ services:
       start_period: 30s
 
   redis:
+    logging: *logging
     restart: unless-stopped
     image: redis:8.8.3-alpine
     command: ["redis-server", "--maxmemory", "256mb", "--maxmemory-policy", "allkeys-lru", "--save", ""]
@@ -249,6 +266,7 @@ services:
 
   # One-shot schema upgrade; app + workers wait for it to complete.
   migrate:
+    logging: *logging
     image: *app-image
     # The core's migrations (alembic upgrade head), then each installed
     # extension's (tripl.migrate).
@@ -261,6 +279,7 @@ services:
   # Clear stale Prometheus worker shards once, before any instrumented process
   # starts. All API/worker/beat processes share this directory.
   metrics-init:
+    logging: *logging
     image: *app-image
     command: ["sh", "-c", "find /app/var/prometheus -maxdepth 1 -type f -name '*.db' -delete"]
     volumes:
@@ -268,6 +287,7 @@ services:
 
   # The ONE app container: JSON API + built SPA on a single port.
   app:
+    logging: *logging
     restart: unless-stopped
     image: *app-image
     environment: *app-environment
@@ -306,6 +326,7 @@ services:
         condition: service_completed_successfully
 
   celery-worker:
+    logging: *logging
     restart: unless-stopped
     image: *app-image
     command: ["celery", "-A", "tripl.worker.celery_app", "worker", "--loglevel=info"]
@@ -329,6 +350,7 @@ services:
         condition: service_completed_successfully
 
   celery-beat:
+    logging: *logging
     restart: unless-stopped
     image: *app-image
     command: ["celery", "-A", "tripl.worker.celery_app", "beat", "--loglevel=info", "--schedule", "/tmp/celerybeat-schedule"]
@@ -353,6 +375,7 @@ services:
   # Uses the published MCP image when available (TRIPL_MCP_IMAGE); from a source
   # checkout, `docker compose --profile mcp build mcp` builds mcp-server/.
   mcp:
+    logging: *logging
     restart: unless-stopped
     image: "${TRIPL_MCP_IMAGE:-ghcr.io/tripl-io/tripl-mcp}:${TRIPL_VERSION:-latest}"
     # Context is the repo root, not ./mcp-server: tripl-mcp builds against the
