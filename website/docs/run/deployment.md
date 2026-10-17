@@ -167,6 +167,15 @@ To change the limits or the driver for one service, set its `logging:` key in a
 that adds the rotation recreates every container, since each one's configuration
 changed, and the old, unrotated log is removed with the old container.
 
+:::warning Upgrading a host with its own log driver
+The anchor names `driver: json-file`, which overrides the Docker daemon's
+default. A host whose `/etc/docker/daemon.json` sends container logs elsewhere
+(`journald`, `local`, `fluentd`, Loki…) moves tripl's containers back to
+`json-file` on the first `docker compose up -d` after upgrading. Give each
+service your driver again in `compose.override.yaml`, for example
+`logging: {driver: journald}`.
+:::
+
 ### Bring it up
 
 [`tripl install`](#install-with-the-cli) runs both of these for you, in the install directory, and waits for `/health` afterwards. By hand, from the directory holding `compose.yaml` and `.env`:

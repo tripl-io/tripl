@@ -219,7 +219,8 @@ def _build_digest(
     # incident has no other delivery — no immediate send under the firing config,
     # no earlier pick — deleting that one scan takes every row carrying its
     # ``correlation_group_id``, while its ``AlertCorrelationState`` (project FK
-    # only, never pruned) survives. An indefinite mute then outlives the only UI
+    # only; a demo's prune takes it only once quiet past the horizon) survives.
+    # An indefinite mute then outlives the only UI
     # that could lift it: the list builds cards from items, the silenced-orphan
     # rescue needs at least one delivery row to render one, and
     # every inbox action re-checks the same item join and 404s without it.

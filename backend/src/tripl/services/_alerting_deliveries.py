@@ -519,7 +519,8 @@ async def _load_orphan_group_rows(
     One query for the whole set, not one per group. ``_build_one_inbox_group``
     already knows how to read a single incident unwindowed — that is what the
     deep link uses — but calling it in a loop is two round trips per orphan, and
-    ``AlertCorrelationState`` is never pruned, so the orphan population only
+    ``AlertCorrelationState`` is pruned only on demo projects, past the retention
+    horizon (``demo_runtime._prune_retention``), so elsewhere the orphan population only
     grows. The cost of the rescue has to be bounded by a constant, not by how
     long the instance has been running.
 
