@@ -6,7 +6,7 @@ of the tripl REST API (`/api/v1`) — it imports no backend code and is not
 mounted into the FastAPI app.
 
 - Curated tools, not a mirror of the API: plan search; events (read, create,
-  update) and their properties; event types and their fields; properties
+  update), their properties and their warehouse SQL; event types and their fields; properties
   (variables) and their values; branches and branch diffs; scans (list, read,
   trigger, job status); monitors; reconciliation; projects; and the team's
   notes (list, read, search, write). Every tool and its arguments:

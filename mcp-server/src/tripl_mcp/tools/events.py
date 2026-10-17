@@ -1,4 +1,4 @@
-"""Event catalog tools: list, fetch, create, update."""
+"""Event catalog tools: list, fetch, warehouse SQL, create, update."""
 
 from __future__ import annotations
 
@@ -90,6 +90,16 @@ async def get_event_properties(
 ) -> Any:
     client = client_for(ctx)
     return await send(client, events.get_event_properties(slug, event_id, branch=branch_id))
+
+
+async def get_event_warehouse_sql(
+    slug: str,
+    event_id: str,
+    ctx: Context,
+    branch_id: str | None = None,
+) -> Any:
+    client = client_for(ctx)
+    return await send(client, events.get_warehouse_sql(slug, event_id, branch=branch_id))
 
 
 async def create_event(
@@ -187,6 +197,28 @@ def register(mcp: MCPServer) -> None:
             "payload. Requires a tk_r_ or tk_w_ key."
         ),
     )(get_event_properties)
+    mcp.tool(
+        name="get_event_warehouse_sql",
+        annotations=READ_ONLY,
+        description=(
+            "Fetch a SQL query that selects one event's rows from the warehouse: the "
+            "governing scan's own source query, wrapped as a subquery named 'scan' and "
+            "filtered to the event's identity, the last day and 100 rows. Derived on "
+            "request from the scan and the event's field values; tripl never runs it. "
+            "Returns sql, dialect (write any query you build from it in that dialect), "
+            "scan_config_id/scan_config_name, exact, notes and reason. sql is null, "
+            "with reason, when no scan reads the event's type. exact is false when "
+            "part of the identity could not be written as a filter: that part is left "
+            "out, so the query returns MORE rows than the event's, never fewer, and "
+            "notes names it - say so to the user. To build a dashboard or chart "
+            "query, keep the 'scan' subquery and its WHERE, replace SELECT * with "
+            "the aggregate (counts per time bucket, per platform...), and widen or "
+            "drop the time window and the LIMIT; get_scan shows the time column and "
+            "get_event_type_fields the columns there are to group by. One call per "
+            "event: several events of one scan share the subquery, so combine their "
+            "filters with OR or a CASE. Requires a tk_r_ or tk_w_ key."
+        ),
+    )(get_event_warehouse_sql)
     mcp.tool(
         name="create_event",
         annotations=WRITE,

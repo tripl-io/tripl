@@ -214,6 +214,7 @@ and not by the tool schema.
 | `list_events` | `slug, search?, status?, tag?, field_value?, meta_value?, event_type_id?, silent_since_days?, reviewed?, has_open_questions?, property?, offset?, limit?, order_by?, branch_id?` | `GET /projects/{slug}/events` — `status` and `order_by` are [enumerated](#enumerated-arguments); rows keep `title`, `open_question_count` and `last_seen_at` |
 | `get_event` | `slug, event_id, branch_id?` | `GET /projects/{slug}/events/{event_id}` |
 | `get_event_properties` | `slug, event_id, branch_id?` | `GET /projects/{slug}/events/{event_id}/properties` |
+| `get_event_warehouse_sql` | `slug, event_id, branch_id?` | `GET /projects/{slug}/events/{event_id}/warehouse-sql` — a query selecting the event's rows, derived from its scan and never run; the starting point for a dashboard query ([below](#building-a-dashboard-query)) |
 | `list_event_types` | `slug, branch_id?` | `GET /projects/{slug}/event-types` — **trimmed**: identity, `event_name_format` (the naming rule that may replace a sent name) and `field_count` |
 | `get_event_type_fields` | `slug, event_type_id, branch_id?` | Event type + its field definitions, merged |
 | `list_variables` | `slug, branch_id?, offset?, limit?` | `GET /projects/{slug}/properties` |
@@ -326,6 +327,34 @@ review. That is why the toolset stops at single-note create and replace:
   read-only and never shows in lists or searches. A note shared with the user
   to view only gets a `403` from `write_doc`. Sharing itself is changed in the
   app or through the API, not through MCP.
+
+### Building a dashboard query {#building-a-dashboard-query}
+
+The plan says which events exist; the scan says where their rows live. An
+agent asked for "a dashboard of checkout events" can put the two together
+without warehouse credentials of its own:
+
+1. `search_plan` or `list_events` (`order_by: volume`) finds the events.
+2. `get_event_warehouse_sql` gives each one's query: the scan's source query
+   as a subquery named `scan`, filtered to the event, the last day and 100
+   rows, in the warehouse's `dialect`.
+3. `get_scan` names the time column, and `get_event_type_fields` the columns
+   there are to group by.
+
+The agent keeps the subquery and the event's filter, swaps `SELECT *` for the
+aggregate the chart needs (events per hour, per platform, per release) and
+widens the time window. tripl never runs any of it: the query is derived on
+each request, so a changed scan rule changes the next answer, and running it
+is up to whoever holds a warehouse connection.
+
+When `exact` is `false`, part of the event's identity could not be written as
+a filter and was left out: the query counts more rows than the event's, never
+fewer, and `notes` says which part. An agent should pass that on rather than
+present the numbers as the event's own.
+
+The [demo workspace](../use/demo-workspace.md) is a place to try this: a scan
+reads every one of its events from its warehouse, and a `tk_r_` key from
+**Settings → Organization → API keys** is enough.
 
 ### Names an agent does not choose
 
