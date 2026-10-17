@@ -220,6 +220,9 @@ for the same hour, whoever reads them.
   every collected hour forever, and a public demo creates demos by the hundred.
   The daily `prune-demo-history` task deletes a demo's *observed* rows that fall
   behind the warehouse's retention; the authored plan is never touched.
+  Observed rows include what the demo accumulates per incident and per click:
+  notifications, ended incidents, triage of gone signals, release markers,
+  previews and dry runs ([the full list](../run/public-demo.md#storage)).
 - **What a collection reads.** Only hours the warehouse holds whole. A window
   starts no further back than the oldest retained hour, so a collection that
   resumes after a long pause never scores a gap as zeros. On PostgreSQL it ends
