@@ -152,6 +152,30 @@ The frontend is **not** a separate service — `SERVE_FRONTEND=true` and `FRONTE
 
 The SPA shell is returned for unknown paths only on **navigation requests** — ones whose `Accept` header admits `text/html`. Every other unknown path gets a real `404`, so a broken asset URL or a mistyped `fetch()` fails loudly instead of receiving HTML under a `200`. Worth knowing when probing by hand: `curl https://host/some/deep/route` sends `Accept: */*` and returns `404`, while the same URL in a browser loads the app. Add `-H 'Accept: text/html'` to reproduce what the browser sees. Point uptime checks at `/health`, never at a client-side route.
 
+### Container logs {#container-logs}
+
+Every service logs through Docker's `json-file` driver with rotation on: at
+most five files of 10 MB each per container (the `x-logging` anchor in
+`compose.yaml`). Without it Docker keeps everything a container writes for as
+long as the container lives. The worker and beat log every task, and an upgrade
+recreates the tripl containers but not `postgres`, `rabbitmq` or `redis`, so on
+a long-running host those log files only grow. `docker compose logs` therefore
+reaches back about 50 MB per service; to keep more, ship the logs to your own
+collector (`LOG_JSON=true`, the stack's default, writes one JSON object a line).
+To change the limits or the driver for one service, set its `logging:` key in a
+`compose.override.yaml`. The first `docker compose up -d` with a compose file
+that adds the rotation recreates every container, since each one's configuration
+changed, and the old, unrotated log is removed with the old container.
+
+:::warning Upgrading a host with its own log driver
+The anchor names `driver: json-file`, which overrides the Docker daemon's
+default. A host whose `/etc/docker/daemon.json` sends container logs elsewhere
+(`journald`, `local`, `fluentd`, Loki…) moves tripl's containers back to
+`json-file` on the first `docker compose up -d` after upgrading. Give each
+service your driver again in `compose.override.yaml`, for example
+`logging: {driver: journald}`.
+:::
+
 ### Bring it up
 
 [`tripl install`](#install-with-the-cli) runs both of these for you, in the install directory, and waits for `/health` afterwards. By hand, from the directory holding `compose.yaml` and `.env`:
