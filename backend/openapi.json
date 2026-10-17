@@ -26213,7 +26213,7 @@
         "type": "object"
       },
       "ReleaseComparabilityItem": {
-        "description": "Whether one detection pass could judge the latest release at all.\n\nServed alongside ``items`` because an empty list means two different things.\nA caller that only reads ``items`` cannot tell a healthy release from one\nwhose findings were withheld, and both were served as an empty list until\nthis was carried through.",
+        "description": "Whether one detection pass could judge the latest release at all.\n\nServed alongside ``items`` because an empty list means two different things.\nA caller that only reads ``items`` cannot tell a healthy release from one\nwhose findings were withheld, and both were served as an empty list until\nthis was carried through.\n\n``version``/``previous_version`` are the comparison the served rows come\nfrom. ``latest_active_version`` is the newest active release, the same one\nunless ``handed_over``: then the newest release is still ramping with\nnothing found (``latest_release_share`` of traffic over its window) and the\npair is its predecessor's comparison, shown in its place until it has\nenough data.",
         "properties": {
           "comparable": {
             "title": "Comparable",
@@ -26222,6 +26222,32 @@
           "emerging_share": {
             "title": "Emerging Share",
             "type": "number"
+          },
+          "handed_over": {
+            "title": "Handed Over",
+            "type": "boolean"
+          },
+          "latest_active_version": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Latest Active Version"
+          },
+          "latest_release_share": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Latest Release Share"
           },
           "max_emerging_share": {
             "title": "Max Emerging Share",
@@ -26260,6 +26286,7 @@
           "scope_type",
           "comparable",
           "reason",
+          "handed_over",
           "emerging_share",
           "max_emerging_share"
         ],

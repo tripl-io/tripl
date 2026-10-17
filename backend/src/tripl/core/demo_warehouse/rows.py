@@ -43,7 +43,7 @@ from tripl.core.demo_warehouse.roster import (
     UnplannedEventDef,
 )
 
-MODEL_VERSION = "2"
+MODEL_VERSION = "3"
 SEED = "tripl-demo-warehouse"
 #: The count noise, as a share of Poisson's standard deviation.
 NOISE_RATIO = 0.5

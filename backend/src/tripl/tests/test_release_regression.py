@@ -11,6 +11,7 @@ from tripl.core.analyzers.release_regression import (
     REASON_NO_BASELINE,
     REASON_POPULATION_MISMATCH,
     RegressionSettings,
+    ReleaseRegressionReport,
     detect_release_regressions,
     detect_release_regressions_by_scope,
 )
@@ -794,3 +795,170 @@ def test_the_scans_own_prerelease_pattern_is_honoured() -> None:
     assert report.version == "15.7.4"
     assert report.previous_version == "15.7.3"
     assert report.results == []
+
+
+# -- the hand-over from a release to its ramping successor ---------------------
+
+_TRAIN = [datetime(2026, 2, d) for d in range(1, 21)]  # 20 daily buckets
+_OLD, _MID, _RAMPING = "3.0.0", "3.1.0", "3.2.0"
+
+
+_Train = tuple[
+    dict[str, dict[datetime, int]],
+    dict[datetime, int],
+    dict[str, dict[str, dict[datetime, int]]],
+]
+
+
+def _release_train(*, ramping_daily: int, ramping_login: int, onboarding: int = 0) -> _Train:
+    """Three releases: 3.0.0 fading from day 3, 3.1.0 (which lost ``share``)
+    taking over, and 3.2.0 shipping on day 18 at ``ramping_daily`` a day.
+
+    ``login`` keeps 10 % of every release except where ``ramping_login`` says
+    otherwise; ``onboarding`` rows are 3.2.0's alone (fresh installs)."""
+    ramp_days = _TRAIN[17:]
+    release_total = {
+        _OLD: {d: 1000 if d < _TRAIN[2] else 100 for d in _TRAIN},
+        _MID: {d: 900 for d in _TRAIN[2:]},
+        _RAMPING: {d: ramping_daily for d in ramp_days},
+    }
+    all_traffic = {
+        d: sum(by_bucket.get(d, 0) for by_bucket in release_total.values()) for d in _TRAIN
+    }
+    scope_counts = {
+        "login": {
+            _OLD: {d: n // 10 for d, n in release_total[_OLD].items()},
+            _MID: {d: 90 for d in _TRAIN[2:]},
+            _RAMPING: {d: ramping_login for d in ramp_days},
+        },
+        "share": {
+            _OLD: {d: n // 10 for d, n in release_total[_OLD].items()},
+            _MID: {d: 0 for d in _TRAIN[2:]},
+        },
+        "onboarding": {_RAMPING: {d: onboarding for d in ramp_days}},
+    }
+    return release_total, all_traffic, scope_counts
+
+
+def _train_report(
+    train: _Train, settings: RegressionSettings | None = None
+) -> ReleaseRegressionReport:
+    release_total, all_traffic, scope_counts = train
+    return detect_release_regressions(
+        release_total_by_bucket=release_total,
+        all_traffic_by_bucket=all_traffic,
+        scope_counts=scope_counts,
+        latest_bucket=_TRAIN[-1],
+        settings=settings,
+    )
+
+
+def _assert_not_handed_over(report: ReleaseRegressionReport) -> None:
+    """The report is the newest release's own, and says so."""
+    assert report.version == _RAMPING
+    assert report.latest_active_version == _RAMPING
+    assert not report.handed_over
+
+
+def test_a_ramping_release_with_nothing_found_keeps_its_predecessors_regression() -> None:
+    # 3.2.0 carries 300 rows against 3.1.0's 2700 and its login is healthy:
+    # comparable, nothing found. The page keeps 3.1.0's missing ``share``.
+    report = _train_report(_release_train(ramping_daily=100, ramping_login=10))
+    assert (report.version, report.previous_version) == (_MID, _OLD)
+    assert report.comparable
+    assert [(r.scope_ref, r.kind, r.version) for r in report.results] == [
+        ("share", KIND_MISSING, _MID)
+    ]
+
+
+def test_a_handed_over_report_still_names_the_newest_release() -> None:
+    # The comparison shown is 3.1.0 vs 3.0.0, but the latest active release is
+    # 3.2.0 and every surface has to be able to say so: the flag, the newest
+    # release and its share of traffic over its window ride on the report.
+    report = _train_report(_release_train(ramping_daily=100, ramping_login=10))
+    assert report.handed_over
+    assert report.latest_active_version == _RAMPING
+    # Days 18-20: 300 of 3.2.0 in 3 x (100 + 900 + 100) rows of all traffic.
+    assert report.latest_release_share == pytest.approx(300 / 3300)
+
+
+def test_the_hand_over_labels_every_partition() -> None:
+    release_total, all_traffic, scope_counts = _release_train(ramping_daily=100, ramping_login=10)
+    reports = detect_release_regressions_by_scope(
+        release_total_by_bucket=release_total,
+        all_traffic_by_bucket=all_traffic,
+        scope_counts_by_scope_type={"event": scope_counts, "event_type": {}},
+        latest_bucket=_TRAIN[-1],
+    )
+    assert {
+        scope: (r.version, r.latest_active_version, r.handed_over) for scope, r in reports.items()
+    } == {"event": (_MID, _RAMPING, True), "event_type": (_MID, _RAMPING, True)}
+
+
+def test_the_hand_over_ends_once_the_newest_release_is_old_enough() -> None:
+    # 3.2.0 activated on day 18 and the pass runs on day 20, 48 h later. A
+    # release that never reaches a majority must still take over at some
+    # point, or its clean bill is never shown: past the age bound it does,
+    # though it is still ramping and still found nothing.
+    train = _release_train(ramping_daily=100, ramping_login=10)
+    within = _train_report(train, RegressionSettings(handover_max_hours=48))
+    assert within.handed_over
+    assert within.version == _MID
+
+    expired = _train_report(train, RegressionSettings(handover_max_hours=47))
+    _assert_not_handed_over(expired)
+    assert expired.previous_version == _MID
+    assert expired.comparable
+    assert expired.results == []
+    assert expired.latest_release_share == pytest.approx(300 / 3300)
+
+
+def test_a_ramping_release_that_regresses_takes_over() -> None:
+    report = _train_report(_release_train(ramping_daily=100, ramping_login=0))
+    assert (report.version, report.previous_version) == (_RAMPING, _MID)
+    assert [(r.scope_ref, r.kind) for r in report.results] == [("login", KIND_MISSING)]
+    _assert_not_handed_over(report)
+
+
+def test_a_release_carrying_most_of_the_traffic_takes_over_with_nothing_found() -> None:
+    # 6000 rows against 3.1.0's 2700: the newest release's clean bill stands.
+    report = _train_report(_release_train(ramping_daily=2000, ramping_login=200))
+    assert (report.version, report.previous_version) == (_RAMPING, _MID)
+    assert report.comparable
+    assert report.results == []
+    _assert_not_handed_over(report)
+
+
+def test_a_ramping_release_that_cannot_be_judged_yet_is_not_set_aside() -> None:
+    # Fresh installs: most of 3.2.0 is onboarding the baseline never visits.
+    # "Cannot be judged yet" is the finding; the predecessor does not cover it.
+    report = _train_report(_release_train(ramping_daily=100, ramping_login=10, onboarding=70))
+    assert (report.version, report.previous_version) == (_RAMPING, _MID)
+    assert not report.comparable
+    assert report.reason == REASON_POPULATION_MISMATCH
+    _assert_not_handed_over(report)
+
+
+def test_a_withheld_predecessor_is_not_handed_over() -> None:
+    # 3.1.0's traffic is mostly a tour 3.0.0 never had, so 3.1.0 vs 3.0.0 is
+    # withheld (population_mismatch) though its ``share`` is still missing. The
+    # newest release was judged and is clean; that verdict stays on the page.
+    release_total, all_traffic, scope_counts = _release_train(ramping_daily=100, ramping_login=10)
+    # 3.2.0 keeps the tour at 3.1.0's rate, so its own comparison stays clean.
+    scope_counts["tour"] = {
+        _MID: {d: 700 for d in _TRAIN[2:]},
+        _RAMPING: {d: 78 for d in _TRAIN[17:]},
+    }
+    report = _train_report((release_total, all_traffic, scope_counts))
+    _assert_not_handed_over(report)
+    assert report.comparable
+    assert report.results == []
+
+
+def test_a_pass_with_no_baseline_names_no_latest_release() -> None:
+    release_total, all_traffic, scope_counts = _scenario(new_login=0, new_daily_total=0)
+    report = _report({PREV: release_total[PREV]}, all_traffic, scope_counts)
+    assert report.reason == REASON_NO_BASELINE
+    assert report.latest_active_version is None
+    assert report.latest_release_share is None
+    assert not report.handed_over

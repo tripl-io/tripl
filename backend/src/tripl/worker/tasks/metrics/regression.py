@@ -8,6 +8,11 @@ scan has no version column configured.
 The pass is anchored on the newest STORED bucket, not on the caller's collection
 window, so a one-off replay of a past window refreshes the current release's
 verdict instead of replacing it with whichever release was newest back then.
+
+"The current release" is the newest active one, with one labelled exception:
+while it ramps with nothing found, the rows and verdict describe its
+predecessor's comparison (``handed_over`` on the verdict, which still names the
+newest release in ``latest_active_version``).
 """
 
 from __future__ import annotations
@@ -74,10 +79,11 @@ def _recalculate_release_regressions(session: Session, config: ScanConfig) -> in
     refresh the current verdict, which is why this is anchored rather than
     skipped on the replay path.
     """
-    # Regressions describe the current latest release, so we always recompute
-    # from scratch. Clearing first also makes the no-op paths self-healing. The
-    # comparability verdicts go with them: a stale "not comparable yet" outliving
-    # the pass that produced it is the same lie in the other direction.
+    # Regressions describe the current latest release (or, labelled, the one it
+    # is handing over from), so we always recompute from scratch. Clearing first
+    # also makes the no-op paths self-healing. The comparability verdicts go with
+    # them: a stale "not comparable yet" outliving the pass that produced it is
+    # the same lie in the other direction.
     session.execute(delete(ReleaseRegression).where(ReleaseRegression.scan_config_id == config.id))
     session.execute(
         delete(ReleaseComparability).where(ReleaseComparability.scan_config_id == config.id)
@@ -189,6 +195,12 @@ def _recalculate_release_regressions(session: Session, config: ScanConfig) -> in
         ``emerging_share``: comparability is a property of the release, and the
         share stored is the value that decided it, not the score this partition
         happened to contribute.
+
+        A handed-over report is stored as what it is: the predecessor's pair in
+        ``version``/``previous_version``, the newest release in
+        ``latest_active_version`` and ``handed_over`` set, which also records
+        the newest release's own verdict (a hand-over only follows a comparable
+        pass that found nothing).
         """
         session.add(
             ReleaseComparability(
@@ -198,6 +210,9 @@ def _recalculate_release_regressions(session: Session, config: ScanConfig) -> in
                 app_version_column=config.app_version_column,
                 version=report.version,
                 previous_version=report.previous_version,
+                latest_active_version=report.latest_active_version,
+                latest_release_share=report.latest_release_share,
+                handed_over=report.handed_over,
                 comparable=report.comparable,
                 reason=report.reason,
                 emerging_share=report.emerging_share,
@@ -239,6 +254,18 @@ def _recalculate_release_regressions(session: Session, config: ScanConfig) -> in
                 report.previous_version,
                 report.emerging_share,
                 settings.max_emerging_share,
+                len(report.results),
+            )
+        if report.handed_over:
+            logger.info(
+                "release regression handed over: scan=%s scope=%s newest %s ramping at %.3f "
+                "of traffic, nothing found; reporting %s vs %s with %d row(s)",
+                config.id,
+                scope_type,
+                report.latest_active_version,
+                report.latest_release_share or 0.0,
+                report.version,
+                report.previous_version,
                 len(report.results),
             )
         _persist_verdict(report, scope_type=scope_type)

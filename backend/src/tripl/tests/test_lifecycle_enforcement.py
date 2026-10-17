@@ -549,6 +549,47 @@ def test_sweep_opens_updates_resolves_and_reopens(
         assert lifecycle_tasks.load_open_findings(session, project_id=project.id) == []
 
 
+def test_a_project_scoped_sweep_leaves_other_projects_findings_alone(
+    sync_session_factory: sessionmaker[Session],
+) -> None:
+    """A demo build's pass opens its own findings only.
+
+    Only the daily beat turns opened findings into notifications, so a
+    project-scoped pass that opened another project's finding would open it
+    silently, and the beat would then read it as already open.
+    """
+    with sync_session_factory() as session:
+        demo, demo_type, demo_config = _seed_project(session)
+        customer, customer_type, customer_config = _seed_project(session)
+        for project, event_type, config in (
+            (demo, demo_type, demo_config),
+            (customer, customer_type, customer_config),
+        ):
+            # Still sending after its sunset: overdue.
+            retired = _add_event(
+                session,
+                project,
+                event_type,
+                "retired",
+                status=EventStatus.deprecated,
+                sunset_at=_NOW - timedelta(days=10),
+            )
+            _metric(session, config, retired, _NOW - timedelta(hours=2), 40)
+        session.commit()
+
+        stats = lifecycle_tasks.compute_lifecycle_findings(session, now=_NOW, project_id=demo.id)
+        session.commit()
+        assert stats.opened_findings
+        assert {project_id for project_id, _event, _kind in stats.opened_findings} == {demo.id}
+        assert {row.project_id for row in _findings(session).values()} == {demo.id}
+
+        # The instance-wide pass still opens the customer's, so the beat
+        # notifies it.
+        stats = lifecycle_tasks.compute_lifecycle_findings(session, now=_NOW)
+        session.commit()
+        assert {project_id for project_id, _event, _kind in stats.opened_findings} == {customer.id}
+
+
 def test_sweep_ignores_traffic_before_the_sunset(
     sync_session_factory: sessionmaker[Session],
 ) -> None:

@@ -3,8 +3,8 @@
 The first build (``POST /projects/demo``) replays and scores
 ``pipeline.FIRST_BUILD_HISTORY`` and promotes the demo; the history fill
 (``demo_history_service.finish_demo_history``, a task of its own) replays the
-rest of ``DEMO_HISTORY_DAYS`` back to the history's start, re-scores the last
-three weeks, files the alerts two days of baseline could not, and runs the
+rest of ``DEMO_HISTORY_DAYS`` back to the history's start, re-scores the whole
+history, files the alerts two days of baseline could not, and runs the
 steps that read the whole history. Here the fill is held when the build queues it and run by the
 test, so each phase is observed on its own; so is each slice the fill queues the rest in.
 """

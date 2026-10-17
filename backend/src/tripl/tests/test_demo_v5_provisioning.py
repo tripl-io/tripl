@@ -94,8 +94,8 @@ def queued_deliveries(monkeypatch: pytest.MonkeyPatch) -> list[str]:
 async def test_a_v5_demo_is_the_roster_observed_by_the_real_pipeline(
     client: AsyncClient, queued_deliveries: list[str], monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    # The full story: three weekly promo sends, the release train, the 21-day
-    # scoring window. The conftest runs the history fill inline after the
+    # The full story: three weekly promo sends, the release train, the
+    # whole-history scoring pass. The conftest runs the history fill inline after the
     # first build, so the request returns the filled demo.
     monkeypatch.setattr(settings, "demo_history_days", noise.DEMO_HISTORY_DAYS)
     started = time.perf_counter()
@@ -156,7 +156,7 @@ async def test_a_v5_demo_is_the_roster_observed_by_the_real_pipeline(
         assert SCHEMA_DRIFT_EVENT in events
         # One detection pass for the whole build, and no platform series scored.
         # At most one detection pass per phase: the first build's over its two
-        # days, the history fill's over the last three weeks.
+        # days, the history fill's over the whole history.
         scoring = [
             summary
             for _, summary in jobs
@@ -347,11 +347,11 @@ def test_every_creation_hour_has_an_incident_to_alert_on(
         if bucket >= now - timedelta(hours=23) and bucket + timedelta(hours=1) <= now
     }
     assert alertable
-    # The one detection pass is the job that ends there, and it scores three
-    # weekly promo sends' worth of history.
+    # The one detection pass is the job that ends there, and it scores the
+    # whole history (the weekly promo's first send included).
     scored_from, scored_to = pipeline.scoring_window(now)
     assert scored_to - timedelta(hours=1) in alertable
-    assert scored_to - scored_from == pipeline.SCORING_SPAN
+    assert scored_from == noise.history_start(now) == noise.history_start(now).replace(hour=0)
     # The first build scores its two days up to the same instant.
     first_from, first_to = pipeline.scoring_window(now, pipeline.first_build_start(now))
     assert (first_from, first_to) == (pipeline.first_build_start(now), scored_to)

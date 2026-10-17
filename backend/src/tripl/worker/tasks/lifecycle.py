@@ -111,7 +111,9 @@ def _volume_rows(
     return rows
 
 
-def _desired_findings(session: Session, *, now: datetime) -> dict[tuple[uuid.UUID, str], _Desired]:
+def _desired_findings(
+    session: Session, *, now: datetime, project_id: uuid.UUID | None = None
+) -> dict[tuple[uuid.UUID, str], _Desired]:
     """Every (event, kind) that holds right now, with the numbers behind it."""
     deprecated = session.execute(
         select(Event.id, Event.project_id, Event.sunset_at, Event.superseded_by_event_id)
@@ -123,6 +125,7 @@ def _desired_findings(session: Session, *, now: datetime) -> dict[tuple[uuid.UUI
             PlanBranch.kind == BranchKind.main.value,
             Event.status == EventStatus.deprecated.value,
             in_active_org(Event.project_id),
+            *([Event.project_id == project_id] if project_id is not None else []),
         )
     ).all()
     desired: dict[tuple[uuid.UUID, str], _Desired] = {}
@@ -184,17 +187,31 @@ def _desired_findings(session: Session, *, now: datetime) -> dict[tuple[uuid.UUI
     return desired
 
 
-def compute_lifecycle_findings(session: Session, *, now: datetime) -> LifecycleSweepStats:
-    """Reconcile ``lifecycle_findings`` with what holds at ``now``. Does not commit."""
+def compute_lifecycle_findings(
+    session: Session, *, now: datetime, project_id: uuid.UUID | None = None
+) -> LifecycleSweepStats:
+    """Reconcile ``lifecycle_findings`` with what holds at ``now``. Does not commit.
+
+    ``project_id`` confines the pass to one project: a demo build reconciles
+    its own findings and nobody else's. An instance-wide pass opens findings
+    that only the daily beat task turns into notifications, so one run from a
+    demo build would open a customer's finding silently and the beat would
+    then read it as already open.
+    """
     now = to_utc(now)
-    desired = _desired_findings(session, now=now)
+    desired = _desired_findings(session, now=now, project_id=project_id)
     stats = LifecycleSweepStats()
 
     # Only active organizations' findings are reconciled: a suspended one's
     # stay exactly as they were, rather than resolving because its events were
     # left out of ``desired`` (F20 PR14).
     existing = (
-        session.execute(select(LifecycleFinding).where(in_active_org(LifecycleFinding.project_id)))
+        session.execute(
+            select(LifecycleFinding).where(
+                in_active_org(LifecycleFinding.project_id),
+                *([LifecycleFinding.project_id == project_id] if project_id is not None else []),
+            )
+        )
         .scalars()
         .all()
     )

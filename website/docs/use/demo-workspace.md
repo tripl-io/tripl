@@ -112,11 +112,12 @@ The demo opens there, about half a minute after you asked for it. The rest of
 the history, back to
 [`DEMO_HISTORY_DAYS`](../run/configuration.md#demo-workspace) days (23 by
 default: three weekly cycles for the hour-of-week baseline, plus two days to
-score), is **filled in afterwards** by a second task on the worker, while you
+score) and on to that day's midnight UTC, is **filled in afterwards** by a
+second task on the worker, while you
 look around; the demo's banner says *Filling in history* with how far it is,
 and **Run now** and **Replay** on the demo's scan wait until it is done
-(a few minutes). The fill replays the older weeks, then scores the last three
-weeks once on the full baseline and dispatches what it finds, so the newest
+(a few minutes). The fill replays the older weeks, then scores the whole
+history once on the full baseline and dispatches what it finds, so the newest
 incident files the alert deliveries a live collection would have. Then comes
 the scheduler's first live collection, up to the hour the demo was built: it
 runs the field-contract check (the GBP purchases and the zero amounts; the
@@ -150,9 +151,11 @@ nothing on screen pretends otherwise:
 - **The dead event.** **Subscription Cancelled** was last seen 45 days ago,
   earlier than any warehouse keeps, so that date is authored. The warehouse
   never sends it, so no scan brings it back to life.
-- **The promo verdicts.** Every *Weekly promo email* send in the history is
+- **The promo verdicts.** Every *Weekly promo email* send the replay flags is
   marked **Expected → campaign** with a note, so the Annotations page suggests
-  planning the next ones; and one [expected
+  planning the next ones. That is the three sends of the history's first three
+  weeks: a later one is a send the hour-of-week baseline already expects, with
+  no anomaly to mark. And one [expected
   window](./feature-reference.md#planned-events), *Spring promo (planned)*, is
   drawn around the best recent day of *Revenue (completed)*: that chart shades
   the window and draws the lift muted, and it raises no alert.
@@ -172,7 +175,7 @@ for the same hour, whoever reads them.
   it ends. Days are UTC days. Its first run backfills the whole retention window
   (about 28,000 rows a day, so about 850,000 over the default 30 days, under a
   minute); after downtime it catches up from where it stopped; when the model's
-  data version changes in a new release (it is 2 now) it rewrites everything,
+  data version changes in a new release (it is 3 now) it rewrites everything,
   once. Two runs never overlap: each takes a lock in **tripl's own** database,
   not the demo one, where a visitor's query could take the same key and stall
   the writer. Creating or dropping a day partition waits at most five seconds
@@ -285,14 +288,14 @@ One incident a day, from 13:00 UTC, in this rotation (day *n* since the calendar
 | Kind | Scope | Targets | Lasts | Change |
 | --- | --- | --- | --- | --- |
 | Spike | event | `Search Performed`, `Meal Planner View`, `Recipe Saved` | 2 h | ×3, on iOS |
-| Drop | event | `Recipe Detail View`, `Search Results View`, `Paywall View` | 3 h | to 15 % |
+| Drop | event | `Recipe Detail View`, `Search Results View`, `Shopping List View` | 3 h | to 15 % |
 | Error burst | event | `API Error` | 2 h | ×5 |
-| Event-type dip | event type | `search`, `meal_plan`, `content` | 3 h | to 35 % |
+| Event-type dip | event type | `search`, `meal_plan`, `content` | 3 h | to 25 % |
 | Platform shift | event | `Home Screen View` | 3 h | ×4, on web |
 
 #### Releases
 
-A release every 14 days at 10:00 UTC, after a 5-day beta at 0.4 % of traffic; half the users have updated 60 hours after release, and 5 % stay behind. Each release breaks one event, in this rotation:
+A release every 14 days at 10:00 UTC, after a 5-day beta at 0.4 % of traffic; half the users have updated 60 hours after release, 5 % update a release late and 5 % stay two behind. Each release breaks one event, in this rotation:
 
 | Release | Event | What breaks |
 | --- | --- | --- |
@@ -321,7 +324,9 @@ Each event also keeps a steady platform mix of its own, and its volume is split
 by app version over the whole history, so the **By version** tab and the volume
 chart cover the same days: a new version runs as a small beta for a few days,
 then takes over along an S-curve while the one before it fades and older ones
-keep a long tail.
+keep a long tail. For about a day after a release, the new version has carried
+too little to judge, and the tab keeps the regression of the version most
+users still run, until the new one's own regression shows.
 
 ### How a demo stays current
 

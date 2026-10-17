@@ -19,6 +19,9 @@ function verdict(overrides: Partial<ReleaseComparabilityItem> = {}): ReleaseComp
     reason: 'comparable',
     version: '2.1.0',
     previous_version: '2.0.0',
+    latest_active_version: '2.1.0',
+    latest_release_share: 0.33,
+    handed_over: false,
     emerging_share: 0.02,
     max_emerging_share: 0.25,
     ...overrides,
@@ -101,6 +104,43 @@ describe('ReleaseRegressionPanel', () => {
 
     expect(await screen.findByText(/No events regressed/i)).toBeInTheDocument()
     expect(screen.queryByText(/Cannot be judged yet/i)).not.toBeInTheDocument()
+    expect(screen.queryByText(/is rolling out/)).not.toBeInTheDocument()
+  })
+
+  it('names the ramping release and labels its predecessor\'s comparison during a hand-over', async () => {
+    vi.mocked(eventMetricsApi.getReleaseRegressions).mockResolvedValue({
+      scan_config_id: 'scan-1',
+      app_version_column: 'app_version',
+      latest_version: '6.21.0',
+      comparability: [
+        verdict({
+          version: '6.20.0',
+          previous_version: '6.19.0',
+          latest_active_version: '6.21.0',
+          latest_release_share: 0.12,
+          handed_over: true,
+        }),
+      ],
+      items: [
+        regression({ scope_name: 'Checkout', version: '6.20.0', previous_version: '6.19.0' }),
+      ],
+    })
+
+    renderPanel()
+
+    expect(await screen.findByText('Checkout')).toBeInTheDocument()
+    // The header names the release the By-version chart calls latest, not the
+    // one whose comparison is shown.
+    expect(screen.getByText('latest active release').nextSibling).toHaveTextContent('6.21.0')
+    expect(
+      screen.getByText(
+        (_content, element) =>
+          element?.tagName === 'P' &&
+          element.textContent ===
+            '6.21.0 is rolling out (12% of traffic) — showing 6.20.0 vs 6.19.0 while it ramps up (48 hours at most).',
+      ),
+    ).toBeInTheDocument()
+    expect(screen.queryByText(/No events regressed/i)).not.toBeInTheDocument()
   })
 
   it('says a withheld comparison cannot be judged instead of affirming health', async () => {

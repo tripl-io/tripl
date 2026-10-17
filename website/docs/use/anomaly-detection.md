@@ -57,7 +57,7 @@ Both are counted in **buckets**, not hours, and the settings page says so under 
 
 On top of the per-bucket phase check, the detector runs a second, slower-moving test built on **seasonal decomposition** (STL for a single season, MSTL when both a daily and a weekly season are present). Decomposition splits the series into three layers: a smooth **trend**, the repeating **seasonal** shape, and the left-over **residual** noise.
 
-The **trend-shift detector** works entirely on the deseasonalized trend layer. It compares the trend level *now* against the trend level *exactly one full seasonal cycle ago*, scaled by the robust spread of the residuals. Because it operates on the deseasonalized trend, it can never be fooled by the time of day — its job is to catch **slow, sustained level changes** (a gradual 30% decline over a week) that the per-bucket band quietly absorbs one bucket at a time. A shift must clear both the sigma threshold and a **15% relative effect-size gate**, and a contiguous run is collapsed into one anomaly instead of one row per bucket, dated at the first bucket whose own value actually left its expected level — not the earlier hour where the smoothed trend first starts to bend. If that one row cannot be written (for instance its expectation is under `min_expected_count`), the run's per-bucket anomalies are kept rather than silently dropped. A shift is also never reported on a bucket that has neither an expectation nor any traffic: with nothing expected and nothing observed there is no movement to describe. Only that pair is excluded — an empty bucket against a real expectation is still a drop, and traffic against a zero expectation is still a spike. The same decomposition also powers the forecast band you see drawn ahead of the latest data in the UI.
+The **trend-shift detector** works entirely on the deseasonalized trend layer. It compares the trend level *now* against the trend level *exactly one full seasonal cycle ago*, scaled by the robust spread of the residuals. Because it operates on the deseasonalized trend, it can never be fooled by the time of day — its job is to catch **slow, sustained level changes** (a gradual 30% decline over a week) that the per-bucket band quietly absorbs one bucket at a time. A shift must clear both the sigma threshold and a **15% relative effect-size gate**, and a contiguous run is collapsed into one anomaly instead of one row per bucket, dated at the first bucket whose own value actually left its expected level — not the earlier hour where the smoothed trend first starts to bend. If that one row cannot be written (for instance its expectation is under `min_expected_count`), the run's per-bucket anomalies are kept rather than silently dropped. Only the per-bucket anomalies moving the way the trend moved fold into its row: a drop inside a run the trend reads as a rise (a three-hour outage on a series whose fitted trend is climbing) is another incident, and keeps its own row. A shift is also never reported on a bucket that has neither an expectation nor any traffic: with nothing expected and nothing observed there is no movement to describe. Only that pair is excluded — an empty bucket against a real expectation is still a drop, and traffic against a zero expectation is still a spike. The same decomposition also powers the forecast band you see drawn ahead of the latest data in the UI.
 
 When both detectors flag the same bucket, the one with the **larger absolute z-score** wins, so you see the more significant explanation.
 
@@ -365,6 +365,24 @@ The test is deliberately careful about young releases:
    reporting a clean release. Events that went *completely* silent are still
    reported: a different mix of users cannot manufacture those.
 5. **Verdict.** The ratio of observed to expected decides the outcome. If an event has nearly disappeared (observed far below expected — under ~5% of expected) it is classed as **missing**; if it merely dropped substantially (roughly half or less of expected) *and* the shortfall is also large in statistical terms — observed below `expected − sigma × √expected` — it is classed as a **volume drop**. The `sigma` here is the project's own `sigma_threshold` from **Detection settings** (default `4.0`), not a fixed 3: the release test deliberately shares the anomaly detector's sensitivity dial, so raising `sigma_threshold` to quiet volume anomalies also demands a larger shortfall before a release is flagged as a volume drop: at a high sigma, an event with a small expected count may no longer clear the volume-drop bar at all. A project that has never opened its detection settings uses `3`. Scope overrides from the false-positive feedback are *not* applied here. Anything in between is not flagged. Only deficits are tested; an event firing *more* in the new release is not a regression.
+6. **Hand-over.** A release that has just activated is judged on the few hours
+   it has carried, so for its first day most events have too little of it to
+   clear the evidence gate. While the newest release still carries less of the
+   comparison window than the one before it, activated no more than 48 hours
+   ago, is comparable, and has turned up nothing, the panel keeps the previous
+   comparison (the release before against its own predecessor) when that one
+   found something: the regression most users are still running stays on
+   screen. The panel says so — the header still names the newest release, the
+   same one the By-version chart calls latest, and a line above the rows reads
+   *"6.21.0 is rolling out (12% of traffic) — showing 6.20.0 vs 6.19.0 while it
+   ramps up (48 hours at most)"*. The newest release takes over as soon as it regresses,
+   once it carries more of its window than the release before it, or once those 48 hours are up, whatever
+   it found — so a project whose releases never reach a majority (slow
+   adoption, frequent releases) still sees the newest release's own result. A
+   comparison withheld as **"cannot be judged yet"** is never set aside, and
+   never handed over either.
+   Release-regression alerts follow the rows: during a hand-over a rule keeps
+   alerting on the previous release's regression, attributed to that release.
 
 ### Release markers on charts
 
@@ -383,8 +401,10 @@ muted, carry a tag icon, and hide with **Show releases** — see
 Two surfaces, and they answer different questions.
 
 **The By version tab** on an event's or event type's monitoring page shows the
-check for the **current latest release**: every regressed scope in the scan,
-with the comparability verdict and the reason when a comparison is withheld.
+check for the **current latest release** (or, labelled, the comparison it is
+handing over from — see **Hand-over** above): every regressed scope in the
+scan, with the comparability verdict and the reason when a comparison is
+withheld.
 These rows are recomputed from scratch on every scan and keep no history, so the
 tab always describes the newest rollout — and it does so whatever window the run
 that recomputed them covered. The check is anchored on the **newest version
