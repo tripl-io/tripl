@@ -690,7 +690,9 @@ comment** discussion (top-level comments plus one level of replies) per
 attachment. On an event of a merged branch, or of a closed one until it is
 reopened, the attachments are read-only like the rest of that branch's plan:
 uploading, attaching, reordering or deleting one answers `409`. Their comment
-threads stay open.
+threads stay open. A [public demo](../run/public-demo.md#storage) stores no
+uploaded image: the panel offers only **Attach Figma link**, and an upload
+through the API answers `403`.
 
 ### Event types
 
