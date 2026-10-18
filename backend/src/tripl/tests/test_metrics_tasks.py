@@ -2395,6 +2395,10 @@ def test_recalculate_release_regressions_flags_missing_event_idempotently(
         assert verdicts["event"].version == "2.1.0"
         assert verdicts["event"].previous_version == "2.0.0"
         assert verdicts["event"].app_version_column == "app_version"
+        # Not a hand-over: the newest release is the one judged, and is named.
+        assert verdicts["event"].latest_active_version == "2.1.0"
+        assert verdicts["event"].handed_over is False
+        assert verdicts["event"].latest_release_share is not None
         # The event-type scope has no breakdown rows of its own, but the release
         # pair and its populations come from the shared event-level totals, so
         # that scope is comparable too — it simply has nothing to report.

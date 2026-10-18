@@ -449,6 +449,13 @@ class ReleaseComparabilityItem(BaseModel):
     A caller that only reads ``items`` cannot tell a healthy release from one
     whose findings were withheld, and both were served as an empty list until
     this was carried through.
+
+    ``version``/``previous_version`` are the comparison the served rows come
+    from. ``latest_active_version`` is the newest active release, the same one
+    unless ``handed_over``: then the newest release is still ramping with
+    nothing found (``latest_release_share`` of traffic over its window) and the
+    pair is its predecessor's comparison, shown in its place until it has
+    enough data.
     """
 
     scope_type: MetricScopeType
@@ -456,6 +463,9 @@ class ReleaseComparabilityItem(BaseModel):
     reason: ReleaseComparabilityReason
     version: str | None = None
     previous_version: str | None = None
+    latest_active_version: str | None = None
+    latest_release_share: float | None = None
+    handed_over: bool
     emerging_share: float
     max_emerging_share: float
 
@@ -463,6 +473,9 @@ class ReleaseComparabilityItem(BaseModel):
 class ReleaseRegressionsResponse(BaseModel):
     scan_config_id: uuid.UUID
     app_version_column: str | None = None
+    # The newest active release, from the verdicts' ``latest_active_version``:
+    # the release the By-version chart names latest, also while the items
+    # describe its predecessor during a hand-over.
     latest_version: str | None = None
     # One entry per scope the scan evaluated (filtered by the ``scope_type``
     # query parameter when one is given). Empty means no pass has run.
