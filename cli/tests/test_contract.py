@@ -1339,6 +1339,30 @@ def test_the_packaged_compose_matches_the_repo_compose() -> None:
     assert packaged("compose.yaml") == expected.replace(MCP_BUILD_BLOCK, "")
 
 
+@pytest.mark.parametrize("name", ["compose.yaml", "compose.dev.yaml"])
+def test_every_compose_service_rotates_its_logs(name: str) -> None:
+    """A service without `logging: *logging` keeps its stdout for as long as it lives.
+
+    Docker's default json-file driver never trims a container's log, and the
+    services an upgrade does not recreate (postgres, rabbitmq, redis) hold
+    theirs for the life of the host. One anchor rotates them all; this catches
+    the next service added without it. A text check, not a YAML parse: the CLI
+    ships no YAML library, and the anchor's spelling is the contract.
+    """
+    compose = (REPO_ROOT / name).read_text(encoding="utf-8")
+    assert re.search(r"^x-logging: &logging\n", compose, re.MULTILINE), (
+        f"{name} lost its x-logging anchor"
+    )
+    services_block = compose.split("\nservices:\n", 1)[1].split("\nvolumes:\n", 1)[0]
+    # Each service is a two-space key; its body runs to the next one.
+    bodies = re.split(r"^  ([a-z][a-z0-9-]*):\n", services_block, flags=re.MULTILINE)[1:]
+    services = dict(zip(bodies[::2], bodies[1::2], strict=True))
+    assert services, f"no services found in {name}; the file's shape must have changed"
+    rotated = "\n    logging: *logging\n"
+    unrotated = sorted(service for service, body in services.items() if rotated not in f"\n{body}")
+    assert not unrotated, f"{name}: {unrotated} keep their logs forever; add `logging: *logging`"
+
+
 def test_env_example_documents_every_variable_compose_forwards() -> None:
     """The other direction: a forwarded variable nobody documents is undiscoverable.
 

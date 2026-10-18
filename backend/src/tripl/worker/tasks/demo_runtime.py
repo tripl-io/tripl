@@ -13,6 +13,14 @@ project's OBSERVED rows that fall behind the same horizon, so tripl's own
 database stays bounded by "demos x retention" rather than by age. The authored
 plan (events, fields, variables, branches, comments, rules) is never touched.
 
+"Observed" covers more than the series: everything a running demo writes per
+incident or per visitor click and that nothing else ever deletes goes behind
+the same horizon. That is catalog-metric anomalies, bell notifications, triage
+that pins a pruned signal, release chart markers, scan previews and dry runs,
+and the inbox rows of incidents whose every delivery is gone. What a person
+decided and what still applies stays: an inbox decision or a mute in force,
+and a chart marker someone drew.
+
 The horizon is the warehouse's retention on purpose: a row older than it can
 never be collected again, and keeping a demo's series longer than the warehouse
 can reproduce it is what let an old resume window score a gap as zeros. The
@@ -36,20 +44,29 @@ import logging
 import uuid
 from datetime import UTC, datetime, timedelta
 
-from sqlalchemy import delete, select, text, update
+from sqlalchemy import and_, delete, func, or_, select, text, update
 from sqlalchemy.orm import Session
 
 from tripl.config import settings
 from tripl.core.bucketing import to_utc
+from tripl.models.alert_correlation_state import AlertCorrelationState
 from tripl.models.alert_delivery import AlertDelivery
 from tripl.models.alert_delivery_item import AlertDeliveryItem
 from tripl.models.alert_owner_notification import AlertOwnerNotification
 from tripl.models.alert_rule_state import AlertRuleState
+from tripl.models.chart_annotation import ChartAnnotation
 from tripl.models.coverage_metric import CoverageMetric
 from tripl.models.distribution_drift import DistributionDrift
-from tripl.models.domain_enums import ProjectGenerationStatus
+from tripl.models.domain_enums import (
+    AlertInboxStatus,
+    ChartAnnotationSource,
+    MetricScopeType,
+    ProjectGenerationStatus,
+    SignalTriageAction,
+)
 from tripl.models.event_metric import EventMetric
 from tripl.models.event_metric_breakdown import EventMetricBreakdown
+from tripl.models.incident_summary import IncidentSummary
 from tripl.models.metric_anomaly import MetricAnomaly
 from tripl.models.metric_anomaly_attribution import MetricAnomalyAttribution
 from tripl.models.metric_baseline import MetricBaseline
@@ -57,10 +74,14 @@ from tripl.models.metric_breakdown_anomaly import MetricBreakdownAnomaly
 from tripl.models.metric_definition import MetricDefinition
 from tripl.models.metric_value import MetricValue
 from tripl.models.metric_value_breakdown import MetricValueBreakdown
+from tripl.models.notification import Notification
 from tripl.models.project import Project
 from tripl.models.scan_config import ScanConfig
+from tripl.models.scan_dry_run_job import ScanDryRunJob
 from tripl.models.scan_job import ScanJob
+from tripl.models.scan_preview_job import ScanPreviewJob
 from tripl.models.schema_drift import SchemaDrift
+from tripl.models.signal_triage import SignalTriage
 from tripl.worker.celery_app import celery_app
 from tripl.worker.db import _get_sync_session
 from tripl.worker.utils.advisory_lock import release_advisory_lock, try_acquire_advisory_lock
@@ -229,5 +250,160 @@ def _prune_retention(session: Session, project_id: uuid.UUID, cutoff: datetime) 
     session.execute(
         delete(MetricValue).where(
             MetricValue.metric_definition_id.in_(metric_ids), MetricValue.bucket < cutoff
+        )
+    )
+    _prune_metric_scope_anomalies(session, project_id, cutoff)
+    _prune_inbox_leftovers(session, project_id, cutoff)
+    _prune_signal_triage(session, project_id, cutoff)
+    # A release marker is redrawn only while its activation sits inside the
+    # loaded slice (``RELEASE_ANNOTATION_LOOKBACK``, shorter than the horizon),
+    # so one older than the horizon is never drawn again and marks a bucket no
+    # chart of the demo shows. Markers a person drew (``manual``) or a client
+    # posted (``api``) are theirs and stay.
+    session.execute(
+        delete(ChartAnnotation).where(
+            ChartAnnotation.project_id == project_id,
+            ChartAnnotation.source == ChartAnnotationSource.release.value,
+            ChartAnnotation.bucket < cutoff,
+        )
+    )
+    # A visitor's previews and dry runs: answers read once. The maintenance
+    # cleanup takes them after a week instance-wide; this keeps a demo bounded
+    # by the horizon even where that retention is set longer.
+    for preview_model in (ScanPreviewJob, ScanDryRunJob):
+        session.execute(
+            delete(preview_model).where(
+                preview_model.project_id == project_id,
+                func.coalesce(
+                    preview_model.completed_at, preview_model.updated_at, preview_model.created_at
+                )
+                < cutoff,
+            )
+        )
+    # The bell's history. A signal is announced again only within a few days
+    # (``notification_producers.ALREADY_TOLD_WINDOW``) and throttled within
+    # hours, so nothing reads a notification this old but the bell itself,
+    # and what it points at (an anomaly, a delivery) is pruned above.
+    session.execute(
+        delete(Notification).where(
+            Notification.project_id == project_id, Notification.created_at < cutoff
+        )
+    )
+
+
+def _prune_metric_scope_anomalies(
+    session: Session, project_id: uuid.UUID, cutoff: datetime
+) -> None:
+    """Catalog-metric anomalies older than the horizon, with their attributions.
+
+    They hang off no scan config: ``detect`` writes them with a NULL
+    ``scan_config_id``, ``scope_type='metric'`` and the metric's id as TEXT in
+    ``scope_ref`` (the same gap ``project_service.purge_project_rows`` closes on
+    a project delete), so the scan-scoped sweep above never reaches them. The
+    ids are matched as Python strings rather than by a SQL CAST: SQLite stores
+    a UUID as 32 hex digits, PostgreSQL's text form has dashes.
+    """
+    metric_refs = [
+        str(metric_id)
+        for metric_id in session.execute(
+            select(MetricDefinition.id).where(MetricDefinition.project_id == project_id)
+        ).scalars()
+    ]
+    if not metric_refs:
+        return
+    old_metric_anomalies = (
+        MetricAnomaly.scan_config_id.is_(None),
+        MetricAnomaly.scope_type == MetricScopeType.metric.value,
+        MetricAnomaly.scope_ref.in_(metric_refs),
+        MetricAnomaly.bucket < cutoff,
+    )
+    session.execute(
+        delete(MetricAnomalyAttribution).where(
+            MetricAnomalyAttribution.anomaly_id.in_(
+                select(MetricAnomaly.id).where(*old_metric_anomalies)
+            )
+        )
+    )
+    session.execute(delete(MetricAnomaly).where(*old_metric_anomalies))
+
+
+def _prune_inbox_leftovers(session: Session, project_id: uuid.UUID, cutoff: datetime) -> None:
+    """Incident rows whose every delivery item the prune has already deleted.
+
+    An incident is a virtual group of delivery items (``correlation_group_id``);
+    its ``alert_correlation_states`` row holds the inbox decision and its
+    ``incident_summaries`` row the cached summary. Once the group's last item is
+    gone the inbox cannot list it and the summary endpoint 404s it, so both
+    rows describe nothing. Runs after the delivery prune above.
+
+    A correlation state is deleted only when it holds no decision in force.
+    Its id is stable per (rule, scope, direction), not per incident, and
+    ``dispatch._suppressed_correlation_group_ids`` enforces an acknowledged,
+    resolved, false-positive or muted state with no time bound: a suppressed
+    incident writes no deliveries, so "no items left" is exactly what a
+    long-silenced one looks like, and deleting its state would page the
+    visitor again. So only ``open`` states and mutes that lapsed before the
+    horizon go; the rest are bounded by the plan's rules and scopes, not by age.
+    ``last_seen_at`` is checked as well as ``updated_at`` because the firing
+    path moves only the former.
+    """
+    live_groups = (
+        select(AlertDeliveryItem.correlation_group_id)
+        .join(AlertDelivery, AlertDelivery.id == AlertDeliveryItem.delivery_id)
+        .where(
+            AlertDelivery.project_id == project_id,
+            AlertDeliveryItem.correlation_group_id.is_not(None),
+        )
+    )
+    session.execute(
+        delete(AlertCorrelationState).where(
+            AlertCorrelationState.project_id == project_id,
+            AlertCorrelationState.correlation_group_id.not_in(live_groups),
+            AlertCorrelationState.updated_at < cutoff,
+            or_(
+                AlertCorrelationState.last_seen_at.is_(None),
+                AlertCorrelationState.last_seen_at < cutoff,
+            ),
+            or_(
+                AlertCorrelationState.status == AlertInboxStatus.open.value,
+                and_(
+                    AlertCorrelationState.status == AlertInboxStatus.muted.value,
+                    AlertCorrelationState.muted_until.is_not(None),
+                    AlertCorrelationState.muted_until < cutoff,
+                ),
+            ),
+        )
+    )
+    session.execute(
+        delete(IncidentSummary).where(
+            IncidentSummary.project_id == project_id,
+            IncidentSummary.correlation_group_id.not_in(live_groups),
+            IncidentSummary.updated_at < cutoff,
+        )
+    )
+
+
+def _prune_signal_triage(session: Session, project_id: uuid.UUID, cutoff: datetime) -> None:
+    """Triage that answers a signal the prune has deleted, and long-lapsed mutes.
+
+    An acknowledgement or a verdict pins ONE signal by its ``bucket``; the
+    anomaly at that bucket is gone once it is older than the horizon, so the
+    row answers nothing. Its ``expected`` chart marker is the visitor's own and
+    stays (the FK sets ``annotation_id`` NULL on the way). A mute carries no
+    bucket and covers its scope until ``muted_until``: one with no end, or one
+    still to lapse, is a decision in force and stays; one that lapsed before
+    the horizon hides nothing and goes.
+    """
+    session.execute(
+        delete(SignalTriage).where(
+            SignalTriage.project_id == project_id,
+            or_(
+                and_(SignalTriage.bucket.is_not(None), SignalTriage.bucket < cutoff),
+                and_(
+                    SignalTriage.action == SignalTriageAction.muted.value,
+                    SignalTriage.muted_until.is_not(None),
+                    SignalTriage.muted_until < cutoff,
+                ),
+            ),
         )
     )

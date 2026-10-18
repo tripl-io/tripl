@@ -3,10 +3,10 @@ from __future__ import annotations
 import uuid
 from typing import Annotated
 
-from fastapi import APIRouter, File, UploadFile
+from fastapi import APIRouter, Depends, File, UploadFile
 from fastapi.responses import Response
 
-from tripl.api.deps import EditorUserDep, SessionDep
+from tripl.api.deps import EditorUserDep, SessionDep, refuse_on_public_demo
 from tripl.middleware.org_context import current_org
 from tripl.schemas.event_photo import (
     EventPhotoCommentCreate,
@@ -57,7 +57,23 @@ async def list_event_photos(
     return [await _to_response(session, photo, slug) for photo in photos]
 
 
-@router.post("", response_model=EventPhotoResponse, status_code=201)
+# On a public demo every visitor is an editor of their own demos, and an upload
+# is up to PHOTO_MAX_SIZE_MB of the operator's disk with no count or per-org cap:
+# a script could fill the photos volume, and only the idle-organization purge
+# would ever give the space back. The demo's own spec is a Figma link (a URL, no
+# file), so attaching one, browsing and commenting stay open; only storing a
+# visitor's file is refused.
+_uploads_refused = Depends(
+    refuse_on_public_demo("store uploaded images; attach a Figma link instead")
+)
+
+
+@router.post(
+    "",
+    response_model=EventPhotoResponse,
+    status_code=201,
+    dependencies=[_uploads_refused],
+)
 async def upload_event_photo(
     session: SessionDep,
     slug: str,

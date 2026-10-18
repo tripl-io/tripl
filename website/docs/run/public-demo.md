@@ -69,6 +69,11 @@ services:
     mem_limit: 1g
     cpus: 1
     restart: unless-stopped
+    logging:  # rotated like the stack's own services
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "5"
 volumes:
   demo-warehouse:
 ```
@@ -83,6 +88,30 @@ DEMO_WAREHOUSE_URL=postgresql://tripl_demo:<password>@demo-warehouse-db:5432/tri
 with every limit, the revoked functions included. `DEMO_WAREHOUSE_MODE=postgres`
 overrides the rule and reads a warehouse on tripl's own server anyway: an
 operator's explicit choice, for a demo whose visitors are trusted.
+
+## What the instance keeps {#storage}
+
+A public demo runs for months, and every visitor writes to it, so what it
+stores has to stop growing on its own:
+
+- **A demo's history.** The daily prune deletes a demo's rows older than the
+  warehouse's retention (`DEMO_WAREHOUSE_RETENTION_DAYS`): its collected
+  series and anomalies, alerts and inbox entries of incidents that ended,
+  notifications, triage of signals that are gone, release markers, and the
+  scan previews and dry runs a visitor ran. The demo's plan stays, and so does
+  what a person decided that still applies: an incident left muted or
+  acknowledged, a mute on a signal, a marker someone drew. Previews and dry
+  runs of every project go after `SCAN_PREVIEW_RETENTION_DAYS` anyway.
+- **Uploads.** A visitor cannot upload images to an event's **Photos & specs**:
+  the server refuses the upload and the app does not offer it. Attaching a
+  Figma link (a URL, no file) still works, as on the demo's own events.
+- **Container logs.** The compose stack rotates every container's log
+  ([Container logs](./deployment.md#container-logs)); a service you add in a
+  `compose.override.yaml`, such as the warehouse's server above, needs
+  `logging:` of its own (an override file cannot use `compose.yaml`'s anchor).
+- **Visitors' organizations.** These are deleted only by the nightly purge of
+  idle organizations, which is off until `IDLE_ORG_RETENTION_DAYS` is set.
+  Set it on a public demo, or its database grows with every visitor.
 
 ## Semantic search
 
