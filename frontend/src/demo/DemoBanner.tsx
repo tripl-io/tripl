@@ -24,7 +24,7 @@
  */
 
 import { useEffect, useId, useRef, useState, type ReactNode } from 'react'
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { useNavigate } from 'react-router-dom'
 import { ChevronDown, Compass, FlaskConical, Info, MoreHorizontal, RotateCcw, Trash2 } from 'lucide-react'
 import { ApiError } from '@/api/client'
@@ -51,7 +51,7 @@ import { useConfirm } from '@/hooks/useConfirm'
 import { formatRelativeTime } from '@/lib/datetime'
 import { SILENT_ERROR_META } from '@/lib/errorFeedback'
 import { canManageProject } from '@/lib/permissions'
-import { projectKey, projectQueryOptions, projectsKey } from '@/lib/queryKeys'
+import { projectKey, projectsKey } from '@/lib/queryKeys'
 import { cn, getErrorMessage } from '@/lib/utils'
 import type { Project } from '@/types'
 import { ProductTour, TourDock } from './ProductTour'
@@ -67,6 +67,7 @@ import {
   provisioningProgressOf,
   type ProvisioningProgress,
 } from './provisioningPhases'
+import { useDemoHistoryFill } from './useDemoHistoryFill'
 import { useProvisioningPhase } from './useEstimatedPhase'
 import { setWelcomeDismissed } from './welcomeDismissal'
 import { currentOrgSlug, projectPath, workspacePath } from '@/lib/navigation'
@@ -160,9 +161,6 @@ function demoDataVersion(recipeVersion: string | null | undefined): string | nul
   return version ? version : null
 }
 
-/** How often a demo filling in its history asks how far it is. */
-const FILL_POLL_MS = 5_000
-
 export function DemoBanner({
   project,
   resetTimeoutMs = DEMO_PROVISION_TIMEOUT_MS,
@@ -185,16 +183,12 @@ export function DemoBanner({
   const { user } = useAuth()
   const queryClient = useQueryClient()
   // While the history fill runs (``demo_history_status``), poll the project for
-  // its progress; when it ends, every page's data changed under it (the older
-  // weeks, the promo verdicts, the alerts the full baseline found), so refetch.
-  const filling = project.demo_history_status === 'filling'
-  const fillQuery = useQuery({
-    ...projectQueryOptions(project.slug),
-    enabled: filling,
-    refetchInterval: filling ? FILL_POLL_MS : false,
-  })
-  const fillProgress = fillQuery.data?.demo_history_progress ?? project.demo_history_progress
-  const fillEnded = filling && !!fillQuery.data && fillQuery.data.demo_history_status !== 'filling'
+  // its progress — the banner is the one poller, being on every demo surface
+  // (useDemoHistoryFill); when it ends, every page's data changed under it (the
+  // older weeks, the promo verdicts, the alerts the full baseline found), so
+  // refetch. Here and nowhere else: the in-page notices only read.
+  const { filling, progress: fillProgress } = useDemoHistoryFill(project)
+  const fillEnded = project.demo_history_status === 'filling' && !filling
   useEffect(() => {
     if (fillEnded) void queryClient.invalidateQueries()
   }, [fillEnded, queryClient])

@@ -12,6 +12,7 @@ import { metricsCatalogApi } from '@/api/metricsCatalog'
 import { scansApi } from '@/api/scans'
 import { variablesApi } from '@/api/variables'
 import { SignalsHeldNotice } from '@/components/source-freshness/signals-held-notice'
+import { DemoHistoryFillNotice } from '@/demo/DemoHistoryFillNotice'
 import { isHoldingSignals } from '@/lib/sourceFreshness'
 import { PageContainer } from '@/components/primitives/page-container'
 import { EmptyState } from '@/components/empty-state'
@@ -740,6 +741,9 @@ export default function MonitoringDetailPage() {
           separate span with -mt-5, which cancelled the page gap and glued the
           tab strip to the card above it. */}
       <div ref={chartsRef} className="min-w-0 scroll-mt-4">
+        {/* Inside the anchor, so the hero's "Charts" jump lands on why a demo's
+            chart is still short, not just below it. */}
+        <DemoHistoryFillNotice className="mb-3" />
         <Tabs value={selectedTab} onValueChange={value => searchActions.setTab(value as MonitoringDetailTab)}>
           {/* The strip scrolls on its own on a phone instead of widening the
               page: five triggers do not fit 375px. */}
