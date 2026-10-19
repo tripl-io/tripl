@@ -763,7 +763,7 @@ def test_collect_metrics_records_coverage_and_shadow_candidates(
 
 
 @pytest.mark.asyncio
-async def test_shadow_upsert_does_not_resurrect_dismissed(client: AsyncClient):
+async def test_shadow_upsert_keeps_status_and_moves_first_seen_back(client: AsyncClient):
     from sqlalchemy import create_engine
     from sqlalchemy.orm import sessionmaker
 
@@ -797,7 +797,8 @@ async def test_shadow_upsert_does_not_resurrect_dismissed(client: AsyncClient):
         candidate.status = SHADOW_STATUS_DISMISSED
         sync_session.commit()
 
-        # Re-collection: count refreshes, last_seen never rewinds, status survives.
+        # Re-collection of older history: count refreshes, last_seen never
+        # rewinds, first_seen moves back to the earlier sighting, status survives.
         second_rows = [
             {
                 "id": uuid.uuid4(),
@@ -819,7 +820,24 @@ async def test_shadow_upsert_does_not_resurrect_dismissed(client: AsyncClient):
         assert refreshed.observed_count == 7
         # Stored without tz on sqlite; compare naive.
         assert refreshed.last_seen_at.replace(tzinfo=UTC) == NOW - timedelta(days=1)
-        assert refreshed.first_seen_at.replace(tzinfo=UTC) == NOW - timedelta(days=3)
+        assert refreshed.first_seen_at.replace(tzinfo=UTC) == NOW - timedelta(days=10)
+
+        # A newer window never moves first_seen forward.
+        third_rows = [
+            {
+                **second_rows[0],
+                "id": uuid.uuid4(),
+                "first_seen_at": NOW - timedelta(hours=2),
+                "last_seen_at": NOW - timedelta(hours=1),
+            }
+        ]
+        _upsert_shadow_event_candidates(sync_session, rows=third_rows)
+        sync_session.commit()
+        sync_session.expire_all()
+
+        refreshed = sync_session.execute(select(ShadowEventCandidate)).scalar_one()
+        assert refreshed.first_seen_at.replace(tzinfo=UTC) == NOW - timedelta(days=10)
+        assert refreshed.last_seen_at.replace(tzinfo=UTC) == NOW - timedelta(hours=1)
         sync_session.close()
     finally:
         engine.dispose()

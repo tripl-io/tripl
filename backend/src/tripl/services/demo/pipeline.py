@@ -33,10 +33,12 @@ cancel checks between them and the cleanup on failure.
 
 The rest of the history (back to :func:`~.noise.history_days`) is filled once
 the demo is open, by a task of its own (:func:`fill_history`): week-long replay
-jobs that only store, then one detection, attribution and dispatch pass over
-the whole history, then the steps that read the whole history — the
-composition metrics derived from it, the weekly promo verdicts, the
-planned-window tags, the lifecycle pass, the note on the newest incident.
+jobs that only store, newest first — a visitor looks at the last week first,
+and it is whole after the first job rather than the last — then one
+detection, attribution and dispatch pass over the whole history, then the
+steps that read the whole history — the composition metrics derived from it,
+the weekly promo verdicts, the planned-window tags, the lifecycle pass, the
+note on the newest incident.
 """
 
 from __future__ import annotations
@@ -443,11 +445,20 @@ def history_progress(
 
 
 def fill_windows(now: datetime) -> list[tuple[datetime, datetime]]:
-    """The history the first build left out, in :data:`REPLAY_JOB_SPAN` jobs, oldest first."""
+    """The history the first build left out, in :data:`REPLAY_JOB_SPAN` jobs, oldest first.
+
+    Cut BACKWARDS from :func:`first_build_start`: :func:`fill_history` runs the
+    windows newest first, so the one next to the first build is a whole span
+    (a visitor's 7-day chart is whole after one job), and the short remainder —
+    the history starts at midnight, the first build at the build hour — is the
+    oldest window, the last one replayed. Listed oldest first all the same, so
+    the list reads as the history's tiling.
+    """
     start, end = noise.history_start(now), first_build_start(now)
-    cuts = [start]
-    while cuts[-1] < end:
-        cuts.append(min(cuts[-1] + REPLAY_JOB_SPAN, end))
+    cuts = [end]
+    while cuts[-1] > start:
+        cuts.append(max(cuts[-1] - REPLAY_JOB_SPAN, start))
+    cuts.reverse()
     return list(zip(cuts, cuts[1:], strict=False))
 
 
@@ -467,8 +478,12 @@ async def fill_history(
     """Replay the history the first build left out, then score it all once.
 
     Runs after the demo is open, on the build's clock (``ctx.now``). The
-    :func:`fill_windows` jobs only store; a window a completed replay already
-    covers (a redelivered task) is not replayed again. Then one short replay
+    :func:`fill_windows` jobs only store, newest first: the demo is open while
+    they run, and a visitor reads the last week before the weeks behind it, so
+    that week is whole after the first job (an oldest-first walk left it empty
+    until the last). A window a completed replay already covers (a redelivered
+    task) is not replayed again, and one the warehouse has dropped by then is
+    skipped. Then one short replay
     ending where the first build's scoring ended re-scores
     :func:`scoring_window` over the whole history and dispatches what it
     finds: two days are too short a baseline for the volume incidents, so
@@ -480,16 +495,30 @@ async def fill_history(
     """
     config_id = _require(ctx.scan_config_id, "scan config")
 
+    from tripl.worker.tasks.metrics import demo_window
     from tripl.worker.tasks.metrics.tasks import execute_collect_metrics
 
+    # Keyed on the window's END only: a job whose start the warehouse horizon
+    # clamped (``demo_window.clamp_demo_window_start``) records a later
+    # ``time_from`` than the window it ran, and would never match it again.
+    # Ends cannot collide: the fill windows' ends are distinct and all at or
+    # before ``first_build_start``, while every first-build job ends after it.
     done = {
-        (str(summary.get("time_from")), str(summary.get("time_to")))
+        str(summary.get("time_to"))
         for summary in await replay_summaries(
             session, config_id, statuses=(ScanJobStatus.completed,)
         )
     }
-    for time_from, time_to in fill_windows(ctx.now):
-        if (time_from.isoformat(), time_to.isoformat()) in done:
+    for time_from, time_to in reversed(fill_windows(ctx.now)):
+        if time_to.isoformat() in done:
+            continue
+        # Newest first, the oldest window runs last, by when the warehouse may
+        # have dropped it (the writer's size-cap backstop drops the oldest day
+        # partition after UTC midnight). A window wholly past the horizon would
+        # fail its job — the clamp raises when nothing of it is left — and with
+        # it the whole fill; skipped, its hours stay uncovered, which the
+        # detector reads as missing data.
+        if time_to <= demo_window.demo_warehouse_horizon(datetime.now(UTC)):
             continue
         job_id = await _new_job(session, config_id)
         with _collector_paused():

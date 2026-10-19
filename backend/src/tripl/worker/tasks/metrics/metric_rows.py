@@ -524,9 +524,12 @@ def _upsert_shadow_event_candidates(
 
     On conflict only the observation columns move: ``observed_count`` and
     ``sample_properties`` are the latest window's, ``last_seen_at`` never
-    rewinds. ``status`` and the resolution columns are user-owned and left
-    untouched so an accepted or dismissed candidate is not resurrected by the
-    collector.
+    rewinds and ``first_seen_at`` only moves back: a window older than the
+    stored ones (the demo's history fill walks newest first, and any replay of
+    older history) holds an earlier first sighting, which an insert-only
+    column would lose. ``status`` and the resolution columns are user-owned and
+    left untouched so an accepted or dismissed candidate is not resurrected by
+    the collector.
 
     ``event_type_id`` moves only while the candidate is still ``new``: it is the
     type Accept pre-fills, and once a human has resolved the candidate it is the
@@ -557,8 +560,10 @@ def _upsert_shadow_event_candidates(
                     set_=_shadow_conflict_set(
                         sqlite_stmt.excluded,
                         accumulate=accumulate,
-                        # SQLite's two-argument ``max`` is its scalar greatest.
+                        # SQLite's two-argument ``max``/``min`` are its scalar
+                        # greatest/least.
                         latest=sa_func.max,
+                        earliest=sa_func.min,
                     ),
                 )
                 session.execute(sqlite_stmt)
@@ -568,7 +573,10 @@ def _upsert_shadow_event_candidates(
             pg_stmt = pg_stmt.on_conflict_do_update(
                 constraint="uq_shadow_candidate_config_name",
                 set_=_shadow_conflict_set(
-                    pg_stmt.excluded, accumulate=accumulate, latest=sa_func.greatest
+                    pg_stmt.excluded,
+                    accumulate=accumulate,
+                    latest=sa_func.greatest,
+                    earliest=sa_func.least,
                 ),
             )
             session.execute(pg_stmt)
@@ -579,6 +587,7 @@ def _shadow_conflict_set(
     *,
     accumulate: bool,
     latest: Callable[..., ColumnElement[Any]],
+    earliest: Callable[..., ColumnElement[Any]],
 ) -> dict[str, ColumnElement[Any]]:
     """The ON CONFLICT assignments ``_upsert_shadow_event_candidates`` documents."""
     candidate = ShadowEventCandidate
@@ -593,6 +602,7 @@ def _shadow_conflict_set(
             else_=candidate.event_type_id,
         ),
         "sample_properties": excluded.sample_properties,
+        "first_seen_at": earliest(candidate.first_seen_at, excluded.first_seen_at),
         "last_seen_at": latest(candidate.last_seen_at, excluded.last_seen_at),
     }
 
