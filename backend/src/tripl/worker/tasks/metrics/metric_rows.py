@@ -7,7 +7,7 @@ from collections.abc import Callable, Collection, Iterator, Mapping, Sequence
 from datetime import datetime, timedelta
 from typing import Any, cast
 
-from sqlalchemy import case, delete, tuple_
+from sqlalchemy import and_, case, delete, tuple_
 from sqlalchemy import func as sa_func
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.dialects.sqlite import insert as sqlite_insert
@@ -522,21 +522,34 @@ def _upsert_shadow_event_candidates(
 ) -> None:
     """Insert-or-refresh shadow candidates.
 
-    On conflict only the observation columns move: ``observed_count`` and
-    ``sample_properties`` are the latest window's, ``last_seen_at`` never
-    rewinds. ``status`` and the resolution columns are user-owned and left
-    untouched so an accepted or dismissed candidate is not resurrected by the
-    collector.
+    On conflict only the observation columns move: ``last_seen_at`` never
+    rewinds and ``first_seen_at`` only moves back: a window older than the
+    stored ones (the demo's history fill walks newest first, and any replay of
+    older history) holds an earlier first sighting, which an insert-only
+    column would lose. ``status`` and the resolution columns are user-owned and
+    left untouched so an accepted or dismissed candidate is not resurrected by
+    the collector.
 
-    ``event_type_id`` moves only while the candidate is still ``new``: it is the
-    type Accept pre-fills, and once a human has resolved the candidate it is the
-    type that resolution was made under — a later window in which another type
-    carries more of the name must not rewrite the record of it.
+    ``observed_count`` and ``sample_properties`` are the newest window's: an
+    incoming window replaces them only when it reaches at least as late as the
+    stored one (``last_seen_at``), so an older window refreshes nothing but
+    ``first_seen_at``. The newest-first history fill ends on its OLDEST window,
+    and the inbox, ordered by ``observed_count``, would otherwise rank names by
+    a month-old week instead of the latest one.
+
+    ``event_type_id`` moves only while the candidate is still ``new``, and only
+    with a window at least as new: it is the type Accept pre-fills, and once a
+    human has resolved the candidate it is the type that resolution was made
+    under — a later window in which another type carries more of the name must
+    not rewrite the record of it.
 
     A name in ``accumulate_names`` was already written by an earlier chunk of
     the SAME collection run, so its count is added to rather than replaced: one
     run's window is the unit ``observed_count`` describes, and a chunked replay
-    would otherwise report only its last chunk.
+    would otherwise report only its last chunk. The same newer-window guard
+    applies: a run's chunks walk forward, so a chunk of the run that wrote the
+    row is never older than it, while a chunk of an older window must not add
+    onto a newer window's count its first chunk already left in place.
     """
     if not rows:
         return
@@ -557,8 +570,10 @@ def _upsert_shadow_event_candidates(
                     set_=_shadow_conflict_set(
                         sqlite_stmt.excluded,
                         accumulate=accumulate,
-                        # SQLite's two-argument ``max`` is its scalar greatest.
+                        # SQLite's two-argument ``max``/``min`` are its scalar
+                        # greatest/least.
                         latest=sa_func.max,
+                        earliest=sa_func.min,
                     ),
                 )
                 session.execute(sqlite_stmt)
@@ -568,7 +583,10 @@ def _upsert_shadow_event_candidates(
             pg_stmt = pg_stmt.on_conflict_do_update(
                 constraint="uq_shadow_candidate_config_name",
                 set_=_shadow_conflict_set(
-                    pg_stmt.excluded, accumulate=accumulate, latest=sa_func.greatest
+                    pg_stmt.excluded,
+                    accumulate=accumulate,
+                    latest=sa_func.greatest,
+                    earliest=sa_func.least,
                 ),
             )
             session.execute(pg_stmt)
@@ -579,20 +597,31 @@ def _shadow_conflict_set(
     *,
     accumulate: bool,
     latest: Callable[..., ColumnElement[Any]],
+    earliest: Callable[..., ColumnElement[Any]],
 ) -> dict[str, ColumnElement[Any]]:
     """The ON CONFLICT assignments ``_upsert_shadow_event_candidates`` documents."""
     candidate = ShadowEventCandidate
+    # The incoming window reaches at least as late as the stored one.
+    newer = excluded.last_seen_at >= candidate.last_seen_at
+    incoming_count = (
+        candidate.observed_count + excluded.observed_count
+        if accumulate
+        else excluded.observed_count
+    )
     return {
-        "observed_count": (
-            candidate.observed_count + excluded.observed_count
-            if accumulate
-            else excluded.observed_count
-        ),
+        "observed_count": case((newer, incoming_count), else_=candidate.observed_count),
         "event_type_id": case(
-            (candidate.status == SHADOW_STATUS_NEW, excluded.event_type_id),
+            (
+                and_(candidate.status == SHADOW_STATUS_NEW, newer),
+                excluded.event_type_id,
+            ),
             else_=candidate.event_type_id,
         ),
-        "sample_properties": excluded.sample_properties,
+        "sample_properties": case(
+            (newer, excluded.sample_properties),
+            else_=candidate.sample_properties,
+        ),
+        "first_seen_at": earliest(candidate.first_seen_at, excluded.first_seen_at),
         "last_seen_at": latest(candidate.last_seen_at, excluded.last_seen_at),
     }
 

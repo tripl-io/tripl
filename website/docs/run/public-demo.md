@@ -28,7 +28,8 @@ warehouse's retention.
 
 Building a demo takes about half a minute of worker time before it opens, and
 a few more minutes after, filling in the older history while the visitor
-looks around (one worker task each, so a busy instance queues them rather than
+looks around, newest week first, so the last week is whole after the fill's
+first replay job (one worker task each, so a busy instance queues them rather than
 stalling). Keep a small pool seeded
 ahead of time, so a visitor gets one at once: `DEMO_POOL_SIZE=2` or `3` covers
 visitors arriving minutes apart, and the pool refills after each claim. A larger
