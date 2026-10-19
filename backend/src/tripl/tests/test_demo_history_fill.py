@@ -11,6 +11,7 @@ test, so each phase is observed on its own; so is each slice the fill queues the
 
 from __future__ import annotations
 
+import logging
 import time
 import uuid
 from collections.abc import Mapping, Sequence
@@ -235,16 +236,28 @@ async def test_the_fill_replays_newest_first(monkeypatch: pytest.MonkeyPatch) ->
     assert await _replayed_windows(monkeypatch, _FILL_NOW) == _iso(windows[::-1])
 
 
-async def test_a_fill_window_past_the_horizon_is_skipped(monkeypatch: pytest.MonkeyPatch) -> None:
+async def test_a_fill_window_past_the_horizon_is_skipped(
+    monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+) -> None:
     """The oldest window, run last, may be gone from the warehouse by then.
 
     Its job would fail on the start clamp (nothing of the window left) and the
-    whole fill with it; skipped, the fill goes on to its scoring pass.
+    whole fill with it; skipped, the fill goes on to its scoring pass, and the
+    skip is logged, since that window holds the history's first promo send.
     """
     monkeypatch.setattr(settings, "demo_history_days", noise.DEMO_HISTORY_DAYS)
     oldest, *newer = pipeline.fill_windows(_FILL_NOW)
-    replayed = await _replayed_windows(monkeypatch, _FILL_NOW, horizon=oldest[1])
+    with caplog.at_level(logging.WARNING, logger=pipeline.__name__):
+        replayed = await _replayed_windows(monkeypatch, _FILL_NOW, horizon=oldest[1])
     assert replayed == _iso(newer[::-1])
+    dropped = [
+        record.getMessage()
+        for record in caplog.records
+        if record.getMessage().startswith("demo.history_fill.window_dropped")
+    ]
+    assert len(dropped) == 1
+    assert f"time_from={oldest[0].isoformat()}" in dropped[0]
+    assert f"time_to={oldest[1].isoformat()}" in dropped[0]
 
 
 async def test_a_clamped_completed_window_counts_as_done(monkeypatch: pytest.MonkeyPatch) -> None:

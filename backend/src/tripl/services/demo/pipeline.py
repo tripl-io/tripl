@@ -517,8 +517,20 @@ async def fill_history(
         # partition after UTC midnight). A window wholly past the horizon would
         # fail its job — the clamp raises when nothing of it is left — and with
         # it the whole fill; skipped, its hours stay uncovered, which the
-        # detector reads as missing data.
-        if time_to <= demo_window.demo_warehouse_horizon(datetime.now(UTC)):
+        # detector reads as missing data. The horizon reads the warehouse's
+        # status over a sync connection, so it runs off the event loop.
+        horizon = await asyncio.to_thread(demo_window.demo_warehouse_horizon, datetime.now(UTC))
+        if time_to <= horizon:
+            # Worth a warning: the oldest window holds the history's first
+            # weekly promo send, and the planned-window suggestion needs three
+            # verdicts of it, so a dropped window can cost the demo that card.
+            logger.warning(
+                "demo.history_fill.window_dropped config_id=%s time_from=%s time_to=%s horizon=%s",
+                config_id,
+                time_from.isoformat(),
+                time_to.isoformat(),
+                horizon.isoformat(),
+            )
             continue
         job_id = await _new_job(session, config_id)
         with _collector_paused():
