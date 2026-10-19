@@ -5951,6 +5951,35 @@ def test_replay_samples_a_shortened_variable_from_its_json_source_path() -> None
     assert entry["source_column"] == "property.Aalter"
 
 
+def test_replay_row_walk_and_json_sampler_store_one_rendering_of_a_string() -> None:
+    # Both adapters hand a JSON value column back as JSON text: Postgres casts
+    # the extract with ``::text``, ClickHouse wraps it in ``toJSONString``. The
+    # sampler decoded it and the row walk did not, so one context held
+    # ``search`` and ``"search"`` side by side.
+    variable = _shortened_scan_variable()
+    event, field_definition_id = _replay_event_with_value("${aalter}")
+
+    accum: dict[tuple[uuid.UUID, uuid.UUID, uuid.UUID], dict[str, object]] = {}
+    metrics_generation._accumulate_replay_variable_samples(
+        accum,
+        event=event,
+        data_row=("Login", ["Aalter"], '"search"'),
+        reg_index={"event_name": 0},
+        n_reg=1,
+        n_json=1,
+        json_value_names=["property.Aalter"],
+        variable_index=VariableIndex([variable]),
+    )
+    metrics_generation._accumulate_replay_json_samples_from_events(
+        accum,
+        events=[event],
+        json_path_samples={"property": {"Aalter": ['"search"', '"push"']}},
+        variable_index=VariableIndex([variable]),
+    )
+
+    assert accum[(variable.id, event.id, field_definition_id)]["values"] == ["search", "push"]
+
+
 def test_replay_samples_a_dotted_display_name_from_its_regular_source_column() -> None:
     # source_name has no dot, the display name does — the reverse of the scan's
     # own shape, and reachable by hand-editing a variable.
