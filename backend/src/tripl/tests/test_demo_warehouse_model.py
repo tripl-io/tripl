@@ -787,6 +787,26 @@ def test_every_three_hours_hold_both_purchase_contract_findings() -> None:
         assert any(gbp_hours[first : first + 3]), start + timedelta(hours=first)
 
 
+def test_every_hour_holds_the_undocumented_product_on_trials() -> None:
+    """``prod_weekly`` on ``Trial Started`` in EVERY hour of a week.
+
+    The catalog scan reads ``product_id`` over its three-hour lookback alone,
+    so the value drift the demo opens with is only as certain as this. Every
+    hour, not every three: a window of whole hours then holds it however short
+    it is. The week includes 2026-10-19 11:00-15:00, whose trials drew no
+    ``prod_weekly`` at all before the hour's story row.
+    """
+    start = datetime(2026, 10, 15, tzinfo=UTC)
+    for offset in range(168):
+        hour = start + timedelta(hours=offset)
+        products = [
+            row["product_id"]
+            for row in rows.events_for_hour(hour)
+            if row["event_name"] == roster.VARIABLE_DRIFT_EVENT
+        ]
+        assert roster.UNDOCUMENTED_PRODUCT in products, hour
+
+
 def test_contract_findings_reach_the_orders_table() -> None:
     hour = datetime(2026, 10, 6, 14, tzinfo=UTC)
     purchases = [
