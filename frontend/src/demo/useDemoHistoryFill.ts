@@ -1,10 +1,14 @@
 import { useEffect, useRef } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
-import { overviewVolumeRootKey, projectMonitoringSeriesKey, projectQueryOptions } from '@/lib/queryKeys'
+import { projectQueryOptions } from '@/lib/queryKeys'
+import { invalidateForEvent } from '@/realtime/invalidationMap'
 import type { Project } from '@/types'
 
 /** How often a demo filling in its history asks how far it is. */
 export const FILL_POLL_MS = 5_000
+
+/** The least time between two chart refreshes while the fill advances. */
+export const FILL_REFRESH_MIN_MS = 30_000
 
 export interface DemoHistoryFill {
   /** The fill is running: the demo holds its last two days and is adding older ones. */
@@ -33,16 +37,26 @@ export interface DemoHistoryFill {
  * which still subscribes it to the entry the poller fills.
  *
  * The poller also refreshes the charts as the fill goes: the backend stores
- * the newest week first, and each step of `progress` is another week in the
- * warehouse. The drilldown series are kept fresh by a 60 s adaptive poll at
- * best, and not at all while the realtime stream is connected (no stream
- * event announces a backfill), so without this the charts kept their
- * two-day line until the end-of-fill refetch. Only the series — the
- * drilldown's and the Overview volume card's — are invalidated here; the
- * end-of-fill refetch of everything stays with the banner, in one place.
+ * the newest week first, so the warehouse gains older weeks while the demo is
+ * open. The drilldown series are kept fresh by a 60 s adaptive poll at best,
+ * and not at all while the realtime stream is connected (no stream event
+ * announces a backfill), so without this the charts kept their two-day line
+ * until the end-of-fill refetch. A fill job stores what a metric collection
+ * stores, so it invalidates what `metric_collection.updated` does
+ * (`invalidateForEvent`): the drilldown's series and its tabs (By version,
+ * adoption, breakdowns, distribution drift) and the Overview volume card among
+ * them. The end-of-fill refetch of everything stays with the banner, in one
+ * place.
+ *
+ * Throttled: `progress` moves by whole percent per replay chunk, several
+ * times a week's worth, so refetching on every change would reload every
+ * chart on most 5 s polls. The first step after mount refreshes at once (the
+ * page opened on two days); later steps at most once per
+ * {@link FILL_REFRESH_MIN_MS}. A step skipped inside that interval is picked
+ * up by the next one past it, and the last ones by the end-of-fill refetch.
  * It lives in the poller rather than in each notice because the poller is
  * mounted exactly once per page and is the first to see a new `progress`:
- * one invalidation per step, whatever number of notices the page shows.
+ * one refresh per interval, whatever number of notices the page shows.
  */
 export function useDemoHistoryFill(
   project: Project | undefined,
@@ -66,11 +80,15 @@ export function useDemoHistoryFill(
   // Seeded with the progress the page opened on: the series fetched on mount
   // already hold those weeks, so only a later step refetches them.
   const seenProgress = useRef(progress)
+  // When the charts were last refreshed; none yet, so the first step goes now.
+  const refreshedAt = useRef<number | null>(null)
   useEffect(() => {
-    if (!poll || !filling || progress === seenProgress.current) return
+    if (!poll || !filling || !slug || progress === seenProgress.current) return
+    const now = Date.now()
+    if (refreshedAt.current !== null && now - refreshedAt.current < FILL_REFRESH_MIN_MS) return
     seenProgress.current = progress
-    void queryClient.invalidateQueries({ queryKey: projectMonitoringSeriesKey(slug) })
-    void queryClient.invalidateQueries({ queryKey: overviewVolumeRootKey(slug) })
+    refreshedAt.current = now
+    invalidateForEvent(queryClient, 'metric_collection.updated', slug)
   }, [poll, filling, progress, slug, queryClient])
 
   return { filling, failed, progress }

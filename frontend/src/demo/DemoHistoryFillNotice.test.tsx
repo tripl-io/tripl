@@ -4,10 +4,18 @@ import type { ReactNode } from 'react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { projectsApi } from '@/api/projects'
 import { ActiveProjectContext } from '@/components/active-project-context'
-import { overviewVolumeRootKey, projectKey, projectMonitoringSeriesKey } from '@/lib/queryKeys'
+import {
+  overviewVolumeRootKey,
+  projectAppVersionAdoptionKey,
+  projectAppVersionSeriesKey,
+  projectDistributionDriftsKey,
+  projectKey,
+  projectMonitoringBreakdownsKey,
+  projectMonitoringSeriesKey,
+} from '@/lib/queryKeys'
 import type { Project } from '@/types'
 import { DemoHistoryFillNotice } from './DemoHistoryFillNotice'
-import { useDemoHistoryFill } from './useDemoHistoryFill'
+import { FILL_POLL_MS, FILL_REFRESH_MIN_MS, useDemoHistoryFill } from './useDemoHistoryFill'
 
 function demoProject(overrides: Partial<Project> = {}): Project {
   return {
@@ -114,25 +122,92 @@ describe('useDemoHistoryFill', () => {
     )
   }
 
-  it('the poller refetches the series once per new progress, not on mount', async () => {
-    const get = vi.spyOn(projectsApi, 'get').mockResolvedValue(demoProject())
-    const client = newClient()
+  /** How many times the drilldown's series were invalidated. */
+  function seriesRefreshes(invalidate: { mock: { calls: unknown[][] } }) {
+    const series = JSON.stringify(projectMonitoringSeriesKey('demo'))
+    return invalidate.mock.calls.filter(
+      ([filters]) => JSON.stringify((filters as { queryKey?: unknown }).queryKey) === series,
+    ).length
+  }
+
+  /** A polling hook whose first poll answered with the progress it opened on. */
+  async function renderPoller(client: QueryClient) {
+    vi.spyOn(projectsApi, 'get').mockResolvedValue(demoProject())
     const invalidate = vi.spyOn(client, 'invalidateQueries')
     const { result } = renderHook(() => useDemoHistoryFill(demoProject()), { wrapper: wrapperFor(client) })
-
-    // The first poll answers with the progress the page opened on.
     await waitFor(() => expect(client.getQueryState(projectKey('demo'))?.status).toBe('success'))
-    expect(get).toHaveBeenCalledTimes(1)
+    return { result, invalidate }
+  }
+
+  function advanceTo(client: QueryClient, overrides: Partial<Project>) {
+    act(() => {
+      client.setQueryData(projectKey('demo'), demoProject(overrides))
+    })
+  }
+
+  it('the poller refetches the charts on a new progress, not on mount', async () => {
+    const client = newClient()
+    const { result, invalidate } = await renderPoller(client)
+    expect(projectsApi.get).toHaveBeenCalledTimes(1)
     expect(result.current).toEqual({ filling: true, failed: false, progress: 40 })
     expect(invalidate).not.toHaveBeenCalled()
 
-    act(() => {
-      client.setQueryData(projectKey('demo'), demoProject({ demo_history_progress: 55 }))
-    })
+    advanceTo(client, { demo_history_progress: 55 })
     await waitFor(() => expect(result.current.progress).toBe(55))
-    expect(invalidate).toHaveBeenCalledTimes(2)
-    expect(invalidate).toHaveBeenCalledWith({ queryKey: projectMonitoringSeriesKey('demo') })
-    expect(invalidate).toHaveBeenCalledWith({ queryKey: overviewVolumeRootKey('demo') })
+    // What a metric collection refreshes: the series, the drilldown's tabs and
+    // the Overview volume card.
+    for (const queryKey of [
+      projectMonitoringSeriesKey('demo'),
+      projectAppVersionSeriesKey('demo'),
+      projectAppVersionAdoptionKey('demo'),
+      projectMonitoringBreakdownsKey('demo'),
+      projectDistributionDriftsKey('demo'),
+      overviewVolumeRootKey('demo'),
+    ]) {
+      expect(invalidate).toHaveBeenCalledWith({ queryKey })
+    }
+    expect(seriesRefreshes(invalidate)).toBe(1)
+  })
+
+  it('refreshes at most once per interval while the progress keeps moving', async () => {
+    let clock = 1_000_000
+    vi.spyOn(Date, 'now').mockImplementation(() => clock)
+    const client = newClient()
+    const { result, invalidate } = await renderPoller(client)
+
+    // The first step after mount refreshes at once.
+    advanceTo(client, { demo_history_progress: 45 })
+    await waitFor(() => expect(result.current.progress).toBe(45))
+    expect(seriesRefreshes(invalidate)).toBe(1)
+
+    // The next poll's step, inside the interval, waits.
+    clock += FILL_POLL_MS
+    advanceTo(client, { demo_history_progress: 50 })
+    await waitFor(() => expect(result.current.progress).toBe(50))
+    expect(seriesRefreshes(invalidate)).toBe(1)
+
+    // The first step past it goes.
+    clock += FILL_REFRESH_MIN_MS
+    advanceTo(client, { demo_history_progress: 55 })
+    await waitFor(() => expect(result.current.progress).toBe(55))
+    expect(seriesRefreshes(invalidate)).toBe(2)
+  })
+
+  it('stops refreshing the series once the fill is complete', async () => {
+    let clock = 1_000_000
+    vi.spyOn(Date, 'now').mockImplementation(() => clock)
+    const client = newClient()
+    const { result, invalidate } = await renderPoller(client)
+    advanceTo(client, { demo_history_progress: 55 })
+    await waitFor(() => expect(result.current.progress).toBe(55))
+    expect(seriesRefreshes(invalidate)).toBe(1)
+
+    // Past the interval, so only the status can hold it back. The end-of-fill
+    // refetch of everything is the banner's, not this hook's.
+    clock += FILL_REFRESH_MIN_MS
+    advanceTo(client, { demo_history_status: 'complete', demo_history_progress: null })
+    await waitFor(() => expect(result.current.filling).toBe(false))
+    expect(seriesRefreshes(invalidate)).toBe(1)
   })
 
   it('a reader never invalidates, so a page with notices does not refetch twice', async () => {
