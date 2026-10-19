@@ -43,7 +43,7 @@ from tripl.core.demo_warehouse.roster import (
     UnplannedEventDef,
 )
 
-MODEL_VERSION = "3"
+MODEL_VERSION = "4"
 SEED = "tripl-demo-warehouse"
 #: The count noise, as a share of Poisson's standard deviation.
 NOISE_RATIO = 0.5
@@ -67,6 +67,15 @@ FREE_PURCHASE_SHARE = 0.02
 #: shares alone leave hours with neither, and the demo's first live collection
 #: — as short as three hours — would miss a finding its story promises.
 CONTRACT_STORY_COUNTRY = "GB"
+#: The same promise for the variable-value drift: an hour whose ``Trial
+#: Started`` rows drew no ``prod_weekly`` (the plan's undocumented product) has
+#: its first one carry it. A 10 % share of ~7 trials an hour misses a whole
+#: three-hour window about one window in nine (81 of 717 over September 2026,
+#: among them 2026-10-19 11:00-14:00 and 12:00-15:00), and that window is the
+#: catalog scan's ``SCAN_LOOKBACK_HOURS``, the only reading of ``product_id``
+#: the drift detector gets: a demo built then opened without its value drift.
+#: Only empty hours are touched, so the share moves from 10 % to about 17 %.
+VALUE_DRIFT_STORY_EVENT = roster.VARIABLE_DRIFT_EVENT
 #: Share of completed orders later refunded.
 REFUNDED_ORDER_SHARE = 0.04
 #: The events whose rows become orders, and the status each order gets.
@@ -386,6 +395,7 @@ def _generate_events(index: int, only: frozenset[str] | None = None) -> list[Row
     context = _HourContext(hour_start)
     events: list[Row] = []
     story: list[Row] = []
+    trials: list[Row] = []
     for event in roster.live_events():
         if only is not None and event.name not in only:
             continue
@@ -395,8 +405,11 @@ def _generate_events(index: int, only: frozenset[str] | None = None) -> list[Row
                 generated = _event_rows(context, event, platform, count)
                 if event.name == roster.SCHEMA_DRIFT_EVENT:
                     story.extend(generated)
+                elif event.name == VALUE_DRIFT_STORY_EVENT:
+                    trials.extend(generated)
                 events.extend(generated)
     _mark_contract_story(context, story)
+    _mark_value_drift_story(trials)
     for unplanned in roster.unplanned_events():
         if only is not None and unplanned.name not in only:
             continue
@@ -429,6 +442,18 @@ def _mark_contract_story(context: _HourContext, purchases: list[Row]) -> None:
         row["amount"] = _PRICE_DECIMALS[str(row["product_id"])][CURRENCY_BY_COUNTRY[country]]
         row["user_id"] = user_id
         row["session_id"] = f"{user_id}-{context.session_block:x}"
+
+
+def _mark_value_drift_story(trials: list[Row]) -> None:
+    """Make the hour's first trial ``prod_weekly`` when none of them drew it.
+
+    ``trials`` are the hour's ``Trial Started`` rows in generation order, as
+    in :func:`_mark_contract_story`. No draw is consumed, so every other value
+    of the hour is the one it would have been. Trials are unpriced and never
+    become orders, so the product is the only column that changes.
+    """
+    if trials and all(row["product_id"] != roster.UNDOCUMENTED_PRODUCT for row in trials):
+        trials[0]["product_id"] = roster.UNDOCUMENTED_PRODUCT
 
 
 _SESSIONS_BY_HOUR: dict[int, frozenset[str]] = {}
