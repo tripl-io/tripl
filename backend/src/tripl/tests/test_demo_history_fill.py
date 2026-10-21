@@ -33,6 +33,7 @@ from tripl.services import demo_history_service, demo_service
 from tripl.services.demo import noise, pipeline
 from tripl.services.demo.scenario import DemoContext
 from tripl.tests.conftest import TestSessionLocal
+from tripl.worker.tasks.metrics.generation import _iter_window_chunks
 
 
 @pytest.fixture
@@ -147,8 +148,8 @@ def test_the_fill_meets_the_first_build() -> None:
         assert pipeline.fill_progress([], now) == 0
 
 
-def test_the_newest_fill_window_is_a_whole_span(monkeypatch: pytest.MonkeyPatch) -> None:
-    """The fill runs newest first, so the window next to the first build is a whole week.
+def test_every_fill_window_but_the_oldest_is_a_whole_day(monkeypatch: pytest.MonkeyPatch) -> None:
+    """The fill runs newest first, one day per job, back from the first build.
 
     The short remainder (the history starts at midnight, the first build at the
     build hour) is the oldest window, the one replayed last.
@@ -158,13 +159,30 @@ def test_the_newest_fill_window_is_a_whole_span(monkeypatch: pytest.MonkeyPatch)
         now = datetime(2026, 10, 12, tzinfo=UTC) + timedelta(hours=hour)
         start, end = noise.history_start(now), pipeline.first_build_start(now)
         windows = pipeline.fill_windows(now)
-        assert end - start >= pipeline.REPLAY_JOB_SPAN
-        assert windows[-1] == (end - pipeline.REPLAY_JOB_SPAN, end)
+        assert end - start >= pipeline.FILL_JOB_SPAN
+        assert windows[-1] == (end - pipeline.FILL_JOB_SPAN, end)
         assert windows[0][0] == start
         for (_, prev_end), (next_start, _) in zip(windows, windows[1:], strict=False):
             assert prev_end == next_start
-        assert all(b - a == pipeline.REPLAY_JOB_SPAN for a, b in windows[1:])
-        assert windows[0][1] - windows[0][0] <= pipeline.REPLAY_JOB_SPAN
+        assert all(b - a == pipeline.FILL_JOB_SPAN for a, b in windows[1:])
+        assert windows[0][1] - windows[0][0] <= pipeline.FILL_JOB_SPAN
+
+
+def test_a_fill_job_replays_one_chunk(monkeypatch: pytest.MonkeyPatch) -> None:
+    """A job walks its chunks oldest first; one chunk per job keeps the fill newest first.
+
+    A week-long job filled each week from its old edge: an open demo showed its
+    last two days, a gap, and a week growing towards them. The interval and
+    chunk interval are the demo scan's (``builders.warehouse``).
+    """
+    monkeypatch.setattr(settings, "demo_history_days", noise.DEMO_HISTORY_DAYS)
+    for hour in range(0, 24 * 7, 5):
+        now = datetime(2026, 10, 12, tzinfo=UTC) + timedelta(hours=hour)
+        for start, end in pipeline.fill_windows(now):
+            chunks = _iter_window_chunks(
+                start, end, interval_delta=timedelta(hours=1), chunk_interval_code="1d"
+            )
+            assert chunks == [(start, end)]
 
 
 class _FillLoopDone(Exception):

@@ -116,9 +116,9 @@ score) and on to that day's midnight UTC, is **filled in afterwards** by a
 second task on the worker, while you
 look around; the demo's banner says *Filling in history* with how far it is,
 and **Run now** and **Replay** on the demo's scan wait until it is done
-(a few minutes). The fill replays the older weeks newest first, a week at a
-time, so the last week is whole after its first job and the charts fill in
-backwards from there; then it scores the whole
+(a few minutes). The fill replays the older history newest first, a day at a
+time, so the charts fill in backwards from the last two days; then it scores
+the whole
 history once on the full baseline and dispatches what it finds, so the newest
 incident files the alert deliveries a live collection would have. Then comes
 the scheduler's first live collection, up to the hour the demo was built: it

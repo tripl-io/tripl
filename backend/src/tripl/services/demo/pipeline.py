@@ -202,6 +202,13 @@ def _stamp_connection(session: Session, data_source_id: uuid.UUID, now: datetime
 #: at most eight days of events per query.
 REPLAY_JOB_SPAN = timedelta(days=7)
 
+#: The window one history fill job covers: one replay chunk (the demo scan's
+#: ``replay_chunk_interval``). A job walks its chunks oldest first, so a
+#: week-long fill job filled each week from its old edge while the weeks went
+#: newest first: an open demo showed its last two days, a gap, and a week
+#: growing towards them. One chunk per job, the fill reaches back day by day.
+FILL_JOB_SPAN = timedelta(days=1)
+
 
 #: The history the first build replays before the demo opens; the rest is
 #: filled afterwards (:func:`fill_history`). Two days hold the incident the
@@ -445,19 +452,19 @@ def history_progress(
 
 
 def fill_windows(now: datetime) -> list[tuple[datetime, datetime]]:
-    """The history the first build left out, in :data:`REPLAY_JOB_SPAN` jobs, oldest first.
+    """The history the first build left out, in :data:`FILL_JOB_SPAN` jobs, oldest first.
 
     Cut BACKWARDS from :func:`first_build_start`: :func:`fill_history` runs the
-    windows newest first, so the one next to the first build is a whole span
-    (a visitor's 7-day chart is whole after one job), and the short remainder —
-    the history starts at midnight, the first build at the build hour — is the
-    oldest window, the last one replayed. Listed oldest first all the same, so
-    the list reads as the history's tiling.
+    windows newest first, so each one is a whole day ending where the newer
+    history begins, and the short remainder — the history starts at midnight,
+    the first build at the build hour — is the oldest window, the last one
+    replayed. Listed oldest first all the same, so the list reads as the
+    history's tiling.
     """
     start, end = noise.history_start(now), first_build_start(now)
     cuts = [end]
     while cuts[-1] > start:
-        cuts.append(max(cuts[-1] - REPLAY_JOB_SPAN, start))
+        cuts.append(max(cuts[-1] - FILL_JOB_SPAN, start))
     cuts.reverse()
     return list(zip(cuts, cuts[1:], strict=False))
 
@@ -479,9 +486,10 @@ async def fill_history(
 
     Runs after the demo is open, on the build's clock (``ctx.now``). The
     :func:`fill_windows` jobs only store, newest first: the demo is open while
-    they run, and a visitor reads the last week before the weeks behind it, so
-    that week is whole after the first job (an oldest-first walk left it empty
-    until the last). A window a completed replay already covers (a redelivered
+    they run, and a visitor reads the last days before the weeks behind them,
+    so the history grows back from the first build one day per job (an
+    oldest-first walk left the last week empty until the end). A window a
+    completed replay already covers (a redelivered
     task) is not replayed again, and one the warehouse has dropped by then is
     skipped. Then one short replay
     ending where the first build's scoring ended re-scores
