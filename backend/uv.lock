@@ -1912,18 +1912,18 @@ wheels = [
 
 [[package]]
 name = "pyathena"
-version = "3.38.0"
+version = "4.1.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "boto3" },
     { name = "botocore" },
     { name = "fsspec" },
-    { name = "python-dateutil" },
     { name = "tenacity" },
+    { name = "tzdata" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/d7/d6/4b7cbbd3f68d30e05c05c9e8512c2be40f1c6583f9167b4543328630e876/pyathena-3.38.0.tar.gz", hash = "sha256:55d81a4cbc3229bad3f2e3e30a243616a8626c994f4c3a864f61f7930f997589", size = 172361, upload-time = "2026-10-06T15:56:26.217Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/66/3b/f48e053daf4dbbade6247cc144e00660e66c3131a7cb88daebe05d6ff520/pyathena-4.1.0.tar.gz", hash = "sha256:857b5c8ac692a1fe9a3772ccfa7c92f4cf70ac87ac63e8b545a6b717ab55f29f", size = 280220, upload-time = "2026-10-14T00:36:47.915Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/24/f1/d67ad54a21615f07e01d8adecdc6060b72bf37b8fc9e8b48e38b7cfaae58/pyathena-3.38.0-py3-none-any.whl", hash = "sha256:4f3fb95ff3bb28012751a09eb5604bc6ec2850380bbdd60d7172238f8a52f992", size = 234583, upload-time = "2026-10-06T15:56:24.541Z" },
+    { url = "https://files.pythonhosted.org/packages/c4/03/98051ffd9f2eb69daaf14a783e5e9d35a20fa683f83e15bfe4227c493191/pyathena-4.1.0-py3-none-any.whl", hash = "sha256:522b80843148378e04598a29da4b187142e08c7e187efd8a343f1dfcb41a118a", size = 354280, upload-time = "2026-10-14T00:36:46.185Z" },
 ]
 
 [[package]]
