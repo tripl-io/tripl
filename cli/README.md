@@ -95,6 +95,7 @@ tripl annotate "Deployed web 2026.09.25" --project SLUG --url URL   # deploy mar
 tripl check               # validate the tracking calls in this checkout against the plan
 tripl check --payloads events.ndjson   # validate captured events; a missing required field fails
 tripl check --format sarif > tripl.sarif   # SARIF 2.1.0 for code scanning
+tripl check --report codequality=gl-code-quality-report.json --report junit=tripl-check.xml   # a GitLab merge request's reports
 tripl codegen             # typed tracking code (Swift, Kotlin, TypeScript) from the plan
 tripl codegen --check     # CI: exit 1 when the committed generated files are out of date
 tripl export --out plan-schemas   # one JSON Schema (2020-12) per event, plus the bundle

@@ -8,17 +8,19 @@ tripl envelope.
 
 from __future__ import annotations
 
-import hashlib
 from pathlib import Path, PurePosixPath
 from typing import Any
 from urllib.parse import quote
 
 from tripl_cli import __version__
+from tripl_cli.check.fingerprint import FINGERPRINT_KEY, finding_fingerprints
 from tripl_cli.check.model import (
     MODE_STATIC,
     SEVERITY_ERROR,
     SEVERITY_INFO,
     SEVERITY_WARNING,
+    SKIP_TOO_LARGE,
+    SKIP_UNREADABLE,
     STATUS_DYNAMIC,
     STATUS_OK,
     STDIN_LABEL,
@@ -75,6 +77,13 @@ def describe(result: CheckResult) -> str:
     return f"{item.event_type or '-'}  {label}"
 
 
+def finding_message(result: CheckResult, finding: CheckFinding) -> str:
+    """One finding as one line of prose: what is wrong, then which call it is about."""
+    field = f" (field {finding.field})" if finding.field else ""
+    text = finding.message or RULE_TEXT.get(finding.code, finding.code)
+    return f"{text}{field} - {describe(result)}"
+
+
 def location(origin: Origin) -> str:
     if origin.column is not None:
         return f"{origin.path}:{origin.line}:{origin.column}"
@@ -108,7 +117,20 @@ def render_text(report: CheckReport) -> str:
     if lines:
         lines.append("")
     lines.append(tally + ".")
+    if report.skipped:
+        shown = ", ".join(
+            f"{skip.path} ({_SKIP_TEXT.get(skip.reason, skip.reason)})"
+            for skip in report.skipped[:_SKIPPED_SHOWN]
+        )
+        more = len(report.skipped) - _SKIPPED_SHOWN
+        tail = f", and {more} more" if more > 0 else ""
+        lines.append(f"Not read: {plural(len(report.skipped), 'configured file')}: {shown}{tail}.")
     return "\n".join(lines)
+
+
+_SKIP_TEXT = {SKIP_TOO_LARGE: "too large", SKIP_UNREADABLE: "unreadable"}
+# The listing names a few; `--json` carries every one.
+_SKIPPED_SHOWN = 5
 
 
 # --- SARIF 2.1.0 -------------------------------------------------------------------
@@ -116,11 +138,13 @@ def sarif_document(report: CheckReport, *, root: Path | None) -> JsonDict:
     """A complete SARIF 2.1.0 log with one run, one result per finding."""
     codes: list[str] = []
     results: list[JsonDict] = []
-    for result in report.results:
-        for finding in result.findings:
+    for result, fingerprints in zip(report.results, finding_fingerprints(report), strict=True):
+        for finding, fingerprint in zip(result.findings, fingerprints, strict=True):
             if finding.code not in codes:
                 codes.append(finding.code)
-            results.append(_sarif_result(result, finding, codes.index(finding.code), report))
+            results.append(
+                _sarif_result(result, finding, codes.index(finding.code), report, fingerprint)
+            )
     run: JsonDict = {
         "tool": {
             "driver": {
@@ -170,7 +194,11 @@ _ERROR_CODES = frozenset(
 
 
 def _sarif_result(
-    result: CheckResult, finding: CheckFinding, rule_index: int, report: CheckReport
+    result: CheckResult,
+    finding: CheckFinding,
+    rule_index: int,
+    report: CheckReport,
+    fingerprint: str,
 ) -> JsonDict:
     origin = result.item.origin
     region: JsonDict = {"startLine": max(origin.line, 1)}
@@ -180,29 +208,13 @@ def _sarif_result(
         region["endLine"] = origin.end_line
     if origin.end_column is not None:
         region["endColumn"] = origin.end_column
-    subject = describe(result)
-    field = f" (field {finding.field})" if finding.field else ""
-    message = f"{finding.message or RULE_TEXT.get(finding.code, finding.code)}{field} - {subject}"
-    fingerprint = hashlib.sha256(
-        "\0".join(
-            (
-                finding.code,
-                origin.path,
-                origin.snippet,
-                result.item.event_type or "",
-                result.item.name or "",
-                finding.field or "",
-                str(origin.line),
-            )
-        ).encode()
-    ).hexdigest()
     return {
         "ruleId": finding.code,
         "ruleIndex": rule_index,
         "level": _SARIF_LEVEL.get(finding.severity, "error"),
-        "message": {"text": message},
+        "message": {"text": finding_message(result, finding)},
         "locations": [_sarif_location(origin, region, report)],
-        "partialFingerprints": {"triplCheck/v1": fingerprint},
+        "partialFingerprints": {FINGERPRINT_KEY: fingerprint},
         "properties": _properties(result),
     }
 

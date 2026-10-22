@@ -90,6 +90,19 @@ class CheckResult:
 
 
 @dataclass(frozen=True)
+class SkippedFile:
+    """A file the static scan was configured to read and did not."""
+
+    path: str
+    # ``too_large`` (over the scanner's size cap) or ``unreadable``.
+    reason: str
+
+
+SKIP_TOO_LARGE = "too_large"
+SKIP_UNREADABLE = "unreadable"
+
+
+@dataclass(frozen=True)
 class CheckReport:
     run: Run
     project: str
@@ -101,6 +114,14 @@ class CheckReport:
     config_path: str | None = None
     files_scanned: int = 0
     meta: Mapping[str, Any] = field(default_factory=dict)
+    # ``Origin.path`` -> the same file relative to the repository root, for the
+    # formats a CI system resolves against its checkout (Code Quality, JUnit).
+    # A path missing here is used as it is.
+    repo_paths: Mapping[str, str] = field(default_factory=dict)
+    skipped: tuple[SkippedFile, ...] = ()
+
+    def repo_path(self, origin: Origin) -> str:
+        return self.repo_paths.get(origin.path, origin.path)
 
     def count(self, status: str) -> int:
         return sum(1 for result in self.results if result.status == status)

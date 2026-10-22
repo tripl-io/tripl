@@ -33,7 +33,13 @@ from tripl_cli.check.config import (
     EventTypeSpec,
 )
 from tripl_cli.check.lexer import EXTENSIONS, LineIndex, Token, tokenize
-from tripl_cli.check.model import CheckItem, Origin
+from tripl_cli.check.model import (
+    SKIP_TOO_LARGE,
+    SKIP_UNREADABLE,
+    CheckItem,
+    Origin,
+    SkippedFile,
+)
 from tripl_cli.check.symbols import SymbolIndex
 from tripl_cli.check.values import Evaluator, Value
 from tripl_cli.errors import TriplConfigError
@@ -59,6 +65,8 @@ class ScanOutcome:
     items: tuple[CheckItem, ...]
     files: int
     calls: int
+    # Configured files the scan did not read, so a report can say it checked less.
+    skipped: tuple[SkippedFile, ...] = ()
 
 
 # --- globbing -------------------------------------------------------------------
@@ -141,13 +149,14 @@ def discover(config: CheckConfig) -> list[SourceFile]:
     return found
 
 
-def _read(path: Path) -> str | None:
+def _read(path: Path) -> tuple[str | None, str | None]:
+    """``(text, None)``, or ``(None, why)`` for a file the scan leaves out."""
     try:
         if path.stat().st_size > MAX_FILE_BYTES:
-            return None
-        return path.read_text(encoding="utf-8", errors="replace")
+            return None, SKIP_TOO_LARGE
+        return path.read_text(encoding="utf-8", errors="replace"), None
     except OSError:
-        return None
+        return None, SKIP_UNREADABLE
 
 
 # --- the two passes -------------------------------------------------------------
@@ -162,20 +171,25 @@ def scan(config: CheckConfig) -> ScanOutcome:
     symbols = SymbolIndex()
     parsed: list[tuple[SourceFile, str, list[Token]]] = []
     seen: set[Path] = set()
+    skipped: dict[str, SkippedFile] = {}
     for enum_source in config.enums:
-        for path, _relative in walk(config.root, enum_source.patterns, config.exclude):
+        for path, relative in walk(config.root, enum_source.patterns, config.exclude):
             languages = enum_source.languages or frozenset(
                 filter(None, [EXTENSIONS.get(path.suffix.lower())])
             )
-            text = _read(path)
+            text, why = _read(path)
             if text is None:
+                skipped.setdefault(relative, SkippedFile(relative, why or SKIP_UNREADABLE))
                 continue
             for language in sorted(languages):
                 symbols.index_tokens(tokenize(text, language), language)
             seen.add(path)
     for source in files:
-        text = _read(source.path)
+        text, why = _read(source.path)
         if text is None:
+            skipped.setdefault(
+                source.relative, SkippedFile(source.relative, why or SKIP_UNREADABLE)
+            )
             continue
         tokens = tokenize(text, source.language)
         if source.path not in seen:
@@ -194,7 +208,9 @@ def scan(config: CheckConfig) -> ScanOutcome:
             event_type, spec = hit
             origin = _origin(source, call, lines)
             items.extend(map_call(call, spec, event_type, evaluator, origin))
-    return ScanOutcome(tuple(items), len(parsed), matched)
+    return ScanOutcome(
+        tuple(items), len(parsed), matched, tuple(skipped[path] for path in sorted(skipped))
+    )
 
 
 def _first_match(

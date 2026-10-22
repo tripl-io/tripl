@@ -14,6 +14,7 @@ import io
 import json
 import re
 import textwrap
+import xml.etree.ElementTree as ET
 from pathlib import Path
 from typing import Any
 
@@ -272,14 +273,14 @@ def test_strict_reports_values_only_known_at_runtime(
     document = json.loads(capsys.readouterr().out)
     [warned] = [r for r in document["results"] if r["status"] == "warning"]
     assert warned["fields"]["label"] is None
-    assert warned["findings"] == [
-        {
-            "code": "dynamic_value",
-            "severity": "warning",
-            "field": "label",
-            "message": "the value of 'label' is not known until runtime",
-        }
-    ]
+    [finding] = warned["findings"]
+    assert len(finding.pop("fingerprint")) == 64
+    assert finding == {
+        "code": "dynamic_value",
+        "severity": "warning",
+        "field": "label",
+        "message": "the value of 'label' is not known until runtime",
+    }
     assert document["exit_code"] == 1
     assert document["strict"] is True
     assert json.loads(validator.calls.last.request.content)["strict"] is True
@@ -435,6 +436,15 @@ def test_every_route_limit_is_enforced_client_side() -> None:
             {"x.ndjson": '{"fields": {}}\n'},
             "names neither",
         ),
+        (
+            ["check", "--payloads", "empty.ndjson", "--project", "demo"],
+            {"empty.ndjson": "\n"},
+            "holds no events (pass --allow-empty",
+        ),
+        (["check", "--report", "codequality"], {}, "write it as FORMAT=PATH"),
+        (["check", "--report", "html=x.html"], {}, "'html' is not a format"),
+        (["check", "--report", "json=-"], {}, "give --report a file path"),
+        (["check", "--report", "json=a.json", "--report", "sarif=a.json"], {}, "twice"),
     ],
 )
 def test_config_and_payload_problems_exit_2_before_any_request(
@@ -512,7 +522,7 @@ def test_sarif_output_is_a_valid_2_1_0_log_with_regions(
         }
         assert physical["region"]["startLine"] == 2
         assert physical["region"]["startColumn"] == 5
-        assert result["partialFingerprints"]["triplCheck/v1"]
+        assert result["partialFingerprints"]["triplCheck/v2"]
 
 
 def test_sarif_for_payloads_points_at_the_capture_file_line(
@@ -563,6 +573,167 @@ def test_sarif_for_payloads_on_stdin_names_the_line_without_a_file(
 )
 def test_sarif_artifact_uris_are_percent_encoded(path: str, uri: str) -> None:
     assert artifact_uri(path) == uri
+
+
+# --- reports for CI, and the exit codes a pipeline branches on ----------------------------
+BAD_CALL = 'func b() {\n    Analytics.shared.log(category: "map", action: "open", label: "x")\n}\n'
+
+
+def test_one_run_writes_every_report_from_one_validation(
+    repo: Path, validator: Any, configured_env: None, capsys: pytest.CaptureFixture[str]
+) -> None:
+    _write(repo, {"Sources/Bad.swift": BAD_CALL})
+    out = repo / "reports"
+    argv = [
+        "check",
+        "--json",
+        "--report",
+        f"codequality={out / 'gl-code-quality-report.json'}",
+        "--report",
+        f"junit={out / 'tripl-check.xml'}",
+        "--report",
+        f"sarif={out / 'tripl-check.sarif'}",
+    ]
+    assert main(argv) == 1
+    document = json.loads(capsys.readouterr().out)
+    assert validator.call_count == 1
+    issues = json.loads((out / "gl-code-quality-report.json").read_text(encoding="utf-8"))
+    assert {issue["check_name"] for issue in issues} == {
+        "tripl/unknown_event",
+        "tripl/value_not_allowed",
+    }
+    assert {issue["location"]["path"] for issue in issues} == {"Sources/Bad.swift"}
+    fingerprints = {f["fingerprint"] for r in document["results"] for f in r["findings"]}
+    assert {issue["fingerprint"] for issue in issues} == fingerprints
+    suite = ET.fromstring((out / "tripl-check.xml").read_text(encoding="utf-8")).find("testsuite")
+    assert suite is not None
+    assert (suite.get("tests"), suite.get("failures")) == ("3", "1")
+    sarif = json.loads((out / "tripl-check.sarif").read_text(encoding="utf-8"))
+    assert sarif["version"] == "2.1.0"
+
+
+def test_report_paths_are_relative_to_the_repository_not_the_check_root(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    validator: Any,
+    configured_env: None,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    root = tmp_path / "mono"
+    app = root / "apps" / "ios"
+    _write(app, {".tripl/check.yml": CONFIG, "Sources/Bad.swift": BAD_CALL})
+    (root / ".git").mkdir()
+    monkeypatch.chdir(app)
+    assert main(["check", "--json", "--report", "codequality=cq.json"]) == 1
+    [row] = json.loads(capsys.readouterr().out)["results"]
+    assert row["location"]["path"] == "Sources/Bad.swift"  # --json keeps the check root's
+    issues = json.loads((app / "cq.json").read_text(encoding="utf-8"))
+    assert {issue["location"]["path"] for issue in issues} == {"apps/ios/Sources/Bad.swift"}
+
+
+@pytest.mark.parametrize("failure", ["connect", 503, 429])
+def test_an_unavailable_instance_is_exit_4_and_leaves_no_report(
+    repo: Path,
+    tripl_api: FakeInstance,
+    configured_env: None,
+    capsys: pytest.CaptureFixture[str],
+    failure: str | int,
+) -> None:
+    def respond(request: httpx.Request) -> httpx.Response:
+        if failure == "connect":
+            raise httpx.ConnectError("connection refused", request=request)
+        assert isinstance(failure, int)
+        return httpx.Response(failure, json={"detail": "busy"})
+
+    tripl_api.handler(VALIDATE_URL, respond, method="POST")
+    stale = repo / "gl-code-quality-report.json"
+    stale.write_text("[]", encoding="utf-8")
+    assert main(["check", "--json", "--report", f"codequality={stale}"]) == 4
+    captured = capsys.readouterr()
+    assert captured.out == ""
+    assert "nothing was checked (exit 4)" in captured.err
+    # A report an earlier run left must not pass for this one's.
+    assert not stale.exists()
+
+
+def test_a_refused_key_is_still_exit_1_because_a_retry_will_not_fix_it(
+    repo: Path, tripl_api: FakeInstance, configured_env: None
+) -> None:
+    tripl_api.handler(
+        VALIDATE_URL, lambda request: httpx.Response(401, json={"detail": "no"}), method="POST"
+    )
+    assert main(["check"]) == 1
+
+
+def test_a_config_that_matches_no_call_is_exit_2_unless_empty_is_allowed(
+    repo: Path, validator: Any, configured_env: None, capsys: pytest.CaptureFixture[str]
+) -> None:
+    _write(
+        repo,
+        {
+            ".tripl/check.yml": """
+                project: demo
+                sources: ["Sources/**"]
+                event_types:
+                  legacy:
+                    calls: [{function: "Tracker.track", name_arg: 0}]
+            """
+        },
+    )
+    assert main(["check"]) == 2
+    assert "has a call the call specs match, so nothing was checked" in capsys.readouterr().err
+    assert not validator.called
+    assert main(["check", "--allow-empty"]) == 0
+    assert "No tracking calls matched the check config" in capsys.readouterr().out
+
+
+def test_sources_that_match_no_file_are_exit_2(
+    repo: Path, validator: Any, configured_env: None, capsys: pytest.CaptureFixture[str]
+) -> None:
+    config = (repo / ".tripl/check.yml").read_text(encoding="utf-8")
+    _write(repo, {".tripl/check.yml": config.replace("Sources/**", "Moved/**")})
+    assert main(["check"]) == 2
+    assert "no readable source file under" in capsys.readouterr().err
+
+
+def test_an_empty_capture_file_is_fine_with_allow_empty(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    validator: Any,
+    configured_env: None,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    monkeypatch.chdir(tmp_path)
+    (tmp_path / ".git").mkdir()
+    (tmp_path / "events.ndjson").write_text("\n", encoding="utf-8")
+    argv = ["check", "--payloads", "events.ndjson", "--project", "demo", "--allow-empty"]
+    assert main(argv) == 0
+    assert "0 events: 0 ok" in capsys.readouterr().out
+    assert not validator.called
+
+
+def test_a_file_the_scan_did_not_read_is_reported(
+    repo: Path, validator: Any, configured_env: None, capsys: pytest.CaptureFixture[str]
+) -> None:
+    (repo / "Sources" / "Bundle.swift").write_text("// " + "x" * 2_000_001, encoding="utf-8")
+    assert main(["check", "--json"]) == 0
+    captured = capsys.readouterr()
+    assert json.loads(captured.out)["skipped"] == [
+        {"path": "Sources/Bundle.swift", "reason": "too_large"}
+    ]
+    assert "Not read: 1 configured file: Sources/Bundle.swift (too large)." in captured.err
+
+
+def test_a_report_that_cannot_be_written_fails_the_run_before_stdout(
+    repo: Path, validator: Any, configured_env: None, capsys: pytest.CaptureFixture[str]
+) -> None:
+    target = repo / "occupied"
+    target.mkdir()
+    assert main(["check", "--json", "--report", f"json={target}"]) == 1
+    captured = capsys.readouterr()
+    assert captured.out == ""
+    assert "cannot write the report" in captured.err
+    assert target.is_dir()  # a directory in the way is left as it was
 
 
 # --- batching ------------------------------------------------------------------------

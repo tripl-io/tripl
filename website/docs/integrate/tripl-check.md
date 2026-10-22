@@ -23,6 +23,8 @@ the CLI, a CI job and your own tools all get the same verdict. The command only
 reads the plan. A read-only `tk_r_` key is enough.
 
 For the flags, see [`tripl check`](../run/cli.md#tripl-check) on the CLI page.
+To run it on every merge request, in GitLab, GitHub or any other CI, see
+[Check tracking code in CI](../how-to/check-tracking-in-ci.md).
 
 ## How it finds your tracking calls {#how-it-finds-calls}
 
@@ -56,10 +58,12 @@ It supports these languages, chosen by file extension:
 | TypeScript / JavaScript | `.ts`, `.tsx`, `.js`, `.jsx`, `.mjs`, `.cjs` |
 
 A value is **literal** when the scanner can read it from the source: a string
-literal, a number, or an enum case whose raw value it can find (see
-[Enum sources](#enum-sources)). Anything else is **dynamic**: a property, a
-function call, or a value computed at run time. A dynamic value is sent as
-`null`, which means "unknown at scan time". A dynamic value is never an error.
+literal, a number, an enum case or a string constant whose value it can find,
+or a call to a function whose every `return` is a string literal (see
+[Enum sources](#enum-sources)). Anything else is **dynamic**: a variable, a
+parameter, any other function call, or a value computed at run time. A dynamic
+value is sent as `null`, which means "unknown at scan time". A dynamic value is
+never an error.
 
 A call where nothing at all is literal (no name, no field value) is not sent
 to the validator. It is counted with status `dynamic`, and listed only with
@@ -289,6 +293,28 @@ enum AppEvents {
   qualified form in that call, or rename one of the cases.
 - A case the sources do not declare is also dynamic.
 
+**String constants** resolve the same way, by their qualified name:
+`const val X = "y"` (Kotlin, also inside an `object` or a `companion object`),
+`static final String X = "y"` (Java), `static let x = "y"` inside a type and
+`let x = "y"` at file scope (Swift), `const X = "y"` and one-level
+`const Events = { X: "y" }` objects (TypeScript), `NSString *const X = @"y"` and
+`#define X @"y"` (Objective-C). So `logEvent(Analytics.Event.PlayStart)` is read
+as the constant's value. A bare name (`PlayStart`, from inside the class that
+declares it) resolves only for a constant declared at file scope.
+
+**Functions** whose every `return` is a string literal resolve to that set of
+strings, and the call is checked once for each of them. One `return` of
+anything else makes the function dynamic.
+
+Every scanned source file is read for enums and constants too, so `enums` is
+needed only for files outside `sources`. A file listed under `enums` that also
+matches `exclude` is not read.
+
+Still dynamic, though written from constants: `String.format` and `.format(…)`
+templates, two constants joined with `+` (a concatenation is read only when one
+of its parts is a string literal), a name picked by `if` or `when`, and a local
+variable the name was stored in before the call.
+
 ## Interpolated names become properties {#interpolation}
 
 A name built with string interpolation is not a typo. The literal part is still
@@ -308,9 +334,9 @@ places. A token matches a token whatever its property is called, so
 the plan. The value behind the token is unknown at scan time, so it is treated
 as dynamic.
 
-A name that is not a string literal at all (a property, or a function that
-returns the name) is dynamic. Such a call is counted but cannot be matched to an
-event.
+A name the scanner cannot read at all (a variable, a parameter, a function that
+does not return only literals) is dynamic. Such a call is counted but cannot be
+matched to an event.
 
 ## What it reports {#findings}
 
@@ -381,13 +407,23 @@ present.
 
 ## Output formats {#output}
 
-| Flag | Output on stdout |
-|------|------------------|
-| *(none)* | Human-readable text: every item that is not a clean pass, with its location and findings, then a summary. |
-| `--json` | One JSON document with a row for **every** item, passing ones included. See the [`check` document](../run/cli.md#check-document). |
-| `--format sarif` | A [SARIF 2.1.0](https://docs.oasis-open.org/sarif/sarif/v2.1.0/sarif-v2.1.0.html) log, for GitHub code scanning and other SARIF viewers. |
+`--format` picks what goes to stdout, and `--report FORMAT=PATH` writes the
+same result to a file. Repeat `--report` for every file your CI reads: one run,
+one validation, the same verdicts in every file.
 
-In SARIF, each finding is one result and its code is the rule (`ruleId`).
+| Format | What it is |
+|--------|------------|
+| `text` (the default) | Human-readable: every item that is not a clean pass, with its location and findings, then a summary. |
+| `json` (or `--json`) | One JSON document with a row for **every** item, passing ones included. See the [`check` document](../run/cli.md#check-document). |
+| `sarif` | A [SARIF 2.1.0](https://docs.oasis-open.org/sarif/sarif/v2.1.0/sarif-v2.1.0.html) log, for GitHub code scanning and other SARIF viewers. |
+| `codequality` | A [GitLab Code Quality](https://docs.gitlab.com/ci/testing/code_quality/) report, for the merge request's Code Quality report on every GitLab tier. |
+| `junit` | JUnit XML, for GitLab's test summary and the test reports of most other CI systems. |
+
+```bash
+tripl check --report codequality=gl-code-quality-report.json --report junit=tripl-check.xml
+```
+
+**SARIF.** Each finding is one result and its code is the rule (`ruleId`).
 Errors are `level: "error"`, warnings `level: "warning"` and info findings
 `level: "note"`. A static finding carries a `physicalLocation` with a `region`
 for its line and column. Its path is relative to the scan root, the `root` of
@@ -400,16 +436,56 @@ read from standard input has no file location: its finding carries a
 `logicalLocation` naming the line or array position instead. SARIF is mainly
 useful for the static mode.
 
-Human text and progress messages go to stderr when `--json` or `--format sarif`
-is given, so you can redirect stdout to a file.
+**Code Quality.** One issue per finding. `check_name` is `tripl/` and the code
+(`tripl/unknown_event`); `severity` is `major` for an error, `minor` for a
+warning and `info` for an info finding; `location` names the file and the
+call's lines.
+
+**JUnit.** One test case per call site (or captured event), passing ones
+included. A case is named after the call, by its event type and its name or
+field values, and its class is the file. It fails exactly when its call fails
+the run: an error, or a warning with `--strict`. A call where nothing was
+readable is skipped. A warning without `--strict` passes, with its findings as
+the case's output.
+
+**Paths.** In Code Quality and JUnit, paths are relative to the repository root
+(the nearest directory that holds `.git`), the way a CI system resolves them
+against its checkout, even when `.tripl/` sits in a subdirectory of a monorepo.
+The text, JSON and SARIF formats keep paths relative to the scan root.
+
+**Fingerprints.** Every finding has a fingerprint, the same value in JSON
+(`findings[].fingerprint`), SARIF (`partialFingerprints["triplCheck/v2"]`) and
+Code Quality (`fingerprint`). It is built from what the call is (its file,
+callee, event type, name and field values, and the finding's code and field),
+never from its line and never from what the plan says. So a CI system comparing
+two runs, as GitLab's Code Quality report does, sees the same finding after an
+edit above it moves it down the file, and a new one once the call itself
+changes. Identical calls in one file are told apart by their order.
+
+**A run that could not finish writes no report**: a configuration error
+(exit 2), an instance that refused a request (exit 1) or was unavailable
+(exit 4). Nothing goes to stdout or to any `--report` file, and a file an
+earlier run left at a `--report` path is removed, so it cannot pass for this
+run's. A report that cannot be written fails the run (exit 1) before anything
+is printed.
+
+Human text and progress messages go to stderr when stdout carries `json`,
+`sarif`, `codequality` or `junit`, so you can redirect stdout to a file.
 
 ## Exit codes {#exit-codes}
 
 | Code | Meaning |
 |------|---------|
 | **0** | No errors. Warnings are allowed unless you pass `--strict`. |
-| **1** | At least one error, or at least one warning with `--strict`. Also: a request to the instance failed. In that case no document is written to stdout. |
-| **2** | A config or usage error: no config file in static mode, invalid YAML, an unknown key or preset, a call without exactly one of `function` / `pattern` / `objc_selector`, a `--payloads` file that is not valid JSON or holds an event with neither `event_type` nor `name`, no project, `--json` together with another `--format`, or a `--branch` that matches nothing. |
+| **1** | At least one error, or at least one warning with `--strict`. Also: the instance refused a request (an invalid or expired key, a project the key cannot see, a redirect). Then no document or report is written. |
+| **2** | A config or usage error: no config file in static mode, invalid YAML, an unknown key or preset, a call without exactly one of `function` / `pattern` / `objc_selector`, a configuration that matches no call, a `--payloads` file that is not valid JSON, holds no events or holds an event with neither `event_type` nor `name`, no project, `--json` together with another `--format`, a `--report` that is not `FORMAT=PATH`, or a `--branch` that matches nothing. |
+| **4** | The instance was unavailable: it could not be reached, the request timed out, or it answered `429` or a `5xx`. Nothing was checked, and no document or report is written. Let it pass in CI when an outage of tripl should not block merges. |
+
+A configuration that matches no call checks nothing, and a CI check must not
+report that as a pass, so it is exit 2: usually a `sources:` glob after a
+directory moved, or a call spec after a wrapper was renamed. `--allow-empty`
+accepts it, for a repository with no tracking code yet, and also accepts a
+`--payloads` file with no events.
 
 `--strict` makes warnings fail the run, reports a `dynamic_value` finding for
 every value the scanner could not read, and lists the calls where nothing was
@@ -421,71 +497,41 @@ red.
 request that ships code for events that are still on a plan branch under
 review.
 
-## In GitHub Actions {#github-actions}
+## In CI {#ci}
 
-This workflow runs the check on every pull request, fails the job on errors,
-and uploads SARIF so findings appear on the changed lines. It installs the CLI
-with `uv` the same way the [CLI page](../run/cli.md#install) does.
+[Check tracking code in CI](../how-to/check-tracking-in-ci.md) walks through
+it: a read-only key for a bot user, the job for
+[GitLab CI/CD](../how-to/check-tracking-in-ci.md#gitlab),
+[GitHub Actions](../how-to/check-tracking-in-ci.md#github-actions) and
+[other CI systems](../how-to/check-tracking-in-ci.md#other-ci), and how to make
+the check block merges. In short:
 
-```yaml
-# .github/workflows/tracking-plan.yml
-name: Tracking plan
-
-on:
-  pull_request:
-
-permissions:
-  contents: read
-  security-events: write   # needed to upload SARIF
-
-jobs:
-  tripl-check:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v7
-
-      - uses: astral-sh/setup-uv@v6
-
-      - name: Check tracking calls against the plan
-        env:
-          TRIPL_BASE_URL: https://tripl.example.com
-          TRIPL_API_KEY: ${{ secrets.TRIPL_READ_ONLY_KEY }}
-        run: uvx tripl check --format sarif > tripl-check.sarif
-
-      - name: Upload findings to code scanning
-        if: always()   # upload even when the check failed
-        uses: github/codeql-action/upload-sarif@v3
-        with:
-          sarif_file: tripl-check.sarif
-          category: tripl-check
-```
-
-Notes:
-
-- `if: always()` on the upload matters. The check exits 1 when it finds an
-  error, and without it the findings would never reach the pull request.
+- Pin the CLI to the version your instance runs (`pip install tripl==X.Y.Z`, or
+  `uvx tripl@X.Y.Z`): the two are released together.
 - A read-only key (`tk_r_`) is enough, because the check only reads the plan.
-  If you already keep a write key in secrets for [`tripl annotate`](../run/cli.md#in-a-github-actions-workflow),
-  do not reuse it here. Mint a read key and scope it to the project.
-- To check against a plan branch named after the pull request's branch, add
-  `--branch "${{ github.head_ref }}"`. The check exits 2 when no such plan
-  branch exists, so use this only if your team follows that naming convention.
-- Without `uv`, `pip install tripl` followed by `tripl check …` works the same.
+  If you already keep a write key in secrets for
+  [`tripl annotate`](../run/cli.md#in-a-github-actions-workflow), do not reuse
+  it here. Mint a read key and scope it to the project.
+- Write the report your CI shows: `codequality` and `junit` for GitLab, `sarif`
+  for GitHub code scanning, `junit` for most others.
+- To check against a plan branch named after the merge request's branch, add
+  `--branch "$CI_MERGE_REQUEST_SOURCE_BRANCH_NAME"` (GitLab) or
+  `--branch "${{ github.head_ref }}"` (GitHub). The check exits 2 when no such
+  plan branch exists, so use this only if your team follows that naming
+  convention.
 
 To check captured events instead, for example from a UI test run that writes
-what the app sent to `events.ndjson`:
+what the app sent to `build/events.ndjson`:
 
-```yaml
-      - name: Check events captured by the UI tests
-        env:
-          TRIPL_BASE_URL: https://tripl.example.com
-          TRIPL_API_KEY: ${{ secrets.TRIPL_READ_ONLY_KEY }}
-        run: uvx tripl check --payloads build/events.ndjson
+```bash
+tripl check --payloads build/events.ndjson --report junit=tripl-events.xml
 ```
 
 ## Related pages {#related}
 
 - [`tripl check`](../run/cli.md#tripl-check) on the CLI page: every flag.
+- [Check tracking code in CI](../how-to/check-tracking-in-ci.md): the jobs for
+  GitLab, GitHub and other CI systems.
 - [Agent API guide: plan validation](./agent-api-guide.md#plan-validation): the
   endpoint behind the check, for your own tools.
 - [Properties & templates](../use/variables-and-templates.md): documented values

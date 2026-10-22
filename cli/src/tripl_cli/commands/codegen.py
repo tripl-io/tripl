@@ -55,7 +55,7 @@ from tripl_cli.errors import EXIT_FAILURE, EXIT_OK, TriplConfigError
 from tripl_cli.model import JsonDict, Run
 from tripl_cli.render import render_header
 from tripl_cli.report import codegen_document
-from tripl_cli.runner import run_async
+from tripl_cli.runner import run_gate
 
 OFFLINE = "offline"
 
@@ -136,7 +136,9 @@ def fetch_export(
         payload = await reader.send(plan_export.export(project, export_format, branch=branch.id))
         return payload, branch, reader.requests
 
-    payload, branch, requests = run_async(config, body, timeout=timeout)
+    # A gate's read: `codegen --check` and an export a pipeline commits must
+    # tell "the instance was down" (exit 4) from "the files drifted" (exit 1).
+    payload, branch, requests = run_gate(config, body, timeout=timeout)
     run = Run(
         instance=instance_of(config, context.base_url, "unknown"),
         generated_at=context.generated_at,
