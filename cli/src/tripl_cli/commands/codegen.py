@@ -18,8 +18,9 @@ The plan is read from ``GET …/plan/export?format=codegen_model`` — any proje
 member's key works — or, with ``--model FILE``, from a saved export (``tripl
 export --format codegen_model``), which needs no instance at all.
 
-Exit codes: 0 written or in sync; 1 drift under ``--check``, or the instance
-failed; 2 a bad config, template or invocation.
+Exit codes: 0 written or in sync; 1 drift under ``--check``, the instance
+refused the request, or a file could not be written; 2 a bad config, template
+or invocation; 4 the instance was unavailable, so nothing was written.
 """
 
 from __future__ import annotations
@@ -55,7 +56,7 @@ from tripl_cli.errors import EXIT_FAILURE, EXIT_OK, TriplConfigError
 from tripl_cli.model import JsonDict, Run
 from tripl_cli.render import render_header
 from tripl_cli.report import codegen_document
-from tripl_cli.runner import run_async
+from tripl_cli.runner import run_gate
 
 OFFLINE = "offline"
 
@@ -136,7 +137,9 @@ def fetch_export(
         payload = await reader.send(plan_export.export(project, export_format, branch=branch.id))
         return payload, branch, reader.requests
 
-    payload, branch, requests = run_async(config, body, timeout=timeout)
+    # A gate's read: `codegen --check` and an export a pipeline commits must
+    # tell "the instance was down" (exit 4) from "the files drifted" (exit 1).
+    payload, branch, requests = run_gate(config, body, timeout=timeout)
     run = Run(
         instance=instance_of(config, context.base_url, "unknown"),
         generated_at=context.generated_at,

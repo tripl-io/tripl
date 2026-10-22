@@ -2004,7 +2004,10 @@ Notes:
   hash, and with it every generated file's header, even when the change does
   not touch that file's event type. Regenerate and commit; the diff below the
   header is what to review.
-- Add the `tripl check` job from [its guide](./tripl-check.md#github-actions)
+- An instance that is unavailable (unreachable, timed out, `429` or a `5xx`) is
+  exit **4**, not 1, so a pipeline can let an outage pass while drift still
+  fails it. With `--model`, nothing is read and the check works offline.
+- Add the `tripl check` job from [its guide](../how-to/check-tracking-in-ci.md#github-actions)
   next to this one. Codegen covers the calls that use generated code; the check
   still covers the ones that do not.
 

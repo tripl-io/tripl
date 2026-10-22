@@ -551,8 +551,13 @@ def check_document(report: CheckReport) -> JsonDict:
     is the NDJSON line, or 1 for an event in a JSON array (``snippet`` then
     names its position). Finding ``code``s are the validator's plus the CLI's
     own ``dynamic_value`` (``--strict`` only), ``oversize_value`` (a value over
-    the validator's size limits, sent as null) and ``no_verdict``.
+    the validator's size limits, sent as null) and ``no_verdict``. A finding's
+    ``fingerprint`` is the line-free identity every machine format shares (see
+    ``check/fingerprint.py``). ``skipped`` lists the configured files the scan
+    did not read.
     """
+    from tripl_cli.check.fingerprint import finding_fingerprints
+
     document = _run_envelope("check", report.run)
     document["project"] = report.project
     document["branch"] = (
@@ -562,6 +567,7 @@ def check_document(report: CheckReport) -> JsonDict:
     document["strict"] = report.strict
     document["config"] = report.config_path
     document["files_scanned"] = report.files_scanned
+    document["skipped"] = [{"path": skip.path, "reason": skip.reason} for skip in report.skipped]
     counts = {"checked": len(report.results), "ok": 0, "warnings": 0, "errors": 0, "dynamic": 0}
     keys = {"ok": "ok", "warning": "warnings", "error": "errors", "dynamic": "dynamic"}
     for result in report.results:
@@ -595,11 +601,12 @@ def check_document(report: CheckReport) -> JsonDict:
                     "severity": finding.severity,
                     "field": finding.field,
                     "message": finding.message,
+                    "fingerprint": fingerprint,
                 }
-                for finding in result.findings
+                for finding, fingerprint in zip(result.findings, fingerprints, strict=True)
             ],
         }
-        for result in report.results
+        for result, fingerprints in zip(report.results, finding_fingerprints(report), strict=True)
     ]
     return document
 
