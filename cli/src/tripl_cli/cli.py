@@ -8,7 +8,7 @@ from collections.abc import Sequence
 from pathlib import Path
 
 from tripl_cli import __version__
-from tripl_cli.commands import Handler, register_all
+from tripl_cli.commands import Abandon, Handler, register_all
 from tripl_cli.config import ENV_API_KEY, ENV_BASE_URL, resolve
 from tripl_cli.errors import EXIT_USAGE, TriplError
 
@@ -114,11 +114,19 @@ def main(argv: Sequence[str] | None = None) -> int:
         # never the network, and never fails on merely ABSENT values — only on a
         # malformed file or a --config that does not exist. Each command asks
         # for what it needs with require_base_url / require_api_key.
-        config = resolve(
-            base_url=getattr(args, "url", None),
-            api_key=getattr(args, "api_key", None),
-            config_path=getattr(args, "config", None),
-        )
+        try:
+            config = resolve(
+                base_url=getattr(args, "url", None),
+                api_key=getattr(args, "api_key", None),
+                config_path=getattr(args, "config", None),
+            )
+        except BaseException:
+            # The handler never starts, so a command that must not leave an
+            # earlier run's files standing is told here instead.
+            abandon: Abandon | None = getattr(args, "abandon", None)
+            if abandon is not None:
+                abandon(args)
+            raise
         return handler(args, config)
     except TriplError as exc:
         # Every expected failure is a message, never a traceback. A future

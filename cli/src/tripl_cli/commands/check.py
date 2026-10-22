@@ -22,7 +22,8 @@ picks what goes to stdout, and each ``--report FORMAT=PATH`` writes the same
 result to a file — GitLab Code Quality and JUnit for a merge request, SARIF for
 code scanning, the JSON document for scripts. A failed run writes none of them
 and removes what an earlier run left at those paths, so a stale report can
-never pass for this run's.
+never pass for this run's. Only a command line the parser rejects outright (an
+unknown flag, say) leaves them, because then no command runs at all.
 
 Exit codes: 0 clean; 1 when any item has an error (or, with ``--strict``, a
 warning — ``--strict`` also reports values only known at runtime); 2 for a bad
@@ -46,6 +47,7 @@ import sys
 import time
 from collections.abc import Iterable
 from pathlib import Path
+from typing import TextIO
 
 import httpx
 
@@ -149,7 +151,7 @@ def register(
     )
     add_json(parser)
     add_timeout(parser)
-    parser.set_defaults(handler=run)
+    parser.set_defaults(handler=run, abandon=abandon)
 
 
 def _format(args: argparse.Namespace) -> str:
@@ -169,13 +171,10 @@ def _report_targets(args: argparse.Namespace) -> list[tuple[str, Path]]:
     there cannot pass for this one's.
     """
     targets: list[tuple[str, Path]] = []
-    named: list[Path] = []
     problem: str | None = None
     seen: set[Path] = set()
     for spec in args.reports or ():
         report_format, separator, raw = spec.partition("=")
-        if raw and raw != "-":
-            named.append(Path(raw))
         refusal = _refusal(spec, report_format, separator, raw, seen)
         if refusal is not None:
             problem = problem or refusal
@@ -184,7 +183,7 @@ def _report_targets(args: argparse.Namespace) -> list[tuple[str, Path]]:
         seen.add(path.resolve())
         targets.append((report_format, path))
     if problem is not None:
-        _discard(named)
+        abandon(args)
         raise TriplConfigError(problem)
     return targets
 
@@ -202,9 +201,11 @@ def _refusal(
             f"--report {spec!r}: {report_format!r} is not a format; "
             f"use one of {', '.join(FORMATS)}."
         )
+    if raw == "-":
+        return f"--report {spec!r}: stdout is --format's; give --report a file path."
+    if not _names_a_file(raw):
+        return f"--report {spec!r}: {raw} names a directory; give --report a file path."
     path = Path(raw)
-    if raw == "-" or not path.name:
-        return f"--report {spec!r}: give --report a file path (stdout is --format's)."
     if os.path.lexists(path) and (path.is_symlink() or not path.is_file()):
         # A report replaces the file at PATH, so a link would be replaced
         # rather than written through, and /dev/stdout swapped for a file.
@@ -217,6 +218,24 @@ def _refusal(
     return None
 
 
+def _names_a_file(raw: str) -> bool:
+    # As typed, not through Path(), which drops a trailing separator and "."
+    # parts: "reports/" would otherwise become a FILE named reports.
+    return raw != "-" and os.path.basename(raw) not in ("", ".", "..")
+
+
+def abandon(args: argparse.Namespace) -> None:
+    """Remove what an earlier run left at every ``--report`` path, for a run that has none.
+
+    Called on every run that cannot finish: by ``run`` when the check fails,
+    and by ``cli.main`` when the connection settings do not resolve, before
+    ``run`` starts. A spec without ``FORMAT=`` names no path, so a mistyped
+    ``--report src/app.ts`` never touches a source file.
+    """
+    named = (spec.partition("=")[2] for spec in args.reports or ())
+    _discard(Path(raw) for raw in named if raw and _names_a_file(raw))
+
+
 def run(args: argparse.Namespace, config: Config) -> int:
     targets = _report_targets(args)
     try:
@@ -224,7 +243,7 @@ def run(args: argparse.Namespace, config: Config) -> int:
     except BaseException:
         # Any run that did not finish, a crash or Ctrl-C included, leaves no
         # report behind: not this run's half, not an earlier run's whole.
-        _discard(path for _report_format, path in targets)
+        abandon(args)
         raise
 
 
@@ -306,14 +325,13 @@ def _check(args: argparse.Namespace, config: Config, targets: list[tuple[str, Pa
         _write(path, _render(report_format, report, scan_root))
     human = sys.stdout if output == FORMAT_TEXT else sys.stderr
     source = config.sources.get("base_url", "unknown")
-    print(render_header("check", context.base_url, source), file=human)
-    print(file=human)
+    lines = [render_header("check", context.base_url, source), ""]
     if mode == MODE_STATIC and not items:
-        print(
-            "No tracking calls matched the check config; check `sources:` and the call specs.",
-            file=human,
+        lines.append(
+            "No tracking calls matched the check config; check `sources:` and the call specs."
         )
-    print(render_text(report), file=human)
+    lines.append(render_text(report))
+    _say("\n".join(lines), human)
     if output != FORMAT_TEXT:
         sys.stdout.write(_render(output, report, scan_root))
     return report.exit_code
@@ -344,12 +362,37 @@ def _render(report_format: str, report: CheckReport, root: Path | None) -> str:
     return junit_document(report)
 
 
+def _say(text: str, stream: TextIO) -> None:
+    """Print ``text``, escaping what ``stream`` cannot encode instead of failing on it.
+
+    A Windows agent's pipe is cp1252, where a Cyrillic event name would crash
+    the run after its reports were written, and a file name that is not UTF-8
+    arrives from os.walk as lone surrogates, which no stream encodes. Both
+    print as backslash escapes, the way stderr already prints them.
+    """
+    encoding = stream.encoding or "utf-8"
+    print(text.encode(encoding, "backslashreplace").decode(encoding), file=stream)
+
+
 def _write(path: Path, text: str) -> None:
-    """Write through a temporary file, so a reader never sees half a report."""
+    """Write through a temporary file, so a reader never sees half a report.
+
+    The temporary file is always created afresh (``O_EXCL``), never opened
+    through whatever already sits at its name, a link included, so what
+    replaces PATH is a new regular file.
+    """
     temporary = path.with_name(f".{path.name}.tmp")
     try:
         path.parent.mkdir(parents=True, exist_ok=True)
-        temporary.write_text(text, encoding="utf-8")
+        with contextlib.suppress(FileNotFoundError):
+            temporary.unlink()  # a leftover, or a link: the link goes, not its target
+        flags = os.O_WRONLY | os.O_CREAT | os.O_EXCL | getattr(os, "O_BINARY", 0)
+        # backslashreplace: a file name that is not UTF-8 reaches the text
+        # report as lone surrogates; the machine formats are ASCII already.
+        with open(
+            os.open(temporary, flags, 0o666), "w", encoding="utf-8", errors="backslashreplace"
+        ) as handle:
+            handle.write(text)
         os.replace(temporary, path)
     except OSError as exc:
         with contextlib.suppress(OSError):

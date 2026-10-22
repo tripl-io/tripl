@@ -296,7 +296,8 @@ enum AppEvents {
 
 **String constants** resolve the same way, by their qualified name:
 `const val X = "y"` (Kotlin, also inside an `object` or an unnamed
-`companion object`; a named one's constants resolve only as `Outer.Name.X`),
+`companion object`; a named one's constants resolve as `Outer.Name.X` or
+`Name.X`, never as `Outer.X`),
 `static final String X = "y"` (Java), `static let x = "y"` inside a type and
 `let x = "y"` at file scope (Swift), `const X = "y"` and one-level
 `const Events = { X: "y" }` objects (TypeScript), `NSString *const X = @"y"` and
@@ -309,12 +310,14 @@ though the code can change them before the call.
 
 **Functions** declared to return a string, whose every `return` is a string
 literal, resolve to that set of strings, and the call is checked once for each
-of them: Swift `func f() -> String` or a computed `var x: String { … }`, Kotlin
-`fun f(): String` or an `= "…"` expression body, Java `String f()`, and
-TypeScript `function f(): string`. One `return` of anything else makes the
-function dynamic. Plain JavaScript functions, and TypeScript functions without
-a `: string` return type, class methods and arrow functions, are not read: a
-call to one is dynamic.
+of them: Swift `func f() -> String`, Kotlin `fun f(): String` or an `= "…"`
+expression body, Java `String f()`, and TypeScript `function f(): string`. One
+`return` of anything else makes the function dynamic. These are not read, so a
+call to one is dynamic: a Swift function marked `async` or `throws`, a Java
+method with a `throws` clause, plain JavaScript functions, and TypeScript
+functions without a `: string` return type, class methods and arrow functions.
+A Swift computed property (`var x: String { "y" }`) is not read either: a
+reference to one is dynamic.
 
 Every scanned source file is read for enums and constants too, so `enums` is
 needed only for files outside `sources`. A file listed under `enums` that also
@@ -478,10 +481,12 @@ changes. Identical calls in one file are told apart by their order.
 error (exit 2), an instance that refused a request (exit 1) or was unavailable
 (exit 4), or a crash. Nothing goes to stdout or to any `--report` file, and a
 file an earlier run left at a `--report` path is removed, so it cannot pass for
-this run's. Only a regular file is ever replaced or removed: a `--report` path
-that is a directory, a link or a special file is refused (exit 2). A command
-line the parser rejects outright, such as an unknown flag, leaves every file
-alone, because it is refused before the command starts. A report that cannot be
+this run's. That includes connection settings that do not resolve, such as a
+`TRIPL_BASE_URL` without `https://` or a `--config` file that does not exist.
+Only a regular file is ever replaced or removed: a `--report` path that is or
+names a directory (`reports/`), a link or a special file is refused (exit 2). A
+command line the parser rejects outright, such as an unknown flag, leaves every
+file alone, because it is refused before the command starts. A report that cannot be
 written fails the run (exit 1) before anything is printed.
 
 Human text and progress messages go to stderr when stdout carries `json`,

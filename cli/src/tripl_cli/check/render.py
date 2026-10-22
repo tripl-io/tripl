@@ -125,10 +125,7 @@ def render_text(report: CheckReport) -> str:
         more = len(report.skipped) - _SKIPPED_SHOWN
         tail = f", and {more} more" if more > 0 else ""
         lines.append(f"Not read: {plural(len(report.skipped), 'configured file')}: {shown}{tail}.")
-    # A file name that is not UTF-8 arrives from os.walk as lone surrogates,
-    # which a UTF-8 stdout refuses: spelled as \udcXX escapes, the listing
-    # prints (and writes as a report) wherever it goes.
-    return "\n".join(lines).encode("utf-8", "backslashreplace").decode("utf-8")
+    return "\n".join(lines)
 
 
 _SKIP_TEXT = {SKIP_TOO_LARGE: "too large", SKIP_UNREADABLE: "unreadable"}

@@ -14,6 +14,7 @@ import io
 import json
 import os
 import re
+import sys
 import textwrap
 import xml.etree.ElementTree as ET
 from pathlib import Path
@@ -445,6 +446,9 @@ def test_every_route_limit_is_enforced_client_side() -> None:
         (["check", "--report", "codequality"], {}, "write it as FORMAT=PATH"),
         (["check", "--report", "html=x.html"], {}, "'html' is not a format"),
         (["check", "--report", "json=-"], {}, "give --report a file path"),
+        (["check", "--report", "json=reports/"], {}, "names a directory"),
+        (["check", "--report", "json=out/."], {}, "names a directory"),
+        (["check", "--report", "json=out/.."], {}, "names a directory"),
         (["check", "--report", "json=a.json", "--report", "sarif=a.json"], {}, "twice"),
     ],
 )
@@ -772,6 +776,68 @@ def test_a_report_path_that_is_not_a_regular_file_is_refused_and_left_alone(
     assert target.is_symlink() if kind == "link" else target.is_dir()
     assert kept.read_text(encoding="utf-8") == "{}"
     assert not validator.called
+
+
+@pytest.mark.parametrize("setting", ["url", "config"])
+def test_settings_that_do_not_resolve_remove_the_reports_too(
+    repo: Path,
+    validator: Any,
+    configured_env: None,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+    setting: str,
+) -> None:
+    stale = repo / "gl-code-quality-report.json"
+    stale.write_text("[]", encoding="utf-8")
+    argv = ["check", "--report", f"codequality={stale}"]
+    if setting == "url":
+        monkeypatch.setenv("TRIPL_BASE_URL", "tripl.example.com")  # no scheme
+    else:
+        argv += ["--config", str(repo / "missing.toml")]
+    assert main(argv) == 2
+    assert capsys.readouterr().err.startswith("tripl: ")
+    # Resolved before `check` starts, and still a run that could not finish.
+    assert not stale.exists()
+    assert not validator.called
+
+
+def test_a_command_line_the_parser_rejects_leaves_every_file_alone(
+    repo: Path, validator: Any, configured_env: None
+) -> None:
+    kept = repo / "gl-code-quality-report.json"
+    kept.write_text("[]", encoding="utf-8")
+    with pytest.raises(SystemExit):
+        main(["check", "--report", f"codequality={kept}", "--no-such-flag"])
+    assert kept.read_text(encoding="utf-8") == "[]"
+
+
+def test_a_report_is_never_written_through_a_link_at_its_temporary_name(
+    repo: Path, validator: Any, configured_env: None
+) -> None:
+    victim = repo / "victim.txt"
+    victim.write_text("keep", encoding="utf-8")
+    (repo / ".tripl-check.xml.tmp").symlink_to(victim)
+    report = repo / "tripl-check.xml"
+    assert main(["check", "--report", f"junit={report}"]) == 0
+    assert victim.read_text(encoding="utf-8") == "keep"
+    assert report.is_file() and not report.is_symlink()
+    assert not os.path.lexists(repo / ".tripl-check.xml.tmp")
+
+
+def test_a_listing_the_console_cannot_encode_is_escaped_and_the_reports_kept(
+    repo: Path, validator: Any, configured_env: None, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # A Windows agent's pipe is cp1252: a Cyrillic value must not crash the
+    # run after its reports are written, and so lose them.
+    _write(repo, {"Sources/Bad.swift": BAD_CALL.replace('"map"', '"оплата"')})
+    raw = io.BytesIO()
+    console = io.TextIOWrapper(raw, encoding="cp1252", errors="strict")
+    monkeypatch.setattr(sys, "stdout", console)
+    report = repo / "tripl-check.xml"
+    assert main(["check", "--report", f"junit={report}"]) == 1
+    console.flush()
+    assert "\\u043e\\u043f" in raw.getvalue().decode("cp1252")
+    assert report.is_file()
 
 
 def test_a_run_that_crashes_leaves_no_report_behind(

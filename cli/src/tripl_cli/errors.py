@@ -16,6 +16,8 @@ from __future__ import annotations
 
 from typing import Any
 
+import httpx
+
 EXIT_OK = 0
 # The operation ran and failed: the API refused, or the instance is unreachable.
 EXIT_FAILURE = 1
@@ -102,5 +104,7 @@ def unavailable(exc: TriplError) -> bool:
     answering for the instance) are a configuration to fix, so they are not.
     """
     if isinstance(exc, TriplConnectionError):
-        return True
+        # A read follows redirects, so a proxy that redirects in a loop
+        # arrives as a transport error; it is still a redirect to fix.
+        return not isinstance(exc.cause, httpx.TooManyRedirects)
     return isinstance(exc, TriplAPIError) and (exc.status_code == 429 or exc.status_code >= 500)

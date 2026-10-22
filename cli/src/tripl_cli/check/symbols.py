@@ -32,9 +32,11 @@ to the case identifier (``Category.HOME.name`` -> ``HOME``), and only for a path
 that names a known enum case; anything else stays dynamic.
 
 Functions: ``func name(…) -> String { … }`` (and the Kotlin, Java and TS
-equivalents, plus Swift's computed ``var name: String { … }``) whose every
-``return`` is a string literal resolve to that set of strings. One non-literal
-return makes the whole function dynamic.
+equivalents) whose every ``return`` is a string literal resolve, at a call
+(``name()``), to that set of strings. One non-literal return makes the whole
+function dynamic. Swift's computed ``var name: String { … }`` is indexed the
+same way, but a property is read without a call, so a reference to one stays
+dynamic.
 """
 
 from __future__ import annotations
