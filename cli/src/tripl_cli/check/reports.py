@@ -19,11 +19,10 @@ from __future__ import annotations
 import os
 import re
 import xml.etree.ElementTree as ET
-from collections import Counter
 from collections.abc import Iterable
 from pathlib import Path
 
-from tripl_cli.check.fingerprint import finding_fingerprints
+from tripl_cli.check.fingerprint import callee, finding_fingerprints
 from tripl_cli.check.model import (
     MODE_STATIC,
     SEVERITY_ERROR,
@@ -137,16 +136,25 @@ def codequality_document(report: CheckReport) -> list[JsonDict]:
 
 # --- JUnit XML --------------------------------------------------------------------------
 def case_name(item: CheckItem) -> str:
-    """A call as a test name, from the code alone: never the line, never the plan's identity."""
+    """A call as a test name, from the code alone: never the line, never the plan's identity.
+
+    The same parts as the fingerprint's ``site_key`` (event type, name, the
+    fields by key, the callee), so a case is renamed exactly when its call
+    changes: two calls with one name and different fields are two names, not
+    one name and a ``#2`` that moves when the other call is deleted.
+    """
+    parts = [item.event_type or "-"]
     if item.name:
-        subject = item.name
-    elif item.fields:
-        subject = " ".join(
-            f"{key}={'?' if value is None else value}" for key, value in item.fields.items()
-        )
-    else:
-        subject = "(nothing known)"
-    return f"{item.event_type or '-'} {subject}"
+        parts.append(item.name)
+    parts.extend(
+        f"{key}={'?' if value is None else value}" for key, value in sorted(item.fields.items())
+    )
+    if len(parts) == 1:
+        parts.append("(nothing known)")
+    called = callee(item)
+    if called:
+        parts.append(f"({called})")
+    return " ".join(parts)
 
 
 def failing(report: CheckReport, result: CheckResult) -> bool:
@@ -162,7 +170,8 @@ def junit_document(report: CheckReport) -> str:
     passes otherwise, with any lesser findings as its output. GitLab compares
     cases between pipelines by suite, class and name, so the suite is named
     after the project alone (not the branch), the class is the file and the name
-    is the call, numbered when one file has several identical calls.
+    is the call (``case_name``), numbered when one file has several identical
+    calls.
     """
     results = report.results
     failures = sum(1 for result in results if failing(report, result))
@@ -179,21 +188,28 @@ def junit_document(report: CheckReport) -> str:
     suite = ET.SubElement(
         suites, "testsuite", {"name": _x(f"tripl check {report.project}"), **counts}
     )
-    seen: Counter[tuple[str, str]] = Counter()
+    # Uniqueness is held on the strings actually written: two names that differ
+    # only in characters XML cannot carry, or a name that already ends in
+    # " #2", must still be two cases, because GitLab keeps the first of a pair.
+    taken: set[tuple[str, str]] = set()
     for result in results:
-        path = report.repo_path(result.item.origin)
-        name = case_name(result.item)
-        seen[path, name] += 1
-        if seen[path, name] > 1:
-            name = f"{name} #{seen[path, name]}"
+        path = _x(report.repo_path(result.item.origin))
+        base = _x(case_name(result.item))
+        name, number = base, 1
+        while (path, name) in taken:
+            number += 1
+            name = f"{base} #{number}"
+        taken.add((path, name))
         case = ET.SubElement(
             suite,
             "testcase",
-            {"classname": _x(path), "name": _x(name), "file": _x(path), "time": "0"},
+            {"classname": path, "name": name, "file": path, "time": "0"},
         )
         _case_body(case, report, result)
-    body = ET.tostring(suites, encoding="unicode")
-    return f'<?xml version="1.0" encoding="UTF-8"?>\n{body}\n'
+    # ASCII, with character references for the rest: stdout on a Windows agent
+    # is not UTF-8, and a raw "é" under encoding="UTF-8" is not well-formed.
+    body = ET.tostring(suites, encoding="unicode").encode("ascii", "xmlcharrefreplace")
+    return f'<?xml version="1.0" encoding="UTF-8"?>\n{body.decode("ascii")}\n'
 
 
 def _case_body(case: ET.Element, report: CheckReport, result: CheckResult) -> None:

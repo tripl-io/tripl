@@ -18,8 +18,9 @@ The plan is read from ``GET …/plan/export?format=codegen_model`` — any proje
 member's key works — or, with ``--model FILE``, from a saved export (``tripl
 export --format codegen_model``), which needs no instance at all.
 
-Exit codes: 0 written or in sync; 1 drift under ``--check``, or the instance
-failed; 2 a bad config, template or invocation.
+Exit codes: 0 written or in sync; 1 drift under ``--check``, the instance
+refused the request, or a file could not be written; 2 a bad config, template
+or invocation; 4 the instance was unavailable, so nothing was written.
 """
 
 from __future__ import annotations

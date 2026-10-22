@@ -372,20 +372,25 @@ not moved).
 | Exit | Meaning |
 |------|---------|
 | 0 | Every check passed, or only warned and `--strict` was not given. `status` and `whoami`, whenever they completed. `watch`, whenever the run completed — a failed job or a new signal is still 0. The `scans`, `drifts`, `events`, `plan` and `docs` verbs and `annotate`, whenever every read arrived or the write was accepted (`--dry-run` included, and a de-duplicated `annotate` too). |
-| 1 | The tool itself broke (doctor turns every API failure into a finding), or any other command could not complete a request — unreachable, or the API refused it. For `watch` this includes a key revoked mid-run. For `scans list` / `drifts list` it includes **any** failed read in the fan-out; for `scans run`, a job returned already `failed`; for `scans cancel` / `drifts dismiss` / `drifts reopen` / `docs push`, a declined prompt. For `install` and `upgrade`, a `docker compose` command that failed or a `/health` that did not answer in time. |
+| 1 | The tool itself broke (doctor turns every API failure into a finding), or any other command could not complete a request — unreachable (4 instead for `check`, `codegen` and `export`), or the API refused it. For `watch` this includes a key revoked mid-run. For `scans list` / `drifts list` it includes **any** failed read in the fan-out; for `scans run`, a job returned already `failed`; for `scans cancel` / `drifts dismiss` / `drifts reopen` / `docs push`, a declined prompt. For `install` and `upgrade`, a `docker compose` command that failed or a `/health` that did not answer in time. |
 | 2 | Usage or configuration error. For `doctor` and `status` that is resolved before any socket opens; `watch` also refuses after reading the listings, when `--scan` matches nothing or more than 24 scan configs are selected. The object verbs add a bare group, a missing or repeated `--project`, an unresolved or ambiguous selector, and a prompting write on a non-TTY without `--yes`; `annotate` adds a `--url` that is not http(s), an `--at` that is not RFC 3339, and half a scope; `upgrade` adds a refused downgrade and an unorderable pair without `--allow-unordered-tag`. Either way **no JSON is emitted** and no write is sent. |
 | 3 | `doctor` only: at least one check failed, or `--strict` and at least one warning. Nothing else ever exits 3. |
+| 4 | `check`, `codegen` and `export` only: the instance was unavailable — unreachable, timed out, `429` or a `5xx` — so nothing was decided and nothing was written. A refused key stays 1, because a retry does not fix it. A CI pipeline can let 4 pass (GitLab: `allow_failure: exit_codes: [4]`) while findings and drift still block. |
 | 130 | Interrupted (SIGINT). For `watch` this is the **normal** ending — a run without `--duration` has no other way to stop. |
 
-`check` uses 0, 1 and 2: 1 when any call site or event has an error (or, with
-`--strict`, a warning), and 2 for a bad check config or payload file.
-`codegen` uses them too: 1 for drift under `--check` (or a plan without a
-configured event type), 2 for a bad check config or template.
+`check` uses 0, 1, 2 and 4: 1 when any call site or event has an error (or,
+with `--strict`, a warning), 2 for a bad check config or payload file, or a
+config that matches no call (unless `--allow-empty`), and 4 for an unavailable
+instance. `codegen` uses them too: 1 for drift under `--check` (or a plan
+without a configured event type), 2 for a bad check config or template, 4 for
+an unavailable instance; `export` uses 4 the same way.
 
 An unreachable instance therefore exits **3** out of `doctor`, not 1 — it
 becomes a finding like everything else doctor reads, which is what makes an exit
-1 out of `doctor` a meaningful bug signal. **Every other command exits 1** on an
-unreachable instance, because none of them turns a failed read into a verdict.
+1 out of `doctor` a meaningful bug signal. `check`, `codegen` and `export` exit
+**4**, so a pipeline can tell an outage from a finding. **Every other command
+exits 1** on an unreachable instance, because none of them turns a failed read
+into a verdict.
 
 `doctor` and `status` put exactly one JSON document on stdout, and so does every
 other command except `watch` — but only when the command completes: a write the API

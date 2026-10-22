@@ -41,8 +41,10 @@ import argparse
 import contextlib
 import json
 import os
+import stat
 import sys
 import time
+from collections.abc import Iterable
 from pathlib import Path
 
 import httpx
@@ -160,39 +162,69 @@ def _format(args: argparse.Namespace) -> str:
 
 
 def _report_targets(args: argparse.Namespace) -> list[tuple[str, Path]]:
-    """Each ``--report FORMAT=PATH``, checked before anything is read or sent."""
+    """Each ``--report FORMAT=PATH``, checked before anything is read or sent.
+
+    A bad one is a refusal like any other failed run: the files the other
+    ``--report`` flags name are removed first, so what an earlier run left
+    there cannot pass for this one's.
+    """
     targets: list[tuple[str, Path]] = []
+    named: list[Path] = []
+    problem: str | None = None
     seen: set[Path] = set()
     for spec in args.reports or ():
         report_format, separator, raw = spec.partition("=")
-        if not separator or not report_format or not raw:
-            raise TriplConfigError(
-                f"--report {spec!r}: write it as FORMAT=PATH, "
-                "for example codequality=gl-code-quality-report.json."
-            )
-        if report_format not in FORMATS:
-            raise TriplConfigError(
-                f"--report {spec!r}: {report_format!r} is not a format; "
-                f"use one of {', '.join(FORMATS)}."
-            )
-        if raw == "-":
-            raise TriplConfigError(
-                f"--report {spec!r}: stdout is --format's; give --report a file path."
-            )
+        if raw and raw != "-":
+            named.append(Path(raw))
+        refusal = _refusal(spec, report_format, separator, raw, seen)
+        if refusal is not None:
+            problem = problem or refusal
+            continue
         path = Path(raw)
-        if path.resolve() in seen:
-            raise TriplConfigError(f"--report names {raw} twice; each report needs its own file.")
         seen.add(path.resolve())
         targets.append((report_format, path))
+    if problem is not None:
+        _discard(named)
+        raise TriplConfigError(problem)
     return targets
+
+
+def _refusal(
+    spec: str, report_format: str, separator: str, raw: str, seen: set[Path]
+) -> str | None:
+    if not separator or not report_format or not raw:
+        return (
+            f"--report {spec!r}: write it as FORMAT=PATH, "
+            "for example codequality=gl-code-quality-report.json."
+        )
+    if report_format not in FORMATS:
+        return (
+            f"--report {spec!r}: {report_format!r} is not a format; "
+            f"use one of {', '.join(FORMATS)}."
+        )
+    path = Path(raw)
+    if raw == "-" or not path.name:
+        return f"--report {spec!r}: give --report a file path (stdout is --format's)."
+    if os.path.lexists(path) and (path.is_symlink() or not path.is_file()):
+        # A report replaces the file at PATH, so a link would be replaced
+        # rather than written through, and /dev/stdout swapped for a file.
+        return (
+            f"--report {spec!r}: {raw} is a directory, a link or a special file; "
+            "give --report the path of a regular file."
+        )
+    if path.resolve() in seen:
+        return f"--report names {raw} twice; each report needs its own file."
+    return None
 
 
 def run(args: argparse.Namespace, config: Config) -> int:
     targets = _report_targets(args)
     try:
         return _check(args, config, targets)
-    except TriplError:
-        _discard(targets)
+    except BaseException:
+        # Any run that did not finish, a crash or Ctrl-C included, leaves no
+        # report behind: not this run's half, not an earlier run's whole.
+        _discard(path for _report_format, path in targets)
         raise
 
 
@@ -325,9 +357,11 @@ def _write(path: Path, text: str) -> None:
         raise TriplError(f"cannot write the report {path}: {exc}") from exc
 
 
-def _discard(targets: list[tuple[str, Path]]) -> None:
-    for _report_format, path in targets:
-        # A directory, or no permission: nothing this run wrote is there, and
-        # the error that ended the run is the one worth reporting.
+def _discard(paths: Iterable[Path]) -> None:
+    for path in paths:
+        # A regular file only: never a link (what it points at is not this
+        # run's), a directory or a device. Anything else, or no permission,
+        # is left as it is; the error that ended the run is the one to report.
         with contextlib.suppress(OSError):
-            path.unlink(missing_ok=True)
+            if stat.S_ISREG(path.lstat().st_mode):
+                path.unlink()

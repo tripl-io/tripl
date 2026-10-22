@@ -17,10 +17,10 @@ Kotlin, Java, TypeScript or JavaScript, CI runners that can reach your tripl
 instance, and an account in the project's organization.
 
 :::note A CLI released after v0.3.2
-The `codequality` and `junit` reports, `--report` and exit code `4` on this page
-are newer than tripl v0.3.2. The CLI and the server are released together under
-one version number: pin the CLI to the version your instance runs, and upgrade
-the two together.
+This page needs a tripl CLI newer than v0.3.2: the `codequality` and `junit`
+reports, `--report` and exit code `4` came after it. The CLI and the server are
+released together under one version number: pin the CLI to the version your
+instance runs, and upgrade the two together.
 :::
 
 ## 1. Create a read-only key for CI
@@ -48,12 +48,15 @@ export TRIPL_API_KEY=tk_r_...
 uvx tripl@X.Y.Z check
 ```
 
-Replace `X.Y.Z` with your instance's version. The last line counts what was
+Replace `X.Y.Z` with your instance's version. The summary line counts what was
 checked:
 
 ```text
 214 call sites in 58 files: 190 ok, 3 warnings, 2 errors, 19 only known at runtime (listed with --strict).
 ```
+
+A **Not read** line can follow it, naming configured files the scan skipped
+because they were too large or could not be read.
 
 - **"nothing was checked"** (exit 2) means the configuration matched no call: a
   `sources:` glob that points nowhere, or a call spec that names a function your
@@ -134,6 +137,7 @@ on:
 permissions:
   contents: read
   security-events: write       # to upload SARIF
+  actions: read                # upload-sarif needs it on a private repository
 
 jobs:
   tripl-check:
@@ -211,6 +215,11 @@ Then let an outage of tripl pass while a finding still blocks:
 
 GitHub Actions has no list of exit codes to allow; end the command with
 `|| [ $? -eq 4 ]` for the same effect.
+
+Exit 4 covers every failure to reach the instance, so a mistyped host name in
+`TRIPL_BASE_URL`, a DNS failure or a certificate the runner does not trust
+passes as well. GitLab shows such a job as **passed with warnings**: open it
+after you change the address or the runners.
 
 Every error fails the run wherever it is, not only in the lines a merge request
 changed, so get the default branch clean first.

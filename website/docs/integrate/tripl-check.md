@@ -59,9 +59,10 @@ It supports these languages, chosen by file extension:
 
 A value is **literal** when the scanner can read it from the source: a string
 literal, a number, an enum case or a string constant whose value it can find,
-or a call to a function whose every `return` is a string literal (see
-[Enum sources](#enum-sources)). Anything else is **dynamic**: a variable, a
-parameter, any other function call, or a value computed at run time. A dynamic
+or a call to a function declared to return a string whose every `return` is a
+string literal (see [Enum sources](#enum-sources)). Anything else is
+**dynamic**: a local variable, a parameter, any other function call, or a value
+computed at run time. A dynamic
 value is sent as `null`, which means "unknown at scan time". A dynamic value is
 never an error.
 
@@ -294,17 +295,26 @@ enum AppEvents {
 - A case the sources do not declare is also dynamic.
 
 **String constants** resolve the same way, by their qualified name:
-`const val X = "y"` (Kotlin, also inside an `object` or a `companion object`),
+`const val X = "y"` (Kotlin, also inside an `object` or an unnamed
+`companion object`; a named one's constants resolve only as `Outer.Name.X`),
 `static final String X = "y"` (Java), `static let x = "y"` inside a type and
 `let x = "y"` at file scope (Swift), `const X = "y"` and one-level
 `const Events = { X: "y" }` objects (TypeScript), `NSString *const X = @"y"` and
 `#define X @"y"` (Objective-C). So `logEvent(Analytics.Event.PlayStart)` is read
 as the constant's value. A bare name (`PlayStart`, from inside the class that
-declares it) resolves only for a constant declared at file scope.
+declares it) resolves only for a constant declared at file scope. A `var` (or a
+TypeScript `let`) set to a string at file or type scope, and a Java `String`
+field that is not `final`, are read the same way, as their initial value, even
+though the code can change them before the call.
 
-**Functions** whose every `return` is a string literal resolve to that set of
-strings, and the call is checked once for each of them. One `return` of
-anything else makes the function dynamic.
+**Functions** declared to return a string, whose every `return` is a string
+literal, resolve to that set of strings, and the call is checked once for each
+of them: Swift `func f() -> String` or a computed `var x: String { … }`, Kotlin
+`fun f(): String` or an `= "…"` expression body, Java `String f()`, and
+TypeScript `function f(): string`. One `return` of anything else makes the
+function dynamic. Plain JavaScript functions, and TypeScript functions without
+a `: string` return type, class methods and arrow functions, are not read: a
+call to one is dynamic.
 
 Every scanned source file is read for enums and constants too, so `enums` is
 needed only for files outside `sources`. A file listed under `enums` that also
@@ -442,11 +452,13 @@ warning and `info` for an info finding; `location` names the file and the
 call's lines.
 
 **JUnit.** One test case per call site (or captured event), passing ones
-included. A case is named after the call, by its event type and its name or
-field values, and its class is the file. It fails exactly when its call fails
-the run: an error, or a warning with `--strict`. A call where nothing was
-readable is skipped. A warning without `--strict` passes, with its findings as
-the case's output.
+included. A case is named after the call (its event type, name, field values
+and callee) and never after its line, so it keeps its history in the CI system
+when code above it moves; identical calls in one file are numbered (`#2`). Its
+class is the file. It fails exactly when its call fails the run: an error, or a
+warning with `--strict`. A call where nothing was readable is skipped, and with
+`--strict` it is a warning, so it fails. A warning without `--strict` passes,
+with its findings as the case's output.
 
 **Paths.** In Code Quality and JUnit, paths are relative to the repository root
 (the nearest directory that holds `.git`), the way a CI system resolves them
@@ -462,12 +474,15 @@ two runs, as GitLab's Code Quality report does, sees the same finding after an
 edit above it moves it down the file, and a new one once the call itself
 changes. Identical calls in one file are told apart by their order.
 
-**A run that could not finish writes no report**: a configuration error
-(exit 2), an instance that refused a request (exit 1) or was unavailable
-(exit 4). Nothing goes to stdout or to any `--report` file, and a file an
-earlier run left at a `--report` path is removed, so it cannot pass for this
-run's. A report that cannot be written fails the run (exit 1) before anything
-is printed.
+**A run that could not finish writes no report**: a configuration or usage
+error (exit 2), an instance that refused a request (exit 1) or was unavailable
+(exit 4), or a crash. Nothing goes to stdout or to any `--report` file, and a
+file an earlier run left at a `--report` path is removed, so it cannot pass for
+this run's. Only a regular file is ever replaced or removed: a `--report` path
+that is a directory, a link or a special file is refused (exit 2). A command
+line the parser rejects outright, such as an unknown flag, leaves every file
+alone, because it is refused before the command starts. A report that cannot be
+written fails the run (exit 1) before anything is printed.
 
 Human text and progress messages go to stderr when stdout carries `json`,
 `sarif`, `codequality` or `junit`, so you can redirect stdout to a file.
@@ -478,7 +493,7 @@ Human text and progress messages go to stderr when stdout carries `json`,
 |------|---------|
 | **0** | No errors. Warnings are allowed unless you pass `--strict`. |
 | **1** | At least one error, or at least one warning with `--strict`. Also: the instance refused a request (an invalid or expired key, a project the key cannot see, a redirect). Then no document or report is written. |
-| **2** | A config or usage error: no config file in static mode, invalid YAML, an unknown key or preset, a call without exactly one of `function` / `pattern` / `objc_selector`, a configuration that matches no call, a `--payloads` file that is not valid JSON, holds no events or holds an event with neither `event_type` nor `name`, no project, `--json` together with another `--format`, a `--report` that is not `FORMAT=PATH`, or a `--branch` that matches nothing. |
+| **2** | A config or usage error: no config file in static mode, invalid YAML, an unknown key or preset, a call without exactly one of `function` / `pattern` / `objc_selector`, a configuration that matches no call, a `--payloads` file that is not valid JSON, holds no events or holds an event with neither `event_type` nor `name`, no project, `--json` together with another `--format`, a `--report` that is not `FORMAT=PATH`, names one file twice or names a directory, a link or a special file, or a `--branch` that matches nothing. |
 | **4** | The instance was unavailable: it could not be reached, the request timed out, or it answered `429` or a `5xx`. Nothing was checked, and no document or report is written. Let it pass in CI when an outage of tripl should not block merges. |
 
 A configuration that matches no call checks nothing, and a CI check must not
@@ -515,9 +530,12 @@ the check block merges. In short:
 - Write the report your CI shows: `codequality` and `junit` for GitLab, `sarif`
   for GitHub code scanning, `junit` for most others.
 - To check against a plan branch named after the merge request's branch, add
-  `--branch "$CI_MERGE_REQUEST_SOURCE_BRANCH_NAME"` (GitLab) or
-  `--branch "${{ github.head_ref }}"` (GitHub). The check exits 2 when no such
-  plan branch exists, so use this only if your team follows that naming
+  `${CI_MERGE_REQUEST_SOURCE_BRANCH_NAME:+--branch "$CI_MERGE_REQUEST_SOURCE_BRANCH_NAME"}`
+  (GitLab; it adds nothing outside a merge request pipeline), or set
+  `HEAD_REF: ${{ github.head_ref }}` in the step's `env` and add
+  `${HEAD_REF:+--branch "$HEAD_REF"}` (GitHub; never paste `${{ … }}` into the
+  script itself, where a branch name would run as shell). The check exits 2 when
+  no such plan branch exists, so use this only if your team follows that naming
   convention.
 
 To check captured events instead, for example from a UI test run that writes

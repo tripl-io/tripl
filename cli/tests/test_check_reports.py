@@ -66,11 +66,13 @@ def _result(
     return CheckResult(item=item, status=status, findings=findings)
 
 
-def _report(*results: CheckResult, strict: bool = False, **extra: object) -> CheckReport:
+def _report(
+    *results: CheckResult, strict: bool = False, mode: str = MODE_STATIC, **extra: object
+) -> CheckReport:
     return CheckReport(
         run=RUN,
         project="shop",
-        mode=MODE_STATIC,
+        mode=mode,
         strict=strict,
         results=results,
         **extra,  # type: ignore[arg-type]
@@ -125,6 +127,45 @@ def test_the_same_file_path_under_two_check_roots_does_not_collide() -> None:
     ios = _report(_result(12), repo_paths={"Sources/Pay.swift": "apps/ios/Sources/Pay.swift"})
     web = _report(_result(12), repo_paths={"Sources/Pay.swift": "apps/web/Sources/Pay.swift"})
     assert finding_fingerprints(ios) != finding_fingerprints(web)
+
+
+def _event(number: int, name: str) -> CheckResult:
+    """The ``number``-th event of a captured JSON array, as payloads.py reads it."""
+    item = CheckItem(
+        origin=Origin("events.json", 1, snippet=f"event {number}"),
+        event_type="se",
+        name=name,
+        fields={},
+        properties=None,
+        complete=True,
+    )
+    return CheckResult(item=item, status="error", findings=(UNKNOWN,))
+
+
+def test_a_captured_event_keeps_its_fingerprint_when_one_is_added_before_it() -> None:
+    before = _report(_event(1, "pay_tapped"), _event(2, "trial_started"), mode=MODE_PAYLOADS)
+    after = _report(
+        _event(1, "settings_opened"),
+        _event(2, "pay_tapped"),
+        _event(3, "trial_started"),
+        mode=MODE_PAYLOADS,
+    )
+    assert finding_fingerprints(after)[1:] == finding_fingerprints(before)
+
+
+def test_a_file_name_that_is_not_utf8_still_gets_every_report() -> None:
+    # os.walk hands such a name over as lone surrogates (surrogateescape).
+    report = _report(_result(12, path="Sources/Caf\udce9.swift"))
+    [[fingerprint]] = finding_fingerprints(report)
+    assert len(fingerprint) == 64
+    [run] = sarif_document(report, root=None)["runs"]
+    [result] = run["results"]
+    location = result["locations"][0]["physicalLocation"]["artifactLocation"]
+    assert location["uri"] == "Sources/Caf%E9.swift"  # the name's own bytes
+    json.dumps(codequality_document(report))
+    json.dumps(check_document(report))
+    _suite, [case] = _cases(junit_document(report))
+    assert case.get("classname") == "Sources/Caf\ufffd.swift"
 
 
 def test_json_and_sarif_carry_the_same_fingerprint() -> None:
@@ -228,15 +269,52 @@ def test_junit_has_one_case_per_call_and_fails_exactly_the_failing_ones() -> Non
 
 def test_junit_names_never_carry_a_line_and_number_identical_calls() -> None:
     _suite, cases = _cases(junit_document(_report(_result(12), _result(40))))
-    assert [case.get("name") for case in cases] == ["se pay_tapped", "se pay_tapped #2"]
+    assert [case.get("name") for case in cases] == [
+        "se pay_tapped (Analytics.shared.log)",
+        "se pay_tapped (Analytics.shared.log) #2",
+    ]
     _suite, moved = _cases(junit_document(_report(_result(15), _result(43))))
     assert [case.get("name") for case in moved] == [case.get("name") for case in cases]
+
+
+def test_junit_tells_calls_with_one_name_apart_by_their_fields() -> None:
+    card = _result(12, fields={"label": "card"})
+    cash = _result(30, fields={"label": "cash"})
+    _suite, cases = _cases(junit_document(_report(card, cash)))
+    names = [case.get("name") for case in cases]
+    assert names == [
+        "se pay_tapped label=card (Analytics.shared.log)",
+        "se pay_tapped label=cash (Analytics.shared.log)",
+    ]
+    # Deleting one call leaves the other's name, and so its history, alone.
+    _suite, [kept] = _cases(junit_document(_report(cash)))
+    assert kept.get("name") == names[1]
 
 
 def test_junit_names_a_call_without_a_name_by_its_fields() -> None:
     result = _result(12, name=None, fields={"category": "checkout", "label": None})
     _suite, [case] = _cases(junit_document(_report(result)))
-    assert case.get("name") == "se category=checkout label=?"
+    assert case.get("name") == "se category=checkout label=? (Analytics.shared.log)"
+
+
+def test_junit_names_stay_distinct_as_written() -> None:
+    report = _report(
+        # Two names XML can only carry as the same text...
+        _result(12, name="pay\x01", snippet=""),
+        _result(20, name="pay\x02", snippet=""),
+        # ...and a name that already reads like a numbered duplicate.
+        _result(30, name="open", snippet=""),
+        _result(40, name="open", snippet=""),
+        _result(50, name="open #2", snippet=""),
+    )
+    _suite, cases = _cases(junit_document(report))
+    assert [case.get("name") for case in cases] == [
+        "se pay\ufffd",
+        "se pay\ufffd #2",
+        "se open",
+        "se open #2",
+        "se open #2 #2",
+    ]
 
 
 def test_under_strict_a_warning_fails_its_case() -> None:
@@ -249,7 +327,15 @@ def test_under_strict_a_warning_fails_its_case() -> None:
 def test_junit_survives_characters_xml_cannot_carry() -> None:
     result = _result(12, name="pay\x01tapped")
     _suite, [case] = _cases(junit_document(_report(result)))
-    assert case.get("name") == "se pay�tapped"
+    assert case.get("name") == "se pay�tapped (Analytics.shared.log)"
+
+
+def test_junit_is_ascii_whatever_the_names_hold() -> None:
+    # A Windows agent's console is not UTF-8; character references survive it.
+    document = junit_document(_report(_result(12, name="café_opened")))
+    document.encode("ascii")
+    _suite, [case] = _cases(document)
+    assert case.get("name") == "se café_opened (Analytics.shared.log)"
 
 
 def test_junit_uses_the_repository_path_for_class_and_file() -> None:

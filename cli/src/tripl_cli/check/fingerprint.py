@@ -33,11 +33,21 @@ FINGERPRINT_KEY = "triplCheck/v2"
 def site_key(item: CheckItem, path: str) -> str:
     """What a call site (or captured event) is, without its position in the file."""
     return json.dumps(
-        [path, item.origin.snippet, item.event_type, item.name, sorted(item.fields.items())],
+        [path, callee(item), item.event_type, item.name, sorted(item.fields.items())],
         ensure_ascii=False,
         separators=(",", ":"),
         default=str,
     )
+
+
+def callee(item: CheckItem) -> str:
+    """The call's callee or selector; empty for a captured event.
+
+    A captured event's snippet is its position in a JSON array (``event 3``),
+    which would put the position back into an identity built to leave it out.
+    Only a call site has a column.
+    """
+    return item.origin.snippet if item.origin.column is not None else ""
 
 
 def finding_fingerprints(report: CheckReport) -> tuple[tuple[str, ...], ...]:
@@ -69,6 +79,8 @@ def finding_fingerprints(report: CheckReport) -> tuple[tuple[str, ...], ...]:
                 ensure_ascii=False,
                 separators=(",", ":"),
             )
-            own.append(hashlib.sha256(material.encode()).hexdigest())
+            # surrogatepass: a file name that is not UTF-8 reaches here as lone
+            # surrogates (os.walk's surrogateescape), and must hash, not crash.
+            own.append(hashlib.sha256(material.encode("utf-8", "surrogatepass")).hexdigest())
         fingerprints.append(tuple(own))
     return tuple(fingerprints)

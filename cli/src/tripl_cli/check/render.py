@@ -125,7 +125,10 @@ def render_text(report: CheckReport) -> str:
         more = len(report.skipped) - _SKIPPED_SHOWN
         tail = f", and {more} more" if more > 0 else ""
         lines.append(f"Not read: {plural(len(report.skipped), 'configured file')}: {shown}{tail}.")
-    return "\n".join(lines)
+    # A file name that is not UTF-8 arrives from os.walk as lone surrogates,
+    # which a UTF-8 stdout refuses: spelled as \udcXX escapes, the listing
+    # prints (and writes as a report) wherever it goes.
+    return "\n".join(lines).encode("utf-8", "backslashreplace").decode("utf-8")
 
 
 _SKIP_TEXT = {SKIP_TOO_LARGE: "too large", SKIP_UNREADABLE: "unreadable"}
@@ -228,7 +231,11 @@ def artifact_uri(path: str) -> str:
     posix = path.replace("\\", "/")
     if PurePosixPath(posix).is_absolute() or Path(path).is_absolute():
         return Path(path).absolute().as_uri()
-    return "/".join(quote(segment, safe="") for segment in posix.split("/"))
+    # surrogateescape: a file name that is not UTF-8 arrives from os.walk as
+    # lone surrogates, and its original bytes are what the URI must encode.
+    return "/".join(
+        quote(segment.encode("utf-8", "surrogateescape"), safe="") for segment in posix.split("/")
+    )
 
 
 def _sarif_location(origin: Origin, region: JsonDict, report: CheckReport) -> JsonDict:

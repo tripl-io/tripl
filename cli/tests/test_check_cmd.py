@@ -12,6 +12,7 @@ from __future__ import annotations
 import asyncio
 import io
 import json
+import os
 import re
 import textwrap
 import xml.etree.ElementTree as ET
@@ -727,13 +728,85 @@ def test_a_file_the_scan_did_not_read_is_reported(
 def test_a_report_that_cannot_be_written_fails_the_run_before_stdout(
     repo: Path, validator: Any, configured_env: None, capsys: pytest.CaptureFixture[str]
 ) -> None:
-    target = repo / "occupied"
-    target.mkdir()
-    assert main(["check", "--json", "--report", f"json={target}"]) == 1
+    written = repo / "tripl-check.xml"
+    blocker = repo / "occupied"  # a file where the report's directory should be
+    blocker.write_text("not a directory", encoding="utf-8")
+    argv = ["check", "--json", "--report", f"junit={written}"]
+    assert main([*argv, "--report", f"json={blocker / 'tripl.json'}"]) == 1
     captured = capsys.readouterr()
     assert captured.out == ""
     assert "cannot write the report" in captured.err
-    assert target.is_dir()  # a directory in the way is left as it was
+    # The report written before the failure goes too: a run that failed has none.
+    assert not written.exists()
+    assert blocker.read_text(encoding="utf-8") == "not a directory"
+
+
+def test_a_bad_report_flag_also_removes_the_reports_the_others_name(
+    repo: Path, validator: Any, configured_env: None, capsys: pytest.CaptureFixture[str]
+) -> None:
+    stale = repo / "gl-code-quality-report.json"
+    stale.write_text("[]", encoding="utf-8")
+    assert main(["check", "--report", f"codequality={stale}", "--report", "html=x.html"]) == 2
+    assert "'html' is not a format" in capsys.readouterr().err
+    assert not stale.exists()
+    assert not validator.called
+
+
+@pytest.mark.parametrize("kind", ["link", "directory"])
+def test_a_report_path_that_is_not_a_regular_file_is_refused_and_left_alone(
+    repo: Path,
+    validator: Any,
+    configured_env: None,
+    capsys: pytest.CaptureFixture[str],
+    kind: str,
+) -> None:
+    kept = repo / "kept.json"
+    kept.write_text("{}", encoding="utf-8")
+    target = repo / "report.json"
+    if kind == "link":
+        target.symlink_to(kept)
+    else:
+        target.mkdir()
+    assert main(["check", "--report", f"json={target}"]) == 2
+    assert "a directory, a link or a special file" in capsys.readouterr().err
+    assert target.is_symlink() if kind == "link" else target.is_dir()
+    assert kept.read_text(encoding="utf-8") == "{}"
+    assert not validator.called
+
+
+def test_a_run_that_crashes_leaves_no_report_behind(
+    repo: Path, tripl_api: FakeInstance, configured_env: None
+) -> None:
+    def respond(request: httpx.Request) -> httpx.Response:
+        raise RuntimeError("the validator broke")
+
+    tripl_api.handler(VALIDATE_URL, respond, method="POST")
+    stale = repo / "gl-code-quality-report.json"
+    stale.write_text("[]", encoding="utf-8")
+    with pytest.raises(RuntimeError):
+        main(["check", "--report", f"codequality={stale}"])
+    assert not stale.exists()
+
+
+def test_a_file_name_that_is_not_utf8_gets_every_report(
+    repo: Path, validator: Any, configured_env: None, capsys: pytest.CaptureFixture[str]
+) -> None:
+    try:
+        (repo / "Sources" / os.fsdecode(b"Caf\xe9.swift")).write_text(BAD_CALL, encoding="utf-8")
+    except (OSError, UnicodeError):
+        pytest.skip("this file system takes only UTF-8 names")
+    out = repo / "reports"
+    argv = ["check", "--json"]
+    for report_format in ("text", "json", "sarif", "codequality", "junit"):
+        argv += ["--report", f"{report_format}={out / report_format}"]
+    assert main(argv) == 1
+    captured = capsys.readouterr()
+    json.loads(captured.out)
+    assert "Sources/Caf\\udce9.swift:2:" in captured.err
+    assert "Caf\\udce9.swift" in (out / "text").read_text(encoding="utf-8")
+    for machine in ("json", "sarif", "codequality"):
+        json.loads((out / machine).read_text(encoding="utf-8"))
+    ET.fromstring((out / "junit").read_text(encoding="utf-8"))
 
 
 # --- batching ------------------------------------------------------------------------
