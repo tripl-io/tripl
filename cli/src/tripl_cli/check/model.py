@@ -30,6 +30,47 @@ CODE_DYNAMIC_VALUE = "dynamic_value"
 # Raised locally: a value over the validator's size limits, sent as null.
 CODE_OVERSIZE_VALUE = "oversize_value"
 
+# Why the scan could not read a value, as ``tripl check --list`` reports it: a
+# hint for whoever writes the check config, never a verdict (nothing sent or
+# decided depends on one). The evaluator's codes come first (``values.py``
+# explains each branch), the listing's own after them (``inventory.py``): it
+# refines a ``variable`` from the function the call sits in, and says why a
+# dynamic target with no dynamic value has nothing readable.
+REASON_VARIABLE = "variable"
+REASON_UNKNOWN_CONSTANT = "unknown_constant"
+REASON_FORMAT = "format"
+REASON_FUNCTION = "function"
+REASON_CONDITIONAL = "conditional"
+REASON_CONCATENATION = "concatenation"
+REASON_EXPRESSION = "expression"
+REASON_PARAMETER = "parameter"
+REASON_PARAMETER_PROPERTY = "parameter_property"
+REASON_LOCAL = "local"
+REASON_NOT_PASSED = "not_passed"
+REASON_WRONG_SHAPE = "wrong_shape"
+REASON_CODES: tuple[str, ...] = (
+    REASON_VARIABLE,
+    REASON_UNKNOWN_CONSTANT,
+    REASON_FORMAT,
+    REASON_FUNCTION,
+    REASON_CONDITIONAL,
+    REASON_CONCATENATION,
+    REASON_EXPRESSION,
+    REASON_PARAMETER,
+    REASON_PARAMETER_PROPERTY,
+    REASON_LOCAL,
+    REASON_NOT_PASSED,
+    REASON_WRONG_SHAPE,
+)
+
+# Why ``--list`` counts a call no spec matches as one that looks like tracking,
+# strongest first: it passes an event-name constant, its name says so, or a
+# tracking vendor's receiver calls a tracking verb.
+SIGNAL_CONSTANT = "constant"
+SIGNAL_NAME = "name"
+SIGNAL_RECEIVER = "receiver"
+SIGNALS: tuple[str, ...] = (SIGNAL_CONSTANT, SIGNAL_NAME, SIGNAL_RECEIVER)
+
 
 @dataclass(frozen=True)
 class Origin:

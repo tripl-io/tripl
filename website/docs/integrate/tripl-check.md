@@ -64,7 +64,8 @@ string literal (see [Enum sources](#enum-sources)). Anything else is
 **dynamic**: a local variable, a parameter, any other function call, or a value
 computed at run time. A dynamic
 value is sent as `null`, which means "unknown at scan time". A dynamic value is
-never an error.
+never an error. `tripl check --list` shows what the scan reads from each call,
+and why it does not read a value (see [List what the scan reads](#list)).
 
 A call where nothing at all is literal (no name, no field value) is not sent
 to the validator. It is counted with status `dynamic`, and listed only with
@@ -166,7 +167,7 @@ event_types:
 | `sources` | Glob patterns for the files to scan, relative to `root`. `**` matches any number of directories, and `{a,b}` matches either alternative. Default: `**/*`, every file in a supported language. |
 | `exclude` | Glob patterns for files to skip, even when a `sources` pattern matches them. They are added to the built-in excludes: `.git`, `node_modules`, `Pods`, `Carthage`, `DerivedData`, `.build`, `build` and `dist` directories, and `*.min.js` files. |
 | `enums` | Files that declare the enums your calls use: a glob string, or `{file: GLOB, languages: [...]}`. See [Enum sources](#enum-sources). |
-| `event_types` | One entry per **plan event type name** (the name `tripl plan types` prints). Each entry has `calls`, a `preset` (or a list under `presets`), or both. With both, your own `calls` are tried first. An entry with neither is a config error. |
+| `event_types` | One entry per **plan event type name** (the name `tripl plan types` prints). Each entry has `calls`, a `preset` (or a list under `presets`), or both. With both, your own `calls` are tried first. A `preset` and a `presets` list can be combined: the `preset` comes first. An entry with neither is a config error. |
 
 An `event_types` entry can also have `field_map`, which renames targets to
 plan field names for every call of the type, presets included. Use it when a
@@ -263,6 +264,24 @@ between the receiver and the method are allowed.
 | `snowplow_screen_view` | `ScreenView(name: "Home", screenId: …)` (also `SPScreenView`, `ScreenView.builder()`); JS `trackScreenView({name, id})`; Objective-C `[[SPScreenView alloc] initWithName:screenId:]` | the screen name to the **event name**; the screen id (`screenId` or `id`) to the field `id`; `type` to the field `type` |
 | `snowplow_self_describing` | `SelfDescribing(schema: "iglu:…", payload: […])` (also `SPSelfDescribing`, `SelfDescribingJson`); JS `trackSelfDescribingEvent({event: {schema, data}})`; Objective-C `initWithSchema:payload:` | the Iglu schema's name segment to the event name; `payload` / `data` / `eventData` to `properties` |
 
+To start a call spec of your own from a preset, print it.
+`tripl check --print-preset segment_track` prints the preset's call specs as
+YAML, after two comment lines:
+
+```text
+# preset segment_track: paste these under an event type's calls: in place of preset: segment_track, then edit them.
+# If this is the event type's first preset and its codegen: block has no style:, set style: named in it; codegen took that style from this preset.
+```
+
+Paste the specs under an event type's `calls:` in place of
+`preset: segment_track`, then edit them. If that was the event type's first
+preset and its `codegen:` block has no `style:`, set the `style:` the second
+line names in it: [`tripl codegen`](./codegen.md#styles) took the style from
+the first preset's name, which the pasted specs do not carry. Otherwise leave
+the block as it is: a `style:` it sets is the one codegen uses, and a preset
+after the first gave no style. `--print-preset` without a name prints every
+preset. It needs no config and no key.
+
 ## Enum sources {#enum-sources}
 
 Wrappers often take enum cases instead of strings:
@@ -313,15 +332,17 @@ literal, resolve to that set of strings, and the call is checked once for each
 of them: Swift `func f() -> String`, Kotlin `fun f(): String` or an `= "…"`
 expression body, Java `String f()`, and TypeScript `function f(): string`. One
 `return` of anything else makes the function dynamic. These are not read, so a
-call to one is dynamic: a Swift function marked `async` or `throws`, a Java
-method with a `throws` clause, plain JavaScript functions, and TypeScript
-functions without a `: string` return type, class methods and arrow functions.
+call to one is dynamic: a Swift function marked `async` or `throws`, a Kotlin
+extension function (`fun Screen.f()`) or one with type parameters
+(`fun <T> f()`), a Java method with a `throws` clause, Objective-C functions,
+plain JavaScript functions, and TypeScript functions without a `: string` (or
+`: String`) return type, class methods, arrow functions and function expressions.
 A Swift computed property (`var x: String { "y" }`) is not read either: a
 reference to one is dynamic.
 
-Every scanned source file is read for enums and constants too, so `enums` is
-needed only for files outside `sources`. A file listed under `enums` that also
-matches `exclude` is not read.
+Every scanned source file is read for enums, constants and functions too, so
+`enums` is needed only for files outside `sources`. A file listed under `enums`
+that also matches `exclude` is not read.
 
 Still dynamic, though written from constants: `String.format` and `.format(…)`
 templates, two constants joined with `+` (a concatenation is read only when one
@@ -347,8 +368,8 @@ places. A token matches a token whatever its property is called, so
 the plan. The value behind the token is unknown at scan time, so it is treated
 as dynamic.
 
-A name the scanner cannot read at all (a variable, a parameter, a function that
-does not return only literals) is dynamic. Such a call is counted but cannot be
+A name the scanner cannot read at all (a variable, a parameter, a call of a
+function it does not read) is dynamic. Such a call is counted but cannot be
 matched to an event.
 
 ## What it reports {#findings}
@@ -417,6 +438,205 @@ holes. In the example above, the third line
 fails if `page` requires `id`. Payload mode needs no `sources`, `event_types` or
 `enums`. It still reads `project` and `branch` from the config file if one is
 present.
+
+## List what the scan reads {#list}
+
+`tripl check --list` scans your code exactly as `tripl check` does and shows
+what it found. It needs no URL and no API key, and it sends nothing. Use it to
+write `.tripl/check.yml`: run it after each change to the file.
+
+```bash
+tripl check --list
+```
+
+It prints three things:
+
+- **Every call the config matches**, with what the scan read from it: the
+  event name, each field and the properties, named as a call spec names them
+  (a field called `name` is `field:name`). `?` is a value the scan did not
+  read. Under such a call, an indented line says why, and `not mapped:` names
+  the arguments the call spec maps to no target. A `?` inside `{…}` is a
+  dictionary entry the scan did not read. It gets no line: its reason is only
+  in the JSON, under the dictionary's `entries`
+  (`read.properties.entries.<key>.reason`).
+- **The functions that forward their own parameter** into a tracking call.
+- **The calls that look like tracking** but match no call spec.
+
+The summary counts the calls: how many are fully read, how many are not sent
+(no name or field read, so `tripl check` counts them as `dynamic`), and how
+many are sent with a value not read. It counts the top-level values only (the
+name, each field, the properties as a whole), so a call whose only `?` is a
+dictionary entry is fully read. `--json` prints the same as one document,
+the [`check --list` document](../run/cli.md#check---list-document). The CLI
+page has [an example](../run/cli.md#tripl-check-list).
+
+`--list` exits 0 whenever the scan ran, even when the reader closed the pipe
+early (`| head`), and 2 for a config error. It refuses the flags it has no use
+for: `--report`, `--branch`, `--strict`, `--allow-empty`, and a `--format`
+other than `text` or `json`.
+
+### Why a value is not read {#list-reasons}
+
+Each value the scan did not read gets one reason. Some reasons point at your
+config. For the others there is nothing to configure: the scan does not read
+that kind of value yet.
+
+| Reason | What it is | What to do |
+|--------|------------|------------|
+| `parameter` | A parameter of the function the call sits in. The value comes from the function's callers. | Add a call spec for the function, so its callers are read (see [Functions that forward their parameter](#list-forwarders)). |
+| `parameter_property` | A property of such a parameter, like `action.event`. The value is set where that object is built. | Configure the call that builds the object (often a constructor), not this function's callers. |
+| `unknown_constant` | A constant or enum case the scan could not resolve. A name that starts with an upper-case letter, or with `k` and one (`kFIREventSelectContent`), reads as a constant. A bare one that names a parameter of the function the call sits in reads `parameter` instead; a Swift shorthand such as `.home` never does. A local of that name does not make it `local`: the scan does not track blocks, and the local may be in one that closed before the call. | Add its file to `enums:` or `sources:`. When several constants share the name, name its type more fully. An enum case needs a string raw value. When a local of that name is in scope at the call, there is nothing to configure. |
+| `not_passed` | The call passes no name and no field value the scan can read: no argument or object key the call spec maps to one, only null ones, or an object argument that is not a literal. It is always reported on `name`. | Map the arguments that carry the name and the fields, in `positional:` or `args:`; the `not mapped:` line names the arguments no target takes. When they are mapped but passed as `null`, there is nothing to configure. When the reason line names an object argument that is not a literal (`read.object_argument` in the JSON), configure the call that builds the object. |
+| `wrong_shape` | A value of the wrong shape for its target, such as properties given as text. | Check which argument goes to `properties`. |
+| `local` | A local variable of the function, declared before the call. | Nothing to configure: the scan does not follow locals yet. |
+| `format` | A printf-style format, such as `"promo_%s_shown".format(id)`. The reason shows the template when the scan read it. A call binds tighter than an operator, so `prefix + y.format(z)` is a `concatenation` and `name ?: y.format(z)` a `conditional`. `[NSString stringWithFormat:…]` is a format in Objective-C only: in Swift and TypeScript `[…]` is an array or dictionary literal, never a format. | Nothing to configure: the scan does not fill in formats yet. |
+| `concatenation` | Values joined with `+`, with no string literal among them, or with a part that is a dictionary or a choice between values (a function that returns one of several literals). | Nothing to configure: the scan does not join these yet. |
+| `conditional` | A choice between values: `if`, `when`, `switch`, a ternary, or a `?:` or `??` fallback. | Nothing to configure. |
+| `function` | A call of a function the scan does not read. It reads one whose every `return` is a string literal, declared like `fun f(): String` or `fun f() = "…"` (Kotlin), `func f() -> String` (Swift), `String f()` (Java) or `function f(): string` (TypeScript). [Enum sources](#enum-sources) lists those it does not read, such as a TypeScript method or arrow function. | When the function is declared that way in a file outside `sources:`, add the file to `enums:` or `sources:`. Otherwise nothing to configure. |
+| `expression` | Any other expression: a chained call, an operator, a subscript, a lambda. | Nothing to configure. |
+| `variable` | A variable the scan does not follow: a property, a lambda parameter, a captured variable. | Nothing to configure. |
+
+The function and the line a `parameter`, `parameter_property` or `local` reason
+names come from reading the source, not from compiling it. They are a hint:
+nothing `tripl check` sends or decides depends on them.
+
+The scan knows a function by its declaration: a Kotlin `fun`, a Swift `func` or
+`init`, a Java or C function, and a TypeScript `function`, method or named
+arrow (`const track = (event: string) => …`). A TypeScript return type may be
+an object or a function type (`Promise<{ ok: boolean }>`, `() => void`). A
+lambda, a closure or an Objective-C method is not read as a function: a value
+in one is explained from the named function around it, if there is one.
+
+An expression body (`= …`, `=> …`) ends with its line, unless a bracket is
+still open, the line ends in an operator, or the next line starts with `.`,
+`?.`, `&&` or `||`. An operator here is one of `+`, `-`, `*`, `/`, `%`, `&`,
+`|`, `^`, `&&`, `||`, `??`, `==`, `!=`, `===`, `!==`, `<=`, `>=`, `=`, `=>`,
+`:`, `.` and `?.`; `<`, `>` and a postfix `++` or `--` are none. In Kotlin a
+line that ends in `,`, `else` or the `)` of a brace-less `if (…)` goes on too,
+and so does a next line that starts with `?:`, `else`, `catch` or `finally`,
+but not one that starts with `+` or `-`: Kotlin reads that as a new
+statement. In TypeScript a line that ends in `?` goes on too, and so does a
+next line that starts with `?` or an operator other than `=` and `=>`; a `,`
+at the body's level ends the body. In both languages, so does a `;`.
+
+### Functions that forward their parameter {#list-forwarders}
+
+A wrapper such as `fun track(event: String) { analytics.logEvent(event) }`
+hides the event name from the scan. At the matched call, the name is only the
+parameter `event`; it is written where `track` is called. `--list` names each
+such function, the parameters it forwards, and how many calls of it it found
+in the same file and elsewhere, matched or not. Add a call spec for the
+function, and its calls are read:
+
+```yaml
+event_types:
+  event:
+    calls:
+      - function: "analytics.logEvent"
+        positional: [name, properties]
+      - function: "track"          # the wrapper --list named
+        positional: [name]
+```
+
+The calls are counted by name, in the function's own file and elsewhere,
+leaving out those in its own body: a call of that name there is the tracking
+call it forwards to, or the function calling itself. By name alone, so a call
+of another function with the same name counts too, a tracking call named like
+it included. A Swift `init` or a TypeScript `constructor` is listed under its
+type's name, which is what its callers write (`ScreenView(screen: name)`,
+`new PageView(path)`), though the reason line under the call, and
+`declared.function` in the JSON, still name it `init` or `constructor`. One in
+an anonymous class is not listed.
+
+### Calls that look like tracking {#list-tracking-like}
+
+`--list` also shows the calls that no call spec matches but that look like
+tracking, grouped by method: the callee's last segment, or an Objective-C
+message's selector. Each group has a signal, strongest first:
+
+- `constant`: an argument is an event-name constant, a constant whose path
+  names an event (`wrap(Events.Name.Open)`). These groups come first, and the
+  text shows all of them.
+- `name`: the method's name says so. It contains `event`, has a word that
+  starts with `track`, or is `capture`, `screen`, `screenView`,
+  `logScreenView` or `logPurchase`.
+- `receiver`: a tracking vendor's receiver (`analytics`, `tracker`,
+  `amplitude`, `firebase` and the like) calls a tracking verb such as `log`,
+  `track` or `send`.
+
+These methods take event constants too, so they never give the `constant`
+signal (their name or receiver can still give another one):
+
+- the formats `format`, `formatted`, `stringWithFormat` and
+  `localizedStringWithFormat`;
+- the collection builders `listOf`, `setOf`, `arrayOf`, `mutableListOf`,
+  `mutableSetOf`, `hashSetOf`, `linkedSetOf`, `sortedSetOf`, `arrayListOf`,
+  `listOfNotNull`, `setOfNotNull`, `mapOf`, `mutableMapOf`, `hashMapOf`, `of`
+  (`List.of`, `Map.of`, `EnumSet.of`) and `asList`, and `add`, `addAll`,
+  `push`, `equals` and every method that starts with `put`;
+- a test's assertions and matchers, and React's hooks: a method that starts
+  with `expect`, `assert`, `XCTAssert`, `should`, `to`, `is`, `use`, `eq` or
+  `equal`, then an upper-case letter or nothing (`assertEquals`, `toBe`,
+  `isEqualTo`, `shouldBe`, `eq`, `equalTo`, `useState`).
+
+Event plumbing is left out. A method is plumbing when it:
+
+- is `addEventListener`, `removeEventListener`, `dispatchEvent`,
+  `preventDefault`, `stopPropagation`, `createEvent` or `initEvent`, or ends
+  in `listener`, in any case;
+- is a handler: it starts with `on` and an upper-case letter (`onClick`), or
+  with `handle` in any case;
+- contains an input event: `TouchEvent`, `KeyEvent`, `PointerEvent`,
+  `MotionEvent`, `DragEvent`, `InputEvent` or `AccessibilityEvent`;
+- is a UI one-shot event holder: it ends in `LiveEvent`, or is
+  `EventObserver`;
+- is a DOM event type called with no receiver, with or without `new`:
+  `Event`, `CustomEvent`, `UIEvent`, `MouseEvent`, `KeyboardEvent`,
+  `FocusEvent`, `WheelEvent`, `InputEvent`, `PointerEvent`, `TouchEvent`,
+  `DragEvent`, `CompositionEvent`, `ClipboardEvent`, `AnimationEvent`,
+  `TransitionEvent`, `MessageEvent`, `ErrorEvent`, `ProgressEvent`,
+  `PopStateEvent`, `HashChangeEvent`, `StorageEvent`, `SubmitEvent`,
+  `BeforeUnloadEvent` or `PageTransitionEvent`. A bare `Event(…)` is also
+  Android's one-shot event holder. `Analytics.Event(…)` has a receiver, so it
+  can still be listed.
+
+Except where they say "in any case", these two lists match a method's name as
+written. For an Objective-C message, that name is its selector's first part.
+
+A call in a matched call's arguments, or in those of a chained method its call
+spec maps under `chain:` (to a target or to `null`), or one that wraps a
+matched call, is left out too; a call in another chained method, such as
+`.then(…)`, is listed. A declaration with no body, which reads like a call, is
+left out as well: an interface or abstract method, a protocol requirement, an
+overload, a C prototype in a header. The scan tells one from a call by a
+declaring keyword (`fun`, `func`, `init`, `function`), a return type (the end
+of a preprocessor line, as in `#endif`, is none), a typed parameter or a
+modifier, so a TypeScript member with none of these (`track(name, props);`) is
+still listed. The text shows the 10 largest groups besides the `constant`
+ones; `--json` lists them all.
+
+### Labels read as fields {#list-default-labels}
+
+A call spec without `args:` maps every labelled argument to the field of the
+same name. That is often right, but a label like `key` or `exclude` then reads
+as a plan field. `--list` notes it, per event type:
+
+```text
+event: fields key, exclude are read from the labels key and exclude because the call spec has no args:; map them in args: (null drops one).
+```
+
+List the labels in `args:`, and map the ones that are not fields to `null`.
+
+### No config yet {#list-discovery}
+
+With no `.tripl/check.yml` found and no `--check-config`, `--list` scans the
+whole git repository it runs in, every file in a supported language. It skips
+the built-in [excludes](#config-keys) and every hidden directory (`.venv`,
+`.gradle`, `.next` and the like), which hold installed or generated code, not
+your app's. Nothing can match, so it lists the calls that look like tracking: a
+place to start the config. It needs a git checkout; outside one, it is exit 2. It reads at most
+20000 source files. When it stops there, it says so: write the config with
+`sources:` to scan the rest.
 
 ## Output formats {#output}
 
@@ -506,6 +726,10 @@ report that as a pass, so it is exit 2: usually a `sources:` glob after a
 directory moved, or a call spec after a wrapper was renamed. `--allow-empty`
 accepts it, for a repository with no tracking code yet, and also accepts a
 `--payloads` file with no events.
+
+`tripl check --list` checks nothing, so it never fails because nothing
+matched: it exits 0 whenever the scan ran, and 2 for a config error or a flag
+it refuses (see [List what the scan reads](#list)).
 
 `--strict` makes warnings fail the run, reports a `dynamic_value` finding for
 every value the scanner could not read, and lists the calls where nothing was

@@ -46,15 +46,21 @@ def check_config_of(args: argparse.Namespace) -> CheckConfig | None:
     return load(found) if found is not None else None
 
 
-def project_of(args: argparse.Namespace, check_config: CheckConfig | None, command: str) -> str:
-    """One ``--project``, else ``project:`` from the check config. ``command`` names the verb."""
+def project_flag(args: argparse.Namespace, command: str) -> str | None:
+    """The one ``--project``, or None. Given twice is a refusal naming ``command``."""
     slugs: list[str] = list(args.project or ())
     if len(slugs) > 1:
         raise TriplConfigError(
             f"--project was given {len(slugs)} times; tripl {command} reads one project."
         )
-    if slugs:
-        return slugs[0]
+    return slugs[0] if slugs else None
+
+
+def project_of(args: argparse.Namespace, check_config: CheckConfig | None, command: str) -> str:
+    """One ``--project``, else ``project:`` from the check config. ``command`` names the verb."""
+    slug = project_flag(args, command)
+    if slug is not None:
+        return slug
     if check_config is not None and check_config.project:
         return check_config.project
     raise TriplConfigError("name the project: `project:` in .tripl/check.yml, or --project <slug>.")

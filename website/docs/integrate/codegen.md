@@ -46,12 +46,17 @@ Each event type gets one of four **styles**:
 | `named` | Flat event names with a properties dictionary (Segment `track`, Amplitude `logEvent`). | One typed value per event and **one** `track` function. Swift: an `enum` with one case per event. Kotlin: a `sealed interface` with a `data class` or `object` per event. TypeScript: an interface from plan name to properties, and `track<K extends …Name>(name: K, props: …Props[K])`. |
 | `self_describing` | Schema-based events, one schema per event (Snowplow self-describing events). | One type per schema with its data fields, and one `track` function that takes any of them. |
 
-`style` is optional. Without it, the style comes from the event type's preset
-(`segment_track` and `amplitude_log_event` give `named`, `snowplow_structured`
-gives `structured`, `snowplow_screen_view` gives `screen_view`,
-`snowplow_self_describing` gives `self_describing`). Without a preset, it comes
-from the plan: `structured` when the event type has a name rule, `named` when
-it does not.
+`style` is optional. Without it, the style comes from the event type's preset,
+the first one when it has several, counting a `preset:` before the `presets:`
+list (`segment_track` and `amplitude_log_event` give `named`,
+`snowplow_structured` gives `structured`, `snowplow_screen_view`
+gives `screen_view`, `snowplow_self_describing` gives `self_describing`).
+Without a preset, it comes from the plan: `structured` when the event type has
+a name rule, `named` when it does not. Call specs pasted from
+[`tripl check --print-preset`](./tripl-check.md#presets) in place of `preset:`
+carry no style. When they replace the first preset, set the `style:` the
+second line of the printed header names in a `codegen:` block that has none,
+to keep that preset's style.
 
 In every style:
 

@@ -7,6 +7,10 @@ every source file and builds one ``SymbolIndex``, because the enum a call's
 types IN CONFIG ORDER (the first matching spec wins, so a call is never counted
 as two event types), and maps its arguments onto plan fields.
 
+``first_pass`` and ``second_pass`` are public because ``inventory`` (what
+``tripl check --list`` shows) runs the very same passes rather than a copy of
+them; nothing it learns flows back into ``scan()``.
+
 Nothing here touches the network.
 """
 
@@ -138,14 +142,21 @@ def walk(root: Path, include: Iterable[str], exclude: Iterable[str]) -> Iterator
                 yield Path(directory) / name, relative
 
 
-def discover(config: CheckConfig) -> list[SourceFile]:
+def discover(config: CheckConfig, *, limit: int | None = None) -> list[SourceFile]:
+    """The source files under ``config.root``, in walk order; the first ``limit`` when given.
+
+    With a limit the walk stops there, so a huge tree is not walked to its end.
+    """
     if not config.root.is_dir():
         raise TriplConfigError(f"the check root {config.root} is not a directory.")
     found: list[SourceFile] = []
     for path, relative in walk(config.root, config.sources, config.exclude):
         language = EXTENSIONS.get(path.suffix.lower())
-        if language is not None:
-            found.append(SourceFile(path, relative, language))
+        if language is None:
+            continue
+        if limit is not None and len(found) >= limit:
+            break
+        found.append(SourceFile(path, relative, language))
     return found
 
 
@@ -160,6 +171,32 @@ def _read(path: Path) -> tuple[str | None, str | None]:
 
 
 # --- the two passes -------------------------------------------------------------
+@dataclass(frozen=True)
+class Tree:
+    """What the first pass read: the one symbol index, and every scanned source tokenized."""
+
+    symbols: SymbolIndex
+    parsed: tuple[tuple[SourceFile, str, list[Token]], ...]
+    # Configured files it could not read, sorted by path.
+    skipped: tuple[SkippedFile, ...]
+
+
+@dataclass(frozen=True)
+class FileCalls:
+    """One scanned file in the second pass: every call in it, with what it matched.
+
+    ``calls`` pairs each call ``find_calls`` found (in offset order) with the
+    event type and call spec that matched it, or None.
+    """
+
+    source: SourceFile
+    text: str
+    tokens: list[Token]
+    lines: LineIndex
+    evaluator: Evaluator
+    calls: tuple[tuple[Call, tuple[EventTypeSpec, CallSpec] | None], ...]
+
+
 def scan(config: CheckConfig) -> ScanOutcome:
     """Find and map every configured tracking call under ``config.root``."""
     if not config.event_types:
@@ -167,7 +204,25 @@ def scan(config: CheckConfig) -> ScanOutcome:
             "the check config names no event types; add an `event_types:` section "
             "saying how each plan event type is tracked."
         )
-    files = discover(config)
+    tree = first_pass(config, discover(config))
+    items: list[CheckItem] = []
+    matched = 0
+    for found in second_pass(config, tree):
+        for call, hit in found.calls:
+            if hit is None:
+                continue
+            matched += 1
+            event_type, spec = hit
+            origin = call_origin(found.source, call, found.lines)
+            # Called from here, not through a helper: every frame above the
+            # evaluator is stack a deeply nested argument cannot use.
+            collected = collect_call(call, spec, event_type, found.evaluator)
+            items.extend(call_items(collected, event_type.name, origin))
+    return ScanOutcome(tuple(items), len(tree.parsed), matched, tree.skipped)
+
+
+def first_pass(config: CheckConfig, files: Iterable[SourceFile]) -> Tree:
+    """Read and tokenize ``files``, and index them with the configured enum files."""
     symbols = SymbolIndex()
     parsed: list[tuple[SourceFile, str, list[Token]]] = []
     seen: set[Path] = set()
@@ -195,22 +250,26 @@ def scan(config: CheckConfig) -> ScanOutcome:
         if source.path not in seen:
             symbols.index_tokens(tokens, source.language)
         parsed.append((source, text, tokens))
-    items: list[CheckItem] = []
-    matched = 0
-    for source, text, tokens in parsed:
-        lines = LineIndex(text)
-        evaluator = Evaluator(symbols, source.language)
-        for call in find_calls(tokens, source.language, text):
-            hit = _first_match(config.event_types, call, source.language)
-            if hit is None:
-                continue
-            matched += 1
-            event_type, spec = hit
-            origin = _origin(source, call, lines)
-            items.extend(map_call(call, spec, event_type, evaluator, origin))
-    return ScanOutcome(
-        tuple(items), len(parsed), matched, tuple(skipped[path] for path in sorted(skipped))
-    )
+    return Tree(symbols, tuple(parsed), tuple(skipped[path] for path in sorted(skipped)))
+
+
+def second_pass(config: CheckConfig, tree: Tree, *, explain: bool = False) -> Iterator[FileCalls]:
+    """Each file's call sites, matched against the event types (with none, nothing matches).
+
+    ``explain`` gives each file an evaluator whose dynamic values say why they
+    were not read, which only ``tripl check --list`` shows.
+    """
+    for source, text, tokens in tree.parsed:
+        language = source.language
+        calls = find_calls(tokens, language, text)
+        yield FileCalls(
+            source,
+            text,
+            tokens,
+            LineIndex(text),
+            Evaluator(tree.symbols, language, explain=explain),
+            tuple((call, _first_match(config.event_types, call, language)) for call in calls),
+        )
 
 
 def _first_match(
@@ -223,7 +282,8 @@ def _first_match(
     return None
 
 
-def _origin(source: SourceFile, call: Call, lines: LineIndex) -> Origin:
+def call_origin(source: SourceFile, call: Call, lines: LineIndex) -> Origin:
+    """Where ``call`` is: its first and last character, and its callee or selector."""
     line, column = lines.position(call.offset)
     end_line, end_column = lines.position(max(call.end - 1, call.offset))
     snippet = call.selector if call.selector is not None else call.callee
@@ -238,13 +298,10 @@ class _Collected:
     properties: Value | None = None
 
 
-def map_call(
-    call: Call,
-    spec: CallSpec,
-    event_type: EventTypeSpec,
-    evaluator: Evaluator,
-    origin: Origin,
-) -> list[CheckItem]:
+def collect_call(
+    call: Call, spec: CallSpec, event_type: EventTypeSpec, evaluator: Evaluator
+) -> _Collected:
+    """The value each target ``spec`` maps gets from ``call``; the last one assigned wins."""
     collected = _Collected(fields={})
     for arg in call.args:
         mapped, target = spec.target_for(arg)
@@ -263,7 +320,7 @@ def map_call(
             event_type.resolve_target(target),
             _evaluate(evaluator, link.args[0], target),
         )
-    return _items(collected, event_type.name, origin)
+    return collected
 
 
 def _evaluate(evaluator: Evaluator, arg: Arg, target: str) -> Value:
@@ -337,7 +394,8 @@ def _properties(value: Value | None) -> dict[str, Any] | None:
     }
 
 
-def _items(collected: _Collected, event_type: str, origin: Origin) -> list[CheckItem]:
+def call_items(collected: _Collected, event_type: str, origin: Origin) -> list[CheckItem]:
+    """The items one call's collected values expand into: what ``tripl check`` sends for it."""
     fields = collected.fields or {}
     dynamic_targets = [
         target

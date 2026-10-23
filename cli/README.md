@@ -93,6 +93,7 @@ tripl plan branches --project SLUG          # plan branches and how far ahead ea
 tripl plan search <query> --project SLUG    # search the whole plan, ids to read next
 tripl annotate "Deployed web 2026.09.25" --project SLUG --url URL   # deploy marker on monitoring charts (WRITE)
 tripl check               # validate the tracking calls in this checkout against the plan
+tripl check --list        # what the scan reads from each call, and why a value is not read; no key, sends nothing
 tripl check --payloads events.ndjson   # validate captured events; a missing required field fails
 tripl check --format sarif > tripl.sarif   # SARIF 2.1.0 for code scanning
 tripl check --report codequality=gl-code-quality-report.json --report junit=tripl-check.xml   # a GitLab merge request's reports
@@ -162,7 +163,8 @@ event_types:
 ```
 
 Presets: `segment_track`, `amplitude_log_event`, `snowplow_structured`,
-`snowplow_screen_view`, `snowplow_self_describing`. Swift, Objective-C, Kotlin,
+`snowplow_screen_view`, `snowplow_self_describing` (`tripl check --print-preset
+NAME` prints one as YAML, to start your own from). Swift, Objective-C, Kotlin,
 Java and TypeScript/JavaScript are read; enum shorthand (`.home`) and qualified
 cases resolve through the enum files, interpolated names become plan properties
 (`"promo_sheet_\(id)_shown"` is `promo_sheet_${id}_shown`), Kotlin/Java
