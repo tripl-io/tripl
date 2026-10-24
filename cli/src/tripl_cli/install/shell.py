@@ -1,10 +1,12 @@
 """The one seam between this CLI and the local machine.
 
 Everything that runs a subprocess goes through ``Runner``, and nothing else in
-the package imports ``subprocess`` at all. That is what lets the whole of
-``install``/``upgrade`` be tested without a Docker daemon — the test suite
-injects a ``FakeRunner`` that records every ``Command`` and answers with scripted
-``CommandResult``s, so CI never starts a container.
+the package imports ``subprocess`` at all: ``install`` and ``upgrade`` run
+docker through it, and ``tripl check --new-from-rev`` runs git through it
+(``check/changes.py``). That is what lets the whole of ``install``/``upgrade``
+be tested without a Docker daemon — the test suite injects a ``FakeRunner``
+that records every ``Command`` and answers with scripted ``CommandResult``s, so
+CI never starts a container — and the git gate without a repository.
 
 THE OUTPUT RULE, which the rest of the package depends on:
 
@@ -42,22 +44,35 @@ class Command:
     needs ``PATH``, ``HOME`` and ``DOCKER_HOST`` to work at all. It exists for
     exactly one thing — handing ``TRIPL_VERSION`` to ``docker compose pull``
     during an upgrade, where the shell environment beats the ``.env`` file that
-    still holds the old pin.
+    still holds the old pin — and for the git gate's own settings (no prompt,
+    no lazy fetch, no optional locks, the C locale).
+
+    ``timeout`` (seconds) ends a command that runs longer; the result then says
+    ``timed_out``. ``encoding`` decodes captured output with that codec,
+    replacing what does not decode and translating no line end, where the
+    default is the locale's codec, strict, with universal newlines: git prints
+    file contents, which may be in any encoding and end lines in CRLF.
     """
 
     argv: tuple[str, ...]
     cwd: Path | None = None
     env: Mapping[str, str] = field(default_factory=dict)
+    timeout: float | None = None
+    encoding: str | None = None
 
 
 @dataclass(frozen=True)
 class CommandResult:
-    """What came back. ``stdout``/``stderr`` are empty unless the call was captured."""
+    """What came back. ``stdout``/``stderr`` are empty unless the call was captured.
+
+    A command its ``timeout`` ended has ``timed_out`` set, ``returncode`` -1.
+    """
 
     argv: tuple[str, ...]
     returncode: int
     stdout: str = ""
     stderr: str = ""
+    timed_out: bool = False
 
     @property
     def ok(self) -> bool:
@@ -96,19 +111,34 @@ def describe(command: Command) -> str:
 def subprocess_runner(command: Command, capture: bool) -> CommandResult:
     """The real runner. The only ``subprocess`` call in the package."""
     environment = {**os.environ, **command.env} if command.env else None
-    completed = subprocess.run(  # noqa: S603 - argv is a fixed tuple, never a shell string
-        list(command.argv),
-        cwd=str(command.cwd) if command.cwd is not None else None,
-        env=environment,
-        # capture_output would be `stdout=PIPE, stderr=PIPE`; None INHERITS the
-        # parent's streams, which is what keeps compose's progress live.
-        capture_output=capture,
-        text=True,
-        check=False,
-    )
+    try:
+        completed = subprocess.run(  # noqa: S603 - argv is a fixed tuple, never a shell string
+            list(command.argv),
+            cwd=str(command.cwd) if command.cwd is not None else None,
+            env=environment,
+            # capture_output would be `stdout=PIPE, stderr=PIPE`; None INHERITS the
+            # parent's streams, which is what keeps compose's progress live.
+            capture_output=capture,
+            # With an encoding the bytes are decoded below instead, so text
+            # mode's newline translation never turns a CRLF line into LF.
+            text=command.encoding is None,
+            timeout=command.timeout,
+            check=False,
+        )
+    except subprocess.TimeoutExpired:
+        # subprocess.run has already killed the child and reaped it.
+        return CommandResult(argv=command.argv, returncode=-1, timed_out=True)
     return CommandResult(
         argv=command.argv,
         returncode=completed.returncode,
-        stdout=completed.stdout or "" if capture else "",
-        stderr=completed.stderr or "" if capture else "",
+        stdout=_decoded(completed.stdout, command.encoding) if capture else "",
+        stderr=_decoded(completed.stderr, command.encoding) if capture else "",
     )
+
+
+def _decoded(output: str | bytes | None, encoding: str | None) -> str:
+    if output is None:
+        return ""
+    if isinstance(output, bytes):
+        return output.decode(encoding or "utf-8", errors="replace")
+    return output

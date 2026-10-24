@@ -566,8 +566,16 @@ def check_document(report: CheckReport) -> JsonDict:
     result ``fails``, and each finding ``suppression`` and ``fails``. ``status``
     stays the plan's verdict; ``fails`` says whether it fails the run. With no
     marker the document is exactly what it was before markers existed.
+
+    Under a gate (``--new-from-rev``, ``--new-from-patch``), and only then, the
+    top-level ``gate`` says what was compared (``check/gate.py``), ``summary``
+    gains ``failing``, each result ``fails`` and ``in_change`` (the change
+    made the item new or changed), and each finding ``in_change``, ``cause``
+    (``plan_branch`` for one the plan branch brought in) and ``fails``.
+    ``exit_code`` is the gated one.
     """
     from tripl_cli.check.fingerprint import finding_fingerprints
+    from tripl_cli.check.gate import gate_document
     from tripl_cli.check.model import finding_fails
     from tripl_cli.check.validate import summary
 
@@ -582,12 +590,16 @@ def check_document(report: CheckReport) -> JsonDict:
     document["files_scanned"] = report.files_scanned
     document["skipped"] = [{"path": skip.path, "reason": skip.reason} for skip in report.skipped]
     marked = bool(report.markers)
+    gated = report.gate is not None
     counts = summary(report.results)
     if marked:
         counts["suppressed"] = report.suppressed
+    if marked or gated:
         counts["failing"] = sum(1 for result in report.results if report.fails(result))
     document["summary"] = counts
     document["exit_code"] = report.exit_code
+    if gated:
+        document["gate"] = gate_document(report)
     document["results"] = [
         {
             "status": result.status,
@@ -611,17 +623,17 @@ def check_document(report: CheckReport) -> JsonDict:
                     "message": finding.message,
                     "fingerprint": fingerprint,
                     **(
-                        {
-                            "suppression": _suppression_document(finding.suppression),
-                            "fails": finding_fails(finding, report.strict),
-                        }
+                        {"suppression": _suppression_document(finding.suppression)}
                         if marked
                         else {}
                     ),
+                    **({"in_change": finding.in_change, "cause": finding.cause} if gated else {}),
+                    **({"fails": finding_fails(finding, report.strict)} if marked or gated else {}),
                 }
                 for finding, fingerprint in zip(result.findings, fingerprints, strict=True)
             ],
-            **({"fails": report.fails(result)} if marked else {}),
+            **({"fails": report.fails(result)} if marked or gated else {}),
+            **({"in_change": result.in_change} if gated else {}),
         }
         for result, fingerprints in zip(report.results, finding_fingerprints(report), strict=True)
     ]

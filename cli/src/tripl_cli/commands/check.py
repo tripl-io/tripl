@@ -34,10 +34,21 @@ never pass for this run's. Only a command line the parser rejects outright (an
 unknown flag, or ``--list`` with ``--payloads``, say) leaves them, because then
 no command runs at all; so does ``--print-preset``, which runs none.
 
+``--new-from-rev REF`` or ``--new-from-patch FILE`` gate the run on a change:
+only findings the change brought in fail it (``check/gate.py``). The change
+is read, and the base tree scanned, before anything is sent, so a bad REF or
+an unreadable patch is exit 2 with no request made; a run against a plan
+branch then validates the unchanged calls it would fail against main as well,
+in the same ``run_gate``. The gate changes the exit code, the listing and the
+gate fields of JSON and SARIF; Code Quality and JUnit read the same with it
+and without.
+
 Exit codes: 0 clean; 1 when any item has an error (or, with ``--strict``, a
 warning — ``--strict`` also reports values only known at runtime) that no
-``tripl-check-ignore`` marker suppresses (``check/suppress.py``); 2 for a bad
-config, a bad payload file, a bad invocation, or a config that matches no call
+``tripl-check-ignore`` marker suppresses (``check/suppress.py``) and that, under
+a gate, is new in the change; 2 for a bad config, a bad payload file, a bad
+invocation, a change that cannot be read (no git, an unknown REF, an
+unreadable patch), or a config that matches no call
 at all (``--allow-empty`` accepts that); 4 when the instance was unavailable —
 unreachable, timed out, 429 or 5xx — so nothing was decided. An instance that
 refuses the key is exit 1, with the reason on stderr. ``--list`` exits 0
@@ -59,24 +70,31 @@ import stat
 import sys
 import time
 from collections.abc import Iterable, Sequence
+from dataclasses import replace
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any, TextIO
 
 import httpx
 
+from tripl_cli.check import changes as changes_mod
+from tripl_cli.check import gate as gate_mod
 from tripl_cli.check import payloads as payloads_mod
 from tripl_cli.check import scan as scan_mod
 from tripl_cli.check.config import DEFAULT_EXCLUDES, DEFAULT_SOURCES, CheckConfig, repository_root
 from tripl_cli.check.inventory import inventory
 from tripl_cli.check.listing import render_listing
 from tripl_cli.check.model import (
+    GATE_PATCH,
+    GATE_REV,
     MODE_PAYLOADS,
     MODE_STATIC,
     CheckItem,
     CheckReport,
     CheckResult,
+    GateInfo,
     Marker,
+    PlanBranchComparison,
     SkippedFile,
 )
 from tripl_cli.check.presets import PRESETS, preset_yaml
@@ -96,6 +114,7 @@ from tripl_cli.commands._plan import Branch, add_branch, begin, resolve_branch
 from tripl_cli.config import Config
 from tripl_cli.diagnostics.collect import instance_of
 from tripl_cli.errors import TriplConfigError, TriplError
+from tripl_cli.install.shell import Runner, subprocess_runner
 from tripl_cli.model import Run, to_rfc3339
 from tripl_cli.render import render_header
 from tripl_cli.report import check_document, check_list_document
@@ -153,8 +172,10 @@ def register(
             "value was not; nothing is sent. "
             "A finding can be suppressed by a comment at its call, "
             "tripl-check-ignore[CODE] -- REASON. "
-            "Exits 1 on any error (or warning, with --strict) that is not suppressed, 4 when "
-            "the instance was unavailable."
+            "With --new-from-rev or --new-from-patch, only findings new in that change "
+            "fail the run. "
+            "Exits 1 on any error (or warning, with --strict) that is not suppressed (and, "
+            "with a gate, is new in the change), 4 when the instance was unavailable."
         ),
     )
     add_check_config(parser)
@@ -189,6 +210,26 @@ def register(
         help=(
             "print the call specs of preset NAME (every preset without NAME) as YAML to "
             f"paste under an event type's calls:, and exit; the presets are {', '.join(PRESETS)}"
+        ),
+    )
+    # One change per run; neither flag reads a CI variable.
+    gate = parser.add_mutually_exclusive_group()
+    gate.add_argument(
+        "--new-from-rev",
+        dest="new_from_rev",
+        metavar="REF",
+        help=(
+            "fail only on findings new in the change from commit REF to the working tree "
+            "(needs git and the REF commit in the clone; an empty REF gates nothing)"
+        ),
+    )
+    gate.add_argument(
+        "--new-from-patch",
+        dest="new_from_patch",
+        metavar="FILE",
+        help=(
+            "fail only on findings new in the change FILE holds, a unified diff from the base "
+            "to the working tree (git diff format; - for stdin); needs no git"
         ),
     )
     add_project_flag(parser)
@@ -385,6 +426,11 @@ def _list_refusal(args: argparse.Namespace) -> str | None:
         )
     if args.allow_empty:
         return "--list never fails because nothing matched; drop --allow-empty."
+    gate = _gate_flag(args)
+    if gate is not None:
+        return (
+            f"{gate} decides which findings fail a check, and --list checks nothing; drop {gate}."
+        )
     if args.output_format not in (None, FORMAT_TEXT, FORMAT_JSON):
         chosen = args.output_format
         return f"--list prints text or JSON, not {chosen}; drop --format {chosen}."
@@ -457,8 +503,99 @@ def _silence(stream: TextIO) -> None:
         os.close(devnull)
 
 
+def _gate_flag(args: argparse.Namespace) -> str | None:
+    if args.new_from_rev is not None:
+        return "--new-from-rev"
+    if args.new_from_patch is not None:
+        return "--new-from-patch"
+    return None
+
+
+def _gate_refusal(args: argparse.Namespace) -> str | None:
+    """Why a gate flag cannot do what it says in this run; None when it can (or is not given)."""
+    gate = _gate_flag(args)
+    if gate is None:
+        return None
+    if args.payloads is not None:
+        return (
+            f"{gate} compares source with the change's base, and a captured event has no "
+            f"source to compare; drop {gate}."
+        )
+    if args.new_from_rev is not None and args.new_from_rev.startswith("-"):
+        return (
+            f"--new-from-rev {args.new_from_rev!r}: a revision cannot start with '-'; "
+            "name a commit, a branch or a tag."
+        )
+    return None
+
+
+def _change(
+    args: argparse.Namespace,
+    check_config: CheckConfig,
+    items: Sequence[CheckItem],
+    skipped: Sequence[SkippedFile] = (),
+) -> tuple[GateInfo, tuple[bool, ...]] | None:
+    """The gate: what the change is, and which items it made new or changed. None for no gate.
+
+    Everything is read here, before any request: git, the patch, the base scan.
+    """
+    if args.new_from_rev is not None:
+        ref = args.new_from_rev.strip()
+        if not ref:
+            # One job line for merge requests and the default branch alike,
+            # where the base variable is empty: no gate, and say so.
+            _emit("--new-from-rev is empty: every finding counts.", sys.stderr, primary=False)
+            return None
+        untracked: tuple[str, ...]
+        git = changes_mod.from_git(ref, check_config.root, runner=default_runner())
+        root, sha, text, untracked = git.root, git.sha, git.diff, git.untracked
+        info = GateInfo(source=GATE_REV, files=0, rev=ref, base=sha)
+    else:
+        spec = args.new_from_patch
+        text = changes_mod.read_patch(spec)
+        # Relative to the repository root, else to the working directory,
+        # the way git apply reads a patch.
+        root = repository_root(check_config.root) or Path.cwd()
+        # A patch cannot say what git does not track: it must cover the change.
+        untracked = ()
+        info = GateInfo(source=GATE_PATCH, files=0, patch=spec)
+    found = changes_mod.parse_unified_diff(text)
+    if info.source == GATE_PATCH and text.strip() and not found:
+        raise TriplConfigError(
+            f"{info.patch} holds no diff ({changes_mod.GIT_FORMAT_ONLY} An empty file "
+            "is a change with nothing in it.)"
+        )
+    marking = gate_mod.mark(
+        check_config,
+        items,
+        found,
+        root,
+        trusted=info.source == GATE_REV,
+        untracked=untracked,
+        # What today's scan did not read: its calls at the base are not compared.
+        unread=frozenset(entry.path for entry in skipped),
+    )
+    info = replace(
+        info,
+        files=marking.files,
+        paths=marking.paths,
+        unreconstructable=marking.unreconstructable,
+        unmapped=marking.unmapped,
+        untracked=marking.untracked,
+    )
+    return info, marking.changed
+
+
+def default_runner() -> Runner:
+    """The runner git goes through; a test replaces this binding, as install's does."""
+    return subprocess_runner
+
+
 def _check(args: argparse.Namespace, config: Config, targets: list[tuple[str, Path]]) -> int:
     output = _format(args)
+    refusal = _gate_refusal(args)
+    if refusal is not None:
+        raise TriplConfigError(refusal)
     # Connection settings first: "no URL configured" is exit 2 before any file is read.
     context = begin(config)
     check_config = check_config_of(args)
@@ -490,8 +627,12 @@ def _check(args: argparse.Namespace, config: Config, targets: list[tuple[str, Pa
             # A gate that checked nothing must not read as one that passed: a
             # renamed wrapper or a moved directory would otherwise turn CI green.
             raise TriplConfigError(_nothing_matched(check_config, files))
+    gated = None
+    if check_config is not None and _gate_flag(args) is not None:
+        gated = _change(args, check_config, items, skipped)
 
     async def body(client: httpx.AsyncClient) -> tuple[Branch, tuple[CheckResult, ...], int]:
+        nonlocal gated
         reader = context.reader(client)
         branch = await resolve_branch(reader, project, selector)
         results: tuple[CheckResult, ...] = ()
@@ -499,6 +640,33 @@ def _check(args: argparse.Namespace, config: Config, targets: list[tuple[str, Pa
             results = await validate(
                 reader, project, items, branch_id=branch.id, strict=args.strict
             )
+        if gated is not None:
+            info, changed = gated
+            causes: dict[int, tuple[bool, ...]] = {}
+            if branch.id is not None:
+                # A plan branch can fail a call the change left alone: ask main
+                # about those, in this same run_gate, so an outage is still exit 4.
+                picked = gate_mod.candidates(results, changed, args.strict)
+                if picked:
+                    on_main = await validate(
+                        reader,
+                        project,
+                        [items[index] for index in picked],
+                        branch_id=None,
+                        strict=args.strict,
+                    )
+                    found = gate_mod.plan_branch_causes(
+                        [results[index] for index in picked], on_main
+                    )
+                    causes = dict(zip(picked, found, strict=True))
+                info = replace(
+                    info,
+                    plan_branch=PlanBranchComparison(
+                        len(picked), sum(sum(caused) for caused in causes.values())
+                    ),
+                )
+            results = gate_mod.apply_gate(results, changed, causes)
+            gated = info, changed
         return branch, results, reader.requests
 
     branch, results, requests = run_gate(config, body, timeout=args.timeout)
@@ -534,6 +702,7 @@ def _check(args: argparse.Namespace, config: Config, targets: list[tuple[str, Pa
         ),
         skipped=skipped,
         markers=marker_states(markers, results),
+        gate=None if gated is None else gated[0],
     )
     # Every file before anything is printed: a report that cannot be written
     # fails the run, and must not do so after stdout already told a success.

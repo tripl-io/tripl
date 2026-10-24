@@ -11,7 +11,10 @@ item the ones covering its call.
 
 ``first_pass`` and ``second_pass`` are public because ``inventory`` (what
 ``tripl check --list`` shows) runs the very same passes rather than a copy of
-them; nothing it learns flows back into ``scan()``.
+them; nothing it learns flows back into ``scan()``. So does ``base_items``,
+the gate's scan of the tree as it was before a change (``gate.py``): the same
+passes and the same config over a ``Snapshot``, which hands the first pass
+each changed file's base text instead of the file on disk.
 
 Nothing here touches the network.
 """
@@ -21,8 +24,8 @@ from __future__ import annotations
 import itertools
 import os
 import re
-from collections.abc import Iterable, Iterator
-from dataclasses import dataclass
+from collections.abc import Callable, Iterable, Iterator, Mapping
+from dataclasses import dataclass, field
 from functools import lru_cache
 from pathlib import Path
 from typing import Any
@@ -36,6 +39,7 @@ from tripl_cli.check.config import (
     VALUE_NUMBER,
     CallSpec,
     CheckConfig,
+    EnumSource,
     EventTypeSpec,
 )
 from tripl_cli.check.lexer import EXTENSIONS, LineIndex, Token, tokenize
@@ -60,6 +64,12 @@ MAX_FILE_BYTES = 2_000_000
 MAX_EXPANSION = 50
 
 _IGLU = re.compile(r"iglu:[^/]+/([^/]+)/[^/]+/[^/]+")
+
+# Why a ``Snapshot`` has no text for a file: it did not exist at the base.
+SKIP_ABSENT = "absent"
+
+# How the first pass reads a file: ``(text, None)``, or ``(None, why)``.
+Read = Callable[[Path], tuple[str | None, str | None]]
 
 
 @dataclass(frozen=True)
@@ -128,10 +138,28 @@ def _is_dir_pattern_match(relative_dir: str, patterns: Iterable[str]) -> bool:
     return any(glob_regex(pattern).fullmatch(probe) for pattern in patterns)
 
 
+def excluded(relative: str, exclude: Iterable[str]) -> bool:
+    """Whether ``walk`` leaves ``relative`` out: matched itself, or under a pruned directory.
+
+    The one rule for what ``exclude:`` takes away. The walk prunes a
+    directory everything under which an exclude matches (``Sources/Vendor/*``
+    prunes ``Sources/Vendor/Lib/K.swift`` too, which the pattern itself does
+    not match), so a path is tested against every directory above it as well.
+    """
+    exclude = tuple(exclude)
+    if _matches(relative, exclude):
+        return True
+    parts = relative.split("/")
+    return any(
+        _is_dir_pattern_match("/".join(parts[:depth]), exclude) for depth in range(1, len(parts))
+    )
+
+
 def walk(root: Path, include: Iterable[str], exclude: Iterable[str]) -> Iterator[tuple[Path, str]]:
     """Every file under ``root`` matching ``include`` and not ``exclude``, sorted.
 
-    Yields ``(path, posix-relative path)``; excluded directories are pruned.
+    Yields ``(path, posix-relative path)``; excluded directories are pruned,
+    by the same rule ``excluded`` states for one path.
     """
     include = tuple(include)
     exclude = tuple(exclude)
@@ -175,6 +203,72 @@ def _read(path: Path) -> tuple[str | None, str | None]:
         return path.read_text(encoding="utf-8", errors="replace"), None
     except OSError:
         return None, SKIP_UNREADABLE
+
+
+def newlines(text: str) -> str:
+    """``text`` with its line ends read as ``_read`` reads them (universal newlines)."""
+    return text.replace("\r\n", "\n").replace("\r", "\n")
+
+
+def source_language(config: CheckConfig, relative: str) -> str | None:
+    """The language the scan reads ``relative`` in as a source file, were it there; else None."""
+    if not _matches(relative, config.sources) or excluded(relative, config.exclude):
+        return None
+    return EXTENSIONS.get(Path(relative).suffix.lower())
+
+
+def enum_sources(config: CheckConfig, relative: str) -> list[EnumSource]:
+    """The ``enums:`` entries that would read the file at ``relative``, were it there."""
+    if excluded(relative, config.exclude):
+        return []
+    return [source for source in config.enums if _matches(relative, source.patterns)]
+
+
+def scanned(config: CheckConfig, relative: str) -> bool:
+    """Whether the scan reads the file at ``relative`` (to the check root), were it there.
+
+    Its size aside: ``fits`` is the other half of the rule, for text in hand.
+    """
+    return source_language(config, relative) is not None or bool(enum_sources(config, relative))
+
+
+def fits(text: str) -> bool:
+    """Whether a file of ``text`` is within the size ``_read`` reads, counted in UTF-8 bytes.
+
+    For a base text the gate rebuilt, whose bytes are not on disk. A byte the
+    decoding replaced counts as three, so the count errs toward too large,
+    which leaves the file out of the base: every call in it is then new.
+    """
+    return len(text.encode("utf-8", "surrogatepass")) <= MAX_FILE_BYTES
+
+
+@dataclass(frozen=True)
+class Snapshot:
+    """The tree at the base of a change: the files it changed as they were, the rest as they are.
+
+    ``texts`` maps a file's path (under the check root, as the walk names it)
+    to its base text, or None for a file the base did not have. ``deleted``
+    holds ``(path, relative)`` for each file the base had and the tree no
+    longer does, which the walk cannot find.
+    """
+
+    texts: Mapping[Path, str | None] = field(default_factory=dict)
+    deleted: tuple[tuple[Path, str], ...] = ()
+    # Directories the base did not have as they are now (a submodule the
+    # change moved): every file under one reads as absent.
+    absent: tuple[Path, ...] = ()
+
+    def read(self, path: Path) -> tuple[str | None, str | None]:
+        if any(path.is_relative_to(directory) for directory in self.absent):
+            return None, SKIP_ABSENT
+        if path in self.texts:
+            text = self.texts[path]
+            if text is None:
+                return None, SKIP_ABSENT
+            # The base's own size, its line ends as they were, under the cap
+            # the scan applies to it; then read as ``_read`` reads a file.
+            return (newlines(text), None) if fits(text) else (None, SKIP_TOO_LARGE)
+        return _read(path)
 
 
 # --- the two passes -------------------------------------------------------------
@@ -234,26 +328,86 @@ def scan(config: CheckConfig) -> ScanOutcome:
     return ScanOutcome(tuple(items), len(tree.parsed), matched, tree.skipped, tuple(found_markers))
 
 
-def first_pass(config: CheckConfig, files: Iterable[SourceFile]) -> Tree:
-    """Read and tokenize ``files``, and index them with the configured enum files."""
+def base_items(config: CheckConfig, snapshot: Snapshot) -> list[CheckItem]:
+    """The items ``scan`` would find in the tree at the base: the same passes, the same config.
+
+    The walk is of today's tree, which the snapshot corrects: a file added
+    since reads as absent, a changed one as it was, and a deleted one is
+    walked again if the config would read it. Markers are read on the base
+    text as ``scan`` reads them, because which findings a call waives is part
+    of what is compared (``gate.item_key``).
+    """
+    if not config.event_types:
+        return []
+    files = discover(config)
+    enum_paths = list(enum_files(config))
+    walked = {source.path for source in files} | {path for path, _, _ in enum_paths}
+    for path, relative in snapshot.deleted:
+        if path in walked:
+            continue
+        # The walk's own rule, so a file it would not have read stays out.
+        language = source_language(config, relative)
+        if language is not None:
+            files.append(SourceFile(path, relative, language))
+        for enum_source in enum_sources(config, relative):
+            enum_paths.append((path, relative, _enum_languages(enum_source, path)))
+    tree = first_pass(config, files, read=snapshot.read, enums=enum_paths)
+    items: list[CheckItem] = []
+    for found in second_pass(config, tree):
+        hits = [(call, hit) for call, hit in found.calls if hit is not None]
+        placed = markers(
+            found.source.relative, found.text, found.tokens, found.source.language, found.lines
+        )
+        covering = attach(placed, [call for call, _ in hits], found.lines) if placed else {}
+        for index, (call, (event_type, spec)) in enumerate(hits):
+            origin = call_origin(found.source, call, found.lines)
+            # Called from here, as in scan(): no frame above the evaluator.
+            collected = collect_call(call, spec, event_type, found.evaluator)
+            items.extend(
+                call_items(collected, event_type.name, origin, suppressions=covering.get(index, ()))
+            )
+    return items
+
+
+def enum_files(config: CheckConfig) -> Iterator[tuple[Path, str, frozenset[str]]]:
+    """``(path, relative, languages)`` for every file an ``enums:`` entry names, in config order."""
+    for enum_source in config.enums:
+        for path, relative in walk(config.root, enum_source.patterns, config.exclude):
+            yield path, relative, _enum_languages(enum_source, path)
+
+
+def _enum_languages(enum_source: EnumSource, path: Path) -> frozenset[str]:
+    return frozenset(enum_source.languages) or frozenset(
+        filter(None, [EXTENSIONS.get(path.suffix.lower())])
+    )
+
+
+def first_pass(
+    config: CheckConfig,
+    files: Iterable[SourceFile],
+    *,
+    read: Read = _read,
+    enums: Iterable[tuple[Path, str, frozenset[str]]] | None = None,
+) -> Tree:
+    """Read and tokenize ``files``, and index them with the configured enum files.
+
+    ``read`` reads each file (the gate passes a ``Snapshot``'s); ``enums`` is
+    the enum files to index, ``enum_files(config)`` when not given.
+    """
     symbols = SymbolIndex()
     parsed: list[tuple[SourceFile, str, list[Token]]] = []
     seen: set[Path] = set()
     skipped: dict[str, SkippedFile] = {}
-    for enum_source in config.enums:
-        for path, relative in walk(config.root, enum_source.patterns, config.exclude):
-            languages = enum_source.languages or frozenset(
-                filter(None, [EXTENSIONS.get(path.suffix.lower())])
-            )
-            text, why = _read(path)
-            if text is None:
-                skipped.setdefault(relative, SkippedFile(relative, why or SKIP_UNREADABLE))
-                continue
-            for language in sorted(languages):
-                symbols.index_tokens(tokenize(text, language), language)
-            seen.add(path)
+    for path, relative, languages in enum_files(config) if enums is None else enums:
+        text, why = read(path)
+        if text is None:
+            skipped.setdefault(relative, SkippedFile(relative, why or SKIP_UNREADABLE))
+            continue
+        for language in sorted(languages):
+            symbols.index_tokens(tokenize(text, language), language)
+        seen.add(path)
     for source in files:
-        text, why = _read(source.path)
+        text, why = read(source.path)
         if text is None:
             skipped.setdefault(
                 source.relative, SkippedFile(source.relative, why or SKIP_UNREADABLE)

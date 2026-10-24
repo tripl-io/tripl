@@ -45,8 +45,8 @@ uvx tripl --version
 pip install tripl
 ```
 
-In a container — `ghcr.io/tripl-io/tripl-cli` is the CLI on Python, with a
-shell and no entrypoint, for CI jobs that run in an image (tagged `X.Y.Z`,
+In a container — `ghcr.io/tripl-io/tripl-cli` is the CLI on Python, with git,
+a shell and no entrypoint, for CI jobs that run in an image (tagged `X.Y.Z`,
 `X.Y` and `latest` from the release after v0.3.2):
 
 ```bash
@@ -105,6 +105,7 @@ tripl check --list        # what the scan reads from each call, and why a value 
 tripl check --payloads events.ndjson   # validate captured events; a missing required field fails
 tripl check --format sarif > tripl.sarif   # SARIF 2.1.0 for code scanning
 tripl check --report codequality=gl-code-quality-report.json --report junit=tripl-check.xml   # a GitLab merge request's reports
+tripl check --new-from-rev "$BASE"   # fail only on findings new since the commit BASE (or --new-from-patch FILE)
 tripl codegen             # typed tracking code (Swift, Kotlin, TypeScript) from the plan
 tripl codegen --check     # CI: exit 1 when the committed generated files are out of date
 tripl export --out plan-schemas   # one JSON Schema (2020-12) per event, plus the bundle

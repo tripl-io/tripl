@@ -17,6 +17,10 @@ A finding a ``tripl-check-ignore`` marker waives stays in both, under its own
 fingerprint and test name: Code Quality lowers it to ``info`` with the reason
 in front, JUnit tags it ``[suppressed: <reason>]`` and fails no case on it. So
 adding a marker shows in GitLab as neither a new finding nor a resolved one.
+
+Neither reads the gate (``--new-from-rev``, ``--new-from-patch``): GitLab works
+out what is new in a merge request itself, by comparing with the default
+branch's reports, so both list every finding, gated run or not, byte for byte.
 """
 
 from __future__ import annotations
@@ -191,14 +195,21 @@ def case_name(item: CheckItem) -> str:
 
 
 def failing(report: CheckReport, result: CheckResult) -> bool:
-    """Whether this result is one of those that make the run exit 1."""
-    return report.fails(result)
+    """Whether this result fails its case: what makes the run exit 1, the gate left out.
+
+    A gate (``--new-from-rev``) changes which failures fail the pipeline, not
+    what the plan says about each call, and GitLab compares a merge request's
+    cases with the default branch's, which no gate ran on. So under a gate a
+    report can hold more failed cases than the exit code counts.
+    """
+    return report.verdict_fails(result)
 
 
 def junit_document(report: CheckReport) -> str:
     """JUnit XML: one test case per call site (or captured event), the passing ones included.
 
-    A case fails exactly when its call makes the run exit 1, is skipped when
+    A case fails exactly when its call would make the run exit 1 with no gate
+    (``failing``), is skipped when
     nothing about the call was readable (and ``--strict`` was not given), and
     passes otherwise, with any lesser findings as its output. GitLab compares
     cases between pipelines by suite, class and name, so the suite is named

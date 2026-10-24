@@ -2186,3 +2186,46 @@ def test_a_codequality_marker_issue_is_relative_to_the_repository(
     issues = json.loads((app / "cq.json").read_text(encoding="utf-8"))
     [invalid] = [issue for issue in issues if issue["check_name"] == "tripl/invalid_suppression"]
     assert invalid["location"] == {"path": "apps/ios/Sources/Bad.swift", "lines": {"begin": 1}}
+
+
+def test_a_kotlin_map_with_a_trailing_comma_sends_its_properties(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    validator: Any,
+    configured_env: None,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """ktlint's trailing commas: the map is still read, not sent as a runtime value."""
+    root = tmp_path / "android"
+    _write(
+        root,
+        {
+            ".tripl/check.yml": """
+                project: demo
+                sources: ["app/**"]
+                event_types:
+                  legacy:
+                    calls: [{function: "analytics.logEvent", name_arg: 0, properties_arg: 1}]
+            """,
+            "app/Screen.kt": """
+                fun shown() {
+                    analytics.logEvent(
+                        "trial_started",
+                        mapOf(
+                            "screen" to "map",
+                            "source" to "push",
+                        ),
+                    )
+                    analytics.logEvent("trial_started", hashMapOf("screen" to "home",))
+                }
+            """,
+        },
+    )
+    (root / ".git").mkdir()
+    monkeypatch.chdir(root)
+    assert main(["check", "--strict"]) == 0  # nothing only known at runtime
+    sent = json.loads(validator.calls.last.request.content)["items"]
+    assert [item["properties"] for item in sent] == [
+        {"screen": "map", "source": "push"},
+        {"screen": "home"},
+    ]

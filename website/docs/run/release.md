@@ -200,7 +200,8 @@ without touching the others.
 `publish-cli.yml` also builds `cli/Dockerfile` and pushes it as
 `ghcr.io/<owner>/tripl-cli` for `linux/amd64` and `linux/arm64`, tagged like
 the service's images (`X.Y.Z`, `X.Y`, `latest` and `sha-<short>`): the CLI for
-CI jobs that run in an image, so that they install nothing from PyPI. It is
+CI jobs that run in an image, so that they install nothing from PyPI, with git
+for `tripl check --new-from-rev`. It is
 built from the tagged source, so it waits for the gate only, not for the PyPI
 upload, and it runs `tripl --version` in an amd64 build before it pushes. The
 first push creates the package as private: make it public under *Packages →

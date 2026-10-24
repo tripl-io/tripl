@@ -501,7 +501,10 @@ class Evaluator:
 
     def _kotlin_pairs(self, inner: list[Token]) -> tuple[tuple[str, Value], ...] | None:
         pairs: list[tuple[str, Value]] = []
-        for part in split_top_level(inner):
+        parts = split_top_level(inner)
+        if parts and not parts[-1]:
+            parts = parts[:-1]  # a trailing comma: `mapOf("a" to x,)`
+        for part in parts:
             split = next((i for i, token in enumerate(part) if token.is_ident("to")), None)
             if split is None:
                 return None

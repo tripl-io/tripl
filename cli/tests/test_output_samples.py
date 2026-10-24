@@ -14,15 +14,19 @@ from pathlib import Path
 import pytest
 
 from tripl_cli.check import inventory as inventory_module
+from tripl_cli.check.gate import apply_gate
 from tripl_cli.check.model import (
+    GATE_REV,
     MODE_STATIC,
     CheckFinding,
     CheckItem,
     CheckReport,
     CheckResult,
+    GateInfo,
     Marker,
     MarkerState,
     Origin,
+    PlanBranchComparison,
     Suppression,
 )
 from tripl_cli.check.render import render_text
@@ -686,5 +690,86 @@ def test_check_text_sample_with_suppression() -> None:
         "3 call sites in 3 files: 0 ok, 0 warnings, 3 errors; 1 finding suppressed.\n"
         'Suppression ignored: app/src/Debug.kt:9 tripl-check-ignore needs "-- <reason>".\n'
         "Unused suppression: app/src/Old.kt:3 tripl-check-ignore[unknown_event] matched no finding."
+    )
+    assert report.exit_code == 1
+
+
+def test_check_text_sample_with_a_gate() -> None:
+    """Under a gate the listing shows what the change brought in; the rest is counted."""
+
+    def result(path: str, line: int, name: str, status: str = "error") -> CheckResult:
+        item = CheckItem(
+            origin=Origin(path, line, 9, line, 40, "analytics.track"),
+            event_type="event",
+            name=name,
+            fields={},
+            properties=None,
+            complete=False,
+        )
+        code = "unknown_event" if status == "error" else "unknown_field"
+        finding = CheckFinding(code, status, f"no event '{name}' in the plan")
+        return CheckResult(item=item, status=status, findings=(finding,))
+
+    reasonless = Marker(
+        "app/src/Debug.kt",
+        9,
+        8,
+        "tripl-check-ignore[unknown_event]",
+        (("unknown_event", None),),
+        None,
+        "no_reason",
+    )
+    unused = Marker(
+        "app/src/Checkout.kt",
+        3,
+        4,
+        "tripl-check-ignore[unknown_event] -- fixed",
+        (("unknown_event", None),),
+        "fixed",
+    )
+    results = (
+        result("app/src/Checkout.kt", 42, "checkout_startd"),
+        result("app/src/Home.kt", 7, "home_shown"),
+        result("app/src/Home.kt", 9, "home_left", "warning"),
+        result("app/src/Cart.kt", 12, "cart_opened"),
+    )
+    report = CheckReport(
+        run=Run(
+            instance=Instance("http://tripl.test", "$TRIPL_BASE_URL", "$TRIPL_API_KEY", "prod"),
+            generated_at=_SEEN,
+            duration_ms=10,
+            requests=3,
+        ),
+        project="prod",
+        mode=MODE_STATIC,
+        strict=False,
+        results=apply_gate(results, (True, False, False, False), {3: (True,)}),
+        branch_id="b-1",
+        branch_name="checkout-v2",
+        files_scanned=3,
+        markers=(MarkerState(reasonless, False), MarkerState(unused, False)),
+        gate=GateInfo(
+            source=GATE_REV,
+            files=5,
+            paths=frozenset({"app/src/Checkout.kt"}),
+            rev="1a2b3c4d5e6f7a8b",
+            base="1a2b3c4d5e6f7a8b9c0d",
+            plan_branch=PlanBranchComparison(compared=2, caused=1),
+        ),
+    )
+    assert render_text(report) == (
+        "app/src/Checkout.kt:42:9  error  event  checkout_startd\n"
+        "    error  unknown_event: no event 'checkout_startd' in the plan\n"
+        "app/src/Cart.kt:12:9  error  event  cart_opened\n"
+        "    error  unknown_event: no event 'cart_opened' in the plan\n"
+        "\n"
+        "4 call sites in 3 files: 0 ok, 1 warning, 3 errors.\n"
+        "Gate: changes since 1a2b3c4d5e6f (5 files, 1 call site new or changed). "
+        "2 call sites fail the run; 1 error and 1 warning are not new in this change.\n"
+        "Plan branch checkout-v2: 1 finding caused by the branch "
+        "(2 call sites also checked against main).\n"
+        "Unused suppression: app/src/Checkout.kt:3 tripl-check-ignore[unknown_event] "
+        "matched no finding.\n"
+        "Suppressions outside this change: 1 ignored (listed in --json and SARIF)."
     )
     assert report.exit_code == 1

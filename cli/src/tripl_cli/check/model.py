@@ -43,6 +43,13 @@ MARKER_NO_REASON = "no_reason"
 CODE_INVALID_SUPPRESSION = "invalid_suppression"
 CODE_UNUSED_SUPPRESSION = "unused_suppression"
 
+# Where a gated run's change comes from (``--new-from-rev`` or ``--new-from-patch``).
+GATE_REV = "rev"
+GATE_PATCH = "patch"
+# Why a finding at a call the change left alone is still new: the plan branch
+# the run validates against has it, and main does not (or not as severe).
+CAUSE_PLAN_BRANCH = "plan_branch"
+
 # Why the scan could not read a value, as ``tripl check --list`` reports it: a
 # hint for whoever writes the check config, never a verdict (nothing sent or
 # decided depends on one). The evaluator's codes come first (``values.py``
@@ -200,6 +207,11 @@ class CheckFinding:
     field: str | None = None
     # The marker that waives this finding; the finding is still reported.
     suppression: Suppression | None = None
+    # Under a gate (``--new-from-rev``/``--new-from-patch``): whether the
+    # change brought this finding in; None with no gate. ``cause`` says why
+    # one at a call the change left alone is new anyway (``CAUSE_PLAN_BRANCH``).
+    in_change: bool | None = None
+    cause: str | None = None
 
 
 def severe(finding: CheckFinding, strict: bool) -> bool:
@@ -209,9 +221,17 @@ def severe(finding: CheckFinding, strict: bool) -> bool:
     )
 
 
-def finding_fails(finding: CheckFinding, strict: bool) -> bool:
-    """Whether ``finding`` fails the run on its own: severe, and not suppressed."""
-    return severe(finding, strict) and finding.suppression is None
+def finding_fails(finding: CheckFinding, strict: bool, *, gated: bool = True) -> bool:
+    """Whether ``finding`` fails the run on its own: severe, not suppressed, and new.
+
+    New is the gate's call (``in_change``), so with no gate every finding is.
+    ``no_verdict`` is new whatever the gate says: nothing was decided about
+    the call. ``gated`` False asks the question with the gate left out, as
+    JUnit does.
+    """
+    if not severe(finding, strict) or finding.suppression is not None:
+        return False
+    return not gated or finding.in_change is not False or finding.code == CODE_NO_VERDICT
 
 
 @dataclass(frozen=True)
@@ -221,6 +241,50 @@ class CheckResult:
     findings: tuple[CheckFinding, ...] = ()
     event_id: str | None = None
     identity: str | None = None
+    # Under a gate: whether the change made this item new or changed (the call
+    # is new, edited, or resolves to other values than at the base); None with
+    # no gate. A finding of an unchanged item can still be new (``cause``).
+    in_change: bool | None = None
+
+
+@dataclass(frozen=True)
+class PlanBranchComparison:
+    """The gate's second look, for a run against a plan branch.
+
+    ``compared`` unchanged items had a finding that would fail the run, and
+    were validated against main too; ``caused`` of their findings main does not
+    have (or has less severe), so the branch brought them in.
+    """
+
+    compared: int
+    caused: int
+
+
+@dataclass(frozen=True)
+class GateInfo:
+    """What a gated run compared against: the base and the change, as ``gate.py`` read them.
+
+    ``source`` is ``GATE_REV`` or ``GATE_PATCH``; ``rev`` is the ``REF`` as
+    given and ``base`` the commit it named; ``patch`` the file (``-`` for
+    stdin). ``files`` counts the files the diff changes; ``paths`` are those
+    the scan reads, relative to the check root as origins are, at their new
+    path; ``unreconstructable`` the ones the diff did not fit, and each
+    submodule it moved (ending in ``/``), each counted as changed throughout;
+    ``unmapped`` the paths the diff names that the checkout does not have,
+    which make every item count as changed; ``untracked`` the scanned files
+    git does not track, each new as a whole.
+    """
+
+    source: str
+    files: int
+    paths: frozenset[str] = frozenset()
+    unreconstructable: tuple[str, ...] = ()
+    unmapped: tuple[str, ...] = ()
+    untracked: tuple[str, ...] = ()
+    rev: str | None = None
+    base: str | None = None
+    patch: str | None = None
+    plan_branch: PlanBranchComparison | None = None
 
 
 @dataclass(frozen=True)
@@ -256,6 +320,9 @@ class CheckReport:
     # Every ``tripl-check-ignore`` marker in the scanned files, in scan order.
     # Empty in payload mode, which reads no source.
     markers: tuple[MarkerState, ...] = ()
+    # Set when the run was gated on a change; each result and finding then
+    # carries ``in_change``.
+    gate: GateInfo | None = None
 
     def repo_path(self, origin: Origin) -> str:
         return self.repo_file(origin.path)
@@ -288,15 +355,29 @@ class CheckReport:
         """Whether ``result`` makes the run exit 1.
 
         Its status must fail (an error, or a warning under ``--strict``), and
-        a marker must not have waived every finding behind that: a result
-        whose severe findings are all suppressed passes. One with no severe
-        finding at all (a reply whose status and findings disagree) fails on
-        its status alone, so with no marker this is exactly the status rule.
+        one finding behind that must fail on its own (``finding_fails``): a
+        result whose severe findings are all suppressed passes, and so, under
+        a gate, does one whose severe findings are none of them new. One with
+        no severe finding at all (a reply whose status and findings disagree)
+        fails on its status alone, under a gate only when its item changed;
+        so with no marker and no gate this is exactly the status rule.
         """
+        return self._fails(result, gated=True)
+
+    def verdict_fails(self, result: CheckResult) -> bool:
+        """``fails`` with the gate left out: what the plan and the markers say about the call.
+
+        JUnit's rule, so its cases read the same with and without a gate.
+        """
+        return self._fails(result, gated=False)
+
+    def _fails(self, result: CheckResult, *, gated: bool) -> bool:
         if not (result.status == STATUS_ERROR or (self.strict and result.status == STATUS_WARNING)):
             return False
         weighed = [finding for finding in result.findings if severe(finding, self.strict)]
-        return not weighed or any(finding.suppression is None for finding in weighed)
+        if not weighed:
+            return not gated or result.in_change is not False
+        return any(finding_fails(finding, self.strict, gated=gated) for finding in weighed)
 
     @property
     def exit_code(self) -> int:
