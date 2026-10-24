@@ -5,7 +5,9 @@ every source file and builds one ``SymbolIndex``, because the enum a call's
 ``.home`` refers to is usually declared in a different file — often one outside
 ``sources``. The second finds the call sites, matches each against the event
 types IN CONFIG ORDER (the first matching spec wins, so a call is never counted
-as two event types), and maps its arguments onto plan fields.
+as two event types), and maps its arguments onto plan fields. It also reads
+each file's ``tripl-check-ignore`` markers (``suppress.py``) and hands every
+item the ones covering its call.
 
 ``first_pass`` and ``second_pass`` are public because ``inventory`` (what
 ``tripl check --list`` shows) runs the very same passes rather than a copy of
@@ -41,9 +43,12 @@ from tripl_cli.check.model import (
     SKIP_TOO_LARGE,
     SKIP_UNREADABLE,
     CheckItem,
+    Marker,
     Origin,
     SkippedFile,
+    Suppression,
 )
+from tripl_cli.check.suppress import attach, markers
 from tripl_cli.check.symbols import SymbolIndex
 from tripl_cli.check.values import Evaluator, Value
 from tripl_cli.errors import TriplConfigError
@@ -71,6 +76,8 @@ class ScanOutcome:
     calls: int
     # Configured files the scan did not read, so a report can say it checked less.
     skipped: tuple[SkippedFile, ...] = ()
+    # Every ``tripl-check-ignore`` marker in the scanned files, valid or not.
+    markers: tuple[Marker, ...] = ()
 
 
 # --- globbing -------------------------------------------------------------------
@@ -206,19 +213,25 @@ def scan(config: CheckConfig) -> ScanOutcome:
         )
     tree = first_pass(config, discover(config))
     items: list[CheckItem] = []
+    found_markers: list[Marker] = []
     matched = 0
     for found in second_pass(config, tree):
-        for call, hit in found.calls:
-            if hit is None:
-                continue
+        hits = [(call, hit) for call, hit in found.calls if hit is not None]
+        placed = markers(
+            found.source.relative, found.text, found.tokens, found.source.language, found.lines
+        )
+        found_markers.extend(entry.marker for entry in placed)
+        covering = attach(placed, [call for call, _ in hits], found.lines) if placed else {}
+        for index, (call, (event_type, spec)) in enumerate(hits):
             matched += 1
-            event_type, spec = hit
             origin = call_origin(found.source, call, found.lines)
             # Called from here, not through a helper: every frame above the
             # evaluator is stack a deeply nested argument cannot use.
             collected = collect_call(call, spec, event_type, found.evaluator)
-            items.extend(call_items(collected, event_type.name, origin))
-    return ScanOutcome(tuple(items), len(tree.parsed), matched, tree.skipped)
+            items.extend(
+                call_items(collected, event_type.name, origin, suppressions=covering.get(index, ()))
+            )
+    return ScanOutcome(tuple(items), len(tree.parsed), matched, tree.skipped, tuple(found_markers))
 
 
 def first_pass(config: CheckConfig, files: Iterable[SourceFile]) -> Tree:
@@ -394,8 +407,17 @@ def _properties(value: Value | None) -> dict[str, Any] | None:
     }
 
 
-def call_items(collected: _Collected, event_type: str, origin: Origin) -> list[CheckItem]:
-    """The items one call's collected values expand into: what ``tripl check`` sends for it."""
+def call_items(
+    collected: _Collected,
+    event_type: str,
+    origin: Origin,
+    *,
+    suppressions: tuple[Suppression, ...] = (),
+) -> list[CheckItem]:
+    """The items one call's collected values expand into: what ``tripl check`` sends for it.
+
+    Every item carries ``suppressions``, the markers covering the call.
+    """
     fields = collected.fields or {}
     dynamic_targets = [
         target
@@ -422,6 +444,7 @@ def call_items(collected: _Collected, event_type: str, origin: Origin) -> list[C
                 complete=False,
                 dynamic=tuple(dynamic_targets) or ("name",),
                 sendable=False,
+                suppressions=suppressions,
             )
         ]
     items: list[CheckItem] = []
@@ -436,6 +459,7 @@ def call_items(collected: _Collected, event_type: str, origin: Origin) -> list[C
                 properties=properties,
                 complete=False,
                 dynamic=tuple(dynamic_targets),
+                suppressions=suppressions,
             )
         )
     return items

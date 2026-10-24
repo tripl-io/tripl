@@ -2031,3 +2031,158 @@ def test_an_unknown_preset_is_the_parser_s_refusal_naming_the_presets(
     err = capsys.readouterr().err
     assert "invalid choice: 'mixpanel_track'" in err
     assert all(name in err for name in PRESETS)
+
+
+# --- inline suppression ------------------------------------------------------------
+# A legacy event the synthetic plan does not have: one `unknown_event` error.
+DEBUG_CALL = 'Analytics.shared.logEvent("debug_tap")'
+WIRE_KEYS = {"ref", "event_type", "name", "fields", "properties", "complete"}
+
+
+def _debug(marker: str) -> dict[str, str]:
+    return {"Sources/Debug.swift": f"func d() {{\n    {marker}\n    {DEBUG_CALL}\n}}\n"}
+
+
+def test_a_suppressed_finding_passes_the_run_and_is_counted(
+    repo: Path, validator: Any, configured_env: None, capsys: pytest.CaptureFixture[str]
+) -> None:
+    _write(repo, _debug("// tripl-check-ignore[unknown_event] -- debug menu only (APP-12)"))
+    assert main(["check"]) == 0
+    out = capsys.readouterr().out
+    assert "Sources/Debug.swift:3" not in out
+    assert out.rstrip().endswith(
+        "3 call sites in 2 files: 2 ok, 0 warnings, 1 error; 1 finding suppressed."
+    )
+    # Suppression is the CLI's own: the call is still sent, with nothing extra.
+    sent = json.loads(validator.calls.last.request.content)["items"]
+    assert {item["name"] for item in sent} >= {"debug_tap"}
+    assert all(set(item) == WIRE_KEYS for item in sent)
+
+
+def test_a_marker_without_a_reason_suppresses_nothing_and_says_so(
+    repo: Path, validator: Any, configured_env: None, capsys: pytest.CaptureFixture[str]
+) -> None:
+    _write(repo, _debug("// tripl-check-ignore[unknown_event]"))
+    assert main(["check"]) == 1
+    out = capsys.readouterr().out
+    assert "Sources/Debug.swift:3:5  error  legacy  debug_tap" in out
+    assert (
+        'Suppression ignored: Sources/Debug.swift:2 tripl-check-ignore needs "-- <reason>".'
+    ) in out
+
+
+def test_an_unused_marker_is_listed_and_never_fails(
+    repo: Path, validator: Any, configured_env: None, capsys: pytest.CaptureFixture[str]
+) -> None:
+    _write(
+        repo,
+        {
+            "Sources/Old.swift": "func o() {\n"
+            "    // tripl-check-ignore[unknown_event] -- the call below was fixed\n"
+            '    Analytics.shared.logEvent("trial_started")\n'
+            "}\n"
+        },
+    )
+    for argv in (["check"], ["check", "--strict"]):
+        assert main(argv) == 0
+        out = capsys.readouterr().out
+        assert (
+            "Unused suppression: Sources/Old.swift:2 tripl-check-ignore[unknown_event] "
+            "matched no finding."
+        ) in out
+
+
+def test_every_format_shows_the_suppression_from_one_run(
+    repo: Path, validator: Any, configured_env: None, capsys: pytest.CaptureFixture[str]
+) -> None:
+    _write(
+        repo,
+        {
+            **_debug("// tripl-check-ignore[unknown_event] -- debug menu only"),
+            "Sources/Typo.swift": "// tripl-check-ignore[unknown_event] -- \n"
+            'func t() { Analytics.shared.logEvent("typo_tap") }\n',
+        },
+    )
+    out = repo / "reports"
+    argv = [
+        "check",
+        "--json",
+        "--report",
+        f"codequality={out / 'cq.json'}",
+        "--report",
+        f"junit={out / 'junit.xml'}",
+        "--report",
+        f"sarif={out / 'check.sarif'}",
+    ]
+    assert main(argv) == 1  # Typo.swift's marker has no reason, so its error stands
+    document = json.loads(capsys.readouterr().out)
+    assert document["exit_code"] == 1
+    assert document["summary"]["suppressed"] == 1
+    assert document["summary"]["failing"] == 1
+    by_path = {row["location"]["path"]: row for row in document["results"]}
+    debug, typo = by_path["Sources/Debug.swift"], by_path["Sources/Typo.swift"]
+    assert (debug["status"], debug["fails"]) == ("error", False)
+    [finding] = debug["findings"]
+    assert finding["suppression"] == {
+        "reason": "debug menu only",
+        "location": {"path": "Sources/Debug.swift", "line": 2, "column": 8},
+    }
+    assert (typo["fails"], typo["findings"][0]["suppression"]) == (True, None)
+    assert [(s["location"]["path"], s["used"], s["problem"]) for s in document["suppressions"]] == [
+        ("Sources/Debug.swift", True, None),
+        ("Sources/Typo.swift", False, "no_reason"),
+    ]
+
+    issues = json.loads((out / "cq.json").read_text(encoding="utf-8"))
+    [waived] = [issue for issue in issues if issue["fingerprint"] == finding["fingerprint"]]
+    assert waived["severity"] == "info"
+    assert waived["description"].startswith("Suppressed: debug menu only — ")
+    [invalid] = [issue for issue in issues if issue["check_name"] == "tripl/invalid_suppression"]
+    assert invalid["location"] == {"path": "Sources/Typo.swift", "lines": {"begin": 1}}
+
+    suite = ET.fromstring((out / "junit.xml").read_text(encoding="utf-8")).find("testsuite")
+    assert suite is not None
+    assert suite.get("failures") == "1"
+    [debug_case] = [case for case in suite if case.get("file") == "Sources/Debug.swift"]
+    assert debug_case.find("failure") is None
+    assert "[suppressed: debug menu only]" in (debug_case.findtext("system-out") or "")
+
+    [run] = json.loads((out / "check.sarif").read_text(encoding="utf-8"))["runs"]
+    [suppressed] = [result for result in run["results"] if "suppressions" in result]
+    assert suppressed["suppressions"][0]["justification"] == "debug menu only"
+    assert {result["ruleId"] for result in run["results"]} == {
+        "unknown_event",
+        "invalid_suppression",
+    }
+
+
+def test_payload_mode_has_no_markers_and_no_suppression_keys(
+    repo: Path, validator: Any, configured_env: None, capsys: pytest.CaptureFixture[str]
+) -> None:
+    capture = repo / "capture.ndjson"
+    capture.write_text('{"event_type": "legacy", "name": "debug_tap"}\n', encoding="utf-8")
+    assert main(["check", "--payloads", str(capture), "--json"]) == 1
+    document = json.loads(capsys.readouterr().out)
+    assert "suppressions" not in document
+    assert "suppressed" not in document["summary"]
+
+
+def test_a_codequality_marker_issue_is_relative_to_the_repository(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    validator: Any,
+    configured_env: None,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    root = tmp_path / "mono"
+    app = root / "apps" / "ios"
+    marked = "// tripl-check-ignore[unknown_event]\n" + BAD_CALL  # no reason: invalid
+    _write(app, {".tripl/check.yml": CONFIG, "Sources/Bad.swift": marked})
+    (root / ".git").mkdir()
+    monkeypatch.chdir(app)
+    assert main(["check", "--json", "--report", "codequality=cq.json"]) == 1
+    [entry] = json.loads(capsys.readouterr().out)["suppressions"]
+    assert entry["location"]["path"] == "Sources/Bad.swift"  # --json keeps the check root's
+    issues = json.loads((app / "cq.json").read_text(encoding="utf-8"))
+    [invalid] = [issue for issue in issues if issue["check_name"] == "tripl/invalid_suppression"]
+    assert invalid["location"] == {"path": "apps/ios/Sources/Bad.swift", "lines": {"begin": 1}}

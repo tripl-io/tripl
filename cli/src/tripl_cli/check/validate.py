@@ -15,16 +15,23 @@ warning (and so exit 1).
 Every item is held to the route's size limits before it is sent
 (``payloads.enforce_limits``); what had to be cut is reported on the item as an
 ``oversize_value`` warning.
+
+A finding a ``tripl-check-ignore`` marker waives (``suppress.py``) is marked
+here too, once every finding is known, the CLI's own included. It stays in the
+result, and the result's status stays the plan's verdict: only whether the run
+fails changes (``CheckReport.fails``).
 """
 
 from __future__ import annotations
 
 import json
 from collections.abc import Sequence
+from dataclasses import replace
 
 from tripl_cli.api import plan_validation
 from tripl_cli.check.model import (
     CODE_DYNAMIC_VALUE,
+    CODE_NO_VERDICT,
     SEVERITY_ERROR,
     SEVERITY_INFO,
     SEVERITY_WARNING,
@@ -35,6 +42,7 @@ from tripl_cli.check.model import (
     CheckFinding,
     CheckItem,
     CheckResult,
+    Suppression,
 )
 from tripl_cli.check.payloads import enforce_limits
 from tripl_cli.diagnostics.collect import Reader
@@ -103,7 +111,7 @@ def result_for(
         # pass here would be the checker approving what it never checked.
         findings.append(
             CheckFinding(
-                code="no_verdict",
+                code=CODE_NO_VERDICT,
                 severity=SEVERITY_ERROR,
                 message="the validator returned no verdict for this item",
             )
@@ -145,10 +153,23 @@ def result_for(
     return CheckResult(
         item=item,
         status=status,
-        findings=tuple(findings),
+        findings=_waived(findings, item.suppressions),
         event_id=text_of(verdict, "event_id") if verdict is not None else None,
         identity=text_of(verdict, "identity") if verdict is not None else None,
     )
+
+
+def _waived(
+    findings: Sequence[CheckFinding], suppressions: Sequence[Suppression]
+) -> tuple[CheckFinding, ...]:
+    """``findings``, each one a marker covers carrying the first such marker."""
+    if not suppressions:
+        return tuple(findings)
+    waived: list[CheckFinding] = []
+    for finding in findings:
+        by = next((s for s in suppressions if s.covers(finding)), None)
+        waived.append(finding if by is None else replace(finding, suppression=by))
+    return tuple(waived)
 
 
 def _findings(verdict: JsonDict | None) -> list[CheckFinding]:

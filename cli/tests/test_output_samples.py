@@ -14,7 +14,20 @@ from pathlib import Path
 import pytest
 
 from tripl_cli.check import inventory as inventory_module
+from tripl_cli.check.model import (
+    MODE_STATIC,
+    CheckFinding,
+    CheckItem,
+    CheckReport,
+    CheckResult,
+    Marker,
+    MarkerState,
+    Origin,
+    Suppression,
+)
+from tripl_cli.check.render import render_text
 from tripl_cli.cli import main
+from tripl_cli.model import Instance, Run
 
 from .conftest import (
     FakeInstance,
@@ -597,3 +610,81 @@ def test_every_sample_is_ascii(
     listing = capsys.readouterr().out
     for note in ("No check config found: ", "Discovery stopped at 1 source file; "):
         assert note in listing
+
+
+def test_check_text_sample_with_suppression() -> None:
+    """A suppressed finding is counted, not listed; marker problems follow the tally."""
+
+    def result(path: str, line: int, name: str, waiver: Suppression | None) -> CheckResult:
+        item = CheckItem(
+            origin=Origin(path, line, 9, line, 40, "analytics.track"),
+            event_type="event",
+            name=name,
+            fields={},
+            properties=None,
+            complete=False,
+        )
+        finding = CheckFinding(
+            "unknown_event", "error", f"no event '{name}' in the plan", suppression=waiver
+        )
+        return CheckResult(item=item, status="error", findings=(finding,))
+
+    waiver = Suppression("app/src/Debug.kt", 6, 8, (("unknown_event", None),), "debug menu only")
+    used = Marker(
+        "app/src/Debug.kt",
+        6,
+        8,
+        "tripl-check-ignore[unknown_event] -- debug menu only",
+        waiver.targets,
+        waiver.reason,
+    )
+    reasonless = Marker(
+        "app/src/Debug.kt",
+        9,
+        8,
+        "tripl-check-ignore[unknown_event]",
+        waiver.targets,
+        None,
+        "no_reason",
+    )
+    unused = Marker(
+        "app/src/Old.kt",
+        3,
+        4,
+        "tripl-check-ignore[unknown_event] -- fixed",
+        waiver.targets,
+        "fixed",
+    )
+    report = CheckReport(
+        run=Run(
+            instance=Instance("http://tripl.test", "$TRIPL_BASE_URL", "$TRIPL_API_KEY", "prod"),
+            generated_at=_SEEN,
+            duration_ms=10,
+            requests=1,
+        ),
+        project="prod",
+        mode=MODE_STATIC,
+        strict=False,
+        results=(
+            result("app/src/Checkout.kt", 42, "checkout_startd", None),
+            result("app/src/Debug.kt", 7, "debug_tap", waiver),
+            result("app/src/Debug.kt", 10, "debug_long_press", None),
+        ),
+        files_scanned=3,
+        markers=(
+            MarkerState(used, True),
+            MarkerState(reasonless, False),
+            MarkerState(unused, False),
+        ),
+    )
+    assert render_text(report) == (
+        "app/src/Checkout.kt:42:9  error  event  checkout_startd\n"
+        "    error  unknown_event: no event 'checkout_startd' in the plan\n"
+        "app/src/Debug.kt:10:9  error  event  debug_long_press\n"
+        "    error  unknown_event: no event 'debug_long_press' in the plan\n"
+        "\n"
+        "3 call sites in 3 files: 0 ok, 0 warnings, 3 errors; 1 finding suppressed.\n"
+        'Suppression ignored: app/src/Debug.kt:9 tripl-check-ignore needs "-- <reason>".\n'
+        "Unused suppression: app/src/Old.kt:3 tripl-check-ignore[unknown_event] matched no finding."
+    )
+    assert report.exit_code == 1

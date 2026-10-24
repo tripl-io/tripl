@@ -1183,6 +1183,22 @@ def _scope_at(language: str, source: str, marker: str = "log") -> FunctionScope 
     return ScopeIndex(tokens, language, source).innermost(index)
 
 
+def test_a_jsx_closing_tag_in_attribute_braces_does_not_keep_the_function_open() -> None:
+    # `</div>` once lexed as a regex running to the end of the line, taking the
+    # `}` that closes the attribute with it, so the function never closed and
+    # every call after it was read as inside it.
+    source = """
+        function App(page) {
+          const el = <Route element={<div>Home</div>} />
+          return el
+        }
+        log(page)
+        """
+    assert _scope_at("ts", source) is None
+    tokens = tokenize(textwrap.dedent(source), "ts")
+    assert "/regex/" not in [token.text for token in tokens]
+
+
 @pytest.mark.parametrize(
     ("language", "source", "name", "parameters"),
     [

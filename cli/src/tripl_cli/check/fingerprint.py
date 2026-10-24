@@ -14,6 +14,11 @@ from two branches of a ``when``) are told apart by their order among identical
 calls, not by their lines. Nothing the plan says goes in either — not the
 identity the server matched, not the message — so a plan edit that leaves a
 finding standing leaves its fingerprint alone too.
+
+A ``tripl-check-ignore`` marker the run reports (one that suppresses nothing,
+or one that is unused) has a fingerprint of its own by the same rule: its file,
+its problem and its text, never its line. A suppressed finding keeps the one it
+had, so suppressing it shows in GitLab as neither new nor resolved.
 """
 
 from __future__ import annotations
@@ -22,7 +27,7 @@ import hashlib
 import json
 from collections import Counter
 
-from tripl_cli.check.model import CheckItem, CheckReport
+from tripl_cli.check.model import CheckItem, CheckReport, Marker
 
 # The SARIF ``partialFingerprints`` key, and the version mixed into every hash:
 # a change to what is hashed must change the key, or a consumer would compare
@@ -84,3 +89,32 @@ def finding_fingerprints(report: CheckReport) -> tuple[tuple[str, ...], ...]:
             own.append(hashlib.sha256(material.encode("utf-8", "surrogatepass")).hexdigest())
         fingerprints.append(tuple(own))
     return tuple(fingerprints)
+
+
+def marker_fingerprints(report: CheckReport) -> tuple[str, ...]:
+    """One fingerprint per marker, shaped like ``report.markers``; line-free like a finding's.
+
+    Two identical markers in one file are told apart by their order, as two
+    identical calls are.
+    """
+    seen: Counter[str] = Counter()
+    fingerprints: list[str] = []
+    for state in report.markers:
+        marker = state.marker
+        key = _marker_key(report.repo_file(marker.path), marker)
+        seen[key] += 1
+        material = json.dumps(
+            [FINGERPRINT_KEY, "marker", key, seen[key]],
+            ensure_ascii=False,
+            separators=(",", ":"),
+        )
+        fingerprints.append(hashlib.sha256(material.encode("utf-8", "surrogatepass")).hexdigest())
+    return tuple(fingerprints)
+
+
+def _marker_key(path: str, marker: Marker) -> str:
+    return json.dumps(
+        [path, marker.problem or "unused", marker.text],
+        ensure_ascii=False,
+        separators=(",", ":"),
+    )
