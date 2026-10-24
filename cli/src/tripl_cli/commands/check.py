@@ -35,7 +35,8 @@ unknown flag, or ``--list`` with ``--payloads``, say) leaves them, because then
 no command runs at all; so does ``--print-preset``, which runs none.
 
 Exit codes: 0 clean; 1 when any item has an error (or, with ``--strict``, a
-warning — ``--strict`` also reports values only known at runtime); 2 for a bad
+warning — ``--strict`` also reports values only known at runtime) that no
+``tripl-check-ignore`` marker suppresses (``check/suppress.py``); 2 for a bad
 config, a bad payload file, a bad invocation, or a config that matches no call
 at all (``--allow-empty`` accepts that); 4 when the instance was unavailable —
 unreachable, timed out, 429 or 5xx — so nothing was decided. An instance that
@@ -75,11 +76,13 @@ from tripl_cli.check.model import (
     CheckItem,
     CheckReport,
     CheckResult,
+    Marker,
     SkippedFile,
 )
 from tripl_cli.check.presets import PRESETS, preset_yaml
 from tripl_cli.check.render import nothing_matched, render_text, sarif_document
 from tripl_cli.check.reports import codequality_document, junit_document, repo_paths
+from tripl_cli.check.suppress import marker_states
 from tripl_cli.check.validate import validate
 from tripl_cli.commands import add_json, add_timeout
 from tripl_cli.commands._check_config import (
@@ -148,8 +151,10 @@ def register(
             "captured events instead, where a missing required field is an error too. "
             "With --list, only scan, and list what was read from each call and why a "
             "value was not; nothing is sent. "
-            "Exits 1 on any error (or warning, with --strict), 4 when the instance was "
-            "unavailable."
+            "A finding can be suppressed by a comment at its call, "
+            "tripl-check-ignore[CODE] -- REASON. "
+            "Exits 1 on any error (or warning, with --strict) that is not suppressed, 4 when "
+            "the instance was unavailable."
         ),
     )
     add_check_config(parser)
@@ -470,6 +475,7 @@ def _check(args: argparse.Namespace, config: Config, targets: list[tuple[str, Pa
         selector = check_config.branch
     files = 0
     skipped: tuple[SkippedFile, ...] = ()
+    markers: tuple[Marker, ...] = ()
     items: tuple[CheckItem, ...]
     if args.payloads is not None:
         mode = MODE_PAYLOADS
@@ -479,6 +485,7 @@ def _check(args: argparse.Namespace, config: Config, targets: list[tuple[str, Pa
         mode = MODE_STATIC
         outcome = scan_mod.scan(check_config)
         items, files, skipped = outcome.items, outcome.files, outcome.skipped
+        markers = outcome.markers
         if not items and not args.allow_empty:
             # A gate that checked nothing must not read as one that passed: a
             # renamed wrapper or a moved directory would otherwise turn CI green.
@@ -516,13 +523,17 @@ def _check(args: argparse.Namespace, config: Config, targets: list[tuple[str, Pa
         ),
         files_scanned=files,
         repo_paths=repo_paths(
-            (result.item.origin.path for result in results),
+            [
+                *(result.item.origin.path for result in results),
+                *(marker.path for marker in markers),
+            ],
             mode=mode,
             scan_root=scan_root,
             repo_root=repo_root,
             cwd=cwd,
         ),
         skipped=skipped,
+        markers=marker_states(markers, results),
     )
     # Every file before anything is printed: a report that cannot be written
     # fails the run, and must not do so after stdout already told a success.

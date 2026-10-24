@@ -66,7 +66,7 @@ if TYPE_CHECKING:
     from pathlib import Path
 
     from tripl_cli.check.inventory import Forwarder, Inventory, ReadValue, UnmatchedGroup
-    from tripl_cli.check.model import CheckReport, Origin
+    from tripl_cli.check.model import CheckReport, Origin, Suppression
     from tripl_cli.check.values import Value
     from tripl_cli.install.health import HealthOutcome
     from tripl_cli.install.plan import FileWrite, InstallPlan, UpgradePlan
@@ -559,8 +559,17 @@ def check_document(report: CheckReport) -> JsonDict:
     ``fingerprint`` is the line-free identity every machine format shares (see
     ``check/fingerprint.py``). ``skipped`` lists the configured files the scan
     did not read.
+
+    When the scan read a ``tripl-check-ignore`` marker, and only then, the
+    document says what the markers did: ``suppressions`` lists every one,
+    ``summary`` gains ``suppressed`` (findings) and ``failing`` (results), each
+    result ``fails``, and each finding ``suppression`` and ``fails``. ``status``
+    stays the plan's verdict; ``fails`` says whether it fails the run. With no
+    marker the document is exactly what it was before markers existed.
     """
     from tripl_cli.check.fingerprint import finding_fingerprints
+    from tripl_cli.check.model import finding_fails
+    from tripl_cli.check.validate import summary
 
     document = _run_envelope("check", report.run)
     document["project"] = report.project
@@ -572,10 +581,11 @@ def check_document(report: CheckReport) -> JsonDict:
     document["config"] = report.config_path
     document["files_scanned"] = report.files_scanned
     document["skipped"] = [{"path": skip.path, "reason": skip.reason} for skip in report.skipped]
-    counts = {"checked": len(report.results), "ok": 0, "warnings": 0, "errors": 0, "dynamic": 0}
-    keys = {"ok": "ok", "warning": "warnings", "error": "errors", "dynamic": "dynamic"}
-    for result in report.results:
-        counts[keys.get(result.status, "errors")] += 1
+    marked = bool(report.markers)
+    counts = summary(report.results)
+    if marked:
+        counts["suppressed"] = report.suppressed
+        counts["failing"] = sum(1 for result in report.results if report.fails(result))
     document["summary"] = counts
     document["exit_code"] = report.exit_code
     document["results"] = [
@@ -600,13 +610,50 @@ def check_document(report: CheckReport) -> JsonDict:
                     "field": finding.field,
                     "message": finding.message,
                     "fingerprint": fingerprint,
+                    **(
+                        {
+                            "suppression": _suppression_document(finding.suppression),
+                            "fails": finding_fails(finding, report.strict),
+                        }
+                        if marked
+                        else {}
+                    ),
                 }
                 for finding, fingerprint in zip(result.findings, fingerprints, strict=True)
             ],
+            **({"fails": report.fails(result)} if marked else {}),
         }
         for result, fingerprints in zip(report.results, finding_fingerprints(report), strict=True)
     ]
+    if marked:
+        document["suppressions"] = [
+            {
+                "location": {
+                    "path": state.marker.path,
+                    "line": state.marker.line,
+                    "column": state.marker.column,
+                },
+                "targets": [{"code": code, "field": field} for code, field in state.marker.targets],
+                "reason": state.marker.reason,
+                "used": state.used,
+                "problem": state.marker.problem,
+            }
+            for state in report.markers
+        ]
     return document
+
+
+def _suppression_document(suppression: Suppression | None) -> JsonDict | None:
+    if suppression is None:
+        return None
+    return {
+        "reason": suppression.reason,
+        "location": {
+            "path": suppression.path,
+            "line": suppression.line,
+            "column": suppression.column,
+        },
+    }
 
 
 def _origin_document(origin: Origin) -> JsonDict:

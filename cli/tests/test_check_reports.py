@@ -11,10 +11,12 @@ from __future__ import annotations
 
 import json
 import xml.etree.ElementTree as ET
+from dataclasses import replace
 from datetime import UTC, datetime
 from pathlib import Path
 
-from tripl_cli.check.fingerprint import FINGERPRINT_KEY, finding_fingerprints
+from tripl_cli import __version__
+from tripl_cli.check.fingerprint import FINGERPRINT_KEY, finding_fingerprints, marker_fingerprints
 from tripl_cli.check.model import (
     MODE_PAYLOADS,
     MODE_STATIC,
@@ -23,9 +25,12 @@ from tripl_cli.check.model import (
     CheckItem,
     CheckReport,
     CheckResult,
+    Marker,
+    MarkerState,
     Origin,
+    Suppression,
 )
-from tripl_cli.check.render import sarif_document
+from tripl_cli.check.render import render_text, sarif_document
 from tripl_cli.check.reports import (
     CODEQUALITY_SEVERITY,
     codequality_document,
@@ -385,3 +390,221 @@ def test_without_a_repository_every_path_is_used_as_it_is(tmp_path: Path) -> Non
         )
         == {}
     )
+
+
+# --- suppression -------------------------------------------------------------------------
+WAIVER = Suppression("Sources/Pay.swift", 11, 5, (("unknown_event", None),), "staged rollout")
+
+
+def _waived(line: int = 12) -> CheckResult:
+    result = _result(line)
+    return replace(result, findings=(replace(UNKNOWN, suppression=WAIVER),))
+
+
+def _marker(
+    line: int, *, problem: str | None = None, text: str = "tripl-check-ignore[x] -- r"
+) -> Marker:
+    return Marker("Sources/Pay.swift", line, 5, text, (("x", None),), "r", problem)
+
+
+def _marked(*results: CheckResult, strict: bool = False) -> CheckReport:
+    used = Marker(
+        "Sources/Pay.swift",
+        11,
+        5,
+        "tripl-check-ignore[unknown_event] -- staged rollout",
+        WAIVER.targets,
+        WAIVER.reason,
+    )
+    return _report(
+        *results,
+        strict=strict,
+        markers=(
+            MarkerState(used, True),
+            MarkerState(_marker(30, problem="no_reason"), False),
+            MarkerState(_marker(40), False),
+        ),
+    )
+
+
+def test_a_suppressed_finding_keeps_its_fingerprint() -> None:
+    assert finding_fingerprints(_marked(_waived())) == finding_fingerprints(_report(_result(12)))
+
+
+def test_a_marker_fingerprint_survives_an_edit_above_it() -> None:
+    before = marker_fingerprints(_report(markers=(MarkerState(_marker(30), False),)))
+    after = marker_fingerprints(_report(markers=(MarkerState(_marker(55), False),)))
+    assert before == after
+    other = _marker(30, text="tripl-check-ignore[y] -- r")
+    assert marker_fingerprints(_report(markers=(MarkerState(other, False),))) != before
+    # Two identical markers in one file still get two fingerprints.
+    twice = (MarkerState(_marker(30), False), MarkerState(_marker(31), False))
+    first, second = marker_fingerprints(_report(markers=twice))
+    assert first != second
+
+
+def test_codequality_keeps_a_suppressed_finding_at_info_with_its_reason() -> None:
+    plain = codequality_document(_report(_result(12)))
+    [waived, invalid, unused] = codequality_document(_marked(_waived()))
+    assert waived["fingerprint"] == plain[0]["fingerprint"]
+    assert waived["severity"] == "info"
+    assert waived["description"] == f"Suppressed: staged rollout — {plain[0]['description']}"
+    assert (invalid["check_name"], invalid["severity"]) == ("tripl/invalid_suppression", "minor")
+    assert (unused["check_name"], unused["severity"]) == ("tripl/unused_suppression", "info")
+    assert invalid["location"] == {"path": "Sources/Pay.swift", "lines": {"begin": 30}}
+    assert invalid["description"] == (
+        'tripl-check-ignore needs "-- <reason>", so it suppresses nothing'
+    )
+    assert unused["description"] == "tripl-check-ignore[x] matched no finding"
+
+
+def test_junit_fails_no_case_on_a_suppressed_finding_and_tags_it() -> None:
+    suites = ET.fromstring(junit_document(_marked(_waived())))
+    assert suites.get("failures") == "0"
+    [case] = suites.iter("testcase")
+    assert case.find("failure") is None
+    output = case.findtext("system-out")
+    assert output is not None
+    assert "error unknown_event: The plan has no event" in output
+    assert output.endswith("[suppressed: staged rollout]")
+
+
+def test_sarif_marks_a_suppressed_result_and_lists_marker_problems() -> None:
+    [run] = sarif_document(_marked(_waived()), root=None)["runs"]
+    waived, invalid, unused = run["results"]
+    assert waived["ruleId"] == "unknown_event"
+    assert waived["level"] == "error"
+    [suppression] = waived["suppressions"]
+    assert suppression["kind"] == "inSource"
+    assert suppression["status"] == "accepted"
+    assert suppression["justification"] == "staged rollout"
+    region = suppression["location"]["physicalLocation"]["region"]
+    assert region == {"startLine": 11, "startColumn": 5}
+    assert (invalid["ruleId"], invalid["level"]) == ("invalid_suppression", "warning")
+    assert (unused["ruleId"], unused["level"]) == ("unused_suppression", "note")
+    assert invalid["locations"][0]["physicalLocation"]["region"]["startLine"] == 30
+    rules = {rule["id"]: rule for rule in run["tool"]["driver"]["rules"]}
+    assert rules["unused_suppression"]["defaultConfiguration"] == {"level": "note"}
+    assert rules["invalid_suppression"]["defaultConfiguration"] == {"level": "warning"}
+    assert unused["partialFingerprints"][FINGERPRINT_KEY]
+    # The run's summary is the plan's verdict, as without markers.
+    assert run["properties"]["summary"]["errors"] == 1
+
+
+def test_the_listing_counts_a_suppressed_finding_and_names_marker_problems() -> None:
+    text = render_text(_marked(_waived(), _result(20, name="other")))
+    assert "Sources/Pay.swift:12:9" not in text
+    assert "Sources/Pay.swift:20:9  error  se  other" in text
+    assert "2 call sites in 0 files: 0 ok, 0 warnings, 2 errors; 1 finding suppressed." in text
+    assert (
+        'Suppression ignored: Sources/Pay.swift:30 tripl-check-ignore needs "-- <reason>".' in text
+    )
+    assert "Unused suppression: Sources/Pay.swift:40 tripl-check-ignore[x] matched no finding." in (
+        text
+    )
+
+
+def test_a_listed_result_shows_the_status_of_what_is_left() -> None:
+    warning = CheckFinding("unknown_field", "warning", "unknown", field="ab")
+    result = replace(_waived(), findings=(replace(UNKNOWN, suppression=WAIVER), warning))
+    text = render_text(_marked(result))
+    assert "Sources/Pay.swift:12:9  warning  se  pay_tapped" in text
+    assert "unknown_event" not in text.split("\n\n")[0]
+
+
+def test_the_json_document_says_what_each_marker_did() -> None:
+    document = check_document(_marked(_waived()))
+    assert document["summary"]["suppressed"] == 1
+    assert document["summary"]["failing"] == 0
+    assert document["exit_code"] == 0
+    [result] = document["results"]
+    assert result["status"] == "error"
+    assert result["fails"] is False
+    [finding] = result["findings"]
+    assert finding["fails"] is False
+    assert finding["suppression"] == {
+        "reason": "staged rollout",
+        "location": {"path": "Sources/Pay.swift", "line": 11, "column": 5},
+    }
+    assert [entry["used"] for entry in document["suppressions"]] == [True, False, False]
+    assert document["suppressions"][1] == {
+        "location": {"path": "Sources/Pay.swift", "line": 30, "column": 5},
+        "targets": [{"code": "x", "field": None}],
+        "reason": "r",
+        "used": False,
+        "problem": "no_reason",
+    }
+
+
+def test_with_no_marker_the_json_document_has_no_suppression_keys() -> None:
+    document = check_document(_report(_result(12)))
+    assert "suppressions" not in document
+    assert set(document["summary"]) == {"checked", "ok", "warnings", "errors", "dynamic"}
+    [result] = document["results"]
+    assert "fails" not in result
+    assert set(result["findings"][0]) == {"code", "severity", "field", "message", "fingerprint"}
+
+
+def test_a_result_that_still_fails_is_listed_even_with_its_findings_suppressed() -> None:
+    # A reply whose error status has only a (suppressed) warning behind it: the
+    # status still fails the run, so the listing must still show the call.
+    warning = CheckFinding("unknown_field", "warning", "unknown", field="ab", suppression=WAIVER)
+    report = _report(replace(_result(12), findings=(warning,)))
+    assert report.exit_code == 1
+    assert "Sources/Pay.swift:12:9  error  se  pay_tapped" in render_text(report)
+
+
+# --- no marker, no change ----------------------------------------------------------------
+# Written by the CLI as it was before markers existed, from the report below:
+# with no marker these formats must not gain a key, a value or a byte.
+GOLDEN = Path(__file__).parent / "check_golden"
+
+
+def _golden_report() -> CheckReport:
+    def item(line: int, name: str) -> CheckItem:
+        return CheckItem(
+            origin=Origin("Sources/Pay.swift", line, 9, line + 1, 40, "Analytics.shared.log"),
+            event_type="se",
+            name=name,
+            fields={"label": "pay"},
+            properties=None,
+            complete=False,
+        )
+
+    return _report(
+        CheckResult(
+            item(12, "pay_tapped"),
+            "error",
+            (
+                CheckFinding("unknown_event", "error", "no event"),
+                CheckFinding("value_not_allowed", "error", "not allowed", field="label"),
+            ),
+        ),
+        CheckResult(
+            item(30, "settings_opened"),
+            "warning",
+            (CheckFinding("deprecated_event", "warning", "deprecated"),),
+            event_id="ev-2",
+            identity="settings_opened",
+        ),
+        CheckResult(
+            item(44, "pay_tapped"),
+            "ok",
+            (CheckFinding("dynamic_value", "info", "runtime", field="x"),),
+            event_id="ev-3",
+        ),
+        repo_paths={"Sources/Pay.swift": "apps/ios/Sources/Pay.swift"},
+    )
+
+
+def test_without_markers_sarif_is_byte_for_byte_what_it_was() -> None:
+    written = json.dumps(sarif_document(_golden_report(), root=None), indent=2) + "\n"
+    golden = (GOLDEN / "no-marker.sarif.json").read_text(encoding="utf-8")
+    assert written == golden.replace("@VERSION@", __version__)
+
+
+def test_without_markers_codequality_and_junit_are_byte_for_byte_what_they_were() -> None:
+    report = _golden_report()
+    codequality = json.dumps(codequality_document(report), indent=2) + "\n"
+    assert codequality == (GOLDEN / "no-marker.codequality.json").read_text(encoding="utf-8")
+    assert junit_document(report) == (GOLDEN / "no-marker.junit.xml").read_text(encoding="utf-8")

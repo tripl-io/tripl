@@ -12,6 +12,11 @@ resolves them against its own checkout. And nothing a CI system compares
 between two pipelines carries a line number — not a Code Quality fingerprint,
 not a JUnit test name — or every edit above a call would turn its finding into
 one "new" and one "resolved".
+
+A finding a ``tripl-check-ignore`` marker waives stays in both, under its own
+fingerprint and test name: Code Quality lowers it to ``info`` with the reason
+in front, JUnit tags it ``[suppressed: <reason>]`` and fails no case on it. So
+adding a marker shows in GitLab as neither a new finding nor a resolved one.
 """
 
 from __future__ import annotations
@@ -22,27 +27,30 @@ import xml.etree.ElementTree as ET
 from collections.abc import Iterable
 from pathlib import Path
 
-from tripl_cli.check.fingerprint import callee, finding_fingerprints
+from tripl_cli.check.fingerprint import callee, finding_fingerprints, marker_fingerprints
 from tripl_cli.check.model import (
+    CODE_INVALID_SUPPRESSION,
+    CODE_UNUSED_SUPPRESSION,
     MODE_STATIC,
     SEVERITY_ERROR,
     SEVERITY_INFO,
     SEVERITY_WARNING,
     STATUS_DYNAMIC,
-    STATUS_ERROR,
-    STATUS_WARNING,
     STDIN_LABEL,
+    CheckFinding,
     CheckItem,
     CheckReport,
     CheckResult,
     Origin,
 )
-from tripl_cli.check.render import finding_message
+from tripl_cli.check.render import finding_message, marker_message
 from tripl_cli.model import JsonDict
 
 # GitLab's five levels; a finding that fails the run is "major", the CodeClimate
 # convention for a failed lint rule.
 CODEQUALITY_SEVERITY = {SEVERITY_ERROR: "major", SEVERITY_WARNING: "minor", SEVERITY_INFO: "info"}
+# A marker that suppresses nothing is worth fixing; one that matched nothing is a note.
+MARKER_SEVERITY = {CODE_INVALID_SUPPRESSION: "minor", CODE_UNUSED_SUPPRESSION: "info"}
 
 # What XML 1.0 can carry at all. A scanned string can hold anything (a stray
 # control character in a constant), and one of them would make the whole file
@@ -120,17 +128,42 @@ def codequality_document(report: CheckReport) -> list[JsonDict]:
         if origin.end_line is not None and origin.end_line >= lines["begin"]:
             lines["end"] = origin.end_line
         for finding, fingerprint in zip(result.findings, fingerprints, strict=True):
+            description = finding_message(result, finding)
+            severity = CODEQUALITY_SEVERITY.get(finding.severity, "major")
+            if finding.suppression is not None:
+                # Kept, under the same fingerprint: dropped, GitLab would call it resolved.
+                description = f"Suppressed: {finding.suppression.reason} — {description}"
+                severity = "info"
             issues.append(
                 {
                     "type": "issue",
                     "check_name": f"tripl/{finding.code}",
-                    "description": finding_message(result, finding),
+                    "description": description,
                     "categories": ["Bug Risk"],
                     "fingerprint": fingerprint,
-                    "severity": CODEQUALITY_SEVERITY.get(finding.severity, "major"),
+                    "severity": severity,
                     "location": {"path": report.repo_path(origin), "lines": dict(lines)},
                 }
             )
+    for state, fingerprint in zip(report.markers, marker_fingerprints(report), strict=True):
+        code = state.code
+        if code is None:
+            continue
+        marker = state.marker
+        issues.append(
+            {
+                "type": "issue",
+                "check_name": f"tripl/{code}",
+                "description": marker_message(state),
+                "categories": ["Clarity"],
+                "fingerprint": fingerprint,
+                "severity": MARKER_SEVERITY[code],
+                "location": {
+                    "path": report.repo_file(marker.path),
+                    "lines": {"begin": max(marker.line, 1)},
+                },
+            }
+        )
     return issues
 
 
@@ -159,7 +192,7 @@ def case_name(item: CheckItem) -> str:
 
 def failing(report: CheckReport, result: CheckResult) -> bool:
     """Whether this result is one of those that make the run exit 1."""
-    return result.status == STATUS_ERROR or (report.strict and result.status == STATUS_WARNING)
+    return report.fails(result)
 
 
 def junit_document(report: CheckReport) -> str:
@@ -221,13 +254,13 @@ def _case_body(case: ET.Element, report: CheckReport, result: CheckResult) -> No
     lines = [_where(report, result.item.origin)]
     for finding in result.findings:
         field = f" [{finding.field}]" if finding.field else ""
-        lines.append(f"{finding.severity} {finding.code}{field}: {finding.message}")
+        waived = ""
+        if finding.suppression is not None:
+            waived = f" [suppressed: {finding.suppression.reason}]"
+        lines.append(f"{finding.severity} {finding.code}{field}: {finding.message}{waived}")
     details = _x("\n".join(lines))
     if failing(report, result):
-        first = next(
-            (finding for finding in result.findings if finding.severity == SEVERITY_ERROR),
-            result.findings[0],
-        )
+        first = _first_failure(result.findings)
         failure = ET.SubElement(
             case,
             "failure",
@@ -237,6 +270,12 @@ def _case_body(case: ET.Element, report: CheckReport, result: CheckResult) -> No
     else:
         output = ET.SubElement(case, "system-out")
         output.text = details
+
+
+def _first_failure(findings: tuple[CheckFinding, ...]) -> CheckFinding:
+    """The finding a failed case is named after: its first unsuppressed error, if any."""
+    open_ = [finding for finding in findings if finding.suppression is None] or list(findings)
+    return next((finding for finding in open_ if finding.severity == SEVERITY_ERROR), open_[0])
 
 
 def _x(text: str) -> str:

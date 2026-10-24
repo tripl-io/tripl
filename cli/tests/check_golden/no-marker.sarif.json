@@ -1,0 +1,233 @@
+{
+  "$schema": "https://json.schemastore.org/sarif-2.1.0.json",
+  "version": "2.1.0",
+  "runs": [
+    {
+      "tool": {
+        "driver": {
+          "name": "tripl",
+          "version": "@VERSION@",
+          "semanticVersion": "@VERSION@",
+          "informationUri": "https://docs.tripl.io/run/cli",
+          "rules": [
+            {
+              "id": "unknown_event",
+              "name": "UnknownEvent",
+              "shortDescription": {
+                "text": "No event in the tracking plan has this name or identity."
+              },
+              "fullDescription": {
+                "text": "No event in the tracking plan has this name or identity."
+              },
+              "helpUri": "https://docs.tripl.io/run/cli#tripl-check",
+              "defaultConfiguration": {
+                "level": "error"
+              }
+            },
+            {
+              "id": "value_not_allowed",
+              "name": "ValueNotAllowed",
+              "shortDescription": {
+                "text": "The value is outside the field's allowed values or contract."
+              },
+              "fullDescription": {
+                "text": "The value is outside the field's allowed values or contract."
+              },
+              "helpUri": "https://docs.tripl.io/run/cli#tripl-check",
+              "defaultConfiguration": {
+                "level": "error"
+              }
+            },
+            {
+              "id": "deprecated_event",
+              "name": "DeprecatedEvent",
+              "shortDescription": {
+                "text": "The event is deprecated or archived in the tracking plan."
+              },
+              "fullDescription": {
+                "text": "The event is deprecated or archived in the tracking plan."
+              },
+              "helpUri": "https://docs.tripl.io/run/cli#tripl-check",
+              "defaultConfiguration": {
+                "level": "warning"
+              }
+            },
+            {
+              "id": "dynamic_value",
+              "name": "DynamicValue",
+              "shortDescription": {
+                "text": "The value is only known at runtime, so it could not be checked."
+              },
+              "fullDescription": {
+                "text": "The value is only known at runtime, so it could not be checked."
+              },
+              "helpUri": "https://docs.tripl.io/run/cli#tripl-check",
+              "defaultConfiguration": {
+                "level": "warning"
+              }
+            }
+          ]
+        }
+      },
+      "columnKind": "unicodeCodePoints",
+      "results": [
+        {
+          "ruleId": "unknown_event",
+          "ruleIndex": 0,
+          "level": "error",
+          "message": {
+            "text": "no event - se  pay_tapped"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "Sources/Pay.swift",
+                  "uriBaseId": "%SRCROOT%"
+                },
+                "region": {
+                  "startLine": 12,
+                  "startColumn": 9,
+                  "endLine": 13,
+                  "endColumn": 40
+                }
+              }
+            }
+          ],
+          "partialFingerprints": {
+            "triplCheck/v2": "c5178177b3cea6b020e13da66bae8bec7a2092d37e4716dd5195419f2cc6c60c"
+          },
+          "properties": {
+            "status": "error",
+            "eventType": "se",
+            "name": "pay_tapped",
+            "fields": {
+              "label": "pay"
+            }
+          }
+        },
+        {
+          "ruleId": "value_not_allowed",
+          "ruleIndex": 1,
+          "level": "error",
+          "message": {
+            "text": "not allowed (field label) - se  pay_tapped"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "Sources/Pay.swift",
+                  "uriBaseId": "%SRCROOT%"
+                },
+                "region": {
+                  "startLine": 12,
+                  "startColumn": 9,
+                  "endLine": 13,
+                  "endColumn": 40
+                }
+              }
+            }
+          ],
+          "partialFingerprints": {
+            "triplCheck/v2": "85e6495544b90116ebe392d559e52a4adc5793211ca6b7f3ae132b0e85e3d8ca"
+          },
+          "properties": {
+            "status": "error",
+            "eventType": "se",
+            "name": "pay_tapped",
+            "fields": {
+              "label": "pay"
+            }
+          }
+        },
+        {
+          "ruleId": "deprecated_event",
+          "ruleIndex": 2,
+          "level": "warning",
+          "message": {
+            "text": "deprecated - se  settings_opened"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "Sources/Pay.swift",
+                  "uriBaseId": "%SRCROOT%"
+                },
+                "region": {
+                  "startLine": 30,
+                  "startColumn": 9,
+                  "endLine": 31,
+                  "endColumn": 40
+                }
+              }
+            }
+          ],
+          "partialFingerprints": {
+            "triplCheck/v2": "e59192791246a400480a49b70f9efff526a1751ee444a64b3ecdb2789dc9d96e"
+          },
+          "properties": {
+            "status": "warning",
+            "eventType": "se",
+            "name": "settings_opened",
+            "fields": {
+              "label": "pay"
+            },
+            "eventId": "ev-2",
+            "identity": "settings_opened"
+          }
+        },
+        {
+          "ruleId": "dynamic_value",
+          "ruleIndex": 3,
+          "level": "note",
+          "message": {
+            "text": "runtime (field x) - se  pay_tapped"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "Sources/Pay.swift",
+                  "uriBaseId": "%SRCROOT%"
+                },
+                "region": {
+                  "startLine": 44,
+                  "startColumn": 9,
+                  "endLine": 45,
+                  "endColumn": 40
+                }
+              }
+            }
+          ],
+          "partialFingerprints": {
+            "triplCheck/v2": "44fb2cdcc44848d250090a9fa6694e75f8c463569a997b70aa2967702bfc3971"
+          },
+          "properties": {
+            "status": "ok",
+            "eventType": "se",
+            "name": "pay_tapped",
+            "fields": {
+              "label": "pay"
+            },
+            "eventId": "ev-3"
+          }
+        }
+      ],
+      "properties": {
+        "project": "shop",
+        "branch": null,
+        "mode": "static",
+        "strict": false,
+        "summary": {
+          "checked": 3,
+          "ok": 1,
+          "warnings": 1,
+          "errors": 1,
+          "dynamic": 0
+        }
+      }
+    }
+  ]
+}

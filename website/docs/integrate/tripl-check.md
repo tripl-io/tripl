@@ -390,7 +390,19 @@ message text.
 | `too_dynamic` | info | The identity has more than 10 holes, too many to match against the plan. The call is not matched to an event. |
 | `policy_violation` | error or warning | The call breaks a plan rule an installed extension adds, for example an organization's [plan governance](../enterprise/governance.md) policy in the Enterprise edition. `rule` names the rule (`naming.event`, `forbidden_field`, …). Community reports none. |
 | `oversize_value` | warning | A name, event type, field or property was over the validator's size limits. The CLI sent the value as `null` (or dropped the key) instead of failing the batch. Raised by the CLI. |
-| `no_verdict` | error | The CLI sent the item but the validator returned no verdict for it. Raised by the CLI, never by the server. |
+| `no_verdict` | error | The CLI sent the item but the validator returned no verdict for it. Raised by the CLI, never by the server. It cannot be [suppressed](#suppress). |
+
+Two more codes are about [`tripl-check-ignore` markers](#suppress), not about a
+call. The CLI raises them and they never fail the run. They are the rule
+(`ruleId`) of a SARIF result and the `check_name` of a Code Quality issue
+(`tripl/invalid_suppression`). The text listing has a line for each instead
+(`Suppression ignored:` and `Unused suppression:`), and the JSON document's
+`suppressions` gives each marker's `problem` and `used` rather than a code:
+
+| Code | Severity | Meaning |
+|------|----------|---------|
+| `invalid_suppression` | warning | A marker names no code, names `no_verdict`, or gives no reason. It suppresses nothing. |
+| `unused_suppression` | info | A valid marker covers no finding with a code it lists in this run: the call was fixed, or the code is misspelled. |
 
 **Typed properties.** A key of `properties` is also checked against the
 event's typed properties. These are the keys of the event's JSON field
@@ -406,6 +418,92 @@ templates.
 A `null` (dynamic) value never produces `value_not_allowed` or
 `missing_required_field`. An `info` finding does not change an item's status,
 except with `--strict`, where it makes an otherwise clean item a warning.
+
+## Suppress a finding {#suppress}
+
+Sometimes a call is wrong on purpose: a debug-only event that never reaches
+production, or a field the plan will gain next week. Put a
+`tripl-check-ignore` comment at the call and give a reason:
+
+```kotlin
+// tripl-check-ignore[unknown_event] -- debug-only event, stripped from release builds (APP-12)
+analytics.track("debug_tap", mapOf("screen" to "home"))
+```
+
+The finding no longer fails the run. JSON, SARIF, Code Quality and JUnit still
+report it, marked as suppressed and with the reason; the text listing counts
+it in its summary (`; 1 finding suppressed`) instead of listing it. The marker
+reads the same in Swift, Objective-C, Kotlin, Java and TypeScript or
+JavaScript:
+
+```
+tripl-check-ignore[<code>(,<code>)*] -- <reason>
+```
+
+- **Codes.** Each is a finding code (`unknown_event`), or a code and a field
+  (`value_not_allowed:plan`) to waive it on that field only. Codes are not
+  checked against a list: a misspelled one waives nothing and shows as unused.
+- **Reason.** Everything after `--` to the end of the comment line (or to
+  `*/`). It must contain a letter or a digit. JSON, SARIF, Code Quality and
+  JUnit show it with the finding.
+- **Comment forms.** Any `//`, `///`, `/* */` or `/** * */` comment, and JSX's
+  `{/* */}`. The keyword must begin a comment line: right after `//`, `/*` or a
+  block comment's leading `*`. A comment that mentions it mid-sentence
+  (`// TODO tripl-check-ignore…`) is not a marker. Text inside a string, a
+  template literal or a regular expression is never read.
+
+**Which calls it covers.**
+
+- Every matched call whose lines contain the marker's line, from the callee to
+  the closing parenthesis, builder-chain links (`.label(…)`) included. A
+  trailing comment covers the call on its line:
+
+  ```swift
+  tracker.track(name: "Cart", props: p)  // tripl-check-ignore[unknown_field:ab_variant] -- experiment field, plan entry pending
+  ```
+
+- When the marker is the first thing on its line, also every call that starts
+  on the next line holding code. Blank lines and comment-only lines in between
+  are skipped:
+
+  ```objc
+  /* tripl-check-ignore[deprecated_event] -- legacy screen, removed in 5.0 */
+  [Tracker trackWithCategory:@"cart" action:@"old"];
+  ```
+
+  ```tsx
+  {/* tripl-check-ignore[value_not_allowed:plan] -- value mapped by the ingestion proxy */}
+  <Button onClick={() => track("buy", { plan: p })} />
+  ```
+
+A covered call is waived on every item it expands into (a name function that
+returns several names, for example).
+
+**A marker without a reason suppresses nothing.** Nor does one that names no
+code or names `no_verdict`, which cannot be suppressed because nothing was
+decided about the call. The finding fails the run as usual, so the required
+reason is enforced by the check itself, and the marker is reported as
+`invalid_suppression`:
+
+```
+Suppression ignored: app/src/Debug.kt:7 tripl-check-ignore needs "-- <reason>".
+```
+
+A malformed marker is never a usage error (exit 2) and never removes a report.
+
+**An unused marker** covers no finding with a code it lists in this run. Two
+markers on one call (one above it, one trailing) that list the same code are
+both used. An unused marker is listed as
+`unused_suppression` and never fails the run, with `--strict` either:
+
+```
+Unused suppression: app/src/Old.kt:3 tripl-check-ignore[unknown_event] matched no finding.
+```
+
+A suppression changes only whether the run fails. A result's `status` and the
+summary counts stay the plan's verdict. Payload mode reads no source, so it has
+no markers. One known limitation: in a JSX file, element text that looks like a
+comment (`<p>// tripl-check-ignore…</p>`) is read as one.
 
 ## Static and payload modes {#modes}
 
@@ -646,7 +744,7 @@ one validation, the same verdicts in every file.
 
 | Format | What it is |
 |--------|------------|
-| `text` (the default) | Human-readable: every item that is not a clean pass, with its location and findings, then a summary. |
+| `text` (the default) | Human-readable: every item that is not a clean pass, with its location and findings, then a summary. A [suppressed](#suppress) finding is counted in the summary (`; 1 finding suppressed`), not listed, and a marker that suppresses nothing or matched nothing gets a line after it. |
 | `json` (or `--json`) | One JSON document with a row for **every** item, passing ones included. See the [`check` document](../run/cli.md#check-document). |
 | `sarif` | A [SARIF 2.1.0](https://docs.oasis-open.org/sarif/sarif/v2.1.0/sarif-v2.1.0.html) log, for GitHub code scanning and other SARIF viewers. |
 | `codequality` | A [GitLab Code Quality](https://docs.gitlab.com/ci/testing/code_quality/) report, for the merge request's Code Quality report on every GitLab tier. |
@@ -667,12 +765,21 @@ points at the `--payloads` path as you typed it, so a relative path is relative
 to the working directory the command ran in, and at the event's line. A payload
 read from standard input has no file location: its finding carries a
 `logicalLocation` naming the line or array position instead. SARIF is mainly
-useful for the static mode.
+useful for the static mode. A [suppressed](#suppress) finding stays a result,
+with `suppressions: [{"kind": "inSource", "status": "accepted",
+"justification": <reason>, "location": <the marker>}]`, which code scanning
+shows as dismissed. A marker that suppresses nothing is a result of its own,
+rule `invalid_suppression` at `level: "warning"`, and an unused one rule
+`unused_suppression` at `level: "note"`, both at the marker's line.
 
 **Code Quality.** One issue per finding. `check_name` is `tripl/` and the code
 (`tripl/unknown_event`); `severity` is `major` for an error, `minor` for a
 warning and `info` for an info finding; `location` names the file and the
-call's lines.
+call's lines. A [suppressed](#suppress) finding stays in the report with the
+same fingerprint, at `severity: info` and with its description starting
+`Suppressed: <reason> — `, so GitLab shows it as neither new nor resolved. A
+marker that suppresses nothing is a `tripl/invalid_suppression` issue
+(`minor`), an unused one a `tripl/unused_suppression` issue (`info`).
 
 **JUnit.** One test case per call site (or captured event), passing ones
 included. A case is named after the call (its event type, name, field values
@@ -681,7 +788,8 @@ when code above it moves; identical calls in one file are numbered (`#2`). Its
 class is the file. It fails exactly when its call fails the run: an error, or a
 warning with `--strict`. A call where nothing was readable is skipped, and with
 `--strict` it is a warning, so it fails. A warning without `--strict` passes,
-with its findings as the case's output.
+with its findings as the case's output. A [suppressed](#suppress) finding fails
+no case: it is listed in the case's output tagged `[suppressed: <reason>]`.
 
 **Paths.** In Code Quality and JUnit, paths are relative to the repository root
 (the nearest directory that holds `.git`), the way a CI system resolves them
@@ -696,6 +804,17 @@ never from its line and never from what the plan says. So a CI system comparing
 two runs, as GitLab's Code Quality report does, sees the same finding after an
 edit above it moves it down the file, and a new one once the call itself
 changes. Identical calls in one file are told apart by their order.
+Suppressing a finding leaves its fingerprint as it was. A reported marker has a
+fingerprint of its own, built from its file, its problem and its text, never
+its line.
+
+**JSON.** `status` is the plan's verdict. When the scan read a
+`tripl-check-ignore` marker, the document also says what the markers did:
+`results[].fails` and `results[].findings[].fails` say what fails the run,
+`findings[].suppression` names the marker that waived a finding, `summary`
+gains `suppressed` and `failing`, and `suppressions` lists every marker. With
+no marker in the scanned files, none of these keys is present. See the
+[`check` document](../run/cli.md#check-document).
 
 **A run that could not finish writes no report**: a configuration or usage
 error (exit 2), an instance that refused a request (exit 1) or was unavailable
@@ -716,8 +835,8 @@ Human text and progress messages go to stderr when stdout carries `json`,
 
 | Code | Meaning |
 |------|---------|
-| **0** | No errors. Warnings are allowed unless you pass `--strict`. |
-| **1** | At least one error, or at least one warning with `--strict`. Also: the instance refused a request (an invalid or expired key, a project the key cannot see, a redirect). Then no document or report is written. |
+| **0** | No errors, or only errors a `tripl-check-ignore` marker [suppresses](#suppress). Warnings are allowed unless you pass `--strict`. |
+| **1** | At least one error, or at least one warning with `--strict`, that no `tripl-check-ignore` marker suppresses. A malformed or unused marker never fails the run on its own. Also: the instance refused a request (an invalid or expired key, a project the key cannot see, a redirect). Then no document or report is written. |
 | **2** | A config or usage error: no config file in static mode, invalid YAML, an unknown key or preset, a call without exactly one of `function` / `pattern` / `objc_selector`, a configuration that matches no call, a `--payloads` file that is not valid JSON, holds no events or holds an event with neither `event_type` nor `name`, no project, `--json` together with another `--format`, a `--report` that is not `FORMAT=PATH`, names one file twice or names a directory, a link or a special file, or a `--branch` that matches nothing. |
 | **4** | The instance was unavailable: it could not be reached, the request timed out, or it answered `429` or a `5xx`. Nothing was checked, and no document or report is written. Let it pass in CI when an outage of tripl should not block merges. |
 
