@@ -8,6 +8,7 @@ tripl envelope.
 
 from __future__ import annotations
 
+from collections.abc import Sequence
 from pathlib import Path, PurePosixPath
 from typing import Any
 from urllib.parse import quote
@@ -28,6 +29,7 @@ from tripl_cli.check.model import (
     CheckReport,
     CheckResult,
     Origin,
+    SkippedFile,
 )
 from tripl_cli.check.validate import summary
 from tripl_cli.model import JsonDict
@@ -118,14 +120,26 @@ def render_text(report: CheckReport) -> str:
         lines.append("")
     lines.append(tally + ".")
     if report.skipped:
-        shown = ", ".join(
-            f"{skip.path} ({_SKIP_TEXT.get(skip.reason, skip.reason)})"
-            for skip in report.skipped[:_SKIPPED_SHOWN]
-        )
-        more = len(report.skipped) - _SKIPPED_SHOWN
-        tail = f", and {more} more" if more > 0 else ""
-        lines.append(f"Not read: {plural(len(report.skipped), 'configured file')}: {shown}{tail}.")
+        lines.append(render_skipped(report.skipped))
     return "\n".join(lines)
+
+
+def render_skipped(skipped: Sequence[SkippedFile]) -> str:
+    """The ``Not read:`` line: the configured files a scan did not read, the first few named."""
+    shown = ", ".join(
+        f"{skip.path} ({_SKIP_TEXT.get(skip.reason, skip.reason)})"
+        for skip in skipped[:_SKIPPED_SHOWN]
+    )
+    more = len(skipped) - _SKIPPED_SHOWN
+    tail = f", and {more} more" if more > 0 else ""
+    return f"Not read: {plural(len(skipped), 'configured file')}: {shown}{tail}."
+
+
+def nothing_matched(root: Path, files: int) -> str:
+    """Why a static scan matched no call, as a clause: no file to read, or no call in them."""
+    if files == 0:
+        return f"no readable source file under {root} matches `sources:`"
+    return f"none of the {plural(files, 'file')} scanned has a call the call specs match"
 
 
 _SKIP_TEXT = {SKIP_TOO_LARGE: "too large", SKIP_UNREADABLE: "unreadable"}

@@ -3,7 +3,7 @@
 One word, by the grammar in ``commands/__init__.py``: it acts on a checkout (or
 a capture file) as a whole, not on a class of objects an operator browses.
 
-Two modes, one validator:
+Three modes, one scan and one validator between them:
 
 * **static** (default) — scan the files ``.tripl/check.yml`` names for the
   tracking calls it describes, per event type: the project's own wrapper
@@ -12,10 +12,18 @@ Two modes, one validator:
   only known at runtime is sent as ``null``, which is never an error.
 * **payloads** (``--payloads FILE``) — validate captured events, NDJSON or JSON.
   These are what the app really sent, so a missing required field IS an error.
+* **list** (``--list``) — the static scan alone, for writing the config: each
+  call it matches with what was read and why a value was not, the functions
+  that forward their own parameter into a tracking call, and the calls that
+  look like tracking but match no call spec. It needs no URL and no key, opens
+  no connection and sends nothing; with no check config found it scans the
+  whole repository it runs in (discovery).
 
-Both batch their items to ``POST /projects/{slug}/plan/validate`` — a READ that
-happens to be a POST, so any project member's key works, ``tk_r_`` included,
-and there is no ``--dry-run`` because nothing is written.
+The first two batch their items to ``POST /projects/{slug}/plan/validate`` — a
+READ that happens to be a POST, so any project member's key works, ``tk_r_``
+included, and there is no ``--dry-run`` because nothing is written.
+``--print-preset [NAME]`` prints a preset's call specs as YAML to start a
+custom one from, and exits the moment it is parsed, the way ``--version`` does.
 
 One run, one set of verdicts, as many reports as a pipeline wants: ``--format``
 picks what goes to stdout, and each ``--report FORMAT=PATH`` writes the same
@@ -23,14 +31,18 @@ result to a file — GitLab Code Quality and JUnit for a merge request, SARIF fo
 code scanning, the JSON document for scripts. A failed run writes none of them
 and removes what an earlier run left at those paths, so a stale report can
 never pass for this run's. Only a command line the parser rejects outright (an
-unknown flag, say) leaves them, because then no command runs at all.
+unknown flag, or ``--list`` with ``--payloads``, say) leaves them, because then
+no command runs at all; so does ``--print-preset``, which runs none.
 
 Exit codes: 0 clean; 1 when any item has an error (or, with ``--strict``, a
 warning — ``--strict`` also reports values only known at runtime); 2 for a bad
 config, a bad payload file, a bad invocation, or a config that matches no call
 at all (``--allow-empty`` accepts that); 4 when the instance was unavailable —
 unreachable, timed out, 429 or 5xx — so nothing was decided. An instance that
-refuses the key is exit 1, with the reason on stderr.
+refuses the key is exit 1, with the reason on stderr. ``--list`` exits 0
+whenever the scan ran, a reader that closed the pipe early included, and 2 for
+a bad config or a flag it refuses (``--report``, ``--branch``, ``--strict``,
+``--allow-empty``, and a ``--format`` other than text or JSON).
 
 ``--check-config`` rather than ``--config``: ``--config`` is already the global
 flag naming the CLI's own connection settings file, on every command.
@@ -45,15 +57,18 @@ import os
 import stat
 import sys
 import time
-from collections.abc import Iterable
+from collections.abc import Iterable, Sequence
+from datetime import UTC, datetime
 from pathlib import Path
-from typing import TextIO
+from typing import Any, TextIO
 
 import httpx
 
 from tripl_cli.check import payloads as payloads_mod
 from tripl_cli.check import scan as scan_mod
-from tripl_cli.check.config import CheckConfig, repository_root
+from tripl_cli.check.config import DEFAULT_EXCLUDES, DEFAULT_SOURCES, CheckConfig, repository_root
+from tripl_cli.check.inventory import inventory
+from tripl_cli.check.listing import render_listing
 from tripl_cli.check.model import (
     MODE_PAYLOADS,
     MODE_STATIC,
@@ -62,7 +77,8 @@ from tripl_cli.check.model import (
     CheckResult,
     SkippedFile,
 )
-from tripl_cli.check.render import render_text, sarif_document
+from tripl_cli.check.presets import PRESETS, preset_yaml
+from tripl_cli.check.render import nothing_matched, render_text, sarif_document
 from tripl_cli.check.reports import codequality_document, junit_document, repo_paths
 from tripl_cli.check.validate import validate
 from tripl_cli.commands import add_json, add_timeout
@@ -70,15 +86,16 @@ from tripl_cli.commands._check_config import (
     add_check_config,
     add_project_flag,
     check_config_of,
+    project_flag,
     project_of,
 )
 from tripl_cli.commands._plan import Branch, add_branch, begin, resolve_branch
 from tripl_cli.config import Config
 from tripl_cli.diagnostics.collect import instance_of
 from tripl_cli.errors import TriplConfigError, TriplError
-from tripl_cli.model import Run
-from tripl_cli.render import plural, render_header
-from tripl_cli.report import check_document
+from tripl_cli.model import Run, to_rfc3339
+from tripl_cli.render import render_header
+from tripl_cli.report import check_document, check_list_document
 from tripl_cli.runner import run_gate
 
 FORMAT_TEXT = "text"
@@ -87,6 +104,33 @@ FORMAT_SARIF = "sarif"
 FORMAT_CODEQUALITY = "codequality"
 FORMAT_JUNIT = "junit"
 FORMATS = (FORMAT_TEXT, FORMAT_JSON, FORMAT_SARIF, FORMAT_CODEQUALITY, FORMAT_JUNIT)
+# What `--list` with no check config leaves out beyond the default excludes:
+# every hidden directory (see `_discovery_config`).
+DISCOVERY_EXCLUDE = "**/.*/**"
+
+
+class _PrintPreset(argparse.Action):
+    """``--print-preset [NAME]``: print call specs as YAML and exit, the way ``--version`` does.
+
+    It acts the moment argparse reaches it: a bad value before it is still
+    exit 2, and nothing after it is read. So no command runs: like ``--help``
+    it prints its YAML even with ``--json``, and leaves ``--report`` files
+    alone. An unknown NAME is argparse's own invalid choice, which lists them.
+    It prints the way ``--list`` does, so a reader that left early
+    (``| true``) ends the output, and the exit is still 0.
+    """
+
+    def __call__(
+        self,
+        parser: argparse.ArgumentParser,
+        namespace: argparse.Namespace,
+        values: str | Sequence[Any] | None,
+        option_string: str | None = None,
+    ) -> None:
+        names = list(PRESETS) if values is None else [str(values)]
+        # sys.stdout looked up now rather than bound at import, as a capture swaps it.
+        _emit("\n\n".join(preset_yaml(name) for name in names), sys.stdout)
+        parser.exit()
 
 
 def register(
@@ -102,16 +146,45 @@ def register(
             "validate each against the tracking plan: unknown event types and events, "
             "unknown fields, values outside allowed values. With --payloads, validate "
             "captured events instead, where a missing required field is an error too. "
+            "With --list, only scan, and list what was read from each call and why a "
+            "value was not; nothing is sent. "
             "Exits 1 on any error (or warning, with --strict), 4 when the instance was "
             "unavailable."
         ),
     )
     add_check_config(parser)
-    parser.add_argument(
+    # One mode per run: argparse refuses the pair before any command runs.
+    mode = parser.add_mutually_exclusive_group()
+    mode.add_argument(
+        "--list",
+        dest="list",
+        action="store_true",
+        help=(
+            "only scan: list what the scan reads from each call the check config matches, "
+            "why a value is not read, and the calls that look like tracking; needs no "
+            "key and sends nothing"
+        ),
+    )
+    mode.add_argument(
         "--payloads",
         dest="payloads",
         metavar="FILE",
         help="validate captured events (NDJSON, or a JSON array; - for stdin) instead of source",
+    )
+    # Outside the group: it acts as soon as argparse reaches it, so with the
+    # pair in one group `--list --print-preset x` would be refused and
+    # `--print-preset x --list` would print.
+    parser.add_argument(
+        "--print-preset",
+        action=_PrintPreset,
+        nargs="?",
+        choices=tuple(PRESETS),
+        metavar="NAME",
+        default=argparse.SUPPRESS,
+        help=(
+            "print the call specs of preset NAME (every preset without NAME) as YAML to "
+            f"paste under an event type's calls:, and exit; the presets are {', '.join(PRESETS)}"
+        ),
     )
     add_project_flag(parser)
     add_branch(parser)
@@ -239,12 +312,144 @@ def abandon(args: argparse.Namespace) -> None:
 def run(args: argparse.Namespace, config: Config) -> int:
     targets = _report_targets(args)
     try:
+        if args.list:
+            return _list(args)
         return _check(args, config, targets)
     except BaseException:
         # Any run that did not finish, a crash or Ctrl-C included, leaves no
         # report behind: not this run's half, not an earlier run's whole.
+        # `--list` refusing a flag is one of those too.
         abandon(args)
         raise
+
+
+def _list(args: argparse.Namespace) -> int:
+    """``--list``: the static scan alone, each matched call shown in full. 0 once it ran.
+
+    Never ``begin(config)``: no URL, no key, no client, nothing sent, so it
+    works with no connection settings at all. ``--timeout`` always has a value
+    and cannot be told from its default, so it is ignored rather than refused.
+    """
+    started = time.monotonic()
+    generated_at = datetime.now(UTC)
+    refusal = _list_refusal(args)
+    if refusal is not None:
+        raise TriplConfigError(refusal)
+    output = _format(args)
+    project = project_flag(args, "check")
+    check_config = check_config_of(args)
+    discovery = check_config is None
+    if check_config is None:
+        check_config = _discovery_config()
+    elif project is None:
+        project = check_config.project
+    found = inventory(check_config, discovery=discovery)
+    config_path = None if check_config.path is None else str(check_config.path)
+    # Each stream on its own: a reader that left stderr early, or a stderr that
+    # cannot be written at all, still lets the JSON through.
+    human = sys.stdout if output == FORMAT_TEXT else sys.stderr
+    _emit(render_listing(found, config=config_path), human, primary=output == FORMAT_TEXT)
+    if output == FORMAT_JSON:
+        document = check_list_document(
+            found,
+            generated_at=to_rfc3339(generated_at),
+            duration_ms=int((time.monotonic() - started) * 1000),
+            project=project,
+            config=config_path,
+        )
+        _emit(json.dumps(document), sys.stdout)
+    return 0
+
+
+def _list_refusal(args: argparse.Namespace) -> str | None:
+    """Why a flag ``--list`` has no use for is refused rather than quietly ignored.
+
+    A flag that quietly did nothing would be read as one that did something
+    (the rule ``add_branch`` follows too). ``--report`` is asked about last, so
+    a run that also names a report path still hears about its other flags.
+    """
+    if args.branch is not None:
+        return (
+            "--branch names the plan branch to check against, and --list sends nothing; "
+            "drop --branch."
+        )
+    if args.strict:
+        return (
+            "--strict changes what fails a check, and --list checks nothing (it already "
+            "lists every value the scan could not read); drop --strict."
+        )
+    if args.allow_empty:
+        return "--list never fails because nothing matched; drop --allow-empty."
+    if args.output_format not in (None, FORMAT_TEXT, FORMAT_JSON):
+        chosen = args.output_format
+        return f"--list prints text or JSON, not {chosen}; drop --format {chosen}."
+    if args.reports:
+        return (
+            "--report writes a check's verdicts, and --list checks nothing; drop --report, "
+            "or run tripl check without --list."
+        )
+    return None
+
+
+def _discovery_config() -> CheckConfig:
+    """No check config found: the whole repository, every supported file, no event types.
+
+    Nothing can match, so what is left to show is the calls that look like
+    tracking. Only from inside a repository: outside one the walk would cover a
+    home directory or ``/``, and the first pass keeps every file it reads.
+    Hidden directories are left out as well as the default excludes: what is in
+    them (``.venv``, ``.gradle``, ``.next``, an editor's or agent's worktrees)
+    is installed, generated or a copy, never the app's own tracking code.
+    """
+    cwd = Path.cwd()
+    root = repository_root(cwd)
+    if root is None:
+        raise TriplConfigError(
+            f"no check config found, and {cwd} is not in a git repository: run tripl check "
+            "--list from a checkout, or pass --check-config PATH."
+        )
+    exclude = (*DEFAULT_EXCLUDES, DISCOVERY_EXCLUDE)
+    return CheckConfig(path=None, root=root, sources=DEFAULT_SOURCES, exclude=exclude)
+
+
+def _emit(text: str, stream: TextIO | None, *, primary: bool = True) -> None:
+    """``_say`` and flush; a reader that went away ends that stream's output, not the run.
+
+    ``tripl check --list | head`` closes the pipe early. Unhandled, that is
+    exit 1 with a traceback (``cli.main`` catches only ``TriplError``), and the
+    interpreter's own flush at exit fails again (exit 120). So the stream's
+    descriptor is pointed at the null device, where anything more written to
+    it, that last flush included, lands harmlessly. A descriptor closed before
+    the run (``>&-``, ``2>&-``) leaves no stream at all (None): nothing to write.
+
+    The human lines beside the JSON document (``primary`` false: stderr under
+    ``--json``) end the same way on any failure to write them, a full disk
+    included, so the document still reaches stdout. On the primary output any
+    other failure is one.
+    """
+    if stream is None:
+        return
+    try:
+        _say(text, stream)
+        stream.flush()
+    except BrokenPipeError:
+        _silence(stream)
+    except OSError:
+        if primary:
+            raise
+        _silence(stream)
+
+
+def _silence(stream: TextIO) -> None:
+    try:
+        descriptor = stream.fileno()
+    except (OSError, ValueError):
+        return  # not backed by a file (a test's stream), so no flush at exit reaches one
+    devnull = os.open(os.devnull, os.O_WRONLY)
+    try:
+        os.dup2(devnull, descriptor)
+    finally:
+        os.close(devnull)
 
 
 def _check(args: argparse.Namespace, config: Config, targets: list[tuple[str, Path]]) -> int:
@@ -338,14 +543,10 @@ def _check(args: argparse.Namespace, config: Config, targets: list[tuple[str, Pa
 
 
 def _nothing_matched(config: CheckConfig, files: int) -> str:
-    if files == 0:
-        where = f"no readable source file under {config.root} matches `sources:`"
-    else:
-        where = f"none of the {plural(files, 'file')} scanned has a call the call specs match"
     return (
-        f"{where}, so nothing was checked. Fix `sources:`, `exclude:` or the call specs "
-        "(a renamed wrapper, a moved directory), or pass --allow-empty if there is no "
-        "tracking code to check yet."
+        f"{nothing_matched(config.root, files)}, so nothing was checked. Fix `sources:`, "
+        "`exclude:` or the call specs (a renamed wrapper, a moved directory), or pass "
+        "--allow-empty if there is no tracking code to check yet."
     )
 
 

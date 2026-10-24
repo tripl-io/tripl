@@ -157,13 +157,32 @@ class SymbolIndex:
     # Qualified paths of every enum case seen, with or without a raw value.
     cases: set[tuple[str, ...]] = field(default_factory=set)
     functions: dict[str, list[tuple[str, ...] | None]] = field(default_factory=dict)
+    # `entries` under each suffix of their path (`(home,)`, `(Category, home)`,
+    # …) and file-scope constants under their name, in the order added, and
+    # the last one and two segments of each case: a lookup reads only what can
+    # match it, not every entry in the run.
+    _suffixes: dict[tuple[str, ...], list[Entry]] = field(
+        default_factory=dict, init=False, repr=False, compare=False
+    )
+    _constants: dict[str, list[Entry]] = field(
+        default_factory=dict, init=False, repr=False, compare=False
+    )
+    _case_suffixes: set[tuple[str, ...]] = field(
+        default_factory=set, init=False, repr=False, compare=False
+    )
 
     # --- building ------------------------------------------------------------
     def add(self, path: tuple[str, ...], value: str, *, member: bool) -> None:
-        self.entries.append(Entry(path, value, member))
+        entry = Entry(path, value, member)
+        self.entries.append(entry)
+        for start in range(len(path)):
+            self._suffixes.setdefault(path[start:], []).append(entry)
+        if not member and len(path) == 1:
+            self._constants.setdefault(path[0], []).append(entry)
 
     def add_case(self, path: tuple[str, ...]) -> None:
         self.cases.add(path)
+        self._case_suffixes.update((path[-1:], path[-2:]))
 
     def add_function(self, name: str, values: tuple[str, ...] | None) -> None:
         self.functions.setdefault(name, []).append(values)
@@ -203,14 +222,11 @@ class SymbolIndex:
         if not segments:
             return None
         if shorthand:
-            return _pick([e for e in self.entries if e.path[-1] == segments[-1]], hint)
+            return _pick(self._suffixes.get((segments[-1],), []), hint)
         if len(segments) == 1:
-            return _pick(
-                [e for e in self.entries if not e.member and e.path == (segments[0],)], hint
-            )
+            return _pick(self._constants.get(segments[0], []), hint)
         for size in range(len(segments), 1, -1):
-            suffix = tuple(segments[-size:])
-            candidates = [e for e in self.entries if e.path[-size:] == suffix]
+            candidates = self._suffixes.get(tuple(segments[-size:]))
             if candidates:
                 return _pick(candidates, hint)
         return None
@@ -220,15 +236,14 @@ class SymbolIndex:
         if not segments:
             return None
         if shorthand:
-            return segments[-1] if any(c[-1] == segments[-1] for c in self.cases) else None
+            return segments[-1] if (segments[-1],) in self._case_suffixes else None
         if len(segments) < 2:
             return None
-        suffix = tuple(segments[-2:])
-        return segments[-1] if any(c[-2:] == suffix for c in self.cases) else None
+        return segments[-1] if tuple(segments[-2:]) in self._case_suffixes else None
 
     def _has(self, segments: list[str]) -> bool:
         suffix = tuple(segments[-2:])
-        return any(e.path[-2:] == suffix for e in self.entries)
+        return any(e.path[-2:] == suffix for e in self._suffixes.get(suffix, []))
 
     def function_values(self, name: str) -> tuple[str, ...] | None:
         """The strings function ``name`` can return, or None (unknown, dynamic or ambiguous)."""

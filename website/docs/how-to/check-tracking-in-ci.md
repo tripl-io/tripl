@@ -18,7 +18,7 @@ instance, and an account in the project's organization.
 
 :::note A CLI released after v0.3.2
 This page needs a tripl CLI newer than v0.3.2: the `codequality` and `junit`
-reports, `--report` and exit code `4` came after it. The CLI and the server are
+reports, `--report`, `--list` and exit code `4` came after it. The CLI and the server are
 released together under one version number: pin the CLI to the version your
 instance runs, and upgrade the two together.
 :::
@@ -40,7 +40,20 @@ check only reads the plan.
 Write `.tripl/check.yml` at the root of the repository: which functions send
 which event type, and which argument carries the name and the fields. The
 [`tripl check` guide](../integrate/tripl-check.md#config-file) has every key.
-Then run the check locally until it finds your calls:
+
+Start with `--list`. It needs no key and sends nothing. It shows every call the
+config matches, what the scan read from it and why a value was not read, the
+wrappers that forward their own parameter, and the calls that look like
+tracking but match no call spec. Run before there is a config, it lists the
+calls in the repository that look like tracking: a place to start.
+
+```bash
+uvx tripl@X.Y.Z check --list
+```
+
+The [guide](../integrate/tripl-check.md#list) says what to do about each reason
+a value is not read. When `--list` shows the calls you expect, run the real
+check:
 
 ```bash
 export TRIPL_BASE_URL=https://tripl.example.com
@@ -63,7 +76,8 @@ because they were too large or could not be read.
   code does not call. A check that finds nothing must not look like a pass, so
   it fails unless you pass `--allow-empty`.
 - **"only known at runtime"** counts calls whose name or values the scanner
-  could not read. `--strict` lists them. Point the configuration at the place
+  could not read. `--strict` lists them, and `--list` says why a value was not
+  read. Point the configuration at the place
   the name is written (often a constructor or a factory rather than the
   function that finally sends the event) and the count drops.
 - **Errors** found now are already in your code. Fix them, add the missing

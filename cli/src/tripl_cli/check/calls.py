@@ -18,7 +18,7 @@ follow the call (``Structured(…).label("x").value(3)``) are collected as
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 from tripl_cli.check.lexer import IDENT, PUNCT, Token
 
@@ -87,6 +87,9 @@ class Arg:
 class ChainCall:
     method: str
     args: tuple[Arg, ...]
+    # Where the link's argument list ends. Outside equality: it adds nothing
+    # `args` does not say, and only `tripl check --list` reads it.
+    end: int = field(compare=False)
 
 
 @dataclass(frozen=True, slots=True)
@@ -94,7 +97,8 @@ class Call:
     """A function call, or an Objective-C message send.
 
     For a message ``selector`` is set and ``callee`` is the receiver; for a
-    function call ``selector`` is None.
+    function call ``selector`` is None. ``end`` is where the call's own
+    argument list ends; each link of its ``chain`` says where its own does.
     """
 
     callee: str
@@ -272,7 +276,9 @@ def _chain(tokens: list[Token], after: int, language: str) -> tuple[tuple[ChainC
         ):
             break
         close = matching(tokens, probe + 2)
-        chain.append(ChainCall(tokens[probe + 1].text, _args(tokens, probe + 2, close, language)))
+        args = _args(tokens, probe + 2, close, language)
+        end = tokens[min(close, len(tokens) - 1)].end
+        chain.append(ChainCall(tokens[probe + 1].text, args, end))
         index = close + 1
     return tuple(chain), index
 

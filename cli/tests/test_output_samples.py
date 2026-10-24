@@ -13,6 +13,7 @@ from pathlib import Path
 
 import pytest
 
+from tripl_cli.check import inventory as inventory_module
 from tripl_cli.cli import main
 
 from .conftest import (
@@ -500,10 +501,40 @@ def test_upgrade_dry_run_sample(
     )
 
 
+_CHECK_LIST_CONFIG = """\
+project: prod
+sources: ["app/**"]
+event_types:
+  event:
+    calls: [{function: "analytics.logEvent", positional: [name, properties]}]
+"""
+# One call of each kind `check --list` explains, ASCII through and through, so
+# any non-ASCII byte in its output is the tool's own text.
+_CHECK_LIST_SOURCE = """\
+object Events { object Name { const val Open = "open" }; const val PROMO = "promo_%s_shown" }
+class Screen {
+    fun logEvent(event: String, params: Bundle) { analytics.logEvent(event, params) }
+    fun onAction(action: UiAction) { analytics.logEvent(action.event) }
+    fun refresh(flag: Boolean) {
+        val log = if (flag) Events.Name.Open else "closed"
+        analytics.logEvent(log, "not a dictionary", extra)
+    }
+    fun promo(id: String) { analytics.logEvent(Events.PROMO.format(id), mapOf("id" to id)) }
+    fun show() {
+        analytics.logEvent()
+        logEvent("home_shown", bundle)
+        wrap(Events.Name.Open)
+    }
+}
+"""
+
+
 def test_every_sample_is_ascii(
     tripl_api: FakeInstance,
     configured_env: None,
     install_dir: Path,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
     capsys: pytest.CaptureFixture[str],
 ) -> None:
     """No unicode anywhere in the new commands' human output."""
@@ -511,6 +542,20 @@ def test_every_sample_is_ascii(
     install_dir.mkdir(parents=True)
     (install_dir / "compose.yaml").write_text("services: {}\n", encoding="utf-8")
     (install_dir / ".env").write_text("TRIPL_VERSION=1.4.0\n", encoding="utf-8")
+    checkout = tmp_path / "checkout"
+    (checkout / ".tripl").mkdir(parents=True)
+    (checkout / "app").mkdir()
+    (checkout / ".tripl" / "check.yml").write_text(_CHECK_LIST_CONFIG, encoding="utf-8")
+    (checkout / "app" / "Screen.kt").write_text(_CHECK_LIST_SOURCE, encoding="utf-8")
+    # `check --list` with no check config, from a checkout with more source
+    # files than the (lowered) cap: the discovery text and its note.
+    discovery = tmp_path / "discovery"
+    (discovery / ".git").mkdir(parents=True)
+    (discovery / "web").mkdir()
+    for name in ("a.ts", "b.ts"):
+        (discovery / "web" / name).write_text('analytics.track("Opened");\n', encoding="utf-8")
+    monkeypatch.setattr(inventory_module, "MAX_DISCOVERY_FILES", 1)
+    monkeypatch.chdir(discovery)
     for argv in (
         ["scans", "list"],
         ["scans", "jobs", "scan-1", "--project", "prod"],
@@ -534,7 +579,21 @@ def test_every_sample_is_ascii(
             "--dry-run",
         ],
         ["upgrade", "--to", "1.5.0", "--dir", str(install_dir), "--dry-run"],
+        ["check", "--list", "--check-config", str(checkout / ".tripl" / "check.yml")],
+        ["check", "--list"],
     ):
         main(argv)
         out = capsys.readouterr().out
         assert out.isascii(), f"{argv} emitted non-ASCII output"
+    # Not vacuous for the listing: its fixture reaches every section, and the
+    # section of calls that look like tracking has rows, not just its heading.
+    assert main(["check", "--list", "--check-config", str(checkout / ".tripl" / "check.yml")]) == 0
+    listing = capsys.readouterr().out
+    for section in ("Why (call sites", "Functions that forward", "Calls that look like tracking"):
+        assert section in listing
+    assert "  1  wrap      constant  app/Screen.kt:13:9  wrap(Events.Name.Open)\n" in listing
+    # Nor for discovery: it stopped at the cap, and said so.
+    assert main(["check", "--list"]) == 0
+    listing = capsys.readouterr().out
+    for note in ("No check config found: ", "Discovery stopped at 1 source file; "):
+        assert note in listing
