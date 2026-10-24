@@ -837,8 +837,14 @@ async def test_demo_source_is_fresh_by_default_and_a_delay_raises_one_alert() ->
         ).scalar_one()
         config_id = config.id
 
+    # Freshness on the build's clock (its seed hour, which it collected up to),
+    # not the wall's: a build whose last collection ran just before the hour
+    # turned reads late on the wall clock until the next collection, the demo's
+    # zero settling leaving it no slack (``late_threshold``).
+    assert demo.demo_seeded_at is not None
+    now = to_utc(demo.demo_seeded_at)
+
     def _delay_and_detect(sync_session: Session) -> dict[str, object]:
-        now = datetime.now(UTC)
         cfg = sync_session.get(ScanConfig, config_id)
         assert cfg is not None
         assert compute_freshness(cfg, now).status == "fresh"
@@ -855,17 +861,18 @@ async def test_demo_source_is_fresh_by_default_and_a_delay_raises_one_alert() ->
                 EventMetric.bucket >= delay_from,
             )
         )
+        # Nor was anything scored on them. The build scores up to just past an
+        # incident hour of the last day (``pipeline.scoring_window``), which
+        # these hours can hold: kept, a drop the build found there sits past
+        # the head of a series cut short here, and reads as a live volume drop.
+        sync_session.execute(
+            delete(MetricAnomaly).where(
+                MetricAnomaly.scan_config_id == config_id,
+                MetricAnomaly.bucket >= delay_from,
+            )
+        )
         cfg.last_event_at = delay_from - _HOUR
         sync_session.flush()
-        drops_before = set(
-            sync_session.execute(
-                select(MetricAnomaly.id).where(
-                    MetricAnomaly.scan_config_id == config_id,
-                    MetricAnomaly.direction == "drop",
-                    MetricAnomaly.bucket >= delay_from,
-                )
-            ).scalars()
-        )
 
         freshness = record_collection_freshness(
             sync_session,
@@ -903,7 +910,7 @@ async def test_demo_source_is_fresh_by_default_and_a_delay_raises_one_alert() ->
         return {
             "delay_from": delay_from,
             "held": sum(held),
-            "new_drops": drops_after - drops_before,
+            "new_drops": drops_after,
             "volume_drop_candidates": [
                 anomaly
                 for anomaly in volume_candidates.values()
