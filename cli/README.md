@@ -45,6 +45,14 @@ uvx tripl --version
 pip install tripl
 ```
 
+In a container — `ghcr.io/tripl-io/tripl-cli` is the CLI on Python, with a
+shell and no entrypoint, for CI jobs that run in an image (tagged `X.Y.Z`,
+`X.Y` and `latest` from the release after v0.3.2):
+
+```bash
+docker run --rm ghcr.io/tripl-io/tripl-cli:X.Y.Z tripl --version
+```
+
 From a local checkout, when you are working on the CLI itself:
 
 ```bash

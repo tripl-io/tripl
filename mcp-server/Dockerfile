@@ -12,7 +12,8 @@
 # Pinned on purpose: :latest makes the image non-reproducible, and uv.lock
 # declares revision = 3, which needs uv >= 0.8. A stage of its own rather than
 # `COPY --from=<image>` because Dependabot bumps FROM lines only. Bump it
-# together with the uv images of the root Dockerfile and backend/Dockerfile.
+# together with the uv images of the root Dockerfile, backend/Dockerfile and
+# cli/Dockerfile.
 FROM ghcr.io/astral-sh/uv:0.13.0 AS uv
 
 FROM python:3.14-slim-trixie

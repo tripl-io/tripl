@@ -1043,10 +1043,10 @@ jobs:
           # breaks a COPY is still caught by the unconditional run on push to
           # main, hours before a tag rather than during the release.
           changed=$(git diff --name-only "$merge_base" HEAD -- \
-            Dockerfile .dockerignore mcp-server/Dockerfile \
+            Dockerfile .dockerignore mcp-server/Dockerfile cli/Dockerfile \
             backend/pyproject.toml backend/uv.lock backend/.python-version \
             frontend/package.json frontend/bun.lock frontend/bunfig.toml \
-            cli/pyproject.toml mcp-server/pyproject.toml mcp-server/uv.lock \
+            cli/pyproject.toml cli/uv.lock mcp-server/pyproject.toml mcp-server/uv.lock \
             backend/scripts/third_party_licenses.py \
             frontend/scripts/third-party-licenses.mjs \
             .github/workflows/ci.yml)
@@ -1118,3 +1118,23 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha,mode=max
           provenance: false
+
+      # publish-cli.yml pushes this one on cli-v* tags. It must run `tripl`
+      # from its shell, with no ENTRYPOINT in the way of a CI job's script.
+      - name: Build the CLI image
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
+        with:
+          context: .
+          file: ./cli/Dockerfile
+          platforms: linux/amd64
+          push: false
+          load: true
+          tags: tripl-cli:ci
+          cache-from: type=gha,scope=cli
+          cache-to: type=gha,scope=cli,mode=max
+          provenance: false
+
+      - name: Run the CLI image
+        run: |
+          docker run --rm tripl-cli:ci tripl --version
+          docker run --rm tripl-cli:ci sh -c 'command -v tripl && test -s /app/licenses/README.md'

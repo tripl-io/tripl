@@ -7,8 +7,9 @@ sidebar_position: 3
 
 This page is for **maintainers** cutting a release. tripl ships as **one image**
 that serves the JSON API and the built SPA in a single process, plus the MCP
-server image and two Python packages, the operator CLI (`tripl`) and the MCP
-server (`tripl-mcp`). **All of them share one version.** Releases are driven
+server image, two Python packages, the operator CLI (`tripl`) and the MCP
+server (`tripl-mcp`), and the CLI's image for CI jobs. **All of them share one
+version.** Releases are driven
 entirely by **git tags**: `bin/release.sh` bumps the version everywhere and
 pushes three tags, and each tag starts its own workflow.
 
@@ -16,7 +17,7 @@ pushes three tags, and each tag starts its own workflow.
 bin/release.sh ─▶ vX.Y.Z      ─▶ release.yml      CI gate ─▶ buildx (amd64 + arm64)
                                                           ├─▶ ghcr.io/.../tripl and tripl-mcp :X.Y.Z, :X.Y, :latest
                                                           └─▶ GitHub Release
-               ─▶ cli-vX.Y.Z  ─▶ publish-cli.yml  `tripl` to PyPI
+               ─▶ cli-vX.Y.Z  ─▶ publish-cli.yml  `tripl` to PyPI, ghcr.io/.../tripl-cli :X.Y.Z, :X.Y, :latest
                ─▶ mcp-vX.Y.Z  ─▶ publish-mcp.yml  `tripl-mcp` to PyPI (once `tripl` X.Y.Z is there)
 ```
 
@@ -196,6 +197,15 @@ version: `bin/release.sh` bumps and tags them together with the service.
 The tags stay separate so that a failed publish can be re-run for one artifact
 without touching the others.
 
+`publish-cli.yml` also builds `cli/Dockerfile` and pushes it as
+`ghcr.io/<owner>/tripl-cli` for `linux/amd64` and `linux/arm64`, tagged like
+the service's images (`X.Y.Z`, `X.Y`, `latest` and `sha-<short>`): the CLI for
+CI jobs that run in an image, so that they install nothing from PyPI. It is
+built from the tagged source, so it waits for the gate only, not for the PyPI
+upload, and it runs `tripl --version` in an amd64 build before it pushes. The
+first push creates the package as private: make it public under *Packages →
+tripl-cli → Package settings*, or CI jobs elsewhere cannot pull it.
+
 Both workflows gate before they publish: lint, type-check and the full test
 suite (repeated from `ci.yml` on purpose, so a release is never the first time
 they run), a check that the **tag matches the packaged version** — a mismatch
@@ -282,6 +292,9 @@ docker buildx imagetools inspect ghcr.io/tripl-io/tripl:X.Y.Z
 
 # 4. Confirm the floating tags point at it
 docker buildx imagetools inspect ghcr.io/tripl-io/tripl:latest
+
+# 5. Confirm the CLI image is published, and runs that version
+docker run --rm ghcr.io/tripl-io/tripl-cli:X.Y.Z tripl --version
 ```
 
 Then do a real pull-and-run on a throwaway host or locally, pinning the new tag:

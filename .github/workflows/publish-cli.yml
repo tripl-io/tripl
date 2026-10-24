@@ -1,6 +1,7 @@
 name: Publish tripl
 
-# Publishes the operator CLI to PyPI as the `tripl` distribution.
+# Publishes the operator CLI to PyPI as the `tripl` distribution, and as the
+# image ghcr.io/<owner>/tripl-cli (cli/Dockerfile) that CI jobs run it in.
 #
 # One tag per artifact, one version for all three: release.yml ships the
 # service's images on `v*`, this one the CLI on `cli-v*`, and publish-mcp.yml
@@ -131,3 +132,91 @@ jobs:
           # Named explicitly rather than left to the action's default, which is a
           # needless thing to gamble a publish on.
           repository-url: https://upload.pypi.org/legacy/
+
+  # The CLI as an image for CI jobs: a GitLab, Bitbucket, Jenkins or CircleCI
+  # job runs in ghcr.io/<owner>/tripl-cli:X.Y.Z instead of installing the CLI
+  # from PyPI on every run. Built from the tagged source rather than from PyPI,
+  # so it needs the gate only, and tagged like the service's images: X.Y.Z,
+  # X.Y, latest and sha-<short>.
+  image:
+    name: Build & push the CLI image
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Version
+        id: version
+        run: |
+          echo "version=${GITHUB_REF_NAME#cli-v}" >> "$GITHUB_OUTPUT"
+          echo "short=${GITHUB_SHA:0:7}" >> "$GITHUB_OUTPUT"
+
+      - name: Set up QEMU (arm64 emulation)
+        uses: docker/setup-qemu-action@99012661954931238ded8c8b007157a8430204e1 # v4.4.0
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
+
+      - name: Log in to GHCR
+        uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Compute image tags & labels
+        id: meta
+        uses: docker/metadata-action@dc802804100637a589fabce1cb79ff13a1411302 # v6.2.0
+        with:
+          images: ghcr.io/${{ github.repository }}-cli
+          tags: |
+            type=semver,pattern={{version}},value=${{ steps.version.outputs.version }}
+            type=semver,pattern={{major}}.{{minor}},value=${{ steps.version.outputs.version }}
+            type=raw,value=sha-${{ steps.version.outputs.short }}
+          labels: |
+            org.opencontainers.image.revision=${{ github.sha }}
+
+      # The image a job gets must run the version it is tagged with: built for
+      # this runner's platform first, loaded, and run, before anything is pushed.
+      - name: Build for the smoke test (linux/amd64)
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
+        with:
+          context: .
+          file: ./cli/Dockerfile
+          platforms: linux/amd64
+          push: false
+          load: true
+          tags: tripl-cli:smoke
+          cache-from: type=gha,scope=cli
+          cache-to: type=gha,scope=cli,mode=max
+          provenance: false
+
+      - name: Smoke-test the image
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          printed="$(docker run --rm tripl-cli:smoke tripl --version)"
+          echo "$printed"
+          if [ "$printed" != "tripl $VERSION" ]; then
+            echo "::error::the image runs '$printed', not tripl $VERSION"
+            exit 1
+          fi
+          # No ENTRYPOINT: a CI job's script runs in the image's shell.
+          docker run --rm tripl-cli:smoke sh -c 'command -v tripl && test -s /app/licenses/README.md'
+
+      - name: Build & push (linux/amd64, linux/arm64)
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
+        with:
+          context: .
+          file: ./cli/Dockerfile
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha,scope=cli
+          cache-to: type=gha,scope=cli,mode=max
+          provenance: false
