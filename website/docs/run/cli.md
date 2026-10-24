@@ -122,6 +122,21 @@ uvx tripl doctor      # run it without installing anything permanently
 pip install tripl     # or put it on PATH for good
 ```
 
+**In a container.** `ghcr.io/tripl-io/tripl-cli` is the CLI on Python, with a
+shell and no entrypoint, for CI jobs that run in an image. It is tagged with
+each release (`X.Y.Z`, `X.Y` and `latest`), for `linux/amd64` and
+`linux/arm64`, from the release after v0.3.2, and its working directory is
+`/src`:
+
+```bash
+docker run --rm --user "$(id -u):$(id -g)" -v "$PWD:/src" \
+  ghcr.io/tripl-io/tripl-cli:X.Y.Z tripl check --list
+```
+
+`--user` keeps the reports a command writes yours: the image runs as root, like
+the `python` images CI jobs use, so that a job can write into the workspace its
+runner gives it.
+
 **From a checkout.** The form to use when you are working on the CLI itself:
 
 ```bash
@@ -2332,8 +2347,8 @@ repository it is exit 2.
 In GitLab, write the two reports every tier shows on a merge request:
 
 ```yaml
+image: ghcr.io/tripl-io/tripl-cli:X.Y.Z
 script:
-  - pip install --quiet tripl==X.Y.Z
   - tripl check --report codequality=gl-code-quality-report.json --report junit=tripl-check.xml
 artifacts:
   when: always

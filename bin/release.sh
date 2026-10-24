@@ -7,7 +7,7 @@
 #
 #   vX.Y.Z      release.yml      CI gate, then ghcr.io/<owner>/tripl and -mcp
 #                                tagged X.Y.Z / X.Y / latest, and a GitHub Release
-#   cli-vX.Y.Z  publish-cli.yml  `tripl` to PyPI
+#   cli-vX.Y.Z  publish-cli.yml  `tripl` to PyPI, and ghcr.io/<owner>/tripl-cli
 #   mcp-vX.Y.Z  publish-mcp.yml  `tripl-mcp` to PyPI
 #
 # Releases are made from main, level with origin/main. main, vX.Y.Z and
@@ -249,7 +249,7 @@ cat <<EOF
 
 Released $new.
   • $tag: release.yml is building ghcr.io/tripl-io/tripl:$new and tripl-mcp:$new (and :latest)
-  • $cli_tag: publish-cli.yml is publishing tripl $new to PyPI
+  • $cli_tag: publish-cli.yml is publishing tripl $new to PyPI and ghcr.io/tripl-io/tripl-cli:$new
 $mcp_line
   • Watch them:  gh run list --limit 5   (or the GitHub Actions tab)
   • Deploy:    export TRIPL_VERSION=$new && docker compose pull && docker compose up -d

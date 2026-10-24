@@ -50,14 +50,15 @@ updates:
           - patch
 
   # The images' FROM lines. In practice that is the uv build image, which the
-  # root Dockerfile, backend/Dockerfile and mcp-server/Dockerfile pin to one
-  # version: Dependabot opens a pull request per directory, so merge the three
-  # together.
+  # root Dockerfile, backend/Dockerfile, mcp-server/Dockerfile and
+  # cli/Dockerfile pin to one version: Dependabot opens a pull request per
+  # directory, so merge the four together.
   - package-ecosystem: docker
     directories:
       - /
       - /backend
       - /mcp-server
+      - /cli
     schedule:
       interval: weekly
     groups:

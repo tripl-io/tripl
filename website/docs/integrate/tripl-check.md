@@ -750,7 +750,8 @@ it: a read-only key for a bot user, the job for
 [other CI systems](../how-to/check-tracking-in-ci.md#other-ci), and how to make
 the check block merges. In short:
 
-- Pin the CLI to the version your instance runs (`pip install tripl==X.Y.Z`, or
+- Pin the CLI to the version your instance runs (the image
+  `ghcr.io/tripl-io/tripl-cli:X.Y.Z`, `pip install tripl==X.Y.Z` or
   `uvx tripl@X.Y.Z`): the two are released together.
 - A read-only key (`tk_r_`) is enough, because the check only reads the plan.
   If you already keep a write key in secrets for

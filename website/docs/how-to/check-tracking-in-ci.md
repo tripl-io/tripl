@@ -96,7 +96,7 @@ protected key would skip the check on every merge request. Then add the job to
 
 ```yaml
 tripl-check:
-  image: python:3.12-slim
+  image: ghcr.io/tripl-io/tripl-cli:X.Y.Z
   stage: test                  # any stage your pipeline has
   needs: []                    # start at once; it does not need the build
   variables:
@@ -109,7 +109,6 @@ tripl-check:
   before_script: []            # none of the build's own setup
   cache: []
   script:
-    - pip install --quiet tripl==X.Y.Z
     - tripl check --report codequality=gl-code-quality-report.json --report junit=tripl-check.xml
   artifacts:
     when: always
@@ -120,9 +119,14 @@ tripl-check:
   allow_failure: true          # report only, for now: step 5 makes it block
 ```
 
-- **The image only needs Python.** The check reads source files as text and
-  compiles nothing, so it needs no SDK, no Gradle and no Xcode. `before_script:
-  []` and `cache: []` keep a pipeline-wide setup out of this job.
+- **The image is the CLI.** `ghcr.io/tripl-io/tripl-cli` is Python with the
+  CLI installed, a shell and no entrypoint, tagged with each CLI release
+  (`X.Y.Z`, `X.Y` and `latest`): the job installs nothing. The check reads
+  source files as text and compiles nothing, so it needs no SDK, no Gradle and
+  no Xcode. Runners that cannot pull from `ghcr.io` can use `python:3.12-slim`
+  and start the script with `pip install --quiet tripl==X.Y.Z`.
+  `before_script: []` and `cache: []` keep a pipeline-wide setup out of this
+  job.
 - **The run on the default branch matters.** GitLab compares a merge request's
   report with the default branch's, and shows only the findings the merge
   request adds or fixes. The plan changes in tripl, not in git, so also run the
@@ -183,7 +187,9 @@ junit=tripl-check.xml` for a test-report action.
 ### Any other CI {#other-ci}
 
 The check is one command with an exit code, so it runs wherever Python 3.12 or
-[uv](https://docs.astral.sh/uv/) does. Write the report your CI reads:
+[uv](https://docs.astral.sh/uv/) does, and in the
+`ghcr.io/tripl-io/tripl-cli:X.Y.Z` image wherever a job can run in a
+container. Write the report your CI reads:
 
 | CI | Report | Where it goes |
 |----|--------|---------------|
