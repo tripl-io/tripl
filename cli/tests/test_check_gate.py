@@ -1,9 +1,10 @@
-"""What fails a ``tripl check`` run: the per-result rule, with and without markers.
+"""What fails a ``tripl check`` run: the per-result rule, with and without markers or a gate.
 
 The reports are built by hand, the way ``test_check_reports`` builds them: the
 rule is a property of ``CheckReport`` alone. With no marker it must be today's
 status rule exactly, for every status and severity, strict or not, so the
-first block holds the two side by side.
+first block holds the two side by side. The gate's own pieces (``gate.py``:
+the item multiset, the plan-branch comparison, ``apply_gate``) follow.
 """
 
 from __future__ import annotations
@@ -11,15 +12,26 @@ from __future__ import annotations
 import itertools
 from dataclasses import replace
 from datetime import UTC, datetime
+from typing import Any
 
 import pytest
 
+from tripl_cli.check.gate import (
+    apply_gate,
+    candidates,
+    changed_items,
+    gate_document,
+    item_key,
+    plan_branch_causes,
+)
 from tripl_cli.check.model import (
+    GATE_PATCH,
     MODE_STATIC,
     CheckFinding,
     CheckItem,
     CheckReport,
     CheckResult,
+    GateInfo,
     Marker,
     Origin,
     Suppression,
@@ -195,3 +207,153 @@ def test_an_unused_or_malformed_marker_never_fails_the_run() -> None:
             "unused_suppression",
             "invalid_suppression",
         ]
+
+
+# --- the gate ---------------------------------------------------------------------------
+GATE = GateInfo(source=GATE_PATCH, files=1, patch="change.diff")
+
+
+def _gated(*results: CheckResult, changed: tuple[bool, ...], strict: bool = False) -> CheckReport:
+    report = _report(*results, strict=strict)
+    return replace(report, results=apply_gate(results, changed, {}), gate=GATE)
+
+
+def _at(line: int, name: str = "pay_tapped", path: str = "Sources/Pay.swift") -> CheckItem:
+    return replace(
+        _item(), origin=Origin(path, line, 9, line, 40, "Analytics.shared.log"), name=name
+    )
+
+
+def test_a_gate_fails_only_on_the_changed_items() -> None:
+    old = CheckResult(_at(3, "legacy"), "error", (_finding("unknown_event", "error"),))
+    new = CheckResult(_at(9, "fresh"), "error", (_finding("unknown_event", "error"),))
+    assert _gated(old, new, changed=(False, True)).exit_code == 1
+    report = _gated(old, new, changed=(False, False))
+    assert report.exit_code == 0
+    # JUnit's rule is the plan's verdict, gate or no gate.
+    assert [report.verdict_fails(result) for result in report.results] == [True, True]
+    document = gate_document(report)
+    assert document is not None
+    assert (document["failing"], document["not_new"], document["changed_items"]) == (0, 2, 0)
+
+
+def test_with_a_gate_the_status_fallback_fails_only_a_changed_item() -> None:
+    result = CheckResult(_item(), "error")
+    assert _gated(result, changed=(True,)).exit_code == 1
+    assert _gated(result, changed=(False,)).exit_code == 0
+
+
+def test_no_verdict_fails_a_gated_run_at_an_unchanged_item() -> None:
+    result = result_for(_item(), None, strict=False, sent=True)
+    report = _gated(result, changed=(False,))
+    assert report.results[0].findings[0].in_change is False
+    assert report.exit_code == 1
+
+
+def test_a_suppressed_finding_in_the_change_still_passes() -> None:
+    result = CheckResult(_item(), "error", (_finding("unknown_event", "error", waived=True),))
+    assert _gated(result, changed=(True,)).exit_code == 0
+
+
+def test_apply_gate_leaves_its_input_alone() -> None:
+    results = (CheckResult(_item(), "error", (_finding("unknown_event", "error"),)),)
+    snapshot = repr(results)
+    gated = apply_gate(results, (False,), {0: (True,)})
+    assert repr(results) == snapshot
+    assert results[0].in_change is None and results[0].findings[0].in_change is None
+    [finding] = gated[0].findings
+    assert (gated[0].in_change, finding.in_change, finding.cause) == (False, True, "plan_branch")
+
+
+def test_changed_items_compares_multisets_and_prefers_the_touched_lines() -> None:
+    items = [_at(3), _at(5), _at(7)]
+    base = [_at(30), _at(31)]  # two identical calls at the base, wherever they sat
+    assert changed_items(items, base, {}) == (False, False, True)
+    # The diff touched line 5: that one is the new one.
+    pay = frozenset({"Sources/Pay.swift"})
+    touched = {"Sources/Pay.swift": frozenset({5})}
+    assert changed_items(items, base, touched, files=pay) == (False, True, False)
+    # The same call in another file is the same call: moved, not new.
+    assert changed_items([_at(3, path="Sources/Other.swift")], [_at(3)], {}) == (False,)
+    # A copy in a changed file is the new one, the call in a file the change
+    # left alone keeps the base's count, wherever each sorts.
+    copied = [_at(3, path="Sources/New.swift"), _at(3, path="Sources/Old.swift")]
+    new = frozenset({"Sources/New.swift"})
+    assert changed_items(copied, [_at(3, path="Sources/Old.swift")], {}, files=new) == (
+        True,
+        False,
+    )
+    # A file with no base (untracked, unreconstructable, a moved submodule's)
+    # is changed whatever the base has, and takes up none of it.
+    assert changed_items(
+        copied, [_at(3, path="Sources/Old.swift")], {}, files=new, forced=("Sources/Old.swift",)
+    ) == (False, True)
+    assert changed_items(
+        [_at(3, path="Vendor/Kit/A.swift"), _at(3)], [_at(3)], {}, forced=("Vendor/Kit/",)
+    ) == (True, False)
+
+
+def test_an_item_key_is_what_it_sends_never_its_line_or_file() -> None:
+    assert item_key(_at(3)) == item_key(_at(300))
+    assert item_key(_at(3)) == item_key(_at(3, path="Sources/Other.swift"))
+    assert item_key(_at(3)) != item_key(_at(3, "other_name"))
+    assert item_key(_at(3)) != item_key(replace(_at(3), dynamic=("label",)))
+    assert item_key(_at(3)) != item_key(replace(_at(3), sendable=False))
+    # What is a set in what is sent compares as one: argument order is not sent.
+    assert item_key(replace(_at(3), dynamic=("a", "b"))) == item_key(
+        replace(_at(3), dynamic=("b", "a"))
+    )
+
+
+def test_an_item_key_is_the_call_as_matched_and_its_holes_unnamed() -> None:
+    def at(snippet: str, **changes: Any) -> CheckItem:
+        item = _at(3)
+        return replace(item, origin=replace(item.origin, snippet=snippet), **changes)
+
+    # The receiver as written is not the call: the function it names is.
+    assert item_key(at("self.analytics.log")) == item_key(at("analytics.log"))
+    assert item_key(at("com.acme.Analytics.log")) == item_key(at("Analytics.log"))
+    assert item_key(at("analytics.log")) != item_key(at("analytics.logEvent"))
+    assert item_key(at("track:properties:")) != item_key(at("track:"))
+    # A placeholder's name is the validator's to ignore, everywhere in what is sent.
+    named = at(
+        "log",
+        name="promo_${sheetId}_opened",
+        fields={"label": "x_${a}"},
+        properties={"screen": "${s}", "nested": {"k": "${k}"}},
+    )
+    renamed = at(
+        "log",
+        name="promo_${id}_opened",
+        fields={"label": "x_${b}"},
+        properties={"screen": "${t}", "nested": {"k": "${j}"}},
+    )
+    assert item_key(named) == item_key(renamed)
+    assert named.wire()["name"] == "promo_${sheetId}_opened"  # what is sent is unchanged
+    for other in ("promo_${id}_closed", "promo_${id}_${id}_opened", "${id}_promo_opened"):
+        assert item_key(named) != item_key(replace(named, name=other))
+
+
+def test_plan_branch_causes_counts_code_field_and_severity() -> None:
+    def result(*findings: CheckFinding) -> CheckResult:
+        return CheckResult(_item(), "error", findings)
+
+    error = CheckFinding("deprecated_event", "error", "archived")
+    warning = CheckFinding("deprecated_event", "warning", "deprecated")
+    field = CheckFinding("value_not_allowed", "error", "x", field="plan")
+    assert plan_branch_causes(
+        [result(error), result(error), result(error), result(field, field)],
+        [result(), result(warning), result(error), result(field)],
+    ) == ((True,), (True,), (False,), (False, True))
+
+
+def test_candidates_are_the_unchanged_results_that_would_fail() -> None:
+    results = [
+        CheckResult(_at(1), "error", (_finding("unknown_event", "error"),)),
+        CheckResult(_at(2), "error", (_finding("unknown_event", "error"),)),
+        CheckResult(_at(3), "warning", (_finding("unknown_field", "warning"),)),
+        CheckResult(_at(4), "error", (_finding("unknown_event", "error", waived=True),)),
+        result_for(_at(5), None, strict=False, sent=True),
+    ]
+    assert candidates(results, [False, True, False, False, False], strict=False) == [0]
+    assert candidates(results, [False, True, False, False, False], strict=True) == [0, 2]

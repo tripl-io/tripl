@@ -106,10 +106,15 @@ tripl-check:
       when: never
     - if: $CI_PIPELINE_SOURCE == "merge_request_event"
     - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH   # what merge requests are compared with
+      allow_failure: true      # the default branch and its schedules only report
   before_script: []            # none of the build's own setup
   cache: []
   script:
-    - tripl check --report codequality=gl-code-quality-report.json --report junit=tripl-check.xml
+    # The merge request's base: the target branch's commit in a merged results
+    # pipeline or a merge train, else the merge base. Empty on the default branch.
+    - BASE="${CI_MERGE_REQUEST_TARGET_BRANCH_SHA:-$CI_MERGE_REQUEST_DIFF_BASE_SHA}"
+    - '[ -z "$BASE" ] || git fetch --no-tags --depth=1 origin "$BASE"'
+    - tripl check --new-from-rev "$BASE" --report codequality=gl-code-quality-report.json --report junit=tripl-check.xml
   artifacts:
     when: always
     expire_in: 30 days
@@ -120,20 +125,54 @@ tripl-check:
 ```
 
 - **The image is the CLI.** `ghcr.io/tripl-io/tripl-cli` is Python with the
-  CLI installed, a shell and no entrypoint, tagged with each CLI release
+  CLI installed, git, a shell and no entrypoint, tagged with each CLI release
   (`X.Y.Z`, `X.Y` and `latest`): the job installs nothing. The check reads
   source files as text and compiles nothing, so it needs no SDK, no Gradle and
   no Xcode. Runners that cannot pull from `ghcr.io` can use `python:3.12-slim`
-  and start the script with `pip install --quiet tripl==X.Y.Z`.
+  and start the script with `apt-get update && apt-get install -y git` and
+  `pip install --quiet tripl==X.Y.Z`.
   `before_script: []` and `cache: []` keep a pipeline-wide setup out of this
   job.
+- **Only what the merge request adds fails it.** `--new-from-rev "$BASE"`
+  compares the checkout with the merge request's base commit, which the
+  `git fetch` line brings into the shallow clone, and fails the job only on
+  findings the merge request brings in: a new or edited call, or a constant or
+  enum it changed. Legacy findings and a plan edit on main never fail it. Never
+  use `CI_COMMIT_BEFORE_SHA` as the base: it covers only the last push, so a
+  red merge request could turn green without a fix. See
+  [Gate on the change](../integrate/tripl-check.md#new-findings).
 - **The run on the default branch matters.** GitLab compares a merge request's
   report with the default branch's, and shows only the findings the merge
   request adds or fixes. The plan changes in tripl, not in git, so also run the
-  pipeline on a schedule (nightly, say) to keep that comparison current.
+  pipeline on a schedule (nightly, say) to keep that comparison current. There
+  `BASE` is empty, so there is no gate (the job log says
+  `--new-from-rev is empty: every finding counts.`) and the run reports every
+  finding; the rule's `allow_failure: true` keeps it from failing those
+  pipelines. It stays that way until a baseline file can mark the findings the
+  default branch already has.
 - **Merge request pipelines.** The rules assume your project runs them. With
-  branch pipelines only, use `- if: $CI_COMMIT_BRANCH` instead of the
-  `merge_request_event` rule.
+  branch pipelines only, there is no merge request base: gate each branch on
+  its merge base with the default branch, and keep the default-branch rule
+  first (rules match in order) so the default branch still only reports:
+
+  ```yaml
+    variables:
+      GIT_DEPTH: 0             # the merge base needs the branch's history
+    rules:
+      - if: $TRIPL_API_KEY == null
+        when: never
+      - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+        allow_failure: true
+      - if: $CI_COMMIT_BRANCH
+    script:
+      - BASE=""
+      - |
+        if [ "$CI_COMMIT_BRANCH" != "$CI_DEFAULT_BRANCH" ]; then
+          git fetch --no-tags origin "$CI_DEFAULT_BRANCH"
+          BASE="$(git merge-base FETCH_HEAD HEAD)"
+        fi
+      - tripl check --new-from-rev "$BASE" --report codequality=gl-code-quality-report.json --report junit=tripl-check.xml
+  ```
 - **The address.** `TRIPL_BASE_URL` must be the instance's final `https://`
   address. The check sends a `POST`, and a redirect is refused rather than
   followed. The runners must be able to reach it: an instance behind a firewall
@@ -210,16 +249,23 @@ of them.
   that lists each failing call as a failed test. Both work on every tier; GitLab
   Ultimate also marks the lines in the diff.
 - **GitHub:** findings are code scanning alerts on the lines of the pull request.
-- **Everywhere:** the job log lists every finding with its file and line.
+- **Everywhere:** the job log lists every finding with its file and line;
+  under `--new-from-rev`, only the ones new in the change and what fails the
+  run, with a `Gate:` line counting the rest. The Code Quality and JUnit reports
+  list every finding either way, so GitLab's comparison with the default branch
+  sees the whole picture; a legacy failure can therefore show as a failed test
+  in a job that passed.
 
 A finding keeps its identity when the code above it moves. An edit elsewhere in
 the file does not report it again as new.
 
 ## 5. Make it block merges
 
-When the default branch has no errors left, remove `allow_failure: true`. In
-GitLab, also turn on **Pipelines must succeed** in the merge request settings.
-Then let an outage of tripl pass while a finding still blocks:
+With the gate a merge request fails only on what it adds, so the job can
+block merges before the default branch is clean: remove the job's
+`allow_failure: true` and keep the one on the default-branch rule. In GitLab,
+also turn on **Pipelines must succeed** in the merge request settings. Then let
+an outage of tripl pass while a finding still blocks:
 
 ```yaml
   allow_failure:
@@ -241,8 +287,44 @@ Exit 4 covers every failure to reach the instance, so a mistyped host name in
 passes as well. GitLab shows such a job as **passed with warnings**: open it
 after you change the address or the runners.
 
-Every error fails the run wherever it is, not only in the lines a merge request
-changed, so get the default branch clean first.
+Without `--new-from-rev`, every error fails the run wherever it is, not only
+where a merge request changed something, so get the default branch clean
+first. Exit 2 also covers a gate that cannot read the change: the base commit
+is not in the clone (the message says how to fetch it: by SHA, as `origin/<branch>` for a branch, or with more history for a name like `HEAD^1`), git is
+missing, or git refuses a checkout another user owns (the message names the
+`safe.directory` command; the CLI never bypasses it).
+
+The gate in other CI systems: the clone must hold the base commit, then pass
+it to `--new-from-rev`. `HEAD^1` is the target branch's side of the merge
+commit a pull request build checks out; a clone of depth 1 does not have it,
+and no `git fetch` of `HEAD^1` can bring it (git fetches commits and branches,
+not relative names), so check out with a depth of 2.
+
+| CI | Base for `--new-from-rev` | The clone it needs |
+|----|---------------------------|--------------------|
+| GitHub Actions | `HEAD^1` on the pull request's merge ref | `fetch-depth: 2` in `actions/checkout` |
+| Azure Pipelines | `HEAD^1` (a pull request build checks out the merge commit) | `fetchDepth: 2` on the `checkout: self` step (new pipelines fetch depth 1) |
+| Bitbucket Pipelines | `"$BITBUCKET_PR_DESTINATION_COMMIT"` | `clone: depth: full`: the variable is an abbreviated SHA, which only a clone that already holds the commit can resolve (no fetch can ask a remote for an abbreviation) |
+| Jenkins | `"$(git merge-base origin/$CHANGE_TARGET HEAD)"` | the target branch fetched with its history (no shallow clone) |
+| Locally | `"$(git merge-base origin/main HEAD)"` |
+| Another VCS | none: write the change as a diff in git's format (`hg diff --git`, `svn diff --git`, or `git diff --no-index BASE_DIR .` in the checkout) and pass `--new-from-patch FILE` (or `-` for stdin) |
+
+```yaml
+# GitHub Actions: the check step, gated on the pull request
+- uses: actions/checkout@v7
+  with:
+    fetch-depth: 2
+- run: uvx tripl@X.Y.Z check --new-from-rev HEAD^1 --report sarif=tripl-check.sarif
+```
+
+Running the image locally on a host checkout, pass your uid so git sees the
+checkout as yours, and the instance's address and key, which a container does
+not inherit:
+
+```bash
+docker run --rm -u "$(id -u):$(id -g)" -e TRIPL_BASE_URL -e TRIPL_API_KEY \
+  -v "$PWD:/src" ghcr.io/tripl-io/tripl-cli:X.Y.Z tripl check --new-from-rev HEAD
+```
 
 ## Accept one call on purpose {#accept-one-call}
 

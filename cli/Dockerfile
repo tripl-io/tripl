@@ -1,6 +1,6 @@
 # The tripl CLI for CI jobs, published as ghcr.io/tripl-io/tripl-cli by
-# publish-cli.yml on every cli-v* tag: Python, `tripl` on PATH and a shell, and
-# no ENTRYPOINT, so GitLab CI, Bitbucket Pipelines, Jenkins, CircleCI or Azure
+# publish-cli.yml on every cli-v* tag: Python, `tripl` on PATH, git and a shell,
+# and no ENTRYPOINT, so GitLab CI, Bitbucket Pipelines, Jenkins, CircleCI or Azure
 # Pipelines run a job's script in it as they would in python:3.x-slim, without
 # installing the CLI from PyPI on every run.
 #
@@ -38,8 +38,19 @@ COPY --from=build /app/cli/.venv /app/cli/.venv
 # A CI log shows stdout and stderr in the order the CLI wrote them.
 ENV PATH="/app/cli/.venv/bin:$PATH" PYTHONUNBUFFERED=1
 
-# Third-party license notices for the venv and the Debian packages, in
-# /app/licenses (README.md is the index).
+# git, for `tripl check --new-from-rev`, which diffs the checkout against the
+# merge request's base commit, and for the `git fetch` of that commit a job
+# runs first. Git alone: no recommends (no ssh client, no perl, no less).
+# Before the license notices, so git's own Debian notice is collected with the
+# rest. A job running under a uid that does not own its checkout gets git's
+# "dubious ownership" refusal as an exit 2 with the safe.directory command to
+# run; nothing here sets safe.directory for it.
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends git \
+    && rm -rf /var/lib/apt/lists/*
+
+# Third-party license notices for the venv and the Debian packages (git
+# included), in /app/licenses (README.md is the index).
 RUN --mount=type=bind,source=backend/scripts/third_party_licenses.py,target=/tmp/third_party_licenses.py \
     /app/cli/.venv/bin/python /tmp/third_party_licenses.py --out /app/licenses
 

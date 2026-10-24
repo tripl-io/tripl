@@ -505,6 +505,169 @@ summary counts stay the plan's verdict. Payload mode reads no source, so it has
 no markers. One known limitation: in a JSX file, element text that looks like a
 comment (`<p>// tripl-check-ignore…</p>`) is read as one.
 
+## Gate on the change {#new-findings}
+
+A repository that adopts `tripl check` late has legacy findings, and a plan
+edit on main can turn a call nobody touched into an error. Neither should
+block a merge request that did not cause it. With a gate, only the findings
+that are **new in this change** fail the run:
+
+```bash
+tripl check --new-from-rev "$(git merge-base origin/main HEAD)"   # git: the change since that commit
+git diff -M "$BASE" > change.diff          # or hg diff --git, svn diff --git, git format-patch
+tripl check --new-from-patch change.diff   # needs no git
+```
+
+`--new-from-rev REF` asks git for the diff from the commit `REF` to the working
+tree. The clone needs that one commit, not the history between
+(`git fetch --no-tags --depth=1 origin REF`). `--new-from-patch FILE` reads the
+same diff from a file, or from stdin with `-`, in **git's format only**: a
+`diff --git` header on every file, with any of git's prefixes (`a/`/`b/`, the
+mnemonic `c/`/`w/` and the like, or none) and any context size. Every VCS can
+write one: `hg diff --git`, `svn diff --git`, `git format-patch` (a series, a
+pull request's `.patch`, each change undone in turn), and for two plain trees
+`git diff --no-index BASE_DIR .` run in the checkout (it exits 1 when they
+differ). A plain `diff -u` or `diff -ruN`, Subversion's own format or `Only in`
+lines are refused (exit 2): their paths and their missing sides cannot be read
+reliably, and the gate does not guess. Pass `-M` to `git diff` so a renamed
+file reads as a rename. Neither flag reads a CI variable.
+
+**Where a patch's paths start.** At the repository root (the directory that
+holds `.git`) when the check root is in a repository, as git writes them;
+outside one, at the directory `tripl check` runs in, the way `git apply`
+reads a patch. A path that leaves that directory (`../`), or that the patch
+leaves in the tree and the checkout does not have, maps onto nothing (see
+below).
+
+**What is new.** The gate compares what each call **sends**, not its lines.
+It rebuilds the tree as it was at the base by undoing the diff's hunks, scans
+it with the same CLI and the same check configuration, and compares the items
+of the two scans as multisets: an item is new or changed when the base has
+fewer items that send the same thing (event type, name, field values, what
+was only known at runtime, and which codes its valid `tripl-check-ignore`
+markers waive) through the same function, in any file. The function is the
+name the call ends in (or the Objective-C selector), not the receiver as
+written, so dropping `self.` or `this.`, renaming the receiver or importing
+a qualified name calls the same thing. The name of a placeholder in an
+interpolated value is not part of it either (`promo_\(sheetId)_opened` and
+`promo_\(id)_opened` are the same), while its text and the number and place
+of its holes are. Nor is the order of named arguments or object keys, nor
+the file: a call moved to another file sends what it sent. When the tree has more copies than the base, the ones in files the
+change left alone are the old ones. The base is read by the scan's own rules:
+what `exclude:` prunes, the 2 MB size limit (on the base's own bytes, line
+ends included) and markers apply to it as they do to the checkout, and a
+call in a file today's scan does not read (too large, unreadable) is not
+compared: a copy of it pasted elsewhere is new. So:
+
+- **new in the change:** a new call; an edited call; a copy of a call pasted
+  anywhere; a call whose values changed through a constant in another file
+  or an `enums:` file the change edited, or added (a second constant of the
+  same name makes the value unknown, and that is a change too); a call whose
+  marker the change removed, broke (no reason, a misspelled code) or added
+  (its other findings then count as well); a pasted copy of a marked call
+  that carries no marker; in `--new-from-rev`, every call in a file git does
+  not track (generated code, a file not added yet), and every call that reads
+  a constant from one;
+- **not new:** a legacy finding at a call the change left alone; a call that
+  was only moved, to another file too (a function pulled out into a new
+  file, a file renamed and rewritten past git's rename detection), or
+  reformatted, or whose named arguments were reordered, or whose marker's
+  reason was reworded; a call deleted in one file and the same call added in
+  another (the same thing is sent); a finding that appears only because
+  `.tripl/check.yml` changed (both scans read today's configuration).
+
+When the diff touches no file the scan reads (under `sources:` or `enums:`,
+minus `exclude:`), nothing is scanned twice and nothing is new.
+
+**A plan branch.** With `--branch`, the branch's own edits can fail a call
+the change left alone, for example an event the branch archives. Those calls
+are validated against main too, in one more batch: a finding main does not
+have, or has at a lower severity, was caused by the branch, and it is new
+(`cause: "plan_branch"` in JSON).
+
+**What it changes.** The exit code, the text listing (only what is new or
+fails, with a `Gate:` line counting the rest; a marker problem is listed only
+in a file the change touched) and the gate fields of [JSON](#output) and SARIF
+(`properties.inChange` on each result, `properties.gate` on the run, and no
+`baselineState`). Code Quality and JUnit list every finding with and without
+a gate, because GitLab works out what a merge request adds by comparing them
+with the default branch's reports. So under a gate JUnit can show more failed
+cases than the exit code counts. A result's `status` stays the plan's
+verdict, and a [suppressed](#suppress) finding never fails, new or not.
+
+```
+Gate: changes since 1a2b3c4d5e6f (5 files, 3 call sites new or changed). 1 call site fails the run; 41 errors and 12 warnings are not new in this change.
+Plan branch checkout-v2: 0 findings caused by the branch (2 call sites also checked against main).
+```
+
+**Edge cases.**
+
+The gate **fails closed**: what it cannot rebuild counts as changed, never
+as untouched, and a `Gate:` line (and the JSON `gate`) says so.
+
+- A file whose diff does not fit it, a binary one, or one a patch deletes
+  that is still there cannot be rebuilt: every call in it counts as changed
+  (`Gate: the diff cannot rebuild … as it was`, JSON `unreconstructable`).
+  A patch whose hunks do not fit a file it names outside the scan is not a
+  patch of this checkout: every call counts as changed. (A file git's own
+  diff deletes that is still on disk, untracked by the change, is compared
+  with its base like any other.)
+- A file the diff deletes whose base cannot be rebuilt may have defined
+  constants other calls read: every call counts as changed.
+- A scanned file that is a symlink changes with the file it points at,
+  wherever that file sits, under `exclude:` or outside `sources:`. When the
+  change moves any symlink, every scanned file read through a link counts as
+  changed, because where a chain of links led at the base is not known.
+- A submodule the change moves (a new commit, or tracked edits in it) counts
+  as changed as a whole, every call in it (it is listed with a trailing `/`):
+  the diff names its commit, not its files. An untracked file in it does not
+  move it.
+- A patch that names a file this checkout does not have (a patch of another
+  tree, or with paths that start somewhere else) makes **every** call count as
+  changed (`Gate: the diff names …, which this checkout does not have`, JSON
+  `unmapped`).
+- Line ends are compared with CRLF and LF read alike, so a checkout with
+  `core.autocrlf` or `eol=crlf` fits the LF diff git prints.
+- With `--new-from-rev`, a file the scan reads that git does not track, ignored
+  or not, has no base: every call in it is new, and so is every call that
+  reads a constant from it (`Gate: git does not track …`, JSON `untracked`).
+  Keep generated sources out with `exclude:`, or accept that their calls
+  always count.
+- A `--new-from-patch` diff is all the gate knows: it must cover every change
+  between the base and the checkout. A file generated in the checkout and not
+  in the base, or not in the patch, is read as unchanged; put generated
+  sources in `exclude:`, or generate them in the base as well.
+- An empty `REF` (`--new-from-rev ""`) gates nothing and prints
+  `--new-from-rev is empty: every finding counts.` on stderr, so one job line
+  can serve merge request pipelines, where the base variable is set, and the
+  default branch, where it is empty. An empty patch file is a change with
+  nothing new.
+- `no_verdict` fails the run whatever the gate says: nothing was decided.
+- `--new-from-rev` and `--new-from-patch` are mutually exclusive, and both
+  are refused with `--list` and `--payloads` (a captured event has no source
+  to compare).
+
+**Known limits.** The gate reads the change from git's diff, so what git
+leaves out of the diff it does not see:
+
+- A file git is told not to look at (`git update-index --assume-unchanged`
+  or `--skip-worktree`) is not in the diff: an edit to it reads as unchanged
+  under `--new-from-rev`.
+- A clean filter in `.gitattributes` (`filter=…`, other than git-lfs) diffs
+  what the filter makes of the file, not the file: an edit the filter hides
+  reads as unchanged.
+
+**When git cannot answer** the run stops with exit 2 before any request: git
+is not installed (use the `ghcr.io/tripl-io/tripl-cli` image, which ships it,
+or `--new-from-patch`), the directory is not a git checkout, the commit is not
+in the clone (the message says how to fetch it: by SHA, as `origin/<branch>` for a branch, or with more history for a name like `HEAD^1`), git took longer than
+60 seconds, or git refuses the repository because another user owns it
+("detected dubious ownership", typical for a checkout mounted into a container
+running as another uid). The CLI never works around that last one: the
+message names the command that marks the checkout safe,
+`git config --global --add safe.directory "<dir>"`, or run the container as the
+checkout's owner (`docker run -u "$(id -u):$(id -g)" …`).
+
 ## Static and payload modes {#modes}
 
 **Static** (`tripl check`) scans `sources` and validates each call it finds.
@@ -785,8 +948,9 @@ marker that suppresses nothing is a `tripl/invalid_suppression` issue
 included. A case is named after the call (its event type, name, field values
 and callee) and never after its line, so it keeps its history in the CI system
 when code above it moves; identical calls in one file are numbered (`#2`). Its
-class is the file. It fails exactly when its call fails the run: an error, or a
-warning with `--strict`. A call where nothing was readable is skipped, and with
+class is the file. It fails exactly when its call fails the run without a
+[gate](#new-findings): an error, or a warning with `--strict`. It ignores the
+gate, as Code Quality does. A call where nothing was readable is skipped, and with
 `--strict` it is a warning, so it fails. A warning without `--strict` passes,
 with its findings as the case's output. A [suppressed](#suppress) finding fails
 no case: it is listed in the case's output tagged `[suppressed: <reason>]`.
@@ -813,8 +977,10 @@ its line.
 `results[].fails` and `results[].findings[].fails` say what fails the run,
 `findings[].suppression` names the marker that waived a finding, `summary`
 gains `suppressed` and `failing`, and `suppressions` lists every marker. With
-no marker in the scanned files, none of these keys is present. See the
-[`check` document](../run/cli.md#check-document).
+no marker in the scanned files, none of these keys is present. Under a
+[gate](#new-findings), and only then, `gate` says what was compared, every row
+and finding gains `in_change` and `fails`, a finding `cause`, and `exit_code`
+is the gated one. See the [`check` document](../run/cli.md#check-document).
 
 **A run that could not finish writes no report**: a configuration or usage
 error (exit 2), an instance that refused a request (exit 1) or was unavailable
@@ -835,9 +1001,9 @@ Human text and progress messages go to stderr when stdout carries `json`,
 
 | Code | Meaning |
 |------|---------|
-| **0** | No errors, or only errors a `tripl-check-ignore` marker [suppresses](#suppress). Warnings are allowed unless you pass `--strict`. |
-| **1** | At least one error, or at least one warning with `--strict`, that no `tripl-check-ignore` marker suppresses. A malformed or unused marker never fails the run on its own. Also: the instance refused a request (an invalid or expired key, a project the key cannot see, a redirect). Then no document or report is written. |
-| **2** | A config or usage error: no config file in static mode, invalid YAML, an unknown key or preset, a call without exactly one of `function` / `pattern` / `objc_selector`, a configuration that matches no call, a `--payloads` file that is not valid JSON, holds no events or holds an event with neither `event_type` nor `name`, no project, `--json` together with another `--format`, a `--report` that is not `FORMAT=PATH`, names one file twice or names a directory, a link or a special file, or a `--branch` that matches nothing. |
+| **0** | No errors, or only errors a `tripl-check-ignore` marker [suppresses](#suppress) or, under a [gate](#new-findings), that are not new in the change. Warnings are allowed unless you pass `--strict`. |
+| **1** | At least one error, or at least one warning with `--strict`, that no `tripl-check-ignore` marker suppresses and that, under a gate, is new in the change. A malformed or unused marker never fails the run on its own. Also: the instance refused a request (an invalid or expired key, a project the key cannot see, a redirect). Then no document or report is written. |
+| **2** | A config or usage error: no config file in static mode, invalid YAML, an unknown key or preset, a call without exactly one of `function` / `pattern` / `objc_selector`, a configuration that matches no call, a `--payloads` file that is not valid JSON, holds no events or holds an event with neither `event_type` nor `name`, no project, `--json` together with another `--format`, a `--report` that is not `FORMAT=PATH`, names one file twice or names a directory, a link or a special file, or a `--branch` that matches nothing. Under a [gate](#new-findings): a gate flag with `--list` or `--payloads`, a `REF` that starts with `-`, no git, not a git checkout, a commit that is not in the clone, a repository git refuses as owned by another user, a git call over 60 seconds, or a patch that cannot be read, holds no diff or is not in git's format; all before any request. |
 | **4** | The instance was unavailable: it could not be reached, the request timed out, or it answered `429` or a `5xx`. Nothing was checked, and no document or report is written. Let it pass in CI when an outage of tripl should not block merges. |
 
 A configuration that matches no call checks nothing, and a CI check must not
@@ -878,6 +1044,9 @@ the check block merges. In short:
   it here. Mint a read key and scope it to the project.
 - Write the report your CI shows: `codequality` and `junit` for GitLab, `sarif`
   for GitHub code scanning, `junit` for most others.
+- To fail a merge request only on what it adds, [gate](#new-findings) the run
+  on its base commit with `--new-from-rev`; the how-to has the line for each
+  CI.
 - To check against a plan branch named after the merge request's branch, add
   `${CI_MERGE_REQUEST_SOURCE_BRANCH_NAME:+--branch "$CI_MERGE_REQUEST_SOURCE_BRANCH_NAME"}`
   (GitLab; it adds nothing outside a merge request pipeline), or set

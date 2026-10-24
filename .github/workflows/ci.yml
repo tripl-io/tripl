@@ -1137,4 +1137,4 @@ jobs:
       - name: Run the CLI image
         run: |
           docker run --rm tripl-cli:ci tripl --version
-          docker run --rm tripl-cli:ci sh -c 'command -v tripl && test -s /app/licenses/README.md'
+          docker run --rm tripl-cli:ci sh -c 'command -v tripl && git --version && test -s /app/licenses/README.md'

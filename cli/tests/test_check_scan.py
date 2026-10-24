@@ -33,7 +33,7 @@ from tripl_cli.check.config import CheckConfig, parse
 from tripl_cli.check.inventory import Inventory, ListedCall, Location, inventory, summarize
 from tripl_cli.check.lexer import STRING, Interp, Token, tokenize
 from tripl_cli.check.model import REASON_CODES, CheckItem
-from tripl_cli.check.scan import glob_regex, scan
+from tripl_cli.check.scan import Snapshot, base_items, glob_regex, scan
 from tripl_cli.check.scopes import FunctionScope, ScopeIndex
 from tripl_cli.check.symbols import SymbolIndex, template_text, variable_name
 from tripl_cli.check.values import EXPRESSION_MAX, Evaluator, Value
@@ -762,7 +762,7 @@ def _evaluated(language: str, source: str) -> Value:
         ("swift", 'name ?? "fallback"', "conditional", 'name ?? "fallback"'),
         ("kotlin", "Event.A + Params.B", "concatenation", "Event.A + Params.B"),
         # A map builder the dictionary reader rejects is no function call.
-        ("kotlin", "mapOf(K to v, )", "expression", "mapOf(K to v, )"),
+        ("kotlin", "mapOf(K, v)", "expression", "mapOf(K, v)"),
         ("kotlin", "x.name().lowercase()", "expression", "x.name().lowercase()"),
         ("kotlin", "list[0]", "expression", "list[0]"),
         # The span the evaluator reads: casts and wrapping parentheses are gone.
@@ -775,6 +775,16 @@ def test_a_value_the_scan_cannot_read_says_why(
     value = _evaluated(language, f"track({argument})")
     assert value.kind == "dynamic"
     assert (value.reason, value.expression) == (reason, expression)
+
+
+@pytest.mark.parametrize("builder", ["mapOf", "hashMapOf", "mutableMapOf"])
+def test_a_kotlin_map_with_a_trailing_comma_reads_its_entries(builder: str) -> None:
+    for written in (f'{builder}("a" to "x", "b" to 2,)', f'{builder}(\n"a" to "x",\n"b" to 2,\n)'):
+        value = _evaluated("kotlin", f"track({written})")
+        assert value.kind == "entries", written
+        assert [(key, entry.text) for key, entry in value.entries] == [("a", "x"), ("b", "2")]
+    # Only the last part may be empty: two commas in a row are no map.
+    assert _evaluated("kotlin", f'track({builder}("a" to "x",,))').kind == "dynamic"
 
 
 def test_an_objective_c_format_names_its_template() -> None:
@@ -2897,3 +2907,47 @@ def test_discovery_stops_at_its_file_cap(tmp_path: Path, monkeypatch: pytest.Mon
     # With a config the user chose `sources:`: no cap.
     monkeypatch.setattr(inventory_module, "MAX_DISCOVERY_FILES", 1)
     assert (inventory(config).files, inventory(config).truncated) == (3, False)
+
+
+# --- the gate's base scan ------------------------------------------------------------------
+def test_base_items_reads_the_snapshot_in_place_of_the_tree(tmp_path: Path) -> None:
+    """Added files are absent, changed ones read as they were, deleted ones walked again."""
+    root = _repo(
+        tmp_path,
+        {
+            "src/kept.ts": "track('kept_now')\n",
+            "src/added.ts": "track('brand_new')\n",
+            "src/renamed.ts": "import { NAME } from './consts'\ntrack(NAME)\n",
+        },
+    )
+    config = _config(
+        root,
+        """
+        sources: ["src/**"]
+        event_types:
+          event:
+            calls: [{function: track, name_arg: 0}]
+        """,
+    )
+    snapshot = Snapshot(
+        texts={
+            root / "src/kept.ts": "track('kept_then')\n",
+            root / "src/added.ts": None,
+            # A rename's base text, at its new path.
+            root / "src/renamed.ts": "import { NAME } from './consts'\ntrack(NAME)\n",
+            root / "src/consts.ts": "export const NAME = 'from_a_deleted_file'\n",
+        },
+        deleted=((root / "src/consts.ts", "src/consts.ts"),),
+    )
+    found = {(item.origin.path, item.name) for item in base_items(config, snapshot)}
+    assert found == {
+        ("src/kept.ts", "kept_then"),
+        ("src/renamed.ts", "from_a_deleted_file"),
+    }
+    # Today's tree: the deleted constant is gone, so the renamed call is dynamic.
+    now = {(item.origin.path, item.name) for item in scan(config).items}
+    assert now == {
+        ("src/kept.ts", "kept_now"),
+        ("src/added.ts", "brand_new"),
+        ("src/renamed.ts", None),
+    }
