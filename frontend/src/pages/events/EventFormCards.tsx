@@ -163,6 +163,7 @@ export function FieldValuesCard({
   eventTypeId,
   nameFormat,
   namingColumns,
+  copying = false,
   fieldValues,
   onFieldValueChange,
   variables,
@@ -181,6 +182,9 @@ export function FieldValuesCard({
   eventTypeId?: string
   nameFormat: string | null
   namingColumns: ReadonlySet<string>
+  /** A duplicate: the rows that name the event are where its copy gets a
+   *  name of its own, so they say so. */
+  copying?: boolean
   fieldValues: Record<string, string>
   onFieldValueChange: (fieldId: string, value: string) => void
   variables: Variable[]
@@ -238,7 +242,7 @@ export function FieldValuesCard({
                 <span className="mono">{f.name} · {f.field_type}</span>
                 {namesEvent && (
                   <span className="mt-[2px] block text-accent">
-                    names the event
+                    {copying ? 'names the event: change it to name the copy' : 'names the event'}
                   </span>
                 )}
               </>
