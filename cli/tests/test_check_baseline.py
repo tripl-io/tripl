@@ -530,7 +530,6 @@ def _baseline_file(repo: Path, **overrides: Any) -> None:
         ),
         (["--write-baseline", "Sources"], None, "a directory, a link or a special file"),
         (["--write-baseline", "Sources/"], None, "give it the path of a file"),
-        (["--write-baseline", "out.json"], None, "is also a --report path"),
         (["--list", "--baseline", BASELINE], {}, "--list checks nothing; drop --baseline"),
         (["--list", "--write-baseline", "b.json"], None, "--list checks nothing; drop it"),
     ],
@@ -558,6 +557,61 @@ def test_a_baseline_that_cannot_be_used_is_exit_2_before_any_request(
     if report:
         assert not stale.exists()
     assert not (repo / "b.json").exists()
+
+
+_WIRE = {"event_type": "screen", "name": "home", "fields": {}, "properties": None, "complete": True}
+
+
+@pytest.mark.parametrize(
+    "key",
+    [
+        [],
+        ["log", _WIRE, True, [], []],
+        ["log", {**_WIRE, "complete": "yes"}, True, [], [], []],
+        ["log", {"name": "home"}, True, [], [], []],
+        ["log", _WIRE, 1, [], [], []],
+        ["log", _WIRE, True, [7], [], []],
+        ["log", _WIRE, True, [], [["unknown_field"]], []],
+        ["log", _WIRE, True, [], [], [["unknown_field", ""]]],
+    ],
+)
+def test_a_key_not_in_the_shape_tripl_writes_is_exit_2(
+    repo: Path,
+    tripl_api: FakeInstance,
+    configured_env: None,
+    capsys: pytest.CaptureFixture[str],
+    key: Any,
+) -> None:
+    # Such a key matches no finding, so a prune would drop it without a word.
+    entry = {"key": key, "code": "unknown_field", "field": None, "severity": "error", "count": 1}
+    _baseline_file(repo, entries=[entry])
+    before = (repo / BASELINE).read_bytes()
+    assert main(["check", "--baseline", BASELINE, "--prune-baseline"]) == 2
+    assert "entry 1: key must be the list tripl wrote" in capsys.readouterr().err
+    assert len(tripl_api.router.calls) == 0
+    assert (repo / BASELINE).read_bytes() == before
+
+
+def test_the_key_tripl_writes_is_well_formed() -> None:
+    assert baseline_mod._well_formed(json.loads(baseline_key(_item())))
+
+
+@pytest.mark.parametrize("flag", ["--baseline", "--write-baseline"])
+def test_a_baseline_that_is_also_a_report_path_is_refused_and_left_as_it_was(
+    repo: Path,
+    tripl_api: FakeInstance,
+    configured_env: None,
+    capsys: pytest.CaptureFixture[str],
+    flag: str,
+) -> None:
+    # Read or written: a report would be written over it, and a failed run
+    # removes its report paths, which must not take the baseline with them.
+    _baseline_file(repo)
+    before = (repo / BASELINE).read_bytes()
+    assert main(["check", flag, BASELINE, "--report", f"json=./{BASELINE}"]) == 2
+    assert "is also a --report path" in capsys.readouterr().err
+    assert len(tripl_api.router.calls) == 0
+    assert (repo / BASELINE).read_bytes() == before
 
 
 # --- with a gate -----------------------------------------------------------------------------

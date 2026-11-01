@@ -398,10 +398,19 @@ def abandon(args: argparse.Namespace) -> None:
     Called on every run that cannot finish: by ``run`` when the check fails,
     and by ``cli.main`` when the connection settings do not resolve, before
     ``run`` starts. A spec without ``FORMAT=`` names no path, so a mistyped
-    ``--report src/app.ts`` never touches a source file.
+    ``--report src/app.ts`` never touches a source file, and a report path that
+    is also the baseline is left alone: the run refuses that pairing, and the
+    committed baseline must not be what it removes.
     """
+    kept = {
+        Path(raw).resolve()
+        for raw in (getattr(args, "baseline", None), getattr(args, "write_baseline", None))
+        if raw
+    }
     named = (spec.partition("=")[2] for spec in args.reports or ())
-    _discard(Path(raw) for raw in named if raw and _names_a_file(raw))
+    _discard(
+        Path(raw) for raw in named if raw and _names_a_file(raw) and Path(raw).resolve() not in kept
+    )
 
 
 def run(args: argparse.Namespace, config: Config) -> int:
@@ -594,14 +603,14 @@ def _baseline_refusal(args: argparse.Namespace, targets: Sequence[tuple[str, Pat
             f"--write-baseline records every finding of the run, and {gate} only decides "
             f"which of them fail it; drop {gate}."
         )
-    flag, path = (
-        ("--write-baseline", write)
-        if write is not None
-        else ("--baseline", args.baseline)
-        if args.prune_baseline
-        else (None, None)
-    )
-    if flag is None or path is None:
+    flag, path = ("--write-baseline", write) if write is not None else ("--baseline", args.baseline)
+    if path is None:
+        return None
+    # Read or written, the baseline is never a report path too: a report
+    # written over it, or removed by a run that fails, would take it with it.
+    if any(Path(path).resolve() == report.resolve() for _, report in targets):
+        return f"{flag} {path} is also a --report path; each needs its own file."
+    if write is None and not args.prune_baseline:
         return None
     if not _names_a_file(path):
         return f"{flag} {path!r}: give it the path of a file."
@@ -610,8 +619,6 @@ def _baseline_refusal(args: argparse.Namespace, targets: Sequence[tuple[str, Pat
         # Written through a temporary file and a rename, as a report is: a
         # link would be replaced, not written through.
         return f"{flag} {path}: a directory, a link or a special file; give it a regular file."
-    if any(target.resolve() == report.resolve() for _, report in targets):
-        return f"{flag} {path} is also a --report path; each needs its own file."
     return None
 
 

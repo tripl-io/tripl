@@ -220,7 +220,7 @@ def _entry(value: Any, path: str, number: int) -> Entry:
         raise TriplConfigError(f"{where} is not a JSON object.")
     key, code, field = value.get("key"), value.get("code"), value.get("field")
     severity, count, example = value.get("severity"), value.get("count"), value.get("example", "")
-    if not isinstance(key, list):
+    if not _well_formed(key):
         raise TriplConfigError(f"{where}: key must be the list tripl wrote.")
     if not isinstance(code, str) or not code:
         raise TriplConfigError(f"{where}: code must be a finding code.")
@@ -235,6 +235,41 @@ def _entry(value: Any, path: str, number: int) -> Entry:
     # The key as item_key prints it, so the two compare as strings.
     canonical = json.dumps(key, sort_keys=True, ensure_ascii=False, default=str)
     return Entry(canonical, code, field, str(severity), count, example)
+
+
+_WIRE = frozenset({"event_type", "name", "fields", "properties", "complete"})
+
+
+def _well_formed(key: Any) -> bool:
+    """Whether ``key`` has the shape ``baseline_key`` writes (``gate.item_key``, no markers).
+
+    ``[callee, wire, sendable, dynamic, notes, []]``. Anything else could
+    never match a finding, so a prune would drop it without a word: a hand
+    edit that broke the file is refused instead.
+    """
+    if not isinstance(key, list) or len(key) != 6:
+        return False
+    callee, wire, sendable, dynamic, notes, waived = key
+    return (
+        isinstance(callee, str)
+        and isinstance(wire, dict)
+        and set(wire) == _WIRE
+        and all(isinstance(wire[name], str | None) for name in ("event_type", "name"))
+        and isinstance(wire["fields"], dict)
+        and isinstance(wire["properties"], dict | None)
+        and isinstance(wire["complete"], bool)
+        and isinstance(sendable, bool)
+        and isinstance(dynamic, list)
+        and all(isinstance(target, str) for target in dynamic)
+        and isinstance(notes, list)
+        and all(
+            isinstance(note, list)
+            and len(note) == 2
+            and all(isinstance(part, str) for part in note)
+            for note in notes
+        )
+        and waived == []
+    )
 
 
 # --- matching ------------------------------------------------------------------------
