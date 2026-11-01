@@ -15,6 +15,12 @@ what the change brought in and what fails the run; the rest is counted on the
 ``Gate:`` line, and a marker problem is listed only in a file the change
 touched. SARIF keeps every result, each with ``properties.inChange``, and
 carries the gate in the run's properties.
+
+Under a baseline (``--baseline``, ``--write-baseline``) a result the baseline
+holds every listed finding of, and that does not fail the run, is counted on
+the ``Baseline:`` line instead of listed; a listed finding the baseline holds
+says so. SARIF marks each result ``properties.baselined`` and carries the
+baseline in the run's properties.
 """
 
 from __future__ import annotations
@@ -25,6 +31,7 @@ from typing import Any
 from urllib.parse import quote
 
 from tripl_cli import __version__
+from tripl_cli.check.baseline import baseline_document
 from tripl_cli.check.fingerprint import (
     FINGERPRINT_KEY,
     finding_fingerprints,
@@ -32,6 +39,8 @@ from tripl_cli.check.fingerprint import (
 )
 from tripl_cli.check.gate import gate_document
 from tripl_cli.check.model import (
+    BASELINE_PRUNE,
+    BASELINE_WRITE,
     CODE_INVALID_SUPPRESSION,
     CODE_UNUSED_SUPPRESSION,
     GATE_REV,
@@ -128,10 +137,13 @@ def render_text(report: CheckReport) -> str:
     A suppressed finding is counted, not listed, and so is a result once every
     finding that would list it is suppressed (unless it still fails the run).
     Under a gate, so is a result the change did not bring in that does not
-    fail the run: the ``Gate:`` line counts those by status.
+    fail the run: the ``Gate:`` line counts those by status. Under a baseline,
+    so is one that does not fail the run and whose listed findings the
+    baseline all holds: the ``Baseline:`` line counts those.
     """
     lines: list[str] = []
     held: dict[str, int] = {STATUS_ERROR: 0, STATUS_WARNING: 0}
+    known: dict[str, int] = {STATUS_ERROR: 0, STATUS_WARNING: 0}
     for result in report.results:
         if result.status == STATUS_OK:
             continue
@@ -147,13 +159,18 @@ def render_text(report: CheckReport) -> str:
                 # The verdict of what is left on show, not of what was waived.
                 errors = any(finding.severity == SEVERITY_ERROR for finding in listed)
                 status = STATUS_ERROR if errors else STATUS_WARNING
+        bucket = STATUS_ERROR if status == STATUS_ERROR else STATUS_WARNING
         if report.gate is not None and result.in_change is False and not report.fails(result):
-            held[STATUS_ERROR if status == STATUS_ERROR else STATUS_WARNING] += 1
+            held[bucket] += 1
+            continue
+        if report.baseline is not None and _held(result, report):
+            known[bucket] += 1
             continue
         lines.append(f"{location(result.item.origin)}  {status}  {describe(result)}")
         for finding in shown:
             field = f" [{finding.field}]" if finding.field else ""
-            lines.append(f"    {finding.severity}  {finding.code}{field}: {finding.message}")
+            mark = " (in the baseline)" if finding.baselined else ""
+            lines.append(f"    {finding.severity}  {finding.code}{field}: {finding.message}{mark}")
     counts = summary(report.results)
     what = "call site" if report.mode == MODE_STATIC else "event"
     scope = f" in {plural(report.files_scanned, 'file')}" if report.mode == MODE_STATIC else ""
@@ -172,6 +189,8 @@ def render_text(report: CheckReport) -> str:
     lines.append(tally + ".")
     if report.gate is not None:
         lines.extend(gate_lines(report, held))
+    if report.baseline is not None:
+        lines.extend(baseline_lines(report, known))
     lines.extend(_marker_lines(report))
     if report.skipped:
         lines.append(render_skipped(report.skipped))
@@ -227,6 +246,61 @@ def gate_lines(report: CheckReport, held: dict[str, int]) -> list[str]:
         lines.append(
             f"Gate: the diff cannot rebuild {_first(gate.unreconstructable)} as it was, so "
             "every call there counts as changed."
+        )
+    return lines
+
+
+def _held(result: CheckResult, report: CheckReport) -> bool:
+    """Whether the baseline holds ``result``: it passes, and the baseline holds what lists it."""
+    if report.fails(result):
+        return False
+    listed = [
+        finding
+        for finding in result.findings
+        if finding.suppression is None and _listed(finding, report.strict)
+    ]
+    return bool(listed) and all(finding.baselined for finding in listed)
+
+
+def baseline_lines(report: CheckReport, known: dict[str, int]) -> list[str]:
+    """The ``Baseline:`` lines: the file, what fails, what it holds, what it no longer sees.
+
+    ``known`` counts the results the baseline left out of the listing, by status.
+    """
+    baseline = report.baseline
+    assert baseline is not None
+    what = "call site" if report.mode == MODE_STATIC else "event"
+    failing = sum(1 for result in report.results if report.fails(result))
+    held = f"{plural(baseline.findings, 'finding')} in {plural(baseline.entries, 'entry')}"
+    if baseline.action == BASELINE_WRITE:
+        text = f"Baseline: wrote {baseline.path} ({held})."
+    else:
+        text = f"Baseline: {baseline.path} ({held})."
+    text += f" {plural(failing, what)} {'fails' if failing == 1 else 'fail'} the run"
+    kept = [
+        plural(known[status], noun)
+        for status, noun in ((STATUS_ERROR, "error"), (STATUS_WARNING, "warning"))
+        if known[status]
+    ]
+    if kept:
+        verb = "is" if sum(known.values()) == 1 else "are"
+        text += f"; {' and '.join(kept)} {verb} in the baseline"
+    lines = [text + "."]
+    if baseline.action == BASELINE_PRUNE:
+        if baseline.not_pruned is not None:
+            lines.append(f"Baseline: {baseline.path} not pruned: {baseline.not_pruned}.")
+        elif baseline.pruned:
+            lines.append(
+                f"Baseline: pruned {plural(baseline.pruned, 'finding')} this run no longer "
+                f"has from {baseline.path}."
+            )
+        else:
+            lines.append(f"Baseline: nothing to prune in {baseline.path}.")
+    if baseline.stale and not (baseline.action == BASELINE_PRUNE and baseline.not_pruned is None):
+        were = "was" if baseline.stale == 1 else "were"
+        lines.append(
+            f"Baseline: {plural(baseline.stale, 'finding')} it holds {were} not seen in this "
+            f"run; --prune-baseline drops {'it' if baseline.stale == 1 else 'them'}."
         )
     return lines
 
@@ -347,6 +421,9 @@ def sarif_document(report: CheckReport, *, root: Path | None) -> JsonDict:
     gate = gate_document(report)
     if gate is not None:
         run["properties"]["gate"] = gate
+    baseline = baseline_document(report)
+    if baseline is not None:
+        run["properties"]["baseline"] = baseline
     if root is not None and report.mode == MODE_STATIC:
         run["originalUriBaseIds"] = {SARIF_ROOT_BASE: {"uri": root.resolve().as_uri() + "/"}}
     return {"$schema": SARIF_SCHEMA, "version": SARIF_VERSION, "runs": [run]}
@@ -410,6 +487,10 @@ def _sarif_result(
         sarif["properties"]["inChange"] = bool(finding.in_change)
         if finding.cause is not None:
             sarif["properties"]["cause"] = finding.cause
+    if report.baseline is not None:
+        # Whether the baseline file holds the finding; again never
+        # baselineState, which compares with a previous run's log.
+        sarif["properties"]["baselined"] = bool(finding.baselined)
     waived = finding.suppression
     if waived is not None:
         # SARIF's own way to say "reviewed and accepted": a viewer shows the

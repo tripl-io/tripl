@@ -14,10 +14,13 @@ from pathlib import Path
 import pytest
 
 from tripl_cli.check import inventory as inventory_module
+from tripl_cli.check.baseline import Entry, baseline_key, match
 from tripl_cli.check.gate import apply_gate
 from tripl_cli.check.model import (
+    BASELINE_CHECK,
     GATE_REV,
     MODE_STATIC,
+    BaselineInfo,
     CheckFinding,
     CheckItem,
     CheckReport,
@@ -771,5 +774,65 @@ def test_check_text_sample_with_a_gate() -> None:
         "Unused suppression: app/src/Checkout.kt:3 tripl-check-ignore[unknown_event] "
         "matched no finding.\n"
         "Suppressions outside this change: 1 ignored (listed in --json and SARIF)."
+    )
+    assert report.exit_code == 1
+
+
+def test_check_text_sample_with_a_baseline() -> None:
+    """Under a baseline the listing shows what it does not hold; the rest is counted."""
+
+    def result(path: str, line: int, name: str, status: str = "error") -> CheckResult:
+        item = CheckItem(
+            origin=Origin(path, line, 9, line, 40, "analytics.track"),
+            event_type="event",
+            name=name,
+            fields={},
+            properties=None,
+            complete=False,
+        )
+        code = "unknown_event" if status == "error" else "unknown_field"
+        finding = CheckFinding(code, status, f"no event '{name}' in the plan")
+        return CheckResult(item=item, status=status, findings=(finding,))
+
+    results = (
+        result("app/src/Checkout.kt", 42, "checkout_startd"),
+        result("app/src/Home.kt", 7, "home_shown"),
+        result("app/src/Home.kt", 9, "home_left", "warning"),
+    )
+    entries = (
+        Entry(baseline_key(results[1].item), "unknown_event", None, "error", 1),
+        Entry(baseline_key(results[2].item), "unknown_field", None, "warning", 1),
+        Entry(baseline_key(results[0].item), "unknown_field", None, "warning", 3),
+    )
+    matching = match(results, entries)
+    report = CheckReport(
+        run=Run(
+            instance=Instance("http://tripl.test", "$TRIPL_BASE_URL", "$TRIPL_API_KEY", "prod"),
+            generated_at=_SEEN,
+            duration_ms=10,
+            requests=1,
+        ),
+        project="prod",
+        mode=MODE_STATIC,
+        strict=False,
+        results=matching.results,
+        files_scanned=2,
+        baseline=BaselineInfo(
+            path=".tripl/check-baseline.json",
+            action=BASELINE_CHECK,
+            entries=3,
+            findings=5,
+            stale=matching.stale(entries),
+        ),
+    )
+    assert render_text(report) == (
+        "app/src/Checkout.kt:42:9  error  event  checkout_startd\n"
+        "    error  unknown_event: no event 'checkout_startd' in the plan\n"
+        "\n"
+        "3 call sites in 2 files: 0 ok, 1 warning, 2 errors.\n"
+        "Baseline: .tripl/check-baseline.json (5 findings in 3 entries). "
+        "1 call site fails the run; 1 error and 1 warning are in the baseline.\n"
+        "Baseline: 3 findings it holds were not seen in this run; "
+        "--prune-baseline drops them."
     )
     assert report.exit_code == 1

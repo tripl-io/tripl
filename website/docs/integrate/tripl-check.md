@@ -645,7 +645,7 @@ as untouched, and a `Gate:` line (and the JSON `gate`) says so.
 - `no_verdict` fails the run whatever the gate says: nothing was decided.
 - `--new-from-rev` and `--new-from-patch` are mutually exclusive, and both
   are refused with `--list` and `--payloads` (a captured event has no source
-  to compare).
+  to compare; a [baseline](#baseline) gates those).
 
 **Known limits.** The gate reads the change from git's diff, so what git
 leaves out of the diff it does not see:
@@ -667,6 +667,144 @@ running as another uid). The CLI never works around that last one: the
 message names the command that marks the checkout safe,
 `git config --global --add safe.directory "<dir>"`, or run the container as the
 checkout's owner (`docker run -u "$(id -u):$(id -g)" …`).
+
+## Baseline {#baseline}
+
+The [gate](#new-findings) needs a diff base, and some runs have none: a
+pipeline on the default branch, a nightly schedule (the plan changes in
+tripl, not in git, so a call nobody touched can turn into an error
+overnight), and `--payloads` (captured events have no source to diff). A
+baseline is a file you commit that lists the findings the repository already
+has. With `--baseline FILE`, only the findings the file does not hold fail
+the run:
+
+```bash
+tripl check --write-baseline .tripl/check-baseline.json   # once: record what is there today
+git add .tripl/check-baseline.json && git commit -m "chore: tripl check baseline"
+tripl check --baseline .tripl/check-baseline.json         # in CI: fail only on what is not in it
+```
+
+**Which one to use.**
+
+- A [marker](#suppress) is for one call that is wrong on purpose, with a
+  reason, for good.
+- The [gate](#new-findings) is for a merge request: what the change brought
+  in fails, whatever the repository had before.
+- A baseline is for the legacy findings a repository adopts `tripl check`
+  with, on the runs the gate cannot cover: the default branch, a schedule,
+  `--payloads`. It should shrink over time, and never grow by itself.
+
+**What it holds.** An entry is a finding without its place: the call it is
+on, by what the call sends, the same key the gate compares (callee, event
+type, name, field values, what was only known at runtime; never the line or
+the file), plus the finding's code and field, the most severe severity seen
+and how many there were. So:
+
+- a call moved to another line or file, or reformatted, stays in the
+  baseline;
+- a copy of a baselined call pasted anywhere is new once there are more of
+  them than the entry's count;
+- an edited call is new: it sends something else;
+- a finding more severe than its entry (a warning that became an error) is
+  new;
+- a finding a [marker](#suppress) suppresses is not written and takes up no
+  count, and `no_verdict` is never baselined: nothing was decided about the
+  call.
+
+**Captured events** (`--payloads`) are baselined differently, because what
+varies between two captures is runtime data, not code:
+
+- An event is keyed on its `event_type`, `name` and `fields` as they are, and
+  on the **names** of its `properties`, never their values: the same event
+  captured again with another timestamp or session ID stays in the baseline,
+  while a property added or removed makes it new.
+- An entry is matched by **presence**, not by count: how many times a test
+  run fired an event is not compared, so an entry holds every finding of its
+  event, code and field. Its `count` is what was seen when the file was
+  written, for a reader only. `--prune-baseline` drops an entry this run did
+  not see at all, and never lowers a count.
+
+`--write-baseline FILE` runs the check as usual, writes every finding that
+fails it to `FILE` (an error, or anything with `--strict`; a suppressed one
+and `no_verdict` aside), replacing what was there, and exits 0 unless an
+item got no verdict. Write it with the same `--strict` as the check that
+reads it. The file is JSON, written to diff cleanly in review: no timestamp,
+entries sorted, one key per line, and the same findings always give the same
+bytes. Each entry has an `example`, the item and one place it was at when the
+file was written, for a reader; it is never compared:
+
+```json
+{
+  "version": 1,
+  "fingerprint_key": "triplCheck/v2",
+  "project": "demo",
+  "mode": "static",
+  "cli_version": "1.4.0",
+  "entries": [
+    {
+      "code": "unknown_event",
+      "field": null,
+      "severity": "error",
+      "count": 2,
+      "example": "legacy trial_ended at Sources/Paywall.swift:41",
+      "key": ["logEvent", {"complete": false, "event_type": "legacy", "fields": {}, "name": "trial_ended", "properties": null}, true, [], [], []]
+    }
+  ]
+}
+```
+
+A `--baseline` file that is missing, is not valid JSON, has another
+`version` or `fingerprint_key` (written by a tripl that keys findings
+differently), or was written for another project or mode (static or
+`--payloads`) stops the run with exit 2 before any request, and any
+`--report` file an earlier run left is removed: a file the CLI cannot use
+must never read as one that holds nothing, or as one that holds everything.
+
+**What it changes.** The exit code, the text listing (a call whose listed
+findings the baseline all holds, and that does not fail the run, is counted
+on a `Baseline:` line instead of listed; a listed finding the baseline holds
+ends in `(in the baseline)`), and the baseline fields of [JSON](#output) and
+SARIF. Code Quality and JUnit read the same with a baseline and without, as
+with a gate. The line says what the file held, what fails and what the
+baseline kept out of the listing:
+
+```
+Baseline: .tripl/check-baseline.json (57 findings in 41 entries). 1 call site fails the run; 38 errors and 4 warnings are in the baseline.
+Baseline: 3 findings it holds were not seen in this run; --prune-baseline drops them.
+```
+
+**With a gate.** `--baseline` combines with `--new-from-rev` and
+`--new-from-patch`: a finding fails only when it is new in the change **and**
+not in the baseline. When there are more copies of a call than the entry's
+count, the copies the change did not bring in take up the count first, so a
+pasted copy is the one that fails. `--write-baseline` is refused with a gate
+flag (exit 2): it records the whole run.
+
+**Shrink it.** An entry no finding of this run matched is stale: the call
+was fixed, deleted or changed. Stale findings never fail a run; the
+`Baseline:` line and JSON's `baseline.stale` count them.
+`--baseline FILE --prune-baseline` rewrites `FILE` without them, lowering an
+entry's count (and its severity to the worst still seen) or dropping it,
+and never adds one: a new finding still fails the run, and stays out of the
+file. Nothing is written when nothing changed, nor when the run could not see
+everything, because what it did not see would be dropped: the instance was
+unavailable (exit 4), nothing was checked, a configured file was not read, or
+an item got no verdict (`Baseline: … not pruned: …`). Run the prune by hand,
+or in a separate maintenance job that commits the result through a merge
+request, never in the check job itself: a gate that rewrites its own baseline
+gates nothing.
+
+- `--prune-baseline` needs `--baseline`, and `--write-baseline` is refused with
+  `--baseline` or `--prune-baseline`. None of the three works with `--list`.
+- A path to write that is a directory, a link, a special file or a
+  `--report` path is refused (exit 2). The file is written through a
+  temporary file, after the reports and before anything is printed, so a
+  reader never sees half of it, and a report that cannot be written leaves it
+  as it was.
+- One baseline per project and mode: keep a separate file for `--payloads`.
+- Writing the file with a newer tripl may change `cli_version` only; a tripl
+  whose keys changed refuses an old file and asks for a new
+  `--write-baseline`.
 
 ## Static and payload modes {#modes}
 
@@ -933,7 +1071,9 @@ with `suppressions: [{"kind": "inSource", "status": "accepted",
 "justification": <reason>, "location": <the marker>}]`, which code scanning
 shows as dismissed. A marker that suppresses nothing is a result of its own,
 rule `invalid_suppression` at `level: "warning"`, and an unused one rule
-`unused_suppression` at `level: "note"`, both at the marker's line.
+`unused_suppression` at `level: "note"`, both at the marker's line. With a
+[baseline](#baseline), each result carries `properties.baselined` and the run
+`properties.baseline`; SARIF's own `baselineState` is never set.
 
 **Code Quality.** One issue per finding. `check_name` is `tripl/` and the code
 (`tripl/unknown_event`); `severity` is `major` for an error, `minor` for a
@@ -950,7 +1090,7 @@ and callee) and never after its line, so it keeps its history in the CI system
 when code above it moves; identical calls in one file are numbered (`#2`). Its
 class is the file. It fails exactly when its call fails the run without a
 [gate](#new-findings): an error, or a warning with `--strict`. It ignores the
-gate, as Code Quality does. A call where nothing was readable is skipped, and with
+gate and the [baseline](#baseline), as Code Quality does. A call where nothing was readable is skipped, and with
 `--strict` it is a warning, so it fails. A warning without `--strict` passes,
 with its findings as the case's output. A [suppressed](#suppress) finding fails
 no case: it is listed in the case's output tagged `[suppressed: <reason>]`.
@@ -980,7 +1120,10 @@ gains `suppressed` and `failing`, and `suppressions` lists every marker. With
 no marker in the scanned files, none of these keys is present. Under a
 [gate](#new-findings), and only then, `gate` says what was compared, every row
 and finding gains `in_change` and `fails`, a finding `cause`, and `exit_code`
-is the gated one. See the [`check` document](../run/cli.md#check-document).
+is the gated one. With a [baseline](#baseline), and only then, `baseline`
+says what the file held and this run matched, every row gains `fails` and
+every finding `baselined` and `fails`. See the
+[`check` document](../run/cli.md#check-document).
 
 **A run that could not finish writes no report**: a configuration or usage
 error (exit 2), an instance that refused a request (exit 1) or was unavailable
@@ -1001,9 +1144,9 @@ Human text and progress messages go to stderr when stdout carries `json`,
 
 | Code | Meaning |
 |------|---------|
-| **0** | No errors, or only errors a `tripl-check-ignore` marker [suppresses](#suppress) or, under a [gate](#new-findings), that are not new in the change. Warnings are allowed unless you pass `--strict`. |
-| **1** | At least one error, or at least one warning with `--strict`, that no `tripl-check-ignore` marker suppresses and that, under a gate, is new in the change. A malformed or unused marker never fails the run on its own. Also: the instance refused a request (an invalid or expired key, a project the key cannot see, a redirect). Then no document or report is written. |
-| **2** | A config or usage error: no config file in static mode, invalid YAML, an unknown key or preset, a call without exactly one of `function` / `pattern` / `objc_selector`, a configuration that matches no call, a `--payloads` file that is not valid JSON, holds no events or holds an event with neither `event_type` nor `name`, no project, `--json` together with another `--format`, a `--report` that is not `FORMAT=PATH`, names one file twice or names a directory, a link or a special file, or a `--branch` that matches nothing. Under a [gate](#new-findings): a gate flag with `--list` or `--payloads`, a `REF` that starts with `-`, no git, not a git checkout, a commit that is not in the clone, a repository git refuses as owned by another user, a git call over 60 seconds, or a patch that cannot be read, holds no diff or is not in git's format; all before any request. |
+| **0** | No errors, or only errors a `tripl-check-ignore` marker [suppresses](#suppress), or, under a [gate](#new-findings), that are not new in the change, or, with a [baseline](#baseline), that the baseline holds. Warnings are allowed unless you pass `--strict`. `--write-baseline` exits 0 once it wrote the file, unless an item got no verdict. |
+| **1** | At least one error, or at least one warning with `--strict`, that no `tripl-check-ignore` marker suppresses and that, under a gate, is new in the change and, with a baseline, is not in it. A malformed or unused marker never fails the run on its own. Also: the instance refused a request (an invalid or expired key, a project the key cannot see, a redirect). Then no document or report is written. |
+| **2** | A config or usage error: no config file in static mode, invalid YAML, an unknown key or preset, a call without exactly one of `function` / `pattern` / `objc_selector`, a configuration that matches no call, a `--payloads` file that is not valid JSON, holds no events or holds an event with neither `event_type` nor `name`, no project, `--json` together with another `--format`, a `--report` that is not `FORMAT=PATH`, names one file twice or names a directory, a link or a special file, or a `--branch` that matches nothing. Under a [gate](#new-findings): a gate flag with `--list` or `--payloads`, a `REF` that starts with `-`, no git, not a git checkout, a commit that is not in the clone, a repository git refuses as owned by another user, a git call over 60 seconds, or a patch that cannot be read, holds no diff or is not in git's format; all before any request. With a [baseline](#baseline): a `--baseline` file that is missing, not valid JSON or not a baseline, of another version, `fingerprint_key`, project or mode; `--baseline` with `--write-baseline`, `--write-baseline` with a gate flag or `--prune-baseline`, `--prune-baseline` without `--baseline`, any of them with `--list`, or a file to write that is a directory, a link, a special file or a `--report` path; all before any request. |
 | **4** | The instance was unavailable: it could not be reached, the request timed out, or it answered `429` or a `5xx`. Nothing was checked, and no document or report is written. Let it pass in CI when an outage of tripl should not block merges. |
 
 A configuration that matches no call checks nothing, and a CI check must not
@@ -1047,6 +1190,9 @@ the check block merges. In short:
 - To fail a merge request only on what it adds, [gate](#new-findings) the run
   on its base commit with `--new-from-rev`; the how-to has the line for each
   CI.
+- To gate the default branch and a scheduled run too, where there is no diff
+  base, commit a [baseline](#baseline) and pass
+  `--baseline .tripl/check-baseline.json`.
 - To check against a plan branch named after the merge request's branch, add
   `${CI_MERGE_REQUEST_SOURCE_BRANCH_NAME:+--branch "$CI_MERGE_REQUEST_SOURCE_BRANCH_NAME"}`
   (GitLab; it adds nothing outside a merge request pipeline), or set
